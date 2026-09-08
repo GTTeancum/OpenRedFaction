@@ -3,6 +3,23 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#include <float.h>
+
+int rf_model_choose_local_light(const float position[3],const rf_model_local_light *lights,uint32_t count,rf_model_light_choice *choice)
+{
+    rf_model_light_choice next={-1,{0,0,0},FLT_MAX};uint32_t i,j;
+    if(!position || !choice || (!lights && count) || count>INT32_MAX)return RF_RANGE;
+    for(i=0;i<count;++i)if(lights[i].enabled) {
+        float delta[3],distance;double squared;
+        for(j=0;j<3;++j)delta[j]=lights[i].position[j]-position[j];
+        squared=(double)delta[0]*delta[0]+(double)delta[1]*delta[1]+(double)delta[2]*delta[2];distance=(float)squared;
+        /* x87 radius comparison accepts unordered; nearest comparison does not. */
+        if(!(squared>lights[i].radius_squared) && distance<next.distance_squared) {
+            next.index=(int32_t)i;memcpy(next.delta,delta,sizeof(delta));next.distance_squared=distance;
+        }
+    }
+    *choice=next;return RF_OK;
+}
 
 int rf_model_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],uint8_t rgb[3])
 {

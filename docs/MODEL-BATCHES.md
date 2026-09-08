@@ -1,5 +1,22 @@
 # Model batch data
 
+`rf_model_choose_local_light` recovers the selection block
+`0x52dcaf..0x52dd48` within light setup `0x52dad0`. It scans enabled candidates,
+forms light-position minus model-position and selects the nearest candidate
+inside its squared radius, keeping the first on equal distances. The original
+compares an extended squared distance with radius, then its float-stored value
+with the current best. NaN radius passes the first x87 comparison, while NaN
+distance cannot win the nearest comparison. No candidate returns index -1,
+zero delta and FLT_MAX distance. The port adds pointer/count bounds checks.
+
+`tools/verify_model_light_choice.py` matches 2,000 unchanged original selection
+executions and complete vector callees, including ties, exact-radius cases,
+disabled lights and NaN radii; 1,655 fixtures select a light. PC build, CTest
+and NXDK build pass. Global disable gates, direction normalization/rotation,
+attenuation and the two fixed directional lights are not yet integrated.
+The original setup takes ambient RGB from globals, constructs two fixed
+directions and uses the selected local light as its third contribution.
+
 `rf_model_vertex_lighting` reconstructs complete helper `0x52fcf0`. It takes
 the supplied vector's dot product with three light directions, clamps negative
 and unordered dot products to zero, and combines their RGB contributions with

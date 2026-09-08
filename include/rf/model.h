@@ -95,6 +95,11 @@ int rf_model_render_vertex_pair(const float position[3],const float second[3],
 /* Original 0x52fcf0 lighting: three direction/RGB records and ambient RGB.
  * Vector is supplied as consumed by that helper, with no normalization. */
 int rf_model_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],uint8_t rgb[3]);
+typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
+typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
+/* 0x52dcaf selection block: nearest enabled containing light, first tie wins.
+ * Output index -1 means none. Global disable gate and attenuation are external. */
+int rf_model_choose_local_light(const float position[3],const rf_model_local_light *lights,uint32_t count,rf_model_light_choice *choice);
 /* Tag placement 0x5034f0 after character tag evaluation: rotate then translate.
  * Preserves its separate rounding stages; no extra scale parameter is applied. */
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12]);

@@ -11,6 +11,15 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--choose-light")) {
+        struct { float position[3];rf_model_local_light lights[8]; } data;
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            rf_model_light_choice out;
+            if(rf_model_choose_local_light(data.position,data.lights,8,&out)!=RF_OK)return 2;
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vertex-lighting")) {
         struct { float vector[3],lights[3][6],ambient[3]; } data;
         while(fread(&data,sizeof(data),1,stdin)==1) {

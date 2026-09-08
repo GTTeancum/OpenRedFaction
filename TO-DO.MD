@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Nearest local-light selection now matches 2,000 original executions. Finish
+fixed-light setup, selected-light direction/attenuation and global gates, then
+connect game-derived lighting inputs to model rendering.
+
 The model lighting helper now matches 2,000 complete original executions,
 including non-finite vectors. Connect original light setup and second-stream
 preparation before validating fully lit model rendering.
