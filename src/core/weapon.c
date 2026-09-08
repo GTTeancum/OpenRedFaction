@@ -15,6 +15,40 @@ static int weapon_total(const rf_weapon_inventory *inventory,const rf_weapon_sup
     if (!inventory || weapon<0 || weapon>=64) return RF_RANGE;
     bits=(uint32_t)reserve+(uint32_t)inventory->loaded[weapon]; memcpy(total,&bits,4); return RF_OK;
 }
+int rf_weapon_finish_selection(rf_weapon_selection_state *state,
+    const rf_weapon_selection_input *input,const uint8_t owned[64],
+    const uint32_t flags_264[64],uint32_t weapon_count,
+    const rf_weapon_selection_ops *ops,void *user)
+{
+    int32_t weapon,current; int status,available;
+    if (!state || !input || !owned || !flags_264 || weapon_count>64) return RF_RANGE;
+    weapon=input->requested;
+    if (weapon>=0 && weapon<32 && (input->paired_mask&(UINT32_C(1)<<weapon)) &&
+        weapon==input->paired_first) weapon=input->paired_second;
+    if (state->pending_weapon==weapon) return RF_OK;
+    current=weapon<input->category_split ? input->current_primary : input->current_secondary;
+    if (current==weapon && !(input->force_flag&255)) {
+        if (!(input->player_flags&16)) return RF_OK;
+        if (!ops || !ops->already_selected) return RF_NOT_FOUND;
+        return ops->already_selected(user,weapon);
+    }
+    available=weapon>=0 && weapon<64 && owned[weapon]!=0;
+    if (!available && weapon>=0 && (uint32_t)weapon<weapon_count)
+        available=(flags_264[weapon]&UINT32_C(0x40000))!=0;
+    if (available) {
+        rf_weapon_queue_selection(state,weapon);
+        if (!(input->defer_flag&255)) {
+            if (!ops || !ops->apply_queued) return RF_NOT_FOUND;
+            status=ops->apply_queued(user);
+            if (status!=RF_OK) return status;
+        }
+    }
+    if (input->followup_flag&255) {
+        if (!ops || !ops->followup) return RF_NOT_FOUND;
+        return ops->followup(user);
+    }
+    return RF_OK;
+}
 int rf_weapon_decide_empty(const rf_weapon_inventory *primary,const rf_weapon_inventory *linked,
     const rf_weapon_supply supply[64],const uint32_t flags_264[64],uint32_t weapon_count,
     const int32_t preference[32],const rf_weapon_empty_input *input,rf_weapon_empty_action *action)

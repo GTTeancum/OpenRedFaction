@@ -2,6 +2,35 @@
 
 ## Selection queue
 
+`rf_weapon_finish_selection` reconstructs 0x4a4c91..0x4a4db4 after the earlier
+selection gates. Entity +1428 is a 32-bit mask checked by 0x42a6b0; a requested
+index in [0,31] with its bit set remaps global 0x85ccd8 to 0x85cd00.
+Already-pending requests return immediately. Global 0x87211c splits the
+comparison between inventory +4 and +8 (primary/secondary current weapons).
+An already-current request with a zero force byte returns, with a formatted
+message when player +10 mask 0x10 is set (0x4a68d0).
+
+Otherwise nonzero ownership byte, or the in-count descriptor +264 mask
+0x40000 (0x4c9070), permits queuing. A zero defer byte then calls 0x4aa0b0.
+Finally a nonzero player +f94 byte (0x4ace90) calls 0x4ad8a0, even when ownership
+failed and no request was queued. This byte is read after the apply callback,
+allowing the adapter to refresh it through user data. These callback bodies
+remain unreconstructed; the names describe their positions in the flow.
+
+Missing reached message/apply/followup adapters return RF_NOT_FOUND before
+that operation. Queuing and timer clearing remain committed if the apply
+adapter is missing or fails. Invalid pointers or a descriptor count above 64
+return RF_RANGE before mutation. No original descriptor read occurs for an
+out-of-count index. This tail does not replace the complete 0x4a4a50 routine.
+
+`tools/verify_weapon_selection.py` compares 4,000 original executions with
+unchanged predicate and queue callees, stopping before the three unavailable
+external operations. Results: 2,373 complete, 453 message, 519 apply, 655
+followup boundaries; 819 requests queued and 501 followups without a queue
+mutation. The comparison checks both queue fields and unrelated player bytes.
+It does not validate successful callback bodies or earlier selection gates.
+PC/NXDK builds and PC tests pass; this tail is not yet in the Xbox diagnostic.
+
 `rf_weapon_queue_selection` reconstructs the complete 0x4acd50 routine:
 store the requested signed value in player +f80, then tail-call 0x4fa3e0
 to set the deadline at +b8 to -1. It deliberately preserves all signed

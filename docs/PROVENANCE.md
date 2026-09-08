@@ -281,3 +281,12 @@ comparison covers 640 complete cases; no original code or data is distributed.
 Expanded local Ghidra exports clarify 0x4a4e80 firing behavior and 0x4a4a50
 selection checks. Raw exports remain ignored; these larger routines are not
 claimed as reconstructed by the queue primitive.
+
+Weapon selection tail: `rf_weapon_finish_selection` follows RF.exe 1.20 NA
+SHA256 b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836
+0x4a4c91..0x4a4db4. Predicate evidence includes 0x42a6b0 (entity +1428 bits),
+0x403250 (ownership), 0x4c9070 (descriptor +264 bit 18), 0x4a68d0 (player
++10 bit 4), and 0x4ace90 (player +f94 byte). Local original-code verification
+executes these unchanged and the queue/timer callees, stopping before formatted
+message construction, 0x4aa0b0 and 0x4ad8a0. These adapters and earlier gates
+remain open; no original code/data or generated decompiler output is tracked.

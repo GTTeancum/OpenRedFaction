@@ -11,6 +11,25 @@ typedef struct rf_weapon_selection_state {
  * primitive does not activate a weapon or load its presentation. */
 int rf_weapon_queue_selection(rf_weapon_selection_state *state,int32_t weapon);
 
+typedef struct rf_weapon_selection_input {
+    int32_t requested,paired_first,paired_second,category_split,current_primary,current_secondary;
+    uint32_t paired_mask,player_flags,force_flag,defer_flag,followup_flag;
+} rf_weapon_selection_input;
+typedef struct rf_weapon_selection_ops {
+    int (*already_selected)(void *user,int32_t weapon); /* 4a4cf5 formatted message. */
+    int (*apply_queued)(void *user); /* 4aa0b0; not reconstructed yet. */
+    int (*followup)(void *user); /* 4ad8a0; not reconstructed yet. */
+} rf_weapon_selection_ops;
+/* 4a4c91..4a4db4, after earlier selection gates. Masks are entity +1428 and
+ * player +10; force/defer are caller arguments and followup is player +f94.
+ * Callback code may refresh input through user; followup is read after apply.
+ * Missing reached adapters return RF_NOT_FOUND, retaining a queued request.
+ * This is the selection tail, not the complete 4a4a50 operation. */
+int rf_weapon_finish_selection(rf_weapon_selection_state *state,
+    const rf_weapon_selection_input *input,const uint8_t owned[64],
+    const uint32_t flags_264[64],uint32_t weapon_count,
+    const rf_weapon_selection_ops *ops,void *user);
+
 typedef struct rf_weapon_inventory {
     uint8_t owned[64]; /* Entity +42c. */
     int32_t reserve[32],loaded[64]; /* +2ac and +32c. */

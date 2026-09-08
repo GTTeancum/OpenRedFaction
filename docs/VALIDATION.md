@@ -559,3 +559,12 @@ including full player-view checks for unrelated writes. Win32 Release build,
 all four CTest cases and NXDK build pass. Queue mutation is not connected to
 the runtime diagnostic yet; no new emulator execution or screenshot is claimed
 for this checkpoint. Firing, selection eligibility and activation remain open.
+
+Selection tail checkpoint: `python tools/verify_weapon_selection.py` passes
+4,000 original 0x4a4c91 cases (2,373 complete, 453 message, 519 apply and 655
+followup boundaries). Original predicates and queue/timer callees execute
+unchanged; external adapters are observed before entry, not replaced. Includes
+819 queue mutations and 501 followups without queue mutation. The 640-case
+queue verifier, four CTest cases, Win32 Release and NXDK builds also pass.
+Earlier selection gates and successful external callbacks are not covered.
+No new emulator runtime check or screenshot is claimed for this checkpoint.

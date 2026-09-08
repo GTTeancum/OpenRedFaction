@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The selection tail now matches 4,000 original-code cases through paired
+remapping, duplicate suppression, ownership checks and request queuing.
+Recover the preceding 4a4a50 gates and actual message/apply/followup adapters,
+then connect selection to gameplay and validate it in the Xbox runtime.
+
 The weapon-selection queue mutation now matches 640 complete original-code
 cases and builds for PC/NXDK. Recover selection eligibility and activation,
 current-weapon presentation and firing adapters before connecting the empty
