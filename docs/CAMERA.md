@@ -344,6 +344,30 @@ offset 0, packed quaternion at offset 4, and signed easing bytes at offsets
 then expands the packed result with `0x417e90`. Assembly establishes that
 `0x51a5d0`, called afterward, merely copies four floats; it is not a decoder.
 Raw decompilation of `0x51a000` shows interpolation quantization and a zero-W
-replacement with packed value one; recover its helper calling conventions and
-verify its arithmetic before implementing it. No generic floating-point slerp
-has been substituted for this path.
+replacement with packed value one. The reconstruction and verification of that
+routine are described below; easing and full track evaluation remain open.
+## Packed quaternion interpolation
+
+`rf_motion_interpolate_rotation` reconstructs `0x51a000` for caller-normalized
+blend factors in [0,1]. The original also repeatedly adds/subtracts one outside
+that interval; the shared API rejects those values rather than exposing an
+unbounded loop. Track sampling will supply the normalized, eased blend factor.
+
+The sign choice uses signed 16-bit wrapped differences (`0x51a720`) and sums
+(`0x51a760`), compared through packed dot products (`0x519d50`). Products sum
+with 32-bit wrapping and use the original float scale `3.7257450458128005e-9`.
+The difference norm rounds to float before comparison; the sum norm does not.
+The chosen dot product rounds to float before threshold tests. Near-parallel
+input selects the second quaternion, while the near-opposite branch mixes
+permuted components. Other inputs use spherical weights, preserving the
+original float spills of the angle and reciprocal sine. Components truncate
+toward zero, wrap to signed 16-bit, and replace packed W zero with one.
+
+`tools/verify_motion_interpolation.py` enumerates distinct adjacent key pairs
+and single-key self-pairs from all installed RFA files, adds 1,000 deterministic
+normalized synthetic pairs, and executes unhooked original `0x51a000` at
+blend factors 0, 0.25, 0.5, 0.75 and 1. All 1,288,315 outputs match exactly,
+covering 256,663 distinct installed pairs. This checks packed output on the
+PC build; it does not establish every possible blend factor or Xbox runtime
+math-library equivalence. Both builds and PC boundary/alias tests pass.
+Easing, complete track evaluation and animated skeleton integration remain open.

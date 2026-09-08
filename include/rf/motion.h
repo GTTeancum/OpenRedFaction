@@ -4,6 +4,9 @@
 /* Original 0x417e90: signed packed components scaled without normalization.
  * Input is eight little-endian bytes; output is quaternion x, y, z, w. */
 int rf_motion_decode_rotation(const void *packed, size_t bytes, float out[4]);
+/* Original packed interpolation 0x51a000, with caller-normalized t in [0,1].
+ * Components remain signed 16-bit values, including original wrap and truncation. */
+int rf_motion_interpolate_rotation(const int16_t a[4], const int16_t b[4], float t, int16_t out[4]);
 typedef struct rf_motion_position_key {
     int32_t tick;
     float position[3], incoming[3], outgoing[3];

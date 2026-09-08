@@ -8,6 +8,16 @@ int main(void)
     float out[3]={99,99,99}, sentinel[3]={99,99,99};
     unsigned char packed[8] = {0,0, 0,64, 0,192, 0,128};
     float rotation[4] = {99,99,99,99};
+    int16_t qa[4] = {0,0,0,16383}, qb[4] = {0,0,0,16383};
+    int16_t qr[4] = {99,99,99,99}, qs[4] = {99,99,99,99};
+    CHECK(rf_motion_interpolate_rotation(NULL,qb,0,qr)==RF_RANGE);
+    CHECK(rf_motion_interpolate_rotation(qa,qb,NAN,qr)==RF_RANGE);
+    CHECK(rf_motion_interpolate_rotation(qa,qb,-1,qr)==RF_RANGE);
+    CHECK(rf_motion_interpolate_rotation(qa,qb,2,qr)==RF_RANGE);
+    CHECK(memcmp(qr,qs,sizeof(qr))==0);
+    CHECK(rf_motion_interpolate_rotation(qa,qb,0.5f,qr)==RF_OK);
+    CHECK(rf_motion_interpolate_rotation(qa,qb,0.5f,qa)==RF_OK);
+    CHECK(memcmp(qa,qr,sizeof(qa))==0);
     CHECK(rf_motion_decode_rotation(packed,7,rotation)==RF_RANGE);
     CHECK(rotation[0]==99 && rotation[3]==99);
     CHECK(rf_motion_decode_rotation(NULL,8,rotation)==RF_RANGE);

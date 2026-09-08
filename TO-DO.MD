@@ -15,14 +15,19 @@
 
 ## Current camera evidence
 
+Packed quaternion interpolation now matches 1,288,315 original-code comparisons
+at five blend positions across all 256,663 distinct installed adjacent/single-key
+pairs plus 1,000 synthetic pairs. Recover easing, track sampling and time conversion,
+then integrate motion loading and skeleton evaluation into camera setup.
+
 Packed rotation decoding is reconstructed in shared C, with all 65,536 signed
 component values checked in each of four positions against original instructions.
-Recover the separate eased, requantized quaternion interpolation before using
-rotation tracks in animated poses; the decoder alone does not evaluate a track.
+The decoder and packed interpolation are available; easing and track evaluation
+must be recovered before using rotation tracks in animated poses.
 
 Position-key sampling is reconstructed in shared C with 755 bit-exact original
-comparisons covering stand/crouch and synthetic tracks. Recover compressed
-rotation keys, eased quaternion interpolation, engine-time conversion and full
+comparisons covering stand/crouch and synthetic tracks. Recover eased
+rotation-track sampling, engine-time conversion and full
 motion loading before integrating the camera pose.
 
 Original state initialization confirms stand slot 0 and crouch slot 8; the
