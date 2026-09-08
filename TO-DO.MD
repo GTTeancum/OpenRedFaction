@@ -15,6 +15,12 @@
 
 ## Current camera evidence
 
+The shared raw BONE payload decoder now preserves fields across 95 detected
+installed sections (2,452 bones), with no runtime allocation and validation of
+finite transforms and acyclic parent indices. Finish structural V3C section
+parsing, name processing and original quaternion conversion before pose use;
+the verification tool's signature scanning is only diagnostic discovery.
+
 Player creation now identifies the default `miner1` class, and unhooked original
 filename resolution confirms `miner.vcm` -> `miner.v3c`. The asset audit resolves
 45 of 46 entity-table character references; investigate `edf_ship.vcm` use and

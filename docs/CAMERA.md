@@ -141,3 +141,25 @@ quaternion/position pair at +0x44/+0x54. The helper 0x51c620 composes these pose
 These are runtime fields; evaluation, caching and animation blending still need
 reconstruction. The file reader reaches 0x53b408 for SUBM and 0x51cbe0 for BONE;
 mesh record sizes cannot be inferred solely from the chunk size fields.
+
+## Raw bone payload decoder
+
+`rf_model_decode_bones` in src/core/model.c reads a caller-identified BONE payload:
+little-endian count followed by 56-byte records containing a 24-byte name,
+four binary32 rotation fields, three position fields and a signed parent index.
+Original reader 0x51ca50 consumes those fields through 0x514da0, 0x515070,
+0x514f90 and 0x514e10, converting the rotation through 0x519720 before composing
+the runtime transform. The new decoder deliberately returns raw fields; it does
+not yet implement that conversion or the original name processing at 0x576d48.
+
+The decoder allocates no memory, checks exact payload size and caller capacity,
+and rejects non-finite transforms, out-of-range parents and parent cycles before
+writing output. Parent-chain validation costs O(bones * maximum chain depth).
+It accepts fixed-width 24-byte names and adds a terminator in caller storage.
+The payload and output storage must not overlap.
+
+`tools/verify_bones.py` finds structurally matching BONE signatures in installed
+.v3c files and compares the compiled decoder's serialized fields bit-for-bit:
+95 sections, 2,452 bones pass, including miner's 25 bones. Signature scanning is
+only diagnostic discovery, not the future model loader. Boundary tests exercise
+truncation, capacity, invalid parents, cycles and NaNs with untouched error output.

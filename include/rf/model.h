@@ -15,4 +15,14 @@ typedef struct rf_model_name_group {
  * RF_RANGE invalid arguments or a combined index exceeding signed 32 bits. */
 int rf_model_find_tag(const rf_model_name_group groups[3],
                       rf_model_name query, int32_t *index);
+/* Raw BONE payload fields, before the original quaternion conversion.
+ * Caller locates the section and owns output storage; no allocation is made.
+ * Input/output storage must not overlap. Error returns leave output untouched. */
+typedef struct rf_model_bone {
+    char name[25];
+    float rotation[4], position[3];
+    int32_t parent;
+} rf_model_bone;
+int rf_model_decode_bones(const void *payload, size_t bytes,
+                          rf_model_bone *bones, uint32_t capacity, uint32_t *count);
 #endif

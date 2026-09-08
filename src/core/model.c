@@ -1,5 +1,7 @@
 #include "rf/model.h"
 #include <limits.h>
+#include <math.h>
+#include <string.h>
 
 static int valid_name(rf_model_name name)
 {
@@ -44,4 +46,54 @@ int rf_model_find_tag(const rf_model_name_group groups[3],
         base += groups[g].count;
     }
     return RF_NOT_FOUND;
+}
+
+static uint32_t read_word(const unsigned char *p)
+{
+    return (uint32_t)p[0] | (uint32_t)p[1] << 8 |
+           (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+}
+
+int rf_model_decode_bones(const void *payload, size_t bytes,
+                          rf_model_bone *bones, uint32_t capacity, uint32_t *count)
+{
+    const unsigned char *p = payload;
+    uint32_t total, i, j;
+    if (!p || !count) return RF_RANGE;
+    if (bytes < 4) return RF_FORMAT;
+    total = read_word(p);
+    if (total > INT32_MAX || (bytes - 4) / 56 != total || (bytes - 4) % 56) return RF_FORMAT;
+    if (total > capacity || (total && !bones)) return RF_RANGE;
+    /* Validate the entire payload before modifying caller output. Parent walks
+     * are bounded by total, catching cycles without temporary allocation. */
+    for (i = 0; i < total; ++i) {
+        const unsigned char *record = p + 4 + (size_t)i * 56;
+        uint32_t parent = i, steps = 0;
+        for (j = 0; j < 7; ++j) {
+            uint32_t bits = read_word(record + 24 + j * 4);
+            float value;
+            memcpy(&value, &bits, 4);
+            if (!isfinite(value)) return RF_FORMAT;
+        }
+        while (parent != UINT32_MAX) {
+            if (parent >= total || steps++ >= total) return RF_FORMAT;
+            parent = read_word(p + 4 + (size_t)parent * 56 + 52);
+        }
+    }
+    for (i = 0; i < total; ++i) {
+        const unsigned char *record = p + 4 + (size_t)i * 56;
+        for (j = 0; j < 24; ++j) bones[i].name[j] = (char)record[j];
+        bones[i].name[24] = 0;
+        for (j = 0; j < 7; ++j) {
+            uint32_t bits = read_word(record + 24 + j * 4);
+            float *out = j < 4 ? &bones[i].rotation[j] : &bones[i].position[j - 4];
+            memcpy(out, &bits, 4);
+        }
+        {
+            uint32_t bits = read_word(record + 52);
+            memcpy(&bones[i].parent, &bits, 4);
+        }
+    }
+    *count = total;
+    return RF_OK;
 }
