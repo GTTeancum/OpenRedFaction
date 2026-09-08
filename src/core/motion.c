@@ -1,6 +1,30 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+static int32_t removed_slot_index(int32_t selected, uint32_t removed)
+{
+    if (selected==(int32_t)removed) return -1;
+    return selected>(int32_t)removed ? selected-1 : selected;
+}
+int rf_motion_remove_slot(rf_motion_slot_state *state, int32_t motion, int32_t *references)
+{
+    uint32_t i,index;
+    if (!state || !references || motion<0 || state->count>16) return RF_RANGE;
+    if (*references<0 || state->freeze_slot < -1 || state->primary_slot < -1 || state->dominant_slot < -1 ||
+        state->freeze_slot>=(int32_t)state->count || state->primary_slot>=(int32_t)state->count ||
+        state->dominant_slot>=(int32_t)state->count) return RF_FORMAT;
+    for (i=0;i<state->count;++i) if (state->slots[i].motion<0) return RF_FORMAT;
+    for (index=0;index<state->count && state->slots[index].motion!=motion;++index) {}
+    if (index==state->count) return RF_OK;
+    if (*references>0) --*references;
+    --state->count;
+    for (i=index;i<state->count;++i) state->slots[i]=state->slots[i+1];
+    state->freeze_slot=removed_slot_index(state->freeze_slot,index);
+    state->primary_slot=removed_slot_index(state->primary_slot,index);
+    state->dominant_slot=removed_slot_index(state->dominant_slot,index);
+    return RF_OK;
+}
+
 int rf_motion_map_loop(int32_t start, int32_t end, float phase, int32_t previous,
                        const int32_t markers[2], int wrapped, rf_motion_loop_result *out)
 {

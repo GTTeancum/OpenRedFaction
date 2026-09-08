@@ -1,6 +1,16 @@
 #ifndef RF_MOTION_H
 #define RF_MOTION_H
 #include "rf/vpp.h"
+typedef struct rf_motion_active_slot { int32_t motion, tick; float weight; } rf_motion_active_slot;
+typedef struct rf_motion_slot_state {
+    uint32_t count;
+    rf_motion_active_slot slots[16];
+    int32_t freeze_slot, primary_slot, dominant_slot;
+} rf_motion_slot_state;
+/* Original 0x51c090: remove the first matching motion, compact slots and
+ * repair selected indices. references belongs to that motion; decrement clamps
+ * at zero. Absent motions are successful no-ops. Invalid state is unchanged. */
+int rf_motion_remove_slot(rf_motion_slot_state *state, int32_t motion, int32_t *references);
 /* Update 0x51ba80: truncate elapsed * 30 * 160 with no intermediate float spill.
  * Rejects non-finite input and results outside int32; preserves output on error. */
 int rf_motion_elapsed_ticks(float elapsed, int32_t *out);

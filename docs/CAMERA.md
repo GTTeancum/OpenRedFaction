@@ -649,3 +649,27 @@ dominant active looping slot; the rest of the update routine is outside this
 comparison. PC boundary tests, PC/NXDK builds and all four PC tests pass.
 Non-loop completion, frozen-slot handling, inactive-slot removal and continuous
 playback integration remain open.
+## Active animation-slot removal
+
+`rf_motion_remove_slot` reconstructs original `0x51c090` with a portable
+16-slot state. It removes the first matching motion ID, decrements that motion's
+reference count with a zero floor (`0x539d70`), and shifts later slots left in
+order. It preserves the unused tail just as the original does. Each of the
+freeze, primary and dominant selected indices becomes -1 if it referred to
+the removed slot, or decreases by one if it referred to a later slot. An
+absent motion leaves both state and reference count unchanged.
+
+The caller owns the reference count for the requested motion and must provide
+storage separate from the slot state. This helper does not load or unload
+assets. It validates counts, active motion IDs and selected-index ranges
+before mutation. Slot weight bits and tick cursors are copied without
+reinterpretation; removing a slot does not itself choose a replacement
+primary motion or unfreeze an instance.
+
+`tools/verify_motion_slots.py` executes unhooked original `0x51c090` and
+reference decrement for 2,040 cases spanning counts 0..16, duplicate/absent
+motion IDs, selected-index combinations and zero/nonzero reference counts.
+All stored slot records, count, selected indices and reference count match.
+PC tests cover unchanged state on invalid input; PC/NXDK builds and all four
+PC tests pass. Non-loop completion, frozen-instance state and integration of
+the complete playback update remain open.

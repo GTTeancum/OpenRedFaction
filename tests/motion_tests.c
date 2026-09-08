@@ -5,6 +5,19 @@
 int main(void)
 {
     {
+        rf_motion_slot_state state={0}, saved; int32_t references=2;
+        state.count=2; state.slots[0].motion=3; state.slots[1].motion=7;
+        state.freeze_slot=0; state.primary_slot=1; state.dominant_slot=-1;
+        saved=state;
+        CHECK(rf_motion_remove_slot(&state,99,&references)==RF_OK && references==2);
+        CHECK(memcmp(&state,&saved,sizeof(state))==0);
+        CHECK(rf_motion_remove_slot(&state,3,&references)==RF_OK && references==1);
+        CHECK(state.count==1 && state.slots[0].motion==7 && state.freeze_slot==-1 && state.primary_slot==0);
+        state.primary_slot=1; saved=state;
+        CHECK(rf_motion_remove_slot(&state,7,&references)==RF_FORMAT && references==1);
+        CHECK(memcmp(&state,&saved,sizeof(state))==0);
+    }
+    {
         rf_motion_loop_result result={99,99}; int32_t markers[2]={20,80};
         CHECK(rf_motion_map_loop(0,100,.5f,0,markers,0,&result)==RF_OK && result.tick==50 && result.event_mask==1);
         CHECK(rf_motion_map_loop(0,100,.5f,90,markers,1,&result)==RF_OK && result.event_mask==1);

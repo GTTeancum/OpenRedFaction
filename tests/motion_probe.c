@@ -11,6 +11,16 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--remove-slot") == 0) {
+        struct { rf_motion_slot_state state; int32_t motion,references; } input;
+        int32_t status;
+        _Static_assert(sizeof(rf_motion_slot_state)==208,"Slot state wire layout");
+        while (fread(&input,sizeof(input),1,stdin)==1) {
+            status=rf_motion_remove_slot(&input.state,input.motion,&input.references);
+            if (fwrite(&status,4,1,stdout)!=1 || fwrite(&input,sizeof(input),1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--map-loop") == 0) {
         struct { int32_t start,end; float phase; int32_t previous,markers[2],wrapped; } input;
         struct { int32_t status; rf_motion_loop_result result; } output;

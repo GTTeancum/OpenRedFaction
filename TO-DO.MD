@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Animation-slot removal now matches 2,040 original-code cases, including ordered
+compaction, selected-index repair and reference-count clamping. Integrate this
+with non-loop completion and freeze handling, then connect the playback state
+machine to archive sampling and skeleton evaluation.
+
 Loop phase-to-cursor mapping and two-marker event crossing now match 3,000
 original-code cases, including floor rounding and exact marker boundaries.
 Integrate phase/cursor updates, then recover non-loop completion, frozen slots
