@@ -37,4 +37,21 @@ int rf_turn_apply_selected(rf_turn_effects *effects, rf_motion_playback_state *p
                            rf_motion_playback_resource *resources, uint32_t resource_count,
                            const int32_t actions[45], const int32_t sounds[45],
                            const rf_turn_context *context, float local_x, int32_t *sound_class);
+typedef struct rf_turn_finish_input {
+    float local_x;
+    uint32_t eligible;
+    int32_t weapon, preferred_weapon, behavior; /* +2a4, global 872114, +554. */
+    uint32_t network_mode; /* Byte global 6fc4d8. */
+} rf_turn_finish_input;
+/* Remaining branches 0x41fc84 onward, when the selected-turn branch was not
+ * taken. Eligible directions with both action mappings 17/18 use movement
+ * request zero and candidates 3/5; start a side action only if neither is
+ * active. Otherwise use movement request one and select 2/4 or 3/5 from the
+ * weapon/behavior/global test. Timers and turning flag stay unchanged.
+ * Returned sound requests are caller-owned, as in rf_turn_apply_selected. */
+int rf_turn_finish_candidates(rf_turn_effects *effects, rf_motion_playback_state *playback,
+                              rf_motion_playback_resource *resources, uint32_t resource_count,
+                              const int32_t actions[45], const int32_t sounds[45],
+                              const rf_turn_context *context, const rf_turn_finish_input *input,
+                              int32_t *sound_class);
 #endif

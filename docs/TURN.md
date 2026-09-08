@@ -1,5 +1,28 @@
 # Selected turn effects
 
+## Remaining candidate branches
+
+`rf_turn_finish_candidates` reconstructs 0x41fc84 onward after the selected-turn
+branch has not been taken. An eligible direction with mappings 17 and 18 both
+different from -1 first applies movement request zero and sets candidates 3/5.
+It tests action 18, then action 17 only if needed, through the remaining-time
+predicate. Either active action suppresses restart, including a zero-weight
+slot whose cursor is before the end. Otherwise positive local X starts action
+18 and zero/negative X starts 17, with weight one, freeze zero and sound one.
+Existing turn flags and deadlines are not changed by these branches.
+
+When that branch is unavailable, it applies movement request one. Candidates
+become 2/4 only if entity +2a4 equals global 0x872114, entity +554 equals one,
+and both byte globals 0x6fc4d8 and 0x64ecb9 are zero. Otherwise they are 3/5.
+The two global bytes are kept explicit; their full mode semantics remain open.
+
+`tools/verify_turn_finish.py` compares 4,800 original executions through
+unmodified movement, action-activity, action-start and absent-sound callees.
+All playback fields, resource references, candidates, movement settings,
+deadlines and turn flags match. Evidence: `artifacts/turn-finish-verification.json`.
+Sound classes are -1; valid audio playback is not covered. The preceding reset
+call and the decision that chooses the selected-turn branch remain unrecovered.
+
 ## Direction gate
 
 `rf_turn_direction` reconstructs the direction gate starting at 0x41fa7c.

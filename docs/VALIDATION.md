@@ -379,3 +379,10 @@ executions, including unmodified math callees, eight dot-boundary cases and
 200 length-threshold neighbors. Report: `artifacts/turn-direction-verification.json`.
 Observation hooks stop before later decisions/reset effects. The x87 dot
 comparison fixes an observed double-precision mismatch; see docs/TURN.md.
+# Remaining turn-candidate branches
+
+`python tools/verify_turn_finish.py` matches 4,800 original remaining-branch
+executions and unmodified movement/action/absent-sound callees. Complete
+playback/reference state, effects and candidates are compared. Report:
+`artifacts/turn-finish-verification.json`. This excludes preceding reset/decision
+logic and valid-sound playback; detailed conditions are in docs/TURN.md.

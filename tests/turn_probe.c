@@ -21,8 +21,14 @@ int main(int argc, char **argv)
     }
     while (fread(&input,sizeof(input),1,stdin)==1) {
         sound=-99;
-        status=rf_turn_apply_selected(&input.effects,&input.playback,input.resources,32,input.actions,input.sounds,
-                                      &input.context,input.local_x,&sound);
+        if (argc==2 && !strcmp(argv[1],"--finish")) {
+            rf_turn_finish_input finish;
+            finish.local_x=input.local_x;
+            if (fread(&finish.eligible,20,1,stdin)!=1) return 2;
+            status=rf_turn_finish_candidates(&input.effects,&input.playback,input.resources,32,input.actions,input.sounds,
+                                             &input.context,&finish,&sound);
+        } else status=rf_turn_apply_selected(&input.effects,&input.playback,input.resources,32,input.actions,input.sounds,
+                                              &input.context,input.local_x,&sound);
         if (fwrite(&status,4,1,stdout)!=1 || fwrite(&input.playback,260,1,stdout)!=1 ||
             fwrite(&input.effects,44,1,stdout)!=1 || fwrite(&sound,4,1,stdout)!=1) return 1;
         for (i=0;i<32;++i) if (fwrite(&input.resources[i].references,4,1,stdout)!=1) return 1;

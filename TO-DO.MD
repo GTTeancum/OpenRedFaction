@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Remaining turn-candidate branches now match 4,800 original-code cases, including
+activity-based restart suppression and fallback candidate selection. Recover
+the preceding reset/decision logic and sound playback, then integrate the
+complete helper into entity animation selection and the gameplay camera.
+
 Turn direction gating now matches 5,208 original-code cases, including x87
 dot-product boundaries and local-vector transformation. Integrate remaining
 candidate/reset decisions with recovered turn effects; the full gameplay

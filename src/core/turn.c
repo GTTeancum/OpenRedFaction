@@ -1,5 +1,39 @@
 #include "rf/turn.h"
 #include <math.h>
+int rf_turn_finish_candidates(rf_turn_effects *effects, rf_motion_playback_state *playback,
+                              rf_motion_playback_resource *resources, uint32_t resource_count,
+                              const int32_t actions[45], const int32_t sounds[45],
+                              const rf_turn_context *context, const rf_turn_finish_input *input,
+                              int32_t *sound_class)
+{
+    rf_turn_effects next; int secondary,status,active; int32_t sound=-1;
+    if (!effects || !playback || !resources || !actions || !sounds || !context || !input || !sound_class) return RF_RANGE;
+    if (input->eligible>1 || !isfinite(input->local_x)) return RF_FORMAT;
+    next=*effects;
+    secondary=input->eligible && actions[18]!=-1 && actions[17]!=-1;
+    status=rf_movement_set_mode(&next.movement,&context->movement,secondary ? 0 : 1,
+                                context->forced_action,context->entity_scale,(uint8_t)context->override_enabled);
+    if (status!=RF_OK) return status;
+    next.move_candidate=3; next.alternate_candidate=5;
+    if (secondary) {
+        status=rf_motion_action_active(playback,resources,resource_count,actions,18,&active);
+        if (status!=RF_OK) return status;
+        if (!active) {
+            status=rf_motion_action_active(playback,resources,resource_count,actions,17,&active);
+            if (status!=RF_OK) return status;
+            if (!active) {
+                status=rf_motion_start_action(playback,resources,resource_count,actions,sounds,
+                                              input->local_x>0 ? 18 : 17,1,0,1,&sound);
+                if (status!=RF_OK) return status;
+            }
+        }
+    } else if (input->weapon==input->preferred_weapon && input->behavior==1 &&
+               !(uint8_t)input->network_mode && !(uint8_t)context->override_enabled) {
+        next.move_candidate=2; next.alternate_candidate=4;
+    }
+    *effects=next; *sound_class=sound; return RF_OK;
+}
+
 static int turn_dot_inside(const float vector[3], const float axis[3])
 {
     float x=vector[0],y=vector[1],z=vector[2],a=axis[0],b=axis[1],c=axis[2];

@@ -206,3 +206,7 @@ sound classes; docs/TURN.md describes excluded decisions/reset and audio work.
 with normalization 0x4fab30, dot product 0x40a0b0 and transform 0x4faa30.
 tools/verify_turn_direction.py compares original instructions without callee
 replacement; docs/TURN.md records the precision-sensitive boundary evidence.
+`rf_turn_finish_candidates` reconstructs RF.exe 1.20 NA branches from 0x41fc84
+through the end of helper 0x41f9f0, using recovered movement settings and action
+controls. tools/verify_turn_finish.py executes original callees with absent
+sound classes. See docs/TURN.md for boundaries and excluded upstream decisions.

@@ -1230,3 +1230,10 @@ The direction gate and local-vector calculation from 0x41fa7c now match 5,208
 original executions. It preserves the x87 dot-product boundary and transforms
 the unnormalized vector after checking a normalized copy. See docs/TURN.md;
 remaining candidate/reset decisions and gameplay integration are still open.
+# Remaining turn-candidate branches
+
+The remaining branches starting at 0x41fc84 now compose movement settings,
+remaining-time activity checks and conditional action starts in shared C.
+They match 4,800 original executions, including unchanged deadlines/turn flag
+and fallback candidates 2/4 versus 3/5. See docs/TURN.md. Preceding reset and
+decision logic, valid audio and complete gameplay integration remain open.
