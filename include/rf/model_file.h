@@ -3,7 +3,16 @@
 #include "rf/vpp.h"
 #define RF_MODEL_MAX_SECTIONS 128
 #define RF_MODEL_MAX_LODS 128
-typedef struct rf_model_lod { uint32_t offset, size, attachment_offset, attachment_count; } rf_model_lod;
+typedef struct rf_model_lod {
+    uint32_t offset, size, attachment_offset, attachment_count;
+    uint32_t batch_offset, batch_count, flags, auxiliary;
+} rf_model_lod;
+/* File-relative regions in original 0x569920 order: positions, normals, UV,
+ * indices, planes, extra, bone links, auxiliary. Encoding remains separate. */
+typedef struct rf_model_batch {
+    uint32_t vertices, triangles, format_bits;
+    uint32_t offsets[8], sizes[8];
+} rf_model_batch;
 typedef struct rf_model_attachment {
     char name[69];
     float rotation[4], position[3];
@@ -27,4 +36,6 @@ int rf_model_file_attachment(const rf_model_file *model, uint32_t lod, uint32_t 
 /* Stream one 84-byte serialized SUBM material. This is not the 200-byte
  * runtime material layout; conversion is separate. Output unchanged on error. */
 int rf_model_file_material(const rf_model_file *model,uint32_t submesh,uint32_t index,uint8_t raw[84]);
+/* Bounded batch directory; no LOD blob allocation. Output unchanged on error. */
+int rf_model_file_batch(const rf_model_file *model,uint32_t lod,uint32_t index,rf_model_batch *batch);
 #endif

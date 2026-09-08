@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The bounded model batch directory now exposes eight aligned data regions for
+all 599 batches across 170 LODs in 95 models. Decode the shared format descriptor,
+verify positions/UVs/indices and skinning, and connect material slots to drawing.
+
 Per-model material residency now connects actual decoded textures to owned
 records with deduplicated local slots and a combined allocation budget.
 All 95 models / 733 materials pass field and exact-budget checks; the largest

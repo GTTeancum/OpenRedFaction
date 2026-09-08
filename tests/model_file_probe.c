@@ -22,7 +22,30 @@ int main(int argc, char **argv)
             ++mesh;
         }
     }
-    if (!result && argc == 4 && strcmp(argv[3],"--materials")) for (i = 0; i < model.lod_count && !result; ++i) {
+    if (!result && argc==4 && !strcmp(argv[3],"--batches")) {
+        uint32_t n,j;
+        for(i=0;i<model.lod_count && !result;++i) {
+            for(n=0;n<model.lods[i].batch_count && !result;++n) {
+                rf_model_batch b;result=rf_model_file_batch(&model,i,n,&b);
+                if(!result) {
+                    printf("B %u %u %u %u %u",i,n,b.vertices,b.triangles,b.format_bits);
+                    for(j=0;j<8;++j)printf(" %u %u",b.offsets[j],b.sizes[j]);printf("\n");
+                }
+            }
+            { rf_model_batch b,before;memset(&b,0xa5,sizeof(b));before=b;
+              if(rf_model_file_batch(&model,i,n,&b)!=RF_RANGE || memcmp(&b,&before,sizeof(b)))result=RF_FORMAT; }
+            if(model.lods[i].batch_count) {
+                rf_model_lod saved=model.lods[i];rf_model_batch b,before;
+                memset(&b,0xa5,sizeof(b));before=b;
+                model.lods[i].batch_offset=model.entry.size;
+                if(rf_model_file_batch(&model,i,0,&b)!=RF_RANGE || memcmp(&b,&before,sizeof(b)))result=RF_FORMAT;
+                model.lods[i]=saved;model.lods[i].attachment_offset=saved.offset;
+                if(rf_model_file_batch(&model,i,0,&b)!=RF_FORMAT || memcmp(&b,&before,sizeof(b)))result=RF_FORMAT;
+                model.lods[i]=saved;
+            }
+        }
+    }
+    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches")) for (i = 0; i < model.lod_count && !result; ++i) {
         uint32_t n, j;
         rf_model_lod *lod = &model.lods[i];
         printf("L %u %u %u %u\n", lod->offset, lod->size, lod->attachment_offset, lod->attachment_count);

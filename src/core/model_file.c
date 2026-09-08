@@ -37,6 +37,7 @@ static void submesh(reader *r)
         batches = integer(r, 2); bytes = integer(r, 4);
         lod->offset = r->cursor; lod->size = bytes;
         skip(r, bytes); skip(r, 4);
+        lod->batch_offset=r->cursor;lod->batch_count=batches;lod->flags=flags;lod->auxiliary=auxiliary;
         relative = ((uint64_t)batches * 56 + 15) & ~(uint64_t)15;
         for (b = 0; b < batches && !r->status; ++b) {
             uint32_t info[7], j;
@@ -156,4 +157,34 @@ int rf_model_file_material(const rf_model_file *model,uint32_t submesh_index,uin
         memcpy(raw,value,84); return RF_OK;
     }
     return RF_RANGE;
+}
+int rf_model_file_batch(const rf_model_file *model,uint32_t lod_index,uint32_t index,rf_model_batch *batch)
+{
+    const rf_model_lod *lod;rf_model_batch value={0};uint64_t relative,end,descriptor;
+    uint32_t i,j,info[7];uint8_t raw[18];int status;
+    if(!model || !model->archive || !batch || lod_index>=model->lod_count || lod_index>=RF_MODEL_MAX_LODS) return RF_RANGE;
+    lod=model->lods+lod_index;
+    if(index>=lod->batch_count || lod->batch_count>65535) return RF_RANGE;
+    end=(uint64_t)lod->offset+lod->size;
+    if(end>model->entry.size || lod->attachment_offset<lod->offset || lod->attachment_offset>end) return RF_RANGE;
+    relative=((uint64_t)lod->batch_count*56+15)&~(uint64_t)15;
+    for(i=0;i<=index;++i) {
+        descriptor=(uint64_t)lod->batch_offset+(uint64_t)i*18;
+        if(descriptor>UINT32_MAX || descriptor+18>model->entry.size) return RF_RANGE;
+        status=rf_vpp_read(model->archive,&model->entry,(uint32_t)descriptor,raw,18);if(status)return status;
+        for(j=0;j<7;++j)info[j]=(uint32_t)raw[j*2]|(uint32_t)raw[j*2+1]<<8;
+        memset(&value,0,sizeof(value));value.vertices=info[0];value.triangles=info[1];
+        for(j=0;j<4;++j)value.format_bits|=(uint32_t)raw[14+j]<<(j*8);
+        value.sizes[0]=value.sizes[1]=info[2];value.sizes[2]=info[6];value.sizes[3]=info[3];
+        value.sizes[4]=(lod->flags&32)?info[1]*16:0;value.sizes[5]=info[4];value.sizes[6]=info[5];
+        if((lod->flags&1) && lod->auxiliary>UINT32_MAX/2)return RF_RANGE;
+        value.sizes[7]=(lod->flags&1)?lod->auxiliary*2:0;
+        for(j=0;j<8;++j) {
+            uint64_t offset=(uint64_t)lod->offset+relative;
+            if(offset>lod->attachment_offset || value.sizes[j]>lod->attachment_offset-offset)return RF_FORMAT;
+            if(value.sizes[j])value.offsets[j]=(uint32_t)offset;
+            relative=(relative+value.sizes[j]+15)&~(uint64_t)15;
+        }
+    }
+    *batch=value;return RF_OK;
 }
