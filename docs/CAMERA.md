@@ -1208,3 +1208,11 @@ deadline setup/clear and expiration/remaining queries. Original-code testing
 matches 9,800 cases. The five turn-helper 1,200 ms deadlines are entity +79c,
 +4d0, +4d4, +744 and +798. See docs/TIMERS.md for addresses, wrap behavior and
 validation limits. The helper's movement effects and integration remain open.
+# Turn-helper movement settings
+
+Routine 0x427450 is now reconstructed as `rf_movement_set_mode`, matching
+6,000 original executions. It updates animation-selection inputs +8c0/+8c4
+and conditionally entity +8c. Forced-action and global-override behavior are
+preserved; docs/MOVEMENT.md records field mappings and unresolved semantics.
+The candidate/turn helper still needs its combined effects and decision logic
+integrated before the full selector can drive the gameplay camera.

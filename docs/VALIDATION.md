@@ -356,3 +356,11 @@ checks six malformed-input rejections without mutation. Original functions:
 0x4fa2d0, 0x4fa320, 0x4fa330, 0x4fa360, 0x4fa3e0, 0x4fa3f0, 0x4fa420.
 Both clocks, pause nesting, deadlines and query results are compared. Report:
 `artifacts/timer-verification.json`; detailed scope is in docs/TIMERS.md.
+# Movement settings
+
+`python tools/verify_movement.py` matches 6,000 complete original 0x427450
+executions with unmodified 0x40a210. It compares response, speed and mode bytes
+and unchanged remaining entity RAM; three C-only rejection cases preserve
+state. Report: `artifacts/movement-settings-verification.json`. See
+docs/MOVEMENT.md for mappings and limitations; collision/input integration
+is outside this check.

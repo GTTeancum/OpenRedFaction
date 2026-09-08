@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Movement settings now match 6,000 original-code cases for speed, mode and the
+conditional response field. Integrate the recovered action starts, five timers
+and movement-setting effects into candidate/turn helper 0x41f9f0, then finish
+the complete selector and actual player initialization.
+
 Shared game clocks and deadlines now match 9,800 original-code cases, including
 nested pauses and wrap boundaries. Connect the turn helper's five 1,200 ms
 deadlines, recover its movement effects and finish candidate selection;

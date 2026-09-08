@@ -10,6 +10,7 @@ SRCS += $(PROJECT_ROOT)/src/core/eye.c
 SRCS += $(PROJECT_ROOT)/src/core/model.c
 SRCS += $(PROJECT_ROOT)/src/core/motion.c
 SRCS += $(PROJECT_ROOT)/src/core/timer.c
+SRCS += $(PROJECT_ROOT)/src/core/movement.c
 SRCS += $(PROJECT_ROOT)/src/core/motion_file.c
 SRCS += $(PROJECT_ROOT)/src/core/model_file.c
 SRCS += $(PROJECT_ROOT)/src/diagnostic/animation.c
