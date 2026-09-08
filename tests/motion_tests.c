@@ -4,6 +4,19 @@
 #define CHECK(x) do { if (!(x)) return __LINE__; } while (0)
 int main(void)
 {
+    {
+        rf_motion_phase_slot slots[2]={{100,1,1},{200,1,1}};
+        rf_motion_phase_result phase={99,99,99};
+        CHECK(rf_motion_advance_phase(slots,2,0,100,&phase)==RF_OK);
+        CHECK(phase.phase==.75f && phase.dominant_slot==0 && !phase.wrapped);
+        CHECK(rf_motion_advance_phase(slots,2,.5f,100,&phase)==RF_OK);
+        CHECK(phase.phase==.25f && phase.wrapped);
+        slots[0].looping=slots[1].looping=0;
+        CHECK(rf_motion_advance_phase(slots,2,.5f,100,&phase)==RF_OK);
+        CHECK(phase.phase==0 && phase.dominant_slot==-1 && !phase.wrapped);
+        slots[0].duration=0;
+        CHECK(rf_motion_advance_phase(slots,2,.5f,100,&phase)==RF_FORMAT && phase.dominant_slot==-1);
+    }
     int32_t ticks=99;
     CHECK(rf_motion_elapsed_ticks(NAN,&ticks)==RF_RANGE && ticks==99);
     CHECK(rf_motion_elapsed_ticks(INFINITY,&ticks)==RF_RANGE && ticks==99);

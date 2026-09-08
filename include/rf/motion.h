@@ -4,6 +4,20 @@
 /* Update 0x51ba80: truncate elapsed * 30 * 160 with no intermediate float spill.
  * Rejects non-finite input and results outside int32; preserves output on error. */
 int rf_motion_elapsed_ticks(float elapsed, int32_t *out);
+typedef struct rf_motion_phase_slot {
+    int32_t duration;
+    float weight;
+    uint32_t looping;
+} rf_motion_phase_slot;
+typedef struct rf_motion_phase_result {
+    float phase;
+    int32_t dominant_slot;
+    uint32_t wrapped;
+} rf_motion_phase_result;
+/* Shared loop phase from 0x51ba80. Forward playback, <=16 active slots;
+ * non-loop slots do not affect phase. Does not update cursors/events. */
+int rf_motion_advance_phase(const rf_motion_phase_slot *slots, uint32_t count, float phase,
+                            int32_t delta_ticks, rf_motion_phase_result *out);
 typedef struct rf_motion_weight_envelope {
     float weight;
     int32_t start_tick, end_tick, fade_in, fade_out;

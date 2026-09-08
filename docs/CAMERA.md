@@ -594,3 +594,34 @@ test. Identity and general supplied matrices, zero/nonzero translations and
 all output matrix bits match. PC boundary/alias tests, all four PC tests, and
 PC/NXDK builds pass. Actual player setup inputs, motion-slot selection and
 integrated Xbox camera validation remain open.
+## Shared looping phase
+
+`rf_motion_advance_phase` reconstructs the weighted phase portion of
+`0x51ba80`. Looping slots accumulate weight/duration and weight separately,
+with a float spill after each addition. Their ratio times the integer tick
+delta advances the instance phase. The first greatest positive looping weight
+selects the dominant slot. Non-looping slots do not affect these accumulators;
+zero total looping weight resets phase to zero and leaves no dominant slot.
+
+The original compares the unspilled advanced value with one before deciding
+to wrap, even though it has already stored a float copy. That distinction is
+preserved. Within the supported range below 2^24, subtracting the integer part
+of the stored phase gives the same result as the original repeated subtraction
+of one. Larger advances are rejected. The API supports forward updates and up
+to 16 slots, rejects invalid durations, negative/non-finite weights and invalid
+phases, and leaves output unchanged on error. It neither allocates memory nor
+updates motion cursors or events.
+
+`tools/verify_motion_phase.py` executes original `0x51ba80` through `0x51bc2c`
+using synthetic loaded motion descriptors. All 1,600 comparisons match phase
+bits, dominant-slot index and wrap flag, covering mixed loop/non-loop slots,
+unequal durations, equal-weight ties and wrapped/unwrapped updates. These
+direct-original cases have a positive looping contribution; PC tests also
+cover no looping contribution and invalid input. PC/NXDK builds and all four
+PC tests pass.
+
+The subsequent cursor mapping calls `0x573e83` before integer conversion. Its
+helper `0x579704` uses `frndint` under a control-word setup, so its rounding
+must be established rather than assumed from the decompiler. Cursor mapping,
+dominant-motion event crossings, non-loop end behavior and inactive-slot
+removal remain to complete playback update reconstruction.

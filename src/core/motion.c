@@ -1,6 +1,34 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_advance_phase(const rf_motion_phase_slot *slots, uint32_t count, float phase,
+                            int32_t delta_ticks, rf_motion_phase_result *out)
+{
+    float rate=0, total=0, greatest=0; uint32_t i;
+    rf_motion_phase_result result={0,-1,0}; double advanced;
+    if (!slots || !out || !count || count>16 || !isfinite(phase) || phase<0 || phase>1 || delta_ticks<0) return RF_RANGE;
+    for (i=0;i<count;++i) {
+        if (slots[i].duration<=0 || !isfinite(slots[i].weight) || slots[i].weight<0) return RF_FORMAT;
+        if (!slots[i].looping) continue;
+        rate=(float)(((1.0/(double)slots[i].duration)*slots[i].weight)+(double)rate);
+        total+=slots[i].weight;
+        if (slots[i].weight>greatest) { greatest=slots[i].weight; result.dominant_slot=(int32_t)i; }
+    }
+    if (!isfinite(rate) || !isfinite(total)) return RF_RANGE;
+    if (total!=0) {
+        advanced=((double)rate/total)*delta_ticks+phase;
+        if (!isfinite(advanced) || advanced>=16777216.0) return RF_RANGE;
+        result.phase=(float)advanced;
+        /* Compare the unspilled value first, just like original fst/fcomp.
+         * Below 2^24, repeated float subtraction of one is exactly represented. */
+        if (advanced>=1.0) {
+            result.wrapped=1;
+            result.phase=(float)((double)result.phase-floor((double)result.phase));
+        }
+    }
+    *out=result; return RF_OK;
+}
+
 int rf_motion_elapsed_ticks(float elapsed, int32_t *out)
 {
     double ticks;

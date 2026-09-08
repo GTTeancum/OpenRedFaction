@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Shared loop-phase advance now matches 1,600 original-update comparisons,
+including wrap flags and dominant-slot selection. Recover phase-to-cursor
+rounding, animation events, end freezing and inactive-slot removal before
+integrating continuous playback with the verified skeleton path.
+
 Character tag placement now matches 1,000 original-wrapper comparisons; this
 wrapper rotates and translates the evaluated tag without an extra scale step.
 Recover actual player setup inputs and animation slot state, then integrate and
