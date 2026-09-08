@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Turn direction gating now matches 5,208 original-code cases, including x87
+dot-product boundaries and local-vector transformation. Integrate remaining
+candidate/reset decisions with recovered turn effects; the full gameplay
+selector, camera and animated character rendering remain open.
+
 Selected-turn effects now match 2,400 integrated original-code cases across
 action restart, five deadlines, candidates, turn flag and movement settings.
 Recover the preceding candidate/reset decisions and valid-sound playback;

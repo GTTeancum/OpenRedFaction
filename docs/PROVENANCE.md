@@ -202,3 +202,7 @@ src/core/turn.c reconstructs the combined effects at RF.exe 1.20 NA
 0x41fbdc..0x41fc83 using separately verified shared action, timer and movement
 components. tools/verify_turn_effects.py executes original callees with absent
 sound classes; docs/TURN.md describes excluded decisions/reset and audio work.
+`rf_turn_direction` reconstructs RF.exe 1.20 NA 0x41fa7c's direction gate,
+with normalization 0x4fab30, dot product 0x40a0b0 and transform 0x4faa30.
+tools/verify_turn_direction.py compares original instructions without callee
+replacement; docs/TURN.md records the precision-sensitive boundary evidence.

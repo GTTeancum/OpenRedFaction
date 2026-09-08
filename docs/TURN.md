@@ -1,5 +1,36 @@
 # Selected turn effects
 
+## Direction gate
+
+`rf_turn_direction` reconstructs the direction gate starting at 0x41fa7c.
+Info +728 bit 4 disables it; entity +588 must be positive and +7d0 bit 8 set.
+It copies entity vector +7a0 and normalizes the copy through the behavior of
+0x4fab30. A magnitude below binary32 .1 disables the turn; equality is accepted.
+The original normalizes even a zero vector, producing unused invalid values
+before rejecting it. C avoids that unnecessary division and returns ineligible.
+
+The dot product uses the normalized copy and the third basis row at entity
++60, with terms accumulated Z, Y, X by 0x40a0b0. Values outside [-.5,.5] reject
+the turn. The comparison uses x87 extended precision; a double rewrite accepted
+boundary cases that the original rejected, including a vector (1,1e-18,0)
+against the third basis (-.5,-.8660254,0). The shared comparison now retains the
+original x87 result for both tests and restores the caller's control word.
+
+Accepted vectors are transformed by 0x4faa30 using the original, unnormalized
+vector and the orientation at +48. Each row accumulates Z, Y, X and stores a
+float. The returned local X feeds turn-side selection. Ineligible results are
+zeroed; invalid non-finite inputs leave outputs unchanged. These calculations
+do not mutate an entity or invoke candidate/reset side effects.
+
+`tools/verify_turn_direction.py` matches 5,208 original block executions through
+unmodified normalization, dot and transform callees. It varies input flags,
+counts, vectors and matrices, adds eight dot-boundary cases and 200 neighboring
+float cases around the .1 magnitude threshold. Observation hooks stop before
+later decisions. Evidence: `artifacts/turn-direction-verification.json`.
+PC and NXDK compilation pass; no direction-gate XEMU runtime claim is made.
+
+## Selected branch integration
+
 `rf_turn_apply_selected` in src/core/turn.c combines the reconstructed action,
 timer and movement components for original block 0x41fbdc..0x41fc83. It begins
 after the helper has selected this branch; the preceding tests are not included.

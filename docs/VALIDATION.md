@@ -372,3 +372,10 @@ two C-only rejection cases preserve outputs. It compares complete playback/
 reference state plus candidates, turn flag, deadlines and movement settings.
 Report: `artifacts/turn-effects-verification.json`. Preceding decisions/reset,
 valid-sound playback and runtime integration are excluded; see docs/TURN.md.
+# Turn direction gate
+
+`python tools/verify_turn_direction.py` matches 5,208 original direction-gate
+executions, including unmodified math callees, eight dot-boundary cases and
+200 length-threshold neighbors. Report: `artifacts/turn-direction-verification.json`.
+Observation hooks stop before later decisions/reset effects. The x87 dot
+comparison fixes an observed double-precision mismatch; see docs/TURN.md.

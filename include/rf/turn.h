@@ -16,6 +16,17 @@ typedef struct rf_turn_context {
     uint32_t override_enabled;
     int32_t now_ms;
 } rf_turn_context;
+typedef struct rf_turn_direction_input {
+    uint32_t info_flags, entity_flags; /* Info +728, entity +7d0. */
+    int32_t count; /* Entity +588. */
+    float vector[3], orientation[9]; /* Entity +7a0 and +48. */
+} rf_turn_direction_input;
+typedef struct rf_turn_direction_result { float local[3]; uint32_t eligible; } rf_turn_direction_result;
+/* Direction gate within 0x41f9f0: normalize for the third-basis dot test, but
+ * transform the original vector to local coordinates. Length >=.1 and dot
+ * in [-.5,.5] are accepted. Outputs zero when gated off. Finite inputs only;
+ * unsafe original zero-vector normalization is avoided. No entity mutations. */
+int rf_turn_direction(const rf_turn_direction_input *input, rf_turn_direction_result *result);
 /* Selected-turn effects 0x41fbdc..0x41fc83. Positive local_x chooses action
  * 20, otherwise 19; candidates become 9/9. Starts weight 1 without freezing,
  * requests its sound class, marks turning, sets five 1200ms deadlines, applies

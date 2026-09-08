@@ -1224,3 +1224,9 @@ original executions. See docs/TURN.md for scope and the deferred audio boundary.
 The preceding 0x41ae70 call resets entry state and reaches additional subsystems;
 it is not established as an aim-refresh routine. The full helper's decisions
 and reset effects still need recovery before gameplay-camera integration.
+# Turn direction gate
+
+The direction gate and local-vector calculation from 0x41fa7c now match 5,208
+original executions. It preserves the x87 dot-product boundary and transforms
+the unnormalized vector after checking a normalized copy. See docs/TURN.md;
+remaining candidate/reset decisions and gameplay integration are still open.

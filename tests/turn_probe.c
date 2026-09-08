@@ -1,13 +1,24 @@
 #include "rf/turn.h"
 #include <fcntl.h>
 #include <io.h>
-int main(void)
+#include <string.h>
+int main(int argc, char **argv)
 {
     struct { rf_motion_playback_state playback; rf_turn_effects effects; rf_turn_context context;
              float local_x; rf_motion_playback_resource resources[32]; int32_t actions[45],sounds[45]; } input;
     int32_t status,sound; unsigned i;
     _Static_assert(sizeof(input)==1864,"Turn effects wire layout");
     _setmode(_fileno(stdin),_O_BINARY); _setmode(_fileno(stdout),_O_BINARY);
+    if (argc==2 && !strcmp(argv[1],"--direction")) {
+        rf_turn_direction_input direction;
+        struct { int32_t status; rf_turn_direction_result result; } output;
+        while (fread(&direction,sizeof(direction),1,stdin)==1) {
+            memset(&output,0,sizeof(output));
+            output.status=rf_turn_direction(&direction,&output.result);
+            if (fwrite(&output,sizeof(output),1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     while (fread(&input,sizeof(input),1,stdin)==1) {
         sound=-99;
         status=rf_turn_apply_selected(&input.effects,&input.playback,input.resources,32,input.actions,input.sounds,
