@@ -43,6 +43,8 @@ public class ExportBaseline extends GhidraScript {
         addresses.add(0x51cb50L);
         addresses.add(0x5696f0L);
         addresses.add(0x569880L);
+        addresses.add(0x422360L);
+        addresses.add(0x419a00L); addresses.add(0x51cc10L);
         addresses.add(0x5698d0L); addresses.add(0x569920L);
         for (long target : new long[]{0x5142d0L, 0x51cbe0L, 0x53b408L, 0x51b500L, 0x514ca0L, 0x51ca50L, 0x53ae5fL}) addresses.add(target);
         // Character model tag lookup and pose evaluation reached from eye setup.
@@ -52,7 +54,7 @@ public class ExportBaseline extends GhidraScript {
             addresses.add(target);
         }
         try (PrintWriter out = new PrintWriter(new File(dir, "solid-mode-xrefs.tsv"), StandardCharsets.UTF_8)) {
-            for (long global : new long[]{0x1808328L, 0x1cfcc1dL, 0x595b10L, 0x595b30L, 0x595f18L, 0x596484L, 0x5a4e7cL, 0x5a4e8cL, 0x5a04d0L}) for (var reference : getReferencesTo(toAddr(global))) {
+            for (long global : new long[]{0x1808328L, 0x1cfcc1dL, 0x595b10L, 0x595b30L, 0x595f18L, 0x596484L, 0x5a4e7cL, 0x5a4e8cL, 0x5a04d0L, 0x5a7a88L, 0x62f208L}) for (var reference : getReferencesTo(toAddr(global))) {
                 Function f = getFunctionContaining(reference.getFromAddress());
                 out.printf("%x\t%s\t%s\t%s%n", global, reference.getFromAddress(), reference.getReferenceType(), f == null ? "none" : f.getEntryPoint());
                 if (f != null) addresses.add(f.getEntryPoint().getOffset());

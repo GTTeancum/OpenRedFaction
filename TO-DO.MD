@@ -15,6 +15,12 @@
 
 ## Current camera evidence
 
+Original state initialization confirms stand slot 0 and crouch slot 8; the
+base miner1 motions resolve to installed ult2_stand/ult2_crouch RFA assets.
+The motion-envelope audit accounts for all 1,009 files and preserves additional
+regions in 57 files. Recover keyframe encoding, timing and weapon override
+selection before using these motions to set camera offsets.
+
 Attachment transforms now preserve the original unnormalized quaternion path,
 with 856 exact original-instruction comparisons including all 755 installed
 records. Bone transforms retain normalization; do not use the bone API for

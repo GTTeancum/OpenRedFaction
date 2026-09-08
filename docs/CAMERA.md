@@ -281,3 +281,27 @@ asset attachments plus 101 synthetic cases. All 856 local transforms match
 compiled Win32 C bit-for-bit. The 2,852 normalized bone and 2,852 composition
 comparisons also pass after sharing the implementation. These results do not
 cover animated bone poses, parent-index integration or Xbox arithmetic at runtime.
+
+## State registration and motion-file leads
+
+Initializer 0x418030 constructs 23 state names at 0x62f208 with 8-byte string
+objects. Index 0 is `stand`, index 8 is `crouch`, and indices 9/10 are
+`attack_crouch`/`attack_crouch_walk`. Entity initialization 0x422360 iterates
+this list and writes 16-byte entries starting at entity +0x8e4. Thus +0x964
+is the crouch slot, confirming the interpretation used by eye setup.
+
+Registration asks 0x419a00 for a named state/action and passes the resulting
+motion name to 0x51cc10. That routine reuses a registered skeleton/flag pair or
+appends one, and loads the motion through 0x53a980. The latter replaces the
+motion extension with `.rfa` and reads the resulting file. The miner1 table's
+base `stand`/`crouch` names are `ult2_stand.mvf`/`ult2_crouch.mvf`, with matching
+RFA assets present. Weapon-specific table entries also exist; their selection
+must remain part of gameplay reconstruction rather than hardcoding these names.
+
+`tools/inspect_motions.py` audits all 1,009 installed RFA files: magic `VMVF`,
+596 version-7 files and 413 version-8 files. It records an 80-byte header,
+the offset table sized by the word at +0x18, and candidate track ranges ending
+at the word +0x48. Boundaries +0x48/+0x4c and file end split additional regions
+in 57 files, including miner_talk.rfa. These region labels are deliberately
+offsets, not guessed animation semantics. Track/keyframe encoding, time units,
+facial-data interpretation and animation evaluation remain unfinished.
