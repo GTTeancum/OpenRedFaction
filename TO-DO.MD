@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+TGA format and material-alpha classification now match original instruction
+blocks and accompany all decoded images. Connect per-model texture residency
+and handles to owned materials, then integrate model rendering and presentation.
+
 The shared named texture loader decodes all 385 model-referenced TGAs correctly.
 Map original texture-format transparency, add per-model residency and handle
 ownership, then connect decoded textures to model rendering and presentation.

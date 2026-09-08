@@ -1,6 +1,14 @@
 #include "rf/image.h"
 #include <stdlib.h>
 #include <string.h>
+uint32_t rf_image_tga_format(uint32_t bits)
+{
+    switch(bits) { case 8:return 1;case 16:return 5;case 24:return 6;case 32:return 7;default:return 0; }
+}
+int rf_image_format_has_alpha(uint32_t format)
+{
+    return format==4 || format==5 || format==7;
+}
 typedef struct reader {
     rf_vpp *archive;
     const rf_vpp_entry *entry;
@@ -57,6 +65,7 @@ int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, ui
     image->rgba = (unsigned char *)malloc(total * 4);
     if (!image->rgba) return RF_RANGE;
     image->width = width; image->height = height; image->bytes = total * 4;
+    image->source_format=rf_image_tga_format(h[16]);
     while (at < total) {
         uint32_t count = 1, repeat = 0, i;
         if (h[2] == 10) {

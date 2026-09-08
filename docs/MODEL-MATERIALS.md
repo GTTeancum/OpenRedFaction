@@ -1,5 +1,25 @@
 # Model-instance materials
 
+Loaded images now retain `source_format` independently of RGBA storage.
+Original TGA header reader 0x55a390 reports the pixel-depth byte; dispatch
+0x50fe39 maps 8/16/24/32 bits to formats 1/5/6/7, with zero for other depths.
+The shared decoder still supports only 24/32-bit true-color TGA. Predicate
+0x51071d classifies formats 4/5/7 as alpha-capable, without scanning pixels
+or consulting TGA attribute-bit count. Thus a decoded opaque 32-bit image
+still carries the original format-7 classification for material flags.
+
+`tools/verify_image_format.py` compares unchanged depth-dispatch and predicate
+blocks for 259 values. The all-model-texture test now checks retained format
+and alpha classification as well as dimensions/pixel hashes. All 385 pass;
+the complete test batch now accounts for 38,519,452 bytes. Win32 material
+slots grew from 24 to 28 bytes, and the XEMU harness's memory expectation was
+updated accordingly. PC tests, NXDK and numeric 64 MiB XEMU pass at
+`artifacts/xemu/20260908-191635-867708/report.json`. The scene remains unchanged.
+
+This establishes ordinary TGA classification. Original handle resolution
+0x50f440 also selects animated frames and writes global state; reproducing
+that full operation is separate from these resolved-format helpers.
+
 `rf_materials_open_names` extends the existing bounded TGA loader to model
 texture name lists. It shares the geometry loader's archive-order lookup,
 decoding, budget accounting and failure cleanup. Slots preserve caller order

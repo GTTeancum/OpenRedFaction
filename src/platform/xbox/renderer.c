@@ -46,7 +46,7 @@ int rf_xbox_preview(const rf_preview_mesh *mesh, const rf_materials *materials, 
     rf_preview_vertex *gpu;
     gpu_texture *textures;
     uint32_t white = 0xffffffffu;
-    rf_image fallback = {1, 1, 4, (unsigned char *)&white};
+    rf_image fallback = {1, 1, 4, 0, (unsigned char *)&white};
     uint64_t upload_bytes = 4;
     const uint32_t program[] = {
 #include "preview_vertex.inl"

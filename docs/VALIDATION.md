@@ -667,3 +667,12 @@ Win32 Release, four CTest cases and NXDK build pass. This is decoder coverage,
 not a gameplay residency budget or model-rendering result. Original format
 classification, live handles and Xbox runtime integration remain open.
 No new emulator run or screenshot is claimed.
+
+Image format checkpoint: 259 original depth-dispatch/predicate cases pass;
+all 385 model textures retain matching source-format metadata and decoded RGBA.
+Four CTest cases and NXDK build pass. Adding the metadata required correcting
+the Xbox fallback initializer and harness slot accounting from 24 to 28 bytes.
+The corrected numeric 64 MiB XEMU run passes at
+artifacts/xemu/20260908-191635-867708/report.json, with unchanged pixel and
+animation hashes. No framebuffer capture. Live model binding and animated
+texture-handle resolution remain open.

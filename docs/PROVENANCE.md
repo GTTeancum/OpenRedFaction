@@ -367,3 +367,9 @@ archive reader. All 385 referenced textures remain local game inputs; Pillow
 provides independent decoded-image checks. Original 0x510710 disassembly
 identifies format-code classification (4/7/5) rather than pixel-alpha scanning.
 The original format mapping and engine handle ownership are still unrecovered.
+
+Image format evidence: 0x50fbf0 identifies .tga as file type 2, 0x50fcb0
+dispatches it to header reader 0x55a390, and 0x50fe39 maps returned depth to
+engine format using tables 0x51027c/0x510290. Predicate 0x510710 calls format
+lookup, then block 0x51071d tests 4/7/5. Shared helpers match these instruction
+blocks; full file IO and animated handle resolution are not claimed recovered.

@@ -184,7 +184,9 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         for byte in pixels.tobytes():
                             value = ((value ^ byte) * 16777619) & 0xffffffff
                         checksum ^= value
-                    if words[38:42] != [16, material_report['material_rgba_bytes'] + 17*24, checksum, 1]:
+                    # Win32/Xbox rf_material: four image words + pointer,
+                    # status and archive index = 28 bytes including source format.
+                    if words[38:42] != [16, material_report['material_rgba_bytes'] + 17*28, checksum, 1]:
                         raise RuntimeError('Guest material allocations or decoded pixel checksum differ from reference')
                     if words[43] != 23:
                         raise RuntimeError('Guest lightmap load did not report 23 images')

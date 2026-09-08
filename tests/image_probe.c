@@ -1,5 +1,6 @@
 #include "rf/image.h"
 #include <stdlib.h>
+#include <string.h>
 int main(int argc, char **argv)
 {
     rf_vpp archive;
@@ -7,6 +8,10 @@ int main(int argc, char **argv)
     rf_image image;
     FILE *output;
     int result;
+    if (argc==3 && !strcmp(argv[1],"--format")) {
+        uint32_t value=(uint32_t)strtoul(argv[2],NULL,10);
+        printf("%u %d\n",rf_image_tga_format(value),rf_image_format_has_alpha(value));return 0;
+    }
     if (argc != 5) return 2;
     result = rf_vpp_open(&archive, argv[1]);
     if (result) return 1;

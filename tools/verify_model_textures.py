@@ -32,7 +32,8 @@ for name,line in zip(ordered,lines[1:],strict=True):
     if raw[16]==32 and not(raw[17]&15):image.putalpha(255)
     value=2166136261
     for byte in image.tobytes():value=((value^byte)*16777619)&0xffffffff
-    assert line==f'{name} 0 {selected.index(index)} {image.width} {image.height} {value}',name
+    fmt=6 if raw[16]==24 else 7
+    assert line==f'{name} 0 {selected.index(index)} {image.width} {image.height} {value} {fmt} {int(fmt==7)}',name
 low=args.copy();low[2]='1';failure=subprocess.run(low,input=payload,text=True,capture_output=True)
 assert failure.returncode==1 and failure.stdout.strip()=='-4'
 report=dict(result='PASS',textures=len(names),accounted_bytes=header[3],archives=len(selected),budget_rejections=1,scope='All model-referenced TGA images decoded via named loader; dimensions and RGBA hashes match Pillow; no model rendering or original texture-format classification')

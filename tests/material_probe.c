@@ -24,7 +24,7 @@ int main(int argc, char **argv)
             for(i=0;i<n;++i) {
                 rf_image *image=&materials.items[i].image;hash=2166136261u;
                 for(j=0;j<image->bytes;++j)hash=(hash^image->rgba[j])*16777619u;
-                printf("%s %d %u %u %u %u\n",names[i],materials.items[i].status,materials.items[i].archive_index,image->width,image->height,hash);
+                printf("%s %d %u %u %u %u %u %d\n",names[i],materials.items[i].status,materials.items[i].archive_index,image->width,image->height,hash,image->source_format,rf_image_format_has_alpha(image->source_format));
             }
         } else { if(materials.items || materials.count || materials.allocated_bytes)return 3;printf("%d\n",result); }
         rf_materials_close(&materials);return result ? 1 : 0;
