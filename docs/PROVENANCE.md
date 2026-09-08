@@ -215,3 +215,13 @@ behind a required callback and returning audio requests. Original complete
 function tests use absent weapon entries and sound classes, not patched callees.
 The target-distance calculation follows 0x4faed0/0x409fa0/0x40a000 with threshold
 0x58956c. See tools/verify_turn_update.py and docs/TURN.md for verification limits.
+
+`tools/inspect_animation_names.py` reads original initializer instruction triples
+at 0x418030 (23 state names, destination 0x62f208) and 0x4181d0 (45 action names,
+destination 0x5caee0). It checks each call to string constructor 0x4ff3d0 without
+executing or replacing the constructor. This establishes sidestep/roll action
+names used in the runtime diagnostic; no third-party code is involved.
+The expanded `src/diagnostic/animation.c` is scripted integration scaffolding,
+using locally supplied RFA assets and the existing miner rig. Its original-code
+comparison executes 0x41f9f0 and all reached callees unchanged, with absent roll
+mappings and sounds. See docs/TURN.md and docs/VALIDATION.md for current scope.

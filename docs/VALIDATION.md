@@ -395,3 +395,30 @@ turn cases; four explicit distance cases exercise the 8.2 threshold. A C-only
 test rejects a missing required reset callback. Report:
 `artifacts/turn-update-verification.json`. Populated reset/audio adapters and
 Xbox runtime integration remain unverified; see docs/TURN.md.
+
+# Sidestep runtime integration (supersedes the controller-only profile)
+
+`python tools/inspect_animation_names.py` verifies 23 state names and 45 action
+names against their original initializer instructions, identifying actions
+17/18 as sidesteps and 19/20 as rolls. `python tools/verify_animation_check.py`
+matches the new shared 64-frame diagnostic against unchanged original callees.
+Starts are 17,17,18; active actions suppress restarting; reset is never reached.
+Pose, state/effects, cache and eye hashes are respectively `0x26ec2ef5`,
+`0x4a139142`, `0x18528f6d`, `0x53433e81`. The state hash now includes four
+resource reference counts, movement/candidate/timer fields and sound output.
+
+PC Release and NXDK builds passed; all four CTest checks passed. XEMU run
+`artifacts/xemu/20260908-173252-156413/report.json` passed with stock 64 MiB
+and identical hashes, using `python tools/xemu_smoke.py --no-capture`.
+No framebuffer files were produced. XBE SHA-256:
+`37186ae25e4bc8d992f8a20d2812afda028592f4a2ed655e400588d5111e35b5`;
+ISO SHA-256:
+`f3b17e020d68878caa5fbb21a779d1f106248cfaab633cf73c0e30131eb56044`.
+Observed available RAM after static scene CPU mesh release is 48,410,624 bytes;
+this remains a frozen-scene measurement, not full-game peak memory.
+
+This adds candidate-helper runtime coverage for absent roll mappings and sound
+classes. Populated reset/audio adapters, roll runtime coverage, actual entity
+initialization, the full locomotion selector and animated character rendering
+remain unverified. The diagnostic combines guard sidestep files with its existing
+miner rig, not a reconstructed gameplay entity; see docs/TURN.md.

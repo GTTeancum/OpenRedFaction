@@ -137,7 +137,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     print('Guest telemetry:', [hex(w) for w in words], flush=True)
                 if len(words) == 56 and words[:3] == [0x52464447, 8, 5]:
                     report['animation'] = dict(actual=words[48:56],expected=animation_reference,
-                        scope='64 scripted controller frames and cache queries; hashes of bones, playback/controller/references, eye and cache state')
+                        scope='64 scripted controller/candidate-helper frames with real sidesteps; hashes of bones, playback/controller/references/candidate effects, eye and cache state; absent rolls and sounds')
                     if words[48:56] != animation_reference:
                         raise RuntimeError('Xbox animation differs from the shared PC check')
                     if words[3] != 16384 or words[5:8] != [29, 1294336, 0x32d7cb85]:

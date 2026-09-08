@@ -1,6 +1,7 @@
 #include "rf/animation_check.h"
 #include "rf/model.h"
 #include "rf/model_file.h"
+#include "rf/turn.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,9 +13,14 @@ static uint32_t hash_bytes(uint32_t hash, const void *bytes, size_t count)
 }
 int rf_animation_check(const char *meshes_path, const char *motions_path, uint32_t out[8])
 {
-    rf_vpp meshes, archive; rf_model_file model; rf_motion_file files[2];
-    const rf_motion_file *handles[2]={&files[0],&files[1]};
-    rf_motion_playback_resource resources[2]={0}; rf_motion_playback_state state={0};
+    static const char *names[4]={"ult2_stand.rfa","ult2_crouch.rfa",
+        "ult2_sidestep_left.rfa","ult2_sidestep_right.rfa"};
+    rf_vpp meshes, archive; rf_model_file model; rf_motion_file files[4];
+    const rf_motion_file *handles[4]={&files[0],&files[1],&files[2],&files[3]};
+    rf_motion_playback_resource resources[4]={0}; rf_motion_playback_state state={0};
+    rf_turn_effects effects={0}; rf_turn_actor actor={0};
+    rf_turn_context context={{0x800,6,.3f,1.5f,20,7,9},-1,1,0,0};
+    int32_t actions[45],sounds[45],sound_class;
     rf_motion_controller controller={0,-1,0,0,0,0}; int32_t motions[23];
     rf_model_bone bones[256]; rf_model_attachment eye;
     float matrices[256][12], local[12], tag[12], displacement[3]={.125f,-.25f,.5f};
@@ -44,15 +50,22 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     state.completion.active.freeze_slot=-1;
     state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
     state.phase=.25f; state.generation=1;
-    for (i=0;i<2;++i) {
+    for (i=0;i<4;++i) {
         rf_motion_track track;
-        status=rf_motion_file_open(&files[i],&archive,i ? "ult2_crouch.rfa" : "ult2_stand.rfa"); if (status!=RF_OK) goto done;
+        status=rf_motion_file_open(&files[i],&archive,names[i]); if (status!=RF_OK) goto done;
         status=rf_motion_file_track(&files[i],0,&track); if (status!=RF_OK) goto done;
-        resources[i].comparison=track.envelope; resources[i].looping=1;
+        resources[i].comparison=track.envelope; resources[i].looping=i<2;
         resources[i].markers[0]=3200; resources[i].markers[1]=6400;
     }
     for (i=0;i<23;++i) motions[i]=-1;
     motions[0]=0; motions[8]=1;
+    for (i=0;i<45;++i) actions[i]=sounds[i]=-1;
+    /* Original 0x4181d0 names actions 17/18 sidestep_left/right. Roll actions
+     * 19/20 are absent in this profile, so the reset adapter is never reached. */
+    actions[17]=2; actions[18]=3;
+    actor.info_flags=context.movement.flags; actor.weapon=-1;
+    actor.direction.entity_flags=8;
+    actor.direction.orientation[0]=actor.direction.orientation[4]=actor.direction.orientation[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
     for (frame=0;frame<64;++frame) {
         /* Scripted diagnostic requests, not the unrecovered locomotion selector. */
@@ -61,15 +74,21 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
             if (status!=RF_OK) goto done;
         }
         controller.override_enabled=frame>=22 && frame<26;
-        status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,resources,2); if (status!=RF_OK) goto done;
-        status=rf_motion_update(&state,resources,2,1.0f/30.0f); if (status!=RF_OK) goto done;
-        status=rf_model_evaluate_playback(bones,count,&state,handles,resources,2,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
+        status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,resources,4); if (status!=RF_OK) goto done;
+        actor.direction.count=frame>=8 && frame<56;
+        actor.direction.vector[0]=frame<32 ? -1.0f : 1.0f;
+        context.now_ms=(int32_t)frame*33;
+        status=rf_turn_update(&effects,&state,resources,4,actions,sounds,&context,&actor,NULL,NULL,&sound_class); if (status!=RF_OK) goto done;
+        status=rf_motion_update(&state,resources,4,1.0f/30.0f); if (status!=RF_OK) goto done;
+        status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         status=rf_model_compose_transform(local,matrices[eye.parent],tag); if (status!=RF_OK) goto done;
         out[3]=hash_bytes(out[3],matrices,count*48); out[4]=hash_bytes(out[4],&state,sizeof(state)); out[6]=hash_bytes(out[6],tag,48);
         out[4]=hash_bytes(out[4],&controller,sizeof(controller));
-        for (i=0;i<2;++i) out[4]=hash_bytes(out[4],&resources[i].references,4);
+        for (i=0;i<4;++i) out[4]=hash_bytes(out[4],&resources[i].references,4);
+        out[4]=hash_bytes(out[4],&effects,sizeof(effects));
+        out[4]=hash_bytes(out[4],&sound_class,4);
         displacement[0]=1;
-        status=rf_model_evaluate_playback(bones,count,&state,handles,resources,2,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
+        status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }
         out[5]=hash_bytes(out[5],matrices,count*48); out[5]=hash_bytes(out[5],displacement,12);
         out[5]=hash_bytes(out[5],generations,count*2); displacement[0]=0;

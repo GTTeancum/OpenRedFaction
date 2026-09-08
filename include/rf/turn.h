@@ -3,6 +3,10 @@
 #include "rf/motion.h"
 #include "rf/movement.h"
 #include "rf/timer.h"
+
+/* Historical rf_turn names refer to candidate helper 0x41f9f0. The original
+ * action-name initializer 0x4181d0 identifies 17/18 as sidesteps and 19/20 as
+ * rolls; the precise meaning of entity flag +7bc remains unrecovered. */
 typedef struct rf_turn_effects {
     rf_movement_settings movement;
     int32_t deadlines[5]; /* Entity +79c,+4d0,+4d4,+744,+798. */

@@ -1,4 +1,30 @@
-# Selected turn effects
+# Sidestep and roll candidate effects
+
+## Action names and shared runtime diagnostic
+
+The original initializer 0x4181d0 constructs 45 action names at 0x5caee0,
+eight bytes per entry. Actions 17/18 are `sidestep_left`/`sidestep_right`;
+19/20 are `roll_left`/`roll_right`. `tools/inspect_animation_names.py` checks
+every original immediate-string/destination/constructor-call triple, plus
+the 23 state names initialized by 0x418030. The historical `rf_turn_*` API
+names remain provisional; entity +7bc has not acquired a verified semantic name.
+
+The shared 64-frame diagnostic now adds `ult2_sidestep_left.rfa` and
+`ult2_sidestep_right.rfa` as nonloop resources mapped to 17/18. Those filename
+stems appear under the guard1 sidestep actions in the original entity table;
+the table uses `.mvf` authoring names. The diagnostic retains its existing
+miner skeleton and stand/crouch fixture, so it is not an initialized guard
+or player entity. All sounds and roll mappings are absent.
+
+Each frame applies the scripted controller, executes the complete candidate
+helper, updates playback, and evaluates cached bones and the eye attachment.
+Frames 8 through 55 enable the direction gate; local X changes from negative
+to positive at frame 32. This produces starts 17,17,18, suppressing restarts
+while an existing sidestep has time remaining. The reset branch is not reached.
+The four-resource reference counts and all candidate/movement/timer fields
+are included in the state hash. Original instructions, PC C and NXDK C in
+64 MiB XEMU agree exactly. This does not validate populated reset/audio
+adapters, the full locomotion selector, or rendered animated characters.
 
 ## Assembled candidate helper
 

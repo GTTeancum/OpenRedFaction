@@ -17,6 +17,13 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The shared diagnostic now matches original instructions and 64 MiB XEMU for
+64 frames of controller blending, real sidestep actions, candidate selection,
+playback, cached bones and eye transforms. Recover populated reset/audio
+adapters, roll runtime coverage and actual entity initialization, then finish
+the full locomotion selector and gameplay-camera integration. Original action
+names identify 17/18 as sidesteps and 19/20 as rolls; `rf_turn_*` is historical.
+
 The assembled candidate helper matches 3,004 complete original executions for
 absent weapon-entry and sound fixtures, with all six outcome branches covered.
 Recover populated reset/audio adapters and actual entity initialization, then
