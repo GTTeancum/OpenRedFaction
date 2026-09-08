@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Entity lookup, weapon/seat traversal, attachment readiness and combat eligibility
+now match 2,007 original-code fixtures and feed the shared 64-frame XEMU
+diagnostic. Implement actual entity creation/registry updates, preceding 800ms
+reset, following physics/state selection and populated reset/audio adapters.
+
 Locomotion candidate selection now matches 3,014 original executions, including
 integrated sidestep/roll effects, asymmetric missing-state fallbacks and extended
 precision speed thresholds; the expanded 64-frame diagnostic matches 64 MiB

@@ -442,3 +442,22 @@ ISO SHA-256:
 Available RAM after frozen-scene CPU mesh release is 48,406,528 bytes; full-game
 peak and animated character rendering remain unverified. See docs/TURN.md for
 the missing combat predicates, preceding reset and later physics/state selection.
+
+# Entity-derived combat eligibility
+
+`python tools/verify_entity_predicates.py` passes 2,007 original-code fixtures
+and a separate C-only cycle rejection. `python tools/verify_animation_check.py`
+matches all 64 frames with entity-derived readiness/eligibility now included
+in the state hash: `0x9a4d7dc2`. Pose/cache/eye hashes remain `0x26ec2ef5`,
+`0x18528f6d`, `0x53433e81`. This supersedes the forced-combat profile above.
+
+PC Release/NXDK builds and all four CTest checks passed. Numeric-only stock
+64 MiB XEMU run `artifacts/xemu/20260908-174822-587362/report.json` passed
+with matching hashes and no framebuffer capture. XBE SHA-256:
+`9830e66dc5ad9b9396836b5a78d3ff8dd8f822fd6b3d916ba394ec6a9d88f370`;
+ISO SHA-256:
+`f37f777977420e8bc70c480b09e093d87bef206db1097f6ab0af6ac0ec1d76af`.
+Available RAM after frozen-scene CPU mesh release remains 48,406,528 bytes.
+The 2,007-case registry/seat/attachment coverage runs on PC against original
+instructions; the Xbox profile uses a single equipped entity view. Full-game
+peak memory, actual entity creation and animated rendering remain unverified.

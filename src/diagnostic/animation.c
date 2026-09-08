@@ -2,6 +2,7 @@
 #include "rf/model.h"
 #include "rf/model_file.h"
 #include "rf/turn.h"
+#include "rf/entity.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,6 +22,8 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     rf_turn_effects effects={0}; rf_turn_actor actor={0};
     rf_locomotion_candidate_input selection={0,1,{0,0,0},0};
     rf_locomotion_candidates candidates;
+    rf_entity_registry registry={0}; rf_entity_view entity={0};
+    int ready,eligible;
     rf_turn_context context={{0x800,6,.3f,1.5f,20,7,9},-1,1,0,0};
     int32_t actions[45],sounds[45],sound_class;
     rf_motion_controller controller={0,-1,0,0,0,0}; int32_t motions[23];
@@ -65,8 +68,11 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     /* Original 0x4181d0 names actions 17/18 sidestep_left/right. Roll actions
      * 19/20 are absent in this profile, so the reset adapter is never reached. */
     actions[17]=2; actions[18]=3;
-    actor.info_flags=context.movement.flags; actor.weapon=-1;
-    actor.direction.entity_flags=8;
+    actor.info_flags=context.movement.flags; actor.weapon=0;
+    actor.direction.entity_flags=10;
+    entity.handle=0x10000; entity.linked_handle=-1;
+    entity.weapons[0]=0; entity.weapons[1]=-1; entity.weapon_owner=&entity;
+    entity.flags_7d0=10; registry.slots[0]=&entity;
     actor.direction.orientation[0]=actor.direction.orientation[4]=actor.direction.orientation[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
     for (frame=0;frame<64;++frame) {
@@ -83,6 +89,9 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         selection.action=frame>=62 ? 12 : frame>=60 ? 7 : frame>=58 ? 17 : 0;
         selection.velocity[0]=frame>=32 ? 1.0f : 0;
         actor.behavior=frame>=62;
+        entity.action_520=selection.action;
+        status=rf_entity_combat_predicates(&registry,&entity,NULL,0,&ready,&eligible); if (status!=RF_OK) goto done;
+        selection.combat_eligible=(uint32_t)eligible;
         status=rf_locomotion_choose_candidates(&candidates,&selection,motions,&effects,&state,resources,4,
             actions,sounds,&context,&actor,NULL,NULL,&sound_class); if (status!=RF_OK) goto done;
         status=rf_motion_update(&state,resources,4,1.0f/30.0f); if (status!=RF_OK) goto done;
@@ -94,6 +103,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         out[4]=hash_bytes(out[4],&effects,sizeof(effects));
         out[4]=hash_bytes(out[4],&sound_class,4);
         out[4]=hash_bytes(out[4],&candidates,sizeof(candidates));
+        out[4]=hash_bytes(out[4],&ready,4); out[4]=hash_bytes(out[4],&eligible,4);
         displacement[0]=1;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }

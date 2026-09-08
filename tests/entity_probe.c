@@ -1,0 +1,39 @@
+#include "rf/entity.h"
+#include <stdio.h>
+#include <string.h>
+#include <fcntl.h>
+#include <io.h>
+int main(void)
+{
+    struct { int32_t target,query,attached[8]; struct {
+        int32_t slot,handle,type,kind; uint32_t flags[3];
+        int32_t action,linked,weapons[2]; float speed;
+        int32_t owner,occupants[3];
+    } nodes[8]; } input;
+    rf_entity_registry registry; rf_entity_view nodes[8];
+    int32_t output[6]; unsigned i;
+    _Static_assert(sizeof(input)==552,"Entity predicate fixture layout");
+    _setmode(_fileno(stdin),_O_BINARY); _setmode(_fileno(stdout),_O_BINARY);
+    while (fread(&input,sizeof(input),1,stdin)==1) {
+        const rf_entity_view *p;
+        memset(&registry,0,sizeof(registry)); memset(nodes,0,sizeof(nodes));
+        for (i=0;i<8;++i) {
+            nodes[i].handle=input.nodes[i].handle; nodes[i].type=input.nodes[i].type; nodes[i].class_type=input.nodes[i].kind;
+            nodes[i].flags_7c=input.nodes[i].flags[0]; nodes[i].flags_810=input.nodes[i].flags[1]; nodes[i].flags_7d0=input.nodes[i].flags[2];
+            nodes[i].action_520=input.nodes[i].action; nodes[i].linked_handle=input.nodes[i].linked;
+            memcpy(nodes[i].weapons,input.nodes[i].weapons,8); nodes[i].base_speed=input.nodes[i].speed;
+            nodes[i].weapon_owner=input.nodes[i].owner>=0 && input.nodes[i].owner<8 ? &nodes[input.nodes[i].owner] : 0;
+            nodes[i].occupants=input.nodes[i].occupants; nodes[i].occupant_count=3;
+            if (input.nodes[i].slot>=0 && input.nodes[i].slot<RF_OBJECT_SLOTS) registry.slots[input.nodes[i].slot]=&nodes[i];
+        }
+        p=rf_object_lookup(&registry,input.query); output[0]=p ? (int32_t)(p-nodes) : -1;
+        p=rf_entity_lookup(&registry,input.query); output[1]=p ? (int32_t)(p-nodes) : -1;
+        p=input.target>=0 && input.target<8 ? &nodes[input.target] : 0;
+        output[3]=output[4]=-99;
+        output[2]=rf_entity_combat_predicates(&registry,p,input.attached,8,&output[3],&output[4]);
+        output[5]=-99;
+        if (rf_entity_has_weapon(&registry,p,&output[5])!=RF_OK) output[5]=-2;
+        if (fwrite(output,sizeof(output),1,stdout)!=1) return 1;
+    }
+    return ferror(stdin) ? 1 : 0;
+}

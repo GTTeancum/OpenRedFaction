@@ -37,6 +37,10 @@ outputs pending the unrecovered physics/selection branches. The state hash
 includes all four candidates. PC, original instructions and stock 64 MiB XEMU
 match; no new character rendering is claimed.
 
+The shared runtime now obtains the combat gate through
+`rf_entity_combat_predicates`; see docs/ENTITY.md for field mappings, registry
+and seat/attachment traversal. This supersedes the earlier forced-combat fixture.
+
 ## Action names and shared runtime diagnostic
 
 The original initializer 0x4181d0 constructs 45 action names at 0x5caee0,

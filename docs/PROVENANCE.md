@@ -232,3 +232,9 @@ mappings and sounds. See docs/TURN.md and docs/VALIDATION.md for current scope.
 Its resolved combat input represents the exact calls at 0x41f678, 0x41f685
 and 0x41f692. `tools/verify_turn_update.py --candidates` executes these original
 callees without replacement; no third-party implementation is used.
+
+`src/core/entity.c` reconstructs read-only decisions from RF.exe 1.20 NA
+0x40a0e0, 0x426fc0, 0x408dc0, 0x40a2a0, 0x427da0, 0x48aaf0, 0x41f950,
+0x408e90, 0x427020, 0x428e60 and 0x429f90. Compact views replace original
+layout/pointer containers; stable-input traversal and bounded cycle handling
+are documented in docs/ENTITY.md. Original-code tests replace no callees.
