@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+All 733 serialized materials across the 95 installed V3C models now stream
+through the bounded reader and match independent traversal. Recover conversion
+from their 84-byte disk layout to runtime materials before connecting ownership.
+
 Instance materials now own bounded copies of their three arrays with cleanup
 and failure checks. Connect this ownership layer to actual model loading and
 texture overrides, then validate local weapon presentation in Xbox runtime.

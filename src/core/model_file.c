@@ -65,7 +65,10 @@ static void submesh(reader *r)
                 if (++length > 256) r->status = RF_FORMAT;
         }
     }
-    count = integer(r, 4); skip(r, (uint64_t)count * 84);
+    count = integer(r, 4);
+    r->model->sections[r->model->section_count-1].material_count=count;
+    r->model->sections[r->model->section_count-1].material_offset=r->cursor;
+    skip(r, (uint64_t)count * 84);
     count = integer(r, 4); skip(r, (uint64_t)count * 28);
 }
 int rf_model_file_open(rf_model_file *model, rf_vpp *archive, const char *name)
@@ -135,4 +138,22 @@ int rf_model_file_attachment(const rf_model_file *model, uint32_t lod_index, uin
     if (value.parent < -1) return RF_FORMAT;
     *attachment = value;
     return RF_OK;
+}
+int rf_model_file_material(const rf_model_file *model,uint32_t submesh_index,uint32_t index,uint8_t raw[84])
+{
+    uint32_t i,n=0; uint8_t value[84];
+    if (!model || !model->archive || !raw || model->section_count>RF_MODEL_MAX_SECTIONS) return RF_RANGE;
+    for (i=0;i<model->section_count;++i) {
+        const rf_model_section *section=&model->sections[i]; uint64_t offset,end; int status;
+        if (section->type!=0x5355424d) continue;
+        if (n++!=submesh_index) continue;
+        if (index>=section->material_count) return RF_RANGE;
+        offset=(uint64_t)section->material_offset+(uint64_t)index*84;
+        end=(uint64_t)section->offset+section->size;
+        if (offset<section->offset || offset>UINT32_MAX || offset+84>end) return RF_RANGE;
+        status=rf_vpp_read(model->archive,&model->entry,(uint32_t)offset,value,84);
+        if (status!=RF_OK) return status;
+        memcpy(raw,value,84); return RF_OK;
+    }
+    return RF_RANGE;
 }

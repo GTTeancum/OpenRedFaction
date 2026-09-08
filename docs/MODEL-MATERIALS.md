@@ -1,5 +1,21 @@
 # Model-instance materials
 
+`rf_model_file_material` now streams one 84-byte serialized material from
+the selected SUBM section without loading a LOD blob or whole model. Structural
+traversal records each section's material count and offset, after validating
+the record span. The accessor checks submesh/index and section bounds, reads
+into temporary storage and preserves caller output on failure. Section metadata
+grows by eight bytes per section; the maximum metadata increase is 1,024 bytes.
+
+These records are not the 200-byte runtime layout. Conversion must still be
+recovered before passing actual asset materials to instance ownership; no
+cast or guessed mapping connects them. `tools/verify_model_material_files.py`
+compares every record against independent Python archive traversal: 95 models,
+95 submeshes and 733 materials match byte-for-byte. The probe also checks one
+out-of-range access per submesh and confirms output preservation. Win32 Release,
+four CTest cases and NXDK build pass; rendering and runtime conversion remain
+open. This change produces no new visible result.
+
 `rf_model_material_instance_open` now finishes material copying with native
 ownership. It initializes a new record, applies recovered fixed fields, checks
 the source array views, and independently copies the three planned arrays.

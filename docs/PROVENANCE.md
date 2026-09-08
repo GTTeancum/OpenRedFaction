@@ -348,3 +348,9 @@ and side arrays instead of original pointer fields and CRT allocation calls.
 It does not claim to reproduce the original allocator, failure crashes or
 uninitialized bytes. Original-instruction evidence remains the constructor
 and copy-preparation verifiers; ownership behavior has separate C tests.
+
+Serialized model materials: the bounded V3C reader now exposes the 84-byte
+material records already recognized by its SUBM structural traversal. Independent
+Python traversal verifies all 733 records in the installed 95 V3C assets.
+Records remain read-only local game inputs and are not committed. This does
+not establish their conversion to 200-byte runtime instance materials.

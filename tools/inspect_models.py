@@ -62,7 +62,7 @@ def inspect(data):
                 section['lods'].append(dict(flags=flags, unknown=unknown, batches=batches,
                                            data_offset=blob, data_bytes=size, after_blob=after_blob,
                                            props=props, attachment_offset=blob + relative, textures=texture_names))
-            materials = u32(); take(materials * 84)
+            materials = u32(); section['material_offset'] = cursor; take(materials * 84)
             groups = u32(); take(groups * 28)
             section['materials'] = materials
         section['bytes'] = cursor - start

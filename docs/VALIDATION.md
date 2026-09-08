@@ -645,3 +645,9 @@ size overflow, malformed names and empty arrays. Win32 Release, all four CTest
 cases and NXDK build pass. This validates new bounded ownership code, not
 unchanged original allocator execution or live model binding. No new XEMU run
 or screenshot is claimed; runtime integration remains open.
+
+Model material-file checkpoint: all 733 serialized materials from 95 installed
+V3C files match independent archive traversal byte-for-byte. Ninety-five
+out-of-range probes preserve output. Win32 Release, four CTest cases and NXDK
+build pass. Runtime conversion/ownership integration and rendering remain open;
+no new XEMU execution or screenshot is claimed for the reader change.
