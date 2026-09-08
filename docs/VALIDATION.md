@@ -607,3 +607,12 @@ bytes are compared. Win32 Release, four CTest cases, 3,000 current-weapon cases
 and NXDK build pass. This validates existing-model selection and mutation,
 not mesh loading, rendering, successful external operations or Xbox runtime
 integration of local weapon presentation. No screenshot or new XEMU run.
+
+Presentation gate checkpoint supersedes the prior cleanup-boundary profile:
+4,000 original cases pass, with 3,236 complete, 54 resource (0x550820), 25
+binding (0x48ab90) and 685 missing-model assertion boundaries. Unchanged
+original callees include 113 no-op cleanup calls, 157 resource gates and 59
+mode gates. Resource and binding arguments are also compared. Win32 Release,
+four CTest cases and NXDK build pass. Successful deeper resource/binding
+operations and local-presentation Xbox runtime integration remain open.
+No new emulator run or screenshot is claimed for this change.

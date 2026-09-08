@@ -315,3 +315,11 @@ tokens and resolved nonempty-string predicates are synthetic fixtures, not
 distributed game resources. Cleanup 0x4a73b0, resource 0x50ce00, mode 0x4b0610
 and missing-model assertion 0x50ba90 are observation boundaries, not replaced
 original implementations. Their successful integration remains open.
+
+Presentation dependency correction: 0x4a73b0 is a single ret, so the apparent
+cleanup operation has no effects in the fingerprinted PC executable. Original
+0x50ce00 calls 0x550820 only for global 0x17c7bcc==0x66; 0x4b0610 calls
+0x48ab90 only for global 0x7cabbc==1, using string accessor 0x4ff480.
+These original gates now execute unchanged in verification, and C reproduces
+them. The remaining adapters correspond to the deeper resource and binding
+operations; successful bodies and Xbox equivalents remain open.

@@ -12,13 +12,16 @@ u.mem_map(0x400000,(len(image)+4095)//4096*4096);u.mem_write(0x400000,image)
 player,strings,stack=[0x30000000+i*0x100000 for i in range(3)]
 for a in (player,strings,stack):u.mem_map(a,65536)
 u.mem_write(strings,b'model\0');u.mem_write(strings+32,b'\0')
-boundaries={0x4a73b0:'clear',0x50ce00:'resource',0x4b0610:'mode',0x50ba90:'missing_model'}
+boundaries={0x550820:'resource',0x48ab90:'mode',0x50ba90:'missing_model'}
 for a in boundaries:u.hook_add(UC_HOOK_CODE,lambda uc,a,size,data:uc.emu_stop(),begin=a,end=a)
+calls={0x4a73b0:0,0x50ce00:0,0x4b0610:0}
+def observe(uc,a,size,data):calls[a]+=1
+for a in calls:u.hook_add(UC_HOOK_CODE,observe,begin=a,end=a)
 rng=random.Random(0x4ae0d0);cases=[]
 for k in range(4000):
     weapon=rng.choice([-2,-1,0,1,2,3,31,63,64]);current=rng.choice([-1,weapon,0,1,3])
     state=struct.pack('<IIiii',rng.choice([0,0,0x1111]),rng.getrandbits(32),current,7,100)
-    context=struct.pack('<I4iIi',rng.choice([0,1,1,1]),0,1,2,3,rng.choice([0,1,255,256]),rng.choice([weapon,-1]))
+    context=struct.pack('<I4iIiII',rng.choice([0,1,1,1]),0,1,2,3,rng.choice([0,1,255,256]),rng.choice([weapon,-1]),rng.choice([0,0x66,0x166]),rng.choice([0,1,2]))
     descriptors=b''.join(struct.pack('<IIi',rng.choice([0,1,1,1]),rng.choice([0,0x2000+i]),rng.choice([-1,-1,-1,5])) for i in range(64))
     cache=b''.join(struct.pack('<iII',rng.choice([-99,-99,i]),rng.choice([0,0x3000+i]),rng.choice([0,0x4000+i])) for i in range(32))
     cases.append(state+struct.pack('<i',weapon)+context+descriptors+cache)
@@ -26,20 +29,24 @@ out=subprocess.check_output([str(root/'build/pc/Release/rf_weapon_probe.exe'),'-
 coverage={**{v:0 for v in boundaries.values()},'complete':0}
 def put(a,fmt,*v):u.mem_write(a,struct.pack(fmt,*v))
 for k,wire in enumerate(cases):
-    weapon,=struct.unpack_from('<i',wire,20);local,first,second,alternate,base,mode,mode_weapon=struct.unpack_from('<I4iIi',wire,24)
+    weapon,=struct.unpack_from('<i',wire,20);local,first,second,alternate,base,mode,mode_weapon,backend,kind=struct.unpack_from('<I4iIiII',wire,24)
     before=bytearray([0xa5])*0x2000
     before[0x34:0x3c]=wire[:8];before[0x1080:0x1084]=wire[8:12];before[0xf80:0xf88]=wire[12:20]
     u.mem_write(player,bytes(before));put(0x7c75d4,'<I',player if local else 0)
     for a,v in [(0x85ccd8,first),(0x85cd00,second),(0x85cce0,alternate),(0x87210c,base),(0x7cabc4,mode_weapon)]:put(a,'<i',v)
     put(0x7cabd4,'<B',mode&255)
+    put(0x17c7bcc,'<I',backend);put(0x7cabbc,'<I',kind);put(0x7cabdc,'<I',strings)
     for i in range(64):
-        nonempty,model,resource=struct.unpack_from('<IIi',wire,52+i*12);desc=0x85cd08+i*1360
+        nonempty,model,resource=struct.unpack_from('<IIi',wire,60+i*12);desc=0x85cd08+i*1360
         put(desc+0x44,'<I',strings if nonempty else strings+32 if i%2 else 0)
         put(desc+0x48,'<I',model);put(desc+0x64,'<i',resource)
-    for i in range(32):u.mem_write(0x7c71b0+i*16,wire[820+i*12:832+i*12])
+    for i in range(32):u.mem_write(0x7c71b0+i*16,wire[828+i*12:840+i*12])
     stop=stack+65000;put(stack+64000,'<IIi',stop,player,weapon);u.reg_write(UC_X86_REG_ESP,stack+64000)
     u.emu_start(0x4ae0d0,stop,count=100000);end=u.reg_read(UC_X86_REG_EIP);assert end==stop or end in boundaries,hex(end)
     actual=bytes(u.mem_read(player,0x2000));state=actual[0x34:0x3c]+actual[0x1080:0x1084]+actual[0xf80:0xf88]
+    esp=u.reg_read(UC_X86_REG_ESP)
+    if end==0x550820:assert bytes(u.mem_read(esp+4,4))==wire[60+weapon*12+8:60+weapon*12+12]
+    if end==0x48ab90:assert bytes(u.mem_read(esp+4,16))==actual[0x34:0x38]+struct.pack('<3I',1,0x7cabd8,strings)
     status=0 if end==stop else -3;model=u.reg_read(UC_X86_REG_EAX) if end==stop else 0xdeadbeef
     expected=struct.pack('<i',status)+state+struct.pack('<I',model)
     assert out[k*28:k*28+28]==expected,(k,hex(end),expected.hex(),out[k*28:k*28+28].hex())
@@ -47,5 +54,6 @@ for k,wire in enumerate(cases):
     assert actual==before,'unrelated player mutation'
     coverage['complete' if end==stop else boundaries[end]]+=1
 assert all(coverage.values()),coverage
-report=dict(result='PASS',cases=len(cases),coverage=coverage,scope='Whole 4ae0d0 with unchanged string length, timer clear and mode query; observation stops before clear/resource/mode adapters and missing-model assertion; loaded opaque model tokens, no asset creation or rendering')
+assert all(calls.values())
+report=dict(result='PASS',cases=len(cases),coverage=coverage,unchanged_callee_calls={hex(a):v for a,v in calls.items()},scope='Whole 4ae0d0 with unchanged string length, timer, empty cleanup, resource/backend gate and mode gate/string resolution; observation stops before 550820 resource, 48ab90 binding and missing-model assertion; opaque model tokens, no asset creation or rendering')
 (root/'artifacts/weapon-presentation-verification.json').write_text(json.dumps(report,indent=2));print(report)

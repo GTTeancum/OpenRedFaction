@@ -16,11 +16,11 @@ typedef struct rf_weapon_presentation_context {
     uint32_t local_player;
     int32_t paired_first,paired_second,alternate_weapon,base_weapon;
     uint32_t mode; int32_t mode_weapon;
+    uint32_t resource_backend,mode_kind; /* Globals 17c7bcc and 7cabbc. */
 } rf_weapon_presentation_context;
 typedef struct rf_weapon_presentation_ops {
-    int (*clear)(void *user); /* 4a73b0. */
-    int (*resource)(void *user,int32_t resource); /* 50ce00. */
-    int (*mode_finish)(void *user); /* 4b0610. */
+    int (*resource)(void *user,int32_t resource); /* 550820, backend 0x66 only. */
+    int (*mode_finish)(void *user); /* 48ab90 binding from 4b0610, mode_kind==1. */
 } rf_weapon_presentation_ops;
 /* 4ae0d0 over already-loaded model tokens and 32 cache entries. Missing
  * models return RF_NOT_FOUND at the original fatal assertion boundary.

@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The no-op presentation cleanup dependency is removed, and resource/backend
+and mode-kind gates match 4,000 expanded original cases. Recover the remaining
+resource/material binding operations and live model ownership for local presentation.
+
 Weapon presentation control flow now matches 4,000 original-code cases using
 already-loaded model handles. Implement its cleanup/resource/mode adapters and
 actual model ownership, then connect local presentation and transition to gameplay.

@@ -9,8 +9,10 @@ Model values are opaque 32-bit tokens for existing instances; the function
 does not create meshes, load assets, animate or render them.
 
 Nonlocal players and invalid indices other than -1 return zero unchanged.
-Weapon -1 requests 0x4a73b0 cleanup only when a model is present, then returns
-zero. For a valid weapon, an empty descriptor +40 string preserves and returns
+Weapon -1 returns zero without changing player state: its apparent cleanup
+callee 0x4a73b0 is a single ret in this executable. The former cleanup callback
+was an unnecessary dependency and has been removed. For a valid weapon,
+an empty descriptor +40 string preserves and returns
 the existing model. Paired 0x85ccd8/0x85cd00 transitions update only +1080,
 even when the model is zero. Otherwise a changed weapon clears an existing
 model and auxiliary value; an unchanged existing model returns immediately.
@@ -23,18 +25,24 @@ RF_NOT_FOUND at the original fatal assertion boundary; invalid fallback
 descriptor indices return RF_RANGE rather than reading arbitrary memory.
 
 Successful installation clears pending +f80 and timer +f84. Descriptor +64
-other than -1 is passed to the required 0x50ce00 adapter. Only after that call
-does the routine clear auxiliary +38 and set current +1080. Mode byte
-0x7cabd4 exactly equal to one, together with matching weapon 0x7cabc4,
-requires 0x4b0610. Missing reached adapters preserve earlier mutations and
+other than -1 enters 0x50ce00, which calls 0x550820 only if global backend
+0x17c7bcc is exactly 0x66; other values return unchanged. The required resource
+adapter now represents 0x550820. Only after that call does the routine clear
+auxiliary +38 and set current +1080. Mode byte 0x7cabd4 exactly equal to one,
+together with matching weapon 0x7cabc4, enters 0x4b0610. It returns unchanged
+unless the separate 32-bit global 0x7cabbc equals one. That selected path calls
+0x48ab90(model,1,0x7cabd8,resolved string from 0x7cabd8), a material-binding
+operation whose body remains external. The mode adapter owns these arguments
+through caller data. Missing reached adapters preserve earlier mutations and
 leave the return-model output unchanged. The callbacks may update state or
 context; subsequent reads follow original order. Their successful bodies and
 actual model ownership remain open.
 
 `tools/verify_weapon_presentation.py` matches 4,000 original executions:
-3,031 complete, 117 cleanup, 153 resource, 57 mode and 642 missing-model
-boundaries. Original string-length, timer-clear and mode-query callees execute
-unchanged. The test compares the full compact state, return value and unrelated
+3,236 complete, 54 resource, 25 binding and 685 missing-model boundaries.
+Original cleanup (113 calls), resource gate (157 calls), mode gate (59 calls),
+string access, timer and mode query execute unchanged. The test compares
+outgoing callback arguments, full compact state, return value and unrelated
 player bytes. It does not replace original callees or validate successful
 external adapter bodies. Win32 Release, four CTest cases, the 3,000-case
 current-weapon verifier and NXDK build pass. No new emulator execution or

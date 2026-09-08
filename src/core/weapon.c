@@ -10,10 +10,7 @@ int rf_weapon_update_presentation(rf_weapon_presentation_state *state,int32_t we
     if (!state || !context || !result || context->local_player>1) return RF_RANGE;
     if (!context->local_player) { *result=0; return RF_OK; }
     if (weapon==-1) {
-        if (state->model) {
-            if (!ops || !ops->clear) return RF_NOT_FOUND;
-            status=ops->clear(user); if (status!=RF_OK) return status;
-        }
+        /* Original 4a73b0 is a single ret, even with a nonzero model. */
         *result=0; return RF_OK;
     }
     if (weapon<0 || weapon>=64) { *result=0; return RF_OK; }
@@ -35,12 +32,12 @@ int rf_weapon_update_presentation(rf_weapon_presentation_state *state,int32_t we
     }
     if (!state->model) return RF_NOT_FOUND;
     state->pending=-1; rf_timer_clear(&state->deadline);
-    if (descriptors[weapon].resource!=-1) {
+    if (descriptors[weapon].resource!=-1 && context->resource_backend==0x66) {
         if (!ops || !ops->resource) return RF_NOT_FOUND;
         status=ops->resource(user,descriptors[weapon].resource); if (status!=RF_OK) return status;
     }
     state->auxiliary=0; state->current=weapon;
-    if ((context->mode&255)==1 && weapon==context->mode_weapon) {
+    if ((context->mode&255)==1 && weapon==context->mode_weapon && context->mode_kind==1) {
         if (!ops || !ops->mode_finish) return RF_NOT_FOUND;
         status=ops->mode_finish(user); if (status!=RF_OK) return status;
     }
