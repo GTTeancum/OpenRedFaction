@@ -219,3 +219,23 @@ C across 95 asset skeletons and 105 synthetic cases, including empty input,
 multiple roots, shuffled indices and a 256-bone chain. All 200 results match
 exactly. This resolves the ordering helper; animated local transforms and the
 complete model loader remain necessary for hierarchy pose evaluation.
+
+## Structural V3C traversal
+
+`src/core/model_file.c` now walks V3C v0x40000 directly inside VPP archives.
+It records bounded section ranges without allocating or loading complete model
+files. SUBM declared lengths are ignored as in the original: names, LOD envelopes,
+batch descriptors, texture-name lists, materials and trailing groups determine
+the next boundary. Opaque LOD blobs are skipped with checked lengths. Other
+sections use their declared sizes. End placement and submesh count are checked.
+The caller keeps the archive open and owns the fixed 128-section output table.
+
+`tools/inspect_models.py` independently walks those structures in Python.
+`tools/verify_model_files.py` compares the C boundaries for every installed V3C
+and exercises corrupted headers, truncated endings and oversized LOD lengths.
+The checked run passes 95 models, 399 section ranges and nine malformed fixtures;
+MSVC/NXDK builds and existing C boundary tests also pass.
+`tools/verify_bones.py` now uses structural discovery rather than signature scans;
+the earlier scanning limitations above describe historical verification only.
+This is a section directory: vertices, skinning data, attachments inside LOD
+blobs and animations still require payload decoding and runtime integration.

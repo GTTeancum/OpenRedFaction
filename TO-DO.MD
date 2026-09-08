@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Shared C now traverses V3C section structure directly in VPP archives, including
+zero-sized SUBM chunks, while leaving LOD blobs on disc. Bone verification uses
+structural boundaries instead of signature searches. Decode LOD geometry,
+attachments and animation data next; the directory alone does not load a model.
+
 The suspected bone remapping is a stable depth-sorted evaluation order, now
 reconstructed in shared C with 200 exact original-instruction comparisons
 (95 asset skeletons plus 105 synthetic cases). It does not change file indices.

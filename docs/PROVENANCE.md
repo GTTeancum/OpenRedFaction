@@ -1,5 +1,16 @@
 # Sources and reconstruction evidence
 
+## V3C structural reader
+
+`src/core/model_file.c` and `tools/inspect_models.py` are newly written structural
+readers. Layout leads came from the pinned Open Faction
+`common/include/formats/v3d_format.h`; no implementation source was copied.
+Original 0x51ce60 confirms section dispatch and ignoring SUBM lengths, 0x53ae5f
+confirms material records, and 0x5696f0 confirms the signed submesh version check,
+LOD limit and bounds envelope. The remaining LOD layout leads are validated
+against installed file boundaries; they are not a claim that all geometry and
+attachment semantics have been recovered. Unknown payloads stay opaque.
+
 ## Original input
 
 Read-only game installation: `D:/Programming/GitHub/OpenRedFaction/Installed_Game`.
