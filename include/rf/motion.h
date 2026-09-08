@@ -1,6 +1,9 @@
 #ifndef RF_MOTION_H
 #define RF_MOTION_H
 #include "rf/vpp.h"
+/* Update 0x51ba80: truncate elapsed * 30 * 160 with no intermediate float spill.
+ * Rejects non-finite input and results outside int32; preserves output on error. */
+int rf_motion_elapsed_ticks(float elapsed, int32_t *out);
 typedef struct rf_motion_weight_envelope {
     float weight;
     int32_t start_tick, end_tick, fade_in, fade_out;

@@ -1,6 +1,16 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_elapsed_ticks(float elapsed, int32_t *out)
+{
+    double ticks;
+    if (!out || !isfinite(elapsed)) return RF_RANGE;
+    ticks = ((double)elapsed * 30.0) * 160.0;
+    if (ticks <= (double)INT32_MIN-1.0 || ticks >= (double)INT32_MAX+1.0) return RF_RANGE;
+    *out = (int32_t)ticks;
+    return RF_OK;
+}
+
 int rf_motion_sample_weight(const rf_motion_weight_envelope *envelope, int32_t tick, int bypass, float *out)
 {
     int64_t duration, elapsed;

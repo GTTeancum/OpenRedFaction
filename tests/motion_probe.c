@@ -11,6 +11,15 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--elapsed-ticks") == 0) {
+        float input;
+        struct { int32_t status, ticks; } output;
+        while (fread(&input,4,1,stdin)==1) {
+            output.ticks=0; output.status=rf_motion_elapsed_ticks(input,&output.ticks);
+            if (fwrite(&output,8,1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--sample-weight") == 0) {
         struct { rf_motion_weight_envelope envelope; int32_t tick, bypass; } input;
         struct { int32_t status; float value; } sampled;

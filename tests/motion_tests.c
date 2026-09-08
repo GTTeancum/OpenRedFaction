@@ -4,6 +4,12 @@
 #define CHECK(x) do { if (!(x)) return __LINE__; } while (0)
 int main(void)
 {
+    int32_t ticks=99;
+    CHECK(rf_motion_elapsed_ticks(NAN,&ticks)==RF_RANGE && ticks==99);
+    CHECK(rf_motion_elapsed_ticks(INFINITY,&ticks)==RF_RANGE && ticks==99);
+    CHECK(rf_motion_elapsed_ticks(1000000,&ticks)==RF_RANGE && ticks==99);
+    CHECK(rf_motion_elapsed_ticks(0.2f,&ticks)==RF_OK && ticks==960);
+    CHECK(rf_motion_elapsed_ticks(-0.2f,&ticks)==RF_OK && ticks==-960);
     rf_motion_weight_envelope envelope = {1,0,100,20,20};
     float weight=99;
     CHECK(rf_motion_sample_weight(NULL,0,0,&weight)==RF_RANGE && weight==99);

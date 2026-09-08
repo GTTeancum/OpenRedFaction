@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Elapsed-to-tick conversion now matches 8,005 original-instruction checks.
+Reconstruct the remaining 0x51ba80 update state machine: weighted shared loop
+phase, per-motion cursors, end freezing and inactive-slot removal; then connect
+cached archive playback and skeleton evaluation.
+
 The shared archive-backed RFA reader now validates all 1,009 installed motions
 and reads all 489,545 rotation keys and 147,716 position keys bit-for-bit without
 whole-file allocation. Connect indexed reads to cached playback, engine-time

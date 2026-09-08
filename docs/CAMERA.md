@@ -451,3 +451,38 @@ bad directories, track counts, time fades and non-finite weights. PC and NXDK
 builds and all four existing PC tests pass. Motion playback, cached access,
 engine-time conversion, additional-region semantics and skeleton integration
 remain open; this is not yet an animated Xbox scene.
+## Animation cursor update
+
+The prefix of original update `0x51ba80` multiplies its elapsed float by 30
+(`0x589478`) and 160 (`0x589e14`) without intermediate float spills, then calls
+`__ftol` at `0x573528`. `rf_motion_elapsed_ticks` reproduces this conversion
+using double intermediates and truncation toward zero, rejecting non-finite
+input and results outside int32 without changing output. An elapsed input of
+0.2 becomes 960 ticks. It does not retain fractional ticks between calls.
+
+`tools/verify_motion_time.py` executes the original update entry through
+`0x51badc` with the minimum valid descriptor state, including the original
+conversion helper. All 8,005 comparisons pass: common frame durations,
+positive/negative elapsed values and neighboring floats around tick boundaries.
+This verifies the conversion prefix only. PC/NXDK builds and all four PC tests
+pass; the full update routine has not been ported.
+
+New Ghidra/assembly evidence establishes the next playback work:
+
+- Active slots begin at instance +0x12d4, stride 12: motion index, integer
+  cursor, float blend weight; count is +0x12d0. Starting a non-loop motion in
+  `0x51c1c0` initializes its cursor through descriptor helper `0x53a840`.
+- Update skips frozen instances (+0x1d4c), empty slot lists and descriptors
+  without motions. It increments the pose cache generation at +0x1cf8.
+- Motions marked in descriptor +0x120c contribute weight/duration and weight
+  sums to a shared phase at instance +0x1d04. Phase wraps by subtracting one;
+  each participating motion maps that phase to its own duration. Exact mapping,
+  rounding and event handling still need instruction-level reconstruction.
+- Unmarked active motions add the integer tick delta directly. Reaching the
+  end either freezes the designated slot/instance or zeros its blend weight;
+  inactive slots are subsequently removed through `0x51c090`.
+- Skeleton evaluation `0x51b500` combines sampled track envelopes with slot
+  weights, normalizes the positive contributions, and calls `0x51b110` to blend
+  quaternion/position samples before composing parent transforms. This path
+  must be recovered before treating an evaluated eye attachment as gameplay
+  camera evidence.
