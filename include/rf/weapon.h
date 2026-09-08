@@ -3,6 +3,35 @@
 #include "rf/motion.h"
 #include "rf/entity.h"
 
+typedef struct rf_weapon_presentation_state {
+    uint32_t model,auxiliary; /* Player +34/+38; opaque 32-bit model tokens. */
+    int32_t current,pending,deadline; /* +1080/+f80/+f84 (not queue timer +b8). */
+} rf_weapon_presentation_state;
+typedef struct rf_weapon_model_descriptor {
+    uint32_t name_nonempty,model; /* Resolved +40 string and loaded +48 model. */
+    int32_t resource; /* +64 argument to 50ce00. */
+} rf_weapon_model_descriptor;
+typedef struct rf_weapon_model_cache { int32_t weapon; uint32_t normal,alternate; } rf_weapon_model_cache;
+typedef struct rf_weapon_presentation_context {
+    uint32_t local_player;
+    int32_t paired_first,paired_second,alternate_weapon,base_weapon;
+    uint32_t mode; int32_t mode_weapon;
+} rf_weapon_presentation_context;
+typedef struct rf_weapon_presentation_ops {
+    int (*clear)(void *user); /* 4a73b0. */
+    int (*resource)(void *user,int32_t resource); /* 50ce00. */
+    int (*mode_finish)(void *user); /* 4b0610. */
+} rf_weapon_presentation_ops;
+/* 4ae0d0 over already-loaded model tokens and 32 cache entries. Missing
+ * models return RF_NOT_FOUND at the original fatal assertion boundary.
+ * Missing reached adapters preserve preceding mutations and leave result
+ * unchanged. Callbacks may update state/context through user. No model load
+ * or rendering is implied by installing an opaque model token. */
+int rf_weapon_update_presentation(rf_weapon_presentation_state *state,int32_t weapon,
+    const rf_weapon_model_descriptor descriptors[64],const rf_weapon_model_cache cache[32],
+    const rf_weapon_presentation_context *context,const rf_weapon_presentation_ops *ops,
+    void *user,uint32_t *result);
+
 /* 4a5910 with 4ae0d0's nonlocal early return. Resolves linked classes 1/4
  * once from stable views, otherwise uses the primary entity's weapon[0].
  * Missing entities yield -1. For a local player, every value except exactly

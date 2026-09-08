@@ -305,3 +305,13 @@ b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836.
 Local presentation is observed before entry, not replaced in the original.
 Additional ignored exports of 0x4a9380, 0x4aa080 and 0x4c8350 identify animation,
 reset and firing-mode dependencies for the still-open local transition.
+
+Loaded weapon-model presentation: shared `rf_weapon_update_presentation`
+reconstructs 0x4ae0d0..0x4ae267 of fingerprinted RF.exe 1.20 NA. Descriptor
+string length uses unchanged original 0x4ff490; 0x4fa3e0 clears player +f84;
+0x4b0580 reads the mode byte. Cache entries at 0x7c71b0 have 16-byte original
+stride; the shared view retains weapon/normal/alternate fields. Opaque model
+tokens and resolved nonempty-string predicates are synthetic fixtures, not
+distributed game resources. Cleanup 0x4a73b0, resource 0x50ce00, mode 0x4b0610
+and missing-model assertion 0x50ba90 are observation boundaries, not replaced
+original implementations. Their successful integration remains open.

@@ -598,3 +598,12 @@ nonlocal lookup plus decision flow. State hash remains d5f86d40. Win32 Release,
 four CTest cases, NXDK and stock 64 MiB XEMU pass. Numeric-only report:
 artifacts/xemu/20260908-184258-453142/report.json; no framebuffer capture.
 Local presentation, transition and earlier selection gates remain open.
+
+Presentation checkpoint: 4,000 original 0x4ae0d0 executions match (3,031
+complete, 117 cleanup, 153 resource, 57 mode and 642 missing-model boundaries).
+Original string-length/timer/mode callees remain unchanged; boundary callbacks
+are observed before entry. Compact state, return value and unrelated player
+bytes are compared. Win32 Release, four CTest cases, 3,000 current-weapon cases
+and NXDK build pass. This validates existing-model selection and mutation,
+not mesh loading, rendering, successful external operations or Xbox runtime
+integration of local weapon presentation. No screenshot or new XEMU run.

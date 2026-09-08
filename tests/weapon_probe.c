@@ -11,6 +11,18 @@ int main(int argc,char **argv)
     int32_t status; unsigned i;
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if (argc==2 && !strcmp(argv[1],"--presentation")) {
+        struct { rf_weapon_presentation_state state; int32_t weapon;
+            rf_weapon_presentation_context context; rf_weapon_model_descriptor descriptors[64];
+            rf_weapon_model_cache cache[32]; } data;
+        _Static_assert(sizeof(data)==1204,"Presentation fixture layout");
+        while (fread(&data,sizeof(data),1,stdin)==1) {
+            uint32_t model=0xdeadbeef;
+            status=rf_weapon_update_presentation(&data.state,data.weapon,data.descriptors,data.cache,&data.context,NULL,NULL,&model);
+            if (fwrite(&status,4,1,stdout)!=1 || fwrite(&data.state,sizeof(data.state),1,stdout)!=1 || fwrite(&model,4,1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc==2 && !strcmp(argv[1],"--current")) {
         struct { int32_t handle; uint32_t local;
             struct { int32_t slot,handle,type,kind,linked,weapon; } nodes[2]; } data;

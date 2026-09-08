@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Weapon presentation control flow now matches 4,000 original-code cases using
+already-loaded model handles. Implement its cleanup/resource/mode adapters and
+actual model ownership, then connect local presentation and transition to gameplay.
+
 Current-weapon lookup now matches 3,000 original-code cases and runs before
 empty-ammo decisions in PC/XEMU; the original profile starts at the handler
 entry. Recover local-player presentation, transition and earlier selection

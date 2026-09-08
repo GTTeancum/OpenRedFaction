@@ -1,6 +1,51 @@
 #include "rf/weapon.h"
 #include "rf/timer.h"
 #include <string.h>
+int rf_weapon_update_presentation(rf_weapon_presentation_state *state,int32_t weapon,
+    const rf_weapon_model_descriptor descriptors[64],const rf_weapon_model_cache cache[32],
+    const rf_weapon_presentation_context *context,const rf_weapon_presentation_ops *ops,
+    void *user,uint32_t *result)
+{
+    int32_t source; unsigned i; int status;
+    if (!state || !context || !result || context->local_player>1) return RF_RANGE;
+    if (!context->local_player) { *result=0; return RF_OK; }
+    if (weapon==-1) {
+        if (state->model) {
+            if (!ops || !ops->clear) return RF_NOT_FOUND;
+            status=ops->clear(user); if (status!=RF_OK) return status;
+        }
+        *result=0; return RF_OK;
+    }
+    if (weapon<0 || weapon>=64) { *result=0; return RF_OK; }
+    if (!descriptors || !cache) return RF_RANGE;
+    if (!descriptors[weapon].name_nonempty) { *result=state->model; return RF_OK; }
+    if ((weapon==context->paired_first && state->current==context->paired_second) ||
+        (weapon==context->paired_second && state->current==context->paired_first)) {
+        state->current=weapon; *result=state->model; return RF_OK;
+    }
+    if (weapon!=state->current && state->model) state->model=state->auxiliary=0;
+    if (state->model) { *result=state->model; return RF_OK; }
+    source=weapon==context->alternate_weapon ? context->base_weapon :
+        weapon==context->paired_second ? context->paired_first : weapon;
+    for (i=0;i<32;++i) if (cache[i].weapon==source) break;
+    if (i<32) state->model=weapon==context->alternate_weapon ? cache[i].alternate : cache[i].normal;
+    else {
+        if (source<0 || source>=64) return RF_RANGE;
+        state->model=descriptors[source].model;
+    }
+    if (!state->model) return RF_NOT_FOUND;
+    state->pending=-1; rf_timer_clear(&state->deadline);
+    if (descriptors[weapon].resource!=-1) {
+        if (!ops || !ops->resource) return RF_NOT_FOUND;
+        status=ops->resource(user,descriptors[weapon].resource); if (status!=RF_OK) return status;
+    }
+    state->auxiliary=0; state->current=weapon;
+    if ((context->mode&255)==1 && weapon==context->mode_weapon) {
+        if (!ops || !ops->mode_finish) return RF_NOT_FOUND;
+        status=ops->mode_finish(user); if (status!=RF_OK) return status;
+    }
+    *result=state->model; return RF_OK;
+}
 int rf_weapon_current(const rf_entity_registry *registry,int32_t entity_handle,
     uint32_t local_player,int (*update_presentation)(void *user,int32_t weapon),
     void *user,int32_t *weapon)

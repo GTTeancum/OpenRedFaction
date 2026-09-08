@@ -1,5 +1,45 @@
 # Weapon reset
 
+## Loaded weapon-model presentation
+
+`rf_weapon_update_presentation` follows 0x4ae0d0 using a compact state with
+player model +34, auxiliary +38, current presentation weapon +1080, pending
+selection +f80 and timer +f84. This timer differs from the queue's +b8 timer.
+Model values are opaque 32-bit tokens for existing instances; the function
+does not create meshes, load assets, animate or render them.
+
+Nonlocal players and invalid indices other than -1 return zero unchanged.
+Weapon -1 requests 0x4a73b0 cleanup only when a model is present, then returns
+zero. For a valid weapon, an empty descriptor +40 string preserves and returns
+the existing model. Paired 0x85ccd8/0x85cd00 transitions update only +1080,
+even when the model is zero. Otherwise a changed weapon clears an existing
+model and auxiliary value; an unchanged existing model returns immediately.
+
+With no model, weapon 0x85cce0 uses base 0x87210c, and paired second uses
+paired first. The first matching entry in the 32-record cache at 0x7c71b0 wins:
+use its alternate pointer for weapon 0x85cce0, normal pointer otherwise.
+Without a match, descriptor +48 supplies the model. Null models return
+RF_NOT_FOUND at the original fatal assertion boundary; invalid fallback
+descriptor indices return RF_RANGE rather than reading arbitrary memory.
+
+Successful installation clears pending +f80 and timer +f84. Descriptor +64
+other than -1 is passed to the required 0x50ce00 adapter. Only after that call
+does the routine clear auxiliary +38 and set current +1080. Mode byte
+0x7cabd4 exactly equal to one, together with matching weapon 0x7cabc4,
+requires 0x4b0610. Missing reached adapters preserve earlier mutations and
+leave the return-model output unchanged. The callbacks may update state or
+context; subsequent reads follow original order. Their successful bodies and
+actual model ownership remain open.
+
+`tools/verify_weapon_presentation.py` matches 4,000 original executions:
+3,031 complete, 117 cleanup, 153 resource, 57 mode and 642 missing-model
+boundaries. Original string-length, timer-clear and mode-query callees execute
+unchanged. The test compares the full compact state, return value and unrelated
+player bytes. It does not replace original callees or validate successful
+external adapter bodies. Win32 Release, four CTest cases, the 3,000-case
+current-weapon verifier and NXDK build pass. No new emulator execution or
+visible weapon rendering is claimed by this checkpoint.
+
 ## Current weapon and presentation dependency
 
 `rf_weapon_current` reconstructs 0x4a5910 using the shared entity registry.
@@ -14,8 +54,8 @@ handles directly. A local player requires the presentation adapter; absent
 adapters return RF_NOT_FOUND with output unchanged. Callback failures propagate
 without discarding any model effects they already performed. A successful
 adapter leaves the originally captured weapon as the return value, matching
-the original even if presentation changes entity state. Local presentation
-itself is still unreconstructed.
+the original even if presentation changes entity state. Presentation control
+flow is now reconstructed above; external adapters and model ownership remain open.
 
 `tools/verify_weapon_current.py` checks 3,000 cases: 2,590 complete original
 executions (428 include unchanged nonlocal 0x4ae0d0 returns), and 410 stops
