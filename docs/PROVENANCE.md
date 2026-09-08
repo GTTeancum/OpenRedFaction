@@ -158,3 +158,9 @@ src/core/eye.c is reconstructed from RF.exe 0x4194e0 and instruction-verified
 vector helpers 0x4faa90, 0x40a030 and 0x40a070. It implements only the non-linked
 eye update; animated model tag evaluation is explicit unsupported work. See
 docs/CAMERA.md and artifacts/eye-verification.json for original-execution evidence.
+`rf_motion_apply_controller` in src/core/motion.c is reconstructed from RF.exe
+1.20 NA instructions 0x41f2b6..0x41f3f3, after selector dispatch. Ghidra's
+0x41f270 export was checked against x87 instructions and direct original-code
+execution with tools/verify_motion_controller.py. No original selector or
+entity-gate implementation is included. See docs/CAMERA.md for field mappings,
+precision, sequencing and verification scope.

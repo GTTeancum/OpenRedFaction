@@ -17,6 +17,12 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The post-selector animation controller now matches 2,406 original-code cases,
+including transition timing, overrides and loaded-motion weight assignment.
+Recover locomotion selector 0x41f400 and its state-transition setter, then
+connect actual player flags and controller updates to eye initialization.
+PC tests and NXDK compilation pass; this controller is not yet exercised in XEMU.
+
 Standing/crouching/restored-standing pose queries now match 600 original bone
 matrices and 24 eye transforms across eight starting states. Resolve controller
 0x41f400 and actual player initialization flags: creation updates animation by

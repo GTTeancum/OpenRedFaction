@@ -271,3 +271,12 @@ Animation is evaluated numerically before drawing the unchanged frozen scene.
 No animated character rendering, frame-rate guarantee, complete gameplay camera
 or PS2 parity is established by this check. Runtime coverage currently uses
 two looping motions without a primary slot or bone overrides.
+# Post-selector animation controller
+
+Run `python tools/verify_motion_controller.py` after building the PC probes.
+It compares 2,406 original post-selector executions and their unmodified loaded
+control callees against shared C, including all controller/playback fields and
+registered resource references. Three additional rejection cases check atomic
+failure. Evidence: `artifacts/motion-controller-verification.json`.
+This excludes locomotion selection and entity gating. PC CTest passes all four
+tests and NXDK compilation passes; no controller XEMU runtime claim is made.

@@ -992,3 +992,36 @@ preceding update, the first crouching cursor is 1119, rather than an independent
 selected 1120, because the original phase-to-tick path floors its float-derived
 product. Evidence is in `artifacts/eye-setup-verification.json`. No camera offset
 or rendered output is changed by this verification work.
+# Animation controller after state selection
+
+`rf_motion_apply_controller` reconstructs original instructions
+0x41f2b6..0x41f3f3. This starts after the locomotion/alternate selector returns;
+it excludes entity gates and state selection itself. The 23-entry mapping
+comes from entity +8e4 with original stride 16. Current/next logical states
+are +138c/+1390, duration/elapsed +1394/+1398, override state +1384, and
+override flag bit 0x20 at +810.
+
+Positive duration advances elapsed using global frame time +5a4014. The
+completion comparison uses the unspilled sum, even though elapsed has already
+been stored as float. Completion sets duration to positive zero, promotes next
+to current and clears next to -1; it retains elapsed, including overshoot.
+This transition runs even when an override is active. Every invocation stops
+looping weights through 0x5033f0 before assigning weights through 0x503390.
+An override assigns its mapped motion weight one. Otherwise duration zero
+assigns current weight one; a transition with both motions present assigns
+current `1-f` then next `f`, where f is the float-rounded elapsed/duration.
+If either transition motion is missing, neither is assigned. Aliased motion
+IDs therefore receive the second weight, rather than the sum.
+
+The C API preserves controller, playback and resource references on malformed
+input or insertion failure. This is a bounded safety behavior, not a claim
+about original invalid memory access. No heap allocation is needed. Playback
+cursors and generation advance separately through `rf_motion_update`.
+
+`tools/verify_motion_controller.py` matches 2,406 executions of the original
+post-selector block with unmodified character/control callees, comparing all
+controller/playback fields and 32 reference counts. Six targeted cases cover
+float-rounded elapsed reaching duration before the unspilled sum does, plus
+exact/overshoot completion, with and without override. Three C-only rejection
+cases verify rollback, negative frame time and an invalid mapping. PC and
+NXDK builds pass; controller runtime integration and selector recovery remain.

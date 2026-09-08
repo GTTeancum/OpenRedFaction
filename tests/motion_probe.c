@@ -11,6 +11,19 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--controller") == 0) {
+        struct { rf_motion_playback_state state; rf_motion_playback_resource resources[32];
+                 rf_motion_controller controller; int32_t motions[23]; float elapsed; } input;
+        int32_t status; unsigned i;
+        _Static_assert(sizeof(input)==1532,"Controller wire layout");
+        while (fread(&input,sizeof(input),1,stdin)==1) {
+            status=rf_motion_apply_controller(&input.controller,input.motions,input.elapsed,&input.state,input.resources,32);
+            if (fwrite(&status,4,1,stdout)!=1 || fwrite(&input.state,260,1,stdout)!=1 ||
+                fwrite(&input.controller,24,1,stdout)!=1) return 1;
+            for (i=0;i<32;++i) if (fwrite(&input.resources[i].references,4,1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--control") == 0) {
         struct { rf_motion_playback_state state; rf_motion_playback_resource resources[32];
                  int32_t motion; float weight; int32_t restart,freeze; } input;

@@ -65,6 +65,20 @@ typedef struct rf_motion_playback_resource {
     uint32_t looping;
     int32_t markers[2], references;
 } rf_motion_playback_resource;
+typedef struct rf_motion_controller {
+    int32_t current, next;
+    float duration, elapsed;
+    int32_t override_state;
+    uint32_t override_enabled;
+} rf_motion_controller;
+/* Post-selector block 0x41f2b6..0x41f3f3 only. The caller selects logical
+ * states and passes their 23 registered motion IDs (-1 means missing).
+ * Stops looping weights before assigning the current/blended/override motion.
+ * Does not run locomotion selection, gating, or advance playback cursors.
+ * Forward finite time; invalid input leaves controller/playback/references intact. */
+int rf_motion_apply_controller(rf_motion_controller *controller, const int32_t motions[23],
+                               float elapsed, rf_motion_playback_state *state,
+                               rf_motion_playback_resource *resources, uint32_t resource_count);
 /* Complete 0x51ba80 forward update. Resources are indexed by registered motion
  * ID, with the comparison envelope for the descriptor-selected bone. Active
  * IDs must be unique, as enforced by the original motion insertion path;

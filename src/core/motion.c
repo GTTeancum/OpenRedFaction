@@ -1,6 +1,53 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_apply_controller(rf_motion_controller *controller, const int32_t motions[23],
+                               float elapsed, rf_motion_playback_state *state,
+                               rf_motion_playback_resource *resources, uint32_t resource_count)
+{
+    rf_motion_controller next;
+    rf_motion_playback_state staged;
+    int32_t ids[2], refs[2]; float weights[2];
+    unsigned count=0,i; int result;
+    if (!controller || !motions || !state || !resources) return RF_RANGE;
+    next=*controller; staged=*state;
+    if (next.current<0 || next.current>=23 || next.next < -1 || next.next>=23 ||
+        next.override_enabled>1 || (next.override_enabled && (next.override_state<0 || next.override_state>=23)) ||
+        !isfinite(elapsed) || elapsed<0 || !isfinite(next.duration) || next.duration<0 ||
+        !isfinite(next.elapsed) || next.elapsed<0 || (next.duration>0 && next.next<0)) return RF_FORMAT;
+    for (i=0;i<23;++i) if (motions[i]<-1 || (motions[i]>=0 && (uint32_t)motions[i]>=resource_count)) return RF_RANGE;
+    if (next.duration>0) {
+        /* fst retains the unspilled sum for the original completion comparison. */
+        double sum=(double)elapsed+(double)next.elapsed;
+        next.elapsed=(float)sum;
+        if (!isfinite(next.elapsed)) return RF_RANGE;
+        if (sum>=next.duration) { next.duration=0; next.current=next.next; next.next=-1; }
+    }
+    if (next.override_enabled) {
+        ids[0]=motions[next.override_state]; weights[0]=1; count=ids[0]>=0;
+    } else if (next.duration==0) {
+        ids[0]=motions[next.current]; weights[0]=1; count=ids[0]>=0;
+    } else {
+        ids[0]=motions[next.current]; ids[1]=motions[next.next];
+        if (ids[0]>=0 && ids[1]>=0) {
+            weights[1]=(float)((double)next.elapsed/next.duration);
+            weights[0]=(float)(1.0-(double)weights[1]); count=2;
+        }
+    }
+    result=rf_motion_stop_looping(&staged,resources,resource_count);
+    if (result!=RF_OK) return result;
+    for (i=0;i<count;++i) refs[i]=resources[ids[i]].references;
+    for (i=0;i<count;++i) {
+        result=rf_motion_set_weight(&staged,resources,resource_count,ids[i],weights[i]);
+        if (result!=RF_OK) {
+            unsigned j; for (j=0;j<count;++j) resources[ids[j]].references=refs[j];
+            return result;
+        }
+    }
+    *controller=next; *state=staged;
+    return RF_OK;
+}
+
 int rf_motion_complete_slots(rf_motion_completion_state *state, const int32_t *end_ticks, uint32_t looping_mask)
 {
     uint32_t i;
