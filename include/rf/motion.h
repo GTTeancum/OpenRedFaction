@@ -11,6 +11,14 @@ typedef struct rf_motion_slot_state {
  * repair selected indices. references belongs to that motion; decrement clamps
  * at zero. Absent motions are successful no-ops. Invalid state is unchanged. */
 int rf_motion_remove_slot(rf_motion_slot_state *state, int32_t motion, int32_t *references);
+typedef struct rf_motion_completion_state {
+    rf_motion_slot_state active;
+    uint32_t frozen, primary_flag, primary_words[2];
+    float primary_vectors[2][3]; /* Original +1d20/+1d2c; semantics pending. */
+} rf_motion_completion_state;
+/* Original update completion pass, before zero-weight slot removal. End ticks
+ * and looping bits are indexed by active slot. Invalid state stays unchanged. */
+int rf_motion_complete_slots(rf_motion_completion_state *state, const int32_t *end_ticks, uint32_t looping_mask);
 /* Update 0x51ba80: truncate elapsed * 30 * 160 with no intermediate float spill.
  * Rejects non-finite input and results outside int32; preserves output on error. */
 int rf_motion_elapsed_ticks(float elapsed, int32_t *out);

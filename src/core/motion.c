@@ -1,6 +1,32 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_complete_slots(rf_motion_completion_state *state, const int32_t *end_ticks, uint32_t looping_mask)
+{
+    uint32_t i;
+    if (!state || !end_ticks || state->active.count>16) return RF_RANGE;
+    if (state->active.freeze_slot < -1 || state->active.primary_slot < -1 || state->active.dominant_slot < -1 ||
+        state->active.freeze_slot>=(int32_t)state->active.count || state->active.primary_slot>=(int32_t)state->active.count ||
+        state->active.dominant_slot>=(int32_t)state->active.count || state->frozen>1 || state->primary_flag>255)
+        return RF_FORMAT;
+    for (i=0;i<state->active.count;++i) if (state->active.slots[i].motion<0) return RF_FORMAT;
+    for (i=0;i<state->active.count;++i) {
+        rf_motion_active_slot *slot=&state->active.slots[i];
+        if ((looping_mask & (1u<<i)) || slot->tick<end_ticks[i]) continue;
+        slot->tick=end_ticks[i];
+        if ((int32_t)i==state->active.freeze_slot) state->frozen=1;
+        else {
+            if ((int32_t)i==state->active.primary_slot) {
+                state->active.primary_slot=-1;
+                state->primary_flag=0; state->primary_words[0]=state->primary_words[1]=0;
+                memset(state->primary_vectors,0,sizeof(state->primary_vectors));
+            }
+            slot->weight=0;
+        }
+    }
+    return RF_OK;
+}
+
 static int32_t removed_slot_index(int32_t selected, uint32_t removed)
 {
     if (selected==(int32_t)removed) return -1;

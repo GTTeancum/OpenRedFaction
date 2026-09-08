@@ -5,6 +5,16 @@
 int main(void)
 {
     {
+        rf_motion_completion_state state={0}; int32_t ends[2]={100,100};
+        state.active.count=2; state.active.freeze_slot=0; state.active.primary_slot=1; state.active.dominant_slot=-1;
+        state.active.slots[0].tick=101; state.active.slots[1].tick=100;
+        state.active.slots[0].weight=state.active.slots[1].weight=1;
+        state.primary_flag=1; state.primary_vectors[0][0]=3;
+        CHECK(rf_motion_complete_slots(&state,ends,0)==RF_OK);
+        CHECK(state.frozen==1 && state.active.slots[0].weight==1 && state.active.slots[0].tick==100);
+        CHECK(state.active.slots[1].weight==0 && state.active.primary_slot==-1 && state.primary_flag==0 && state.primary_vectors[0][0]==0);
+    }
+    {
         rf_motion_slot_state state={0}, saved; int32_t references=2;
         state.count=2; state.slots[0].motion=3; state.slots[1].motion=7;
         state.freeze_slot=0; state.primary_slot=1; state.dominant_slot=-1;

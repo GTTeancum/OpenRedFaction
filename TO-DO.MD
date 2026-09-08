@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+The non-loop completion pass now matches 1,360 original-code cases, including
+freeze-slot retention and primary-state clearing. Assemble and verify the full
+animation update across consecutive frames, including primary selection during
+advance, zero-weight removal and frozen-instance early exit.
+
 Animation-slot removal now matches 2,040 original-code cases, including ordered
 compaction, selected-index repair and reference-count clamping. Integrate this
 with non-loop completion and freeze handling, then connect the playback state

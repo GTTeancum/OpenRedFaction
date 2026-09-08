@@ -673,3 +673,29 @@ All stored slot records, count, selected indices and reference count match.
 PC tests cover unchanged state on invalid input; PC/NXDK builds and all four
 PC tests pass. Non-loop completion, frozen-instance state and integration of
 the complete playback update remain open.
+## Non-loop completion pass
+
+`rf_motion_complete_slots` reconstructs the pass at `0x51be6a` before inactive
+slot compaction. It visits active slots in order, ignores looping slots, and
+tests cursor >= end tick even when the slot already has zero weight. A
+completed freeze-designated slot clamps to the end and sets the instance's
+frozen flag without clearing its weight. Other completed slots clamp to the
+end and clear their weights. Freezing does not stop this pass from processing
+later slots.
+
+If a cleared slot was primary, the pass resets that selection to -1 and clears
+the original flag at +0x1d14, words at +0x1d18/+0x1d1c, and vectors at
++0x1d20/+0x1d2c. The portable state retains those fields without assigning
+unverified gameplay semantics to them. It leaves freeze/dominant selection
+unchanged; later compaction repairs those indices. The helper validates state
+before mutation and allocates no memory. It does not perform the full update's
+early exit for an already frozen instance, advance cursors, or release motions.
+
+`tools/verify_motion_completion.py` compares against the unhooked original
+pass through `0x51bf57`, including original vector-clearing helpers, for 1,360
+cases spanning 0..16 slots. All slots, selected indices, frozen flag and
+primary auxiliary fields match. Cases include end-1/end/end+1 cursors,
+loop/non-loop flags, zero/nonzero weights and existing frozen state. PC/NXDK
+builds and all four PC tests pass. Consecutive-frame verification of the
+complete update, primary selection during advancement, and integration with
+asset ownership and skeleton evaluation remain open.
