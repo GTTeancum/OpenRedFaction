@@ -250,3 +250,30 @@ int rf_model_blend_pose(const float (*rotations)[4], const float (*positions)[3]
     if (count>2 && matrix[0]==0) matrix[0]=1.0e-6f;
     memcpy(out,matrix,sizeof(matrix)); return RF_OK;
 }
+int rf_model_sample_single_motion(const rf_model_bone *bones, uint32_t count, const rf_motion_file *motion,
+                                  int32_t tick, int bypass_fades, float (*matrices)[12], uint32_t capacity)
+{
+    uint8_t order[256]; uint32_t i,index; int status;
+    if (!bones || !motion || !matrices || !count || count>256 || capacity<count) return RF_RANGE;
+    if (motion->header[6]!=count) return RF_FORMAT;
+    status=rf_model_bone_order(bones,count,order,sizeof(order)); if (status!=RF_OK) return status;
+    for (i=0;i<count;++i) {
+        rf_motion_sample sample; float local[12];
+        const float identity[4]={0,0,0,1}, zero[3]={0,0,0};
+        index=order[i];
+        status=rf_motion_file_sample(motion,index,tick,bypass_fades,&sample); if (status!=RF_OK) return status;
+        if (sample.weight>0) status=rf_model_attachment_transform(sample.rotation,sample.position,local);
+        else status=rf_model_attachment_transform(identity,zero,local);
+        if (status!=RF_OK) return status;
+        if (bones[index].parent<0) {
+            /* 0x51b500 adds the instance's root displacement even when zero. */
+            local[9]=0.0f+local[9]; local[10]=0.0f+local[10]; local[11]=0.0f+local[11];
+            memcpy(matrices[index],local,sizeof(local));
+        }
+        else {
+            status=rf_model_compose_transform(local,matrices[bones[index].parent],matrices[index]);
+            if (status!=RF_OK) return status;
+        }
+    }
+    return RF_OK;
+}

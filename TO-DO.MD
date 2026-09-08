@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+The shared single-motion skeleton path now matches 300 original bone matrices
+and 12 animated miner eye transforms for stand/crouch poses. Recover looping
+slot updates, root displacement, overrides, model scaling and camera state
+selection before applying this model-space eye to gameplay or the Xbox preview.
+
 Archive-backed sampling now matches 131,965 full-track evaluations while holding
 only two rotation keys and two position keys. Cache disk reads and integrate
 these samples with slot weights, parent composition and eye attachment evaluation.

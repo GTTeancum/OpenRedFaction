@@ -539,3 +539,35 @@ position comparisons, PC tests and PC/NXDK builds also pass.
 Metadata and key reads still seek into the archive. A playback cache or cursor,
 the original slot update state machine, skeleton evaluation and Xbox runtime
 validation remain necessary before animation can drive the gameplay scene.
+## Initial single-motion skeleton and animated eye
+
+`rf_model_sample_single_motion` connects archive-backed samples and envelopes
+to depth-ordered parent composition. It supports the initial pose with one
+active motion, no root displacement and no bone overrides. Positive envelopes
+produce the sampled local transform without bone-quaternion normalization;
+zero envelopes produce identity. Every root explicitly adds zero displacement,
+matching original signed-zero results. Caller-owned output matrices avoid a
+large temporary skeleton allocation; failures can leave partial output, which
+the caller must discard. Model and motion bone counts must match (maximum 256).
+
+`tests/skeleton_probe.c` loads the miner's BONE section and the requested RFA
+through shared C readers, evaluates the skeleton, and composes the LOD-0 `eye`
+attachment with its animated parent. `tools/verify_skeleton.py` compares all
+bone matrices with unhooked original `0x51b500`, then compares the eye with
+unhooked original tag evaluation `0x51b2e0`. All 300 bone matrices and 12 eye
+transforms match exactly across six times each in `ult2_stand.rfa` and
+`ult2_crouch.rfa`. Descriptor/instance state explicitly has one non-loop slot,
+weight one, fresh pose generation, zero root displacement and no overrides.
+
+At tick 1120, the stand eye's model-space translation is approximately
+(0.003951758, 0.785902619, 0.076405764); crouch is
+(0.061145991, 0.148407608, 0.383740306). These are evaluated asset poses, not
+established world-space camera heights. At/after end tick 9600, the tested
+non-loop envelope becomes zero and the eye reduces to its local attachment
+transform. Actual looping and transition state must therefore be recovered
+before choosing a gameplay pose. Original object scaling, root displacement,
+slot selection and bone overrides remain outside this helper.
+
+PC and NXDK builds and all four PC tests pass. The Xbox diagnostic has not yet
+executed this skeleton path; this verification does not establish animation
+performance, hardware equivalence or complete gameplay-camera integration.

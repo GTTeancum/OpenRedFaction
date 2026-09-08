@@ -1,6 +1,7 @@
 #ifndef RF_MODEL_H
 #define RF_MODEL_H
 #include "rf/vpp.h"
+#include "rf/motion_file.h"
 
 /* Bounded names supplied by a model loader; length excludes the terminator.
  * Groups retain the original 0x51d5b0 search order, without original pointers
@@ -43,4 +44,9 @@ int rf_model_bone_order(const rf_model_bone *bones, uint32_t count, uint8_t *ord
  * Supports the original evaluator's 1..16 contributing poses, no allocation. */
 int rf_model_blend_pose(const float (*rotations)[4], const float (*positions)[3], const float *weights,
                         uint32_t count, float out[12]);
+/* Initial single-motion pose: no root displacement, bone overrides or slot
+ * transitions. Caller owns matrices; a failed read can leave partial results.
+ * Skeleton and motion must have identical counts, at most 256 bones. */
+int rf_model_sample_single_motion(const rf_model_bone *bones, uint32_t count, const rf_motion_file *motion,
+                                  int32_t tick, int bypass_fades, float (*matrices)[12], uint32_t capacity);
 #endif
