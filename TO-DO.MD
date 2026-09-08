@@ -17,6 +17,12 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Per-model material residency now connects actual decoded textures to owned
+records with deduplicated local slots and a combined allocation budget.
+All 95 models / 733 materials pass field and exact-budget checks; the largest
+bundle peaks at 1,837,928 bytes. Connect bundles to model drawing and weapon
+presentation, then add cross-model sharing/eviction and a total scene budget.
+
 TGA format and material-alpha classification now match original instruction
 blocks and accompany all decoded images. Connect per-model texture residency
 and handles to owned materials, then integrate model rendering and presentation.

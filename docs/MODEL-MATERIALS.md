@@ -1,5 +1,28 @@
 # Model-instance materials
 
+`rf_model_materials_open` now owns a per-model material bundle: it streams
+the disk records, deduplicates primary/secondary texture names without case,
+decodes each unique texture once and builds owned runtime material records.
+Texture fields hold bundle-local slot indices; alpha flags use the retained
+primary image format. Missing textures fail the whole load and release the
+partial bundle. This is port-side ownership, not original allocator or global
+texture-handle equivalence.
+
+The budget covers bundle/instance headers, scalar arrays, image slots/pixels
+and temporary raw records/name/mapping arrays. Resident and peak accounting
+exclude allocator overhead, stack, caller-owned model/archive state and GPU
+allocations. Both figures use native structure sizes (Win32/Xbox verified).
+Cross-model sharing, eviction and the total world/character budget remain open.
+
+`tools/verify_model_residency.py` checks all 95 installed models and 733 material
+records against independently traversed disk data, expected local slots,
+alpha flags and scalar bits. Every model passes at its exact calculated peak
+budget, rejects one byte below it and rejects absent textures with empty output.
+The largest bundle is `fp_SniperRifle_armA.v3c`: 8 materials, 7 unique textures,
+1,837,128 resident bytes and 1,837,928 peak bytes. PC build, four CTest checks
+and NXDK build pass. This loader is not yet called by the Xbox scene or model
+renderer; no new XEMU or visual claim is made for this checkpoint.
+
 Loaded images now retain `source_format` independently of RGBA storage.
 Original TGA header reader 0x55a390 reports the pixel-depth byte; dispatch
 0x50fe39 maps 8/16/24/32 bits to formats 1/5/6/7, with zero for other depths.
