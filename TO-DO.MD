@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Collision vertex deformation now matches 2,000 original executions: weights
+use byte/256 and stop at the first zero, without sum normalization. Connect
+prepared bone transforms and independently recover rendering deformation.
+
 All active model bone indices fit their skeletons; all 12 non-finite normals
 and 19,060 vertices with non-255 weight sums are triangle-referenced. Recover
 the original deformation consumer before choosing weight or normal treatment.

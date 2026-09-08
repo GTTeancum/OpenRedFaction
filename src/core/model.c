@@ -4,6 +4,23 @@
 #include <string.h>
 #include <stdlib.h>
 
+int rf_model_collision_vertex(const float position[3],const uint8_t weights[4],const uint8_t bones[4],
+    const float (*matrices)[12],uint32_t count,float result[3])
+{
+    float sum[3]={0,0,0};uint32_t i,j;
+    if(!position || !weights || !bones || !result || (!matrices && count))return RF_RANGE;
+    for(i=0;i<4 && weights[i];++i) {
+        const float *m;float p[3],factor;
+        if(bones[i]>=count)return RF_RANGE;
+        m=matrices[bones[i]];factor=(float)weights[i]*(1.0f/256.0f);
+        /* Preserve original 0x4ff020 addition order and float store boundaries. */
+        p[0]=(float)(((double)m[3]*position[1]+(double)m[6]*position[2])+(double)m[0]*position[0]+m[9]);
+        for(j=1;j<3;++j)p[j]=(float)(((double)m[3+j]*position[1]+(double)m[j]*position[0])+(double)m[6+j]*position[2]+m[9+j]);
+        for(j=0;j<3;++j) { float weighted=p[j]*factor;sum[j]+=weighted; }
+    }
+    memcpy(result,sum,sizeof(sum));return RF_OK;
+}
+
 int rf_model_material_from_disk(rf_model_material_instance *instance,
     const uint8_t *raw,size_t size,int32_t primary_texture,int32_t secondary_texture,
     uint32_t primary_transparent,uint32_t budget)

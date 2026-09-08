@@ -82,6 +82,11 @@ int rf_model_attachment_transform(const float rotation[4], const float position[
 /* Reconstructed 0x51c620: row-vector local * parent, with implicit final column
  * (0,0,0,1). Aliased output is supported; errors leave it unchanged. */
 int rf_model_compose_transform(const float local[12], const float parent[12], float result[12]);
+/* Collision deformation block 0x54e344: stop at first zero weight, multiply
+ * by byte/256, no normalization. Matrices are prepared bone transforms.
+ * This is not yet verified as the rendering skinning path. */
+int rf_model_collision_vertex(const float position[3],const uint8_t weights[4],const uint8_t bones[4],
+    const float (*matrices)[12],uint32_t count,float result[3]);
 /* Tag placement 0x5034f0 after character tag evaluation: rotate then translate.
  * Preserves its separate rounding stages; no extra scale parameter is applied. */
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12]);

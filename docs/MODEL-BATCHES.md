@@ -1,5 +1,27 @@
 # Model batch data
 
+`rf_model_collision_vertex` reconstructs the position-deformation loop at
+`0x54e344..0x54e3c0`, reached from collision routine `0x54e200`. It starts at
+zero, consumes at most four link slots and stops at the first zero weight.
+Each bone index selects a prepared 48-byte transform from instance offset
+`0x960`; `0x4ff020` transforms the input position. The transformed point is
+multiplied by weight/256 using constant `0x589e48` and added to the result.
+There is no normalization by sum and no normal input in this loop.
+
+The port accepts caller-supplied prepared transforms and adds bounds checks
+before publishing output. Invalid active indices leave the result unchanged;
+indices at and after the first zero weight are ignored. Original vector
+addition order and float-store boundaries are retained, with double
+intermediates for the matrix multiplication; arbitrary x87 extended-precision
+rounding equivalence is not asserted.
+
+`tools/verify_collision_vertex.py` executes the unchanged original loop and
+its complete vector callees for 2,000 deterministic dyadic fixtures, comparing
+all output bits. Two further cases check port bounds and early termination.
+PC build, four CTest checks and NXDK build pass. This establishes collision
+position deformation only: pose preparation, rendering deformation and
+non-finite normal treatment remain separate requirements.
+
 The installed `0x518c41` layout now has bounded vertex and triangle readers.
 They stream three position floats, three normal floats, two UV floats and
 eight raw bone-link bytes per vertex; triangles retain three 16-bit indices

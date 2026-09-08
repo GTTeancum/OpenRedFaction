@@ -11,6 +11,15 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--collision-vertex")) {
+        struct { float position[3];uint8_t weights[4],bones[4];float matrices[4][12]; } data;
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            struct { int32_t status;float value[3]; } out={0,{99,99,99}};
+            out.status=rf_model_collision_vertex(data.position,data.weights,data.bones,data.matrices,4,out.value);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if (argc==2 && !strcmp(argv[1],"--material-disk")) {
         struct { uint8_t raw[84]; int32_t primary,secondary; uint32_t transparent,budget; } data;
         while (fread(&data,sizeof(data),1,stdin)==1) {
