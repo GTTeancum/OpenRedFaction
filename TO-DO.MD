@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+All active model bone indices fit their skeletons; all 12 non-finite normals
+and 19,060 vertices with non-255 weight sums are triangle-referenced. Recover
+the original deformation consumer before choosing weight or normal treatment.
+
 Vertex/triangle readers now match all 85,866 vertices and 99,214 triangles in
 the 95 models. Recover runtime bone-weight interpretation and handling of
 12 source vertices with non-finite normals, then integrate skinning and drawing.

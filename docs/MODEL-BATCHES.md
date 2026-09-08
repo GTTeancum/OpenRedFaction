@@ -27,6 +27,23 @@ original treatment of these cases require further reconstruction before
 skinning/lighting can be considered faithful. Neither the raw link slots
 nor the triangle flag bits have been given unverified runtime behavior.
 
+The follow-up link audit now cross-checks every non-255 bone slot against
+the model's BONE-section count and checks vertex use through all triangle
+indices. All active indices fit their skeletons. All twelve non-finite normals
+belong to referenced vertices, so unused-vertex filtering does not remove them.
+19,060 vertices have weight sums other than 255: 18,598 sum to 254, 327 to 253,
+41 to 252, and the remaining 94 have other sums. All are triangle-referenced.
+The audit records each model/LOD/batch/vertex, raw weights/bones, active sum
+and reference status in ignored `artifacts/model-link-audit.json`.
+
+Original-code investigation found float 1/255 constants at `0x5895dc` and
+`0x589d68`; `ExportBaseline.java` now exports their reference sites and enclosing
+functions. These are candidate consumers, not proof of bone normalization:
+for example, `0x53a370` uses 1/255 while decoding animation data, and `0x5468c0`
+uses it in graphics state. No weight renormalization has been introduced.
+The next required evidence is the actual mesh deformation consumer and its
+treatment of these raw slots and non-finite normals.
+
 `rf_model_file_batch` exposes file-relative ranges without allocating the LOD
 blob. The original `0x569920` loader reserves 56 bytes per batch, aligns to
 16 bytes and assigns eight region pointers in sequence: positions, normals,

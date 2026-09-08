@@ -55,6 +55,14 @@ public class ExportBaseline extends GhidraScript {
         for (long target : new long[]{0x539ed0L, 0x53a130L, 0x539e10L, 0x53a040L, 0x51a000L, 0x417e90L}) addresses.add(target);
         addresses.add(0x5698d0L); addresses.add(0x569920L);
         addresses.add(0x569d20L);
+        // Candidate byte-weight normalization consumers; classify before reuse.
+        try (PrintWriter out = new PrintWriter(new File(dir,"byte-weight-xrefs.tsv"),StandardCharsets.UTF_8)) {
+            for(long target : new long[]{0x5895dcL,0x589d68L}) for(var reference : getReferencesTo(toAddr(target))) {
+                Function f=getFunctionContaining(reference.getFromAddress());
+                out.printf("%x\t%s\t%s%n",target,reference.getFromAddress(),f==null?"none":f.getEntryPoint());
+                if(f!=null)addresses.add(f.getEntryPoint().getOffset());
+            }
+        }
         for (long target : new long[]{0x5142d0L, 0x51cbe0L, 0x53b408L, 0x51b500L, 0x514ca0L, 0x51ca50L, 0x53ae5fL}) addresses.add(target);
         // Character model tag lookup and pose evaluation reached from eye setup.
         for (long target : new long[]{0x51d5b0L, 0x51c590L, 0x51c190L, 0x501ab0L, 0x501ca0L, 0x51b2e0L}) {
