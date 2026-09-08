@@ -1,5 +1,13 @@
 #include "rf/weapon.h"
+#include "rf/timer.h"
 #include <string.h>
+int rf_weapon_queue_selection(rf_weapon_selection_state *state,int32_t weapon)
+{
+    if (!state) return RF_RANGE;
+    state->pending_weapon=weapon;
+    rf_timer_clear(&state->deadline);
+    return RF_OK;
+}
 static int weapon_total(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],int32_t weapon,int32_t *total)
 {
     int32_t reserve; uint32_t bits; int status=rf_weapon_reserve(inventory,supply,weapon,&reserve);

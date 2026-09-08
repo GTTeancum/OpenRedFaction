@@ -1,11 +1,35 @@
 # Weapon reset
 
+## Selection queue
+
+`rf_weapon_queue_selection` reconstructs the complete 0x4acd50 routine:
+store the requested signed value in player +f80, then tail-call 0x4fa3e0
+to set the deadline at +b8 to -1. It deliberately preserves all signed
+weapon values; eligibility checks belong to callers such as 0x4a4a50.
+The compact state has only those two fields. A null state returns RF_RANGE
+as an added safety check. This queues a request; activation and presentation
+remain unimplemented.
+
+`tools/verify_weapon_queue.py` compares 640 executions against the unchanged
+original instructions and timer callee, including signed extremes and every
+combination of selected boundary values. It checks the original 4096-byte
+player view for unrelated writes. PC tests and the NXDK build pass; this new
+primitive has not yet been connected to the emulator diagnostic or gameplay.
+
+The earlier description of 0x4a4e80 as a "paired switch" was too narrow.
+Its body includes ammunition tests, firing through 0x425830, sound, reset and
+empty-weapon handling. PAIR identifies the empty handler's paired branch,
+which dispatches this firing routine with arguments (player,1,1); it does not
+establish that the operation merely changes the selected weapon. Full firing
+behavior still requires reconstruction. Actual selection 0x4a4a50 reaches
+0x4acd50 after its eligibility checks.
+
 ## Empty-weapon handling and replacement choice
 
 `rf_weapon_decide_empty` now reconstructs 0x4a6f41..0x4a70db after current-weapon
 resolution. The earlier 0x4a5910 presentation update is still caller-owned.
 It returns NONE, PAIR, MESSAGE or SELECT with a selected weapon where applicable;
-it does not execute the outgoing switch/message operation.
+it does not execute the outgoing firing/selection/message operation.
 
 The initial gate requires player byte +f40 or the current weapon matching global
 0x872118. Passenger predicate 0x42acd0 blocks a nonzero request byte. Current

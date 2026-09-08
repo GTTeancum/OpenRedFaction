@@ -11,6 +11,15 @@ int main(int argc,char **argv)
     int32_t status; unsigned i;
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if (argc==2 && !strcmp(argv[1],"--queue")) {
+        struct { rf_weapon_selection_state state; int32_t weapon; } data;
+        _Static_assert(sizeof(data)==12,"Queue fixture layout");
+        while (fread(&data,sizeof(data),1,stdin)==1) {
+            status=rf_weapon_queue_selection(&data.state,data.weapon);
+            if (fwrite(&status,4,1,stdout)!=1 || fwrite(&data.state,sizeof(data.state),1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc==2 && !strcmp(argv[1],"--empty")) {
         struct { rf_weapon_inventory primary,linked; rf_weapon_supply supply[64]; uint32_t flags[64],count;
             int32_t preference[32]; rf_weapon_empty_input input; } data;

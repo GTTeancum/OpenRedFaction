@@ -2,6 +2,15 @@
 #define RF_WEAPON_H
 #include "rf/motion.h"
 
+typedef struct rf_weapon_selection_state {
+    int32_t pending_weapon; /* Player +f80. */
+    int32_t deadline; /* Player +b8. */
+} rf_weapon_selection_state;
+/* 4acd50 with its unchanged 4fa3e0 timer tail: queue the exact signed weapon
+ * value and clear the deadline. The caller owns selection eligibility; this
+ * primitive does not activate a weapon or load its presentation. */
+int rf_weapon_queue_selection(rf_weapon_selection_state *state,int32_t weapon);
+
 typedef struct rf_weapon_inventory {
     uint8_t owned[64]; /* Entity +42c. */
     int32_t reserve[32],loaded[64]; /* +2ac and +32c. */
@@ -32,7 +41,7 @@ enum { RF_WEAPON_EMPTY_NONE,RF_WEAPON_EMPTY_PAIR,RF_WEAPON_EMPTY_MESSAGE,RF_WEAP
 typedef struct rf_weapon_empty_action { int32_t kind,weapon; } rf_weapon_empty_action;
 /* 4a6f41..4a70db after current-weapon resolution/presentation update. Caller
  * supplies resolved passenger (42acd0), projectile predicate (4c9e30) and linked
- * entity classification. Produces the original external action: paired switch
+ * entity classification. Produces the original external action: paired firing
  * (4a4e80 flags 1,1), out-of-ammo message (4383c0), or select (4a4a50 flags 1,0).
  * Does not perform those operations. Inputs are stable snapshots after 4a5910.
  * Null primary inventory or negative current yields NONE. Action unchanged on

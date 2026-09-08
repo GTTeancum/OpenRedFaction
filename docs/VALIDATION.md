@@ -552,3 +552,10 @@ ISO SHA-256:
 `8da9ba33400334322c3e5626bc3c9d8788c4b4dd1b31f3a957451db9129e4849`.
 The diagnostic still observes commands without applying weapon switches or
 displaying ammo messages; see docs/WEAPON.md for remaining integration work.
+
+Selection queue checkpoint: `python tools/verify_weapon_queue.py` passes 640
+complete original 0x4acd50 executions with the unchanged 0x4fa3e0 tail callee,
+including full player-view checks for unrelated writes. Win32 Release build,
+all four CTest cases and NXDK build pass. Queue mutation is not connected to
+the runtime diagnostic yet; no new emulator execution or screenshot is claimed
+for this checkpoint. Firing, selection eligibility and activation remain open.

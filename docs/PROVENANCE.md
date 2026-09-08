@@ -273,3 +273,11 @@ current-weapon/presentation call. It returns commands corresponding to 0x4a4e80,
 run unchanged passenger 0x42acd0, projectile 0x4c9e30, linked-class, ammo and
 replacement callees and observe the final call boundaries. See docs/WEAPON.md
 and tools/verify_weapon_empty.py for detailed input mappings and exclusions.
+
+Weapon-selection queue: shared `rf_weapon_queue_selection` is reconstructed
+from RF.exe SHA256 b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836,
+0x4acd50..0x4acd68 and unchanged tail callee 0x4fa3e0. Original-machine-code
+comparison covers 640 complete cases; no original code or data is distributed.
+Expanded local Ghidra exports clarify 0x4a4e80 firing behavior and 0x4a4a50
+selection checks. Raw exports remain ignored; these larger routines are not
+claimed as reconstructed by the queue primitive.

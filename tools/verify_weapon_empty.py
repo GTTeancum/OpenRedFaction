@@ -56,5 +56,5 @@ for k,wire in enumerate(cases):
     assert struct.unpack_from('<3i',out,k*12)==(0,action,selected),(k,action,selected,struct.unpack_from('<3i',out,k*12))
     coverage[action]+=1
 assert all(coverage.values()),coverage
-report=dict(result='PASS',cases=len(cases),coverage=coverage,scope='Original 4a6f41..4a70db after resolved current weapon, with unmodified passenger/projectile/linked/ammo/replacement callees and observation stops at final external actions; current-weapon presentation update and actual switch/message operations excluded')
+report=dict(result='PASS',cases=len(cases),coverage=coverage,scope='Original 4a6f41..4a70db after resolved current weapon, with unmodified passenger/projectile/linked/ammo/replacement callees and observation stops at final external actions; current-weapon presentation update and actual firing/selection/message operations excluded')
 (root/'artifacts/weapon-empty-verification.json').write_text(json.dumps(report,indent=2));print(report)

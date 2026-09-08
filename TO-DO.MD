@@ -17,8 +17,13 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The weapon-selection queue mutation now matches 640 complete original-code
+cases and builds for PC/NXDK. Recover selection eligibility and activation,
+current-weapon presentation and firing adapters before connecting the empty
+weapon decision to live gameplay; no new visible result is available.
+
 Empty-weapon decisions now match 4,000 original-code cases across paired
-switching, ammo messages and replacement selection, plus the XEMU diagnostic.
+firing dispatch, ammo messages and replacement selection, plus the XEMU diagnostic.
 Implement current-weapon presentation updates and execute the selected actions,
 then finish sound adapters and remaining gameplay locomotion physics.
 
