@@ -1201,3 +1201,10 @@ verification. Cases include zero/positive weights, loop flags 0/1/2/255,
 freeze/sound flag low-byte behavior, missing mappings and invalid action IDs.
 The candidate/turn helper can now use the reconstructed action-start interface;
 its remaining timer, movement and sound side effects are still open.
+# Turn-helper timer dependency
+
+The shared timer module now reconstructs clock advance, nested pause/resume,
+deadline setup/clear and expiration/remaining queries. Original-code testing
+matches 9,800 cases. The five turn-helper 1,200 ms deadlines are entity +79c,
++4d0, +4d4, +744 and +798. See docs/TIMERS.md for addresses, wrap behavior and
+validation limits. The helper's movement effects and integration remain open.

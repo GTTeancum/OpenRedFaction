@@ -190,3 +190,7 @@ through loaded type-two character wrappers 0x5033b0/0x501b50 and restart
 0x51c1c0. Sound-class dispatch is returned to the caller; original resolver
 0x434da0 and audio call 0x5056a0 remain unreconstructed. See
 tools/verify_motion_action_start.py and docs/CAMERA.md for evidence and scope.
+The shared timer module is reconstructed from RF.exe 1.20 NA clock/timer
+instructions 0x4fa2d0..0x4fa45d, excluding the random-range setter. No original
+callee replacements are used by tools/verify_timer.py. See docs/TIMERS.md for
+individual addresses, explicit input bounds and turn-helper timer call sites.

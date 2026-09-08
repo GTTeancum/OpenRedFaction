@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Shared game clocks and deadlines now match 9,800 original-code cases, including
+nested pauses and wrap boundaries. Connect the turn helper's five 1,200 ms
+deadlines, recover its movement effects and finish candidate selection;
+platform clock wiring and runtime timer validation remain open.
+
 Entity action starts now match 6,000 original-code cases through loaded motion
 restart and sound-class dispatch. Recover sound selection/playback, turn-helper
 timer and movement effects, and the remaining candidate-selection logic before

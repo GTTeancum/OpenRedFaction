@@ -349,3 +349,10 @@ executions through type-two loaded controls, checking complete playback state,
 0x434da0 sound resolver entry; no original callee is replaced. Actual sound
 selection/playback is excluded. Report:
 `artifacts/motion-action-start-verification.json`.
+# Game clocks and deadlines
+
+`python tools/verify_timer.py` matches 9,800 complete original operations and
+checks six malformed-input rejections without mutation. Original functions:
+0x4fa2d0, 0x4fa320, 0x4fa330, 0x4fa360, 0x4fa3e0, 0x4fa3f0, 0x4fa420.
+Both clocks, pause nesting, deadlines and query results are compared. Report:
+`artifacts/timer-verification.json`; detailed scope is in docs/TIMERS.md.
