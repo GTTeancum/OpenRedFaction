@@ -386,3 +386,12 @@ executions and unmodified movement/action/absent-sound callees. Complete
 playback/reference state, effects and candidates are compared. Report:
 `artifacts/turn-finish-verification.json`. This excludes preceding reset/decision
 logic and valid-sound playback; detailed conditions are in docs/TURN.md.
+# Assembled candidate helper
+
+`python tools/verify_turn_update.py` matches 3,004 complete original 0x41f9f0
+executions with unchanged callees for absent weapon-entry/sound fixtures.
+Six outcome branches are observed, including 26 selected-turn and 107 secondary
+turn cases; four explicit distance cases exercise the 8.2 threshold. A C-only
+test rejects a missing required reset callback. Report:
+`artifacts/turn-update-verification.json`. Populated reset/audio adapters and
+Xbox runtime integration remain unverified; see docs/TURN.md.

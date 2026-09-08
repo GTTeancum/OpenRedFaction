@@ -210,3 +210,8 @@ replacement; docs/TURN.md records the precision-sensitive boundary evidence.
 through the end of helper 0x41f9f0, using recovered movement settings and action
 controls. tools/verify_turn_finish.py executes original callees with absent
 sound classes. See docs/TURN.md for boundaries and excluded upstream decisions.
+`rf_turn_update` assembles RF.exe 1.20 NA helper 0x41f9f0, leaving 0x41ae70
+behind a required callback and returning audio requests. Original complete
+function tests use absent weapon entries and sound classes, not patched callees.
+The target-distance calculation follows 0x4faed0/0x409fa0/0x40a000 with threshold
+0x58956c. See tools/verify_turn_update.py and docs/TURN.md for verification limits.

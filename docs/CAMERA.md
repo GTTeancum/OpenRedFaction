@@ -1237,3 +1237,10 @@ remaining-time activity checks and conditional action starts in shared C.
 They match 4,800 original executions, including unchanged deadlines/turn flag
 and fallback candidates 2/4 versus 3/5. See docs/TURN.md. Preceding reset and
 decision logic, valid audio and complete gameplay integration remain open.
+# Assembled candidate helper
+
+`rf_turn_update` now combines the helper's early exits, direction gate, required
+reset callback, post-reset target-distance test and both effect branches.
+It matches 3,004 complete original executions with absent weapon entries and
+sound classes, covering all six outcomes. See docs/TURN.md for adapter boundaries;
+populated reset/audio behavior and actual player initialization remain open.

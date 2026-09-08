@@ -1,5 +1,78 @@
 #include "rf/turn.h"
 #include <math.h>
+static int turn_target_far(const float source[3], const float target[3], int *far)
+{
+    float x,y,z,threshold=8.2f; unsigned i; unsigned short saved,control,status;
+    for (i=0;i<3;++i) if (!isfinite(source[i]) || !isfinite(target[i])) return RF_FORMAT;
+    x=(float)((double)source[0]-target[0]); y=(float)((double)source[1]-target[1]); z=(float)((double)source[2]-target[2]);
+    if (!isfinite(x) || !isfinite(y) || !isfinite(z)) return RF_RANGE;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved & ~0x0f00u) | 0x0300u);
+    __asm {
+        fldcw control
+        fld x
+        fmul x
+        fld y
+        fmul y
+        faddp st(1), st(0)
+        fld z
+        fmul z
+        faddp st(1), st(0)
+        fsqrt
+        fcomp threshold
+        fnstsw status
+        fldcw saved
+    }
+#elif defined(__i386__) || defined(__x86_64__)
+    __asm__ volatile ("fnstcw %0" : "=m"(saved));
+    control=(unsigned short)((saved & ~0x0f00u) | 0x0300u);
+    __asm__ volatile ("fldcw %5\n\tflds %1\n\tfmuls %1\n\tflds %2\n\tfmuls %2\n\tfaddp\n\tflds %3\n\tfmuls %3\n\tfaddp\n\tfsqrt\n\tfcomps %4\n\tfnstsw %0\n\tfldcw %6"
+        : "=m"(status) : "m"(x), "m"(y), "m"(z), "m"(threshold), "m"(control), "m"(saved) : "st", "st(1)");
+#else
+#error Turn targeting requires the supported x86 PC or Xbox target.
+#endif
+    *far=(status & 0x4100u)==0; return RF_OK;
+}
+
+int rf_turn_update(rf_turn_effects *effects, rf_motion_playback_state *playback,
+                    rf_motion_playback_resource *resources, uint32_t resource_count,
+                    const int32_t actions[45], const int32_t sounds[45],
+                    const rf_turn_context *context, const rf_turn_actor *actor,
+                    rf_turn_reset_fn reset, void *user, int32_t *sound_class)
+{
+    rf_turn_direction_result direction; rf_turn_finish_input finish;
+    int active,status,far; int32_t a=-1,b=-1;
+    if (!effects || !playback || !resources || !actions || !sounds || !context || !actor || !sound_class) return RF_RANGE;
+    if ((uint8_t)actor->network_mode) { a=3; b=5; }
+    else if ((actor->mode==12 || actor->mode==15 || actor->mode==13 || actor->mode==11 || actor->mode==9) &&
+             (actor->info_flags & 0x20000u)) { a=b=1; }
+    else {
+        status=rf_motion_action_active(playback,resources,resource_count,actions,20,&active); if (status!=RF_OK) return status;
+        if (!active) { status=rf_motion_action_active(playback,resources,resource_count,actions,19,&active); if (status!=RF_OK) return status; }
+        if (active) a=b=9;
+    }
+    if (a!=-1) { effects->move_candidate=a; effects->alternate_candidate=b; *sound_class=-1; return RF_OK; }
+    status=rf_turn_direction(&actor->direction,&direction); if (status!=RF_OK) return status;
+    if (direction.eligible && actions[20]!=-1 && actions[19]!=-1) {
+        /* These activity tests are repeated by the original before reset. */
+        status=rf_motion_action_active(playback,resources,resource_count,actions,20,&active); if (status!=RF_OK) return status;
+        if (!active) { status=rf_motion_action_active(playback,resources,resource_count,actions,19,&active); if (status!=RF_OK) return status; }
+        if (!active) {
+            if (!reset) return RF_NOT_FOUND;
+            status=reset(user); if (status!=RF_OK) return status;
+            if ((uint8_t)actor->target_valid) {
+                status=turn_target_far(actor->source,actor->target,&far); if (status!=RF_OK) return status;
+                if (far && ((uint8_t)actor->trigger_a || (uint8_t)actor->trigger_b))
+                    return rf_turn_apply_selected(effects,playback,resources,resource_count,actions,sounds,context,direction.local[0],sound_class);
+            }
+        }
+    }
+    finish.local_x=direction.local[0]; finish.eligible=direction.eligible;
+    finish.weapon=actor->weapon; finish.preferred_weapon=actor->preferred_weapon; finish.behavior=actor->behavior; finish.network_mode=actor->network_mode;
+    return rf_turn_finish_candidates(effects,playback,resources,resource_count,actions,sounds,context,&finish,sound_class);
+}
+
 int rf_turn_finish_candidates(rf_turn_effects *effects, rf_motion_playback_state *playback,
                               rf_motion_playback_resource *resources, uint32_t resource_count,
                               const int32_t actions[45], const int32_t sounds[45],

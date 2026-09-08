@@ -1,5 +1,43 @@
 # Selected turn effects
 
+## Assembled candidate helper
+
+`rf_turn_update` assembles helper 0x41f9f0 around an explicit reset callback.
+Its early exits preserve the original order: nonzero byte global 6fc4d8 selects
+3/5; movement modes 12,15,13,11,9 with info +724 bit 0x20000 select 1/1;
+active action 20 or 19 selects 9/9. These exits do not alter movement settings,
+timers or playback. Otherwise it evaluates direction and repeats action checks
+before invoking reset when both action mappings 20/19 differ from -1.
+
+The callback owns original 0x41ae70 behavior and may change actor, playback or
+context through its user data. Missing a required callback returns RF_NOT_FOUND;
+the implementation does not silently skip the reset. Direction/local X is
+captured before reset, while target validity, source/target positions and trigger
+bytes are read afterward. Callback mutations cannot be rolled back by the core.
+Info flags in actor and movement configuration must describe the same entity.
+
+The post-reset distance gate subtracts positions +7d4 and +6fc with float stores
+and evaluates magnitude using x87 precision against binary32 8.2 at 0x58956c.
+A nonzero target-valid byte +6f8, distance strictly greater than that threshold,
+and either trigger byte +53c/+53d select the integrated action-19/20 effects.
+Other outcomes continue through the remaining candidate branches.
+
+`tools/verify_turn_update.py` executes the complete original function with all
+callees unchanged for 3,004 fixtures. The weapon-entry argument is -1, so the
+real original reset returns without changing the entity; the C callback counts
+that operation. Sound classes are -1. Both implementations match complete
+playback/reference state, candidates, movement fields, deadlines, turn flag and
+reset-call count. All six outcomes are observed: early 3/5, early 1/1, active
+9/9, selected turn, secondary turn and fallback. Four targeted distance cases
+include the 8.2 threshold and small orthogonal components. A C-only check rejects
+a missing required reset callback without changing outputs.
+
+Report: `artifacts/turn-update-verification.json`. This establishes the combined
+control flow for that fixture domain, not populated reset behavior or audio
+playback. Actual reset/audio adapters, actor initialization and Xbox runtime
+integration are still required. Sound requests remain deferred as described
+below, so synchronous audio ordering also remains integration work.
+
 ## Remaining candidate branches
 
 `rf_turn_finish_candidates` reconstructs 0x41fc84 onward after the selected-turn

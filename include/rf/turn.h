@@ -54,4 +54,26 @@ int rf_turn_finish_candidates(rf_turn_effects *effects, rf_motion_playback_state
                               const int32_t actions[45], const int32_t sounds[45],
                               const rf_turn_context *context, const rf_turn_finish_input *input,
                               int32_t *sound_class);
+typedef struct rf_turn_actor {
+    rf_turn_direction_input direction;
+    int32_t mode;
+    uint32_t info_flags; /* Info +724, consistent with movement config. */
+    int32_t weapon, preferred_weapon, behavior;
+    uint32_t network_mode;
+    float source[3], target[3]; /* Entity +7d4 and +6fc. */
+    uint32_t target_valid, trigger_a, trigger_b; /* Bytes +6f8,+53c,+53d. */
+} rf_turn_actor;
+typedef int (*rf_turn_reset_fn)(void *user);
+/* Candidate helper 0x41f9f0 control flow. The required reset callback implements
+ * 0x41ae70 when reached and may update actor/playback/context through user.
+ * A missing required callback returns RF_NOT_FOUND, not implicit success.
+ * Local direction is captured before reset; target/trigger fields are read
+ * afterward. Callback side effects are not rolled back on subsequent failure.
+ * Audio requests remain deferred to caller; this is not a complete entity
+ * runtime until reset and audio adapters are supplied. */
+int rf_turn_update(rf_turn_effects *effects, rf_motion_playback_state *playback,
+                    rf_motion_playback_resource *resources, uint32_t resource_count,
+                    const int32_t actions[45], const int32_t sounds[45],
+                    const rf_turn_context *context, const rf_turn_actor *actor,
+                    rf_turn_reset_fn reset, void *user, int32_t *sound_class);
 #endif

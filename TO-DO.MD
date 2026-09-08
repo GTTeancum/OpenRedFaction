@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The assembled candidate helper matches 3,004 complete original executions for
+absent weapon-entry and sound fixtures, with all six outcome branches covered.
+Recover populated reset/audio adapters and actual entity initialization, then
+validate the full helper in Xbox runtime and finish gameplay-camera integration.
+
 Remaining turn-candidate branches now match 4,800 original-code cases, including
 activity-based restart suppression and fallback candidate selection. Recover
 the preceding reset/decision logic and sound playback, then integrate the
