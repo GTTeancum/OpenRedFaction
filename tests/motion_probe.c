@@ -11,6 +11,18 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--priority") == 0) {
+        struct { rf_motion_controller controller; int32_t motions[23]; rf_motion_priority priority; } input;
+        int32_t status,handled;
+        _Static_assert(sizeof(input)==172,"Priority selector wire layout");
+        while (fread(&input,sizeof(input),1,stdin)==1) {
+            handled=-1;
+            status=rf_motion_select_priority(&input.controller,input.motions,&input.priority,&handled);
+            if (fwrite(&status,4,1,stdout)!=1 || fwrite(&handled,4,1,stdout)!=1 ||
+                fwrite(&input.controller,24,1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--movement") == 0) {
         struct { rf_motion_controller controller; int32_t motions[23]; rf_motion_movement movement; } input;
         int32_t status;

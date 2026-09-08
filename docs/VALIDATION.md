@@ -323,3 +323,12 @@ bone overrides, actual gameplay camera or animated character rendering.
 callees. It compares all controller fields and adds two C-only rejection cases.
 Report: `artifacts/motion-movement-verification.json`. Earlier priority,
 candidate selection and physics/AI behavior are outside this verification.
+# Animation priority prefix
+
+`python tools/verify_motion_priority.py` matches 5,010 executions of the original
+0x41f400..0x41f5ad prefix, including its unmodified callees. Ten targeted velocity
+cases cover the x87 threshold with small orthogonal components; the ordinary
+double rewrite failed one of them and was replaced with original x87 precision.
+An observation-only hook stops at fallthrough 0x41f5ae. Report:
+`artifacts/motion-priority-verification.json`. Middle selection, physics/AI and
+actual entity initialization remain outside the check.

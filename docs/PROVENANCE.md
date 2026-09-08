@@ -174,3 +174,8 @@ checked against original instructions and its unmodified callees. The source
 includes predicates 0x42a0a0/0x429fc0/0x429ff0/0x42a060 and finite vector
 comparisons 0x416270/0x4162b0. See tools/verify_motion_movement.py; earlier
 selector branches and physics side effects are explicitly excluded.
+`rf_motion_select_priority` is reconstructed from RF.exe 1.20 NA
+0x41f400..0x41f5ad, with predicates 0x429f90/0x42ac80/0x42a020/0x40a130 and
+velocity magnitude 0x40a000. The duplicate first-occupant call is preserved;
+original-code tests resolve synthetic entities through unmodified handle lookup.
+See tools/verify_motion_priority.py and docs/CAMERA.md for scope and evidence.

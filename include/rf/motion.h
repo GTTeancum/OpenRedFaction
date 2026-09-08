@@ -91,6 +91,22 @@ typedef struct rf_motion_movement {
  * are not included. Finite vectors and candidate indices [0,22] required. */
 int rf_motion_select_movement(rf_motion_controller *controller, const int32_t motions[23],
                               const rf_motion_movement *movement);
+typedef struct rf_motion_priority {
+    int32_t forced_state;
+    uint32_t flags, physics_flags;
+    int32_t mode, class_type, action, linked_class_type;
+    uint32_t linked_flags;
+    int32_t linked_occupant_handle, entity_handle;
+    float velocity[3];
+    uint32_t linked_present;
+} rf_motion_priority;
+/* 0x41f400..0x41f5ad priority selection. Linked fields describe an already
+ * resolved valid type-zero entity; handle lookup remains the caller's job.
+ * class_type values are resolved 0x486c90 classifications. handled=0 means
+ * continue with candidate/physics selection; handled=1 stops selection even
+ * when the requested motion is absent. Finite velocities required. */
+int rf_motion_select_priority(rf_motion_controller *controller, const int32_t motions[23],
+                              const rf_motion_priority *priority, int *handled);
 /* Post-selector block 0x41f2b6..0x41f3f3 only. The caller selects logical
  * states and passes their 23 registered motion IDs (-1 means missing).
  * Stops looping weights before assigning the current/blended/override motion.

@@ -6,6 +6,66 @@ int rf_motion_has_state(const rf_motion_controller *controller, int32_t requeste
     return controller && (controller->current==requested || controller->next==requested);
 }
 
+static int motion_priority_speed(float x, float y, float z)
+{
+    float threshold=0.01f; unsigned short saved,control,status;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved & ~0x0f00u) | 0x0300u);
+    __asm {
+        fldcw control
+        fld x
+        fmul x
+        fld y
+        fmul y
+        faddp st(1), st(0)
+        fld z
+        fmul z
+        faddp st(1), st(0)
+        fsqrt
+        fcomp threshold
+        fnstsw ax
+        mov status, ax
+        fldcw saved
+    }
+#elif defined(__i386__) || defined(__x86_64__)
+    __asm__ volatile ("fnstcw %0" : "=m"(saved));
+    control=(unsigned short)((saved & ~0x0f00u) | 0x0300u);
+    __asm__ volatile ("fldcw %5\n\tflds %1\n\tfmuls %1\n\tflds %2\n\tfmuls %2\n\tfaddp\n\tflds %3\n\tfmuls %3\n\tfaddp\n\tfsqrt\n\tfcomps %4\n\tfnstsw %%ax\n\tfldcw %6"
+        : "=a"(status) : "m"(x), "m"(y), "m"(z), "m"(threshold), "m"(control), "m"(saved) : "st", "st(1)");
+#else
+#error Motion selection requires the supported x86 PC or Xbox target.
+#endif
+    return (status & 0x4100u)==0;
+}
+
+int rf_motion_select_priority(rf_motion_controller *controller, const int32_t motions[23],
+                              const rf_motion_priority *priority, int *handled)
+{
+    int32_t selected; int unconditional=0,status;
+    if (!controller || !motions || !priority || !handled) return RF_RANGE;
+    if (priority->linked_present>1 || !isfinite(priority->velocity[0]) ||
+        !isfinite(priority->velocity[1]) || !isfinite(priority->velocity[2])) return RF_FORMAT;
+    if (priority->forced_state!=-1) selected=priority->forced_state;
+    else if (priority->flags & 0x02000000u) selected=22;
+    else if (priority->linked_present && priority->linked_class_type==4) selected=15;
+    else if (priority->linked_present && (priority->linked_flags & 0x00400000u) &&
+             priority->linked_occupant_handle==priority->entity_handle) selected=20;
+    /* The original calls the same first-occupant predicate twice. Its state
+     * 21 branch is unreachable for a stable linked entity; do not substitute
+     * the different second-occupant predicate at 0x42acd0. */
+    else if (priority->mode==3 || priority->mode==8 || (priority->class_type==1 && priority->action==-1)) selected=14;
+    else if ((priority->physics_flags & 0x8000u) && (priority->flags & 0x400u)) {
+        selected=motion_priority_speed(priority->velocity[0],priority->velocity[1],priority->velocity[2]) ? 10 : 9;
+        unconditional=1;
+    } else { *handled=0; return RF_OK; }
+    if (unconditional || !rf_motion_has_state(controller,selected)) {
+        status=rf_motion_request_state(controller,motions,selected,.25f);
+        if (status!=RF_OK) return status;
+    }
+    *handled=1; return RF_OK;
+}
+
 int rf_motion_select_movement(rf_motion_controller *controller, const int32_t motions[23],
                               const rf_motion_movement *movement)
 {

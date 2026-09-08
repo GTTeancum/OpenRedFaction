@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Animation priority selection now matches 5,010 original-code cases, including
+forced states, linked-entity predicates and the x87 velocity threshold. Recover
+the middle candidate-selection and physics/AI branches, then connect actual
+player entity fields to the complete selector and gameplay camera.
+
 The movement selector tail now matches 6,000 original-code cases using entity
 movement-vector, mode and direction fields. Recover upstream priority rules,
 candidate selection, physics/AI side effects and actual player initialization

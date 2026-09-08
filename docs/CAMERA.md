@@ -1094,3 +1094,38 @@ executions of the original tail and unmodified callees. Tests vary vector axes,
 signed zeros, tiny values, modes, direction values, candidates, mappings and
 transition progress; two C-only cases check malformed inputs preserve state.
 The API is compiled for both PC and Xbox but not wired into the runtime script.
+# Animation priority prefix
+
+`rf_motion_select_priority` reconstructs 0x41f400..0x41f5ad, returning a handled
+flag so the caller can continue into the unrecovered middle selection block.
+Priority order is forced state (entity +834 != -1), flag +810 bit 0x02000000
+(logical 22), linked classification four (15), linked first-occupant match
+(20), mode 3/8 or classification one with +1380 == -1 (14), then the velocity
+branch when +1a8 bit 0x8000 and +810 bit 0x400 are both set (9/10).
+All except the velocity branch suppress requests matching current or next.
+Missing mapped motions still count as handled, using the request setter's
+standing fallback. Priority does not mean a request necessarily changed state.
+
+The linked predicates resolve entity +200 through 0x426fc0 and 0x40a0e0: the
+low 16 handle bits must be below 1024, the pointer table at 0x7394cc must have
+an entry, its +2c full handle must match, and entity type +24 must be zero.
+Classification comes from 0x486c90; for type zero it reads info +1b4 through
+entity +294. Occupancy requires info +724 bit 0x00400000, then compares the
+first seat's +4 handle with the selecting entity +2c. The C priority input
+uses already-resolved linked fields; a shared entity registry remains work.
+
+Both 0x41f4b1 and 0x41f4e8 call 0x42ac80, the first-occupant predicate. The
+logical 21 branch is unreachable for stable inputs. The distinct second-seat
+predicate 0x42acd0 exists but is not called here; it was not substituted.
+
+The velocity source is entity +144; its x87 magnitude at 0x40a000 is compared
+with binary32 0.01 at 0x589568, without spilling to float or double. An initial
+double rewrite incorrectly selected 9 for (.01f,1e-11f,0), while original x87
+selected 10. The shared x86 helper now preserves original extended precision,
+sum order and square root, restoring the caller's control word afterward.
+
+`tools/verify_motion_priority.py` matches 5,010 original executions using
+unmodified handle lookup, linked/movement predicates and state controls. An
+observation hook stops at 0x41f5ae for fallthrough; no callee is replaced.
+Tests compare all controller fields and handled outcomes. This does not verify
+the later middle candidate/physics/AI block or actual player initialization.
