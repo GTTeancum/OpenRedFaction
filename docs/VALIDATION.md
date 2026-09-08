@@ -332,3 +332,12 @@ double rewrite failed one of them and was replaced with original x87 precision.
 An observation-only hook stops at fallthrough 0x41f5ae. Report:
 `artifacts/motion-priority-verification.json`. Middle selection, physics/AI and
 actual entity initialization remain outside the check.
+# Remaining time and action activity
+
+`python tools/verify_motion_action.py` matches 7,000 original 0x428d10 and
+type-two 0x5033d0/0x501bd0/0x51c270 executions with no callee replacements.
+The test checks returned predicate/float bytes and unchanged entity/model RAM.
+Coverage includes zero weights, loop/freeze flags, cursor boundaries, absent
+slots, invalid action indices and large positive end ticks. Local report:
+`artifacts/motion-action-verification.json`. Candidate-helper side effects and
+other character types are not covered.

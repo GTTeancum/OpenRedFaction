@@ -65,6 +65,16 @@ typedef struct rf_motion_playback_resource {
     uint32_t looping;
     int32_t markers[2], references;
 } rf_motion_playback_resource;
+/* Loaded type-two query 0x51c270: max(end-cursor,0) * binary32(1/160)
+ * * binary32(1/30), with no intermediate float spill. Absent slots return
+ * zero; weight, frozen state and loop flags do not affect this query. */
+int rf_motion_remaining(const rf_motion_playback_state *state, const rf_motion_playback_resource *resources,
+                         uint32_t resource_count, int32_t motion, float *seconds);
+/* Entity action predicate 0x428d10, type-two character path. Actions [0,44]
+ * map to registered motions; -1 is absent. Out-of-range actions return false.
+ * This tests remaining time, not weight. Invalid data preserves output. */
+int rf_motion_action_active(const rf_motion_playback_state *state, const rf_motion_playback_resource *resources,
+                             uint32_t resource_count, const int32_t actions[45], int32_t action, int *active);
 typedef struct rf_motion_controller {
     int32_t current, next;
     float duration, elapsed;

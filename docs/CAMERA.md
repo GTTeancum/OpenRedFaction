@@ -1129,3 +1129,46 @@ unmodified handle lookup, linked/movement predicates and state controls. An
 observation hook stops at 0x41f5ae for fallthrough; no callee is replaced.
 Tests compare all controller fields and handled outcomes. This does not verify
 the later middle candidate/physics/AI block or actual player initialization.
+# Candidate helper dependencies and action activity
+
+Targeted Ghidra exports now include 0x41f950, 0x41f9f0, 0x429ae0,
+0x428d10, 0x408dc0, 0x408e90 and 0x48aaf0. Raw exports remain local evidence.
+The middle selector is not merely a candidate table: before candidate selection
+it can update entity +744 through timer setter 0x4fa360 and call 0x41ae70.
+The candidate/turn helper 0x41f9f0 can start actions 17..20 via 0x428c90,
+write entity +7bc, update five timers and invoke 0x427450, which itself modifies
+movement-related fields. These effects must be recovered before treating the
+whole selector as implemented.
+
+Direct candidate rules observed at 0x41f61d..0x41f729:
+
+- Entity +520 equal 17: idle 0, movement/alternate 7, special 8; missing logical
+  motion 7 changes movement and alternate to 4.
+- +520 equal 7, or equal 12 with +554 equal 1: idle 13, movement/alternate 6,
+  special 8; missing motion 6 changes only alternate to 4.
+- Ordinary fallback: idle 0, movement 2, alternate 4, special 8.
+- The conditional 0x41f950/0x427020/0x428e60 path obtains movement/alternate
+  from 0x41f9f0, starts with idle 1 and special 9, then can replace idle with
+  alternate based on +144 velocity, +8c0 times binary32 .3, +740 and a global.
+
+`rf_motion_remaining` reconstructs loaded type-two 0x51c270. It finds the first
+matching active slot and returns max(file end tick minus cursor,0), multiplied
+by binary32 1/160 (0x589e18) and binary32 1/30 (0x5898e4), with no intermediate
+float spill. An absent slot returns positive zero. Weight, looping and frozen
+state do not affect this query. The safe C API rejects signed subtraction
+overflow rather than emulating original wrap for malformed timelines.
+
+`rf_motion_action_active` reconstructs 0x428d10 for a type-two character. The
+45-entry action mapping is entity +a54 with stride 16. Invalid action indices
+or negative mapped IDs return false. Otherwise it calls remaining-time query
+through 0x5033d0/0x501bd0 and tests for nonzero. In particular, a deferred
+zero-weight stop does not necessarily make an action inactive until update
+removes the slot or the cursor reaches the end. This is the query used by
+0x41f9f0 for turn-action decisions, not a test of slot weight.
+
+`tools/verify_motion_action.py` matches 7,000 complete original action queries
+and remaining-time calls with unmodified callees, covering zero weights,
+loop/freeze flags, missing slots, invalid action indices, cursor boundaries
+and 2,000 positive end ticks across the int32 range. Original entity/model RAM
+is checked unchanged. Other character types and the candidate helper's side
+effects remain open; no runtime visual behavior changes in this step.

@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Action-activity and remaining-time queries now match 7,000 original-code cases;
+activity depends on end minus cursor, not slot weight. Recover candidate/turn
+helper 0x41f9f0, including action starts and timer/movement side effects, then
+finish the middle selector and actual player initialization.
+
 Animation priority selection now matches 5,010 original-code cases, including
 forced states, linked-entity predicates and the x87 velocity threshold. Recover
 the middle candidate-selection and physics/AI branches, then connect actual

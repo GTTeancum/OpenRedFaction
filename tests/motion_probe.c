@@ -11,6 +11,19 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--action-active") == 0) {
+        struct { rf_motion_playback_state state; rf_motion_playback_resource resources[32]; int32_t actions[45],action; } input;
+        struct { int32_t status,active; float seconds; } result;
+        _Static_assert(sizeof(input)==1596,"Action query wire layout");
+        while (fread(&input,sizeof(input),1,stdin)==1) {
+            result.active=-1; result.seconds=0;
+            result.status=rf_motion_action_active(&input.state,input.resources,32,input.actions,input.action,&result.active);
+            if (result.status==RF_OK && input.action>=0 && input.action<45 && input.actions[input.action]>=0)
+                result.status=rf_motion_remaining(&input.state,input.resources,32,input.actions[input.action],&result.seconds);
+            if (fwrite(&result,sizeof(result),1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--priority") == 0) {
         struct { rf_motion_controller controller; int32_t motions[23]; rf_motion_priority priority; } input;
         int32_t status,handled;

@@ -179,3 +179,9 @@ selector branches and physics side effects are explicitly excluded.
 velocity magnitude 0x40a000. The duplicate first-occupant call is preserved;
 original-code tests resolve synthetic entities through unmodified handle lookup.
 See tools/verify_motion_priority.py and docs/CAMERA.md for scope and evidence.
+Shared remaining-time and action-activity queries are reconstructed from
+RF.exe 1.20 NA 0x51c270 and 0x428d10, including type-two wrappers 0x5033d0 and
+0x501bd0. Time constants were read at 0x589e18 and 0x5898e4; the file-end
+getter is 0x53a850. tools/verify_motion_action.py executes original callees.
+Expanded Ghidra targets document dependencies of candidate helper 0x41f9f0;
+its side effects are not yet reconstructed.

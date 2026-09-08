@@ -1,6 +1,31 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_remaining(const rf_motion_playback_state *state, const rf_motion_playback_resource *resources,
+                         uint32_t resource_count, int32_t motion, float *seconds)
+{
+    uint32_t i; int64_t ticks;
+    if (!state || !resources || !seconds || state->completion.active.count>16) return RF_RANGE;
+    for (i=0;i<state->completion.active.count;++i) if (state->completion.active.slots[i].motion==motion) break;
+    if (i==state->completion.active.count) { *seconds=0; return RF_OK; }
+    if (motion<0 || (uint32_t)motion>=resource_count) return RF_RANGE;
+    ticks=(int64_t)resources[motion].comparison.end_tick-state->completion.active.slots[i].tick;
+    if (ticks<INT32_MIN || ticks>INT32_MAX) return RF_RANGE;
+    *seconds=ticks>0 ? (float)(((double)ticks*(double)(1.0f/160.0f))*(double)(1.0f/30.0f)) : 0;
+    return RF_OK;
+}
+
+int rf_motion_action_active(const rf_motion_playback_state *state, const rf_motion_playback_resource *resources,
+                             uint32_t resource_count, const int32_t actions[45], int32_t action, int *active)
+{
+    float seconds; int status;
+    if (!actions || !active) return RF_RANGE;
+    if (action<0 || action>=45 || actions[action]<0) { *active=0; return RF_OK; }
+    status=rf_motion_remaining(state,resources,resource_count,actions[action],&seconds);
+    if (status==RF_OK) *active=seconds!=0;
+    return status;
+}
+
 int rf_motion_has_state(const rf_motion_controller *controller, int32_t requested)
 {
     return controller && (controller->current==requested || controller->next==requested);
