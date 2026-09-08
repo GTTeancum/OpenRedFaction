@@ -55,6 +55,24 @@ int rf_motion_sample_weight(const rf_motion_weight_envelope *envelope, int32_t t
 int rf_motion_advance_candidate(rf_motion_completion_state *state, uint32_t index, int32_t delta,
                                 const rf_motion_weight_envelope *candidate_envelope, int candidate_bypass,
                                 const rf_motion_weight_envelope *primary_envelope, int primary_bypass);
+typedef struct rf_motion_playback_state {
+    rf_motion_completion_state completion;
+    float phase;
+    uint32_t generation, event_mask;
+} rf_motion_playback_state;
+typedef struct rf_motion_playback_resource {
+    rf_motion_weight_envelope comparison;
+    uint32_t looping;
+    int32_t markers[2], references;
+} rf_motion_playback_resource;
+/* Complete 0x51ba80 forward update. Resources are indexed by registered motion
+ * ID, with the comparison envelope for the descriptor-selected bone. Active
+ * IDs must be unique, as enforced by the original motion insertion path;
+ * durations must be positive and active weights finite and nonnegative.
+ * Generation wraps at 16 bits; marker events remain sticky until caller clears
+ * them. Invalid input leaves state and resource reference counts unchanged. */
+int rf_motion_update(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
+                     uint32_t resource_count, float elapsed);
 /* Original 0x417e90: signed packed components scaled without normalization.
  * Input is eight little-endian bytes; output is quaternion x, y, z, w. */
 int rf_motion_decode_rotation(const void *packed, size_t bytes, float out[4]);

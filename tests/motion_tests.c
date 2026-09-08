@@ -5,6 +5,28 @@
 int main(void)
 {
     {
+        rf_motion_playback_state state={0}, saved;
+        rf_motion_playback_resource resources[2]={{{1,0,9600,0,0},0,{0,0},2},{{1,0,9600,0,0},0,{0,0},2}};
+        state.completion.active.count=2;
+        state.completion.active.freeze_slot=state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
+        state.completion.active.slots[0].weight=1;
+        state.completion.active.slots[1].motion=1;
+        state.completion.active.slots[1].weight=1;
+        state.completion.active.slots[1].tick=INT32_MAX;
+        saved=state;
+        /* Failure after the first cursor advances must roll back everything. */
+        CHECK(rf_motion_update(&state,resources,2,1)==RF_RANGE);
+        CHECK(memcmp(&state,&saved,sizeof(state))==0 && resources[0].references==2 && resources[1].references==2);
+        CHECK(rf_motion_update(&state,resources,2,NAN)==RF_RANGE && memcmp(&state,&saved,sizeof(state))==0);
+        CHECK(rf_motion_update(&state,resources,2,-1)==RF_RANGE && memcmp(&state,&saved,sizeof(state))==0);
+        state.completion.active.slots[1].motion=0; saved=state;
+        CHECK(rf_motion_update(&state,resources,2,0)==RF_FORMAT && memcmp(&state,&saved,sizeof(state))==0);
+        state.completion.frozen=1; saved=state;
+        CHECK(rf_motion_update(&state,NULL,2,NAN)==RF_OK && memcmp(&state,&saved,sizeof(state))==0);
+        state.completion.frozen=0; saved=state;
+        CHECK(rf_motion_update(&state,NULL,0,NAN)==RF_OK && memcmp(&state,&saved,sizeof(state))==0);
+    }
+    {
         rf_motion_completion_state state={0};
         state.active.count=1; state.active.primary_slot=-1; state.active.slots[0].weight=1;
         state.primary_words[0]=123; state.primary_words[1]=456;

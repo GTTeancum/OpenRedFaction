@@ -11,6 +11,23 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--update") == 0) {
+        rf_motion_playback_state state;
+        rf_motion_playback_resource resources[32];
+        uint32_t frames,i,j; float elapsed; int32_t status;
+        _Static_assert(sizeof(state)==260,"Playback state wire layout");
+        _Static_assert(sizeof(resources[0])==36,"Playback resource wire layout");
+        while (fread(&state,sizeof(state),1,stdin)==1) {
+            if (fread(resources,sizeof(resources),1,stdin)!=1 || fread(&frames,4,1,stdin)!=1) return 2;
+            for (i=0;i<frames;++i) {
+                if (fread(&elapsed,4,1,stdin)!=1) return 2;
+                status=rf_motion_update(&state,resources,32,elapsed);
+                if (fwrite(&status,4,1,stdout)!=1 || fwrite(&state,sizeof(state),1,stdout)!=1) return 1;
+                for (j=0;j<32;++j) if (fwrite(&resources[j].references,4,1,stdout)!=1) return 1;
+            }
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--advance-candidate") == 0) {
         struct { rf_motion_completion_state state; uint32_t index; int32_t delta;
                  rf_motion_weight_envelope candidate,primary; int32_t candidate_bypass,primary_bypass; } input;

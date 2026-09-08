@@ -66,6 +66,40 @@ int rf_motion_map_loop(int32_t start, int32_t end, float phase, int32_t previous
     *out=result; return RF_OK;
 }
 
+/* 0x51bbde..0x51bc01 keeps division, multiply and add in x87 extended
+ * precision. Even an exact rational evaluation differs at some float ties.
+ * Both supported targets are x86; isolate the required precision here. */
+static float motion_phase_extended(float rate, float total, int32_t delta, float phase, uint32_t *wrapped)
+{
+    float result, one=1.0f; unsigned short status, saved, control;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved & ~0x0f00u) | 0x0300u);
+    __asm {
+        fldcw control
+        fld rate
+        fdiv total
+        fimul delta
+        fadd phase
+        fst result
+        fcomp one
+        fnstsw ax
+        mov status, ax
+        fldcw saved
+    }
+#elif defined(__i386__) || defined(__x86_64__)
+    __asm__ volatile ("fnstcw %0" : "=m"(saved));
+    control=(unsigned short)((saved & ~0x0f00u) | 0x0300u);
+    __asm__ volatile ("fldcw %7\n\tflds %2\n\tfdivs %3\n\tfimull %4\n\tfadds %5\n\tfsts %0\n\tfcomps %6\n\tfnstsw %%ax\n\tfldcw %8"
+        : "=m"(result), "=a"(status)
+        : "m"(rate), "m"(total), "m"(delta), "m"(phase), "m"(one), "m"(control), "m"(saved) : "st");
+#else
+#error Motion playback currently requires the supported x86 PC or Xbox target.
+#endif
+    *wrapped=(status & 0x0100u)==0;
+    return result;
+}
+
 int rf_motion_advance_phase(const rf_motion_phase_slot *slots, uint32_t count, float phase,
                             int32_t delta_ticks, rf_motion_phase_result *out)
 {
@@ -83,11 +117,9 @@ int rf_motion_advance_phase(const rf_motion_phase_slot *slots, uint32_t count, f
     if (total!=0) {
         advanced=((double)rate/total)*delta_ticks+phase;
         if (!isfinite(advanced) || advanced>=16777216.0) return RF_RANGE;
-        result.phase=(float)advanced;
-        /* Compare the unspilled value first, just like original fst/fcomp.
-         * Below 2^24, repeated float subtraction of one is exactly represented. */
-        if (advanced>=1.0) {
-            result.wrapped=1;
+        result.phase=motion_phase_extended(rate,total,delta_ticks,phase,&result.wrapped);
+        /* Below 2^24, repeated float subtraction of one is exact. */
+        if (result.wrapped) {
             result.phase=(float)((double)result.phase-floor((double)result.phase));
         }
     }
@@ -161,6 +193,77 @@ int rf_motion_advance_candidate(rf_motion_completion_state *state, uint32_t inde
         next.active.primary_slot=(int32_t)index;
         next.primary_words[0]=next.primary_words[1]=0;
     }
+    *state=next; return RF_OK;
+}
+
+int rf_motion_update(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
+                     uint32_t resource_count, float elapsed)
+{
+    rf_motion_playback_state next;
+    rf_motion_phase_slot phases[16]; rf_motion_phase_result phase;
+    int32_t ends[16], removed[16], delta; uint32_t i,j,mask=0,removed_count=0;
+    int status;
+    if (!state) return RF_RANGE;
+    if (state->completion.frozen || !state->completion.active.count || !resource_count) return RF_OK;
+    if (!resources || state->completion.active.count>16 || elapsed<0) return RF_RANGE;
+    next=*state;
+    if (next.generation>65535 || next.event_mask>3 || next.completion.frozen>1 ||
+        next.completion.primary_flag>255 || next.completion.active.freeze_slot < -1 ||
+        next.completion.active.primary_slot < -1 || next.completion.active.dominant_slot < -1 ||
+        next.completion.active.freeze_slot>=(int32_t)next.completion.active.count ||
+        next.completion.active.primary_slot>=(int32_t)next.completion.active.count ||
+        next.completion.active.dominant_slot>=(int32_t)next.completion.active.count) return RF_FORMAT;
+    status=rf_motion_elapsed_ticks(elapsed,&delta); if (status!=RF_OK) return status;
+    for (i=0;i<next.completion.active.count;++i) {
+        int32_t id=next.completion.active.slots[i].motion; int64_t duration;
+        const rf_motion_playback_resource *r;
+        if (id<0 || (uint32_t)id>=resource_count || i>=resource_count) return RF_FORMAT;
+        for (j=0;j<i;++j) if (next.completion.active.slots[j].motion==id) return RF_FORMAT;
+        r=&resources[id]; duration=(int64_t)r->comparison.end_tick-r->comparison.start_tick;
+        if (duration<=0 || duration>INT32_MAX || r->references<0 || r->looping>255) return RF_FORMAT;
+        phases[i].duration=(int32_t)duration; phases[i].weight=next.completion.active.slots[i].weight;
+        phases[i].looping=r->looping; ends[i]=r->comparison.end_tick;
+        if (r->looping) mask|=1u<<i;
+    }
+    status=rf_motion_advance_phase(phases,next.completion.active.count,next.phase,delta,&phase);
+    if (status!=RF_OK) return status;
+    next.phase=phase.phase; next.completion.active.dominant_slot=phase.dominant_slot;
+    next.generation=(next.generation+1)&65535u;
+    for (i=0;i<next.completion.active.count;++i) {
+        rf_motion_active_slot *slot=&next.completion.active.slots[i];
+        const rf_motion_playback_resource *r=&resources[slot->motion];
+        if (slot->weight==0) continue;
+        if (r->looping) {
+            rf_motion_loop_result loop;
+            status=rf_motion_map_loop(r->comparison.start_tick,r->comparison.end_tick,next.phase,
+                                      slot->tick,r->markers,phase.wrapped,&loop);
+            if (status!=RF_OK) return status;
+            slot->tick=loop.tick;
+            if ((int32_t)i==phase.dominant_slot) next.event_mask|=loop.event_mask;
+        } else if (phase.dominant_slot>=0) {
+            const rf_motion_playback_resource *primary=NULL;
+            if (next.completion.active.primary_slot>=0)
+                primary=&resources[next.completion.active.slots[next.completion.active.primary_slot].motion];
+            status=rf_motion_advance_candidate(&next.completion,i,delta,&r->comparison,resources[i].looping,
+                                               primary ? &primary->comparison : NULL,primary ? primary->looping : 0);
+            if (status!=RF_OK) return status;
+        } else {
+            int64_t tick=(int64_t)slot->tick+delta;
+            if (tick>INT32_MAX) return RF_RANGE;
+            slot->tick=(int32_t)tick;
+        }
+    }
+    status=rf_motion_complete_slots(&next.completion,ends,mask); if (status!=RF_OK) return status;
+    for (i=0;i<next.completion.active.count;) {
+        rf_motion_active_slot *slot=&next.completion.active.slots[i];
+        if (slot->weight==0) {
+            int32_t references=resources[slot->motion].references;
+            removed[removed_count++]=slot->motion;
+            status=rf_motion_remove_slot(&next.completion.active,slot->motion,&references);
+            if (status!=RF_OK) return status;
+        } else ++i;
+    }
+    for (i=0;i<removed_count;++i) if (resources[removed[i]].references>0) --resources[removed[i]].references;
     *state=next; return RF_OK;
 }
 

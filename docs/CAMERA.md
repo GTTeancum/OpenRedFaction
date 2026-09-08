@@ -729,3 +729,45 @@ full update, and does not apply to the branch with no looping contribution.
 
 After sharing the envelope calculation, all 575,460 direct-original envelope
 comparisons still pass. PC/NXDK builds and all four PC tests also pass.
+
+## Complete forward playback update
+
+`rf_motion_update` now assembles the stages of `0x51ba80`: early exits, 16-bit
+generation increment, shared phase/dominant selection, cursor/event updates,
+mixed-loop primary selection, completion/freezing and zero-weight removal.
+The no-loop-contribution branch advances non-loop cursors without selecting
+a primary. Events are sticky bits; the owner must clear them when consumed.
+The resource array is indexed by registered motion ID and carries comparison
+bone envelopes, loop flags, two markers and reference counts. The mixed-loop
+candidate lookup retains the original active-index bypass asymmetry.
+
+State is copied before update, and resource decrements commit only after all
+stages succeed. The supported domain is forward elapsed time, at most 16
+unique active IDs, positive signed-32-bit durations and finite nonnegative
+slot weights. No heap allocation or whole resource-array copy is required.
+Original early returns for frozen/empty instances or no registered resources
+remain no-ops without inspecting unused playback inputs.
+
+Consecutive testing exposed an x87 rounding edge in `0x51bbde..0x51bc01`:
+rate bits `0x3bb34203`, total 3.75, delta 9600 and old phase `0x3d5fdcc0`
+produce phase `0x3d726100`; double arithmetic produces `0x3d726000`.
+An exact rational calculation also chooses the latter because the original
+extended-precision division introduces a tiny positive rounding residual.
+A small isolated x87 helper preserves that instruction sequence on both
+supported x86 targets. It temporarily selects extended/nearest precision
+and restores the caller's control word; no modern CPU extension is needed.
+The remaining state machine is C. MSVC Win32 and NXDK compile this path;
+unsupported architectures currently produce an explicit build error.
+
+`tools/verify_motion_playback.py` executes the entire original function and
+all callees without replacements for 160 synthetic scenarios, 64 consecutive
+calls each. It compares every mapped state field, including stale slot tails,
+auxiliary vectors, generation, marker flags and all 32 reference counts.
+All 10,240 comparisons pass; the report separately counts advancing calls
+and frozen/empty early returns. The earlier 1,600 phase cases still pass.
+Error checks cover rollback after a later cursor overflows, duplicate IDs,
+invalid elapsed time and early exits with unused invalid inputs.
+
+This is playback-state verification, not rendered animation or a complete
+camera. Archive/skeleton integration, player initialization, slot insertion,
+transition/root-motion behavior and Xbox runtime verification remain open.

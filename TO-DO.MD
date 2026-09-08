@@ -15,6 +15,14 @@
 
 ## Current camera evidence
 
+Complete forward playback now matches 10,240 original-code updates across
+160 scenarios of 64 consecutive frames, including mixed loops, completion,
+freeze handling, compaction, primary state, generation wrap and sticky events.
+Connect this state to archive sampling and skeleton evaluation, then recover
+actual player initialization and camera animation inputs. No new rendered
+behavior yet; publish native game/emulator screenshots when visible progress
+is available. Xbox compilation passes; runtime integration remains open.
+
 Non-loop cursor advance and primary-candidate selection within the mixed-loop
 branch now match 3,000 original-code cases. Assemble the complete update from
 the verified stages and test consecutive frames, preserving the original
