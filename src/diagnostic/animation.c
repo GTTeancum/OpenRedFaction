@@ -15,6 +15,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     rf_vpp meshes, archive; rf_model_file model; rf_motion_file files[2];
     const rf_motion_file *handles[2]={&files[0],&files[1]};
     rf_motion_playback_resource resources[2]={0}; rf_motion_playback_state state={0};
+    rf_motion_controller controller={0,-1,0,0,0,0}; int32_t motions[23];
     rf_model_bone bones[256]; rf_model_attachment eye;
     float matrices[256][12], local[12], tag[12], displacement[3]={.125f,-.25f,.5f};
     uint16_t generations[256]={0}; uint32_t count=0,i,frame; int status,opened=0,found=0;
@@ -49,14 +50,24 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         status=rf_motion_file_track(&files[i],0,&track); if (status!=RF_OK) goto done;
         resources[i].comparison=track.envelope; resources[i].looping=1;
         resources[i].markers[0]=3200; resources[i].markers[1]=6400;
-        status=rf_motion_set_weight(&state,resources,2,(int32_t)i,.5f); if (status!=RF_OK) goto done;
     }
+    for (i=0;i<23;++i) motions[i]=-1;
+    motions[0]=0; motions[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
     for (frame=0;frame<64;++frame) {
+        /* Scripted diagnostic requests, not the unrecovered locomotion selector. */
+        if (frame==4 || frame==7 || frame==20 || frame==40) {
+            status=rf_motion_request_state(&controller,motions,(frame==4 || frame==20) ? 8 : 0,.25f);
+            if (status!=RF_OK) goto done;
+        }
+        controller.override_enabled=frame>=22 && frame<26;
+        status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,resources,2); if (status!=RF_OK) goto done;
         status=rf_motion_update(&state,resources,2,1.0f/30.0f); if (status!=RF_OK) goto done;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,2,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         status=rf_model_compose_transform(local,matrices[eye.parent],tag); if (status!=RF_OK) goto done;
         out[3]=hash_bytes(out[3],matrices,count*48); out[4]=hash_bytes(out[4],&state,sizeof(state)); out[6]=hash_bytes(out[6],tag,48);
+        out[4]=hash_bytes(out[4],&controller,sizeof(controller));
+        for (i=0;i<2;++i) out[4]=hash_bytes(out[4],&resources[i].references,4);
         displacement[0]=1;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,2,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }

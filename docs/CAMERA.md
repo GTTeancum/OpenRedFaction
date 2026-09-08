@@ -1053,3 +1053,16 @@ It includes unavailable and out-of-range requests, repeated requests, zero
 durations, midpoint neighbors and varied duration magnitudes. Four additional
 C-only rejection cases verify unchanged state. This does not recover the
 locomotion predicates feeding these requests.
+# Controller-to-eye runtime integration
+
+The shared PC/Xbox animation diagnostic now drives the recovered state request
+and post-selector controller before each playback/skeleton/eye evaluation.
+Scripted stand/crouch transitions include interruption and a temporary standing
+override during a crouch transition. Original instruction execution and a
+64 MiB XEMU run match all four sequence hashes; see docs/VALIDATION.md and
+artifacts/xemu/20260908-163832-540225/report.json. No screenshot was acquired.
+
+Locomotion selector 0x41f400 remains unrecovered. Its inspected paths reach
+0x429ae0 (entity/AI decisions), 0x428a60 (collision query and subsequent effects),
+0x4289d0 (entity flag and physics updates), and other predicates. Scripted
+requests in the diagnostic do not stand in for these gameplay decisions.

@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The shared controller-to-eye diagnostic now passes 64 frames in stock 64 MiB
+XEMU, matching PC and original-code hashes through requests, interrupted blends,
+overrides, playback and cached skeleton evaluation. Recover locomotion selection
+and actual player initialization; animated character rendering remains open.
+
 Logical state requests and membership checks now match 10,000 original-code
 cases, including interrupted blends and standing fallback. Recover locomotion
 selector 0x41f400 and actual player initialization flags, then integrate the

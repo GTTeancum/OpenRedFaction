@@ -234,9 +234,9 @@ before reporting overall success; without it the harness checks execution only.
 The integrated comparison run at artifacts/xemu/20260908-132159-367249/report.json
 passes with the rebuilt lit PC reference and unchanged comparison thresholds.
 
-## Xbox animation runtime check
+## Initial Xbox animation runtime check (superseded profile)
 
-The schema-8 diagnostic now executes the shared `src/diagnostic/animation.c`
+The initial schema-8 diagnostic executed the shared `src/diagnostic/animation.c`
 check before loading the scene. It reads miner bones/eye attachment and standing
 and crouching motion tracks directly from `meshes.vpp`/`motions.vpp`, blends
 two looping slots over 64 updates at 1/30 second, and tests a second cached
@@ -279,10 +279,40 @@ control callees against shared C, including all controller/playback fields and
 registered resource references. Three additional rejection cases check atomic
 failure. Evidence: `artifacts/motion-controller-verification.json`.
 This excludes locomotion selection and entity gating. PC CTest passes all four
-tests and NXDK compilation passes; no controller XEMU runtime claim is made.
+tests and NXDK compilation passes. The subsequent integrated runtime check below
+adds controller XEMU coverage for its specific scripted sequence.
 # Logical animation state requests
 
 `python tools/verify_motion_request.py` matches 10,000 complete original
 0x42a580/0x42a650 executions and checks four safe-rejection cases. Local report:
 `artifacts/motion-request-verification.json`. Coverage is finite forward
 transitions and controller membership; it excludes locomotion selection.
+
+## Controller-to-eye Xbox runtime check
+
+The shared diagnostic now starts with no slots and scripted logical state zero.
+It requests crouch (state 8) at frames 4 and 20, standing (state 0) at frames 7
+and 40, using duration .25 seconds. Frames 22 through 25 force standing through
+the controller override while transition time continues. All 64 frames apply
+the post-selector controller, update playback at 1/30 second, evaluate 25 bones
+and the eye, then verify the same-generation cache preserves queued displacement.
+The playback hash also includes the 24-byte controller and both resource refs.
+
+PC and original instruction execution match:
+
+- Bone matrices: `0x93422512`.
+- Playback, controller and references: `0xf24148d9`.
+- Cached matrices, displacement and stamps: `0xd45d8bb2`.
+- Eye transforms: `0x4d5ecb4f`.
+
+`tools/verify_animation_check.py` executes original 0x42a580, the post-selector
+0x41f2b6 block and unmodified loaded-control, playback, skeleton and tag callees.
+`artifacts/xemu/20260908-163832-540225/report.json` passes with the same four
+hashes and all eight animation telemetry words on stock 64 MiB XEMU 0.8.136.
+The run used `python tools/xemu_smoke.py --no-capture`; no framebuffer was
+acquired. Renderer descriptor and resident-scene checks also pass, without a
+new visual comparison. The telemetry layout remains schema 8.
+
+This replaces the earlier fixed .5/.5 blend runtime profile. It does not recover
+the locomotion selector, physics/AI side effects, player initialization flags,
+bone overrides, actual gameplay camera or animated character rendering.
