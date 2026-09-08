@@ -55,6 +55,7 @@ public class ExportBaseline extends GhidraScript {
         for (long target : new long[]{0x539ed0L, 0x53a130L, 0x539e10L, 0x53a040L, 0x51a000L, 0x417e90L}) addresses.add(target);
         addresses.add(0x5698d0L); addresses.add(0x569920L);
         addresses.add(0x569d20L);
+        addresses.add(0x52fcf0L);
         for(long target : new long[]{0x503f50L,0x504000L,0x54e200L,0x565890L,0x52de10L,0x52e9e0L}) addresses.add(target);
         // Candidate byte-weight normalization consumers; classify before reuse.
         try (PrintWriter out = new PrintWriter(new File(dir,"byte-weight-xrefs.tsv"),StandardCharsets.UTF_8)) {

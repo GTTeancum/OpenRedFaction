@@ -11,6 +11,14 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--vertex-lighting")) {
+        struct { float vector[3],lights[3][6],ambient[3]; } data;
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            uint8_t rgb[3];int32_t status=rf_model_vertex_lighting(data.vector,data.lights,data.ambient,rgb);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(rgb,3,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--render-vertex-pair")) {
         struct { float position[3],second[3];uint8_t weights[4],bones[4];float matrices[4][12]; } data;
         while(fread(&data,sizeof(data),1,stdin)==1) {

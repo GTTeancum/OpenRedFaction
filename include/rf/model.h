@@ -92,6 +92,9 @@ int rf_model_collision_vertex(const float position[3],const uint8_t weights[4],c
  * Six outputs: position followed by second stream. No camera/projection. */
 int rf_model_render_vertex_pair(const float position[3],const float second[3],
     const uint8_t weights[4],const uint8_t bones[4],const float (*matrices)[12],uint32_t count,float result[6]);
+/* Original 0x52fcf0 lighting: three direction/RGB records and ambient RGB.
+ * Vector is supplied as consumed by that helper, with no normalization. */
+int rf_model_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],uint8_t rgb[3]);
 /* Tag placement 0x5034f0 after character tag evaluation: rotate then translate.
  * Preserves its separate rounding stages; no extra scale parameter is applied. */
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12]);

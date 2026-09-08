@@ -4,6 +4,23 @@
 #include <string.h>
 #include <stdlib.h>
 
+int rf_model_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],uint8_t rgb[3])
+{
+    float factors[3];uint8_t result[3];uint32_t i;
+    if(!vector || !lights || !ambient || !rgb)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        double dot=(double)vector[0]*lights[i][0]+(double)vector[1]*lights[i][1]+(double)vector[2]*lights[i][2];
+        factors[i]=dot>=0?(float)dot:0; /* Unordered compares also select zero. */
+    }
+    for(i=0;i<3;++i) {
+        double value=(double)lights[2][3+i]*factors[2]+(double)lights[1][3+i]*factors[1]+(double)lights[0][3+i]*factors[0]+ambient[i];
+        float stored,biased;uint32_t bits;
+        stored=value<=255?(float)value:255;
+        biased=stored+12582912.0f;memcpy(&bits,&biased,4);result[i]=(uint8_t)bits;
+    }
+    memcpy(rgb,result,3);return RF_OK;
+}
+
 int rf_model_render_vertex_pair(const float position[3],const float second[3],
     const uint8_t weights[4],const uint8_t bones[4],const float (*matrices)[12],uint32_t count,float result[6])
 {

@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The model lighting helper now matches 2,000 complete original executions,
+including non-finite vectors. Connect original light setup and second-stream
+preparation before validating fully lit model rendering.
+
 The bounded vertex-reuse reader matches all installed records, including
 24,861 valid backward references. Integrate the renderer's cached position,
 clip/depth and lighting reuse while recovering second-stream preparation.

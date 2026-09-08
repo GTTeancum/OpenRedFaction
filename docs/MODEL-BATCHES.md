@@ -1,5 +1,24 @@
 # Model batch data
 
+`rf_model_vertex_lighting` reconstructs complete helper `0x52fcf0`. It takes
+the supplied vector's dot product with three light directions, clamps negative
+and unordered dot products to zero, and combines their RGB contributions with
+ambient RGB. It does not normalize the vector. Each channel is capped at 255
+(unordered channel sums also select 255), stored as float, then converted by
+original `0x52fcb0`'s 12,582,912 float-bias/low-byte operation. There is no
+additional lower clamp. Default round-to-nearest is assumed.
+
+`tools/verify_vertex_lighting.py` executes the complete original helper with
+unchanged callees for 2,000 cases, including 20 NaN/infinity-vector fixtures;
+all output bytes match. Negative/overrange channel fixtures exercise conversion
+and upper clamping. PC build, CTest and NXDK build pass. Double intermediates
+are used in the port; arbitrary x87 rounding equivalence is not claimed.
+
+NaN vectors yield zero directional factors and therefore ambient-only color
+for ordinary finite lights. This explains the helper's response, but does not
+yet prove that a source NaN reaches it unchanged: second-stream preparation,
+light setup and the complete rendering path remain to be connected and checked.
+
 `rf_model_file_vertex_reuse` now streams the signed 16-bit distance from a
 batch's extra-data region. It preserves nonpositive values as the original
 fresh-deformation decision and rejects positive distances beyond the current
