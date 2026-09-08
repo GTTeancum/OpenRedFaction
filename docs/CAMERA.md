@@ -1025,3 +1025,31 @@ float-rounded elapsed reaching duration before the unspilled sum does, plus
 exact/overshoot completion, with and without override. Three C-only rejection
 cases verify rollback, negative frame time and an invalid mapping. PC and
 NXDK builds pass; controller runtime integration and selector recovery remain.
+# Logical state requests
+
+`rf_motion_request_state` reconstructs 0x42a580. Requests outside [0,22] or
+mapped to -1 fall back to logical state zero; if zero also maps to -1, the
+request changes nothing. With zero existing duration it sets next, copies the
+requested duration and resets elapsed to positive zero. It does not immediately
+promote next even if the new duration is zero.
+
+During a transition, it divides elapsed by duration without a float spill.
+Above the binary32 constant 0.5 at 0x5893c0, it promotes the previous next state
+to current and uses one minus that fraction. At or below half it retains the
+current state and uses the fraction itself. That fraction times the newly
+requested duration becomes elapsed, preserving progress from the nearer
+endpoint. It always writes the requested next state and duration, including
+repeated requests; suppression belongs to the caller.
+
+`rf_motion_has_state` reconstructs 0x42a650: current OR next equality, independent
+of duration. A null controller returns false. Request -1 can match next -1.
+These functions allocate nothing and do not modify playback slots. The safe
+request API accepts finite nonnegative durations and progress within an active
+transition; malformed input preserves the controller.
+
+`tools/verify_motion_request.py` compares both complete original functions
+against C over 10,000 cases, checking all controller fields and membership.
+It includes unavailable and out-of-range requests, repeated requests, zero
+durations, midpoint neighbors and varied duration magnitudes. Four additional
+C-only rejection cases verify unchanged state. This does not recover the
+locomotion predicates feeding these requests.

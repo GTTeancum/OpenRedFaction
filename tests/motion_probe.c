@@ -11,6 +11,18 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--request-state") == 0) {
+        struct { rf_motion_controller controller; int32_t motions[23],requested; float duration; } input;
+        int32_t status,matched;
+        _Static_assert(sizeof(input)==124,"State request wire layout");
+        while (fread(&input,sizeof(input),1,stdin)==1) {
+            matched=rf_motion_has_state(&input.controller,input.requested);
+            status=rf_motion_request_state(&input.controller,input.motions,input.requested,input.duration);
+            if (fwrite(&status,4,1,stdout)!=1 || fwrite(&matched,4,1,stdout)!=1 ||
+                fwrite(&input.controller,24,1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--controller") == 0) {
         struct { rf_motion_playback_state state; rf_motion_playback_resource resources[32];
                  rf_motion_controller controller; int32_t motions[23]; float elapsed; } input;

@@ -1,6 +1,34 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_has_state(const rf_motion_controller *controller, int32_t requested)
+{
+    return controller && (controller->current==requested || controller->next==requested);
+}
+
+int rf_motion_request_state(rf_motion_controller *controller, const int32_t motions[23],
+                            int32_t requested, float duration)
+{
+    rf_motion_controller next; double fraction; unsigned i;
+    if (!controller || !motions) return RF_RANGE;
+    next=*controller;
+    if (next.current<0 || next.current>=23 || next.next < -1 || next.next>=23 ||
+        !isfinite(duration) || duration<0 || !isfinite(next.duration) || next.duration<0 ||
+        !isfinite(next.elapsed) || next.elapsed<0 ||
+        (next.duration>0 && (next.next<0 || next.elapsed>next.duration))) return RF_FORMAT;
+    for (i=0;i<23;++i) if (motions[i]<-1) return RF_FORMAT;
+    if (requested<0 || requested>=23 || motions[requested]==-1) requested=0;
+    if (motions[requested]==-1) return RF_OK;
+    if (next.duration==0) next.elapsed=0;
+    else {
+        fraction=(double)next.elapsed/next.duration;
+        if (fraction>0.5) { next.current=next.next; fraction=1.0-fraction; }
+        next.elapsed=(float)(fraction*duration);
+    }
+    next.next=requested; next.duration=duration;
+    *controller=next; return RF_OK;
+}
+
 int rf_motion_apply_controller(rf_motion_controller *controller, const int32_t motions[23],
                                float elapsed, rf_motion_playback_state *state,
                                rf_motion_playback_resource *resources, uint32_t resource_count)

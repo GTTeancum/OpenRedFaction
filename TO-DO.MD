@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Logical state requests and membership checks now match 10,000 original-code
+cases, including interrupted blends and standing fallback. Recover locomotion
+selector 0x41f400 and actual player initialization flags, then integrate the
+controller with playback and eye evaluation in the Xbox runtime diagnostic.
+
 The post-selector animation controller now matches 2,406 original-code cases,
 including transition timing, overrides and loaded-motion weight assignment.
 Recover locomotion selector 0x41f400 and its state-transition setter, then

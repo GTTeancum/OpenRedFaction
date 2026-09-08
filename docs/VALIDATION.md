@@ -280,3 +280,9 @@ registered resource references. Three additional rejection cases check atomic
 failure. Evidence: `artifacts/motion-controller-verification.json`.
 This excludes locomotion selection and entity gating. PC CTest passes all four
 tests and NXDK compilation passes; no controller XEMU runtime claim is made.
+# Logical animation state requests
+
+`python tools/verify_motion_request.py` matches 10,000 complete original
+0x42a580/0x42a650 executions and checks four safe-rejection cases. Local report:
+`artifacts/motion-request-verification.json`. Coverage is finite forward
+transitions and controller membership; it excludes locomotion selection.

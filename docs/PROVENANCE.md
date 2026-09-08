@@ -164,3 +164,8 @@ docs/CAMERA.md and artifacts/eye-verification.json for original-execution eviden
 execution with tools/verify_motion_controller.py. No original selector or
 entity-gate implementation is included. See docs/CAMERA.md for field mappings,
 precision, sequencing and verification scope.
+The logical state request and membership functions in src/core/motion.c are
+reconstructed from RF.exe 1.20 NA 0x42a580 and 0x42a650. Original instruction
+execution verifies the fallback, retargeting and midpoint rules; the half
+constant was read at 0x5893c0. See tools/verify_motion_request.py and
+docs/CAMERA.md. No community implementation was copied for these functions.
