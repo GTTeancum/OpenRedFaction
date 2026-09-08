@@ -83,6 +83,15 @@ int rf_motion_set_weight(rf_motion_playback_state *state, rf_motion_playback_res
  * byte comparison. A low byte of one in freeze designates end freezing. */
 int rf_motion_start(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
                     uint32_t resource_count, int32_t motion, float weight, int freeze);
+/* 0x51c340/0x51c390: zero weights for exact loop byte 1 / byte 0.
+ * Both clear freeze designation/frozen; non-loop stop also clears primary.
+ * Slots, references, cursors, generation and primary auxiliaries remain until
+ * later update/control work. No immediate slot removal occurs. */
+int rf_motion_stop_looping(rf_motion_playback_state *state, const rf_motion_playback_resource *resources, uint32_t resource_count);
+int rf_motion_stop_nonlooping(rf_motion_playback_state *state, const rf_motion_playback_resource *resources, uint32_t resource_count);
+/* 0x51c3f0: zero the first matching slot and clear primary unconditionally
+ * when found. Absent motions leave everything untouched, including primary. */
+int rf_motion_stop_slot(rf_motion_playback_state *state, int32_t motion);
 /* 0x51b500 per-bone contribution selection. Envelopes and looping bits are
  * indexed by active slot; output retains slot order, with zero for excluded
  * contributions. Positive weights are normalized by the original sum. */

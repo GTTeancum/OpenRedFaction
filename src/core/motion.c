@@ -308,6 +308,45 @@ int rf_motion_start(rf_motion_playback_state *state, rf_motion_playback_resource
     return motion_control(state,resources,resource_count,motion,weight,1,freeze);
 }
 
+static int motion_stop_group(rf_motion_playback_state *state, const rf_motion_playback_resource *resources,
+                              uint32_t resource_count, uint32_t loop_byte)
+{
+    uint32_t i; rf_motion_slot_state *active;
+    if (!state) return RF_RANGE;
+    active=&state->completion.active;
+    if (active->count>16 || (active->count && !resources)) return RF_RANGE;
+    for (i=0;i<active->count;++i) {
+        int32_t id=active->slots[i].motion;
+        if (id<0 || (uint32_t)id>=resource_count || resources[id].looping>255) return RF_FORMAT;
+    }
+    active->freeze_slot=-1; state->completion.frozen=0;
+    if (!loop_byte) active->primary_slot=-1;
+    for (i=0;i<active->count;++i)
+        if (resources[active->slots[i].motion].looping==loop_byte) active->slots[i].weight=0;
+    return RF_OK;
+}
+int rf_motion_stop_looping(rf_motion_playback_state *state, const rf_motion_playback_resource *resources, uint32_t resource_count)
+{
+    return motion_stop_group(state,resources,resource_count,1);
+}
+int rf_motion_stop_nonlooping(rf_motion_playback_state *state, const rf_motion_playback_resource *resources, uint32_t resource_count)
+{
+    return motion_stop_group(state,resources,resource_count,0);
+}
+int rf_motion_stop_slot(rf_motion_playback_state *state, int32_t motion)
+{
+    uint32_t i;
+    if (!state || motion<0 || state->completion.active.count>16) return RF_RANGE;
+    for (i=0;i<state->completion.active.count;++i)
+        if (state->completion.active.slots[i].motion<0) return RF_FORMAT;
+    for (i=0;i<state->completion.active.count;++i) if (state->completion.active.slots[i].motion==motion) {
+        state->completion.active.slots[i].weight=0;
+        state->completion.active.primary_slot=-1;
+        break;
+    }
+    return RF_OK;
+}
+
 int rf_motion_bone_weights(const rf_motion_slot_state *active, const rf_motion_weight_envelope *envelopes,
                            uint32_t looping_mask, float weights[16])
 {

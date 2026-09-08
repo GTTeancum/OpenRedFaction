@@ -908,3 +908,35 @@ existing animation hashes remain unchanged. Stock 64 MiB XEMU passes in
 `artifacts/xemu/20260908-161400-294874/report.json`, using `--no-capture` so no
 framebuffer is acquired for this nonvisual change. Resource registration and
 actual player control-call sequences remain open.
+
+## Character reset and deferred stop controls
+
+Instruction tracing confirms that `0x503390` forwards character type 2 through
+`0x501af0` to recovered weight assignment `0x51c190`. The reset wrapper
+`0x5033f0 -> 0x501ca0 -> 0x51c340` does not remove all motions. It clears the
+freeze designation and frozen flag, then sets weights to zero only for motion
+descriptors whose loop byte equals one. Primary, phase, generation, cursors,
+slot count, auxiliary state and reference counts remain unchanged.
+
+`rf_motion_stop_looping` implements that behavior. The companion
+`rf_motion_stop_nonlooping` (`0x51c390`) targets exact byte zero and additionally
+clears primary. `rf_motion_stop_slot` (`0x51c3f0`) zeroes the first matching
+motion's weight and clears primary even when primary refers to a different
+slot. An absent motion is a complete no-op. It does not unfreeze or clear the
+freeze designation. None of these calls clear the primary auxiliary words or
+vectors, increment generation or immediately decrement references.
+
+`tools/verify_motion_stop.py` executes all three original functions for 1,800
+cases covering empty/full tables, reordered IDs, absent targets, primary/freeze
+selections and loop bytes 0/1/2/255. Every mapped state field and reference
+count matches. Unit checks exercise stop-looping, activate another loop, then
+update: zero-weight slots and references survive the stop and are removed by
+the subsequent update. Invalid resource bounds leave the complete state intact.
+
+This resolves the reset used by `0x423bd0` before switching from standing
+animation `entity+0x8e4` to crouching `entity+0x964`, advancing by 0.2 seconds,
+sampling the eye, and switching back. Because reset preserves shared phase,
+the whole sequence must be verified rather than treating each pose as an
+independent animation at a chosen tick. The standing eye is initially queried
+before that explicit update; initial-pose sampling and actual registered IDs
+remain to validate. The renderer and gameplay camera are unchanged.

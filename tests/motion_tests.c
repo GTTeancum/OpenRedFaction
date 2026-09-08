@@ -6,6 +6,26 @@ int main(void)
 {
     {
         rf_motion_playback_state state={0}, saved;
+        rf_motion_playback_resource resources[2]={{{1,160,9600,0,0},1,{0,0},0},{{1,160,9600,0,0},1,{0,0},0}};
+        state.completion.active.freeze_slot=state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
+        CHECK(rf_motion_set_weight(&state,resources,2,0,1)==RF_OK);
+        CHECK(rf_motion_update(&state,resources,2,.2f)==RF_OK);
+        saved=state;
+        CHECK(rf_motion_stop_looping(&state,resources,0)==RF_FORMAT && memcmp(&state,&saved,sizeof(state))==0);
+        CHECK(rf_motion_stop_looping(&state,resources,2)==RF_OK);
+        CHECK(state.completion.active.count==1 && state.completion.active.slots[0].weight==0 && resources[0].references==1);
+        CHECK(state.phase==saved.phase && state.generation==saved.generation);
+        CHECK(rf_motion_set_weight(&state,resources,2,1,1)==RF_OK);
+        CHECK(rf_motion_update(&state,resources,2,.2f)==RF_OK);
+        CHECK(state.completion.active.count==1 && state.completion.active.slots[0].motion==1);
+        CHECK(resources[0].references==0 && resources[1].references==1);
+        state.completion.active.primary_slot=0; saved=state;
+        CHECK(rf_motion_stop_slot(&state,0)==RF_OK && memcmp(&state,&saved,sizeof(state))==0);
+        CHECK(rf_motion_stop_slot(&state,1)==RF_OK && state.completion.active.primary_slot==-1);
+        CHECK(state.completion.active.count==1 && resources[1].references==1);
+    }
+    {
+        rf_motion_playback_state state={0}, saved;
         rf_motion_playback_resource resources[2]={{{1,160,9600,0,0},0,{0,0},0},{{1,160,9600,0,0},0,{0,0},INT32_MAX}};
         state.completion.active.freeze_slot=state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
         state.completion.primary_words[0]=123; state.completion.primary_words[1]=456;

@@ -17,7 +17,10 @@ int main(int argc, char **argv)
         int32_t status; unsigned i;
         _Static_assert(sizeof(input)==1428,"Control wire layout");
         while (fread(&input,sizeof(input),1,stdin)==1) {
-            status=input.restart ? rf_motion_start(&input.state,input.resources,32,input.motion,input.weight,input.freeze) :
+            if (input.restart==2) status=rf_motion_stop_looping(&input.state,input.resources,32);
+            else if (input.restart==3) status=rf_motion_stop_nonlooping(&input.state,input.resources,32);
+            else if (input.restart==4) status=rf_motion_stop_slot(&input.state,input.motion);
+            else status=input.restart ? rf_motion_start(&input.state,input.resources,32,input.motion,input.weight,input.freeze) :
                                    rf_motion_set_weight(&input.state,input.resources,32,input.motion,input.weight);
             if (fwrite(&status,4,1,stdout)!=1 || fwrite(&input.state,260,1,stdout)!=1) return 1;
             for (i=0;i<32;++i) if (fwrite(&input.resources[i].references,4,1,stdout)!=1) return 1;

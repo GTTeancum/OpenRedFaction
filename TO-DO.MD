@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Character reset and deferred animation-stop controls now match 1,800 original
+cases, including preservation of slots/references until the next update.
+Verify the full standing/crouching eye-offset setup sequence using these controls
+and resolve initial-pose sampling before applying it to the gameplay camera.
+
 Loaded-motion insertion, weight assignment and restart now match 3,200
 original-code cases; the runtime diagnostic uses recovered insertion instead
 of constructing slots directly. Recover lazy resource registration/loading and
