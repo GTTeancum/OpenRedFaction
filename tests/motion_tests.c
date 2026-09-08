@@ -5,6 +5,13 @@
 int main(void)
 {
     {
+        rf_motion_loop_result result={99,99}; int32_t markers[2]={20,80};
+        CHECK(rf_motion_map_loop(0,100,.5f,0,markers,0,&result)==RF_OK && result.tick==50 && result.event_mask==1);
+        CHECK(rf_motion_map_loop(0,100,.5f,90,markers,1,&result)==RF_OK && result.event_mask==1);
+        CHECK(rf_motion_map_loop(0,100,NAN,0,markers,0,&result)==RF_RANGE && result.tick==50);
+        CHECK(rf_motion_map_loop(100,0,.5f,0,markers,0,&result)==RF_FORMAT);
+    }
+    {
         rf_motion_phase_slot slots[2]={{100,1,1},{200,1,1}};
         rf_motion_phase_result phase={99,99,99};
         CHECK(rf_motion_advance_phase(slots,2,0,100,&phase)==RF_OK);

@@ -18,6 +18,11 @@ typedef struct rf_motion_phase_result {
  * non-loop slots do not affect phase. Does not update cursors/events. */
 int rf_motion_advance_phase(const rf_motion_phase_slot *slots, uint32_t count, float phase,
                             int32_t delta_ticks, rf_motion_phase_result *out);
+typedef struct rf_motion_loop_result { int32_t tick; uint32_t event_mask; } rf_motion_loop_result;
+/* Original 0x51bc78..0x51bd1b: floor phase*duration, add start, test two
+ * markers. Apply event_mask only for the dominant looping slot; OR into flags. */
+int rf_motion_map_loop(int32_t start, int32_t end, float phase, int32_t previous,
+                       const int32_t markers[2], int wrapped, rf_motion_loop_result *out);
 typedef struct rf_motion_weight_envelope {
     float weight;
     int32_t start_tick, end_tick, fade_in, fade_out;

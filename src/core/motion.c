@@ -1,6 +1,21 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_map_loop(int32_t start, int32_t end, float phase, int32_t previous,
+                       const int32_t markers[2], int wrapped, rf_motion_loop_result *out)
+{
+    int64_t duration=(int64_t)end-start; unsigned i; rf_motion_loop_result result;
+    if (!markers || !out || !isfinite(phase) || phase<0 || phase>1) return RF_RANGE;
+    if (duration<=0) return RF_FORMAT;
+    if (duration>INT32_MAX) return RF_RANGE;
+    result.tick=(int32_t)((int64_t)floor((double)phase*(double)duration)+start);
+    result.event_mask=0;
+    for (i=0;i<2;++i)
+        if ((markers[i]<=result.tick && previous<markers[i]) ||
+            (wrapped && (previous<markers[i] || markers[i]<result.tick))) result.event_mask|=1u<<i;
+    *out=result; return RF_OK;
+}
+
 int rf_motion_advance_phase(const rf_motion_phase_slot *slots, uint32_t count, float phase,
                             int32_t delta_ticks, rf_motion_phase_result *out)
 {

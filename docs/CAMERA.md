@@ -625,3 +625,27 @@ helper `0x579704` uses `frndint` under a control-word setup, so its rounding
 must be established rather than assumed from the decompiler. Cursor mapping,
 dominant-motion event crossings, non-loop end behavior and inactive-slot
 removal remain to complete playback update reconstruction.
+## Loop cursor mapping and event markers
+
+`rf_motion_map_loop` reconstructs `0x51bc78` through `0x51bd1b`: multiply the
+stored phase by end-minus-start in double precision, floor it, and add the
+start tick. The original `0x573e83`/`0x579704` path was executed directly to
+establish floor behavior; it is not nearest rounding or truncation of negative
+values. The supported phase range is [0,1], accommodating a phase rounded to
+one before the original wrap comparison.
+
+Ordinary marker crossing is `previous < marker <= new`. On wrap, the original
+also fires when `previous < marker` or `marker < new`; the latter boundary is
+strict. The helper returns a two-bit mask. The update caller must apply it only
+for the dominant looping slot and OR it into the existing event flags, which
+the original block does not clear. Marker positions are accepted as supplied;
+this helper does not interpret or load their meanings from motion descriptors.
+
+`tools/verify_motion_loop.py` executes the original cursor/event block and its
+CRT floor helper without hooks for 3,000 deterministic cases. Cursor integers
+and both event flags match exactly, including phase 0/0.5/1, negative start
+ticks, wrap/no-wrap and markers equal to previous/new ticks. The fixture sets a
+dominant active looping slot; the rest of the update routine is outside this
+comparison. PC boundary tests, PC/NXDK builds and all four PC tests pass.
+Non-loop completion, frozen-slot handling, inactive-slot removal and continuous
+playback integration remain open.

@@ -15,9 +15,14 @@
 
 ## Current camera evidence
 
+Loop phase-to-cursor mapping and two-marker event crossing now match 3,000
+original-code cases, including floor rounding and exact marker boundaries.
+Integrate phase/cursor updates, then recover non-loop completion, frozen slots
+and inactive-slot removal for complete animation playback.
+
 Shared loop-phase advance now matches 1,600 original-update comparisons,
-including wrap flags and dominant-slot selection. Recover phase-to-cursor
-rounding, animation events, end freezing and inactive-slot removal before
+including wrap flags and dominant-slot selection. Recover end freezing and
+inactive-slot removal before
 integrating continuous playback with the verified skeleton path.
 
 Character tag placement now matches 1,000 original-wrapper comparisons; this
