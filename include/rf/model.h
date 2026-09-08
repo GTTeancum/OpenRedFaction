@@ -39,4 +39,8 @@ int rf_model_compose_transform(const float local[12], const float parent[12], fl
 /* Original 0x51cb50 orders byte indices by depth, stable within each depth.
  * Supports up to 256 bones; rejects cycles/invalid parents before output. */
 int rf_model_bone_order(const rf_model_bone *bones, uint32_t count, uint8_t *order, uint32_t capacity);
+/* Original 0x51b110. Caller supplies positive, normalized animation weights.
+ * Supports the original evaluator's 1..16 contributing poses, no allocation. */
+int rf_model_blend_pose(const float (*rotations)[4], const float (*positions)[3], const float *weights,
+                        uint32_t count, float out[12]);
 #endif

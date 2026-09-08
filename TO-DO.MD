@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Local pose blending now matches 1,600 original-code matrix comparisons across
+one through sixteen contributors. Connect per-track samples and normalized
+weights to parent composition, root motion and the model's eye attachment;
+the complete 0x51b500 evaluator and playback update still remain open.
+
 Elapsed-to-tick conversion now matches 8,005 original-instruction checks.
 Reconstruct the remaining 0x51ba80 update state machine: weighted shared loop
 phase, per-motion cursors, end freezing and inactive-slot removal; then connect

@@ -183,3 +183,70 @@ int rf_model_bone_order(const rf_model_bone *bones, uint32_t count, uint8_t *ord
     if (count) memcpy(order, sorted, count);
     return RF_OK;
 }
+/* Float quaternion path 0x519da0, distinct from packed key interpolation. */
+static double pose_dot(const float a[4], const float b[4])
+{
+    return (((double)a[3]*b[3] + (double)a[2]*b[2]) + (double)a[1]*b[1]) + (double)a[0]*b[0];
+}
+static int pose_interpolate(const float a[4], const float b[4], float t, float out[4])
+{
+    float difference[4], sum[4], second[4], dot;
+    double wa, wb, value; unsigned i; int opposite;
+    for (i=0;i<4;++i) { difference[i]=a[i]-b[i]; sum[i]=a[i]+b[i]; second[i]=b[i]; }
+    if (pose_dot(sum,sum)<=(float)pose_dot(difference,difference))
+        for (i=0;i<4;++i) second[i]=-second[i];
+    dot=(float)pose_dot(a,second);
+    if (!isfinite(dot)) return RF_RANGE;
+    opposite=(double)dot+1<=(double)1.0e-6f;
+    if (opposite) {
+        wa=sin((1.0-t)*(double)1.5707963705062866f); wb=sin((double)t*(double)1.5707963705062866f);
+    } else if (1.0-dot<=(double)1.0e-6f) { wa=0; wb=1; }
+    else {
+        double angle=acos(dot); float rounded=(float)angle, reciprocal=(float)(1.0/sin(angle));
+        wa=sin((1.0-t)*rounded)*reciprocal; wb=sin((double)t*rounded)*reciprocal;
+    }
+    for (i=0;i<4;++i) {
+        value=(double)a[i]*wa;
+        value+=(opposite ? ((i&1) ? second[i-1] : -second[i+1]) : second[i])*wb;
+        out[i]=(float)value;
+        if (!isfinite(out[i])) return RF_RANGE;
+        if (i==3 && value==0) out[i]=1.0e-6f;
+    }
+    return RF_OK;
+}
+int rf_model_blend_pose(const float (*rotations)[4], const float (*positions)[3], const float *weights,
+                        uint32_t count, float out[12])
+{
+    float q[4]={0,0,0,1}, p[3]={0,0,0}, matrix[12], cumulative=0; uint32_t i,c; int status;
+    if (!rotations || !positions || !weights || !out || !count || count>16) return RF_RANGE;
+    for (i=0;i<count;++i) {
+        if (!isfinite(weights[i]) || weights[i]<=0 || weights[i]>1) return RF_FORMAT;
+        for (c=0;c<4;++c) if (!isfinite(rotations[i][c])) return RF_FORMAT;
+        for (c=0;c<3;++c) if (!isfinite(positions[i][c])) return RF_FORMAT;
+    }
+    if (count==1) { memcpy(q,rotations[0],sizeof(q)); memcpy(p,positions[0],sizeof(p)); }
+    else {
+        if (count==2) {
+            for (c=0;c<3;++c) {
+                float first=positions[0][c]*weights[0], second=positions[1][c]*weights[1];
+                p[c]=first+second;
+            }
+            status=pose_interpolate(rotations[0],rotations[1],weights[1],q);
+        }
+        else {
+            for (i=0;i<count;++i) for (c=0;c<3;++c) {
+                float product=positions[i][c]*weights[i]; p[c]+=product;
+            }
+            status=RF_OK;
+            for (i=0;i<count && status==RF_OK;++i) {
+                float next[4]; cumulative+=weights[i];
+                status=pose_interpolate(q,rotations[i],weights[i]/cumulative,next);
+                if (status==RF_OK) memcpy(q,next,sizeof(q));
+            }
+        }
+        if (status!=RF_OK) return status;
+    }
+    status=rf_model_attachment_transform(q,p,matrix); if (status!=RF_OK) return status;
+    if (count>2 && matrix[0]==0) matrix[0]=1.0e-6f;
+    memcpy(out,matrix,sizeof(matrix)); return RF_OK;
+}

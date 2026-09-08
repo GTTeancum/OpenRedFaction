@@ -6,6 +6,19 @@
 #define CHECK(x) do { if (!(x)) return __LINE__; } while (0)
 int main(void)
 {
+    {
+        float q[2][4]={{0,0,0,1},{0,0,0,1}}, p[2][3]={{1,2,3},{3,4,5}}, w[2]={.5f,.5f};
+        float out[12], sentinel[12];
+        memset(out,0x5a,sizeof(out)); memcpy(sentinel,out,sizeof(out));
+        CHECK(rf_model_blend_pose(q,p,w,0,out)==RF_RANGE);
+        CHECK(rf_model_blend_pose(q,p,w,17,out)==RF_RANGE);
+        w[0]=NAN;
+        CHECK(rf_model_blend_pose(q,p,w,2,out)==RF_FORMAT);
+        CHECK(memcmp(out,sentinel,sizeof(out))==0);
+        w[0]=.5f;
+        CHECK(rf_model_blend_pose(q,p,w,2,out)==RF_OK);
+        CHECK(out[9]==2 && out[10]==3 && out[11]==4);
+    }
     rf_model_name_group groups[3] = {{0, 0}, {0, 0}, {0, 0}};
     rf_model_name query = {"eye", 3}, bad = {"e\0e", 3};
     int32_t index = 123;

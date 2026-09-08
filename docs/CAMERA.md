@@ -486,3 +486,29 @@ New Ghidra/assembly evidence establishes the next playback work:
   quaternion/position samples before composing parent transforms. This path
   must be recovered before treating an evaluated eye attachment as gameplay
   camera evidence.
+## Local pose blending
+
+`rf_model_blend_pose` reconstructs `0x51b110` for the evaluator's 1..16
+positive-weight contributors. The caller supplies normalized weights; the API
+rejects invalid counts, non-finite data and weights outside (0,1], but does not
+renormalize them. One pose converts directly to a matrix without quaternion
+normalization. Two poses interpolate float quaternions at the second weight
+and sum separately rounded weighted positions. Three or more accumulate
+positions and interpolate rotations in input order, using each weight divided
+by the cumulative weight. This order is part of the recovered behavior.
+
+The float quaternion helper follows `0x519da0`, with sign selection from
+sum/difference norms, original dot-product order, float spills of the angle
+and reciprocal sine, and a 1e-6 replacement when the computed W is exactly
+zero. It is distinct from packed motion-key interpolation. After matrix
+conversion, the three-or-more path also replaces a zero first matrix element
+with 1e-6, as the original does. No allocation is performed and errors leave
+the caller's matrix unchanged.
+
+`tools/verify_pose_blend.py` runs unhooked original `0x51b110`, including its
+float interpolation and matrix helpers, for 1,600 deterministic synthetic
+cases covering all contributor counts from 1 to 16. All twelve output floats
+match bit-for-bit in every case. PC boundary tests, PC build and NXDK build
+pass. This verifies local blending on the PC; it does not establish every
+degenerate quaternion case, Xbox runtime arithmetic equivalence, the complete
+skeleton evaluator, root-motion handling or gameplay camera integration.
