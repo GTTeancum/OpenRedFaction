@@ -37,20 +37,27 @@ for i,name in enumerate(names):
     u.mem_write(motion+i*256+0x78,struct.pack('<I',data+i*16384))
 u.mem_write(desc+0xf58,struct.pack('<I',len(names)))
 rng=random.Random(0x51b500); cases=[]
-for k in range(160):
+for k in range(320):
     n=k%4; ids=rng.sample(range(3),n)
     slots=b''.join(struct.pack('<iif',ids[i] if i<n else 0,rng.randrange(161,9602),rng.choice([0,.25,.5,1])) for i in range(16))
     primary=rng.choice([-1]+list(range(n)))
     state=struct.pack('<I',n)+slots+struct.pack('<3i',rng.choice([-1]+list(range(n))),primary,-1)+struct.pack('<4I6f',0,1,123,456,1,2,3,4,5,6)+struct.pack('<fII',rng.uniform(.1,.9),1,0)
-    cases.append(state+struct.pack('<If',rng.randrange(8),rng.choice([0,1/60,.2,1,2])))
+    displacement=[0.0,0.0,0.0] if k<160 else [rng.choice([-0.0,-1.25,.125,10.0]) for _ in range(3)]
+    cases.append(state+struct.pack('<If3f',rng.randrange(8),rng.choice([0,1/60,.2,1,2]),*displacement)+struct.pack('<i',8 if k>=160 and k%3==0 else -1))
 run=subprocess.run([str(root/'build/pc/Release/rf_skeleton_probe.exe'),str(root/'Installed_Game'/entries['miner.v3c'][0]),str(root/'Installed_Game'/entries[names[0]][0]),'miner.v3c',*names],input=b''.join(cases),capture_output=True,check=True)
-stride=260+(count+1)*48;assert len(run.stdout)==len(cases)*stride
+stride=272+(count+1)*48;assert len(run.stdout)==len(cases)*stride
 failures=[]
 for k,raw in enumerate(cases):
     u.mem_write(obj,bytes(0x4000));u.mem_write(obj+0x1d50,struct.pack('<I',desc))
     u.mem_write(obj+0x12d0,raw[:196]);u.mem_write(obj+0x1cfc,raw[196:204]);u.mem_write(obj+0x1d48,raw[204:208])
     u.mem_write(obj+0x1d4c,raw[208:209]);u.mem_write(obj+0x1d14,raw[212:213]);u.mem_write(obj+0x1d18,raw[216:248])
     u.mem_write(obj+0x1d04,raw[248:252]);u.mem_write(obj+0x1cf8,raw[252:254])
+    u.mem_write(obj+0x12c0,raw[268:280])
+    extra_root=struct.unpack_from('<i',raw,280)[0]
+    for i,parent in enumerate(parents): u.mem_write(desc+0x94+i*0x4c,struct.pack('<i',-1 if i==extra_root else parent))
+    case_parents=[-1 if i==extra_root else parent for i,parent in enumerate(parents)]
+    def case_depth(i): return 0 if case_parents[i]<0 else 1+case_depth(case_parents[i])
+    u.mem_write(order_address,bytes(sorted(range(count),key=case_depth)))
     flags=struct.unpack_from('<I',raw,260)[0]
     for i in range(3):
         u.mem_write(desc+0x120c+i,bytes([(flags>>i)&1]));u.mem_write(motion+i*256+0x74,struct.pack('<I',2))
@@ -63,13 +70,14 @@ for k,raw in enumerate(cases):
     assert got[:260]==expected,('playback',k)
     u.mem_write(stack+64000,struct.pack('<4I',stop,count,order_address,obj));u.reg_write(UC_X86_REG_ESP,stack+64000)
     u.emu_start(0x51b500,stop,count=1000000);assert u.reg_read(UC_X86_REG_EIP)==stop
+    assert got[260:272]==rd(obj+0x12c0,12),('displacement',k)
     want=rd(obj,count*48)
     for i in range(count):
-        actual=got[260+i*48:260+(i+1)*48];expected=want[i*48:(i+1)*48]
+        actual=got[272+i*48:272+(i+1)*48];expected=want[i*48:(i+1)*48]
         if actual!=expected: failures.append(dict(case=k,bone=i,actual=actual.hex(),expected=expected.hex()))
     u.mem_write(stack+64000,struct.pack('<3I',stop,obj+0x3000,count+eye_index));u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ECX,obj)
     u.emu_start(0x51b2e0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
     if got[-48:]!=rd(obj+0x3000,48): failures.append(dict(case=k,attachment='eye',actual=got[-48:].hex(),expected=rd(obj+0x3000,48).hex()))
-report=dict(result='PASS' if not failures else 'FAIL',cases=len(cases),bone_matrices=len(cases)*count,eye_transforms=len(cases),failures=len(failures),examples=failures[:8],scope='Update then evaluate miner with 0..3 active slots, stand/crouch motions, mixed loops and primary attenuation; no root displacement/overrides')
+report=dict(result='PASS' if not failures else 'FAIL',cases=len(cases),bone_matrices=len(cases)*count,eye_transforms=len(cases),failures=len(failures),examples=failures[:8],scope='Update then evaluate miner with 0..3 active slots, stand/crouch motions, mixed loops and primary attenuation; pending root displacement/consumption including synthetic second roots; no overrides')
 (root/'artifacts/playback-skeleton-verification.json').write_text(json.dumps(report,indent=2)); print(report)
 assert not failures

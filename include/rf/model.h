@@ -54,9 +54,11 @@ int rf_model_sample_single_motion(const rf_model_bone *bones, uint32_t count, co
                                   int32_t tick, int bypass_fades, float (*matrices)[12], uint32_t capacity);
 /* Evaluate current playback slots from immutable archives, including per-bone
  * primary attenuation of looping motions. Motion handles/resources are indexed
- * by registered ID. No root displacement, bone overrides or generation cache
- * yet. Failed reads may leave partial matrices; caller owns all storage. */
+ * by registered ID. The pending displacement is added to the first evaluated
+ * root and consumed (cleared). No bone overrides or generation cache yet.
+ * Failed reads may leave partial matrices and consumed displacement.
+ * Displacement storage must not overlap the output matrices. */
 int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
                              const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
-                             uint32_t resource_count, float (*matrices)[12], uint32_t capacity);
+                             uint32_t resource_count, float root_displacement[3], float (*matrices)[12], uint32_t capacity);
 #endif

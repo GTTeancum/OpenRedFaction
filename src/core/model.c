@@ -279,11 +279,12 @@ int rf_model_sample_single_motion(const rf_model_bone *bones, uint32_t count, co
 }
 int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
                              const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
-                             uint32_t resource_count, float (*matrices)[12], uint32_t capacity)
+                             uint32_t resource_count, float root_displacement[3], float (*matrices)[12], uint32_t capacity)
 {
     uint8_t order[256]; uint32_t i,j,index,mask=0; int status;
     const rf_motion_slot_state *active;
-    if (!bones || !state || !matrices || !count || count>256 || capacity<count) return RF_RANGE;
+    if (!bones || !state || !root_displacement || !matrices || !count || count>256 || capacity<count) return RF_RANGE;
+    for (j=0;j<3;++j) if (!isfinite(root_displacement[j])) return RF_FORMAT;
     active=&state->completion.active;
     if (active->count>16 || (active->count && (!motions || !resources))) return RF_RANGE;
     for (j=0;j<active->count;++j) {
@@ -315,7 +316,13 @@ int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const r
         else status=rf_model_attachment_transform(identity,zero,local);
         if (status!=RF_OK) return status;
         if (bones[index].parent<0) {
-            local[9]=0.0f+local[9]; local[10]=0.0f+local[10]; local[11]=0.0f+local[11];
+            /* 0x51b8c7..0x51b924: add pending displacement, then consume it.
+             * Later roots in this evaluation receive positive zero. */
+            for (j=0;j<3;++j) {
+                local[9+j]=root_displacement[j]+local[9+j];
+                if (!isfinite(local[9+j])) return RF_RANGE;
+            }
+            root_displacement[0]=root_displacement[1]=root_displacement[2]=0;
             memcpy(matrices[index],local,sizeof(local));
         } else {
             status=rf_model_compose_transform(local,matrices[bones[index].parent],matrices[index]);

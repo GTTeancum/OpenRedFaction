@@ -8,8 +8,8 @@ int main(int argc,char **argv)
 {
     rf_vpp meshes,motions; rf_model_file model; rf_motion_file motion, files[16];
     const rf_motion_file *handles[16]; rf_motion_playback_resource resources[16]={0};
-    struct { rf_motion_playback_state state; uint32_t looping; float elapsed; } input;
-    _Static_assert(sizeof(input)==268,"Playback skeleton wire layout");
+    struct { rf_motion_playback_state state; uint32_t looping; float elapsed, displacement[3]; int32_t extra_root; } input;
+    _Static_assert(sizeof(input)==284,"Playback skeleton wire layout");
     rf_model_bone bones[256]; float matrices[256][12]; uint32_t count=0,i; int32_t tick;
     rf_model_attachment eye; int found=0;
     if (argc<5 || argc>20) return 1;
@@ -39,12 +39,17 @@ int main(int argc,char **argv)
         if (argc==5) {
             if (rf_model_sample_single_motion(bones,count,&motion,tick,0,matrices,256)!=RF_OK) return 7;
         } else {
+            int32_t saved_parent=-1;
+            if (input.extra_root < -1 || input.extra_root>=(int32_t)count) return 7;
+            if (input.extra_root>=0) { saved_parent=bones[input.extra_root].parent; bones[input.extra_root].parent=-1; }
             for (i=0;i<(uint32_t)argc-4;++i) {
                 resources[i].looping=(input.looping>>i)&1; resources[i].references=2;
             }
             if (rf_motion_update(&input.state,resources,(uint32_t)argc-4,input.elapsed)!=RF_OK ||
-                rf_model_sample_playback(bones,count,&input.state,handles,resources,(uint32_t)argc-4,matrices,256)!=RF_OK) return 7;
+                rf_model_sample_playback(bones,count,&input.state,handles,resources,(uint32_t)argc-4,input.displacement,matrices,256)!=RF_OK) return 7;
+            if (input.extra_root>=0) bones[input.extra_root].parent=saved_parent;
             if (fwrite(&input.state,sizeof(input.state),1,stdout)!=1) return 8;
+            if (fwrite(input.displacement,sizeof(input.displacement),1,stdout)!=1) return 8;
         }
         if (rf_model_attachment_transform(eye.rotation,eye.position,local)!=RF_OK ||
             rf_model_compose_transform(local,matrices[eye.parent],evaluated)!=RF_OK) return 7;

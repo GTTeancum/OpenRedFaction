@@ -7,6 +7,20 @@
 int main(void)
 {
     {
+        rf_model_bone bone={0}; rf_motion_playback_state state={0};
+        float displacement[3]={NAN,2,3}, matrices[1][12], saved[1][12];
+        bone.parent=-1; state.completion.active.primary_slot=-1;
+        memset(matrices,0x5a,sizeof(matrices)); memcpy(saved,matrices,sizeof(saved));
+        CHECK(rf_model_sample_playback(&bone,1,&state,NULL,NULL,0,displacement,matrices,1)==RF_FORMAT);
+        CHECK(memcmp(matrices,saved,sizeof(saved))==0 && isnan(displacement[0]) && displacement[1]==2);
+        displacement[0]=1;
+        CHECK(rf_model_sample_playback(&bone,1,&state,NULL,NULL,0,displacement,matrices,1)==RF_OK);
+        CHECK(matrices[0][9]==1 && matrices[0][10]==2 && matrices[0][11]==3);
+        CHECK(displacement[0]==0 && displacement[1]==0 && displacement[2]==0);
+        CHECK(rf_model_sample_playback(&bone,1,&state,NULL,NULL,0,displacement,matrices,1)==RF_OK);
+        CHECK(matrices[0][9]==0 && matrices[0][10]==0 && matrices[0][11]==0);
+    }
+    {
         float local[12]={1,0,0,0,1,0,0,0,1,1,2,3};
         float orientation[9]={1,0,0,0,1,0,0,0,1}, position[3]={4,5,6};
         float saved[12]; memcpy(saved,local,sizeof(saved));

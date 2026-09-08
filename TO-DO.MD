@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Pending root displacement now matches original consumption and propagation
+through 8,000 bone matrices and 320 eye transforms, including a synthetic
+second root. Recover the producers of displacement, bone overrides and player
+setup, then verify the integrated animation path in Xbox runtime.
+
 Playback now feeds archive sampling, per-bone primary attenuation, pose blending,
 parent composition and eye-tag evaluation, matching 4,000 original bone matrices
 and 160 eye transforms after complete updates. Recover player setup, root

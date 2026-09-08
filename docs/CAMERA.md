@@ -811,3 +811,29 @@ PC tests and NXDK compilation pass. This path still lacks bone overrides,
 root displacement, generation caching, real player setup and an Xbox runtime
 animation check. No rendered diagnostic or gameplay camera behavior changes
 in this step, and no visual-parity claim follows from these matrix comparisons.
+
+## Pending root displacement consumption
+
+The playback skeleton API now accepts a mutable three-float pending displacement,
+corresponding to instance `+0x12c0`. Original `0x51b8c7..0x51b924` obtains the
+root's sampled translation, adds displacement first and translation second,
+writes that translation back, then assigns positive zero to all three pending
+components. Subsequent roots therefore receive zero; descendants inherit the
+translated root through normal parent composition. This applies even with no
+active motions. A displacement is not a persistent model/world position.
+
+The evaluator rejects non-finite displacement before reading archives and checks
+addition overflow before consuming it. As with existing partial matrix output,
+a later archive failure can leave an already-evaluated root's displacement
+consumed. Callers must not alias displacement with output matrices.
+
+The integrated original-code comparison now covers 320 cases, 8,000 matrices,
+320 eye transforms and the remaining displacement bytes. Inputs retain the
+zero-displacement baseline and add positive/negative offsets and signed zeros.
+Some cases make miner bone 8 an additional root in both implementations and
+recompute depth order, explicitly testing consume-once semantics. All fields
+match. This synthetic topology is a test fixture, not a change to game assets.
+
+This recovers the application of pending displacement, not its producers,
+root-motion extraction, generation-cache behavior or bone overrides. Actual
+player setup and an Xbox runtime check remain required before camera use.
