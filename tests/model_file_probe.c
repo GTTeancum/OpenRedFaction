@@ -19,10 +19,12 @@ int main(int argc, char **argv)
         _Static_assert(sizeof(rf_model_triangle)==8,"Triangle probe layout");
         for(i=0;i<model.lod_count && !result;++i)for(b=0;b<model.lods[i].batch_count && !result;++b) {
             rf_model_batch batch;rf_model_vertex v,before;rf_model_triangle t,tbefore;
-            uint32_t vh=2166136261u,th=2166136261u;
+            uint32_t vh=2166136261u,th=2166136261u,rh=2166136261u;int32_t reuse=99;
             result=rf_model_file_batch(&model,i,b,&batch);if(result)break;
             for(n=0;n<batch.vertices && !result;++n) {
                 result=rf_model_file_vertex(&model,&batch,n,&v);if(!result)vh=hash_bytes(vh,&v,sizeof(v));
+                if(!result)result=rf_model_file_vertex_reuse(&model,&batch,n,&reuse);
+                if(!result)rh=hash_bytes(rh,&reuse,4);
             }
             for(n=0;n<batch.triangles && !result;++n) {
                 result=rf_model_file_triangle(&model,&batch,n,&t);if(!result)th=hash_bytes(th,&t,sizeof(t));
@@ -30,10 +32,17 @@ int main(int argc, char **argv)
             memset(&v,0xa5,sizeof(v));before=v;memset(&t,0xa5,sizeof(t));tbefore=t;
             if(rf_model_file_vertex(&model,&batch,batch.vertices,&v)!=RF_RANGE || memcmp(&v,&before,sizeof(v)))result=RF_FORMAT;
             if(rf_model_file_triangle(&model,&batch,batch.triangles,&t)!=RF_RANGE || memcmp(&t,&tbefore,sizeof(t)))result=RF_FORMAT;
+            reuse=99;
+            if(rf_model_file_vertex_reuse(&model,&batch,batch.vertices,&reuse)!=RF_RANGE || reuse!=99)result=RF_FORMAT;
+            if(batch.vertices) {
+                uint32_t saved=batch.sizes[5];batch.sizes[5]=0;
+                if(rf_model_file_vertex_reuse(&model,&batch,0,&reuse)!=RF_FORMAT || reuse!=99)result=RF_FORMAT;
+                batch.sizes[5]=saved;
+            }
             batch.format_bits=0;
             if(batch.vertices && (rf_model_file_vertex(&model,&batch,0,&v)!=RF_FORMAT || memcmp(&v,&before,sizeof(v))))result=RF_FORMAT;
             if(batch.triangles && (rf_model_file_triangle(&model,&batch,0,&t)!=RF_FORMAT || memcmp(&t,&tbefore,sizeof(t))))result=RF_FORMAT;
-            if(!result)printf("V %u %u %u %u\n",i,b,vh,th);
+            if(!result)printf("V %u %u %u %u %u\n",i,b,vh,th,rh);
         }
         rf_vpp_close(&archive);return result?3:0;
     }

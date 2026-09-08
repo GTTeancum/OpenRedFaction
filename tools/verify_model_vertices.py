@@ -7,6 +7,7 @@ models=batches=vertices=triangles=0
 weight_sums=set();triangle_flags=set()
 nonfinite_normals={}
 link_audit=[]
+reused=negative_reuse=0;max_reuse=0
 def checksum(data):
     value=2166136261
     for byte in data:value=((value^byte)*16777619)&0xffffffff
@@ -30,9 +31,13 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
                     for size in sizes:
                         regions.append(raw[start+relative:start+relative+size]);relative=(relative+size+15)&~15
                     assert p>=v*12 and uv>=v*8 and ix>=t*8 and (not links or links>=v*8)
-                    vb=bytearray();used=set()
+                    vb=bytearray();rb=bytearray();used=set()
                     for a,b,c,flags in struct.iter_unpack('<4H',regions[3][:t*8]):used.update((a,b,c))
                     for n in range(v):
+                        distance=struct.unpack_from('<h',regions[5],n*2)[0]
+                        assert distance<=n,(entry['name'],li,bi,n,distance)
+                        reused+=distance>0;negative_reuse+=distance<0;max_reuse=max(max_reuse,distance)
+                        rb.extend(struct.pack('<i',distance))
                         floats=regions[0][n*12:n*12+12]+regions[1][n*12:n*12+12]+regions[2][n*8:n*8+8]
                         values=struct.unpack('<8f',floats)
                         assert all(math.isfinite(x) for x in values[:3]+values[6:]), (entry['name'],li,bi,n,values,sizes)
@@ -50,13 +55,13 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
                     tb=regions[3][:t*8]
                     for a,b,c,flags in struct.iter_unpack('<4H',tb):
                         assert max(a,b,c)<v;triangle_flags.add(flags)
-                    expected.append(f'V {li} {bi} {checksum(vb)} {checksum(tb)}')
+                    expected.append(f'V {li} {bi} {checksum(vb)} {checksum(tb)} {checksum(rb)}')
                     vertices+=v;triangles+=t;batches+=1
                 li+=1
         output=subprocess.check_output([str(root/'build/pc/Release/rf_model_file_probe.exe'),str(path),entry['name'],'--vertices'],text=True)
         assert output.splitlines()==expected,entry['name']
         models+=1
-report=dict(result='PASS',models=models,batches=batches,vertices=vertices,triangles=triangles,weight_sums=sorted(weight_sums),triangle_flags=sorted(triangle_flags),nonfinite_normals=nonfinite_normals,
+report=dict(result='PASS',models=models,batches=batches,vertices=vertices,triangles=triangles,reused_vertices=reused,negative_reuse=negative_reuse,max_reuse=max_reuse,weight_sums=sorted(weight_sums),triangle_flags=sorted(triangle_flags),nonfinite_normals=nonfinite_normals,
     scope='Every installed vertex and triangle byte checked by per-batch hash, finite positions/UV and in-range indices; raw normals/bone slots preserved, no skinning or original renderer equivalence')
 (root/'artifacts/model-vertices-verification.json').write_text(json.dumps(report,indent=2));print(report)
 (root/'artifacts/model-link-audit.json').write_text(json.dumps(link_audit,indent=2))

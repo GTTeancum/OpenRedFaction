@@ -48,4 +48,8 @@ int rf_model_file_batch(const rf_model_file *model,uint32_t lod,uint32_t index,r
  * preserved; positions/UV must be finite. No allocation; output unchanged on error. */
 int rf_model_file_vertex(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,rf_model_vertex *vertex);
 int rf_model_file_triangle(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,rf_model_triangle *triangle);
+/* Signed backward distance from the extra-data stream. Nonpositive means
+ * deform afresh; positive must refer to an earlier vertex in this batch.
+ * Preserves the original signed value; output unchanged on failure. */
+int rf_model_file_vertex_reuse(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,int32_t *distance);
 #endif

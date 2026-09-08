@@ -1,5 +1,21 @@
 # Model batch data
 
+`rf_model_file_vertex_reuse` now streams the signed 16-bit distance from a
+batch's extra-data region. It preserves nonpositive values as the original
+fresh-deformation decision and rejects positive distances beyond the current
+vertex index. Unsupported formats, truncated regions and invalid indices
+leave output unchanged. No allocation or deformation occurs in this accessor.
+
+The installed-data verifier now compares all 85,866 distances as well as
+vertex/triangle bytes. It finds 24,861 reused vertices, no negative distances
+and a maximum backward distance of 455. Every positive reference stays inside
+the batch. Probe checks cover out-of-range indices and truncated regions.
+PC build, four CTest checks and NXDK build pass. Negative signed values are
+preserved by the implementation but are not represented by installed files.
+The renderer's downstream reuse of clip flags, positions, depth and lighting
+still requires integration; copying both deformed streams blindly would not
+reproduce that branch.
+
 `rf_model_render_vertex_pair` reconstructs the fresh-vertex deformation block
 at `0x52ee9d..0x52f154` inside rendering routine `0x52e9e0`. It transforms both
 input streams with the prepared bone matrices, including translation for both,

@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The bounded vertex-reuse reader matches all installed records, including
+24,861 valid backward references. Integrate the renderer's cached position,
+clip/depth and lighting reuse while recovering second-stream preparation.
+
 Rendering's fresh-vertex deformation now matches 2,000 original executions
 for both streams; recover second-stream preparation, duplicate reuse and
 lighting before connecting the deformed batches to drawing.

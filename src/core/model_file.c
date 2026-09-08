@@ -231,3 +231,14 @@ int rf_model_file_triangle(const rf_model_file *model,const rf_model_batch *batc
     value.flags=(uint16_t)((uint32_t)raw[6]|(uint32_t)raw[7]<<8);
     *triangle=value;return RF_OK;
 }
+int rf_model_file_vertex_reuse(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,int32_t *distance)
+{
+    uint8_t raw[2];int32_t value;int status;
+    if(!model || !model->archive || !batch || !distance || index>=batch->vertices)return RF_RANGE;
+    if(batch->format_bits!=0x518c41)return RF_FORMAT;
+    status=batch_read(model,batch,5,index,2,raw);if(status)return status;
+    value=(int32_t)((uint32_t)raw[0]|(uint32_t)raw[1]<<8);
+    if(value&32768)value-=65536;
+    if(value>0 && (uint32_t)value>index)return RF_FORMAT;
+    *distance=value;return RF_OK;
+}
