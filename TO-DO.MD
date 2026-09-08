@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Selected-turn effects now match 2,400 integrated original-code cases across
+action restart, five deadlines, candidates, turn flag and movement settings.
+Recover the preceding candidate/reset decisions and valid-sound playback;
+the complete gameplay selector and camera integration remain open.
+
 Movement settings now match 6,000 original-code cases for speed, mode and the
 conditional response field. Integrate the recovered action starts, five timers
 and movement-setting effects into candidate/turn helper 0x41f9f0, then finish

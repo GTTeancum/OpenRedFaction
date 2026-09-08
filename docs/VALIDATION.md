@@ -364,3 +364,11 @@ and unchanged remaining entity RAM; three C-only rejection cases preserve
 state. Report: `artifacts/movement-settings-verification.json`. See
 docs/MOVEMENT.md for mappings and limitations; collision/input integration
 is outside this check.
+# Integrated selected-turn effects
+
+`python tools/verify_turn_effects.py` matches 2,400 original selected-turn block
+executions with unmodified action, absent-sound, timer and movement callees;
+two C-only rejection cases preserve outputs. It compares complete playback/
+reference state plus candidates, turn flag, deadlines and movement settings.
+Report: `artifacts/turn-effects-verification.json`. Preceding decisions/reset,
+valid-sound playback and runtime integration are excluded; see docs/TURN.md.

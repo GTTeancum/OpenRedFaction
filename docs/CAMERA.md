@@ -1216,3 +1216,11 @@ and conditionally entity +8c. Forced-action and global-override behavior are
 preserved; docs/MOVEMENT.md records field mappings and unresolved semantics.
 The candidate/turn helper still needs its combined effects and decision logic
 integrated before the full selector can drive the gameplay camera.
+# Integrated selected-turn effects
+
+The shared turn module now composes action start, candidate assignment, turning
+flag, five deadlines and movement setting for 0x41fbdc..0x41fc83, matching 2,400
+original executions. See docs/TURN.md for scope and the deferred audio boundary.
+The preceding 0x41ae70 call resets entry state and reaches additional subsystems;
+it is not established as an aim-refresh routine. The full helper's decisions
+and reset effects still need recovery before gameplay-camera integration.
