@@ -19,37 +19,62 @@ and entity +7d0 bit 0x2000.
 If weapon predicate 0x4c90f0 succeeds (+268 bit 0x40 with an in-count index)
 and +13d4 is not -1, call 0x48f130(handle,0); the caller does not clear that
 handle. Next, a player-associated entity with a previously active entry calls
-0x4c90f0 again and discards its result at 0x41afcc. It does not invoke local
-release there. Otherwise a locally associated, previously active entity calls
+0x4c90f0 again and discards its result at 0x41afcc. Otherwise a locally
+associated, previously active entity calls
 0x48aa90 only when its weapon matches one of five globals (0x872110, 0x872464,
-0x872444, 0x85cd04, 0x85ccfc). Finally a player-associated entity calls
+0x872444, 0x85cd04, 0x85ccfc). 0x48aa90 is a read-only lookup returning the
+first matching local player pointer, and this caller discards that result too.
+The earlier interpretation as a local-release operation was incorrect; the
+false callback dependency and unused state/context fields have been removed.
+The original 0x41afbb..0x41b015 block has no state changes on stable views.
+Finally a player-associated entity calls
 0x4a6f10(entity+1430,0), regardless of the captured active byte.
 
 The compact state uses resolved zero/one predicates: character_present is
 0x40a1e0 (non-null model wrapper and class +94 equal to 2); player_present is
-0x42a8e0 (+7c bit 8 and non-null +1430); local_player is 0x48aa30's local-player
-list lookup. Entity resolution, list ownership and class loading remain separate.
+0x42a8e0 (+7c bit 8 and non-null +1430). Entity resolution, list ownership and
+class loading remain separate.
 Callbacks may update these fields through their user data; later decisions read
 them after preceding effects, matching the original order.
 
-External sound, effect, local-release and player-reset adapters are required only
+External sound, effect and player-reset adapters are required only
 when reached. Missing operations return RF_NOT_FOUND before that operation,
 retaining any earlier mutations. The release-sound adapter owns 0x4285a0 position
-selection, 0x434d00 class resolution and 0x48a9c0 emission. These adapters are not
-implemented by this change; successful audio/player effects remain unverified.
+selection, 0x434d00 class resolution and 0x48a9c0 emission. Effect switching is
+now reconstructed in effect.c and used by the diagnostic; successful audio/player
+effects remain unverified.
 
 `tools/verify_weapon_reset.py` compares 2,400 original executions with full
-entity-reset, playback and reference state. 1,448 complete; the other cases stop
-at observation boundaries before unavailable operations: 171 sound stops,
-75 release sounds, 91 effect stops, 156 local releases and 459 player resets.
+entity-reset, playback and reference state. 1,598 complete; the other cases stop
+at observation boundaries before deliberately absent adapters: 160 sound stops,
+97 release sounds, 83 effect stops and 462 player resets. 132 original 0x48aa90
+lookups now execute to completion instead of being mistaken for side effects.
 Original callees are not replaced. At each boundary C must return RF_NOT_FOUND
 with exactly the same preceding mutations. This verifies supported paths and
 the operation boundaries, not successful external adapters.
 
 The shared diagnostic now uses valid weapon index 0, marks it active at frame
-48, and invokes this reset through the preparation callback. External handles
-and release sound are absent; character playback is present. Its nonloop stop
+48, and invokes this reset through the preparation callback. Sound handles and
+release sound are absent; character playback and an effect pair are present. Its nonloop stop
 causes a later sidestep restart, producing starts 17,17,18,18. The complete
 64-frame profile, including 16 reset calls, weapon state and changed poses,
 matches original instructions, PC and stock 64 MiB XEMU. This remains a
 scripted rig rather than an initialized gameplay character.
+
+## Effect switching
+
+`rf_effect_set_enabled` reconstructs 0x48f130 and 0x4973b0/0x4973d0. Each
+original 40-byte effect record provides two object pairs at 0x75ec48/4c and
+0x75ec50/54; nonzero byte global 0x64ecb9 selects the latter. Both pointers
+must be non-null or neither changes. Disabling clears byte +140 and leaves
+deadline +154 intact. Enabling with any nonzero int changes the byte to exactly
+one and stamps current game time only when its previous value was not one.
+Aliased pointers retain this same sequential behavior. Bounds checks reject
+invalid record indices instead of accessing arbitrary original memory.
+
+`tools/verify_effect_switch.py` matches 4,000 complete original executions,
+including missing pairs, aliases, noncanonical enabled bytes, override low-byte
+selection and clock boundaries. Two C-only cases reject invalid indices.
+This controls existing effect state; effect creation, simulation and rendering
+are not implemented. The shared runtime invokes a real effect-stop adapter
+on weapon reset and hashes both enabled bytes and preserved timestamps.

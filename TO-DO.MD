@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Effect-pair switching now matches 4,000 original executions and runs through
+weapon reset in XEMU; the false local-release callback was removed after
+identifying a read-only lookup. Implement sound/player reset adapters, effect
+ownership/rendering and following physics/state selection for full locomotion.
+
 Valid-entity weapon reset now matches 2,400 original cases through completion
 or explicit external-operation boundaries, and active-weapon nonloop stops run
 in the shared XEMU diagnostic. Implement sound/effect/player reset adapters and

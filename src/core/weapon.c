@@ -4,7 +4,7 @@ int rf_weapon_reset(rf_weapon_reset_state *state,int32_t weapon,
     rf_motion_playback_state *playback,const rf_motion_playback_resource *resources,uint32_t resource_count,
     const rf_weapon_reset_ops *ops,void *user)
 {
-    int was_active,status; unsigned i; int32_t sound;
+    int was_active,status; int32_t sound;
     if (!state || weapon<0 || weapon>=64) return RF_OK;
     if (!descriptors || !context || context->weapon_count>64) return RF_RANGE;
     was_active=state->active[weapon]!=0;
@@ -28,15 +28,10 @@ int rf_weapon_reset(rf_weapon_reset_state *state,int32_t weapon,
         if (!ops || !ops->stop_effect) return RF_NOT_FOUND;
         status=ops->stop_effect(user,state->effect_13d4); if (status!=RF_OK) return status;
     }
-    /* 41afcc calls the read-only 4c90f0 predicate and discards its result.
-     * It does NOT call local_release when player_present and was_active. */
-    if (!(state->player_present && was_active) && state->local_player && was_active) {
-        for (i=0;i<5;++i) if (weapon==context->local_release_weapons[i]) break;
-        if (i<5) {
-            if (!ops || !ops->local_release) return RF_NOT_FOUND;
-            status=ops->local_release(user); if (status!=RF_OK) return status;
-        }
-    }
+    /* 41afbb..41b015 performs read-only player/weapon lookups (42a8e0,
+     * 4c90f0,48aa30,48aa90) and discards their results. 48aa90 returns a
+     * player pointer; it is not a release operation. Stable views permit
+     * omitting this block without changing reset effects. */
     if (state->player_present) {
         if (!ops || !ops->player_reset) return RF_NOT_FOUND;
         status=ops->player_reset(user); if (status!=RF_OK) return status;

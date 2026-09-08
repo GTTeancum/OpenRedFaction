@@ -496,3 +496,22 @@ hashes and no framebuffer capture. XBE SHA-256:
 ISO SHA-256:
 `67150d9da154f464ba5698f40137577c38964d965b3caa4f81bb9415c04ebc33`.
 See docs/WEAPON.md for callback boundaries and the remaining gameplay work.
+
+# Effect switching and corrected player lookup
+
+The earlier local-release boundary was erroneous: 0x48aa90 is a read-only
+lookup. Updated weapon-reset verification passes 2,400 cases with 1,598 complete,
+160 sound-stop, 97 release-sound, 83 effect-stop and 462 player-reset boundaries;
+132 original local-player lookups execute to completion. Effect-switch verification
+passes 4,000 complete original cases and two C-only bounds rejections.
+
+The shared profile now calls effect switching from valid weapon reset and hashes
+the two objects' enabled bytes/timestamps. State hash is `0x8989b3f8`; pose/cache/
+eye hashes remain `0xdc7c08a6`, `0x21cd6b06`, `0x60a29326`. PC Release/NXDK builds
+and four CTest checks pass. Stock 64 MiB numeric-only XEMU run
+`artifacts/xemu/20260908-180743-138413/report.json` passes without framebuffer
+capture. XBE SHA-256:
+`0dfdf9136f18d9d69e110e3c2621fa0ad13480f781a9ec5b2d3acf93ac117368`;
+ISO SHA-256:
+`188bc821377a8fc3b8fca6143bea7b1e3a0e6229a249a95e171cb8f3a355071d`.
+Sound/player-reset implementations and effect ownership/rendering remain open.

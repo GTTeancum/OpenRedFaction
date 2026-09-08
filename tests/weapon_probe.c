@@ -8,7 +8,7 @@ int main(void)
         rf_weapon_reset_context context; rf_motion_playback_state playback;
         rf_motion_playback_resource resources[32]; } input;
     int32_t status; unsigned i;
-    _Static_assert(sizeof(input)==2308,"Weapon reset wire layout");
+    _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
     while (fread(&input,sizeof(input),1,stdin)==1) {
         status=rf_weapon_reset(&input.state,input.weapon,input.descriptors,&input.context,

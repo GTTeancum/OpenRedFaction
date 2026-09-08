@@ -252,3 +252,10 @@ read-only 0x4c90f0 call at 0x41afcc discards its result; it is not a local-relea
 call. `tools/verify_weapon_reset.py` compares full state to original completion
 or observation boundaries, without replacing callees. Runtime diagnostics now
 use this reset for valid weapon 0 instead of the earlier invalid-index adapter.
+
+Disassembly of 0x48aa90 establishes a read-only first-local-player lookup, not
+a local-release operation. The unused return at 0x41b00e requires no callback;
+the earlier dependency has been removed and its tests corrected.
+`src/core/effect.c` follows 0x48f130 with 0x4973b0/0x4973d0 and timer 0x4fa360.
+See docs/WEAPON.md and tools/verify_effect_switch.py for field mappings and
+original-code coverage; effect ownership/rendering are still separate work.

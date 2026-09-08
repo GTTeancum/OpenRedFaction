@@ -4,6 +4,7 @@
 #include "rf/turn.h"
 #include "rf/entity.h"
 #include "rf/weapon.h"
+#include "rf/effect.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,11 +18,18 @@ typedef struct animation_reset {
     rf_weapon_reset_state *state; rf_weapon_descriptor *descriptors;
     rf_weapon_reset_context *context; rf_motion_playback_state *playback;
     rf_motion_playback_resource *resources; rf_turn_actor *actor;
+    rf_effect_pair *effects;
 } animation_reset;
+static int stop_reset_effect(void *user,int32_t handle)
+{
+    animation_reset *r=user;
+    return rf_effect_set_enabled(r->effects,1,handle,0,0,0);
+}
 static int reset_loaded_weapon(void *user)
 {
     animation_reset *r=user;
-    return rf_weapon_reset(r->state,r->actor->weapon,r->descriptors,r->context,r->playback,r->resources,4,NULL,NULL);
+    const rf_weapon_reset_ops ops={NULL,NULL,stop_reset_effect,NULL};
+    return rf_weapon_reset(r->state,r->actor->weapon,r->descriptors,r->context,r->playback,r->resources,4,&ops,r);
 }
 int rf_animation_check(const char *meshes_path, const char *motions_path, uint32_t out[8])
 {
@@ -36,7 +44,9 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     rf_entity_registry registry={0}; rf_entity_view entity={0};
     rf_weapon_reset_state weapon_state={0}; rf_weapon_descriptor descriptors[64]={0};
     rf_weapon_reset_context weapon_context={0};
-    animation_reset reset={&weapon_state,descriptors,&weapon_context,&state,resources,&actor};
+    rf_effect_switch effect_objects[2]={{1,{0,0,0},77},{1,{0,0,0},99}};
+    rf_effect_pair effect_pair={{{&effect_objects[0],&effect_objects[1]},{NULL,NULL}}};
+    animation_reset reset={&weapon_state,descriptors,&weapon_context,&state,resources,&actor,&effect_pair};
     uint32_t weapon_flags[1]={6};
     int ready,eligible;
     rf_turn_context context={{0x800,6,.3f,1.5f,20,7,9},-1,1,0,0};
@@ -87,10 +97,10 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     actor.direction.entity_flags=10;
     entity.handle=0x10000; entity.linked_handle=-1;
     entity.weapons[0]=0; entity.weapons[1]=-1; entity.weapon_owner=&entity;
-    weapon_state.sound_81c=weapon_state.sound_820=weapon_state.effect_13d4=-1;
+    weapon_state.sound_81c=weapon_state.sound_820=-1;
     weapon_state.flags_7d0=10;
     weapon_state.character_present=1; weapon_context.weapon_count=1;
-    descriptors[0].flags_264=6; descriptors[0].release_sound_class=-1;
+    descriptors[0].flags_264=6; descriptors[0].flags_268=0x40; descriptors[0].release_sound_class=-1;
     entity.flags_7d0=10; registry.slots[0]=&entity;
     actor.direction.orientation[0]=actor.direction.orientation[4]=actor.direction.orientation[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
@@ -126,6 +136,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         out[4]=hash_bytes(out[4],&candidates,sizeof(candidates));
         out[4]=hash_bytes(out[4],&ready,4); out[4]=hash_bytes(out[4],&eligible,4);
         out[4]=hash_bytes(out[4],&weapon_state,sizeof(weapon_state));
+        out[4]=hash_bytes(out[4],effect_objects,sizeof(effect_objects));
         displacement[0]=1;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }
