@@ -5,24 +5,27 @@
 typedef struct rf_weapon_selection_state {
     int32_t pending_weapon; /* Player +f80. */
     int32_t deadline; /* Player +b8. */
+    uint8_t flag_f94,flag_f95,reserved[2];
+    int32_t value_f98;
 } rf_weapon_selection_state;
 /* 4acd50 with its unchanged 4fa3e0 timer tail: queue the exact signed weapon
  * value and clear the deadline. The caller owns selection eligibility; this
  * primitive does not activate a weapon or load its presentation. */
 int rf_weapon_queue_selection(rf_weapon_selection_state *state,int32_t weapon);
+/* 4ad8a0: clears +f94/+f95/+f98; preserves the two intervening bytes. */
+int rf_weapon_clear_followup(rf_weapon_selection_state *state);
 
 typedef struct rf_weapon_selection_input {
     int32_t requested,paired_first,paired_second,category_split,current_primary,current_secondary;
-    uint32_t paired_mask,player_flags,force_flag,defer_flag,followup_flag;
+    uint32_t paired_mask,player_flags,force_flag,defer_flag;
 } rf_weapon_selection_input;
 typedef struct rf_weapon_selection_ops {
     int (*already_selected)(void *user,int32_t weapon); /* 4a4cf5 formatted message. */
     int (*apply_queued)(void *user); /* 4aa0b0; not reconstructed yet. */
-    int (*followup)(void *user); /* 4ad8a0; not reconstructed yet. */
 } rf_weapon_selection_ops;
 /* 4a4c91..4a4db4, after earlier selection gates. Masks are entity +1428 and
- * player +10; force/defer are caller arguments and followup is player +f94.
- * Callback code may refresh input through user; followup is read after apply.
+ * player +10; force/defer are caller arguments. State +f94 is read after apply,
+ * and nonzero invokes the shared followup clear. Callbacks may update state.
  * Missing reached adapters return RF_NOT_FOUND, retaining a queued request.
  * This is the selection tail, not the complete 4a4a50 operation. */
 int rf_weapon_finish_selection(rf_weapon_selection_state *state,

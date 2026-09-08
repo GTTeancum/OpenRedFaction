@@ -15,8 +15,8 @@ rng=random.Random(0x4acd50)
 values=[-2147483648,-2,-1,0,1,63,64,2147483647]
 cases=[(old,deadline,new) for old in values for deadline in values for new in values]
 cases += [tuple(rng.randrange(-2147483648,2147483648) for _ in range(3)) for _ in range(128)]
-out=subprocess.check_output([str(root/'build/pc/Release/rf_weapon_probe.exe'),'--queue'],input=b''.join(struct.pack('<3i',*c) for c in cases))
-assert len(out)==12*len(cases)
+out=subprocess.check_output([str(root/'build/pc/Release/rf_weapon_probe.exe'),'--queue'],input=b''.join(struct.pack('<2i',c[0],c[1])+bytes([0xa5])*8+struct.pack('<i',c[2]) for c in cases))
+assert len(out)==20*len(cases)
 for k,(old,deadline,new) in enumerate(cases):
     before=bytearray([0xa5])*0x1000
     struct.pack_into('<i',before,0xf80,old);struct.pack_into('<i',before,0xb8,deadline)
@@ -26,7 +26,8 @@ for k,(old,deadline,new) in enumerate(cases):
     assert u.reg_read(UC_X86_REG_EIP)==stop
     result=bytes(u.mem_read(player,0x1000))
     actual=(struct.unpack_from('<i',result,0xf80)[0],struct.unpack_from('<i',result,0xb8)[0])
-    assert struct.unpack_from('<3i',out,k*12)==(0,*actual),(k,actual)
+    assert struct.unpack_from('<3i',out,k*20)==(0,*actual),(k,actual)
+    assert out[k*20+12:k*20+20]==bytes([0xa5])*8
     struct.pack_into('<i',before,0xf80,actual[0]);struct.pack_into('<i',before,0xb8,actual[1])
     assert result==before,'Original modified unrelated player bytes'
 report=dict(result='PASS',cases=len(cases),scope='Complete unchanged 4acd50 and tail-called 4fa3e0; full 4096-byte player view checked for unrelated writes; queue mutation only, eligibility and activation excluded')

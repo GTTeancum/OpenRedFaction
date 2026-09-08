@@ -568,3 +568,12 @@ unchanged; external adapters are observed before entry, not replaced. Includes
 queue verifier, four CTest cases, Win32 Release and NXDK builds also pass.
 Earlier selection gates and successful external callbacks are not covered.
 No new emulator runtime check or screenshot is claimed for this checkpoint.
+
+Selection followup checkpoint supersedes the previous three-boundary profile:
+4,000 expanded cases now execute original 0x4ad8a0 unchanged. Results are
+3,071 complete, 408 message and 521 apply boundaries, with 797 queue mutations
+and 872 followup clears (687 without a queue mutation). All eight followup
+bytes match, including preservation of +f96/+f97. The 640 queue cases also
+verify preservation of the added state fields. Four CTest cases, Win32 Release
+and NXDK builds pass. Runtime diagnostic integration and successful transition
+adapters remain open; no new emulator run or screenshot is claimed here.

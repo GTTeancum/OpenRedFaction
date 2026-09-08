@@ -12,22 +12,26 @@ message when player +10 mask 0x10 is set (0x4a68d0).
 
 Otherwise nonzero ownership byte, or the in-count descriptor +264 mask
 0x40000 (0x4c9070), permits queuing. A zero defer byte then calls 0x4aa0b0.
-Finally a nonzero player +f94 byte (0x4ace90) calls 0x4ad8a0, even when ownership
-failed and no request was queued. This byte is read after the apply callback,
-allowing the adapter to refresh it through user data. These callback bodies
-remain unreconstructed; the names describe their positions in the flow.
+Finally a nonzero player +f94 byte (0x4ace90) calls the reconstructed
+`rf_weapon_clear_followup` (0x4ad8a0), even when ownership failed and no request
+was queued. It clears bytes +f94/+f95 and the 32-bit value +f98, preserving
++f96/+f97. This byte is read from state after the apply callback, allowing
+that adapter to update it through user data. The compact selection state is
+now 16 bytes, including these eight bytes. The former followup callback and
+input snapshot have been removed; this routine requires no external adapter.
 
-Missing reached message/apply/followup adapters return RF_NOT_FOUND before
+Missing reached message/apply adapters return RF_NOT_FOUND before
 that operation. Queuing and timer clearing remain committed if the apply
 adapter is missing or fails. Invalid pointers or a descriptor count above 64
 return RF_RANGE before mutation. No original descriptor read occurs for an
 out-of-count index. This tail does not replace the complete 0x4a4a50 routine.
 
 `tools/verify_weapon_selection.py` compares 4,000 original executions with
-unchanged predicate and queue callees, stopping before the three unavailable
-external operations. Results: 2,373 complete, 453 message, 519 apply, 655
-followup boundaries; 819 requests queued and 501 followups without a queue
-mutation. The comparison checks both queue fields and unrelated player bytes.
+unchanged predicate, queue and followup-clear callees, stopping before the two
+unavailable external operations. Expanded results: 3,071 complete, 408 message,
+521 apply boundaries; 797 requests queued and 872 followup clears, including
+687 clears without a queue mutation. The comparison checks both queue fields,
+all eight followup bytes and unrelated player bytes.
 It does not validate successful callback bodies or earlier selection gates.
 PC/NXDK builds and PC tests pass; this tail is not yet in the Xbox diagnostic.
 
@@ -35,7 +39,7 @@ PC/NXDK builds and PC tests pass; this tail is not yet in the Xbox diagnostic.
 store the requested signed value in player +f80, then tail-call 0x4fa3e0
 to set the deadline at +b8 to -1. It deliberately preserves all signed
 weapon values; eligibility checks belong to callers such as 0x4a4a50.
-The compact state has only those two fields. A null state returns RF_RANGE
+The queue primitive preserves all other compact state fields. A null state returns RF_RANGE
 as an added safety check. This queues a request; activation and presentation
 remain unimplemented.
 
@@ -197,3 +201,21 @@ selection and clock boundaries. Two C-only cases reject invalid indices.
 This controls existing effect state; effect creation, simulation and rendering
 are not implemented. The shared runtime invokes a real effect-stop adapter
 on weapon reset and hashes both enabled bytes and preserved timestamps.
+
+## Local-player transition evidence
+
+0x4aa0b0 returns immediately unless its player is global 0x7c75d4. Otherwise
+it clears followup state through 0x4ad8a0, calls 0x4aa080, clears byte +fb0,
+requests state 7 through 0x4a9380, and calls the presentation-bearing current
+weapon accessor 0x4a5910. Either true 0x4c8350(weapon,0/1) predicate invokes
+0x41ae70(entity handle,weapon). After resolving the entity again, a weapon
+matching global 0x872468 (0x4c90d0) stamps entity +136c with game time.
+This routine does not directly install player +f80 as the current weapon;
+calling it queued-weapon activation would overstate the recovered behavior.
+The `apply_queued` adapter name describes its caller position, not a proven
+complete activation operation. Its full body remains unreconstructed.
+
+0x4aa080 tolerates a null player; otherwise it clears bytes +f9d and +f9c,
+sets +fa0 to -1, and stamps +fa8 using 0x4fa360(offset=0). 0x4ab180 sets byte
++1044 to 1 on global local player 0x7c75d4 when non-null. These observations
+identify the next state dependencies; they are not implemented by this change.

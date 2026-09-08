@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Selection followup now executes its actual three-field reset, matching 4,000
+expanded original-code cases with 872 resets. Recover local-player transition
+4aa0b0 and preceding selection gates, then integrate selection in Xbox runtime.
+
 The selection tail now matches 4,000 original-code cases through paired
 remapping, duplicate suppression, ownership checks and request queuing.
 Recover the preceding 4a4a50 gates and actual message/apply/followup adapters,

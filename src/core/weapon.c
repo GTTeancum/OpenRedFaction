@@ -1,6 +1,13 @@
 #include "rf/weapon.h"
 #include "rf/timer.h"
 #include <string.h>
+int rf_weapon_clear_followup(rf_weapon_selection_state *state)
+{
+    if (!state) return RF_RANGE;
+    state->flag_f94=state->flag_f95=0;
+    state->value_f98=0;
+    return RF_OK;
+}
 int rf_weapon_queue_selection(rf_weapon_selection_state *state,int32_t weapon)
 {
     if (!state) return RF_RANGE;
@@ -43,10 +50,7 @@ int rf_weapon_finish_selection(rf_weapon_selection_state *state,
             if (status!=RF_OK) return status;
         }
     }
-    if (input->followup_flag&255) {
-        if (!ops || !ops->followup) return RF_NOT_FOUND;
-        return ops->followup(user);
-    }
+    if (state->flag_f94) return rf_weapon_clear_followup(state);
     return RF_OK;
 }
 int rf_weapon_decide_empty(const rf_weapon_inventory *primary,const rf_weapon_inventory *linked,

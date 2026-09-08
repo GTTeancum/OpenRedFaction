@@ -290,3 +290,10 @@ SHA256 b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836
 executes these unchanged and the queue/timer callees, stopping before formatted
 message construction, 0x4aa0b0 and 0x4ad8a0. These adapters and earlier gates
 remain open; no original code/data or generated decompiler output is tracked.
+
+Selection followup correction: original 0x4ad8a0..0x4ad8b8 contains only stores
+to player +f94, +f95 and +f98. Shared `rf_weapon_clear_followup` now replaces
+the unnecessary external callback and runs within selection-tail verification.
+Original 0x4aa0b0, 0x4aa080 and 0x4ab180 were also inspected to identify the
+remaining local transition dependencies; their complete behavior is still open.
+Evidence uses the same fingerprinted RF.exe and ignored local Ghidra exports.
