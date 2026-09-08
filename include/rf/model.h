@@ -100,6 +100,9 @@ typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squ
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.
  * Output index -1 means none. Global disable gate and attenuation are external. */
 int rf_model_choose_local_light(const float position[3],const rf_model_local_light *lights,uint32_t count,rf_model_light_choice *choice);
+/* Selected-light tail 0x52dd9d: (1-sqrt(distance_squared/radius_squared))*255
+ * times light RGB, with no clamp. Invalid arithmetic propagates as original. */
+int rf_model_local_light_color(float distance_squared,float radius_squared,const float color[3],float result[3]);
 /* Tag placement 0x5034f0 after character tag evaluation: rotate then translate.
  * Preserves its separate rounding stages; no extra scale parameter is applied. */
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12]);

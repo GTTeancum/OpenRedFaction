@@ -5,6 +5,15 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_local_light_color(float distance_squared,float radius_squared,const float color[3],float result[3])
+{
+    double scale;float value[3];uint32_t i;
+    if(!color || !result)return RF_RANGE;
+    scale=(1.0-sqrt((double)distance_squared/radius_squared))*255.0;
+    for(i=0;i<3;++i)value[i]=(float)(scale*color[i]);
+    memcpy(result,value,sizeof(value));return RF_OK;
+}
+
 int rf_model_choose_local_light(const float position[3],const rf_model_local_light *lights,uint32_t count,rf_model_light_choice *choice)
 {
     rf_model_light_choice next={-1,{0,0,0},FLT_MAX};uint32_t i,j;

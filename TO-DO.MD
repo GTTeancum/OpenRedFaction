@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Selected-light attenuation now matches 2,000 original cases. Finish light
+direction normalization/rotation, fixed lights and global gates before
+connecting the recovered setup to model rendering.
+
 Nearest local-light selection now matches 2,000 original executions. Finish
 fixed-light setup, selected-light direction/attenuation and global gates, then
 connect game-derived lighting inputs to model rendering.

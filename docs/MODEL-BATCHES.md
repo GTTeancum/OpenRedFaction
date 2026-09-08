@@ -1,5 +1,19 @@
 # Model batch data
 
+`rf_model_local_light_color` recovers the selected-light color tail at
+`0x52dd9d..0x52ddda`: scale is `(1-sqrt(distance_squared/radius_squared))*255`,
+then multiplied by each light color component. No clamp or singular-input
+replacement is added. The caller supplies the selected light; selection,
+direction and global setup remain separate. Double intermediates approximate
+the original x87 operations before final float stores.
+
+`tools/verify_local_light_color.py` compares 2,000 unchanged original executions
+covering random finite distances/colors, radius boundaries, zero radius,
+negative distance, NaN and infinity. All 2,000 outputs match bit-for-bit in
+this run (the verifier permits a small floating tolerance and checks non-finite
+classes). PC build, four CTest checks and NXDK build pass. Universal x87
+rounding equivalence is not asserted.
+
 `rf_model_choose_local_light` recovers the selection block
 `0x52dcaf..0x52dd48` within light setup `0x52dad0`. It scans enabled candidates,
 forms light-position minus model-position and selects the nearest candidate
