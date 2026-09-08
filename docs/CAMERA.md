@@ -424,3 +424,30 @@ every installed track envelope (26,393), 500 synthetic envelopes, fade
 boundaries, interior samples, outside times and both bypass settings. PC and
 NXDK builds and all four PC tests pass. The envelope is not yet wired into
 skeleton blending or the Xbox diagnostic.
+## Archive-backed motion access
+
+`include/rf/motion_file.h` and `src/core/motion_file.c` provide allocation-free
+RFA access through the existing VPP reader. Open validates VMVF versions 7/8,
+the 80-byte header, offset-table bounds, each track's exact length, signed key
+count limits, finite track weights and time bounds. Track lengths must equal
+8 + rotation_count * 16 + position_count * 40. The descriptor retains every
+header word, including both additional-region boundaries, without assigning
+unverified meanings to them. No entire motion or track is made resident.
+
+Indexed track access supplies the verified blend-weight envelope and key
+counts. Indexed rotation/position access converts little-endian bytes into the
+shared sampler types, checks malformed numeric values and returns range errors
+for out-of-bounds keys. Outputs remain unchanged on failure; failed open clears
+the descriptor. The originating archive must remain open. Key access rereads
+track metadata, so playback will need a cache or an adjacent-key cursor before
+this path is suitable for per-frame use. Tick ordering is checked by the
+samplers when given a complete track, not by a single-key read.
+
+`tools/verify_motion_files.py` compares every decoded key and track boundary
+against independent Python parsing of all 1,009 installed files: 26,393 tracks,
+489,545 rotation keys and 147,716 position keys match bit-for-bit. Twelve
+malformed-file fixtures are rejected, covering truncation, unsupported headers,
+bad directories, track counts, time fades and non-finite weights. PC and NXDK
+builds and all four existing PC tests pass. Motion playback, cached access,
+engine-time conversion, additional-region semantics and skeleton integration
+remain open; this is not yet an animated Xbox scene.

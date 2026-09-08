@@ -15,14 +15,19 @@
 
 ## Current camera evidence
 
+The shared archive-backed RFA reader now validates all 1,009 installed motions
+and reads all 489,545 rotation keys and 147,716 position keys bit-for-bit without
+whole-file allocation. Connect indexed reads to cached playback, engine-time
+conversion and skeleton evaluation; trailing regions in 57 files remain unclassified.
+
 Per-track blend-weight envelopes now match 575,460 original-code comparisons
 covering all 26,393 installed track envelopes plus 500 synthetic envelopes.
 Connect weights and sampled transforms through the original skeleton blending
-path after implementing bounded motion loading and engine-time conversion.
+path after implementing playback caching and engine-time conversion.
 
 Rotation-track sampling and easing now match 570,824 original-code comparisons
-covering all 26,393 installed tracks plus 300 synthetic tracks. Implement bounded
-motion loading, engine-time conversion and animated skeleton
+covering all 26,393 installed tracks plus 300 synthetic tracks. Implement
+playback caching, engine-time conversion and animated skeleton
 evaluation before integrating camera setup. Single-key sampling at/before its
 tick deliberately avoids an original out-of-bounds read by decoding directly.
 
