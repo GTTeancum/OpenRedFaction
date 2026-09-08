@@ -265,3 +265,19 @@ has six attachments in each LOD; its `eye` record references bone 8 in all three
 This is a local attachment transform, not a gameplay eye height. The remaining
 work includes skeleton/attachment integration, animated bone poses, and geometry
 and skinning decode. No character or camera rendering is claimed by this reader.
+
+## Attachment transform arithmetic
+
+Attachment setup in 0x51d420 and the third tag group in 0x51b2e0 call 0x4fe900
+directly. They do not call the bone-normalization routine 0x519720. The shared
+`rf_model_attachment_transform` therefore preserves the supplied quaternion
+magnitude, sharing matrix construction with the normalized bone API. A zero
+quaternion produces identity rotation as in the original; non-finite values and
+overflow return errors without changing output. This distinction matters even
+when asset quaternions are close to unit length.
+
+The transform verifier now executes unhooked 0x4fe900 for 755 structurally located
+asset attachments plus 101 synthetic cases. All 856 local transforms match
+compiled Win32 C bit-for-bit. The 2,852 normalized bone and 2,852 composition
+comparisons also pass after sharing the implementation. These results do not
+cover animated bone poses, parent-index integration or Xbox arithmetic at runtime.

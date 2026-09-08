@@ -77,6 +77,16 @@ int main(void)
         CHECK(rf_model_bone_transform(q, p, out) == RF_OK);
         CHECK(out[0] == 1 && out[4] == 1 && out[8] == 1);
         CHECK(out[9] == 1 && out[10] == 2 && out[11] == 3);
+        q[3] = 0;
+        CHECK(rf_model_attachment_transform(q, p, out) == RF_OK);
+        CHECK(out[0] == 1 && out[4] == 1 && out[8] == 1);
+        q[2] = 1; q[3] = 1;
+        CHECK(rf_model_attachment_transform(q, p, out) == RF_OK);
+        CHECK(out[0] == -1 && out[1] == -2 && out[3] == 2);
+        memcpy(sentinel, out, sizeof(out));
+        q[2] = FLT_MAX;
+        CHECK(rf_model_attachment_transform(q, p, out) == RF_RANGE);
+        CHECK(memcmp(out, sentinel, sizeof(out)) == 0);
     }
     {
         unsigned char payload[60] = {1, 0, 0, 0, 'r', 'o', 'o', 't'};

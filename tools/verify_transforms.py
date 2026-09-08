@@ -70,6 +70,41 @@ report = dict(result='PASS', asset_cases=asset_cases, synthetic_cases=400, exact
 (root / 'artifacts/transform-verification.json').write_text(json.dumps(report, indent=2))
 print(report)
 
+# Attachment loading uses the matrix constructor directly, without 0x519720.
+attachment_inputs = []
+from inspect_models import inspect
+for archive, name in entries:
+    if not name.lower().endswith('.v3c'): continue
+    entry = entries[archive, name]
+    with (root / 'Installed_Game' / archive).open('rb') as f:
+        f.seek(entry['offset']); contents = f.read(entry['size'])
+    for section in inspect(contents)['sections']:
+        for lod in section.get('lods', []):
+            for i in range(lod['props']):
+                offset = lod['attachment_offset'] + i * 100 + 68
+                attachment_inputs.append(contents[offset:offset + 28])
+attachment_assets = len(attachment_inputs)
+attachment_inputs.append(struct.pack('<7f', 0,0,0,0, 1,2,3))
+for _ in range(100): attachment_inputs.append(struct.pack('<7f', *(rng.uniform(-3, 3) for _ in range(7))))
+attachment_expected = []
+for raw in attachment_inputs:
+    u.mem_write(data, raw)
+    u.mem_write(stack + 4000, struct.pack('<3I', stop, data, data + 16))
+    u.reg_write(UC_X86_REG_ESP, stack + 4000); u.reg_write(UC_X86_REG_ECX, data + 128)
+    u.emu_start(0x4fe900, stop, count=1000)
+    assert u.reg_read(UC_X86_REG_EIP) == stop
+    attachment_expected.append(bytes(u.mem_read(data + 128, 48)))
+run = subprocess.run([str(root / 'build/pc/Release/rf_transform_probe.exe'), '--attachments'],
+                     input=b''.join(attachment_inputs), capture_output=True, check=True)
+assert len(run.stdout) == len(attachment_inputs) * 52
+for i, want in enumerate(attachment_expected):
+    status, = struct.unpack_from('<i', run.stdout, i * 52)
+    assert status == 0 and run.stdout[i * 52 + 4:(i + 1) * 52] == want, i
+report = dict(result='PASS', asset_attachments=attachment_assets, cases=len(attachment_inputs),
+              scope='Unhooked 0x4fe900 without normalization; attachment local transforms only')
+(root / 'artifacts/attachment-transform-verification.json').write_text(json.dumps(report, indent=2))
+print(report)
+
 # Exercise composition with asset local/parent pairs, plus synthetic transforms.
 # These pair tests verify multiplication; they do not claim an animated pose.
 identity = struct.pack('<12f', 1,0,0, 0,1,0, 0,0,1, 0,0,0)

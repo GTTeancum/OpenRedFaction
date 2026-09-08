@@ -98,7 +98,7 @@ int rf_model_decode_bones(const void *payload, size_t bytes,
     return RF_OK;
 }
 
-int rf_model_bone_transform(const float rotation[4], const float position[3], float transform[12])
+static int make_transform(const float rotation[4], const float position[3], float transform[12], int normalize)
 {
     double length = 0, scale, x, y, z, w;
     float q[4], result[12], wy, zx, one_minus_xx;
@@ -109,8 +109,8 @@ int rf_model_bone_transform(const float rotation[4], const float position[3], fl
         length += (double)rotation[i] * rotation[i];
     }
     for (i = 0; i < 3; ++i) if (!isfinite(position[i])) return RF_FORMAT;
-    if (length == 0) return RF_FORMAT;
-    scale = sqrt(1.0 / length);
+    if (normalize && length == 0) return RF_FORMAT;
+    scale = normalize ? sqrt(1.0 / length) : 1.0;
     for (i = 0; i < 4; ++i) q[i] = (float)((double)rotation[i] * scale);
     x = q[0]; y = q[1]; z = q[2]; w = q[3];
     /* Match binary32 spills visible in original 0x5193f0, including the
@@ -127,8 +127,19 @@ int rf_model_bone_transform(const float rotation[4], const float position[3], fl
     result[7] = (float)(2.0 * (w * x + z * y));
     result[8] = (float)((double)one_minus_xx - 2.0 * y * y);
     for (i = 0; i < 3; ++i) result[i + 9] = position[i];
+    for (i = 0; i < 12; ++i) if (!isfinite(result[i])) return RF_RANGE;
     memcpy(transform, result, sizeof(result));
     return RF_OK;
+}
+
+int rf_model_bone_transform(const float rotation[4], const float position[3], float transform[12])
+{
+    return make_transform(rotation, position, transform, 1);
+}
+
+int rf_model_attachment_transform(const float rotation[4], const float position[3], float transform[12])
+{
+    return make_transform(rotation, position, transform, 0);
 }
 
 int rf_model_compose_transform(const float local[12], const float parent[12], float result[12])

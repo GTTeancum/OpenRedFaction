@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Attachment transforms now preserve the original unnormalized quaternion path,
+with 856 exact original-instruction comparisons including all 755 installed
+records. Bone transforms retain normalization; do not use the bone API for
+attachment setup. Animated parent poses and model integration remain open.
+
 Shared C now computes aligned LOD attachment ranges and reads all 755 installed
 attachment records bit-for-bit; miner's `eye` references bone 8 in each LOD.
 Integrate skeleton and attachment tables, validate upper parent bounds, and
