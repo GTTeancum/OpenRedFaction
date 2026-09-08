@@ -478,3 +478,21 @@ ISO SHA-256:
 `676b9442a301396b4e27edc155a6fecc636bfc2ddf99d4e56b11727a821b96b9`.
 This validates the gate and ordering, not reset effects for valid weapons.
 See docs/TURN.md for the diagnostic adapter's explicit invalid-index scope.
+
+# Valid-weapon reset and animation interruption
+
+`python tools/verify_weapon_reset.py` passes 2,400 original-code cases: 1,448
+complete and 952 match state at required external-operation boundaries. Missing
+adapters return RF_NOT_FOUND with matching prior effects; successful external
+operations remain unverified. `python tools/verify_animation_check.py` passes
+the expanded 64-frame profile with valid weapon 0 active at frame 48, nonloop
+stop, 16 reset calls and starts 17,17,18,18. Pose/state/cache/eye hashes are now
+`0xdc7c08a6`, `0x4785c534`, `0x21cd6b06`, `0x60a29326`, superseding prior profiles.
+
+PC Release/NXDK builds and all four CTest checks pass. Numeric-only stock 64 MiB
+XEMU run `artifacts/xemu/20260908-180054-139788/report.json` passes with matching
+hashes and no framebuffer capture. XBE SHA-256:
+`a72be69d6bf2671e4e3097cfcbaa7e7333a0017d3a13845b4acbc74945e82453`;
+ISO SHA-256:
+`67150d9da154f464ba5698f40137577c38964d965b3caa4f81bb9415c04ebc33`.
+See docs/WEAPON.md for callback boundaries and the remaining gameplay work.

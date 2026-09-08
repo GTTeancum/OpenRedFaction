@@ -30,6 +30,10 @@ combat predicates comes from the second weapon slot. Original code, PC and
 uses an observation hook at the preparation boundary to stop reliably when
 Unicorn has already cached the following candidate block; no callee is replaced.
 
+The invalid-index profile above is superseded by a valid-weapon adapter calling
+`rf_weapon_reset`, including active-weapon nonloop stops. See docs/WEAPON.md
+for current runtime coverage and external operations that remain required.
+
 ## Locomotion candidate block
 
 `rf_locomotion_choose_candidates` reconstructs 0x41f61d..0x41f728 and invokes

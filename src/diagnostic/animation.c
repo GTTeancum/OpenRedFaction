@@ -3,6 +3,7 @@
 #include "rf/model_file.h"
 #include "rf/turn.h"
 #include "rf/entity.h"
+#include "rf/weapon.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,12 +13,15 @@ static uint32_t hash_bytes(uint32_t hash, const void *bytes, size_t count)
     while (count--) hash=(hash ^ *p++)*16777619u;
     return hash;
 }
-static int reset_absent_weapon(void *user)
+typedef struct animation_reset {
+    rf_weapon_reset_state *state; rf_weapon_descriptor *descriptors;
+    rf_weapon_reset_context *context; rf_motion_playback_state *playback;
+    rf_motion_playback_resource *resources; rf_turn_actor *actor;
+} animation_reset;
+static int reset_loaded_weapon(void *user)
 {
-    const rf_turn_actor *actor=user;
-    /* Original 0x41ae70 returns before entity lookup for indices outside
-     * [0,63]. A populated entry still requires the unrecovered adapter. */
-    return actor->weapon<0 || actor->weapon>=64 ? RF_OK : RF_NOT_FOUND;
+    animation_reset *r=user;
+    return rf_weapon_reset(r->state,r->actor->weapon,r->descriptors,r->context,r->playback,r->resources,4,NULL,NULL);
 }
 int rf_animation_check(const char *meshes_path, const char *motions_path, uint32_t out[8])
 {
@@ -30,6 +34,10 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     rf_locomotion_candidate_input selection={0,1,{0,0,0},0};
     rf_locomotion_candidates candidates;
     rf_entity_registry registry={0}; rf_entity_view entity={0};
+    rf_weapon_reset_state weapon_state={0}; rf_weapon_descriptor descriptors[64]={0};
+    rf_weapon_reset_context weapon_context={0};
+    animation_reset reset={&weapon_state,descriptors,&weapon_context,&state,resources,&actor};
+    uint32_t weapon_flags[1]={6};
     int ready,eligible;
     rf_turn_context context={{0x800,6,.3f,1.5f,20,7,9},-1,1,0,0};
     int32_t actions[45],sounds[45],sound_class;
@@ -75,10 +83,14 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     /* Original 0x4181d0 names actions 17/18 sidestep_left/right. Roll actions
      * 19/20 are absent in this profile, so the reset adapter is never reached. */
     actions[17]=2; actions[18]=3;
-    actor.info_flags=context.movement.flags; actor.weapon=-1;
+    actor.info_flags=context.movement.flags; actor.weapon=0;
     actor.direction.entity_flags=10;
     entity.handle=0x10000; entity.linked_handle=-1;
-    entity.weapons[0]=-1; entity.weapons[1]=0; entity.weapon_owner=&entity;
+    entity.weapons[0]=0; entity.weapons[1]=-1; entity.weapon_owner=&entity;
+    weapon_state.sound_81c=weapon_state.sound_820=weapon_state.effect_13d4=-1;
+    weapon_state.flags_7d0=10;
+    weapon_state.character_present=1; weapon_context.weapon_count=1;
+    descriptors[0].flags_264=6; descriptors[0].release_sound_class=-1;
     entity.flags_7d0=10; registry.slots[0]=&entity;
     actor.direction.orientation[0]=actor.direction.orientation[4]=actor.direction.orientation[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
@@ -96,7 +108,8 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         selection.action=frame>=62 ? 12 : frame>=60 ? 7 : frame>=58 ? 17 : 0;
         selection.velocity[0]=frame>=32 ? 1.0f : 0;
         actor.behavior=frame>=48;
-        status=rf_locomotion_prepare(&effects.deadlines[3],-1,&context,&actor,NULL,0,reset_absent_weapon,&actor); if (status!=RF_OK) goto done;
+        if (frame==48) weapon_state.active[0]=1;
+        status=rf_locomotion_prepare(&effects.deadlines[3],-1,&context,&actor,weapon_flags,1,reset_loaded_weapon,&reset); if (status!=RF_OK) goto done;
         entity.action_520=selection.action;
         status=rf_entity_combat_predicates(&registry,&entity,NULL,0,&ready,&eligible); if (status!=RF_OK) goto done;
         selection.combat_eligible=(uint32_t)eligible;
@@ -112,6 +125,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         out[4]=hash_bytes(out[4],&sound_class,4);
         out[4]=hash_bytes(out[4],&candidates,sizeof(candidates));
         out[4]=hash_bytes(out[4],&ready,4); out[4]=hash_bytes(out[4],&eligible,4);
+        out[4]=hash_bytes(out[4],&weapon_state,sizeof(weapon_state));
         displacement[0]=1;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }

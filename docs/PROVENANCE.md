@@ -244,3 +244,11 @@ mode predicate 0x42a060, weapon descriptor predicate 0x4c91b0 and timer 0x4fa360
 Valid reset effects remain owned by the explicit 0x41ae70 adapter. See
 tools/verify_locomotion_prepare.py and docs/TURN.md for original-code fixtures
 and the limited invalid-index adapter used by the diagnostic.
+
+`src/core/weapon.c` reconstructs RF.exe 1.20 NA 0x41ae70's reset control flow
+after type-zero entity resolution. Descriptor/flag mappings and required
+external-operation adapters are documented in docs/WEAPON.md. The original
+read-only 0x4c90f0 call at 0x41afcc discards its result; it is not a local-release
+call. `tools/verify_weapon_reset.py` compares full state to original completion
+or observation boundaries, without replacing callees. Runtime diagnostics now
+use this reset for valid weapon 0 instead of the earlier invalid-index adapter.
