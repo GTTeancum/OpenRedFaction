@@ -130,3 +130,23 @@ int rf_model_bone_transform(const float rotation[4], const float position[3], fl
     memcpy(transform, result, sizeof(result));
     return RF_OK;
 }
+
+int rf_model_compose_transform(const float local[12], const float parent[12], float result[12])
+{
+    float out[12];
+    uint32_t i;
+    if (!local || !parent || !result) return RF_RANGE;
+    for (i = 0; i < 12; ++i)
+        if (!isfinite(local[i]) || !isfinite(parent[i])) return RF_FORMAT;
+    for (i = 0; i < 4; ++i) {
+        double x = local[i * 3], y = local[i * 3 + 1], z = local[i * 3 + 2];
+        double w = i == 3 ? 1.0 : 0.0;
+        /* Preserve each column's distinct accumulation order in 0x51c620. */
+        out[i * 3] = (float)(((z * parent[6] + w * parent[9]) + x * parent[0]) + y * parent[3]);
+        out[i * 3 + 1] = (float)(((w * parent[10] + z * parent[7]) + x * parent[1]) + y * parent[4]);
+        out[i * 3 + 2] = (float)(((z * parent[8] + x * parent[2]) + w * parent[11]) + y * parent[5]);
+    }
+    for (i = 0; i < 12; ++i) if (!isfinite(out[i])) return RF_RANGE;
+    memcpy(result, out, sizeof(out));
+    return RF_OK;
+}

@@ -181,3 +181,20 @@ magnitudes. All 2,852 transforms are bit-exact on the tested MSVC Win32 build.
 This supplies local transforms only: parent composition, pose caches, animation
 sampling/blending and complete V3C traversal are still required. Xbox compilation
 does not by itself prove identical Xbox floating-point results.
+
+## Parent transform composition
+
+`rf_model_compose_transform` reconstructs original 0x51c620. ECX supplies the
+local 48-byte transform, with stack arguments for output and parent. Four rows
+of three floats multiply the parent with implicit final column (0,0,0,1),
+confirmed by constants at 0x5a4d98. Each column's original accumulation order
+is retained. A temporary result supports aliased output, as the original does.
+The new API rejects non-finite inputs and overflowing outputs without writing
+caller data; this validation is additional to original arithmetic semantics.
+
+The transform verification script now compares 2,852 compositions against the
+unhooked original, using asset local/parent pairs (identity for roots) and seeded
+synthetic pairs. All outputs match bit-for-bit on MSVC Win32. Boundary tests
+cover aliasing, invalid inputs and overflow. This verifies individual products;
+it does not establish full hierarchy evaluation, original bone remapping,
+animation sampling or complete model rendering.

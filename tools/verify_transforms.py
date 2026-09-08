@@ -21,14 +21,18 @@ for address in (data, stack, stop): u.mem_map(address, 4096)
 inventory = json.loads((root / 'artifacts/inventory.json').read_text())
 entries = {(a['path'], e['name']): e for a in inventory['files'] for e in a.get('vpp', {}).get('entries', [])}
 records = json.loads((root / 'artifacts/bone-tests/report.json').read_text())['records']
-inputs = []
+inputs, parents = [], []
 for record in records:
     entry = entries[record['archive'], record['model']]
     with (root / 'Installed_Game' / record['archive']).open('rb') as f:
         f.seek(entry['offset'] + record['offset'] + 12)
         bones = f.read(record['count'] * 56)
     assert len(bones) == record['count'] * 56
-    for i in range(record['count']): inputs.append(bones[i * 56 + 24:i * 56 + 52])
+    base = len(inputs)
+    for i in range(record['count']):
+        inputs.append(bones[i * 56 + 24:i * 56 + 52])
+        parent, = struct.unpack_from('<i', bones, i * 56 + 52)
+        parents.append(-1 if parent == -1 else base + parent)
 asset_cases = len(inputs)
 rng = random.Random(0x519720)
 for i in range(400):
@@ -64,4 +68,30 @@ report = dict(result='PASS', asset_cases=asset_cases, synthetic_cases=400, exact
               maximum_absolute_error=maximum, tolerance=0,
               scope='Unhooked 0x519720 normalization and 0x4fe900 local transform; no parent composition or animation')
 (root / 'artifacts/transform-verification.json').write_text(json.dumps(report, indent=2))
+print(report)
+
+# Exercise composition with asset local/parent pairs, plus synthetic transforms.
+# These pair tests verify multiplication; they do not claim an animated pose.
+identity = struct.pack('<12f', 1,0,0, 0,1,0, 0,0,1, 0,0,0)
+pairs, composed = [], []
+for i, local in enumerate(expected):
+    parent_index = parents[i] if i < asset_cases else rng.randrange(len(expected))
+    parent = identity if parent_index == -1 else expected[parent_index]
+    pairs.append(local + parent)
+    u.mem_write(data, local + parent)
+    u.mem_write(stack + 4000, struct.pack('<3I', stop, data + 128, data + 48))
+    u.reg_write(UC_X86_REG_ESP, stack + 4000); u.reg_write(UC_X86_REG_ECX, data)
+    u.emu_start(0x51c620, stop, count=1000)
+    assert u.reg_read(UC_X86_REG_EIP) == stop
+    composed.append(bytes(u.mem_read(data + 128, 48)))
+run = subprocess.run([str(root / 'build/pc/Release/rf_compose_probe.exe')],
+                     input=b''.join(pairs), capture_output=True, check=True)
+assert len(run.stdout) == len(pairs) * 52
+for i, want in enumerate(composed):
+    status, = struct.unpack_from('<i', run.stdout, i * 52)
+    actual = run.stdout[i * 52 + 4:(i + 1) * 52]
+    assert status == 0 and actual == want, (i, status, struct.unpack('<12f', actual), struct.unpack('<12f', want))
+report = dict(result='PASS', cases=len(pairs), exact_cases=len(pairs), original='0x51c620, unhooked',
+              scope='Asset local/parent pairs and synthetic transforms; no animated pose or hierarchy evaluation')
+(root / 'artifacts/composition-verification.json').write_text(json.dumps(report, indent=2))
 print(report)

@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Parent transform multiplication at 0x51c620 is reconstructed in shared C and
+matches 2,852 original-instruction comparisons bit-for-bit on PC. Original bone
+remapping and full hierarchy/animation evaluation remain open; isolated matrix
+products do not yet establish a correct animated eye pose.
+
 Local bone normalization and transform construction are now reconstructed in
 shared C; 2,852 PC results match the original instructions bit-for-bit, covering
 all 2,452 decoded asset bones and 400 scaled synthetic quaternions. Continue with

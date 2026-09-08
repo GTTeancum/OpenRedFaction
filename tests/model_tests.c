@@ -2,6 +2,7 @@
 #include <limits.h>
 #include <string.h>
 #include <math.h>
+#include <float.h>
 #define CHECK(x) do { if (!(x)) return __LINE__; } while (0)
 int main(void)
 {
@@ -25,6 +26,25 @@ int main(void)
     query.data = NULL; query.length = 0;
     groups[2].names = &query; groups[2].count = 1;
     CHECK(rf_model_find_tag(groups, query, &index) == RF_OK && index == 0);
+    {
+        float a[12] = {1,0,0, 0,1,0, 0,0,1, 1,2,3};
+        float b[12] = {1,0,0, 0,1,0, 0,0,1, 4,5,6};
+        float out[12], sentinel[12];
+        CHECK(rf_model_compose_transform(a, b, out) == RF_OK);
+        CHECK(out[9] == 5 && out[10] == 7 && out[11] == 9);
+        CHECK(rf_model_compose_transform(a, b, a) == RF_OK);
+        CHECK(memcmp(a, out, sizeof(a)) == 0);
+        CHECK(rf_model_compose_transform(b, b, b) == RF_OK);
+        CHECK(b[9] == 8 && b[10] == 10 && b[11] == 12);
+        memcpy(sentinel, out, sizeof(out));
+        a[0] = NAN;
+        CHECK(rf_model_compose_transform(a, b, out) == RF_FORMAT);
+        CHECK(memcmp(out, sentinel, sizeof(out)) == 0);
+        a[0] = FLT_MAX; b[0] = FLT_MAX;
+        CHECK(rf_model_compose_transform(a, b, out) == RF_RANGE);
+        CHECK(memcmp(out, sentinel, sizeof(out)) == 0);
+        CHECK(rf_model_compose_transform(NULL, b, out) == RF_RANGE);
+    }
     {
         float q[4] = {0, 0, 0, 0}, p[3] = {1, 2, 3}, out[12], sentinel[12];
         memset(out, 0xa5, sizeof(out)); memcpy(sentinel, out, sizeof(out));
