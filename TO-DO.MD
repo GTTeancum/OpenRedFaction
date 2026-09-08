@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Standing/crouching/restored-standing pose queries now match 600 original bone
+matrices and 24 eye transforms across eight starting states. Resolve controller
+0x41f400 and actual player initialization flags: creation updates animation by
+1/30 second before eye setup, so phase and cursor cannot be chosen arbitrarily.
+
 Character reset and deferred animation-stop controls now match 1,800 original
 cases, including preservation of slots/references until the next update.
 Verify the full standing/crouching eye-offset setup sequence using these controls

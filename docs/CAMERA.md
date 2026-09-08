@@ -940,3 +940,55 @@ the whole sequence must be verified rather than treating each pose as an
 independent animation at a chosen tick. The standing eye is initially queried
 before that explicit update; initial-pose sampling and actual registered IDs
 remain to validate. The renderer and gameplay camera are unchanged.
+
+## Standing/crouching sequence verification
+
+`tools/verify_eye_setup.py` now drives original character type-2 wrappers
+`0x503390`, `0x5033f0` and `0x503360`, followed by original skeleton and eye-tag
+evaluation. The C probe performs the corresponding recovered operations. Eight
+sequences vary initial shared phase (0, 0.1, 0.5, 0.9) and whether a 1/30-second
+update precedes the first standing query. It then stops looping weights, selects
+crouch, updates by 0.2 seconds, queries the eye, and repeats with standing.
+All 600 bone matrices, 24 eye transforms, mapped playback states and remaining
+root displacement match. This verifies tick-zero standing sampling for these
+installed miner tracks as well as phase carry and wraparound; it does not
+generalize the original single-key out-of-bounds behavior to other assets.
+
+The final standing query is a follow-up verification step: `0x423bd0` restores
+standing and updates before returning, without another explicit eye query there.
+The test omits the surrounding collision/physics setup and entity-specific
+XZ suppression, and supplies loaded miner stand/crouch resources. Those limits
+remain distinct from the verified sequence of pose operations.
+
+Additional creation-path tracing establishes:
+
+- `0x422fc3..0x422fd5` registers the named looping-state motions with loop byte
+  one through `0x51cc10`; this is the flag used by the sequence fixture.
+- `0x4231d4..0x4231ea` initializes current state `entity+0x138c` to zero,
+  next state `+0x1390` to -1 and transition duration/elapsed to zero.
+- `0x4231f0` calls controller `0x41f270`, then `0x423208` updates by the float
+  at `0x5a4014`: 0.03333333507180214 (1/30 second).
+- `0x423b90` calls eye/physics setup `0x423bd0` only if class flag
+  `+0x724 & 0x40000000` is clear. It sets that flag afterward.
+
+Ghidra now exports `0x41f270`: it gates on entity flags, calls locomotion
+selection or a scripted-animation path, then resets looping weights and assigns
+the current state or a timed current/next blend. Therefore the creation-path
+update is not sufficient proof that the initial motion is standing. Its
+`0x41f400` selector and actual player flags must be resolved before applying a
+specific offset to gameplay.
+
+For the verified fixture with phase zero and standing already selected before
+the 1/30-second update, the model-space eye results are:
+
+| Query | Cursor | Eye X | Eye Y | Eye Z |
+| --- | ---: | ---: | ---: | ---: |
+| Standing | 320 | 0.003930965 | 0.785402536 | 0.077420831 |
+| Crouching | 1279 | 0.060915217 | 0.149211273 | 0.382877767 |
+| Restored standing follow-up | 2240 | 0.003969240 | 0.786622703 | 0.074905924 |
+
+These are conditional model-space results, not world camera heights. With no
+preceding update, the first crouching cursor is 1119, rather than an independently
+selected 1120, because the original phase-to-tick path floors its float-derived
+product. Evidence is in `artifacts/eye-setup-verification.json`. No camera offset
+or rendered output is changed by this verification work.
