@@ -305,3 +305,21 @@ at the word +0x48. Boundaries +0x48/+0x4c and file end split additional regions
 in 57 files, including miner_talk.rfa. These region labels are deliberately
 offsets, not guessed animation semantics. Track/keyframe encoding, time units,
 facial-data interpretation and animation evaluation remain unfinished.
+
+## Position key sampling
+
+Original 0x53a130 confirms two signed 16-bit key counts at track +4/+6,
+16-byte rotation keys beginning at +8, and 40-byte position keys following them.
+A position key stores an int32 tick, position vector, incoming control point and
+outgoing control point. Sampling clamps endpoints, returns zero for empty tracks,
+and evaluates cubic Bezier interpolation between bracketing keys. Individual
+scalar multiplies and vector adds round to binary32 in the original helper calls.
+
+`src/core/motion.c` reconstructs position sampling on decoded key arrays, with
+finite-field, increasing-time and overflow validation. It allocates nothing;
+tick units and conversion from engine time remain caller responsibilities.
+`tools/verify_motion_position.py` executes unhooked 0x53a130 against the C sampler
+for all 50 tracks from ult2_stand/ult2_crouch and 101 synthetic tracks at five
+times each. All 755 sampled vectors match bit-for-bit on the checked PC build.
+This proves position sampling in that domain, not rotation sampling, animation
+blending, full motion loading or a working campaign camera.

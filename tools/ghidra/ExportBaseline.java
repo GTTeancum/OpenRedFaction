@@ -45,6 +45,7 @@ public class ExportBaseline extends GhidraScript {
         addresses.add(0x569880L);
         addresses.add(0x422360L);
         addresses.add(0x419a00L); addresses.add(0x51cc10L);
+        for (long target : new long[]{0x539ed0L, 0x53a130L, 0x539e10L}) addresses.add(target);
         addresses.add(0x5698d0L); addresses.add(0x569920L);
         for (long target : new long[]{0x5142d0L, 0x51cbe0L, 0x53b408L, 0x51b500L, 0x514ca0L, 0x51ca50L, 0x53ae5fL}) addresses.add(target);
         // Character model tag lookup and pose evaluation reached from eye setup.

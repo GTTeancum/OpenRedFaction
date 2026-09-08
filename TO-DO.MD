@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Position-key sampling is reconstructed in shared C with 755 bit-exact original
+comparisons covering stand/crouch and synthetic tracks. Recover compressed
+rotation keys, eased quaternion interpolation, engine-time conversion and full
+motion loading before integrating the camera pose.
+
 Original state initialization confirms stand slot 0 and crouch slot 8; the
 base miner1 motions resolve to installed ult2_stand/ult2_crouch RFA assets.
 The motion-envelope audit accounts for all 1,009 files and preserves additional

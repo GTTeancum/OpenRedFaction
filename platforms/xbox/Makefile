@@ -8,6 +8,7 @@ SHADER_OBJS = $(PROJECT_ROOT)/src/platform/xbox/preview_vertex.inl $(PROJECT_ROO
 SRCS += $(PROJECT_ROOT)/src/core/lightmap.c
 SRCS += $(PROJECT_ROOT)/src/core/eye.c
 SRCS += $(PROJECT_ROOT)/src/core/model.c
+SRCS += $(PROJECT_ROOT)/src/core/motion.c
 SRCS += $(PROJECT_ROOT)/src/core/model_file.c
 CFLAGS += -std=c11 -O2 -Wall -Wextra -Werror -I$(PROJECT_ROOT)/include
 LDFLAGS += -map:main.map -entry:rf_diagnostic_start
