@@ -44,14 +44,24 @@ def inspect(data):
                 flags, unknown = u32(), u32()
                 batches = struct.unpack('<H', take(2))[0]
                 size = u32(); blob = cursor; take(size)
-                after_blob = u32(); take(batches * 18)
+                after_blob = u32()
+                infos = [struct.unpack('<7HI', take(18)) for _ in range(batches)]
+                relative = (batches * 56 + 15) & ~15
+                for v, triangles, positions, indices, extra, links, uv, format_bits in infos:
+                    sizes = [positions, positions, uv, indices]
+                    if flags & 0x20: sizes.append(triangles * 16)
+                    sizes.append(extra)
+                    if links: sizes.append(links)
+                    if flags & 1: sizes.append(unknown * 2)
+                    for length in sizes: relative = (relative + length + 15) & ~15
                 props, textures = u32(), u32()
+                if relative + props * 100 != size: raise ValueError(f'LOD attachment boundary mismatch at {blob}')
                 texture_names = []
                 for _ in range(textures):
                     slot = take(1)[0]; texture_names.append(dict(slot=slot, name=cstring()))
                 section['lods'].append(dict(flags=flags, unknown=unknown, batches=batches,
                                            data_offset=blob, data_bytes=size, after_blob=after_blob,
-                                           props=props, textures=texture_names))
+                                           props=props, attachment_offset=blob + relative, textures=texture_names))
             materials = u32(); take(materials * 84)
             groups = u32(); take(groups * 28)
             section['materials'] = materials

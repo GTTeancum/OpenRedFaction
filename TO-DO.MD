@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Shared C now computes aligned LOD attachment ranges and reads all 755 installed
+attachment records bit-for-bit; miner's `eye` references bone 8 in each LOD.
+Integrate skeleton and attachment tables, validate upper parent bounds, and
+recover animated bone poses before using this local attachment as a camera.
+
 Shared C now traverses V3C section structure directly in VPP archives, including
 zero-sized SUBM chunks, while leaving LOD blobs on disc. Bone verification uses
 structural boundaries instead of signature searches. Decode LOD geometry,

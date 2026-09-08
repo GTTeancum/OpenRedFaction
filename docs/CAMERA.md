@@ -239,3 +239,29 @@ MSVC/NXDK builds and existing C boundary tests also pass.
 the earlier scanning limitations above describe historical verification only.
 This is a section directory: vertices, skinning data, attachments inside LOD
 blobs and animations still require payload decoding and runtime integration.
+
+## LOD attachment access
+
+Original LOD allocation/relocation 0x569920 computes the attachment pointer by
+walking the batch data, not by searching for names. It starts after aligned
+56-byte batch headers, then advances through two position-sized arrays, UVs,
+indices, optional triangle planes (flag 0x20), extra data, optional bone links
+and optional auxiliary bytes (flag 1). Each advance aligns to 16 relative to
+the LOD blob start. Auxiliary length is the LOD header word times **2 bytes**;
+it is not a float count. The following attachment count describes 100-byte
+records. All installed blobs end exactly after these records.
+
+The shared reader now retains up to 128 LOD ranges and validates that computed
+batch bytes plus attachment bytes equal the stored blob size. The new
+`rf_model_file_attachment` reads a single record directly from its archive:
+68 name bytes, four rotation floats, three position floats and a parent index.
+It adds a name terminator, rejects non-finite floats and parent values below -1,
+and leaves output unchanged on failure. Checking the upper parent bound requires
+the model skeleton and remains a caller integration requirement.
+
+`tools/verify_model_files.py` compares all 755 attachment records bit-for-bit
+across the 95 installed models, alongside the 399 section boundaries. The miner
+has six attachments in each LOD; its `eye` record references bone 8 in all three.
+This is a local attachment transform, not a gameplay eye height. The remaining
+work includes skeleton/attachment integration, animated bone poses, and geometry
+and skinning decode. No character or camera rendering is claimed by this reader.
