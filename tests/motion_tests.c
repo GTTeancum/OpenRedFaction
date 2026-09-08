@@ -10,6 +10,17 @@ int main(void)
     float rotation[4] = {99,99,99,99};
     int16_t qa[4] = {0,0,0,16383}, qb[4] = {0,0,0,16383};
     int16_t qr[4] = {99,99,99,99}, qs[4] = {99,99,99,99};
+    rf_motion_rotation_key rk[2] = {{0,{0,0,0,16383},0,0,{0,0}}, {100,{0,10000,0,12000},0,0,{0,0}}};
+    CHECK(rf_motion_sample_rotation(NULL,0,0,rotation)==RF_OK && rotation[3]==1);
+    CHECK(rf_motion_sample_rotation(rk,1,-1,rotation)==RF_OK);
+    CHECK(rotation[0]==0 && rotation[3]>0.99f);
+    CHECK(rf_motion_sample_rotation(rk,1,0,rotation)==RF_OK);
+    CHECK(rf_motion_sample_rotation(rk,2,50,rotation)==RF_OK);
+    rk[1].tick=0;
+    CHECK(rf_motion_sample_rotation(rk,2,0,rotation)==RF_FORMAT);
+    rk[1].tick=100; rk[1].incoming=-1;
+    CHECK(rf_motion_sample_rotation(rk,2,50,rotation)==RF_FORMAT);
+    rotation[0]=rotation[1]=rotation[2]=rotation[3]=99;
     CHECK(rf_motion_interpolate_rotation(NULL,qb,0,qr)==RF_RANGE);
     CHECK(rf_motion_interpolate_rotation(qa,qb,NAN,qr)==RF_RANGE);
     CHECK(rf_motion_interpolate_rotation(qa,qb,-1,qr)==RF_RANGE);

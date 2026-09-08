@@ -15,19 +15,25 @@
 
 ## Current camera evidence
 
+Rotation-track sampling and easing now match 570,824 original-code comparisons
+covering all 26,393 installed tracks plus 300 synthetic tracks. Implement bounded
+motion loading, engine-time conversion, blend weights and animated skeleton
+evaluation before integrating camera setup. Single-key sampling at/before its
+tick deliberately avoids an original out-of-bounds read by decoding directly.
+
 Packed quaternion interpolation now matches 1,288,315 original-code comparisons
 at five blend positions across all 256,663 distinct installed adjacent/single-key
-pairs plus 1,000 synthetic pairs. Recover easing, track sampling and time conversion,
-then integrate motion loading and skeleton evaluation into camera setup.
+pairs plus 1,000 synthetic pairs. Xbox runtime arithmetic equivalence remains
+to be checked when the animation path is integrated into the diagnostic.
 
 Packed rotation decoding is reconstructed in shared C, with all 65,536 signed
 component values checked in each of four positions against original instructions.
-The decoder and packed interpolation are available; easing and track evaluation
-must be recovered before using rotation tracks in animated poses.
+The decoder, packed interpolation and track evaluation are available; integrate
+them with motion loading and animated poses.
 
 Position-key sampling is reconstructed in shared C with 755 bit-exact original
-comparisons covering stand/crouch and synthetic tracks. Recover eased
-rotation-track sampling, engine-time conversion and full
+comparisons covering stand/crouch and synthetic tracks. Recover engine-time
+conversion and full
 motion loading before integrating the camera pose.
 
 Original state initialization confirms stand slot 0 and crouch slot 8; the

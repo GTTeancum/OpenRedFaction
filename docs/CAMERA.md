@@ -345,7 +345,7 @@ then expands the packed result with `0x417e90`. Assembly establishes that
 `0x51a5d0`, called afterward, merely copies four floats; it is not a decoder.
 Raw decompilation of `0x51a000` shows interpolation quantization and a zero-W
 replacement with packed value one. The reconstruction and verification of that
-routine are described below; easing and full track evaluation remain open.
+routine and track sampling are described below.
 ## Packed quaternion interpolation
 
 `rf_motion_interpolate_rotation` reconstructs `0x51a000` for caller-normalized
@@ -370,4 +370,36 @@ blend factors 0, 0.25, 0.5, 0.75 and 1. All 1,288,315 outputs match exactly,
 covering 256,663 distinct installed pairs. This checks packed output on the
 PC build; it does not establish every possible blend factor or Xbox runtime
 math-library equivalence. Both builds and PC boundary/alias tests pass.
-Easing, complete track evaluation and animated skeleton integration remain open.
+Animated skeleton integration and engine-time conversion remain open.
+
+## Rotation track sampling and easing
+
+`rf_motion_sample_rotation` joins `0x539ed0`, easing `0x53a040`, packed
+interpolation and expansion. Keys are 16 bytes: tick, four packed components,
+signed incoming/outgoing easing bytes, and two preserved reserved bytes. Empty
+tracks return identity. Multi-key tracks choose the first key strictly after
+the requested tick, use the preceding key as the lower endpoint, and clamp
+the blend factor at either end. Endpoint evaluation still interpolates and
+requantizes; copying an endpoint directly would change the original result.
+
+Easing scales bytes by the original float `0.007874015718698502`; if their
+sum exceeds one, both scaled values divide by that float sum. The piecewise
+quadratic/linear/quadratic curve preserves the original float spills and uses
+double intermediates to match its extended-precision arithmetic in the tested
+cases. Negative easing bytes and non-increasing ticks are rejected. All
+installed easing bytes are 0, 1 or 2; synthetic tracks exercise 0 through 127.
+
+The original uses a second key at/before the first tick even when there is
+only one key. The bounded C API instead decodes the single key directly.
+`tools/verify_motion_sampling.py` excludes this unsafe original boundary and
+tests it separately through the C boundary tests. It compares empty tracks,
+single keys after their tick, multi-key endpoints and every interval midpoint,
+using all 26,393 installed tracks plus 300 synthetic tracks. All 570,824
+samples match the unhooked original, including decoded float bits. The PC and
+NXDK builds and all four PC tests pass. This is not yet Xbox runtime validation
+or a complete motion loader.
+
+The adjacent original `0x539e10` is a blend-weight envelope, not time conversion:
+it reads the per-track leading float, header start/end ticks at 0x10/0x14 and
+fade durations at 0x24/0x28. Recover that path together with the caller's time
+conversion before assembling a complete animated skeleton.

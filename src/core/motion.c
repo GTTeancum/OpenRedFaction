@@ -76,6 +76,56 @@ int rf_motion_decode_rotation(const void *packed, size_t bytes, float out[4])
     return RF_OK;
 }
 
+static float motion_ease(float t, int8_t outgoing, int8_t incoming)
+{
+    float a = outgoing * 0.0078740157186985015869140625f;
+    float b = incoming * 0.0078740157186985015869140625f;
+    float sum = a + b;
+    double scale, remaining;
+    if (t == 0 || t == 1 || sum == 0) return t;
+    if (sum > 1) { a /= sum; b /= sum; }
+    scale = 1.0 / ((2.0 - a) - b);
+    if (t < a) return (float)(((scale / a) * t) * t);
+    if (t < 1.0 - b) return (float)(((t + (double)t) - a) * scale);
+    remaining = 1.0 - t;
+    return (float)(1.0 - ((scale / b) * remaining) * remaining);
+}
+
+int rf_motion_sample_rotation(const rf_motion_rotation_key *keys, uint32_t count, int32_t tick, float out[4])
+{
+    uint32_t i, upper;
+    int16_t packed[4];
+    unsigned char bytes[8];
+    float t, result[4] = {0,0,0,1};
+    int status;
+    if (!out || (count && !keys)) return RF_RANGE;
+    for (i = 0; i < count; ++i) {
+        if ((i && keys[i].tick <= keys[i-1].tick) || keys[i].incoming < 0 || keys[i].outgoing < 0)
+            return RF_FORMAT;
+    }
+    if (!count) { memcpy(out,result,sizeof(result)); return RF_OK; }
+    if (count == 1) memcpy(packed,keys[0].packed,sizeof(packed));
+    else {
+        if (tick <= keys[0].tick) { upper = 1; t = 0; }
+        else if (tick >= keys[count-1].tick) { upper = count-1; t = 1; }
+        else {
+            int64_t delta;
+            for (upper = 1; tick >= keys[upper].tick; ++upper) {}
+            delta = (int64_t)keys[upper].tick - keys[upper-1].tick;
+            if (delta > INT32_MAX) return RF_RANGE;
+            t = (float)(tick - keys[upper-1].tick) / (float)delta;
+        }
+        t = motion_ease(t,keys[upper-1].outgoing,keys[upper].incoming);
+        status = rf_motion_interpolate_rotation(keys[upper-1].packed,keys[upper].packed,t,packed);
+        if (status != RF_OK) return status;
+    }
+    for (i = 0; i < 4; ++i) {
+        bytes[i*2] = (unsigned char)((uint16_t)packed[i] & 255);
+        bytes[i*2+1] = (unsigned char)((uint16_t)packed[i] >> 8);
+    }
+    return rf_motion_decode_rotation(bytes,sizeof(bytes),out);
+}
+
 int rf_motion_sample_position(const rf_motion_position_key *keys, uint32_t count, int32_t tick, float out[3])
 {
     uint32_t i, c, upper;

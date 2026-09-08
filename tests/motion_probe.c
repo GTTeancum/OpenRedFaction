@@ -11,6 +11,18 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--sample-rotation") == 0) {
+        static rf_motion_rotation_key rotations[32767]; /* PC oracle transport only. */
+        struct { int32_t status; float value[4]; } sampled;
+        _Static_assert(sizeof(rf_motion_rotation_key)==16,"Rotation key wire layout");
+        while (fread(&count,4,1,stdin)==1) {
+            if (count>32767 || fread(&tick,4,1,stdin)!=1 || fread(rotations,16,count,stdin)!=count) return 2;
+            memset(&sampled,0,sizeof(sampled));
+            sampled.status=rf_motion_sample_rotation(rotations,count,tick,sampled.value);
+            if (fwrite(&sampled,20,1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--interpolate-rotation") == 0) {
         struct { int16_t a[4], b[4]; float t; } input;
         struct { int32_t status; int16_t value[4]; } interpolated;
