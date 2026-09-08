@@ -7,6 +7,36 @@
 int main(void)
 {
     {
+        rf_model_material_record source={{0}}; rf_model_material_instance instance={0},snapshot;
+        uint32_t a[]={11,22,33},b[]={44,55},c[]={66};
+        const uint32_t *arrays[]={a,b,c}; uint32_t capacities[]={3,2,1};
+        int32_t counts[]={3,2,1}; uint32_t exact=(uint32_t)sizeof(instance)+24;
+        memcpy(source.bytes+0x7c,&counts[0],4);memcpy(source.bytes+0xb8,&counts[1],4);memcpy(source.bytes+0xc0,&counts[2],4);
+        CHECK(rf_model_material_instance_open(&instance,&source,3,arrays,capacities,exact-1)==RF_RANGE);
+        CHECK(!instance.storage && !instance.accounted_bytes);
+        CHECK(rf_model_material_instance_open(&instance,&source,3,arrays,capacities,exact)==RF_OK);
+        CHECK(instance.accounted_bytes==exact && instance.counts[0]==3 && instance.counts[1]==2 && instance.counts[2]==1);
+        CHECK(instance.arrays[0][2]==33 && instance.arrays[1][1]==55 && instance.arrays[2][0]==66);
+        a[0]=99; CHECK(instance.arrays[0][0]==11); instance.arrays[1][0]=77; CHECK(b[0]==44);
+        CHECK(!memcmp(instance.record.bytes+0x80,"\0\0\0\0",4));
+        snapshot=instance;
+        CHECK(rf_model_material_instance_open(&instance,&source,1,arrays,capacities,exact)==RF_RANGE);
+        CHECK(!memcmp(&snapshot,&instance,sizeof(instance)));
+        rf_model_material_instance_close(&instance); rf_model_material_instance_close(&instance);
+        CHECK(rf_model_material_instance_open(&instance,&source,1,arrays,capacities,(uint32_t)sizeof(instance)+12)==RF_OK);
+        CHECK(instance.counts[0]==1 && instance.counts[1]==1 && instance.counts[2]==1 && instance.arrays[0][0]==99);
+        rf_model_material_instance_close(&instance);
+        capacities[0]=2; CHECK(rf_model_material_instance_open(&instance,&source,3,arrays,capacities,exact)==RF_RANGE);
+        counts[0]=INT32_MAX;memcpy(source.bytes+0x7c,&counts[0],4);capacities[0]=INT32_MAX;
+        CHECK(rf_model_material_instance_open(&instance,&source,3,arrays,capacities,UINT32_MAX)==RF_RANGE);
+        memset(source.bytes+0x14,'x',36);
+        CHECK(rf_model_material_instance_open(&instance,&source,1,arrays,capacities,exact)==RF_FORMAT);
+        CHECK(!instance.storage && !instance.accounted_bytes);
+        memset(&source,0,sizeof(source));
+        CHECK(rf_model_material_instance_open(&instance,&source,3,arrays,capacities,(uint32_t)sizeof(instance))==RF_OK);
+        CHECK(!instance.storage && instance.accounted_bytes==sizeof(instance));rf_model_material_instance_close(&instance);
+    }
+    {
         rf_model_bone bones[2]={{0},{0}}; rf_motion_playback_state state={0};
         float displacement[3]={4,5,6}, matrices[2][12]={{1,0,0,0,1,0,0,0,1,7,8,9},{0}};
         uint16_t stamps[2]={1,0};

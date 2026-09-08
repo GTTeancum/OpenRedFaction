@@ -1,5 +1,30 @@
 # Model-instance materials
 
+`rf_model_material_instance_open` now finishes material copying with native
+ownership. It initializes a new record, applies recovered fixed fields, checks
+the source array views, and independently copies the three planned arrays.
+Kind 3 retains all positive-count elements; other kinds retain one. Source
+mutation cannot change the instance, and instance mutation cannot change the
+source. The source record's legacy pointer values are never dereferenced.
+Native `arrays` and `counts` hold the owned views; pointer slots in `record`
+stay zero. Close releases the one backing allocation and zeroes the instance.
+
+This is a port ownership implementation using the recovered count/copy rules,
+not a reconstruction of the original CRT allocator. The backing allocation
+combines the three arrays. A caller budget includes sizeof(instance) plus
+array payload; allocator metadata is excluded. Wide arithmetic prevents size
+wrap, and insufficient capacities, missing required arrays, malformed names,
+overflow and budget rejection leave the output unchanged. Allocation failure
+returns RF_IO without publishing a partial instance. The instance must start
+zeroed and be closed before reuse. New storage starts zeroed before applying
+the original partial constructor, so formerly unspecified bytes are deterministic.
+
+The model tests cover exact/insufficient budgets, independent ownership,
+model-kind copy lengths, repeated close, rejection of overwriting a live
+instance, insufficient source capacity, overflow, malformed names and empty
+arrays. Win32 Release, four CTest cases and NXDK build pass. Original allocator
+execution and live-model/Xbox runtime integration are not covered by these tests.
+
 `rf_model_material_prepare_copy` reconstructs the fixed-field portion of
 0x503950 and reports the subsequent three array lengths. It copies identifier,
 flags (forcing bit 0), byte +8, RGBA, both texture handles and their scalar

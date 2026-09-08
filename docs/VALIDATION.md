@@ -637,3 +637,11 @@ bytes, source immutability, canaries and first allocation size are checked.
 One malformed-name case preserves destination and plan. Win32 Release, four
 CTest cases and NXDK build pass. Successful owned-array allocation/copy and
 runtime binding remain open. No emulator run or screenshot for this checkpoint.
+
+Material ownership checkpoint: C tests now verify independent three-array
+copies, kind-3 full counts versus single-element copies, exact and insufficient
+budgets, repeated close, live-instance overwrite rejection, insufficient views,
+size overflow, malformed names and empty arrays. Win32 Release, all four CTest
+cases and NXDK build pass. This validates new bounded ownership code, not
+unchanged original allocator execution or live model binding. No new XEMU run
+or screenshot is claimed; runtime integration remains open.

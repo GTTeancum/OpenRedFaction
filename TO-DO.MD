@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Instance materials now own bounded copies of their three arrays with cleanup
+and failure checks. Connect this ownership layer to actual model loading and
+texture overrides, then validate local weapon presentation in Xbox runtime.
+
 Material fixed-field copying and array-size planning now match 2,000 original
 cases through completion or first allocation. Finish bounded ownership of the
 three copied arrays before instance materials can be published and rebound.

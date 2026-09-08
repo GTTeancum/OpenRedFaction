@@ -2,6 +2,41 @@
 #include <limits.h>
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
+
+void rf_model_material_instance_close(rf_model_material_instance *instance)
+{
+    if (!instance) return;
+    free(instance->storage); memset(instance,0,sizeof(*instance));
+}
+int rf_model_material_instance_open(rf_model_material_instance *instance,
+    const rf_model_material_record *source,int32_t kind,const uint32_t *const arrays[3],
+    const uint32_t capacities[3],uint32_t budget)
+{
+    static const unsigned offsets[]={0x7c,0xb8,0xc0};
+    rf_model_material_instance next={0}; uint64_t bytes=sizeof(next); uint32_t offset=0; unsigned i; int status;
+    if (!instance || !source || !arrays || !capacities || instance->storage || instance->accounted_bytes) return RF_RANGE;
+    rf_model_material_initialize(&next.record);
+    status=rf_model_material_prepare_copy(&next.record,source,kind,next.counts);
+    if (status!=RF_OK) return status;
+    for (i=0;i<3;++i) {
+        if (next.counts[i]>capacities[i] || (next.counts[i] && !arrays[i])) return RF_RANGE;
+        bytes+=(uint64_t)next.counts[i]*4;
+    }
+    if (bytes>budget || bytes>UINT32_MAX || bytes>SIZE_MAX) return RF_RANGE;
+    if (bytes>sizeof(next)) {
+        next.storage=malloc((size_t)(bytes-sizeof(next)));
+        if (!next.storage) return RF_IO;
+    }
+    for (i=0;i<3;++i) if (next.counts[i]) {
+        next.arrays[i]=next.storage+offset;
+        memcpy(next.arrays[i],arrays[i],(size_t)next.counts[i]*4);
+        memcpy(next.record.bytes+offsets[i],&next.counts[i],4);
+        offset+=next.counts[i];
+    }
+    next.accounted_bytes=(uint32_t)bytes; *instance=next;
+    return RF_OK;
+}
 
 int rf_model_material_initialize(rf_model_material_record *material)
 {

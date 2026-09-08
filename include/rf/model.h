@@ -19,6 +19,20 @@ int rf_model_material_initialize(rf_model_material_record *material);
 int rf_model_material_prepare_copy(rf_model_material_record *destination,
     const rf_model_material_record *source,int32_t kind,uint32_t array_counts[3]);
 
+typedef struct rf_model_material_instance {
+    rf_model_material_record record;
+    uint32_t *storage,*arrays[3],counts[3],accounted_bytes;
+} rf_model_material_instance;
+/* Zero-initialize instance before first use and close before reuse. Creates
+ * independent arrays using the recovered copy plan, in one bounded allocation.
+ * Budget includes sizeof(instance) and array payload, not allocator metadata.
+ * Raw pointer slots stay zero; use arrays/counts for native ownership.
+ * Invalid source views, overflow, or budget failures leave output unchanged. */
+int rf_model_material_instance_open(rf_model_material_instance *instance,
+    const rf_model_material_record *source,int32_t kind,const uint32_t *const arrays[3],
+    const uint32_t capacities[3],uint32_t budget);
+void rf_model_material_instance_close(rf_model_material_instance *instance);
+
 /* 503690 over resolved model views. Kind 1 returns static_count when
  * static_lods<=1; kind 2 sums mesh counts; kind 3 returns direct_count;
  * unknown kinds return zero. Signed counts and original wrapping addition

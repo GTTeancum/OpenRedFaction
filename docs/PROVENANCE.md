@@ -341,3 +341,10 @@ Material copy preparation: shared helper follows fixed-field instructions in
 is observed at 0x573619 when allocation is reached; no allocator replacement
 is used. Array counts +7c/+b8/+c0 and pointers +80/+bc/+c4 describe the remaining
 ownership work. Resolved records contain fixed-width bytes, not host pointers.
+
+Material instance ownership is new port code built on the recovered 0x54a7c0
+initialization and 0x503950 copy/count rules. It uses a bounded native allocation
+and side arrays instead of original pointer fields and CRT allocation calls.
+It does not claim to reproduce the original allocator, failure crashes or
+uninitialized bytes. Original-instruction evidence remains the constructor
+and copy-preparation verifiers; ownership behavior has separate C tests.
