@@ -323,3 +323,27 @@ for all 50 tracks from ult2_stand/ult2_crouch and 101 synthetic tracks at five
 times each. All 755 sampled vectors match bit-for-bit on the checked PC build.
 This proves position sampling in that domain, not rotation sampling, animation
 blending, full motion loading or a working campaign camera.
+## Packed rotation components
+
+`rf_motion_decode_rotation` reconstructs original `0x417e90`: four signed
+little-endian 16-bit components become quaternion X/Y/Z/W floats by multiplying
+by the exact float constant at `0x589524` (bits `0x38800200`). This is
+`0.0000610388815402984619140625`, slightly larger than `1/16384`. The routine
+does not normalize or clamp the result. It accepts unaligned bytes and checks
+the input size before writing output.
+
+`tools/verify_motion_rotation.py` executes the unhooked original instructions
+and compares 65,536 vectors, permuting values so each component independently
+covers every signed 16-bit value: 262,144 bit-exact component comparisons.
+PC boundary tests and both PC/NXDK builds pass. This API is not yet integrated
+into the Xbox scene or animated camera.
+
+The separate track sampler at `0x539ed0` reads 16-byte rotation keys: tick at
+offset 0, packed quaternion at offset 4, and signed easing bytes at offsets
+12/13. It calls `0x53a040` for easing and `0x51a000` for packed interpolation,
+then expands the packed result with `0x417e90`. Assembly establishes that
+`0x51a5d0`, called afterward, merely copies four floats; it is not a decoder.
+Raw decompilation of `0x51a000` shows interpolation quantization and a zero-W
+replacement with packed value one; recover its helper calling conventions and
+verify its arithmetic before implementing it. No generic floating-point slerp
+has been substituted for this path.

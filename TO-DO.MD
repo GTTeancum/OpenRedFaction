@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Packed rotation decoding is reconstructed in shared C, with all 65,536 signed
+component values checked in each of four positions against original instructions.
+Recover the separate eased, requantized quaternion interpolation before using
+rotation tracks in animated poses; the decoder alone does not evaluate a track.
+
 Position-key sampling is reconstructed in shared C with 755 bit-exact original
 comparisons covering stand/crouch and synthetic tracks. Recover compressed
 rotation keys, eased quaternion interpolation, engine-time conversion and full

@@ -1,6 +1,22 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_decode_rotation(const void *packed, size_t bytes, float out[4])
+{
+    const unsigned char *p = (const unsigned char *)packed;
+    float result[4];
+    unsigned i;
+    if (!packed || !out || bytes < 8) return RF_RANGE;
+    for (i = 0; i < 4; ++i) {
+        int32_t value = (int32_t)p[i*2] | ((int32_t)p[i*2+1] << 8);
+        if (value >= 32768) value -= 65536;
+        /* RF.exe 0x589524: float bits 0x38800200, not exactly 1/16384. */
+        result[i] = (float)value * 0.0000610388815402984619140625f;
+    }
+    memcpy(out, result, sizeof(result));
+    return RF_OK;
+}
+
 int rf_motion_sample_position(const rf_motion_position_key *keys, uint32_t count, int32_t tick, float out[3])
 {
     uint32_t i, c, upper;
