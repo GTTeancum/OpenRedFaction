@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Vertex/triangle readers now match all 85,866 vertices and 99,214 triangles in
+the 95 models. Recover runtime bone-weight interpretation and handling of
+12 source vertices with non-finite normals, then integrate skinning and drawing.
+
 The bounded model batch directory now exposes eight aligned data regions for
 all 599 batches across 170 LODs in 95 models. Decode the shared format descriptor,
 verify positions/UVs/indices and skinning, and connect material slots to drawing.

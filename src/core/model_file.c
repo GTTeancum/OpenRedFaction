@@ -188,3 +188,46 @@ int rf_model_file_batch(const rf_model_file *model,uint32_t lod_index,uint32_t i
     }
     *batch=value;return RF_OK;
 }
+static int batch_read(const rf_model_file *model,const rf_model_batch *batch,uint32_t region,uint32_t index,uint32_t stride,void *raw)
+{
+    uint64_t relative=(uint64_t)index*stride,offset=(uint64_t)batch->offsets[region]+relative;
+    if(!batch->offsets[region] || relative+stride>batch->sizes[region] || offset>UINT32_MAX)return RF_FORMAT;
+    return rf_vpp_read(model->archive,&model->entry,(uint32_t)offset,raw,stride);
+}
+int rf_model_file_vertex(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,rf_model_vertex *vertex)
+{
+    rf_model_vertex value;uint8_t raw[32],links[8];uint32_t i,j;float f;int status;
+    if(!model || !model->archive || !batch || !vertex || index>=batch->vertices)return RF_RANGE;
+    if(batch->format_bits!=0x518c41)return RF_FORMAT;
+    status=batch_read(model,batch,0,index,12,raw);if(status)return status;
+    status=batch_read(model,batch,1,index,12,raw+12);if(status)return status;
+    status=batch_read(model,batch,2,index,8,raw+24);if(status)return status;
+    memset(&value,0,sizeof(value));memset(value.bones,255,4);
+    for(i=0;i<8;++i) {
+        uint32_t bits=0;for(j=0;j<4;++j)bits|=(uint32_t)raw[i*4+j]<<(j*8);
+        /* Source assets contain non-finite normals. Preserve their exact bits;
+         * resolving their runtime treatment belongs to the renderer/skinner. */
+        if(i<3 || i>=6) { memcpy(&f,&bits,4);if(!isfinite(f))return RF_FORMAT; }
+        if(i<3)memcpy(value.position+i,&bits,4);
+        else if(i<6)memcpy(value.normal+i-3,&bits,4);
+        else memcpy(value.uv+i-6,&bits,4);
+    }
+    if(batch->sizes[6]) {
+        status=batch_read(model,batch,6,index,8,links);if(status)return status;
+        memcpy(value.weights,links,4);memcpy(value.bones,links+4,4);
+    }
+    *vertex=value;return RF_OK;
+}
+int rf_model_file_triangle(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,rf_model_triangle *triangle)
+{
+    rf_model_triangle value;uint8_t raw[8];uint32_t i;int status;
+    if(!model || !model->archive || !batch || !triangle || index>=batch->triangles)return RF_RANGE;
+    if(batch->format_bits!=0x518c41)return RF_FORMAT;
+    status=batch_read(model,batch,3,index,8,raw);if(status)return status;
+    for(i=0;i<3;++i) {
+        value.indices[i]=(uint16_t)((uint32_t)raw[i*2]|(uint32_t)raw[i*2+1]<<8);
+        if(value.indices[i]>=batch->vertices)return RF_FORMAT;
+    }
+    value.flags=(uint16_t)((uint32_t)raw[6]|(uint32_t)raw[7]<<8);
+    *triangle=value;return RF_OK;
+}

@@ -1,5 +1,32 @@
 # Model batch data
 
+The installed `0x518c41` layout now has bounded vertex and triangle readers.
+They stream three position floats, three normal floats, two UV floats and
+eight raw bone-link bytes per vertex; triangles retain three 16-bit indices
+and a 16-bit flag field. Only this observed descriptor is accepted. Position
+and UV values must be finite, and triangle indices must fit the batch.
+Reads allocate no heap memory and preserve output on failure.
+
+The layout lead is the pinned [Open Faction format document](https://github.com/rafalh/openfaction/blob/e8a4a885ba866fc472702b3dc8a9e8208f9b91e4/common/include/formats/v3d_format.h),
+checked against installed data; no implementation source was copied.
+Ghidra and disassembly show `0x569d20` merely stores the descriptor word,
+so that function supplies no evidence of numeric decoding semantics.
+
+`tools/verify_model_vertices.py` compares per-batch hashes over all 85,866
+vertices and 99,214 triangles in 599 batches / 95 models. All bytes match
+independent traversal. Bounds and unsupported-descriptor probes preserve
+output. Triangle flags observed are 0 and 32. PC build, four CTest checks and
+NXDK build pass; the new readers are not yet used by the Xbox scene.
+
+Twelve source vertices contain non-finite normals: mutant1 (1),
+elite_security_guard (2), fp_hmac_armA (1), fp_shotgun_armA (4), and
+fp_shotgun_armB (4), all V3C files. Their normal bits are preserved exactly;
+the reader does not invent replacements. Bone-weight byte sums also vary
+from 127 to 510 rather than always totaling 255. The interpretation and
+original treatment of these cases require further reconstruction before
+skinning/lighting can be considered faithful. Neither the raw link slots
+nor the triangle flag bits have been given unverified runtime behavior.
+
 `rf_model_file_batch` exposes file-relative ranges without allocating the LOD
 blob. The original `0x569920` loader reserves 56 bytes per batch, aligns to
 16 bytes and assigns eight region pointers in sequence: positions, normals,
@@ -29,5 +56,6 @@ XEMU scene/animation regression also passes at
 `artifacts/xemu/20260908-192720-951644/report.json`, without a framebuffer capture;
 it does not exercise batch decoding or model drawing. This establishes region
 boundaries, not decoded vertex/index semantics or rendered model fidelity.
-Next recover the descriptor mapping in `0x569d20`, validate numeric data and
-bone links, then connect geometry to owned materials and the renderer.
+The later numeric-reader findings above supersede the initial descriptor
+mapping lead; next recover actual vertex consumers and bone-link semantics,
+then connect geometry to owned materials and the renderer.

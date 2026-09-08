@@ -13,6 +13,11 @@ typedef struct rf_model_batch {
     uint32_t vertices, triangles, format_bits;
     uint32_t offsets[8], sizes[8];
 } rf_model_batch;
+typedef struct rf_model_vertex {
+    float position[3],normal[3],uv[2];
+    uint8_t weights[4],bones[4];
+} rf_model_vertex;
+typedef struct rf_model_triangle { uint16_t indices[3],flags; } rf_model_triangle;
 typedef struct rf_model_attachment {
     char name[69];
     float rotation[4], position[3];
@@ -38,4 +43,9 @@ int rf_model_file_attachment(const rf_model_file *model, uint32_t lod, uint32_t 
 int rf_model_file_material(const rf_model_file *model,uint32_t submesh,uint32_t index,uint8_t raw[84]);
 /* Bounded batch directory; no LOD blob allocation. Output unchanged on error. */
 int rf_model_file_batch(const rf_model_file *model,uint32_t lod,uint32_t index,rf_model_batch *batch);
+/* Installed 0x518c41 layout only. Preserves bone bytes/triangle flags without
+ * assuming their runtime interpretation. Source non-finite normal bits are
+ * preserved; positions/UV must be finite. No allocation; output unchanged on error. */
+int rf_model_file_vertex(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,rf_model_vertex *vertex);
+int rf_model_file_triangle(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,rf_model_triangle *triangle);
 #endif
