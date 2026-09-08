@@ -1172,3 +1172,32 @@ loop/freeze flags, missing slots, invalid action indices, cursor boundaries
 and 2,000 positive end ticks across the int32 range. Original entity/model RAM
 is checked unchanged. Other character types and the candidate helper's side
 effects remain open; no runtime visual behavior changes in this step.
+# Entity action starts
+
+`rf_motion_start_action` reconstructs 0x428c90 up to sound-class dispatch for
+loaded type-two characters. Actions outside [0,44] or with negative mapped
+motion IDs are no-ops. Valid actions map through entity +a54 (stride 16),
+forward weight and freeze to 0x5033b0/0x501b50/0x51c1c0, then inspect the sound
+flag's low byte. Exactly one requests the sound class at entity +a5c for the
+same action; other values do not request sound. The C API returns that class
+for its caller to resolve and play, or -1 when no class was requested.
+
+Sound dispatch is independent of whether the restart actually changed a slot.
+Weight zero and loop byte exactly one can suppress restart while still requesting
+sound. Missing action mappings suppress both. The C layer preserves output and
+playback when bounded restart validation fails.
+
+Original 0x434da0 resolves a class from the table at 0x6300f8 with 44-byte
+stride, validates against count 0x636ef8, and for multiple entries selects using
+0x57312d modulo entry count. A resolved sound other than -1 goes to 0x5056a0
+with entity position +3c, volume 1, pointer 0x173c378 and final zero argument.
+This class selection and audio playback are not implemented by the new API.
+
+`tools/verify_motion_action_start.py` matches 6,000 original 0x428c90 executions
+through unmodified loaded-control callees, comparing all playback fields,
+32 reference counts and the requested sound class. An observation hook stops
+at sound resolver entry; it neither replaces a callee nor claims audio output
+verification. Cases include zero/positive weights, loop flags 0/1/2/255,
+freeze/sound flag low-byte behavior, missing mappings and invalid action IDs.
+The candidate/turn helper can now use the reconstructed action-start interface;
+its remaining timer, movement and sound side effects are still open.

@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Entity action starts now match 6,000 original-code cases through loaded motion
+restart and sound-class dispatch. Recover sound selection/playback, turn-helper
+timer and movement effects, and the remaining candidate-selection logic before
+integrating the complete gameplay selector.
+
 Action-activity and remaining-time queries now match 7,000 original-code cases;
 activity depends on end minus cursor, not slot weight. Recover candidate/turn
 helper 0x41f9f0, including action starts and timer/movement side effects, then

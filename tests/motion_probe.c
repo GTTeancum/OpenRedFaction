@@ -11,6 +11,20 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--start-action") == 0) {
+        struct { rf_motion_playback_state state; rf_motion_playback_resource resources[32];
+                 int32_t actions[45],sounds[45],action; float weight; int32_t freeze,play_sound; } input;
+        int32_t status,sound; unsigned i;
+        _Static_assert(sizeof(input)==1788,"Action start wire layout");
+        while (fread(&input,sizeof(input),1,stdin)==1) {
+            sound=-99;
+            status=rf_motion_start_action(&input.state,input.resources,32,input.actions,input.sounds,
+                                          input.action,input.weight,input.freeze,input.play_sound,&sound);
+            if (fwrite(&status,4,1,stdout)!=1 || fwrite(&sound,4,1,stdout)!=1 || fwrite(&input.state,260,1,stdout)!=1) return 1;
+            for (i=0;i<32;++i) if (fwrite(&input.resources[i].references,4,1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--action-active") == 0) {
         struct { rf_motion_playback_state state; rf_motion_playback_resource resources[32]; int32_t actions[45],action; } input;
         struct { int32_t status,active; float seconds; } result;

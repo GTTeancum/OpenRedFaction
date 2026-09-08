@@ -75,6 +75,15 @@ int rf_motion_remaining(const rf_motion_playback_state *state, const rf_motion_p
  * This tests remaining time, not weight. Invalid data preserves output. */
 int rf_motion_action_active(const rf_motion_playback_state *state, const rf_motion_playback_resource *resources,
                              uint32_t resource_count, const int32_t actions[45], int32_t action, int *active);
+/* 0x428c90 through loaded type-two start. sound_class receives the requested
+ * sound-class ID when play_sound's low byte is exactly one, otherwise -1.
+ * The caller resolves/plays that class after a successful call; sound-class
+ * selection and audio output are not performed here. Sound may be requested
+ * even when weight zero or loop byte one prevents the motion from starting.
+ * Invalid/unmapped actions are no-ops. Errors preserve output and playback. */
+int rf_motion_start_action(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
+                           uint32_t resource_count, const int32_t actions[45], const int32_t sounds[45],
+                           int32_t action, float weight, int freeze, int play_sound, int32_t *sound_class);
 typedef struct rf_motion_controller {
     int32_t current, next;
     float duration, elapsed;

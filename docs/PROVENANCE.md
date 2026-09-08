@@ -185,3 +185,8 @@ RF.exe 1.20 NA 0x51c270 and 0x428d10, including type-two wrappers 0x5033d0 and
 getter is 0x53a850. tools/verify_motion_action.py executes original callees.
 Expanded Ghidra targets document dependencies of candidate helper 0x41f9f0;
 its side effects are not yet reconstructed.
+`rf_motion_start_action` is reconstructed from RF.exe 1.20 NA 0x428c90,
+through loaded type-two character wrappers 0x5033b0/0x501b50 and restart
+0x51c1c0. Sound-class dispatch is returned to the caller; original resolver
+0x434da0 and audio call 0x5056a0 remain unreconstructed. See
+tools/verify_motion_action_start.py and docs/CAMERA.md for evidence and scope.

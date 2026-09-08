@@ -1,6 +1,19 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_start_action(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
+                           uint32_t resource_count, const int32_t actions[45], const int32_t sounds[45],
+                           int32_t action, float weight, int freeze, int play_sound, int32_t *sound_class)
+{
+    int status;
+    if (!actions || !sounds || !sound_class) return RF_RANGE;
+    if (action<0 || action>=45 || actions[action]<0) { *sound_class=-1; return RF_OK; }
+    status=rf_motion_start(state,resources,resource_count,actions[action],weight,freeze);
+    if (status!=RF_OK) return status;
+    *sound_class=(uint8_t)play_sound==1 ? sounds[action] : -1;
+    return RF_OK;
+}
+
 int rf_motion_remaining(const rf_motion_playback_state *state, const rf_motion_playback_resource *resources,
                          uint32_t resource_count, int32_t motion, float *seconds)
 {

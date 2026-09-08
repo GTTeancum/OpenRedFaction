@@ -341,3 +341,11 @@ Coverage includes zero weights, loop/freeze flags, cursor boundaries, absent
 slots, invalid action indices and large positive end ticks. Local report:
 `artifacts/motion-action-verification.json`. Candidate-helper side effects and
 other character types are not covered.
+# Entity action starts
+
+`python tools/verify_motion_action_start.py` matches 6,000 original action-start
+executions through type-two loaded controls, checking complete playback state,
+32 resource references and sound-class requests. It observes and stops at
+0x434da0 sound resolver entry; no original callee is replaced. Actual sound
+selection/playback is excluded. Report:
+`artifacts/motion-action-start-verification.json`.
