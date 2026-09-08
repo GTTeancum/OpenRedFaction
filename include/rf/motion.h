@@ -79,6 +79,18 @@ int rf_motion_request_state(rf_motion_controller *controller, const int32_t moti
                             int32_t requested, float duration);
 /* 0x42a650: current OR next matches, regardless of transition duration. */
 int rf_motion_has_state(const rf_motion_controller *controller, int32_t requested);
+typedef struct rf_motion_movement {
+    float vector[3]; /* Entity +714, compared componentwise with zero. */
+    int32_t mode, direction; /* *(entity+858)+4 and entity+8c4. */
+    int32_t idle_state, move_state, alternate_state; /* Selected earlier. */
+} rf_motion_movement;
+/* Selector tail 0x41f7c1..0x41f94f, after physics side effects. Modes 4/7
+ * select logical 18/19; other modes use caller-supplied candidates. Only
+ * requests states absent from current AND next, using a .25-second blend.
+ * Upstream priority selection, AI/physics effects and candidate selection
+ * are not included. Finite vectors and candidate indices [0,22] required. */
+int rf_motion_select_movement(rf_motion_controller *controller, const int32_t motions[23],
+                              const rf_motion_movement *movement);
 /* Post-selector block 0x41f2b6..0x41f3f3 only. The caller selects logical
  * states and passes their 23 registered motion IDs (-1 means missing).
  * Stops looping weights before assigning the current/blended/override motion.

@@ -1066,3 +1066,31 @@ Locomotion selector 0x41f400 remains unrecovered. Its inspected paths reach
 0x429ae0 (entity/AI decisions), 0x428a60 (collision query and subsequent effects),
 0x4289d0 (entity flag and physics updates), and other predicates. Scripted
 requests in the diagnostic do not stand in for these gameplay decisions.
+# Movement selector tail
+
+`rf_motion_select_movement` reconstructs 0x41f7c1..0x41f94f, beginning after
+the optional collision/physics routine 0x428a60 returns. The vector compared
+with zero is entity +714, confirmed by `lea edi,[esi+714]` at 0x41f7cc.
+0x416270 and 0x4162b0 implement componentwise equality and inequality, not
+directional dot products. Finite signed zero components compare equal to zero;
+even a tiny nonzero component takes the moving branch.
+
+The mode is `*(entity+858)+4`. Modes 4 and 7 (predicate 0x42a0a0) choose
+logical 18 when the vector is zero and 19 otherwise. Other modes choose the
+upstream idle candidate for a zero vector. With nonzero movement, mode 1 and
+entity +8c4 equal zero choose the upstream movement candidate (0x429fc0).
+Mode 1 with +8c4 equal one (0x429ff0), or modes 12,15,13,11,9 (0x42a060),
+choose the alternate candidate. Other combinations leave the controller alone.
+These mode/direction field names describe inputs without claiming their full
+gameplay meanings are resolved.
+
+Every chosen state is tested against current AND next through 0x42a650 before
+requesting it with duration .25 through 0x42a580. The candidates arrive in
+EBX, stack +0c and reused argument stack +20. Their upstream weapon/entity
+selection and the priority/physics/AI branches remain unrecovered.
+
+`tools/verify_motion_movement.py` compares all controller fields across 6,000
+executions of the original tail and unmodified callees. Tests vary vector axes,
+signed zeros, tiny values, modes, direction values, candidates, mappings and
+transition progress; two C-only cases check malformed inputs preserve state.
+The API is compiled for both PC and Xbox but not wired into the runtime script.

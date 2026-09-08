@@ -169,3 +169,8 @@ reconstructed from RF.exe 1.20 NA 0x42a580 and 0x42a650. Original instruction
 execution verifies the fallback, retargeting and midpoint rules; the half
 constant was read at 0x5893c0. See tools/verify_motion_request.py and
 docs/CAMERA.md. No community implementation was copied for these functions.
+`rf_motion_select_movement` comes from RF.exe 1.20 NA 0x41f7c1..0x41f94f,
+checked against original instructions and its unmodified callees. The source
+includes predicates 0x42a0a0/0x429fc0/0x429ff0/0x42a060 and finite vector
+comparisons 0x416270/0x4162b0. See tools/verify_motion_movement.py; earlier
+selector branches and physics side effects are explicitly excluded.

@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The movement selector tail now matches 6,000 original-code cases using entity
+movement-vector, mode and direction fields. Recover upstream priority rules,
+candidate selection, physics/AI side effects and actual player initialization
+before connecting these decisions to the gameplay animation controller.
+
 The shared controller-to-eye diagnostic now passes 64 frames in stock 64 MiB
 XEMU, matching PC and original-code hashes through requests, interrupted blends,
 overrides, playback and cached skeleton evaluation. Recover locomotion selection

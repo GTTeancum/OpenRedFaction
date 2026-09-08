@@ -316,3 +316,10 @@ new visual comparison. The telemetry layout remains schema 8.
 This replaces the earlier fixed .5/.5 blend runtime profile. It does not recover
 the locomotion selector, physics/AI side effects, player initialization flags,
 bone overrides, actual gameplay camera or animated character rendering.
+# Movement selector tail
+
+`python tools/verify_motion_movement.py` matches 6,000 executions of original
+0x41f7c1..0x41f94f with unmodified predicate, vector, membership and request
+callees. It compares all controller fields and adds two C-only rejection cases.
+Report: `artifacts/motion-movement-verification.json`. Earlier priority,
+candidate selection and physics/AI behavior are outside this verification.

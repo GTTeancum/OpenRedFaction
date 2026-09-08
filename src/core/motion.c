@@ -6,6 +6,24 @@ int rf_motion_has_state(const rf_motion_controller *controller, int32_t requeste
     return controller && (controller->current==requested || controller->next==requested);
 }
 
+int rf_motion_select_movement(rf_motion_controller *controller, const int32_t motions[23],
+                              const rf_motion_movement *movement)
+{
+    int moving; int32_t selected=-1;
+    if (!controller || !motions || !movement) return RF_RANGE;
+    if (!isfinite(movement->vector[0]) || !isfinite(movement->vector[1]) || !isfinite(movement->vector[2]) ||
+        movement->idle_state<0 || movement->idle_state>=23 || movement->move_state<0 || movement->move_state>=23 ||
+        movement->alternate_state<0 || movement->alternate_state>=23) return RF_FORMAT;
+    moving=movement->vector[0]!=0 || movement->vector[1]!=0 || movement->vector[2]!=0;
+    if (movement->mode==4 || movement->mode==7) selected=moving ? 19 : 18;
+    else if (!moving) selected=movement->idle_state;
+    else if (movement->mode==1 && movement->direction==0) selected=movement->move_state;
+    else if ((movement->mode==1 && movement->direction==1) || movement->mode==12 || movement->mode==15 ||
+             movement->mode==13 || movement->mode==11 || movement->mode==9) selected=movement->alternate_state;
+    if (selected<0 || rf_motion_has_state(controller,selected)) return RF_OK;
+    return rf_motion_request_state(controller,motions,selected,.25f);
+}
+
 int rf_motion_request_state(rf_motion_controller *controller, const int32_t motions[23],
                             int32_t requested, float duration)
 {
