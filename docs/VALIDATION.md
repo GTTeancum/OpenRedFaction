@@ -659,3 +659,11 @@ rejections preserve empty output. Win32 Release, four CTest cases and NXDK
 build pass. These are field-map and ownership checks using synthetic texture
 handles, not full original-loader equivalence or live rendering validation.
 No new emulator execution or screenshot is claimed.
+
+Named model-texture checkpoint: all 385 referenced TGAs from four archives
+match Pillow dimensions and RGBA hashes, accounting for 38,517,912 bytes in
+the full test batch. An insufficient-budget rejection leaves the loader empty.
+Win32 Release, four CTest cases and NXDK build pass. This is decoder coverage,
+not a gameplay residency budget or model-rendering result. Original format
+classification, live handles and Xbox runtime integration remain open.
+No new emulator run or screenshot is claimed.

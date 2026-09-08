@@ -361,3 +361,9 @@ texture calls 0x50f6a0 and transparency predicate 0x510710. The port API accepts
 resolved texture handles/predicate and uses its own bounded array ownership.
 Tests cover every installed record against this field map, not unchanged full
 original loader execution. Game material bytes and generated outputs stay local.
+
+Named model-texture loading reuses the project's existing TGA decoder and VPP
+archive reader. All 385 referenced textures remain local game inputs; Pillow
+provides independent decoded-image checks. Original 0x510710 disassembly
+identifies format-code classification (4/7/5) rather than pixel-alpha scanning.
+The original format mapping and engine handle ownership are still unrecovered.

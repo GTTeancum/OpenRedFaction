@@ -1,5 +1,25 @@
 # Model-instance materials
 
+`rf_materials_open_names` extends the existing bounded TGA loader to model
+texture name lists. It shares the geometry loader's archive-order lookup,
+decoding, budget accounting and failure cleanup. Slots preserve caller order
+and duplicates. Empty/null/overlong names reject; absent textures remain
+explicit missing slots. This provides decoded images, not original engine
+texture handles or GPU residency.
+
+All 385 unique texture names from the 733 model material records are TGA files
+present in four installed archives. The new verifier loads every one and
+compares dimensions and RGBA hashes with Pillow. The all-textures test batch
+accounts for 38,517,912 bytes including material slots; it is not a proposed
+gameplay residency set. Per-model loading, deduplication, eviction and combined
+world/character memory budgeting remain required for 64 MiB Xbox gameplay.
+An insufficient-budget probe verifies cleanup. PC tests and NXDK build pass.
+
+Original transparency predicate 0x510710 calls 0x5106f0 and returns true only
+for format values 4, 7 or 5. It does not inspect decoded alpha pixels. Mapping
+those formats to the port's loaded image metadata remains open; no guessed
+alpha classification is supplied to runtime material conversion yet.
+
 `rf_model_material_from_disk` implements the field conversion recovered from
 0x53ae5f, with texture resolution supplied by its caller. Disk +0 is a required
 nonempty 32-byte texture name; +48 is an optional 32-byte secondary name.

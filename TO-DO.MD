@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The shared named texture loader decodes all 385 model-referenced TGAs correctly.
+Map original texture-format transparency, add per-model residency and handle
+ownership, then connect decoded textures to model rendering and presentation.
+
 Disk material conversion now covers all 733 installed records with bounded
 scalar ownership. Resolve real texture handles/transparency and integrate model
 instance materials with rendering before validating visible weapon presentation.
