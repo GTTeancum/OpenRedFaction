@@ -1244,3 +1244,11 @@ reset callback, post-reset target-distance test and both effect branches.
 It matches 3,004 complete original executions with absent weapon entries and
 sound classes, covering all six outcomes. See docs/TURN.md for adapter boundaries;
 populated reset/audio behavior and actual player initialization remain open.
+
+The latest shared diagnostic includes empty-ammo selection-tail execution:
+one queued replacement and followup clear, followed by duplicate suppression.
+State hash d5f86d40 matches original instructions, PC and stock 64 MiB XEMU;
+pose/cache/eye hashes remain dc7c08a6/21cd6b06/60a29326. This is still a scripted
+rig with a fixed current weapon, not initialized gameplay or the final camera.
+Earlier selection gates, local transition/presentation and actual activation
+remain open. Numeric-only report: artifacts/xemu/20260908-183800-793148/report.json.

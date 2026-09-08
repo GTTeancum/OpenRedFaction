@@ -52,6 +52,8 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     int32_t preference[32],replacement,reserve;
     rf_weapon_empty_input empty_input={0,-1,-1,-1,-1,-1,1,0,0,0,0,1,0,0};
     rf_weapon_empty_action empty_action;
+    rf_weapon_selection_state weapon_selection={-1,2000,1,255,{0xab,0xcd},99};
+    rf_weapon_selection_input weapon_request={0,-1,-1,32,0,-1,0,0,0,1};
     int ready,eligible;
     rf_turn_context context={{0x800,6,.3f,1.5f,20,7,9},-1,1,0,0};
     int32_t actions[45],sounds[45],sound_class;
@@ -95,7 +97,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     motions[0]=0; motions[8]=1;
     for (i=0;i<45;++i) actions[i]=sounds[i]=-1;
     /* Original 0x4181d0 names actions 17/18 sidestep_left/right. Roll actions
-     * 19/20 are absent in this profile, so the reset adapter is never reached. */
+     * 19/20 are absent; preparation still invokes its weapon-reset adapter. */
     actions[17]=2; actions[18]=3;
     actor.info_flags=context.movement.flags; actor.weapon=0;
     actor.direction.entity_flags=10;
@@ -118,6 +120,13 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         status=rf_weapon_reserve(&inventory,supply,0,&reserve); if (status!=RF_OK) goto done;
         status=rf_weapon_choose_available(&inventory,supply,preference,1,&replacement); if (status!=RF_OK) goto done;
         status=rf_weapon_decide_empty(&inventory,NULL,supply,weapon_flags,1,preference,&empty_input,&empty_action); if (status!=RF_OK) goto done;
+        if (empty_action.kind==RF_WEAPON_EMPTY_SELECT) {
+            /* Earlier selection gates are not assembled yet; this diagnostic
+             * enters the recovered tail with the empty-handler request flags. */
+            weapon_request.requested=empty_action.weapon;
+            status=rf_weapon_finish_selection(&weapon_selection,&weapon_request,inventory.owned,weapon_flags,1,NULL,NULL);
+            if (status!=RF_OK) goto done;
+        }
         /* Scripted diagnostic requests, not the unrecovered locomotion selector. */
         if (frame==4 || frame==7 || frame==20 || frame==40) {
             status=rf_motion_request_state(&controller,motions,(frame==4 || frame==20) ? 8 : 0,.25f);
@@ -152,6 +161,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         out[4]=hash_bytes(out[4],effect_objects,sizeof(effect_objects));
         out[4]=hash_bytes(out[4],&reserve,4); out[4]=hash_bytes(out[4],&replacement,4);
         out[4]=hash_bytes(out[4],&empty_action,sizeof(empty_action));
+        out[4]=hash_bytes(out[4],&weapon_selection,sizeof(weapon_selection));
         displacement[0]=1;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }

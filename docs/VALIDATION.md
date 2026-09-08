@@ -577,3 +577,15 @@ bytes match, including preservation of +f96/+f97. The 640 queue cases also
 verify preservation of the added state fields. Four CTest cases, Win32 Release
 and NXDK builds pass. Runtime diagnostic integration and successful transition
 adapters remain open; no new emulator run or screenshot is claimed here.
+
+Selection runtime checkpoint: shared 64-frame PC/original/XEMU profile now
+hashes the 16-byte selection state after empty-weapon decisions. Original
+execution confirms one queue call and one followup clear at frame 32, then
+duplicate-request suppression. Expected words are [2,25,64,3699116198,
+3589827904,567110406,1621267238,1404], state hash d5f86d40. Original comparison,
+four CTest cases, Win32 Release, NXDK and stock 64 MiB XEMU pass. Numeric-only
+report: artifacts/xemu/20260908-183800-793148/report.json; capture_requested=false.
+XBE SHA256 f2c57855beb6b4fa37d2563b5e761fedba718af62f008969d54975d16fd0a665;
+ISO SHA256 7fc6e0e98156492690aff51f1cfbf4527a4ba91580ba503854ed2320a5ec4630.
+Earlier selection gates, local transition, presentation and actual weapon
+activation remain excluded. Unchanged visual scene was not captured.

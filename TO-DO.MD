@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Ammo exhaustion now drives the selection tail, queues one replacement and
+clears followup state in the shared 64-frame PC/original/XEMU diagnostic.
+Recover earlier selection gates, local transition and presentation before
+actual weapon activation and full gameplay locomotion can be assembled.
+
 Selection followup now executes its actual three-field reset, matching 4,000
 expanded original-code cases with 872 resets. Recover local-player transition
 4aa0b0 and preceding selection gates, then integrate selection in Xbox runtime.

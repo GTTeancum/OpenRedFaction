@@ -33,7 +33,8 @@ unavailable external operations. Expanded results: 3,071 complete, 408 message,
 687 clears without a queue mutation. The comparison checks both queue fields,
 all eight followup bytes and unrelated player bytes.
 It does not validate successful callback bodies or earlier selection gates.
-PC/NXDK builds and PC tests pass; this tail is not yet in the Xbox diagnostic.
+PC/NXDK builds and PC tests pass; the shared Xbox diagnostic now exercises
+this tail as described below.
 
 `rf_weapon_queue_selection` reconstructs the complete 0x4acd50 routine:
 store the requested signed value in player +f80, then tail-call 0x4fa3e0
@@ -47,7 +48,7 @@ remain unimplemented.
 original instructions and timer callee, including signed extremes and every
 combination of selected boundary values. It checks the original 4096-byte
 player view for unrelated writes. PC tests and the NXDK build pass; this new
-primitive has not yet been connected to the emulator diagnostic or gameplay.
+primitive now runs in the emulator diagnostic; gameplay activation remains open.
 
 The earlier description of 0x4a4e80 as a "paired switch" was too narrow.
 Its body includes ammunition tests, firing through 0x425830, sound, reset and
@@ -58,6 +59,21 @@ behavior still requires reconstruction. Actual selection 0x4a4a50 reaches
 0x4acd50 after its eligibility checks.
 
 ## Empty-weapon handling and replacement choice
+
+The 64-frame shared diagnostic now passes each SELECT decision into the
+reconstructed selection tail with flags (defer=1,force=0). Its initial queue
+is -1 with deadline 2000, followup bytes 1/255, preserved bytes ab/cd and value
+99. At frame 32 ammo exhaustion queues weapon 1, clears the timer and followup
+fields; 31 later requests hit the already-pending return. Original execution
+observes exactly one queue call and one followup clear. All 16 selection-state
+bytes are hashed each frame. This deliberately enters after the unreconstructed
+early 0x4a4a50 gates, leaves the actual current weapon unchanged and never
+reaches the local transition/message adapters. It validates the assembled
+recovered blocks, not complete weapon switching.
+
+PC, original instructions and 64 MiB XEMU agree on state hash d5f86d40;
+pose/cache/eye remain dc7c08a6/21cd6b06/60a29326. Numeric XEMU evidence is
+`artifacts/xemu/20260908-183800-793148/report.json`, captured with --no-capture.
 
 `rf_weapon_decide_empty` now reconstructs 0x4a6f41..0x4a70db after current-weapon
 resolution. The earlier 0x4a5910 presentation update is still caller-owned.
