@@ -61,6 +61,9 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     build = root / 'build/xbox'
+    animation_reference = list(struct.unpack('<8I', subprocess.check_output([
+        str(root/'build/pc/Release/rf_animation_check.exe'),
+        str(root/'Installed_Game/meshes.vpp'), str(root/'Installed_Game/motions.vpp')])))
     map_text = (build / 'main.map').read_text()
     symbol = re.search(r'\s[0-9a-fA-F]+:[0-9a-fA-F]+\s+_rf_diagnostic\s+([0-9a-fA-F]+)', map_text)
     if not symbol:
@@ -92,6 +95,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                '-snapshot', '-display', args.display, '-audio', 'none',
                '-qmp', f'tcp:127.0.0.1:{args.port},server=on,wait=off']
     report = dict(command=command, address=hex(address), result='FAIL',
+                  animation_reference=animation_reference,
                   xbe_sha256=hashlib.sha256((build / 'disc/default.xbe').read_bytes()).hexdigest(),
                   iso_sha256=hashlib.sha256((build / 'redfaction-diagnostic.iso').read_bytes()).hexdigest(), samples=[])
     startup = None
@@ -119,7 +123,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     report['memory'] = monitor.command('query-memory-size-summary')
                     if report['memory'].get('base-memory') != 64 * 1024 * 1024:
                         raise RuntimeError('XEMU did not report exactly 64 MiB')
-                reply = monitor.command('human-monitor-command', {'command-line': f'x /48wx 0x{address:x}'})
+                reply = monitor.command('human-monitor-command', {'command-line': f'x /56wx 0x{address:x}'})
                 words = []
                 for line in reply.splitlines():
                     if ':' in line:
@@ -127,7 +131,11 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                 if words and (not report['samples'] or words != report['samples'][-1]):
                     report['samples'].append(words)
                     print('Guest telemetry:', [hex(w) for w in words], flush=True)
-                if len(words) == 48 and words[:3] == [0x52464447, 7, 5]:
+                if len(words) == 56 and words[:3] == [0x52464447, 8, 5]:
+                    report['animation'] = dict(actual=words[48:56],expected=animation_reference,
+                        scope='64 blended frames and cache queries; hashes of bones, playback, eye and cache state')
+                    if words[48:56] != animation_reference:
+                        raise RuntimeError('Xbox animation differs from the shared PC check')
                     if words[3] != 16384 or words[5:8] != [29, 1294336, 0x32d7cb85]:
                         raise RuntimeError('Unexpected guest memory or archive results')
                     if words[8:13] != [180, 29, 3572594, 1637649, 1130684]:

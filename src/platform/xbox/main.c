@@ -4,6 +4,7 @@
 #include "rf/geometry.h"
 #include "rf/material.h"
 #include "rf/lightmap.h"
+#include "rf/animation_check.h"
 #include "renderer.h"
 #include <string.h>
 #include <hal/debug.h>
@@ -12,7 +13,7 @@
 #include <xboxkrnl/xboxkrnl.h>
 
 /* Read-only monitor evidence. Resolve its VA from the matching linker map. */
-volatile uint32_t rf_diagnostic[48] = {0x52464447u, 7u, 0};
+volatile uint32_t rf_diagnostic[56] = {0x52464447u, 8u, 0};
 static rf_geometry resident_geometry;
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;
@@ -79,6 +80,12 @@ int main(void)
         debugPrint("tables.vpp unavailable or invalid: %d\n", result);
         OutputDebugStringA("RF_VPP_FAILED\n");
         rf_diagnostic[2] = 0x80000000u | (uint32_t)(-result);
+    }
+    if (result == RF_OK) {
+        uint32_t animation[8], i;
+        result=rf_animation_check("D:\\meshes.vpp","D:\\motions.vpp",animation);
+        for (i=0;i<8;++i) rf_diagnostic[48+i]=animation[i];
+        if (result!=RF_OK) rf_diagnostic[2]=0x80000200u | (uint32_t)(-result);
     }
     if (result == RF_OK) {
         result = rf_vpp_open(&archive, "D:\\levels1.vpp");

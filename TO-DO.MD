@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+The shared 64-frame blended-skeleton check now passes in stock 64 MiB XEMU,
+matching PC and original-code hashes for bones, eye transforms, playback and
+cache state. Recover bone overrides, displacement producers and player setup;
+animated character rendering and gameplay-camera integration remain open.
+
 Per-bone generation caching now matches 960 repeated/invalidated original pose
 queries, preserving queued displacement on cache hits. Verify animation in
 Xbox runtime, then recover bone overrides, displacement producers and actual

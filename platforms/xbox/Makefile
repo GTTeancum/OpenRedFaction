@@ -11,6 +11,7 @@ SRCS += $(PROJECT_ROOT)/src/core/model.c
 SRCS += $(PROJECT_ROOT)/src/core/motion.c
 SRCS += $(PROJECT_ROOT)/src/core/motion_file.c
 SRCS += $(PROJECT_ROOT)/src/core/model_file.c
+SRCS += $(PROJECT_ROOT)/src/diagnostic/animation.c
 CFLAGS += -std=c11 -O2 -Wall -Wextra -Werror -I$(PROJECT_ROOT)/include
 LDFLAGS += -map:main.map -entry:rf_diagnostic_start
 include $(NXDK_DIR)/Makefile

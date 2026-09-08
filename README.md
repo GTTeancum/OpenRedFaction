@@ -62,7 +62,7 @@ $env:MSYSTEM = 'CLANG64'
 & 'C:\msys64\usr\bin\bash.exe' --noprofile --norc tools/build-xbox.sh
 Copy-Item -LiteralPath 'D:\Programming\GitHub\OpenRedFaction\Installed_Game\tables.vpp' -Destination build/xbox/disc/tables.vpp
 Copy-Item -LiteralPath 'D:\Programming\GitHub\OpenRedFaction\Installed_Game\levels1.vpp' -Destination build/xbox/disc/levels1.vpp
-foreach ($name in @('maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp')) {
+foreach ($name in @('maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp','meshes.vpp','motions.vpp')) {
     Copy-Item -LiteralPath (Join-Path 'Installed_Game' $name) -Destination (Join-Path 'build/xbox/disc' $name)
 }
 & 'C:\msys64\usr\bin\bash.exe' --noprofile --norc tools/build-xbox.sh
@@ -70,17 +70,28 @@ foreach ($name in @('maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp
 
 Outputs: `build/xbox/disc/default.xbe` and
 `build/xbox/redfaction-diagnostic.iso`. The disc contains a private copy of the
-original tables, first campaign-level archive, and five map archives, so keep that package local.
+original tables, first campaign-level archive, five map archives, meshes and motions,
+so keep that package local.
 The diagnostic reports memory, reads Live Mines' section directory and spawn
 transform, and loads its static geometry and base textures within explicit budgets.
 It draws three base-textured and lightmapped geometry frames; gameplay remains open.
+Before rendering, it runs 64 frames of the shared blended-skeleton animation
+check, including eye transforms and generation-cache hits. It does not draw an
+animated character yet.
 
 ## XEMU diagnostic validation
 
 ```powershell
+cmake --build build/pc --config Release --target rf_animation_check
+python tools/verify_animation_check.py
 python tools/xemu_smoke.py
 python tools/xemu_smoke.py --reference artifacts/live-mines-textured-pc.ppm
 ```
+
+The smoke harness compares Xbox animation checksums with the shared PC check;
+`verify_animation_check.py` independently checks that same sequence against the
+local original executable. Schema 8 requires the additional meshes/motions disc
+archives above. All original assets and generated test packages stay local.
 
 The harness starts only its own emulator process with a hidden-window launch,
 an isolated configuration, no input bindings, a copied EEPROM, `-snapshot`,

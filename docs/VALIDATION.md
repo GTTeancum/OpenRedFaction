@@ -233,3 +233,41 @@ whole-game high-water mark or performance benchmark.
 before reporting overall success; without it the harness checks execution only.
 The integrated comparison run at artifacts/xemu/20260908-132159-367249/report.json
 passes with the rebuilt lit PC reference and unchanged comparison thresholds.
+
+## Xbox animation runtime check
+
+The schema-8 diagnostic now executes the shared `src/diagnostic/animation.c`
+check before loading the scene. It reads miner bones/eye attachment and standing
+and crouching motion tracks directly from `meshes.vpp`/`motions.vpp`, blends
+two looping slots over 64 updates at 1/30 second, and tests a second cached
+evaluation each frame. Root displacement is applied once; a newly queued value
+must survive a same-generation cache hit. This runs through the NXDK-built
+shared playback, archive sampling, pose blending and hierarchy code on Xbox.
+
+`rf_animation_check` on PC and `tools/verify_animation_check.py` independently
+produce the same sequence checksums as original `0x51ba80`, `0x51b500` and
+`0x51b2e0`, with no original callee replacements:
+
+- Bones: 25; frames: 64; bone payload: 1,404 temporary bytes.
+- Evaluated bone matrices: `0x7b7ca73f`.
+- Playback state: `0x0d9922b4`.
+- Cached matrices, queued displacement and stamps: `0xa2a46bf3`.
+- Evaluated eye transforms: `0x63bda091`.
+
+The runtime hashes use FNV-1a over serialized bytes as a regression check,
+not a security guarantee. Original-code evidence is recorded locally in
+`artifacts/animation-check-original.json`. The smoke harness requires all eight
+animation telemetry words to match its freshly executed PC check.
+
+`artifacts/xemu/20260908-160714-948313/report.json` passes on XEMU 0.8.136 with
+exactly 64 MiB guest memory and the 4627 debug BIOS. Animation hashes match,
+and the existing scene still compares to the lit PC reference with maximum
+channel difference one and zero pixels above the three-value threshold.
+Native guest framebuffer capture is in the same run directory. Available
+memory after scene mesh release is 48,418,816 bytes; this is a resident-scene
+snapshot after diagnostic cleanup, not combined gameplay peak usage.
+
+Animation is evaluated numerically before drawing the unchanged frozen scene.
+No animated character rendering, frame-rate guarantee, complete gameplay camera
+or PS2 parity is established by this check. Runtime coverage currently uses
+two looping motions without a primary slot or bone overrides.
