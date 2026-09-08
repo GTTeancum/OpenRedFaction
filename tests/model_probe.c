@@ -11,6 +11,14 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc==2 && !strcmp(argv[1],"--material-init")) {
+        rf_model_material_record material;
+        while (fread(&material,sizeof(material),1,stdin)==1) {
+            if (rf_model_material_initialize(&material)!=RF_OK) return 2;
+            if (fwrite(&material,sizeof(material),1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc==2 && !strcmp(argv[1],"--materials")) {
         struct { int32_t kind,lods,static_count,mesh_count,direct_count,counts[8]; uint32_t capacity; } data;
         _Static_assert(sizeof(data)==56,"Material count fixture layout");

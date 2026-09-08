@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The 200-byte model material constructor now matches 1,000 full original
+executions. Recover material copying and bounded instance allocation, then
+connect texture overrides and local weapon presentation to owned model instances.
+
 Model material counts now match 2,000 complete original executions across
 wrapper types. Recover per-instance material allocation/copy and texture binding
 before connecting the remaining weapon presentation adapter to live models.

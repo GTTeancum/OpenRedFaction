@@ -1,5 +1,24 @@
 # Model-instance materials
 
+`rf_model_material_initialize` reconstructs the complete 0x54a7c0 constructor
+over a fixed-width 200-byte record. It sets the primary identifier and both
+texture handles (+10/+44) to -1, RGBA bytes at +9 to ff, +78 to 15, +b4 to -1,
+and the original zero-valued fields. It preserves all bytes the original
+leaves untouched, including most names and unknown fields. Raw pointer-valued
+slots are not native C pointers; material ownership is not established by
+initializing this record. Never use the constructor as a live-material reset
+or destructor.
+
+The original color constructor 0x50cc00 and texture constructors 0x54a610
+are effectively no-ops; vector construction still executes those callees.
+`tools/verify_model_material_init.py` compares all 200 bytes across 1,000
+zero-filled, ff-filled, patterned and random initial states. It executes
+the complete original constructor, including SEH and vector/color helpers,
+and checks return pointer, surrounding canaries and restored SEH head.
+Win32 Release, four CTest cases and NXDK build pass. Instance allocation,
+copying and texture binding remain open; no Xbox runtime integration or
+new visual result is claimed for initialization alone.
+
 The weapon presentation mode path reaches 0x48ab90, which finds a named
 material override and calls 0x48ac00. That function obtains mutable instance
 materials through 0x503650, then requests textures with 0x50f6a0(name,-1,1)

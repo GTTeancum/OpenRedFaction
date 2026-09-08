@@ -3,6 +3,20 @@
 #include <math.h>
 #include <string.h>
 
+int rf_model_material_initialize(rf_model_material_record *material)
+{
+    static const unsigned zeros[]={4,0x7c,0x80,0x84,0x88,0x8c,0xb8,0xbc,0xc0,0xc4};
+    static const unsigned invalid[]={0,0x10,0x44,0xb4};
+    unsigned i;
+    if (!material) return RF_RANGE;
+    for (i=0;i<sizeof(zeros)/sizeof(zeros[0]);++i) memset(material->bytes+zeros[i],0,4);
+    for (i=0;i<sizeof(invalid)/sizeof(invalid[0]);++i) memset(material->bytes+invalid[i],255,4);
+    memset(material->bytes+9,255,4);
+    memset(material->bytes+0x78,0,4); material->bytes[0x78]=15;
+    material->bytes[0x90]=0;
+    return RF_OK;
+}
+
 int rf_model_material_count(int32_t kind,int32_t static_lods,int32_t static_count,
     int32_t mesh_count,const int32_t *mesh_counts,uint32_t mesh_capacity,
     int32_t direct_count,int32_t *result)

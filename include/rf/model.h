@@ -3,6 +3,13 @@
 #include "rf/vpp.h"
 #include "rf/motion_file.h"
 
+/* Fixed-width material record used by original model-instance arrays.
+ * Unknown fields remain bytes; pointer-valued slots are not native pointers. */
+typedef struct rf_model_material_record { uint8_t bytes[200]; } rf_model_material_record;
+/* Original 54a7c0 constructor: initializes only fields it writes, preserving
+ * other bytes. Call on newly owned storage, never to release a live material. */
+int rf_model_material_initialize(rf_model_material_record *material);
+
 /* 503690 over resolved model views. Kind 1 returns static_count when
  * static_lods<=1; kind 2 sums mesh counts; kind 3 returns direct_count;
  * unknown kinds return zero. Signed counts and original wrapping addition

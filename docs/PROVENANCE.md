@@ -329,3 +329,9 @@ and unchanged 0x4a76f0 in the fingerprinted RF.exe. Direct disassembly also
 identifies 0x503650 instance access, 0x503730 allocation, 0x503950 material copy
 and 0x48ac00 texture binding as remaining ownership dependencies. Only the
 count query is implemented by this checkpoint; original binary data remains local.
+
+Model material initialization: `rf_model_material_initialize` follows original
+0x54a7c0..0x54a89b in the fingerprinted RF.exe. Full-machine-code verification
+includes 0x50cc00, 0x50cc40, 0x54a610 and vector constructor 0x5736fb without
+callee replacement. The shared 200-byte record preserves unknown bytes and
+uses fixed-width storage; native pointer ownership is separate work.

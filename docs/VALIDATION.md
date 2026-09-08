@@ -623,3 +623,10 @@ wrapping sums; one C-only bounds rejection preserves output. Original object
 views remain unchanged. Win32 Release, four CTest cases and NXDK build pass.
 Material allocation/copy, binding and Xbox runtime integration remain open.
 No new emulator execution or screenshot is claimed.
+
+Material constructor checkpoint: 1,000 complete original 0x54a7c0 executions
+match all 200 bytes from varied initial contents, with unchanged SEH/vector
+constructor/color helpers. Surrounding canaries, return pointer and SEH-head
+restoration also pass. Win32 Release, four CTest cases and NXDK build pass.
+Material allocation/copy, binding and Xbox runtime integration remain open;
+no new emulator execution or screenshot is claimed for this checkpoint.
