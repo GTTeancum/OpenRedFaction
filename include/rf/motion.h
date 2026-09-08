@@ -31,6 +31,9 @@ typedef struct rf_motion_position_key {
     int32_t tick;
     float position[3], incoming[3], outgoing[3];
 } rf_motion_position_key;
+/* Evaluate an interior segment, including its t=0 boundary, without endpoint
+ * copying. This preserves signed zero when selecting keys from an archive. */
+int rf_motion_interpolate_position(const rf_motion_position_key *previous, const rf_motion_position_key *next, float t, float out[3]);
 /* Reconstructs 0x53a130 on decoded keys. Tick units remain caller-defined.
  * Empty tracks return zero, endpoints clamp; keys must have increasing ticks.
  * Non-finite fields and overflow fail without changing output. */

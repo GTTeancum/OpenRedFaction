@@ -4,7 +4,7 @@ from pathlib import Path
 from inspect_motions import inspect
 root=Path(__file__).resolve().parents[1]
 probe=root/'build/pc/Release/rf_motion_file_probe.exe'
-files=tracks=rotations=positions=0
+files=tracks=rotations=positions=samples=0
 fixture=None
 for archive in json.loads((root/'artifacts/inventory.json').read_text())['files']:
     entries=[e for e in archive.get('vpp',{}).get('entries',[]) if e['name'].endswith('.rfa')]
@@ -22,6 +22,8 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
             if e['name'].lower()=='ult2_stand.rfa': fixture=raw
     run=subprocess.run([str(probe),str(path)],capture_output=True,check=True)
     assert run.stdout==expected,(archive['path'],len(run.stdout),len(expected))
+    sample_run=subprocess.run([str(probe),str(path),'--sample'],capture_output=True,check=True)
+    samples+=int(sample_run.stderr)
 assert fixture is not None
 folder=root/'artifacts/motion-file-tests'; folder.mkdir(parents=True,exist_ok=True)
 def wrap(raw):
@@ -37,6 +39,11 @@ for offset,value in [(0,0),(4,9),(24,0xffffffff),(72,79),(76,len(fixture)+1),(80
 off=struct.unpack_from('<I',fixture,80)[0]
 for offset,value in [(off,0x7fc00000),(off+4,0xffffffff)]:
     changed=bytearray(fixture); struct.pack_into('<I',changed,offset,value); bad.append(changed)
+for t in inspect(fixture)['candidate_tracks']:
+    off=t['offset']; n,m=struct.unpack_from('<2H',fixture,off+4)
+    for start,count,stride in [(off+8,n,16),(off+8+n*16,m,40)]:
+        if count>1:
+            changed=bytearray(fixture); changed[start+stride:start+stride+4]=changed[start:start+4]; bad.append(changed)
 for i,raw in enumerate(bad): assert wrap(raw)==3,i
-report=dict(result='PASS',files=files,tracks=tracks,rotation_keys=rotations,position_keys=positions,malformed_cases=len(bad),scope='Archive-backed directory and every decoded key; no skeleton integration')
+report=dict(result='PASS',files=files,tracks=tracks,rotation_keys=rotations,position_keys=positions,malformed_cases=len(bad),archive_samples=samples,scope='Archive-backed directory and every decoded key; no skeleton integration')
 (folder/'report.json').write_text(json.dumps(report,indent=2)); print(report)

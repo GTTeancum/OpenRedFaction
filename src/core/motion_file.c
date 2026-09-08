@@ -19,6 +19,18 @@ static float get_float(const unsigned char *p)
     uint32_t bits=get32(p); float result;
     memcpy(&result,&bits,4); return result;
 }
+static int validate_ticks(const rf_motion_file *file, uint32_t offset, uint32_t count, uint32_t stride)
+{
+    unsigned char raw[4]; uint32_t i; int32_t previous=0,current; int status;
+    for (i=0;i<count;++i) {
+        status=rf_vpp_read(file->archive,&file->entry,offset+i*stride,raw,4);
+        if (status!=RF_OK) return status;
+        current=signed32(get32(raw));
+        if (i && current<=previous) return RF_FORMAT;
+        previous=current;
+    }
+    return RF_OK;
+}
 int rf_motion_file_track(const rf_motion_file *file, uint32_t index, rf_motion_track *out)
 {
     unsigned char raw[8]; rf_motion_track track; uint32_t end; int status;
@@ -62,9 +74,55 @@ int rf_motion_file_open(rf_motion_file *file, rf_vpp *archive, const char *name)
     for (i=0;i<candidate.header[6];++i) {
         status=rf_motion_file_track(&candidate,i,&track); if (status!=RF_OK) return status;
         if (!i && track.offset!=80+candidate.header[6]*4) return RF_FORMAT;
+        status=validate_ticks(&candidate,track.offset+8,track.rotation_count,16);
+        if (status!=RF_OK) return status;
+        status=validate_ticks(&candidate,track.offset+8+track.rotation_count*16,track.position_count,40);
+        if (status!=RF_OK) return status;
     }
     if (!candidate.header[6] && candidate.header[18]!=80) return RF_FORMAT;
     *file=candidate; return RF_OK;
+}
+static int find_pair(const rf_motion_file *file, uint32_t offset, uint32_t count, uint32_t stride,
+                     int32_t tick, uint32_t *first)
+{
+    uint32_t low=0, high=count; unsigned char raw[4]; int status;
+    if (count<2) { *first=0; return RF_OK; }
+    while (low<high) {
+        uint32_t middle=low+(high-low)/2;
+        status=rf_vpp_read(file->archive,&file->entry,offset+middle*stride,raw,4);
+        if (status!=RF_OK) return status;
+        if (signed32(get32(raw))<=tick) low=middle+1;
+        else high=middle;
+    }
+    if (!low) low=1;
+    if (low==count) low=count-1;
+    *first=low-1; return RF_OK;
+}
+int rf_motion_file_sample(const rf_motion_file *file, uint32_t index, int32_t tick, int bypass_fades, rf_motion_sample *out)
+{
+    rf_motion_track track; rf_motion_sample result;
+    rf_motion_rotation_key rotations[2]; rf_motion_position_key positions[2];
+    uint32_t first,n,i; int status;
+    if (!out) return RF_RANGE;
+    status=rf_motion_file_track(file,index,&track); if (status!=RF_OK) return status;
+    status=find_pair(file,track.offset+8,track.rotation_count,16,tick,&first); if (status!=RF_OK) return status;
+    n=track.rotation_count<2 ? track.rotation_count : 2;
+    for (i=0;i<n;++i) {
+        status=rf_motion_file_rotation(file,index,first+i,&rotations[i]); if (status!=RF_OK) return status;
+    }
+    status=rf_motion_sample_rotation(rotations,n,tick,result.rotation); if (status!=RF_OK) return status;
+    status=find_pair(file,track.offset+8+track.rotation_count*16,track.position_count,40,tick,&first);
+    if (status!=RF_OK) return status;
+    n=track.position_count<2 ? track.position_count : 2;
+    for (i=0;i<n;++i) {
+        status=rf_motion_file_position(file,index,first+i,&positions[i]); if (status!=RF_OK) return status;
+    }
+    if (n==2 && first>0 && tick==positions[0].tick)
+        status=rf_motion_interpolate_position(&positions[0],&positions[1],0,result.position);
+    else status=rf_motion_sample_position(positions,n,tick,result.position);
+    if (status!=RF_OK) return status;
+    status=rf_motion_sample_weight(&track.envelope,tick,bypass_fades,&result.weight); if (status!=RF_OK) return status;
+    *out=result; return RF_OK;
 }
 int rf_motion_file_rotation(const rf_motion_file *file, uint32_t index, uint32_t key, rf_motion_rotation_key *out)
 {

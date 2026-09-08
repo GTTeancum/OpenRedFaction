@@ -16,4 +16,11 @@ int rf_motion_file_open(rf_motion_file *file, rf_vpp *archive, const char *name)
 int rf_motion_file_track(const rf_motion_file *file, uint32_t index, rf_motion_track *out);
 int rf_motion_file_rotation(const rf_motion_file *file, uint32_t track, uint32_t key, rf_motion_rotation_key *out);
 int rf_motion_file_position(const rf_motion_file *file, uint32_t track, uint32_t key, rf_motion_position_key *out);
+typedef struct rf_motion_sample {
+    float rotation[4], position[3], weight;
+} rf_motion_sample;
+/* Binary-search validated ticks and read at most two keys of each kind.
+ * No allocation; output stays unchanged on error. The archive is immutable
+ * while this handle is open. Disk seeks still require a playback cache. */
+int rf_motion_file_sample(const rf_motion_file *file, uint32_t track, int32_t tick, int bypass_fades, rf_motion_sample *out);
 #endif

@@ -512,3 +512,30 @@ match bit-for-bit in every case. PC boundary tests, PC build and NXDK build
 pass. This verifies local blending on the PC; it does not establish every
 degenerate quaternion case, Xbox runtime arithmetic equivalence, the complete
 skeleton evaluator, root-motion handling or gameplay camera integration.
+## Sampling directly from archives
+
+`rf_motion_file_sample` now evaluates a track's rotation, position and blend
+weight at an integer tick without allocating the whole track. File open checks
+strictly increasing ticks for each rotation and position stream, permitting
+binary search for the adjacent pair. Evaluation holds at most two rotation
+keys and two position keys and commits the output only after every read and
+sampler succeeds. The archive must remain immutable while the handle is open.
+
+An exact interior position key requires curve evaluation even at blend factor
+zero. Treating its selected pair as a whole track would copy the first position
+instead, changing signed-zero results in installed `esci_walk.rfa` track 26.
+The shared cubic evaluation was extracted as `rf_motion_interpolate_position`
+so archive sampling preserves that distinction without reading extra keys.
+
+The expanded `tools/verify_motion_files.py` compares 131,965 archive-backed
+samples against full-track linear evaluation, covering five times per installed
+track (start-1, start, midpoint, end, end+1) and both fade modes. All output bits
+match. This is an integration comparison using the previously original-verified
+samplers, not a new direct-original comparison of every sample. All installed
+keys still match their serialized bytes, and 62 malformed fixtures—including
+duplicate ticks in both key streams—are rejected. The 755 direct-original
+position comparisons, PC tests and PC/NXDK builds also pass.
+
+Metadata and key reads still seek into the archive. A playback cache or cursor,
+the original slot update state machine, skeleton evaluation and Xbox runtime
+validation remain necessary before animation can drive the gameplay scene.

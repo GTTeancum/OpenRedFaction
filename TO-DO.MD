@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Archive-backed sampling now matches 131,965 full-track evaluations while holding
+only two rotation keys and two position keys. Cache disk reads and integrate
+these samples with slot weights, parent composition and eye attachment evaluation.
+Open validates all tick ordering; 62 malformed-file fixtures are rejected.
+
 Local pose blending now matches 1,600 original-code matrix comparisons across
 one through sixteen contributors. Connect per-track samples and normalized
 weights to parent composition, root motion and the model's eye attachment;

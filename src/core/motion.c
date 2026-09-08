@@ -163,7 +163,7 @@ int rf_motion_sample_rotation(const rf_motion_rotation_key *keys, uint32_t count
 int rf_motion_sample_position(const rf_motion_position_key *keys, uint32_t count, int32_t tick, float out[3])
 {
     uint32_t i, c, upper;
-    float result[3] = {0,0,0}, t, s;
+    float result[3] = {0,0,0}, t;
     if (!out || (count && !keys)) return RF_RANGE;
     for (i = 0; i < count; ++i) {
         if (i && keys[i].tick <= keys[i-1].tick) return RF_FORMAT;
@@ -180,10 +180,20 @@ int rf_motion_sample_position(const rf_motion_position_key *keys, uint32_t count
         if (delta > INT32_MAX) return RF_RANGE;
         t = (float)(tick - keys[upper-1].tick) / (float)delta;
     }
+    return rf_motion_interpolate_position(&keys[upper-1],&keys[upper],t,out);
+}
+
+int rf_motion_interpolate_position(const rf_motion_position_key *previous, const rf_motion_position_key *next, float t, float out[3])
+{
+    uint32_t c; float s, result[3];
+    if (!previous || !next || !out || !isfinite(t) || t<0 || t>1) return RF_RANGE;
+    for (c=0;c<3;++c)
+        if (!isfinite(previous->position[c]) || !isfinite(previous->outgoing[c]) ||
+            !isfinite(next->position[c]) || !isfinite(next->incoming[c])) return RF_FORMAT;
     s = 1.0f - t;
     for (c = 0; c < 3; ++c) {
-        float a = keys[upper-1].position[c], b = keys[upper-1].outgoing[c];
-        float d = keys[upper].position[c], e = keys[upper].incoming[c];
+        float a = previous->position[c], b = previous->outgoing[c];
+        float d = next->position[c], e = next->incoming[c];
         a *= s; a *= s; a *= s;
         b *= 3.0f; b *= t; b *= s; b *= s;
         e *= 3.0f; e *= t; e *= t; e *= s;
