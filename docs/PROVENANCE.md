@@ -259,3 +259,10 @@ the earlier dependency has been removed and its tests corrected.
 `src/core/effect.c` follows 0x48f130 with 0x4973b0/0x4973d0 and timer 0x4fa360.
 See docs/WEAPON.md and tools/verify_effect_switch.py for field mappings and
 original-code coverage; effect ownership/rendering are still separate work.
+
+`rf_weapon_reserve` and `rf_weapon_choose_available` follow RF.exe 1.20 NA
+0x42add0 and 0x4a6e50, including ownership predicate 0x403250 and descriptor
+flag predicate 0x4c9a70. Original disassembly of 0x4a6f10 and its string at
+0x5a05e0 identifies empty-ammunition handling as the remaining player callback's
+role. See docs/WEAPON.md and tools/verify_weapon_inventory.py for scope and
+original-code verification; actual switching/presentation is not reconstructed.

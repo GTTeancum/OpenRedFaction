@@ -1,5 +1,44 @@
 # Weapon reset
 
+## Empty-weapon handling and replacement choice
+
+The remaining callback at 0x4a6f10 handles an empty weapon, rather than a generic
+player-state reset. It checks reserve plus loaded ammunition, may show the
+string "Out of ammunition" at 0x5a05e0, handles a paired weapon through 0x4a4e80,
+and can choose another weapon with 0x4a6e50 before calling 0x4a4a50. The current
+`player_reset` callback name is historical; this full operation is still open.
+Its current-weapon lookup 0x4a5910 also calls 0x4ae0d0 for a valid weapon, which
+has presentation/model effects and must not be treated as a pure accessor.
+
+`rf_weapon_reserve` reconstructs 0x42add0: a null entity, negative weapon, or
+negative descriptor ammo type returns zero; otherwise descriptor +24 indexes
+entity reserves at +2ac. The shared view contains 32 reserves, 64 loaded counts
+at +32c, and 64 ownership bytes at +42c. Added bounds checks reject nonnegative
+weapon/ammo indices outside those arrays rather than reproducing original reads
+past them.
+
+`rf_weapon_choose_available` reconstructs 0x4a6e50 after entity lookup. It scans
+all 32 preference entries at player +1154 in order; invalid or unowned weapons
+are skipped (0x403250). If descriptor +260 is positive, reserve plus loaded
+count must be positive. The sum retains original 32-bit wrapping behavior.
+With byte player +f41 nonzero, weapons whose descriptor +268 has mask 0x100
+are deferred: retain the first such eligible weapon as fallback, but continue
+looking for an eligible unflagged weapon. Return -1 if none is available.
+The meaning of the flag is not inferred beyond this observed selection rule.
+
+`tools/verify_weapon_inventory.py` matches 4,000 complete original executions
+of both functions with unchanged lookup, ownership and flag callees. 3,475
+choose a weapon; fixtures include null entities, duplicates/invalid preference
+entries, deferred fallbacks, shared/negative ammo types and wrapping count sums.
+Two C-only cases verify weapon/ammo bounds rejection.
+
+The shared 64-frame diagnostic also observes this choice: weapon 1 is a deferred
+fallback; weapon 0 is chosen while reserve 0 is one, then weapon 1 is selected
+after reserve reaches zero at frame 32. PC, original instructions and stock
+64 MiB XEMU agree. The diagnostic hashes reserve and replacement outputs but
+does not apply an actual weapon switch; presentation and the complete empty-
+weapon handler remain separate work.
+
 `rf_weapon_reset` follows 0x41ae70 after a valid type-zero entity has been
 resolved. Null state and indices outside [0,63] return unchanged. Descriptor
 views contain flags +264/+268 and release sound class +204 from the original

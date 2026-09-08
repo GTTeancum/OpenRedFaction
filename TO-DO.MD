@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Ammo lookup and ordered replacement-weapon selection now match 4,000 original
+cases and an ammo-exhaustion XEMU profile. Complete the empty-weapon handler,
+weapon switching/presentation, sound adapters and remaining locomotion physics.
+
 Effect-pair switching now matches 4,000 original executions and runs through
 weapon reset in XEMU; the false local-release callback was removed after
 identifying a read-only lookup. Implement sound/player reset adapters, effect

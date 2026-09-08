@@ -515,3 +515,21 @@ capture. XBE SHA-256:
 ISO SHA-256:
 `188bc821377a8fc3b8fca6143bea7b1e3a0e6229a249a95e171cb8f3a355071d`.
 Sound/player-reset implementations and effect ownership/rendering remain open.
+
+# Ammunition and replacement choice
+
+`python tools/verify_weapon_inventory.py` passes 4,000 complete original reserve/
+replacement-choice cases and two C-only bounds checks. The 64-frame original
+comparison and shared PC/Xbox diagnostic now hash ammo reserve and replacement
+selection across exhaustion at frame 32. State hash is `0x278ff164`; pose/cache/
+eye remain `0xdc7c08a6`, `0x21cd6b06`, `0x60a29326`. This supersedes prior hashes.
+
+PC Release/NXDK builds and all four CTest checks pass. Numeric-only stock 64 MiB
+XEMU run `artifacts/xemu/20260908-181325-357221/report.json` passes with matching
+hashes and no framebuffer capture. XBE SHA-256:
+`00283fa52cfe1f08c601090ab1289b7716c70874dd48d6758093cb806533bf8b`;
+ISO SHA-256:
+`346c4ee1c00051cc78875f0241342f2f05c9517e201d19681b4e9ea96ec2b2fc`.
+Observed available RAM after static-scene CPU mesh release is 48,402,432 bytes,
+not full-game peak. The diagnostic observes replacement decisions without
+applying the switch; full empty-weapon handling/presentation remains open.

@@ -2,6 +2,26 @@
 #define RF_WEAPON_H
 #include "rf/motion.h"
 
+typedef struct rf_weapon_inventory {
+    uint8_t owned[64]; /* Entity +42c. */
+    int32_t reserve[32],loaded[64]; /* +2ac and +32c. */
+} rf_weapon_inventory;
+typedef struct rf_weapon_supply {
+    int32_t ammo_type,capacity; /* Descriptor +24 and +260. */
+    uint32_t flags_268;
+} rf_weapon_supply;
+/* 42add0: null inventory, negative weapon or negative ammo type has zero
+ * reserve. Added bounds checks reject invalid nonnegative indices. */
+int rf_weapon_reserve(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],
+    int32_t weapon,int32_t *amount);
+/* 4a6e50 after entity lookup: scans exactly 32 preference entries. Owned
+ * weapons with capacity>0 require positive reserve+loaded (original 32-bit
+ * wrapping addition). With low byte defer_flag nonzero, +268 mask 0x100
+ * weapons are retained only as the first fallback. Null inventory selects -1.
+ * Inputs remain unchanged; selected is preserved on a bounds error. */
+int rf_weapon_choose_available(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],
+    const int32_t preference[32],uint32_t defer_flag,int32_t *selected);
+
 typedef struct rf_weapon_descriptor {
     uint32_t flags_264,flags_268;
     int32_t release_sound_class; /* +204. */

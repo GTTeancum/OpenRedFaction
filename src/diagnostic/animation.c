@@ -48,6 +48,8 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     rf_effect_pair effect_pair={{{&effect_objects[0],&effect_objects[1]},{NULL,NULL}}};
     animation_reset reset={&weapon_state,descriptors,&weapon_context,&state,resources,&actor,&effect_pair};
     uint32_t weapon_flags[1]={6};
+    rf_weapon_inventory inventory={0}; rf_weapon_supply supply[64]={0};
+    int32_t preference[32],replacement,reserve;
     int ready,eligible;
     rf_turn_context context={{0x800,6,.3f,1.5f,20,7,9},-1,1,0,0};
     int32_t actions[45],sounds[45],sound_class;
@@ -101,10 +103,18 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     weapon_state.flags_7d0=10;
     weapon_state.character_present=1; weapon_context.weapon_count=1;
     descriptors[0].flags_264=6; descriptors[0].flags_268=0x40; descriptors[0].release_sound_class=-1;
+    inventory.owned[0]=inventory.owned[1]=1;
+    supply[0].ammo_type=0; supply[0].capacity=10;
+    supply[1].ammo_type=-1; supply[1].flags_268=0x100;
+    for (i=0;i<32;++i) preference[i]=-1;
+    preference[0]=1; preference[1]=0;
     entity.flags_7d0=10; registry.slots[0]=&entity;
     actor.direction.orientation[0]=actor.direction.orientation[4]=actor.direction.orientation[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
     for (frame=0;frame<64;++frame) {
+        inventory.reserve[0]=frame<32 ? 1 : 0;
+        status=rf_weapon_reserve(&inventory,supply,0,&reserve); if (status!=RF_OK) goto done;
+        status=rf_weapon_choose_available(&inventory,supply,preference,1,&replacement); if (status!=RF_OK) goto done;
         /* Scripted diagnostic requests, not the unrecovered locomotion selector. */
         if (frame==4 || frame==7 || frame==20 || frame==40) {
             status=rf_motion_request_state(&controller,motions,(frame==4 || frame==20) ? 8 : 0,.25f);
@@ -137,6 +147,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         out[4]=hash_bytes(out[4],&ready,4); out[4]=hash_bytes(out[4],&eligible,4);
         out[4]=hash_bytes(out[4],&weapon_state,sizeof(weapon_state));
         out[4]=hash_bytes(out[4],effect_objects,sizeof(effect_objects));
+        out[4]=hash_bytes(out[4],&reserve,4); out[4]=hash_bytes(out[4],&replacement,4);
         displacement[0]=1;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }

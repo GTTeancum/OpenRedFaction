@@ -2,7 +2,8 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
-int main(void)
+#include <string.h>
+int main(int argc,char **argv)
 {
     struct { int32_t weapon; rf_weapon_reset_state state; rf_weapon_descriptor descriptors[64];
         rf_weapon_reset_context context; rf_motion_playback_state playback;
@@ -10,6 +11,18 @@ int main(void)
     int32_t status; unsigned i;
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if (argc==2 && !strcmp(argv[1],"--inventory")) {
+        struct { uint32_t present,defer_flag; int32_t weapon;
+            rf_weapon_inventory inventory; rf_weapon_supply supply[64]; int32_t preference[32]; } data;
+        _Static_assert(sizeof(data)==1356,"Inventory fixture layout");
+        while (fread(&data,sizeof(data),1,stdin)==1) {
+            int32_t output[4]={0,-99,0,-99};
+            output[0]=rf_weapon_reserve(data.present ? &data.inventory : NULL,data.supply,data.weapon,&output[1]);
+            output[2]=rf_weapon_choose_available(data.present ? &data.inventory : NULL,data.supply,data.preference,data.defer_flag,&output[3]);
+            if (fwrite(output,sizeof(output),1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     while (fread(&input,sizeof(input),1,stdin)==1) {
         status=rf_weapon_reset(&input.state,input.weapon,input.descriptors,&input.context,
             &input.playback,input.resources,32,NULL,NULL);

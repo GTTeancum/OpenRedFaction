@@ -1,4 +1,40 @@
 #include "rf/weapon.h"
+#include <string.h>
+int rf_weapon_reserve(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],
+    int32_t weapon,int32_t *amount)
+{
+    int32_t type;
+    if (!amount) return RF_RANGE;
+    if (!inventory || weapon<0) { *amount=0; return RF_OK; }
+    if (!supply || weapon>=64) return RF_RANGE;
+    type=supply[weapon].ammo_type;
+    if (type<0) { *amount=0; return RF_OK; }
+    if (type>=32) return RF_RANGE;
+    *amount=inventory->reserve[type]; return RF_OK;
+}
+int rf_weapon_choose_available(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],
+    const int32_t preference[32],uint32_t defer_flag,int32_t *selected)
+{
+    int32_t fallback=-1,weapon,reserve,total; uint32_t bits; unsigned i; int status;
+    if (!selected) return RF_RANGE;
+    if (!inventory) { *selected=-1; return RF_OK; }
+    if (!supply || !preference) return RF_RANGE;
+    for (i=0;i<32;++i) {
+        weapon=preference[i];
+        if (weapon<0 || weapon>=64 || !inventory->owned[weapon]) continue;
+        if (supply[weapon].capacity>0) {
+            status=rf_weapon_reserve(inventory,supply,weapon,&reserve); if (status!=RF_OK) return status;
+            bits=(uint32_t)reserve+(uint32_t)inventory->loaded[weapon];
+            memcpy(&total,&bits,4);
+            if (total<=0) continue;
+        }
+        if ((supply[weapon].flags_268 & 0x100u) && (uint8_t)defer_flag) {
+            if (fallback==-1) fallback=weapon;
+        } else { *selected=weapon; return RF_OK; }
+    }
+    *selected=fallback; return RF_OK;
+}
+
 int rf_weapon_reset(rf_weapon_reset_state *state,int32_t weapon,
     const rf_weapon_descriptor descriptors[64],const rf_weapon_reset_context *context,
     rf_motion_playback_state *playback,const rf_motion_playback_resource *resources,uint32_t resource_count,
