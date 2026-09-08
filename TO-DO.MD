@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC — open work
 
+Capture and post screenshots only when there is a new visible result.
+
 ## Shortlist
 
 - [ ] Extend the shared level-directory loader into a complete campaign world loader.
@@ -14,6 +16,12 @@
 - [ ] Consider multiplayer only after single-player completion.
 
 ## Current camera evidence
+
+Loaded-motion insertion, weight assignment and restart now match 3,200
+original-code cases; the runtime diagnostic uses recovered insertion instead
+of constructing slots directly. Recover lazy resource registration/loading and
+the actual player initialization calls, including bone overrides and displacement
+producers, before connecting the gameplay camera.
 
 The shared 64-frame blended-skeleton check now passes in stock 64 MiB XEMU,
 matching PC and original-code hashes for bones, eye transforms, playback and

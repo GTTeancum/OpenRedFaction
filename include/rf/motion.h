@@ -73,6 +73,16 @@ typedef struct rf_motion_playback_resource {
  * them. Invalid input leaves state and resource reference counts unchanged. */
 int rf_motion_update(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
                      uint32_t resource_count, float elapsed);
+/* Loaded-resource control paths 0x51c190/0x51c1c0 with shared insertion
+ * 0x51bfd0. The caller opens archives before registration; lazy loading is not
+ * performed here. Existing slots are reused without another reference.
+ * A full table rejects a new slot with RF_RANGE and leaves state unchanged. */
+int rf_motion_set_weight(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
+                         uint32_t resource_count, int32_t motion, float weight);
+/* Restart only when weight>0 and loop flag !=1, matching the original exact
+ * byte comparison. A low byte of one in freeze designates end freezing. */
+int rf_motion_start(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
+                    uint32_t resource_count, int32_t motion, float weight, int freeze);
 /* 0x51b500 per-bone contribution selection. Envelopes and looping bits are
  * indexed by active slot; output retains slot order, with zero for excluded
  * contributions. Positive weights are normalized by the original sum. */

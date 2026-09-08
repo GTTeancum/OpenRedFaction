@@ -41,13 +41,15 @@ def put(a,fmt,*v): u.mem_write(a,struct.pack(fmt,*v))
 def fnv(value,raw):
     for byte in raw: value=((value^byte)*16777619)&0xffffffff
     return value
-put(obj+0x1d50,'<I',desc);put(obj+0x12d0,'<I',2)
+put(obj+0x1d50,'<I',desc);put(obj+0x12d0,'<I',0)
 put(obj+0x1cfc,'<ii',-1,-1);put(obj+0x1d48,'<i',-1);put(obj+0x1d04,'<f',.25);put(obj+0x1cf8,'<H',1)
 put(obj+0x12c0,'<3f',.125,-.25,.5)
 for i in range(2):
-    put(obj+0x12d4+i*12,'<iif',i,161,.5)
-    u.mem_write(desc+0x120c+i,b'\x01');put(motion+i*256+0x74,'<I',1)
+    u.mem_write(desc+0x120c+i,b'\x01');put(motion+i*256+0x74,'<I',0)
     put(motion+i*256+0x50,'<i',3200);put(motion+i*256+0x64,'<i',6400)
+for i in range(2):
+    put(stack+64000,'<Iif',stop,i,.5);u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ECX,obj);u.reg_write(UC_X86_REG_FPCW,0x37f)
+    u.emu_start(0x51c190,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
 def evaluate():
     put(stack+64000,'<4I',stop,count,order_address,obj);u.reg_write(UC_X86_REG_ESP,stack+64000)
     u.emu_start(0x51b500,stop,count=1000000);assert u.reg_read(UC_X86_REG_EIP)==stop
@@ -66,5 +68,5 @@ for frame in range(64):
     put(obj+0x12c0,'<f',0)
 expected=[2,count,64,*hashes,4+count*56]
 actual=list(struct.unpack('<8I',subprocess.check_output([str(root/'build/pc/Release/rf_animation_check.exe'),str(root/'Installed_Game/meshes.vpp'),str(root/'Installed_Game/motions.vpp')])))
-report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,scope='Exact shared PC/Xbox diagnostic sequence against original update, evaluator and eye-tag instructions')
+report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,scope='Exact shared PC/Xbox diagnostic sequence against original insertion, update, evaluator and eye-tag instructions')
 (root/'artifacts/animation-check-original.json').write_text(json.dumps(report,indent=2));print(report);assert actual==expected

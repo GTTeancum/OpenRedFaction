@@ -872,3 +872,39 @@ cover cached-first/stale-second roots, invalid generation and wrap to zero.
 This is an evaluation cache, not the still-needed archive key/metadata cache.
 Bone overrides and generation invalidation by the original initialization and
 control paths remain to recover; Xbox runtime integration remains open.
+
+## Loaded motion insertion and control
+
+`rf_motion_set_weight` reconstructs `0x51c190`, while `rf_motion_start`
+reconstructs `0x51c1c0`. They share the loaded-descriptor portion of insertion
+at `0x51bfd0`: find and reuse an existing motion slot first; otherwise append
+a zero-tick/zero-weight slot if fewer than 16 exist, and increment its motion
+reference count (`0x539d60`). Reusing a slot never adds another reference.
+
+Weight assignment clears the frozen flag and writes weight without resetting
+the cursor. Restart acts only for positive weight and a loop byte not exactly
+one. That exact comparison is distinct from the update evaluator's nonzero
+loop test. Restart clears frozen, writes weight, resets the cursor to the file's
+start tick, and sets the freeze slot only when the supplied byte equals one.
+If no primary exists, it selects this slot and clears only `+0x1d18`; the
+adjacent word, flag and auxiliary vectors remain untouched. Neither control
+call resets shared phase or increments the evaluation generation.
+
+The caller must open/register resources first. The original lazy `0x53a980`
+load path and its partially inserted slot on failure are not reproduced here.
+Invalid IDs/state, non-finite weights, negative assignment weights and reference
+overflow are rejected before mutation; a full table returns `RF_RANGE` for a
+new motion but still permits an existing motion to be controlled.
+
+`tools/verify_motion_control.py` compares 3,200 complete original control calls
+and their loaded callees, including 0..16 slots, reused/new IDs, frozen states,
+full tables, primary/freeze selections and loop bytes 0/1/2/255. All mapped
+state and all 32 reference counts match. Unit checks cover error rollback,
+reference overflow, cursor retention and the single-word primary reset.
+
+The shared 64-frame runtime diagnostic now uses recovered weight assignment
+for insertion. Its original-code oracle executes `0x51c190` too; all four
+existing animation hashes remain unchanged. Stock 64 MiB XEMU passes in
+`artifacts/xemu/20260908-161400-294874/report.json`, using `--no-capture` so no
+framebuffer is acquired for this nonvisual change. Resource registration and
+actual player control-call sequences remain open.

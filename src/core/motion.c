@@ -267,6 +267,47 @@ int rf_motion_update(rf_motion_playback_state *state, rf_motion_playback_resourc
     *state=next; return RF_OK;
 }
 
+static int motion_control(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
+                           uint32_t resource_count, int32_t motion, float weight, int restart, int freeze)
+{
+    uint32_t i,index; rf_motion_slot_state *active; rf_motion_playback_resource *resource;
+    if (!state || !resources || motion<0 || (uint32_t)motion>=resource_count) return RF_RANGE;
+    active=&state->completion.active; resource=&resources[motion];
+    if (active->count>16) return RF_RANGE;
+    if (!isfinite(weight) || (!restart && weight<0) || resource->references<0 || resource->looping>255 ||
+        active->freeze_slot < -1 || active->primary_slot < -1 || active->dominant_slot < -1 ||
+        active->freeze_slot>=(int32_t)active->count || active->primary_slot>=(int32_t)active->count ||
+        active->dominant_slot>=(int32_t)active->count) return RF_FORMAT;
+    for (i=0;i<active->count;++i) if (active->slots[i].motion<0 || (uint32_t)active->slots[i].motion>=resource_count) return RF_FORMAT;
+    if (restart && (resource->looping==1 || weight<=0)) return RF_OK;
+    for (index=0;index<active->count && active->slots[index].motion!=motion;++index) {}
+    if (index==active->count) {
+        if (index==16 || resource->references==INT32_MAX) return RF_RANGE;
+        active->slots[index].motion=motion; active->slots[index].tick=0;
+        active->slots[index].weight=0; ++active->count; ++resource->references;
+    }
+    state->completion.frozen=0; active->slots[index].weight=weight;
+    if (restart) {
+        active->slots[index].tick=resource->comparison.start_tick;
+        if ((uint8_t)freeze==1) active->freeze_slot=(int32_t)index;
+        if (active->primary_slot==-1) {
+            active->primary_slot=(int32_t)index;
+            state->completion.primary_words[0]=0;
+        }
+    }
+    return RF_OK;
+}
+int rf_motion_set_weight(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
+                         uint32_t resource_count, int32_t motion, float weight)
+{
+    return motion_control(state,resources,resource_count,motion,weight,0,0);
+}
+int rf_motion_start(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
+                    uint32_t resource_count, int32_t motion, float weight, int freeze)
+{
+    return motion_control(state,resources,resource_count,motion,weight,1,freeze);
+}
+
 int rf_motion_bone_weights(const rf_motion_slot_state *active, const rf_motion_weight_envelope *envelopes,
                            uint32_t looping_mask, float weights[16])
 {

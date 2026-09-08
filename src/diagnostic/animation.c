@@ -40,18 +40,17 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     }
     if (!found || eye.parent<0 || (uint32_t)eye.parent>=count) { status=RF_FORMAT; goto done; }
     status=rf_model_attachment_transform(eye.rotation,eye.position,local); if (status!=RF_OK) goto done;
+    state.completion.active.freeze_slot=-1;
+    state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
+    state.phase=.25f; state.generation=1;
     for (i=0;i<2;++i) {
         rf_motion_track track;
         status=rf_motion_file_open(&files[i],&archive,i ? "ult2_crouch.rfa" : "ult2_stand.rfa"); if (status!=RF_OK) goto done;
         status=rf_motion_file_track(&files[i],0,&track); if (status!=RF_OK) goto done;
-        resources[i].comparison=track.envelope; resources[i].looping=1; resources[i].references=1;
+        resources[i].comparison=track.envelope; resources[i].looping=1;
         resources[i].markers[0]=3200; resources[i].markers[1]=6400;
-        state.completion.active.slots[i].motion=(int32_t)i;
-        state.completion.active.slots[i].tick=161; state.completion.active.slots[i].weight=.5f;
+        status=rf_motion_set_weight(&state,resources,2,(int32_t)i,.5f); if (status!=RF_OK) goto done;
     }
-    state.completion.active.count=2; state.completion.active.freeze_slot=-1;
-    state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
-    state.phase=.25f; state.generation=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
     for (frame=0;frame<64;++frame) {
         status=rf_motion_update(&state,resources,2,1.0f/30.0f); if (status!=RF_OK) goto done;

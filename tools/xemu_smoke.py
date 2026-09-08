@@ -58,7 +58,10 @@ def main():
     parser.add_argument('--bios', default='xbox-4627_debug.bin')
     parser.add_argument('--display', choices=['none', 'xemu'], default='xemu')
     parser.add_argument('--reference', type=Path, help='Require framebuffer comparison against this PC reference image')
+    parser.add_argument('--no-capture', action='store_true', help='Validate runtime telemetry without capturing a framebuffer')
     args = parser.parse_args()
+    if args.no_capture and args.reference is not None:
+        parser.error('--reference requires framebuffer capture')
     root = Path(__file__).resolve().parents[1]
     build = root / 'build/xbox'
     animation_reference = list(struct.unpack('<8I', subprocess.check_output([
@@ -95,6 +98,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                '-snapshot', '-display', args.display, '-audio', 'none',
                '-qmp', f'tcp:127.0.0.1:{args.port},server=on,wait=off']
     report = dict(command=command, address=hex(address), result='FAIL',
+                  capture_requested=not args.no_capture,
                   animation_reference=animation_reference,
                   xbe_sha256=hashlib.sha256((build / 'disc/default.xbe').read_bytes()).hexdigest(),
                   iso_sha256=hashlib.sha256((build / 'redfaction-diagnostic.iso').read_bytes()).hexdigest(), samples=[])
@@ -194,22 +198,23 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     report['materials'] = dict(loaded=words[38], allocated_bytes=words[39], pixel_checksum=hex(words[40]), missing=words[41], available_pages=words[42])
                     if words[33:35] != [640, 480] or words[35] < 640*4 or words[36] == 0 or words[37] != 3:
                         raise RuntimeError('Invalid native renderer capture descriptor')
-                    capture = run / 'framebuffer.bin'
-                    monitor.command('stop')
-                    monitor.command('human-monitor-command', {'command-line': f'pmemsave 0x{words[32] & 0x03ffffff:x} {words[35]*480} "{capture.as_posix()}"'})
-                    raw_frame = capture.read_bytes()
-                    from PIL import Image
-                    frame = Image.frombytes('RGB', (640, 480), raw_frame, 'raw', 'BGRX', words[35], 1)
-                    frame.save(run / 'framebuffer.png')
-                    report['capture'] = dict(source='Game renderer framebuffer, native guest RAM via QMP', width=640, height=480, triangles=words[36]//3)
-                    if args.reference is not None:
-                        comparison_path = run / 'comparison.json'
-                        comparison = subprocess.run([sys.executable, str(root/'tools/compare_preview.py'),
-                            str(args.reference.resolve()), str(run/'framebuffer.png'), '--report', str(comparison_path)], capture_output=True, text=True)
-                        if comparison_path.exists():
-                            report['comparison'] = json.loads(comparison_path.read_text())
-                        if comparison.returncode:
-                            raise RuntimeError('PC framebuffer comparison failed: ' + comparison.stdout + comparison.stderr)
+                    if not args.no_capture:
+                        capture = run / 'framebuffer.bin'
+                        monitor.command('stop')
+                        monitor.command('human-monitor-command', {'command-line': f'pmemsave 0x{words[32] & 0x03ffffff:x} {words[35]*480} "{capture.as_posix()}"'})
+                        raw_frame = capture.read_bytes()
+                        from PIL import Image
+                        frame = Image.frombytes('RGB', (640, 480), raw_frame, 'raw', 'BGRX', words[35], 1)
+                        frame.save(run / 'framebuffer.png')
+                        report['capture'] = dict(source='Game renderer framebuffer, native guest RAM via QMP', width=640, height=480, triangles=words[36]//3)
+                        if args.reference is not None:
+                            comparison_path = run / 'comparison.json'
+                            comparison = subprocess.run([sys.executable, str(root/'tools/compare_preview.py'),
+                                str(args.reference.resolve()), str(run/'framebuffer.png'), '--report', str(comparison_path)], capture_output=True, text=True)
+                            if comparison_path.exists():
+                                report['comparison'] = json.loads(comparison_path.read_text())
+                            if comparison.returncode:
+                                raise RuntimeError('PC framebuffer comparison failed: ' + comparison.stdout + comparison.stderr)
                     report['result'] = 'PASS'
                     break
                 time.sleep(1)
@@ -237,7 +242,8 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                 process.wait(timeout=5)
         (run / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
         print(run, flush=True)
-    print('PASS: GPU frame capture, resident geometry, level and archives on 64 MiB XEMU')
+    print('PASS: animation, resident geometry, level and archives on 64 MiB XEMU' +
+          ('; framebuffer captured' if not args.no_capture else '; no framebuffer capture'))
 
 
 if __name__ == '__main__':

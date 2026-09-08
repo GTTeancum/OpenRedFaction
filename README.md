@@ -85,6 +85,7 @@ animated character yet.
 cmake --build build/pc --config Release --target rf_animation_check
 python tools/verify_animation_check.py
 python tools/xemu_smoke.py
+python tools/xemu_smoke.py --no-capture
 python tools/xemu_smoke.py --reference artifacts/live-mines-textured-pc.ppm
 ```
 
@@ -92,6 +93,8 @@ The smoke harness compares Xbox animation checksums with the shared PC check;
 `verify_animation_check.py` independently checks that same sequence against the
 local original executable. Schema 8 requires the additional meshes/motions disc
 archives above. All original assets and generated test packages stay local.
+Use `--no-capture` for runtime-only checks when there is no new visible result;
+it skips framebuffer acquisition entirely and cannot be combined with `--reference`.
 
 The harness starts only its own emulator process with a hidden-window launch,
 an isolated configuration, no input bindings, a copied EEPROM, `-snapshot`,
