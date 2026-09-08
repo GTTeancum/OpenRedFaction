@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Current-weapon lookup now matches 3,000 original-code cases and runs before
+empty-ammo decisions in PC/XEMU; the original profile starts at the handler
+entry. Recover local-player presentation, transition and earlier selection
+gates to complete actual weapon switching and gameplay integration.
+
 Ammo exhaustion now drives the selection tail, queues one replacement and
 clears followup state in the shared 64-frame PC/original/XEMU diagnostic.
 Recover earlier selection gates, local transition and presentation before

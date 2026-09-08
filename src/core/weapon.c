@@ -1,6 +1,26 @@
 #include "rf/weapon.h"
 #include "rf/timer.h"
 #include <string.h>
+int rf_weapon_current(const rf_entity_registry *registry,int32_t entity_handle,
+    uint32_t local_player,int (*update_presentation)(void *user,int32_t weapon),
+    void *user,int32_t *weapon)
+{
+    const rf_entity_view *entity,*linked; int32_t current=-1; int status;
+    if (!registry || !weapon || local_player>1) return RF_RANGE;
+    entity=rf_entity_lookup(registry,entity_handle);
+    if (entity) {
+        linked=rf_entity_lookup(registry,entity->linked_handle);
+        if (linked && (linked->class_type==1 || linked->class_type==4)) entity=linked;
+        current=entity->weapons[0];
+        if (current!=-1 && local_player) {
+            if (!update_presentation) return RF_NOT_FOUND;
+            status=update_presentation(user,current);
+            if (status!=RF_OK) return status;
+        }
+    }
+    *weapon=current;
+    return RF_OK;
+}
 int rf_weapon_clear_followup(rf_weapon_selection_state *state)
 {
     if (!state) return RF_RANGE;

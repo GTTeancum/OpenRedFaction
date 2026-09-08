@@ -1,6 +1,16 @@
 #ifndef RF_WEAPON_H
 #define RF_WEAPON_H
 #include "rf/motion.h"
+#include "rf/entity.h"
+
+/* 4a5910 with 4ae0d0's nonlocal early return. Resolves linked classes 1/4
+ * once from stable views, otherwise uses the primary entity's weapon[0].
+ * Missing entities yield -1. For a local player, every value except exactly
+ * -1 requires the presentation adapter before returning (including -2).
+ * Adapter errors preserve output; successful model effects are caller-owned. */
+int rf_weapon_current(const rf_entity_registry *registry,int32_t entity_handle,
+    uint32_t local_player,int (*update_presentation)(void *user,int32_t weapon),
+    void *user,int32_t *weapon);
 
 typedef struct rf_weapon_selection_state {
     int32_t pending_weapon; /* Player +f80. */

@@ -49,7 +49,7 @@ public class ExportBaseline extends GhidraScript {
         for (long target : new long[]{0x41f270L, 0x41f400L, 0x42a8e0L, 0x40a1e0L, 0x423b90L, 0x501af0L, 0x51c340L, 0x51c390L, 0x51c3f0L}) addresses.add(target);
         for (long target : new long[]{0x41f950L, 0x41f9f0L, 0x429ae0L, 0x428d10L, 0x408dc0L, 0x408e90L, 0x48aaf0L}) addresses.add(target);
         for (long target : new long[]{0x41ae70L, 0x4a4e80L, 0x4a4a50L, 0x4a6f10L, 0x4a5910L, 0x4ae0d0L, 0x4a3260L, 0x4c9e30L,
-                0x4aa0b0L, 0x4ad8a0L, 0x4ab180L}) addresses.add(target);
+                0x4aa0b0L, 0x4ad8a0L, 0x4ab180L, 0x4a9380L, 0x4aa080L, 0x4c8350L}) addresses.add(target);
         addresses.add(0x419a00L); addresses.add(0x51cc10L);
         for (long target : new long[]{0x539ed0L, 0x53a130L, 0x539e10L, 0x53a040L, 0x51a000L, 0x417e90L}) addresses.add(target);
         addresses.add(0x5698d0L); addresses.add(0x569920L);

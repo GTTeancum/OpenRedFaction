@@ -589,3 +589,12 @@ XBE SHA256 f2c57855beb6b4fa37d2563b5e761fedba718af62f008969d54975d16fd0a665;
 ISO SHA256 7fc6e0e98156492690aff51f1cfbf4527a4ba91580ba503854ed2320a5ec4630.
 Earlier selection gates, local transition, presentation and actual weapon
 activation remain excluded. Unchanged visual scene was not captured.
+
+Current-weapon checkpoint: 3,000 original-code cases pass (2,590 complete,
+including 428 nonlocal presentation early returns; 410 local presentation
+boundaries). The 64-frame original profile now executes the whole empty
+handler from 0x4a6f10 to its outgoing action and agrees with the reconstructed
+nonlocal lookup plus decision flow. State hash remains d5f86d40. Win32 Release,
+four CTest cases, NXDK and stock 64 MiB XEMU pass. Numeric-only report:
+artifacts/xemu/20260908-184258-453142/report.json; no framebuffer capture.
+Local presentation, transition and earlier selection gates remain open.

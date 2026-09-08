@@ -297,3 +297,11 @@ the unnecessary external callback and runs within selection-tail verification.
 Original 0x4aa0b0, 0x4aa080 and 0x4ab180 were also inspected to identify the
 remaining local transition dependencies; their complete behavior is still open.
 Evidence uses the same fingerprinted RF.exe and ignored local Ghidra exports.
+
+Current-weapon accessor: `rf_weapon_current` follows RF.exe 1.20 NA 0x4a5910
+with unchanged original entity lookup, linked-class predicates 0x4290d0 /
+0x429f90 and the nonlocal early return of 0x4ae0d0. Fingerprint remains
+b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836.
+Local presentation is observed before entry, not replaced in the original.
+Additional ignored exports of 0x4a9380, 0x4aa080 and 0x4c8350 identify animation,
+reset and firing-mode dependencies for the still-open local transition.

@@ -68,6 +68,7 @@ put(0x75ec48,'<II',*effect_objects)
 for a,t in zip(effect_objects,[77,99]):put(a+0x140,'<I',1);put(a+0x154,'<i',t)
 player=obj+0xd000;put(player+0x14,'<I',0x10000);put(player+0xf41,'<B',1)
 put(player+0xf40,'<B',1)
+put(0x7c75d4,'<I',0) # Nonlocal rig: original current-weapon presentation returns.
 put(player+0xf80,'<i',-1);put(player+0xb8,'<i',2000)
 put(player+0xf94,'<4Bi',1,255,0xab,0xcd,99);put(0x87211c,'<i',32)
 for a in (0x872118,0x85cce0,0x87210c,0x85ccd8,0x85cd00):put(a,'<i',-1)
@@ -102,9 +103,8 @@ for frame in range(64):
     u.emu_start(0x4a6e50,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
     replacement=u.reg_read(UC_X86_REG_EAX)
     assert replacement==(0 if frame<32 else 1)
-    put(stack+64000,'<7I',0,0,0,0,stop,player,0);u.reg_write(UC_X86_REG_ESP,stack+64000)
-    u.reg_write(UC_X86_REG_EBP,entity);u.reg_write(UC_X86_REG_ESI,0);u.reg_write(UC_X86_REG_EDI,player)
-    u.emu_start(0x4a6f41,stop,count=100000)
+    put(stack+64000,'<3I',stop,player,0);u.reg_write(UC_X86_REG_ESP,stack+64000)
+    u.emu_start(0x4a6f10,stop,count=100000)
     end=u.reg_read(UC_X86_REG_EIP);assert end==(stop if frame<32 else 0x4a4a50)
     empty_action=struct.pack('<ii',0,-1) if frame<32 else struct.pack('<i',3)+rd(u.reg_read(UC_X86_REG_ESP)+8,4)
     if frame>=32:
@@ -170,5 +170,5 @@ expected=[2,count,64,*hashes,4+count*56]
 actual=list(struct.unpack('<8I',subprocess.check_output([str(root/'build/pc/Release/rf_animation_check.exe'),str(root/'Installed_Game/meshes.vpp'),str(root/'Installed_Game/motions.vpp')])))
 assert len(reset_calls)==16 and 17 in starts and 18 in starts and len(starts)<48,(starts,reset_calls)
 assert len(queue_calls)==1 and len(followup_calls)==1,(queue_calls,followup_calls)
-report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,action_starts=starts,reset_calls=len(reset_calls),queue_calls=len(queue_calls),followup_calls=len(followup_calls),scope='64-frame ammo/replacement/empty decisions and selection tail with queue/followup clear, entity predicates, scripted controller, preparation/candidate blocks, valid active-weapon reset with nonloop/effect stops, playback, skeleton/cache and eye against unmodified original instructions; earlier selection gates, actual activation, message/sound execution and current-weapon presentation excluded')
+report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,action_starts=starts,reset_calls=len(reset_calls),queue_calls=len(queue_calls),followup_calls=len(followup_calls),scope='64-frame ammo/replacement, whole empty handler to outgoing action including nonlocal current-weapon lookup, selection tail with queue/followup clear, entity predicates, scripted controller, preparation/candidate blocks, valid active-weapon reset with nonloop/effect stops, playback, skeleton/cache and eye against unmodified original instructions; earlier selection gates, actual activation, message/sound execution and local-player presentation excluded')
 (root/'artifacts/animation-check-original.json').write_text(json.dumps(report,indent=2));print(report);assert actual==expected

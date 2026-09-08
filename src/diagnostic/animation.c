@@ -119,6 +119,9 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         inventory.reserve[0]=frame<32 ? 1 : 0;
         status=rf_weapon_reserve(&inventory,supply,0,&reserve); if (status!=RF_OK) goto done;
         status=rf_weapon_choose_available(&inventory,supply,preference,1,&replacement); if (status!=RF_OK) goto done;
+        /* This rig is a nonlocal player: original presentation returns without
+         * model work. Local-player presentation remains an explicit adapter. */
+        status=rf_weapon_current(&registry,entity.handle,0,NULL,NULL,&empty_input.current); if (status!=RF_OK) goto done;
         status=rf_weapon_decide_empty(&inventory,NULL,supply,weapon_flags,1,preference,&empty_input,&empty_action); if (status!=RF_OK) goto done;
         if (empty_action.kind==RF_WEAPON_EMPTY_SELECT) {
             /* Earlier selection gates are not assembled yet; this diagnostic

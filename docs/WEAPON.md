@@ -1,5 +1,35 @@
 # Weapon reset
 
+## Current weapon and presentation dependency
+
+`rf_weapon_current` reconstructs 0x4a5910 using the shared entity registry.
+Missing primary entities return -1. A valid linked entity of class 1 or 4
+supplies weapon[0]; otherwise the primary supplies it. Lookup uses full handle
+generation and type-zero validation. Stable views allow the repeated original
+linked lookups to collapse into one without changing the result.
+
+Every result except exactly -1 invokes original 0x4ae0d0, including -2. That
+callee returns immediately for a nonlocal player, which the reconstruction
+handles directly. A local player requires the presentation adapter; absent
+adapters return RF_NOT_FOUND with output unchanged. Callback failures propagate
+without discarding any model effects they already performed. A successful
+adapter leaves the originally captured weapon as the return value, matching
+the original even if presentation changes entity state. Local presentation
+itself is still unreconstructed.
+
+`tools/verify_weapon_current.py` checks 3,000 cases: 2,590 complete original
+executions (428 include unchanged nonlocal 0x4ae0d0 returns), and 410 stops
+before local presentation. Full player/entity snapshots remain unchanged on
+these paths. This covers linked classes, stale handles, nonzero object types,
+negative handles, and weapon values -2/-1/0/1/63/64.
+
+The shared diagnostic is explicitly a nonlocal rig. It now resolves its
+current weapon before empty-ammo decisions, and the original verifier starts
+at 0x4a6f10 rather than the post-lookup block 0x4a6f41. The same state hash
+d5f86d40 passes on PC and 64 MiB XEMU; local-player presentation and outgoing
+selection's earlier gates remain excluded. Latest numeric report:
+`artifacts/xemu/20260908-184258-453142/report.json`.
+
 ## Selection queue
 
 `rf_weapon_finish_selection` reconstructs 0x4a4c91..0x4a4db4 after the earlier
