@@ -1,6 +1,7 @@
 #include "rf/model.h"
 #include <limits.h>
 #include <string.h>
+#include <math.h>
 #define CHECK(x) do { if (!(x)) return __LINE__; } while (0)
 int main(void)
 {
@@ -24,6 +25,20 @@ int main(void)
     query.data = NULL; query.length = 0;
     groups[2].names = &query; groups[2].count = 1;
     CHECK(rf_model_find_tag(groups, query, &index) == RF_OK && index == 0);
+    {
+        float q[4] = {0, 0, 0, 0}, p[3] = {1, 2, 3}, out[12], sentinel[12];
+        memset(out, 0xa5, sizeof(out)); memcpy(sentinel, out, sizeof(out));
+        CHECK(rf_model_bone_transform(q, p, out) == RF_FORMAT);
+        q[3] = NAN;
+        CHECK(rf_model_bone_transform(q, p, out) == RF_FORMAT);
+        q[3] = 1; p[0] = INFINITY;
+        CHECK(rf_model_bone_transform(q, p, out) == RF_FORMAT);
+        CHECK(memcmp(out, sentinel, sizeof(out)) == 0);
+        p[0] = 1;
+        CHECK(rf_model_bone_transform(q, p, out) == RF_OK);
+        CHECK(out[0] == 1 && out[4] == 1 && out[8] == 1);
+        CHECK(out[9] == 1 && out[10] == 2 && out[11] == 3);
+    }
     {
         unsigned char payload[60] = {1, 0, 0, 0, 'r', 'o', 'o', 't'};
         rf_model_bone bone, sentinel;

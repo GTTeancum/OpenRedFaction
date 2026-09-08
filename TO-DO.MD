@@ -15,6 +15,12 @@
 
 ## Current camera evidence
 
+Local bone normalization and transform construction are now reconstructed in
+shared C; 2,852 PC results match the original instructions bit-for-bit, covering
+all 2,452 decoded asset bones and 400 scaled synthetic quaternions. Continue with
+parent composition, animation evaluation and proper V3C traversal before wiring
+the reconstructed eye pose into gameplay.
+
 The shared raw BONE payload decoder now preserves fields across 95 detected
 installed sections (2,452 bones), with no runtime allocation and validation of
 finite transforms and acyclic parent indices. Finish structural V3C section

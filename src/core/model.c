@@ -97,3 +97,36 @@ int rf_model_decode_bones(const void *payload, size_t bytes,
     *count = total;
     return RF_OK;
 }
+
+int rf_model_bone_transform(const float rotation[4], const float position[3], float transform[12])
+{
+    double length = 0, scale, x, y, z, w;
+    float q[4], result[12], wy, zx, one_minus_xx;
+    uint32_t i;
+    if (!rotation || !position || !transform) return RF_RANGE;
+    for (i = 0; i < 4; ++i) {
+        if (!isfinite(rotation[i])) return RF_FORMAT;
+        length += (double)rotation[i] * rotation[i];
+    }
+    for (i = 0; i < 3; ++i) if (!isfinite(position[i])) return RF_FORMAT;
+    if (length == 0) return RF_FORMAT;
+    scale = sqrt(1.0 / length);
+    for (i = 0; i < 4; ++i) q[i] = (float)((double)rotation[i] * scale);
+    x = q[0]; y = q[1]; z = q[2]; w = q[3];
+    /* Match binary32 spills visible in original 0x5193f0, including the
+     * asymmetric rounding of XZ/WY terms and the shared diagonal term. */
+    wy = (float)(w * y); zx = (float)(z * x);
+    one_minus_xx = (float)(1.0 - 2.0 * x * x);
+    result[0] = (float)((1.0 - 2.0 * y * y) - 2.0 * z * z);
+    result[1] = (float)(2.0 * x * y - 2.0 * w * z);
+    result[2] = (float)(2.0 * (z * x + wy));
+    result[3] = (float)(2.0 * (w * z + x * y));
+    result[4] = (float)((double)one_minus_xx - 2.0 * z * z);
+    result[5] = (float)(2.0 * z * y - 2.0 * w * x);
+    result[6] = (float)(2.0 * zx - 2.0 * wy);
+    result[7] = (float)(2.0 * (w * x + z * y));
+    result[8] = (float)((double)one_minus_xx - 2.0 * y * y);
+    for (i = 0; i < 3; ++i) result[i + 9] = position[i];
+    memcpy(transform, result, sizeof(result));
+    return RF_OK;
+}

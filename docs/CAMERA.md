@@ -163,3 +163,21 @@ The payload and output storage must not overlap.
 95 sections, 2,452 bones pass, including miner's 25 bones. Signature scanning is
 only diagnostic discovery, not the future model loader. Boundary tests exercise
 truncation, capacity, invalid parents, cycles and NaNs with untouched error output.
+
+## Local bone transform reconstruction
+
+`rf_model_bone_transform` now reconstructs 0x519720 followed by 0x4fe900.
+The former normalizes quaternion components using sqrt(1 / squared length).
+The latter invokes 0x5193f0 to produce nine rotation floats, then 0x4fe860 to
+copy the three position floats into the final 48-byte transform. Explicit
+binary32 spills in the matrix routine are preserved by the C implementation.
+Zero quaternions and non-finite inputs return RF_FORMAT without modifying output;
+the original routine has no such guard and can produce non-finite results.
+
+`tools/verify_transforms.py` compares the compiled PC implementation against those
+original instructions with no hooks, using all 2,452 discovered asset bone
+records plus 400 seeded quaternions at ordinary, very small and very large
+magnitudes. All 2,852 transforms are bit-exact on the tested MSVC Win32 build.
+This supplies local transforms only: parent composition, pose caches, animation
+sampling/blending and complete V3C traversal are still required. Xbox compilation
+does not by itself prove identical Xbox floating-point results.

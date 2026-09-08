@@ -25,4 +25,9 @@ typedef struct rf_model_bone {
 } rf_model_bone;
 int rf_model_decode_bones(const void *payload, size_t bytes,
                           rf_model_bone *bones, uint32_t capacity, uint32_t *count);
+/* Reconstructs normalization (0x519720) and local transform (0x4fe900).
+ * Output is nine rotation floats followed by three translation floats.
+ * Zero-length/non-finite rotations are rejected; output is unchanged on error.
+ * This is a local transform, before parent composition or animation. */
+int rf_model_bone_transform(const float rotation[4], const float position[3], float transform[12]);
 #endif
