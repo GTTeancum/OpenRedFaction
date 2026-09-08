@@ -1,0 +1,235 @@
+# Initial validation — 2026-09-08
+
+- Original executable and tables match RF 1.20 NA; detailed hashes are in PROVENANCE.md.
+- Ghidra 11.3.2 headless analysis completed, yielding 7,248 candidate functions.
+- PC: Visual Studio 2022, MSVC 19.44.35225, Windows SDK 10.0.26100.0, Win32 build.
+- Xbox: installed NXDK commit recorded in PROVENANCE.md, MSYS2 Clang 21.1.8,
+  Pentium III target, existing MinGW64 cxbe/extract-xiso host tools.
+- PC CTest passes malformed archive, boundary, lookup and interleaved-read tests.
+- C VPP reader matches every offset/name/size in 15 archives (8,410 entries).
+- The level inspection tool scans all 94 installed RFLs. `L1S1.rfl` is Live Mines,
+  version 180, with 29 payload sections plus an end marker; player-start and
+  level-info offsets agree with the scanned sections and there are no trailing bytes.
+- Compiled checksum matches original x86 in Unicorn 2.1.4 for 9,671 cases.
+- XEMU 0.8.136, commit `fc24584ce88f0915ad7f04775bb7712c2e3f49ee`, reports
+  exactly 67,108,864 bytes guest RAM; the guest independently reports 16,384 pages.
+- Xbox diagnostic successfully reads disc `tables.vpp`: 29 entries, 1,294,336
+  bytes, filename checksum `0x32d7cb85`.
+- Success with both `xbox-4627_debug.bin` and `Complex_4627v1.03.bin`, using
+  XEMU's `xemu` display backend, isolated settings, and temporary HDD writes.
+- `-display none` attempts timed out before entry. Debug BIOS evidence includes
+  a guest kernel page fault at `0xfff0007b`; the precise emulator cause is unresolved.
+  Keep this as a harness limitation rather than a game defect.
+
+Successful initial reports:
+`artifacts/xemu/20260908-121223-572203/report.json` (Complex) and
+`artifacts/xemu/20260908-121243-616063/report.json` (debug).
+The XBE SHA-256 for these runs is
+`da87262ff74d2e45dc311892992eaf157283536c33ffb6d050e9a8f01b8e29d9`.
+
+This is diagnostic validation only: no campaign gameplay, 3D renderer, PS2 visual
+comparison, performance measurement, or physical hardware validation is complete.
+
+## Shared level loader and project relocation
+
+The source now resides at `D:/Programming/GitHub/OpenRedFaction`; fresh Win32 and
+NXDK builds succeeded there. Old C-drive build artifacts remain under
+`local/legacy-build-c` solely as historical evidence.
+
+- `level_bounds` and `vpp_bounds` CTest suites pass.
+- `tools/verify_levels.py` verifies all 94 installed level directories and
+  bit-exact spawn positions/orientation row order against independently read bytes.
+- Xbox report `artifacts/xemu/20260908-122235-064382/report.json` passes with
+  exactly 64 MiB RAM, RFL version 180, 29 sections, 3,572,594 level bytes,
+  geometry section 1,637,649 bytes and lightmap section 1,130,684 bytes.
+- Guest Live Mines spawn bits match disk: `c2ee600a 3efabdf8 426dc25d`.
+- The original levels1.vpp is larger than the total Xbox RAM; direct directory
+  and spawn reads succeed without an archive-sized allocation. This does not
+  establish that expanded geometry, textures, AI and other game state fit.
+
+## Resident static geometry
+
+- `inspect_geometry.py` independently parses known fields in all 94 payloads,
+  recording opaque trailing bytes rather than silently discarding them.
+- `verify_geometry.py` compares C counts to those results for all 94 levels and
+  verifies rejection when the allocation budget is one byte below the required
+  payload/index requests. Largest requested allocation: 2,131,016 bytes.
+- Nine altered original-level fixtures are rejected: oversized texture/face/corner
+  counts, invalid texture/room/vertex indices, fewer than three corners, and
+  nonfinite plane/position values. Existing CTest suites also pass.
+- XEMU report `artifacts/xemu/20260908-122924-936004/report.json` verifies resident
+  Live Mines geometry at 64 MiB: 17 textures, 54 rooms, 6,658 vertices, 7,418 faces,
+  29,110 corners, 5,851 lightmap-mapping records, 1,667,605 requested bytes.
+- First and last decoded vertex positions match original binary32 disk bits.
+  Guest available-page telemetry is captured after allocation; it is not a
+  whole-game memory peak measurement.
+
+## Initial geometry rendering
+
+The shared preview mesh clips and triangulates Live Mines at the stored spawn,
+using a provisional 90-degree horizontal field of view and face-normal colors.
+It contains 12,169 triangles (876,168 vertex bytes). The PC diagnostic rasterizer
+and Xbox NV2A renderer both draw this mesh at 640x480.
+
+`artifacts/xemu/20260908-124226-256752/report.json` verifies three frames in
+64 MiB XEMU. Its framebuffer.png is decoded from the game's actual framebuffer
+via QMP guest physical RAM; no desktop capture or input is used.
+An initial W-buffer state override caused distant geometry to show through walls.
+Restoring Z-buffer mode after each pb_target_back_buffer call fixes this capture.
+`tools/compare_preview.py` compares it to artifacts/live-mines-pc.ppm: only 191 of
+307,200 pixels differ by more than three channel values (0.0622%). Small edge
+and color-rounding differences remain. This is a diagnostic view comparison,
+not evidence of original renderer equivalence or PS2 visual parity.
+
+Texture/lightmap rendering, visibility, collision, Geo-Mod mutation, gameplay,
+and original loader behavioral equivalence remain open.
+
+## TGA decoding
+
+`python tools/verify_images.py` passes on 41 installed textures: all 16 Live Mines
+TGAs, every installed true-color RLE image, and representatives of each other
+supported header variant. All decoded RGBA pixels match Pillow with unspecified
+alpha normalized to opaque. Each also rejects a budget one byte below its output.
+Seventeen synthetic cases cover all four origin combinations in raw/RLE data,
+mixed run/raw packets, truncated pixels, and a packet exceeding the image size.
+One installed paletted TGA is recorded as unsupported in
+`artifacts/image-tests/report.json`; no claim of complete image-format support.
+The 16 Live Mines base images request 2,117,632 RGBA bytes; this excludes GPU
+layout, mipmaps, lightmaps and allocator overhead. USERBMAP has no matching TGA.
+PC and NXDK builds pass. The initial decoder-only check was followed by the
+resident-material Xbox test below.
+
+## Resident Live Mines materials
+
+`rf_material_probe` loads the geometry's texture names through the shared C API
+and searches explicitly ordered maps1/maps2/maps3/maps4/maps_en archives. It loads
+16 images, retains one missing USERBMAP slot, and requests 2,118,040 bytes including
+17 material records. An exact 2,118,040-byte budget succeeds; 2,118,039 rejects
+and the probe verifies that failure leaves no material allocation/state behind.
+
+`artifacts/xemu/20260908-125115-298432/report.json` verifies the same counts and
+allocation in stock 64 MiB XEMU, with all original map archives on the test disc.
+Schema-5 guest telemetry reports decoded pixel checksum 0xa3aeb67d, matching
+independent Pillow decoding of all 16 source images (XOR of per-image FNV-1a).
+This checksum is diagnostic, not cryptographic proof. Geometry and three GPU
+frames still complete with the images resident. Material sampling is not yet
+bound to GPU draw calls, so the framebuffer remains the untextured preview.
+
+## Perspective UV preparation
+
+The shared preview now interpolates source UVs at clipping intersections and
+stores u/z, v/z, 1/z plus the material index. The same 36,507 vertices now occupy
+1,460,280 bytes. PC optional archive arguments enable nearest/repeat base-texture
+sampling, producing artifacts/live-mines-textured-pc.png. This inspected image
+has no lightmaps, transparency or filtering and is not an original-game comparison.
+
+NXDK's generated dependencies used Windows D:/ targets while make used /d/,
+leaving renderer.obj stale after the vertex header changed. Explicit project
+header/shader prerequisites fix this. The rebuilt run at
+artifacts/xemu/20260908-125415-589445/report.json passes material checks and the
+untextured frame comparison with the expanded stride. The earlier run at
+20260908-125344-963757 passed telemetry only with a stale renderer object and
+must not be used as evidence of vertex-layout correctness.
+
+## Xbox base texture sampling
+
+`artifacts/xemu/20260908-125913-947166/report.json` reaches three textured frames
+in 64 MiB XEMU. GPU uploads use ARGB8 swizzled power-of-two images, border-color
+source, repeat and nearest sampling. Material changes split draw batches.
+Projective TEX0 uses shared clipped u/z, v/z and 1/z. Missing images use diagnostic
+face color through a white texture, not recovered USERBMAP behavior.
+
+The inspected native framebuffer shows the expected rock tunnel. The strict PC
+comparison FAILS: 29,235/307,200 pixels exceed three channel values, maximum 107,
+mean maximum-channel error 1.346123. Sampling/coverage differences remain open;
+execution and visible texture sampling do not establish pixel equivalence.
+Initial corrupt captures selected a border layout absent from the uploaded data.
+GPU images request 2,117,636 bytes including the white fallback, in addition to
+retained CPU images. Full gameplay memory peaks and frame rate remain unverified.
+
+## Raster precision investigation and lightmap inventory
+
+The optional PC diagnostic environment flag RF_PREVIEW_SNAP_1_16 floors screen
+coordinates to a 1/16 grid before software rasterization. Against the unchanged
+XEMU capture above it yields 1,222 pixels over three channel values, maximum 70,
+mean maximum-channel error 0.060765. This still FAILS the strict comparison.
+The experiment suggests subpixel precision accounts for much of the mismatch,
+but does not prove NV2A hardware behavior; the default reference is unchanged.
+Reports: artifacts/sample-offset-test.json and artifacts/sample-quantized-test.json.
+
+`python tools/inspect_lightmaps.py` checks every byte boundary for all 94 level
+lightmap sections and writes artifacts/lightmaps.json. Live Mines contains 23
+images; its 1,130,684-byte section expands to 1,507,328 RGBA pixel bytes. Largest
+installed-level RGBA expansion is 3,670,016 bytes. This validates image framing
+only, not geometry-to-lightmap mapping or the original lighting equation.
+
+## Shared C lightmap loading
+
+`python tools/verify_lightmaps.py` verifies all 94 installed levels through the C
+loader, comparing counts/dimensions to independent section inspection. Exact
+budgets include RGBA pixels and Win32 image records; every nonzero one-byte-short
+budget fails and the probe checks cleared state. Live Mines requests 1,507,696
+bytes including 23 records. All 23 decoded pixel FNV hashes match independent
+RGB-to-RGBA expansion. Report: artifacts/lightmap-validation.json.
+The loader preserves stored row order and uses 1536 bytes of input scratch,
+rejects impossible counts/dimensions/payload boundaries, and requires exact section
+consumption. PC and NXDK compile; Xbox runtime integration and corrupt-fixture
+coverage are still pending. This does not validate lightmap sampling or blending.
+
+## Lightmap mapping and Xbox residency
+
+The lightmap probe now loads geometry and resolves every mapping record through
+the shared accessor, checking the first word against the loaded lightmap count.
+All 94 levels pass. The accessor also rejects an out-of-range mapping and a zero
+image count. Remaining 92 bytes per mapping are retained without interpretation.
+
+`artifacts/xemu/20260908-130723-044370/report.json` (schema 6) confirms 23 loaded
+Live Mines lightmaps and successful mapping bounds checks in 64 MiB XEMU. Geometry,
+base materials and lightmaps remain resident through three rendered frames. The
+native framebuffer bytes equal the earlier base-textured capture exactly. Lightmap
+sampling is not enabled; GPU lighting and the known PC sampling mismatch remain
+open. Available-page telemetry follows loading, not the complete GPU memory peak.
+
+Lightmap UV propagation expands preview vertices to 56 bytes (2,044,392 requested
+bytes for Live Mines). Both toolchains build. XEMU run
+artifacts/xemu/20260908-131410-565786/report.json passes residency checks; native
+framebuffer bytes equal the earlier base-textured capture exactly. The second
+texture stage remains disabled, so this checks layout compatibility rather than
+lightmap interpolation or the final lighting equation.
+
+## First lightmapped tunnel
+
+`artifacts/xemu/20260908-131705-063932/report.json` captures three frames with both
+texture stages active in 64 MiB XEMU. Stage 0 uses linear/repeat base sampling;
+stage 1 uses linear/clamp lightmaps. Doubled modulation follows the original
+supported-capability path. Missing lightmaps preserve base color through a white
+fallback and half input color. GPU uploads are capped at 8 MiB; current base,
+lightmap and fallback pixels request 3,624,964 bytes, additional to CPU copies.
+
+The native Xbox frame and artifacts/live-mines-lit-pc.png were inspected and show
+matching large-scale baked lighting. Strict comparison FAILS: 5,248 pixels exceed
+three channel values, maximum 75, mean maximum-channel error 0.608568. Report:
+artifacts/lit-preview-comparison.json. Fog, alpha, dynamic lighting and original
+texture conversion remain unimplemented; original-game/PS2 parity is not proven.
+Final guard/fallback edits compile on both targets and existing CTest checks pass;
+these checks are not additional visual evidence.
+
+## Shared raster grid and upload memory
+
+Both targets now receive screen positions floored to a 1/16-pixel grid by the
+shared projection code. The PC-only RF_PREVIEW_SNAP_1_16 experiment is removed.
+This is an explicit cross-platform precision policy, not a claim that all NV2A
+or original-game rasterization semantics are reconstructed.
+
+`artifacts/xemu/20260908-132044-184009/report.json` verifies schema-7 execution
+and allocation snapshots. Comparison to the rebuilt default PC reference PASSES:
+maximum channel error 1, zero pixels above three values, mean maximum-channel
+error 0.030514. Report: artifacts/lit-shared-grid-comparison.json.
+After uploads, 46,399,488 physical bytes (44.25 MiB) remain available; after CPU
+mesh release, 48,451,584 bytes remain. GPU requests are 3,624,964 image bytes and
+2,044,392 vertex bytes. This is an observed resident-scene snapshot, not a measured
+whole-game high-water mark or performance benchmark.
+`xemu_smoke.py --reference <PC image>` now requires the image comparison to pass
+before reporting overall success; without it the harness checks execution only.
+The integrated comparison run at artifacts/xemu/20260908-132159-367249/report.json
+passes with the rebuilt lit PC reference and unchanged comparison thresholds.

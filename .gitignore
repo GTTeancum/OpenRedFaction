@@ -1,0 +1,13 @@
+/build/
+/Installed_Game/
+/local/
+/reference/
+/artifacts/
+*.gpr
+*.rep/
+__pycache__/
+*.obj
+*.c.d
+*.cpp.d
+*.log
+/src/platform/xbox/*.inl
