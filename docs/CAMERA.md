@@ -771,3 +771,43 @@ invalid elapsed time and early exits with unused invalid inputs.
 This is playback-state verification, not rendered animation or a complete
 camera. Archive/skeleton integration, player initialization, slot insertion,
 transition/root-motion behavior and Xbox runtime verification remain open.
+
+## Playback-driven skeleton sampling
+
+`rf_model_sample_playback` now consumes the current active slots and registered
+archive handles. For each bone it obtains track envelopes, computes contributing
+weights, samples the contributing poses, blends them in slot order and composes
+the result with its evaluated parent. Empty/no-contribution bones use identity,
+matching `0x51b500`; roots retain the original addition of zero displacement.
+The operation allocates nothing and uses fixed arrays for at most 256 bones
+and 16 active contributions. Archive metadata is still reread, so a cache is
+required before this becomes an efficient frame-time path.
+
+`rf_motion_bone_weights` reconstructs the selection preceding `0x51b110`.
+An active primary slot supplies its time-faded envelope for the current bone,
+regardless of its looping flag. The looping attenuation is the float result
+of `(10 - primary_envelope) * 0.10000000149011612`, using constants at
+`0x58957c` and `0x5893c4`. Without an active primary, attenuation is exactly
+one. Each non-loop contribution is its faded envelope times active weight;
+loop contributions use the bypassed envelope times active weight times
+attenuation. Only positive contributions enter the blend. The total sums
+unspilled contributions with a float store after each addition; stored float
+weights are then divided by that total. Suppression is therefore per bone,
+not one global blend factor or a multiplication of final matrices.
+
+`tools/verify_playback_skeleton.py` runs original `0x51ba80`, `0x51b500` and
+`0x51b2e0` in sequence, without replacing callees. The C probe updates its
+playback state, samples archives and composes the miner's eye attachment.
+All 160 synthetic slot configurations match complete playback state, 4,000
+bone matrices and 160 eye transforms bit for bit. Inputs include zero through
+three active slots, reordered registered IDs, stand/crouch motions, primary
+selection, mixed looping flags and end handling. This checks individual
+update-plus-evaluation cases; the separate playback verifier covers consecutive
+state updates. Unit checks cover 16-way normalization, primary suppression at
+and above envelope weight ten, empty states and error rollback. The previous
+single-motion check still matches 300 matrices and 12 eye transforms.
+
+PC tests and NXDK compilation pass. This path still lacks bone overrides,
+root displacement, generation caching, real player setup and an Xbox runtime
+animation check. No rendered diagnostic or gameplay camera behavior changes
+in this step, and no visual-parity claim follows from these matrix comparisons.

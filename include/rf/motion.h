@@ -73,6 +73,11 @@ typedef struct rf_motion_playback_resource {
  * them. Invalid input leaves state and resource reference counts unchanged. */
 int rf_motion_update(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
                      uint32_t resource_count, float elapsed);
+/* 0x51b500 per-bone contribution selection. Envelopes and looping bits are
+ * indexed by active slot; output retains slot order, with zero for excluded
+ * contributions. Positive weights are normalized by the original sum. */
+int rf_motion_bone_weights(const rf_motion_slot_state *active, const rf_motion_weight_envelope *envelopes,
+                           uint32_t looping_mask, float weights[16]);
 /* Original 0x417e90: signed packed components scaled without normalization.
  * Input is eight little-endian bytes; output is quaternion x, y, z, w. */
 int rf_motion_decode_rotation(const void *packed, size_t bytes, float out[4]);

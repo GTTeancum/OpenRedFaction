@@ -277,6 +277,54 @@ int rf_model_sample_single_motion(const rf_model_bone *bones, uint32_t count, co
     }
     return RF_OK;
 }
+int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
+                             const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
+                             uint32_t resource_count, float (*matrices)[12], uint32_t capacity)
+{
+    uint8_t order[256]; uint32_t i,j,index,mask=0; int status;
+    const rf_motion_slot_state *active;
+    if (!bones || !state || !matrices || !count || count>256 || capacity<count) return RF_RANGE;
+    active=&state->completion.active;
+    if (active->count>16 || (active->count && (!motions || !resources))) return RF_RANGE;
+    for (j=0;j<active->count;++j) {
+        int32_t id=active->slots[j].motion;
+        if (id<0 || (uint32_t)id>=resource_count || !motions[id] || motions[id]->header[6]!=count) return RF_FORMAT;
+        if (resources[id].looping) mask|=1u<<j;
+    }
+    status=rf_model_bone_order(bones,count,order,sizeof(order)); if (status!=RF_OK) return status;
+    for (i=0;i<count;++i) {
+        rf_motion_weight_envelope envelopes[16]; float weights[16], compact[16], rotations[16][4], positions[16][3], local[12];
+        uint32_t contributions=0;
+        const float identity[4]={0,0,0,1}, zero[3]={0,0,0};
+        index=order[i];
+        for (j=0;j<active->count;++j) {
+            rf_motion_track track;
+            status=rf_motion_file_track(motions[active->slots[j].motion],index,&track); if (status!=RF_OK) return status;
+            envelopes[j]=track.envelope;
+        }
+        status=rf_motion_bone_weights(active,envelopes,mask,weights); if (status!=RF_OK) return status;
+        for (j=0;j<active->count;++j) if (weights[j]>0) {
+            rf_motion_sample sample;
+            status=rf_motion_file_sample(motions[active->slots[j].motion],index,active->slots[j].tick,(mask & (1u<<j))!=0,&sample);
+            if (status!=RF_OK) return status;
+            memcpy(rotations[contributions],sample.rotation,sizeof(sample.rotation));
+            memcpy(positions[contributions],sample.position,sizeof(sample.position));
+            compact[contributions++]=weights[j];
+        }
+        if (contributions) status=rf_model_blend_pose((const float (*)[4])rotations,(const float (*)[3])positions,compact,contributions,local);
+        else status=rf_model_attachment_transform(identity,zero,local);
+        if (status!=RF_OK) return status;
+        if (bones[index].parent<0) {
+            local[9]=0.0f+local[9]; local[10]=0.0f+local[10]; local[11]=0.0f+local[11];
+            memcpy(matrices[index],local,sizeof(local));
+        } else {
+            status=rf_model_compose_transform(local,matrices[bones[index].parent],matrices[index]);
+            if (status!=RF_OK) return status;
+        }
+    }
+    return RF_OK;
+}
+
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12])
 {
     float result[12]; double a,b,c; unsigned i;

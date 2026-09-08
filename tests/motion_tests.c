@@ -5,6 +5,29 @@
 int main(void)
 {
     {
+        rf_motion_slot_state active={0}; rf_motion_weight_envelope envelopes[16];
+        float weights[16], saved[16]; unsigned i;
+        active.count=16; active.primary_slot=-1;
+        for (i=0;i<16;++i) {
+            active.slots[i].weight=1;
+            envelopes[i].weight=1; envelopes[i].start_tick=0; envelopes[i].end_tick=100;
+            envelopes[i].fade_in=envelopes[i].fade_out=0;
+        }
+        CHECK(rf_motion_bone_weights(&active,envelopes,0,weights)==RF_OK);
+        for (i=0;i<16;++i) CHECK(weights[i]==0.0625f);
+        active.count=2; active.primary_slot=1; envelopes[0].weight=10; envelopes[1].weight=5;
+        CHECK(rf_motion_bone_weights(&active,envelopes,1,weights)==RF_OK && weights[0]==.5f && weights[1]==.5f);
+        envelopes[1].weight=10;
+        CHECK(rf_motion_bone_weights(&active,envelopes,1,weights)==RF_OK && weights[0]==0 && weights[1]==1);
+        envelopes[1].weight=12;
+        CHECK(rf_motion_bone_weights(&active,envelopes,1,weights)==RF_OK && weights[0]==0 && weights[1]==1);
+        memcpy(saved,weights,sizeof(saved)); active.primary_slot=-1; envelopes[1].fade_in=-1;
+        CHECK(rf_motion_bone_weights(&active,envelopes,1,weights)==RF_FORMAT && memcmp(saved,weights,sizeof(saved))==0);
+        active.count=0;
+        CHECK(rf_motion_bone_weights(&active,NULL,0,weights)==RF_OK);
+        for (i=0;i<16;++i) CHECK(weights[i]==0);
+    }
+    {
         rf_motion_playback_state state={0}, saved;
         rf_motion_playback_resource resources[2]={{{1,0,9600,0,0},0,{0,0},2},{{1,0,9600,0,0},0,{0,0},2}};
         state.completion.active.count=2;

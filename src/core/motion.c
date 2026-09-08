@@ -267,6 +267,33 @@ int rf_motion_update(rf_motion_playback_state *state, rf_motion_playback_resourc
     *state=next; return RF_OK;
 }
 
+int rf_motion_bone_weights(const rf_motion_slot_state *active, const rf_motion_weight_envelope *envelopes,
+                           uint32_t looping_mask, float weights[16])
+{
+    float result[16]={0}, total=0, attenuation=1; uint32_t i; double value; int status;
+    if (!active || !weights || active->count>16 || (active->count && !envelopes)) return RF_RANGE;
+    if (active->primary_slot < -1 || active->primary_slot>=(int32_t)active->count) return RF_FORMAT;
+    for (i=0;i<active->count;++i)
+        if (!isfinite(active->slots[i].weight) || active->slots[i].weight<0) return RF_FORMAT;
+    if (active->primary_slot>=0 && active->slots[active->primary_slot].weight!=0) {
+        i=(uint32_t)active->primary_slot;
+        status=sample_weight_extended(&envelopes[i],active->slots[i].tick,0,&value);
+        if (status!=RF_OK) return status;
+        attenuation=(float)((10.0-value)*(double)0.10000000149011612f);
+    }
+    for (i=0;i<active->count;++i) {
+        if (active->slots[i].weight==0) continue;
+        status=sample_weight_extended(&envelopes[i],active->slots[i].tick,(looping_mask & (1u<<i))!=0,&value);
+        if (status!=RF_OK) return status;
+        value*=active->slots[i].weight;
+        if (looping_mask & (1u<<i)) value*=attenuation;
+        if (value>0) { total=(float)(value+total); result[i]=(float)value; }
+    }
+    if (!isfinite(total)) return RF_RANGE;
+    for (i=0;i<active->count;++i) if (result[i]>0) result[i]/=total;
+    memcpy(weights,result,sizeof(result)); return RF_OK;
+}
+
 static int32_t motion_wrap16(int32_t value)
 {
     uint32_t bits = (uint32_t)value & 65535u;

@@ -52,4 +52,11 @@ int rf_model_blend_pose(const float (*rotations)[4], const float (*positions)[3]
  * Skeleton and motion must have identical counts, at most 256 bones. */
 int rf_model_sample_single_motion(const rf_model_bone *bones, uint32_t count, const rf_motion_file *motion,
                                   int32_t tick, int bypass_fades, float (*matrices)[12], uint32_t capacity);
+/* Evaluate current playback slots from immutable archives, including per-bone
+ * primary attenuation of looping motions. Motion handles/resources are indexed
+ * by registered ID. No root displacement, bone overrides or generation cache
+ * yet. Failed reads may leave partial matrices; caller owns all storage. */
+int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
+                             const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
+                             uint32_t resource_count, float (*matrices)[12], uint32_t capacity);
 #endif

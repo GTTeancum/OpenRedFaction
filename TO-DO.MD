@@ -15,6 +15,12 @@
 
 ## Current camera evidence
 
+Playback now feeds archive sampling, per-bone primary attenuation, pose blending,
+parent composition and eye-tag evaluation, matching 4,000 original bone matrices
+and 160 eye transforms after complete updates. Recover player setup, root
+displacement and bone overrides, and add an Xbox runtime animation check before
+using this path for the gameplay camera; the rendered diagnostic is unchanged.
+
 Complete forward playback now matches 10,240 original-code updates across
 160 scenarios of 64 consecutive frames, including mixed loops, completion,
 freeze handling, compaction, primary state, generation wrap and sticky events.
