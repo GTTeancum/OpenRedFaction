@@ -12,6 +12,13 @@ static uint32_t hash_bytes(uint32_t hash, const void *bytes, size_t count)
     while (count--) hash=(hash ^ *p++)*16777619u;
     return hash;
 }
+static int reset_absent_weapon(void *user)
+{
+    const rf_turn_actor *actor=user;
+    /* Original 0x41ae70 returns before entity lookup for indices outside
+     * [0,63]. A populated entry still requires the unrecovered adapter. */
+    return actor->weapon<0 || actor->weapon>=64 ? RF_OK : RF_NOT_FOUND;
+}
 int rf_animation_check(const char *meshes_path, const char *motions_path, uint32_t out[8])
 {
     static const char *names[4]={"ult2_stand.rfa","ult2_crouch.rfa",
@@ -68,10 +75,10 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     /* Original 0x4181d0 names actions 17/18 sidestep_left/right. Roll actions
      * 19/20 are absent in this profile, so the reset adapter is never reached. */
     actions[17]=2; actions[18]=3;
-    actor.info_flags=context.movement.flags; actor.weapon=0;
+    actor.info_flags=context.movement.flags; actor.weapon=-1;
     actor.direction.entity_flags=10;
     entity.handle=0x10000; entity.linked_handle=-1;
-    entity.weapons[0]=0; entity.weapons[1]=-1; entity.weapon_owner=&entity;
+    entity.weapons[0]=-1; entity.weapons[1]=0; entity.weapon_owner=&entity;
     entity.flags_7d0=10; registry.slots[0]=&entity;
     actor.direction.orientation[0]=actor.direction.orientation[4]=actor.direction.orientation[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
@@ -88,7 +95,8 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         context.now_ms=(int32_t)frame*33;
         selection.action=frame>=62 ? 12 : frame>=60 ? 7 : frame>=58 ? 17 : 0;
         selection.velocity[0]=frame>=32 ? 1.0f : 0;
-        actor.behavior=frame>=62;
+        actor.behavior=frame>=48;
+        status=rf_locomotion_prepare(&effects.deadlines[3],-1,&context,&actor,NULL,0,reset_absent_weapon,&actor); if (status!=RF_OK) goto done;
         entity.action_520=selection.action;
         status=rf_entity_combat_predicates(&registry,&entity,NULL,0,&ready,&eligible); if (status!=RF_OK) goto done;
         selection.combat_eligible=(uint32_t)eligible;

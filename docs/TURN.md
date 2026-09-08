@@ -1,5 +1,35 @@
 # Sidestep and roll candidate effects
 
+## Preparation before candidates
+
+`rf_locomotion_prepare` reconstructs 0x41f5ae..0x41f61c. It selects the reset
+when behavior +554 is 1 or 3, +6cc is -1, movement mode is outside
+12/15/13/11/9, and byte globals 6fc4d8/64ecb9 are both zero. Weapon predicate
+0x4c91b0 also must return zero: negative/out-of-count indices do so; valid
+indices inspect bit 0x20 of descriptor +264 (base 0x85cd08, stride 1360).
+The API accepts up to 64 descriptor flag words and a required reset callback.
+
+On this path, deadline +744 is set to game time plus 800ms using the recovered
+wrap rule, then 0x41ae70 is called with entity handle +2c and weapon index +2a4.
+The callback sees the updated deadline. A missing required callback returns
+RF_NOT_FOUND without altering the deadline; a failing callback leaves the
+deadline and its own effects intact. Other branches do not require a callback.
+
+`tools/verify_locomotion_prepare.py` compares 5,000 complete original block
+executions, including 695 reset calls, with unchanged timer, mode and weapon
+predicate callees. Reset fixtures use absent entity handles or invalid weapon
+indices; populated reset side effects remain open. Two C-only cases verify
+missing-adapter rejection and callback failure after the deadline write.
+
+The runtime diagnostic now includes the preparation block each frame. From
+frame 48, behavior 1 selects 16 resets. Its current weapon is -1, so original
+0x41ae70 returns before entity lookup; the explicit diagnostic adapter implements
+only this invalid-index path and rejects populated entries. Weapon presence for
+combat predicates comes from the second weapon slot. Original code, PC and
+64 MiB XEMU match the complete profile, including deadline changes. The oracle
+uses an observation hook at the preparation boundary to stop reliably when
+Unicorn has already cached the following candidate block; no callee is replaced.
+
 ## Locomotion candidate block
 
 `rf_locomotion_choose_candidates` reconstructs 0x41f61d..0x41f728 and invokes

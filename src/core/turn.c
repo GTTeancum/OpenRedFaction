@@ -1,5 +1,22 @@
 #include "rf/turn.h"
 #include <math.h>
+int rf_locomotion_prepare(int32_t *deadline, int32_t pending,
+    const rf_turn_context *context, const rf_turn_actor *actor,
+    const uint32_t *weapon_flags, uint32_t weapon_count,
+    rf_turn_reset_fn reset, void *user)
+{
+    int status;
+    if (!deadline || !context || !actor || weapon_count>64 || (weapon_count && !weapon_flags)) return RF_RANGE;
+    if ((actor->behavior!=1 && actor->behavior!=3) || pending!=-1 ||
+        actor->mode==12 || actor->mode==15 || actor->mode==13 || actor->mode==11 || actor->mode==9 ||
+        (uint8_t)actor->network_mode || (uint8_t)context->override_enabled) return RF_OK;
+    /* Original 0x4c91b0: invalid weapon indices return false. */
+    if (actor->weapon>=0 && (uint32_t)actor->weapon<weapon_count && (weapon_flags[actor->weapon] & 0x20u)) return RF_OK;
+    if (!reset) return RF_NOT_FOUND;
+    status=rf_timer_set(deadline,context->now_ms,800); if (status!=RF_OK) return status;
+    return reset(user);
+}
+
 static int turn_magnitude_above(float x, float y, float z, float threshold, float factor)
 {
     unsigned short saved,control,status;

@@ -58,10 +58,15 @@ put(entity+0x294,'<I',info);put(info+0x724,'<I',0x800)
 put(info+0x50,'<4f',6,.3,1.5,20);put(entity+0x75c,'<i',-1);put(entity+0x98,'<f',1)
 put(0x594590,'<f',7);put(0x59458c,'<f',9);put(0x64ecb9,'<B',0)
 put(entity+0x7d0,'<I',10);put(entity+0x48,'<9f',1,0,0,0,1,0,0,0,1)
-put(entity+0x858,'<I',mode);put(entity+0x2a0,'<Iii',entity,0,-1);put(0x872114,'<i',0);put(0x6fc4d8,'<B',0)
+put(entity+0x858,'<I',mode);put(entity+0x2a0,'<Iii',entity,-1,0);put(0x872114,'<i',0);put(0x6fc4d8,'<B',0)
+put(entity+0x6cc,'<i',-1);put(0x872448,'<I',0)
 put(entity+0x200,'<i',-1)
 for i in range(45):put(entity+0xa54+i*16,'<iii',2 if i==17 else 3 if i==18 else -1,0,-1)
 starts=[];reset_calls=[]
+preparing=[False]
+# Candidate entry is also the preparation boundary. An observation hook is
+# needed when that entry already has a cached Unicorn translation block.
+u.hook_add(UC_HOOK_CODE,lambda uc,a,size,data:uc.emu_stop() if preparing[0] else None,begin=0x41f61d,end=0x41f61d)
 u.hook_add(UC_HOOK_CODE,lambda uc,a,size,data:starts.append(struct.unpack('<i',rd(uc.reg_read(UC_X86_REG_ESP)+8,4))[0]),begin=0x428c90,end=0x428c90)
 u.hook_add(UC_HOOK_CODE,lambda uc,a,size,data:reset_calls.append(a),begin=0x41ae70,end=0x41ae70)
 def evaluate():
@@ -82,7 +87,11 @@ for frame in range(64):
     put(entity+0x588,'<i',int(8<=frame<56));put(entity+0x7a0,'<3f',-1 if frame<32 else 1,0,0)
     put(0x5a3ed8,'<i',frame*33)
     put(entity+0x520,'<i',12 if frame>=62 else 7 if frame>=60 else 17 if frame>=58 else 0)
-    put(entity+0x554,'<i',int(frame>=62));put(entity+0x144,'<3f',int(frame>=32),0,0);put(entity+0x810,'<I',0)
+    put(entity+0x554,'<i',int(frame>=48));put(entity+0x144,'<3f',int(frame>=32),0,0);put(entity+0x810,'<I',0)
+    u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ESI,entity)
+    preparing[0]=True
+    u.emu_start(0x41f5ae,0x41f61d,count=100000);assert u.reg_read(UC_X86_REG_EIP)==0x41f61d
+    preparing[0]=False
     predicate_results=[]
     for address in (0x41f950,0x427020,0x428e60):
         put(stack+64000,'<II',stop,entity);u.reg_write(UC_X86_REG_ESP,stack+64000)
@@ -110,6 +119,6 @@ for frame in range(64):
     put(obj+0x12c0,'<f',0)
 expected=[2,count,64,*hashes,4+count*56]
 actual=list(struct.unpack('<8I',subprocess.check_output([str(root/'build/pc/Release/rf_animation_check.exe'),str(root/'Installed_Game/meshes.vpp'),str(root/'Installed_Game/motions.vpp')])))
-assert not reset_calls and 17 in starts and 18 in starts and len(starts)<48,starts
-report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,action_starts=starts,reset_calls=len(reset_calls),scope='64-frame entity predicates, scripted controller and candidate block 0x41f61d with real sidesteps, speed and fallback candidates, then playback, skeleton/cache and eye against unmodified original instructions; absent rolls/sounds; excludes full locomotion selector and gameplay entity initialization')
+assert len(reset_calls)==16 and 17 in starts and 18 in starts and len(starts)<48,(starts,reset_calls)
+report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,action_starts=starts,reset_calls=len(reset_calls),scope='64-frame entity predicates, scripted controller, preparation and candidate blocks with real sidesteps, speed/fallback candidates, then playback, skeleton/cache and eye against unmodified original instructions; invalid-weapon resets and absent rolls/sounds; excludes full locomotion selector and gameplay entity initialization')
 (root/'artifacts/animation-check-original.json').write_text(json.dumps(report,indent=2));print(report);assert actual==expected

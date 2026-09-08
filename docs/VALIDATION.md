@@ -461,3 +461,20 @@ Available RAM after frozen-scene CPU mesh release remains 48,406,528 bytes.
 The 2,007-case registry/seat/attachment coverage runs on PC against original
 instructions; the Xbox profile uses a single equipped entity view. Full-game
 peak memory, actual entity creation and animated rendering remain unverified.
+
+# Preparation timer and invalid-weapon resets
+
+`python tools/verify_locomotion_prepare.py` passes 5,000 original block fixtures
+(695 reset invocations), plus two C-only adapter-error cases. The shared
+64-frame oracle now observes 16 original invalid-weapon resets and compares the
+800ms deadline changes. Its state hash is `0xb8a774ba`; pose/cache/eye hashes
+remain `0x26ec2ef5`, `0x18528f6d`, `0x53433e81`, superseding the prior profile.
+
+PC Release/NXDK builds and all four CTest checks pass. Numeric-only stock 64 MiB
+XEMU run `artifacts/xemu/20260908-175407-747170/report.json` passes with identical
+hashes and no framebuffer capture. XBE SHA-256:
+`8077d928f816f8eeb8c5951c605bfe236f7f55a11b3fe07e6a45e4ac4fb79c76`;
+ISO SHA-256:
+`676b9442a301396b4e27edc155a6fecc636bfc2ddf99d4e56b11727a821b96b9`.
+This validates the gate and ordering, not reset effects for valid weapons.
+See docs/TURN.md for the diagnostic adapter's explicit invalid-index scope.

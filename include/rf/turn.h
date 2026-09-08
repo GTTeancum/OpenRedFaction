@@ -68,6 +68,16 @@ typedef struct rf_turn_actor {
     uint32_t target_valid, trigger_a, trigger_b; /* Bytes +6f8,+53c,+53d. */
 } rf_turn_actor;
 typedef int (*rf_turn_reset_fn)(void *user);
+/* 0x41f5ae..0x41f61c before candidate selection. pending is entity +6cc;
+ * weapon_flags contains each weapon descriptor's +264 word (max 64 entries).
+ * When selected, writes deadline (+744) to now+800 BEFORE calling reset.
+ * A missing required reset returns RF_NOT_FOUND without writing the deadline;
+ * callback failure retains the already-written deadline and callback effects.
+ * The callback owns actual 41ae70 entity-handle/weapon reset behavior. */
+int rf_locomotion_prepare(int32_t *deadline, int32_t pending,
+    const rf_turn_context *context, const rf_turn_actor *actor,
+    const uint32_t *weapon_flags, uint32_t weapon_count,
+    rf_turn_reset_fn reset, void *user);
 /* Candidate helper 0x41f9f0 control flow. The required reset callback implements
  * 0x41ae70 when reached and may update actor/playback/context through user.
  * A missing required callback returns RF_NOT_FOUND, not implicit success.

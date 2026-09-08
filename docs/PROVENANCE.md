@@ -238,3 +238,9 @@ callees without replacement; no third-party implementation is used.
 0x408e90, 0x427020, 0x428e60 and 0x429f90. Compact views replace original
 layout/pointer containers; stable-input traversal and bounded cycle handling
 are documented in docs/ENTITY.md. Original-code tests replace no callees.
+
+`rf_locomotion_prepare` follows RF.exe 1.20 NA 0x41f5ae..0x41f61c, including
+mode predicate 0x42a060, weapon descriptor predicate 0x4c91b0 and timer 0x4fa360.
+Valid reset effects remain owned by the explicit 0x41ae70 adapter. See
+tools/verify_locomotion_prepare.py and docs/TURN.md for original-code fixtures
+and the limited invalid-index adapter used by the diagnostic.

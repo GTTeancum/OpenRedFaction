@@ -3,6 +3,10 @@
 #include <io.h>
 #include <string.h>
 static int count_reset(void *user) { ++*(uint32_t *)user; return RF_OK; }
+struct prepare_observation { int32_t *deadline,observed; uint32_t count; int status; };
+static int observe_prepare(void *user) {
+    struct prepare_observation *o=user; ++o->count; o->observed=*o->deadline; return o->status;
+}
 int main(int argc, char **argv)
 {
     struct { rf_motion_playback_state playback; rf_turn_effects effects; rf_turn_context context;
@@ -12,6 +16,20 @@ int main(int argc, char **argv)
     int choose=argc==2 && !strcmp(argv[1],"--candidates");
     _Static_assert(sizeof(input)==1864,"Turn effects wire layout");
     _setmode(_fileno(stdin),_O_BINARY); _setmode(_fileno(stdout),_O_BINARY);
+    if (argc==2 && !strcmp(argv[1],"--prepare")) {
+        struct { int32_t pending; rf_turn_context context; rf_turn_actor actor;
+            uint32_t count,flags[64]; int32_t deadline,callback_status; uint32_t available; } p;
+        _Static_assert(sizeof(p)==440,"Prepare wire layout");
+        while (fread(&p,sizeof(p),1,stdin)==1) {
+            struct prepare_observation observation={&p.deadline,-99,0,p.callback_status};
+            int32_t result[4];
+            result[0]=rf_locomotion_prepare(&p.deadline,p.pending,&p.context,&p.actor,p.flags,p.count,
+                p.available ? observe_prepare : NULL,&observation);
+            result[1]=p.deadline; result[2]=(int32_t)observation.count; result[3]=observation.observed;
+            if (fwrite(result,sizeof(result),1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc==2 && !strcmp(argv[1],"--direction")) {
         rf_turn_direction_input direction;
         struct { int32_t status; rf_turn_direction_result result; } output;

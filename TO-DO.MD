@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The pre-candidate 800ms timer/reset gate now matches 5,000 original executions
+and runs in the shared XEMU profile with 16 invalid-weapon resets. Recover valid
+weapon reset effects and following physics/state selection, then assemble the
+full locomotion selector with actual entity creation and registry updates.
+
 Entity lookup, weapon/seat traversal, attachment readiness and combat eligibility
 now match 2,007 original-code fixtures and feed the shared 64-frame XEMU
 diagnostic. Implement actual entity creation/registry updates, preceding 800ms
