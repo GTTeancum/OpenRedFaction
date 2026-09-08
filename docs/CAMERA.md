@@ -699,3 +699,33 @@ loop/non-loop flags, zero/nonzero weights and existing frozen state. PC/NXDK
 builds and all four PC tests pass. Consecutive-frame verification of the
 complete update, primary selection during advancement, and integration with
 asset ownership and skeleton evaluation remain open.
+## Primary selection during mixed-loop updates
+
+`rf_motion_advance_candidate` reconstructs the non-loop candidate block at
+`0x51bd20` inside the positive-looping-contribution branch. A nonzero-weight
+slot advances its cursor by the integer delta. If there is no primary slot,
+it becomes primary and clears the two state words at +0x1d18/+0x1d1c.
+Otherwise the candidate's comparison-bone envelope rounds to float while the
+existing primary's envelope retains higher precision for the comparison.
+Only a strictly larger candidate replaces the primary. These comparisons do
+not multiply by active-slot blend weights. The public envelope sampler still
+returns float; its shared internal calculation now supplies the higher
+precision result needed here.
+
+Original instruction tracing confirms an asymmetric flag lookup: candidate
+bypass uses descriptor flags indexed by the active slot index, while primary
+bypass uses the primary motion ID. The integration caller must preserve that
+distinction, and supply envelopes for the descriptor-selected comparison bone
+at +0x1a54. Selecting a primary clears only the two words; it does not clear
+the flag/vectors reset by the later completion pass. The helper supports
+forward deltas and commits its copied state only on success.
+
+`tools/verify_motion_primary.py` executes the unhooked original block and
+envelope callees for 3,000 cases with active index 2 mapping to motion 9 and
+primary index 0 mapping to motion 4. It also covers missing/self primary,
+zero active weights, distinct bypass flags and varied fade envelopes. Entire
+slot/auxiliary state matches. This verifies the block in isolation, not the
+full update, and does not apply to the branch with no looping contribution.
+
+After sharing the envelope calculation, all 575,460 direct-original envelope
+comparisons still pass. PC/NXDK builds and all four PC tests also pass.

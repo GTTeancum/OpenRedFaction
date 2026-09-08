@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Non-loop cursor advance and primary-candidate selection within the mixed-loop
+branch now match 3,000 original-code cases. Assemble the complete update from
+the verified stages and test consecutive frames, preserving the original
+slot-index versus motion-ID distinction in fade-bypass lookup.
+
 The non-loop completion pass now matches 1,360 original-code cases, including
 freeze-slot retention and primary-state clearing. Assemble and verify the full
 animation update across consecutive frames, including primary selection during

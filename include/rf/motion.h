@@ -48,6 +48,13 @@ typedef struct rf_motion_weight_envelope {
 /* Original 0x539e10. Bypass disables time fades but retains the small-weight
  * cutoff. Invalid durations, non-finite weights and overflow preserve output. */
 int rf_motion_sample_weight(const rf_motion_weight_envelope *envelope, int32_t tick, int bypass, float *out);
+/* Non-loop slot advance/primary selection within the mixed-loop update branch.
+ * Candidate bypass comes from descriptor flags[active slot index], while
+ * primary bypass comes from flags[primary motion ID], matching original code.
+ * Envelopes describe the descriptor-selected comparison bone. */
+int rf_motion_advance_candidate(rf_motion_completion_state *state, uint32_t index, int32_t delta,
+                                const rf_motion_weight_envelope *candidate_envelope, int candidate_bypass,
+                                const rf_motion_weight_envelope *primary_envelope, int primary_bypass);
 /* Original 0x417e90: signed packed components scaled without normalization.
  * Input is eight little-endian bytes; output is quaternion x, y, z, w. */
 int rf_motion_decode_rotation(const void *packed, size_t bytes, float out[4]);

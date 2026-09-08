@@ -11,6 +11,17 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--advance-candidate") == 0) {
+        struct { rf_motion_completion_state state; uint32_t index; int32_t delta;
+                 rf_motion_weight_envelope candidate,primary; int32_t candidate_bypass,primary_bypass; } input;
+        int32_t status;
+        _Static_assert(sizeof(input)==304,"Candidate wire layout");
+        while (fread(&input,sizeof(input),1,stdin)==1) {
+            status=rf_motion_advance_candidate(&input.state,input.index,input.delta,&input.candidate,input.candidate_bypass,&input.primary,input.primary_bypass);
+            if (fwrite(&status,4,1,stdout)!=1 || fwrite(&input.state,248,1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--complete-slots") == 0) {
         struct { rf_motion_completion_state state; int32_t ends[16]; uint32_t looping; } input;
         int32_t status;

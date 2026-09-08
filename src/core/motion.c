@@ -104,7 +104,7 @@ int rf_motion_elapsed_ticks(float elapsed, int32_t *out)
     return RF_OK;
 }
 
-int rf_motion_sample_weight(const rf_motion_weight_envelope *envelope, int32_t tick, int bypass, float *out)
+static int sample_weight_extended(const rf_motion_weight_envelope *envelope, int32_t tick, int bypass, double *out)
 {
     int64_t duration, elapsed;
     double result;
@@ -124,8 +124,44 @@ int rf_motion_sample_weight(const rf_motion_weight_envelope *envelope, int32_t t
     else if (elapsed <= duration - envelope->fade_out) result = envelope->weight;
     else result = ((double)(duration - elapsed) / envelope->fade_out) * envelope->weight;
     if (result > envelope->weight && envelope->weight >= 1.0e-5f) result = envelope->weight;
-    *out = (float)result;
+    *out = result;
     return RF_OK;
+}
+
+int rf_motion_sample_weight(const rf_motion_weight_envelope *envelope, int32_t tick, int bypass, float *out)
+{
+    double value; int status;
+    if (!out) return RF_RANGE;
+    status=sample_weight_extended(envelope,tick,bypass,&value);
+    if (status==RF_OK) *out=(float)value;
+    return status;
+}
+
+int rf_motion_advance_candidate(rf_motion_completion_state *state, uint32_t index, int32_t delta,
+                                const rf_motion_weight_envelope *candidate_envelope, int candidate_bypass,
+                                const rf_motion_weight_envelope *primary_envelope, int primary_bypass)
+{
+    rf_motion_completion_state next; int64_t tick; int status, replace; double candidate, primary;
+    if (!state || state->active.count>16 || index>=state->active.count || delta<0) return RF_RANGE;
+    if (state->active.primary_slot < -1 || state->active.primary_slot>=(int32_t)state->active.count ||
+        !isfinite(state->active.slots[index].weight)) return RF_FORMAT;
+    if (state->active.slots[index].weight==0) return RF_OK;
+    tick=(int64_t)state->active.slots[index].tick+delta;
+    if (tick>INT32_MAX) return RF_RANGE;
+    next=*state; next.active.slots[index].tick=(int32_t)tick;
+    replace=next.active.primary_slot==-1;
+    if (!replace) {
+        status=sample_weight_extended(candidate_envelope,(int32_t)tick,candidate_bypass,&candidate);
+        if (status!=RF_OK) return status;
+        status=sample_weight_extended(primary_envelope,next.active.slots[next.active.primary_slot].tick,primary_bypass,&primary);
+        if (status!=RF_OK) return status;
+        replace=primary<(float)candidate;
+    }
+    if (replace) {
+        next.active.primary_slot=(int32_t)index;
+        next.primary_words[0]=next.primary_words[1]=0;
+    }
+    *state=next; return RF_OK;
 }
 
 static int32_t motion_wrap16(int32_t value)

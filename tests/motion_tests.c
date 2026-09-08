@@ -5,6 +5,14 @@
 int main(void)
 {
     {
+        rf_motion_completion_state state={0};
+        state.active.count=1; state.active.primary_slot=-1; state.active.slots[0].weight=1;
+        state.primary_words[0]=123; state.primary_words[1]=456;
+        CHECK(rf_motion_advance_candidate(&state,0,10,NULL,0,NULL,0)==RF_OK);
+        CHECK(state.active.primary_slot==0 && state.active.slots[0].tick==10 && state.primary_words[0]==0 && state.primary_words[1]==0);
+        CHECK(rf_motion_advance_candidate(&state,0,10,NULL,0,NULL,0)==RF_RANGE && state.active.slots[0].tick==10);
+    }
+    {
         rf_motion_completion_state state={0}; int32_t ends[2]={100,100};
         state.active.count=2; state.active.freeze_slot=0; state.active.primary_slot=1; state.active.dominant_slot=-1;
         state.active.slots[0].tick=101; state.active.slots[1].tick=100;
