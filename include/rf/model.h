@@ -9,6 +9,15 @@ typedef struct rf_model_material_record { uint8_t bytes[200]; } rf_model_materia
 /* Original 54a7c0 constructor: initializes only fields it writes, preserving
  * other bytes. Call on newly owned storage, never to release a live material. */
 int rf_model_material_initialize(rf_model_material_record *material);
+/* Fixed-field portion of 503950. Copies names through their terminator and
+ * preserves destination tails/owned-array fields. array_counts reports the
+ * subsequent allocation plan: kind 3 retains positive source counts, other
+ * kinds retain one element of each nonempty array. Caller must finish that
+ * ownership step before publishing the material. Rejects unterminated names
+ * or identical source/destination without mutation. All supplied storage
+ * regions must be disjoint; partial overlap is unsupported. */
+int rf_model_material_prepare_copy(rf_model_material_record *destination,
+    const rf_model_material_record *source,int32_t kind,uint32_t array_counts[3]);
 
 /* 503690 over resolved model views. Kind 1 returns static_count when
  * static_lods<=1; kind 2 sums mesh counts; kind 3 returns direct_count;

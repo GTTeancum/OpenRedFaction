@@ -335,3 +335,9 @@ Model material initialization: `rf_model_material_initialize` follows original
 includes 0x50cc00, 0x50cc40, 0x54a610 and vector constructor 0x5736fb without
 callee replacement. The shared 200-byte record preserves unknown bytes and
 uses fixed-width storage; native pointer ownership is separate work.
+
+Material copy preparation: shared helper follows fixed-field instructions in
+0x503950 and its model-kind-dependent allocation branches. Original execution
+is observed at 0x573619 when allocation is reached; no allocator replacement
+is used. Array counts +7c/+b8/+c0 and pointers +80/+bc/+c4 describe the remaining
+ownership work. Resolved records contain fixed-width bytes, not host pointers.

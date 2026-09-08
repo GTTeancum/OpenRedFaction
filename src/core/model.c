@@ -16,6 +16,32 @@ int rf_model_material_initialize(rf_model_material_record *material)
     material->bytes[0x90]=0;
     return RF_OK;
 }
+int rf_model_material_prepare_copy(rf_model_material_record *destination,
+    const rf_model_material_record *source,int32_t kind,uint32_t array_counts[3])
+{
+    static const unsigned names[]={0x14,0x48,0x90},counts[]={0x7c,0xb8,0xc0};
+    size_t lengths[3]; unsigned i; uint32_t plan[3];
+    if (!destination || !source || !array_counts || destination==source) return RF_RANGE;
+    for (i=0;i<3;++i) {
+        const uint8_t *end=memchr(source->bytes+names[i],0,36); int32_t count;
+        if (!end) return RF_FORMAT;
+        lengths[i]=(size_t)(end-(source->bytes+names[i]))+1;
+        memcpy(&count,source->bytes+counts[i],4);
+        plan[i]=count>0 ? (kind==3 ? (uint32_t)count : 1u) : 0u;
+    }
+    memcpy(destination->bytes,source->bytes,13); destination->bytes[4]|=1;
+    for (i=0;i<2;++i) {
+        unsigned offset=0x10+i*0x34;
+        memcpy(destination->bytes+offset,source->bytes+offset,4);
+        memcpy(destination->bytes+offset+0x28,source->bytes+offset+0x28,12);
+    }
+    for (i=0;i<3;++i) memcpy(destination->bytes+names[i],source->bytes+names[i],lengths[i]);
+    memcpy(destination->bytes+0x78,source->bytes+0x78,4);
+    memcpy(destination->bytes+0x84,source->bytes+0x84,12);
+    memcpy(destination->bytes+0xb4,source->bytes+0xb4,4);
+    memcpy(array_counts,plan,sizeof(plan));
+    return RF_OK;
+}
 
 int rf_model_material_count(int32_t kind,int32_t static_lods,int32_t static_count,
     int32_t mesh_count,const int32_t *mesh_counts,uint32_t mesh_capacity,

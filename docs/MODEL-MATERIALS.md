@@ -1,5 +1,27 @@
 # Model-instance materials
 
+`rf_model_material_prepare_copy` reconstructs the fixed-field portion of
+0x503950 and reports the subsequent three array lengths. It copies identifier,
+flags (forcing bit 0), byte +8, RGBA, both texture handles and their scalar
+metadata, fields +78/+84/+88/+8c/+b4, and the three 36-byte-bounded names through
+their terminators. Destination name tails, padding and owned-array fields are
+preserved. Unterminated source names fail before mutation; disjoint source,
+destination and output-plan storage are required.
+
+Source counts at +7c/+b8/+c0 select arrays addressed by +80/+bc/+c4. Positive
+counts are retained in full for model kind 3; other kinds copy only the first
+element. Nonpositive counts leave the destination array fields unchanged in
+the original. The new helper returns this plan but does not allocate or copy
+those arrays, and its output must not be published as a finished material.
+
+`tools/verify_model_material_copy.py` compares 2,000 original executions:
+567 complete no-allocation paths and 1,433 observations at the first allocator
+entry. All 200 destination bytes, source immutability, surrounding canaries
+and the first requested allocation size match. One malformed-name case rejects
+without mutation. Successful allocation/deep-copy paths are not covered yet.
+Win32 Release, four CTest cases and NXDK build pass; no runtime integration or
+visual change is claimed for this preparation helper.
+
 `rf_model_material_initialize` reconstructs the complete 0x54a7c0 constructor
 over a fixed-width 200-byte record. It sets the primary identifier and both
 texture handles (+10/+44) to -1, RGBA bytes at +9 to ff, +78 to 15, +b4 to -1,

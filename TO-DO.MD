@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Material fixed-field copying and array-size planning now match 2,000 original
+cases through completion or first allocation. Finish bounded ownership of the
+three copied arrays before instance materials can be published and rebound.
+
 The 200-byte model material constructor now matches 1,000 full original
 executions. Recover material copying and bounded instance allocation, then
 connect texture overrides and local weapon presentation to owned model instances.

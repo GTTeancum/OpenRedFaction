@@ -11,6 +11,15 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc==2 && !strcmp(argv[1],"--material-copy")) {
+        struct { int32_t kind; rf_model_material_record source,destination; } data;
+        while (fread(&data,sizeof(data),1,stdin)==1) {
+            uint32_t counts[3]={99,99,99}; int32_t status;
+            status=rf_model_material_prepare_copy(&data.destination,&data.source,data.kind,counts);
+            if (fwrite(&status,4,1,stdout)!=1 || fwrite(&data.destination,200,1,stdout)!=1 || fwrite(counts,12,1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc==2 && !strcmp(argv[1],"--material-init")) {
         rf_model_material_record material;
         while (fread(&material,sizeof(material),1,stdin)==1) {

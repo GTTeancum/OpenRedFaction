@@ -630,3 +630,10 @@ constructor/color helpers. Surrounding canaries, return pointer and SEH-head
 restoration also pass. Win32 Release, four CTest cases and NXDK build pass.
 Material allocation/copy, binding and Xbox runtime integration remain open;
 no new emulator execution or screenshot is claimed for this checkpoint.
+
+Material copy preparation: 2,000 original cases pass, comprising 567 complete
+no-allocation paths and 1,433 first-allocation boundaries. All 200 destination
+bytes, source immutability, canaries and first allocation size are checked.
+One malformed-name case preserves destination and plan. Win32 Release, four
+CTest cases and NXDK build pass. Successful owned-array allocation/copy and
+runtime binding remain open. No emulator run or screenshot for this checkpoint.
