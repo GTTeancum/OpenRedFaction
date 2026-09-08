@@ -4,6 +4,30 @@
 #include <string.h>
 #include <stdlib.h>
 
+int rf_model_render_vertex_pair(const float position[3],const float second[3],
+    const uint8_t weights[4],const uint8_t bones[4],const float (*matrices)[12],uint32_t count,float result[6])
+{
+    float sum[6]={0};uint32_t i,j;
+    if(!position || !second || !weights || !bones || !result || (!matrices && count))return RF_RANGE;
+    for(i=0;i<4 && weights[i];++i) {
+        const float *m;double value[6];float stored;
+        if(bones[i]>=count)return RF_RANGE;
+        m=matrices[bones[i]];
+        for(j=0;j<3;++j) {
+            value[j]=((double)m[6+j]*position[2]+(double)m[j]*position[0])+(double)m[3+j]*position[1]+m[9+j];
+            value[j+3]=((double)m[j]*second[0]+(double)m[6+j]*second[2])+(double)m[3+j]*second[1]+m[9+j];
+        }
+        /* Original retains position Y on x87 across accumulation; the other
+         * transformed components pass through float stores. */
+        for(j=0;j<6;++j) {
+            if(j!=1) { stored=(float)value[j];value[j]=stored; }
+            sum[j]=(float)(value[j]*weights[i]+sum[j]);
+        }
+    }
+    for(j=0;j<6;++j)sum[j]*=1.0f/256.0f;
+    memcpy(result,sum,sizeof(sum));return RF_OK;
+}
+
 int rf_model_collision_vertex(const float position[3],const uint8_t weights[4],const uint8_t bones[4],
     const float (*matrices)[12],uint32_t count,float result[3])
 {

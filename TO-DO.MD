@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Rendering's fresh-vertex deformation now matches 2,000 original executions
+for both streams; recover second-stream preparation, duplicate reuse and
+lighting before connecting the deformed batches to drawing.
+
 Collision vertex deformation now matches 2,000 original executions: weights
 use byte/256 and stop at the first zero, without sum normalization. Connect
 prepared bone transforms and independently recover rendering deformation.

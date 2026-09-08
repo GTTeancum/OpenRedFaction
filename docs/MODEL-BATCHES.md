@@ -1,5 +1,29 @@
 # Model batch data
 
+`rf_model_render_vertex_pair` reconstructs the fresh-vertex deformation block
+at `0x52ee9d..0x52f154` inside rendering routine `0x52e9e0`. It transforms both
+input streams with the prepared bone matrices, including translation for both,
+accumulates byte-weighted components, then divides the six sums by 256. It
+stops at the first zero weight and does not renormalize. This differs from
+collision's per-contribution division and retains the observed operation/store
+order, including position Y remaining extended until its weighted accumulation.
+Double intermediates approximate x87; universal floating-point identity is
+not claimed. The second stream comes from batch +8, but its preparation must
+be traced before treating it as an ordinary normal direction.
+
+`tools/verify_render_vertex_pair.py` executes the unmodified block for 2,000
+dyadic fixtures and compares all six output components bit-for-bit. Two port
+checks verify atomic invalid-bone rejection and ignoring slots after zero.
+PC build, CTest and NXDK build pass. The block is not integrated into scene
+drawing, and duplicate reuse, camera, projection and lighting are excluded.
+
+The renderer's extra-data stream begins with signed 16-bit backward reuse
+distances per vertex. Positive values bypass fresh deformation and reuse
+earlier output. The asset audit now records these values for anomaly cases:
+only elite_security_guard LOD 1 vertex 74 has positive distance (4) among the
+twelve non-finite normals. The other eleven have zero, so reuse alone does
+not explain their treatment. Bounds and full reuse semantics remain to port.
+
 `rf_model_collision_vertex` reconstructs the position-deformation loop at
 `0x54e344..0x54e3c0`, reached from collision routine `0x54e200`. It starts at
 zero, consumes at most four link slots and stops at the first zero weight.

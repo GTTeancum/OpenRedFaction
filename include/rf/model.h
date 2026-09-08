@@ -87,6 +87,11 @@ int rf_model_compose_transform(const float local[12], const float parent[12], fl
  * This is not yet verified as the rendering skinning path. */
 int rf_model_collision_vertex(const float position[3],const uint8_t weights[4],const uint8_t bones[4],
     const float (*matrices)[12],uint32_t count,float result[3]);
+/* Rendering block 0x52ee9d..0x52f154, freshly deformed vertex branch only.
+ * Both streams receive translation; second-stream preparation is external.
+ * Six outputs: position followed by second stream. No camera/projection. */
+int rf_model_render_vertex_pair(const float position[3],const float second[3],
+    const uint8_t weights[4],const uint8_t bones[4],const float (*matrices)[12],uint32_t count,float result[6]);
 /* Tag placement 0x5034f0 after character tag evaluation: rotate then translate.
  * Preserves its separate rounding stages; no extra scale parameter is applied. */
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12]);

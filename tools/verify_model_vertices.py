@@ -44,7 +44,7 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
                         normal_bad=not all(math.isfinite(x) for x in values[3:6])
                         if normal_bad or sum(bones[:4])!=255 or any(b>=bone_count for w,b in active):
                             link_audit.append(dict(model=entry['name'],lod=li,batch=bi,vertex=n,referenced=n in used,
-                                nonfinite_normal=normal_bad,weights=list(bones[:4]),bones=list(bones[4:]),
+                                nonfinite_normal=normal_bad,reuse_distance=struct.unpack_from('<h',regions[5],n*2)[0],weights=list(bones[:4]),bones=list(bones[4:]),
                                 active_weight_sum=sum(w for w,b in active),bone_count=bone_count))
                         weight_sums.add(sum(bones[:4]));vb.extend(floats+bones)
                     tb=regions[3][:t*8]
