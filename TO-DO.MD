@@ -15,9 +15,14 @@
 
 ## Current camera evidence
 
+Per-track blend-weight envelopes now match 575,460 original-code comparisons
+covering all 26,393 installed track envelopes plus 500 synthetic envelopes.
+Connect weights and sampled transforms through the original skeleton blending
+path after implementing bounded motion loading and engine-time conversion.
+
 Rotation-track sampling and easing now match 570,824 original-code comparisons
 covering all 26,393 installed tracks plus 300 synthetic tracks. Implement bounded
-motion loading, engine-time conversion, blend weights and animated skeleton
+motion loading, engine-time conversion and animated skeleton
 evaluation before integrating camera setup. Single-key sampling at/before its
 tick deliberately avoids an original out-of-bounds read by decoding directly.
 

@@ -4,6 +4,19 @@
 #define CHECK(x) do { if (!(x)) return __LINE__; } while (0)
 int main(void)
 {
+    rf_motion_weight_envelope envelope = {1,0,100,20,20};
+    float weight=99;
+    CHECK(rf_motion_sample_weight(NULL,0,0,&weight)==RF_RANGE && weight==99);
+    envelope.fade_in=-1;
+    CHECK(rf_motion_sample_weight(&envelope,0,0,&weight)==RF_FORMAT && weight==99);
+    envelope.fade_in=20; envelope.weight=NAN;
+    CHECK(rf_motion_sample_weight(&envelope,0,0,&weight)==RF_FORMAT && weight==99);
+    envelope.weight=1;
+    CHECK(rf_motion_sample_weight(&envelope,10,0,&weight)==RF_OK && weight==0.5f);
+    CHECK(rf_motion_sample_weight(&envelope,90,0,&weight)==RF_OK && weight==0.5f);
+    CHECK(rf_motion_sample_weight(&envelope,-10,1,&weight)==RF_OK && weight==1);
+    envelope.weight=-1;
+    CHECK(rf_motion_sample_weight(&envelope,50,1,&weight)==RF_OK && weight==0);
     rf_motion_position_key keys[2] = {{0,{0,0,0},{0,0,0},{0,0,0}}, {100,{4,8,12},{4,8,12},{4,8,12}}};
     float out[3]={99,99,99}, sentinel[3]={99,99,99};
     unsigned char packed[8] = {0,0, 0,64, 0,192, 0,128};

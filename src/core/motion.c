@@ -1,6 +1,30 @@
 #include "rf/motion.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_sample_weight(const rf_motion_weight_envelope *envelope, int32_t tick, int bypass, float *out)
+{
+    int64_t duration, elapsed;
+    double result;
+    if (!envelope || !out) return RF_RANGE;
+    if (!isfinite(envelope->weight) || envelope->fade_in < 0 || envelope->fade_out < 0 ||
+        envelope->end_tick < envelope->start_tick) return RF_FORMAT;
+    duration = (int64_t)envelope->end_tick - envelope->start_tick;
+    elapsed = (int64_t)tick - envelope->start_tick;
+    if (duration > INT32_MAX || elapsed < INT32_MIN || elapsed > INT32_MAX) return RF_RANGE;
+    if (envelope->weight < 1.0e-5f) result = 0;
+    else if (bypass) result = envelope->weight;
+    else if (elapsed < 0) result = 0;
+    /* Fade-in takes precedence, including when it extends beyond end_tick. */
+    else if (elapsed < envelope->fade_in)
+        result = ((double)elapsed / envelope->fade_in) * envelope->weight;
+    else if (elapsed > duration) result = 0;
+    else if (elapsed <= duration - envelope->fade_out) result = envelope->weight;
+    else result = ((double)(duration - elapsed) / envelope->fade_out) * envelope->weight;
+    if (result > envelope->weight && envelope->weight >= 1.0e-5f) result = envelope->weight;
+    *out = (float)result;
+    return RF_OK;
+}
+
 static int32_t motion_wrap16(int32_t value)
 {
     uint32_t bits = (uint32_t)value & 65535u;

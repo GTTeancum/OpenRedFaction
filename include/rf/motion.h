@@ -1,6 +1,13 @@
 #ifndef RF_MOTION_H
 #define RF_MOTION_H
 #include "rf/vpp.h"
+typedef struct rf_motion_weight_envelope {
+    float weight;
+    int32_t start_tick, end_tick, fade_in, fade_out;
+} rf_motion_weight_envelope;
+/* Original 0x539e10. Bypass disables time fades but retains the small-weight
+ * cutoff. Invalid durations, non-finite weights and overflow preserve output. */
+int rf_motion_sample_weight(const rf_motion_weight_envelope *envelope, int32_t tick, int bypass, float *out);
 /* Original 0x417e90: signed packed components scaled without normalization.
  * Input is eight little-endian bytes; output is quaternion x, y, z, w. */
 int rf_motion_decode_rotation(const void *packed, size_t bytes, float out[4]);

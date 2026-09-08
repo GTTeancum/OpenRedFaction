@@ -401,5 +401,26 @@ or a complete motion loader.
 
 The adjacent original `0x539e10` is a blend-weight envelope, not time conversion:
 it reads the per-track leading float, header start/end ticks at 0x10/0x14 and
-fade durations at 0x24/0x28. Recover that path together with the caller's time
-conversion before assembling a complete animated skeleton.
+fade durations at 0x24/0x28. Its reconstruction is described below; caller time
+conversion and skeleton blending remain open.
+
+## Per-track blend-weight envelope
+
+`rf_motion_sample_weight` reconstructs `0x539e10` with a caller-supplied track
+weight, start/end ticks and fade durations. Weights below the exact original
+float threshold `1.0e-5f` return zero. The bypass flag returns the track weight
+without time fades, but still applies that cutoff. Otherwise, negative elapsed
+time returns zero, fade-in rises linearly, the middle holds the track weight,
+and fade-out falls linearly; time after the duration returns zero. Fade-in is
+tested before the duration, preserving results when a fade exceeds the motion
+length. The result cannot exceed the supplied positive track weight.
+
+The shared API rejects negative fade durations, reversed time bounds,
+non-finite weights and signed time overflow without modifying output. It
+allocates no memory. `tools/verify_motion_weight.py` executes original
+`0x539e10` and its callees without hooks, then spills its returned x87 value to
+a float just as a caller would. All 575,460 comparisons match exactly, covering
+every installed track envelope (26,393), 500 synthetic envelopes, fade
+boundaries, interior samples, outside times and both bypass settings. PC and
+NXDK builds and all four PC tests pass. The envelope is not yet wired into
+skeleton blending or the Xbox diagnostic.

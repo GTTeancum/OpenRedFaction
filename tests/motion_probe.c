@@ -11,6 +11,19 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc == 2 && strcmp(argv[1], "--sample-weight") == 0) {
+        struct { rf_motion_weight_envelope envelope; int32_t tick, bypass; } input;
+        struct { int32_t status; float value; } sampled;
+        size_t n;
+        _Static_assert(sizeof(input)==28,"Envelope wire layout");
+        while ((n=fread(&input,1,sizeof(input),stdin))!=0) {
+            if (n!=sizeof(input)) return 2;
+            sampled.value=0;
+            sampled.status=rf_motion_sample_weight(&input.envelope,input.tick,input.bypass,&sampled.value);
+            if (fwrite(&sampled,sizeof(sampled),1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc == 2 && strcmp(argv[1], "--sample-rotation") == 0) {
         static rf_motion_rotation_key rotations[32767]; /* PC oracle transport only. */
         struct { int32_t status; float value[4]; } sampled;
