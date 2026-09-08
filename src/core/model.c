@@ -4,6 +4,30 @@
 #include <string.h>
 #include <stdlib.h>
 
+int rf_model_material_from_disk(rf_model_material_instance *instance,
+    const uint8_t *raw,size_t size,int32_t primary_texture,int32_t secondary_texture,
+    uint32_t primary_transparent,uint32_t budget)
+{
+    rf_model_material_record source={{0}};
+    uint32_t scalar,flags,disk_flags,one=1; const uint32_t *arrays[3]={NULL,&scalar,NULL};
+    const uint32_t capacities[3]={0,1,0};
+    if (!instance || !raw || size!=84 || primary_transparent>1) return RF_RANGE;
+    if (!raw[0] || !memchr(raw,0,32) || !memchr(raw+48,0,32)) return RF_FORMAT;
+    rf_model_material_initialize(&source);
+    memset(source.bytes,0,4);
+    memcpy(source.bytes+0x14,raw,strlen((const char *)raw)+1);
+    memcpy(source.bytes+0x10,&primary_texture,4);
+    memcpy(&scalar,raw+32,4);memcpy(source.bytes+0xb8,&one,4);
+    memcpy(source.bytes+0x84,raw+36,12);
+    memcpy(source.bytes+0x90,raw+48,32);
+    if (!raw[48]) secondary_texture=-1;
+    memcpy(source.bytes+0xb4,&secondary_texture,4);
+    memcpy(&disk_flags,raw+80,4);
+    flags=1u | ((primary_transparent || (disk_flags&2)) ? 8u : 0u) | ((disk_flags&1) ? 16u : 0u);
+    memcpy(source.bytes+4,&flags,4);source.bytes[8]=(disk_flags&2)!=0;
+    return rf_model_material_instance_open(instance,&source,2,arrays,capacities,budget);
+}
+
 void rf_model_material_instance_close(rf_model_material_instance *instance)
 {
     if (!instance) return;

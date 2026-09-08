@@ -32,6 +32,13 @@ int rf_model_material_instance_open(rf_model_material_instance *instance,
     const rf_model_material_record *source,int32_t kind,const uint32_t *const arrays[3],
     const uint32_t capacities[3],uint32_t budget);
 void rf_model_material_instance_close(rf_model_material_instance *instance);
+/* 53ae5f material-record conversion after texture resolution. Exactly 84
+ * disk bytes; primary name must be nonempty, both names NUL-terminated in
+ * 32 bytes. primary_transparent is resolved 510710. Texture handles are
+ * caller-owned; close releases only the material's copied scalar array. */
+int rf_model_material_from_disk(rf_model_material_instance *instance,
+    const uint8_t *raw,size_t size,int32_t primary_texture,int32_t secondary_texture,
+    uint32_t primary_transparent,uint32_t budget);
 
 /* 503690 over resolved model views. Kind 1 returns static_count when
  * static_lods<=1; kind 2 sums mesh counts; kind 3 returns direct_count;

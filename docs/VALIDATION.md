@@ -651,3 +651,11 @@ V3C files match independent archive traversal byte-for-byte. Ninety-five
 out-of-range probes preserve output. Win32 Release, four CTest cases and NXDK
 build pass. Runtime conversion/ownership integration and rendering remain open;
 no new XEMU execution or screenshot is claimed for the reader change.
+
+Disk material conversion checkpoint: 733 installed materials, each with two
+resolved transparency values, produce 1,466 matching runtime-record/scalar
+checks against the recovered 0x53ae5f field map. Three malformed-name/budget
+rejections preserve empty output. Win32 Release, four CTest cases and NXDK
+build pass. These are field-map and ownership checks using synthetic texture
+handles, not full original-loader equivalence or live rendering validation.
+No new emulator execution or screenshot is claimed.

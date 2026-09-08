@@ -354,3 +354,10 @@ material records already recognized by its SUBM structural traversal. Independen
 Python traversal verifies all 733 records in the installed 95 V3C assets.
 Records remain read-only local game inputs and are not committed. This does
 not establish their conversion to 200-byte runtime instance materials.
+
+Serialized-material conversion follows local Ghidra output and original field
+operations in 0x53ae5f: two 32-byte names, four scalar words, final flags,
+texture calls 0x50f6a0 and transparency predicate 0x510710. The port API accepts
+resolved texture handles/predicate and uses its own bounded array ownership.
+Tests cover every installed record against this field map, not unchanged full
+original loader execution. Game material bytes and generated outputs stay local.

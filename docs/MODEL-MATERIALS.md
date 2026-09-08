@@ -1,5 +1,27 @@
 # Model-instance materials
 
+`rf_model_material_from_disk` implements the field conversion recovered from
+0x53ae5f, with texture resolution supplied by its caller. Disk +0 is a required
+nonempty 32-byte texture name; +48 is an optional 32-byte secondary name.
+Both must contain a terminator. Disk +32 becomes one owned 32-bit element of
+runtime array +b8/+bc; disk +36/+40/+44 copy to runtime +84/+88/+8c. The names
+map to runtime +14/+90 and resolved handles to +10/+b4. Empty secondary names
+force handle -1. Identifier becomes zero.
+
+Disk flags at +80 set runtime byte +8 from mask 2. Runtime flags always include
+1, include 8 when disk mask 2 or resolved primary transparency (0x510710) is
+true, and include 0x10 for disk mask 1. Scalars are copied as bits. Native
+ownership uses the bounded instance layer; texture handles remain caller-owned.
+Malformed records or budget rejection leave a fresh output unchanged.
+
+All 733 installed material records pass conversion checks for both resolved
+transparency values (1,466 cases), plus malformed-name and budget rejection
+cases. Expected fields come from the recovered mapping, not a complete original
+loader execution: filesystem reads, texture loading and original allocation
+are deliberately outside this test. Synthetic handles verify conversion only.
+Win32 Release, four CTest cases and NXDK build pass. Actual texture resolution,
+model rendering and local weapon presentation integration remain open.
+
 `rf_model_file_material` now streams one 84-byte serialized material from
 the selected SUBM section without loading a LOD blob or whole model. Structural
 traversal records each section's material count and offset, after validating
