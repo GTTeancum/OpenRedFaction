@@ -571,3 +571,26 @@ slot selection and bone overrides remain outside this helper.
 PC and NXDK builds and all four PC tests pass. The Xbox diagnostic has not yet
 executed this skeleton path; this verification does not establish animation
 performance, hardware equivalence or complete gameplay-camera integration.
+## Character tag placement
+
+`rf_model_place_tag` reconstructs the placement portion of `0x5034f0` after
+character tag evaluation. The original calls `0x503230` → `0x5012a0`; model
+type 2 obtains the tag matrix via `0x51c590` → `0x51b2e0`, then extracts its
+orientation and position. It multiplies tag orientation by the supplied
+orientation through `0x40ea80`, rotates its position via `0x4facb0`, rounds
+that rotated position to float, and adds the supplied position. There is no
+additional scale parameter or scale multiplication in this character wrapper.
+This does not exclude scale already present in its inputs or earlier setup.
+
+Its matrix accumulation order and separate translation rounding differ from
+`0x51c620` bone composition, so the shared implementation preserves this as a
+separate operation. Invalid/non-finite input and overflow leave output unchanged;
+aliased output is supported. No allocation is required.
+
+`tools/verify_tag_placement.py` compares 1,000 deterministic cases against the
+unhooked original `0x5034f0` and its character dispatch/helper path. A valid
+cached bone supplies the input tag matrix; animation itself is outside this
+test. Identity and general supplied matrices, zero/nonzero translations and
+all output matrix bits match. PC boundary/alias tests, all four PC tests, and
+PC/NXDK builds pass. Actual player setup inputs, motion-slot selection and
+integrated Xbox camera validation remain open.

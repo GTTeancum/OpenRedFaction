@@ -7,6 +7,17 @@
 int main(void)
 {
     {
+        float local[12]={1,0,0,0,1,0,0,0,1,1,2,3};
+        float orientation[9]={1,0,0,0,1,0,0,0,1}, position[3]={4,5,6};
+        float saved[12]; memcpy(saved,local,sizeof(saved));
+        orientation[0]=NAN;
+        CHECK(rf_model_place_tag(local,orientation,position,local)==RF_FORMAT);
+        CHECK(memcmp(local,saved,sizeof(saved))==0);
+        orientation[0]=1;
+        CHECK(rf_model_place_tag(local,orientation,position,local)==RF_OK);
+        CHECK(local[9]==5 && local[10]==7 && local[11]==9);
+    }
+    {
         float q[2][4]={{0,0,0,1},{0,0,0,1}}, p[2][3]={{1,2,3},{3,4,5}}, w[2]={.5f,.5f};
         float out[12], sentinel[12];
         memset(out,0x5a,sizeof(out)); memcpy(sentinel,out,sizeof(out));

@@ -277,3 +277,29 @@ int rf_model_sample_single_motion(const rf_model_bone *bones, uint32_t count, co
     }
     return RF_OK;
 }
+int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12])
+{
+    float result[12]; double a,b,c; unsigned i;
+    if (!local || !orientation || !position || !out) return RF_RANGE;
+    for (i=0;i<12;++i) if (!isfinite(local[i])) return RF_FORMAT;
+    for (i=0;i<9;++i) if (!isfinite(orientation[i])) return RF_FORMAT;
+    for (i=0;i<3;++i) if (!isfinite(position[i])) return RF_FORMAT;
+    for (i=0;i<9;++i) {
+        unsigned row=i/3, col=i%3;
+        a=(double)local[row*3]*orientation[col];
+        b=(double)local[row*3+1]*orientation[col+3];
+        c=(double)local[row*3+2]*orientation[col+6];
+        if (i==0) result[i]=(float)((b+c)+a);
+        else if (i==2 || i==8) result[i]=(float)((c+a)+b);
+        else if (i==5) result[i]=(float)((c+b)+a);
+        else if (i==7) result[i]=(float)((b+a)+c);
+        else result[i]=(float)((a+b)+c);
+    }
+    for (i=0;i<3;++i) {
+        float rotated=(float)(((double)local[9]*orientation[i]+(double)local[10]*orientation[i+3])+
+                              (double)local[11]*orientation[i+6]);
+        result[9+i]=rotated+position[i];
+    }
+    for (i=0;i<12;++i) if (!isfinite(result[i])) return RF_RANGE;
+    memcpy(out,result,sizeof(result)); return RF_OK;
+}

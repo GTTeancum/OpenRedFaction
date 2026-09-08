@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Character tag placement now matches 1,000 original-wrapper comparisons; this
+wrapper rotates and translates the evaluated tag without an extra scale step.
+Recover actual player setup inputs and animation slot state, then integrate and
+validate the animated camera path in XEMU.
+
 The shared single-motion skeleton path now matches 300 original bone matrices
 and 12 animated miner eye transforms for stand/crouch poses. Recover looping
 slot updates, root displacement, overrides, model scaling and camera state
