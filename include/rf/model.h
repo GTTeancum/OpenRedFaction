@@ -33,4 +33,7 @@ int rf_model_bone_transform(const float rotation[4], const float position[3], fl
 /* Reconstructed 0x51c620: row-vector local * parent, with implicit final column
  * (0,0,0,1). Aliased output is supported; errors leave it unchanged. */
 int rf_model_compose_transform(const float local[12], const float parent[12], float result[12]);
+/* Original 0x51cb50 orders byte indices by depth, stable within each depth.
+ * Supports up to 256 bones; rejects cycles/invalid parents before output. */
+int rf_model_bone_order(const rf_model_bone *bones, uint32_t count, uint8_t *order, uint32_t capacity);
 #endif

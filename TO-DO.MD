@@ -15,6 +15,12 @@
 
 ## Current camera evidence
 
+The suspected bone remapping is a stable depth-sorted evaluation order, now
+reconstructed in shared C with 200 exact original-instruction comparisons
+(95 asset skeletons plus 105 synthetic cases). It does not change file indices.
+Use this order when integrating animation poses; full V3C parsing and animation
+sampling/blending remain unfinished.
+
 Parent transform multiplication at 0x51c620 is reconstructed in shared C and
 matches 2,852 original-instruction comparisons bit-for-bit on PC. Original bone
 remapping and full hierarchy/animation evaluation remain open; isolated matrix

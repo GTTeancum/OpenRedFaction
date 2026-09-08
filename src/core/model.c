@@ -150,3 +150,25 @@ int rf_model_compose_transform(const float local[12], const float parent[12], fl
     memcpy(result, out, sizeof(out));
     return RF_OK;
 }
+
+int rf_model_bone_order(const rf_model_bone *bones, uint32_t count, uint8_t *order, uint32_t capacity)
+{
+    uint16_t depths[256];
+    uint8_t sorted[256];
+    uint32_t i, depth, written = 0;
+    if (count > 256 || count > capacity || (count && (!bones || !order))) return RF_RANGE;
+    for (i = 0; i < count; ++i) {
+        int32_t parent = bones[i].parent;
+        depth = 0;
+        while (parent != -1) {
+            if (parent < 0 || (uint32_t)parent >= count || ++depth >= count) return RF_FORMAT;
+            parent = bones[parent].parent;
+        }
+        depths[i] = (uint16_t)depth;
+    }
+    for (depth = 0; written < count; ++depth)
+        for (i = 0; i < count; ++i)
+            if (depths[i] == depth) sorted[written++] = (uint8_t)i;
+    if (count) memcpy(order, sorted, count);
+    return RF_OK;
+}

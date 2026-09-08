@@ -198,3 +198,24 @@ synthetic pairs. All outputs match bit-for-bit on MSVC Win32. Boundary tests
 cover aliasing, invalid inputs and overflow. This verifies individual products;
 it does not establish full hierarchy evaluation, original bone remapping,
 animation sampling or complete model rendering.
+
+## Bone evaluation order
+
+The suspected remapping at 0x51cb50 is now identified as a separate byte-index
+evaluation order, not a mutation of bone indices. Helper 0x51cba0 follows parent
+links to determine depth. The caller emits indices in ascending depth and then
+ascending original index. The descriptor stores this order at +0xf24. Bones at
+equal depth retain file order, and a parent always precedes its children.
+
+`rf_model_bone_order` reconstructs that order using 768 bytes of fixed scratch
+storage, supporting up to 256 indices (the original output element is a byte).
+The API rejects cyclic/out-of-range parents and values below -1 before modifying
+output. Original 0x51cba0 treats all negative parents as a root; the stricter
+validation matches the raw decoder's accepted parent domain. The algorithm costs
+O(count * maximum depth) and allocates nothing.
+
+`tools/verify_bone_order.py` compares unhooked original instructions to compiled
+C across 95 asset skeletons and 105 synthetic cases, including empty input,
+multiple roots, shuffled indices and a 256-bone chain. All 200 results match
+exactly. This resolves the ordering helper; animated local transforms and the
+complete model loader remain necessary for hierarchy pose evaluation.

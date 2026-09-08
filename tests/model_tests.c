@@ -27,6 +27,25 @@ int main(void)
     groups[2].names = &query; groups[2].count = 1;
     CHECK(rf_model_find_tag(groups, query, &index) == RF_OK && index == 0);
     {
+        rf_model_bone bones[4] = {0};
+        uint8_t order[4] = {99,99,99,99};
+        const uint8_t expected[4] = {1,2,0,3};
+        bones[0].parent = 2; bones[1].parent = -1;
+        bones[2].parent = -1; bones[3].parent = 0;
+        CHECK(rf_model_bone_order(bones, 4, order, 3) == RF_RANGE && order[0] == 99);
+        CHECK(rf_model_bone_order(bones, 4, order, 4) == RF_OK);
+        CHECK(memcmp(order, expected, 4) == 0);
+        bones[2].parent = 3;
+        CHECK(rf_model_bone_order(bones, 4, order, 4) == RF_FORMAT);
+        CHECK(memcmp(order, expected, 4) == 0);
+        bones[2].parent = -2;
+        CHECK(rf_model_bone_order(bones, 4, order, 4) == RF_FORMAT);
+        bones[2].parent = 4;
+        CHECK(rf_model_bone_order(bones, 4, order, 4) == RF_FORMAT);
+        CHECK(rf_model_bone_order(NULL, 0, NULL, 0) == RF_OK);
+        CHECK(rf_model_bone_order(bones, 257, order, 257) == RF_RANGE);
+    }
+    {
         float a[12] = {1,0,0, 0,1,0, 0,0,1, 1,2,3};
         float b[12] = {1,0,0, 0,1,0, 0,0,1, 4,5,6};
         float out[12], sentinel[12];
