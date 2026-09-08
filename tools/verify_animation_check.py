@@ -5,7 +5,7 @@ import pefile
 from inspect_models import inspect
 root=Path(__file__).resolve().parents[1]; sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_CODE
-from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_ECX,UC_X86_REG_EIP,UC_X86_REG_FPCW,UC_X86_REG_ESI,UC_X86_REG_EBX,UC_X86_REG_EDI,UC_X86_REG_EAX
+from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_ECX,UC_X86_REG_EIP,UC_X86_REG_FPCW,UC_X86_REG_ESI,UC_X86_REG_EBX,UC_X86_REG_EDI,UC_X86_REG_EAX,UC_X86_REG_EBP
 exe=root/'Installed_Game/RF.exe'
 assert hashlib.sha256(exe.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
 image=pefile.PE(str(exe)).get_memory_mapped_image(); u=Uc(UC_ARCH_X86,UC_MODE_32)
@@ -67,6 +67,9 @@ effect_objects=[order_address+24000,order_address+25000]
 put(0x75ec48,'<II',*effect_objects)
 for a,t in zip(effect_objects,[77,99]):put(a+0x140,'<I',1);put(a+0x154,'<i',t)
 player=obj+0xd000;put(player+0x14,'<I',0x10000);put(player+0xf41,'<B',1)
+put(player+0xf40,'<B',1)
+for a in (0x872118,0x85cce0,0x87210c,0x85ccd8,0x85cd00):put(a,'<i',-1)
+for a in (0x4a4e80,0x4383c0,0x4a4a50):u.hook_add(UC_HOOK_CODE,lambda uc,a,size,data:uc.emu_stop(),begin=a,end=a)
 put(player+0x1154,'<32i',1,0,*([-1]*30));put(entity+0x42c,'<2B',1,1)
 put(0x85cd08+0x24,'<i',0);put(0x85cd08+0x260,'<i',10)
 put(0x85cd08+1360+0x24,'<i',-1);put(0x85cd08+1360+0x260,'<i',0);put(0x85cd08+1360+0x268,'<I',0x100)
@@ -93,6 +96,11 @@ for frame in range(64):
     u.emu_start(0x4a6e50,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
     replacement=u.reg_read(UC_X86_REG_EAX)
     assert replacement==(0 if frame<32 else 1)
+    put(stack+64000,'<7I',0,0,0,0,stop,player,0);u.reg_write(UC_X86_REG_ESP,stack+64000)
+    u.reg_write(UC_X86_REG_EBP,entity);u.reg_write(UC_X86_REG_ESI,0);u.reg_write(UC_X86_REG_EDI,player)
+    u.emu_start(0x4a6f41,stop,count=100000)
+    end=u.reg_read(UC_X86_REG_EIP);assert end==(stop if frame<32 else 0x4a4a50)
+    empty_action=struct.pack('<ii',0,-1) if frame<32 else struct.pack('<i',3)+rd(u.reg_read(UC_X86_REG_ESP)+8,4)
     u.reg_write(UC_X86_REG_FPCW,0x37f)
     if frame in (4,7,20,40):
         put(stack+64000,'<IIif',stop,entity,8 if frame in (4,20) else 0,.25)
@@ -133,6 +141,7 @@ for frame in range(64):
     hashes[1]=fnv(hashes[1],rd(entity+0x46c,64)+rd(entity+0x7d0,4)+rd(entity+0x810,4)+rd(entity+0x81c,8)+rd(entity+0x13d4,4)+struct.pack('<II',1,0))
     for a in effect_objects:hashes[1]=fnv(hashes[1],rd(a+0x140,4)+rd(a+0x154,4))
     hashes[1]=fnv(hashes[1],struct.pack('<II',reserve,replacement))
+    hashes[1]=fnv(hashes[1],empty_action)
     put(stack+64000,'<3I',stop,obj+0x3000,count+eye_index);u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ECX,obj)
     u.emu_start(0x51b2e0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
     hashes[3]=fnv(hashes[3],rd(obj+0x3000,48))
@@ -142,5 +151,5 @@ for frame in range(64):
 expected=[2,count,64,*hashes,4+count*56]
 actual=list(struct.unpack('<8I',subprocess.check_output([str(root/'build/pc/Release/rf_animation_check.exe'),str(root/'Installed_Game/meshes.vpp'),str(root/'Installed_Game/motions.vpp')])))
 assert len(reset_calls)==16 and 17 in starts and 18 in starts and len(starts)<48,(starts,reset_calls)
-report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,action_starts=starts,reset_calls=len(reset_calls),scope='64-frame ammo/replacement decisions, entity predicates, scripted controller, preparation/candidate blocks, valid active-weapon reset with nonloop/effect stops, playback, skeleton/cache and eye against unmodified original instructions; actual switching, sound and complete empty-weapon handling excluded')
+report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,action_starts=starts,reset_calls=len(reset_calls),scope='64-frame ammo/replacement/empty-weapon decisions, entity predicates, scripted controller, preparation/candidate blocks, valid active-weapon reset with nonloop/effect stops, playback, skeleton/cache and eye against unmodified original instructions; actual switching, message/sound execution and current-weapon presentation excluded')
 (root/'artifacts/animation-check-original.json').write_text(json.dumps(report,indent=2));print(report);assert actual==expected

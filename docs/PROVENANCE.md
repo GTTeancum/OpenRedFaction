@@ -266,3 +266,10 @@ flag predicate 0x4c9a70. Original disassembly of 0x4a6f10 and its string at
 0x5a05e0 identifies empty-ammunition handling as the remaining player callback's
 role. See docs/WEAPON.md and tools/verify_weapon_inventory.py for scope and
 original-code verification; actual switching/presentation is not reconstructed.
+
+`rf_weapon_decide_empty` follows RF.exe 1.20 NA 0x4a6f41..0x4a70db, after the
+current-weapon/presentation call. It returns commands corresponding to 0x4a4e80,
+0x4383c0 and 0x4a4a50 rather than silently executing substitutes. Original tests
+run unchanged passenger 0x42acd0, projectile 0x4c9e30, linked-class, ammo and
+replacement callees and observe the final call boundaries. See docs/WEAPON.md
+and tools/verify_weapon_empty.py for detailed input mappings and exclusions.

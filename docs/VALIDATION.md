@@ -533,3 +533,22 @@ ISO SHA-256:
 Observed available RAM after static-scene CPU mesh release is 48,402,432 bytes,
 not full-game peak. The diagnostic observes replacement decisions without
 applying the switch; full empty-weapon handling/presentation remains open.
+
+# Empty-weapon decision flow
+
+`python tools/verify_weapon_empty.py` matches 4,000 original decision-block
+executions: 3,272 NONE, 64 PAIR, 202 MESSAGE and 462 SELECT. All reached predicate,
+ammo and replacement callees run unchanged; execution stops at final outgoing
+operations to check their arguments. Presentation updates before the block and
+actual operation execution are excluded.
+
+The shared 64-frame profile now also hashes the empty-weapon action. State hash
+is `0x21293620`; pose/cache/eye remain `0xdc7c08a6`, `0x21cd6b06`, `0x60a29326`.
+PC Release/NXDK builds and all four CTest checks pass. Numeric-only stock 64 MiB
+XEMU run `artifacts/xemu/20260908-181948-915592/report.json` passes with matching
+hashes and no framebuffer capture. XBE SHA-256:
+`3f39e36caf4ff8cc74acbf1f4632738007616eae6c60369d32f2e98d98967bcf`;
+ISO SHA-256:
+`8da9ba33400334322c3e5626bc3c9d8788c4b4dd1b31f3a957451db9129e4849`.
+The diagnostic still observes commands without applying weapon switches or
+displaying ammo messages; see docs/WEAPON.md for remaining integration work.

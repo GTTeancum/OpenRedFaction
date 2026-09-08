@@ -2,6 +2,33 @@
 
 ## Empty-weapon handling and replacement choice
 
+`rf_weapon_decide_empty` now reconstructs 0x4a6f41..0x4a70db after current-weapon
+resolution. The earlier 0x4a5910 presentation update is still caller-owned.
+It returns NONE, PAIR, MESSAGE or SELECT with a selected weapon where applicable;
+it does not execute the outgoing switch/message operation.
+
+The initial gate requires player byte +f40 or the current weapon matching global
+0x872118. Passenger predicate 0x42acd0 blocks a nonzero request byte. Current
+weapon equal to 0x85cce0 is blocked by projectile predicate 0x4c9e30. Descriptor
++260 must be positive, and weapon 0x87210c is excluded. Ammo is checked on the
+linked entity for linked classes 1/4, otherwise on the primary entity. Positive
+reserve-plus-loaded or the in-count descriptor +264 mask 0x20 prevents action.
+
+Weapons 0x85ccd8/0x85cd00 form the paired branch; the former uses that branch
+only when byte global 0x64ecb9 is zero. Positive counterpart ammo requests
+0x4a4e80(player,1,1). Otherwise the paired path goes directly to replacement
+choice. Outside that path, linked classes 1/4 or a passenger request the
+out-of-ammunition message via 0x4383c0 with zero flags. Remaining cases select
+from the PRIMARY inventory's preference list (even when ammo was checked on a
+linked entity), then request 0x4a4a50(player,weapon,1,0) for a valid selection.
+
+The input's passenger/projectile predicates and linked classification are
+resolved snapshots. `tools/verify_weapon_empty.py` exercises their unmodified
+original callees, including a projectile-list fixture, then observes final
+operation boundaries. All 4,000 cases match: 3,272 NONE, 64 PAIR, 202 MESSAGE,
+462 SELECT. The shared runtime also hashes NONE before ammo exhaustion and
+SELECT afterward, agreeing with original instructions and 64 MiB XEMU.
+
 The remaining callback at 0x4a6f10 handles an empty weapon, rather than a generic
 player-state reset. It checks reserve plus loaded ammunition, may show the
 string "Out of ammunition" at 0x5a05e0, handles a paired weapon through 0x4a4e80,

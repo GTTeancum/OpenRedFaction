@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Empty-weapon decisions now match 4,000 original-code cases across paired
+switching, ammo messages and replacement selection, plus the XEMU diagnostic.
+Implement current-weapon presentation updates and execute the selected actions,
+then finish sound adapters and remaining gameplay locomotion physics.
+
 Ammo lookup and ordered replacement-weapon selection now match 4,000 original
 cases and an ammo-exhaustion XEMU profile. Complete the empty-weapon handler,
 weapon switching/presentation, sound adapters and remaining locomotion physics.

@@ -47,9 +47,11 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     rf_effect_switch effect_objects[2]={{1,{0,0,0},77},{1,{0,0,0},99}};
     rf_effect_pair effect_pair={{{&effect_objects[0],&effect_objects[1]},{NULL,NULL}}};
     animation_reset reset={&weapon_state,descriptors,&weapon_context,&state,resources,&actor,&effect_pair};
-    uint32_t weapon_flags[1]={6};
+    uint32_t weapon_flags[64]={6};
     rf_weapon_inventory inventory={0}; rf_weapon_supply supply[64]={0};
     int32_t preference[32],replacement,reserve;
+    rf_weapon_empty_input empty_input={0,-1,-1,-1,-1,-1,1,0,0,0,0,1,0,0};
+    rf_weapon_empty_action empty_action;
     int ready,eligible;
     rf_turn_context context={{0x800,6,.3f,1.5f,20,7,9},-1,1,0,0};
     int32_t actions[45],sounds[45],sound_class;
@@ -115,6 +117,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         inventory.reserve[0]=frame<32 ? 1 : 0;
         status=rf_weapon_reserve(&inventory,supply,0,&reserve); if (status!=RF_OK) goto done;
         status=rf_weapon_choose_available(&inventory,supply,preference,1,&replacement); if (status!=RF_OK) goto done;
+        status=rf_weapon_decide_empty(&inventory,NULL,supply,weapon_flags,1,preference,&empty_input,&empty_action); if (status!=RF_OK) goto done;
         /* Scripted diagnostic requests, not the unrecovered locomotion selector. */
         if (frame==4 || frame==7 || frame==20 || frame==40) {
             status=rf_motion_request_state(&controller,motions,(frame==4 || frame==20) ? 8 : 0,.25f);
@@ -148,6 +151,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         out[4]=hash_bytes(out[4],&weapon_state,sizeof(weapon_state));
         out[4]=hash_bytes(out[4],effect_objects,sizeof(effect_objects));
         out[4]=hash_bytes(out[4],&reserve,4); out[4]=hash_bytes(out[4],&replacement,4);
+        out[4]=hash_bytes(out[4],&empty_action,sizeof(empty_action));
         displacement[0]=1;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }

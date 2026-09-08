@@ -11,6 +11,18 @@ int main(int argc,char **argv)
     int32_t status; unsigned i;
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if (argc==2 && !strcmp(argv[1],"--empty")) {
+        struct { rf_weapon_inventory primary,linked; rf_weapon_supply supply[64]; uint32_t flags[64],count;
+            int32_t preference[32]; rf_weapon_empty_input input; } data;
+        _Static_assert(sizeof(data)==2108,"Empty weapon fixture layout");
+        while (fread(&data,sizeof(data),1,stdin)==1) {
+            struct { int32_t status; rf_weapon_empty_action action; } output={0,{-99,-99}};
+            output.status=rf_weapon_decide_empty(&data.primary,&data.linked,data.supply,data.flags,data.count,
+                data.preference,&data.input,&output.action);
+            if (fwrite(&output,sizeof(output),1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     if (argc==2 && !strcmp(argv[1],"--inventory")) {
         struct { uint32_t present,defer_flag; int32_t weapon;
             rf_weapon_inventory inventory; rf_weapon_supply supply[64]; int32_t preference[32]; } data;

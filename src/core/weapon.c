@@ -1,5 +1,48 @@
 #include "rf/weapon.h"
 #include <string.h>
+static int weapon_total(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],int32_t weapon,int32_t *total)
+{
+    int32_t reserve; uint32_t bits; int status=rf_weapon_reserve(inventory,supply,weapon,&reserve);
+    if (status!=RF_OK) return status;
+    if (!inventory || weapon<0 || weapon>=64) return RF_RANGE;
+    bits=(uint32_t)reserve+(uint32_t)inventory->loaded[weapon]; memcpy(total,&bits,4); return RF_OK;
+}
+int rf_weapon_decide_empty(const rf_weapon_inventory *primary,const rf_weapon_inventory *linked,
+    const rf_weapon_supply supply[64],const uint32_t flags_264[64],uint32_t weapon_count,
+    const int32_t preference[32],const rf_weapon_empty_input *input,rf_weapon_empty_action *action)
+{
+    rf_weapon_empty_action next={RF_WEAPON_EMPTY_NONE,-1};
+    const rf_weapon_inventory *owner; int32_t current,total,other=-1,replacement; int status,paired=0;
+    if (!input || !action) return RF_RANGE;
+    current=input->current;
+    if (!primary || current<0) { *action=next; return RF_OK; }
+    if (!supply || !flags_264 || !preference || current>=64 || weapon_count>64 ||
+        input->passenger>1 || input->special_block>1 || input->linked_present>1) return RF_RANGE;
+    if (!(uint8_t)input->automatic_enabled && current!=input->always_weapon) goto done;
+    if (input->passenger && (uint8_t)input->request_flag) goto done;
+    if (current==input->block_weapon && input->special_block) goto done;
+    if (supply[current].capacity<=0 || current==input->excluded_weapon) goto done;
+    owner=primary;
+    if (input->linked_present && (input->linked_class==1 || input->linked_class==4)) {
+        if (!linked) return RF_RANGE;
+        owner=linked;
+    }
+    status=weapon_total(owner,supply,current,&total); if (status!=RF_OK) return status;
+    if (total>0 || ((uint32_t)current<weapon_count && (flags_264[current] & 0x20u))) goto done;
+    if (current==input->paired_first && !(uint8_t)input->override_mode) { paired=1; other=input->paired_second; }
+    else if (current==input->paired_second) { paired=1; other=input->paired_first; }
+    if (paired) {
+        status=weapon_total(owner,supply,other,&total); if (status!=RF_OK) return status;
+        if (total>0) { next.kind=RF_WEAPON_EMPTY_PAIR; goto done; }
+    } else if ((input->linked_present && (input->linked_class==1 || input->linked_class==4)) || input->passenger) {
+        next.kind=RF_WEAPON_EMPTY_MESSAGE; goto done;
+    }
+    status=rf_weapon_choose_available(primary,supply,preference,input->defer_flag,&replacement); if (status!=RF_OK) return status;
+    if (replacement>=0) { next.kind=RF_WEAPON_EMPTY_SELECT; next.weapon=replacement; }
+done:
+    *action=next; return RF_OK;
+}
+
 int rf_weapon_reserve(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],
     int32_t weapon,int32_t *amount)
 {
