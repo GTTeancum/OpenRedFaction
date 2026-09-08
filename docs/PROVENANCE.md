@@ -225,3 +225,10 @@ The expanded `src/diagnostic/animation.c` is scripted integration scaffolding,
 using locally supplied RFA assets and the existing miner rig. Its original-code
 comparison executes 0x41f9f0 and all reached callees unchanged, with absent roll
 mappings and sounds. See docs/TURN.md and docs/VALIDATION.md for current scope.
+
+`rf_locomotion_choose_candidates` follows the RF.exe 1.20 NA selector block
+0x41f61d..0x41f728, including 0x41f9f0 and post-helper velocity comparison at
+0x41f6bf..0x41f6e8. The .3 threshold multiplier is the binary32 at 0x5894d8.
+Its resolved combat input represents the exact calls at 0x41f678, 0x41f685
+and 0x41f692. `tools/verify_turn_update.py --candidates` executes these original
+callees without replacement; no third-party implementation is used.

@@ -422,3 +422,23 @@ classes. Populated reset/audio adapters, roll runtime coverage, actual entity
 initialization, the full locomotion selector and animated character rendering
 remain unverified. The diagnostic combines guard sidestep files with its existing
 miner rig, not a reconstructed gameplay entity; see docs/TURN.md.
+
+# Locomotion candidates in the shared runtime
+
+`python tools/verify_turn_update.py --candidates` passes 3,014 original block
+executions, observing 12 candidate combinations and ten x87 speed-boundary
+fixtures. The 3,004-case complete helper verification still passes after sharing
+the magnitude comparison code. `python tools/verify_animation_check.py` matches
+the expanded 64-frame profile, including candidate outputs and missing-state
+fallbacks. The state hash is now `0xc85a78c2`; pose, cache and eye hashes remain
+`0x26ec2ef5`, `0x18528f6d`, `0x53433e81`. This supersedes the preceding profile.
+
+PC Release/NXDK builds and all four CTest checks pass. Numeric-only XEMU run
+`artifacts/xemu/20260908-174051-074482/report.json` passes in stock 64 MiB,
+with no framebuffer capture. XBE SHA-256:
+`c13b950d33a1579c2b755ef2e2de13eda88daa8d90ee9f86b25c9c7bc22b9db9`;
+ISO SHA-256:
+`a50c1c023cef89cc7bc645c9b1882ff8f089b4b35bcb3bbfab086c2ed9a55f44`.
+Available RAM after frozen-scene CPU mesh release is 48,406,528 bytes; full-game
+peak and animated character rendering remain unverified. See docs/TURN.md for
+the missing combat predicates, preceding reset and later physics/state selection.

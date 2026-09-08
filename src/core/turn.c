@@ -1,11 +1,8 @@
 #include "rf/turn.h"
 #include <math.h>
-static int turn_target_far(const float source[3], const float target[3], int *far)
+static int turn_magnitude_above(float x, float y, float z, float threshold, float factor)
 {
-    float x,y,z,threshold=8.2f; unsigned i; unsigned short saved,control,status;
-    for (i=0;i<3;++i) if (!isfinite(source[i]) || !isfinite(target[i])) return RF_FORMAT;
-    x=(float)((double)source[0]-target[0]); y=(float)((double)source[1]-target[1]); z=(float)((double)source[2]-target[2]);
-    if (!isfinite(x) || !isfinite(y) || !isfinite(z)) return RF_RANGE;
+    unsigned short saved,control,status;
 #if defined(_MSC_VER) && defined(_M_IX86)
     __asm { fnstcw saved }
     control=(unsigned short)((saved & ~0x0f00u) | 0x0300u);
@@ -20,19 +17,61 @@ static int turn_target_far(const float source[3], const float target[3], int *fa
         fmul z
         faddp st(1), st(0)
         fsqrt
-        fcomp threshold
+        fld threshold
+        fmul factor
+        fcompp
         fnstsw status
         fldcw saved
     }
 #elif defined(__i386__) || defined(__x86_64__)
     __asm__ volatile ("fnstcw %0" : "=m"(saved));
     control=(unsigned short)((saved & ~0x0f00u) | 0x0300u);
-    __asm__ volatile ("fldcw %5\n\tflds %1\n\tfmuls %1\n\tflds %2\n\tfmuls %2\n\tfaddp\n\tflds %3\n\tfmuls %3\n\tfaddp\n\tfsqrt\n\tfcomps %4\n\tfnstsw %0\n\tfldcw %6"
-        : "=m"(status) : "m"(x), "m"(y), "m"(z), "m"(threshold), "m"(control), "m"(saved) : "st", "st(1)");
+    __asm__ volatile ("fldcw %5\n\tflds %1\n\tfmuls %1\n\tflds %2\n\tfmuls %2\n\tfaddp\n\tflds %3\n\tfmuls %3\n\tfaddp\n\tfsqrt\n\tflds %4\n\tfmuls %7\n\tfcompp\n\tfnstsw %0\n\tfldcw %6"
+        : "=m"(status) : "m"(x), "m"(y), "m"(z), "m"(threshold), "m"(control), "m"(saved), "m"(factor) : "st", "st(1)");
 #else
 #error Turn targeting requires the supported x86 PC or Xbox target.
 #endif
-    *far=(status & 0x4100u)==0; return RF_OK;
+    return (status & 0x0100u)!=0;
+}
+
+static int turn_target_far(const float source[3], const float target[3], int *far)
+{
+    float x,y,z; unsigned i;
+    for (i=0;i<3;++i) if (!isfinite(source[i]) || !isfinite(target[i])) return RF_FORMAT;
+    x=(float)((double)source[0]-target[0]); y=(float)((double)source[1]-target[1]); z=(float)((double)source[2]-target[2]);
+    if (!isfinite(x) || !isfinite(y) || !isfinite(z)) return RF_RANGE;
+    *far=turn_magnitude_above(x,y,z,8.2f,1); return RF_OK;
+}
+
+int rf_locomotion_choose_candidates(rf_locomotion_candidates *candidates,
+                    const rf_locomotion_candidate_input *input, const int32_t motions[23],
+                    rf_turn_effects *effects, rf_motion_playback_state *playback,
+                    rf_motion_playback_resource *resources, uint32_t resource_count,
+                    const int32_t actions[45], const int32_t sounds[45],
+                    const rf_turn_context *context, const rf_turn_actor *actor,
+                    rf_turn_reset_fn reset, void *user, int32_t *sound_class)
+{
+    rf_locomotion_candidates next={0,2,4,8}; int status; int32_t sound=-1;
+    if (!candidates || !input || !motions || !effects || !playback || !resources ||
+        !actions || !sounds || !context || !actor || !sound_class) return RF_RANGE;
+    if (input->combat_eligible>1) return RF_FORMAT;
+    if (input->action==17) {
+        next.move=next.alternate=motions[7]==-1 ? 4 : 7;
+    } else if (input->action==7 || (input->action==12 && actor->behavior==1)) {
+        next.idle=13; next.move=6; next.alternate=motions[6]==-1 ? 4 : 6;
+    } else if (input->combat_eligible) {
+        status=rf_turn_update(effects,playback,resources,resource_count,actions,sounds,context,actor,reset,user,&sound);
+        if (status!=RF_OK) return status;
+        next.idle=1; next.move=effects->move_candidate; next.alternate=effects->alternate_candidate; next.special=9;
+        /* These fields are read after helper/reset side effects in the original. */
+        if (!(uint8_t)actor->network_mode) {
+            if (!isfinite(input->velocity[0]) || !isfinite(input->velocity[1]) ||
+                !isfinite(input->velocity[2]) || !isfinite(effects->movement.speed)) return RF_FORMAT;
+            if (turn_magnitude_above(input->velocity[0],input->velocity[1],input->velocity[2],effects->movement.speed,.3f) &&
+                input->state_740!=2) next.idle=next.alternate;
+        }
+    }
+    *candidates=next; *sound_class=sound; return RF_OK;
 }
 
 int rf_turn_update(rf_turn_effects *effects, rf_motion_playback_state *playback,

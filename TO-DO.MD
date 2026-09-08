@@ -17,6 +17,12 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Locomotion candidate selection now matches 3,014 original executions, including
+integrated sidestep/roll effects, asymmetric missing-state fallbacks and extended
+precision speed thresholds; the expanded 64-frame diagnostic matches 64 MiB
+XEMU. Recover combat predicates, preceding 800ms reset, following physics/state
+selection and populated reset/audio adapters to assemble the full selector.
+
 The shared diagnostic now matches original instructions and 64 MiB XEMU for
 64 frames of controller blending, real sidestep actions, candidate selection,
 playback, cached bones and eye transforms. Recover populated reset/audio

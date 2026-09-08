@@ -80,4 +80,25 @@ int rf_turn_update(rf_turn_effects *effects, rf_motion_playback_state *playback,
                     const int32_t actions[45], const int32_t sounds[45],
                     const rf_turn_context *context, const rf_turn_actor *actor,
                     rf_turn_reset_fn reset, void *user, int32_t *sound_class);
+
+typedef struct rf_locomotion_candidates { int32_t idle,move,alternate,special; } rf_locomotion_candidates;
+typedef struct rf_locomotion_candidate_input {
+    int32_t action; /* Entity +520; distinct from weapon +2a4. */
+    uint32_t combat_eligible; /* Resolved 41f950()==1 && !427020() && !428e60(). */
+    float velocity[3]; /* Entity +144. */
+    int32_t state_740;
+} rf_locomotion_candidate_input;
+/* Candidate block 0x41f61d..0x41f728, including the integrated 0x41f9f0 call.
+ * Priority selection, preceding 800ms timer/reset, combat predicates and later
+ * physics/state requests are caller-owned. Fields used after the helper may be
+ * updated by reset through user. Candidates/sound remain untouched on error;
+ * helper/reset side effects are not rolled back. Finite speed/vector required
+ * when the combat speed test is reached. */
+int rf_locomotion_choose_candidates(rf_locomotion_candidates *candidates,
+                    const rf_locomotion_candidate_input *input, const int32_t motions[23],
+                    rf_turn_effects *effects, rf_motion_playback_state *playback,
+                    rf_motion_playback_resource *resources, uint32_t resource_count,
+                    const int32_t actions[45], const int32_t sounds[45],
+                    const rf_turn_context *context, const rf_turn_actor *actor,
+                    rf_turn_reset_fn reset, void *user, int32_t *sound_class);
 #endif

@@ -19,6 +19,8 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     const rf_motion_file *handles[4]={&files[0],&files[1],&files[2],&files[3]};
     rf_motion_playback_resource resources[4]={0}; rf_motion_playback_state state={0};
     rf_turn_effects effects={0}; rf_turn_actor actor={0};
+    rf_locomotion_candidate_input selection={0,1,{0,0,0},0};
+    rf_locomotion_candidates candidates;
     rf_turn_context context={{0x800,6,.3f,1.5f,20,7,9},-1,1,0,0};
     int32_t actions[45],sounds[45],sound_class;
     rf_motion_controller controller={0,-1,0,0,0,0}; int32_t motions[23];
@@ -78,7 +80,11 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         actor.direction.count=frame>=8 && frame<56;
         actor.direction.vector[0]=frame<32 ? -1.0f : 1.0f;
         context.now_ms=(int32_t)frame*33;
-        status=rf_turn_update(&effects,&state,resources,4,actions,sounds,&context,&actor,NULL,NULL,&sound_class); if (status!=RF_OK) goto done;
+        selection.action=frame>=62 ? 12 : frame>=60 ? 7 : frame>=58 ? 17 : 0;
+        selection.velocity[0]=frame>=32 ? 1.0f : 0;
+        actor.behavior=frame>=62;
+        status=rf_locomotion_choose_candidates(&candidates,&selection,motions,&effects,&state,resources,4,
+            actions,sounds,&context,&actor,NULL,NULL,&sound_class); if (status!=RF_OK) goto done;
         status=rf_motion_update(&state,resources,4,1.0f/30.0f); if (status!=RF_OK) goto done;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         status=rf_model_compose_transform(local,matrices[eye.parent],tag); if (status!=RF_OK) goto done;
@@ -87,6 +93,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         for (i=0;i<4;++i) out[4]=hash_bytes(out[4],&resources[i].references,4);
         out[4]=hash_bytes(out[4],&effects,sizeof(effects));
         out[4]=hash_bytes(out[4],&sound_class,4);
+        out[4]=hash_bytes(out[4],&candidates,sizeof(candidates));
         displacement[0]=1;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }

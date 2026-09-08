@@ -1,5 +1,42 @@
 # Sidestep and roll candidate effects
 
+## Locomotion candidate block
+
+`rf_locomotion_choose_candidates` reconstructs 0x41f61d..0x41f728 and invokes
+the shared sidestep/roll helper. Its four output indices are idle, movement,
+alternate and special. Entity +520 value 17 chooses 0/7/7/8, falling back to
+0/4/4/8 if state 7 is absent. Value 7, or value 12 with +554 equal to 1,
+chooses 13/6/6/8; absent state 6 changes only the alternate to 4. The move
+candidate remains 6. Ordinary noncombat selection is 0/2/4/8.
+
+The caller resolves the combat gate: 0x41f950 returns exactly 1, 0x427020
+returns zero, and 0x428e60 returns zero. For that branch the function calls
+0x41f9f0's reconstruction, selects idle 1 and special 9, and takes movement
+and alternate candidates from its effects. If byte global 6fc4d8 is zero,
+velocity magnitude exceeds movement speed times binary32 .3, and entity +740
+is not 2, idle becomes the alternate. Velocity, movement speed, global mode
+and +740 are read after helper/reset effects. The magnitude and threshold
+product remain in x87 extended precision until comparison; neither is spilled
+to float. The existing target-distance helper now shares this comparison code.
+
+The API does not implement the earlier 800ms timer/reset block, combat gate
+predicates, later physics changes, or final state request. It preserves candidate
+and sound outputs on error; integrated helper/reset side effects are not rolled
+back. It therefore cannot yet replace the complete 0x41f400 selector.
+
+`python tools/verify_turn_update.py --candidates` compares 3,014 original block
+executions, including all candidate branches, unchanged original predicate and
+helper callees, full playback/effects/references and ten speed-boundary cases.
+The resolved combat input is represented by original forced-combat and dead
+flags. Reset fixtures use absent weapon entries; sounds are absent.
+
+The 64-frame shared diagnostic now also executes this block, uses velocity X=1
+from frame 32, and checks +520 values 17,7,12 in the last six frames with absent
+state mappings 6/7. Its scripted controller remains separate from these candidate
+outputs pending the unrecovered physics/selection branches. The state hash
+includes all four candidates. PC, original instructions and stock 64 MiB XEMU
+match; no new character rendering is claimed.
+
 ## Action names and shared runtime diagnostic
 
 The original initializer 0x4181d0 constructs 45 action names at 0x5caee0,

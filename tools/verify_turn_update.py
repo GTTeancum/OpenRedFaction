@@ -4,7 +4,8 @@ from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1]; sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_CODE
-from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_ECX,UC_X86_REG_FPCW,UC_X86_REG_ESI
+from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_ECX,UC_X86_REG_FPCW,UC_X86_REG_ESI,UC_X86_REG_EBX,UC_X86_REG_EDI
+choose='--candidates' in sys.argv
 exe=root/'Installed_Game/RF.exe'
 assert hashlib.sha256(exe.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
 image=pefile.PE(str(exe)).get_memory_mapped_image(); u=Uc(UC_ARCH_X86,UC_MODE_32)
@@ -41,9 +42,26 @@ direction=struct.pack('<IIi12f',0,8,1,1,0,0,1,0,0,0,1,0,0,0,1)
 for dx,dy in [(8.2,0),(8.2,1e-8),(-8.2,1e-8),(10,0)]:
     actor=direction+struct.pack('<iI3iI6f3I',0,struct.unpack_from('<I',c)[0],-1,0,0,0,dx,dy,0,0,0,0,1,1,0)
     cases.append((s,r,a,n,e,c,x,actor))
-wire=b''.join(s+e+c+struct.pack('<f',x)+b''.join(r)+struct.pack('<90i',*a,*n)+actor for s,r,a,n,e,c,x,actor in cases)
-run=subprocess.run([str(root/'build/pc/Release/rf_turn_probe.exe'),'--update'],input=wire,capture_output=True,check=True)
-assert len(run.stdout)==len(cases)*444
+boundary_start=len(cases)
+if choose:
+    # Speed=.1/.3-style comparisons must retain the original extended product
+    # and square root. Force speed=1, so the binary32 .3 threshold is exact.
+    s,r,a,n,e,c,x,actor=cases[0]
+    c=struct.pack('<I6fifIi',0,1,.3,1.5,20,7,9,-1,1,0,0)
+    actor=struct.pack('<IIi12f',0,8,0,1,0,0,1,0,0,0,1,0,0,0,1)+struct.pack('<iI3iI6f3I',0,0,-1,0,0,0,0,0,0,0,0,0,0,0,0)
+    for exponent in range(-15,-5):cases.append((s,r,[-1]*45,n,e,c,x,actor))
+selections=[]
+for k in range(len(cases)):
+    selection=struct.pack('<iI3fi',rng.choice([0,7,12,17]),rng.randrange(2),*rng.choice([(0,0,0),(.3,1e-10,0),(3,4,0),(10,0,0)]),rng.choice([0,2]))
+    selections.append(selection+struct.pack('<23i',*[rng.choice([-1,i]) for i in range(23)]))
+    if choose and k>=boundary_start:
+        selections[-1]=struct.pack('<iI3fi23i',0,1,.3,10.0**(-15+k-boundary_start),0,0,*range(23))
+wire=b''.join(s+e+c+struct.pack('<f',x)+b''.join(r)+struct.pack('<90i',*a,*n)+actor+(selections[k] if choose else b'') for k,(s,r,a,n,e,c,x,actor) in enumerate(cases))
+run=subprocess.run([str(root/'build/pc/Release/rf_turn_probe.exe'),'--candidates' if choose else '--update'],input=wire,capture_output=True,check=True)
+stride=460 if choose else 444
+assert len(run.stdout)==len(cases)*stride
+if choose:u.hook_add(UC_HOOK_CODE,lambda uc,a,size,data:uc.emu_stop(),begin=0x41f729,end=0x41f729)
+candidate_outcomes=set()
 entity=obj+0x6000;wrapper=obj+0x4000;info=obj+0x9000
 for k,(s,resources,actions,sounds,effects,context,x,actor) in enumerate(cases):
     u.mem_write(obj,bytes(65536));u.mem_write(desc,bytes(65536));put(obj+0x1d50,'<I',desc);put(desc+0xf58,'<I',32)
@@ -67,12 +85,31 @@ for k,(s,resources,actions,sounds,effects,context,x,actor) in enumerate(cases):
     esp=stack+62000;stop=stack+65000;out_a=stack+65200;out_b=out_a+4
     put(esp,'<4I',stop,entity,out_a,out_b);u.mem_write(out_a,effects[36:44]);reset_calls[0]=0
     u.reg_write(UC_X86_REG_ESP,esp);u.reg_write(UC_X86_REG_FPCW,0x37f)
-    u.emu_start(0x41f9f0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
+    helper_reached=True
+    if choose:
+        action,eligible=struct.unpack_from('<iI',selections[k]);state740,=struct.unpack_from('<i',selections[k],20)
+        put(entity+0x520,'<i',action);put(entity+0x810,'<I',0x10 if eligible else 0x11)
+        put(entity+0x200,'<i',-1);u.mem_write(entity+0x144,selections[k][8:20]);put(entity+0x740,'<i',state740)
+        for i,mid in enumerate(struct.unpack_from('<23i',selections[k],24)):put(entity+0x8e4+i*16,'<i',mid)
+        u.reg_write(UC_X86_REG_ESI,entity);u.reg_write(UC_X86_REG_EBX,1)
+        u.emu_start(0x41f61d,0x41f729,count=100000);assert u.reg_read(UC_X86_REG_EIP)==0x41f729
+        helper_reached=action!=17 and action!=7 and not(action==12 and behavior==1) and bool(eligible)
+        if helper_reached:u.mem_write(out_a,read(esp+12,4)+read(esp+32,4))
+        selected=struct.pack('<I',u.reg_read(UC_X86_REG_EBX))+read(esp+12,4)+read(esp+32,4)+struct.pack('<I',u.reg_read(UC_X86_REG_EDI))
+        candidate_outcomes.add(struct.unpack('<4i',selected))
+    else:
+        u.emu_start(0x41f9f0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
     expected=read(obj+0x12d0,196)+read(obj+0x1cfc,8)+read(obj+0x1d48,4)+struct.pack('<II',read(obj+0x1d4c,1)[0],read(obj+0x1d14,1)[0])+read(obj+0x1d18,32)+read(obj+0x1d04,4)+struct.pack('<II',struct.unpack('<H',read(obj+0x1cf8,2))[0],read(obj+0x1d44,1)[0]|read(obj+0x1d45,1)[0]<<1)+read(entity+0x8c,4)+read(entity+0x8c0,8)+b''.join(read(entity+off,4) for off in offsets)+read(entity+0x7bc,4)+read(out_a,8)+struct.pack('<i',-1)+b''.join(read(motions+i*256+0x74,4) for i in range(32))
     expected+=struct.pack('<I',reset_calls[0])
-    actual=run.stdout[k*444:(k+1)*444]
+    if choose:expected+=selected
+    actual=run.stdout[k*stride:(k+1)*stride]
     assert struct.unpack_from('<i',actual)[0]==0
     assert actual[4:]==expected,(k,[i for i in range(0,len(expected),4) if actual[4+i:8+i]!=expected[i:i+4]])
+if choose:
+    assert {(0,7,7,8),(0,4,4,8),(13,6,6,8),(13,6,4,8),(0,2,4,8)}<=candidate_outcomes,candidate_outcomes
+    report=dict(result='PASS',cases=len(cases),candidate_outcomes=sorted(candidate_outcomes),scope='Original candidate block 0x41f61d..0x41f728 including unmodified predicate, sidestep/roll, movement and speed callees; resolved combat input represented by original forced-combat/dead flags; absent weapon reset entries and sounds; preceding timer/reset and following physics/state selection excluded')
+    (root/'artifacts/locomotion-candidates-verification.json').write_text(json.dumps(report,indent=2));print(report)
+    sys.exit(0)
 assert all(coverage.values()),coverage
 # Required adapters must not silently become no-ops.
 s,r,a,n,e,c,x,actor=cases[-1]
