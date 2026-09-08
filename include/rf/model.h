@@ -61,4 +61,12 @@ int rf_model_sample_single_motion(const rf_model_bone *bones, uint32_t count, co
 int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
                              const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
                              uint32_t resource_count, float root_displacement[3], float (*matrices)[12], uint32_t capacity);
+/* Original per-bone generation cache in 0x51b500. Matrices and generation stamps
+ * share capacity. Initialize stamps unequal to state->generation before first
+ * evaluation, and keep them with their matrices. Matching stamps skip sampling
+ * and displacement consumption; successful bones are stamped individually. */
+int rf_model_evaluate_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
+                               const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
+                               uint32_t resource_count, float root_displacement[3], float (*matrices)[12],
+                               uint16_t *generations, uint32_t capacity);
 #endif

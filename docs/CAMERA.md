@@ -837,3 +837,38 @@ match. This synthetic topology is a test fixture, not a change to game assets.
 This recovers the application of pending displacement, not its producers,
 root-motion extraction, generation-cache behavior or bone overrides. Actual
 player setup and an Xbox runtime check remain required before camera use.
+
+## Per-bone evaluation generations
+
+`rf_model_evaluate_playback` adds the generation comparison from `0x51b500`:
+each bone's unsigned 16-bit stamp is compared with instance generation
+`+0x1cf8`, and a matching stamp skips evaluation. A successfully composed bone
+receives the current generation, corresponding to the original stamp at
+`instance + 0x1394 + bone * 48`. The existing uncached sampling API remains
+available for explicit resampling. Both paths share the same implementation.
+
+The owner supplies stamps alongside its matrices (at most 512 bytes for 256
+bones), initializing stamps to a value different from the current generation.
+A cache hit makes no archive reads and does not consume pending displacement.
+Generation changes cause reevaluation; the first root actually evaluated
+consumes displacement. If an earlier root is cached, a later uncached root
+consumes it instead. Stamps commit individually after successful composition,
+so partial read failures preserve completed work just like partial matrices.
+
+Stamp equality is authoritative: invalidating a parent alone does not implicitly
+invalidate descendants. The caller must maintain the intended generation/state
+relationship. This preserves original behavior and avoids silently introducing
+a different dependency-invalidating policy. Generation is validated as 16-bit;
+the playback updater already performs its wrap.
+
+`verify_playback_skeleton.py --cache` runs 320 initial update/evaluation cases
+plus three queries per case: same generation with queued displacement, changed
+generation, then only root zero invalidated with a different displacement.
+All 32,000 compared bone matrices, 1,280 eye transforms and 960 query records
+including stamps and remaining displacement match the unhooked original.
+The ordinary uncached comparison remains available. Unit checks additionally
+cover cached-first/stale-second roots, invalid generation and wrap to zero.
+
+This is an evaluation cache, not the still-needed archive key/metadata cache.
+Bone overrides and generation invalidation by the original initialization and
+control paths remain to recover; Xbox runtime integration remains open.

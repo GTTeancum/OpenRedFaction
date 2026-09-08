@@ -1,8 +1,9 @@
 """Verify playback update followed by archive-based blended skeleton/eye evaluation."""
-import hashlib,json,struct,subprocess,sys,random
+import hashlib,json,struct,subprocess,sys,random,os
 from pathlib import Path
 import pefile
 from inspect_models import inspect
+cache_mode='--cache' in sys.argv
 root=Path(__file__).resolve().parents[1]; sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32
 from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_ECX,UC_X86_REG_EIP,UC_X86_REG_FPCW
@@ -44,8 +45,11 @@ for k in range(320):
     state=struct.pack('<I',n)+slots+struct.pack('<3i',rng.choice([-1]+list(range(n))),primary,-1)+struct.pack('<4I6f',0,1,123,456,1,2,3,4,5,6)+struct.pack('<fII',rng.uniform(.1,.9),1,0)
     displacement=[0.0,0.0,0.0] if k<160 else [rng.choice([-0.0,-1.25,.125,10.0]) for _ in range(3)]
     cases.append(state+struct.pack('<If3f',rng.randrange(8),rng.choice([0,1/60,.2,1,2]),*displacement)+struct.pack('<i',8 if k>=160 and k%3==0 else -1))
-run=subprocess.run([str(root/'build/pc/Release/rf_skeleton_probe.exe'),str(root/'Installed_Game'/entries['miner.v3c'][0]),str(root/'Installed_Game'/entries[names[0]][0]),'miner.v3c',*names],input=b''.join(cases),capture_output=True,check=True)
-stride=272+(count+1)*48;assert len(run.stdout)==len(cases)*stride
+env=dict(os.environ);env.pop('RF_PROBE_CACHE',None)
+if cache_mode: env['RF_PROBE_CACHE']='1'
+run=subprocess.run([str(root/'build/pc/Release/rf_skeleton_probe.exe'),str(root/'Installed_Game'/entries['miner.v3c'][0]),str(root/'Installed_Game'/entries[names[0]][0]),'miner.v3c',*names],input=b''.join(cases),capture_output=True,check=True,env=env)
+base_stride=272+(count+1)*48; cache_stride=12+count*2+(count+1)*48
+stride=base_stride+(3*cache_stride if cache_mode else 0);assert len(run.stdout)==len(cases)*stride
 failures=[]
 for k,raw in enumerate(cases):
     u.mem_write(obj,bytes(0x4000));u.mem_write(obj+0x1d50,struct.pack('<I',desc))
@@ -64,7 +68,7 @@ for k,raw in enumerate(cases):
     u.mem_write(stack+64000,struct.pack('<I',stop)+raw[264:268])
     u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ECX,obj);u.reg_write(UC_X86_REG_FPCW,0x37f)
     u.emu_start(0x51ba80,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
-    got=run.stdout[k*stride:(k+1)*stride]
+    full=run.stdout[k*stride:(k+1)*stride];got=full[:base_stride]
     rd=lambda a,n:bytes(u.mem_read(a,n))
     expected=rd(obj+0x12d0,196)+rd(obj+0x1cfc,8)+rd(obj+0x1d48,4)+struct.pack('<II',rd(obj+0x1d4c,1)[0],rd(obj+0x1d14,1)[0])+rd(obj+0x1d18,32)+rd(obj+0x1d04,4)+struct.pack('<II',struct.unpack('<H',rd(obj+0x1cf8,2))[0],rd(obj+0x1d44,1)[0]|rd(obj+0x1d45,1)[0]<<1)
     assert got[:260]==expected,('playback',k)
@@ -78,6 +82,22 @@ for k,raw in enumerate(cases):
     u.mem_write(stack+64000,struct.pack('<3I',stop,obj+0x3000,count+eye_index));u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ECX,obj)
     u.emu_start(0x51b2e0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
     if got[-48:]!=rd(obj+0x3000,48): failures.append(dict(case=k,attachment='eye',actual=got[-48:].hex(),expected=rd(obj+0x3000,48).hex()))
-report=dict(result='PASS' if not failures else 'FAIL',cases=len(cases),bone_matrices=len(cases)*count,eye_transforms=len(cases),failures=len(failures),examples=failures[:8],scope='Update then evaluate miner with 0..3 active slots, stand/crouch motions, mixed loops and primary attenuation; pending root displacement/consumption including synthetic second roots; no overrides')
-(root/'artifacts/playback-skeleton-verification.json').write_text(json.dumps(report,indent=2)); print(report)
+    if cache_mode:
+        for query in range(3):
+            if query==0: u.mem_write(obj+0x12c0,struct.pack('<3f',1,2,3))
+            elif query==1: u.mem_write(obj+0x1cf8,struct.pack('<H',(struct.unpack('<H',rd(obj+0x1cf8,2))[0]+1)&65535))
+            if query==2:
+                u.mem_write(obj+0x1394,struct.pack('<H',(struct.unpack('<H',rd(obj+0x1cf8,2))[0]-1)&65535))
+                u.mem_write(obj+0x12c0,struct.pack('<3f',-1,-2,-3))
+            u.mem_write(stack+64000,struct.pack('<4I',stop,count,order_address,obj));u.reg_write(UC_X86_REG_ESP,stack+64000)
+            u.emu_start(0x51b500,stop,count=1000000);assert u.reg_read(UC_X86_REG_EIP)==stop
+            expected=rd(obj+0x12c0,12)+b''.join(rd(obj+0x1394+i*48,2) for i in range(count))+rd(obj,count*48)
+            u.mem_write(stack+64000,struct.pack('<3I',stop,obj+0x3000,count+eye_index));u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ECX,obj)
+            u.emu_start(0x51b2e0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
+            expected+=rd(obj+0x3000,48)
+            actual=full[base_stride+query*cache_stride:base_stride+(query+1)*cache_stride]
+            if actual!=expected: failures.append(dict(case=k,query=query,cache_mismatch=True))
+
+report=dict(result='PASS' if not failures else 'FAIL',cases=len(cases),bone_matrices=len(cases)*count*(4 if cache_mode else 1),eye_transforms=len(cases)*(4 if cache_mode else 1),cache_queries=len(cases)*3 if cache_mode else 0,failures=len(failures),examples=failures[:8],scope='Update then evaluate miner with 0..3 active slots, stand/crouch motions, mixed loops and primary attenuation; pending root displacement/consumption including synthetic second roots; no overrides')
+(root/('artifacts/playback-cache-verification.json' if cache_mode else 'artifacts/playback-skeleton-verification.json')).write_text(json.dumps(report,indent=2)); print(report)
 assert not failures

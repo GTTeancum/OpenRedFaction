@@ -277,13 +277,14 @@ int rf_model_sample_single_motion(const rf_model_bone *bones, uint32_t count, co
     }
     return RF_OK;
 }
-int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
+static int model_sample_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
                              const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
-                             uint32_t resource_count, float root_displacement[3], float (*matrices)[12], uint32_t capacity)
+                             uint32_t resource_count, float root_displacement[3], float (*matrices)[12], uint16_t *generations, uint32_t capacity)
 {
     uint8_t order[256]; uint32_t i,j,index,mask=0; int status;
     const rf_motion_slot_state *active;
     if (!bones || !state || !root_displacement || !matrices || !count || count>256 || capacity<count) return RF_RANGE;
+    if (generations && state->generation>65535) return RF_FORMAT;
     for (j=0;j<3;++j) if (!isfinite(root_displacement[j])) return RF_FORMAT;
     active=&state->completion.active;
     if (active->count>16 || (active->count && (!motions || !resources))) return RF_RANGE;
@@ -298,6 +299,7 @@ int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const r
         uint32_t contributions=0;
         const float identity[4]={0,0,0,1}, zero[3]={0,0,0};
         index=order[i];
+        if (generations && generations[index]==(uint16_t)state->generation) continue;
         for (j=0;j<active->count;++j) {
             rf_motion_track track;
             status=rf_motion_file_track(motions[active->slots[j].motion],index,&track); if (status!=RF_OK) return status;
@@ -328,8 +330,25 @@ int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const r
             status=rf_model_compose_transform(local,matrices[bones[index].parent],matrices[index]);
             if (status!=RF_OK) return status;
         }
+        if (generations) generations[index]=(uint16_t)state->generation;
     }
     return RF_OK;
+}
+
+int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
+                             const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
+                             uint32_t resource_count, float root_displacement[3], float (*matrices)[12], uint32_t capacity)
+{
+    return model_sample_playback(bones,count,state,motions,resources,resource_count,root_displacement,matrices,NULL,capacity);
+}
+
+int rf_model_evaluate_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
+                               const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
+                               uint32_t resource_count, float root_displacement[3], float (*matrices)[12],
+                               uint16_t *generations, uint32_t capacity)
+{
+    if (!generations) return RF_RANGE;
+    return model_sample_playback(bones,count,state,motions,resources,resource_count,root_displacement,matrices,generations,capacity);
 }
 
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12])

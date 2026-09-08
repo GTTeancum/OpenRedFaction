@@ -15,6 +15,11 @@
 
 ## Current camera evidence
 
+Per-bone generation caching now matches 960 repeated/invalidated original pose
+queries, preserving queued displacement on cache hits. Verify animation in
+Xbox runtime, then recover bone overrides, displacement producers and actual
+player initialization before changing the gameplay camera.
+
 Pending root displacement now matches original consumption and propagation
 through 8,000 bone matrices and 320 eye transforms, including a synthetic
 second root. Recover the producers of displacement, bone overrides and player

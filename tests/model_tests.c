@@ -7,6 +7,22 @@
 int main(void)
 {
     {
+        rf_model_bone bones[2]={{0},{0}}; rf_motion_playback_state state={0};
+        float displacement[3]={4,5,6}, matrices[2][12]={{1,0,0,0,1,0,0,0,1,7,8,9},{0}};
+        uint16_t stamps[2]={1,0};
+        bones[0].parent=bones[1].parent=-1; state.completion.active.primary_slot=-1; state.generation=1;
+        CHECK(rf_model_evaluate_playback(bones,2,&state,NULL,NULL,0,displacement,matrices,stamps,2)==RF_OK);
+        CHECK(matrices[0][9]==7 && matrices[1][9]==4 && matrices[1][10]==5 && stamps[1]==1 && displacement[0]==0);
+        displacement[0]=2;
+        CHECK(rf_model_evaluate_playback(bones,2,&state,NULL,NULL,0,displacement,matrices,stamps,2)==RF_OK);
+        CHECK(matrices[0][9]==7 && matrices[1][9]==4 && displacement[0]==2);
+        state.generation=65536;
+        CHECK(rf_model_evaluate_playback(bones,2,&state,NULL,NULL,0,displacement,matrices,stamps,2)==RF_FORMAT && displacement[0]==2);
+        state.generation=0;
+        CHECK(rf_model_evaluate_playback(bones,2,&state,NULL,NULL,0,displacement,matrices,stamps,2)==RF_OK);
+        CHECK(matrices[0][9]==2 && matrices[1][9]==0 && stamps[0]==0 && stamps[1]==0 && displacement[0]==0);
+    }
+    {
         rf_model_bone bone={0}; rf_motion_playback_state state={0};
         float displacement[3]={NAN,2,3}, matrices[1][12], saved[1][12];
         bone.parent=-1; state.completion.active.primary_slot=-1;
