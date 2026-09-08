@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Model material counts now match 2,000 complete original executions across
+wrapper types. Recover per-instance material allocation/copy and texture binding
+before connecting the remaining weapon presentation adapter to live models.
+
 The no-op presentation cleanup dependency is removed, and resource/backend
 and mode-kind gates match 4,000 expanded original cases. Recover the remaining
 resource/material binding operations and live model ownership for local presentation.

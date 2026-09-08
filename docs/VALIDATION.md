@@ -616,3 +616,10 @@ mode gates. Resource and binding arguments are also compared. Win32 Release,
 four CTest cases and NXDK build pass. Successful deeper resource/binding
 operations and local-presentation Xbox runtime integration remain open.
 No new emulator run or screenshot is claimed for this change.
+
+Model material-count checkpoint: 2,000 full original-code cases pass for
+0x503690 and 0x4a76f0, covering all wrapper branches, negative counts and
+wrapping sums; one C-only bounds rejection preserves output. Original object
+views remain unchanged. Win32 Release, four CTest cases and NXDK build pass.
+Material allocation/copy, binding and Xbox runtime integration remain open.
+No new emulator execution or screenshot is claimed.

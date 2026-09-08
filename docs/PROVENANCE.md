@@ -323,3 +323,9 @@ cleanup operation has no effects in the fingerprinted PC executable. Original
 These original gates now execute unchanged in verification, and C reproduces
 them. The remaining adapters correspond to the deeper resource and binding
 operations; successful bodies and Xbox equivalents remain open.
+
+Model material count: `rf_model_material_count` follows 0x503690..0x503720
+and unchanged 0x4a76f0 in the fingerprinted RF.exe. Direct disassembly also
+identifies 0x503650 instance access, 0x503730 allocation, 0x503950 material copy
+and 0x48ac00 texture binding as remaining ownership dependencies. Only the
+count query is implemented by this checkpoint; original binary data remains local.

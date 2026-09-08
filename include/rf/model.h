@@ -3,6 +3,14 @@
 #include "rf/vpp.h"
 #include "rf/motion_file.h"
 
+/* 503690 over resolved model views. Kind 1 returns static_count when
+ * static_lods<=1; kind 2 sums mesh counts; kind 3 returns direct_count;
+ * unknown kinds return zero. Signed counts and original wrapping addition
+ * are preserved. This is a query, not an allocation size validation. */
+int rf_model_material_count(int32_t kind,int32_t static_lods,int32_t static_count,
+    int32_t mesh_count,const int32_t *mesh_counts,uint32_t mesh_capacity,
+    int32_t direct_count,int32_t *result);
+
 /* Bounded names supplied by a model loader; length excludes the terminator.
  * Groups retain the original 0x51d5b0 search order, without original pointers
  * or object layout. Their semantic names await loader reconstruction. */

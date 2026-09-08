@@ -3,6 +3,22 @@
 #include <math.h>
 #include <string.h>
 
+int rf_model_material_count(int32_t kind,int32_t static_lods,int32_t static_count,
+    int32_t mesh_count,const int32_t *mesh_counts,uint32_t mesh_capacity,
+    int32_t direct_count,int32_t *result)
+{
+    int32_t value=0; uint32_t sum=0,i;
+    if (!result) return RF_RANGE;
+    if (kind==1) { if (static_lods<=1) value=static_count; }
+    else if (kind==3) value=direct_count;
+    else if (kind==2 && mesh_count>0) {
+        if (!mesh_counts || (uint32_t)mesh_count>mesh_capacity) return RF_RANGE;
+        for (i=0;i<(uint32_t)mesh_count;++i) sum+=(uint32_t)mesh_counts[i];
+        memcpy(&value,&sum,4);
+    }
+    *result=value; return RF_OK;
+}
+
 static int valid_name(rf_model_name name)
 {
     size_t i;

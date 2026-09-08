@@ -2,7 +2,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
-int main(void)
+int main(int argc,char **argv)
 {
     struct { uint32_t counts[3]; char names[3][16][32]; char query[32]; } input;
     struct { int32_t status, index; } output;
@@ -11,6 +11,18 @@ int main(void)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if (argc==2 && !strcmp(argv[1],"--materials")) {
+        struct { int32_t kind,lods,static_count,mesh_count,direct_count,counts[8]; uint32_t capacity; } data;
+        _Static_assert(sizeof(data)==56,"Material count fixture layout");
+        while (fread(&data,sizeof(data),1,stdin)==1) {
+            int32_t result[2]={0,-99};
+            if (data.capacity>8) return 2;
+            result[0]=rf_model_material_count(data.kind,data.lods,data.static_count,data.mesh_count,
+                data.counts,data.capacity,data.direct_count,&result[1]);
+            if (fwrite(result,sizeof(result),1,stdout)!=1) return 1;
+        }
+        return ferror(stdin) ? 1 : 0;
+    }
     while (fread(&input, sizeof(input), 1, stdin) == 1) {
         for (g = 0; g < 3; ++g) {
             if (input.counts[g] > 16) return 2;
