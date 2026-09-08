@@ -1,5 +1,18 @@
 # Model batch data
 
+`rf_model_local_light_direction` recovers `0x52dd51..0x52dd9d`: normalize the
+selected delta using `0x4fab70`, optionally replace Y with 0.5 and normalize
+again when model flag 0x400 is set, then apply the supplied 3x3 rotation via
+`0x4fac60`. Zero and unordered lengths become (1,0,0); infinity follows the
+original reciprocal/multiplication path. No post-rotation normalization occurs.
+
+`tools/verify_local_light_direction.py` compares the unchanged block and complete
+vector callees for 2,000 cases covering both flag states, zero, NaN, infinity
+and tiny deltas. All outputs match bit-for-bit in this run, with a small
+floating tolerance permitted by the verifier. PC build, CTest and NXDK build
+pass. The helper takes already-selected deltas and caller-supplied rotation;
+fixed-light setup, global gates and scene integration remain open.
+
 `rf_model_local_light_color` recovers the selected-light color tail at
 `0x52dd9d..0x52ddda`: scale is `(1-sqrt(distance_squared/radius_squared))*255`,
 then multiplied by each light color component. No clamp or singular-input

@@ -5,6 +5,22 @@
 #include <stdlib.h>
 #include <float.h>
 
+static void light_normalize(float v[3])
+{
+    double length=sqrt((double)v[0]*v[0]+(double)v[1]*v[1]+(double)v[2]*v[2]);uint32_t i;
+    if(!(length>0)) { v[0]=1;v[1]=v[2]=0;return; }
+    length=1.0/length;for(i=0;i<3;++i)v[i]=(float)(v[i]*length);
+}
+int rf_model_local_light_direction(const float delta[3],uint32_t flags,const float rotation[9],float result[3])
+{
+    float v[3],out[3];uint32_t i;
+    if(!delta || !rotation || !result)return RF_RANGE;
+    memcpy(v,delta,sizeof(v));light_normalize(v);
+    if(flags&0x400) { v[1]=0.5f;light_normalize(v); }
+    for(i=0;i<3;++i)out[i]=(float)(((double)v[2]*rotation[i*3+2]+(double)v[1]*rotation[i*3+1])+(double)v[0]*rotation[i*3]);
+    memcpy(result,out,sizeof(out));return RF_OK;
+}
+
 int rf_model_local_light_color(float distance_squared,float radius_squared,const float color[3],float result[3])
 {
     double scale;float value[3];uint32_t i;

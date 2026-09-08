@@ -11,6 +11,14 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--local-light-direction")) {
+        struct { float delta[3];uint32_t flags;float rotation[9]; } data;float out[3];
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            if(rf_model_local_light_direction(data.delta,data.flags,data.rotation,out)!=RF_OK)return 2;
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--local-light-color")) {
         float data[5],out[3];
         while(fread(data,sizeof(data),1,stdin)==1) {

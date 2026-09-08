@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Selected-light direction now matches 2,000 original cases, including flag
+0x400 and singular inputs. Assemble fixed lighting and global gates with the
+verified selection, direction and attenuation helpers for renderer integration.
+
 Selected-light attenuation now matches 2,000 original cases. Finish light
 direction normalization/rotation, fixed lights and global gates before
 connecting the recovered setup to model rendering.

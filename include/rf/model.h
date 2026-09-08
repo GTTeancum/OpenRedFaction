@@ -103,6 +103,9 @@ int rf_model_choose_local_light(const float position[3],const rf_model_local_lig
 /* Selected-light tail 0x52dd9d: (1-sqrt(distance_squared/radius_squared))*255
  * times light RGB, with no clamp. Invalid arithmetic propagates as original. */
 int rf_model_local_light_color(float distance_squared,float radius_squared,const float color[3],float result[3]);
+/* Selected-light direction 0x52dd51: normalize delta; flag 0x400 replaces Y
+ * with 0.5 and normalizes again; rotate through the supplied 3x3 matrix. */
+int rf_model_local_light_direction(const float delta[3],uint32_t flags,const float rotation[9],float result[3]);
 /* Tag placement 0x5034f0 after character tag evaluation: rotate then translate.
  * Preserves its separate rounding stages; no extra scale parameter is applied. */
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12]);
