@@ -1087,3 +1087,32 @@ remain open.
 
 Final pose-setter run `20260909-174417-380780` also passes all eight route
 comparisons in stock 64 MiB XEMU, retaining three positive-X losses/recoveries.
+
+
+## Persistent animation stream length
+
+`rf_animation_placement.frame_count` now controls placed stream duration; zero
+preserves the 64-frame default. The producer retains one controller, playback
+state, bone/cache workspace and mesh allocation for the entire call. The fixed
+authored preview request sequence repeats every 64 frames without reconstructing
+the controller. Live movement callbacks continue to receive absolute frame
+numbers and can supply their own decisions. Single-frame preview entry points
+retain their existing 64-frame limits.
+
+Optional timing storage now declares `animation_timing_capacity`; zero preserves
+the legacy 64-record capacity. A stream that would exceed a supplied timing
+buffer returns RF_RANGE before invoking the sink. No additional allocation is
+required merely to increase frame_count; callers choose their telemetry storage.
+
+The PC scene checker accepts `--long-animation` with the usual archive arguments.
+It renders 600 authored miner frames at a 1/60 runtime step, verifies fixed mesh
+storage, compares the first 64 frames with an independent short stream, checks
+that timing did not restart at frame 64, and rejects an undersized timing buffer
+without additional callbacks. The final rolling mesh hash is 38db0b07. This is
+an animation-only stream: it does not attach the moving body or extend scene
+telemetry beyond 64. Those callbacks remain the next integration step.
+
+Both PC/NXDK builds and four CTests pass. The XEMU regression below exercises
+the existing 64 rendered frames plus eight extended physics routes; it does not
+claim that 600 animated frames have yet run in XEMU. No screenshot was captured.
+`artifacts/xemu/20260909-174748-838687/report.json` passes that stock 64 MiB regression.

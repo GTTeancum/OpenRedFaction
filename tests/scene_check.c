@@ -69,6 +69,16 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     printf("Frame %u actor triangles %u hash %08x\n",frame,(mesh->count-world)/3,hash);
     return c->stop && frame==2?RF_NOT_FOUND:RF_OK;
 }
+typedef struct animation_span_check {uint32_t frames,hash,prefix;const void *vertices;} animation_span_check;
+static int animation_span_frame(void *context,uint32_t frame,rf_preview_mesh *mesh)
+{
+    animation_span_check *c=context;uint32_t i;
+    if(frame!=c->frames++ || (c->vertices && c->vertices!=mesh->vertices))return RF_FORMAT;
+    c->vertices=mesh->vertices;
+    for(i=0;i<mesh->bytes;++i)c->hash=(c->hash^((const unsigned char*)mesh->vertices)[i])*16777619u;
+    if(frame==63)c->prefix=c->hash;
+    return RF_OK;
+}
 int main(int argc,char **argv)
 {
     if((argc==5 || argc==6) && !strcmp(argv[1],"--pose-world")) {
@@ -122,7 +132,7 @@ int main(int argc,char **argv)
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
     check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
-    if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && !body_mode)))return 2;
+    if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && strcmp(argv[12],"--long-animation") && !body_mode)))return 2;
     c.authored=argc==13;
     c.body_mode=body_mode;
     rf_scene_actor_drive(drive);rf_scene_actor_route_enabled=argc==13 && !strcmp(argv[12],"--traverse");
@@ -138,6 +148,23 @@ int main(int argc,char **argv)
     for(i=0;i<binding.assets.texture_count;++i)names[i]=binding.assets.textures[i];
     if(rf_model_materials_open_skin(&c.bundle,&model,names,binding.assets.texture_count,maps,5,4*1024*1024))return 3;
     if(body_mode && rf_geometry_collision_world_open(&geometry,8*1024*1024,&body_world))return 3;
+    if(argc==13 && !strcmp(argv[12],"--long-animation")) {
+        rf_entity_state_set *states=malloc(sizeof(*states));rf_vpp motions;
+        uint32_t (*timing)[3]=calloc(600,sizeof(*timing));animation_span_check short_run={0,2166136261u,0,NULL},long_run=short_run;
+        if(!states || !timing || rf_vpp_open(&motions,argv[5]) ||
+            rf_entity_state_set_open(argv[6],binding.entity.class_name,"",&motions,512*1024,states))return 3;
+        c.placement.step_seconds=1.0f/60;c.placement.animation_timing=timing;c.placement.animation_timing_capacity=600;
+        if(rf_animation_stream_states(argv[4],argv[5],1024*1024,&c.placement,states,animation_span_frame,&short_run))return 3;
+        c.placement.frame_count=600;
+        if(rf_animation_stream_states(argv[4],argv[5],1024*1024,&c.placement,states,animation_span_frame,&long_run))return 3;
+        if(short_run.frames!=64 || long_run.frames!=600 || short_run.hash!=long_run.prefix || !memcmp(timing[0]+1,timing[64]+1,8))return 3;
+        c.placement.animation_timing_capacity=64;
+        if(rf_animation_stream_states(argv[4],argv[5],1024*1024,&c.placement,states,animation_span_frame,&long_run)!=RF_RANGE || long_run.frames!=600)return 3;
+        printf("PASS: 600 continuous animation frames, matching 64-frame prefix, fixed mesh allocation, persistent clock, timing capacity guard; hash %08x\n",long_run.hash);
+        free(timing);free(states);rf_vpp_close(&motions);
+        rf_model_materials_close(&c.bundle);rf_preview_close(&c.world);rf_geometry_close(&geometry);
+        for(i=0;i<5;++i)rf_vpp_close(maps+i);rf_vpp_close(&meshes);rf_vpp_close(&levels);return 0;
+    }
     for(mode=0;mode<3;++mode) {
         rf_preview_mesh mesh={0},before;rf_materials materials={0},saved;
         if(rf_preview_build(&mesh,&geometry,&level,8*1024*1024) ||

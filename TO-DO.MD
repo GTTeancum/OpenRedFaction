@@ -24,6 +24,12 @@ loses and regains support three times; the other routes exercise sustained
 contacts. PC/XEMU route hashes and endpoints agree. This is not yet animated
 traversal; the visible scene still stops at 64 frames.
 
+The animation producer now accepts a caller-selected stream length without
+restarting its controller/cache or reallocating its mesh. The new PC
+`--long-animation` check passes 600 frames with an identical 64-frame prefix and
+bounded timing storage. The scene's fixed-size telemetry/callbacks still need
+extension before combining this with the longer moving-body route.
+
 Capture and post screenshots only when there is a new visible result.
 
 Latest memory-harness run: `20260909-165657-464529` PASS; 64 MiB confirmed,

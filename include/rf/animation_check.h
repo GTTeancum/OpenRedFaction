@@ -31,6 +31,8 @@ typedef struct rf_animation_placement {
     const rf_entity_physics_config *physics_config;
     rf_physics_body *physics_body; /* Open body's pose drives rendering each frame. */
     rf_physics_stance_cache *stance_cache; /* Optional cache from diagnostic initial pose. */
+    uint32_t frame_count; /* Stream length; zero preserves the 64-frame diagnostic default. */
+    uint32_t animation_timing_capacity; /* Zero means legacy 64 records when timing is supplied. */
     float step_seconds; /* Zero keeps standalone 1/30 step; configured actors share physics time after initialization. */
     const uint32_t *stance_flags;
     /* Apply original selector physics effect before controller advancement.
@@ -40,11 +42,14 @@ typedef struct rf_animation_placement {
     void *stance_context;
     /* Optional movement selector after stance effects, when stance is unhandled. */
     int (*movement_select)(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23]);
-    uint32_t (*animation_timing)[3]; /* Per-frame delta, resulting phase and generation; 64 records. */
+    uint32_t (*animation_timing)[3]; /* Per-frame delta, resulting phase and generation; caller supplies capacity. */
     uint32_t *initial_animation; /* Seed phase/generation, first controller and active slot (12 words). */
     uint32_t *physics_diagnostic; /* Eight words; optional integrated fixture. */
 } rf_animation_placement;
-/* World/entity inputs are read each frame, allowing the owner to update them
+/* Placed streams honor frame_count (zero defaults to 64) without restarting
+ * controller, playback or cache state. Fixed authored fixture requests repeat
+ * every 64 frames unless a movement callback supplies them.
+ * World/entity inputs are read each frame, allowing the owner to update them
  * synchronously in its sink. Viewport settings must agree between the two
  * projection descriptions. Empty visible meshes are valid. Lighting remains
  * the diagnostic ambient fixture; this does not load/spawn a level entity. */
