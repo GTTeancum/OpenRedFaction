@@ -207,3 +207,35 @@ use internal query flags `0x461` and clear diagnostic face/owner fields. This
 is evidence for geometric binding and intersection, not equivalence of runtime
 filter metadata, world traversal, nearest world hit or gameplay collision.
 PC/NXDK builds and the four registered CTest checks pass. No rendering changed.
+
+## Corrected file flag width
+
+The prior geometry accessor exposed only byte +40 as face flags. Original
+solid loader `0x4ed520`, identified using the pinned Dash Faction solid_read
+patch addresses, establishes that version-180 flags are a full 32-bit word at
+file face +40. At `0x4edeb9..0x4edec8`, unchanged reader `0x515420` consumes
+four bytes and stores the word into the temporary face attributes. The face
+creation chain `0x4cfab0 -> 0x4dfbd0` copies six attribute words into runtime
+face +0x28, so this flags word initially survives intact. This observation is
+not proof that later setup leaves every flag unchanged.
+
+`rf_geometry_get_face` now returns the complete word. The older pinned Open
+Faction layout lead described separate bytes here; original executable evidence
+supersedes that interpretation. No third-party implementation was copied.
+The apparent byte at +41 must not be treated as an independent lightmap
+resolution field based on that older layout description.
+
+`python tools/verify_geometry_flags.py` checks every accessor against the raw
+word across 460,720 faces in 94 inventoried levels; 271,394 have flags above
+0xff that were previously truncated. It executes the original loader read
+block and unchanged binary reader on every observed flag word plus random
+32-bit words: 1,047 cases, each preserving the full value and advancing four
+bytes. Report: `artifacts/geometry-flags-verification.json`. All 94 bounded
+geometry loads, accessor/budget checks, PC/NXDK builds and four CTest checks
+pass. The existing preview tests only flag bit 0, so this correction does not
+introduce a new visible result.
+
+The loader also narrows the file portal field to runtime face +0x34 and assigns
+room ownership through `0x4ccec0`; these are trace leads requiring further
+verification before creating authoritative runtime filter views. Post-load
+texture/room-derived flag changes remain open.

@@ -83,6 +83,11 @@ integration still need to be recovered and verified.
 
 ## Static geometry representation
 
+Original loader evidence now corrects the older format lead: face +40 contains
+a 32-bit flags word, not only a flag byte. `rf_geometry_get_face` preserves all
+four bytes. See `docs/COLLISION.md` and `tools/verify_geometry_flags.py` for the
+original `0x4edeb9` read-block comparison and all-level accessor verification.
+
 `src/core/geometry.c` is a new bounded implementation of the observed v180 static
 geometry layout. Layout leads were checked in Open Faction's
 `shared/CStaticGeometry.cpp` and `common/include/formats/rfl_format.h`; no source

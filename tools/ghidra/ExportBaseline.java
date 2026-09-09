@@ -64,6 +64,8 @@ public class ExportBaseline extends GhidraScript {
         for(long target : new long[]{0x402ab0L,0x42a060L,0x4289d0L,0x428a60L,0x498e80L,0x499ed0L,0x4a0840L,0x42da40L,0x48a8d0L}) addresses.add(target);
         for(long target : new long[]{0x508b70L,0x4df1c0L,0x499190L}) addresses.add(target);
         for(long target : new long[]{0x4deab0L,0x4dec10L}) addresses.add(target);
+        addresses.add(0x4ed520L); // Pinned Dash solid_read patches identify this function.
+        for(long target : new long[]{0x4cfab0L,0x4ccec0L,0x4f02e0L}) addresses.add(target);
         for(long target : new long[]{0x506550L,0x4e1f50L,0x5071b0L}) addresses.add(target);
         for (long target : new long[]{0x539ed0L, 0x53a130L, 0x539e10L, 0x53a040L, 0x51a000L, 0x417e90L}) addresses.add(target);
         addresses.add(0x5698d0L); addresses.add(0x569920L);

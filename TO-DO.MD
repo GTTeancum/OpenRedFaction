@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Face access now preserves the original 32-bit file flags across 460,720 faces;
+recover post-load flag changes and room ownership before enabling gameplay
+collision metadata and world traversal.
+
 All 7,418 Live Mines faces now bind to collision views and match original ray
 results on PC and NXDK; recover runtime filter metadata and world traversal
 before using the query for gameplay visibility or actor movement.
