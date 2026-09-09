@@ -76,4 +76,11 @@ int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t
  * collision frame with bounded remaining-time passes, then stops. Rendered
  * body remains untouched. 120 frames maximum before the first contact. */
 int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t out[8]);
+/* Diagnostic replay of the verified passive fall through its first collision
+ * frame, then hold. Reuses the caller's resident stationary collision world.
+ * Scripted animation/spawn assumptions remain; this is not a gameplay loop. */
+int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *meshes_path,
+    const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
+    rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
+    rf_scene_frame_sink sink,void *context,const rf_geometry_collision_world *collision);
 #endif

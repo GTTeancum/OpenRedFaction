@@ -10,7 +10,7 @@ assert hashlib.sha256(exe.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d
 image=pefile.PE(str(exe)).get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32)
 u.mem_map(0x400000,(len(image)+4095)//4096*4096);u.mem_write(0x400000,image)
 base=0x30000000;stack=base+0xe000;stop=base+0xf000;u.mem_map(base,0x10000)
-d=json.loads(Path(sys.argv[1]).read_text());state=d['symbols']['scene_actor_body']['words']
+d=json.loads(Path(sys.argv[1]).read_text());state=d['symbols'].get('actor_trajectory',d['symbols']['scene_actor_body'])['words']
 f=lambda *v:struct.pack('<%df'%len(v),*v)
 w=lambda *v:struct.pack('<%dI'%len(v),*v)
 assert state[55:58]==[0,0,0], 'This passive fixture requires zero applied force'

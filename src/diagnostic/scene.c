@@ -105,6 +105,7 @@ int rf_scene_preview_camera(rf_level *level,int32_t uid)
 typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity;rf_scene_frame_sink sink;void *context;
+    const rf_geometry_collision_world *collision;
 } scene_stream;
 rf_physics_body scene_actor_body;
 uint32_t rf_scene_actor_physics_diagnostic[8];
@@ -114,6 +115,11 @@ typedef struct actor_sweep_record {
 } actor_sweep_record;
 actor_sweep_record rf_scene_actor_sweep_records[48];
 rf_physics_body_state rf_scene_actor_fall_state;
+static rf_physics_body_state actor_trajectory[121];
+static uint32_t actor_trajectory_count;
+rf_group_attached_pose rf_scene_actor_pose;
+uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
+uint32_t rf_scene_actor_render_frames[64][5]; /* vertices, hash, body position bits */
 float rf_scene_actor_contact[7]; /* impact speed, contact normal, response velocity */
 float rf_scene_actor_contact_time[4]; /* first adjusted fraction/time, final remaining time, passes */
 static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics_body_state *state,
@@ -138,6 +144,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
     if(!world || !out || !scene_actor_body.allocated_bytes || !scene_actor_body.spheres.count)return RF_RANGE;
     memset(rf_scene_actor_contact,0,sizeof(rf_scene_actor_contact));
     memset(rf_scene_actor_contact_time,0,sizeof(rf_scene_actor_contact_time));
+    actor_trajectory[0]=current;actor_trajectory_count=1;
     for(step=0;step<120;++step) {
         proposal=current;
         {int status=rf_physics_fall_propose(&proposal,1.0f/60,9.8f,support);if(status)return status;}
@@ -170,12 +177,13 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
                 rf_scene_actor_contact_time[2]=remaining;rf_scene_actor_contact_time[3]=(float)pass;
                 status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,current.position,&current.bounds);if(status)return status;
             }
-            break;
+            actor_trajectory[actor_trajectory_count++]=current;break;
         }
         /* Fixture accepts only unobstructed translations. Full actor pose/room
          * commit and contact response are not represented by this assignment. */
         current=proposal;memcpy(current.position,current.next_position,sizeof(current.position));
         {int status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,current.position,&current.bounds);if(status)return status;}
+        actor_trajectory[actor_trajectory_count++]=current;
     }
     rf_scene_actor_fall_state=current;
     for(i=0;i<sizeof(current);++i)hash=(hash^((const unsigned char*)&current)[i])*16777619u;
@@ -206,6 +214,12 @@ int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;
+    if(stream->collision && frame==0) {
+        int status=rf_scene_actor_world_check(stream->collision,rf_scene_actor_initial_world);if(status)return status;
+        status=rf_scene_actor_fall_check(stream->collision,rf_scene_actor_initial_fall);if(status)return status;
+        memset(&rf_scene_actor_pose,0,sizeof(rf_scene_actor_pose));
+        rf_scene_actor_pose.radius=scene_actor_body.state.bounds.radius;
+    }
     uint64_t bytes=(uint64_t)stream->world*sizeof(rf_preview_vertex)+actor->bytes;
     if(actor->count%3 || actor->bytes!=(uint64_t)actor->count*sizeof(rf_preview_vertex) ||
        bytes>stream->capacity)return RF_RANGE;
@@ -219,13 +233,29 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         actor->vertices[i].material=stream->base+slot;
     }
     memcpy(stream->mesh->vertices+stream->world,actor->vertices,actor->bytes);
+    if(stream->collision) {
+        uint32_t hash=2166136261u;
+        for(i=0;i<actor->bytes;++i)hash=(hash^((const unsigned char*)actor->vertices)[i])*16777619u;
+        rf_scene_actor_render_frames[frame][0]=actor->count;rf_scene_actor_render_frames[frame][1]=hash;
+        memcpy(rf_scene_actor_render_frames[frame]+2,scene_actor_body.state.position,12);
+    }
     stream->mesh->count=stream->world+actor->count;stream->mesh->bytes=(uint32_t)bytes;
-    return stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
+    {
+        int status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);if(status)return status;
+        if(stream->collision) {
+            rf_physics_body_state next=actor_trajectory[frame+1<actor_trajectory_count?frame+1:actor_trajectory_count-1];
+            status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return status;
+            memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
+            memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
+            scene_actor_body.state=next;
+        }
+        return RF_OK;
+    }
 }
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
-    rf_scene_frame_sink sink,void *context,int state_mode)
+    rf_scene_frame_sink sink,void *context,int state_mode,const rf_geometry_collision_world *collision)
 {
     rf_vpp archive,motions;rf_model_file model;rf_level_actor_assets binding;rf_entity_physics_config physics_config;
     rf_entity_state_set *states=NULL;int motions_opened=0;
@@ -286,7 +316,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(sink) {
         rf_preview_close(&actor);
         stream.mesh=mesh;stream.materials=materials;stream.bundle=&bundle;
-        stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;
+        stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,&stream);
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,&stream);
     }
@@ -300,7 +330,7 @@ int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget)
 {
     return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
-        mesh,materials,mesh_budget,material_budget,NULL,NULL,0);
+        mesh,materials,mesh_budget,material_budget,NULL,NULL,0,NULL);
 }
 int rf_scene_stream_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
@@ -309,7 +339,7 @@ int rf_scene_stream_miner(const rf_level *level,int32_t uid,const char *meshes_p
 {
     if(!sink)return RF_RANGE;
     return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
-        mesh,materials,mesh_budget,material_budget,sink,context,0);
+        mesh,materials,mesh_budget,material_budget,sink,context,0,NULL);
 }
 int rf_scene_stream_miner_states(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
@@ -318,5 +348,14 @@ int rf_scene_stream_miner_states(const rf_level *level,int32_t uid,const char *m
 {
     if(!sink)return RF_RANGE;
     return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
-        mesh,materials,mesh_budget,material_budget,sink,context,1);
+        mesh,materials,mesh_budget,material_budget,sink,context,1,NULL);
+}
+int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *meshes_path,
+    const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
+    rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
+    rf_scene_frame_sink sink,void *context,const rf_geometry_collision_world *collision)
+{
+    if(!sink || !collision)return RF_RANGE;
+    return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
+        mesh,materials,mesh_budget,material_budget,sink,context,1,collision);
 }

@@ -66,10 +66,12 @@ def main():
     parser.add_argument('--scene',action='store_true',help='Expect the close Live Mines / miner 9858 combined fixture')
     parser.add_argument('--scene-stream',action='store_true',help='Expect 64 combined scene frames, retained frame 63')
     parser.add_argument('--scene-states',action='store_true',help='Expect authored-state scene playback')
+    parser.add_argument('--actor-body',action='store_true',help='Expect actor-body.flag physics trajectory playback')
     parser.add_argument('--door-view',action='store_true',help='Expect door-view.flag camera on mover 8544 during authored-state playback')
     parser.add_argument('--door-motion',action='store_true',help='Expect door-motion.flag to draw 600 simultaneous door updates at 1/60-second steps')
     parser.add_argument('--door-motion-frames',type=int,default=600,help='Expected optional door-motion-frames.txt diagnostic endpoint (1..600)')
     args = parser.parse_args()
+    if args.actor_body:args.scene_states=True
     if args.door_motion:args.door_view=True
     if not 1<=args.door_motion_frames<=600:parser.error('door motion frames must be 1..600')
     if args.door_view:args.scene_states=True
@@ -89,7 +91,9 @@ def main():
         if not actor_physics_symbol:raise RuntimeError('Integrated actor physics symbol absent')
         scene_args=[str(root/'build/pc/Release/rf_scene_check.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','9858']
         scene_args += [str(root/'Installed_Game'/n) for n in ['meshes.vpp','motions.vpp','tables.vpp','maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp']]
-        output=subprocess.check_output(scene_args+['--states'],text=True)
+        output=subprocess.check_output(scene_args+['--body' if args.actor_body else '--states'],text=True)
+        actor_final_vertices=int(re.search(r'Frame 63 actor triangles (\d+)',output)[1])*3
+        actor_frame_reference=[(int(n)*3,int(h,16)) for n,h in re.findall(r'Frame \d+ actor triangles (\d+) hash ([0-9a-f]+)',output)][:64]
         actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
         actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
         actor_fall_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FALL ')).split()[1:]))
@@ -290,6 +294,16 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         if actor_physics!=actor_physics_reference:raise RuntimeError(f'Actor physics mismatch: {actor_physics}; PC {actor_physics_reference}')
                         report['actor_physics']=dict(words=actor_physics,scope='Shared authored config and frame-zero model spheres installed into body; retained across 64 rendered diagnostic frames. Provisional identity tensor and scripted spawn pose; no actor motion response or AI.')
                         memory_snapshot=guest_snapshot(monitor,map_text)
+                        if args.actor_body:
+                            frames=memory_snapshot['symbols']['rf_scene_actor_render_frames']['words']
+                            if [(frames[i],frames[i+1]) for i in range(0,320,5)]!=actor_frame_reference:raise RuntimeError('Actor rendered frame sequence differs from PC')
+                            if frames[2:5]==frames[317:320]:raise RuntimeError('Actor body never moved')
+                            report['actor_render_frames_match_pc']=64
+                            pose=memory_snapshot['symbols']['rf_scene_actor_pose']['words']
+                            body=memory_snapshot['symbols']['scene_actor_body']['words']
+                            if not pose[0]&0x4000000 or any(pose[i:i+3]!=body[22:25] for i in (14,17,20)) or body[22:25]!=body[25:28] or pose[53:59]!=body[62:68]:raise RuntimeError('Actor public/current/pending pose or bounds diverged')
+                            report['actor_pose_commit_matches_body']=True
+                            report['actor_physics']['scope']='Live body replays verified passive falling states through the first collision frame, then holds; scripted animation and provisional initial pose/inertia. No full gameplay lifecycle or AI.'
                         actor_world=memory_snapshot['symbols']['rf_actor_world_diagnostic']['words']
                         if actor_world!=actor_world_reference:raise RuntimeError(f'Actor world sweep mismatch: {actor_world}; PC {actor_world_reference}')
                         report['actor_world']=dict(words=actor_world,scope='Actual retained actor spheres swept two units along six world axes against stationary geometry; diagnostic mask 0x460, no movement response.')
@@ -365,6 +379,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         report['door_render']=dict(frames=render[2],retained_geometry_bytes=render[3],vertex_capacity_bytes=render[4],trace_hash=hex(render[5]),last_vertices=render[6],last_mesh_hash=hex(render[7]),step_seconds=1/60,scope='Every committed pose mesh matches PC after archive closure; one CPU/GPU vertex allocation, changing draw counts. All four panels activated together and stepped before each render; diagnostic scheduling, no gameplay trigger dispatch.')
                     expected_world=render_reference[-1][0] if args.door_motion else 2892 if args.door_view else 7455
                     expected_total=expected_world if args.door_view else 8838 if args.scene_states else 8847 if args.scene_stream else 8802
+                    if args.actor_body and not args.door_view:expected_total=expected_world+actor_final_vertices
                     if args.scene and (args.skin or words[31]!=(5 if args.scene_states else 4 if args.scene_stream else 3) or words[56:58]!=[9858,expected_world] or words[36]!=expected_total):
                         raise RuntimeError('Combined scene camera/UID/draw ranges differ from fixture')
                     if not args.scene and words[56:58]!=[skin_checksum,len(replacements)]:

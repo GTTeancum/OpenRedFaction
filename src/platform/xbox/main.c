@@ -54,6 +54,8 @@ rf_entity_physics_config resident_miner_config;
 volatile uint32_t rf_actor_creation_diagnostic[6]={0x52464143u};
 uint32_t rf_actor_world_diagnostic[8];
 uint32_t rf_actor_fall_diagnostic[8];
+static int actor_body_preview;
+extern uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
 volatile uint32_t rf_level_logic_diagnostic[12]={0x52464c47u};
 static uint32_t logic_hash_part(uint32_t hash,const void *data,uint32_t bytes)
 {
@@ -399,8 +401,13 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
 {
     (void)context;
     if(rf_diagnostic[37]!=frame)return RF_FORMAT;
-    if(frame==63) {int status=rf_scene_actor_world_check(&resident_collision,rf_actor_world_diagnostic);if(status)return status;}
-    if(frame==63) {int status=rf_scene_actor_fall_check(&resident_collision,rf_actor_fall_diagnostic);if(status)return status;}
+    if(frame==63 && actor_body_preview) {
+        memcpy(rf_actor_world_diagnostic,rf_scene_actor_initial_world,sizeof(rf_actor_world_diagnostic));
+        memcpy(rf_actor_fall_diagnostic,rf_scene_actor_initial_fall,sizeof(rf_actor_fall_diagnostic));
+    } else if(frame==63) {
+        int status=rf_scene_actor_world_check(&resident_collision,rf_actor_world_diagnostic);if(status)return status;
+        status=rf_scene_actor_fall_check(&resident_collision,rf_actor_fall_diagnostic);if(status)return status;
+    }
     rf_diagnostic[57]=world;
     {int status=rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:group_storage_check();}
 }
@@ -409,6 +416,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
     rf_vpp maps[5];uint32_t opened=0,world;int status;FILE *stream_flag;
     status=rf_scene_preview_camera(level,9858);if(status)return status;
+    actor_body_preview=0;stream_flag=fopen("D:\\actor-body.flag","rb");
+    if(stream_flag){fclose(stream_flag);actor_body_preview=1;}
     stream_flag=fopen("D:\\door-view.flag","rb");
     if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status)return status;}
     rf_preview_close(mesh);rf_materials_close(&resident_materials);
@@ -421,7 +430,9 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         stream_flag=fopen("D:\\scene-states.flag","rb");
         if(stream_flag) {
             fclose(stream_flag);rf_diagnostic[31]=5;
-            if(!status)status=rf_scene_stream_miner_states(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
+            if(!status && actor_body_preview)status=rf_scene_stream_miner_body(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
+                maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL,&resident_collision);
+            else if(!status)status=rf_scene_stream_miner_states(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
                 maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL);
         } else if(!status)status=rf_scene_stream_miner(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
             maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL);

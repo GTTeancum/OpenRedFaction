@@ -55,7 +55,8 @@ int main(int argc, char **argv)
     uint32_t world_vertices=0;
     int door_motion=argc>1 && !strcmp(argv[1],"--scene-door-motion-last");
     int door_view=door_motion || (argc>1 && !strcmp(argv[1],"--scene-door-states-last"));
-    int scene_states=door_view || (argc>1 && !strcmp(argv[1],"--scene-states-last"));
+    int actor_body=argc>1 && !strcmp(argv[1],"--scene-body-last");
+    int scene_states=actor_body || door_view || (argc>1 && !strcmp(argv[1],"--scene-states-last"));
     int scene_stream=scene_states || (argc>1 && !strcmp(argv[1],"--scene-close-last"));
     int scene_close=scene_stream || (argc>1 && !strcmp(argv[1],"--scene-close"));
     int scene_mode=scene_close || (argc>1 && !strcmp(argv[1],"--scene"));
@@ -116,7 +117,13 @@ int main(int argc, char **argv)
         if(!result && door_motion)world_vertices=mesh.count;
         if(!result && scene_mode && !door_motion) {
             world_vertices=mesh.count;
-            if(scene_states)result=rf_scene_stream_miner_states(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
+            if(actor_body) {
+                rf_geometry_collision_world collision={0};result=rf_geometry_collision_world_open(&geometry,8*1024*1024,&collision);
+                if(!result)result=rf_scene_stream_miner_body(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
+                    archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL,&collision);
+                rf_geometry_collision_world_close(&collision);
+            }
+            else if(scene_states)result=rf_scene_stream_miner_states(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
                 archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL);
             else if(scene_stream)result=rf_scene_stream_miner(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
                 archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL);

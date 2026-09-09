@@ -218,3 +218,44 @@ XEMU with the body-backed transform, alongside the existing motion/body/world
 and 600-frame door checks. Both builds and all four CTests pass. This run proves
 compatibility of the live attached-body render path; the moved-body vertex
 comparison above is PC evidence. No new visible result was captured.
+
+## Visible body trajectory diagnostic
+
+`rf_scene_stream_miner_body` now connects the computed trajectory to the live
+scene body. At frame zero it queries the caller's existing stationary collision
+world and retains the passive-fall states through the first collision frame.
+After each rendered frame it applies the next state, using the already verified
+`rf_group_pose_set_position` to synchronize current/public/pending positions,
+bounds and the dirty flag. The actor then holds its final position. The existing
+scripted animation sequence continues; this is a diagnostic replay, not a
+continuous actor update, AI decision or grounded-state selector.
+
+The fixed trajectory buffer holds at most 121 body states (37,268 bytes);
+the 64 render records cost 1,280 bytes. No extra Xbox collision world or per-frame
+heap allocation is introduced. Original animation, class and inertia assumptions
+remain explicit. The pose wrapper is port-owned diagnostic storage, not a fully
+constructed original entity or registered gameplay object.
+
+Xbox selects this mode with `build/xbox/disc/actor-body.flag` together with the
+existing scene-stream and scene-states flags. Omit door-view/door-motion flags
+to see the actor. PC scene checks use `--body`; the software renderer uses
+`--scene-body-last` with the same arguments as `--scene-states-last`. Validate
+with `python tools/xemu_smoke.py --actor-body --reference artifacts/actor-body/pc.ppm --seconds 180`.
+
+Native capture `artifacts/xemu/20260909-150715-901303/framebuffer.png` shows the
+live body at the post-collision position. The PC/XEMU image comparison passes:
+12 of 307,200 pixels differ by more than three channel levels; average maximum
+channel error is 0.03219. This is approximate raster agreement, not pixel identity
+or proof of PS2 visual parity. The follow-up telemetry run
+`artifacts/xemu/20260909-150918-144569/report.json` confirms that all 64 actor
+vertex counts and full geometry hashes match PC, not just the final frame.
+Both builds, the ordinary PC scene regression, cancellation/capacity checks and
+all four CTests pass. Subsequent verification runs skip redundant screenshots.
+
+Guest snapshots now include the initial trajectory state, live body, pose wrapper
+and every render record. The original-contact inspector uses the initial state
+when available, since the live body now moves. The smoke runner checks that
+current/public/pending positions and bounds agree and that the dirty bit is set.
+Run `artifacts/xemu/20260909-151037-156317/report.json` passes these pose checks
+and all 64 frame comparisons. The original-contact inspector also passes using
+that run's initial trajectory state and captured normal/response.

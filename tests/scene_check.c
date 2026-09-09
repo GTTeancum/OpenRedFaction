@@ -7,6 +7,7 @@ extern uint32_t rf_scene_actor_physics_diagnostic[8];
 extern float rf_scene_actor_contact_time[4];
 extern rf_physics_body scene_actor_body;
 extern rf_physics_body_state rf_scene_actor_fall_state;
+extern uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored;
@@ -94,8 +95,8 @@ int main(int argc,char **argv)
     }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
-    check c={0};uint32_t i,mode;int status;
-    if(argc!=12 && (argc!=13 || strcmp(argv[12],"--states")))return 2;
+    check c={0};uint32_t i,mode;int status,body_mode=argc==13 && !strcmp(argv[12],"--body");rf_geometry_collision_world body_world={0};
+    if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && !body_mode)))return 2;
     c.authored=argc==13;
     c.meshes=argv[4];c.motions=argv[5];
     if(rf_vpp_open(&levels,argv[1]) || rf_level_open(&level,&levels,argv[2]) ||
@@ -108,13 +109,16 @@ int main(int argc,char **argv)
        rf_model_file_open(&model,&meshes,binding.mesh.name))return 3;
     for(i=0;i<binding.assets.texture_count;++i)names[i]=binding.assets.textures[i];
     if(rf_model_materials_open_skin(&c.bundle,&model,names,binding.assets.texture_count,maps,5,4*1024*1024))return 3;
+    if(body_mode && rf_geometry_collision_world_open(&geometry,8*1024*1024,&body_world))return 3;
     for(mode=0;mode<3;++mode) {
         rf_preview_mesh mesh={0},before;rf_materials materials={0},saved;
         if(rf_preview_build(&mesh,&geometry,&level,8*1024*1024) ||
            rf_materials_open(&materials,&geometry,maps,5,4*1024*1024))return 3;
         c.base=materials.count;c.next=c.changed=c.last=0;c.address=c.material_address=NULL;c.stop=mode==1;
         before=mesh;saved=materials;
-        if(c.authored)status=rf_scene_stream_miner_states(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
+        if(body_mode)status=rf_scene_stream_miner_body(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
+            &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c,&body_world);
+        else if(c.authored)status=rf_scene_stream_miner_states(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
             &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c);
         else status=rf_scene_stream_miner(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
             &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c);
@@ -124,9 +128,12 @@ int main(int argc,char **argv)
             printf("PHYSICS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_physics_diagnostic[i]);puts("");
             {rf_geometry_collision_world collision={0};uint32_t sweep[8];
              if(rf_geometry_collision_world_open(&geometry,8*1024*1024,&collision))return 3;
-             status=rf_scene_actor_world_check(&collision,sweep);if(status)return 3;
+             if(body_mode)memcpy(sweep,rf_scene_actor_initial_world,sizeof(sweep));
+             else {status=rf_scene_actor_world_check(&collision,sweep);if(status)return 3;}
              printf("ACTOR_WORLD");for(i=0;i<8;++i)printf(" %u",sweep[i]);puts("");
-             status=rf_scene_actor_fall_check(&collision,sweep);rf_geometry_collision_world_close(&collision);if(status)return 3;
+             if(body_mode)memcpy(sweep,rf_scene_actor_initial_fall,sizeof(sweep));
+             else status=rf_scene_actor_fall_check(&collision,sweep);
+             rf_geometry_collision_world_close(&collision);if(status)return 3;
              if(sweep[2]>=120 || sweep[3]>=3)return 3;
              printf("ACTOR_FALL");for(i=0;i<8;++i)printf(" %u",sweep[i]);puts("");
              if(rf_scene_actor_contact_time[2]!=0 || rf_scene_actor_contact_time[3]<2)return 3;
@@ -151,6 +158,7 @@ int main(int argc,char **argv)
             memcmp(&saved,&materials,sizeof(materials))))return 3;
         rf_preview_close(&mesh);rf_materials_close(&materials);
     }
+    rf_geometry_collision_world_close(&body_world);
     rf_model_materials_close(&c.bundle);rf_preview_close(&c.world);rf_geometry_close(&geometry);
     for(i=0;i<5;++i)rf_vpp_close(maps+i);rf_vpp_close(&meshes);rf_vpp_close(&levels);
     puts(c.authored?"PASS: 64 authored-state scene frames, fixed world and allocations, sink cancellation, capacity guard":
