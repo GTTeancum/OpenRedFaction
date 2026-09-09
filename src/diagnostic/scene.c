@@ -5,6 +5,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+uint32_t rf_scene_showcase_enabled;
+int rf_scene_showcase_camera(rf_level *level)
+{
+    unsigned i;int status=rf_scene_preview_mover_camera(level,8544,-8.0f);
+    if(status)return status;
+    for(i=0;i<3;++i)level->player_position[i]+=2.0f*level->player_orientation[0][i];
+    level->player_position[1]-=.5f;
+    return RF_OK;
+}
 int rf_scene_preview_mover_camera(rf_level *level,int32_t uid,float distance)
 {
     rf_geometry_movers movers={0};uint32_t i,j,axis=0;int status;
@@ -57,6 +66,17 @@ int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
     if(!geometry || geometry->world || geometry->movers.data || geometry->offsets || geometry->slots ||
         !mesh || mesh->vertices || mesh->bytes || !materials || materials->items || materials->count)return RF_RANGE;
     status=rf_geometry_movers_open(level,1024*1024,&movers);if(status)goto done;
+    if(rf_scene_showcase_enabled) {
+        /* Half the authored endpoint displacement for both pairs of exit panels.
+         * Values originate in L1S1 section 3000, keys 8591..8594 and 8603..8606. */
+        for(i=0;i<movers.count;++i) {
+            rf_geometry_mover *m=movers.items+i;
+            if(m->uid==8544){m->position[0]+=(-55.73634338378906f+51.56401062011719f)*.5f;m->position[2]+=(-21.200519561767578f+19.514785766601562f)*.5f;}
+            if(m->uid==8543){m->position[0]+=(-42.98756408691406f+47.62348937988281f)*.5f;m->position[2]+=(-16.04967498779297f+17.922714233398438f)*.5f;}
+            if(m->uid==8524){m->position[0]+=( -38.530059814453125f+39.82415771484375f)*.5f;m->position[2]+=(40.75068664550781f-45.580322265625f)*.5f;}
+            if(m->uid==8523){m->position[0]+=(-42.218231201171875f+40.92414093017578f)*.5f;m->position[2]+=(54.51513671875f-49.68550109863281f)*.5f;}
+        }
+    }
     sources=malloc(((size_t)movers.count+1)*sizeof(*sources));if(!sources){status=RF_RANGE;goto done;}
     sources[0]=world;for(i=0;i<movers.count;++i)sources[i+1]=&movers.items[i].geometry;
     status=rf_geometry_materials_open(&bundle,sources,movers.count+1,maps,map_count,material_budget);
@@ -780,6 +800,14 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(sink && (uint64_t)mesh->bytes+1024*1024>mesh_budget)return RF_RANGE;
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     status=rf_level_actor_assets_load(level,uid,tables_path,&archive,512*1024,&binding);if(status)goto done;
+    if(rf_scene_showcase_enabled) {
+        uint32_t i,j;
+        for(i=0;i<3;++i) {
+            binding.entity.position[i]=level->player_position[i]+3.8f*level->player_orientation[2][i]-1.1f*level->player_orientation[0][i];
+            for(j=0;j<3;++j)binding.entity.orientation[i][j]=(i==1?1.0f:-1.0f)*level->player_orientation[i][j];
+        }
+        binding.entity.position[1]-=.5f;
+    }
     memcpy(stream.actor_spawn,binding.entity.position,12);
     if(strcmp(binding.mesh.name,"miner.v3c")) {status=RF_FORMAT;goto done;}
     status=rf_animation_placement_from_level(level,&binding.entity,&placement);if(status)goto done;

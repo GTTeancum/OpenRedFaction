@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+README now uses a 1920x1440 PC render of the staged miner by the partly open
+Live Mines guard-station doorway, explicitly labeled PC. Add live Xbox
+showcase-profile validation before presenting this composition as Xbox output;
+its identification as the requested main hall remains unverified. See docs/SHOWCASE.md.
+
 Look-angle scalar update now matches 1,200 original cases on PC and compiled
 NXDK, including consumed deltas, pitch clamp and original yaw wrapping.
 Reconstruct the nonstandard 4a0d70 eye-matrix builder before binding separate

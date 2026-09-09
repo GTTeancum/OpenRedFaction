@@ -105,4 +105,8 @@ void rf_scene_actor_follow(const rf_scene_world_geometry *world);
 /* First-person diagnostic from the moving body's cached eye and controller.
  * Requires retained follow world; no player input, look rotation or camera collision. */
 extern uint32_t rf_scene_actor_eye_enabled;
+/* Staged README scene: original geometry, miner and half-open authored doors.
+ * Diagnostic placement only; no campaign trigger or NPC behavior claim. */
+extern uint32_t rf_scene_showcase_enabled;
+int rf_scene_showcase_camera(rf_level *level);
 #endif

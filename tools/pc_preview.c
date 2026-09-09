@@ -49,10 +49,11 @@ int main(int argc, char **argv)
     rf_lightmaps lightmaps = {0};
     float *depth;
     unsigned char *rgb;
-    uint32_t i;
+    uint32_t i,scale=1,width,height,pixels;
     FILE *output;
     rf_entity_assets skin_assets={0};const char *skin_names[64];
     uint32_t world_vertices=0;
+    int showcase=argc>1 && !strcmp(argv[1],"--scene-showcase");
     int door_motion=argc>1 && !strcmp(argv[1],"--scene-door-motion-last");
     int door_view=door_motion || (argc>1 && !strcmp(argv[1],"--scene-door-states-last"));
     rf_scene_world_geometry follow_owned={0};
@@ -63,7 +64,7 @@ int main(int argc, char **argv)
     int actor_body=actor_live || actor_drive || (argc>1 && !strcmp(argv[1],"--scene-body-last"));
     int scene_states=actor_body || door_view || (argc>1 && !strcmp(argv[1],"--scene-states-last"));
     int scene_stream=scene_states || (argc>1 && !strcmp(argv[1],"--scene-close-last"));
-    int scene_close=scene_stream || (argc>1 && !strcmp(argv[1],"--scene-close"));
+    int scene_close=showcase || scene_stream || (argc>1 && !strcmp(argv[1],"--scene-close"));
     int scene_mode=scene_close || (argc>1 && !strcmp(argv[1],"--scene"));
     int skin_mode=argc>1 && (!strcmp(argv[1],"--model-skin") || !strcmp(argv[1],"--model-skin-last"));
     int model_mode=skin_mode || (argc>1 && (!strcmp(argv[1],"--model") || !strcmp(argv[1],"--model-last")));
@@ -81,9 +82,11 @@ int main(int argc, char **argv)
         if(argc<6 || rf_vpp_open(&archive,argv[2]) || rf_animation_preview(argv[2],argv[3],(!strcmp(argv[1],"--model-last") || !strcmp(argv[1],"--model-skin-last"))?63:0,&mesh,1024*1024))return 1;
     } else {
         if(rf_vpp_open(&archive, argv[scene_mode?2:1]) || rf_level_open(&level, &archive, argv[scene_mode?3:2]))return 1;
+        rf_scene_showcase_enabled=showcase;
         if(scene_close && !door_motion && rf_scene_preview_camera(&level,(int32_t)strtol(argv[8],NULL,10)))return 1;
         if(actor_live && rf_scene_preview_route_camera(&level,(int32_t)strtol(argv[8],NULL,10)))return 1;
         if(door_view && rf_scene_preview_mover_camera(&level,8544,6.0f))return 1;
+        if(showcase && rf_scene_showcase_camera(&level))return 1;
         if(rf_geometry_open(&geometry,&level,8*1024*1024) || rf_preview_build(&mesh,&geometry,&level,8*1024*1024))return 1;
     }
     if (argc > 4) {
@@ -146,9 +149,15 @@ int main(int argc, char **argv)
         if (result) { rf_preview_close(&mesh); rf_geometry_close(&geometry); rf_vpp_close(&archive); return 1; }
         if (!model_mode && rf_lightmaps_open(&lightmaps, &level, 4*1024*1024)) return 1;
     }
-    depth = malloc(640*480*sizeof(float)); rgb = malloc(640*480*3);
+    /* Offline capture resolution; default retains the Xbox comparison grid.
+     * Re-rasterize projected triangles at the requested size, never upscale RGB. */
+    {const char *setting=getenv("RF_PREVIEW_SCALE");
+     if(setting){if(setting[0]<'1' || setting[0]>'4' || setting[1])return 2;scale=(uint32_t)(setting[0]-'0');}}
+    width=640*scale;height=480*scale;pixels=width*height;
+    if(scale!=1)for(i=0;i<mesh.count;++i){mesh.vertices[i].position[0]*=scale;mesh.vertices[i].position[1]*=scale;}
+    depth = malloc(pixels*sizeof(float)); rgb = malloc(pixels*3);
     if (!depth || !rgb) return 1;
-    for (i = 0; i < 640*480; ++i) { depth[i] = 16777216; rgb[i*3] = 16; rgb[i*3+1] = 16; rgb[i*3+2] = 24; }
+    for (i = 0; i < pixels; ++i) { depth[i] = 16777216; rgb[i*3] = 16; rgb[i*3+1] = 16; rgb[i*3+2] = 24; }
     for (i = 0; i + 2 < mesh.count; i += 3) {
         int actor_triangle=model_mode || (scene_mode && i>=world_vertices);
         const rf_preview_vertex *a = mesh.vertices+i, *b = a+1, *c = a+2;
@@ -159,13 +168,13 @@ int main(int argc, char **argv)
         xmax = (int)ceilf(fmaxf(a->position[0],fmaxf(b->position[0],c->position[0])));
         ymin = (int)floorf(fminf(a->position[1],fminf(b->position[1],c->position[1])));
         ymax = (int)ceilf(fmaxf(a->position[1],fmaxf(b->position[1],c->position[1])));
-        if (xmin < 0) xmin = 0; if (xmax > 639) xmax = 639;
-        if (ymin < 0) ymin = 0; if (ymax > 479) ymax = 479;
+        if (xmin < 0) xmin = 0; if (xmax >= (int)width) xmax = (int)width-1;
+        if (ymin < 0) ymin = 0; if (ymax >= (int)height) ymax = (int)height-1;
         for (y = ymin; y <= ymax; ++y) for (x = xmin; x <= xmax; ++x) {
             float u = edge(b->position,c->position,x+0.5f,y+0.5f)/area;
             float v = edge(c->position,a->position,x+0.5f,y+0.5f)/area;
             float w = 1-u-v, z;
-            uint32_t pixel = (uint32_t)(y*640+x), channel;
+            uint32_t pixel = (uint32_t)(y*width+x), channel;
             if (u < 0 || v < 0 || w < 0) continue;
             z = u*a->position[2]+v*b->position[2]+w*c->position[2];
             if (z >= depth[pixel]) continue;
@@ -195,8 +204,8 @@ int main(int argc, char **argv)
     }
     output = fopen(output_path,"wb");
     if (!output) return 1;
-    fprintf(output,"P6\n640 480\n255\n");
-    if (fwrite(rgb,3,640*480,output) != 640*480 || fclose(output)) return 1;
+    fprintf(output,"P6\n%u %u\n255\n",width,height);
+    if (fwrite(rgb,3,pixels,output) != pixels || fclose(output)) return 1;
     printf("Prepared %u triangles (%u bytes), %s\n",mesh.count/3,mesh.bytes,scene_close?"close level/actor inspection":model_mode?"posed miner inspection":"original spawn");
     free(depth); free(rgb); rf_lightmaps_close(&lightmaps); rf_materials_close(&materials); rf_preview_close(&mesh); rf_geometry_close(&geometry); rf_vpp_close(&archive);
     return 0;

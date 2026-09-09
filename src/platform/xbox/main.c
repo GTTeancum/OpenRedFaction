@@ -436,6 +436,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     if(rf_scene_actor_live_enabled) {status=rf_scene_preview_route_camera(level,9858);if(status)return status;}
     stream_flag=fopen("D:\\door-view.flag","rb");
     if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status)return status;}
+    stream_flag=fopen("D:\\showcase.flag","rb");rf_scene_showcase_enabled=stream_flag!=NULL;
+    if(stream_flag){fclose(stream_flag);status=rf_scene_showcase_camera(level);if(status)return status;}
     rf_preview_close(mesh);rf_materials_close(&resident_materials);
     while(!status && opened<5) {status=rf_vpp_open(maps+opened,paths[opened]);if(!status)++opened;}
     if(!status)status=rf_scene_world_open_retained(level,&resident_geometry,maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,&resident_render_geometry);
