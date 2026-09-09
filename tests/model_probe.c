@@ -11,6 +11,18 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--select-lod-camera")) {
+        struct {float thresholds[3];uint32_t count,flags;int32_t alternate,minimum,scaled,animated;
+            uint32_t mode;float position[3],camera[3],numerator,denominator;} data;
+        _Static_assert(sizeof(data)==72,"Camera LOD probe wire layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            struct {int32_t status;uint32_t index;double metric;} result={0,99,0};
+            result.status=rf_model_lod_metric(data.mode,data.position,data.camera,data.numerator,data.denominator,&result.metric);
+            if(!result.status)result.status=rf_model_select_lod(data.thresholds,data.count,data.flags,data.alternate,data.minimum,data.scaled,data.animated,result.metric,&result.index);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--select-lod")) {
         struct {float thresholds[3];uint32_t count,flags;int32_t alternate,minimum,scaled,animated;float metric;} data;
         _Static_assert(sizeof(data)==40,"LOD probe wire layout");

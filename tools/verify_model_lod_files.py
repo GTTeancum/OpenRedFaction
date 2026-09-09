@@ -35,5 +35,5 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
         assert lines==thresholds_expected+selections,entry['name']
         models+=1;lods+=base;loads+=len(selections)
 report=dict(result='PASS',models=models,thresholds=lods,selected_geometry_loads=loads,invalid_submesh_rejections=models,
-    scope='Independent original-file threshold bits and selected geometry counts across five modes and five supplied metrics per SUBM; no camera or drawing claim')
+    scope='Independent original-file threshold bits and selected geometry counts across five modes and five axis-aligned camera distances per SUBM; unit metric scale, no live camera or drawing claim')
 (root/'artifacts/model-lod-files-verification.json').write_text(json.dumps(report,indent=2));print(report)

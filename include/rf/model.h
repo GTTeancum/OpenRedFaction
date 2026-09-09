@@ -156,4 +156,9 @@ int rf_model_evaluate_playback(const rf_model_bone *bones, uint32_t count, const
  * order. No allocation/loading. Invalid count or minimum leaves output intact. */
 int rf_model_select_lod(const float *thresholds,uint32_t count,uint32_t flags,
     int alternate,int32_t minimum,int scaled,int animated,double metric,uint32_t *out);
+/* 0x5182f0 / 0x5479b0: mode 0x66 uses distance * numerator / denominator;
+ * other modes return zero. Inputs represent original caller/global values.
+ * Preserve non-finite arithmetic; double approximates the x87 return value. */
+int rf_model_lod_metric(uint32_t mode,const float position[3],const float camera[3],
+    float numerator,float denominator,double *out);
 #endif

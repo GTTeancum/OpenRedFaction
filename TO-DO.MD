@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The original camera-distance metric and detail choice now match 2,000 tested
+cases. Supply live camera/scale state and connect selected model geometry to
+draw submission; the current visible scene still contains static geometry only.
+
 File thresholds now drive the resident loader through the recovered selector,
 including the shared diagnostic on 64 MiB XEMU. Connect the live camera metric
 and model draw submission before implementing in-scene detail switching.

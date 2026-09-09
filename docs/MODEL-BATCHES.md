@@ -1,5 +1,27 @@
 # Model batch data
 
+`rf_model_lod_metric` recovers complete `0x5182f0` through `0x5479b0` and
+the unchanged distance helpers `0x4faed0 / 0x409fa0 / 0x40a000`. Render mode
+0x66 subtracts camera coordinates with float stores, computes Euclidean length,
+then multiplies by the value at original global 0x1818b50 and divides by the
+value at 0x1818b48. Other modes return zero without reading the coordinates.
+The API accepts these caller/global values explicitly. Singular arithmetic
+is retained, including non-finite results, without clamping or fallback scale.
+
+`tools/verify_model_lod_camera.py` executes the complete original metric and
+detail-selection block in 2,000 cases with three-axis coordinates, signed
+scales, zero denominators, mode gates and non-finite inputs. All selected
+indices match exactly. Metric comparisons permit 1e-12 times max(1,abs(reference));
+the maximum observed error on that scale is 2.57e-16. The portable double
+calculation approximates x87 precision; this does not prove equivalence for
+every threshold-boundary input. PC/NXDK builds and four CTest checks pass.
+Live camera state and model draw submission remain to be integrated.
+
+The installed-file probe now derives its metric through this helper before
+selecting and loading geometry. All 2,375 loads across 95 models pass with
+matching selected indices and vertex/triangle counts; these fixtures use
+axis-aligned camera distances and unit metric scale.
+
 Model directories now retain each LOD's serialized threshold bits, adding four
 bytes per LOD (512 bytes at directory capacity), with no additional allocation.
 `rf_model_file_select_lod` gathers the owning SUBM's thresholds in file order,

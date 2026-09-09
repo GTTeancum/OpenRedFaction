@@ -1,4 +1,5 @@
 #include "rf/model_file.h"
+#include "rf/model.h"
 #include <string.h>
 static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 {
@@ -21,8 +22,10 @@ int main(int argc, char **argv)
         }
         for(submesh=0;submesh<model.submeshes && !result;++submesh)
             for(mode=0;mode<5 && !result;++mode)for(i=0;i<5 && !result;++i) {
-                uint32_t selected;rf_model_geometry g={0};
-                result=rf_model_file_select_lod(&model,submesh,mode==1?9:0,mode==2,mode==3?1:0,mode==4,1,metrics[i],&selected);
+                uint32_t selected;rf_model_geometry g={0};double metric;
+                const float camera[3]={0,0,0};float position[3]={(float)metrics[i],0,0};
+                result=rf_model_lod_metric(0x66,position,camera,1,1,&metric);if(result)break;
+                result=rf_model_file_select_lod(&model,submesh,mode==1?9:0,mode==2,mode==3?1:0,mode==4,1,metric,&selected);
                 if(result)break;
                 result=rf_model_geometry_open(&g,&model,selected,4*1024*1024);if(result)break;
                 printf("S %u %u %u %u %u %u\n",submesh,mode,i,selected,g.vertex_count,g.triangle_count);

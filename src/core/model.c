@@ -5,6 +5,18 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_lod_metric(uint32_t mode,const float position[3],const float camera[3],
+    float numerator,float denominator,double *out)
+{
+    float delta[3];unsigned i;double squared;
+    if(!out)return RF_RANGE;
+    if(mode!=0x66) {*out=0;return RF_OK;}
+    if(!position || !camera)return RF_RANGE;
+    for(i=0;i<3;++i)delta[i]=position[i]-camera[i];
+    squared=((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2];
+    *out=(sqrt(squared)*numerator)/denominator;return RF_OK;
+}
+
 int rf_model_select_lod(const float *thresholds,uint32_t count,uint32_t flags,
     int alternate,int32_t minimum,int scaled,int animated,double metric,uint32_t *out)
 {
