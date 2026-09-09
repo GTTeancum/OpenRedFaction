@@ -4,6 +4,46 @@
 #include <math.h>
 #include <stdlib.h>
 typedef struct reader { rf_model_file *model; uint32_t cursor; int status; } reader;
+int rf_model_geometry_emit_batch(const rf_model_geometry *geometry,uint32_t batch,
+    const rf_model_render_buffers *buffers,const rf_model_projection *view,
+    const rf_model_clip_planes *planes,const rf_model_clip_projection *projection,
+    const rf_model_render_output *attributes,uint16_t base,rf_model_clip_pool *pool,
+    rf_model_triangle_output *output)
+{
+    const rf_model_draw_batch *draw;uint32_t i,j;int status;
+    if(!geometry || !geometry->batches || batch>=geometry->batch_count || !buffers || !buffers->cache || !buffers->clip ||
+        !view || !planes || !projection || !attributes || !pool || !output || !output->vertices || !output->indices)return RF_RANGE;
+    draw=geometry->batches+batch;
+    if(!geometry->vertices || !geometry->reuse || !geometry->triangles || draw->vertices>buffers->capacity ||
+        draw->first_vertex>geometry->vertex_count || draw->vertices>geometry->vertex_count-draw->first_vertex ||
+        draw->first_triangle>geometry->triangle_count || draw->triangles>geometry->triangle_count-draw->first_triangle ||
+        output->vertex_count<draw->vertices || output->vertex_count>output->vertex_capacity || output->index_count>output->index_capacity)return RF_RANGE;
+    for(i=0;i<draw->triangles;++i)for(j=0;j<3;++j) {
+        uint32_t index=geometry->triangles[draw->first_triangle+i].indices[j];int64_t source;
+        if(index>=draw->vertices || index>INT16_MAX)return RF_RANGE;
+        source=(int64_t)index-geometry->reuse[draw->first_vertex+index];
+        if(source<0 || source>=draw->vertices)return RF_RANGE;
+    }
+    for(i=0;i<draw->triangles;++i) {
+        const rf_model_triangle *triangle=geometry->triangles+draw->first_triangle+i;uint32_t route;
+        status=rf_model_route_triangle(buffers->cache,draw->vertices,triangle->indices,triangle->flags,view,&route);if(status)return status;
+        if(route==RF_MODEL_TRIANGLE_DIRECT) {
+            uint32_t available=output->index_capacity-output->index_count;
+            if(available<3 || (view->compute_clip && available==3))return RF_RANGE;
+            for(j=0;j<3;++j)output->indices[output->index_count++]=(uint16_t)(base+triangle->indices[j]);
+        } else if(route==RF_MODEL_TRIANGLE_CLIP) {
+            uint8_t records[3][48],*original[3],*result[48],mask[2]={0,255};uint32_t count;
+            memset(records,0,sizeof(records));rf_model_clip_pool_reset(pool);
+            status=rf_model_prepare_clip_triangle(geometry->vertices+draw->first_vertex,geometry->reuse+draw->first_vertex,
+                buffers->cache,buffers->clip,draw->vertices,triangle->indices,attributes,records);if(status)return status;
+            for(j=0;j<3;++j) {original[j]=records[j];mask[0]|=records[j][24];mask[1]&=records[j][24];}
+            status=rf_model_clip_polygon(pool,original,3,planes,view,0x66,5,result,&count,mask);if(status)return status;
+            status=rf_model_emit_clip_polygon(result,count,mask[1],triangle->indices,base,projection,attributes,view->depth_factor,output);if(status)return status;
+        }
+    }
+    return RF_OK;
+}
+
 int rf_model_prepare_clip_triangle(const rf_model_vertex *vertices,const int32_t *reuse,
     const rf_model_render_cache *cache,const float (*clip)[3],uint32_t count,
     const uint16_t indices[3],const rf_model_render_output *output,uint8_t records[3][48])

@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Resident model batches now assemble triangle routing, clipping and emission,
+and real miner poses exercise index output on PC and 64 MiB XEMU. Independently
+compare full assembled batches and connect their materials/vertices/indices to
+the Xbox and PC draw paths for the first visible animated model.
+
 Clipped-vertex projection and fan emission now match 2,400 original projection
 cases and 600 output polygons, including 2,200 generated vertices. Connect these
 stages to routed resident model triangles and verify the assembled draw inputs.

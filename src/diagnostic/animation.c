@@ -64,7 +64,9 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     void *payload=NULL;
     float (*stored)[12]=NULL,(*prepared)[12]=NULL;uint16_t prepared_generations[256]={0};
     rf_model_geometry geometry={0};rf_model_vertex *vertices=NULL;uint32_t vertex_count=0,vertex_index,selected_lod;
-    uint8_t *render_memory=NULL;uint32_t render_capacity=0,render_batch;
+    uint8_t *render_memory=NULL;uint32_t render_capacity=0,render_batch,render_bytes=0,emitted_indices=0;
+    uint16_t *render_indices=NULL;rf_model_clip_pool *clip_pool=NULL;
+    rf_model_clip_projection clip_projection={{320,240},{0,0},0,1};rf_model_clip_planes clip_planes={0};
     rf_model_render_buffers render_buffers={0};rf_model_projection render_view={0};rf_model_lighting render_lights={0};
     rf_model_render_output render_output={1,{255,255,255},255,1,1};
     if (!out) return RF_RANGE;
@@ -93,8 +95,11 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     vertices=geometry.vertices;vertex_count=geometry.vertex_count;
     if(!vertex_count) { status=RF_FORMAT;goto done; }
     for(i=0;i<geometry.batch_count;++i)if(geometry.batches[i].vertices>render_capacity)render_capacity=geometry.batches[i].vertices;
-    if(!render_capacity || render_capacity>1024*1024/96) {status=RF_RANGE;goto done;}
-    render_memory=malloc(render_capacity*96);if(!render_memory) {status=RF_IO;goto done;}
+    if(!render_capacity || render_capacity>4096) {status=RF_RANGE;goto done;}
+    render_bytes=render_capacity*56+4096*40;
+    render_memory=malloc(render_bytes);render_indices=malloc(24576*sizeof(*render_indices));clip_pool=malloc(sizeof(*clip_pool));
+    if(!render_memory || !render_indices || !clip_pool) {status=RF_IO;goto done;}
+    memset(clip_pool,0,sizeof(*clip_pool));
     render_buffers.cache=(rf_model_render_cache*)render_memory;
     render_buffers.clip=(float(*)[3])(render_memory+render_capacity*32);
     render_buffers.second=(float(*)[3])(render_memory+render_capacity*44);
@@ -208,7 +213,8 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         }
         for(render_batch=0;render_batch<geometry.batch_count;++render_batch) {
             const rf_model_draw_batch *draw=geometry.batches+render_batch;uint32_t n;
-            memset(render_memory,0xa5,render_capacity*96);
+            rf_model_triangle_output triangle_output={render_buffers.vertices,render_indices,draw->vertices,4096,0,24576};
+            memset(render_memory,0xa5,render_bytes);
             status=rf_model_geometry_render_batch(&geometry,render_batch,prepared,count,&render_view,&render_lights,&render_output,&render_buffers);if(status)goto done;
             for(n=0;n<draw->vertices;++n) {
                 uint32_t index=draw->first_vertex+n;int32_t distance=geometry.reuse[index];
@@ -221,10 +227,17 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
                 if(memcmp(v+24,vertices[index].uv,8) || v[16]!=60 || v[17]!=50 || v[18]!=40 || v[19]!=255 ||
                     v[20]!=0xa5 || v[21]!=0xa5 || v[22]!=0xa5 || v[32]!=0xa5 || v[39]!=0xa5) {status=RF_FORMAT;goto done;}
             }
+            status=rf_model_geometry_emit_batch(&geometry,render_batch,&render_buffers,&render_view,&clip_planes,&clip_projection,
+                &render_output,0,clip_pool,&triangle_output);if(status)goto done;
+            if(triangle_output.index_count%3) {status=RF_FORMAT;goto done;}
+            for(n=0;n<triangle_output.index_count;++n)if(render_indices[n]>=triangle_output.vertex_count) {status=RF_FORMAT;goto done;}
+            emitted_indices+=triangle_output.index_count;
         }
         out[2]=frame+1;
     }
+    if(!emitted_indices)status=RF_FORMAT;
 done:
+    free(clip_pool);free(render_indices);
     free(render_memory);
     rf_model_geometry_close(&geometry);
     free(stored);

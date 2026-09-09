@@ -1,5 +1,40 @@
 # Model batch data
 
+`rf_model_geometry_emit_batch` connects resident triangles to the recovered
+routing, clip-input preparation, polygon walker and generated-vertex/fan
+emission. Direct triangles append their original indices plus a 16-bit base;
+compute-clip mode keeps the original strict capacity gate. Source batch ranges,
+triangle indices and reuse references are checked before output writes. The
+caller supplies processed vertices and an initialized reusable clip pool.
+Clipping resets pool order per triangle; preserved pool bytes remain initialized
+caller data. The adapter initializes its local original records to zero.
+Capacity or runtime failure can retain earlier triangles, so the caller must
+discard that batch's output on failure. There is no allocation, archive access
+or GPU submission in this function.
+
+The `--batch-triangles` model probe exercises one mixed batch: a direct
+triangle, a side-clipped triangle producing two generated vertices and a
+two-triangle fan, and a common-plane rejection. Exact expected indices,
+generated screen coordinates, BGR/alpha and untouched fields pass. Additional
+checks cover invalid source-index preflight and strict-versus-inclusive direct
+capacity behavior. This fixture is an independently specified geometric check,
+not a complete original-renderer comparison.
+
+The shared animation diagnostic now runs triangle emission after each of its
+256 real miner render batches over 64 frames, checking index divisibility/range
+and nonempty total output. Its reusable output allocation holds 4,096 40-byte
+vertices and 24,576 indices, plus a caller-owned clip pool; cache/clip/second
+storage remains 56 bytes per maximum batch vertex (346 here). The fixed distant
+camera does not establish coverage of clipping during this real-model run.
+The existing eight-word animation hashes retain their previous scope and do
+not hash newly emitted indices. Independent full-batch original-code comparison
+and GPU material/draw integration remain open.
+
+PC/NXDK builds, all four CTest checks, the mixed-triangle probe and the PC
+animation diagnostic pass. `artifacts/xemu/20260908-213608-287389/report.json`
+records a passing 64 MiB XEMU run with all 64 animation frames completed.
+No framebuffer was captured because model output is not yet submitted for drawing.
+
 `rf_model_project_clip_vertex` reconstructs complete `0x5477a0`: flags 1/2
 skip processed records, clamp mode rejects nonpositive/unordered Z, and new
 projections preserve generated flag 4. Zero/unordered Z outside clamp mode

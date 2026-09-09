@@ -89,6 +89,16 @@ int rf_model_geometry_render_batch(const rf_model_geometry *geometry,uint32_t ba
 int rf_model_prepare_clip_triangle(const rf_model_vertex *vertices,const int32_t *reuse,
     const rf_model_render_cache *cache,const float (*clip)[3],uint32_t count,
     const uint16_t indices[3],const rf_model_render_output *output,uint8_t records[3][48]);
+/* Assemble recovered triangle routing/clipping/emission for one resident batch.
+ * Output already contains this batch's processed vertices; indices are local
+ * plus base. Caller owns initialized pool/output storage. No allocation or I/O.
+ * Invalid source ranges fail before writes; capacity/runtime failures may retain
+ * earlier triangles, so discard the batch output on failure. No GPU submission. */
+int rf_model_geometry_emit_batch(const rf_model_geometry *geometry,uint32_t batch,
+    const rf_model_render_buffers *buffers,const rf_model_projection *view,
+    const rf_model_clip_planes *planes,const rf_model_clip_projection *projection,
+    const rf_model_render_output *attributes,uint16_t base,rf_model_clip_pool *pool,
+    rf_model_triangle_output *output);
 /* Select a flattened LOD index within one SUBM using its serialized thresholds.
  * Metric and render gates have the same meaning as rf_model_select_lod.
  * No allocation; output unchanged on failure. */

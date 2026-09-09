@@ -12,6 +12,32 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--batch-triangles")) {
+        const float positions[9][3]={{0,0,1},{.5f,0,1},{0,.5f,1},{-2,0,1},{0,.5f,1},{0,-.5f,1},{-3,0,1},{-2,.5f,1},{-2,-.5f,1}};
+        const uint16_t expected[9]={0,1,2,4,5,9,4,9,10};
+        rf_model_vertex vertices[9]={0};int32_t reuse[9]={0};rf_model_render_cache cache[9]={0};float clip[9][3],second[9][3];
+        uint8_t gpu[64][40];uint16_t indices[128];rf_model_triangle triangles[3]={{{0,1,2},32},{{3,4,5},32},{{6,7,8},32}};
+        rf_model_draw_batch draw={0,9,0,3,0};rf_model_geometry geometry={&draw,vertices,triangles,reuse,1,9,3,0};
+        rf_model_render_buffers buffers={cache,clip,second,gpu,9};rf_model_projection view={0};rf_model_clip_planes planes={0};
+        rf_model_clip_projection projection={{320,240},{0,0},0,1};rf_model_render_output attributes={0,{40,50,60},255,1,1};
+        rf_model_clip_pool pool={0};rf_model_triangle_output out={gpu,indices,9,64,0,128};uint32_t i;
+        view.perspective=view.compute_clip=view.clipping=1;
+        memset(gpu,0xa5,sizeof(gpu));memset(indices,0xa5,sizeof(indices));
+        for(i=0;i<9;++i) {memcpy(cache[i].world,positions[i],12);memcpy(clip[i],positions[i],12);cache[i].clip=positions[i][0]<-1?4:0;}
+        if(rf_model_geometry_emit_batch(&geometry,0,&buffers,&view,&planes,&projection,&attributes,0,&pool,&out) ||
+            out.vertex_count!=11 || out.index_count!=9 || memcmp(indices,expected,sizeof(expected)))return 1;
+        for(i=9;i<11;++i) {
+            float xy[2];memcpy(xy,gpu[i],8);
+            if(xy[0]!=0 || xy[1]!=(i==9?300:180) || gpu[i][16]!=60 || gpu[i][17]!=50 || gpu[i][18]!=40 || gpu[i][19]!=255 || gpu[i][32]!=0xa5)return 1;
+        }
+        out.vertex_count=9;out.index_count=0;triangles[2].indices[2]=9;
+        if(rf_model_geometry_emit_batch(&geometry,0,&buffers,&view,&planes,&projection,&attributes,0,&pool,&out)!=RF_RANGE || out.index_count)return 1;
+        triangles[2].indices[2]=8;draw.triangles=1;out.index_capacity=3;
+        if(rf_model_geometry_emit_batch(&geometry,0,&buffers,&view,&planes,&projection,&attributes,0,&pool,&out)!=RF_RANGE || out.index_count)return 1;
+        view.compute_clip=0;
+        if(rf_model_geometry_emit_batch(&geometry,0,&buffers,&view,&planes,&projection,&attributes,0,&pool,&out) || out.index_count!=3)return 1;
+        puts("PASS: mixed direct/clipped/rejected batch, generated coordinates, source preflight and strict direct capacity gates");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--emit-clip-guards")) {
         uint8_t records[3][48],saved[3][48],vertices[8][40],before[8][40],*pointers[3];uint16_t indices[16],old_indices[16],triangle[3]={0,1,2};
         rf_model_clip_projection view={{320,240},{0,0},0,1};rf_model_render_output attributes={0,{40,50,60},255,1,1};
