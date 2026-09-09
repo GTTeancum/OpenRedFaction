@@ -325,6 +325,10 @@ Report: `artifacts/motion-movement-verification.json`. Earlier priority,
 candidate selection and physics/AI behavior are outside this verification.
 # Animation stance gate
 
+Collision dependencies and the exact original/PC/NXDK segment-box comparison
+are recorded in [COLLISION.md](COLLISION.md); the primitive is not yet a complete
+world query or connected to the diagnostic scene.
+
 `python tools/verify_motion_crouch_eligibility.py` compares the combined
 `0x402ab0` and `0x429ae0` eligibility branches to
 `rf_motion_crouch_eligibility`: 8,751 original executions, comprising 8,593

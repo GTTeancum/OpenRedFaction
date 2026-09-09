@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The original segment/box collision primitive now matches 15,678 original cases
+on PC and NXDK; reconstruct world traversal and support queries described in
+docs/COLLISION.md to complete crouch/stand physics.
+
 The stance gate matches 2,292 original-code cases and crouch eligibility matches
 8,751 cases through its visibility boundary; reconstruct the target-eye ray
 query and crouch/stand collision effects before driving gameplay state selection.

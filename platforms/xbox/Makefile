@@ -11,6 +11,7 @@ SRCS += $(PROJECT_ROOT)/src/core/model.c
 SRCS += $(PROJECT_ROOT)/src/core/motion.c
 SRCS += $(PROJECT_ROOT)/src/core/timer.c
 SRCS += $(PROJECT_ROOT)/src/core/movement.c
+SRCS += $(PROJECT_ROOT)/src/core/collision.c
 SRCS += $(PROJECT_ROOT)/src/core/turn.c
 SRCS += $(PROJECT_ROOT)/src/core/entity.c
 SRCS += $(PROJECT_ROOT)/src/core/weapon.c
