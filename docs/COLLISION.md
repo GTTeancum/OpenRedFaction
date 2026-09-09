@@ -1453,3 +1453,34 @@ sequence also pass. Report:
 checks pass. No screenshot was captured because the visible scene is unchanged.
 Runtime handle allocation, moving-group pose updates/destruction and actor
 movement response remain open.
+
+
+### Moving-group section dispatch and inventory
+
+The original level dispatch compares section 0x3000 at 0x460f5c and calls
+0x463820 at 0x460f9e. The Ghidra export now includes that routine. Its v180
+sequence reads a group name, two bytes, key count and key records; a legacy
+UID/position/orientation array; six group flags; two integer fields; four
+string/float sound pairs; and two counted ID arrays. Each key contains UID,
+position, orientation, string, byte, five floats, three IDs and a final float.
+The original byte reader 52c780 requests one byte (and normalizes nonzero);
+52c910 requests four bytes. Version thresholds below 180 admit these fields;
+the older 105..141 two-vector branch is skipped for the installed version.
+Field names in the inventory are provisional, not gameplay semantics.
+
+`python tools/inspect_moving_groups.py` parses all 68 section-bearing levels,
+1,223 groups and 2,441 keyframes with bounded reads, finite float checks and
+exact section exhaustion. Output: `artifacts/moving-groups.json`. Cross-checking
+the second ID array finds all 1,421 entries in the corresponding level's mover
+UID set. The first ID array has 212 entries, none matching movers; its identity
+class remains unresolved. Repeated membership must not be rejected merely
+because references exceed the 1,406 loaded mover count.
+
+Live Mines has five groups: Door Out 01a/01b reference movers 8544/8543;
+Door Out 02a/02b reference 8524/8523; big_crate_lid references 21. The four doors
+have two keys each, while the lid has one. This identifies authored links, not
+the interpolation or trigger semantics. Original loader calls 469250 with the
+assembled group at 463bf3, which is the next registration/initialization lead.
+This milestone is Python inventory and instruction tracing only; original group
+parser execution, bounded C loading, runtime registration and animation remain
+open. No visible scene change occurred.
