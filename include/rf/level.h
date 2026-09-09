@@ -85,6 +85,15 @@ typedef struct rf_group_motion_state {
  * sounds/events, wake objects, or advance/interpolate poses. No allocation.
  * Active transitions are unchanged; malformed idle input preserves state. */
 int rf_group_motion_activate(rf_group_motion_state *state,uint32_t key_count);
+enum {RF_GROUP_SOUND_START=1,RF_GROUP_SOUND_END=2};
+/* Translation arrival transition 469da4..46a02a, after position, event/link
+ * updates and any dwell decision. Caller has already set current_key to the
+ * arrived next_key. Returns sound requests for caller dispatch; no sound or
+ * event is emitted here. Mode 0 preserves the original default branch.
+ * Outputs must not overlap. Errors preserve state and sound_requests.
+ * Not the bit-4 rotation path. */
+int rf_group_translation_arrive(rf_group_motion_state *state,uint32_t key_count,
+    uint32_t *sound_requests);
 /* 46b6e8..46b79c mover membership pass. objects follow original global list
  * order; first matching UID wins, with -1 absent and -999 excluding flag 2.
  * Compacts refs in place, appends accepted handles, updates parents/flags and

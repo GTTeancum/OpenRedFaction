@@ -1691,3 +1691,33 @@ trajectory states and the additional terminal snapshots. This is a controlled
 original-code baseline, not a reconstructed C translation implementation.
 General float-rounding cases, other mode transitions, trigger/event effects,
 rotation and attached-object pose propagation remain open. No render change.
+
+### Shared C translation arrival transition
+
+`rf_group_translation_arrive` reconstructs 469da4..46a02a after the arrival
+position, current-key assignment, event/link effects and dwell decision. It
+returns sound-start/end requests for caller dispatch rather than emitting
+audio. Input must already have current_key equal to the arrived next_key.
+The rotation branch is excluded, and errors preserve state and requests.
+
+Reaching terminal_key stops next_key at -1 and resets elapsed phase. An end
+sound is requested only when flag 1 is clear; reaching either path endpoint
+also selects the direction for subsequent activation. Nonterminal transitions
+step in the existing direction. At the path boundary, mode 1 stops, modes 2/3
+reverse direction, and modes 4/5 wrap to the opposite end. Modes 2/4 additionally
+set a terminal endpoint, mode 3 preserves it, and mode 5 clears it. Mode 0
+preserves the original default branch, including an out-of-range next key at
+a boundary; callers must not silently assume every mode loops. Nonterminal
+transitions request a start sound and clear flag 1 when it was set, even if
+the resulting mode transition stops. Elapsed phase resets on all these paths.
+
+`python tools/verify_group_arrival.py` compares 10,080 original transitions
+against PC and compiled NXDK code: every key in 2/3/7/128-key paths, all six
+modes, both directions, both flag-1 values and terminal/nonterminal cases.
+Original sound helpers execute with disabled handles; read-only observers
+count 3,360 start requests and 1,680 end requests, with no request in 5,040
+cases. Whole original objects are checked for unexpected mutation. All state
+bytes and requests match. Seven port-only guards preserve outputs. Report:
+`artifacts/group-arrival-verification.json`. This is not yet full translation,
+dwell/event handling, audio playback or integration into the running scene.
+PC and NXDK builds and all four CTest checks pass. No visual change occurred.

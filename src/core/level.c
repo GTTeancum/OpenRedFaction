@@ -338,6 +338,42 @@ int rf_group_motion_activate(rf_group_motion_state *state,uint32_t key_count)
     state->flags|=8;if(state->mode==1)state->flags&=~1u;
     return RF_OK;
 }
+int rf_group_translation_arrive(rf_group_motion_state *state,uint32_t key_count,
+    uint32_t *sound_requests)
+{
+    int32_t last;uint32_t sound=0;
+    if(!state || !sound_requests || key_count<2 || key_count>INT32_MAX ||
+        state->next_key<0 || (uint32_t)state->next_key>=key_count ||
+        state->current_key!=state->next_key || state->mode>5 || (state->flags&4))return RF_RANGE;
+    last=(int32_t)key_count-1;
+    if(state->terminal_key==state->next_key) {
+        state->current_key=state->next_key;state->next_key=-1;state->phase=0;
+        if(!(state->flags&1))sound=RF_GROUP_SOUND_END;
+        if(state->current_key==last)state->flags&=~0x2000u;
+        else if(state->current_key==0)state->flags|=0x2000;
+    } else {
+        int forward=(state->flags&0x2000)!=0;
+        state->next_key+=forward?1:-1;
+        if(state->next_key<0 || state->next_key>last) {
+            switch(state->mode) {
+            case 1:
+                state->current_key=forward?last:0;state->next_key=-1;
+                state->flags^=0x2000;break;
+            case 2:case 3:
+                state->current_key=forward?last:0;state->next_key=forward?last-1:1;
+                state->flags^=0x2000;
+                if(state->mode==2)state->terminal_key=forward?0:last;
+                break;
+            case 4:case 5:
+                state->current_key=forward?last:0;state->next_key=forward?0:last;
+                state->terminal_key=state->mode==4?state->next_key:-1;break;
+            }
+        }
+        if(state->flags&1) {sound=RF_GROUP_SOUND_START;state->flags&=~1u;}
+        state->phase=0;
+    }
+    *sound_requests=sound;return RF_OK;
+}
 int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
     uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,
     uint32_t *refs,uint32_t *ref_count,uint32_t *handles,uint32_t *handle_count,

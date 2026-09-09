@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Complete original translation ticks now verify endpoint timing, acceleration,
-braking and timer-held accumulation; port 469800, recover rotation 46a3d0 and
-connect attached-object pose propagation and controller storage to the scene.
+Shared C translation arrival matches 10,080 original state/sound transitions;
+finish translation integration, dwell/events and rotation, then connect
+attached-object pose propagation and controller storage to the scene.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
