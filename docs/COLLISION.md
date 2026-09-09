@@ -1237,3 +1237,33 @@ checks pass. This is not execution of the original embedded geometry parser or
 XEMU validation. Owned flat collision views, original face-list ordering,
 runtime object creation, pose evolution and destruction still need recovery
 and integration. No visible result changed.
+
+
+### Owned zero-room collision geometry
+
+`rf_geometry_collision_flat_open` copies the zero-room solid's faces and corner
+vertices into owned, budgeted storage. Input may be closed after success;
+failures preserve output. Retained and peak requested allocation are identical:
+object + face array + corner vertices. Face indices remain file indices. This
+uses supplied planes and expanded bounds, with no generated-face acceptance
+implementation or texture/material mutation.
+
+Original creation `0x4cfab0` calls `0x4dfbd0`, then appends through `0x4d3160`.
+The constructor at `0x4dfbdc..0x4dfbfa` copies the six-word face metadata and
+zeros owner +0x44 and other attachment pointers. The loader only invokes room
+attachment for a resolved non-null room; all installed mover faces use -1.
+Append `0x4d3160..0x4d3195` walks +0x54 to the tail and increments the count.
+Initial metadata now supports the absent owner alongside existing room owners.
+
+`python tools/verify_mover_flat.py` passes 68 levels, 1,406 movers and 27,216
+faces. It independently reads installed planes, corner indices/vertices and
+filter fields, compares the PC owned copies after source closure, and runs
+complete original `0x4dfe20` supplied-plane finalization: every face is accepted
+and all plane/bounds bytes match. Original append helper execution confirms
+file ordering for each list. Exact and one-byte-short budgets pass; maximum
+single flat allocation is 46,396 bytes. This is not the sum of all level mover
+storage. Report: `artifacts/mover-flat-verification.json`.
+
+PC/NXDK builds and four CTest checks pass. Actual loaded-solid ray/sweep
+comparison, runtime creation and changing poses, lifetime, full original-loader
+execution and XEMU integration remain open. No visible result changed.

@@ -59,10 +59,24 @@ int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
     rf_collision_face *face);
 /* Version-180 initial collision metadata from loaded face and owning room.
  * Full flags, low signed 16-bit portal, room detail byte and initial life gate.
+ * UINT32_MAX room yields an absent owner, matching initial mover faces.
  * Does not reflect later texture/room mutation; caller must maintain that state.
  * No allocation; output unchanged on failure. */
 int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t index,
     uint32_t query_flags,rf_collision_face_filter *filter);
+typedef struct rf_geometry_collision_flat {
+    rf_collision_face *faces;
+    float (*vertices)[3];
+    uint32_t count,allocated_bytes;
+} rf_geometry_collision_flat;
+/* Initial zero-room solid, file-order faces and copied vertices. Face indices
+ * remain file indices. Budget includes this object and all storage, excluding
+ * input geometry and allocator overhead. Source may be closed after success.
+ * Supplied file planes/bounds only; no generated-face acceptance or mutation.
+ * Failure preserves output; close existing output before reuse. */
+int rf_geometry_collision_flat_open(const rf_geometry *geometry,uint32_t budget,
+    rf_geometry_collision_flat *result);
+void rf_geometry_collision_flat_close(rf_geometry_collision_flat *flat);
 typedef struct rf_geometry_collision_room {
     rf_collision_tree tree;
     float (*vertices)[3];

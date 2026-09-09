@@ -290,12 +290,51 @@ int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t in
     uint32_t portal;int status;
     if(!filter)return RF_RANGE;
     status=rf_geometry_get_face(geometry,index,&face);if(status)return status;
-    if(face.room>=geometry->rooms)return RF_FORMAT;
-    room=geometry->data+geometry->room_offsets[face.room];portal=face.portal&0xffffu;
+    if(face.room!=UINT32_MAX && face.room>=geometry->rooms)return RF_FORMAT;
+    portal=face.portal&0xffffu;
     value.query_flags=query_flags;value.face_flags=face.flags;
     value.property_34=portal>=0x8000u?(int32_t)portal-65536:(int32_t)portal;
-    value.owner_present=1;value.owner_kind=room[34];value.owner_state=f32(room+36)>0?0:1;
+    value.owner_present=value.owner_kind=value.owner_state=0;
+    if(face.room!=UINT32_MAX) {
+        room=geometry->data+geometry->room_offsets[face.room];
+        value.owner_present=1;value.owner_kind=room[34];value.owner_state=f32(room+36)>0?0:1;
+    }
     *filter=value;return RF_OK;
+}
+void rf_geometry_collision_flat_close(rf_geometry_collision_flat *flat)
+{
+    if(flat) {free(flat->faces);free(flat->vertices);memset(flat,0,sizeof(*flat));}
+}
+int rf_geometry_collision_flat_open(const rf_geometry *g,uint32_t budget,
+    rf_geometry_collision_flat *result)
+{
+    rf_geometry_collision_flat value={0};uint64_t corners=0,bytes;uint32_t i,at=0;
+    rf_geometry_face face;int status;
+    if(!g || !g->data || !result)return RF_RANGE;
+    if(g->rooms)return RF_FORMAT;
+    for(i=0;i<g->faces;i++) {
+        status=rf_geometry_get_face(g,i,&face);if(status)return status;
+        if(face.room!=UINT32_MAX)return RF_FORMAT;
+        corners+=face.corners;
+    }
+    bytes=sizeof(value)+(uint64_t)g->faces*sizeof(*value.faces)+corners*12;
+    if(bytes>budget)return RF_RANGE;
+    if(g->faces) {
+        value.faces=(rf_collision_face *)malloc((size_t)g->faces*sizeof(*value.faces));
+        value.vertices=(float(*)[3])malloc((size_t)(corners*12));
+        if(!value.faces || !value.vertices) {status=RF_RANGE;goto fail;}
+    }
+    for(i=0;i<g->faces;i++) {
+        rf_collision_face_filter filter;
+        status=rf_geometry_get_face(g,i,&face);if(status)goto fail;
+        status=rf_geometry_initial_collision_filter(g,i,0,&filter);if(status)goto fail;
+        status=rf_geometry_collision_face(g,i,&filter,value.vertices+at,face.corners,value.faces+i);
+        if(status)goto fail;
+        at+=face.corners;
+    }
+    value.count=g->faces;value.allocated_bytes=(uint32_t)bytes;*result=value;return RF_OK;
+fail:
+    rf_geometry_collision_flat_close(&value);return status;
 }
 int rf_geometry_room_children(const rf_geometry *geometry,uint32_t room,
     uint32_t *indices,uint32_t capacity,uint32_t *count)
