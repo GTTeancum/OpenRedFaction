@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+All 599 model batches now resolve through their LOD texture tables to owned
+material indices. Connect these mappings and renderer-specific deformation
+to draw submission, then validate the first visible character output.
+
 All 744 miner LOD0 vertices now deform over 64 animation frames on PC and
 64 MiB XEMU, matching 47,616 original collision-deformation evaluations.
 Connect renderer-specific vertex processing, materials and lighting to drawing.

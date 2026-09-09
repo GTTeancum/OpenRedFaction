@@ -64,10 +64,11 @@ int main(int argc, char **argv)
         uint32_t n,j;
         for(i=0;i<model.lod_count && !result;++i) {
             for(n=0;n<model.lods[i].batch_count && !result;++n) {
-                rf_model_batch b;result=rf_model_file_batch(&model,i,n,&b);
+                rf_model_batch b;uint32_t material;result=rf_model_file_batch(&model,i,n,&b);
+                if(!result)result=rf_model_file_batch_material(&model,i,n,&material);
                 if(!result) {
                     printf("B %u %u %u %u %u",i,n,b.vertices,b.triangles,b.format_bits);
-                    for(j=0;j<8;++j)printf(" %u %u",b.offsets[j],b.sizes[j]);printf("\n");
+                    for(j=0;j<8;++j)printf(" %u %u",b.offsets[j],b.sizes[j]);printf(" %u\n",material);
                 }
             }
             { rf_model_batch b,before;memset(&b,0xa5,sizeof(b));before=b;

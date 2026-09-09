@@ -6,6 +6,7 @@
 typedef struct rf_model_lod {
     uint32_t offset, size, attachment_offset, attachment_count;
     uint32_t batch_offset, batch_count, flags, auxiliary;
+    uint32_t texture_offset,texture_count,section_index;
 } rf_model_lod;
 /* File-relative regions in original 0x569920 order: positions, normals, UV,
  * indices, planes, extra, bone links, auxiliary. Encoding remains separate. */
@@ -52,4 +53,7 @@ int rf_model_file_triangle(const rf_model_file *model,const rf_model_batch *batc
  * deform afresh; positive must refer to an earlier vertex in this batch.
  * Preserves the original signed value; output unchanged on failure. */
 int rf_model_file_vertex_reuse(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,int32_t *distance);
+/* Resolve batch texture slot through LOD table to the flattened material
+ * index used by rf_model_materials. Negative original slots return NOT_FOUND. */
+int rf_model_file_batch_material(const rf_model_file *model,uint32_t lod,uint32_t batch,uint32_t *material);
 #endif

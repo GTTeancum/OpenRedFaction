@@ -59,6 +59,7 @@ static void submesh(reader *r)
         if (r->status) return;
         lod->attachment_offset = lod->offset + (uint32_t)relative;
         textures = integer(r, 4);
+        lod->texture_offset=r->cursor;lod->texture_count=textures;lod->section_index=r->model->section_count-1;
         for (t = 0; t < textures && !r->status; ++t) {
             uint32_t length = 0;
             skip(r, 1);
@@ -241,4 +242,33 @@ int rf_model_file_vertex_reuse(const rf_model_file *model,const rf_model_batch *
     if(value&32768)value-=65536;
     if(value>0 && (uint32_t)value>index)return RF_FORMAT;
     *distance=value;return RF_OK;
+}
+int rf_model_file_batch_material(const rf_model_file *model,uint32_t lod_index,uint32_t batch,uint32_t *material)
+{
+    const rf_model_lod *lod;const rf_model_section *section;uint8_t raw[4],value=0,ch;
+    uint32_t slot,i,j,cursor;uint64_t offset,flattened=0,end;int status;
+    if(!model || !model->archive || !material || model->section_count>RF_MODEL_MAX_SECTIONS || lod_index>=model->lod_count || lod_index>=RF_MODEL_MAX_LODS)return RF_RANGE;
+    lod=model->lods+lod_index;
+    if(batch>=lod->batch_count || lod->section_index>=model->section_count)return RF_RANGE;
+    section=model->sections+lod->section_index;end=(uint64_t)section->offset+section->size;
+    offset=(uint64_t)lod->offset+(uint64_t)batch*56+32;
+    if(section->type!=0x5355424d || offset+4>(uint64_t)lod->offset+lod->size || offset>UINT32_MAX)return RF_RANGE;
+    status=rf_vpp_read(model->archive,&model->entry,(uint32_t)offset,raw,4);if(status)return status;
+    slot=(uint32_t)raw[0]|(uint32_t)raw[1]<<8|(uint32_t)raw[2]<<16|(uint32_t)raw[3]<<24;
+    if(slot&0x80000000u)return RF_NOT_FOUND;
+    if(slot>=lod->texture_count)return RF_FORMAT;
+    cursor=lod->texture_offset;
+    for(i=0;i<=slot;++i) {
+        if(cursor<section->offset || cursor>=end)return RF_FORMAT;
+        status=rf_vpp_read(model->archive,&model->entry,cursor++,&value,1);if(status)return status;
+        for(j=0;;++j) {
+            if(j>256 || cursor>=end)return RF_FORMAT;
+            status=rf_vpp_read(model->archive,&model->entry,cursor++,&ch,1);if(status)return status;
+            if(!ch)break;
+        }
+    }
+    if(value>=section->material_count)return RF_FORMAT;
+    for(i=0;i<lod->section_index;++i)if(model->sections[i].type==0x5355424d)flattened+=model->sections[i].material_count;
+    flattened+=value;if(flattened>UINT32_MAX)return RF_RANGE;
+    *material=(uint32_t)flattened;return RF_OK;
 }

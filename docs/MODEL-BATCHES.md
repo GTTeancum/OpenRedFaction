@@ -1,5 +1,21 @@
 # Model batch data
 
+`rf_model_file_batch_material` now resolves a batch's signed slot at offset
+0x20 in its 56-byte blob header through the LOD texture table. The table's
+byte ID selects a SUBM material; the accessor adds prior SUBM material counts
+to match the flattened owned-material bundle. Negative slots return NOT_FOUND,
+and invalid slots/material IDs or truncated records fail without publishing
+output. LOD metadata retains the texture-table offset/count and owning section,
+adding 1,536 bytes to the maximum-size directory without new heap allocation.
+
+Original `0x569920` retains the header's +0x20 field while rewriting its data
+pointers; `0x52e9e0` reads that field for texture selection, and `0x504000`
+maps it through the LOD byte IDs to 200-byte runtime materials. Independent
+installed-file traversal matches all 599 material mappings across 170 LODs
+and 95 models. PC build, CTest and NXDK build pass. Negative-slot and malformed
+table handling are port guards; those branches are not represented in the
+installed-data comparison. Drawing integration remains open.
+
 The shared miner diagnostic now loads all 744 vertices from LOD 0 and runs
 their actual position/weight/bone records through collision deformation after
 each prepared pose. It retains 29,760 bytes of vertex records for the 64-frame
