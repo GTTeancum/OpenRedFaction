@@ -73,6 +73,11 @@ reservations. XEMU run `20260909-181406-561630` passes with unchanged world,
 camera, actor and body hashes. Reported available memory after upload rises to
 41,062,400 bytes. No new image was captured for this allocation-only change.
 
+First-person pose transfer at 40d88c..40d8be is now reconstructed in C and
+matches 258 original cases on PC/NXDK. It preserves distinct body and eye
+orientations. Player lookup/eye derivation, 40db70 camera effects and 48a190
+commit remain open; the rendered scene still uses the diagnostic follow view.
+
 Capture and post screenshots only when there is a new visible result.
 
 Latest memory-harness run: `20260909-165657-464529` PASS; 64 MiB confirmed,

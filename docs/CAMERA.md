@@ -1395,3 +1395,30 @@ pose/cache/eye hashes remain dc7c08a6/21cd6b06/60a29326. This is still a scripte
 rig with a fixed current weapon, not initialized gameplay or the final camera.
 Earlier selection gates, local transition/presentation and actual activation
 remain open. Numeric-only report: artifacts/xemu/20260908-183800-793148/report.json.
+
+
+## First-person pose transfer before effects
+
+`rf_first_person_pose_copy` reconstructs 40d88c..40d8be. The resolved player eye
+at +7d4 becomes camera entity position +3c; player body orientation +48 becomes
+camera body orientation +48; player eye orientation +7e0 becomes camera eye
+orientation +7e0. These are distinct matrices, not a single inferred orientation.
+The portable output retains all three fields (84 bytes). It does not derive
+an eye height or substitute the diagnostic follow-camera offset.
+
+`tools/verify_first_person_pose.py` executes this block with original 409f40 and
+40a3b0 callees intact, stopping before 40db70. All 258 prepared finite cases match
+PC and compiled NXDK, including distinct matrices and signed zero. NXDK also
+checks in-place output aliasing, for 516 compiled cases. The portable finite-input
+guard rejects NaN without modifying output. Existing eye verification, both
+builds and four CTests pass. This is an original instruction comparison, not an
+XEMU gameplay camera run; the scene view remains the diagnostic follow view.
+
+Inspection of the next helper, 40db70, shows a resolved-player lookup, a timer
+at player +8bc, a scalar at +8b4 and modification of camera eye orientation via
+4fae00 followed by 4fc960. It is not another eye-position copy. Timer helpers
+are already reconstructed, but this camera effect path, its initialization and
+random/orientation operations remain uncomposed. The subsequent 48a190 entity
+commit also has state-dependent behavior and is not replaced by this pose helper.
+Player handle resolution, the actual player eye source, effects/commit and the
+first-person rendering binding are the next required integration work.
