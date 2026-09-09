@@ -1,20 +1,32 @@
 # Guest memory evidence
 
-Current result: the memory harness passes a fresh stock 64 MiB XEMU run,
-`artifacts/xemu/20260909-165657-464529/report.json`. QMP reports 67,108,864
-base-memory bytes and zero plugged memory. All 468 actor configuration bytes,
-64 rendered geometry records, input records, stance records and movement-setting
-records match PC. The fixture lands at frame 22 and completes 63 updates without
-capped passes. The supplied screenshot's NXDK `strtod` assertion is fixed.
+Fresh rerun `artifacts/xemu/20260909-182441-657096/report.json`: PASS.
 
-Remaining assumptions: diagnostic initial animation pose and scripted animation
-and input. Ground traction now uses the authored support surface. This route observes no movement contacts,
-no blocked standing and no support loss, so it does not establish those paths.
-PC agreement establishes cross-platform consistency; original-instruction
-comparisons described below provide separate evidence for reconstructed routines.
-Neither establishes a complete playable campaign or full-game memory usage.
-Sections below are chronological evidence; later corrections supersede earlier
-integration claims, especially the descriptor 1 run-dispatch correction.
+Current validation profile: `--actor-follow --no-capture` runs 664 rendered
+frames with a moving diagnostic camera and reads actual XEMU guest RAM. The
+harness checks stock 64 MiB, PC-matching body and telemetry rings, world/camera
+hashes, bounded CPU/GPU allocations, and support-loss/recovery counts. The
+supplied screenshot's NXDK `strtod` assertion is fixed by shared decimal parsing.
+
+Snapshots now include UTC capture time, the SHA-256 of the decoded linker-map
+text and QMP memory-size information. The run report also records that map hash
+alongside XBE/ISO hashes. These identify the inputs used for interpretation;
+they do not independently prove an arbitrary external guest matches the map.
+The smoke runner launches its own explicitly selected diagnostic ISO.
+
+Still unverified: original player-view behavior/camera collision, initial class
+animation pose, full entity lifecycle and campaign input. Scripted diagnostic
+steering and stance eligibility remain scaffolding. PC agreement establishes
+cross-platform consistency; original-instruction comparisons below provide
+separate evidence for individual reconstructed routines. Neither proves a
+playable campaign or full-game memory usage. Historical sections below record
+older profiles and limitations; later corrections supersede them.
+
+Current memory-only command (matching built ISO with actor-follow disc flag):
+
+```powershell
+python tools/xemu_smoke.py --actor-follow --no-capture --seconds 300
+```
 
 Reproduce the memory-only actor run from the repository root with the matching
 built XBE/ISO and actor-drive disc flags:

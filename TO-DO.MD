@@ -6,6 +6,12 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Latest memory harness rerun: `20260909-182441-657096` PASS, 664-frame follow
+profile in stock 64 MiB XEMU. Snapshots now carry UTC time, map hash and QMP
+memory size; report map hash matches the complete snapshot. Four PC CTests pass.
+Original camera/input and class initialization remain open; see
+`docs/XEMU-MEMORY.md` for the current command and limits. No screenshot captured.
+
 Support-gate audit: 256 original predicate cases pass in
 `tools/verify_actor_support_gate.py`. Full entity integration must carry actor
 flag 8 and attachment/category conditions;

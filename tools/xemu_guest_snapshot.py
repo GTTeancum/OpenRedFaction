@@ -1,5 +1,5 @@
 """Read only guest RAM and CPU state over XEMU QMP; never host input/capture."""
-import argparse,json,re,struct
+import argparse,datetime,hashlib,json,re,struct
 from pathlib import Path
 
 def words(monitor,address,count):
@@ -11,7 +11,11 @@ def words(monitor,address,count):
     return result
 
 def snapshot(monitor,map_text):
-    result={'status':monitor.command('query-status'),'symbols':{}}
+    result={'captured_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        'map_sha256':hashlib.sha256(map_text.encode()).hexdigest(),
+        'consistency':'Non-atomic live reads; use stable completed telemetry for comparisons.',
+        'memory':monitor.command('query-memory-size-summary'),
+        'status':monitor.command('query-status'),'symbols':{}}
     for name,count in [('rf_diagnostic',58),('rf_actor_creation_diagnostic',6),('rf_scene_actor_physics_diagnostic',8),('rf_actor_world_diagnostic',8),('rf_actor_fall_diagnostic',8),('rf_scene_actor_fall_state',77),('rf_scene_actor_initial_state',77),('rf_scene_actor_tick_stats',8),('rf_scene_actor_contact',7),('rf_scene_actor_contact_time',4),('rf_scene_actor_pose',59),('rf_scene_actor_render_frames',320),('resident_miner_config',117),('scene_actor_body',81)]:
         match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',map_text)
         if not match:continue

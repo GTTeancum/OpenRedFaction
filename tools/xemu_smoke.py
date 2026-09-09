@@ -256,6 +256,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                '-qmp', f'tcp:127.0.0.1:{args.port},server=on,wait=off']
     report = dict(command=command, address=hex(address), result='FAIL',
                   capture_requested=not args.no_capture,
+                  map_sha256=hashlib.sha256(map_text.encode()).hexdigest(),
                   animation_reference=animation_reference,
                   xbe_sha256=hashlib.sha256((build / 'disc/default.xbe').read_bytes()).hexdigest(),
                   iso_sha256=hashlib.sha256((build / 'redfaction-diagnostic.iso').read_bytes()).hexdigest(), samples=[])
