@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Moving-group inventory now resolves 1,421 mover references across 1,223
-groups; verify original group parsing/registration and implement a bounded C
-reader before recovering authored pose updates and lifetime.
+The bounded C group reader passes all 1,223 groups and 2,441 keys; verify
+original reader transforms and type-8 controller registration, then recover
+authored pose updates and lifetime for linked type-9 movers.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

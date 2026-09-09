@@ -39,4 +39,31 @@ int rf_level_entity_next(rf_level_entity_reader *reader,rf_level_entity *entity)
 /* Full validated scan for one UID; duplicates are FORMAT, absent UID is
  * NOT_FOUND. Output unchanged on failure, including later malformed records. */
 int rf_level_entity_find(const rf_level *level,int32_t uid,rf_level_entity *entity);
+typedef struct rf_level_group {
+    char name[256],sounds[4][256];
+    uint32_t offset,bytes,key_offset,key_count,legacy_offset,legacy_count;
+    uint32_t ids_offset[2],ids_count[2],mode,unknown;
+    uint8_t header[2],flags[6];
+    float sound_values[4];
+} rf_level_group;
+typedef struct rf_level_group_key {
+    uint32_t uid,offset,bytes,links[3];
+    float position[3],orientation[3][3],timing[5],rotation;
+    char label[256];uint8_t flag;
+} rf_level_group_key;
+typedef struct rf_level_group_reader {
+    const rf_level *level;rf_level_section section;uint32_t cursor,count,index;
+} rf_level_group_reader;
+/* v180 section 3000, original 463820 field sequence. No allocations; caller
+ * retains level/archive. Raw flags and rotation are preserved (no gameplay
+ * normalization or degree conversion). Spans are section-relative. next scans
+ * and validates keys and legacy poses; errors preserve reader/output. */
+int rf_level_groups_begin(const rf_level *level,rf_level_group_reader *reader);
+int rf_level_group_next(rf_level_group_reader *reader,rf_level_group *group);
+/* Accessors require a group returned by next for this level; no allocation.
+ * Key lookup scans from the first key, retaining serialized order. */
+int rf_level_group_key_at(const rf_level *level,const rf_level_group *group,
+    uint32_t index,rf_level_group_key *key);
+int rf_level_group_id_at(const rf_level *level,const rf_level_group *group,
+    uint32_t list,uint32_t index,uint32_t *uid);
 #endif

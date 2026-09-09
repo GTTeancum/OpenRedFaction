@@ -1484,3 +1484,33 @@ assembled group at 463bf3, which is the next registration/initialization lead.
 This milestone is Python inventory and instruction tracing only; original group
 parser execution, bounded C loading, runtime registration and animation remain
 open. No visible scene change occurred.
+
+
+### Bounded C moving-group reader
+
+The shared level API now exposes sequential `rf_level_groups_begin` /
+`rf_level_group_next`, key access and indexed access to both ID lists. Reads
+stay within section 0x3000 and use no heap allocation. Group/key strings have
+256-byte capacities with explicit range failure; unknown raw flags, timings,
+rotation and sound values remain available. Key orientation rows are reordered
+consistently with existing v180 pose readers. No boolean normalization, mode
+clamp or degree conversion is silently applied to these raw file records.
+The reader validates legacy poses, keeps their spans, and requires exact section
+exhaustion. Failed next calls preserve both output and reader cursor.
+
+`python tools/verify_group_reader.py` matches the independent inventory across
+68 levels, 1,223 groups, 2,441 keys and 1,633 IDs, including string fields and
+float bytes. All 1,223 group-final-byte truncation checks return FORMAT without
+changing output or reader. Report: `artifacts/group-reader-verification.json`.
+Both builds and four CTest checks pass. Original reader execution and XEMU
+validation of this API remain open.
+
+Registration export `0x469250` provides the next control-flow evidence: a group
+with no keys returns null. Otherwise it creates a type-8 object through 486da0
+using the first key's pose, copies three ordered arrays, configures flags/sounds,
+and records the first key UID as controller object+0x20. It calls 46b320; on the
+false branch it selects parameter+0x34 as the initial key index and invokes
+48a230 for position assignment. The controller appends to a separate sentinel
+list at 64e3b0 (tail 64e640), distinct from the type-9 solid list. These are
+unverified decompiler leads pending instruction/differential checks; do not
+collapse controller and mover identities or infer timing semantics from them.

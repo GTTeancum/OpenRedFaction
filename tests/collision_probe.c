@@ -10,6 +10,28 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==4 && !strcmp(argv[1],"--groups")) {
+        rf_vpp archive;rf_level level;rf_level_group_reader reader;rf_level_group g;int status;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_level_groups_begin(&level,&reader))return 2;
+        while((status=rf_level_group_next(&reader,&g))==RF_OK) {
+            uint32_t i,j;rf_level_group_key key;
+            if(fwrite(&g,sizeof(g),1,stdout)!=1)return 3;
+            for(i=0;i<g.key_count;i++) {
+                if(rf_level_group_key_at(&level,&g,i,&key))return 4;
+                if(fwrite(&key,sizeof(key),1,stdout)!=1)return 3;
+            }
+            for(i=0;i<2;i++)for(j=0;j<g.ids_count[i];j++) {
+                uint32_t uid;if(rf_level_group_id_at(&level,&g,i,j,&uid))return 5;
+                if(fwrite(&uid,4,1,stdout)!=1)return 3;
+            }
+            {rf_level_group guard={0},before;rf_level_group_reader cut=reader,prior;
+                cut.cursor=g.offset;cut.index--;cut.section.size=g.offset+g.bytes-1;prior=cut;
+                memset(&guard,0xa5,sizeof(guard));before=guard;
+                if(rf_level_group_next(&cut,&guard)!=RF_FORMAT || memcmp(&guard,&before,sizeof(guard)) || memcmp(&cut,&prior,sizeof(cut)))return 6;
+            }
+        }
+        rf_vpp_close(&archive);return status==RF_NOT_FOUND?0:7;
+    }
     if(argc==4 && !strcmp(argv[1],"--combined-world")) {
         rf_vpp archive;rf_level level;rf_geometry geometry={0};rf_geometry_movers source={0};
         rf_geometry_collision_world world={0};rf_geometry_collision_movers movers={0},empty={0};
