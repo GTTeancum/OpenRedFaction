@@ -39,6 +39,19 @@ int rf_level_entity_next(rf_level_entity_reader *reader,rf_level_entity *entity)
 /* Full validated scan for one UID; duplicates are FORMAT, absent UID is
  * NOT_FOUND. Output unchanged on failure, including later malformed records. */
 int rf_level_entity_find(const rf_level *level,int32_t uid,rf_level_entity *entity);
+typedef struct rf_level_owned_entity {
+    rf_level_entity record;
+    const uint8_t *raw; /* Complete record bytes, including undecoded fields. */
+} rf_level_owned_entity;
+typedef struct rf_level_owned_entities {
+    void *storage;rf_level_owned_entity *items;uint32_t count,allocated_bytes;
+} rf_level_owned_entities;
+/* One allocation; budget includes owner, records and raw bytes, excluding
+ * allocator overhead/stack. Empty destination required, errors preserve it.
+ * Source stays stable during open and may close afterward. No runtime entity
+ * construction/registration. Close clears the owner and is repeatable. */
+int rf_level_owned_entities_open(const rf_level *level,uint32_t budget,rf_level_owned_entities *result);
+void rf_level_owned_entities_close(rf_level_owned_entities *entities);
 typedef struct rf_level_group {
     char name[256],sounds[4][256];
     uint32_t offset,bytes,key_offset,key_count,legacy_offset,legacy_count;

@@ -80,6 +80,43 @@ int rf_level_entity_next(rf_level_entity_reader *reader,rf_level_entity *entity)
     *reader=r;*entity=value;return RF_OK;
 }
 
+void rf_level_owned_entities_close(rf_level_owned_entities *entities)
+{
+    if(entities) {free(entities->storage);memset(entities,0,sizeof(*entities));}
+}
+int rf_level_owned_entities_open(const rf_level *level,uint32_t budget,rf_level_owned_entities *result)
+{
+    rf_level_owned_entities value={0};rf_level_entity_reader reader;rf_level_entity record;
+    uint64_t bytes;uint32_t i;uint8_t *cursor,*end;int status;
+    if(!level || !result || result->storage || result->items || result->count || result->allocated_bytes)return RF_RANGE;
+    status=rf_level_entities_begin(level,&reader);if(status)return status;
+    value.count=reader.count;bytes=sizeof(value)+(uint64_t)value.count*sizeof(*value.items);
+    if(bytes>budget)return RF_RANGE;
+    while((status=rf_level_entity_next(&reader,&record))==RF_OK) {
+        bytes+=record.bytes;if(bytes>budget)return RF_RANGE;
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    value.allocated_bytes=(uint32_t)bytes;
+    if(!value.count) {*result=value;return RF_OK;}
+    value.storage=calloc(1,(size_t)(bytes-sizeof(value)));if(!value.storage)return RF_RANGE;
+    value.items=(rf_level_owned_entity *)value.storage;
+    cursor=(uint8_t *)(value.items+value.count);end=(uint8_t *)value.storage+bytes-sizeof(value);
+    status=rf_level_entities_begin(level,&reader);if(status)goto failed;
+    if(reader.count!=value.count) {status=RF_FORMAT;goto failed;}
+    for(i=0;i<value.count;++i) {
+        rf_level_owned_entity *item=value.items+i;
+        status=rf_level_entity_next(&reader,&item->record);if(status)goto failed;
+        if(item->record.bytes>(uint64_t)(end-cursor)) {status=RF_FORMAT;goto failed;}
+        item->raw=cursor;
+        status=rf_level_read(level,&reader.section,item->record.offset,cursor,item->record.bytes);if(status)goto failed;
+        cursor+=item->record.bytes;
+    }
+    if(cursor!=end) {status=RF_FORMAT;goto failed;}
+    *result=value;return RF_OK;
+failed:
+    rf_level_owned_entities_close(&value);return status;
+}
+
 static int read_at(rf_level *level, uint32_t *cursor, void *data, uint32_t size)
 {
     int result = rf_vpp_read(level->archive, &level->entry, *cursor, data, size);

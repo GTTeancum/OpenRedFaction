@@ -1,5 +1,29 @@
 # Level entity records
 
+`rf_level_owned_entities_open` now retains authored entity records in one
+budgeted allocation. Each item owns the existing decoded record plus its complete
+raw span, preserving fields the reader currently skips. The input level/archive
+can close after success. This is input ownership, not original gameplay entity
+construction: flags, relationships and other undecoded bytes must still be mapped
+from original loader evidence before they drive event actions.
+
+The byte cap includes the owner, item array and raw record bytes, excluding
+allocator overhead and bounded stack scratch. Open requires an empty owner and
+publishes only after two complete validated scans and raw-byte reads; failures
+leave output unchanged. Source data must stay stable during open. Close frees
+the one allocation and clears the owner; repeated close is safe.
+
+`python tools/verify_level_entities.py --owned` compares every decoded field and
+raw record byte for all 1,610 entities across 66 installed levels with entity
+sections. The PC probe closes the archive and poisons the level before emitting
+owned data, checks exact and one-byte-short budgets, rejects reopening a live
+owner and checks repeatable close. All pass; maximum accounted PC allocation is
+101,209 bytes. Level tests also reject all 155 truncations of the minimal record
+and malformed later records without publishing an owner. The ordinary reader
+comparison still passes, both PC/NXDK builds succeed and four CTest checks pass.
+Report: `artifacts/owned-level-entities-verification.json`. Xbox residency and
+registration of these records are the next integration steps.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

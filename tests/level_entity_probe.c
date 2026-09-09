@@ -6,6 +6,27 @@ int main(int argc,char **argv)
 {
     rf_vpp archive;rf_level level;rf_level_entity_reader reader;rf_level_entity entity;int status;
     _Static_assert(sizeof(entity)==1084,"Entity probe wire layout");
+    if(argc==4 && !strcmp(argv[3],"--owned-entities")) {
+        rf_level_owned_entities owned={0},small={0},saved={0};uint32_t i,bytes;
+        _setmode(_fileno(stdout),_O_BINARY);
+        if(rf_vpp_open(&archive,argv[1]) || rf_level_open(&level,&archive,argv[2]) ||
+            rf_level_owned_entities_open(&level,1024*1024,&owned))return 2;
+        bytes=owned.allocated_bytes;
+        if(rf_level_owned_entities_open(&level,bytes-1,&small)!=RF_RANGE || memcmp(&small,&saved,sizeof(small)))return 4;
+        rf_level_owned_entities_close(&owned);
+        if(rf_level_owned_entities_open(&level,bytes,&owned))return 4;
+        if(rf_level_owned_entities_open(&level,bytes,&owned)!=RF_RANGE)return 4;
+        rf_vpp_close(&archive);memset(&level,0xa5,sizeof(level));
+        for(i=0;i<owned.count;++i) {
+            rf_level_owned_entity *item=owned.items+i;
+            if(fwrite(&item->record,sizeof(item->record),1,stdout)!=1 ||
+                fwrite(item->raw,1,item->record.bytes,stdout)!=item->record.bytes)return 3;
+        }
+        fprintf(stderr,"%u\n",bytes);
+        rf_level_owned_entities_close(&owned);rf_level_owned_entities_close(&owned);
+        if(memcmp(&owned,&saved,sizeof(owned)))return 4;
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--resolve-links")) {
         uint32_t header[3];rf_level_uid_object objects[32];rf_level_uid_key keys[32];rf_level_link_target target;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

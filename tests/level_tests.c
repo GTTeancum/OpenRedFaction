@@ -61,9 +61,14 @@ int main(void)
         memset(&entity,0xa5,sizeof(entity));saved=entity;
         CHECK(rf_level_entity_find(&level,124,&entity)==RF_NOT_FOUND && !memcmp(&entity,&saved,sizeof(entity)));
         for(cut=4;cut<159;++cut) {
+            rf_level truncated=level;rf_level_owned_entities owned={0},empty={0};
+            unsigned section_index=(unsigned)(rf_level_find(&level,0x30000)-level.sections);
             reader=start;reader.section.size=cut;before=reader;
             CHECK(rf_level_entity_next(&reader,&entity)!=RF_OK);
             CHECK(!memcmp(&reader,&before,sizeof(reader)) && !memcmp(&entity,&saved,sizeof(entity)));
+            truncated.sections[section_index].size=cut;
+            CHECK(rf_level_owned_entities_open(&truncated,1024*1024,&owned)!=RF_OK);
+            CHECK(!memcmp(&owned,&empty,sizeof(owned)));
         }
     }
     rf_vpp_close(&archive);
@@ -83,8 +88,9 @@ int main(void)
      CHECK(rf_level_entity_find(&level,123,&e)==RF_FORMAT && !memcmp(&e,&saved,sizeof(e)));}
     rf_vpp_close(&archive);word(4367,124);word(4373,0x7fc00000);
     CHECK(run(&level,&archive)==RF_OK);
-    {rf_level_entity e,saved;memset(&e,0xa5,sizeof(e));saved=e;
-     CHECK(rf_level_entity_find(&level,123,&e)==RF_FORMAT && !memcmp(&e,&saved,sizeof(e)));}
+    {rf_level_entity e,saved;rf_level_owned_entities owned={0},empty={0};memset(&e,0xa5,sizeof(e));saved=e;
+     CHECK(rf_level_entity_find(&level,123,&e)==RF_FORMAT && !memcmp(&e,&saved,sizeof(e)));
+     CHECK(rf_level_owned_entities_open(&level,1024*1024,&owned)==RF_FORMAT && !memcmp(&owned,&empty,sizeof(owned)));}
     rf_vpp_close(&archive);
     CHECK(remove("level-fixture.tmp") == 0);
     puts("Level bounds, invalid headers, duplicate sections, truncation and spawn ordering passed");

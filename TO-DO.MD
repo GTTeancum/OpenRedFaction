@@ -46,6 +46,9 @@ effects and map entity fields into shared runtime before gameplay visibility.
 Shared C UnHide initialization, request methods and deferred scheduler now match
 223 original cases on PC and NXDK; connect its target callback to registered
 entities, collision eligibility and full visibility effects.
+Owned entity inputs now preserve decoded and raw records after archive closure
+for all 1,610 entities in 66 levels (max 101,209 accounted PC bytes); connect
+Xbox residency and runtime registration before dispatching events to entities.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
