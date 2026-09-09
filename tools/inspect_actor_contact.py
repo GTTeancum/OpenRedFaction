@@ -10,7 +10,7 @@ assert hashlib.sha256(exe.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d
 image=pefile.PE(str(exe)).get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32)
 u.mem_map(0x400000,(len(image)+4095)//4096*4096);u.mem_write(0x400000,image)
 base=0x30000000;stack=base+0xe000;stop=base+0xf000;u.mem_map(base,0x10000)
-d=json.loads(Path(sys.argv[1]).read_text());state=d['symbols'].get('actor_trajectory',d['symbols']['scene_actor_body'])['words']
+d=json.loads(Path(sys.argv[1]).read_text());state=d['symbols'].get('rf_scene_actor_initial_state',d['symbols'].get('actor_trajectory',d['symbols']['scene_actor_body']))['words']
 f=lambda *v:struct.pack('<%df'%len(v),*v)
 w=lambda *v:struct.pack('<%dI'%len(v),*v)
 assert state[55:58]==[0,0,0], 'This passive fixture requires zero applied force'
@@ -20,7 +20,7 @@ for _ in range(d['symbols']['rf_actor_fall_diagnostic']['words'][2]+1):velocity[
 normal=struct.unpack('<3f',w(*d['symbols']['rf_scene_actor_contact']['words'][1:4])) if 'rf_scene_actor_contact' in d['symbols'] else (.1780281662940979,.9819024205207825,-.0646035447716713)
 u.mem_write(base,bytes(0x1500));u.mem_write(base+0x144,f(*velocity))
 u.mem_write(base+0x1c0,f(*normal))
-u.mem_write(base+0x1e4,w(0xffffffff));u.mem_write(base+0x858,w(base+0x2000));u.mem_write(base+0x2004,w(2))
+u.mem_write(base+0x1e4,w(0xffffffff));u.mem_write(base+0x858,w(base+0x2000));u.mem_write(base+0x2004,w(3))
 u.mem_write(base+0x1a8,w(state[68]));u.mem_write(base+0x98,f(100));u.mem_write(base+0x294,w(base+0x3000))
 u.mem_write(stack,w(stop,base));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x37f)
 decoder=capstone.Cs(capstone.CS_ARCH_X86,capstone.CS_MODE_32);calls=[]
@@ -28,7 +28,7 @@ def trace(cpu,address,size,data):
     op=next(decoder.disasm(bytes(cpu.mem_read(address,size)),address),None)
     if op and op.mnemonic=='call':calls.append(dict(address=hex(address),target=op.op_str))
 u.hook_add(UC_HOOK_CODE,trace)
-report=dict(scope='Synthetic stationary non-liquid contact, falling descriptor mode 2, no support velocity; guest-derived velocity. No function hooks.')
+report=dict(scope='Synthetic stationary non-liquid contact, falling descriptor mode 3, no support velocity; guest-derived velocity. No function hooks.')
 try:
     u.emu_start(0x49d7e0,stop,count=100000)
     report['returned']=u.reg_read(UC_X86_REG_EIP)==stop

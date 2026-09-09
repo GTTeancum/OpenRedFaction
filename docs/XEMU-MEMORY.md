@@ -259,3 +259,38 @@ current/public/pending positions and bounds agree and that the dirty bit is set.
 Run `artifacts/xemu/20260909-151037-156317/report.json` passes these pose checks
 and all 64 frame comparisons. The original-contact inspector also passes using
 that run's initial trajectory state and captured normal/response.
+
+## Live per-frame passive updates
+
+The actor-body mode now calculates each physics update from the live state
+between rendered frames. It clears the prepared-pass bit once per frame,
+applies force/gravity on the first pass, preserves velocity on subsequent
+passes, sweeps the actual model spheres, clips contact position/time, applies
+the verified static response and commits pose/bounds. An endpoint at fraction
+one follows the original clear-movement path rather than entering the
+fraction-below-one contact routine. The existing pass guards remain in force.
+There is no precomputed trajectory or post-contact hold. The 37,268-byte
+trajectory array is removed; only one initial state and eight tick counters
+are retained for verification. Rendering frame 63 does not advance an unseen
+64th physics step, so the final body and rendered pose describe the same time.
+
+Run `artifacts/xemu/20260909-151445-192163/report.json` passes on 64 MiB XEMU:
+63 updates, 91 passes, 28 contacts, zero capped frames, maximum two passes.
+All 64 actor geometry hashes/counts match PC. The final framebuffer comparison
+passes with 15 of 307,200 pixels exceeding three channel levels and average
+maximum channel error 0.03161. Both builds and four CTests pass. The miner's
+changed slope position is visible in that run's native `framebuffer.png`.
+
+This remains a 64-frame passive-physics diagnostic, with scripted animation,
+zero steering and stationary-world contacts. It does not implement original
+grounded movement, continuous game scheduling, AI or the full entity lifecycle.
+The observed slope drift is not evidence of correct grounded behavior. Next,
+recover the post-physics support/ground transition through 487e00 / 4a0840 and
+the movement descriptor changes before extending sustained gameplay updates.
+
+Correction to the earlier reference-test description: synthetic mode 2 was
+not established as falling. Original 42a020 compares descriptor+4 with 3 and
+8 at 42a036/42a03b; mode 3 is now used for the falling fixture. Re-running all
+256 original/PC/NXDK contact cases and the captured first contact with mode 3
+passes unchanged. Earlier mode-2 fixtures supported the selected response
+branch, but must not be cited as proof of falling-mode selection.

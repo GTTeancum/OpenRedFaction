@@ -22,12 +22,13 @@ velocity response, then consumes the remaining frame without applying gravity
 again. Actor pose/room commit and rendered movement remain open. The first hit
 advances zero distance after the margin; a second pass consumes the remaining
 0.014501864 seconds using the response velocity.
-The shared scene now replays the computed fall into the live body and commits
-pose fields through the verified 48a230 setter. All 64 rendered actor meshes
-match PC in XEMU; the new native framebuffer comparison passes. This remains
-a bounded trajectory replay through the first collision frame, followed by a
-hold. Replace replay with continuous actor updates, grounded-state selection
-and full runtime registration before calling it gameplay physics.
+The shared scene now advances the live body between rendered frames and commits
+pose through the verified 48a230 setter. The 64-frame diagnostic performs 63
+updates, 91 passes and 28 contacts without hitting its pass limit; every rendered
+mesh and final framebuffer comparison passes against PC in XEMU. It no longer
+replays or holds a stored trajectory. Grounded-state selection and full runtime
+registration remain open: passive physics currently lets the miner drift along
+the slope instead of choosing the original grounded movement behavior.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

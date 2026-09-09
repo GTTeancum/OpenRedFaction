@@ -115,8 +115,8 @@ typedef struct actor_sweep_record {
 } actor_sweep_record;
 actor_sweep_record rf_scene_actor_sweep_records[48];
 rf_physics_body_state rf_scene_actor_fall_state;
-static rf_physics_body_state actor_trajectory[121];
-static uint32_t actor_trajectory_count;
+rf_physics_body_state rf_scene_actor_initial_state;
+uint32_t rf_scene_actor_tick_stats[8]; /* magic, frames, passes, contacts, capped frames, max passes, last remaining bits, status */
 rf_group_attached_pose rf_scene_actor_pose;
 uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
 uint32_t rf_scene_actor_render_frames[64][5]; /* vertices, hash, body position bits */
@@ -133,7 +133,7 @@ static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics
         for(k=0;k<3;++k)start[k]=(float)((double)state->position[k]+(double)s->center[0]*state->orientation[k]+
             (double)s->center[1]*state->orientation[3+k]+(double)s->center[2]*state->orientation[6+k]);
         status=rf_geometry_collision_world_sweep(world,0x460,start,delta,s->radius,1,&hit,&matched);if(status)return status;
-        if(matched && (*sphere==UINT32_MAX || hit.hit.fraction<*fraction)) {*sphere=i;*fraction=hit.hit.fraction;memcpy(normal,hit.hit.normal,12);}
+        if(matched && hit.hit.fraction<*fraction) {*sphere=i;*fraction=hit.hit.fraction;memcpy(normal,hit.hit.normal,12);}
     }
     return RF_OK;
 }
@@ -144,7 +144,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
     if(!world || !out || !scene_actor_body.allocated_bytes || !scene_actor_body.spheres.count)return RF_RANGE;
     memset(rf_scene_actor_contact,0,sizeof(rf_scene_actor_contact));
     memset(rf_scene_actor_contact_time,0,sizeof(rf_scene_actor_contact_time));
-    actor_trajectory[0]=current;actor_trajectory_count=1;
+    rf_scene_actor_initial_state=current;
     for(step=0;step<120;++step) {
         proposal=current;
         {int status=rf_physics_fall_propose(&proposal,1.0f/60,9.8f,support);if(status)return status;}
@@ -177,18 +177,42 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
                 rf_scene_actor_contact_time[2]=remaining;rf_scene_actor_contact_time[3]=(float)pass;
                 status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,current.position,&current.bounds);if(status)return status;
             }
-            actor_trajectory[actor_trajectory_count++]=current;break;
+            break;
         }
         /* Fixture accepts only unobstructed translations. Full actor pose/room
          * commit and contact response are not represented by this assignment. */
         current=proposal;memcpy(current.position,current.next_position,sizeof(current.position));
         {int status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,current.position,&current.bounds);if(status)return status;}
-        actor_trajectory[actor_trajectory_count++]=current;
     }
     rf_scene_actor_fall_state=current;
     for(i=0;i<sizeof(current);++i)hash=(hash^((const unsigned char*)&current)[i])*16777619u;
     out[0]=0x5246464c;out[1]=1;out[2]=step;out[3]=sphere;memcpy(out+4,&fraction,4);out[5]=hash;
     memcpy(out+6,current.position+1,4);memcpy(out+7,current.velocity+1,4);return RF_OK;
+}
+static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state)
+{
+    float remaining=1.0f/60,support[3]={0},normal[3];uint32_t pass=0,contacts=0;int status;
+    state->flags&=~0x1000000u;
+    do {
+        float fraction,impact;uint32_t sphere;
+        status=rf_physics_fall_propose(state,remaining,9.8f,support);if(status)return status;
+        state->flags|=0x1000000;
+        status=actor_sweep(world,state,normal,&fraction,&sphere);if(status)return status;
+        if(sphere==UINT32_MAX) {
+            memcpy(state->position,state->next_position,sizeof(state->position));state->scalar_144=1;remaining=0;
+        } else {
+            ++contacts;
+            status=rf_physics_contact_advance(state,remaining,fraction,&remaining);if(status)return status;
+            status=rf_physics_static_contact(state,normal,support,support,&impact);if(status)return status;
+        }
+        if((pass>3 && remaining<.25f) || pass>9) {++pass;break;}
+        ++pass;
+    } while(remaining>0);
+    ++rf_scene_actor_tick_stats[1];rf_scene_actor_tick_stats[2]+=pass;rf_scene_actor_tick_stats[3]+=contacts;
+    if(remaining>0)++rf_scene_actor_tick_stats[4];
+    if(pass>rf_scene_actor_tick_stats[5])rf_scene_actor_tick_stats[5]=pass;
+    memcpy(rf_scene_actor_tick_stats+6,&remaining,4);rf_scene_actor_tick_stats[7]=1;
+    return RF_OK;
 }
 int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t out[8])
 {
@@ -219,6 +243,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=rf_scene_actor_fall_check(stream->collision,rf_scene_actor_initial_fall);if(status)return status;
         memset(&rf_scene_actor_pose,0,sizeof(rf_scene_actor_pose));
         rf_scene_actor_pose.radius=scene_actor_body.state.bounds.radius;
+        status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
+        memset(rf_scene_actor_tick_stats,0,sizeof(rf_scene_actor_tick_stats));rf_scene_actor_tick_stats[0]=0x5246544b;
     }
     uint64_t bytes=(uint64_t)stream->world*sizeof(rf_preview_vertex)+actor->bytes;
     if(actor->count%3 || actor->bytes!=(uint64_t)actor->count*sizeof(rf_preview_vertex) ||
@@ -242,8 +268,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     stream->mesh->count=stream->world+actor->count;stream->mesh->bytes=(uint32_t)bytes;
     {
         int status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);if(status)return status;
-        if(stream->collision) {
-            rf_physics_body_state next=actor_trajectory[frame+1<actor_trajectory_count?frame+1:actor_trajectory_count-1];
+        if(stream->collision && frame<63) {
+            rf_physics_body_state next=scene_actor_body.state;
+            status=actor_tick(stream->collision,&next);if(status)return status;
             status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return status;
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);

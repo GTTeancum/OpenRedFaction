@@ -66,7 +66,7 @@ def main():
     parser.add_argument('--scene',action='store_true',help='Expect the close Live Mines / miner 9858 combined fixture')
     parser.add_argument('--scene-stream',action='store_true',help='Expect 64 combined scene frames, retained frame 63')
     parser.add_argument('--scene-states',action='store_true',help='Expect authored-state scene playback')
-    parser.add_argument('--actor-body',action='store_true',help='Expect actor-body.flag physics trajectory playback')
+    parser.add_argument('--actor-body',action='store_true',help='Expect actor-body.flag per-frame passive physics')
     parser.add_argument('--door-view',action='store_true',help='Expect door-view.flag camera on mover 8544 during authored-state playback')
     parser.add_argument('--door-motion',action='store_true',help='Expect door-motion.flag to draw 600 simultaneous door updates at 1/60-second steps')
     parser.add_argument('--door-motion-frames',type=int,default=600,help='Expected optional door-motion-frames.txt diagnostic endpoint (1..600)')
@@ -94,6 +94,7 @@ def main():
         output=subprocess.check_output(scene_args+['--body' if args.actor_body else '--states'],text=True)
         actor_final_vertices=int(re.search(r'Frame 63 actor triangles (\d+)',output)[1])*3
         actor_frame_reference=[(int(n)*3,int(h,16)) for n,h in re.findall(r'Frame \d+ actor triangles (\d+) hash ([0-9a-f]+)',output)][:64]
+        if args.actor_body:actor_tick_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_TICKS ')).split()[1:]))
         actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
         actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
         actor_fall_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FALL ')).split()[1:]))
@@ -299,11 +300,14 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             if [(frames[i],frames[i+1]) for i in range(0,320,5)]!=actor_frame_reference:raise RuntimeError('Actor rendered frame sequence differs from PC')
                             if frames[2:5]==frames[317:320]:raise RuntimeError('Actor body never moved')
                             report['actor_render_frames_match_pc']=64
+                            ticks=memory_snapshot['symbols']['rf_scene_actor_tick_stats']['words']
+                            if ticks!=actor_tick_reference:raise RuntimeError(f'Actor tick sequence differs: {ticks}; PC {actor_tick_reference}')
+                            report['actor_ticks']=dict(frames=ticks[1],passes=ticks[2],contacts=ticks[3],capped_frames=ticks[4],maximum_passes=ticks[5])
                             pose=memory_snapshot['symbols']['rf_scene_actor_pose']['words']
                             body=memory_snapshot['symbols']['scene_actor_body']['words']
                             if not pose[0]&0x4000000 or any(pose[i:i+3]!=body[22:25] for i in (14,17,20)) or body[22:25]!=body[25:28] or pose[53:59]!=body[62:68]:raise RuntimeError('Actor public/current/pending pose or bounds diverged')
                             report['actor_pose_commit_matches_body']=True
-                            report['actor_physics']['scope']='Live body replays verified passive falling states through the first collision frame, then holds; scripted animation and provisional initial pose/inertia. No full gameplay lifecycle or AI.'
+                            report['actor_physics']['scope']='Live body advances passive physics between rendered frames; scripted animation and provisional initial pose/inertia. No grounded movement selection, full gameplay lifecycle or AI.'
                         actor_world=memory_snapshot['symbols']['rf_actor_world_diagnostic']['words']
                         if actor_world!=actor_world_reference:raise RuntimeError(f'Actor world sweep mismatch: {actor_world}; PC {actor_world_reference}')
                         report['actor_world']=dict(words=actor_world,scope='Actual retained actor spheres swept two units along six world axes against stationary geometry; diagnostic mask 0x460, no movement response.')

@@ -21,7 +21,7 @@ for case in range(256):
     normal=[rng.uniform(-1,1) for _ in range(3)];length=math.sqrt(sum(v*v for v in normal));normal=[v/length for v in normal]
     values=[rng.uniform(-2,2) for _ in range(6)]+normal+[rng.uniform(-.5,.5) for _ in range(6)]
     command=pack(values);values=struct.unpack('<15f',command)
-    u.mem_write(base,bytes(0x4000));u.mem_write(base+0x858,words(base+0x2000));u.mem_write(base+0x2004,words(2))
+    u.mem_write(base,bytes(0x4000));u.mem_write(base+0x858,words(base+0x2000));u.mem_write(base+0x2004,words(3))
     u.mem_write(base+0x294,words(base+0x3000));u.mem_write(base+0x1e4,words(0xffffffff))
     for offset,items in [(0x144,values[:3]),(0x150,values[3:6]),(0x1c0,values[6:9]),(0x8a0,values[9:12]),(0x1d8,values[12:15])]:u.mem_write(base+offset,pack(items))
     u.mem_write(stack,words(stop,base));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x37f);impact.clear()
@@ -40,5 +40,5 @@ for case,command in enumerate(commands):
     assert x.reg_read(UC_X86_REG_EIP)==stop and x.reg_read(UC_X86_REG_EAX)==0
     state[184:208]=expected[case][:24]
     assert bytes(x.mem_read(base,308))==state and bytes(x.mem_read(base+0x3000,4))==expected[case][24:],('NXDK contact mismatch',case)
-report=dict(status='PASS',pc_cases=len(expected),nxdk_cases=len(expected),scope='Full original 49d7e0, no function substitution; non-liquid zero-inverse-mass contact, no object, flags 0x80 clear, non-rotating actor, mode 2. Damage application excluded from shared code; low-speed fixtures avoid damage.')
+report=dict(status='PASS',pc_cases=len(expected),nxdk_cases=len(expected),scope='Full original 49d7e0, no function substitution; non-liquid zero-inverse-mass contact, no object, flags 0x80 clear, non-rotating actor, mode 3. Damage application excluded from shared code; low-speed fixtures avoid damage.')
 (root/'artifacts/physics-contact-verification.json').write_text(json.dumps(report,indent=2));print(report)
