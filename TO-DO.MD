@@ -46,6 +46,10 @@ Both owners now run in the Xbox level path under a shared 512 KiB budget.
 matching PC hashes through 66 lifetime checks and archive closure. The
 600-frame door diagnostic still passes; connect runtime registration and
 authored trigger/event execution to replace explicit diagnostic activation.
+Original handle pool blocks now pass 1,032 allocations, eight releases and
+1,047 lookups: 1,024-slot FIFO reuse, generation wrap and stale-handle rejection.
+Implement the shared registry and connect it to owned object lifetimes; current
+mover diagnostic handles still bypass original registration.
 Original dispatch 4c0320 now passes four door-list execution cases, preserving
 interleaved mover/event order and mover suppression. The fixture uses synthetic
 registered handles and intercepts downstream actions. The verifier now also

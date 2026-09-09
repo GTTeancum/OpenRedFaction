@@ -255,3 +255,31 @@ lifetime checks (initialization, rendered actor frames and archive closure).
 The subsequent 600-frame door diagnostic still matches every PC mesh hash,
 with trace `22d17eea`; its four controllers remain explicitly activated by the
 diagnostic. No new framebuffer capture was taken.
+
+
+## Original handle pool checkpoint
+
+`tools/verify_object_handle_pool.py` executes original initialization block
+486ce9..486d3e, allocation block 486e35..486e92, release block
+48684f..486895, and complete lookup 40a0e0. It verifies 1,032 allocations,
+eight releases and 1,047 lookups, including full capacity, FIFO reuse, stale
+handle rejection and generation-boundary seeds. The blocks exclude object
+construction/destruction and therefore do not prove complete registration.
+Report: `artifacts/object-handle-pool-verification.json`.
+
+Initialization constructs a doubly linked free list of 1,024 slot nodes at
+73a880 (12-byte stride) around sentinel 7394c0, in ascending slot order. The
+live pointer table begins at 7394cc. Allocation takes the head's slot, installs
+the object pointer, unlinks the free node, and writes object +0x2c as
+`generation << 16 | slot`. The global 16-bit generation at 708744 starts at 1,
+increments after successful object allocation, and wraps to 1 when the next
+value reaches 0x752f. Emitted generations therefore range from 1 through
+0x752e. Release clears the pointer slot and appends its node to the free-list
+tail; it does not increment the generation. Full capacity is detected by the
+free-list head pointing back to its sentinel before object allocation.
+
+Lookup uses the low 16 bits as slot index, rejects slots >=1024 and null
+entries, then compares the complete handle against object +0x2c. A stale
+handle fails even when its slot has been reused. The next shared registry
+implementation must preserve this FIFO/generation behavior and connect it to
+owned object lifetimes; existing mover diagnostic handles remain scaffolding.
