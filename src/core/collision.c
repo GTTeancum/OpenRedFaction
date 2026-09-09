@@ -266,6 +266,35 @@ static float edge_dot(const float *a,const float *b,float denominator,int *negat
     if(negative)*negative=(comparison&0x100u)!=0;
     return value;
 }
+/* 4df1c0..4df302: preserve endpoint stores before transforming displacement. */
+int rf_collision_query_local(const float start[3],const float displacement[3],
+    const float origin[3],const float matrix[3][3],uint32_t flags,
+    float local_start[3],float local_displacement[3],uint32_t *active)
+{
+    float first[3],last[3],offset[3],endpoint[3];uint32_t i,j;
+    if(!start || !displacement || !local_start || !local_displacement || !active)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(start[i]) || !isfinite(displacement[i]))return RF_FORMAT;
+    if(displacement[0]==0 && displacement[1]==0 && displacement[2]==0) {*active=0;return RF_OK;}
+    if(flags&4u) {memcpy(first,start,12);memcpy(last,displacement,12);}
+    else {
+        if(!origin || !matrix)return RF_RANGE;
+        for(i=0;i<3;i++) {
+            if(!isfinite(origin[i]))return RF_FORMAT;
+            for(j=0;j<3;j++)if(!isfinite(matrix[i][j]))return RF_FORMAT;
+            offset[i]=start[i]-origin[i];
+            {volatile float end=start[i]+displacement[i];endpoint[i]=end-origin[i];}
+            if(!isfinite(offset[i]) || !isfinite(endpoint[i]))return RF_FORMAT;
+        }
+        for(i=0;i<3;i++) {
+            first[i]=edge_dot(offset,matrix[i],1,NULL);
+            last[i]=edge_dot(endpoint,matrix[i],1,NULL);
+            last[i]=last[i]-first[i];
+            if(!isfinite(first[i]) || !isfinite(last[i]))return RF_FORMAT;
+        }
+    }
+    memcpy(local_start,first,12);memcpy(local_displacement,last,12);*active=1;return RF_OK;
+}
+
 static float edge_length(const float *a)
 {
     float reversed[3]={a[2],a[1],a[0]};return edge_dot(reversed,reversed,1,NULL);

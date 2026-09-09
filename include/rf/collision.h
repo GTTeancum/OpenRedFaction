@@ -1,6 +1,14 @@
 #ifndef RF_COLLISION_H
 #define RF_COLLISION_H
 #include "rf/vpp.h"
+/* Input preparation of 4df1c0. Matrix rows dot (point-origin), with original
+ * endpoint and vector stores; do not replace with a direct rotated delta.
+ * Flag 4 copies local inputs and ignores origin/matrix. Zero displacement
+ * sets active=0 and preserves vectors; errors preserve all outputs.
+ * Other query flags are passed through here without interpretation. */
+int rf_collision_query_local(const float start[3],const float displacement[3],
+    const float origin[3],const float matrix[3][3],uint32_t flags,
+    float local_start[3],float local_displacement[3],uint32_t *active);
 /* Complete 508b70 with 508dc0: inclusive axis-aligned box / segment test.
  * If start is inside, copies start; otherwise an inside end is copied before
  * testing planes. This is NOT a nearest-hit calculation. Failed plane attempts

@@ -899,3 +899,50 @@ Both builds and four CTest checks pass. Transformed and moving-solid queries,
 runtime room/face mutations, support/slide response and actual actor movement are
 still open. The sweeps do not move the diagnostic miner; rendering is unchanged,
 and the run explicitly performed no framebuffer capture.
+
+## Solid-local input preparation
+
+`rf_collision_query_local` reconstructs `0x4df1c0` entry through `0x4df302`,
+including the original zero-motion branch at `0x4df227`. Query fields are origin
++0x04, matrix +0x10, original start +0x34, original displacement +0x40, flags +0x50,
+local start +0x54 and local displacement +0x60. Original displacement is tested
+before coordinate conversion. For finite x86 inputs, the extended squared-length
+comparison with zero is equivalent to all three displacement components being
+zero. An inactive query preserves the local vector outputs.
+
+Flag 4 copies the supplied start/displacement. Otherwise, the original computes
+and stores these intermediate vectors as binary32:
+
+1. Offset = original start minus origin.
+2. Local start = matrix times offset.
+3. Endpoint = original start plus original displacement, then minus origin.
+4. Local endpoint = matrix times endpoint.
+5. Local displacement = local endpoint minus local start.
+
+Matrix helper `0x4faa30` dots each contiguous matrix row against the vector, with
+Z/Y/X products accumulated in extended precision before the float store. The
+port uses the existing x87 dot helper to preserve that order and control-word
+handling. It deliberately does not replace the endpoint sequence with a rotated
+original displacement. Origin and matrix are ignored on the direct-copy path;
+nonfinite relevant data or overflowing intermediates return RF_FORMAT and
+preserve all outputs. There is no allocation or collision-world mutation.
+
+`python tools/verify_collision_query_local.py` compares 12,000 original input
+preparations with PC and actual NXDK-linked code. Original execution begins at
+`0x4df1c0` and stops immediately before preferred-face selection at `0x4df302`, or
+at `0x4df681` for zero original displacement. All intervening vector/matrix callees
+run unchanged. Randomized translated rotations and arbitrary matrices, direct
+local flags, large coordinates, tiny displacements and signed zero inputs match
+byte-for-byte. There are 706 inactive queries and 1,131 active queries whose
+transformed displacement rounds completely to zero. Four malformed-input guards
+also pass. Report: `artifacts/collision-query-local-verification.json`.
+
+The latter cases matter for integration: the original proceeds to face/room
+selection even when the transformed displacement is zero. A future transformed
+room wrapper must carry the original active decision and +0x40 normal displacement;
+it cannot simply call the current local-only room wrapper, which rejects zero
+local displacement and uses it for normal construction. Nonfinite contact cases
+still require the port's explicit error policy. Full transformed room/contact
+comparison, conversion of contacts back to world space, moving-solid list order,
+and actor movement response remain open. Both builds and four CTest checks pass.
+This change has no visible rendering effect.

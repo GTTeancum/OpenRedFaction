@@ -17,7 +17,7 @@ public class ExportBaseline extends GhidraScript {
         dir.mkdirs();
         // Verified from original instructions: ECX is the destination object;
         // ret 8 / ret 4 consume stack arguments. Keep this visible to callers.
-        for (long target : new long[]{0x409f40L, 0x409f70L, 0x4faa90L, 0x40a030L, 0x40a070L, 0x409fe0L}) {
+        for (long target : new long[]{0x409f40L, 0x409f70L, 0x4faa90L, 0x4faa30L, 0x40a030L, 0x40a070L, 0x409fe0L}) {
             Function helper = getFunctionAt(toAddr(target));
             if (helper != null) {
                 helper.setCallingConvention("__thiscall");
@@ -46,7 +46,7 @@ public class ExportBaseline extends GhidraScript {
         }
         for (long target : new long[]{0x40ddf0L, 0x40d760L, 0x40d780L, 0x547150L}) addresses.add(target);
         for (long target : new long[]{0x425830L, 0x41ac60L, 0x40d850L}) addresses.add(target);
-        addresses.add(0x409f40L); addresses.add(0x409f70L);
+        addresses.add(0x409f40L); addresses.add(0x409f70L); addresses.add(0x4faa30L);
         addresses.add(0x4194e0L);
         addresses.add(0x51cb50L);
         addresses.add(0x5696f0L);
