@@ -41,6 +41,41 @@ lifetime checks and archive closure. The 600-frame door render trace remains
 inputs alongside the diagnostic scene, not entity spawning or gameplay events.
 No framebuffer was captured because rendering behavior is unchanged.
 
+## Original entity loader mapping
+
+Section comparison 460fcf selects 0x30000, with loader 464010 called at 461006.
+The loader reads three relationship words immediately after the script name
+and editor byte. Its scalar overlay writes the first to entity +0x51c, the
+second (friendliness) to +0x1f8 and the low byte of the third to +0x28. Authored
+UID goes to +0x20. Other meanings of these relationship fields remain unnamed.
+
+`tools/verify_entity_loader_fields.py` executes original 4647ef..46483c with
+supplied loader locals and zero FOV. Two hundred cases compare all 0x900 target
+bytes on zero/A5 storage, including boundary/random relationship, friendliness
+and UID words. Friendliness is copied without clamping; the third word truncates
+to a byte. FOV zero produces 1.0 at +0x840. This does not execute file reads,
+entity creation, nonzero FOV calculations or the rest of the loader. Report:
+`artifacts/entity-loader-fields-verification.json`.
+
+Static original-code tracing maps the second byte in the trailing 17-byte flag
+block to creation flag 2, and the sixteenth to creation flag 4, using nonzero
+tests. Factory 422360 maps these to object flags 0x4000 and 0x20000 respectively.
+The loader applies hide 48a570 after attaching child objects if 0x4000 is set.
+These factory/loader paths are traced, not yet execution-verified end to end.
+
+The installed-data verifier now reports these source values for Live Mines:
+
+| Event targets | Class | Initial friendliness | Creation flags |
+| --- | --- | --- | --- |
+| 8696, 8697 (UnHide/Goto_Player) | env_guard | 0 | 2 |
+| 8678, 8324, 8326 (Set_Friendliness) | env_guard | 1 | 0 |
+
+All five have relationship words `[1, friendliness, 0]`. This connects the
+door-event targets to authored hidden/friendliness input instead of inventing
+defaults. The expanded inventory still matches all 1,610 decoded records across
+66 levels. Next expose the needed fields in shared runtime construction and
+verify factory initialization before registering live entities.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

@@ -52,6 +52,9 @@ Xbox residency and runtime registration before dispatching events to entities.
 Xbox entity residency now passes stock 64 MiB XEMU: 78 entities, 355,013 total
 logic-data bytes and 66 PC-matching lifetime checks; runtime entity construction,
 registration and event dispatch remain open.
+Original entity loader 464010 is identified; 200 scalar-overlay cases verify
+UID/relationship/friendliness writes, and door-target initial flags are mapped.
+Recover complete factory initialization before constructing live entity states.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and

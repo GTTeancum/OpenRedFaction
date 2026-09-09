@@ -26,7 +26,7 @@ for archive in inventory['files']:
         count=struct.unpack('<I',take(4))[0];expected=[]
         for _ in range(count):
             start=cursor;uid=take(4);name=string();transform=take(48);script=string()
-            take(13);string();string();take(29)
+            relationships=take(13);string();string();take(29)
             labels=[string() for _ in range(7)];take(18);flags=take(17)
             assert flags[-1] in (0,1),(entry['name'],cursor,flags.hex())
             if flags[-1]:take(4)
@@ -38,7 +38,7 @@ for archive in inventory['files']:
                 record+=text.ljust(256,b'\0')
             record+=struct.pack('<II',start,cursor-start);expected.append(record+(data[start:cursor] if owned else b''))
             classes[name.decode('cp1252')]+=1
-            if entry['name'].lower()=='l1s1.rfl':first.append(dict(uid=struct.unpack('<i',uid)[0],name=name.decode('cp1252'),script=script.decode('cp1252'),position=struct.unpack('<3f',transform[:12]),skin=labels[5].decode('cp1252')))
+            if entry['name'].lower()=='l1s1.rfl':first.append(dict(uid=struct.unpack('<i',uid)[0],name=name.decode('cp1252'),script=script.decode('cp1252'),position=struct.unpack('<3f',transform[:12]),skin=labels[5].decode('cp1252'),relationship_words=struct.unpack('<3I',relationships[1:]),friendliness=struct.unpack_from('<I',relationships,5)[0],factory_flags=(2 if flags[1] else 0)|(4 if flags[15] else 0)))
         assert cursor==len(data),(entry['name'],cursor,len(data))
         run=subprocess.run([str(root/'build/pc/Release/rf_level_entity_probe.exe'),str(path),entry['name']]+(['--owned-entities'] if owned else []),stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True)
         actual=run.stdout
