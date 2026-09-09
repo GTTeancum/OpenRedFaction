@@ -19,6 +19,7 @@ extern float rf_scene_actor_input_frames[64][3];
 extern uint32_t rf_scene_actor_contact_count,rf_scene_actor_contacts[64][25];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_stance_frames[64][4];
+extern uint32_t rf_scene_actor_movement_frames[64][3];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored,body_mode;
@@ -155,6 +156,12 @@ int main(int argc,char **argv)
                  for(i=0;i<64;++i) {if(rf_scene_actor_stance_frames[i][1]&0x400)++crouch;else if(i>40)++stand;blocked+=rf_scene_actor_stance_frames[i][3];}
                  if(!crouch || !stand || rf_scene_actor_stance_cache.count!=3 || rf_scene_actor_stance_cache.height_difference<=0 || rf_scene_actor_stance_frames[40][2]==rf_scene_actor_stance_frames[0][2])return 3;
                  printf("STANCE_SUMMARY %u %u %u\n",crouch,stand,blocked);}
+                for(i=0;i<64;++i) {
+                    float speed;uint32_t crouched=(rf_scene_actor_stance_frames[i][1]&0x400)!=0;
+                    memcpy(&speed,rf_scene_actor_movement_frames[i]+1,4);
+                    if(rf_scene_actor_movement_frames[i][2]!=(crouched?0u:1u) || speed!=(crouched?3.0f:6.0f))return 3;
+                }
+                printf("ACTOR_SPEED_MODES");for(i=0;i<192;++i)printf(" %u",((uint32_t*)rf_scene_actor_movement_frames)[i]);puts("");
                 printf("ACTOR_STANCE");for(i=0;i<256;++i)printf(" %u",((uint32_t*)rf_scene_actor_stance_frames)[i]);puts("");
                 printf("ACTOR_STANCE_CACHE");for(i=0;i<50;++i) {uint32_t word;memcpy(&word,(const unsigned char*)&rf_scene_actor_stance_cache+i*4,4);printf(" %u",word);}puts("");
                 printf("ACTOR_LANDING");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_landing[i]);puts("");

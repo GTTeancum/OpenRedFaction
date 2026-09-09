@@ -105,6 +105,7 @@ def main():
         if args.actor_body:actor_speed_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SPEED ')).split()[1:]))
         if args.actor_body:actor_ground_modes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND_MODES ')).split()[1:]))
         if args.actor_body:actor_contact_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CONTACTS ')).split()[1:]))
+        if args.actor_body:actor_speed_modes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SPEED_MODES ')).split()[1:]))
         if args.actor_body:actor_stance_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE ')).split()[1:]))
         if args.actor_body:actor_stance_cache_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE_CACHE ')).split()[1:]))
         if args.actor_body:actor_input_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_INPUT ')).split()[1:]))
@@ -309,6 +310,9 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         report['actor_physics']=dict(words=actor_physics,scope='Shared authored config and frame-zero model spheres installed into body; retained across 64 rendered diagnostic frames. Provisional identity tensor and scripted spawn pose; no actor motion response or AI.')
                         memory_snapshot=guest_snapshot(monitor,map_text)
                         if args.actor_body:
+                            speed_modes=memory_snapshot['symbols']['rf_scene_actor_movement_frames']['words']
+                            if speed_modes!=actor_speed_modes_reference:raise RuntimeError('Actor stance movement settings differ from PC')
+                            report['actor_speed_modes_match_pc']=64
                             stance=memory_snapshot['symbols']['rf_scene_actor_stance_frames']['words']
                             cache=memory_snapshot['symbols']['rf_scene_actor_stance_cache']['words']
                             if stance!=actor_stance_reference or cache!=actor_stance_cache_reference:raise RuntimeError('Actor stance cache or transition differs from PC')

@@ -641,3 +641,42 @@ No framebuffer was captured: the PC reference is byte-identical to the prior
 contact-route image. These collider changes do not alter its scripted visible
 pose. Blocked standing, crouch movement descriptors, stance effects/timing,
 original initial-pose selection and full entity creation remain unverified.
+
+
+## Stance movement settings
+
+The original 428030 crouch/slow setup calls 427450 with numeric mode zero,
+then selects physics descriptor 1. Ordinary 4280b0 uses numeric mode one and
+resolves the class run descriptor. These are distinct mode fields: crouching
+does not select a new physics descriptor. For miner1, the setter writes speed
+3 while crouched and 6 while standing. It preserves the existing response
+coefficient because class flags do not contain 0x800. Ground-probe depth still
+uses class +50 (base speed), as original 4a09b4..4a09c7 does; changing that to
+the active slow speed would be incorrect.
+
+The shared scene now constructs movement settings from the authored class
+values, initializes them with normal mode, and updates them only after a
+successful collider stance change. Failed standing retains slow mode. The
+resulting response field is connected to the body's existing drag coefficient.
+The fixture supplies no forced action and disables network overrides.
+
+Guest symbols `rf_scene_actor_movement_config` (28 bytes) and
+`rf_scene_actor_movement_frames` (64 records of response/speed/numeric mode)
+make the complete input and results inspectable. Smoke checks compare all
+192 result words with PC; scene checks assert consistency with collider stance.
+`inspect_actor_speed_modes.py <snapshot>` executes complete original 428030
+and 4280b0 with their callees, using prepared clear-standing/forced-crouch state
+and the actual captured class values. It verifies all 64 numeric records on
+original, PC and compiled NXDK, and confirms run descriptor/parent selection
+and zeroed vertical velocity in those original setup calls. The diagnostic
+scene keeps its existing support/landing scheduler for vertical velocity.
+
+Run `artifacts/xemu/20260909-163137-872744/report.json` passes on stock 64 MiB
+XEMU, including all speed settings, stance cache/records, geometry and contacts.
+The 64 original-wrapper comparisons, both builds and four CTests pass. No new
+framebuffer was captured because visible movement is unchanged.
+
+The process-local pulse supplies steering directly. It does not yet implement
+the gameplay controller that consumes target speed to generate movement input.
+Consequently, this verifies the stored movement settings, not paced crouch
+locomotion, player control or AI. No extra velocity cap has been invented.

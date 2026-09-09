@@ -131,6 +131,16 @@ uint32_t rf_scene_actor_ground_stats[8]; /* magic, records, hits, walkable, firs
 uint32_t rf_scene_actor_landing[8]; /* magic, descriptor index, frame, landings, grounded ticks, status, support commits, support losses */
 rf_movement_descriptor rf_scene_actor_movement[2]; /* authored run and fall */
 rf_entity_movement_values rf_scene_actor_movement_values;
+rf_movement_config rf_scene_actor_movement_config;
+rf_movement_settings rf_scene_actor_movement_settings;
+uint32_t rf_scene_actor_movement_frames[64][3]; /* response, speed, numeric mode */
+static int actor_set_speed_mode(int crouched)
+{
+    int status=rf_movement_set_mode(&rf_scene_actor_movement_settings,&rf_scene_actor_movement_config,
+        crouched?0:1,-1,scene_actor_body.state.mass,0);
+    if(!status)scene_actor_body.state.coefficients[1]=rf_scene_actor_movement_settings.response;
+    return status;
+}
 uint32_t rf_scene_actor_ground_modes[64];
 rf_physics_stance_cache rf_scene_actor_stance_cache;
 uint32_t rf_scene_actor_stance_request,rf_scene_actor_stance_flags;
@@ -317,6 +327,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         rf_scene_actor_pose.radius=scene_actor_body.state.bounds.radius;
         status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
         memset(rf_scene_actor_tick_stats,0,sizeof(rf_scene_actor_tick_stats));rf_scene_actor_tick_stats[0]=0x5246544b;
+        rf_scene_actor_movement_settings.response=scene_actor_body.state.coefficients[1];
+        status=actor_set_speed_mode(0);if(status)return status;
         rf_scene_actor_stance_flags=0;memset(rf_scene_actor_stance_frames,0,sizeof(rf_scene_actor_stance_frames));
         rf_scene_actor_contact_count=0;memset(rf_scene_actor_contacts,0,sizeof(rf_scene_actor_contacts));
         memset(rf_scene_actor_landing,0,sizeof(rf_scene_actor_landing));
@@ -349,8 +361,10 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(!blocked) {
                 status=rf_physics_stance_centers(&scene_actor_body.spheres,rf_scene_actor_stance_cache.centers[rf_scene_actor_stance_request],
                     rf_scene_actor_stance_cache.count,&rf_scene_actor_stance_flags,rf_scene_actor_stance_request);if(status)return status;
+                status=actor_set_speed_mode(rf_scene_actor_stance_request!=0);if(status)return status;
             }
         }
+        memcpy(rf_scene_actor_movement_frames[frame],&rf_scene_actor_movement_settings,12);
         rf_scene_actor_stance_frames[frame][0]=rf_scene_actor_stance_request;
         rf_scene_actor_stance_frames[frame][1]=rf_scene_actor_stance_flags;
         {uint32_t j,h=2166136261u;const unsigned char *p=(const unsigned char*)scene_actor_body.spheres.items;
@@ -432,6 +446,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
            !(physics_config.authored.flags&1) || (physics_config.authored.flags&0x2000000))) {status=RF_FORMAT;goto done;}
         if(collision) {
             uint32_t mode,axis;
+            rf_scene_actor_movement_config.flags=physics_config.authored.flags;
+            rf_scene_actor_movement_config.base_speed=rf_scene_actor_movement_values.speed;
+            rf_scene_actor_movement_config.slow_factor=rf_scene_actor_movement_values.slow_factor;
+            rf_scene_actor_movement_config.alternate_factor=rf_scene_actor_movement_values.fast_factor;
+            rf_scene_actor_movement_config.response=rf_scene_actor_movement_values.acceleration;
+            rf_scene_actor_movement_config.override_slow=rf_scene_actor_movement_config.override_normal=0;
             /* No eye/parent pose has been installed in this actor fixture yet.
              * Only body/disabled axes are valid here; the shared transform
              * supports all reference frames when their real poses are supplied. */
