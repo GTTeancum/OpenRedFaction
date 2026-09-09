@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Composed translation stages match 1,600 complete original ticks with dwell;
-move the verified ordering into the runtime with trigger/event boundaries,
-then connect controller motion and attached-object poses to the scene.
+Staged C translation runtime matches 1,600 original ticks with dwell;
+implement the exposed trigger/event boundaries and attached-object pose
+propagation, then connect authored controllers to the scene.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

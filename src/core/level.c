@@ -1,4 +1,5 @@
 #include "rf/level.h"
+#include "rf/timer.h"
 int rf_level_entity_find(const rf_level *level,int32_t uid,rf_level_entity *entity)
 {
     rf_level_entity_reader reader;rf_level_entity current,selected={0};int status,found=0;
@@ -433,6 +434,59 @@ int rf_group_translation_position(const rf_group_translation_step *step,
     }
     for(i=0;i<3;i++) {memcpy(&bits,out+i,4);if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;}
     memcpy(pending,out,sizeof(out));*arrival=due;return RF_OK;
+}
+int rf_group_translation_tick_begin(rf_group_translation_runtime *runtime,
+    const rf_level_group_key *keys,uint32_t key_count,float dt,int32_t now_ms,
+    rf_group_translation_frame *frame)
+{
+    rf_group_translation_runtime next;rf_group_translation_frame f={0};
+    const rf_level_group_key *from,*to;int status,expired;
+    if(!runtime || !frame || (runtime->motion.flags&4))return RF_RANGE;
+    next=*runtime;memset(next.velocity,0,sizeof(next.velocity));f.now_ms=now_ms;
+    if((next.motion.flags&0x80) || next.motion.next_key==-1) {
+        f.stage=RF_GROUP_TICK_IDLE;*runtime=next;*frame=f;return RF_OK;
+    }
+    if(!keys || next.motion.current_key<0 || next.motion.next_key<0 ||
+        (uint32_t)next.motion.current_key>=key_count || (uint32_t)next.motion.next_key>=key_count)return RF_RANGE;
+    from=keys+next.motion.current_key;to=keys+next.motion.next_key;
+    next.motion.flags|=0x4008;next.object_flags|=0x4000000;
+    memcpy(f.step.from,from->position,12);memcpy(f.step.to,to->position,12);
+    f.step.timing=(next.motion.flags&0x2000)?from->timing[1]:to->timing[2];
+    f.step.acceleration_time=from->timing[3];f.step.deceleration_time=from->timing[4];
+    f.step.dt=dt;f.step.flags=next.motion.flags;f.step.speed=next.speed;
+    f.step.elapsed=next.motion.phase;f.step.distance=next.distance;f.dwell=to->timing[0];
+    status=rf_group_translation_integrate(&f.step,&f.progress);if(status)return status;
+    next.speed=f.progress.speed;next.motion.phase=f.progress.elapsed;next.distance=f.progress.distance;
+    status=rf_timer_expired(next.deadline,now_ms,&expired);if(status)return status;
+    f.stage=expired?RF_GROUP_TICK_GATES:RF_GROUP_TICK_WAIT;
+    *runtime=next;*frame=f;return RF_OK;
+}
+int rf_group_translation_tick_move(rf_group_translation_runtime *runtime,
+    rf_group_translation_frame *frame)
+{
+    rf_group_translation_runtime next;uint32_t arrival;int status;
+    if(!runtime || !frame || frame->stage!=RF_GROUP_TICK_GATES)return RF_RANGE;
+    next=*runtime;
+    status=rf_group_translation_position(&frame->step,&frame->progress,next.position,next.pending,&arrival);
+    if(status)return status;
+    if(arrival) {next.speed=0;next.distance=0;next.motion.current_key=next.motion.next_key;}
+    *runtime=next;frame->stage=arrival?RF_GROUP_TICK_ARRIVAL:RF_GROUP_TICK_DONE;return RF_OK;
+}
+int rf_group_translation_tick_finish(rf_group_translation_runtime *runtime,
+    rf_group_translation_frame *frame,uint32_t key_count,uint32_t *sounds)
+{
+    rf_group_translation_runtime next;uint32_t bits,requests;double delay;int status;
+    if(!runtime || !frame || !sounds || frame->stage!=RF_GROUP_TICK_ARRIVAL)return RF_RANGE;
+    next=*runtime;memcpy(&bits,&frame->dwell,4);if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;
+    if(!(next.motion.flags&1) && frame->dwell>0) {
+        delay=(double)frame->dwell*1000.+.5;
+        if(delay>RF_TIMER_PERIOD)return RF_RANGE;
+        status=rf_timer_set(&next.deadline,frame->now_ms,(int32_t)delay);if(status)return status;
+        next.motion.flags|=1;requests=RF_GROUP_SOUND_END;
+    } else {
+        status=rf_group_translation_arrive(&next.motion,key_count,&requests);if(status)return status;
+    }
+    *runtime=next;*sounds=requests;frame->stage=RF_GROUP_TICK_DONE;return RF_OK;
 }
 int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
     uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,

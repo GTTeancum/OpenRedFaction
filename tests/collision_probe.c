@@ -10,6 +10,22 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--group-tick")) {
+        struct {rf_group_translation_runtime runtime;struct {float position[3],timing[5];} keys[2];float dt;int32_t now;} in;
+        struct {int32_t status;rf_group_translation_runtime runtime;uint32_t sounds,stage;} out;
+        rf_level_group_key keys[2];rf_group_translation_frame frame;uint32_t i;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.runtime=in.runtime;out.sounds=0;out.stage=0;
+            memset(keys,0,sizeof(keys));
+            for(i=0;i<2;i++) {memcpy(keys[i].position,in.keys[i].position,12);memcpy(keys[i].timing,in.keys[i].timing,20);}
+            out.status=rf_group_translation_tick_begin(&out.runtime,keys,2,in.dt,in.now,&frame);
+            if(!out.status && frame.stage==RF_GROUP_TICK_GATES)out.status=rf_group_translation_tick_move(&out.runtime,&frame);
+            if(!out.status && frame.stage==RF_GROUP_TICK_ARRIVAL)out.status=rf_group_translation_tick_finish(&out.runtime,&frame,2,&out.sounds);
+            if(!out.status)out.stage=frame.stage;
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--group-position")) {
         struct {rf_group_translation_step step;rf_group_translation_progress progress;float position[3];} in;
         struct {int32_t status;uint32_t arrival;float pending[3];} out;

@@ -116,6 +116,31 @@ int rf_group_translation_position(const rf_group_translation_step *step,
  * Not the bit-4 rotation path. */
 int rf_group_translation_arrive(rf_group_motion_state *state,uint32_t key_count,
     uint32_t *sound_requests);
+typedef struct rf_group_translation_runtime {
+    rf_group_motion_state motion;
+    float speed,distance;int32_t deadline;uint32_t object_flags;
+    float position[3],pending[3],velocity[3];
+} rf_group_translation_runtime;
+enum {RF_GROUP_TICK_IDLE,RF_GROUP_TICK_WAIT,RF_GROUP_TICK_GATES,
+    RF_GROUP_TICK_ARRIVAL,RF_GROUP_TICK_DONE};
+typedef struct rf_group_translation_frame {
+    rf_group_translation_step step;rf_group_translation_progress progress;
+    uint32_t stage;int32_t now_ms;float dwell;
+} rf_group_translation_frame;
+/* Ordered translation state work from 469800. begin clears velocity and
+ * integrates before testing the timer. GATES requires caller trigger and
+ * obstruction handling before move. ARRIVAL requires key event/link effects
+ * before finish; finish applies dwell then the mode transition. Sound/portal
+ * callbacks and attached-object commit remain caller responsibilities.
+ * Keep frame/keys stable between stages; no allocation. Outputs must not
+ * overlap. Each failed stage preserves its inputs/outputs. Rotation excluded. */
+int rf_group_translation_tick_begin(rf_group_translation_runtime *runtime,
+    const rf_level_group_key *keys,uint32_t key_count,float dt,int32_t now_ms,
+    rf_group_translation_frame *frame);
+int rf_group_translation_tick_move(rf_group_translation_runtime *runtime,
+    rf_group_translation_frame *frame);
+int rf_group_translation_tick_finish(rf_group_translation_runtime *runtime,
+    rf_group_translation_frame *frame,uint32_t key_count,uint32_t *sounds);
 /* 46b6e8..46b79c mover membership pass. objects follow original global list
  * order; first matching UID wins, with -1 absent and -999 excluding flag 2.
  * Compacts refs in place, appends accepted handles, updates parents/flags and

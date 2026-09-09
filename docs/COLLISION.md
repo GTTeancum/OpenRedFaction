@@ -1805,3 +1805,42 @@ full-tick wrapper yet. Keys have no external links, acceleration is zero and
 sound handles are disabled. Trigger/event callbacks, dwell-rounding edge cases,
 rotation, rounding limits and attached-object pose propagation remain open.
 No runtime source changed in this verification step and no visual result changed.
+
+### Staged C translation runtime
+
+`rf_group_translation_runtime` now retains the controller motion state,
+speed/distance, deadline, object flags, committed/pending positions and linear
+velocity (76 bytes on x86). The caller owns an 84-byte frame snapshot. Three
+allocation-free C stages replace the Python orchestration:
+
+- `rf_group_translation_tick_begin` clears linear velocity, handles idle/flag-80
+  states, selects authored key fields, applies dirty flags, integrates and
+  checks the deadline. It returns IDLE, WAIT or GATES. Integration remains
+  committed to runtime state on a successful WAIT result.
+- At GATES, the caller must execute the original trigger/obstruction decisions
+  before `rf_group_translation_tick_move`. Move updates pending position and,
+  on arrival, clears speed/distance and assigns current_key before returning
+  ARRIVAL. A crossing snap alone returns DONE.
+- At ARRIVAL, the caller must execute key event/link effects before
+  `rf_group_translation_tick_finish`. Finish performs the dwell deadline/flag
+  decision or the arrival mode transition, returning sound requests and DONE.
+  Dwell uses truncation of seconds*1000+0.5 under the timer's bounded domain.
+
+Failed stages preserve runtime/frame/output state; successful earlier stages
+remain committed. Frames must remain stable between calls, and outputs must
+not overlap. Portal/loop-sound callbacks, trigger hold/reversal, key events and
+links, and attached-object commit are caller responsibilities still awaiting
+integration. Rotation is explicitly excluded. Dwell conversion boundaries and
+the previously documented numeric/nonfinite limits still need broader recovery.
+
+`python tools/verify_group_runtime.py` compares the C stages directly on PC and
+compiled NXDK against 40 complete original trajectories / 1,600 ticks. All
+mapped runtime bytes match, including velocity and object flags, plus deadline
+and terminal key. Read-only original call observers match 48 end and 32 start
+sound requests. The fixtures contain 400 idle and 40 timer-wait ticks, with
+1,160 completed movement/arrival ticks. Reports retain final states:
+`artifacts/group-runtime-verification.json`. Original translated-code caches
+are flushed after attaching observers, so previously executed helper blocks
+also receive their call observations. Both builds and all four CTest checks
+pass. These fixtures allow all external gates and have absent event links and
+disabled sound handles; this is not yet scene gameplay or attached-mover motion.
