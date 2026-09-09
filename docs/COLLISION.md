@@ -2239,3 +2239,30 @@ This closes the integration evidence gap between previously separate primitive
 checks. It does not yet run motion in XEMU or update rendered mover geometry.
 The crate's rotation, trigger obstruction, general-object attachment and event
 execution remain outside this controlled sequence and remain open.
+
+
+### Resident door cycles in 64 MiB XEMU
+
+The Xbox diagnostic now runs the connected four-door sequence on resident
+controller and mover poses after level archive closure. It validates the fixture
+(two keys, one attached mover, no general IDs or key event links), uses existing
+diagnostic handle slots, activates each translation, and executes 40 quarter-second
+ticks. Controller poses/runtime mirrors and collision views synchronize after each
+commit. The rotation entry remains untouched. This controlled pass is sequential
+and runs after rendered animation, not as a real-time gameplay frame loop.
+
+The harness hashes each tick's status, controller runtime, controller pose and
+mover pose and compares all 160 records against PC `--door-cycle`, whose results
+are already compared against the original executable. It separately verifies the
+final runtime collection and all final collision-view poses/bounds/matrices.
+Initial runtime lifetime checks remain valid before motion; final state is checked
+against the changed PC reference rather than an unchanged initial-state hash.
+
+`artifacts/xemu/20260909-095422-354974/report.json` passes with stock 64 MiB:
+four doors, 160 ticks, trace checksum 28986eb3, final collision-view checksum
+f8ad8e42, final runtime checksum 0dc621a9. The temporary slot table is 40 bytes,
+and observed available memory during motion is 45,379,584 bytes. Existing static
+collision and renderer checks pass. There is no new screenshot because mover
+geometry is not yet submitted to rendering. Trigger obstruction, sound dispatch,
+crate rotation, real registry allocation and general-object/event behavior remain
+open; the diagnostic explicitly assumes unobstructed translation gates.

@@ -127,6 +127,45 @@ static int membership_open(void)
     rf_group_mover_memberships_close(&resident_memberships);rf_group_membership_diagnostic[1]=(uint32_t)status;return status;
 }
 
+volatile uint32_t rf_door_motion_diagnostic[8]={0x5246444du};
+static int door_motion_check(void)
+{
+    rf_group_pose_slot *slots=NULL;uint32_t i,j,k,frame,hash=2166136261u,view_hash=2166136261u;int status=RF_OK;MM_STATISTICS memory={0};
+    slots=calloc(resident_movers.count?resident_movers.count:1,sizeof(*slots));if(!slots) {status=RF_RANGE;goto done;}
+    for(i=0;i<resident_movers.count;i++) {slots[i].handle=resident_movers.views[i].object_id;slots[i].pose=resident_movers.poses+i;}
+    rf_door_motion_diagnostic[7]=resident_movers.count*sizeof(*slots);
+    for(i=0;i<resident_group_runtime.count;i++) {
+        rf_group_runtime_entry *entry=resident_group_runtime.items+i;const rf_level_owned_group *g=entry->source;
+        const rf_group_mover_membership *m=resident_memberships.items+i;rf_group_controller_view binding={0};rf_group_attached_pose *mover;uint32_t index;
+        if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION)continue;
+        /* Diagnostic fixture: real two-key doors, unobstructed gates, absent events. */
+        if(g->record.key_count!=2 || g->record.ids_count[0] || m->count!=1) {status=RF_RANGE;goto done;}
+        for(j=0;j<2;j++)for(k=0;k<3;k++)if(g->keys[j].links[k]!=UINT32_MAX) {status=RF_RANGE;goto done;}
+        index=m->handles[0]&0xffffu;if(index>=resident_movers.count || slots[index].handle!=m->handles[0]) {status=RF_RANGE;goto done;}
+        mover=slots[index].pose;binding.runtime=&entry->translation;binding.first_key=g->keys;binding.mover_handles=m->handles;binding.mover_count=m->count;
+        status=rf_group_motion_activate(&entry->translation.motion,2);if(status)goto done;
+        rf_door_motion_diagnostic[2]++;
+        for(frame=0;frame<40;frame++) {
+            rf_group_translation_frame tick;uint32_t sounds=0;const void *data[4]={&status,&entry->translation,&entry->pose,mover};uint32_t sizes[4]={4,76,236,236};
+            status=rf_group_translation_tick_begin(&entry->translation,g->keys,2,.25f,(int32_t)(frame*250),&tick);if(status)goto done;
+            if(tick.stage==RF_GROUP_TICK_GATES) {status=rf_group_translation_tick_move(&entry->translation,&tick);if(status)goto done;}
+            if(tick.stage==RF_GROUP_TICK_ARRIVAL) {status=rf_group_translation_tick_finish(&entry->translation,&tick,2,&sounds);if(status)goto done;}
+            entry->pose.flags=entry->translation.object_flags;memcpy(entry->pose.pending,entry->translation.pending,12);memcpy(entry->pose.velocity,entry->translation.velocity,12);
+            status=rf_group_translation_bind_pose(mover,m->handles[0],&binding,1,.25f,0);if(status)goto done;
+            status=rf_group_commit_positions(&entry->translation.motion.flags,&entry->pose,&binding,slots,resident_movers.count);if(status)goto done;
+            memcpy(entry->translation.position,entry->pose.position,12);entry->translation.object_flags=entry->pose.flags;
+            status=rf_geometry_collision_movers_sync(&resident_movers);if(status)goto done;
+            for(j=0;j<4;j++)for(k=0;k<sizes[j];k++)hash=(hash^((const unsigned char *)data[j])[k])*16777619u;
+            rf_door_motion_diagnostic[3]++;
+        }
+    }
+    for(i=0;i<resident_movers.count;i++)for(j=0;j<120;j++)view_hash=(view_hash^((const unsigned char *)resident_movers.views[i].minimum)[j])*16777619u;
+    rf_door_motion_diagnostic[4]=hash;rf_door_motion_diagnostic[5]=view_hash;
+    rf_group_runtime_diagnostic[7]=group_runtime_hash();memory.Length=sizeof(memory);
+    if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_door_motion_diagnostic[6]=memory.AvailablePages;
+ done:
+    free(slots);rf_door_motion_diagnostic[1]=status?(uint32_t)status:1;return status;
+}
 static int mover_check(const rf_level *level)
 {
     rf_geometry_movers source={0};uint32_t *ids=NULL,i,j,k,v,group,hash=2166136261u;
@@ -458,6 +497,7 @@ int main(void)
             rf_vpp_close(&archive);
         }
         if(result==RF_OK)result=group_storage_check(); /* Level archive is closed; owned data remains resident. */
+        if(result==RF_OK)result=door_motion_check(); /* Noninteractive motion diagnostic after archive closure. */
         rf_diagnostic[2] = result == RF_OK ? 5u : 0x80000100u | (uint32_t)(-result);
     }
     for (;;) Sleep(1000);

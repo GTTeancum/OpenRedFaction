@@ -111,6 +111,24 @@ def main():
     for _ in range(membership_header[0]):
         n,=struct.unpack_from('<I',membership_raw,membership_at);membership_accepted+=n;membership_at+=8+4*n
     if membership_at!=len(membership_raw):raise RuntimeError('Malformed PC membership reference')
+    motion_symbol=re.search(r'_rf_door_motion_diagnostic\s+([0-9a-fA-F]+)',map_text)
+    if not motion_symbol:raise RuntimeError('Door motion diagnostic symbol absent')
+    bound_raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--bound-movers',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl'])
+    mover_poses={struct.unpack_from('<i',bound_raw,12+368*i)[0]:bound_raw[144+368*i:380+368*i] for i in range(struct.unpack_from('<I',bound_raw)[0])}
+    final_runtime=bytearray(runtime_raw[16:]);motion_hash=2166136261;motion_doors=0;motion_ticks=0
+    for gi,g in enumerate(group_inventory['records']):
+        if g['flags'][1]:continue
+        at=16+320*gi;uid=g['ids2'][0];keywire=b''.join(struct.pack('<8f',*k['position'],*k['timing']) for k in g['keys'])
+        trace=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--door-cycle'],input=runtime_raw[at+8:at+320]+mover_poses[uid]+keywire)
+        if len(trace)!=40*552:raise RuntimeError('Unexpected PC door trace length')
+        for byte in trace:motion_hash=((motion_hash^byte)*16777619)&0xffffffff
+        last=trace[-552:];final_runtime[320*gi+8:320*gi+320]=last[4:316];mover_poses[uid]=last[316:552];motion_doors+=1;motion_ticks+=40
+    final_runtime_hash=2166136261
+    for byte in final_runtime:final_runtime_hash=((final_runtime_hash^byte)*16777619)&0xffffffff
+    view_hash=2166136261
+    for pose in mover_poses.values():
+        view=pose[212:236]+pose[68:80]+pose[104:140]+pose[56:68]+pose[140:176]
+        for byte in view:view_hash=((view_hash^byte)*16777619)&0xffffffff
     run = root / 'artifacts/xemu' / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     run.mkdir(parents=True)
     eeprom = run / 'eeprom.bin'
@@ -210,8 +228,8 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     runtime=[]
                     for line in runtime_reply.splitlines():
                         if ':' in line:runtime.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
-                    if runtime!=[0x52464752,1]+runtime_header+[runtime_hash,runtime_hash]:raise RuntimeError(f'Guest controller runtime differs from PC: {runtime}')
-                    report['controller_runtime']=dict(groups=runtime[2],retained_bytes=runtime[3],translations=runtime[4],rotation_pending=runtime[5],checksum=hex(runtime[7]),lifetime_checks=groups[9],scope='Persistent base poses and initialized inactive translations match PC through rendering/archive closure. Rotation pending; no attachment/activation/playback.')
+                    if runtime!=[0x52464752,1]+runtime_header+[runtime_hash,final_runtime_hash]:raise RuntimeError(f'Guest controller runtime differs from PC: {runtime}')
+                    report['controller_runtime']=dict(groups=runtime[2],retained_bytes=runtime[3],translations=runtime[4],rotation_pending=runtime[5],checksum=hex(runtime[7]),lifetime_checks=groups[9],scope='Initial runtime integrity through rendering/archive closure; final runtime matches PC after controlled door cycles. Rotation remains pending.')
                     membership_reply=monitor.command('human-monitor-command',{'command-line':f'x /11wx 0x{int(membership_symbol[1],16):x}'})
                     memberships=[]
                     for line in membership_reply.splitlines():
@@ -220,6 +238,13 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     if len(memberships)!=11 or memberships[:9]!=want or memberships[9]!=groups[9] or memberships[10]!=20*membership_header[1]+4*membership_header[0]:
                         raise RuntimeError(f'Guest mover memberships differ from PC: {memberships}; expected {want}')
                     report['controller_memberships']=dict(groups=memberships[2],objects=memberships[3],retained_bytes=memberships[4],peak_bytes=memberships[5],references=memberships[6],checksum=hex(memberships[8]),lifetime_checks=memberships[9],object_and_controller_table_bytes=memberships[10],scope='Authored mover lists and object parents/flags match PC through rendering/archive closure; pose flags and collision IDs synchronized. Diagnostic handles, no general-object binding or motion activation.')
+                    motion_reply=monitor.command('human-monitor-command',{'command-line':f'x /8wx 0x{int(motion_symbol[1],16):x}'})
+                    motion=[]
+                    for line in motion_reply.splitlines():
+                        if ':' in line:motion.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
+                    if len(motion)!=8 or motion[:6]!=[0x5246444d,1,motion_doors,motion_ticks,motion_hash,view_hash] or not 0<motion[6]<=words[3] or motion[7]!=membership_header[1]*8:
+                        raise RuntimeError(f'Guest connected door motion differs from PC: {motion}')
+                    report['door_motion']=dict(doors=motion[2],ticks=motion[3],trace_checksum=hex(motion[4]),collision_view_checksum=hex(motion[5]),available_bytes_during_motion=motion[6]*4096,scratch_bytes=motion[7],scope='Resident controller/mover activation, tick, propagation and commit match original-verified PC traces after archive closure; collision views synchronized each tick. Unobstructed diagnostic, no sound dispatch, crate rotation or mover rendering.')
                     replacements=[];skin_checksum=0
                     if args.skin:
                         assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()
