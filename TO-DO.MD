@@ -11,11 +11,20 @@ Capture and post screenshots only when there is a new visible result.
 - [ ] Implement streaming asset access and level loading within a stock Xbox's 64 MiB unified memory.
 - [ ] Build an Xbox renderer and corresponding PC renderer that preserve at least PS2 visual parity.
 - [ ] Restore the complete single-player campaign, including Geo-Mod, AI, physics, scripts, audio, menus, and saves.
+- [ ] Restore authored trigger/event activation, including the level's door-pair links.
 - [ ] Validate performance and correctness in 64 MiB XEMU before USER hardware testing.
 - [ ] USER: Review visual comparisons against the PS2 version when representative scenes are available.
 - [ ] Consider multiplayer only after single-player completion.
 
 ## Current camera evidence
+
+Trigger loader 465510 and event loader 462150 are identified in the original
+level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
+4,471 links across 93 levels. Live Mines trigger 8542 references first keys of
+both inspected door panels (8593/8591), while 8522 references the other pair
+(8603/8605); additional links remain unresolved. Implement the C trigger reader
+and original activation/UID resolution before replacing diagnostic activation.
+See docs/TRIGGERS.md for the read evidence and ordered linkage table.
 
 Ordered controller binding now matches 2,000 original calls on PC/NXDK, and
 forced translation updates all 1,406 owned mover poses/collision views on PC.
