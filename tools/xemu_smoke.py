@@ -80,6 +80,9 @@ def main():
     if not symbol:
         raise RuntimeError('Diagnostic symbol absent from matching linker map')
     address = int(symbol[1], 16)
+    collision_symbol=re.search(r'_rf_collision_diagnostic\s+([0-9a-fA-F]+)',map_text)
+    if not collision_symbol:raise RuntimeError('Collision diagnostic symbol absent')
+    collision_reference=list(map(int,subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--world',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl']).split()))
     run = root / 'artifacts/xemu' / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     run.mkdir(parents=True)
     eeprom = run / 'eeprom.bin'
@@ -144,6 +147,13 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     report['samples'].append(words)
                     print('Guest telemetry:', [hex(w) for w in words], flush=True)
                 if len(words) == 58 and words[:3] == [0x52464447, 9, 5]:
+                    collision_reply=monitor.command('human-monitor-command',{'command-line':f'x /9wx 0x{int(collision_symbol[1],16):x}'})
+                    collision=[]
+                    for line in collision_reply.splitlines():
+                        if ':' in line:collision.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
+                    if len(collision)!=9 or collision[:2]!=[0x52464357,1] or collision[2:8]!=collision_reference[4:10] or not 0<collision[8]<=words[3]:
+                        raise RuntimeError(f'Guest collision world differs from PC: {collision}; reference {collision_reference}')
+                    report['collision_world']=dict(retained_bytes=collision[2],peak_bytes=collision[3],queries=collision[4],hits=collision[5],errors=collision[6],checksum=hex(collision[7]),available_bytes_after_build=collision[8]*4096,scope='Initial Live Mines world retained alongside renderer/animation; room rays match PC. No gameplay movement or mutable-state validation.')
                     replacements=[];skin_checksum=0
                     if args.skin:
                         assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()

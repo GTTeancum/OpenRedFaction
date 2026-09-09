@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Owned collision worlds now build and query across 94 levels below a 2.1 MB peak;
-validate the guest heap and loaded-world rays in XEMU, then recover finalizer
-rejection and mutable/query state before gameplay integration.
+Live Mines collision-world allocation and 54 room rays now pass in 64 MiB XEMU
+alongside the animated scene; recover finalizer rejection, mutable/query state
+and actor collision before gameplay integration.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

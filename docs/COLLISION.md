@@ -595,3 +595,29 @@ This is integration of the recovered initial-data paths, not a complete original
 loader or gameplay world. Original face-finalizer rejection, later room/face
 mutations, preferred/cached queries, transforms, special face modes and sweeps
 remain open. Loaded-world guest heap and ray execution still require XEMU tests.
+
+## First loaded-world XEMU validation
+
+The Xbox diagnostic now constructs and retains the initial Live Mines collision
+world after loading geometry. It executes the same one-ray-per-room fixture as
+the PC probe and exposes separate `rf_collision_diagnostic` telemetry. The smoke
+runner reads it through QMP and checks the allocation totals, query/hit/error
+counts and FNV-1a checksum over all status/matched/hit output bytes against a
+fresh PC run. No original executable or allocation substitution is used in the
+guest: this runs the NXDK build and guest heap.
+
+`python tools/xemu_smoke.py --scene-states --no-capture` passes on exactly
+64 MiB XEMU. The world retains 1,570,360 requested bytes with a construction
+peak of 1,592,392 bytes; 54 queries produce 54 hits and zero errors. The complete
+output checksum is `0x2052a365`, matching PC. Available guest memory immediately
+after world construction is 61,517,824 bytes. The world remains resident while
+the existing authored-state scene renders all 64 frames; available memory after
+CPU mesh release is 45,424,640 bytes. These are observed diagnostic memory points,
+not a full-game peak or performance result. The frame itself is unchanged and
+no framebuffer was captured. Evidence:
+`artifacts/xemu/20260909-011409-412936/report.json`.
+
+Both builds, all 94 PC world-load/replay cases and four CTest checks pass. This
+establishes guest construction and the selected static ray fixture alongside
+rendering/animation. Finalizer rejection, mutable room/face state, the other query
+branches, swept actor collision and gameplay integration are still open.

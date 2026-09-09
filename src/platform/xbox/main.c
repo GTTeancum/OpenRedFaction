@@ -18,6 +18,30 @@
 /* Read-only monitor evidence. Resolve its VA from the matching linker map. */
 volatile uint32_t rf_diagnostic[58] = {0x52464447u, 9u, 0};
 static rf_geometry resident_geometry;
+static rf_geometry_collision_world resident_collision;
+volatile uint32_t rf_collision_diagnostic[9]={0x52464357u};
+static int collision_check(void)
+{
+    uint32_t i,j,k,hash=2166136261u;MM_STATISTICS memory={0};int status;
+    status=rf_geometry_collision_world_open(&resident_geometry,8u*1024u*1024u,&resident_collision);
+    if(status) {rf_collision_diagnostic[1]=(uint32_t)status;return status;}
+    rf_collision_diagnostic[2]=resident_collision.allocated_bytes;rf_collision_diagnostic[3]=resident_collision.peak_bytes;
+    for(i=0;i<resident_collision.room_count;i++) {
+        const rf_collision_tree *tree=&resident_collision.rooms[i].tree;const rf_collision_face *face;
+        float start[3]={0},delta[3];struct {int32_t status;uint32_t matched;rf_geometry_world_hit hit;} out;
+        const unsigned char *bytes=(const unsigned char*)&out;
+        if(!tree->face_count)continue;face=tree->faces;
+        for(j=0;j<face->count;j++)for(k=0;k<3;k++)start[k]+=face->vertices[j][k];
+        for(k=0;k<3;k++) {start[k]=start[k]/face->count+face->plane[k]+.0037f*(k+1);delta[k]=-2*face->plane[k]+.0013f*(k+1);}
+        memset(&out,0xa5,sizeof(out));out.status=rf_geometry_collision_world_ray(&resident_collision,0x460,start,delta,1,&out.hit,&out.matched);
+        rf_collision_diagnostic[4]++;if(out.status)rf_collision_diagnostic[6]++;else rf_collision_diagnostic[5]+=out.matched;
+        for(j=0;j<sizeof(out);j++)hash=(hash^bytes[j])*16777619u;
+    }
+    rf_collision_diagnostic[7]=hash;memory.Length=sizeof(memory);
+    if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_collision_diagnostic[8]=memory.AvailablePages;
+    rf_collision_diagnostic[1]=rf_collision_diagnostic[6]?(uint32_t)RF_FORMAT:1;
+    return rf_collision_diagnostic[6]?RF_FORMAT:RF_OK;
+}
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;
 static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
@@ -231,7 +255,8 @@ int main(void)
                     debugPrint("Geometry: %u vertices, %u faces, %u bytes\n", resident_geometry.vertices, resident_geometry.faces, resident_geometry.allocated_bytes);
                     {
                         rf_preview_mesh mesh;
-                        result = rf_lightmaps_open(&resident_lightmaps, &level, 4u*1024u*1024u);
+                        result = collision_check();
+                        if(result == RF_OK) result = rf_lightmaps_open(&resident_lightmaps, &level, 4u*1024u*1024u);
                         if (result == RF_OK) {
                             uint32_t mapping, image;
                             for (mapping = 0; mapping < resident_geometry.mappings && result == RF_OK; ++mapping)

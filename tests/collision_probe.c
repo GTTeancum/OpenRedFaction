@@ -42,7 +42,7 @@ int main(int argc,char **argv)
             if(!pass) {rf_geometry_close(&geometry);poison=malloc(geometry_bytes);if(!poison)return 11;memset(poison,0xdd,geometry_bytes);}
         }
         if(hashes[0]!=hashes[1])return 12;
-        printf("%u %u %u %u %u %u %u %u %u\n",world.room_count,faces,world.primary_count,world.child_count,world.allocated_bytes,world.peak_bytes,queries,hits,errors);
+        printf("%u %u %u %u %u %u %u %u %u %u\n",world.room_count,faces,world.primary_count,world.child_count,world.allocated_bytes,world.peak_bytes,queries,hits,errors,hashes[0]);
         free(poison);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return 0;
     }
     if(argc==2 && !strcmp(argv[1],"--room-query")) {
