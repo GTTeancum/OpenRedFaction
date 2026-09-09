@@ -106,6 +106,14 @@ int rf_model_local_light_color(float distance_squared,float radius_squared,const
 /* Selected-light direction 0x52dd51: normalize delta; flag 0x400 replaces Y
  * with 0.5 and normalizes again; rotate through the supplied 3x3 matrix. */
 int rf_model_local_light_direction(const float delta[3],uint32_t flags,const float rotation[9],float result[3]);
+typedef struct rf_model_lighting_input {
+    uint32_t flags,alternate,disable_local;
+    uint8_t color[4];float ambient[3],gain,model_rotation[9],light_rotation[9],position[3];
+} rf_model_lighting_input;
+typedef struct rf_model_lighting { float lights[3][6],ambient[3]; } rf_model_lighting;
+/* Complete 0x52dad0 setup with caller-owned global values and light list. */
+int rf_model_lighting_setup(const rf_model_lighting_input *input,const rf_model_local_light *lights,
+    const float (*colors)[3],uint32_t count,rf_model_lighting *result);
 /* Tag placement 0x5034f0 after character tag evaluation: rotate then translate.
  * Preserves its separate rounding stages; no extra scale parameter is applied. */
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12]);

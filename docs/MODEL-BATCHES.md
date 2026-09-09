@@ -1,5 +1,21 @@
 # Model batch data
 
+`rf_model_lighting_setup` now assembles the complete `0x52dad0` operation from
+caller-owned model/global inputs and a candidate-light list. It scales ambient
+RGB by 255, builds both fixed directional contributions, handles the alternate
+first-light mode, honors local-light disabling, and composes the verified local
+selection/direction/attenuation helpers. Original constant bits and matrix
+orientation are preserved. The second fixed light intentionally gives its red
+and green channels the same green-derived intensity, as in the executable.
+No heap allocation occurs; output is published after successful setup.
+
+`tools/verify_model_lighting_setup.py` executes complete original `0x52dad0`
+with unchanged callees for 2,000 finite fixtures spanning alternate, disable
+and flag-0x400 states. All 21 float outputs match bit-for-bit in this run,
+although the verifier permits 2e-6 relative / 1e-5 absolute error. PC build,
+four CTest checks and NXDK build pass. World candidate discovery, source
+global values, model-instance preparation and drawing are not yet connected.
+
 `rf_model_local_light_direction` recovers `0x52dd51..0x52dd9d`: normalize the
 selected delta using `0x4fab70`, optionally replace Y with 0.5 and normalize
 again when model flag 0x400 is set, then apply the supplied 3x3 rotation via

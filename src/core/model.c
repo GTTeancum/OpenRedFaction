@@ -5,6 +5,34 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_lighting_setup(const rf_model_lighting_input *input,const rf_model_local_light *lights,
+    const float (*colors)[3],uint32_t count,rf_model_lighting *result)
+{
+    static const uint32_t directions[3][3]={{0x3ee96429,0x3f11de8b,0x3f2f0b72},{0x3eac78ea,0x3ed79746,0x3f579735},{0xbee38e37,0xbe638e37,0xbee38e37}};
+    rf_model_lighting out={0};rf_model_light_choice choice;float luma,gain;uint32_t i,j;int status;
+    if(!input || !result || ((!lights || !colors) && count))return RF_RANGE;
+    luma=(float)(((double)input->color[2]*0.33f+(double)input->color[1]*0.66f)+(double)input->color[0]*0.33f);
+    gain=input->alternate?(float)((double)input->gain*1.3f):1.3f;
+    memcpy(out.lights[0],directions[input->alternate?1:0],12);memcpy(out.lights[1],directions[2],12);
+    for(i=0;i<2;++i)if(i || !input->alternate) {
+        float v[3];memcpy(v,out.lights[i],12);
+        for(j=0;j<3;++j)out.lights[i][j]=(float)(((double)v[2]*input->model_rotation[6+j]+(double)v[1]*input->model_rotation[3+j])+(double)v[0]*input->model_rotation[j]);
+    }
+    for(i=0;i<3;++i) {
+        float value=gain*input->color[i];if(value<0)value=0;if(value>255)value=255;
+        out.lights[0][3+i]=value;out.ambient[i]=input->ambient[i]*255.0f;
+        out.lights[1][3+i]=(float)(((double)luma+input->color[i==2?2:1])*0.5*input->gain*0.75);
+    }
+    if(!input->disable_local && count) {
+        status=rf_model_choose_local_light(input->position,lights,count,&choice);if(status)return status;
+        if(choice.index>=0) {
+            status=rf_model_local_light_direction(choice.delta,input->flags,input->light_rotation,out.lights[2]);if(status)return status;
+            status=rf_model_local_light_color(choice.distance_squared,lights[choice.index].radius_squared,colors[choice.index],out.lights[2]+3);if(status)return status;
+        }
+    }
+    *result=out;return RF_OK;
+}
+
 static void light_normalize(float v[3])
 {
     double length=sqrt((double)v[0]*v[0]+(double)v[1]*v[1]+(double)v[2]*v[2]);uint32_t i;

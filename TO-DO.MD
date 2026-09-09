@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Complete model lighting setup now matches 2,000 original-function cases.
+Connect world candidate lights and model inputs, finish second-stream/pose
+preparation, then integrate the recovered deformation and lighting into drawing.
+
 Selected-light direction now matches 2,000 original cases, including flag
 0x400 and singular inputs. Assemble fixed lighting and global gates with the
 verified selection, direction and attenuation helpers for renderer integration.
