@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The shared miner diagnostic now prepares skinning matrices from real skeleton
+and animation data across 64 frames, matching original code on PC and 64 MiB
+XEMU. Connect actual vertex batches, material slots and lighting to drawing.
+
 Skinning-matrix preparation and generation caching now match 2,000 original
 cases across 8,000 bones. Connect actual stored transforms and animation poses
 to prepared matrices, then feed deformation, lighting and model drawing.

@@ -1,5 +1,21 @@
 # Model batch data
 
+The shared 64-frame animation diagnostic now connects actual miner BONE data
+and evaluated animation poses to prepared skinning matrices. It builds the
+25 stored transforms once, allocates 2,400 bytes for stored/prepared matrices,
+and maintains 512 bytes of bounded generation stamps on the stack. Temporary
+matrix storage is released on success and failure. Each frame includes the
+prepared matrices and stamps in the cache hash.
+
+The independent original-code verifier constructs stored transforms through
+`0x519720`/`0x4fe900` and runs `0x51ba00` after the existing original pose
+evaluation. The complete eight-word result is now
+`[2,25,64,3699116198,3589827904,13735429,1621267238,1404]`.
+PC, CTest, NXDK and numeric 64 MiB XEMU pass; runtime evidence is
+`artifacts/xemu/20260908-200552-959380/report.json`. There is no new framebuffer
+capture: this connects animation to prepared matrices, but does not yet draw
+the miner or feed actual vertices through the deformation/lighting pipeline.
+
 `rf_model_prepare_skinning` connects the existing matrix composition helper
 to `0x51ba00`'s prepared-matrix cache. Once pose evaluation is current, original
 code composes each stored bone transform (definition +0x64, stride 76) with

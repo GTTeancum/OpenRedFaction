@@ -62,6 +62,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     float matrices[256][12], local[12], tag[12], displacement[3]={.125f,-.25f,.5f};
     uint16_t generations[256]={0}; uint32_t count=0,i,frame; int status,opened=0,found=0;
     void *payload=NULL;
+    float (*stored)[12]=NULL,(*prepared)[12]=NULL;uint16_t prepared_generations[256]={0};
     if (!out) return RF_RANGE;
     memset(out,0,8*4); out[0]=1;
     status=rf_vpp_open(&meshes,meshes_path); if (status!=RF_OK) goto done;
@@ -76,6 +77,11 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         free(payload); payload=NULL; if (status!=RF_OK) goto done;
     }
     if (!count || !model.lod_count) { status=RF_FORMAT; goto done; }
+    stored=calloc(count*2,sizeof(*stored));if(!stored) { status=RF_RANGE;goto done; }
+    prepared=stored+count;
+    for(i=0;i<count;++i) {
+        status=rf_model_bone_transform(bones[i].rotation,bones[i].position,stored[i]);if(status)goto done;
+    }
     out[1]=count;
     for (i=0;i<model.lods[0].attachment_count;++i) {
         status=rf_model_file_attachment(&model,0,i,&eye); if (status!=RF_OK) goto done;
@@ -170,9 +176,12 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }
         out[5]=hash_bytes(out[5],matrices,count*48); out[5]=hash_bytes(out[5],displacement,12);
         out[5]=hash_bytes(out[5],generations,count*2); displacement[0]=0;
+        status=rf_model_prepare_skinning(stored,matrices,count,(uint16_t)state.generation,prepared,prepared_generations,count);if(status)goto done;
+        out[5]=hash_bytes(out[5],prepared,count*48);out[5]=hash_bytes(out[5],prepared_generations,count*2);
         out[2]=frame+1;
     }
 done:
+    free(stored);
     free(payload);
     if (opened==2) rf_vpp_close(&archive);
     if (opened) rf_vpp_close(&meshes);

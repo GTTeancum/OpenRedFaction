@@ -43,6 +43,14 @@ def fnv(value,raw):
     for byte in raw: value=((value^byte)*16777619)&0xffffffff
     return value
 put(obj+0x1d50,'<I',desc);put(obj+0x12d0,'<I',0)
+u.mem_write(desc+0xf24,order)
+for i in range(count):
+    temp=order_address+0x6000
+    u.mem_write(temp,raw[start+4+i*56+24:start+4+i*56+52])
+    put(stack+64000,'<I',stop);u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ECX,temp)
+    u.emu_start(0x519720,stop,count=10000);assert u.reg_read(UC_X86_REG_EIP)==stop
+    put(stack+64000,'<3I',stop,temp,temp+16);u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ECX,desc+0x64+i*76)
+    u.emu_start(0x4fe900,stop,count=10000);assert u.reg_read(UC_X86_REG_EIP)==stop
 put(obj+0x1cfc,'<ii',-1,-1);put(obj+0x1d48,'<i',-1);put(obj+0x1d04,'<f',.25);put(obj+0x1cf8,'<H',1)
 put(obj+0x12c0,'<3f',.125,-.25,.5)
 for i in range(4):
@@ -166,9 +174,12 @@ for frame in range(64):
     put(obj+0x12c0,'<f',1);evaluate();assert rd(obj+0x12c0,4)==struct.pack('<f',1)
     hashes[2]=fnv(hashes[2],rd(obj,count*48)+rd(obj+0x12c0,12)+b''.join(rd(obj+0x1394+i*48,2) for i in range(count)))
     put(obj+0x12c0,'<f',0)
+    put(stack+64000,'<7I',stop,0,0,0,0,0,0);u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ECX,obj)
+    u.emu_start(0x51ba00,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
+    hashes[2]=fnv(hashes[2],rd(obj+0x960,count*48)+b''.join(rd(obj+0x1396+i*48,2) for i in range(count)))
 expected=[2,count,64,*hashes,4+count*56]
 actual=list(struct.unpack('<8I',subprocess.check_output([str(root/'build/pc/Release/rf_animation_check.exe'),str(root/'Installed_Game/meshes.vpp'),str(root/'Installed_Game/motions.vpp')])))
 assert len(reset_calls)==16 and 17 in starts and 18 in starts and len(starts)<48,(starts,reset_calls)
 assert len(queue_calls)==1 and len(followup_calls)==1,(queue_calls,followup_calls)
-report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,action_starts=starts,reset_calls=len(reset_calls),queue_calls=len(queue_calls),followup_calls=len(followup_calls),scope='64-frame ammo/replacement, whole empty handler to outgoing action including nonlocal current-weapon lookup, selection tail with queue/followup clear, entity predicates, scripted controller, preparation/candidate blocks, valid active-weapon reset with nonloop/effect stops, playback, skeleton/cache and eye against unmodified original instructions; earlier selection gates, actual activation, message/sound execution and local-player presentation excluded')
+report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,action_starts=starts,reset_calls=len(reset_calls),queue_calls=len(queue_calls),followup_calls=len(followup_calls),scope='64-frame ammo/replacement, whole empty handler to outgoing action including nonlocal current-weapon lookup, selection tail with queue/followup clear, entity predicates, scripted controller, preparation/candidate blocks, valid active-weapon reset with nonloop/effect stops, playback, skeleton/cache, stored-bone transforms and prepared skinning matrices, and eye against unmodified original instructions; earlier selection gates, actual activation, message/sound execution and local-player presentation excluded')
 (root/'artifacts/animation-check-original.json').write_text(json.dumps(report,indent=2));print(report);assert actual==expected
