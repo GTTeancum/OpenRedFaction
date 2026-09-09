@@ -390,3 +390,23 @@ binary32 factor; the tested timing cases match x87 output, but arbitrary
 float-rounding boundaries remain a verification item. PC/NXDK builds and the
 existing CTest suite pass. Next validate callback-side mutations and wire event
 construction, handles and authored actions into this state path.
+
+
+## Callback mutation and timing-boundary verification
+
+The event verifier now passes 3,922 PC and compiled NXDK comparisons, adding
+12 callback mutation cases and 130 binary32 neighbors of selected millisecond
+rounding thresholds for ordinary and type-79 delays. No core changes were
+needed. Mutation fixtures change type, source, actor, saved mode and deadline
+from the action, and write another deadline during propagation. Both original
+and shared paths preserve the observed call order and resulting state.
+
+The propagation decision uses the type after the action. Immediate propagation
+keeps the activation's original source and mode while reading the changed actor;
+delayed propagation reads the changed source, actor and mode. Immediate action
+changes to the deadline survive; delayed-tick clearing overwrites them after
+callbacks. The mutation cases hash callback arguments as well as action order
+and compare the final state. Recursive callbacks, actual game actions and all
+possible float values are still outside this evidence. The tested threshold
+neighbors cover 13 rounding boundaries per delay class, five adjacent binary32
+values each. Proceed to event construction/registration and campaign actions.

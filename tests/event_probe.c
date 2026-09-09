@@ -2,17 +2,23 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
-static uint32_t actions;
+static uint32_t actions,mutation;
 static void callback(void *context,rf_event_state *s,uint32_t action,uint32_t source,uint32_t actor,uint32_t mode)
-{(void)context;(void)s;(void)source;(void)actor;(void)mode;actions=actions*4+action+1;}
+{
+    uint32_t i,values[4]={action,source,actor,mode};(void)context;
+    if(!mutation) {actions=actions*4+action+1;return;}
+    for(i=0;i<4;++i)actions=(actions^values[i])*16777619u;
+    if(action!=2) {s->type=s->type==2?30:2;s->source=111;s->actor=222;s->mode=2;s->deadline=999;}
+    else s->deadline=888;
+}
 int main(void)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
     while(fread(&in,sizeof(in),1,stdin)==1) {
-        actions=0;out.state=in.state;
-        out.status=in.tick?rf_event_tick(&out.state,(int32_t)in.now,callback,NULL):
+        mutation=in.tick&2;actions=mutation?2166136261u:0;out.state=in.state;
+        out.status=(in.tick&1)?rf_event_tick(&out.state,(int32_t)in.now,callback,NULL):
             rf_event_activate(&out.state,(int32_t)in.now,in.source,in.actor,in.mode,callback,NULL);
         out.actions=actions;if(fwrite(&out,sizeof(out),1,stdout)!=1)return 3;
     }

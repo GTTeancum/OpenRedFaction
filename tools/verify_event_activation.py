@@ -13,17 +13,32 @@ read=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
 commands=bytearray();expected=bytearray()
 def capture(state,tick,now,source,actor,mode):
  def fields(data):return data[0x290:0x29c]+data[0x2a8:0x2b0]+data[0x2b0:0x2b4]+pack(data[0x2b4])
- commands.extend(fields(state)+pack(tick,now,source,actor,mode))
+ commands.extend(fields(state)+pack(tick|(2 if mutation else 0),now,source,actor,mode))
  code=0
  for action in actions:code=code*4+{'off':1,'on':2,'propagate':3}[action]
+ if mutation:
+  code=2166136261
+  for row in trace:
+   for value in row:code=((code^value)*16777619)&0xffffffff
  expected.extend(fields(bytes(u.mem_read(base,0x2c0)))+pack(0,code))
 actions=[]
+mutation=0;trace=[]
 def hook(cpu,address,size,data):
  if address not in (on,off,0x4b8b00):return
  sp=cpu.reg_read(UC_X86_REG_ESP);ret=read(sp)
  assert cpu.reg_read(UC_X86_REG_ECX)==base
  actions.append('on' if address==on else 'off' if address==off else 'propagate')
- if address==0x4b8b00:assert tuple(struct.unpack('<3I',u.mem_read(sp+4,12)))[:2]==(source,actor) and (read(sp+12)&255)==mode
+ action=1 if address==on else 0 if address==off else 2
+ if mutation:
+  if action==2:
+   params=struct.unpack('<3I',u.mem_read(sp+4,12));trace.append((2,params[0],params[1],params[2]&255))
+   u.mem_write(base+0x298,pack(888))
+  else:
+   trace.append((action,read(base+0x2ac),read(base+0x2a8),mode))
+   u.mem_write(base+0x290,pack(30 if read(base+0x290)==2 else 2));u.mem_write(base+0x298,pack(999))
+   u.mem_write(base+0x2a8,pack(222,111));u.mem_write(base+0x2b4,bytes([2]))
+ else:
+  if address==0x4b8b00:assert tuple(struct.unpack('<3I',u.mem_read(sp+4,12)))[:2]==(source,actor) and (read(sp+12)&255)==mode
  cpu.reg_write(UC_X86_REG_ESP,sp+(16 if address==0x4b8b00 else 4));cpu.reg_write(UC_X86_REG_EIP,ret)
 u.hook_add(UC_HOOK_CODE,hook);u.mem_write(vtable,pack(0,on,off))
 source=0x12340001;actor=0x23450002;now=12345;u.mem_write(0x5a3ed8,pack(now))
@@ -84,6 +99,33 @@ u.mem_write(base+0x2b0,pack(1))
 activate(300,source+2,actor+2,1)
 assert read(base+0x298)==1200 and read(base+0x2a8)==actor+2 and read(base+0x2ac)==source+2
 assert bytes(u.mem_read(base+0x2b4,1))==bytes([0])
+rounding_cases=0
+for kind in (30,79):
+ for milliseconds in (0,1,2,3,7,10,99,100,999,1000,10001,99999,1000000):
+  boundary=(milliseconds+0.5)/(1000*(scale if kind==79 else 1))
+  bits=struct.unpack('<I',struct.pack('<f',boundary))[0]
+  for step in (-2,-1,0,1,2):
+   delay=struct.unpack('<f',pack(bits+step))[0]
+   state=bytearray(0x2c0);struct.pack_into('<I',state,0,vtable)
+   struct.pack_into('<IfI',state,0x290,kind,delay,777);state[0x2b4]=0x55
+   u.mem_write(base,bytes(state));u.mem_write(0x5a3ed8,pack(now));actions.clear()
+   u.mem_write(stack,pack(stop,source,actor,1));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_ECX,base)
+   u.emu_start(0x4b8b70,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
+   capture(state,0,now,source,actor,1);rounding_cases+=1
+mutation=1;mutation_cases=0
+for tick in (0,1):
+ for kind in (2,30):
+  for mode in (0,1,2):
+   state=bytearray(0x2c0);struct.pack_into('<I',state,0,vtable)
+   struct.pack_into('<IfI',state,0x290,kind,0.0,now)
+   struct.pack_into('<3I',state,0x2a8,actor,source,0);state[0x2b4]=mode
+   u.mem_write(base,bytes(state));u.mem_write(0x5a3ed8,pack(now));actions.clear();trace.clear()
+   u.mem_write(stack,pack(stop) if tick else pack(stop,source,actor,mode))
+   u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_ECX,base)
+   end=0x4b8d45 if tick else stop
+   u.emu_start(0x4b8ce0 if tick else 0x4b8b70,end,count=100000);assert u.reg_read(UC_X86_REG_EIP)==end
+   capture(state,tick,now,source,actor,mode);mutation_cases+=1
+mutation=0
 raw=subprocess.check_output([str(root/'build/pc/Release/rf_event_probe.exe')],input=commands)
 assert raw==expected,('PC event mismatch',next((i for i,(a,b) in enumerate(zip(raw,expected)) if a!=b),None))
 xp=pefile.PE(str(root/'build/xbox/main.exe'));xb=xp.get_memory_mapped_image();origin=xp.OPTIONAL_HEADER.ImageBase
@@ -96,16 +138,24 @@ def xhook(cpu,address,size,data):
  global xcode
  if address!=callback:return
  sp=cpu.reg_read(UC_X86_REG_ESP);ret=struct.unpack('<I',cpu.mem_read(sp,4))[0]
- action=struct.unpack('<I',cpu.mem_read(sp+12,4))[0];xcode=xcode*4+action+1
+ action=struct.unpack('<I',cpu.mem_read(sp+12,4))[0]
+ if mutation:
+  for value in struct.unpack('<4I',cpu.mem_read(sp+12,16)):xcode=((xcode^value)*16777619)&0xffffffff
+  if action!=2:
+   kind=struct.unpack('<I',cpu.mem_read(base,4))[0];cpu.mem_write(base,pack(30 if kind==2 else 2))
+   cpu.mem_write(base+8,pack(999,222,111));cpu.mem_write(base+24,pack(2))
+  else:cpu.mem_write(base+8,pack(888))
+ else:xcode=xcode*4+action+1
  cpu.reg_write(UC_X86_REG_ESP,sp+4);cpu.reg_write(UC_X86_REG_EIP,ret)
 x.hook_add(UC_HOOK_CODE,xhook)
 for at in range(0,len(commands),48):
  state=commands[at:at+28];tick,now,source,actor,mode=struct.unpack_from('<5I',commands,at+28)
- x.mem_write(base,bytes(state));xcode=0
+ mutation=tick&2;tick&=1
+ x.mem_write(base,bytes(state));xcode=2166136261 if mutation else 0
  args=[base,now,callback,0] if tick else [base,now,source,actor,mode,callback,0]
  x.mem_write(stack,pack(stop,*args));x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x37f)
  x.emu_start(entries[tick],stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop
  got=bytes(x.mem_read(base,28))+pack(x.reg_read(UC_X86_REG_EAX),xcode)
  assert got==expected[(at//48)*36:(at//48+1)*36],('NXDK',at//48,got.hex())
-report=dict(result='PASS',pc_cases=len(commands)//48,nxdk_cases=len(commands)//48,cases=cases,tick_cases=tick_cases,retrigger_cases=3,counts=counts,no_automatic_propagation_types=excluded,special_delay_scale=dict(type=79,scale=scale),scope='Original 4b8b70, timer helpers, ftol and propagation predicate execute unchanged. Virtual actions and 4b8b00 link propagation intercepted; Delayed tick prefix 4b8ce0..4b8d45 executes unchanged; type-specific per-frame updates excluded. PC and compiled NXDK state/output/action-order match 3,780 cases with non-mutating callbacks. No actual event actions, callback mutation coverage or type-specific per-frame updates claimed.')
+report=dict(result='PASS',pc_cases=len(commands)//48,nxdk_cases=len(commands)//48,rounding_cases=rounding_cases,mutation_cases=mutation_cases,cases=cases,tick_cases=tick_cases,retrigger_cases=3,counts=counts,no_automatic_propagation_types=excluded,special_delay_scale=dict(type=79,scale=scale),scope='Original 4b8b70, timer helpers, ftol and propagation predicate execute unchanged. Virtual actions and 4b8b00 link propagation intercepted; Delayed tick prefix 4b8ce0..4b8d45 executes unchanged; type-specific per-frame updates excluded. PC and compiled NXDK state/output/action-order match, including callback field mutations and selected float threshold neighbors. No actual event actions, recursive callbacks, all float inputs or type-specific per-frame updates claimed.')
 (root/'artifacts/event-activation-verification.json').write_text(json.dumps(report,indent=2));print(report)

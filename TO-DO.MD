@@ -23,8 +23,10 @@ cases, and three re-activation steps. Timer replacement, disabled caller-field
 updates and on/off ordering are documented in docs/TRIGGERS.md. Reconstruct
 shared event state transitions, preserving callback order, then event actions.
 Shared C activation/timer prefix now matches 3,780 original cases on PC and
-compiled NXDK with non-mutating callbacks. Validate callback mutations and
-float-rounding boundaries, then register event states and implement actions.
+compiled NXDK with non-mutating callbacks. Extended checks now total 3,922
+cases, including 12 callback mutations and 130 float-threshold neighbors.
+Register event states and implement actions; recursive callback behavior and
+exhaustive timing precision remain outside current verification.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
