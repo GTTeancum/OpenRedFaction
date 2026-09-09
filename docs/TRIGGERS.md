@@ -494,3 +494,33 @@ to be traced before integrating an operational shared event. The vtable at
 Ghidra's automatic analysis missed the method; the export script now explicitly
 creates the function at the entry verified by original-code execution and sets
 its thiscall convention. Report: `artifacts/unhide-deferred-verification.json`.
+
+### Factory arming and player eligibility
+
+The same verifier now executes type-specific factory overlay 4b8880, reached
+from loader 462150 case 0x32. Twelve cases cover generic-factory success/failure,
+zero/A5 storage and three clocks. With generic factory 4b6870 intercepted, the
+complete overlay clears both request bytes and calls the original timer setter
+with offset zero. Its deadline therefore becomes the current clock, ready on
+the next processing call. All other patterned bytes survive, and allocation
+failure returns null without touching the supplied storage. This resolves the
+previously open initial-arming question; generic object initialization remains
+separately incomplete.
+
+Ninety-six player-present cases now execute the complete deferred method with
+real string comparison 5001d0 and global predicate 45be80. Query 498e80 is
+intercepted with hit/miss results while asserting its four arguments: player
++0x7d4, target +0x3c, flags 3 and null output. Bypasses are nonzero object type,
+friendliness 2, names `masako_fighter`, `capek` or `gryphon`, or nonzero global
+645320. Name matching is case-insensitive (`CAPEK` bypasses); `capek_extra`
+does not bypass. The fixture counts query calls to verify short-circuiting.
+Otherwise a query hit allows unhide; a miss keeps the on request pending.
+Both outcomes reset the timer and leave a simultaneous off request pending.
+
+498e80 is the moving/static collision-ray wrapper already reconstructed as
+`rf_collision_ray_solids`; see docs/COLLISION.md for its independent original
+execution comparisons. A hit here means an obstruction permits revealing the
+target, not a clear line of sight. The current event test substitutes the query
+result, so it does not yet prove event-to-world collision integration. Visibility
+effects 48a660/48a570 and entity registration remain to be reconstructed and
+connected before this becomes operational gameplay.
