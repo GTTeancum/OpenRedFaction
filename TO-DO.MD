@@ -13,7 +13,9 @@ frame-zero model pose and three collision spheres are connected to an owned
 body during the 64-frame rendered scene. All 468 configuration bytes and body
 hashes match PC; the 600-frame door regression also passes. Pose/inertia remain
 explicit diagnostic assumptions; collision response and entity registration
-are next. See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
+are next. The integrated sphere/world diagnostic now checks six two-unit axis
+sweeps per retained sphere and captures raw guest contacts for PC comparison.
+See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.
 
@@ -32,7 +34,7 @@ and movement name run (index 1); do not use absent-field defaults for this actor
 - [ ] USER: Review visual comparisons against the PS2 version when representative scenes are available.
 - [ ] Consider multiplayer only after single-player completion.
 
-## Current camera evidence
+## Reconstruction evidence history (current integration status above)
 
 Immediate integration target: miner1 UID 9858 in Live Mines. The body initializer
 is ready for prepared input, but class material/flags and named model collision

@@ -91,6 +91,7 @@ def main():
         scene_args += [str(root/'Installed_Game'/n) for n in ['meshes.vpp','motions.vpp','tables.vpp','maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp']]
         output=subprocess.check_output(scene_args+['--states'],text=True)
         actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
+        actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
     symbol = re.search(r'\s[0-9a-fA-F]+:[0-9a-fA-F]+\s+_rf_diagnostic\s+([0-9a-fA-F]+)', map_text)
     if not symbol:
         raise RuntimeError('Diagnostic symbol absent from matching linker map')
@@ -287,6 +288,9 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         if actor_physics!=actor_physics_reference:raise RuntimeError(f'Actor physics mismatch: {actor_physics}; PC {actor_physics_reference}')
                         report['actor_physics']=dict(words=actor_physics,scope='Shared authored config and frame-zero model spheres installed into body; retained across 64 rendered diagnostic frames. Provisional identity tensor and scripted spawn pose; no actor motion response or AI.')
                         memory_snapshot=guest_snapshot(monitor,map_text)
+                        actor_world=memory_snapshot['symbols']['rf_actor_world_diagnostic']['words']
+                        if actor_world!=actor_world_reference:raise RuntimeError(f'Actor world sweep mismatch: {actor_world}; PC {actor_world_reference}')
+                        report['actor_world']=dict(words=actor_world,scope='Actual retained actor spheres swept two units along six world axes against stationary geometry; diagnostic mask 0x460, no movement response.')
                         config_reference=bytes.fromhex(subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--physics-config',str(root/'Installed_Game/tables.vpp'),'miner1'],text=True))
                         config_words=memory_snapshot['symbols']['resident_miner_config']['words']
                         if struct.pack('<117I',*config_words)!=config_reference:raise RuntimeError('Full guest actor configuration differs from PC')

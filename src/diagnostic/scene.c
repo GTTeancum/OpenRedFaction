@@ -108,6 +108,32 @@ typedef struct scene_stream {
 } scene_stream;
 rf_physics_body scene_actor_body;
 uint32_t rf_scene_actor_physics_diagnostic[8];
+typedef struct actor_sweep_record {
+    float start[3],delta[3],radius;int32_t status;uint32_t matched;
+    rf_geometry_world_sweep_hit hit;
+} actor_sweep_record;
+actor_sweep_record rf_scene_actor_sweep_records[48];
+int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t out[8])
+{
+    uint32_t i,q,k,n=0,hits=0,hash=2166136261u;float fraction=1;
+    if(!world || !out || !scene_actor_body.allocated_bytes || scene_actor_body.spheres.count>8)return RF_RANGE;
+    for(i=0;i<scene_actor_body.spheres.count;++i)for(q=0;q<6;++q) {
+        const rf_physics_sphere *sphere=scene_actor_body.spheres.items+i;
+        actor_sweep_record *r=rf_scene_actor_sweep_records+n;
+        memset(r,0xa5,sizeof(*r));memset(r->delta,0,sizeof(r->delta));r->delta[q/2]=(q&1)?-2:2;r->radius=sphere->radius;
+        for(k=0;k<3;++k)r->start[k]=(float)((double)scene_actor_body.state.position[k]+
+            (double)sphere->center[0]*scene_actor_body.state.orientation[k]+
+            (double)sphere->center[1]*scene_actor_body.state.orientation[3+k]+
+            (double)sphere->center[2]*scene_actor_body.state.orientation[6+k]);
+        r->status=rf_geometry_collision_world_sweep(world,0x460,r->start,r->delta,r->radius,1,&r->hit,&r->matched);
+        if(r->status)return r->status;
+        if(r->matched) {++hits;if(r->hit.hit.fraction<fraction)fraction=r->hit.hit.fraction;}
+        ++n;
+    }
+    for(i=0;i<n*sizeof(*rf_scene_actor_sweep_records);++i)hash=(hash^((const unsigned char*)rf_scene_actor_sweep_records)[i])*16777619u;
+    out[0]=0x52464157;out[1]=1;out[2]=n;out[3]=hits;memcpy(out+4,&fraction,4);
+    out[5]=hash;out[6]=sizeof(*rf_scene_actor_sweep_records);out[7]=scene_actor_body.allocated_bytes;return RF_OK;
+}
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;

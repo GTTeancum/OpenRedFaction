@@ -12,7 +12,7 @@ def words(monitor,address,count):
 
 def snapshot(monitor,map_text):
     result={'status':monitor.command('query-status'),'symbols':{}}
-    for name,count in [('rf_diagnostic',58),('rf_actor_creation_diagnostic',6),('rf_scene_actor_physics_diagnostic',8),('resident_miner_config',117),('scene_actor_body',81)]:
+    for name,count in [('rf_diagnostic',58),('rf_actor_creation_diagnostic',6),('rf_scene_actor_physics_diagnostic',8),('rf_actor_world_diagnostic',8),('resident_miner_config',117),('scene_actor_body',81)]:
         match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',map_text)
         if not match:continue
         address=int(match[1],16);data=words(monitor,address,count)
@@ -24,6 +24,19 @@ def snapshot(monitor,map_text):
             result['authored']={'mass':struct.unpack_from('<f',raw)[0],'material':raw[4:68].split(bytes(1))[0].decode('ascii','replace'),
                 'flags':hex(data[17]),'flags2':hex(data[18]),'movement_index':data[19],'use_kind':data[20],
                 'material_index':data[22],'sphere_declarations':data[28]}
+    sweep=result['symbols'].get('rf_actor_world_diagnostic',{}).get('words',[])
+    match=re.search(r'_rf_scene_actor_sweep_records\s+([0-9a-fA-F]+)',map_text)
+    if match and len(sweep)==8 and sweep[:2]==[0x52464157,1] and 0<sweep[2]<=48 and sweep[6]==80:
+        records=words(monitor,int(match[1],16),sweep[2]*20)
+        result['actor_sweep_words']=records
+        result['actor_sweep_hits']=[]
+        for i in range(sweep[2]):
+            raw=struct.pack('<20I',*records[i*20:(i+1)*20])
+            if records[i*20+8]:
+                result['actor_sweep_hits'].append(dict(sphere=i//6,axis=i%6//2,direction=-1 if i%2 else 1,
+                    start=struct.unpack_from('<3f',raw),radius=struct.unpack_from('<f',raw,24)[0],
+                    fraction=struct.unpack_from('<f',raw,36)[0],point=struct.unpack_from('<3f',raw,40),
+                    normal=struct.unpack_from('<3f',raw,52),face=records[i*20+16],room=records[i*20+17]))
     for name,command in [('registers','info registers'),('instructions','x /12i $eip'),('stack','x /24wx $esp')]:
         result[name]=monitor.command('human-monitor-command',{'command-line':command})
     return result

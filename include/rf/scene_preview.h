@@ -68,4 +68,8 @@ int rf_scene_stream_miner_states(const rf_level *level,int32_t uid,const char *m
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
     rf_scene_frame_sink sink,void *context);
+/* Integrated diagnostic: sweep retained actor spheres two units along each
+ * world axis against stationary geometry, without moving the body. Query mask
+ * 0x460 is an inspection choice, not recovered gameplay movement policy. */
+int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t out[8]);
 #endif

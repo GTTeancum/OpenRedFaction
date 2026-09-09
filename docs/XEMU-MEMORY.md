@@ -48,3 +48,22 @@ zero initial velocities, cached frame-zero colliders. This does not establish
 original spawn order, crouch collider switching, actor collision response, AI
 or gameplay registry integration. The next milestone is connecting the body to
 world collision and actor movement while keeping these assumptions explicit.
+
+The stationary-world extension retains 18 ordered sweep records (80 bytes each)
+for the miner's three actual body spheres, testing +/-2 units along each world
+axis. The shared world query uses diagnostic filter 0x460; this is not evidence
+of the original actor movement policy. Xbox reuses its resident collision world.
+The fixed diagnostic record capacity costs 3,840 bytes, with no query allocation.
+Snapshots include raw records and decoded contacts; the smoke runner compares
+the eight summary words, including the complete ordered-record hash, with PC.
+This checks collision queries without moving the body or changing its pose.
+
+Verified extension run: `artifacts/xemu/20260909-143310-870614/report.json`
+passes in 64 MiB XEMU, including all 468 configuration bytes, body telemetry,
+18 sphere queries and the 600-frame door regression. The 1,440 raw guest sweep
+bytes hash to `e74ccb35`, matching PC. Two negative-Y sweeps hit face 5336 in
+room 53, with normal approximately (0.178028, 0.981902, -0.064604): sphere 0
+at fraction 0.3641684 and sphere 1 at 0.6669140. For the two-unit displacement,
+the nearest contact is about 0.728337 units away. This is evidence for the
+current diagnostic pose, not validation of original spawn/grounding behavior.
+Both builds and all four CTest checks pass. No new image was warranted.
