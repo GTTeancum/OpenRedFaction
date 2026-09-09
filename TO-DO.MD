@@ -40,7 +40,9 @@ mover membership lists now match all 1,421 authored references on PC using
 diagnostic handles. Resident Xbox mover objects now retain those memberships
 and synchronized flags through 66 lifetime checks in 64 MiB XEMU; connect
 activation/propagation/commit and rendering, then general-object attachment
-and actual handle registration.
+and actual handle registration. The four authored Live Mines door cycles now
+match 160 connected original activation/tick/propagation/commit steps on PC
+and compiled NXDK; integrate this validated sequence into scene playback.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

@@ -2213,3 +2213,29 @@ diagnostic memory observations.
 No new frame was captured: membership binding does not yet activate controllers
 or update mover rendering. General-object memberships, registry allocation,
 rotation playback and gameplay trigger/event boundaries remain open.
+
+
+### Connected authored door motion sequence
+
+`--door-cycle` composes activation, staged ticks, controller pose synchronization,
+attached-mover propagation and position commits for 40 quarter-second frames.
+`tools/verify_door_cycle.py` supplies the actual Live Mines door key positions,
+acceleration/deceleration, dwell and mode, initialized persistent controller data,
+and owned mover base poses/radii. Each of the four doors has two keys, one mover,
+no general-object memberships and no key event links. This controlled diagnostic
+assumes unobstructed gates and disables original sound handles; it is not the
+production trigger/event/sound dispatcher.
+
+For every frame the verifier executes original activation block 46ac43..46acb2,
+then complete unchanged 469800, 46bbe0 and 46a8f0 with the real handle lookup,
+collector and pose helpers. It compares all 76 controller runtime bytes and both
+236-byte controller/mover poses after commit against PC. The same complete
+sequence also runs through compiled NXDK functions in Unicorn and matches the
+original. All four trajectories / 160 ticks pass, including movement, dwell,
+return and inactive frames. The attached object moves away from its initial pose
+for 21 frames on doors 01a, 01b and 02a, and 23 frames on 02b.
+
+This closes the integration evidence gap between previously separate primitive
+checks. It does not yet run motion in XEMU or update rendered mover geometry.
+The crate's rotation, trigger obstruction, general-object attachment and event
+execution remain outside this controlled sequence and remain open.
