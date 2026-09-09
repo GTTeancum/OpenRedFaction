@@ -10,6 +10,21 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--group-bind")) {
+        struct {uint32_t count,force;float dt;rf_group_attached_pose pose;struct {float first[3],pending[3];uint32_t flags,mover,general;} controllers[2];} in;
+        struct {int32_t status;rf_group_attached_pose pose;} out;
+        rf_group_controller_view views[2];rf_group_translation_runtime runtime[2];rf_level_group_key keys[2];uint32_t i;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(runtime,0,sizeof(runtime));memset(keys,0,sizeof(keys));
+            for(i=0;i<2;i++) {
+                runtime[i].motion.flags=in.controllers[i].flags;memcpy(runtime[i].pending,in.controllers[i].pending,12);memcpy(keys[i].position,in.controllers[i].first,12);
+                views[i].runtime=runtime+i;views[i].first_key=keys+i;views[i].mover_handles=&in.controllers[i].mover;views[i].mover_count=1;views[i].general_handles=&in.controllers[i].general;views[i].general_count=1;
+            }
+            out.pose=in.pose;out.status=in.count>2?RF_RANGE:rf_group_translation_bind_pose(&out.pose,0x12340000,views,in.count,in.dt,in.force);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--group-propagate")) {
         struct {uint32_t count,force;float dt;rf_group_attached_pose pose;rf_group_translation_contribution contributions[4];} in;
         struct {int32_t status;rf_group_attached_pose pose;} out;
@@ -180,7 +195,7 @@ int main(int argc,char **argv)
         printf("%u %u %u %u %u %u %u %u\n",world.room_count,movers.count,queries,hits,moving_hits,static_hits,hash[0],world.allocated_bytes+movers.allocated_bytes);
         free(poison);rf_geometry_collision_world_close(&world);rf_geometry_collision_movers_close(&movers);return 0;
     }
-    if(argc==4 && !strcmp(argv[1],"--bound-movers")) {
+    if(argc==4 && (!strcmp(argv[1],"--bound-movers") || !strcmp(argv[1],"--shifted-movers"))) {
         rf_vpp archive;rf_level level;rf_geometry_movers source={0};
         rf_geometry_collision_movers owned={0},exact={0},guard;uint32_t *ids,i;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 2;
@@ -192,7 +207,24 @@ int main(int argc,char **argv)
         rf_geometry_collision_movers_close(&exact);
         memset(&guard,0xa5,sizeof(guard));exact=guard;
         if(rf_geometry_collision_movers_open(&source,ids,owned.peak_bytes-1,&exact)!=RF_RANGE || memcmp(&guard,&exact,sizeof(guard)))return 7;
-        free(ids);rf_geometry_movers_close(&source);rf_vpp_close(&archive);
+        rf_geometry_movers_close(&source);rf_vpp_close(&archive);
+        if(!strcmp(argv[1],"--shifted-movers")) {
+            rf_group_translation_runtime runtime={0};rf_level_group_key first={0};rf_group_controller_view controller={0};
+            runtime.motion.flags=8;runtime.pending[0]=1;runtime.pending[1]=2;runtime.pending[2]=3;
+            controller.runtime=&runtime;controller.first_key=&first;controller.mover_handles=ids;controller.mover_count=owned.count;
+            if(owned.count) {
+                rf_group_controller_view bad[2]={controller,controller};rf_group_translation_runtime rotation=runtime;
+                size_t pose_bytes=owned.count*sizeof(*owned.poses),view_bytes=owned.count*sizeof(*owned.views);
+                unsigned char *snapshot=malloc(pose_bytes+view_bytes);if(!snapshot)return 11;
+                memcpy(snapshot,owned.poses,pose_bytes);memcpy(snapshot+pose_bytes,owned.views,view_bytes);
+                rotation.motion.flags|=4;bad[1].runtime=&rotation;bad[1].mover_handles=ids+owned.count-1;bad[1].mover_count=1;
+                if(rf_geometry_collision_movers_propagate(&owned,bad,2,.25f,1)!=RF_RANGE ||
+                    memcmp(snapshot,owned.poses,pose_bytes) || memcmp(snapshot+pose_bytes,owned.views,view_bytes))return 12;
+                free(snapshot);
+            }
+            if(rf_geometry_collision_movers_propagate(&owned,&controller,1,.25f,1))return 10;
+        }
+        free(ids);
         if(fwrite(&owned.count,4,1,stdout)!=1 || fwrite(&owned.allocated_bytes,4,1,stdout)!=1 || fwrite(&owned.peak_bytes,4,1,stdout)!=1)return 8;
         for(i=0;i<owned.count;i++) {
             rf_collision_solid_view *view=owned.views+i;

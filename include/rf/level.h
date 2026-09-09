@@ -157,6 +157,20 @@ typedef struct rf_group_attached_pose {
 int rf_group_translation_propagate(rf_group_attached_pose *pose,
     const rf_group_translation_contribution *contributions,uint32_t count,
     float dt,uint32_t force);
+typedef struct rf_group_controller_view {
+    const rf_group_translation_runtime *runtime;
+    const rf_level_group_key *first_key;
+    const uint32_t *mover_handles;uint32_t mover_count;
+    const uint32_t *general_handles;uint32_t general_count;
+} rf_group_controller_view;
+/* Resolve one registered target's contributions from controllers in original
+ * list order, mover list before general list; preserves duplicates and rejects
+ * stale generations by full-handle comparison. Target must be a live registered
+ * handle with a slot below 1024. General list excludes target flag 08000000.
+ * Then propagate into the caller-owned pose. No allocation; failures preserve
+ * pose. Registry/UID registration and clearing controller dirty flags are external. */
+int rf_group_translation_bind_pose(rf_group_attached_pose *pose,uint32_t handle,
+    const rf_group_controller_view *controllers,uint32_t count,float dt,uint32_t force);
 /* 46b6e8..46b79c mover membership pass. objects follow original global list
  * order; first matching UID wins, with -1 absent and -999 excluding flag 2.
  * Compacts refs in place, appends accepted handles, updates parents/flags and

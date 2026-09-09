@@ -526,6 +526,32 @@ int rf_group_translation_propagate(rf_group_attached_pose *pose,
     if(!group_finite(next.pending,6) || !group_finite(next.minimum,6))return RF_FORMAT;
     *pose=next;return RF_OK;
 }
+int rf_group_translation_bind_pose(rf_group_attached_pose *pose,uint32_t handle,
+    const rf_group_controller_view *controllers,uint32_t count,float dt,uint32_t force)
+{
+    const rf_group_controller_view *selected[4];rf_group_translation_contribution values[4];
+    uint32_t i,j,list,n=0,dirty=0;
+    if(!pose || handle==UINT32_MAX || (handle&0xffffu)>=1024 || (count && !controllers))return RF_RANGE;
+    for(i=0;i<count;i++) {
+        const rf_group_controller_view *c=controllers+i;
+        if(!c->runtime || (c->mover_count && !c->mover_handles) || (c->general_count && !c->general_handles))return RF_RANGE;
+        for(list=0;list<2;list++) {
+            const uint32_t *handles=list?c->general_handles:c->mover_handles;
+            uint32_t length=list?c->general_count:c->mover_count;
+            if(list && (pose->flags&0x8000000))continue;
+            for(j=0;j<length;j++)if(handles[j]==handle) {
+                if(n==4)return RF_RANGE;
+                selected[n++]=c;dirty|=c->runtime->motion.flags&0x80000008u;
+            }
+        }
+    }
+    if(!n || (!force && !dirty))return RF_OK;
+    for(i=0;i<n;i++) {
+        const rf_group_controller_view *c=selected[i];if(!c->first_key)return RF_RANGE;
+        memcpy(values[i].first_key,c->first_key->position,12);memcpy(values[i].pending,c->runtime->pending,12);values[i].flags=c->runtime->motion.flags;
+    }
+    return rf_group_translation_propagate(pose,values,n,dt,force);
+}
 int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
     uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,
     uint32_t *refs,uint32_t *ref_count,uint32_t *handles,uint32_t *handle_count,

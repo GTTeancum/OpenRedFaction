@@ -1943,3 +1943,29 @@ movers in 13,468 bytes, including their new pose storage. Its combined 148-ray
 fixture still returns 90 mover hits and 58 static hits, checksum e561d46f.
 The snapshots are retained in the guest but not yet updated by authored
 controllers or consumed by rendering; no new visible result occurred.
+
+
+### Ordered controller bindings into owned mover geometry
+
+`rf_group_translation_bind_pose` scans controller mover/general handle lists in
+original 46bbe0/46c150 order, keeps duplicate references, compares full handles,
+and applies the general-list 08000000 exclusion. The target must already be a
+known live registered object. Dirty gating and translation propagation reuse the
+reconstructed pose path; more than four contributions fail without mutation.
+`tools/verify_group_binding.py` compares complete pose bytes for 2,000 fixtures
+against the unchanged original function on PC and compiled NXDK code.
+
+`rf_geometry_collision_movers_propagate` validates every target before changing
+owned poses and synchronizes collision bounds, matrices and committed origins.
+It allocates nothing; controller inputs must remain stable and separate from mover
+storage. Normal propagation retains committed origins until the later commit pass.
+Forced propagation moves those origins immediately. The extended real-level
+`tools/verify_mover_binding.py` checks all 1,406 movers across 68 levels after
+source closure, with unchanged budgets, exact shifted poses/views and rejection
+of a rotation contribution to the final mover without partial changes.
+
+This is shared core integration, not scene animation: authored controller
+ownership, runtime handle allocation, normal position commit, rendering updates,
+rotation and gameplay trigger/event/response boundaries remain open. These new
+forced real-level checks run on PC; NXDK binding is checked through Unicorn, not
+a new XEMU animation run.

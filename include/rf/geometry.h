@@ -95,6 +95,13 @@ typedef struct rf_geometry_collision_movers {
 int rf_geometry_collision_movers_open(const rf_geometry_movers *source,
     const uint32_t *object_ids,uint32_t budget,rf_geometry_collision_movers *result);
 void rf_geometry_collision_movers_close(rf_geometry_collision_movers *movers);
+/* Apply ordered controller bindings to owned poses and collision views.
+ * Controllers/keys/handle arrays must remain stable and not alias mover storage.
+ * No allocation. Validate all poses before committing any change. Normal
+ * propagation keeps committed origins until the later position-commit pass;
+ * forced propagation also changes them. Not rendering or collision response. */
+int rf_geometry_collision_movers_propagate(rf_geometry_collision_movers *movers,
+    const rf_group_controller_view *controllers,uint32_t count,float dt,uint32_t force);
 typedef struct rf_geometry_collision_room {
     rf_collision_tree tree;
     float (*vertices)[3];

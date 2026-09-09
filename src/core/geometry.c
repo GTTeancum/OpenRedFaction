@@ -419,6 +419,23 @@ int rf_geometry_primary_rooms(const rf_geometry *geometry,uint32_t *indices,
     for(i=0;i<geometry->rooms;i++)if(!geometry->data[geometry->room_offsets[i]+34])indices[at++]=i;
     *count=total;return RF_OK;
 }
+int rf_geometry_collision_movers_propagate(rf_geometry_collision_movers *movers,
+    const rf_group_controller_view *controllers,uint32_t count,float dt,uint32_t force)
+{
+    uint32_t i;int status;rf_group_attached_pose test;
+    if(!movers || (movers->count && (!movers->poses || !movers->views)))return RF_RANGE;
+    for(i=0;i<movers->count;i++) {
+        test=movers->poses[i];status=rf_group_translation_bind_pose(&test,movers->views[i].object_id,controllers,count,dt,force);if(status)return status;
+    }
+    for(i=0;i<movers->count;i++) {
+        rf_group_attached_pose *pose=movers->poses+i;rf_collision_solid_view *view=movers->views+i;
+        status=rf_group_translation_bind_pose(pose,view->object_id,controllers,count,dt,force);if(status)return status;
+        memcpy(view->minimum,pose->minimum,12);memcpy(view->maximum,pose->maximum,12);
+        memcpy(view->input_origin,pose->public_position,12);memcpy(view->output_origin,pose->position,12);
+        memcpy(view->input_matrix,pose->input_matrix,36);memcpy(view->output_matrix,pose->output_matrix,36);
+    }
+    return RF_OK;
+}
 
 void rf_geometry_collision_room_close(rf_geometry_collision_room *room)
 {
