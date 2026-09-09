@@ -67,3 +67,36 @@ at fraction 0.3641684 and sphere 1 at 0.6669140. For the two-unit displacement,
 the nearest contact is about 0.728337 units away. This is evidence for the
 current diagnostic pose, not validation of original spawn/grounding behavior.
 Both builds and all four CTest checks pass. No new image was warranted.
+
+## Falling state fixture
+
+`rf_physics_fall_propose` reconstructs original 49e8b7..49e9e6 after steering
+and horizontal speed limiting. It divides force by mass, subtracts gravity on
+Y, updates velocity, then proposes position using updated velocity plus support
+velocity, less half acceleration times dt squared. Intermediate vector stores
+matter. `tools/verify_physics_fall.py` executes that original block and unchanged
+callees, matching 256 prepared inputs against PC and actual NXDK machine code.
+This is not coverage of the omitted steering, movement-mode dispatch or contact
+response. Default gravity 9.8 is read from original image address 5a00dc.
+
+Original 49e9db writes entity+f0 (body+68); 49d0a0 and 49d280 copy that value
+to entity+e4 (body+5c) on accepted movement. The body fields formerly called
+previous_position/previous_orientation are now next_position/next_orientation;
+this naming correction changes no layout or initialization bytes.
+
+The integrated fixture copies the retained miner state and makes up to 120
+passive falling proposals at 1/60 second. It tests every sphere against the
+resident stationary world for each proposal, accepts unobstructed translations
+and rebuilds bounds, stopping before the first contact. No additional heap
+storage is allocated. Guest snapshots retain all 308 bytes of the final fixture
+state and eight summary words. This uses zero steering/support velocity and
+diagnostic mask 0x460; it does not move the rendered miner or implement collision
+response. The next required path is original 49fe40 (contact fraction and
+remaining time), 49d7e0 (actor response) and the actor pose/room commit.
+
+Verified run `artifacts/xemu/20260909-144003-824190/report.json` passes on
+64 MiB XEMU: 23 unobstructed falling steps, then sphere 0 contact during the
+24th proposal at fraction 0.12988822. Retained pre-contact position Y is
+-3.91096449 and velocity Y is -3.75666738. All eight words and the state hash
+match PC; configuration, body, world sweeps and the 600-frame door regression
+also pass. The displayed scene is unchanged, so no screenshot was captured.

@@ -62,7 +62,7 @@ typedef struct rf_physics_body_parameters {
  * unnamed offsets retain neutral labels until their runtime uses are recovered. */
 typedef struct rf_physics_body_state {
     float coefficients[3],mass,local_tensor[9],world_tensor[9];
-    float position[3],previous_position[3],orientation[9],previous_orientation[9];
+    float position[3],next_position[3],orientation[9],next_orientation[9];
     float velocity[3],vector_c8[3],mass_vector_d4[3],vector_e0[3],vector_ec[3];
     rf_physics_bounds bounds;
     uint32_t flags,state_124;
@@ -90,4 +90,11 @@ void rf_physics_body_close(rf_physics_body *body);
  * Open body required. Source may alias old records; errors preserve body. */
 int rf_physics_body_replace_spheres(rf_physics_body *body,
     const rf_physics_sphere *source,uint32_t count,uint32_t budget);
+/* Falling translation at 49e8b7..49e9e6, after steering/speed limiting.
+ * Caller supplies frame time, gravity and support velocity; force is vector_e0.
+ * Updates velocity and proposed next_position only. No contact response, bounds
+ * commit, movement-mode selection or repeated-substep flag policy. Positive
+ * mass and finite inputs required; errors preserve the state. */
+int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
+    const float support_velocity[3]);
 #endif

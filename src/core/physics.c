@@ -3,6 +3,29 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,const float support_velocity[3])
+{
+    float velocity[3],position[3];volatile float half_dt_squared;uint32_t i;
+    if(!state || !support_velocity || !isfinite(dt) || dt<0 || !isfinite(gravity) ||
+       !isfinite(state->mass) || state->mass<=0)return RF_RANGE;
+    half_dt_squared=(float)((double)dt*dt*.5);
+    if(!isfinite(half_dt_squared))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        volatile float acceleration,increment,combined,travel,base,correction;
+        if(!isfinite(state->position[i]) || !isfinite(state->velocity[i]) ||
+           !isfinite(state->vector_e0[i]) || !isfinite(support_velocity[i]))return RF_RANGE;
+        acceleration=(float)((double)state->vector_e0[i]/state->mass);
+        if(i==1)acceleration=(float)((double)acceleration-gravity);
+        increment=(float)((double)acceleration*dt);
+        velocity[i]=(float)((double)state->velocity[i]+increment);
+        combined=(float)((double)velocity[i]+support_velocity[i]);
+        travel=(float)((double)combined*dt);base=(float)((double)state->position[i]+travel);
+        correction=(float)((double)acceleration*half_dt_squared);
+        position[i]=(float)((double)base-correction);
+        if(!isfinite(acceleration) || !isfinite(velocity[i]) || !isfinite(position[i]))return RF_RANGE;
+    }
+    memcpy(state->velocity,velocity,sizeof(velocity));memcpy(state->next_position,position,sizeof(position));return RF_OK;
+}
 void rf_physics_body_close(rf_physics_body *body)
 {
     if(body) {rf_physics_spheres_close(&body->spheres);memset(body,0,sizeof(*body));}
@@ -46,8 +69,8 @@ int rf_physics_body_open(const rf_physics_body_parameters *parameters,
     status=rf_physics_spheres_bounds(source,count,parameters->position,&state->bounds);if(status)return status;
     state->mass=parameters->mass;state->flags=parameters->flags;
     memcpy(state->local_tensor,parameters->local_tensor,sizeof(state->local_tensor));
-    memcpy(state->position,parameters->position,sizeof(state->position));memcpy(state->previous_position,state->position,sizeof(state->position));
-    memcpy(state->orientation,parameters->orientation,sizeof(state->orientation));memcpy(state->previous_orientation,state->orientation,sizeof(state->orientation));
+    memcpy(state->position,parameters->position,sizeof(state->position));memcpy(state->next_position,state->position,sizeof(state->position));
+    memcpy(state->orientation,parameters->orientation,sizeof(state->orientation));memcpy(state->next_orientation,state->orientation,sizeof(state->orientation));
     for(i=0;i<count;++i)if(source[i].parameter_10>0)state->flags|=0x2000;
     state->vector_138[1]=1;state->scalar_144=1;state->reference_15c=-1;
     status=rf_physics_spheres_open(source,count,(uint32_t)(budget-sizeof(value)+sizeof(value.spheres)),&value.spheres);if(status)return status;

@@ -15,6 +15,10 @@ hashes match PC; the 600-frame door regression also passes. Pose/inertia remain
 explicit diagnostic assumptions; collision response and entity registration
 are next. The integrated sphere/world diagnostic now checks six two-unit axis
 sweeps per retained sphere and captures raw guest contacts for PC comparison.
+Prepared falling translation now matches original instructions on PC/NXDK and
+feeds a passive falling fixture using the miner's actual spheres and level.
+The fixture stops before its first contact; original collision response, actor
+pose/room commit and rendered movement remain open.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.
@@ -22,6 +26,7 @@ and movement name run (index 1); do not use absent-field defaults for this actor
 ## Shortlist
 
 - [ ] Create Live Mines entity 9858 through shared class/model-derived physics and validate its runtime state in 64 MiB XEMU.
+- [ ] Connect the verified falling proposal to original contact response and actor pose/room commit, then show the miner moving in XEMU.
 - [ ] Extend the shared level-directory loader into a complete campaign world loader.
 - [ ] Recover the gameplay camera and entity eye transform instead of using raw spawn coordinates.
 - [ ] Draw the loaded static geometry and resolve its materials, lightmaps, visibility, and unknown records.

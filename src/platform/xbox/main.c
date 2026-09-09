@@ -53,6 +53,7 @@ static rf_level_owned_entities resident_entities;
 rf_entity_physics_config resident_miner_config;
 volatile uint32_t rf_actor_creation_diagnostic[6]={0x52464143u};
 uint32_t rf_actor_world_diagnostic[8];
+uint32_t rf_actor_fall_diagnostic[8];
 volatile uint32_t rf_level_logic_diagnostic[12]={0x52464c47u};
 static uint32_t logic_hash_part(uint32_t hash,const void *data,uint32_t bytes)
 {
@@ -399,6 +400,7 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     (void)context;
     if(rf_diagnostic[37]!=frame)return RF_FORMAT;
     if(frame==63) {int status=rf_scene_actor_world_check(&resident_collision,rf_actor_world_diagnostic);if(status)return status;}
+    if(frame==63) {int status=rf_scene_actor_fall_check(&resident_collision,rf_actor_fall_diagnostic);if(status)return status;}
     rf_diagnostic[57]=world;
     {int status=rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:group_storage_check();}
 }

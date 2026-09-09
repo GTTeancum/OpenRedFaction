@@ -121,8 +121,11 @@ int main(int argc,char **argv)
             printf("PHYSICS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_physics_diagnostic[i]);puts("");
             {rf_geometry_collision_world collision={0};uint32_t sweep[8];
              if(rf_geometry_collision_world_open(&geometry,8*1024*1024,&collision))return 3;
-             status=rf_scene_actor_world_check(&collision,sweep);rf_geometry_collision_world_close(&collision);if(status)return 3;
-             printf("ACTOR_WORLD");for(i=0;i<8;++i)printf(" %u",sweep[i]);puts("");}
+             status=rf_scene_actor_world_check(&collision,sweep);if(status)return 3;
+             printf("ACTOR_WORLD");for(i=0;i<8;++i)printf(" %u",sweep[i]);puts("");
+             status=rf_scene_actor_fall_check(&collision,sweep);rf_geometry_collision_world_close(&collision);if(status)return 3;
+             if(sweep[2]>=120 || sweep[3]>=3)return 3;
+             printf("ACTOR_FALL");for(i=0;i<8;++i)printf(" %u",sweep[i]);puts("");}
         }
         if(mode==1 && (status!=RF_NOT_FOUND || c.next!=3))return 3;
         if(mode==2 && (status!=RF_RANGE || c.next || memcmp(&before,&mesh,sizeof(mesh)) ||

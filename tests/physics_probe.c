@@ -8,6 +8,16 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--fall")) {
+        float values[15];
+        while(fread(values,sizeof(values),1,stdin)==1) {
+            rf_physics_body_state state={0};state.mass=values[0];
+            memcpy(state.position,values+3,12);memcpy(state.velocity,values+6,12);memcpy(state.vector_e0,values+9,12);
+            if(rf_physics_fall_propose(&state,values[1],values[2],values+12))return 3;
+            if(fwrite(state.velocity,12,1,stdout)!=1 || fwrite(state.next_position,12,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--replace-guards")) {
         rf_physics_body body={0},saved;rf_physics_body_parameters p={0};
         rf_physics_sphere old={{0,0,0},1,-1,0x12345678},next[2]={{{0,3,0},2,.5f,7},{{0,0,0},1,-1,8}};

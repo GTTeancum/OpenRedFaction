@@ -113,6 +113,34 @@ typedef struct actor_sweep_record {
     rf_geometry_world_sweep_hit hit;
 } actor_sweep_record;
 actor_sweep_record rf_scene_actor_sweep_records[48];
+rf_physics_body_state rf_scene_actor_fall_state;
+int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t out[8])
+{
+    rf_physics_body_state current=scene_actor_body.state,proposal;
+    float support[3]={0},delta[3],start[3],fraction=1;uint32_t step,i,k,matched,sphere=UINT32_MAX,hash=2166136261u;
+    if(!world || !out || !scene_actor_body.allocated_bytes || !scene_actor_body.spheres.count)return RF_RANGE;
+    for(step=0;step<120;++step) {
+        proposal=current;
+        {int status=rf_physics_fall_propose(&proposal,1.0f/60,9.8f,support);if(status)return status;}
+        for(k=0;k<3;++k)delta[k]=proposal.next_position[k]-current.position[k];
+        for(i=0;i<scene_actor_body.spheres.count;++i) {
+            const rf_physics_sphere *s=scene_actor_body.spheres.items+i;rf_geometry_world_sweep_hit hit;int status;
+            for(k=0;k<3;++k)start[k]=(float)((double)current.position[k]+(double)s->center[0]*current.orientation[k]+
+                (double)s->center[1]*current.orientation[3+k]+(double)s->center[2]*current.orientation[6+k]);
+            status=rf_geometry_collision_world_sweep(world,0x460,start,delta,s->radius,1,&hit,&matched);if(status)return status;
+            if(matched && (sphere==UINT32_MAX || hit.hit.fraction<fraction)) {sphere=i;fraction=hit.hit.fraction;}
+        }
+        if(sphere!=UINT32_MAX)break;
+        /* Fixture accepts only unobstructed translations. Full actor pose/room
+         * commit and contact response are not represented by this assignment. */
+        current=proposal;memcpy(current.position,current.next_position,sizeof(current.position));
+        {int status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,current.position,&current.bounds);if(status)return status;}
+    }
+    rf_scene_actor_fall_state=current;
+    for(i=0;i<sizeof(current);++i)hash=(hash^((const unsigned char*)&current)[i])*16777619u;
+    out[0]=0x5246464c;out[1]=1;out[2]=step;out[3]=sphere;memcpy(out+4,&fraction,4);out[5]=hash;
+    memcpy(out+6,current.position+1,4);memcpy(out+7,current.velocity+1,4);return RF_OK;
+}
 int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t out[8])
 {
     uint32_t i,q,k,n=0,hits=0,hash=2166136261u;float fraction=1;
