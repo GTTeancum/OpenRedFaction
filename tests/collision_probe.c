@@ -153,6 +153,28 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==4 && !strcmp(argv[1],"--member-groups")) {
+        rf_vpp archive;rf_level level;rf_level_owned_groups source={0};rf_group_runtime_collection runtime={0};rf_geometry_movers movers={0};
+        rf_group_mover_memberships members={0},exact={0},guard;rf_group_object *objects,*before;uint32_t *controllers,i,object_count;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_level_owned_groups_open(&level,4*1024*1024,&source) || rf_geometry_movers_open(&level,8*1024*1024,&movers))return 2;
+        objects=calloc(movers.count?movers.count:1,sizeof(*objects));before=calloc(movers.count?movers.count:1,sizeof(*before));controllers=calloc(source.count?source.count:1,4);if(!objects || !before || !controllers)return 3;
+        for(i=0;i<movers.count;i++) {objects[i].uid=movers.items[i].uid;objects[i].type=9;objects[i].handle=0x12340000+i;objects[i].parent=UINT32_MAX;objects[i].flags=0x6000000;}
+        for(i=0;i<source.count;i++)controllers[i]=0x23450000+movers.count+i;
+        object_count=movers.count;rf_geometry_movers_close(&movers);rf_vpp_close(&archive);
+        if(rf_group_runtime_open(&source,0,1024*1024,&runtime))return 4;
+        {
+         if(rf_group_mover_memberships_open(&runtime,objects,object_count,controllers,0,1024*1024,&members))return 5;
+         if(rf_group_mover_memberships_open(&runtime,objects,object_count,controllers,0,members.peak_bytes,&exact))return 6;
+         rf_group_mover_memberships_close(&exact);memcpy(before,objects,object_count*sizeof(*objects));memset(&guard,0xa5,sizeof(guard));exact=guard;
+         if(rf_group_mover_memberships_open(&runtime,objects,object_count,controllers,0,members.peak_bytes-1,&exact)!=RF_RANGE || memcmp(&guard,&exact,sizeof(guard)) || memcmp(before,objects,object_count*sizeof(*objects)))return 7;
+         if(fwrite(&members.count,4,1,stdout)!=1 || fwrite(&object_count,4,1,stdout)!=1 || fwrite(&members.allocated_bytes,4,1,stdout)!=1 || fwrite(&members.peak_bytes,4,1,stdout)!=1 || fwrite(objects,sizeof(*objects),object_count,stdout)!=object_count)return 8;
+        }
+        for(i=0;i<members.count;i++) {
+            rf_group_mover_membership *m=members.items+i;
+            if(fwrite(&m->count,4,1,stdout)!=1 || fwrite(&m->rotation_sign,4,1,stdout)!=1 || fwrite(m->handles,4,m->count,stdout)!=m->count)return 8;
+        }
+        rf_group_mover_memberships_close(&members);rf_group_mover_memberships_close(&members);rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);free(objects);free(before);free(controllers);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--runtime-groups")) {
         rf_vpp archive;rf_level level;rf_level_owned_groups source={0};rf_group_runtime_collection runtime={0},exact={0},guard;
         uint32_t i,translation=0,rotation=0;

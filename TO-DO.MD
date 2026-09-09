@@ -35,7 +35,10 @@ poses now match 1,223 original first-key setups, including flags 06000001 and
 zero radius from the empty collision-sphere list. Persistent runtime entries
 now retain 1,112 initialized translations and 111 explicit pending rotations;
 Live Mines runtime lifetime passes 64 MiB XEMU. Bind authored memberships to
-registered objects, then activation, propagation/commit and rendering.
+registered objects, then activation, propagation/commit and rendering. Owned
+mover membership lists now match all 1,421 authored references on PC using
+diagnostic handles; integrate these lists with resident Xbox objects and add
+general-object attachment and actual handle registration.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

@@ -2157,3 +2157,30 @@ rotation, 1,632 runtime bytes, checksum 84f77ab0 and 66 lifetime checks. Availab
 memory after renderer upload is 42,876,928 bytes, and after CPU mesh release is
 45,383,680 bytes. Existing collision checks remain unchanged. No screenshot was
 captured because controllers are not yet attached, activated or rendered in motion.
+
+
+### Owned initial mover membership lists
+
+`rf_group_mover_memberships_open` joins persistent runtime entries to an ordered
+caller-supplied object table using the original-verified `rf_group_attach_movers`
+pass. It retains accepted handles (including duplicates) in authored controller
+order and commits final object parent/flag writes after all bindings succeed.
+Controller handles must refer to valid caller-registered slots below 1,024; the
+function does not allocate or validate the external registry itself.
+
+Memberships have a separate bounded owner: retained entry/capacity bytes plus
+peak temporary object-table and largest UID-list copies are accounted for before
+allocation. Authored source lists remain unchanged. Rotation flip parity is stored
+as a +/-1 factor, not as a recovered runtime angle; no rotation playback is implied.
+General-object lists remain available in the source but are not bound by this
+mover-only pass. Empty controller records have empty lists.
+
+`tools/verify_member_groups.py` passes all 68 levels, 1,223 controllers, 1,406
+movers and 1,421 accepted references with diagnostic handles. It checks full
+ordered lists, final parent/flag state, duplicate references and flip parity
+against the independent authored inventories. The archive is closed before
+binding. Exact/one-byte-short budget and unchanged-output/object checks pass;
+maximum retained membership bytes are 928 and maximum accounted peak is 2,352.
+NXDK builds, but these owned memberships are not yet connected to the resident
+Xbox object table or active scene propagation/rendering. Real registry allocation
+and general-object attachment remain open.

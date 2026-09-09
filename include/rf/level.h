@@ -236,6 +236,22 @@ typedef struct rf_group_runtime_collection {
 int rf_group_runtime_open(const rf_level_owned_groups *source,int32_t now_ms,
     uint32_t budget,rf_group_runtime_collection *result);
 void rf_group_runtime_close(rf_group_runtime_collection *runtime);
+typedef struct rf_group_mover_membership {
+    uint32_t *handles,count;float rotation_sign; /* +/-1 from attachment flips, not an angle. */
+} rf_group_mover_membership;
+typedef struct rf_group_mover_memberships {
+    void *storage;rf_group_mover_membership *items;uint32_t count,allocated_bytes,peak_bytes;
+} rf_group_mover_memberships;
+/* Initial ordered mover-only binding using caller-registered object/controller
+ * handles. Retains duplicate references. Commits parent/flag changes only after
+ * all bindings succeed. Stable inputs/output/objects must not overlap. Budget
+ * includes owner, retained capacity and temporary object/ref copies, excluding
+ * allocator overhead. Returned handle arrays own their storage. General list remains
+ * unbound; rotation_sign retains flip parity pending angle/rotation recovery. */
+int rf_group_mover_memberships_open(const rf_group_runtime_collection *runtime,
+    rf_group_object *objects,uint32_t object_count,const uint32_t *controller_handles,
+    uint32_t global_mode,uint32_t budget,rf_group_mover_memberships *result);
+void rf_group_mover_memberships_close(rf_group_mover_memberships *memberships);
 /* 46b6e8..46b79c mover membership pass. objects follow original global list
  * order; first matching UID wins, with -1 absent and -999 excluding flag 2.
  * Compacts refs in place, appends accepted handles, updates parents/flags and

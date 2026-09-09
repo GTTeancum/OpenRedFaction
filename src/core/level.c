@@ -723,3 +723,46 @@ int rf_group_runtime_open(const rf_level_owned_groups *source,int32_t now_ms,
  failed:
     rf_group_runtime_close(&value);return status;
 }
+
+void rf_group_mover_memberships_close(rf_group_mover_memberships *memberships)
+{
+    if(memberships) {free(memberships->storage);memset(memberships,0,sizeof(*memberships));}
+}
+int rf_group_mover_memberships_open(const rf_group_runtime_collection *runtime,
+    rf_group_object *objects,uint32_t object_count,const uint32_t *controller_handles,
+    uint32_t global_mode,uint32_t budget,rf_group_mover_memberships *result)
+{
+    rf_group_mover_memberships value={0};uint64_t bytes,scratch_bytes,total=0;uint32_t i,max_refs=0,*cursor,*refs=NULL;
+    rf_group_object *copy=NULL;void *scratch=NULL;int status;
+    if(!runtime || !result || (runtime->count && (!runtime->items || !controller_handles)) || (object_count && !objects))return RF_RANGE;
+    for(i=0;i<runtime->count;i++) {
+        const rf_group_runtime_entry *e=runtime->items+i;const rf_level_owned_group *g=e->source;uint32_t n;
+        if(!g)return RF_RANGE;if(e->kind==RF_GROUP_RUNTIME_EMPTY)continue;
+        if(controller_handles[i]==UINT32_MAX || (controller_handles[i]&0xffffu)>=1024)return RF_RANGE;
+        n=g->record.ids_count[1];if(n && !g->ids[1])return RF_RANGE;
+        total+=n;if(n>max_refs)max_refs=n;
+    }
+    bytes=sizeof(value)+(uint64_t)runtime->count*sizeof(*value.items)+total*4;
+    scratch_bytes=(uint64_t)object_count*sizeof(*objects)+(uint64_t)max_refs*4;
+    if(bytes+scratch_bytes>budget)return RF_RANGE;
+    value.count=runtime->count;value.allocated_bytes=(uint32_t)bytes;value.peak_bytes=(uint32_t)(bytes+scratch_bytes);
+    if(bytes>sizeof(value)) {value.storage=calloc(1,(size_t)(bytes-sizeof(value)));if(!value.storage)return RF_RANGE;value.items=value.storage;}
+    if(scratch_bytes) {
+        scratch=malloc((size_t)scratch_bytes);if(!scratch) {status=RF_RANGE;goto failed;}
+        copy=scratch;refs=(uint32_t *)((unsigned char *)scratch+(size_t)object_count*sizeof(*objects));
+        if(object_count)memcpy(copy,objects,(size_t)object_count*sizeof(*objects));
+    }
+    cursor=value.count?(uint32_t *)(value.items+value.count):NULL;
+    for(i=0;i<value.count;i++) {
+        const rf_group_runtime_entry *e=runtime->items+i;const rf_level_owned_group *g=e->source;
+        rf_group_mover_membership *m=value.items+i;uint32_t n;
+        m->rotation_sign=1;if(e->kind==RF_GROUP_RUNTIME_EMPTY)continue;
+        n=g->record.ids_count[1];m->handles=cursor;cursor+=n;if(n)memcpy(refs,g->ids[1],(size_t)n*4);
+        status=rf_group_attach_movers(copy,object_count,controller_handles[i],e->initial_flags,global_mode,
+            refs,&n,m->handles,&m->count,g->record.ids_count[1],&m->rotation_sign);if(status)goto failed;
+    }
+    if(object_count)memcpy(objects,copy,(size_t)object_count*sizeof(*objects));
+    free(scratch);*result=value;return RF_OK;
+ failed:
+    free(scratch);rf_group_mover_memberships_close(&value);return status;
+}
