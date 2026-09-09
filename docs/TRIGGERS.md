@@ -563,3 +563,31 @@ The 41ae70 boundary is already reconstructed as `rf_weapon_reset` after entity
 resolution (docs/WEAPON.md). Here +0x2a4 is the weapon index. Reuse that shared
 reset and its existing subsystem adapters when integrating hide; this fixture
 only establishes when it is called and does not revalidate its internals.
+
+## Shared deferred UnHide scheduling
+
+`include/rf/event.h` and `src/core/event.c` now provide `rf_unhide_state`,
+`rf_unhide_init`, `rf_unhide_request` and `rf_unhide_tick`. State occupies eight
+bytes on PC/NXDK (deadline and two request bytes, with padding). No allocation
+is introduced. Initialization arms the zero-offset timer and clears requests;
+request methods set only their own byte. The tick implements the separate
+type-50 vtable method, not the common delayed-event tick prefix.
+
+The caller supplies ordered handles and a target callback. That callback must
+resolve each handle, count missing targets as processed, check eligibility for
+unhide, and perform actual visibility effects. Returning zero for an existing
+ineligible target retains the on request. Hide ignores the callback result.
+All links are visited even after a denial, preserving duplicate visits. The
+timer is reset before target callbacks; off is checked against the timer again
+after on processing. Links must stay unchanged and live throughout the call.
+
+`tools/verify_unhide_deferred.py` now compares the original state and action
+traces with `tests/unhide_probe.c` and the actual NXDK-linked functions executed
+in Unicorn. All 223 comparisons pass per build: 209 scheduler cases (including
+the persistent sequence), six successful factory initialization cases and eight
+request cases. Target callbacks supply the already established eligibility
+result and simulate visible effects; no live entity registration, collision or
+subsystem integration is claimed. Generic factory failures remain original-only
+evidence. The common event regression still passes 3,922 PC/NXDK comparisons;
+both builds and all four CTest checks pass. No new XEMU visual test is warranted
+until this code is connected to the runtime.

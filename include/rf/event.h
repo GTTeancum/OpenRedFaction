@@ -18,4 +18,19 @@ int rf_event_activate(rf_event_state *state,int32_t now,uint32_t source,uint32_t
     uint32_t mode,rf_event_callback callback,void *context);
 /* Common timer prefix only; type-specific per-frame updates remain external. */
 int rf_event_tick(rf_event_state *state,int32_t now,rf_event_callback callback,void *context);
+typedef struct rf_unhide_state {
+    int32_t deadline;
+    uint8_t on,off;
+} rf_unhide_state;
+/* Callback resolves each handle at visitation time and applies visibility.
+ * Return zero only for an existing target denied unhide eligibility; missing
+ * targets count as processed. Hide ignores the return value. Links/state must
+ * remain alive and links must remain unchanged during the call. */
+typedef int (*rf_unhide_target_callback)(void *context,uint32_t handle,int unhide);
+int rf_unhide_init(rf_unhide_state *state,int32_t now);
+int rf_unhide_request(rf_unhide_state *state,int unhide);
+/* Original 4bcdf0 scheduling, with target eligibility/effects supplied by caller.
+ * This replaces the common tick for type 50; it does not execute that prefix. */
+int rf_unhide_tick(rf_unhide_state *state,int32_t now,const uint32_t *links,
+    uint32_t count,rf_unhide_target_callback callback,void *context);
 #endif

@@ -36,3 +36,34 @@ int rf_event_tick(rf_event_state *s,int32_t now,rf_event_callback callback,void 
     if(propagates(s->type))callback(context,s,2,s->source,s->actor,s->mode&255);
     rf_timer_clear(&s->deadline);return RF_OK;
 }
+int rf_unhide_init(rf_unhide_state *s,int32_t now)
+{
+    int32_t deadline;int status;if(!s)return RF_RANGE;
+    status=rf_timer_set(&deadline,now,0);if(status)return status;
+    s->deadline=deadline;s->on=0;s->off=0;return RF_OK;
+}
+int rf_unhide_request(rf_unhide_state *s,int unhide)
+{
+    if(!s)return RF_RANGE;
+    if(unhide)s->on=1;else s->off=1;
+    return RF_OK;
+}
+int rf_unhide_tick(rf_unhide_state *s,int32_t now,const uint32_t *links,
+    uint32_t count,rf_unhide_target_callback callback,void *context)
+{
+    uint32_t i;int expired,status,processed=1;
+    if(!s || !callback || (count && !links))return RF_RANGE;
+    status=rf_timer_expired(s->deadline,now,&expired);if(status)return status;
+    if(s->on==1 && expired) {
+        status=rf_timer_set(&s->deadline,now,500);if(status)return status;
+        for(i=0;i<count;++i)if(!callback(context,links[i],1))processed=0;
+        if(processed)s->on=0;
+    }
+    status=rf_timer_expired(s->deadline,now,&expired);if(status)return status;
+    if(s->off==1 && expired) {
+        status=rf_timer_set(&s->deadline,now,500);if(status)return status;
+        for(i=0;i<count;++i)(void)callback(context,links[i],0);
+        s->off=0;
+    }
+    return RF_OK;
+}
