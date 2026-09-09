@@ -44,6 +44,7 @@ public class ExportBaseline extends GhidraScript {
                 0x46a0d0L,0x46a1e0L,0x46a280L,0x46a3d0L,0x46a8c0L}) addresses.add(target);
         addresses.add(0x463820L); // Section 0x3000 dispatch at 460f9e.
         addresses.add(0x462150L); // Section 0x600 events, dispatch 460e1e.
+        for(long target : new long[]{0x48a4a0L,0x46afc0L,0x4c0910L}) addresses.add(target); // Post-load trigger UID conversion at 4611a1.
         addresses.add(0x465510L); // Section 0x60000 triggers, dispatch 4610cc.
         for(long target : new long[]{0x4bf970L,0x4c0210L,0x45ec40L,0x4bf580L,0x4bd700L}) addresses.add(target); // Trigger construction, links and event type lookup.
         for(long target : new long[]{0x4bf740L,0x4bfc00L,0x4bfc60L,0x4c0050L,0x4c0100L,0x4c0160L,0x4c01b0L,0x4c0220L,0x4c0320L,0x4c04e0L,0x4c05a0L,0x4c06d0L}) addresses.add(target); // Trigger dispatch and eligibility.

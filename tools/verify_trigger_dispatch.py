@@ -1,7 +1,7 @@
 """Execute original 4c0320 door dispatch; intercept downstream actions only.
 
-Synthetic registered handles stand in for the still-unrecovered load-time UID
-conversion. This verifies dispatch ordering, not action implementations.
+Synthetic object registrations feed the original load-time UID conversion.
+This verifies conversion and dispatch ordering, not action implementations.
 """
 import hashlib
 import json
@@ -12,7 +12,7 @@ import pefile
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE
-from unicorn.x86_const import UC_X86_REG_ESP, UC_X86_REG_EIP, UC_X86_REG_EAX
+from unicorn.x86_const import UC_X86_REG_ESP, UC_X86_REG_EIP, UC_X86_REG_EAX, UC_X86_REG_EBX
 
 exe=root/'Installed_Game/RF.exe'
 assert hashlib.sha256(exe.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
@@ -46,11 +46,27 @@ for uid in (8542,8522):
     source=0x23450020;actor=0x34560021
     words(trigger+0x2c,source)
     words(trigger+0x2d4,len(handles),len(handles),array)
-    words(array,*handles)
+    words(array,*record['links'])
+    objects=[];controllers=[]
     for i,(target,h) in enumerate(zip(record['links'],handles)):
         obj=base+0x2000+i*0x400
         words(obj+0x24,6 if target in event_ids else 8)
         words(obj+0x2c,h);words(0x7394cc+4*i,obj)
+        if target in event_ids:
+            words(obj+0x20,target);objects.append(obj)
+        else:
+            controllers.append(obj)
+            key_array=base+0x5000+i*0x100;key=key_array+0x40
+            words(obj+0x29c,1,1,key_array);words(key_array,key);words(key,target)
+    words(0x73d890,objects[0] if objects else 0x73d880)
+    for i,obj in enumerate(objects): words(obj+0x10,objects[i+1] if i+1<len(objects) else 0x73d880)
+    words(0x64e63c,controllers[0] if controllers else 0x64e3b0)
+    for i,obj in enumerate(controllers): words(obj+0x28c,controllers[i+1] if i+1<len(controllers) else 0x64e3b0)
+    words(trigger+0x2b0,0) # No entity backlink branch in these door triggers.
+    u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_EBX,trigger)
+    u.emu_start(0x4611a1,0x461231,count=10000)
+    assert u.reg_read(UC_X86_REG_EIP)==0x461231
+    assert read(array,len(handles))==tuple(handles),(uid,'UID conversion')
     for suppress in (0,1):
         trace.clear();words(stack,stop,trigger,actor,suppress)
         u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(0x4c0320,stop,count=10000)
@@ -60,6 +76,6 @@ for uid in (8542,8522):
         assert trace==expected,(uid,suppress,trace,expected)
         results.append(dict(trigger_uid=uid,suppress_movers=suppress,ordered_uid_actions=[
             dict(uid=record['links'][handles.index(x['target'])],action=x['action']) for x in trace]))
-report=dict(result='PASS',cases=len(results),scope='Original 4c0320, array access and 40a0e0 handle lookup execute unchanged. Synthetic handles and object registrations; downstream 46aba0/4b6760 intercepted. Single-player only. No UID conversion, eligibility, action execution or C/NXDK equivalence claimed.',results=results)
+report=dict(result='PASS',cases=len(results),scope='Original post-load block 4611a1..461231, object UID lookup 48a4a0, key-owner lookup 46afc0, dispatch 4c0320, array helpers and handle lookup 40a0e0 execute unchanged. Synthetic object registrations; downstream 46aba0/4b6760 intercepted. Single-player door links only. No eligibility, action execution, entity backlinks or C/NXDK equivalence claimed.',results=results)
 (root/'artifacts/trigger-dispatch-verification.json').write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))

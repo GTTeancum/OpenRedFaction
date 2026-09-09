@@ -128,3 +128,34 @@ actor-specific conditions. Tick 4bf740 clears 0x40. These are decompilation
 leads, not yet verified portable gameplay behavior. Next recover the load-time
 UID conversion and full activation state path rather than feeding raw UIDs to
 the handle dispatcher or globally activating the four controllers.
+
+
+## Post-load UID conversion checkpoint
+
+The dispatch verifier now starts with the actual authored UIDs and executes
+original block 4611a1 through 461231 before dispatch. Its fixtures construct
+synthetic object and controller registries; the lookup code is no longer
+substituted. Both door lists convert to the expected handles and all four
+subsequent dispatch cases still pass. This supersedes the earlier limitation
+that conversion was not executed. Eligibility and downstream actions remain
+outside the test.
+
+At 4611bf, lookup 48a4a0 scans the object list rooted at 73d890, following +0x10
+until sentinel 73d880, matching UID at +0x20. UID -1 returns null. UID -999
+additionally skips objects with flag bit 2 at +0x7c. For other UIDs, no such
+flag filter is applied. First match wins. On success, the link receives object
+handle +0x2c. If trigger flag bit 4 is set (4c0910), an entity lookup can also
+write a backlink at entity +0x838; that branch is not exercised by this fixture.
+
+When object lookup fails, 46120a calls 46afc0. It traverses controllers from
+64e63c via +0x28c to sentinel 64e3b0, then each controller's key pointer array
+at +0x29c in order, matching the key's first word against the UID. The owning
+controller's handle replaces the link. The code searches all keys, not just
+the first key. If both searches fail, the original UID remains unchanged.
+Duplicate precedence, missing targets and special UIDs are instruction-derived
+observations here, not covered by the two authored door fixtures.
+
+Next implement this conversion in shared C against explicit owned registries,
+preserve object-first and ordered key-owner precedence, and verify edge cases
+against these original functions. General object registration, entity backlinks
+and the associated event/trigger ownership are still required.
