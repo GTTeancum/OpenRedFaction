@@ -873,3 +873,60 @@ int rf_level_owned_triggers_open(const rf_level *level,uint32_t budget,rf_level_
  failed:
     rf_level_owned_triggers_close(&value);return status;
 }
+
+static int event_name_equal(const char *a,const char *b)
+{
+    unsigned char x,y;
+    do {
+        x=(unsigned char)*a++;y=(unsigned char)*b++;
+        if(x>='A' && x<='Z')x+=32;
+        if(y>='A' && y<='Z')y+=32;
+        if(x!=y)return 0;
+    } while(x);
+    return 1;
+}
+int rf_level_events_begin(const rf_level *level,rf_level_event_reader *reader)
+{
+    rf_level_event_reader next={0};const rf_level_section *section;int status;
+    if(!level || !reader)return RF_RANGE;
+    if(level->version!=180)return RF_FORMAT;
+    section=rf_level_find(level,0x600);if(!section)return RF_NOT_FOUND;
+    next.level=level;next.section=*section;
+    status=group_number(&next,&next.count);if(status)return status;
+    if((uint64_t)next.count*4>section->size-next.cursor || (!next.count && next.cursor!=section->size))return RF_FORMAT;
+    *reader=next;return RF_OK;
+}
+int rf_level_event_next(rf_level_event_reader *reader,rf_level_event *event)
+{
+    rf_level_event_reader next;rf_level_event value={0};uint32_t i;int status;
+    if(!reader || !event || !reader->level || reader->section.type!=0x600)return RF_RANGE;
+    if(reader->index>=reader->count)return reader->index==reader->count && reader->cursor==reader->section.size?RF_NOT_FOUND:RF_FORMAT;
+    next=*reader;value.offset=next.cursor;
+    if((status=group_number(&next,&value.uid)) || (status=group_string(&next,value.type)) ||
+        (status=group_floats(&next,value.position,3)) || (status=group_string(&next,value.name)) ||
+        (status=trigger_byte(&next,&value.header_byte)) || (status=group_floats(&next,&value.delay,1)))return status;
+    for(i=0;i<2;++i)if((status=trigger_byte(&next,value.flags+i)))return status;
+    for(i=0;i<2;++i)if((status=group_number(&next,value.words+i)))return status;
+    if((status=group_floats(&next,value.values,2)))return status;
+    for(i=0;i<2;++i)if((status=group_string(&next,value.texts[i])))return status;
+    if((status=group_number(&next,&value.link_count)))return status;
+    value.link_offset=next.cursor;
+    if((uint64_t)value.link_count*4>next.section.size-next.cursor)return RF_FORMAT;
+    next.cursor+=value.link_count*4;
+    value.has_orientation=event_name_equal(value.type,"Teleport") || event_name_equal(value.type,"Teleport_Player") ||
+        event_name_equal(value.type,"Play_Vclip") || event_name_equal(value.type,"Alarm");
+    if(value.has_orientation && (status=group_floats(&next,value.orientation_disk,9)))return status;
+    for(i=0;i<4;++i)if((status=trigger_byte(&next,value.color_bytes+i)))return status;
+    value.bytes=next.cursor-value.offset;++next.index;
+    if(next.index==next.count && next.cursor!=next.section.size)return RF_FORMAT;
+    *reader=next;*event=value;return RF_OK;
+}
+int rf_level_event_link(const rf_level *level,const rf_level_event *event,uint32_t index,uint32_t *uid)
+{
+    const rf_level_section *section;unsigned char raw[4];uint64_t offset;int status;
+    if(!level || !event || !uid || index>=event->link_count)return RF_RANGE;
+    section=rf_level_find(level,0x600);if(!section)return RF_NOT_FOUND;
+    offset=(uint64_t)event->link_offset+(uint64_t)index*4;
+    if(offset>section->size || section->size-offset<4)return RF_RANGE;
+    status=rf_level_read(level,section,(uint32_t)offset,raw,4);if(!status)*uid=le32(raw);return status;
+}

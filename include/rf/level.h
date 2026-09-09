@@ -310,4 +310,17 @@ typedef struct rf_level_link_target {
  * Invalid arguments preserve output. Output must not overlap input arrays. */
 int rf_level_link_resolve(uint32_t uid,const rf_level_uid_object *objects,uint32_t object_count,
     const rf_level_uid_key *keys,uint32_t key_count,rf_level_link_target *target);
+typedef struct rf_level_event {
+    uint32_t uid,offset,bytes,link_offset,link_count,header_byte,flags[2],words[2],color_bytes[4],has_orientation;
+    char type[256],name[256],texts[2][256];
+    float delay,position[3],values[2],orientation_disk[9];
+} rf_level_event;
+typedef rf_level_group_reader rf_level_event_reader;
+/* Bounded v180 read order 462150. Preserves raw fields, disk orientation and
+ * ordered links, not runtime type construction. Strings limited to 255 bytes.
+ * Unknown type names have no orientation payload, as in the original lookup.
+ * Source must stay alive. Errors preserve outputs; exact EOF is NOT_FOUND. */
+int rf_level_events_begin(const rf_level *level,rf_level_event_reader *reader);
+int rf_level_event_next(rf_level_event_reader *reader,rf_level_event *event);
+int rf_level_event_link(const rf_level *level,const rf_level_event *event,uint32_t index,uint32_t *uid);
 #endif

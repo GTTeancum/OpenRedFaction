@@ -199,3 +199,23 @@ the owner. Maximum PC accounted allocation is 55,696 bytes (host pointer sizes
 included). NXDK compilation passes; owned-trigger execution in Xbox is not yet
 validated. Allocator overhead and bounded stack scratch are excluded from the
 reported budget, as with owned mover groups.
+
+
+## Shared C event reader
+
+`rf_level_events_begin`, `rf_level_event_next` and `rf_level_event_link` now
+read v180 section 0x600 without allocation. They preserve type/name/text fields,
+raw configuration, ordered link UIDs, optional orientation in disk order, and
+four color bytes. Type comparison for the four orientation-bearing types is
+ASCII case-insensitive, following 4bd700/5001d0/57c130. Other names have no
+orientation payload, including an unknown name as in original type lookup -1;
+this does not claim that unknown types have usable gameplay behavior.
+
+`tools/verify_event_reader.py` matches every field and ordered link against the
+independent Python layout inventory across 93 levels: 4,446 events and 4,901
+links. Each record also rejects a one-byte truncation without changing output
+or cursor; out-of-range link access preserves output and EOF requires exact
+section exhaustion. NXDK compilation passes. Report:
+`artifacts/event-reader-verification.json`. This is layout verification, not
+execution equivalence with the original parser. Owned event lifetime, type
+construction, registration, scheduling and event actions remain open.

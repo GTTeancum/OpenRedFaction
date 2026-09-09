@@ -38,6 +38,30 @@ int main(int argc,char **argv)
         if(memcmp(&owned,&saved,sizeof(owned)))return 4;
         return 0;
     }
+    if(argc==4 && !strcmp(argv[3],"--events")) {
+        rf_level_event_reader cursor;rf_level_event record={0};uint32_t i,uid;
+        _Static_assert(sizeof(record)==1144,"Trigger probe wire layout");
+        _setmode(_fileno(stdout),_O_BINARY);
+        if(rf_vpp_open(&archive,argv[1]) || rf_level_open(&level,&archive,argv[2]) ||
+            rf_level_events_begin(&level,&cursor))return 2;
+        if(fwrite(&cursor.count,4,1,stdout)!=1)return 3;
+        for(;;) {
+            rf_level_event_reader before=cursor,bad,saved;rf_level_event output,unchanged;
+            status=rf_level_event_next(&cursor,&record);if(status==RF_NOT_FOUND)break;if(status)return 3;
+            bad=before;bad.section.size=record.offset+record.bytes-1;saved=bad;
+            memset(&output,0xa5,sizeof(output));unchanged=output;
+            if(rf_level_event_next(&bad,&output)!=RF_FORMAT || memcmp(&bad,&saved,sizeof(bad)) ||
+                memcmp(&output,&unchanged,sizeof(output)))return 4;
+            uid=0xabcdef01;
+            if(rf_level_event_link(&level,&record,record.link_count,&uid)!=RF_RANGE || uid!=0xabcdef01)return 4;
+            if(fwrite(&record,sizeof(record),1,stdout)!=1)return 3;
+            for(i=0;i<record.link_count;++i) {
+                if(rf_level_event_link(&level,&record,i,&uid) || fwrite(&uid,4,1,stdout)!=1)return 3;
+            }
+        }
+        {rf_level_event copy=record;if(rf_level_event_next(&cursor,&record)!=RF_NOT_FOUND || memcmp(&copy,&record,sizeof(record)))return 4;}
+        rf_vpp_close(&archive);return 0;
+    }
     if(argc==4 && !strcmp(argv[3],"--triggers")) {
         rf_level_trigger_reader cursor;rf_level_trigger record={0};uint32_t i,uid;
         _Static_assert(sizeof(record)==668,"Trigger probe wire layout");
