@@ -22,6 +22,10 @@ velocity response, then consumes the remaining frame without applying gravity
 again. Actor pose/room commit and rendered movement remain open. The first hit
 advances zero distance after the margin; a second pass consumes the remaining
 0.014501864 seconds using the response velocity.
+The shared renderer now reads an attached open body's position/orientation each
+frame; the PC moved-body projection matches explicit placement for all 1,407
+test vertices. Commit the completed movement into the live actor next, reusing
+the existing verified 48a230 setter (`rf_group_pose_set_position`) for pose fields.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

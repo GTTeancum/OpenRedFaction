@@ -29,7 +29,7 @@ typedef struct rf_animation_placement {
     rf_model_clip_planes planes;
     rf_model_clip_projection clip_projection;
     const rf_entity_physics_config *physics_config;
-    rf_physics_body *physics_body;
+    rf_physics_body *physics_body; /* Open body's pose drives rendering each frame. */
     uint32_t *physics_diagnostic; /* Eight words; optional integrated fixture. */
 } rf_animation_placement;
 /* World/entity inputs are read each frame, allowing the owner to update them

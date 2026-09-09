@@ -190,3 +190,31 @@ time. Final copied-body position is (-92.39078522, -3.90752268, 49.75749588),
 matching PC. Configuration/body/world and 600-frame door comparisons pass,
 as do both builds and all four CTests. No image was captured because this
 fixture is still separate from the rendered actor's pose.
+
+## Body pose in the rendering transform
+
+`animation_run` now selects an attached open body's current position and
+orientation for `rf_model_local_view` on every frame. With no open body it uses
+the explicit placement, including the frame-zero setup before body creation.
+This connects rendering to body state without copying a stale spawn position
+into the view transform. It does not integrate physics or mutate the body.
+
+The PC scene check renders the completed collision-frame body pose and compares
+all 1,407 output vertices with an explicit placement at the same position and
+orientation. The explicit starting position differs from the body position;
+the test also confirms rendering preserves the body's state. Both paths use
+the existing shared skinning, transform, clipping and projection code.
+
+The live diagnostic currently computes motion on a copied body. Applying that
+completed motion to the live actor remains necessary for visible motion. The
+needed position setter already exists: `rf_group_pose_set_position` implements
+48a230's public/current/pending position, radius bounds and object dirty-bit
+writes, verified in `tools/verify_pose_position.py`. Reuse that implementation
+for the actor's pose fields. This function itself does not perform room lookup;
+do not invent a room dependency inside that setter.
+
+Run `artifacts/xemu/20260909-150147-292287/report.json` passes in stock 64 MiB
+XEMU with the body-backed transform, alongside the existing motion/body/world
+and 600-frame door checks. Both builds and all four CTests pass. This run proves
+compatibility of the live attached-body render path; the moved-body vertex
+comparison above is PC evidence. No new visible result was captured.

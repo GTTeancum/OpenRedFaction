@@ -5,6 +5,8 @@
 #include <string.h>
 extern uint32_t rf_scene_actor_physics_diagnostic[8];
 extern float rf_scene_actor_contact_time[4];
+extern rf_physics_body scene_actor_body;
+extern rf_physics_body_state rf_scene_actor_fall_state;
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored;
@@ -129,6 +131,20 @@ int main(int argc,char **argv)
              printf("ACTOR_FALL");for(i=0;i<8;++i)printf(" %u",sweep[i]);puts("");
              if(rf_scene_actor_contact_time[2]!=0 || rf_scene_actor_contact_time[3]<2)return 3;
              memcpy(sweep,rf_scene_actor_contact_time,16);printf("ACTOR_TIME %u %u %u %u\n",sweep[0],sweep[1],sweep[2],sweep[3]);}
+            {
+                rf_physics_body moved=scene_actor_body;rf_animation_placement explicit_pose=c.placement,body_pose=c.placement;
+                rf_preview_mesh expected={0},actual={0};rf_physics_body_state saved;
+                moved.state=rf_scene_actor_fall_state;saved=moved.state;
+                memcpy(explicit_pose.position,moved.state.position,12);memcpy(explicit_pose.orientation,moved.state.orientation,36);
+                body_pose.physics_body=&moved;
+                if(!memcmp(body_pose.position,moved.state.position,12))return 3;
+                if(rf_animation_preview_placed(c.meshes,c.motions,&explicit_pose,63,&expected,1024*1024) ||
+                   rf_animation_preview_placed(c.meshes,c.motions,&body_pose,63,&actual,1024*1024))return 3;
+                if(!actual.count || actual.bytes!=expected.bytes || memcmp(actual.vertices,expected.vertices,actual.bytes) ||
+                   memcmp(&moved.state,&saved,sizeof(saved)))return 3;
+                printf("BODY_RENDER %u vertices match explicit physics pose\n",actual.count);
+                rf_preview_close(&expected);rf_preview_close(&actual);
+            }
         }
         if(mode==1 && (status!=RF_NOT_FOUND || c.next!=3))return 3;
         if(mode==2 && (status!=RF_RANGE || c.next || memcmp(&before,&mesh,sizeof(mesh)) ||

@@ -186,7 +186,10 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     for (frame=0;frame<64;++frame) {
         if(sink)preview->count=0;
         if(placement) {
-            status=rf_model_local_view(&placement->world_view,placement->position,placement->orientation,&render_view);if(status)goto done;
+            const rf_physics_body *body=placement->physics_body;
+            const float *position=body && body->allocated_bytes?body->state.position:placement->position;
+            const float *orientation=body && body->allocated_bytes?body->state.orientation:placement->orientation;
+            status=rf_model_local_view(&placement->world_view,position,orientation,&render_view);if(status)goto done;
             clip_projection=placement->clip_projection;clip_planes=placement->planes;
         }
         if(authored) {
