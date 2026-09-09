@@ -80,4 +80,20 @@ typedef struct rf_collision_tree {
  * Failure preserves output. Close an existing tree before reusing its output. */
 int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_t budget,rf_collision_tree *tree);
 void rf_collision_tree_close(rf_collision_tree *tree);
+typedef struct rf_collision_room_view {
+    float minimum[3],maximum[3];
+    uint32_t skip,first_child,child_count; /* Original room +1 byte, +6c array. */
+    const rf_collision_tree *tree;
+} rf_collision_room_view;
+typedef struct rf_collision_room_hit {rf_collision_tree_hit tree;uint32_t room;} rf_collision_room_hit;
+/* Uncached zero-radius hierarchy branch of 4df1c0, in solid-local coordinates.
+ * Ordered primary rooms and their ordered children; children are not recursive.
+ * Primary skip byte is bypassed by query mask 8; children ignore that byte.
+ * Requires prepared runtime room lists, no cached/preferred face or transforms.
+ * Texture modes 80/100 and special room-face mode 1000 are unsupported.
+ * No allocation; uses each tree's stack. Errors preserve result/matched. */
+int rf_collision_thin_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],float limit,
+    rf_collision_room_hit *result,uint32_t *matched);
 #endif

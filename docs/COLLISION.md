@@ -466,3 +466,40 @@ Ghidra functions; world selection itself is not implemented or tested yet. PC
 and NXDK builds pass. The owned-room budget increases by 24 bytes for retained
 bounds; current single-room peaks are 194,119 bytes for Live Mines and 826,763
 bytes across all levels.
+
+## Uncached local-space thin room query
+
+`rf_collision_thin_rooms` reconstructs the hierarchy branch of `0x4df1c0`
+for zero-radius queries already expressed in solid-local coordinates. Callers
+provide room views and ordered primary/child index lists. Each primary room
+passes its +1-byte gate (unless mask 8 bypasses it) and inclusive segment-AABB
+overlap before its tree is queried. Its children follow in array order, each
+with an overlap check but without the primary skip-byte gate. Children are not
+recursively expanded. A rejected primary also suppresses its children. Nearest
+hits carry the reduced fraction into subsequent trees; equal-depth hits replace
+earlier hits. Mask 1 returns on the first hit. Hit counts aggregate accepted
+updates across all queried trees. The output records the room index and tree
+face index; the tree's source-index mapping resolves the original level face.
+
+The helper allocates nothing and reuses each tree's stack, so simultaneous queries
+need separate scratch. It validates room bounds, byte/range views and list indices;
+errors preserve the result and matched outputs. A zero displacement is a miss.
+It requires prepared runtime lists and does not select the original cached versus
+hierarchical versus fallback path. Preferred faces, transforms, radius sweeps,
+texture modes 0x80/0x100 and special room-face mode 0x1000 remain outside this
+helper; the unsupported masks return RF_NOT_FOUND. Runtime list construction and
+mutable room state still prevent using this as a complete gameplay world query.
+
+`python tools/verify_collision_room_query.py` passes 2,400 complete, unmodified
+original `0x4df1c0` calls with cache/preferred faces disabled, hierarchy enabled,
+radius zero, direct-coordinate mask 4 and special mode disabled. Every original
+callee, including tree traversal and face queries, executes unchanged. Four
+single-face room trees vary primary and child order, skip bytes, overlap rejection,
+zero displacement, equal depths, fraction limits and first/nearest modes. All
+fraction/point/normal, room/face identities and hit counts match PC and the actual
+NXDK-linked helper: 464 hits, including 152 cases with multiple accepted updates.
+Six port guards cover invalid primary indices, skip bytes and child ranges, NaN
+bounds/limits and the unsupported special mode, with preserved outputs. Report:
+`artifacts/collision-room-query-verification.json`. Both builds, the 1,800-call
+tree regression and all four CTest checks pass. This CPU fixture does not establish
+XEMU gameplay correctness or correctness of the unrecovered world-query branches.

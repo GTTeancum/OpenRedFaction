@@ -9,6 +9,26 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--room-query")) {
+        struct {struct {float bounds[6],z;uint32_t skip,first,count;} rooms[4];uint32_t primary[2],children[4];float start[3],delta[3],limit;uint32_t flags;} in;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_collision_room_view rooms[4];rf_collision_tree trees[4];rf_collision_node nodes[4];rf_collision_face faces[4];float vertices[4][4][3];uint32_t stacks[4],i,j;
+            struct {int32_t status;uint32_t matched;rf_collision_room_hit hit;} out;
+            memset(trees,0,sizeof(trees));memset(faces,0,sizeof(faces));
+            for(i=0;i<4;i++) {
+                float z=in.rooms[i].z;
+                memcpy(rooms[i].minimum,in.rooms[i].bounds,24);rooms[i].skip=in.rooms[i].skip;rooms[i].first_child=in.rooms[i].first;rooms[i].child_count=in.rooms[i].count;rooms[i].tree=trees+i;
+                trees[i].nodes=nodes+i;trees[i].node_count=trees[i].node_capacity=1;trees[i].faces=faces+i;trees[i].face_count=1;trees[i].stack=stacks+i;
+                for(j=0;j<3;j++) {nodes[i].minimum[j]=faces[i].minimum[j]=j==2?z-.0001f:-2.0001f;nodes[i].maximum[j]=faces[i].maximum[j]=j==2?z+.0001f:2.0001f;}
+                nodes[i].first_face=0;nodes[i].face_count=1;nodes[i].left=nodes[i].right=UINT32_MAX;
+                faces[i].plane[2]=1;faces[i].plane[3]=-z;faces[i].vertices=vertices[i];faces[i].count=4;
+                for(j=0;j<4;j++) {vertices[i][j][0]=(j==0 || j==3)?-2:2;vertices[i][j][1]=j<2?-2:2;vertices[i][j][2]=z;}
+            }
+            memset(&out,0xa5,sizeof(out));out.status=rf_collision_thin_rooms(rooms,4,in.primary,2,in.children,4,in.flags,in.start,in.delta,in.limit,&out.hit,&out.matched);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==4 && (!strcmp(argv[1],"--rooms") || !strcmp(argv[1],"--room-layout") || !strcmp(argv[1],"--room-layout-tight"))) {
         int tight=!strcmp(argv[1],"--room-layout-tight"),layout=strcmp(argv[1],"--rooms")!=0;
         rf_vpp archive;rf_level level;rf_geometry geometry;uint32_t room,total=0,nodes=0,peak=0,queries=0,hits=0;

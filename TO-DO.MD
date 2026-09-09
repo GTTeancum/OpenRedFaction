@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Initial room attachment now matches original append order and bounds across
-14,694 rooms, plus 54 expansion fixtures; recover finalizer rejection and world
-room selection, connect mutable state, and validate guest allocation in XEMU.
+Uncached thin room queries now match 2,400 complete original calls on PC/NXDK;
+recover runtime primary/detail lists, cached and special query paths, transforms
+and finalizer rejection before gameplay integration and XEMU validation.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

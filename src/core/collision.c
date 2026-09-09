@@ -345,6 +345,57 @@ void rf_collision_tree_close(rf_collision_tree *tree)
 {
     if(tree) {free(tree->storage);memset(tree,0,sizeof(*tree));}
 }
+
+static int room_overlaps(const rf_collision_room_view *room,const float *lo,const float *hi)
+{
+    uint32_t j;for(j=0;j<3;j++)if(lo[j]>room->maximum[j] || hi[j]<room->minimum[j])return 0;
+    return 1;
+}
+int rf_collision_thin_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],float limit,
+    rf_collision_room_hit *result,uint32_t *matched)
+{
+    float lo[3],hi[3];uint32_t i,j,k,hits=0;rf_collision_room_hit value;int status;
+    if(!start || !displacement || !result || !matched || (room_count && !rooms) ||
+       (primary_count && !primary) || (child_count && !children))return RF_RANGE;
+    if(query_flags&0x1180u)return RF_NOT_FOUND;
+    if(!isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    for(j=0;j<3;j++) {
+        float end=start[j]+displacement[j];
+        if(!isfinite(start[j]) || !isfinite(displacement[j]) || !isfinite(end))return RF_FORMAT;
+        lo[j]=start[j]<end?start[j]:end;hi[j]=start[j]>end?start[j]:end;
+    }
+    for(i=0;i<room_count;i++) {
+        const rf_collision_room_view *room=rooms+i;
+        if(!room->tree || room->skip>255 || room->first_child>child_count || room->child_count>child_count-room->first_child)return RF_RANGE;
+        for(j=0;j<3;j++)if(!isfinite(room->minimum[j]) || !isfinite(room->maximum[j]) || room->minimum[j]>room->maximum[j])return RF_FORMAT;
+    }
+    for(i=0;i<primary_count;i++)if(primary[i]>=room_count)return RF_RANGE;
+    for(i=0;i<child_count;i++)if(children[i]>=room_count)return RF_RANGE;
+    if(displacement[0]==0 && displacement[1]==0 && displacement[2]==0) {*matched=0;return RF_OK;}
+    for(i=0;i<primary_count;i++) {
+        const rf_collision_room_view *parent=rooms+primary[i];
+        if((parent->skip && !(query_flags&8u)) || !room_overlaps(parent,lo,hi))continue;
+        for(k=0;;k++) {
+            uint32_t index=k?children[parent->first_child+k-1]:primary[i],hit;
+            const rf_collision_room_view *room=rooms+index;const rf_collision_tree *tree=room->tree;
+            if(room_overlaps(room,lo,hi)) {
+                status=rf_collision_thin_tree(tree->nodes,tree->node_count,tree->faces,tree->face_count,query_flags,
+                    start,displacement,limit,tree->stack,tree->node_capacity,&value.tree,&hit);if(status)return status;
+                if(hit) {
+                    if(value.tree.hits>UINT32_MAX-hits)return RF_RANGE;
+                    hits+=value.tree.hits;limit=value.tree.hit.fraction;value.room=index;
+                    if(query_flags&1u)goto done;
+                }
+            }
+            if(k==parent->child_count)break;
+        }
+    }
+ done:
+    if(hits) {value.tree.hits=hits;*result=value;}
+    *matched=hits!=0;return RF_OK;
+}
 int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_t budget,rf_collision_tree *tree)
 {
     rf_collision_tree value={0};uint64_t capacity,retained,scratch_bytes;unsigned char *scratch;
