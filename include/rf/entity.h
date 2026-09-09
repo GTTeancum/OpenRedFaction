@@ -11,6 +11,21 @@ uint32_t rf_entity_creation_object_flags(uint32_t creation_flags,uint32_t descri
  * select physics flags independently of generic object flags. */
 uint32_t rf_entity_creation_physics_flags(uint32_t creation_flags,uint32_t class_flags_724,
     uint32_t class_flags_728,uint32_t class_kind_1b4,uint8_t network_mode);
+typedef struct rf_entity_class_sphere {
+    char name[24];
+    float radius,selected_scalar,scalar_sp,scalar_mp,parameter_10;
+    uint32_t opaque_14;
+    float center[3];int32_t model_index;
+} rf_entity_class_sphere;
+typedef struct rf_entity_sphere_override {
+    char name[24];float radius,scalar_sp,scalar_mp,parameter_10;uint32_t opaque_14;
+} rf_entity_sphere_override;
+/* 423e7e..42405d: ordered overrides use the first ASCII-insensitive prefix
+ * match, ignore absent names, and preserve center/model index. At most eight
+ * entries per original class array; names must terminate within 24 bytes.
+ * Malformed arguments preserve all destination records. */
+int rf_entity_sphere_overrides(rf_entity_class_sphere *spheres,uint32_t count,
+    const rf_entity_sphere_override *overrides,uint32_t override_count,uint8_t network_mode);
 /* Compact caller-owned views of the fields required by entity predicates.
  * These are not binary RF.exe structs or complete gameplay entities. */
 typedef struct rf_entity_view {

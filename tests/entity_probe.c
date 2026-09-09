@@ -5,6 +5,17 @@
 #include <io.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--sphere-overrides")) {
+        rf_entity_class_sphere spheres[8];rf_entity_sphere_override overrides[8];uint32_t header[3];
+        _Static_assert(sizeof(*spheres)==64 && sizeof(*overrides)==44,"Sphere override wire layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(header,sizeof(header),1,stdin)==1) {
+            if(header[0]>8 || header[1]>8 || fread(spheres,64,header[0],stdin)!=header[0] || fread(overrides,44,header[1],stdin)!=header[1])return 2;
+            if(rf_entity_sphere_overrides(spheres,header[0],overrides,header[1],(uint8_t)header[2]))return 3;
+            if(fwrite(spheres,64,header[0],stdout)!=header[0])return 4;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--physics-flags")) {
         uint32_t in[5],out;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

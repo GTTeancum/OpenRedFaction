@@ -1,5 +1,32 @@
 #include "rf/entity.h"
 #include <math.h>
+#include <string.h>
+int rf_entity_sphere_overrides(rf_entity_class_sphere *spheres,uint32_t count,
+    const rf_entity_sphere_override *overrides,uint32_t override_count,uint8_t network_mode)
+{
+    uint32_t i,j,k;
+    if(count>8 || override_count>8 || (count && !spheres) || (override_count && !overrides))return RF_RANGE;
+    for(i=0;i<count;++i)if(!memchr(spheres[i].name,0,24))return RF_FORMAT;
+    for(i=0;i<override_count;++i)if(!memchr(overrides[i].name,0,24))return RF_FORMAT;
+    for(i=0;i<override_count;++i) {
+        const rf_entity_sphere_override *o=overrides+i;
+        for(j=0;j<count;++j) {
+            rf_entity_class_sphere *s=spheres+j;
+            for(k=0;o->name[k];++k) {
+                unsigned a=(unsigned char)s->name[k],b=(unsigned char)o->name[k];
+                if(a>='A' && a<='Z')a+=32;if(b>='A' && b<='Z')b+=32;
+                if(a!=b)break;
+            }
+            if(o->name[k])continue;
+            s->scalar_sp=o->scalar_sp;s->scalar_mp=o->scalar_mp;
+            if(o->radius>0)s->radius=o->radius;
+            if(o->parameter_10>0) {s->parameter_10=o->parameter_10;s->opaque_14=o->opaque_14;}
+            s->selected_scalar=network_mode?o->scalar_mp:o->scalar_sp;
+            break;
+        }
+    }
+    return RF_OK;
+}
 uint32_t rf_entity_creation_physics_flags(uint32_t creation_flags,uint32_t class_flags_724,
     uint32_t class_flags_728,uint32_t class_kind_1b4,uint8_t network_mode)
 {

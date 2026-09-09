@@ -6,6 +6,23 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==4 && !strcmp(argv[1],"--sphere-declarations")) {
+        rf_entity_sphere_declarations declarations,before;
+        memset(&declarations,0xa5,sizeof(declarations));before=declarations;
+        if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"entity.tbl",&entry) || entry.size>512*1024)return 2;
+        text=malloc(entry.size);if(!text)return 2;
+        status=rf_vpp_read(&archive,&entry,0,text,entry.size);
+        if(!status)status=rf_entity_sphere_declarations_read(text,entry.size,argv[3],&declarations);
+        free(text);rf_vpp_close(&archive);
+        if(status && memcmp(&declarations,&before,sizeof(declarations)))return 4;
+        if(status)return 3;
+        printf("%u\n",declarations.count);
+        for(i=0;i<declarations.count;++i) {
+            uint32_t j;const unsigned char *p=(const unsigned char*)(declarations.items+i);
+            for(j=0;j<sizeof(*declarations.items);++j)printf("%02x",p[j]);printf("\n");
+        }
+        return 0;
+    }
     if(argc==6 && !strcmp(argv[1],"--state-set")) {
         rf_entity_state_set *set=malloc(sizeof(*set)),*before=malloc(sizeof(*set));
         if(!set || !before || rf_vpp_open(&archive,argv[3]))return 2;

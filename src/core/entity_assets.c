@@ -2,6 +2,8 @@
 #include "rf/model.h"
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
+#include <float.h>
 int rf_entity_assets_load(const char *path,const char *class_name,const char *skin,
     rf_entity_assets *assets,uint32_t budget)
 {
@@ -89,6 +91,49 @@ static int token(lexer *l,char out[256],int *quoted)
 }
 static int asset(char destination[64],const char *source)
 {size_t n=strlen(source);if(!n || n>=64)return RF_RANGE;memcpy(destination,source,n+1);return RF_OK;}
+static int sphere_number(lexer *l,float *result)
+{
+    char t[256],*end;int quoted,status;double value;
+    status=token(l,t,&quoted);if(status || quoted)return RF_FORMAT;
+    value=strtod(t,&end);if(end==t || *end || !isfinite(value) || fabs(value)>FLT_MAX)return RF_FORMAT;
+    *result=(float)value;return RF_OK;
+}
+int rf_entity_sphere_declarations_read(const void *text,uint32_t bytes,const char *class_name,
+    rf_entity_sphere_declarations *result)
+{
+    lexer l={(const unsigned char*)text,bytes,0};rf_entity_sphere_declarations value={0};char t[256];
+    int status,quoted,selected=0,found=0;
+    if(!text || !class_name || !*class_name || !result)return RF_RANGE;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            selected=same(t,class_name);found=selected;
+        } else if(selected && same(t,"$Collision")) {
+            rf_entity_sphere_override *o;lexer saved;
+            if(token(&l,t,&quoted) || quoted)return RF_FORMAT;
+            if(!same(t,"Sphere:"))continue;
+            if(value.count==8)return RF_RANGE;o=value.items+value.count++;
+            if(token(&l,t,&quoted) || !quoted || strlen(t)>=24)return RF_FORMAT;
+            memcpy(o->name,t,strlen(t)+1);o->radius=-1;o->parameter_10=-1;
+            if(sphere_number(&l,&o->scalar_sp) || sphere_number(&l,&o->scalar_mp))return RF_FORMAT;
+            saved=l;status=token(&l,t,&quoted);
+            if(!status && !quoted && same(t,"+radius:")) {if(sphere_number(&l,&o->radius))return RF_FORMAT;}
+            else l=saved;
+            saved=l;status=token(&l,t,&quoted);
+            if(!status && !quoted && same(t,"+spring")) {
+                float length;
+                if(token(&l,t,&quoted) || quoted || !same(t,"constant:") || sphere_number(&l,&o->parameter_10))return RF_FORMAT;
+                if(token(&l,t,&quoted) || quoted || !same(t,"+spring"))return RF_FORMAT;
+                if(token(&l,t,&quoted) || quoted || !same(t,"length:") || sphere_number(&l,&length))return RF_FORMAT;
+                memcpy(&o->opaque_14,&length,4);
+            } else l=saved;
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;*result=value;return RF_OK;
+}
 static int state_group_exists(const void *text,uint32_t bytes,const char *class_name,const char *weapon)
 {
     lexer l={(const unsigned char*)text,bytes,0};char t[256];int status,quoted,selected=0;

@@ -1,5 +1,32 @@
 # Level entity records
 
+Named class collision-sphere overrides now use `rf_entity_sphere_overrides`.
+Original 0x423e7e..0x42405d walks declarations in order, using
+0x503260 -> 0x5014c0 -> 0x53c2fb to find the first ASCII-insensitive name
+prefix match. Missing names do nothing; repeated declarations apply in order.
+The two authored scalars always replace their respective fields, with the
+selected scalar chosen by the network byte. Radius and spring constant/length
+replace defaults only when radius or spring constant is positive. The original
+parser at 0x41d320 identifies the optional spring fields by literal table tags;
+the physical meaning of the required scalar pair remains unassigned.
+
+`verify_entity_sphere_overrides.py` checks 270 original/PC/linked-NXDK cases,
+including prefix collisions, mixed case, empty/missing names, repeated overrides,
+and nonpositive/NaN optional values. It executes original lookup callees without
+hooks and checks unrelated class storage remains unchanged. The bounded shared
+API additionally rejects unterminated names and counts above eight before writes.
+
+`rf_entity_sphere_declarations_read` extracts these declarations without allocation
+from caller-owned table text. This is metadata scaffolding, not the complete
+original parser: unrelated fields are skipped. Optional radius precedes optional
+spring constant and required spring length. Finite numeric values and names of
+at most 23 bytes are required. Errors preserve output. Independent installed-data
+comparison covers all 151 declarations in 63 classes and six malformed fixtures,
+including output preservation. miner1 supplies scalar pairs .5/.5, 1/1 and 5/2
+for csphere_0/1/2, with no radius or spring replacement. Material coefficients,
+authored class flag mapping and live body integration remain open; these tests
+do not establish a spawned miner in XEMU.
+
 `rf_level_owned_entities_open` now retains authored entity records in one
 budgeted allocation. Each item owns the existing decoded record plus its complete
 raw span, preserving fields the reader currently skips. The input level/archive

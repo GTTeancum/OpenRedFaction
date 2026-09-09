@@ -3,6 +3,16 @@
 #include "rf/vpp.h"
 #include "rf/level.h"
 #include "rf/motion_file.h"
+#include "rf/entity.h"
+typedef struct rf_entity_sphere_declarations {
+    uint32_t count;rf_entity_sphere_override items[8];
+} rf_entity_sphere_declarations;
+/* Bounded installed-table metadata reader for named sphere overrides, optional
+ * radius and spring constant/length. Missing options use -1 (length bits zero
+ * until a spring is supplied). No class defaults or model matching; errors
+ * preserve output. This is not the original full table parser. */
+int rf_entity_sphere_declarations_read(const void *text,uint32_t bytes,const char *class_name,
+    rf_entity_sphere_declarations *result);
 typedef struct rf_entity_assets {
     char model[64];
     char textures[64][64];uint32_t texture_count;
