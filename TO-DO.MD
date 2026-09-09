@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Apply the original landing/movement transition to the verified stationary-world support query to resolve the miner's slope drift.
+- [ ] Extend verified static landing and zero-input grounded idle into general grounded movement, support loss and moving platforms.
 - [ ] Replace provisional spawn pose, initial inertia and cached colliders with verified runtime behavior.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -46,6 +46,13 @@ frame. Run 20260909-152946-815112 passes in stock 64 MiB XEMU: all 64 raw query
 records match PC, with 42 walkable contacts starting at frame 22. Captured probe
 preparation matches original instructions; it uses the recovered query flag 4.
 This observation does not yet change the passive body's movement mode.
+Static landing is now integrated: the miner transitions from fall (3) to its
+class run descriptor (1) at frame 22, then remains stationary for 41 updates.
+The passive fixture no longer drifts. Original/PC/NXDK landing comparisons pass
+for 42 captured contacts, including preserved horizontal velocity; the original
+grounded dispatcher confirms the zero-input idle case. General grounded motion,
+support loss, moving platforms and landing effects remain open. The live fixture
+rejects unsupported class descriptors and nonzero grounded force/velocity.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

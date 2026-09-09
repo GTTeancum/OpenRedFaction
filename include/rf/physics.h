@@ -124,4 +124,9 @@ typedef struct rf_physics_ground_probe {
 int rf_physics_ground_prepare(const rf_physics_sphere *spheres,uint32_t count,
     const float next_position[3],uint32_t collision_flags,int falling,float dt,
     float class_speed,float support_y,rf_physics_ground_probe *result);
+/* Numeric stationary-support landing: 4a0b31 position clamp/bounds and
+ * 419901..4199fe normal class-run transition with zero support/contact velocity.
+ * Caller has accepted the contact normal and resolves the movement descriptor.
+ * No damage, sound, animation, contact metadata or entity registry writes. */
+int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction);
 #endif

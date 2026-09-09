@@ -10,6 +10,7 @@ extern rf_physics_body_state rf_scene_actor_fall_state;
 extern uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
 extern uint32_t rf_scene_actor_tick_stats[8];
 extern uint32_t rf_scene_actor_ground_stats[8];
+extern uint32_t rf_scene_actor_landing[8];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored,body_mode;
@@ -24,9 +25,9 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
        mesh->bytes>c->world.bytes+1024*1024 || memcmp(mesh->vertices,c->world.vertices,c->world.bytes))return RF_FORMAT;
     if(c->address && (c->address!=mesh->vertices || c->material_address!=materials->items))return RF_FORMAT;
     c->address=mesh->vertices;c->material_address=materials->items;
-    if(c->body_mode && frame==24 &&
-       (memcmp(scene_actor_body.state.position,rf_scene_actor_fall_state.position,12) ||
-        memcmp(scene_actor_body.state.velocity,rf_scene_actor_fall_state.velocity,12)))return RF_FORMAT;
+    if(c->body_mode && frame>22 && (rf_scene_actor_landing[1]!=1 ||
+       scene_actor_body.state.velocity[0]!=0 || scene_actor_body.state.velocity[1]!=0 ||
+       scene_actor_body.state.velocity[2]!=0))return RF_FORMAT;
     bytes=(const uint8_t*)(mesh->vertices+world);
     for(i=0;i<mesh->bytes-c->world.bytes;++i)hash=(hash^bytes[i])*16777619u;
     if(frame && hash!=c->last)++c->changed;c->last=hash;
@@ -134,6 +135,10 @@ int main(int argc,char **argv)
                 printf("ACTOR_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_tick_stats[i]);puts("");
                 if(rf_scene_actor_ground_stats[1]!=64 || !rf_scene_actor_ground_stats[3])return 3;
                 printf("ACTOR_GROUND");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_ground_stats[i]);puts("");}
+            if(body_mode) {
+                if(rf_scene_actor_landing[2]!=22 || rf_scene_actor_landing[3]!=1 || rf_scene_actor_landing[4]!=41)return 3;
+                printf("ACTOR_LANDING");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_landing[i]);puts("");
+            }
             if(rf_scene_actor_physics_diagnostic[1]!=1 || rf_scene_actor_physics_diagnostic[2]!=64 || rf_scene_actor_physics_diagnostic[3]!=3)return 3;
             printf("PHYSICS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_physics_diagnostic[i]);puts("");
             {rf_geometry_collision_world collision={0};uint32_t sweep[8];

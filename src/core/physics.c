@@ -3,6 +3,26 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction)
+{
+    rf_physics_body_state value;float candidate;uint32_t k;
+    if(!state || !probe || !isfinite(fraction) || fraction<0 || fraction>=1 ||
+       !isfinite(probe->start[1]) || !isfinite(probe->end[1]) ||
+       !isfinite(state->bounds.radius) || state->bounds.radius<0)return RF_RANGE;
+    value=*state;
+    candidate=(float)(((double)probe->end[1]-probe->start[1])*fraction+probe->start[1]+.05f);
+    if(!isfinite(candidate))return RF_RANGE;
+    for(k=0;k<3;++k)if(!isfinite(value.next_position[k]) || !isfinite(value.velocity[k]))return RF_RANGE;
+    value.next_position[1]=fminf(value.next_position[1],candidate);
+    memcpy(value.position,value.next_position,12);
+    for(k=0;k<3;++k) {
+        value.bounds.minimum[k]=(float)((double)value.position[k]-value.bounds.radius);
+        value.bounds.maximum[k]=(float)((double)value.position[k]+value.bounds.radius);
+        if(!isfinite(value.bounds.minimum[k]) || !isfinite(value.bounds.maximum[k]))return RF_RANGE;
+    }
+    value.velocity[1]=0;value.flags&=~(0x400000u|0x200000u);
+    *state=value;return RF_OK;
+}
 int rf_physics_contact_advance(rf_physics_body_state *state,float dt,float fraction,float *remaining)
 {
     float delta[3],position[3],adjusted=fraction,left;double length;uint32_t i;

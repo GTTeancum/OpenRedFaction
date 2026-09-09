@@ -361,3 +361,40 @@ damage, landing mode changes and grounded movement remain open. Support exists
 before the passive fixture's first collision, so waiting for that collision
 alone is not a faithful substitute for the original support update. No new
 screen was captured because this change only observes support.
+
+## Static landing and grounded idle
+
+Shared `rf_physics_static_land` applies the static support position clamp from
+4a0b31, copying next/current position and rebuilding bounds. It clears support
+flag 0x400000 and the ordinary landing path's 0x200000 flag, and clears vertical
+velocity while preserving horizontal components for zero support/contact
+velocity. `verify_actor_landing.py` executes 4a0b31..4a0bfa and the original
+419901..return transition with actual callees and a prepared registered run
+descriptor. All 42 captured contacts match PC and NXDK machine code across the
+complete shared body state. Sound/damage code before the transition is excluded.
+
+The same verifier runs original 49f646..49f8aa with zero steering, force, support
+velocity and velocity. It confirms unchanged position and zero velocity for all
+42 cases. The live scene implements this idle case after landing; nonzero force
+or velocity returns an explicit unsupported-fixture error. It does not silently
+freeze a generally moving grounded actor. The scene also requires authored run
+index 1, the ordinary class flag and no special landing-class flag. It retains
+the existing scripted animation and initial collider assumptions.
+
+Run `artifacts/xemu/20260909-153645-768066/report.json` passes: one fall-to-run
+transition at zero-based frame 22, 41 idle updates, 63 total updates, 22 falling
+passes and zero collision impulses. The earlier isolated first-contact fixture
+still checks collision response independently. All 64 rendered meshes and
+ground records match PC. Native `framebuffer.png` shows the actor remaining
+centered instead of sliding down the slope. Its PC comparison passes with 10
+of 307,200 pixels exceeding three channel levels (mean maximum channel error
+0.03133). Both builds, cancellation/capacity checks and four CTests pass.
+
+This is static landing for the passive miner, not the complete 419830 lifecycle.
+General grounded acceleration/friction, descriptor ownership, contact material
+state, animation selection, landing sound/damage, moving support and support
+loss remain open. The diagnostic continues recording falling-depth probes after
+landing for comparison; those records are not the original grounded scheduling
+policy and do not repeatedly apply the landing transition.
+The follow-up run `artifacts/xemu/20260909-153914-036824/report.json` passes
+after adding the unsupported-class guard; it skips redundant framebuffer capture.

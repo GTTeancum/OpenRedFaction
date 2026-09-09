@@ -8,6 +8,14 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--land")) {
+        struct {rf_physics_body_state state;rf_physics_ground_probe probe;float fraction;} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(rf_physics_static_land(&input.state,&input.probe,input.fraction))return 3;
+            if(fwrite(&input.state,sizeof(input.state),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ground")) {
         struct {rf_physics_sphere spheres[3];float position[3];uint32_t flags,falling;float dt,speed,support_y;} input;
         rf_physics_ground_probe value;

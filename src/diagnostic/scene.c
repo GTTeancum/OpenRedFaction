@@ -128,6 +128,7 @@ typedef struct actor_ground_record {
 _Static_assert(sizeof(actor_ground_record)==132,"Guest ground record layout");
 actor_ground_record rf_scene_actor_ground_records[64];
 uint32_t rf_scene_actor_ground_stats[8]; /* magic, records, hits, walkable, first walkable frame, hash, stride, status */
+uint32_t rf_scene_actor_landing[8]; /* magic, descriptor index, frame, transitions, idle ticks, status, reserved */
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
     actor_ground_record *r=rf_scene_actor_ground_records+frame;float start[3],delta[3];uint32_t k;int status;
@@ -230,6 +231,15 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
 static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state)
 {
     float remaining=1.0f/60,support[3]={0},normal[3];uint32_t pass=0,contacts=0;int status;
+    if(rf_scene_actor_landing[1]==1) {
+        uint32_t k;
+        /* Verified zero-input run branch of 49f646..49f8aa. Fail explicitly
+         * if this passive fixture needs general grounded force/steering. */
+        for(k=0;k<3;++k)if(state->velocity[k]!=0 || state->vector_e0[k]!=0)return RF_RANGE;
+        memcpy(state->next_position,state->position,12);state->flags|=0x1000000;
+        ++rf_scene_actor_tick_stats[1];rf_scene_actor_tick_stats[6]=0;rf_scene_actor_tick_stats[7]=1;
+        ++rf_scene_actor_landing[4];return RF_OK;
+    }
     state->flags&=~0x1000000u;
     do {
         float fraction,impact;uint32_t sphere;
@@ -283,6 +293,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         rf_scene_actor_pose.radius=scene_actor_body.state.bounds.radius;
         status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
         memset(rf_scene_actor_tick_stats,0,sizeof(rf_scene_actor_tick_stats));rf_scene_actor_tick_stats[0]=0x5246544b;
+        memset(rf_scene_actor_landing,0,sizeof(rf_scene_actor_landing));
+        rf_scene_actor_landing[0]=0x52464c44;rf_scene_actor_landing[1]=3;rf_scene_actor_landing[2]=UINT32_MAX;
     }
     uint64_t bytes=(uint64_t)stream->world*sizeof(rf_preview_vertex)+actor->bytes;
     if(actor->count%3 || actor->bytes!=(uint64_t)actor->count*sizeof(rf_preview_vertex) ||
@@ -309,6 +321,12 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         int status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);if(status)return status;
         if(stream->collision && frame<63) {
             rf_physics_body_state next=scene_actor_body.state;
+            const actor_ground_record *ground=rf_scene_actor_ground_records+frame;
+            if(rf_scene_actor_landing[1]==3 && ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f) {
+                status=rf_physics_static_land(&next,&ground->probe,ground->hit.hit.fraction);if(status)return status;
+                rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;
+                ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
+            }
             status=actor_tick(stream->collision,&next);if(status)return status;
             status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return status;
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
@@ -341,6 +359,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         rf_vpp tables;status=rf_vpp_open(&tables,tables_path);if(status)goto done;
         status=rf_entity_physics_config_load(&tables,binding.entity.class_name,512*1024,&physics_config);
         rf_vpp_close(&tables);if(status)goto done;
+        /* Live landing currently implements the ordinary class-run branch.
+         * Reject other descriptors/special landing classes rather than silently
+         * treating them as this passive miner fixture. */
+        if(collision && (physics_config.authored.movement_index!=1 ||
+           !(physics_config.authored.flags&1) || (physics_config.authored.flags&0x2000000))) {status=RF_FORMAT;goto done;}
         rf_physics_body_close(&scene_actor_body);memset(rf_scene_actor_physics_diagnostic,0,sizeof(rf_scene_actor_physics_diagnostic));
         placement.physics_config=&physics_config;placement.physics_body=&scene_actor_body;
         placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;

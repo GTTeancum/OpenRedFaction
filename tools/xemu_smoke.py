@@ -96,6 +96,7 @@ def main():
         actor_frame_reference=[(int(n)*3,int(h,16)) for n,h in re.findall(r'Frame \d+ actor triangles (\d+) hash ([0-9a-f]+)',output)][:64]
         if args.actor_body:actor_tick_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_TICKS ')).split()[1:]))
         if args.actor_body:actor_ground_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND ')).split()[1:]))
+        if args.actor_body:actor_landing_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_LANDING ')).split()[1:]))
         actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
         actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
         actor_fall_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FALL ')).split()[1:]))
@@ -310,12 +311,15 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             ground_hash=2166136261
                             for byte in struct.pack('<2112I',*ground_records):ground_hash=((ground_hash^byte)*16777619)&0xffffffff
                             if ground_hash!=ground[5]:raise RuntimeError('Captured ground record hash differs from guest summary')
-                            report['actor_ground']=dict(records=ground[1],hits=ground[2],walkable=ground[3],first_walkable_frame=ground[4],hash=hex(ground[5]),scope='Stationary-world support observation in prepared falling mode; no landing transition.')
+                            report['actor_ground']=dict(records=ground[1],hits=ground[2],walkable=ground[3],first_walkable_frame=ground[4],hash=hex(ground[5]),scope='Diagnostic falling-depth support probes; first accepted support feeds the separate static landing transition.')
+                            landing=memory_snapshot['symbols']['rf_scene_actor_landing']['words']
+                            if landing!=actor_landing_reference:raise RuntimeError('Actor landing differs from PC')
+                            report['actor_landing']=dict(mode=landing[1],frame=landing[2],transitions=landing[3],idle_ticks=landing[4],scope='Stationary normal class-run landing, zero force/steering idle branch; no damage/sound/AI.')
                             pose=memory_snapshot['symbols']['rf_scene_actor_pose']['words']
                             body=memory_snapshot['symbols']['scene_actor_body']['words']
                             if not pose[0]&0x4000000 or any(pose[i:i+3]!=body[22:25] for i in (14,17,20)) or body[22:25]!=body[25:28] or pose[53:59]!=body[62:68]:raise RuntimeError('Actor public/current/pending pose or bounds diverged')
                             report['actor_pose_commit_matches_body']=True
-                            report['actor_physics']['scope']='Live body advances passive physics between rendered frames; scripted animation and provisional initial pose/inertia. No grounded movement selection, full gameplay lifecycle or AI.'
+                            report['actor_physics']['scope']='Live passive falling followed by static run landing and zero-input idle; scripted animation and provisional initial pose/inertia. General grounded movement, gameplay lifecycle and AI remain open.'
                         actor_world=memory_snapshot['symbols']['rf_actor_world_diagnostic']['words']
                         if actor_world!=actor_world_reference:raise RuntimeError(f'Actor world sweep mismatch: {actor_world}; PC {actor_world_reference}')
                         report['actor_world']=dict(words=actor_world,scope='Actual retained actor spheres swept two units along six world axes against stationary geometry; diagnostic mask 0x460, no movement response.')
