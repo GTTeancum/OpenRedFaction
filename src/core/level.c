@@ -488,6 +488,44 @@ int rf_group_translation_tick_finish(rf_group_translation_runtime *runtime,
     }
     *runtime=next;*sounds=requests;frame->stage=RF_GROUP_TICK_DONE;return RF_OK;
 }
+static int group_finite(const void *values,uint32_t count)
+{
+    uint32_t i,bits;
+    for(i=0;i<count;i++) {memcpy(&bits,(const unsigned char *)values+4*i,4);if((bits&0x7f800000u)==0x7f800000u)return 0;}
+    return 1;
+}
+int rf_group_translation_propagate(rf_group_attached_pose *pose,
+    const rf_group_translation_contribution *contributions,uint32_t count,
+    float dt,uint32_t force)
+{
+    rf_group_attached_pose next;float target[3],delta,displacement;uint32_t i,j,dirty=0;
+    if(!pose || count>4 || (count && !contributions))return RF_RANGE;
+    for(i=0;i<count;i++)dirty|=contributions[i].flags&0x80000008u;
+    if(!count || (!force && !dirty))return RF_OK;
+    if(!group_finite(&pose->radius,13) || (!force && (!group_finite(pose->position,3) || !group_finite(&dt,1) || dt==0)))return RF_FORMAT;
+    for(i=0;i<count;i++) {
+        if(contributions[i].flags&0x804)return RF_RANGE;
+        if(!group_finite(contributions[i].first_key,6))return RF_FORMAT;
+    }
+    next=*pose;memcpy(target,pose->base_position,12);
+    for(i=0;i<count;i++)for(j=0;j<3;j++) {
+        delta=contributions[i].pending[j]-contributions[i].first_key[j];target[j]=target[j]+delta;
+    }
+    next.flags|=0x4000000;
+    memcpy(next.input_matrix,next.base_matrix,36);memcpy(next.output_matrix,next.base_matrix,36);memcpy(next.pending_matrix,next.base_matrix,36);
+    if(force) {
+        memcpy(next.position,target,12);memcpy(next.public_position,target,12);memcpy(next.pending,target,12);memset(next.velocity,0,12);
+    } else for(j=0;j<3;j++) {
+        delta=target[j]-next.position[j];next.velocity[j]=delta/dt;
+        displacement=next.velocity[j]*dt;next.pending[j]=next.position[j]+displacement;
+    }
+    for(j=0;j<3;j++) {
+        next.minimum[j]=(next.position[j]<next.pending[j]?next.position[j]:next.pending[j])-next.radius;
+        next.maximum[j]=(next.position[j]>next.pending[j]?next.position[j]:next.pending[j])+next.radius;
+    }
+    if(!group_finite(next.pending,6) || !group_finite(next.minimum,6))return RF_FORMAT;
+    *pose=next;return RF_OK;
+}
 int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
     uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,
     uint32_t *refs,uint32_t *ref_count,uint32_t *handles,uint32_t *handle_count,

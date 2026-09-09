@@ -1885,3 +1885,29 @@ contributions. Report: `artifacts/group-propagation-original.json`.
 This establishes the translation path, not rotation, flag-800 orientation
 alignment, collision response, production C propagation or initialization of
 the base-pose fields from real level objects. Those remain open. No render change.
+
+### Shared C attached translation propagation
+
+`rf_group_translation_propagate` now applies the verified translation path to
+a caller-owned 236-byte pose snapshot and up to four ordered contributions.
+It includes every accepted contribution when forced or any contributor is
+dirty, preserves duplicates, copies base orientation to all three pose matrices,
+and reproduces both direct forced assignment and the normal velocity round
+trip. Bounds and dirty flags update with the original ordering. No heap storage
+is used; no contributors or no force/dirty state leaves the pose untouched.
+
+The caller must collect valid handles in the original order. This helper does
+not replace registry lookup, membership filtering, base-pose initialization,
+rotation or flag-800 orientation alignment. Unsupported active contributions,
+invalid numeric input and zero dt on normal updates return errors without
+changing the pose. Forced updates do not require dt because that branch does
+not divide by it.
+
+`python tools/verify_group_propagation.py` compares all mapped pose bytes against
+the 2,000 complete-original-function fixtures on PC and compiled NXDK. All pass,
+including positions, velocity, three matrices, bounds, dirty/no-op behavior and
+the 200 velocity-rounding differences from direct targets. Four additional
+count/unsupported/nonfinite/zero-dt guards preserve state. Report:
+`artifacts/group-propagation-verification.json`. The isolated NXDK instruction
+budget includes its library's byte-wise copies of the pose snapshot. Both builds
+and four CTest checks pass. This is not connected to scene rendering yet.

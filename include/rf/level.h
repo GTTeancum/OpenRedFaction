@@ -141,6 +141,22 @@ int rf_group_translation_tick_move(rf_group_translation_runtime *runtime,
     rf_group_translation_frame *frame);
 int rf_group_translation_tick_finish(rf_group_translation_runtime *runtime,
     rf_group_translation_frame *frame,uint32_t key_count,uint32_t *sounds);
+typedef struct rf_group_translation_contribution {
+    float first_key[3],pending[3];uint32_t flags;
+} rf_group_translation_contribution;
+typedef struct rf_group_attached_pose {
+    uint32_t flags;float radius,base_position[3],base_matrix[9];
+    float position[3],public_position[3],pending[3],velocity[3];
+    float input_matrix[9],output_matrix[9],pending_matrix[9],minimum[3],maximum[3];
+} rf_group_attached_pose;
+/* Translation portion of 46bbe0 after handle collection. Caller supplies
+ * accepted contributions in original order, retaining duplicates (max 4).
+ * Includes clean contributors when any is dirty, or force is set. No heap.
+ * Rotation/flag-800 orientation override are unsupported. Errors preserve
+ * pose; no contributors or no dirty/force leaves it unchanged. */
+int rf_group_translation_propagate(rf_group_attached_pose *pose,
+    const rf_group_translation_contribution *contributions,uint32_t count,
+    float dt,uint32_t force);
 /* 46b6e8..46b79c mover membership pass. objects follow original global list
  * order; first matching UID wins, with -1 absent and -999 excluding flag 2.
  * Compacts refs in place, appends accepted handles, updates parents/flags and

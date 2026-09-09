@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Original attached translation propagation passes 2,000 full-function fixtures;
-port its ordered contributions and velocity-derived pending pose, then connect
-authored movers and the remaining trigger/event boundaries to the scene.
+Shared C attached translation matches 2,000 original propagation fixtures;
+bind ordered controller contributions and base poses from authored movers,
+then connect scene motion and the remaining trigger/event boundaries.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
