@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Extend the working process-local steering fixture to exercise live support loss and recovery in XEMU.
+- [ ] Connect the verified longer support-loss/recovery route to continuous animation and rendering.
 - [ ] Replace scripted stance eligibility and resolve the initial class animation pose.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -17,6 +17,12 @@ after sphere replacement, before animation and rendering. Run
 `20260909-173908-972553` passes all stance-query memory comparisons in 64 MiB
 XEMU. The standing-clearance copy test still isolates clearance/center changes;
 full general query gates and live ledge traversal remain open.
+
+Longer physics routes now advance eight independent 600-update paths from the
+rendered miner body, using real geometry and collision responses. Positive X
+loses and regains support three times; the other routes exercise sustained
+contacts. PC/XEMU route hashes and endpoints agree. This is not yet animated
+traversal; the visible scene still stops at 64 frames.
 
 Capture and post screenshots only when there is a new visible result.
 

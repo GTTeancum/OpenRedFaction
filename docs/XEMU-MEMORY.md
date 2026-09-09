@@ -1044,3 +1044,46 @@ landing/support verifier passes 42 prepared contacts on PC/NXDK, plus its two
 original no-hit/steep support-loss cases. No new framebuffer was captured.
 This closes the delayed stance-query ordering gap recorded in the preceding
 audit, but does not demonstrate walking off a ledge or full gameplay.
+
+
+## Longer physics routes beyond the rendered fixture
+
+The optional `actor-routes.flag` mode continues the owned miner body's physics
+for eight independent 600-update routes after the 64-frame drive scene. Cardinal
+and diagonal constant steering commands use the existing movement transform,
+run/fall proposal, sphere/world sweeps, contact response and pose setter. Ground
+material/traction comes from each support face. Every route starts from the final
+rendered body, evolves its own state without replaying a trajectory, and uses
+the existing simplified movement gate. The render fixture's state and counters
+are restored afterwards. Animation is not advanced during these extra routes;
+this is physics integration evidence, not a 600-frame animated gameplay scene.
+
+Long routes use stack-local contact records instead of the 64-contact render
+trace, retaining total contacts and capped-update counts. No route allocates
+memory per update. Guest `rf_scene_actor_routes` holds eight 16-word records:
+status, completed updates, landings, support losses, contacts, capped updates,
+final mode, rolling full-body-state hash, final position XYZ, final velocity XYZ,
+first loss update (UINT32_MAX if absent), and last landing update. The hash
+includes every resulting 308-byte body state. Matching hashes are compact
+comparison evidence, not a retained byte-for-byte trace of every update.
+
+Use `--traverse` in `rf_scene_check.exe` with the usual archive arguments. For
+XEMU, create `build/xbox/disc/actor-routes.flag`, rebuild the disc with
+`tools/build-xbox.sh`, and run `python tools/xemu_smoke.py --actor-routes
+--no-capture --seconds 180`. Remove that optional flag and rebuild before running
+normal `--actor-drive` checks; the harness checks the guest mode explicitly.
+The scene checks require all 4,800 updates to complete without a capped update,
+and positive X to lose support, recover every loss and finish grounded.
+
+The first comparison run `20260909-174316-688495` passed stock 64 MiB XEMU with
+three losses/three landings along positive X; the first loss was update 185 and
+last recovery 309. All eight route summaries and rolling state hashes matched
+PC. Both builds, four CTests and the passive, drive, sustained and extended PC
+profiles passed. The final revision also routes position/bounds synchronization
+through the same verified pose setter as the rendered actor; its validation run
+is recorded below. No screenshot was taken because the extra routes are not
+rendered. General entity query triggers, moving platforms and animated traversal
+remain open.
+
+Final pose-setter run `20260909-174417-380780` also passes all eight route
+comparisons in stock 64 MiB XEMU, retaining three positive-X losses/recoveries.

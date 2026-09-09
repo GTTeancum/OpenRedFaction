@@ -435,6 +435,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
     out[0]=0x5246464c;out[1]=1;out[2]=step;out[3]=sphere;memcpy(out+4,&fraction,4);out[5]=hash;
     memcpy(out+6,current.position+1,4);memcpy(out+7,current.velocity+1,4);return RF_OK;
 }
+static int actor_trace_contacts=1;
 static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state,const float command[3],const float ground_normal[3])
 {
     float remaining=scene_step_seconds,support[3]={0},normal[3];uint32_t pass=0,contacts=0;int status;
@@ -457,9 +458,11 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
         if(sphere==UINT32_MAX) {
             memcpy(state->position,state->next_position,sizeof(state->position));state->scalar_144=1;remaining=0;
         } else {
-            uint32_t *record;
-            if(rf_scene_actor_contact_count>=64)return RF_RANGE;
-            record=rf_scene_actor_contacts[rf_scene_actor_contact_count++];
+            uint32_t scratch[25],*record=scratch;
+            if(actor_trace_contacts) {
+                if(rf_scene_actor_contact_count>=64)return RF_RANGE;
+                record=rf_scene_actor_contacts[rf_scene_actor_contact_count++];
+            }
             record[0]=rf_scene_actor_tick_stats[1];record[1]=pass;record[2]=rf_scene_actor_landing[1];
             memcpy(record+3,state->velocity,24);memcpy(record+9,normal,12);
             memcpy(record+12,support,12);memcpy(record+15,support,12);
@@ -476,6 +479,60 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
     if(pass>rf_scene_actor_tick_stats[5])rf_scene_actor_tick_stats[5]=pass;
     memcpy(rf_scene_actor_tick_stats+6,&remaining,4);rf_scene_actor_tick_stats[7]=1;
     return RF_OK;
+}
+uint32_t rf_scene_actor_route_enabled;
+uint32_t rf_scene_actor_routes[8][16];
+/* Longer physics-only routes from the final rendered body. Each route owns its
+ * evolving state; restore the render diagnostic after all routes. No host input. */
+static int actor_routes(scene_stream *stream)
+{
+    static const float commands[8][3]={{1,0,0},{-1,0,0},{0,0,1},{0,0,-1},
+        {.70710677f,0,.70710677f},{-.70710677f,0,.70710677f},{.70710677f,0,-.70710677f},{-.70710677f,0,-.70710677f}};
+    rf_physics_body_state saved=scene_actor_body.state;
+    uint32_t landing[8],ticks[8],material=rf_scene_actor_ground_material,route,step;
+    float traction=rf_scene_actor_run_traction;
+    memcpy(landing,rf_scene_actor_landing,sizeof(landing));memcpy(ticks,rf_scene_actor_tick_stats,sizeof(ticks));
+    memset(rf_scene_actor_routes,0,sizeof(rf_scene_actor_routes));actor_trace_contacts=0;
+    for(route=0;route<8;++route) {
+        uint32_t *out=rf_scene_actor_routes[route],hash=2166136261u;int status=RF_OK;float previous[3];
+        memcpy(previous,saved.position,12);
+        scene_actor_body.state=saved;memcpy(rf_scene_actor_landing,landing,sizeof(landing));
+        memset(rf_scene_actor_tick_stats,0,sizeof(rf_scene_actor_tick_stats));
+        rf_scene_actor_run_traction=traction;rf_scene_actor_ground_material=material;out[14]=UINT32_MAX;
+        for(step=0;step<600;++step) {
+            actor_ground_record ground;rf_physics_body_state next=scene_actor_body.state;rf_group_attached_pose pose=rf_scene_actor_pose;
+            int walkable,moved=memcmp(previous,next.position,12)!=0;uint32_t before=rf_scene_actor_landing[1],i;
+            memcpy(previous,next.position,12);
+            status=actor_ground_query(stream->collision,&ground);if(status)break;
+            walkable=ground.matched && ground.hit.hit.fraction<1 && ground.hit.hit.normal[1]>=.5f;
+            if(walkable) {
+                rf_geometry_face face;
+                status=rf_geometry_get_face(stream->geometry,ground.hit.face,&face);if(status)break;
+                if(face.texture>=stream->geometry->textures) {status=RF_FORMAT;break;}
+                rf_scene_actor_ground_material=stream->surface_indices[face.texture];
+                rf_scene_actor_run_traction=rf_scene_actor_surface_values[rf_scene_actor_ground_material].traction;
+                if(before==3) {status=rf_physics_static_land(&next,&ground.probe,ground.hit.hit.fraction);
+                    rf_scene_actor_landing[1]=1;++out[2];out[15]=step;
+                } else if(moved)status=rf_physics_static_support(&next,&ground.probe,ground.hit.hit.fraction);
+                if(status)break;
+            } else if(before==1 && moved) {
+                next.flags|=1;rf_scene_actor_landing[1]=3;++out[3];if(out[14]==UINT32_MAX)out[14]=step;
+            }
+            status=actor_tick(stream->collision,&next,commands[route],ground.hit.hit.normal);if(status)break;
+            status=rf_group_pose_set_position(&pose,next.position);if(status)break;
+            memcpy(next.position,pose.position,12);memcpy(next.next_position,pose.pending,12);
+            memcpy(next.bounds.minimum,pose.minimum,12);memcpy(next.bounds.maximum,pose.maximum,12);
+            scene_actor_body.state=next;
+            for(i=0;i<sizeof(next);++i)hash=(hash^((const unsigned char*)&next)[i])*16777619u;
+            ++out[1];
+        }
+        out[0]=(uint32_t)status;out[4]=rf_scene_actor_tick_stats[3];out[5]=rf_scene_actor_tick_stats[4];
+        out[6]=rf_scene_actor_landing[1];out[7]=hash;
+        memcpy(out+8,scene_actor_body.state.position,12);memcpy(out+11,scene_actor_body.state.velocity,12);
+    }
+    scene_actor_body.state=saved;memcpy(rf_scene_actor_landing,landing,sizeof(landing));
+    memcpy(rf_scene_actor_tick_stats,ticks,sizeof(ticks));rf_scene_actor_ground_material=material;
+    rf_scene_actor_run_traction=traction;actor_trace_contacts=1;return RF_OK;
 }
 int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t out[8])
 {
@@ -694,6 +751,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,&stream);
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,&stream);
+        if(!status && collision && rf_scene_actor_route_enabled)status=actor_routes(&stream);
     }
 done:
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);

@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 extern uint32_t rf_scene_actor_physics_diagnostic[8];
+extern uint32_t rf_scene_actor_route_enabled,rf_scene_actor_routes[8][16];
 extern float rf_scene_actor_contact_time[4];
 extern rf_physics_body scene_actor_body;
 extern rf_physics_body_state rf_scene_actor_fall_state;
@@ -120,11 +121,11 @@ int main(int argc,char **argv)
     }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
-    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && !strcmp(argv[12],"--drive"),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
+    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
     if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && !body_mode)))return 2;
     c.authored=argc==13;
     c.body_mode=body_mode;
-    rf_scene_actor_drive(drive);
+    rf_scene_actor_drive(drive);rf_scene_actor_route_enabled=argc==13 && !strcmp(argv[12],"--traverse");
     c.meshes=argv[4];c.motions=argv[5];
     if(rf_vpp_open(&levels,argv[1]) || rf_level_open(&level,&levels,argv[2]) ||
        rf_scene_preview_camera(&level,(int32_t)strtol(argv[3],NULL,10)) ||
@@ -152,6 +153,11 @@ int main(int argc,char **argv)
         if(mode==0 && (status || c.next!=64 || !c.changed))return 3;
         if(mode==0) {
             if(body_mode) {if(rf_scene_actor_tick_stats[1]!=63)return 3;
+                if(rf_scene_actor_route_enabled) {
+                    printf("ACTOR_ROUTES");for(i=0;i<128;++i)printf(" %u",((uint32_t*)rf_scene_actor_routes)[i]);puts("");
+                    for(i=0;i<8;++i)if(rf_scene_actor_routes[i][0] || rf_scene_actor_routes[i][1]!=600 || rf_scene_actor_routes[i][5])return 3;
+                    if(!rf_scene_actor_routes[0][3] || rf_scene_actor_routes[0][2]!=rf_scene_actor_routes[0][3] || rf_scene_actor_routes[0][6]!=1)return 3;
+                }
                 printf("ACTOR_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_tick_stats[i]);puts("");
                 if(rf_scene_actor_ground_stats[1]!=64 || !rf_scene_actor_ground_stats[3])return 3;
                 printf("ACTOR_GROUND");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_ground_stats[i]);puts("");}

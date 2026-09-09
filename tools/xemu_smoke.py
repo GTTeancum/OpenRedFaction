@@ -72,7 +72,9 @@ def main():
     parser.add_argument('--door-motion',action='store_true',help='Expect door-motion.flag to draw 600 simultaneous door updates at 1/60-second steps')
     parser.add_argument('--door-motion-frames',type=int,default=600,help='Expected optional door-motion-frames.txt diagnostic endpoint (1..600)')
     parser.add_argument('--actor-contact',action='store_true',help='Expect actor-contact.flag sustained -X collision route')
+    parser.add_argument('--actor-routes',action='store_true',help='Expect eight 600-step physics routes after the rendered drive fixture')
     args = parser.parse_args()
+    if args.actor_routes:args.actor_drive=True
     if args.actor_contact:args.actor_drive=True
     if args.actor_drive:args.actor_body=True
     if args.actor_body:args.scene_states=True
@@ -95,9 +97,10 @@ def main():
         if not actor_physics_symbol:raise RuntimeError('Integrated actor physics symbol absent')
         scene_args=[str(root/'build/pc/Release/rf_scene_check.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','9858']
         scene_args += [str(root/'Installed_Game'/n) for n in ['meshes.vpp','motions.vpp','tables.vpp','maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp']]
-        output=subprocess.check_output(scene_args+['--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
+        output=subprocess.check_output(scene_args+['--traverse' if args.actor_routes else '--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
         actor_final_vertices=int(re.search(r'Frame 63 actor triangles (\d+)',output)[1])*3
         actor_frame_reference=[(int(n)*3,int(h,16)) for n,h in re.findall(r'Frame \d+ actor triangles (\d+) hash ([0-9a-f]+)',output)][:64]
+        if args.actor_routes:actor_routes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_ROUTES ')).split()[1:]))
         if args.actor_body:actor_tick_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_TICKS ')).split()[1:]))
         if args.actor_body:actor_ground_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND ')).split()[1:]))
         if args.actor_body:actor_landing_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_LANDING ')).split()[1:]))
@@ -325,6 +328,12 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             for symbol,reference in [('rf_scene_actor_stance_support',actor_stance_support_reference),('rf_scene_actor_stance_ground',actor_stance_ground_reference)]:
                                 if memory_snapshot['symbols'][symbol]['words']!=reference:raise RuntimeError('Immediate stance support differs from PC: '+symbol)
                             report['actor_stance_support']=dict(frames_match_pc=64,queries=sum(actor_stance_support_reference[i*9] for i in range(64)),scope='Accepted stance changes query and commit static support before animation and rendering; fixture eligibility remains scripted.')
+                            if memory_snapshot['symbols']['rf_scene_actor_route_enabled']['words'][0]!=int(args.actor_routes):raise RuntimeError('Actor route mode differs from request')
+                            if args.actor_routes:
+                                routes=memory_snapshot['symbols']['rf_scene_actor_routes']['words']
+                                if routes!=actor_routes_reference:raise RuntimeError('Long actor routes differ from PC')
+                                if not routes[2] or not routes[3]:raise RuntimeError('Positive X route did not lose and regain support')
+                                report['actor_routes']=dict(routes_match_pc=8,steps_per_route=600,positive_x_landings=routes[2],positive_x_losses=routes[3],scope='Physics-only independent routes from final rendered body; every resulting state contributes to each route hash. No longer animation or player input.')
                             clock=memory_snapshot['symbols']['rf_scene_actor_animation_timing']['words']
                             if clock!=actor_clock_reference:raise RuntimeError('Actor animation timing differs from PC')
                             report['actor_clock']=dict(frames_match_pc=64,initialization_step=1/30,runtime_step=1/60,scope='Controller and playback share physics step after a separate diagnostic initialization update.')
