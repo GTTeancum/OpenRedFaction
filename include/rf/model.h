@@ -143,6 +143,11 @@ int rf_model_finish_render_vertex(rf_model_render_cache *cache,float second[3],
  * nonperspective accepts !(dot(forward,normal)>0), including unordered. */
 int rf_model_triangle_facing(const float a[3],const float b[3],const float c[3],uint16_t flags,
     uint32_t perspective,const float camera[3],const float forward[3],uint32_t *accepted);
+typedef enum rf_model_triangle_route { RF_MODEL_TRIANGLE_REJECT=0,RF_MODEL_TRIANGLE_DIRECT=1,RF_MODEL_TRIANGLE_CLIP=2 } rf_model_triangle_route;
+/* Original 0x52f473 routing around facing and clipping. Does not generate a
+ * clipped polygon. All indices must fit original signed-short cache addressing. */
+int rf_model_route_triangle(const rf_model_render_cache *cache,uint32_t count,const uint16_t indices[3],
+    uint16_t flags,const rf_model_projection *view,uint32_t *route);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.

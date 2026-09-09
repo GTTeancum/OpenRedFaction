@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Triangle rejection/direct/clipping routing now matches 3,000 original cases.
+Recover polygon clipping and bounded index emission, then connect the routed
+triangles to material binding and Xbox draw submission.
+
 Model triangle facing now matches 2,000 original renderer cases, including
 two-sided flags and degenerate inputs. Connect frustum rejection, clipping and
 index emission to the processed animated batches.

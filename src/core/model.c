@@ -5,6 +5,23 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_route_triangle(const rf_model_render_cache *cache,uint32_t count,const uint16_t indices[3],
+    uint16_t flags,const rf_model_projection *view,uint32_t *route)
+{
+    const rf_model_render_cache *a,*b,*c;uint32_t facing;uint8_t any,common;int status;unsigned i;
+    if(!cache || !indices || !view || !route)return RF_RANGE;
+    for(i=0;i<3;++i)if(indices[i]>=count || indices[i]>INT16_MAX)return RF_RANGE;
+    a=cache+indices[0];b=cache+indices[1];c=cache+indices[2];
+    any=a->clip|b->clip|c->clip;common=a->clip&b->clip&c->clip;
+    if((view->screen_clip && any) || (!view->screen_clip && view->compute_clip && common)) {
+        *route=RF_MODEL_TRIANGLE_REJECT;return RF_OK;
+    }
+    status=rf_model_triangle_facing(a->world,b->world,c->world,flags,view->perspective,view->camera,view->rotation+6,&facing);
+    if(status)return status;
+    *route=!facing?RF_MODEL_TRIANGLE_REJECT:view->compute_clip && any?RF_MODEL_TRIANGLE_CLIP:RF_MODEL_TRIANGLE_DIRECT;
+    return RF_OK;
+}
+
 int rf_model_triangle_facing(const float a[3],const float b[3],const float c[3],uint16_t flags,
     uint32_t perspective,const float camera[3],const float forward[3],uint32_t *accepted)
 {

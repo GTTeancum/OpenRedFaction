@@ -12,6 +12,16 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--triangle-route")) {
+        struct {rf_model_render_cache cache[3];rf_model_projection view;uint16_t indices[3],flags;} data;
+        _Static_assert(sizeof(data)==216,"Triangle route wire layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            struct {int32_t status;uint32_t route;} result={0,99};
+            result.status=rf_model_route_triangle(data.cache,3,data.indices,data.flags,&data.view,&result.route);
+            if(fwrite(&result,8,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--triangle-facing")) {
         struct {float vertices[3][3],camera[3],forward[3];uint32_t flags,perspective;} data;
         while(fread(&data,sizeof(data),1,stdin)==1) {

@@ -1,5 +1,21 @@
 # Model batch data
 
+`rf_model_route_triangle` reconstructs renderer routing beginning at `0x52f473`.
+Screen-rejection mode drops a triangle if any vertex clip byte is nonzero.
+Otherwise, enabled frustum clipping first rejects a nonzero intersection of
+all three clip masks. Surviving triangles run the recovered facing test, then
+route directly when clipping is disabled or the union of clip masks is zero;
+a surviving nonzero union requires polygon clipping. It validates cache indices
+against both supplied capacity and original signed-short addressing before
+publishing a result. No memory is allocated.
+
+`tools/verify_model_triangle_route.py` executes the unchanged original routing
+branches and facing callees for 3,000 cases. All decisions match: 1,734 rejected,
+647 direct and 619 requiring clipping. Three invalid-index guards preserve
+output. The comparison stops before index capacity checks or polygon generation;
+those stages remain open, as does submission of model triangles to the GPU.
+PC/NXDK builds and four CTest checks pass.
+
 `rf_model_triangle_facing` recovers the culling branch at `0x52f4e8` through
 `0x5478f0` and its subtract/cross/dot helpers. Triangle flag 0x20 bypasses
 culling. Otherwise the normal is `(b-a) cross (c-b)` with original float stores.
