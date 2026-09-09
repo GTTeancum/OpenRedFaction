@@ -259,6 +259,16 @@ int rf_geometry_room_children(const rf_geometry *geometry,uint32_t room,
     }
     *count=total;return RF_OK;
 }
+int rf_geometry_primary_rooms(const rf_geometry *geometry,uint32_t *indices,
+    uint32_t capacity,uint32_t *count)
+{
+    uint32_t i,total=0,at=0;
+    if(!geometry || !geometry->data || !count)return RF_RANGE;
+    for(i=0;i<geometry->rooms;i++)if(!geometry->data[geometry->room_offsets[i]+34])total++;
+    if(total>capacity || (total && !indices))return RF_RANGE;
+    for(i=0;i<geometry->rooms;i++)if(!geometry->data[geometry->room_offsets[i]+34])indices[at++]=i;
+    *count=total;return RF_OK;
+}
 
 void rf_geometry_collision_room_close(rf_geometry_collision_room *room)
 {

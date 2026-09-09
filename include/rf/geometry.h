@@ -64,4 +64,9 @@ void rf_geometry_collision_room_close(rf_geometry_collision_room *room);
  * No allocation; indices and count remain unchanged on failure. */
 int rf_geometry_room_children(const rf_geometry *geometry,uint32_t room,
     uint32_t *indices,uint32_t capacity,uint32_t *count);
+/* Initial primary list: constructor append followed by detail-byte routing.
+ * File order, excluding nonzero detail bytes; no later runtime mutations.
+ * No allocation; outputs unchanged on failure. */
+int rf_geometry_primary_rooms(const rf_geometry *geometry,uint32_t *indices,
+    uint32_t capacity,uint32_t *count);
 #endif

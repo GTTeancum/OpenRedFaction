@@ -8,14 +8,27 @@ int main(int argc, char **argv)
     rf_level level;
     rf_geometry geometry;
     uint32_t budget = 8u * 1024u * 1024u;
-    int result,flags_mode=argc==4 && !strcmp(argv[3],"--flags"),links_mode=argc==4 && !strcmp(argv[3],"--links");
+    int result,flags_mode=argc==4 && !strcmp(argv[3],"--flags"),links_mode=argc==4 && !strcmp(argv[3],"--links"),primary_mode=argc==4 && !strcmp(argv[3],"--primary");
     if (argc != 3 && argc != 4) return 2;
-    if (argc == 4 && !flags_mode && !links_mode) budget = (uint32_t)strtoul(argv[3], NULL, 10);
+    if (argc == 4 && !flags_mode && !links_mode && !primary_mode) budget = (uint32_t)strtoul(argv[3], NULL, 10);
     result = rf_vpp_open(&archive, argv[1]);
     if (result != RF_OK) return 3;
     result = rf_level_open(&level, &archive, argv[2]);
     if (result == RF_OK) result = rf_geometry_open(&geometry, &level, budget);
     if (result == RF_OK) {
+        if(primary_mode) {
+            uint32_t i,n=0,guard=0xa5a5a5a5,*indices=(uint32_t*)malloc((size_t)(geometry.rooms+1)*4);
+            if(!indices)return 5;
+            printf("%u",geometry.rooms);for(i=0;i<geometry.rooms;i++)printf(" %u",geometry.data[geometry.room_offsets[i]+34]);printf("\n");
+            if(rf_geometry_primary_rooms(&geometry,indices,geometry.rooms,&n))return 6;
+            printf("%u",n);for(i=0;i<n;i++)printf(" %u",indices[i]);printf("\n");
+            if(n) {
+                memset(indices,0xa5,(size_t)(geometry.rooms+1)*4);
+                if(rf_geometry_primary_rooms(&geometry,indices,n-1,&guard)!=RF_RANGE || guard!=0xa5a5a5a5)return 7;
+                for(i=0;i<=geometry.rooms;i++)if(indices[i]!=0xa5a5a5a5)return 8;
+            }
+            free(indices);rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
+        }
         if(links_mode) {
             uint32_t i,j,at=geometry.room_links_offset,total=0,*indices;
             printf("%u %u\n",geometry.rooms,geometry.room_link_records);

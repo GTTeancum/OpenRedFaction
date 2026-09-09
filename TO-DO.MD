@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Explicit child-room lists now match 13,929 original loader links across 94 levels
-on PC/NXDK; recover primary-room ordering and later list mutations, then bind
-room queries to gameplay and validate in XEMU.
+Initial primary and child-room ordering now match the original across 94 levels;
+assemble budgeted loaded-world collision views, recover later room mutations
+and finalizer rejection, and validate queries in XEMU before gameplay use.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

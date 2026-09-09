@@ -534,3 +534,28 @@ proving the base fixture loads successfully. Report:
 `artifacts/room-links-verification.json`. Both builds, all 94 resident geometry
 load regressions and four CTest checks pass. Full gameplay room-list binding and
 XEMU validation remain open.
+
+## Initial primary-room ordering
+
+The room constructor tail `0x4ccdbf..0x4ccdd6` stores its all-room index and
+appends the room to solid +0x90 and +0x9c. The loader then supplies the file
+detail byte to `0x4ce110`. A nonzero detail value removes that room from +0x9c
+and appends it to +0xa8. Removal (`0x4bf550` -> `0x4ce390`) shifts remaining
+entries left, preserving their order. Thus the initial primary array contains
+file-order rooms with a zero detail byte; the detail array contains the nonzero
+ones in file order. Later transitions append to the destination and can change
+that ordering, so re-filtering file data does not reconstruct later state.
+
+`rf_geometry_primary_rooms` exposes this initial ordering with no allocation and
+preserves indices/count on insufficient capacity. It complements the explicit
+child-list accessor; neither accessor builds the world object or maintains later
+state. `python tools/verify_primary_rooms.py` executes the original constructor
+tail and complete detail setter, including unmodified append/removal helpers,
+with preallocated arrays. All-room, primary and detail indices are checked.
+Across 94 levels and 14,694 rooms, the PC and actual NXDK-linked primary accessor
+match all 2,738 primary entries. A further 500 synthetic cases exercise empty
+lists and detail bytes 0, 1, 2 and 255 against the original and NXDK; insufficient
+capacity preserves outputs. Report: `artifacts/primary-rooms-verification.json`.
+Both builds, the child-list regression and four CTest checks pass. Loaded-world
+assembly, later list mutations, original face-finalizer rejection and XEMU query
+validation remain open.
