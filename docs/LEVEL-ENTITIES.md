@@ -371,6 +371,35 @@ exhaustive floating-point equivalence or a shared complete body initializer.
 Connect the mapped body fields, retained spheres and general-center radius
 calculation before live entity initialization. There is no new visual output.
 
+## Sphere radius and world bounds
+
+`rf_physics_spheres_bounds` reconstructs complete 4a0cb0. It resets radius to
+zero, then takes the largest local center length plus sphere radius. Original
+40a000 computes the center length; 4a0ce2 stores that length as a float before
+adding the radius. The sum is also stored as float before the maximum update.
+No body orientation is applied to this enclosing radius.
+
+Bounds are position minus/plus the resulting radius, rounded to float and
+ordered per axis through original 539460. Equal endpoints select the second
+as minimum and first as maximum, which preserves the original signed-zero
+behavior for an empty list at a negative-zero position. The helper allocates
+no memory, permits an empty list and rejects nonfinite inputs, negative radii
+and unrepresentable intermediate/output values without changing the result.
+
+`tools/verify_physics_sphere_bounds.py` executes complete original 4a0cb0 and
+all callees without hooks. All 1,000 empty and 1/2/16/17/32-sphere cases match
+PC and compiled NXDK exactly for radius and six bound floats. Every other body
+byte and all source sphere bytes remain unchanged. Cases include arbitrary
+centers/positions and signed-zero empty bounds. Eighteen port-only guard cases
+also preserve output on both builds. Report:
+`artifacts/physics-sphere-bounds-verification.json`.
+
+Shared C uses double products and square root before the required float stores;
+these comparisons do not prove equivalence for every extended-x87 input. The
+radius, bounds, tensors, mapped initialization fields and sphere owner are now
+available, but still need to be combined into a runtime body initializer and
+connected to entity construction. No new rendered behavior is claimed.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

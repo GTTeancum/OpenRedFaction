@@ -8,6 +8,16 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--bounds")) {
+        rf_physics_sphere source[32];uint32_t count;float position[3];
+        struct {rf_physics_bounds value;int32_t status;} result;
+        while(fread(&count,4,1,stdin)==1) {
+            if(count>32 || fread(position,sizeof(position),1,stdin)!=1 || fread(source,sizeof(*source),count,stdin)!=count)return 2;
+            memset(&result,0xa5,sizeof(result));result.status=rf_physics_spheres_bounds(source,count,position,&result.value);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--world")) {
         float matrices[18];struct {float matrix[9];int32_t status;} result;
         while(fread(matrices,sizeof(matrices),1,stdin)==1) {

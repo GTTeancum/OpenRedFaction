@@ -23,6 +23,15 @@ typedef struct rf_physics_spheres {
  * negative radii; other field bits are preserved. Errors preserve output. */
 int rf_physics_spheres_open(const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_spheres *result);
 void rf_physics_spheres_close(rf_physics_spheres *spheres);
+typedef struct rf_physics_bounds {
+    float radius,minimum[3],maximum[3];
+} rf_physics_bounds;
+/* 4a0cb0 rebuilds radius from local sphere centers and axis-aligned bounds
+ * around the supplied world position. Empty lists yield radius zero.
+ * Finite position/centers and nonnegative finite radii required; errors leave
+ * output unchanged. No allocation or orientation transform is performed. */
+int rf_physics_spheres_bounds(const rf_physics_sphere *source,uint32_t count,
+    const float position[3],rf_physics_bounds *result);
 typedef struct rf_physics_mass_tensor {
     float mass,tensor[9];
 } rf_physics_mass_tensor;

@@ -3,6 +3,33 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_spheres_bounds(const rf_physics_sphere *source,uint32_t count,
+    const float position[3],rf_physics_bounds *result)
+{
+    rf_physics_bounds value={0};uint32_t i,j;
+    if(!position || !result || (count && !source))return RF_RANGE;
+    for(j=0;j<3;++j)if(!isfinite(position[j]))return RF_RANGE;
+    for(i=0;i<count;++i) {
+        double x=source[i].center[0],y=source[i].center[1],z=source[i].center[2],distance,sum;
+        volatile float rounded_distance,candidate;
+        if(!isfinite(x) || !isfinite(y) || !isfinite(z) || !isfinite(source[i].radius) || source[i].radius<0)return RF_RANGE;
+        distance=sqrt((x*x+y*y)+z*z);if(distance>FLT_MAX)return RF_RANGE;
+        /* 4a0ce2 stores length before radius addition at 4a0cee. */
+        rounded_distance=(float)distance;sum=(double)rounded_distance+source[i].radius;
+        if(sum>FLT_MAX)return RF_RANGE;candidate=(float)sum;
+        if(candidate>value.radius)value.radius=candidate;
+    }
+    for(j=0;j<3;++j) {
+        double low=(double)position[j]-value.radius,high=(double)value.radius+position[j];
+        float a,b;
+        if(fabs(low)>FLT_MAX || fabs(high)>FLT_MAX)return RF_RANGE;
+        a=(float)low;b=(float)high;
+        /* 539460 selects its second endpoint as minimum on equality. */
+        if(a<b) {value.minimum[j]=a;value.maximum[j]=b;}
+        else {value.minimum[j]=b;value.maximum[j]=a;}
+    }
+    *result=value;return RF_OK;
+}
 /* 40ea80 computes right*left when the stored vectors are read as rows.
  * Its term order varies by output element. */
 static int tensor_product(const float left[9],const float right[9],float result[9])

@@ -80,6 +80,8 @@ geometric-model mass generation before live entity physics.
 Shared world-space tensor updates now match 1,200 original cases on PC/NXDK,
 and 360 full no-sphere initializer layouts are verified; integrate those body
 fields with sphere ownership and recover general-radius bounds next.
+Shared sphere radius/world bounds now match 1,000 original cases on PC/NXDK;
+combine the verified fields, tensors and owned sphere lists into body initialization.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
