@@ -1536,3 +1536,38 @@ clear, registration's later branch selects parameter+34 as the initial key.
 This is not a full registration/playback implementation, and does not establish
 sound, attachment, trigger or interpolation semantics. Both builds and four
 CTest checks pass. No visual change occurred.
+
+
+### Original controller-to-mover attachment loop
+
+Expanded Ghidra xrefs now include the type-8 controller sentinel/head and the
+object attachment helper. The post-load pass 46b620 walks controllers in list
+order. Its second membership loop, 46b6e8..46b79c, resolves each UID through
+48a4a0 and requires object type 9. Valid runtime handles append to controller
++2cc; mover+30 receives controller+2c. Controller flag 1000 additionally ORs
+40000 into mover+7c. Missing or wrong-type references are removed in-place from
+controller+2b4 without skipping the next entry. Duplicate references are kept.
+Later controllers overwrite parent handles on multiply referenced movers.
+
+A conditional key mutation occurs for EACH accepted mover: controller bit 4
+must be set, global byte 64e97c must be zero, and controller mask 2100 must be
+clear. The first key's +54 float is then multiplied by the original constant
+at 589510, which is -1. Thus two accepted references reverse the sign twice.
+Do not move this operation outside the loop or deduplicate references.
+
+`python tools/probe_group_attachment.py` runs this original loop with unchanged
+UID lookup, append, removal and gate helpers for all 68 levels / 1,421 mover
+references. It checks ordered handles, surviving references, final parent/flag
+state across groups and per-reference rotation effects. Ten synthetic cases
+cover missing UIDs, wrong object type, duplicate references, flag gates and
+both global-mode values. All pass. Report:
+`artifacts/group-attachment-original.json`. Arrays are preallocated to avoid
+original allocator growth; this is not the full attachment pass, first ID-list
+handling, saved-state continuation or playback. No C attachment port yet.
+
+UID resolver 48a4a0 scans the global object list at 73d890, comparing object+20,
+and returns the first match. UID -1 is absent; UID -999 has an additional object
+flag-bit-2 exclusion. A future registry adapter must preserve that lookup
+contract instead of assuming unique IDs without evidence. The generic relative
+attachment helper 48a330 has a separate caller at 47fc74; it is not called in
+the verified controller mover loop, so it must not be substituted here.

@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Initial controller flags and the selected-key gate match original code on
-PC/NXDK; finish reader transforms and type-8 controller attachment/initial
-state before recovering playback for linked type-9 movers.
+Original mover attachment now verifies all 1,421 references, duplicate
+membership and per-reference rotation sign changes; reconstruct that binding
+and finish controller initial state before motion playback.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
