@@ -100,6 +100,14 @@ typedef struct rf_group_translation_progress {
  * preserve result. No allocation, pose change, event or key transition. */
 int rf_group_translation_integrate(const rf_group_translation_step *step,
     rf_group_translation_progress *result);
+/* Position portion 469b59..469cf7 after timer/trigger/obstruction gates allow
+ * movement. position is committed +e4; pending receives +f0. arrival is 1
+ * when the caller must run arrival effects, dwell and key transition. A
+ * crossing tick snaps but defers arrival. Errors preserve both outputs.
+ * Outputs must not overlap. No allocation or external effects. */
+int rf_group_translation_position(const rf_group_translation_step *step,
+    const rf_group_translation_progress *progress,const float position[3],
+    float pending[3],uint32_t *arrival);
 /* Translation arrival transition 469da4..46a02a, after position, event/link
  * updates and any dwell decision. Caller has already set current_key to the
  * arrived next_key. Returns sound requests for caller dispatch; no sound or

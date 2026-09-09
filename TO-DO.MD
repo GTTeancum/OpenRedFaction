@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Shared C translation integration matches 10,085 finite original results;
-finish rounding/degenerate-path coverage, pose stepping and dwell/events, then
-connect controller motion and attached-object poses to the scene.
+Shared C translation position stepping matches 10,085 original results;
+join integration, timer/trigger gates and arrival effects into complete ticks,
+then connect controller motion and attached-object poses to the scene.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

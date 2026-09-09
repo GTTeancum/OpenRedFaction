@@ -407,6 +407,33 @@ int rf_group_translation_integrate(const rf_group_translation_step *step,
     for(i=0;i<4;i++) {memcpy(&bits,(const unsigned char *)&out+4*i,4);if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;}
     *result=out;return RF_OK;
 }
+int rf_group_translation_position(const rf_group_translation_step *step,
+    const rf_group_translation_progress *progress,const float position[3],
+    float pending[3],uint32_t *arrival)
+{
+    float out[3],direction[3],velocity,displacement;double inverse;
+    uint32_t i,bits,due;
+    if(!step || !progress || !position || !pending || !arrival)return RF_RANGE;
+    for(i=0;i<14;i++)if(i!=10) {
+        memcpy(&bits,(const unsigned char *)step+4*i,4);
+        if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;
+    }
+    for(i=0;i<4;i++) {memcpy(&bits,(const unsigned char *)progress+4*i,4);if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;}
+    for(i=0;i<3;i++) {memcpy(&bits,position+i,4);if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;}
+    due=step->timing==0 || (step->flags&1) || step->distance>=progress->length;
+    if(due || progress->distance>=progress->length)memcpy(out,step->to,sizeof(out));
+    else {
+        for(i=0;i<3;i++)direction[i]=step->to[i]-step->from[i];
+        inverse=1./sqrt((double)direction[0]*direction[0]+(double)direction[1]*direction[1]+(double)direction[2]*direction[2]);
+        for(i=0;i<3;i++) {
+            direction[i]=(float)(direction[i]*inverse);
+            velocity=direction[i]*progress->speed;displacement=velocity*step->dt;
+            out[i]=position[i]+displacement;
+        }
+    }
+    for(i=0;i<3;i++) {memcpy(&bits,out+i,4);if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;}
+    memcpy(pending,out,sizeof(out));*arrival=due;return RF_OK;
+}
 int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
     uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,
     uint32_t *refs,uint32_t *ref_count,uint32_t *handles,uint32_t *handle_count,

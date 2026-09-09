@@ -1752,3 +1752,27 @@ and three nonfinite-input guards instead produce port errors with unchanged
 output; this difference is explicit, not a claim to reproduce those original
 outcomes. Full-tick handling for those paths must be recovered before scene
 integration. Report: `artifacts/group-integration-verification.json`.
+
+### Shared C translation position step
+
+`rf_group_translation_position` reconstructs the position work between
+469b59 and 469cf7 after timer, trigger and obstruction gates allow movement.
+It receives the integration input/output and committed position, returning
+pending position and an arrival-processing request. Zero timing, flag 1 or
+previous distance at/past segment length requests arrival and snaps to the
+target. A newly crossed endpoint snaps without requesting arrival yet.
+Otherwise it normalizes the float-rounded key-position difference, rounds
+the normalized components, multiplies by speed and then by dt with separate
+float stores, and adds the committed position. There is no direct lerp from
+the first key. It allocates nothing and preserves outputs on errors.
+
+`python tools/verify_group_position.py` uses the finite integration fixtures
+and executes unchanged original vector helpers, with mode 1 excluding the
+obstruction-reversal path and a read-only stop before arrival effects. All
+10,085 cases match pending-position bytes and arrival requests on PC and
+compiled NXDK: 3,737 intermediate moves, 42 crossing snaps and 6,306 arrival
+cases. Whole original object mutations are checked, and three nonfinite-input
+guards preserve outputs. Report: `artifacts/group-position-verification.json`.
+Both builds and all four CTest checks pass. Double-intermediate rounding limits
+remain as documented for integration; this is not full controller playback,
+trigger/dwell handling or attached-object propagation. No new visual result.
