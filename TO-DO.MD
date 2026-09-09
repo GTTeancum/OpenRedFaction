@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Initial mover pose copies and position assignment now match original
-instructions; recover solid-derived bounding radius, then bind owned movers
-to runtime objects and recover later pose updates/lifetime.
+Original bounds and creation radii are recorded for all 1,406 movers;
+reconstruct the order-sensitive expanding sphere with exact x87 stores,
+then bind owned movers and recover later pose updates/lifetime.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

@@ -1329,3 +1329,44 @@ Next radius lead: original mover creation `0x46b075..0x46b091` takes the length
 of solid+0x64, adds the float at solid+0x60 and stores the result in factory
 parameter +0x84. Follow solid bound finalization `0x4cf9a0` / `0x4cf500` to
 recover those quantities and their exact float stores before runtime binding.
+
+
+### Original mover bounding sphere and creation radius
+
+`python tools/probe_mover_bounds.py` executes complete `0x4cf9a0` with its
+unmodified vertex-array access and `0x4cf500` sphere callee for all 1,406 mover
+vertex lists. The AABB uses every serialized vertex (not only face corners),
+strict comparisons and +/- float .0001 expansion. All AABB bytes and unchanged
+object fields pass. Original sphere/center and creation-radius bytes are retained
+in ignored `artifacts/mover-bounds-original.json` as test evidence, not runtime
+data. Sphere containment is checked with a stated rounding tolerance; this
+is not an exact C implementation comparison.
+
+There are also 1,010 synthetic calls (505 sets in forward and reverse order),
+including empty, singleton and duplicate vertices. Reversal changes 453 result
+sets. Empty `0x4cf9a0` leaves all bounds/sphere bytes alone; standalone empty
+`0x4cf500` clears radius and center only. Do not merge those contracts.
+
+Recovered sphere algorithm for the next C implementation:
+
+- Keep the first full vertex attaining each coordinate minimum/maximum, using
+  strict comparisons. Compute squared distances between each opposing pair from
+  float-stored vector differences. Select the greatest span; ties retain X,
+  then Y over Z if Y strictly displaced X.
+- Center starts from float-stored endpoint addition, then multiplication by .5.
+  Radius starts from the length of the float-stored endpoint-minus-center vector.
+- Visit every vertex in original order. Compare its extended squared distance
+  to the stored float radius-squared. If outside, compute extended distance and
+  new radius `(distance + stored_radius) * .5`. Store radius as float, but square
+  the still-extended new radius times that stored float for radius-squared.
+- Center updates use `(old_center * stored_new_radius +
+  (extended_distance - stored_new_radius) * vertex) / extended_distance`,
+  storing each component as float. Preserve the distinct extended and stored
+  operands; replacing them with a conventional float-only sphere changes results.
+
+Complete original creator block `0x46b075..0x46b098` confirms factory radius
+parameter +0x84 is `length(solid.center at +0x64) + solid.radius at +0x60`,
+with the length retained in x87 until the sum is float-stored. This conservatively
+centers the object's radius at its local origin. Ghidra export now includes
+`0x4cf500` and `0x4cf9a0`. C/NXDK sphere reconstruction, initial runtime binding,
+object lifetime and XEMU integration remain open.

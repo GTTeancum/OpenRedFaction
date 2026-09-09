@@ -36,6 +36,7 @@ public class ExportBaseline extends GhidraScript {
         long[] targets = {0x5760c3L, 0x52c070L, 0x52bb50L, 0x52be70L, 0x52bd40L, 0x54f160L};
         LinkedHashSet<Long> addresses = new LinkedHashSet<>();
         for (long target : targets) addresses.add(target);
+        addresses.add(0x4cf500L); addresses.add(0x4cf9a0L);
         addresses.add(0x49ec90L); addresses.add(0x49f010L);
         addresses.add(0x48a230L); addresses.add(0x486da0L); // Mover factory and initial position assignment.
         addresses.add(0x40f4f0L); // Shared table skin declarations ($Skin: at 0x594300).
