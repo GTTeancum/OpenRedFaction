@@ -1524,3 +1524,30 @@ multi-room level ownership, all retry-limit combinations or runtime integration.
 Both builds and four CTests pass. Next bind this to retained loaded geometry,
 map selected source face/room identities, and verify real level points before
 using it for campaign entity membership. No new XEMU image for these APIs.
+
+## Loaded-world locator binding
+
+`rf_geometry_collision_world_locate` now binds the locator to retained primary
+room views and maps its local selected-face index through the owning tree's
+`source_indices`. The world stores 24 additional bytes of solid bounds, derived
+from every serialized vertex (including unused vertices), with the original
+0.0001 expansion. Those bytes are included in existing retained/peak budgets.
+Lookup reuses tree scratch and allocates nothing. It remains valid after source
+geometry closure; no original game pointers or loading-buffer pointers escape.
+
+`rf_collision_probe --world-locate-dump` loads a world, closes source geometry,
+allocates poison storage and repeats each query, checking stable output and
+source-face ownership. `tools/verify_loaded_room_locator.py --all` materializes
+those same real-level room trees, faces and edge loops in the original RF.exe
+layout, executes complete 4e1630, and compares room/source-face/retry results.
+It also materializes the independent compiled NXDK layout and executes the
+new mapping wrapper. The original loader is not executed: these comparisons
+validate queries over reconstructed-loader data, not original loader equivalence.
+Samples are three points around one face per primary room; they do not prove
+all points in each level. Moving entities and live XEMU membership are next.
+
+Final result: all 94 installed levels pass 8,214 original/PC comparisons and
+8,214 compiled NXDK wrapper executions: 6,428 owned query points and six retries.
+Report: `artifacts/loaded-room-locator-verification.json`. Both builds, four
+CTests and the Live Mines retained-world sweep/budget regression pass. No new
+XEMU run or image is claimed for this loaded-data verification.

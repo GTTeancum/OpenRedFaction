@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+The locator now binds retained level geometry and source face IDs, with no
+per-query allocation. All 94 levels pass 8,214 original/PC and 8,214 compiled
+NXDK comparisons after source closure. Connect moving-actor room state and
+verify its changes in live XEMU next. See docs/CAMERA.md for coverage limits.
+
 The original containing-room traversal and deterministic retry generator are
 now reconstructed: 600 full original/PC/NXDK locator cases match, with 50 actual
 retries. Bind the locator to retained level geometry and validate real room/face

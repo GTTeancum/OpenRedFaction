@@ -136,6 +136,7 @@ typedef struct rf_geometry_collision_world {
     rf_collision_room_view *views;
     uint32_t *primary,*children;
     uint32_t room_count,primary_count,child_count,allocated_bytes,peak_bytes;
+    float minimum[3],maximum[3]; /* Full serialized vertex bounds, expanded by original 0.0001. */
 } rf_geometry_collision_world;
 typedef struct rf_geometry_world_hit {
     rf_collision_ray_hit hit;uint32_t face,room,hits;
@@ -150,6 +151,10 @@ int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget
 void rf_geometry_collision_world_close(rf_geometry_collision_world *world);
 /* Same supported scope as thin_rooms; returns level face identities. Shared
  * tree scratch means calls on the same world must be serialized. */
+/* Locate against retained primary rooms, with level source face IDs in result.
+ * Shares tree scratch, no allocation. Source geometry may already be closed. */
+int rf_geometry_collision_world_locate(const rf_geometry_collision_world *world,
+    const float position[3],rf_collision_room_location *result);
 int rf_geometry_collision_world_ray(const rf_geometry_collision_world *world,
     uint32_t flags,const float start[3],const float delta[3],float limit,
     rf_geometry_world_hit *result,uint32_t *matched);

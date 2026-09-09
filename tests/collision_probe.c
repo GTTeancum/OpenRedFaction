@@ -12,6 +12,42 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==4 && !strcmp(argv[1],"--world-locate-dump")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};
+        uint32_t i,j,k,p,n,bytes;void *poison;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,8u*1024u*1024u))return 3;
+        if(rf_geometry_collision_world_open(&geometry,8u*1024u*1024u,&world))return 4;
+        bytes=geometry.bytes;rf_geometry_close(&geometry);poison=malloc(bytes);if(!poison)return 5;memset(poison,0xdd,bytes);
+        fwrite(&world.room_count,4,1,stdout);fwrite(&world.primary_count,4,1,stdout);fwrite(world.minimum,4,6,stdout);fwrite(world.primary,4,world.primary_count,stdout);
+        for(i=0;i<world.room_count;++i) {
+            const rf_collision_tree *tree=&world.rooms[i].tree;
+            fwrite(&world.views[i].skip,4,1,stdout);fwrite(&tree->node_count,4,1,stdout);fwrite(&tree->face_count,4,1,stdout);
+            fwrite(tree->nodes,sizeof(*tree->nodes),tree->node_count,stdout);
+            for(j=0;j<tree->face_count;++j) {
+                const rf_collision_face *face=tree->faces+j;
+                fwrite(face->plane,4,10,stdout);fwrite(&face->count,4,1,stdout);fwrite(&face->filter.face_flags,4,1,stdout);fwrite(tree->source_indices+j,4,1,stdout);
+                fwrite(face->vertices,12,face->count,stdout);
+            }
+        }
+        n=world.primary_count*3;fwrite(&n,4,1,stdout);
+        for(p=0;p<world.primary_count;++p)for(k=0;k<3;++k) {
+            const rf_geometry_collision_room *room=&world.rooms[world.primary[p]];const rf_collision_tree *tree=&room->tree;
+            float point[3]={0};rf_collision_room_location result,again;
+            if(tree->face_count) {
+                const rf_collision_face *face=tree->faces;
+                for(i=0;i<face->count;++i)for(j=0;j<3;++j)point[j]+=face->vertices[i][j];
+                for(j=0;j<3;++j)point[j]=point[j]/face->count+((int)k-1)*.25f*face->plane[j];
+            } else for(j=0;j<3;++j)point[j]=(room->minimum[j]+room->maximum[j])*.5f;
+            if(rf_geometry_collision_world_locate(&world,point,&result) || rf_geometry_collision_world_locate(&world,point,&again) || memcmp(&result,&again,sizeof(result)))return 6;
+            if(result.room!=UINT32_MAX) {
+                const rf_collision_tree *owner=&world.rooms[result.room].tree;uint32_t found=0;
+                for(j=0;j<owner->face_count;++j)if(owner->source_indices[j]==result.face)found=1;
+                if(!found)return 7;
+            }
+            fwrite(point,4,3,stdout);fwrite(&result,sizeof(result),1,stdout);
+        }
+        free(poison);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return ferror(stdout)?8:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--locate-room")) {
         struct {float position[3],lo[3],hi[3];uint32_t flags[6],skip,tree;} in;
         struct {int32_t status;rf_collision_room_location location;} out;

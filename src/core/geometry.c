@@ -519,6 +519,15 @@ int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget
         value.primary=(uint32_t*)(value.views+geometry->rooms);value.children=value.primary+geometry->rooms;
     }
     value.room_count=geometry->rooms;value.child_count=(uint32_t)links;retained=peak=bytes;
+    for(i=0;i<geometry->vertices;++i) {
+        float vertex[3];uint32_t axis;
+        status=rf_geometry_vertex(geometry,i,vertex);if(status)goto fail;
+        for(axis=0;axis<3;++axis) {
+            if(!i || vertex[axis]<value.minimum[axis])value.minimum[axis]=vertex[axis];
+            if(!i || vertex[axis]>value.maximum[axis])value.maximum[axis]=vertex[axis];
+        }
+    }
+    if(geometry->vertices)for(i=0;i<3;++i) {value.minimum[i]-=.0001f;value.maximum[i]+=.0001f;}
     status=rf_geometry_primary_rooms(geometry,value.primary,geometry->rooms,&value.primary_count);if(status)goto fail;
     for(i=0;i<geometry->rooms;i++) {
         rf_geometry_collision_room *room=value.rooms+i;rf_collision_room_view *view=value.views+i;
@@ -533,6 +542,23 @@ int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget
  fail:
     rf_geometry_collision_world_close(&value);return status;
 }
+int rf_geometry_collision_world_locate(const rf_geometry_collision_world *world,
+    const float position[3],rf_collision_room_location *result)
+{
+    rf_collision_room_location value;int status;
+    if(!world || !result)return RF_RANGE;
+    status=rf_collision_locate_room(world->views,world->room_count,world->primary,world->primary_count,
+        world->minimum,world->maximum,position,&value);if(status)return status;
+    if(value.room!=UINT32_MAX) {
+        const rf_collision_tree *tree;
+        if(value.room>=world->room_count || !world->rooms)return RF_FORMAT;
+        tree=&world->rooms[value.room].tree;
+        if(value.face>=tree->face_count || !tree->source_indices)return RF_FORMAT;
+        value.face=tree->source_indices[value.face];
+    }
+    *result=value;return RF_OK;
+}
+
 int rf_geometry_collision_world_ray(const rf_geometry_collision_world *world,
     uint32_t flags,const float start[3],const float delta[3],float limit,
     rf_geometry_world_hit *result,uint32_t *matched)
