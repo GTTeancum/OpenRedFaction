@@ -250,7 +250,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()
                         replacements=assets[1:]
                         skin_checksum=int(subprocess.check_output([str(root/'build/pc/Release/rf_checksum_driver.exe')],input=args.skin.encode('ascii').hex()+'\n',text=True).strip(),16)
-                    if args.scene and (args.skin or words[31]!=(5 if args.scene_states else 4 if args.scene_stream else 3) or words[56:58]!=[9858,7215] or words[36]!=(8598 if args.scene_states else 8607 if args.scene_stream else 8562)):
+                    if args.scene and (args.skin or words[31]!=(5 if args.scene_states else 4 if args.scene_stream else 3) or words[56:58]!=[9858,7455] or words[36]!=(8838 if args.scene_states else 8847 if args.scene_stream else 8802)):
                         raise RuntimeError('Combined scene camera/UID/draw ranges differ from fixture')
                     if not args.scene and words[56:58]!=[skin_checksum,len(replacements)]:
                         raise RuntimeError('Guest skin selection differs from requested reference')

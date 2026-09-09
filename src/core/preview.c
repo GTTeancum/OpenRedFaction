@@ -144,3 +144,47 @@ void rf_preview_close(rf_preview_mesh *mesh)
 {
     if (mesh) { free(mesh->vertices); memset(mesh, 0, sizeof(*mesh)); }
 }
+int rf_preview_build_world(rf_preview_mesh *mesh,const rf_geometry *world,
+    const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
+    const rf_geometry_materials *materials,const rf_level *level,uint32_t budget)
+{
+    rf_preview_mesh next={0};uint32_t pass,i,j,total=0,capacity=budget/sizeof(rf_preview_vertex);int status;
+    if(!mesh || mesh->vertices || mesh->bytes || !world || !world->data || !movers ||
+        (movers->count && !movers->items) || movers->count==UINT32_MAX || !materials ||
+        materials->count!=movers->count+1 || !materials->offsets || materials->offsets[0] || !level)return RF_RANGE;
+    for(i=0;i<materials->count;++i) {
+        const rf_geometry *g=i?&movers->items[i-1].geometry:world;
+        if(!g->data || materials->offsets[i+1]<materials->offsets[i] ||
+            materials->offsets[i+1]-materials->offsets[i]!=g->textures ||
+            (g->textures && !materials->slots))return RF_RANGE;
+        for(j=materials->offsets[i];j<materials->offsets[i+1];++j)
+            if(materials->slots[j]>=materials->textures.count)return RF_RANGE;
+    }
+    for(pass=0;pass<2;++pass) {
+        uint32_t at=0;
+        for(i=0;i<materials->count;++i) {
+            const rf_geometry *g=i?&movers->items[i-1].geometry:world;
+            const float *origin=i?(poses?poses[i-1].position:movers->items[i-1].position):NULL;
+            const float (*matrix)[3]=i?(poses?(const float (*)[3])poses[i-1].output_matrix:(const float (*)[3])movers->items[i-1].orientation):NULL;
+            rf_preview_mesh part={0};
+            if(origin) {
+                rf_collision_ray_hit local={0},hit;
+                status=rf_collision_contact_world(&local,origin,matrix,&hit);if(status)goto fail;
+            }
+            if(pass && next.vertices)part.vertices=next.vertices+at;
+            status=generate(&part,g,level,capacity-at,origin,matrix,0);if(status)goto fail;
+            if(pass)for(j=0;j<part.count;++j) {
+                if(part.vertices[j].material>=g->textures){status=RF_FORMAT;goto fail;}
+                part.vertices[j].material=materials->slots[materials->offsets[i]+part.vertices[j].material];
+            }
+            at+=part.count;
+        }
+        if(!pass) {
+            total=at;capacity=total;next.count=total;next.bytes=total*sizeof(rf_preview_vertex);
+            if(next.bytes) {next.vertices=malloc(next.bytes);if(!next.vertices){status=RF_RANGE;goto fail;}}
+        } else if(at!=total){status=RF_FORMAT;goto fail;}
+    }
+    *mesh=next;return RF_OK;
+fail:
+    rf_preview_close(&next);return status;
+}

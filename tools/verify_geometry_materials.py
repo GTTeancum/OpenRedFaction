@@ -54,7 +54,9 @@ report = dict(result='PASS', levels=len(results),
               scope='PC: all inventoried mover levels plus world materials, case-insensitive first-use slots; '
                     'missing-image sharing with no archives; Live Mines decoded bytes/status/archive selection '
                     'against ordinary named loader; exact/one-byte-short peak budgets and repeated close. '
-                    'Sources and archives closed before image checks. Not scene or Xbox runtime integration.',
+                    'Sources and archives closed before image checks. Combined world/authored-mover projection '
+                    'matches separately projected and remapped vertex bytes on all levels, with exact/short '
+                    'mesh budgets. This report covers PC; scene/Xbox checks are separate.',
               results=results)
 (root / 'artifacts/geometry-materials-verification.json').write_text(json.dumps(report, indent=2))
 print({key: value for key, value in report.items() if key != 'results'})

@@ -2,6 +2,13 @@
 #define RF_SCENE_PREVIEW_H
 #include "rf/material.h"
 #include "rf/preview.h"
+/* Load authored mover meshes with the world and a deduplicated texture table.
+ * Outputs must be empty. Geometry source budget is 1 MiB plus pointer array;
+ * mesh/material budgets include their own temporary allocations. Source mover
+ * geometry is released after projection; runtime motion is not yet connected. */
+int rf_scene_world_open(const rf_level *level,const rf_geometry *world,
+    rf_vpp *maps,uint32_t map_count,rf_preview_mesh *mesh,rf_materials *materials,
+    uint32_t mesh_budget,uint32_t material_budget);
 /* Diagnostic close inspection camera 2.2 units in front of an authored actor.
  * Changes only the supplied level's preview camera; not a gameplay camera. */
 int rf_scene_preview_camera(rf_level *level,int32_t uid);

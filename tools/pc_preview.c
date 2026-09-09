@@ -93,6 +93,9 @@ int main(int argc, char **argv)
             }
             if(!result) {materials=bundle.textures;memset(&bundle.textures,0,sizeof(bundle.textures));}
             rf_model_materials_close(&bundle);
+        } else if(!result && scene_mode) {
+            rf_preview_close(&mesh);
+            result=rf_scene_world_open(&level,&geometry,archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024);
         } else if (!result) result = rf_materials_open(&materials, &geometry, archives, opened, 4*1024*1024);
         if(!result && scene_mode) {
             world_vertices=mesh.count;

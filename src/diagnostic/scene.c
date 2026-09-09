@@ -3,6 +3,22 @@
 #include "rf/entity_assets.h"
 #include <stdlib.h>
 #include <string.h>
+int rf_scene_world_open(const rf_level *level,const rf_geometry *world,
+    rf_vpp *maps,uint32_t map_count,rf_preview_mesh *mesh,rf_materials *materials,
+    uint32_t mesh_budget,uint32_t material_budget)
+{
+    rf_geometry_movers movers={0};rf_geometry_materials bundle={0};
+    const rf_geometry **sources=NULL;uint32_t i;int status;
+    if(!mesh || mesh->vertices || mesh->bytes || !materials || materials->items || materials->count)return RF_RANGE;
+    status=rf_geometry_movers_open(level,1024*1024,&movers);if(status)goto done;
+    sources=malloc(((size_t)movers.count+1)*sizeof(*sources));if(!sources){status=RF_RANGE;goto done;}
+    sources[0]=world;for(i=0;i<movers.count;++i)sources[i+1]=&movers.items[i].geometry;
+    status=rf_geometry_materials_open(&bundle,sources,movers.count+1,maps,map_count,material_budget);
+    if(!status)status=rf_preview_build_world(mesh,world,&movers,NULL,&bundle,level,mesh_budget);
+    if(!status){*materials=bundle.textures;memset(&bundle.textures,0,sizeof(bundle.textures));}
+done:
+    free(sources);rf_geometry_materials_close(&bundle);rf_geometry_movers_close(&movers);return status;
+}
 int rf_scene_preview_camera(rf_level *level,int32_t uid)
 {
     rf_level_entity entity;uint32_t i,j;int status;

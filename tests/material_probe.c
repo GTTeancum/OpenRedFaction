@@ -1,4 +1,5 @@
 #include "rf/material.h"
+#include "rf/preview.h"
 #include <stdlib.h>
 #include <string.h>
 int main(int argc, char **argv)
@@ -31,6 +32,25 @@ int main(int argc, char **argv)
             check.peak_bytes!=peak || check.textures.count!=bundle.textures.count ||
             memcmp(check.slots,bundle.slots,bundle.offsets[bundle.count]*sizeof(uint32_t)))return 3;
         rf_geometry_materials_close(&check);rf_geometry_materials_close(&check);
+        {
+            rf_preview_mesh combined={0},part={0},short_mesh={0};uint32_t at=0;
+            if(rf_preview_build_world(&combined,&world,&movers,NULL,&bundle,&level,8*1024*1024))return 3;
+            if(combined.bytes && rf_preview_build_world(&short_mesh,&world,&movers,NULL,&bundle,&level,combined.bytes-1)!=RF_RANGE)return 3;
+            if(short_mesh.vertices || short_mesh.bytes)return 3;
+            if(rf_preview_build_world(&short_mesh,&world,&movers,NULL,&bundle,&level,combined.bytes) ||
+                short_mesh.count!=combined.count || (combined.bytes && memcmp(short_mesh.vertices,combined.vertices,combined.bytes)))return 3;
+            rf_preview_close(&short_mesh);
+            for(g=0;g<bundle.count;++g) {
+                result=g?rf_preview_build_transformed(&part,sources[g],&level,movers.items[g-1].position,
+                    movers.items[g-1].orientation,0,8*1024*1024):rf_preview_build(&part,&world,&level,8*1024*1024);
+                if(result || part.count>combined.count-at)return 3;
+                for(j=0;j<part.count;++j)part.vertices[j].material=bundle.slots[bundle.offsets[g]+part.vertices[j].material];
+                if(part.bytes && memcmp(part.vertices,combined.vertices+at,part.bytes))return 3;
+                at+=part.count;rf_preview_close(&part);
+            }
+            if(at!=combined.count)return 3;
+            rf_preview_close(&combined);
+        }
         printf("B %u %u %u %u %u %u\n",bundle.count,bundle.textures.count,
             bundle.textures.loaded,bundle.textures.missing,bundle.resident_bytes,peak);
         for(g=0;g<bundle.count;++g)for(j=0;j<sources[g]->textures;++j) {

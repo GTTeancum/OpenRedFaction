@@ -53,6 +53,13 @@ uses 17 unique slots for 28 references (16 loaded, one missing), with all mover
 textures already present in the world table. PC budget/ownership/image checks
 and PC/NXDK builds pass; connect this bundle and its local-slot mappings to
 scene geometry, then validate visible movers and frame-loop motion in XEMU.
+World/mover composition is now connected in both PC and Xbox scene paths.
+The combined builder matches separate projection/remapping on all 68 levels;
+Live Mines submits 80 additional mover triangles and passes 64 MiB XEMU plus
+PC framebuffer comparison. The miner camera occludes these additions (frame
+unchanged); add a door-focused inspection view, retain render geometry and
+connect committed resident poses to the actual render loop. Current scene
+movers use authored file poses and release source geometry after projection.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
