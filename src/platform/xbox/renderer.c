@@ -41,7 +41,7 @@ static int upload(gpu_texture *out, const rf_image *image)
         field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_U, u) | field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_V, v);
     return RF_OK;
 }
-static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model)
+static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices)
 {
     uint32_t *p, i, frame;
     rf_preview_vertex *gpu;
@@ -148,8 +148,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             while (count < 252 && i+count < mesh->count && mesh->vertices[i+count].material == material && mesh->vertices[i+count].lightmap == lightmap) count += 3;
             texture = material < materials->count && textures[material].pixels ? textures+material : textures+materials->count;
             p = pb_begin();
-            p = pb_push1(p,NV097_SET_BLEND_ENABLE,model && texture->transparent);
-            p = pb_push1(p,NV097_SET_DEPTH_MASK,!(model && texture->transparent));
+            p = pb_push1(p,NV097_SET_BLEND_ENABLE,model && (model!=3 || i>=world_vertices) && texture->transparent);
+            p = pb_push1(p,NV097_SET_DEPTH_MASK,!(model && (model!=3 || i>=world_vertices) && texture->transparent));
             p = pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
             p = pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
             p = pb_push1(p, NV097_SET_TEXTURE_OFFSET, (uint32_t)texture->pixels & 0x03ffffff);
@@ -179,8 +179,14 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     return RF_OK;
 }
 int rf_xbox_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,volatile uint32_t capture[6],volatile uint32_t memory[3])
-{return preview(mesh,materials,lightmaps,capture,memory,0);}
+{return preview(mesh,materials,lightmaps,capture,memory,0,0);}
 int rf_xbox_model_preview(const rf_preview_mesh *mesh,const rf_materials *materials,volatile uint32_t capture[6],volatile uint32_t memory[3])
-{rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,1);}
+{rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,1,0);}
 int rf_xbox_model_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,volatile uint32_t capture[6],volatile uint32_t memory[3])
-{rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,2);}
+{rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,2,0);}
+int rf_xbox_scene_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
+    uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3])
+{
+    if(!mesh || world_vertices>mesh->count || world_vertices%3)return RF_RANGE;
+    return preview(mesh,materials,lightmaps,capture,memory,3,world_vertices);
+}

@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Live Mines and miner UID 9858 now draw together on PC and stock-memory XEMU
+with a passing framebuffer comparison; restore the gameplay camera, reconcile
+near clipping and extend the frozen diagnostic into an animated actor scene.
+
 Two Live Mines miners now produce posed geometry at authored transforms using
 the world preview camera; combine world/actor draws and reconcile near clipping
 before treating their camera paths as fully equivalent.

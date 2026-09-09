@@ -3,6 +3,8 @@
 #include "rf/preview.h"
 #include "rf/material.h"
 #include "rf/lightmap.h"
+int rf_xbox_scene_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
+    uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3]);
 /* Draw a frozen native GPU frame for initial geometry validation.
  * capture: framebuffer VA, width, height, pitch, vertex count, frame count. */
 /* memory: available physical pages after uploads, requested GPU image bytes,

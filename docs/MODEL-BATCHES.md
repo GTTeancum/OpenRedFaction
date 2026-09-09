@@ -1,5 +1,38 @@
 # Model batch data
 
+The first combined world/actor fixture now renders on PC and stock 64 MiB Xbox.
+`rf_scene_preview_miner` selects an authored UID, generates scripted miner frame
+0 at that transform, loads the selected skin and appends its triangles/materials
+to the world input. It transfers image ownership into combined materials and
+remaps actor texture slots, preserving world lightmap indices. Final mesh and
+material caps are 8 MiB and 4 MiB; old/new arrays coexist during transactional
+commit, alongside the 1 MiB temporary actor mesh and animation workspace. These
+caps are not a whole-process peak guarantee. Failure leaves the world outputs
+unchanged. This is diagnostic composition, not an original scene loader.
+
+PC `--scene levels1.vpp L1S1.rfl output.ppm meshes.vpp motions.vpp tables.vpp
+UID maps1.vpp ...` preserves the raw spawn camera. All 18 miner candidates leave
+that view's framebuffer unchanged when appended. `--scene-close` instead sets
+a diagnostic camera 2.2 units in front of the authored actor without moving it.
+UID 9858 then produces 2,405 world and 449 actor triangles. The two draw ranges
+share a depth buffer; world rendering retains lightmaps and its existing opaque
+policy, while actor rendering uses its existing texture-alpha blend policy.
+
+Xbox `scene-preview.flag` selects this fixed close UID 9858 fixture before the
+other preview flags. Scene telemetry is 3; words 56/57 hold UID/world vertex
+count. Earlier level telemetry still describes validation at the raw spawn.
+`xemu_smoke.py --scene --reference artifacts/live-mines-close-pc.ppm` checks the
+fixed draw ranges and combined GPU allocations. Run `20260908-224909-214239`
+passes three submitted frames, 8,562 vertices, 4,419,588 requested GPU image
+bytes and 479,472 vertex bytes. Its native framebuffer was visually inspected:
+the miner is visible against the textured level with a translucent faceplate.
+PC comparison passes with 11 pixels over error 3, maximum channel error 245,
+mean maximum error 0.03354. PC/NXDK builds and four CTest checks pass.
+
+The combined scene is frozen and uses the diagnostic camera and full-bright
+actor lighting. Near clipping, original gameplay camera/state animation,
+visibility, sustained multi-actor playback and PS2 parity remain unverified.
+
 `rf_animation_placement_from_level` adapts a raw level spawn camera and authored
 entity transform for the model pipeline. The static preview uses a 90-degree
 horizontal FOV at 640x480: its vertical projected scale is 320, whereas the

@@ -3,6 +3,7 @@
 #include "rf/lightmap.h"
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
+#include "rf/scene_preview.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -48,23 +49,30 @@ int main(int argc, char **argv)
     uint32_t i;
     FILE *output;
     rf_entity_assets skin_assets={0};const char *skin_names[64];
+    uint32_t world_vertices=0;
+    int scene_close=argc>1 && !strcmp(argv[1],"--scene-close");
+    int scene_mode=scene_close || (argc>1 && !strcmp(argv[1],"--scene"));
     int skin_mode=argc>1 && (!strcmp(argv[1],"--model-skin") || !strcmp(argv[1],"--model-skin-last"));
     int model_mode=skin_mode || (argc>1 && (!strcmp(argv[1],"--model") || !strcmp(argv[1],"--model-last")));
-    const char *output_path=model_mode?(argc>4?argv[4]:NULL):(argc>3?argv[3]:NULL);
+    const char *output_path=(model_mode || scene_mode)?(argc>4?argv[4]:NULL):(argc>3?argv[3]:NULL);
     if (argc < 4 || argc > 20) return 2;
+    if(scene_mode && argc<10)return 2;
     if(skin_mode) {
         if(argc<8 || miner_skin(argv[5],argv[6],&skin_assets))return 1;
         for(i=0;i<skin_assets.texture_count;++i)skin_names[i]=skin_assets.textures[i];
     }
     if(model_mode) {
         if(argc<6 || rf_vpp_open(&archive,argv[2]) || rf_animation_preview(argv[2],argv[3],(!strcmp(argv[1],"--model-last") || !strcmp(argv[1],"--model-skin-last"))?63:0,&mesh,1024*1024))return 1;
-    } else if (rf_vpp_open(&archive, argv[1]) || rf_level_open(&level, &archive, argv[2]) ||
-        rf_geometry_open(&geometry, &level, 8*1024*1024) || rf_preview_build(&mesh, &geometry, &level, 8*1024*1024)) return 1;
+    } else {
+        if(rf_vpp_open(&archive, argv[scene_mode?2:1]) || rf_level_open(&level, &archive, argv[scene_mode?3:2]))return 1;
+        if(scene_close && rf_scene_preview_camera(&level,(int32_t)strtol(argv[8],NULL,10)))return 1;
+        if(rf_geometry_open(&geometry,&level,8*1024*1024) || rf_preview_build(&mesh,&geometry,&level,8*1024*1024))return 1;
+    }
     if (argc > 4) {
         rf_vpp archives[16];
         uint32_t opened = 0;
         int result = RF_OK;
-        for (i = skin_mode?7:model_mode?5:4; i < (uint32_t)argc; ++i) {
+        for (i = scene_mode?9:skin_mode?7:model_mode?5:4; i < (uint32_t)argc; ++i) {
             result = rf_vpp_open(archives+opened, argv[i]);
             if (result) break;
             ++opened;
@@ -81,6 +89,12 @@ int main(int argc, char **argv)
             if(!result) {materials=bundle.textures;memset(&bundle.textures,0,sizeof(bundle.textures));}
             rf_model_materials_close(&bundle);
         } else if (!result) result = rf_materials_open(&materials, &geometry, archives, opened, 4*1024*1024);
+        if(!result && scene_mode) {
+            world_vertices=mesh.count;
+            result=rf_scene_preview_miner(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
+                archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024);
+            if(!result)printf("Combined %u world and %u actor triangles\n",world_vertices/3,(mesh.count-world_vertices)/3);
+        }
         while (opened) rf_vpp_close(archives + --opened);
         if (result) { rf_preview_close(&mesh); rf_geometry_close(&geometry); rf_vpp_close(&archive); return 1; }
         if (!model_mode && rf_lightmaps_open(&lightmaps, &level, 4*1024*1024)) return 1;
@@ -89,6 +103,7 @@ int main(int argc, char **argv)
     if (!depth || !rgb) return 1;
     for (i = 0; i < 640*480; ++i) { depth[i] = 16777216; rgb[i*3] = 16; rgb[i*3+1] = 16; rgb[i*3+2] = 24; }
     for (i = 0; i + 2 < mesh.count; i += 3) {
+        int actor_triangle=model_mode || (scene_mode && i>=world_vertices);
         const rf_preview_vertex *a = mesh.vertices+i, *b = a+1, *c = a+2;
         float area = edge(a->position,b->position,c->position[0],c->position[1]);
         int x, y, xmin, xmax, ymin, ymax;
@@ -107,8 +122,8 @@ int main(int argc, char **argv)
             if (u < 0 || v < 0 || w < 0) continue;
             z = u*a->position[2]+v*b->position[2]+w*c->position[2];
             if (z >= depth[pixel]) continue;
-            if(!model_mode)depth[pixel] = z;
-            if(!model_mode || !materials.count)for (channel = 0; channel < 3; ++channel) rgb[pixel*3+channel] = (unsigned char)(a->color[channel]*255);
+            if(!actor_triangle)depth[pixel] = z;
+            if(!actor_triangle || !materials.count)for (channel = 0; channel < 3; ++channel) rgb[pixel*3+channel] = (unsigned char)(a->color[channel]*255);
             if (materials.count) {
                 const rf_image *image = a->material < materials.count && materials.items[a->material].status == RF_OK ? &materials.items[a->material].image : NULL;
                 float q = u*a->texture[2]+v*b->texture[2]+w*c->texture[2];
@@ -122,10 +137,10 @@ int main(int argc, char **argv)
                     float lt = (u*a->lightmap_texture[1]+v*b->lightmap_texture[1]+w*c->lightmap_texture[1])/q;
                     sample(lightmaps.images+a->lightmap, ls, lt, 1, light);
                 }
-                if(model_mode && base[3]>=1)depth[pixel]=z;
+                if(actor_triangle && base[3]>=1)depth[pixel]=z;
                 for (channel = 0; channel < 3; ++channel) {
                     float color=fminf(1,base[channel]*light[channel]*2)*255;
-                    if(model_mode)color=color*base[3]+rgb[pixel*3+channel]*(1-base[3]);
+                    if(actor_triangle)color=color*base[3]+rgb[pixel*3+channel]*(1-base[3]);
                     rgb[pixel*3+channel]=(unsigned char)floorf(color+0.5f);
                 }
             }
@@ -135,7 +150,7 @@ int main(int argc, char **argv)
     if (!output) return 1;
     fprintf(output,"P6\n640 480\n255\n");
     if (fwrite(rgb,3,640*480,output) != 640*480 || fclose(output)) return 1;
-    printf("Prepared %u triangles (%u bytes), %s\n",mesh.count/3,mesh.bytes,model_mode?"posed miner inspection":"original spawn");
+    printf("Prepared %u triangles (%u bytes), %s\n",mesh.count/3,mesh.bytes,scene_close?"close level/actor inspection":model_mode?"posed miner inspection":"original spawn");
     free(depth); free(rgb); rf_lightmaps_close(&lightmaps); rf_materials_close(&materials); rf_preview_close(&mesh); rf_geometry_close(&geometry); rf_vpp_close(&archive);
     return 0;
 }

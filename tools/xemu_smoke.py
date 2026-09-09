@@ -62,6 +62,7 @@ def main():
     parser.add_argument('--reference', type=Path, help='Require framebuffer comparison against this PC reference image')
     parser.add_argument('--no-capture', action='store_true', help='Validate runtime telemetry without capturing a framebuffer')
     parser.add_argument('--skin',help='Expected miner1 skin selected by the guest model-skin.txt file')
+    parser.add_argument('--scene',action='store_true',help='Expect the close Live Mines / miner 9858 combined fixture')
     args = parser.parse_args()
     if args.no_capture and args.reference is not None:
         parser.error('--reference requires framebuffer capture')
@@ -144,9 +145,12 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()
                         replacements=assets[1:]
                         skin_checksum=int(subprocess.check_output([str(root/'build/pc/Release/rf_checksum_driver.exe')],input=args.skin.encode('ascii').hex()+'\n',text=True).strip(),16)
-                    if words[56:58]!=[skin_checksum,len(replacements)]:
+                    if args.scene and (args.skin or words[31]!=3 or words[56:58]!=[9858,7215] or words[36]!=8562):
+                        raise RuntimeError('Combined scene camera/UID/draw ranges differ from fixture')
+                    if not args.scene and words[56:58]!=[skin_checksum,len(replacements)]:
                         raise RuntimeError('Guest skin selection differs from requested reference')
                     report['skin']=dict(name=args.skin,checksum=skin_checksum,replacements=len(replacements))
+                    if args.scene:report['actor']=dict(uid=words[56],world_vertices=words[57],actor_vertices=words[36]-words[57],camera='Diagnostic 2.2 units in front of authored actor; not gameplay eye')
                     report['animation'] = dict(actual=words[48:56],expected=animation_reference,
                         scope='64 scripted controller/candidate-helper frames with real sidesteps; hashes of bones, playback/controller/references/candidate effects, eye and cache state; absent rolls and sounds')
                     if words[48:56] != animation_reference:
@@ -203,7 +207,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         raise RuntimeError('Guest lightmap load did not report 23 images')
                     report['lightmaps'] = dict(count=words[43], mapping_validation='all resident level mapping indices in range; not used by model preview')
                     expected_gpu_bytes=3624964
-                    if words[31] in (1,2):
+                    if words[31] in (1,2,3):
                         names=set()
                         rows=subprocess.check_output([str(root/'build/pc/Release/rf_model_file_probe.exe'),str(root/'Installed_Game/meshes.vpp'),'miner.v3c','--materials'],text=True)
                         material_index=0
@@ -216,7 +220,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                                     if name:names.add(name)
                                 material_index+=1
                         if replacements and material_index!=len(replacements):raise RuntimeError('Skin/model material count differs')
-                        expected_gpu_bytes=4
+                        expected_gpu_bytes=3624964 if words[31]==3 else 4
                         for name in names:
                             for archive_name in ('maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp'):
                                 source=next(f for f in inventory['files'] if f['path']==archive_name)
@@ -227,7 +231,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                                     size=Image.open(io.BytesIO(data)).size;expected_gpu_bytes+=size[0]*size[1]*4;break
                             else:raise RuntimeError('Missing model reference texture '+name)
                     elif words[31]!=0:raise RuntimeError('Unknown preview scene')
-                    report['scene']='streamed miner inspection' if words[31]==2 else 'posed miner inspection' if words[31] else 'Live Mines static geometry'
+                    report['scene']='Live Mines / miner 9858 close inspection' if words[31]==3 else 'streamed miner inspection' if words[31]==2 else 'posed miner inspection' if words[31] else 'Live Mines static geometry'
                     if not 0 < words[44] <= words[47] <= words[3] or words[45:47] != [expected_gpu_bytes, 1024*1024 if words[31]==2 else words[36]*56]:
                         raise RuntimeError('Unexpected GPU allocation or memory telemetry')
                     report['renderer_memory'] = dict(available_bytes_after_upload=words[44]*4096,

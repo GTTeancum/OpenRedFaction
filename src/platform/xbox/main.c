@@ -6,6 +6,7 @@
 #include "rf/lightmap.h"
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
+#include "rf/scene_preview.h"
 #include "renderer.h"
 #include <string.h>
 #include <stdio.h>
@@ -19,6 +20,23 @@ volatile uint32_t rf_diagnostic[58] = {0x52464447u, 9u, 0};
 static rf_geometry resident_geometry;
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;
+static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
+{
+    static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
+    rf_vpp maps[5];uint32_t opened=0,world;int status;
+    status=rf_scene_preview_camera(level,9858);if(status)return status;
+    rf_preview_close(mesh);status=rf_preview_build(mesh,&resident_geometry,level,8*1024*1024);if(status)return status;
+    world=mesh->count;
+    while(!status && opened<5) {status=rf_vpp_open(maps+opened,paths[opened]);if(!status)++opened;}
+    if(!status)status=rf_scene_preview_miner(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
+        maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024);
+    while(opened)rf_vpp_close(maps+--opened);
+    if(!status) {
+        rf_diagnostic[31]=3;rf_diagnostic[56]=9858;rf_diagnostic[57]=world;
+        status=rf_xbox_scene_preview(mesh,&resident_materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);
+    }
+    return status;
+}
 static int model_frame(void *context,uint32_t frame,rf_preview_mesh *mesh)
 {
     rf_model_materials *bundle=context;uint32_t i;
@@ -203,9 +221,13 @@ int main(void)
                         if (NT_SUCCESS(MmQueryStatistics(&memory))) rf_diagnostic[42] = memory.AvailablePages;
                         if (result == RF_OK) result = rf_preview_build(&mesh, &resident_geometry, &level, 8u*1024u*1024u);
                         if (result == RF_OK) {
-                            FILE *model_flag=fopen("D:\\model-preview.flag","rb");
-                            if(model_flag) {fclose(model_flag);result=model_preview();}
-                            else result = rf_xbox_preview(&mesh, &resident_materials, &resident_lightmaps, &rf_diagnostic[32], &rf_diagnostic[44]);
+                            FILE *scene_flag=fopen("D:\\scene-preview.flag","rb");
+                            if(scene_flag) {fclose(scene_flag);result=scene_preview(&level,&mesh);}
+                            else {
+                                FILE *model_flag=fopen("D:\\model-preview.flag","rb");
+                                if(model_flag) {fclose(model_flag);result=model_preview();}
+                                else result = rf_xbox_preview(&mesh, &resident_materials, &resident_lightmaps, &rf_diagnostic[32], &rf_diagnostic[44]);
+                            }
                             rf_preview_close(&mesh);
                             if (NT_SUCCESS(MmQueryStatistics(&memory))) rf_diagnostic[47] = memory.AvailablePages;
                         }
