@@ -1160,3 +1160,53 @@ creating artificial rooms would need separate equivalence evidence and is not
 the current plan. Then add a bounded C mover reader, owned unassigned-face
 geometry and runtime type-9 creation in file order. Pose lifetime, movement-group
 records, materials and actor response remain open. No rendered result changed.
+
+## Reconstructed zero-room fallback
+
+`rf_collision_flat_faces` now implements the uncached no-room branch of
+`0x4df1c0`. Original `0x4df45d..0x4df49a` selects the solid's face list at +0x70
+when the room count at +0x90 is zero, visits its head, and follows each face's
++0x54 link via `0x45ec30`. The port receives an array in that exact list order.
+It prepares local query coordinates, passes the original displacement for edge
+normal construction, carries the current fraction limit between faces, and sums
+all improving contacts. No synthetic room or spatial tree is created.
+
+Unlike room-tree traversal, this branch does not inspect the first-hit flag
+between faces. All eligible faces are visited even with query bit 0 set. Later
+plane contacts at an equal fraction replace earlier contacts; edge contacts
+retain the primitive's strict limit. The result includes final ordered face
+index, aggregate count and edge classification. Empty lists/inactive original
+movement miss; errors preserve result/matched. Texture-dependent modes remain
+unsupported through the shared face helper. Flag 0x1000 can pass through the
+ordinary flat face filter here; there is no extra room-based special list.
+
+`rf_collision_solid_view` now includes flat_faces/flat_count. The moving/static
+ray wrapper selects the existing hierarchy path when room_count is nonzero and
+otherwise calls the flat fallback. A returned flat contact reports room
+UINT32_MAX and a face index in the supplied flat array. The owning loader must
+preserve original list order and lifetime. Both routes retain the original
+outer mover-list first-hit behavior and segment-shortening rules. Neither route
+allocates during queries.
+
+`python tools/verify_collision_flat.py` passes 5,000 complete original
+`0x4df1c0` calls on PC and NXDK, with all geometric and list callees unchanged.
+Cases include transformed/direct inputs, thin and finite radii, empty lists,
+ordinary 0x1000 filtering, ties and the lack of first-face early exit. Two explicit
+four-face fixtures with bit 0 set both report four improving contacts and retain
+face index 3: one visits increasingly close planes and one visits equal planes.
+Overall there are 1,697 hits, 583 multi-update queries and 516 final edge contacts.
+Six malformed-input guards pass. Report: `artifacts/collision-flat-verification.json`.
+
+`python tools/verify_collision_solid_flat.py` additionally passes 2,510 complete
+original `0x498e80` calls using two moving solids and a static solid with flat
+face lists and identity poses. All 2,419 hit results and remaining misses match
+PC/NXDK, including object/solid/face identity and room UINT32_MAX. Report:
+`artifacts/collision-solid-flat-verification.json`. The previous 2,510 hierarchy
+ray cases and 4,010 distinct-pose/visibility cases remain green; both builds and
+four CTest checks pass.
+
+The actual 1,406 installed mover solids are still only inventoried. Next is a
+bounded C reader for their embedded geometry and owned zero-room face storage,
+then runtime creation/poses and integration into the running scene. The new flat
+path has not yet run in XEMU, and actor movement/material metadata remain open.
+No visible scene change occurred.

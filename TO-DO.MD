@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Mover inventory now covers 1,406 zero-room solids and 27,216 faces, with
-original-reader header/trailer parity; reconstruct the flat-face query fallback
-and bounded mover loader before binding runtime type-9 objects.
+Flat-face fallback and moving-ray integration now match original calls on PC
+and NXDK; add the bounded C mover loader and owned zero-room geometry for the
+1,406 inventoried solids before binding runtime type-9 objects.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

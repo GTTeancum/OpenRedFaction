@@ -1122,6 +1122,18 @@ int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_
     *tree=value;return RF_OK;
 }
 
+static int query_solid(const rf_collision_solid_view *solid,uint32_t flags,
+    const float start[3],const float delta[3],float limit,rf_collision_sweep_room_hit *result,uint32_t *matched)
+{
+    rf_collision_sweep_tree_hit value;uint32_t hit;int status;
+    if(solid->room_count)return rf_collision_transformed_rooms(solid->rooms,solid->room_count,
+        solid->primary,solid->primary_count,solid->children,solid->child_count,flags,start,delta,
+        solid->input_origin,solid->input_matrix,0,limit,result,matched);
+    status=rf_collision_flat_faces(solid->flat_faces,solid->flat_count,flags,start,delta,
+        solid->input_origin,solid->input_matrix,0,limit,&value,&hit);if(status)return status;
+    if(hit) {result->tree=value;result->room=UINT32_MAX;}*matched=hit;return RF_OK;
+}
+
 int rf_collision_ray_solids(const rf_collision_solid_view *moving,uint32_t count,
     const rf_collision_solid_view *stationary,const float start[3],const float end[3],
     uint32_t flags,rf_collision_solid_hit *result,uint32_t *matched)
@@ -1137,8 +1149,7 @@ int rf_collision_ray_solids(const rf_collision_solid_view *moving,uint32_t count
     for(i=0;i<count;i++) {
         const rf_collision_solid_view *solid=moving+i;
         status=rf_collision_segment_box(solid->minimum,solid->maximum,start,current_end,scratch,&hit);if(status)return status;if(!hit)continue;
-        status=rf_collision_transformed_rooms(solid->rooms,solid->room_count,solid->primary,solid->primary_count,
-            solid->children,solid->child_count,q,start,delta,solid->input_origin,solid->input_matrix,0,limit,&local,&hit);if(status)return status;if(!hit)continue;
+        status=query_solid(solid,q,start,delta,limit,&local,&hit);if(status)return status;if(!hit)continue;
         found=1;limit=local.tree.hit.fraction;
         if(result) {
             status=rf_collision_contact_world(&local.tree.hit,solid->output_origin,solid->output_matrix,&value.hit);if(status)return status;
@@ -1147,12 +1158,32 @@ int rf_collision_ray_solids(const rf_collision_solid_view *moving,uint32_t count
         if(flags&1u)goto done;
         for(j=0;j<3;j++) {volatile float scaled=delta[j]*limit;current_end[j]=start[j]+scaled;delta[j]=current_end[j]-start[j];}
     }
-    status=rf_collision_transformed_rooms(stationary->rooms,stationary->room_count,stationary->primary,stationary->primary_count,
-        stationary->children,stationary->child_count,q|4u,start,delta,NULL,NULL,0,limit,&local,&hit);if(status)return status;
+    status=query_solid(stationary,q|4u,start,delta,limit,&local,&hit);if(status)return status;
     if(hit) {
         found=1;
         if(result) {value.hit=local.tree.hit;value.object_id=UINT32_MAX;value.solid_index=UINT32_MAX;value.room=local.room;value.face_index=local.tree.face_index;}
     }
  done:
     if(found && result)*result=value;*matched=found;return RF_OK;
+}
+
+int rf_collision_flat_faces(const rf_collision_face *faces,uint32_t count,uint32_t flags,
+    const float start[3],const float delta[3],const float origin[3],const float matrix[3][3],
+    float radius,float limit,rf_collision_sweep_tree_hit *result,uint32_t *matched)
+{
+    float local_start[3],local_delta[3];uint32_t active,i,found;int status;
+    rf_collision_sweep_tree_hit value={0};rf_collision_sweep_hit candidate;
+    if((count && !faces) || !result || !matched)return RF_RANGE;
+    if(!isfinite(radius) || radius<0 || !isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    status=rf_collision_query_local(start,delta,origin,matrix,flags,local_start,local_delta,&active);if(status)return status;
+    if(!active) {*matched=0;return RF_OK;}
+    for(i=0;i<count;i++) {
+        rf_collision_face face=faces[i];face.filter.query_flags=flags;
+        status=rf_collision_sweep_face(&face,local_start,local_delta,delta,radius,limit,&candidate,&found);if(status)return status;
+        if(found) {
+            if(candidate.hits>UINT32_MAX-value.hits)return RF_RANGE;
+            value.hit=candidate.hit;value.face_index=i;value.edge=candidate.edge;value.hits+=candidate.hits;limit=candidate.hit.fraction;
+        }
+    }
+    if(value.hits)*result=value;*matched=value.hits!=0;return RF_OK;
 }

@@ -168,6 +168,7 @@ typedef struct rf_collision_solid_view {
     const uint32_t *children;uint32_t child_count;
     float minimum[3],maximum[3],input_origin[3],input_matrix[3][3];
     float output_origin[3],output_matrix[3][3];uint32_t object_id;
+    const rf_collision_face *flat_faces;uint32_t flat_count; /* Used when room_count is zero. */
 } rf_collision_solid_view;
 typedef struct rf_collision_solid_hit {
     rf_collision_ray_hit hit;uint32_t object_id,solid_index,room,face_index;
@@ -180,4 +181,10 @@ typedef struct rf_collision_solid_hit {
 int rf_collision_ray_solids(const rf_collision_solid_view *moving,uint32_t count,
     const rf_collision_solid_view *stationary,const float start[3],const float end[3],
     uint32_t flags,rf_collision_solid_hit *result,uint32_t *matched);
+/* Uncached no-room branch of 4df1c0: ordered solid face list (+70, next +54).
+ * Includes query transformation. Unlike the hierarchy path, query bit 0 does
+ * not stop face iteration. No hierarchy/preferred-face/cache handling. */
+int rf_collision_flat_faces(const rf_collision_face *faces,uint32_t count,uint32_t flags,
+    const float start[3],const float delta[3],const float origin[3],const float matrix[3][3],
+    float radius,float limit,rf_collision_sweep_tree_hit *result,uint32_t *matched);
 #endif

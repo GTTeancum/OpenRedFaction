@@ -72,14 +72,14 @@ for n,(wire,want) in enumerate(zip(cases,expected)):
  heights=struct.unpack_from('<3f',wire);enabled=struct.unpack_from('<3I',wire,12);flags=struct.unpack_from('<I',wire,24)[0]
  x.mem_write(base,bytes(0x6000))
  for i,z in enumerate(heights):
-  block=base+i*0x2000;room=block+0x600;tree=block+0x400;node=block+0x800;face=block+0xa00;v=block+0xc00;primary=block+0x1000;work=block+0x1004;solid=base+i*148
+  block=base+i*0x2000;room=block+0x600;tree=block+0x400;node=block+0x800;face=block+0xa00;v=block+0xc00;primary=block+0x1000;work=block+0x1004;solid=base+i*156
   bounds=struct.pack('<6f',-3,-3,z-.0001,3,3,z+.0001)
   x.mem_write(solid,struct.pack('<6I',room,1,primary,1,0,0)+bounds+bytes(12)+identity+bytes(12)+identity+struct.pack('<I',100+i))
   x.mem_write(room,bounds+struct.pack('<4I',0,0,0,tree));x.mem_write(tree,struct.pack('<10I',0,node,face,0,work,1,1,1,0,0))
   x.mem_write(node,bounds+struct.pack('<4I',0,enabled[i],0xffffffff,0xffffffff))
   x.mem_write(face,struct.pack('<4f',0,0,1,-z)+bounds+struct.pack('<8I',v,4,0,0,0,0,0,0));x.mem_write(v,struct.pack('<12f',-3,-3,z,3,-3,z,3,3,z,-3,3,z))
  x.mem_write(inputs,wire[28:52]);x.mem_write(out,bytes([0xa5])*48)
- x.mem_write(stack,struct.pack('<9I',stop,base,2,base+296,inputs,inputs+12,flags,out,out+44));x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x37f)
+ x.mem_write(stack,struct.pack('<9I',stop,base,2,base+312,inputs,inputs+12,flags,out,out+44));x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x37f)
  x.emu_start(entry,stop,count=1000000);assert x.reg_read(UC_X86_REG_EIP)==stop
  got=struct.pack('<I',x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(out+44,4))+bytes(x.mem_read(out,44));assert got==want,('NXDK',n,got.hex(),want.hex())
 report=dict(result='PASS',cases=len(cases),hits=sum(struct.unpack_from('<I',v,4)[0] for v in expected),scope='Complete original 498e80 and all callees unchanged, two movers plus static hierarchy, identity poses, null material. Exact geometric/object/index result on PC and NXDK. Original output fraction reuse and first-hit order retained; no live moving-solid extraction or actor response.')
