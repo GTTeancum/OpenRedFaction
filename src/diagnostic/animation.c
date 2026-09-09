@@ -316,8 +316,11 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 parameters.mass=config->authored.mass;parameters.coefficients[0]=config->material.elasticity;
                 parameters.coefficients[1]=10;parameters.coefficients[2]=config->material.friction;
                 memcpy(parameters.position,placement->position,12);memcpy(parameters.orientation,placement->orientation,36);
-                /* Provisional first-body identity tensor; final creation sequence remains open. */
-                parameters.local_tensor[0]=parameters.local_tensor[4]=parameters.local_tensor[8]=1;
+                /* 42256b clears the parameter tensor. Positive authored mass
+                 * bypasses generation in 49ec90; only its empty-sphere fallback
+                 * calls 4fce70 to install identity. The miner model has spheres. */
+                if(parameters.mass<=0) {status=RF_FORMAT;goto done;} /* Generated-mass creation remains separate. */
+                if(n==0)parameters.local_tensor[0]=parameters.local_tensor[4]=parameters.local_tensor[8]=1;
                 parameters.flags=rf_entity_creation_physics_flags(0,config->authored.flags,config->authored.flags2,config->authored.use_kind,0);
                 status=rf_physics_body_open(&parameters,NULL,0,4096,body);if(status)goto done;
                 status=rf_physics_body_replace_spheres(body,spheres,n,4096);if(status)goto done;

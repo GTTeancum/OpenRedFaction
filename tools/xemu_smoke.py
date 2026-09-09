@@ -310,7 +310,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         for line in reply.splitlines():
                             if ':' in line:actor_physics.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
                         if actor_physics!=actor_physics_reference:raise RuntimeError(f'Actor physics mismatch: {actor_physics}; PC {actor_physics_reference}')
-                        report['actor_physics']=dict(words=actor_physics,scope='Shared authored config and frame-zero model spheres installed into body; retained across 64 rendered diagnostic frames. Provisional identity tensor and scripted spawn pose; no actor motion response or AI.')
+                        report['actor_physics']=dict(words=actor_physics,scope='Shared authored config and frame-zero model spheres installed into body; retained across 64 rendered diagnostic frames. Positive-mass model-sphere tensor initialization and scripted spawn pose; no actor motion response or AI.')
                         memory_snapshot=guest_snapshot(monitor,map_text)
                         if args.actor_body:
                             report['actor_run_motion']=dict(routine='49e400',traction=struct.unpack('<f',struct.pack('<I',memory_snapshot['symbols']['rf_scene_actor_run_traction']['words'][0]))[0],scope='Run speed convergence and slope response; traction resolved from support face texture prefix and materials.tbl.')
@@ -367,7 +367,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             body=memory_snapshot['symbols']['scene_actor_body']['words']
                             if not pose[0]&0x4000000 or any(pose[i:i+3]!=body[22:25] for i in (14,17,20)) or body[22:25]!=body[25:28] or pose[53:59]!=body[62:68]:raise RuntimeError('Actor public/current/pending pose or bounds diverged')
                             report['actor_pose_commit_matches_body']=True
-                            report['actor_physics']['scope']='Live falling, static run landing and grounded motion with optional process-local input; scripted animation and provisional initial pose/inertia. General movement modes, gameplay lifecycle and AI remain open.'
+                            report['actor_physics']['scope']='Live falling, static run landing and grounded motion with optional process-local input; scripted animation and provisional initial pose. General movement modes, gameplay lifecycle and AI remain open.'
                         actor_world=memory_snapshot['symbols']['rf_actor_world_diagnostic']['words']
                         if actor_world!=actor_world_reference:raise RuntimeError(f'Actor world sweep mismatch: {actor_world}; PC {actor_world_reference}')
                         report['actor_world']=dict(words=actor_world,scope='Actual retained actor spheres swept two units along six world axes against stationary geometry; diagnostic mask 0x460, no movement response.')

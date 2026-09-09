@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Extend the working process-local steering fixture to exercise live support loss and recovery in XEMU.
-- [ ] Replace scripted stance eligibility and resolve initial class pose/inertia.
+- [ ] Replace scripted stance eligibility and resolve the initial class animation pose.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
@@ -20,6 +20,10 @@ its return value. Do not invent a forced-crouch animation rule.
 The reconstructed stance selector is now connected before animation advancement;
 run `20260909-170656-795906` matches all 64 selector/effect records on PC/XEMU.
 It applies crouch at frame 40 and stand at 48. Eligibility remains scripted.
+Initial miner inertia is corrected: positive authored mass plus its populated
+model sphere list preserves the zero parameter tensor, rather than identity.
+Original preparation checks and XEMU run `20260909-171406-829227` pass, including
+144 initial/final tensor bytes. Initial animation pose remains provisional.
 See `docs/XEMU-MEMORY.md` for reproduction and limits.
 
 Working approach: complete the first miner integration across loading, rendering

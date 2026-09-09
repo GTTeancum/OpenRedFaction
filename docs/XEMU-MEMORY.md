@@ -7,7 +7,7 @@ base-memory bytes and zero plugged memory. All 468 actor configuration bytes,
 records match PC. The fixture lands at frame 22 and completes 63 updates without
 capped passes. The supplied screenshot's NXDK `strtod` assertion is fixed.
 
-Remaining assumptions: diagnostic initial pose/inertia and scripted animation
+Remaining assumptions: diagnostic initial animation pose and scripted animation
 and input. Ground traction now uses the authored support surface. This route observes no movement contacts,
 no blocked standing and no support loss, so it does not establish those paths.
 PC agreement establishes cross-platform consistency; original-instruction
@@ -860,3 +860,39 @@ all three PC scene profiles and the 2,292 original stance-decision cases pass
 (the latter stops before physics effects and supplies eligibility). No new
 framebuffer was captured for this ordering change. Full eligibility, initial
 pose/inertia, support-loss traversal and gameplay lifecycle remain open.
+
+
+## Initial miner tensor corrected
+
+The provisional identity tensor was wrong for the populated-sphere miner path.
+Original 42254d..4225e9 constructs and zeroes the 0x98-byte physics parameter
+block, writes positive authored mass, position and orientation, and leaves its
+local tensor zero. 486da0 imports available model spheres before calling 49ec90.
+The model count query 503250/501490 reads the model's sphere count; the miner
+has three CSPH records. With positive mass, 49ec90 skips generated-mass tensor
+accumulation. A populated list also bypasses the later empty-list fallback.
+
+The empty-list distinction matters: even for positive mass, 49ec90 creates a
+fallback sphere when necessary and calls 4fce70, which explicitly writes an
+identity matrix. The earlier intermediate inference that positive mass always
+implies a zero tensor was too broad. The diagnostic now retains zero for its
+positive-mass model-sphere path and uses identity only when no model spheres
+exist. Nonpositive authored mass is rejected here until generated-mass creation
+is composed; existing standalone generation helpers are unaffected. Class sphere
+replacement continues to preserve the resulting tensor.
+
+`verify_actor_initial_tensor.py` executes the original parameter-construction
+prefix and complete 49ec90 preparation in 48 cases, with four positive masses,
+positions/orientations, disabled sphere mode, empty sphere lists and populated
+sphere lists. Storage capacity is preallocated to avoid needing an emulated
+allocator; no instructions or callees are replaced. Empty-list cases confirm
+identity, populated-list cases confirm zero, and mass is preserved. This is
+not full entity allocation, model loading or registration execution.
+
+Run `artifacts/xemu/20260909-171406-829227/report.json` passes on stock 64 MiB
+XEMU. The verifier checks all 144 initial/final local and world tensor bytes
+in its guest snapshot. All existing actor, selector, surface and clearance
+comparisons match PC. Both builds, four CTests and all three PC scene profiles
+pass. No framebuffer was captured: this translational fixture has no visible
+rotation change. Initial animation pose, full creation ordering/registration,
+scripted eligibility and support-loss traversal remain open.
