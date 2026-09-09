@@ -6,6 +6,65 @@ static uint32_t le32(const unsigned char *p)
     return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
 }
 
+static int entity_read(rf_level_entity_reader *r,void *data,uint32_t bytes)
+{
+    int status=rf_level_read(r->level,&r->section,r->cursor,data,bytes);
+    if(!status)r->cursor+=bytes;return status;
+}
+static int entity_skip(rf_level_entity_reader *r,uint32_t bytes)
+{
+    if(r->cursor>r->section.size || bytes>r->section.size-r->cursor)return RF_RANGE;
+    r->cursor+=bytes;return RF_OK;
+}
+static int entity_string(rf_level_entity_reader *r,char *out)
+{
+    uint8_t raw[2];uint32_t length;int status=entity_read(r,raw,2);if(status)return status;
+    length=raw[0]|(uint32_t)raw[1]<<8;
+    if(!out)return entity_skip(r,length);
+    if(length>=256)return RF_RANGE;
+    status=entity_read(r,out,length);if(status)return status;
+    if(memchr(out,0,length))return RF_FORMAT;out[length]=0;return RF_OK;
+}
+int rf_level_entities_begin(const rf_level *level,rf_level_entity_reader *reader)
+{
+    const rf_level_section *section;rf_level_entity_reader next;uint8_t raw[4];int status;
+    if(!level || !reader || level->version!=180)return RF_RANGE;
+    section=rf_level_find(level,0x30000);if(!section)return RF_NOT_FOUND;
+    memset(&next,0,sizeof(next));next.level=level;next.section=*section;
+    status=entity_read(&next,raw,4);if(status)return status;next.count=le32(raw);
+    if(next.count>(section->size-4)/155)return RF_FORMAT;
+    *reader=next;return RF_OK;
+}
+int rf_level_entity_next(rf_level_entity_reader *reader,rf_level_entity *entity)
+{
+    rf_level_entity_reader r;rf_level_entity value;uint8_t raw[48],flags[17];unsigned i;int status;
+    if(!reader || !entity || !reader->level)return RF_RANGE;
+    if(reader->index>=reader->count)return reader->index==reader->count && reader->cursor==reader->section.size?RF_NOT_FOUND:RF_FORMAT;
+    r=*reader;memset(&value,0,sizeof(value));value.offset=r.cursor;
+    status=entity_read(&r,raw,4);if(status)return status;value.uid=(int32_t)le32(raw);
+    status=entity_string(&r,value.class_name);if(status)return status;
+    status=entity_read(&r,raw,48);if(status)return status;
+    for(i=0;i<12;++i) {
+        uint32_t bits=le32(raw+i*4);float v;
+        if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;
+        memcpy(&v,&bits,4);
+        if(i<3)value.position[i]=v;else value.orientation[((i-3)/3+2)%3][(i-3)%3]=v;
+    }
+    status=entity_string(&r,value.script_name);if(status)return status;
+    status=entity_skip(&r,13);if(status)return status; /* editor byte and three relationship integers */
+    for(i=0;i<2;++i) {status=entity_string(&r,NULL);if(status)return status;}
+    status=entity_skip(&r,29);if(status)return status; /* six bytes, two angles, three bytes, life/armor/FOV */
+    for(i=0;i<7;++i) {status=entity_string(&r,i==3?value.state_animation:i==5?value.skin:NULL);if(status)return status;}
+    status=entity_skip(&r,18);if(status)return status; /* two AI bytes and four reference integers */
+    status=entity_read(&r,flags,17);if(status)return status;
+    if(flags[16]>1)return RF_FORMAT;
+    if(flags[16]) {status=entity_skip(&r,4);if(status)return status;}
+    for(i=0;i<2;++i) {status=entity_string(&r,NULL);if(status)return status;}
+    value.bytes=r.cursor-value.offset;++r.index;
+    if(r.index==r.count && r.cursor!=r.section.size)return RF_FORMAT;
+    *reader=r;*entity=value;return RF_OK;
+}
+
 static int read_at(rf_level *level, uint32_t *cursor, void *data, uint32_t size)
 {
     int result = rf_vpp_read(level->archive, &level->entry, *cursor, data, size);

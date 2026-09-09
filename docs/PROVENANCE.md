@@ -55,6 +55,11 @@ The emulator is a development-only dependency, not part of either game target.
 
 ## Local harness reference
 
+The bounded v180 level-entity reader uses format leads from Rafal Harabien and
+wardd64's GPL-3.0-or-later `rafalh/rf-reversed/rfl.ksy`. Reference hash, field
+scope and installed-data validation are recorded in [LEVEL-ENTITIES.md](LEVEL-ENTITIES.md).
+No generated Kaitai parser or third-party implementation is included.
+
 The user pointed to Unreal Tournament X; its actual directory is
 `C:/Programming/GitHub/UnrealTournament_1.40`. Inspected
 `UT99-Xbox/Tools/poll_xemu_ram_log.py`, `run_jailbreak_xemu_soak.py`, and the

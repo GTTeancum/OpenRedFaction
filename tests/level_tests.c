@@ -46,6 +46,34 @@ int main(void)
     word(4140, 0x7fc00000); CHECK(run(&level, &archive) == RF_FORMAT); rf_vpp_close(&archive); word(4140, 0x3f800000);
     word(4200, 1); CHECK(run(&level, &archive) == RF_FORMAT); rf_vpp_close(&archive); word(4200, 0);
     word(2108, 111); CHECK(run(&level, &archive) != RF_OK); rf_vpp_close(&archive);
+    /* One minimal variable-length entity after level info, before the end marker. */
+    word(2108,279);word(4116,3);word(4200,0x30000);word(4204,159);word(4208,1);word(4212,123);
+    word(4218,0x3f800000);word(4230,0x40000000);word(4242,0x40400000);word(4254,0x40800000);
+    CHECK(run(&level,&archive)==RF_OK);
+    {
+        rf_level_entity_reader reader,before,start;rf_level_entity entity,saved;unsigned cut;
+        CHECK(rf_level_entities_begin(&level,&reader)==RF_OK);start=reader;
+        CHECK(rf_level_entity_next(&reader,&entity)==RF_OK);
+        CHECK(entity.uid==123 && entity.position[0]==1 && entity.orientation[0][0]==3 && entity.orientation[1][0]==4 && entity.orientation[2][0]==2);
+        CHECK(entity.offset==4 && entity.bytes==155);
+        CHECK(rf_level_entity_next(&reader,&entity)==RF_NOT_FOUND);
+        memset(&entity,0xa5,sizeof(entity));saved=entity;
+        for(cut=4;cut<159;++cut) {
+            reader=start;reader.section.size=cut;before=reader;
+            CHECK(rf_level_entity_next(&reader,&entity)!=RF_OK);
+            CHECK(!memcmp(&reader,&before,sizeof(reader)) && !memcmp(&entity,&saved,sizeof(entity)));
+        }
+    }
+    rf_vpp_close(&archive);
+    word(4218,0x7fc00000);CHECK(run(&level,&archive)==RF_OK);
+    {rf_level_entity_reader r;rf_level_entity e;CHECK(rf_level_entities_begin(&level,&r)==RF_OK);CHECK(rf_level_entity_next(&r,&e)==RF_FORMAT);}
+    rf_vpp_close(&archive);word(4218,0x3f800000);
+    image[4217]=1;CHECK(run(&level,&archive)==RF_OK);
+    {rf_level_entity_reader r;rf_level_entity e;CHECK(rf_level_entities_begin(&level,&r)==RF_OK);CHECK(rf_level_entity_next(&r,&e)==RF_RANGE);}
+    rf_vpp_close(&archive);image[4217]=0;
+    image[4362]=2;CHECK(run(&level,&archive)==RF_OK);
+    {rf_level_entity_reader r;rf_level_entity e;CHECK(rf_level_entities_begin(&level,&r)==RF_OK);CHECK(rf_level_entity_next(&r,&e)==RF_FORMAT);}
+    rf_vpp_close(&archive);
     CHECK(remove("level-fixture.tmp") == 0);
     puts("Level bounds, invalid headers, duplicate sections, truncation and spawn ordering passed");
     return 0;

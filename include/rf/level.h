@@ -23,4 +23,17 @@ int rf_level_open(rf_level *level, rf_vpp *archive, const char *name);
 const rf_level_section *rf_level_find(const rf_level *level, uint32_t type);
 int rf_level_read(const rf_level *level, const rf_level_section *section,
                   uint32_t offset, void *data, uint32_t size);
+typedef struct rf_level_entity {
+    int32_t uid;float position[3],orientation[3][3];
+    char class_name[256],script_name[256],state_animation[256],skin[256];
+    uint32_t offset,bytes; /* Entity-section-relative raw span for future fields. */
+} rf_level_entity;
+typedef struct rf_level_entity_reader {
+    const rf_level *level;rf_level_section section;uint32_t cursor,count,index;
+} rf_level_entity_reader;
+/* v180 section 0x30000 format reader; no gameplay entity creation. Caller keeps
+ * level/archive alive. Sequential bounded reads, no heap allocation. next returns
+ * NOT_FOUND after exact section exhaustion; errors preserve reader and output. */
+int rf_level_entities_begin(const rf_level *level,rf_level_entity_reader *reader);
+int rf_level_entity_next(rf_level_entity_reader *reader,rf_level_entity *entity);
 #endif

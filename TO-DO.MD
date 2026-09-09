@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The bounded level-entity reader matches 1,610 records across 66 installed
+levels. Resolve entity classes/skins to model assets and feed real transforms
+into scene drawing; Live Mines miner1 UID 9858 is a nearby placement candidate.
+
 Supplied world-camera/entity transforms now drive the running model stream on
 64 MiB XEMU, with moving and fully culled placement checks on PC. Load real
 level entity transforms and combine placed models with the world draw path.
