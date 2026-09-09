@@ -559,6 +559,17 @@ int rf_group_pose_set_position(rf_group_attached_pose *pose,const float position
     if(!group_finite(next.minimum,6))return RF_FORMAT;
     next.flags|=0x4000000;*pose=next;return RF_OK;
 }
+int rf_group_controller_pose(const rf_level_group_key *first,rf_group_attached_pose *pose)
+{
+    rf_group_attached_pose value={0};
+    if(!first || !pose)return RF_RANGE;
+    if(!group_finite(first->position,12))return RF_FORMAT;
+    value.flags=0x6000001;memcpy(value.base_position,first->position,12);memcpy(value.base_matrix,first->orientation,36);
+    memcpy(value.position,first->position,12);memcpy(value.public_position,first->position,12);memcpy(value.pending,first->position,12);
+    memcpy(value.input_matrix,first->orientation,36);memcpy(value.output_matrix,first->orientation,36);memcpy(value.pending_matrix,first->orientation,36);
+    memcpy(value.minimum,first->position,12);memcpy(value.maximum,first->position,12);
+    *pose=value;return RF_OK;
+}
 int rf_group_translation_initialize(rf_group_translation_runtime *runtime,
     rf_group_attached_pose *pose,uint32_t flags,uint32_t mode,
     const rf_level_group_key *selected,uint32_t index,uint32_t key_count,int32_t now_ms)

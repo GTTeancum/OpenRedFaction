@@ -179,6 +179,10 @@ int rf_group_translation_propagate(rf_group_attached_pose *pose,
  * velocity and matrices. Finite inputs/results only; failures preserve pose.
  * Controller dirty gating/list traversal/dirty clearing belong to the caller. */
 int rf_group_pose_set_position(rf_group_attached_pose *pose,const float position[3]);
+/* Controller type-8 factory pose from the first key: flags 06000001, empty
+ * collision-sphere list yields radius zero and point bounds. No allocation or
+ * registration. Finite key position/matrix required; failures preserve output. */
+int rf_group_controller_pose(const rf_level_group_key *first,rf_group_attached_pose *pose);
 /* Translation state initialization from 469250 after factory/base pose setup.
  * Caller provides initial flags/mode and the selected key (file group.unknown
  * is the start-key index). Keeps the factory base pose/matrices and radius.

@@ -30,7 +30,9 @@ using the preserved base pose and validated selected start key. Owned controller
 inputs now retain all 1,223 groups after archive closure (max 114,176 bytes per
 level). Live Mines now retains five groups through 64 rendered frames and
 archive closure in stock 64 MiB XEMU; connect persistent runtime poses,
-registration/attachments and rendering to this owned data.
+registration/attachments and rendering to this owned data. Controller base
+poses now match 1,223 original first-key setups, including flags 06000001 and
+zero radius from the empty collision-sphere list.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

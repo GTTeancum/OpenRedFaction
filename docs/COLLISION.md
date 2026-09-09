@@ -2105,3 +2105,25 @@ these are diagnostic observations, not full-game peak memory proof.
 No framebuffer was captured because the rendered result is unchanged. Controller
 storage is now resident alongside rendering, but registration, persistent runtime
 poses/attachments, controller playback and mover rendering remain open.
+
+
+### Controller factory pose and zero radius
+
+Type 8 dispatch at 487330 selects 4871f8, allocating 32c bytes and calling
+46c280. The 469250 factory call passes flags=1; 486f45/486f59 produce object
+flags 06000001. The first key supplies base/public/physics positions and matrices.
+Controller physics parameters have no collision-sphere mode. Although 49f010
+skips its conditional radius assignment in that case, its final 4a0cb0 call
+explicitly resets physics +f8 (object +180) to zero and rebuilds it from sphere
+entries. With the controller's empty list, radius is zero and bounds are a point.
+This avoids depending on unspecified allocator contents.
+
+`rf_group_controller_pose` constructs these mapped fields from a first key,
+with zero velocity, retaining the first-key base pose for later selected-key
+initialization. It validates finite position/matrix inputs and preserves output
+on error. `tools/verify_controller_pose.py` compares all 1,223 first keys on PC
+and compiled NXDK against original 486ee6..486f63 and 49f051..49f0ab blocks,
+complete 4a0cb0 with a poisoned initial radius and empty list, and unchanged
+public-position vector copy. Complete mapped pose bytes and two nonfinite guards
+pass. This is factory-pose reconstruction, not complete allocation, registration,
+rotation playback or persistent scene controller binding.
