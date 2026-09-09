@@ -1,5 +1,12 @@
 # Guest memory evidence
 
+Current result: the memory harness and 64-frame live actor comparison pass in
+stock 64 MiB XEMU (`artifacts/xemu/20260909-151445-192163/report.json`). The
+`strtod` assertion in the supplied screenshot is fixed. Grounding, spawn pose,
+inertia and animation-dependent collider updates remain unverified. Sections
+below record successive implementation stages; the latest live-update section
+supersedes the earlier stored-trajectory implementation.
+
 Use QMP guest-memory inspection without host input or desktop capture. The
 pattern follows the UT99 Xbox RAM poller reviewed at
 `C:/Programming/GitHub/UnrealTournament_1.40/UT99-Xbox/Tools/poll_xemu_ram_log.py`;
@@ -294,3 +301,31 @@ not established as falling. Original 42a020 compares descriptor+4 with 3 and
 256 original/PC/NXDK contact cases and the captured first contact with mode 3
 passes unchanged. Earlier mode-2 fixtures supported the selected response
 branch, but must not be cited as proof of falling-mode selection.
+
+## Ground-query preparation from captured poses
+
+Run `python tools/inspect_actor_ground.py artifacts/xemu/20260909-151445-192163/guest-memory-complete.json`.
+The harness executes original 4a0840 and unchanged callees, stopping at 4a0a57
+before 499ed0 runs. It supplies an already-constructed reusable query body with
+reserved sphere capacity, avoiding allocation without replacing any callee.
+All 64 guest positions and actual retained spheres are checked in four prepared
+cases: falling mode 3 with zero/positive support velocity, and synthetic mode 0
+with zero/negative support velocity. These descriptors are harness inputs, not
+movement states recovered from the Xbox guest.
+
+All 256 cases pass byte comparisons for start/end, selected sphere, identity
+orientation, broad bounds, radius, collision flags and initial hit fraction.
+The original selects the lowest sphere **center Y**, not center-minus-radius:
+miner sphere 0 has center Y -0.23152138 and radius 0.60000002. Start Y rises
+0.05 and additionally dt times positive support Y velocity. Falling end Y drops
+0.10; the non-falling path drops dt times class speed plus 0.05. That latter
+expression stays in x87 extended precision through subtraction; prematurely
+rounding the depth to float failed at captured frame 1 and is not equivalent.
+
+The temporary body's collision flags are source flags with 0x1000 cleared.
+They are zero in this guest fixture; the existing live sweep's diagnostic mask
+0x460 is therefore not established as original ground-query policy. 499ed0
+derives additional flags internally, so its complete policy still needs tracing.
+This harness does not run the world query, decide support, apply landing damage,
+or change movement descriptors. It adds evidence without claiming the observed
+slope drift is fixed. No new framebuffer is warranted by this inspection.
