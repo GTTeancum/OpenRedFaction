@@ -1,5 +1,19 @@
 # Model batch data
 
+`rf_model_classify_clip_vertex` recovers complete `0x518320` through
+`0x518bd0 / 0x5475d0`. Render mode 0x66 writes only byte 24 of the 48-byte
+record; other modes leave it intact. The shared mask calculation follows side,
+perspective and far-plane gates, treating nonpositive/unordered Z as bit 0x80.
+It does not generate near bit 1 or custom-plane bit 0x40. Camera-space position
+is supplied; this helper does not transform or interpolate the vertex.
+
+`tools/verify_model_clip_classification.py` runs 3,000 complete original wrapper
+executions, covering mode gates, plane gates, equality and non-finite values.
+All 48 record bytes match. Fresh projection now shares the mask calculation;
+its 2,000 original-code comparisons remain byte-exact. PC/NXDK builds and four
+CTest checks pass. Pool allocation/release and polygon traversal still need
+assembly with the recovered intersection, attribute and classification stages.
+
 `rf_model_clip_intersection` reconstructs all seven plane-bit branches in
 `0x549324..0x54954c`, returning position and interpolation factor without
 allocating a temporary vertex. Near/far intersections retain the original

@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Generated-vertex clip classification now matches 3,000 original cases and
+shares the verified fresh-projection mask calculation. Assemble temporary
+vertex allocation/release and polygon traversal around the recovered stages.
+
 All seven clip-plane intersection branches now match 2,800 original cases.
 Assemble intersection, attributes, clip classification and temporary-vertex
 lifetime into per-plane polygon traversal before draw submission.

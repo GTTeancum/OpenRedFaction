@@ -12,6 +12,14 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--classify-clip")) {
+        struct {uint8_t record[48];rf_model_projection view;uint32_t mode;} data;
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            if(rf_model_classify_clip_vertex(data.mode,&data.view,data.record))return 2;
+            if(fwrite(data.record,48,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--clip-intersection")) {
         struct {float inside[3],outside[3];rf_model_clip_planes planes;uint32_t plane;} data;
         while(fread(&data,sizeof(data),1,stdin)==1) {

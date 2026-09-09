@@ -159,6 +159,9 @@ typedef struct rf_model_clip_planes {float near_depth,far_depth,point[3],normal[
  * stores. Singular arithmetic is retained. No attributes/pool allocation. */
 int rf_model_clip_intersection(uint32_t plane,const float inside[3],const float outside[3],
     const rf_model_clip_planes *planes,float position[3],double *factor);
+/* 0x518320 -> 0x518bd0 -> 0x5475d0. Mode 0x66 updates record byte24;
+ * other modes preserve it. Plane checks consume camera-space position. */
+int rf_model_classify_clip_vertex(uint32_t mode,const rf_model_projection *view,uint8_t record[48]);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.

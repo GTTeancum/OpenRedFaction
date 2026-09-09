@@ -5,6 +5,30 @@
 #include <stdlib.h>
 #include <float.h>
 
+static uint8_t model_clip_mask(const float position[3],const rf_model_projection *view)
+{
+    uint8_t clip=0;
+    if(view->clipping) {
+        if(position[0]>position[2])clip|=8;
+        if(position[1]>position[2])clip|=32;
+        if(-position[2]>position[0])clip|=4;
+        if(-position[2]>position[1])clip|=16;
+        if(view->perspective) {
+            if(!(position[2]>0))clip|=128;
+            if(view->far_clip && position[2]>view->far_depth)clip|=2;
+        }
+    }
+    return clip;
+}
+
+int rf_model_classify_clip_vertex(uint32_t mode,const rf_model_projection *view,uint8_t record[48])
+{
+    float position[3];
+    if(!view || !record)return RF_RANGE;
+    if(mode==0x66) {memcpy(position,record,12);record[24]=model_clip_mask(position,view);}
+    return RF_OK;
+}
+
 int rf_model_clip_intersection(uint32_t plane,const float inside[3],const float outside[3],
     const rf_model_clip_planes *planes,float position[3],double *factor)
 {
@@ -93,16 +117,7 @@ int rf_model_project_vertex(const float world[3],const rf_model_projection *view
     position[2]=(float)(((double)m[7]*delta[1]+(double)m[6]*delta[0])+(double)m[8]*delta[2]);
     if(!view->perspective)position[2]=view->fixed_depth;
     if(view->compute_clip) {
-        if(view->clipping) {
-            if(position[0]>position[2])clip|=8;
-            if(position[1]>position[2])clip|=32;
-            if(-position[2]>position[0])clip|=4;
-            if(-position[2]>position[1])clip|=16;
-            if(view->perspective) {
-                if(!(position[2]>0))clip|=128;
-                if(view->far_clip && position[2]>view->far_depth)clip|=2;
-            }
-        }
+        clip=model_clip_mask(position,view);
         memcpy(clip_position,position,sizeof(position));
     }
     depth=(float)(255.0-(double)view->depth_factor*position[2]);
