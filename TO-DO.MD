@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Swept sphere/plane contact now matches 9,000 original calls on PC/NXDK;
-recover sphere/edge contact and combine finite-face sweeps, then reconstruct
-actor movement response and mutable world state.
+Sphere/edge branch rules now have 13 verified original boundary fixtures;
+reconstruct its extended-precision roots and endpoint fallback, then combine
+finite-face sweeps and actor movement response.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

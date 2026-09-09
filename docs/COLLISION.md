@@ -682,3 +682,39 @@ port guards check negative/NaN radius, infinite start and NaN plane values.
 Report: `artifacts/sphere-plane-verification.json`. Both builds and four CTest
 checks pass. Sphere/edge helper `0x5072e0`, finite-polygon sweep composition,
 actor response and guest execution of this new primitive remain open.
+
+## Sphere/edge reconstruction evidence
+
+Original `0x5072e0` takes `(contact_out, start, displacement, radius, edge_a,
+edge_b, fraction_out, fraction_limit)`. It first forms edge `e = b-a` and
+offset `o = start-a`, storing vector differences and six dot/length values as
+binary32. The line-cylinder quadratic uses coefficients
+`A = (e·d)^2 - (d·d)(e·e)` and
+`B = 2((e·d)(o·e) - (e·e)(o·d))`, both stored as binary32.
+The discriminant retains extended intermediates for
+`B² - 4A((e·e)r² + (o·e)² - (e·e)(o·o))`; nonpositive discriminants reject,
+including exact tangencies. Square root and division remain extended until root
+stores. The earlier root is selected. A root in `[-0.05f, 0)` is replaced by
+binary32 `0x358637bd` (0.000001). Accepted line times must be at most 1 and
+strictly less than the supplied fraction limit. The projected position along
+the finite edge is then checked before contact is committed.
+
+Parallel/degenerate line cases, deeper initial overlap and projections outside
+the finite edge can enter a sphere-versus-point quadratic fallback. Crucially,
+the point is **edge_a only**. This routine is asymmetric under edge reversal;
+the caller's ordered polygon-edge iteration is needed to cover all endpoints.
+Endpoint times require nonnegative time, at most 1 and strictly below the limit.
+Initial overlap behavior differs from the plane helper. The function also uses
+two static scratch vectors, which the port should replace with caller-local
+storage. Misses leave contact and fraction outputs unchanged.
+
+`python tools/probe_sphere_edge.py` passes 13 analytic original-code fixtures:
+interior contact, exact tangency, start-endpoint contact, omitted far-endpoint
+contact and its reversed counterpart, equal/larger fraction limits, small-negative
+entry, deep initial overlap, parallel travel, zero movement, zero-length edge and
+zero radius. Exact output bytes and selected branch traces are recorded in
+`artifacts/sphere-edge-boundaries.json`. Static initialization flags are seeded
+to represent steady-state execution and avoid unrelated CRT atexit registration;
+all geometric callees run unchanged. Ghidra export now includes this function.
+These fixtures establish behavior for the upcoming reconstruction, not a C/NXDK
+implementation comparison. No compiled gameplay or rendering behavior changed.

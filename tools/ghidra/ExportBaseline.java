@@ -71,6 +71,7 @@ public class ExportBaseline extends GhidraScript {
         for(long target : new long[]{0x4ccec0L,0x4ce200L,0x4ce240L,0x4ce110L,0x45ebb0L,0x507990L}) addresses.add(target); // Room attachment, detail-list routing and broad phase.
         for(long target : new long[]{0x4f8fd0L,0x4f9050L,0x4f8f90L,0x4d30e0L}) addresses.add(target);
         for(long target : new long[]{0x506550L,0x4e1f50L,0x5071b0L}) addresses.add(target);
+        addresses.add(0x5072e0L); // Swept sphere against edge and endpoint fallback.
         for (long target : new long[]{0x539ed0L, 0x53a130L, 0x539e10L, 0x53a040L, 0x51a000L, 0x417e90L}) addresses.add(target);
         addresses.add(0x5698d0L); addresses.add(0x569920L);
         addresses.add(0x569d20L);
