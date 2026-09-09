@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Sphere/edge branch rules now have 13 verified original boundary fixtures;
-reconstruct its extended-precision roots and endpoint fallback, then combine
-finite-face sweeps and actor movement response.
+Sphere/edge sweeps now match 9,013 original calls on PC and NXDK; combine
+plane, polygon and ordered-edge tests into finite-face sweeps, then recover
+actor movement response and validate the new sweep in XEMU.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

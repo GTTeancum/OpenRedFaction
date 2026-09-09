@@ -10,6 +10,15 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--sphere-edge")) {
+        struct {float start[3],delta[3],radius,a[3],b[3],limit;} in;
+        struct {int32_t status;uint32_t hit;float fraction,point[3];} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=rf_collision_sphere_edge(in.start,in.delta,in.radius,in.a,in.b,in.limit,&out.fraction,out.point,&out.hit);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--sphere-plane")) {
         struct {float start[3],delta[3],radius,plane[4];} in;
         struct {int32_t status;uint32_t hit;float fraction,point[3];} out;

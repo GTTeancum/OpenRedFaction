@@ -3,6 +3,315 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Original edge quadratic, retaining x87 intermediates through sqrt/division.
+ * terms: o.e, o.d, o.o, e.d, e.e, d.d, radius, A, B. */
+static int edge_roots(float terms[9],float roots[2],int endpoint)
+{
+    unsigned short saved,control;int status;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,terms
+        mov edx,roots
+        mov esi,endpoint
+        cmp esi,0
+        jne alg_point
+        fld dword ptr [ecx+12]
+        fmul dword ptr [ecx+12]
+        fld dword ptr [ecx+20]
+        fmul dword ptr [ecx+16]
+        fsubp st(1),st(0)
+        fst dword ptr [ecx+28]
+        ftst
+        fnstsw ax
+        test ah,0x40
+        fstp st(0)
+        jnz alg_parallel
+        fld dword ptr [ecx+12]
+        fmul dword ptr [ecx]
+        fld dword ptr [ecx+16]
+        fmul dword ptr [ecx+4]
+        fsubp st(1),st(0)
+        fadd st(0),st(0)
+        fstp dword ptr [ecx+32]
+        fld dword ptr [ecx+32]
+        fld st(0)
+        fmul st(0),st(0)
+        fld dword ptr [ecx+16]
+        fmul dword ptr [ecx+24]
+        fmul dword ptr [ecx+24]
+        fld dword ptr [ecx]
+        fmul dword ptr [ecx]
+        faddp st(1),st(0)
+        fld dword ptr [ecx+16]
+        fmul dword ptr [ecx+8]
+        fsubp st(1),st(0)
+        fmul dword ptr [ecx+28]
+        fadd st(0),st(0)
+        fadd st(0),st(0)
+        fsubp st(1),st(0)
+        jmp alg_disc
+        alg_point:
+        fld dword ptr [ecx+4]
+        fadd st(0),st(0)
+        fld st(0)
+        fmul st(0),st(0)
+        fld dword ptr [ecx+24]
+        fmul dword ptr [ecx+24]
+        fsubr dword ptr [ecx+8]
+        fmul dword ptr [ecx+20]
+        fadd st(0),st(0)
+        fadd st(0),st(0)
+        fsubp st(1),st(0)
+        alg_disc:
+        ftst
+        fnstsw ax
+        test ah,0x41
+        jnz alg_miss
+        fsqrt
+        cmp esi,0
+        jne alg_point_den
+        fld dword ptr [ecx+28]
+        jmp alg_den
+        alg_point_den:
+        fld dword ptr [ecx+20]
+        alg_den:
+        fadd st(0),st(0)
+        fld st(1)
+        fsub st(0),st(3)
+        fdiv st(0),st(1)
+        fstp dword ptr [edx]
+        fld st(2)
+        fchs
+        fsub st(0),st(2)
+        fdiv st(0),st(1)
+        fstp dword ptr [edx+4]
+        fstp st(0)
+        fstp st(0)
+        fstp st(0)
+        mov eax,1
+        jmp alg_done
+        alg_miss:
+        fstp st(0)
+        fstp st(0)
+        xor eax,eax
+        jmp alg_done
+        alg_parallel:
+        mov eax,2
+        alg_done:
+        mov status,eax
+        fldcw saved
+    }
+#elif defined(__i386__)
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "cmp esi,0\n\t"
+        "jne alg_point_%=\n\t"
+        "fld dword ptr [ecx+12]\n\t"
+        "fmul dword ptr [ecx+12]\n\t"
+        "fld dword ptr [ecx+20]\n\t"
+        "fmul dword ptr [ecx+16]\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "fst dword ptr [ecx+28]\n\t"
+        "ftst\n\t"
+        "fnstsw ax\n\t"
+        "test ah,0x40\n\t"
+        "fstp st(0)\n\t"
+        "jnz alg_parallel_%=\n\t"
+        "fld dword ptr [ecx+12]\n\t"
+        "fmul dword ptr [ecx]\n\t"
+        "fld dword ptr [ecx+16]\n\t"
+        "fmul dword ptr [ecx+4]\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "fadd st(0),st(0)\n\t"
+        "fstp dword ptr [ecx+32]\n\t"
+        "fld dword ptr [ecx+32]\n\t"
+        "fld st(0)\n\t"
+        "fmul st(0),st(0)\n\t"
+        "fld dword ptr [ecx+16]\n\t"
+        "fmul dword ptr [ecx+24]\n\t"
+        "fmul dword ptr [ecx+24]\n\t"
+        "fld dword ptr [ecx]\n\t"
+        "fmul dword ptr [ecx]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fld dword ptr [ecx+16]\n\t"
+        "fmul dword ptr [ecx+8]\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "fmul dword ptr [ecx+28]\n\t"
+        "fadd st(0),st(0)\n\t"
+        "fadd st(0),st(0)\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "jmp alg_disc_%=\n\t"
+        "alg_point_%=:\n\t"
+        "fld dword ptr [ecx+4]\n\t"
+        "fadd st(0),st(0)\n\t"
+        "fld st(0)\n\t"
+        "fmul st(0),st(0)\n\t"
+        "fld dword ptr [ecx+24]\n\t"
+        "fmul dword ptr [ecx+24]\n\t"
+        "fsubr dword ptr [ecx+8]\n\t"
+        "fmul dword ptr [ecx+20]\n\t"
+        "fadd st(0),st(0)\n\t"
+        "fadd st(0),st(0)\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "alg_disc_%=:\n\t"
+        "ftst\n\t"
+        "fnstsw ax\n\t"
+        "test ah,0x41\n\t"
+        "jnz alg_miss_%=\n\t"
+        "fsqrt\n\t"
+        "cmp esi,0\n\t"
+        "jne alg_point_den_%=\n\t"
+        "fld dword ptr [ecx+28]\n\t"
+        "jmp alg_den_%=\n\t"
+        "alg_point_den_%=:\n\t"
+        "fld dword ptr [ecx+20]\n\t"
+        "alg_den_%=:\n\t"
+        "fadd st(0),st(0)\n\t"
+        "fld st(1)\n\t"
+        "fsub st(0),st(3)\n\t"
+        "fdiv st(0),st(1)\n\t"
+        "fstp dword ptr [edx]\n\t"
+        "fld st(2)\n\t"
+        "fchs\n\t"
+        "fsub st(0),st(2)\n\t"
+        "fdiv st(0),st(1)\n\t"
+        "fstp dword ptr [edx+4]\n\t"
+        "fstp st(0)\n\t"
+        "fstp st(0)\n\t"
+        "fstp st(0)\n\t"
+        "mov eax,1\n\t"
+        "jmp alg_done_%=\n\t"
+        "alg_miss_%=:\n\t"
+        "fstp st(0)\n\t"
+        "fstp st(0)\n\t"
+        "xor eax,eax\n\t"
+        "jmp alg_done_%=\n\t"
+        "alg_parallel_%=:\n\t"
+        "mov eax,2\n\t"
+        "alg_done_%=:\n\t"
+        ".att_syntax prefix"
+        :"=a"(status):"c"(terms),"d"(roots),"S"(endpoint):"cc","memory","st","st(1)","st(2)","st(3)");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#else
+    (void)saved;(void)control;
+    {long double a,b,c,disc;
+        if(endpoint) {a=terms[5];b=2*(long double)terms[1];c=(long double)terms[2]-(long double)terms[6]*terms[6];}
+        else {
+            terms[7]=(float)((long double)terms[3]*terms[3]-(long double)terms[5]*terms[4]);
+            if(terms[7]==0)return 2;
+            terms[8]=(float)(2*((long double)terms[3]*terms[0]-(long double)terms[4]*terms[1]));
+            a=terms[7];b=terms[8];c=((long double)terms[4]*terms[6]*terms[6]+(long double)terms[0]*terms[0])-(long double)terms[4]*terms[2];
+        }
+        disc=b*b-4*a*c;if(!(disc>0))return 0;
+        roots[0]=(float)((sqrtl(disc)-b)/(2*a));roots[1]=(float)((-b-sqrtl(disc))/(2*a));status=1;
+    }
+#endif
+    return status;
+}
+
+static float edge_dot(const float *a,const float *b,float denominator,int *negative)
+{
+    float value;unsigned short comparison;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    unsigned short saved,control;
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,a
+        mov edx,b
+        lea esi,denominator
+        lea edi,value
+        fld dword ptr [ecx+8]
+        fmul dword ptr [edx+8]
+        fld dword ptr [ecx+4]
+        fmul dword ptr [edx+4]
+        faddp st(1),st(0)
+        fld dword ptr [ecx]
+        fmul dword ptr [edx]
+        faddp st(1),st(0)
+        fdiv dword ptr [esi]
+        ftst
+        fnstsw comparison
+        fstp dword ptr [edi]
+        fldcw saved
+    }
+#elif defined(__i386__)
+    unsigned short saved,control;
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "fld dword ptr [ecx+8]\n\t"
+        "fmul dword ptr [edx+8]\n\t"
+        "fld dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [edx+4]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fld dword ptr [ecx]\n\t"
+        "fmul dword ptr [edx]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fdiv dword ptr [esi]\n\t"
+        "ftst\n\t"
+        "fnstsw ax\n\t"
+        "fstp dword ptr [edi]\n\t"
+        ".att_syntax prefix"
+        :"=a"(comparison):"c"(a),"d"(b),"S"(&denominator),"D"(&value):"memory","st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#else
+    {long double extended=(((long double)a[2]*b[2]+(long double)a[1]*b[1])+(long double)a[0]*b[0])/denominator;value=(float)extended;comparison=extended<0?0x100:0;}
+#endif
+    if(negative)*negative=(comparison&0x100u)!=0;
+    return value;
+}
+static float edge_length(const float *a)
+{
+    float reversed[3]={a[2],a[1],a[0]};return edge_dot(reversed,reversed,1,NULL);
+}
+int rf_collision_sphere_edge(const float start[3],const float delta[3],float radius,
+    const float a[3],const float b[3],float limit,float *fraction,float point[3],uint32_t *hit)
+{
+    float e[3],o[3],terms[9],roots[2],time,contact[3];uint32_t j;int status;
+    if(!start || !delta || !a || !b || !fraction || !point || !hit)return RF_RANGE;
+    if(!isfinite(radius) || radius<0 || !isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    for(j=0;j<3;j++) {
+        if(!isfinite(start[j]) || !isfinite(delta[j]) || !isfinite(a[j]) || !isfinite(b[j]))return RF_FORMAT;
+        e[j]=b[j]-a[j];o[j]=start[j]-a[j];
+    }
+    terms[0]=edge_dot(o,e,1,NULL);terms[1]=edge_dot(o,delta,1,NULL);terms[2]=edge_length(o);
+    terms[3]=edge_dot(e,delta,1,NULL);terms[4]=edge_length(e);terms[5]=edge_length(delta);terms[6]=radius;
+    for(j=0;j<7;j++)if(!isfinite(terms[j]))return RF_FORMAT;
+    status=edge_roots(terms,roots,0);
+    if(!status)goto miss;
+    if(status==1) {
+        float later;time=roots[0];later=roots[1];if(later<time) {float swap=time;time=later;later=swap;}
+        if(time>=-.05f) {
+            if(time<0)time=1e-6f;
+            if(time>1 || !(time<limit))goto miss;
+            for(j=0;j<3;j++) {volatile float moved=delta[j]*time;volatile float center=start[j]+moved;o[j]=center-a[j];}
+            {int negative;float along=edge_dot(o,e,terms[4],&negative);
+                if(!negative && along<=1) {
+                    for(j=0;j<3;j++) {volatile float offset=e[j]*along;contact[j]=a[j]+offset;}
+                    goto accept;
+                }
+            }
+        }
+        else if(time>1 || later<0)goto miss;
+    }
+    status=edge_roots(terms,roots,1);if(!status)goto miss;
+    time=roots[0]<roots[1]?roots[0]:roots[1];
+    if(!(time>=0 && time<=1 && time<limit))goto miss;
+    memcpy(contact,a,sizeof(contact));
+ accept:
+    *fraction=time;memcpy(point,contact,sizeof(contact));*hit=1;return RF_OK;
+ miss:
+    *hit=0;return RF_OK;
+}
+
+
+
 /* Preserve the original extended intermediates and single final float store. */
 static float plane_component(float a,float b,float s,float e,float plane)
 {

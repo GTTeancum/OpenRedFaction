@@ -23,6 +23,12 @@ int rf_collision_segment_plane(const float start[3],const float displacement[3],
  * outputs. This is a plane test, not polygon/edge or world collision. */
 int rf_collision_sphere_plane(const float start[3],const float displacement[3],
     float radius,const float plane[4],float *fraction,float point[3],uint32_t *hit);
+/* 5072e0 finite edge with starting-endpoint fallback only. Strict limit,
+ * tangent rejection and original small-negative-time clamp. Local scratch.
+ * Misses preserve fraction/point; malformed or overflowing terms preserve all
+ * outputs. Finite inputs, nonnegative radius and limit [0,1] required. */
+int rf_collision_sphere_edge(const float start[3],const float delta[3],float radius,
+    const float a[3],const float b[3],float limit,float *fraction,float point[3],uint32_t *hit);
 /* 4e1f50 + projection-axis selection 4fa6d0, using an ordered closed
  * vertex array instead of the original circular edge list. Exact half-open
  * crossing rule; no epsilon or generic on-edge override. Tests projected

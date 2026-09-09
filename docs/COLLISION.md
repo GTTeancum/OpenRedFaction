@@ -718,3 +718,31 @@ to represent steady-state execution and avoid unrelated CRT atexit registration;
 all geometric callees run unchanged. Ghidra export now includes this function.
 These fixtures establish behavior for the upcoming reconstruction, not a C/NXDK
 implementation comparison. No compiled gameplay or rendering behavior changed.
+
+## Reconstructed sphere/edge helper
+
+`rf_collision_sphere_edge` now implements the steady-state geometric helper in
+shared `src/core/collision.c`, replacing original static scratch with local
+arrays. Both x86 builds retain the original x87 operation order and float stores
+through coefficients, discriminants, roots and projected contact. The lower
+projection bound compares the extended result before rounding; the upper bound
+uses its stored float. This preserves the distinction between exact negative
+zero and a negative value that underflows when stored. Each x87 helper restores
+the caller's control word. The non-x86 long-double fallback remains unverified.
+
+The public wrapper requires finite vectors, a finite nonnegative radius and a
+fraction limit in [0,1]; nonfinite derived dot/length terms return RF_FORMAT.
+Invalid pointers return RF_RANGE. Errors preserve all outputs, while misses set
+hit to zero and preserve fraction/contact. The helper performs no allocation.
+
+`python tools/verify_sphere_edge.py` compares 9,013 complete original calls with
+both the PC build and actual NXDK-linked code: the 13 analytic boundary fixtures
+plus 9,000 deterministic randomized cases, including degenerate edges, stationary
+spheres, axial contacts, endpoint boundaries and varying fraction limits. All
+480 hit results and all miss outputs match byte-for-byte. Seven additional port
+guards pass. Report: `artifacts/sphere-edge-verification.json`.
+
+Full PC and NXDK builds, four CTest checks and the 9,000-case sphere/plane
+regression pass. This is CPU-level verification, not guest execution of the new
+primitive. Finite-face composition, ordered edge traversal, actor movement
+response and XEMU sweep integration remain open; rendering is unchanged.
