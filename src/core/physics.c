@@ -3,6 +3,28 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3],
+    const float support_velocity[3],const float contact_velocity[3],float *impact_speed)
+{
+    float combined[3],correction[3],velocity[3],contact_dot,impact,scale;double actor_dot,test;uint32_t i;
+    if(!state || !normal || !support_velocity || !contact_velocity || !impact_speed || (state->flags&0x80))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(normal[i]) || !isfinite(state->velocity[i]) || !isfinite(support_velocity[i]) || !isfinite(contact_velocity[i]))return RF_RANGE;
+        combined[i]=(float)((double)state->velocity[i]+support_velocity[i]);
+        if(!isfinite(combined[i]))return RF_RANGE;
+    }
+    contact_dot=(float)(((double)contact_velocity[2]*normal[2]+(double)contact_velocity[1]*normal[1])+(double)contact_velocity[0]*normal[0]);
+    actor_dot=((double)combined[2]*normal[2]+(double)combined[1]*normal[1])+(double)combined[0]*normal[0];
+    impact=(float)((double)contact_dot-actor_dot);scale=(float)((double)impact*1.100000023841858f);
+    if(!isfinite(impact) || !isfinite(scale))return RF_RANGE;
+    for(i=0;i<3;++i) {correction[i]=(float)((double)scale*normal[i]);if(!isfinite(correction[i]))return RF_RANGE;}
+    test=((double)correction[2]*normal[2]+(double)correction[1]*normal[1])+(double)correction[0]*normal[0];
+    if(test>0) {
+        for(i=0;i<3;++i) {velocity[i]=(float)((double)state->velocity[i]+correction[i]);if(!isfinite(velocity[i]))return RF_RANGE;}
+        memcpy(state->velocity,velocity,sizeof(velocity));memset(state->vector_c8,0,sizeof(state->vector_c8));
+    }
+    *impact_speed=impact;return RF_OK;
+}
 int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,const float support_velocity[3])
 {
     float velocity[3],position[3];volatile float half_dt_squared;uint32_t i;

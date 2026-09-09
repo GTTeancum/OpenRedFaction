@@ -17,8 +17,10 @@ are next. The integrated sphere/world diagnostic now checks six two-unit axis
 sweeps per retained sphere and captures raw guest contacts for PC comparison.
 Prepared falling translation now matches original instructions on PC/NXDK and
 feeds a passive falling fixture using the miner's actual spheres and level.
-The fixture stops before its first contact; original collision response, actor
-pose/room commit and rendered movement remain open.
+The fixture now applies the original static-contact velocity response once;
+contact position/time clipping, actor pose/room commit and rendered movement
+remain open. The original uses a 0.05-unit separation margin, not zero-gap
+placement, so do not simply move the body to the raw hit fraction.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

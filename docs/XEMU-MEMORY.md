@@ -100,3 +100,41 @@ Verified run `artifacts/xemu/20260909-144003-824190/report.json` passes on
 -3.91096449 and velocity Y is -3.75666738. All eight words and the state hash
 match PC; configuration, body, world sweeps and the 600-frame door regression
 also pass. The displayed scene is unchanged, so no screenshot was captured.
+
+## First contact velocity response
+
+`rf_physics_static_contact` implements 49dc1d..49dcf1: the non-rotating actor
+branch for a non-liquid contact with zero inverse mass, no resolved other
+object, and body flag 0x80 clear. It computes contact-normal speed minus the
+actor-plus-support normal speed, scales that difference by original constant
+1.1 (589460), and adds the resulting normal correction only when it points
+outward. In that case it clears angular velocity (body+c8). The signed impact
+speed is returned for the separate damage path, which is not implemented here.
+This branch is not the general moving-object, liquid or ground-constrained
+response. The falling fixture explicitly selects these contact assumptions.
+
+`tools/verify_physics_contact.py` executes complete original 49d7e0 with its
+unchanged callees and compares velocity, angular velocity and signed impact
+speed for 256 low-speed fixtures on PC and NXDK. An observation hook reads the
+argument at 49cd80 without replacing it. The low-speed fixtures do not exercise
+damage. This validates the selected response branch, not every actor response.
+
+`tools/inspect_actor_contact.py <guest-memory-complete.json>` reconstructs the
+passive fixture's incoming velocity from its initial guest body and step count,
+uses the captured contact normal, executes the original response with a
+synthetic falling descriptor (mode 2), and compares original, PC and guest
+velocity. It writes the original call trace to `artifacts/actor-contact-original.json`.
+
+Run `artifacts/xemu/20260909-144607-858143/report.json` passes on 64 MiB XEMU.
+The actual sphere-0 floor contact has signed impact speed 3.84905815 and
+response velocity (0.75376487, 0.23733878, -0.27352908), matching original and
+PC. The fixture retains pre-contact position and proposed next position and
+stops after this one velocity response; it does not yet continue the remaining
+frame or move the rendered actor. Full builds, all four CTests, configuration,
+body/world comparisons and the 600-frame door regression pass.
+
+Next integration evidence: original 49ffd2 computes remaining time from the
+unadjusted hit fraction; 4a002b..4a005c subtracts the 0.05-unit separation margin
+(5894f4) from traveled distance, clamps the adjusted fraction at zero, and
+4a0060..4a0077 advances position. Flag 0x400000 bypasses that margin. Preserve
+this distinction when connecting position clipping and repeated substeps.

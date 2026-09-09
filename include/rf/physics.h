@@ -97,4 +97,10 @@ int rf_physics_body_replace_spheres(rf_physics_body *body,
  * mass and finite inputs required; errors preserve the state. */
 int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
     const float support_velocity[3]);
+/* 49dc1d..49dcf1 velocity response: stationary non-liquid contact, flags&0x80
+ * clear, non-rotating actor predicate. Normal is used as supplied. Returns
+ * signed impact speed for the later damage path; does not apply damage or
+ * select movement modes. Finite inputs required; errors preserve outputs. */
+int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3],
+    const float support_velocity[3],const float contact_velocity[3],float *impact_speed);
 #endif

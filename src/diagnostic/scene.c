@@ -114,11 +114,13 @@ typedef struct actor_sweep_record {
 } actor_sweep_record;
 actor_sweep_record rf_scene_actor_sweep_records[48];
 rf_physics_body_state rf_scene_actor_fall_state;
+float rf_scene_actor_contact[7]; /* impact speed, contact normal, response velocity */
 int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t out[8])
 {
     rf_physics_body_state current=scene_actor_body.state,proposal;
-    float support[3]={0},delta[3],start[3],fraction=1;uint32_t step,i,k,matched,sphere=UINT32_MAX,hash=2166136261u;
+    float support[3]={0},delta[3],start[3],normal[3],fraction=1;uint32_t step,i,k,matched,sphere=UINT32_MAX,hash=2166136261u;
     if(!world || !out || !scene_actor_body.allocated_bytes || !scene_actor_body.spheres.count)return RF_RANGE;
+    memset(rf_scene_actor_contact,0,sizeof(rf_scene_actor_contact));
     for(step=0;step<120;++step) {
         proposal=current;
         {int status=rf_physics_fall_propose(&proposal,1.0f/60,9.8f,support);if(status)return status;}
@@ -128,9 +130,17 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
             for(k=0;k<3;++k)start[k]=(float)((double)current.position[k]+(double)s->center[0]*current.orientation[k]+
                 (double)s->center[1]*current.orientation[3+k]+(double)s->center[2]*current.orientation[6+k]);
             status=rf_geometry_collision_world_sweep(world,0x460,start,delta,s->radius,1,&hit,&matched);if(status)return status;
-            if(matched && (sphere==UINT32_MAX || hit.hit.fraction<fraction)) {sphere=i;fraction=hit.hit.fraction;}
+            if(matched && (sphere==UINT32_MAX || hit.hit.fraction<fraction)) {sphere=i;fraction=hit.hit.fraction;memcpy(normal,hit.hit.normal,sizeof(normal));}
         }
-        if(sphere!=UINT32_MAX)break;
+        if(sphere!=UINT32_MAX) {
+            /* Contact velocity branch only: stationary non-liquid floor, no
+             * rotating actor predicate. Position/time clipping and continued
+             * substeps are still required before this becomes a game update. */
+            int status=rf_physics_static_contact(&proposal,normal,support,support,rf_scene_actor_contact);if(status)return status;
+            memcpy(rf_scene_actor_contact+1,normal,sizeof(normal));
+            memcpy(rf_scene_actor_contact+4,proposal.velocity,sizeof(proposal.velocity));
+            current=proposal;break;
+        }
         /* Fixture accepts only unobstructed translations. Full actor pose/room
          * commit and contact response are not represented by this assignment. */
         current=proposal;memcpy(current.position,current.next_position,sizeof(current.position));
