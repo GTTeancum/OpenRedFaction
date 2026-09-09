@@ -1662,3 +1662,32 @@ that still require original execution before reconstruction:
 
 Next work is executing these update paths and recovering propagation into
 attached objects before wiring scene motion. Existing render output is unchanged.
+
+### Complete original translation trajectories
+
+`python tools/probe_group_translation.py` now executes complete unchanged
+469800 ticks and 46a8f0 commits with real helpers. The fixture uses two keys
+eight units apart, 0.25 time steps, mode 1, disabled sound handles and absent
+external key links. Four trajectories cover both directions and both duration
+and speed interpretations of the timing fields. All 56 ticks match exact
+expected positions and key states, including idle ticks after completion.
+
+The pending position snaps to the endpoint on the crossing tick, while current
+and next key indices remain unchanged until the following tick. Arrival logic
+uses the previous accumulated distance, not just the newly computed distance.
+This ordering is now verified by full execution rather than only decompilation.
+
+Eight additional held-timer ticks (negative timer and future timer) prove that
+speed, elapsed time and traveled distance accumulate while pending position
+stays unchanged. Twenty-two ticks verify acceleration to target speed and
+deceleration starting at the braking threshold in both directions. Two more
+ticks verify a directional asymmetry: a zero braking threshold is ignored in
+the forward path but accepted in the backward path. In that backward fixture
+the speed reaches the clamp's 0.4 lower bound. Do not normalize these branches
+into identical conditions.
+
+All 88 ticks pass; report `artifacts/group-translation-original.json` retains
+trajectory states and the additional terminal snapshots. This is a controlled
+original-code baseline, not a reconstructed C translation implementation.
+General float-rounding cases, other mode transitions, trigger/event effects,
+rotation and attached-object pose propagation remain open. No render change.

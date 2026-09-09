@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Original pending-position commit passes 2,000 controller fixtures; reconstruct
-translation update 469800 and rotation update 46a3d0, then connect pose
-propagation, activation eligibility and controller storage to the scene.
+Complete original translation ticks now verify endpoint timing, acceleration,
+braking and timer-held accumulation; port 469800, recover rotation 46a3d0 and
+connect attached-object pose propagation and controller storage to the scene.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
