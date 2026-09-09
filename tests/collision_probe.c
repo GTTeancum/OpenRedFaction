@@ -36,6 +36,25 @@ int main(int argc,char **argv)
         }
         rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--tree")) {
+        struct {rf_collision_node nodes[3];float z[3],start[3],delta[3],limit;uint32_t flags;} in;
+        struct {int32_t status;uint32_t matched;rf_collision_tree_hit result;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_collision_face faces[3];float vertices[3][4][3];uint32_t stack[3],i,j;
+            for(i=0;i<3;i++) {
+                static const float xy[4][2]={{-2,-2},{2,-2},{2,2},{-2,2}};
+                memset(faces+i,0,sizeof(faces[i]));faces[i].plane[2]=1;faces[i].plane[3]=-in.z[i];
+                faces[i].minimum[0]=faces[i].minimum[1]=-2.0001f;faces[i].maximum[0]=faces[i].maximum[1]=2.0001f;
+                faces[i].minimum[2]=in.z[i]-.0001f;faces[i].maximum[2]=in.z[i]+.0001f;
+                for(j=0;j<4;j++) {vertices[i][j][0]=xy[j][0];vertices[i][j][1]=xy[j][1];vertices[i][j][2]=in.z[i];}
+                faces[i].vertices=vertices[i];faces[i].count=4;
+            }
+            memset(&out.result,0xa5,sizeof(out.result));out.matched=0xa5a5a5a5;
+            out.status=rf_collision_thin_tree(in.nodes,3,faces,3,in.flags,in.start,in.delta,in.limit,stack,3,&out.result,&out.matched);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--thin")) {
         struct {float plane[4],lo[3],hi[3],vertices[8][3],start[3],delta[3],limit;rf_collision_face_filter filter;uint32_t count;} in;
         struct {int32_t status;uint32_t matched;rf_collision_ray_hit hit;} out;

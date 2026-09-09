@@ -242,3 +242,41 @@ int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     if(hit)*result=value;
     *matched=hit;return RF_OK;
 }
+
+int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
+    const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
+    const float start[3],const float displacement[3],float limit,
+    uint32_t *stack,uint32_t capacity,rf_collision_tree_hit *result,uint32_t *matched)
+{
+    rf_collision_tree_hit value;float end[3],scratch[3];uint32_t i,j,used=0,visited=0,hit;int status;
+    if(!start || !displacement || !result || !matched || (node_count && (!nodes || !stack || capacity<node_count)) || (face_count && !faces))return RF_RANGE;
+    if(!isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    for(j=0;j<3;j++) {if(!isfinite(start[j]) || !isfinite(displacement[j]))return RF_FORMAT;end[j]=start[j]+displacement[j];if(!isfinite(end[j]))return RF_FORMAT;}
+    for(i=0;i<node_count;i++) {
+        const rf_collision_node *n=nodes+i;
+        if(n->first_face>face_count || n->face_count>face_count-n->first_face ||
+           (n->left!=UINT32_MAX && n->left>=node_count) || (n->right!=UINT32_MAX && n->right>=node_count))return RF_RANGE;
+        for(j=0;j<3;j++)if(!isfinite(n->minimum[j]) || !isfinite(n->maximum[j]) || n->minimum[j]>n->maximum[j])return RF_FORMAT;
+    }
+    value.hits=0;if(node_count)stack[used++]=0;
+    while(used) {
+        const rf_collision_node *n=nodes+stack[--used];
+        if(++visited>node_count)return RF_FORMAT;
+        status=rf_collision_segment_box(n->minimum,n->maximum,start,end,scratch,&hit);if(status)return status;
+        if(!hit)continue;
+        for(i=0;i<n->face_count;i++) {
+            uint32_t index=n->first_face+i;rf_collision_face face=faces[index];
+            face.filter.query_flags=query_flags;
+            status=rf_collision_thin_face(&face,start,displacement,limit,&value.hit,&hit);if(status)return status;
+            if(hit) {
+                value.face_index=index;value.hits++;limit=value.hit.fraction;
+                if(query_flags&1u)goto done;
+            }
+        }
+        if(n->left!=UINT32_MAX) {if(used==capacity)return RF_RANGE;stack[used++]=n->left;}
+        if(n->right!=UINT32_MAX) {if(used==capacity)return RF_RANGE;stack[used++]=n->right;}
+    }
+ done:
+    if(value.hits)*result=value;
+    *matched=value.hits!=0;return RF_OK;
+}

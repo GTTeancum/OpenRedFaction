@@ -289,3 +289,32 @@ level loader. Report: `artifacts/collision-level-initial-verification.json`.
 The clear-metadata diagnostic remains separately available and still passes;
 both builds and all four CTest checks pass. World traversal and later mutable
 room/face state remain open.
+
+## Bounded thin-ray tree traversal
+
+`rf_collision_thin_tree` reconstructs the zero-radius traversal at `0x4deab0`
+over caller-owned node and face arrays. Each node's ordered face range is tested
+before its descendants. The original pushes left (+0x20), then right (+0x24),
+so the LIFO traversal visits right first. Query bit 0 exits on the first accepted
+hit. Otherwise accepted hits update the fraction limit; equal fractions replace
+the prior result, and the output records the number of accepted updates and
+the final face index. The original node-list pointers are represented as indices.
+
+The caller supplies one stack entry per node; no allocation or fixed 4 KiB
+automatic stack is introduced. Root is node zero and UINT32_MAX denotes absent
+children. Bounds and index ranges are checked before traversal. A visit-count
+limit catches traversed cycles; this API requires a tree, not a shared-node DAG.
+Errors preserve result and matched outputs, although scratch can change. Empty
+node input is a miss. This does not construct the hierarchy or select world
+rooms and retains the thin-face API's unsupported texture/sweep modes.
+
+`python tools/verify_collision_tree.py` compares 1,800 complete original calls,
+including its stack probe, box tests, face-list iteration and full face queries.
+Three-node fixtures vary child ordering, empty face lists, bounds rejection,
+equal depths and first/nearest modes: 907 hits, with 144 cases accepting multiple
+updates. All output fraction/point/normal, face indices and hit counts match PC
+and the actual NXDK-linked function. Three port guards additionally check an
+invalid child, NaN fraction limit and traversed cycle with preserved outputs.
+Report: `artifacts/collision-tree-verification.json`. Both builds, the Live Mines
+initial-metadata regression and four CTest checks pass. This CPU fixture is not
+an XEMU gameplay traversal test; level hierarchy construction is still open.

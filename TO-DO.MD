@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Zero-radius collision tree traversal now matches 1,800 complete original calls;
+recover tree construction and world room selection, then connect loaded geometry
+and mutable metadata to the running game.
+
 Live Mines collision queries now use initial file/room filter metadata and
 match all 7,418 original face-query results; recover later room mutations and
 world traversal before using them for gameplay.

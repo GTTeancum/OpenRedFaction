@@ -47,4 +47,20 @@ typedef struct rf_collision_ray_hit {float fraction,point[3],normal[3];} rf_coll
  * error. This does not walk the world, increment original counters or own faces. */
 int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     const float displacement[3],float limit,rf_collision_ray_hit *result,uint32_t *matched);
+typedef struct rf_collision_node {
+    float minimum[3],maximum[3];
+    uint32_t first_face,face_count,left,right; /* UINT32_MAX means no child. */
+} rf_collision_node;
+typedef struct rf_collision_tree_hit {
+    rf_collision_ray_hit hit;uint32_t face_index,hits;
+} rf_collision_tree_hit;
+/* 4deab0 zero-radius traversal: node faces first, right child before left;
+ * query bit 0 returns first accepted hit, otherwise retain nearest (ties replace).
+ * Nodes form a tree rooted at zero and reference ordered ranges in faces.
+ * Caller provides node_count stack entries. No allocation; no builder or world
+ * room selection. Errors preserve result/matched; scratch may change. */
+int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
+    const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
+    const float start[3],const float displacement[3],float limit,
+    uint32_t *stack,uint32_t capacity,rf_collision_tree_hit *result,uint32_t *matched);
 #endif
