@@ -1,11 +1,30 @@
 # Guest memory evidence
 
-Current result: the memory harness, ground probes and 64-frame live actor comparison pass in
-stock 64 MiB XEMU (`artifacts/xemu/20260909-152946-815112/report.json`). The
-`strtod` assertion in the supplied screenshot is fixed. Grounding, spawn pose,
-inertia and animation-dependent collider updates remain unverified. Sections
-below record successive implementation stages; the latest live-update section
-supersedes the earlier stored-trajectory implementation.
+Current result: the memory harness passes a fresh stock 64 MiB XEMU run,
+`artifacts/xemu/20260909-165220-678181/report.json`. QMP reports 67,108,864
+base-memory bytes and zero plugged memory. All 468 actor configuration bytes,
+64 rendered geometry records, input records, stance records and movement-setting
+records match PC. The fixture lands at frame 22 and completes 63 updates without
+capped passes. The supplied screenshot's NXDK `strtod` assertion is fixed.
+
+Remaining assumptions: diagnostic initial pose/inertia, scripted animation and
+input, and fixed surface traction 1. This route observes no movement contacts,
+no blocked standing and no support loss, so it does not establish those paths.
+PC agreement establishes cross-platform consistency; original-instruction
+comparisons described below provide separate evidence for reconstructed routines.
+Neither establishes a complete playable campaign or full-game memory usage.
+Sections below are chronological evidence; later corrections supersede earlier
+integration claims, especially the descriptor 1 run-dispatch correction.
+
+Reproduce the memory-only actor run from the repository root with the matching
+built XBE/ISO and actor-drive disc flags:
+
+```powershell
+python tools/xemu_smoke.py --actor-drive --no-capture --seconds 180
+```
+
+The run writes its report and complete guest snapshot under a timestamped
+`artifacts/xemu/` directory. No new framebuffer was captured for this rerun.
 
 Use QMP guest-memory inspection without host input or desktop capture. The
 pattern follows the UT99 Xbox RAM poller reviewed at

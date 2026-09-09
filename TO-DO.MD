@@ -8,6 +8,11 @@ Immediate open items:
 
 Capture and post screenshots only when there is a new visible result.
 
+Latest memory-harness rerun: `20260909-165220-678181` PASS; 64 MiB confirmed
+by QMP, 468 configuration bytes and all 64 actor frame records match PC.
+No movement contacts, blocked standing or support loss occurred in this route;
+those remain coverage gaps. See `docs/XEMU-MEMORY.md` for reproduction and limits.
+
 Working approach: complete the first miner integration across loading, rendering
 and physics before expanding isolated subsystem coverage. Use the existing
 diagnostic pose if spawn selection is unresolved, label that assumption, and
