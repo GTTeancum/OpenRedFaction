@@ -34,6 +34,19 @@ int rf_entity_state_motion_load(const char *tables_path,const char *class_name,
  * NOT_FOUND. Caller keeps motions archive open. Output unchanged on failure. */
 int rf_entity_state_motion_open(const char *tables_path,const char *class_name,
     const char *weapon,const char *state,rf_vpp *motions,uint32_t table_budget,rf_motion_file *file);
+typedef struct rf_entity_state_set {
+    int32_t states[23];uint32_t count;
+    rf_motion_cache_record cache[23];rf_motion_file files[23];
+} rf_entity_state_set;
+/* Register the 23 canonical state names (0x418030 order) from one exact base
+ * or weapon block. Missing/empty declarations map to -1; missing referenced
+ * files fail the whole operation. Distinct cache identities register once as
+ * looping states. Port-owned composition, no fallback or playback transition.
+ * Reads entity.tbl once; budget covers temporary table + working set, excluding
+ * caller's output. Output unchanged on error. Result borrows motions archive;
+ * no result heap allocation or close operation, caller retains archive lifetime. */
+int rf_entity_state_set_open(const char *tables_path,const char *class_name,
+    const char *weapon,rf_vpp *motions,uint32_t budget,rf_entity_state_set *result);
 /* Skeletal loader 0x51ce60's .v3c specialization of 0x5142d0/0x514330.
  * This does not select the loader for arbitrary entity model types (.v3d etc.).
  * Replaces everything from the last dot, including dots in directory names;

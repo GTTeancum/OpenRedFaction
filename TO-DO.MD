@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Bulk registration now resolves 180 authored state groups, including 19 miner
+base motions; feed these state sets into actor playback and retain explicit
+failure for the unresolved edf_ship group.
+
 Motion-cache lookup and reference acquisition now match 1,041 original-code
 cases and supply diagnostic registration identities; finish payload release
 and bulk authored state registration before replacing the fixed file setup.

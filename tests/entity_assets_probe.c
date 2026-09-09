@@ -6,6 +6,25 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==6 && !strcmp(argv[1],"--state-set")) {
+        rf_entity_state_set *set=malloc(sizeof(*set)),*before=malloc(sizeof(*set));
+        if(!set || !before || rf_vpp_open(&archive,argv[3]))return 2;
+        memset(set,0xa5,sizeof(*set));*before=*set;
+        status=rf_entity_state_set_open(argv[2],argv[4],argv[5],&archive,512*1024,set);
+        if(status && memcmp(set,before,sizeof(*set)))return 4;
+        printf("%d\n",status);
+        if(!status) {
+            printf("%u\n",set->count);
+            for(i=0;i<23;++i)printf("%d%s",set->states[i],i==22?"\n":" ");
+            for(i=0;i<set->count;++i) {
+                uint32_t refs;memcpy(&refs,set->cache[i].bytes+0x70,4);
+                printf("%s %u\n",set->files[i].entry.name,refs);
+            }
+        }
+        *before=*set;
+        if(rf_entity_state_set_open(argv[2],argv[4],argv[5],&archive,1,set)!=RF_RANGE || memcmp(set,before,sizeof(*set)))return 4;
+        free(set);free(before);rf_vpp_close(&archive);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--motion-cache")) {
         struct {uint32_t capacity;char name[64];rf_motion_cache_record records[8];} data;
         struct {int32_t status;uint32_t index;rf_motion_cache_record records[8];} result;

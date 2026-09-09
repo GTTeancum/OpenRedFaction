@@ -284,6 +284,35 @@ cover animated bone poses, parent-index integration or Xbox arithmetic at runtim
 
 ## State registration and motion-file leads
 
+`rf_entity_state_set_open` now composes the verified name-cache and registration
+helpers with table selection and compiled motion validation. It visits the 23
+canonical state names in `0x418030` order, assigns looping registry IDs and
+opens each new cache identity once. State aliases share a registered ID while
+their cache reference counts retain every acquisition. Missing or explicitly
+empty state declarations map to -1; a missing referenced motion fails the
+whole operation and preserves the caller's result. Named weapon blocks remain
+exact selections with no base fallback. Missing classes/weapon groups fail.
+
+The table is read once into the same temporary allocation as the working state
+set, both included in the caller's budget. The current reader rescans resident
+text for each canonical name; it does not reread the archive per state. The
+result contains fixed arrays of descriptors, borrowed motion handles and IDs,
+with no owned heap allocation. The caller keeps the motion archive open and
+must provide its result storage separately from the temporary budget. This is
+port-owned composition, not a verified reconstruction of the complete original
+entity registration loop, resource release or weapon-fallback policy.
+
+`tools/verify_entity_state_sets.py` compares all 181 base/state-bearing weapon
+groups against independent declaration, archive and canonical-name inventories.
+180 groups succeed: 1,137 state references resolve to 972 registered motions
+across those independent groups. Only the base `edf_ship` group fails, preserving
+output for its missing `EDF1_Idle` input. Checks cover ID order, deduplication,
+reference counts, compiled archive names, missing groups and insufficient
+temporary budget. Miner1's base group registers 19 motions; its `stand` and
+`crouch` states map to registered IDs 0 and 8. PC/NXDK builds and four CTest checks
+pass. The new state sets are not yet consumed by scene playback; no new visual
+result or emulator capture is claimed for this metadata integration.
+
 `rf_motion_cache_acquire` reconstructs complete `0x539be0` lookup/initialization
 and `0x539d00` reference acquisition. The original scans 800 descriptors of
 124 bytes at `0x1c459e8`. It compares ASCII names case-insensitively after
