@@ -887,3 +887,38 @@ nonfinite transform, overlong retained string and invalid optional-range-tag
 checks. PC/NXDK builds and all four CTest tests pass. Verification covers file
 decoding and bounds, not execution of the original entity loader or gameplay.
 No new visual output was produced.
+
+
+## Cached stance centers, rather than per-frame bone colliders
+
+Original 423b90 tests class flag 0x40000000 before constructing spheres with
+423bd0. Sixteen original-code cases confirm that an already cached class
+returns without entering construction. Uncached cases reach construction;
+these guard checks do not execute its model-loading work. Thus the current
+frame-zero pose is a provisional source for the cache, but retaining centers
+between ordinary animation frames is not itself evidence of a defect.
+
+4289d0 sets actor flag 0x400 and copies center vectors from class array +e30
+(crouched) into the existing body spheres. 428a60 first queries upward using
+the existing crouched body. Its endpoint preserves public X/Z and computes
+Y as class +f74 height difference plus public Y plus float .1, with the final
+rounding after both additions. On clear space, it clears flag 0x400 and copies
+centers from class +cec (standing). These copies preserve radii, other sphere
+fields, array ownership and bounds; a ground query follows and handles support.
+The model pose does not supply fresh centers on each of these transitions.
+
+Shared `rf_physics_stance_centers` implements that center/flag commit without
+allocation, and `rf_physics_stand_endpoint` prepares the original query end.
+The caller must select the cached stance, perform standing clearance first,
+and refresh ground afterward. Entity animation completion, crouch timing,
+network notification and the original timestamp remain caller responsibilities.
+
+`tools/verify_physics_stance.py` executes the original crouch entry and the
+successful-clearance standing suffix up to their ground calls, plus the full
+standing entry up to its clearance call. No callees are replaced. All 288
+PC/NXDK cases match sphere bytes, flags and endpoint; unrelated original actor
+storage is unchanged. Cases span zero through eight spheres and both stances.
+Three malformed-argument checks verify failure preserves records and flags.
+These APIs are compiled for Xbox but are not yet wired into the live scene:
+correct initial standing/crouching cache generation and the clearance/ground
+sequence must be connected before claiming working crouch physics.

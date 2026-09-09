@@ -90,6 +90,17 @@ void rf_physics_body_close(rf_physics_body *body);
  * Open body required. Source may alias old records; errors preserve body. */
 int rf_physics_body_replace_spheres(rf_physics_body *body,
     const rf_physics_sphere *source,uint32_t count,uint32_t budget);
+/* 4289d0 and cleared-overhead branch of 428a60, before ground refresh:
+ * copy cached class centers into existing sphere records and toggle actor
+ * flag 0x400. No allocation or bounds/radius update. Standing caller must
+ * first pass the clearance query; caller then refreshes ground and effects.
+ * At most eight spheres; malformed arguments preserve records and flags. */
+int rf_physics_stance_centers(rf_physics_spheres *spheres,const float (*centers)[3],
+    uint32_t count,uint32_t *actor_flags,int crouching);
+/* 428a7a..428aa7: standing clearance endpoint = public position + class
+ * standing/crouching height difference + .1 on Y, rounded after both adds.
+ * Caller queries with the existing crouched body, not expanded spheres. */
+int rf_physics_stand_endpoint(const float position[3],float height_difference,float end[3]);
 /* Falling translation at 49e8b7..49e9e6, after steering/speed limiting.
  * Caller supplies frame time, gravity and support velocity; force is vector_e0.
  * Flag 0x1000000 selects the original repeated-pass path: preserve velocity,

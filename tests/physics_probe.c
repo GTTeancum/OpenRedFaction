@@ -8,6 +8,19 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--stance")) {
+        struct {uint32_t count,flags,crouching;rf_physics_sphere spheres[8];float centers[8][3];float position[3],height;} input;
+        struct {int32_t status;uint32_t flags;rf_physics_sphere spheres[8];float end[3];} result;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_physics_spheres owner={input.spheres,input.count,sizeof(input.spheres)};
+            result.status=rf_physics_stance_centers(&owner,input.centers,input.count,&input.flags,input.crouching);
+            if(result.status)return 3;
+            result.status=rf_physics_stand_endpoint(input.position,input.height,result.end);
+            result.flags=input.flags;memcpy(result.spheres,input.spheres,sizeof(result.spheres));
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ground-motion")) {
         float v[18];
         while(fread(v,sizeof(v),1,stdin)==1) {

@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Extend the working process-local steering fixture to exercise live support loss and recovery in XEMU.
-- [ ] Replace provisional spawn pose, initial inertia and cached colliders with verified runtime behavior.
+- [ ] Recover the initial class pose/inertia and connect cached standing/crouching colliders with clearance checks.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
@@ -88,6 +88,12 @@ passes across 63 updates in 64 MiB XEMU (run 20260909-161509-037641). Every
 captured response matches PC and original 49d7e0 before damage dispatch. The
 route stays grounded, so it does not close support-loss/recovery. Input and
 64 rendered geometry records match PC; all frames finish below the pass limit.
+Original collider behavior is now narrowed: 423b90 caches class spheres once,
+while 4289d0/428a60 switch cached stance centers rather than following every
+animation frame. Shared center switching and standing-clearance endpoint
+preparation match 288 original/PC/NXDK cases. Runtime use still requires the
+correct class standing/crouching pose cache, clearance query and ground refresh;
+do not replace the current cache with per-frame bone-derived spheres.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

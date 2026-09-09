@@ -439,3 +439,28 @@ int rf_physics_fallback_prepare(float density,float radius,float mass,rf_physics
     value.radius=radius;value.parameter_10=-1;
     *result=value;return RF_OK;
 }
+
+int rf_physics_stance_centers(rf_physics_spheres *spheres,const float (*centers)[3],
+    uint32_t count,uint32_t *actor_flags,int crouching)
+{
+    float saved[8][3];uint32_t i,k;
+    if(!spheres || !actor_flags || spheres->count>8 || count<spheres->count ||
+       (spheres->count && (!spheres->items || !centers)) || (crouching!=0 && crouching!=1))return RF_RANGE;
+    for(i=0;i<spheres->count;++i)for(k=0;k<3;++k) {
+        if(!isfinite(centers[i][k]))return RF_RANGE;
+        saved[i][k]=centers[i][k];
+    }
+    for(i=0;i<spheres->count;++i)memcpy(spheres->items[i].center,saved[i],12);
+    if(crouching)*actor_flags|=0x400;else *actor_flags&=~0x400u;
+    return RF_OK;
+}
+int rf_physics_stand_endpoint(const float position[3],float height_difference,float end[3])
+{
+    float value[3];uint32_t k;
+    if(!position || !end || !isfinite(height_difference))return RF_RANGE;
+    for(k=0;k<3;++k)if(!isfinite(position[k]))return RF_RANGE;
+    memcpy(value,position,12);
+    value[1]=(float)((double)height_difference+position[1]+(double).1f);
+    if(!isfinite(value[1]))return RF_RANGE;
+    memcpy(end,value,12);return RF_OK;
+}
