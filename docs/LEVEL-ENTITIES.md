@@ -335,6 +335,42 @@ CTest checks pass. The composed helper does not yet populate a runtime body,
 copy its spheres, handle geometric-model mass generation or register live
 entities. Those are still required before campaign physics integration.
 
+## Body field coverage and world-space inertia
+
+The no-sphere original initializer verifier now adds 360 complete 0x170-byte
+destination comparisons to its 120 earlier preparation cases. Inputs include
+dyadic nonsymmetric tensors and orientations, seeded material coefficients,
+nonzero position/velocity vectors, three destination fill patterns and direct
+49f010 preserve-state values 0, 1 and 255. Every destination byte and unchanged
+parameter byte matches the independently assembled expected layout.
+
+The two vectors at body +0xe0/+0xec are cleared; zero-radius lower/upper bounds
+at +0x108/+0x114 equal the position. Body +0x124 is cleared only when the third
+argument's low byte is zero. Other unassigned words retain caller storage.
+This verifies original initialization writes, not defaults for those untouched
+words. The original constructor remains responsible for its own fields.
+
+`rf_physics_tensor_world` reconstructs complete 49cd30: transpose the orientation,
+multiply orientation and local inverse tensor through 40ea80, then multiply
+that float intermediate with the transpose and copy the result to body +0x38.
+Read as row-major arrays, the result is `transpose(O) * (T * O)`; no change to
+the original vector storage convention is implied. The shared helper preserves
+40ea80's per-element summation order and the intermediate float stores, using
+double products/sums. It allocates no memory and supports either input alias.
+
+`tools/verify_physics_tensor_world.py` executes the entire original update and
+all callees with no hooks. All 1,200 identity, quarter-turn, arbitrary-matrix,
+diagonal and nonsymmetric tensor cases match PC and compiled NXDK exactly;
+every body byte outside +0x38..+0x5b remains unchanged. Thirty-seven port guards
+reject nonfinite inputs or overflowing products with unchanged output. NXDK
+also checks both input aliases for every case (2,474 extra calls).
+
+Reports are `artifacts/physics-initialization-verification.json` and
+`artifacts/physics-tensor-world-verification.json`. This does not establish
+exhaustive floating-point equivalence or a shared complete body initializer.
+Connect the mapped body fields, retained spheres and general-center radius
+calculation before live entity initialization. There is no new visual output.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

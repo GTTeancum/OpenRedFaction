@@ -37,6 +37,10 @@ int rf_physics_spheres_accumulate(const rf_physics_sphere *source,uint32_t count
  * Finite input required; unrepresentable intermediate/output values fail with
  * RF_RANGE, leaving output unchanged. Input and output may alias. */
 int rf_physics_tensor_inverse(const float source[9],float result[9]);
+/* 49cd30 world tensor update, using the original nine-float storage order.
+ * Two matrix products with a float store between them. Inputs must be finite;
+ * errors preserve output. Output may alias either input. */
+int rf_physics_tensor_world(const float local[9],const float orientation[9],float result[9]);
 /* Existing-sphere generated-mass branch including the inverse tensor step.
  * Does not copy spheres into a runtime body or initialize the other fields. */
 int rf_physics_spheres_prepare(const rf_physics_sphere *source,uint32_t count,float density,

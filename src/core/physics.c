@@ -3,6 +3,30 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+/* 40ea80 computes right*left when the stored vectors are read as rows.
+ * Its term order varies by output element. */
+static int tensor_product(const float left[9],const float right[9],float result[9])
+{
+    static const unsigned char order[9][3]={{0,2,1},{2,1,0},{1,0,2},{2,1,0},{2,1,0},{0,1,2},{2,1,0},{2,0,1},{1,0,2}};
+    uint32_t row,col,i;
+    for(row=0;row<3;++row)for(col=0;col<3;++col) {
+        const unsigned char *k=order[row*3+col];double v=(double)right[row*3+k[0]]*left[k[0]*3+col];
+        for(i=1;i<3;++i)v+=(double)right[row*3+k[i]]*left[k[i]*3+col];
+        if(!isfinite(v) || fabs(v)>FLT_MAX)return RF_RANGE;
+        result[row*3+col]=(float)v;
+    }
+    return RF_OK;
+}
+int rf_physics_tensor_world(const float local[9],const float orientation[9],float result[9])
+{
+    float transpose[9],intermediate[9],value[9];uint32_t i,j;int status;
+    if(!local || !orientation || !result)return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(local[i]) || !isfinite(orientation[i]))return RF_RANGE;
+    for(i=0;i<3;++i)for(j=0;j<3;++j)transpose[i*3+j]=orientation[j*3+i];
+    status=tensor_product(orientation,local,intermediate);if(status)return status;
+    status=tensor_product(intermediate,transpose,value);if(status)return status;
+    memcpy(result,value,sizeof(value));return RF_OK;
+}
 /* Original 4fc4c0 term order, retaining extended precision until the caller's
  * float determinant store. Save/restore the host control word. */
 static double tensor_determinant(const float *source,float *rounded)
