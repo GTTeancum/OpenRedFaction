@@ -75,7 +75,9 @@ def main():
     parser.add_argument('--actor-routes',action='store_true',help='Expect eight 600-step physics routes after the rendered drive fixture')
     parser.add_argument('--actor-live',action='store_true',help='Expect actor-live.flag continuous 664-frame animated body scene')
     parser.add_argument('--actor-follow',action='store_true',help='Expect actor-follow.flag moving camera and fixed 2 MiB GPU vertices')
+    parser.add_argument('--actor-eye',action='store_true',help='Expect actor-eye.flag first-person diagnostic with cached eye offsets')
     args = parser.parse_args()
+    if args.actor_eye:args.actor_follow=True
     if args.actor_follow:args.actor_live=True
     if args.actor_live:
         if args.actor_body or args.actor_drive or args.actor_contact or args.actor_routes:parser.error('--actor-live selects its own body profile')
@@ -103,7 +105,7 @@ def main():
         if not actor_physics_symbol:raise RuntimeError('Integrated actor physics symbol absent')
         scene_args=[str(root/'build/pc/Release/rf_scene_check.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','9858']
         scene_args += [str(root/'Installed_Game'/n) for n in ['meshes.vpp','motions.vpp','tables.vpp','maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp']]
-        output=subprocess.check_output(scene_args+['--follow' if args.actor_follow else '--live' if args.actor_live else '--traverse' if args.actor_routes else '--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
+        output=subprocess.check_output(scene_args+['--eye' if args.actor_eye else '--follow' if args.actor_follow else '--live' if args.actor_live else '--traverse' if args.actor_routes else '--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
         actor_final_vertices=int(re.search(r'Frame '+str(663 if args.actor_live else 63)+r' actor triangles (\d+)',output)[1])*3
         actor_frame_reference=[(int(n)*3,int(h,16)) for n,h in re.findall(r'Frame \d+ actor triangles (\d+) hash ([0-9a-f]+)',output)][:64]
         if args.actor_routes:actor_routes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_ROUTES ')).split()[1:]))
@@ -127,6 +129,7 @@ def main():
         if args.actor_body:actor_stance_cache_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE_CACHE ')).split()[1:]))
         if args.actor_body:actor_input_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_INPUT ')).split()[1:]))
         if args.actor_body or args.actor_live:eye_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_EYE_OFFSETS ')).split()[1:]))
+        if args.actor_eye:eye_frames_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_EYE_FRAMES ')).split()[1:]))
         if args.actor_follow:
             follow_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FOLLOW ')).split()[1:]))
             follow_summary_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FOLLOW_SUMMARY ')).split()[1:]))
@@ -331,6 +334,10 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         live_snapshot=guest_snapshot(monitor,map_text)
                         (run/'guest-memory-complete.json').write_text(json.dumps(live_snapshot,indent=2))
                         symbols=live_snapshot['symbols']
+                        if symbols['rf_scene_actor_eye_enabled']['words']!=[int(args.actor_eye)]:raise RuntimeError('Eye view mode mismatch')
+                        if args.actor_eye:
+                            if symbols['rf_scene_actor_eye_frames']['words']!=eye_frames_reference:raise RuntimeError('Eye input/pose ring differs from PC')
+                            report['eye_view']=dict(frames=664,ring_records=64,record_words=46,scope='Cached-eye position and first-person pose copy bound to diagnostic body/controller. Own body hidden; scripted motion, body-aligned look, no weapon view or camera collision.')
                         if symbols['rf_scene_actor_initial_eye_offsets']['words']!=eye_reference:raise RuntimeError('Initial eye offsets differ from PC')
                         report['initial_eye_offsets']=dict(values=list(struct.unpack('<6f',struct.pack('<6I',*eye_reference))),scope='Loaded diagnostic standing/crouching poses with original class axis flag; first-person camera binding remains open.')
                         for name,label,size in [('rf_scene_actor_live_summary','ACTOR_LIVE',8),('rf_scene_actor_tick_stats','ACTOR_LIVE_TICKS',8),('scene_actor_body','ACTOR_LIVE_BODY',77)]:
@@ -342,7 +349,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         if args.actor_follow:
                             if symbols['rf_scene_actor_follow_frames']['words']!=follow_reference or symbols['rf_scene_actor_follow_summary']['words']!=follow_summary_reference:raise RuntimeError('Follow camera/world projection differs from PC')
                             if follow_summary_reference[4]!=2*1024*1024:raise RuntimeError('Unexpected follow CPU capacity')
-                            report['actor_follow']=dict(cpu_vertex_capacity=follow_summary_reference[4],frames=follow_summary_reference[0],world_hash=follow_summary_reference[1],peak_world_bytes=follow_summary_reference[2],camera_hash=follow_summary_reference[3],camera_ring_matches_pc=64,scope='Fixed-offset camera; changing retained world and actor view, no camera collision.')
+                            report['actor_follow']=dict(cpu_vertex_capacity=follow_summary_reference[4],frames=follow_summary_reference[0],world_hash=follow_summary_reference[1],peak_world_bytes=follow_summary_reference[2],camera_hash=follow_summary_reference[3],camera_ring_matches_pc=64,scope='Retained world reprojected each frame; eye_view describes first-person mode, otherwise a fixed-offset follow camera. No camera collision.')
                         for symbol,label in [('rf_scene_actor_room_frames','ACTOR_ROOMS'),('rf_scene_actor_room_summary','ACTOR_ROOM_SUMMARY')]:
                             if symbols[symbol]['words']!=live_reference[label]:raise RuntimeError('Actor room membership differs from PC: '+symbol)
                         if symbols['rf_scene_actor_room_state']['words']!=live_reference['ACTOR_ROOMS'][(663%64)*9+1:(663%64)*9+6]:raise RuntimeError('Final actor room state differs from last rendered record')

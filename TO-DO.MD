@@ -6,6 +6,13 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+First-person diagnostic now binds loaded eye offsets to body/controller state.
+All 664 PC poses (including 30 transition frames) match original eye/camera
+instructions byte-for-byte. XEMU run 20260909-194149-709809 passes in 64 MiB;
+new native tunnel screenshot matches PC within one channel level. Next connect
+actual player identity/input and separate look orientation; the route is scripted
+and has no weapon view. See docs/CAMERA.md for limits and commands.
+
 Shared PC/Xbox scene now computes standing/crouching eye offsets from loaded
 poses, independently of diagnostic root translation. Original/PC comparison
 and live 64 MiB XEMU run 20260909-193237-875652 pass all six words and 664 frames.

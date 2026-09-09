@@ -1,3 +1,4 @@
+#include "rf/eye.h"
 #include "rf/scene_preview.h"
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
@@ -37,6 +38,7 @@ extern uint32_t rf_scene_actor_movement_frames[64][3];
 extern uint32_t rf_scene_actor_render_frames[64][5];
 extern uint32_t rf_scene_actor_follow_frames[64][14],rf_scene_actor_follow_summary[5];
 static int follow_camera;
+extern uint32_t rf_scene_actor_eye_frames[64][46];
 static rf_scene_world_geometry follow_world;
 static int build_check_world(const rf_level *level,const rf_geometry *geometry,rf_vpp *maps,
     rf_preview_mesh *mesh,rf_materials *materials)
@@ -65,8 +67,17 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     c->address=mesh->vertices;c->material_address=materials->items;
     if(follow_camera) {
         const uint32_t *r=rf_scene_actor_follow_frames[frame%64];float camera[3],expected[3];
-        memcpy(camera,r+2,12);memcpy(expected,scene_actor_body.state.position,12);expected[1]+=.7f;expected[2]+=2.4f;
-        if(r[0]!=frame || r[1]!=world || memcmp(camera,expected,12) || mesh->count==world)return RF_FORMAT;
+        memcpy(camera,r+2,12);memcpy(expected,scene_actor_body.state.position,12);if(rf_scene_actor_eye_enabled) {
+            rf_eye_input input;float calculated[3];
+            const uint32_t *e=rf_scene_actor_eye_frames[frame%64];
+            memcpy(&input,e+1,sizeof(input));
+            if(e[0]!=frame || memcmp(input.position,expected,12) || rf_eye_position(&input,calculated) ||
+               memcmp(calculated,e+25,12) || memcmp(e+37,input.orientation,36))return RF_FORMAT;
+            memcpy(expected,calculated,12);
+            printf("EYE_FRAME");for(i=0;i<46;++i)printf(" %u",e[i]);puts("");
+            if(frame && memcmp(e+25,rf_scene_actor_eye_frames[(frame-1)%64]+25,12))++c->changed;
+        } else {expected[1]+=.7f;expected[2]+=2.4f;}
+        if(r[0]!=frame || r[1]!=world || memcmp(camera,expected,12) || (!rf_scene_actor_eye_enabled && mesh->count==world) || (rf_scene_actor_eye_enabled && mesh->count!=world))return RF_FORMAT;
         for(i=0;i<world;++i)if(mesh->vertices[i].material>=c->base)return RF_FORMAT;
     }
     if(c->body_mode && !rf_scene_actor_drive_enabled && frame>22 && (rf_scene_actor_landing[1]!=1 ||
@@ -174,11 +185,12 @@ int main(int argc,char **argv)
     }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
-    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse") || !strcmp(argv[12],"--live") || !strcmp(argv[12],"--follow")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
+    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse") || !strcmp(argv[12],"--live") || !strcmp(argv[12],"--follow") || !strcmp(argv[12],"--eye")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
     if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && strcmp(argv[12],"--long-animation") && !body_mode)))return 2;
     c.authored=argc==13;
     c.body_mode=body_mode;
-    follow_camera=argc==13 && !strcmp(argv[12],"--follow");
+    rf_scene_actor_eye_enabled=argc==13 && !strcmp(argv[12],"--eye");
+    follow_camera=rf_scene_actor_eye_enabled || (argc==13 && !strcmp(argv[12],"--follow"));
     rf_scene_actor_live_enabled=follow_camera || (argc==13 && !strcmp(argv[12],"--live"));
     rf_scene_actor_drive(drive);rf_scene_actor_route_enabled=argc==13 && !strcmp(argv[12],"--traverse");
     c.meshes=argv[4];c.motions=argv[5];
@@ -245,6 +257,7 @@ int main(int argc,char **argv)
                 if(r[0]!=rf_scene_actor_ring_frames[i] || (r[2]&0x04000000u))return 3;
                 if(r[7] && r[6]!=UINT32_MAX && memcmp(r+3,rf_scene_actor_render_frames[i]+2,12))return 3;
             }
+            if(rf_scene_actor_eye_enabled) {printf("ACTOR_EYE_FRAMES");for(i=0;i<64*46;++i)printf(" %u",((uint32_t*)rf_scene_actor_eye_frames)[i]);puts("");}
             printf("ACTOR_ROOMS");for(i=0;i<576;++i)printf(" %u",((uint32_t*)rf_scene_actor_room_frames)[i]);puts("");
             printf("ACTOR_ROOM_SUMMARY");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_room_summary[i]);puts("");
             printf("ACTOR_LIVE_WORLD %u\n",follow_camera?rf_scene_actor_follow_frames[663%64][1]:c.world.count);

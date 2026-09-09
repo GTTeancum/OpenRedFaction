@@ -1,6 +1,13 @@
 # Guest memory evidence
 
-Latest run `artifacts/xemu/20260909-193237-875652/report.json`: PASS.
+Latest first-person run `artifacts/xemu/20260909-194149-709809/report.json`:
+PASS. `--actor-eye` compares the final 64 records of eye input/pose (46 words
+each) and all-frame camera/world hashes over 664 frames. Every PC frame also
+matches original routines in `tools/verify_scene_eye_view.py`. A new native
+framebuffer shows the tunnel from eye height and matches PC within one channel
+level. Body-aligned look and scripted input remain diagnostic scaffolding.
+
+Previous run `artifacts/xemu/20260909-193237-875652/report.json`: PASS.
 The 664-frame follow profile now compares six initial eye-offset float words
 from guest RAM with PC: standing (0, .7854025363922119, 0), crouching
 (0, .14921127259731293, 0). `tools/verify_scene_eye.py` separately compares PC

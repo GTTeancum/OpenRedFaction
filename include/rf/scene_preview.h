@@ -102,4 +102,7 @@ void rf_scene_actor_drive(int profile);
  * Owner and source world must outlive the body stream. Fixed .7Y/2.4Z offset,
  * no camera collision or original first-person policy. */
 void rf_scene_actor_follow(const rf_scene_world_geometry *world);
+/* First-person diagnostic from the moving body's cached eye and controller.
+ * Requires retained follow world; no player input, look rotation or camera collision. */
+extern uint32_t rf_scene_actor_eye_enabled;
 #endif

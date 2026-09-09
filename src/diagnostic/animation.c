@@ -186,6 +186,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         if (!strcmp(eye.name,"eye")) { found=1; break; }
     }
     if (!found || eye.parent<0 || (uint32_t)eye.parent>=count) { status=RF_FORMAT; goto done; }
+    if(placement && placement->initial_eye_tag)*placement->initial_eye_tag=(int32_t)i;
     status=rf_model_attachment_transform(eye.rotation,eye.position,local); if (status!=RF_OK) goto done;
     state.completion.active.freeze_slot=-1;
     state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
@@ -294,15 +295,6 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         status=rf_locomotion_choose_candidates(&candidates,&selection,motions,&effects,&state,resources,4,
             actions,sounds,&context,&actor,NULL,NULL,&sound_class); if (status!=RF_OK) goto done;
         }
-        if(placement) {
-            const rf_physics_body *body=placement->physics_body;
-            const float *position=body && body->allocated_bytes?body->state.position:placement->position;
-            const float *orientation=body && body->allocated_bytes?body->state.orientation:placement->orientation;
-            rf_model_projection view=placement->world_view;
-            if(placement->prepare_view) {status=placement->prepare_view(placement->view_context,frame,&view);if(status)goto done;}
-            status=rf_model_local_view(&view,position,orientation,&render_view);if(status)goto done;
-            clip_projection=placement->clip_projection;clip_planes=placement->planes;
-        }
         status=rf_motion_update(&state,resources,resource_count,frame_seconds); if (status!=RF_OK) goto done;
         if(placement && placement->animation_timing) {
             uint32_t timing_frame=placement->animation_timing_wrap?frame%(placement->animation_timing_capacity?placement->animation_timing_capacity:64):frame;
@@ -385,6 +377,15 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 d[6]=hash_bytes(2166136261u,body->spheres.items,body->spheres.count*sizeof(*body->spheres.items));
                 memcpy(d+7,&body->state.bounds.radius,4);
             }
+        }
+        if(placement) {
+            const rf_physics_body *body=placement->physics_body;
+            const float *position=body && body->allocated_bytes?body->state.position:placement->position;
+            const float *orientation=body && body->allocated_bytes?body->state.orientation:placement->orientation;
+            rf_model_projection view=placement->world_view;
+            if(placement->prepare_view) {status=placement->prepare_view(placement->view_context,frame,&controller,&view);if(status)goto done;}
+            status=rf_model_local_view(&view,position,orientation,&render_view);if(status)goto done;
+            clip_projection=placement->clip_projection;clip_planes=placement->planes;
         }
         out[5]=hash_bytes(out[5],prepared,count*48);out[5]=hash_bytes(out[5],prepared_generations,count*2);
         for(vertex_index=0;vertex_index<vertex_count;++vertex_index) {

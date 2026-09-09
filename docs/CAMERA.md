@@ -1737,3 +1737,55 @@ Live XEMU run `artifacts/xemu/20260909-193237-875652/report.json` PASS verifies
 the same six words from guest RAM on stock 64 MiB alongside all 664 frames,
 body/animation/room/world comparisons. No framebuffer captured. First-person
 placement, camera collision and campaign input remain the next integration.
+
+
+## First-person diagnostic binding
+
+`--eye` in rf_scene_check, `--scene-eye-last` in rf_pc_preview, and the Xbox
+`actor-eye.flag` profile bind the cached eye offsets to the current physics
+body and animation controller. The scene calls shared `rf_eye_position`
+(4194e0 non-linked branch), then `rf_first_person_pose_copy` (40d88c..40d8be).
+The view callback now runs after initial body/class-eye setup, and takes the
+current controller explicitly. The ordinary follow profile retains its prior
+camera/world/body hashes after this ordering change.
+
+The eye view follows actual body position and current/next stance blending.
+Body orientation supplies look orientation until player look input is wired.
+The actor is still animated/simulated but its mesh is excluded from the visible
+scene in this first-person diagnostic; no weapon view model is supplied.
+The attachment index retained in `rf_scene_actor_initial_eye_tag` is the LOD
+attachment index (2 for this miner), used only as the nonnegative presence
+indicator for this non-linked eye path. It is not a reconstructed unified
+bone/attachment tag handle and must not be used for linked-eye evaluation.
+
+PC emits every `EYE_FRAME` record as frame ID, 96-byte eye input and 84-byte
+first-person pose. A 64-record ring retains the same data for guest reads,
+adding 11,776 bytes plus mode/index fields. Camera/world hashes cover all
+664 frames. `tools/verify_scene_eye_view.py artifacts/scene-eye-view.txt`
+replays **all 664** logged inputs through unmodified original 4194e0 and
+40d88c..40d8be, including 30 transition frames; every pose byte matches.
+
+Run `artifacts/xemu/20260909-194149-709809/report.json` PASS: 64 MiB, all
+existing body/animation/room checks, complete final eye ring matching PC, and
+native QMP framebuffer capture. Its PC comparison has maximum channel error
+1 and zero pixels over 3. Final scene has 882 world triangles, zero visible
+actor triangles. Available memory after upload is 41,041,920 bytes and after
+temporary CPU mesh release 44,199,936. The report's `eye_view` field specifies
+camera policy; legacy `actor_follow` fields retain world-reprojection data.
+
+World hash is 954268577, camera hash 2233034194, body hash 533762320. These
+are diagnostic-route results, not campaign gameplay or whole-game memory
+peaks. Local-player identity/spawn, persistent class cache, separate eye look,
+effect dispatch, view weapon, camera collision and live input remain open.
+
+Reproduce (matching actor-eye.flag in the built disc):
+
+```powershell
+python tools/xemu_smoke.py --actor-eye --reference artifacts/scene-eye-view.ppm --seconds 300
+```
+
+The PC image command is:
+
+```powershell
+./build/pc/Release/rf_pc_preview.exe --scene-eye-last Installed_Game/levels1.vpp L1S1.rfl artifacts/scene-eye-view.ppm Installed_Game/meshes.vpp Installed_Game/motions.vpp Installed_Game/tables.vpp 9858 Installed_Game/maps1.vpp Installed_Game/maps2.vpp Installed_Game/maps3.vpp Installed_Game/maps4.vpp Installed_Game/maps_en.vpp
+```

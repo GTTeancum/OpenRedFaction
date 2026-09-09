@@ -31,12 +31,13 @@ typedef struct rf_animation_placement {
     const rf_entity_physics_config *physics_config;
     rf_physics_body *physics_body; /* Open body's pose drives rendering each frame. */
     rf_physics_stance_cache *stance_cache; /* Optional cache from diagnostic initial pose. */
+    int32_t *initial_eye_tag; /* Actual model attachment index. */
     float *initial_eye_offsets; /* Optional six floats: standing/crouching model-space eye, with class axis flags. Requires stance_cache. */
     uint32_t frame_count; /* Stream length; zero preserves the 64-frame diagnostic default. */
     uint32_t animation_timing_wrap; /* Nonzero uses a bounded timing ring indexed by absolute frame modulo capacity. */
     uint32_t animation_timing_capacity; /* Zero means legacy 64 records when timing is supplied. */
     float step_seconds; /* Zero keeps standalone 1/30 step; configured actors share physics time after initialization. */
-    int (*prepare_view)(void *context,uint32_t frame,rf_model_projection *view);
+    int (*prepare_view)(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view);
     void *view_context;
     const uint32_t *stance_flags;
     /* Apply original selector physics effect before controller advancement.

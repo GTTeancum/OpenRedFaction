@@ -56,7 +56,8 @@ int main(int argc, char **argv)
     int door_motion=argc>1 && !strcmp(argv[1],"--scene-door-motion-last");
     int door_view=door_motion || (argc>1 && !strcmp(argv[1],"--scene-door-states-last"));
     rf_scene_world_geometry follow_owned={0};
-    int actor_follow=argc>1 && !strcmp(argv[1],"--scene-follow-last");
+    int actor_eye=argc>1 && !strcmp(argv[1],"--scene-eye-last");
+    int actor_follow=actor_eye || (argc>1 && !strcmp(argv[1],"--scene-follow-last"));
     int actor_live=actor_follow || (argc>1 && !strcmp(argv[1],"--scene-live-last"));
     int actor_drive=argc>1 && !strcmp(argv[1],"--scene-contact-last")?2:argc>1 && !strcmp(argv[1],"--scene-drive-last");
     int actor_body=actor_live || actor_drive || (argc>1 && !strcmp(argv[1],"--scene-body-last"));
@@ -69,6 +70,7 @@ int main(int argc, char **argv)
     const char *output_path=(model_mode || scene_mode)?(argc>4?argv[4]:NULL):(argc>3?argv[3]:NULL);
     if (argc < 4 || argc > 20) return 2;
     {extern uint32_t rf_scene_actor_live_enabled;rf_scene_actor_live_enabled=actor_live;}
+    rf_scene_actor_eye_enabled=actor_eye;
     rf_scene_actor_drive(actor_live?1:actor_drive);
     if(scene_mode && argc<10)return 2;
     if(skin_mode) {

@@ -1,3 +1,4 @@
+#include "rf/eye.h"
 #include "rf/scene_preview.h"
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
@@ -130,7 +131,7 @@ typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity;rf_scene_frame_sink sink;void *context;
     const rf_geometry_collision_world *collision;
-    const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];
+    const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
 } scene_stream;
 static const rf_scene_world_geometry *actor_follow_world;
 void rf_scene_actor_follow(const rf_scene_world_geometry *world) {actor_follow_world=world;}
@@ -141,6 +142,9 @@ rf_physics_body scene_actor_body;
 uint32_t rf_scene_actor_physics_diagnostic[8];
 uint32_t rf_scene_actor_initial_animation[12];
 float rf_scene_actor_initial_eye_offsets[6];
+int32_t rf_scene_actor_initial_eye_tag;
+uint32_t rf_scene_actor_eye_enabled;
+uint32_t rf_scene_actor_eye_frames[64][46]; /* frame, rf_eye_input, rf_first_person_pose */
 uint32_t rf_scene_actor_animation_timing[64][3];
 typedef struct actor_sweep_record {
     float start[3],delta[3],radius;int32_t status;uint32_t matched;
@@ -591,16 +595,31 @@ int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t
     out[0]=0x52464157;out[1]=1;out[2]=n;out[3]=hits;memcpy(out+4,&fraction,4);
     out[5]=hash;out[6]=sizeof(*rf_scene_actor_sweep_records);out[7]=scene_actor_body.allocated_bytes;return RF_OK;
 }
-static int actor_follow_view(void *context,uint32_t frame,rf_model_projection *view)
+static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3]={{-1,0,0},{0,1,0},{0,0,-1}};
     uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
     if(scene_actor_body.allocated_bytes)memcpy(position,scene_actor_body.state.position,12);
     else memcpy(position,stream->actor_spawn,12);
-    position[1]+=.7f;position[2]+=2.4f;
+    if(rf_scene_actor_eye_enabled) {
+        rf_eye_input input={0};rf_first_person_pose pose;float eye_position[3];
+        uint32_t *record=rf_scene_actor_eye_frames[frame%64];
+        if(!scene_actor_body.allocated_bytes || rf_scene_actor_initial_eye_tag<0)return RF_FORMAT;
+        memcpy(input.position,position,12);memcpy(input.orientation,scene_actor_body.state.orientation,36);
+        memcpy(input.standing_offset,rf_scene_actor_initial_eye_offsets,12);
+        memcpy(input.crouching_offset,rf_scene_actor_initial_eye_offsets+3,12);
+        input.eye_tag=rf_scene_actor_initial_eye_tag;input.flags=stream->eye_flags;
+        input.current_state=controller->current;input.previous_state=controller->next;
+        input.transition_duration=controller->duration;input.transition_elapsed=controller->elapsed;
+        status=rf_eye_position(&input,eye_position);if(status)return status;
+        status=rf_first_person_pose_copy(eye_position,input.orientation,input.orientation,&pose);if(status)return status;
+        memcpy(position,pose.position,12);memcpy(orientation,pose.eye_orientation,36);
+        record[0]=frame;memcpy(record+1,&input,sizeof(input));memcpy(record+25,&pose,sizeof(pose));
+    } else {position[1]+=.7f;position[2]+=2.4f;}
     status=rf_scene_world_update_camera(actor_follow_world,NULL,0,position,orientation,stream->mesh,stream->capacity-1024*1024);if(status)return status;
     stream->world=stream->mesh->count;
-    memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);view->rotation[4]=4.0f/3.0f;
+    memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);
+    {uint32_t axis;for(axis=3;axis<6;++axis)view->rotation[axis]*=4.0f/3.0f;}
     r[0]=frame;r[1]=stream->world;memcpy(r+2,position,12);memcpy(r+5,orientation,36);
     {uint32_t i,*d=rf_scene_actor_follow_summary;if(!frame) {d[0]=d[2]=0;d[1]=d[3]=2166136261u;}
      d[0]=frame+1;d[4]=stream->capacity;if(stream->mesh->bytes>d[2])d[2]=stream->mesh->bytes;
@@ -706,7 +725,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             d[4]=rf_scene_actor_landing[1];d[5]=rf_scene_actor_landing[3];d[6]=rf_scene_actor_landing[7];d[7]=1;
         }
     }
-    stream->mesh->count=stream->world+actor->count;stream->mesh->bytes=(uint32_t)bytes;
+    stream->mesh->count=stream->world+(rf_scene_actor_eye_enabled?0:actor->count);
+    stream->mesh->bytes=rf_scene_actor_eye_enabled?stream->world*sizeof(rf_preview_vertex):(uint32_t)bytes;
     {
         int status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);if(status)return status;
         if(stream->collision && frame+1<rf_scene_actor_frame_count) {
@@ -753,6 +773,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(!level || !mesh || !materials || !mesh->vertices || !materials->items ||
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||
        materials->allocated_bytes>=material_budget)return RF_RANGE;
+    if(rf_scene_actor_eye_enabled && !actor_follow_world)return RF_RANGE;
     if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
     stream.world=mesh->count;stream.base=materials->count;stream.geometry=geometry;
@@ -770,6 +791,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision)status=rf_entity_movement_load(&tables,binding.entity.class_name,512*1024,&rf_scene_actor_movement_values);
         if(!status && collision)status=scene_surface_open(&tables,&stream);
         rf_vpp_close(&tables);if(status)goto done;
+        stream.eye_flags=physics_config.authored.flags2;
         /* Live landing currently implements the ordinary class-run branch.
          * Reject other descriptors/special landing classes rather than silently
          * treating them as this passive miner fixture. */
@@ -795,6 +817,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         placement.initial_animation=rf_scene_actor_initial_animation;placement.animation_timing=rf_scene_actor_animation_timing;
         memset(rf_scene_actor_initial_eye_offsets,0,sizeof(rf_scene_actor_initial_eye_offsets));
         placement.initial_eye_offsets=rf_scene_actor_initial_eye_offsets;
+        rf_scene_actor_initial_eye_tag=-1;placement.initial_eye_tag=&rf_scene_actor_initial_eye_tag;
+        memset(rf_scene_actor_eye_frames,0,sizeof(rf_scene_actor_eye_frames));
         if(collision && state_mode) {
             placement.stance_cache=&rf_scene_actor_stance_cache;placement.stance_flags=&rf_scene_actor_stance_flags;
             placement.stance_effect=actor_selector_effect;placement.stance_context=&stream;
