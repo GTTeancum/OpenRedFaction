@@ -34,6 +34,12 @@ steering and numeric movement mode as physics; the fixed frame-16 walk request
 is removed from this path. Run `20260909-172348-379119` matches all 64 locomotion
 records in XEMU. Ordinary unarmed candidates and crouch eligibility remain
 explicit fixture inputs; gameplay priorities/AI selection remain open.
+Animation/controller advancement now shares physics' 1/60 second runtime step.
+Run `20260909-172853-167404` matches all 64 timing/phase/generation records and
+existing actor checks in stock 64 MiB XEMU. Frame zero retains a separate 1/30
+initialization step; full startup scheduling remains unresolved. Extended fixture
+eligibility ends at 56: crouch starts at 41 while moving, 47 from idle, and
+standing resumes at 56. These supersede the earlier timing observations above.
 See `docs/XEMU-MEMORY.md` for reproduction and limits.
 
 Working approach: complete the first miner integration across loading, rendering

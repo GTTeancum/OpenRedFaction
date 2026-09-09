@@ -31,6 +31,7 @@ typedef struct rf_animation_placement {
     const rf_entity_physics_config *physics_config;
     rf_physics_body *physics_body; /* Open body's pose drives rendering each frame. */
     rf_physics_stance_cache *stance_cache; /* Optional cache from diagnostic initial pose. */
+    float step_seconds; /* Zero keeps standalone 1/30 step; configured actors share physics time after initialization. */
     const uint32_t *stance_flags;
     /* Apply original selector physics effect before controller advancement.
      * Eligibility remains scripted in this diagnostic. Called once per frame. */
@@ -39,6 +40,7 @@ typedef struct rf_animation_placement {
     void *stance_context;
     /* Optional movement selector after stance effects, when stance is unhandled. */
     int (*movement_select)(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23]);
+    uint32_t (*animation_timing)[3]; /* Per-frame delta, resulting phase and generation; 64 records. */
     uint32_t *initial_animation; /* Seed phase/generation, first controller and active slot (12 words). */
     uint32_t *physics_diagnostic; /* Eight words; optional integrated fixture. */
 } rf_animation_placement;

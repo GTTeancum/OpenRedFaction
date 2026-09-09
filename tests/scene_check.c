@@ -20,6 +20,7 @@ extern uint32_t rf_scene_actor_contact_count,rf_scene_actor_contacts[64][25];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_stance_frames[64][4];
 extern uint32_t rf_scene_actor_locomotion_frames[64][12];
+extern uint32_t rf_scene_actor_animation_timing[64][3];
 extern uint32_t rf_scene_actor_initial_animation[12];
 extern uint32_t rf_scene_actor_selector_frames[64][8];
 extern uint32_t rf_scene_actor_clearance_diagnostic[8];
@@ -158,7 +159,10 @@ int main(int argc,char **argv)
                 if(drive==1 && scene_actor_body.state.position[0]<=c.placement.position[0]+.2f)return 3;
                 if(drive==2 && (scene_actor_body.state.position[0]>=c.placement.position[0]-.2f || rf_scene_actor_tick_stats[4]))return 3;
                 if(drive==2) {
-                    float x[6],standing,crouched,restored;const uint32_t frames[6]={38,39,47,48,58,59};
+                    float x[6],standing,crouched,restored;uint32_t first=64,last=0,frames[6];
+                    for(i=0;i<64;++i)if(rf_scene_actor_stance_frames[i][1]&0x400) {if(first==64)first=i;last=i;}
+                    if(first<26 || first==64 || last<=first || last>=62)return 3;
+                    frames[0]=first-2;frames[1]=first-1;frames[2]=last-1;frames[3]=last;frames[4]=62;frames[5]=63;
                     for(i=0;i<6;++i)memcpy(x+i,rf_scene_actor_render_frames[frames[i]]+2,4);
                     standing=(x[0]-x[1])*60;crouched=(x[2]-x[3])*60;restored=(x[4]-x[5])*60;
                     if(!(standing>crouched && restored>crouched && crouched>0))return 3;
@@ -166,9 +170,9 @@ int main(int argc,char **argv)
                 }
                 if(rf_scene_actor_contact_count!=rf_scene_actor_tick_stats[3])return 3;
                 printf("ACTOR_CONTACTS %u",rf_scene_actor_contact_count);for(i=0;i<rf_scene_actor_contact_count*25;++i)printf(" %u",((uint32_t*)rf_scene_actor_contacts)[i]);puts("");
-                {uint32_t crouch=0,stand=0,blocked=0;
-                 for(i=0;i<64;++i) {if(rf_scene_actor_stance_frames[i][1]&0x400)++crouch;else if(i>40)++stand;blocked+=rf_scene_actor_stance_frames[i][3];}
-                 if(!crouch || !stand || rf_scene_actor_stance_cache.count!=3 || rf_scene_actor_stance_cache.height_difference<=0 || rf_scene_actor_stance_frames[40][2]==rf_scene_actor_stance_frames[0][2])return 3;
+                {uint32_t crouch=0,stand=0,blocked=0,first=64;
+                 for(i=0;i<64;++i) {if(rf_scene_actor_stance_frames[i][1]&0x400) {++crouch;if(first==64)first=i;}else if(first<64)++stand;blocked+=rf_scene_actor_stance_frames[i][3];}
+                 if(!crouch || !stand || rf_scene_actor_stance_cache.count!=3 || rf_scene_actor_stance_cache.height_difference<=0 || rf_scene_actor_stance_frames[first][2]==rf_scene_actor_stance_frames[0][2])return 3;
                  printf("STANCE_SUMMARY %u %u %u\n",crouch,stand,blocked);}
                 for(i=0;i<64;++i) {
                     float speed;uint32_t crouched=(rf_scene_actor_stance_frames[i][1]&0x400)!=0;
@@ -205,6 +209,11 @@ int main(int argc,char **argv)
                 }
                 if(rf_scene_actor_locomotion_frames[16][9]!=0 || rf_scene_actor_locomotion_frames[16][10]!=UINT32_MAX)return 3;
                 printf("ACTOR_LOCOMOTION");for(i=0;i<768;++i)printf(" %u",((uint32_t*)rf_scene_actor_locomotion_frames)[i]);puts("");
+                for(i=0;i<64;++i) {
+                    float dt;memcpy(&dt,rf_scene_actor_animation_timing[i],4);
+                    if(dt!=(i?1.0f/60.0f:1.0f/30.0f))return 3;
+                }
+                printf("ACTOR_CLOCK");for(i=0;i<192;++i)printf(" %u",((uint32_t*)rf_scene_actor_animation_timing)[i]);puts("");
                 printf("ACTOR_INITIAL_ANIMATION");for(i=0;i<12;++i)printf(" %u",rf_scene_actor_initial_animation[i]);puts("");
                 printf("ACTOR_SELECTOR");for(i=0;i<512;++i)printf(" %u",((uint32_t*)rf_scene_actor_selector_frames)[i]);puts("");
                 printf("ACTOR_CLEARANCE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_clearance_diagnostic[i]);

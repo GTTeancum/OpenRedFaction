@@ -108,9 +108,11 @@ typedef struct scene_stream {
     const rf_geometry_collision_world *collision;
     const rf_geometry *geometry;unsigned char *surface_indices;
 } scene_stream;
+static const float scene_step_seconds=1.0f/60.0f;
 rf_physics_body scene_actor_body;
 uint32_t rf_scene_actor_physics_diagnostic[8];
 uint32_t rf_scene_actor_initial_animation[12];
+uint32_t rf_scene_actor_animation_timing[64][3];
 typedef struct actor_sweep_record {
     float start[3],delta[3],radius;int32_t status;uint32_t matched;
     rf_geometry_world_sweep_hit hit;
@@ -215,7 +217,7 @@ static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t 
      * are retained every frame; commits obey the grounded movement gate. */
     status=rf_physics_ground_prepare(scene_actor_body.spheres.items,scene_actor_body.spheres.count,
         scene_actor_body.state.position,scene_actor_body.state.state_124,rf_scene_actor_landing[1]==3,
-        1.0f/60,rf_scene_actor_movement_values.speed,0,&r->probe);if(status)return status;
+        scene_step_seconds,rf_scene_actor_movement_values.speed,0,&r->probe);if(status)return status;
     for(k=0;k<3;++k) {
         start[k]=(float)((double)r->probe.start[k]+r->probe.sphere.center[k]);
         delta[k]=(float)((double)r->probe.end[k]-r->probe.start[k]);
@@ -403,7 +405,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
 }
 static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state,const float command[3],const float ground_normal[3])
 {
-    float remaining=1.0f/60,support[3]={0},normal[3];uint32_t pass=0,contacts=0;int status;
+    float remaining=scene_step_seconds,support[3]={0},normal[3];uint32_t pass=0,contacts=0;int status;
     int grounded=rf_scene_actor_landing[1]==1;
     if(grounded)++rf_scene_actor_landing[4];
     state->flags&=~0x1000000u;
@@ -607,11 +609,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         rf_physics_body_close(&scene_actor_body);memset(rf_scene_actor_physics_diagnostic,0,sizeof(rf_scene_actor_physics_diagnostic));
         placement.physics_config=&physics_config;placement.physics_body=&scene_actor_body;
         placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;
-        placement.initial_animation=rf_scene_actor_initial_animation;
+        placement.initial_animation=rf_scene_actor_initial_animation;placement.animation_timing=rf_scene_actor_animation_timing;
         if(collision && state_mode) {
             placement.stance_cache=&rf_scene_actor_stance_cache;placement.stance_flags=&rf_scene_actor_stance_flags;
             placement.stance_effect=actor_selector_effect;placement.stance_context=&stream;
-            placement.movement_select=actor_movement_select;
+            placement.movement_select=actor_movement_select;placement.step_seconds=scene_step_seconds;
             memset(rf_scene_actor_locomotion_frames,0,sizeof(rf_scene_actor_locomotion_frames));
             rf_scene_actor_stance_flags=rf_scene_actor_stance_request=0;
             memset(rf_scene_actor_selector_frames,0,sizeof(rf_scene_actor_selector_frames));

@@ -106,6 +106,7 @@ def main():
         if args.actor_body:actor_ground_modes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND_MODES ')).split()[1:]))
         if args.actor_body:actor_contact_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CONTACTS ')).split()[1:]))
         if args.actor_body:actor_locomotion_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_LOCOMOTION ')).split()[1:]))
+        if args.actor_body:actor_clock_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CLOCK ')).split()[1:]))
         if args.actor_body:actor_initial_animation_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_INITIAL_ANIMATION ')).split()[1:]))
         if args.actor_body:actor_selector_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SELECTOR ')).split()[1:]))
         if args.actor_body:actor_clearance_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CLEARANCE ')).split()[1:]))
@@ -319,6 +320,9 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             locomotion=memory_snapshot['symbols']['rf_scene_actor_locomotion_frames']['words']
                             if locomotion!=actor_locomotion_reference:raise RuntimeError('Actor input-driven locomotion selector differs from PC')
                             report['actor_locomotion']=dict(frames_match_pc=64,executed=sum(locomotion[::12]),scope='Shared actual steering/mode drives original movement selector; ordinary unarmed candidates, scripted crouch eligibility.')
+                            clock=memory_snapshot['symbols']['rf_scene_actor_animation_timing']['words']
+                            if clock!=actor_clock_reference:raise RuntimeError('Actor animation timing differs from PC')
+                            report['actor_clock']=dict(frames_match_pc=64,initialization_step=1/30,runtime_step=1/60,scope='Controller and playback share physics step after a separate diagnostic initialization update.')
                             initial_animation=memory_snapshot['symbols']['rf_scene_actor_initial_animation']['words']
                             if initial_animation!=actor_initial_animation_reference:raise RuntimeError('Actor initial animation differs from PC')
                             report['actor_initial_animation']=dict(words=initial_animation,scope='Original zero phase/generation one seed; diagnostic stand selection without self-blend. Full creation selector inputs remain open.')

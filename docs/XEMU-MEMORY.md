@@ -958,3 +958,32 @@ match PC. Both builds, four CTests, all three PC scene profiles and 6,000 origin
 movement-tail comparisons pass. No new framebuffer was captured. This connects
 animation selection to actual fixture movement inputs; it does not add player
 input, AI, animation speed scaling, priority selection or full entity lifecycle.
+
+
+## Shared animation and physics runtime step
+
+The integrated actor had been advancing animation/controller time by 1/30 second
+per rendered update while physics advanced by 1/60. Original actor update
+41dd27..41dd41 pushes the shared delta at 5a4014 directly into 503360; this call
+path supplies no movement-speed multiplier. Configured live actors now pass the
+same scene step to controller advancement, playback and physics. Standalone
+animation fixtures retain their existing step. Frame zero retains a separate
+1/30 initialization update to preserve the current diagnostic creation pose;
+full original startup scheduling and initial selection remain unresolved.
+
+Guest `rf_scene_actor_animation_timing` records 64 triples (768 bytes): delta,
+resulting phase and generation. The memory harness compares every word with PC.
+The stance eligibility fixture now spans frames 32 through 55 to exercise a
+completed crouch at the slower step. Passive idle transitions crouch at 47;
+moving profiles crouch at 41 because an interrupted blend retains progress.
+Standing resumes at 56. These replace the previous fixture's timing observations.
+Speed checks derive sample pairs from observed stance transitions: sustained
+movement measures 5.23269653 before crouch, 2.69393921 near the end of crouch,
+and 4.50942993 during recovery, in world units per second.
+
+Run `artifacts/xemu/20260909-172853-167404/report.json` passes stock 64 MiB XEMU,
+including all timing, selector, body, surface and geometry comparisons. Both
+PC/NXDK builds, four CTests and all three PC scene profiles pass. No framebuffer
+was captured. This verifies the reconstructed builds agree; original instruction
+evidence supports using a shared delta, but does not establish that the complete
+original frame scheduler or live gameplay input has been reconstructed.

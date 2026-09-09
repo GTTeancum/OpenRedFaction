@@ -107,7 +107,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_model_clip_projection clip_projection={{320,240},{0,0},0,1};rf_model_clip_planes clip_planes={0};
     rf_model_render_buffers render_buffers={0};rf_model_projection render_view={0};rf_model_lighting render_lights={0};
     rf_model_render_output render_output={1,{255,255,255},255,1,1};
-    if (!out) return RF_RANGE;
+    if (!out || (placement && (!isfinite(placement->step_seconds) || placement->step_seconds<0))) return RF_RANGE;
     memset(out,0,8*4); out[0]=1;
     if(authored) {
         if(!resource_count || resource_count>23)return RF_RANGE;
@@ -221,6 +221,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     actor.direction.orientation[0]=actor.direction.orientation[4]=actor.direction.orientation[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
     for (frame=0;frame<64;++frame) {
+        float frame_seconds=frame && placement && placement->step_seconds>0?placement->step_seconds:1.0f/30.0f;
         if(sink)preview->count=0;
         if(placement) {
             const rf_physics_body *body=placement->physics_body;
@@ -234,7 +235,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             int handled=0;
             if(placement && placement->stance_effect && placement->stance_flags) {
                 rf_motion_stance_decision decision;
-                status=rf_motion_select_stance(&controller,motions,8,frame>=32 && frame<48,*placement->stance_flags,&decision);if(status)goto done;
+                status=rf_motion_select_stance(&controller,motions,8,frame>=32 && frame<56,*placement->stance_flags,&decision);if(status)goto done;
                 status=placement->stance_effect(placement->stance_context,frame,&decision,&controller);if(status)goto done;
                 handled=decision.handled;
             }
@@ -243,7 +244,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             } else if(!handled && frame%16==0 && (!(placement && placement->physics_config && placement->physics_body) || !rf_motion_has_state(&controller,sequence[frame/16]))) {
                 status=rf_motion_request_state(&controller,motions,sequence[frame/16],.25f);if(status)goto done;
             }
-            status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,resources,resource_count);if(status)goto done;
+            status=rf_motion_apply_controller(&controller,motions,frame_seconds,&state,resources,resource_count);if(status)goto done;
         } else {
         inventory.reserve[0]=frame<32 ? 1 : 0;
         status=rf_weapon_reserve(&inventory,supply,0,&reserve); if (status!=RF_OK) goto done;
@@ -265,7 +266,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             if (status!=RF_OK) goto done;
         }
         controller.override_enabled=frame>=22 && frame<26;
-        status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,resources,4); if (status!=RF_OK) goto done;
+        status=rf_motion_apply_controller(&controller,motions,frame_seconds,&state,resources,4); if (status!=RF_OK) goto done;
         actor.direction.count=frame>=8 && frame<56;
         actor.direction.vector[0]=frame<32 ? -1.0f : 1.0f;
         context.now_ms=(int32_t)frame*33;
@@ -280,7 +281,12 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         status=rf_locomotion_choose_candidates(&candidates,&selection,motions,&effects,&state,resources,4,
             actions,sounds,&context,&actor,NULL,NULL,&sound_class); if (status!=RF_OK) goto done;
         }
-        status=rf_motion_update(&state,resources,resource_count,1.0f/30.0f); if (status!=RF_OK) goto done;
+        status=rf_motion_update(&state,resources,resource_count,frame_seconds); if (status!=RF_OK) goto done;
+        if(placement && placement->animation_timing) {
+            memcpy(placement->animation_timing[frame],&frame_seconds,4);
+            memcpy(placement->animation_timing[frame]+1,&state.phase,4);
+            placement->animation_timing[frame][2]=state.generation;
+        }
         if(frame==0 && placement && placement->initial_animation) {
             uint32_t *d=placement->initial_animation;
             memcpy(d+2,&controller,sizeof(controller));
