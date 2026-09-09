@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Live Mines collision-world allocation and 54 room rays now pass in 64 MiB XEMU
-alongside the animated scene; recover finalizer rejection, mutable/query state
-and actor collision before gameplay integration.
+All 460,720 shipped faces pass complete original supplied-plane finalization;
+recover mutable/query state, swept actor collision and generated-geometry
+finalization before gameplay integration.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

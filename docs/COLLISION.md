@@ -621,3 +621,34 @@ Both builds, all 94 PC world-load/replay cases and four CTest checks pass. This
 establishes guest construction and the selected static ray fixture alongside
 rendering/animation. Finalizer rejection, mutable room/face state, the other query
 branches, swept actor collision and gameplay integration are still open.
+
+## Complete supplied-plane finalizer audit
+
+Version-180 loading supplies a non-null plane at `0x4edfbc..0x4edfca`, taking
+the copy-plane branch of `0x4dfe20`. That branch preserves the supplied plane,
+computes the expanded face bounds, then checks polygon area. For three or more
+vertices it fans triangles from vertex zero, accumulating cross products of
+`vertex[i] - vertex[0]` and `vertex[i+1] - vertex[0]`. Each cross component and
+accumulated vector component is stored as binary32. The final dot product with
+the supplied normal is compared to zero in x87 extended precision. Zero rejects;
+either positive or negative nonzero area accepts. There is no area epsilon here.
+Fewer than three vertices reject. The no-plane branch additionally computes and
+normalizes a Newell-style normal and has a separate zero-normal failure; that
+branch remains unreconstructed for generated or modified geometry.
+
+`python tools/verify_face_finalizer.py` now executes the complete original
+supplied-plane finalizer and every callee unchanged for all 460,720 faces across
+94 levels. Every face is accepted. All resulting plane and expanded bound bytes
+match the PC collision adapter. Thus the current initial world does not retain
+any face the original would reject for these shipped inputs; this resolves that
+specific uncertainty without claiming a general-purpose reconstructed finalizer.
+Ten further original-code fixtures check a triangle, opposite/perpendicular/zero
+normals, collinearity, one/two vertices, a cancelling bow-tie polygon, a nonzero
+subnormal area, and an area that underflows to zero. All outcomes agree with the
+observed rule. Report: `artifacts/face-finalizer-verification.json`.
+
+This audit does not test arbitrary modified levels, reconstruct the rejection
+gate in C, execute the no-plane branch, or validate runtime Geo-Mod mutations.
+It adds original-executable evidence for the existing initial-data adapter; no
+rendering or compiled gameplay behavior changed. Swept actor collision and
+mutable/query state remain the next gameplay dependencies.
