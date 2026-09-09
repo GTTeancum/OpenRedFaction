@@ -1514,3 +1514,25 @@ false branch it selects parameter+0x34 as the initial key index and invokes
 list at 64e3b0 (tail 64e640), distinct from the type-9 solid list. These are
 unverified decompiler leads pending instruction/differential checks; do not
 collapse controller and mover identities or infer timing semantics from them.
+
+
+### Reconstructed initial controller flags
+
+`rf_level_group_initial_flags` maps the six raw group bytes and the first key's
+last two timing floats to the initial controller flags. It normalizes nonzero
+file bytes as the original 52c780 reader does. The third boolean selects
+80000100 versus 80002000; first/second set bits 2/4; a set second boolean and
+nonzero timing[3] or timing[4] additionally sets 40. The last three booleans
+control 400/800/1000. Semantic labels remain unresolved. Empty key sets return
+NOT_FOUND; nonfinite timing inputs are FORMAT; errors preserve output.
+
+`python tools/verify_group_flags.py` executes original registration blocks
+4693c9..469404 and 46949a..469570 with unchanged first-key access, then the
+complete 46b320 gate. Exact PC and NXDK results match for all 1,223 installed
+groups plus 4,096 combinations of raw 0/1/2/255 flag bytes and varying timing
+values. Three port guards pass. Report: `artifacts/group-flags-verification.json`.
+The gate simply returns bit 4 from object+318; 3,183 tested cases set it. When
+clear, registration's later branch selects parameter+34 as the initial key.
+This is not a full registration/playback implementation, and does not establish
+sound, attachment, trigger or interpolation semantics. Both builds and four
+CTest checks pass. No visual change occurred.

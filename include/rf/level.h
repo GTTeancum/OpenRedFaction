@@ -66,4 +66,9 @@ int rf_level_group_key_at(const rf_level *level,const rf_level_group *group,
     uint32_t index,rf_level_group_key *key);
 int rf_level_group_id_at(const rf_level *level,const rf_level_group *group,
     uint32_t list,uint32_t index,uint32_t *uid);
+/* Initial 469250 flag mapping after original byte-reader normalization.
+ * Requires a first key. No registration or state advancement; unknown flag
+ * meanings stay unnamed. Errors preserve output. */
+int rf_level_group_initial_flags(const rf_level_group *group,
+    const rf_level_group_key *first,uint32_t *flags);
 #endif

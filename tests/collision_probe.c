@@ -10,6 +10,17 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--group-flags")) {
+        struct {uint32_t count;uint8_t flags[6],padding[2];float timing[2];} in;
+        struct {int32_t status;uint32_t flags;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_level_group group={0};rf_level_group_key key={0};
+            group.key_count=in.count;memcpy(group.flags,in.flags,6);memcpy(key.timing+3,in.timing,8);
+            memset(&out,0xa5,sizeof(out));out.status=rf_level_group_initial_flags(&group,&key,&out.flags);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--groups")) {
         rf_vpp archive;rf_level level;rf_level_group_reader reader;rf_level_group g;int status;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_level_groups_begin(&level,&reader))return 2;

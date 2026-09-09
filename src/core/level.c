@@ -288,3 +288,23 @@ int rf_level_group_id_at(const rf_level *level,const rf_level_group *group,uint3
     if(offset>r.section.size)return RF_FORMAT;
     r.cursor=(uint32_t)offset;status=group_number(&r,&value);if(!status)*uid=value;return status;
 }
+
+int rf_level_group_initial_flags(const rf_level_group *group,
+    const rf_level_group_key *first,uint32_t *flags)
+{
+    uint32_t value,i,bits;
+    if(!group || !first || !flags)return RF_RANGE;
+    if(!group->key_count)return RF_NOT_FOUND;
+    for(i=3;i<5;i++) {
+        memcpy(&bits,first->timing+i,4);
+        if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;
+    }
+    value=group->flags[2]?0x80000100u:0x80002000u;
+    if(group->flags[0])value|=2;
+    if(group->flags[1]) {
+        value|=4;
+        if(first->timing[3]!=0 || first->timing[4]!=0)value|=0x40;
+    }
+    for(i=3;i<6;i++)if(group->flags[i])value|=1u<<(i+7);
+    *flags=value;return RF_OK;
+}
