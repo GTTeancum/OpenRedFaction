@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 extern uint32_t rf_scene_actor_physics_diagnostic[8];
+extern float rf_scene_actor_contact_time[2];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored;
@@ -125,7 +126,8 @@ int main(int argc,char **argv)
              printf("ACTOR_WORLD");for(i=0;i<8;++i)printf(" %u",sweep[i]);puts("");
              status=rf_scene_actor_fall_check(&collision,sweep);rf_geometry_collision_world_close(&collision);if(status)return 3;
              if(sweep[2]>=120 || sweep[3]>=3)return 3;
-             printf("ACTOR_FALL");for(i=0;i<8;++i)printf(" %u",sweep[i]);puts("");}
+             printf("ACTOR_FALL");for(i=0;i<8;++i)printf(" %u",sweep[i]);puts("");
+             memcpy(sweep,rf_scene_actor_contact_time,8);printf("ACTOR_TIME %u %u\n",sweep[0],sweep[1]);}
         }
         if(mode==1 && (status!=RF_NOT_FOUND || c.next!=3))return 3;
         if(mode==2 && (status!=RF_RANGE || c.next || memcmp(&before,&mesh,sizeof(mesh)) ||

@@ -93,6 +93,7 @@ def main():
         actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
         actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
         actor_fall_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FALL ')).split()[1:]))
+        actor_time_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_TIME ')).split()[1:]))
     symbol = re.search(r'\s[0-9a-fA-F]+:[0-9a-fA-F]+\s+_rf_diagnostic\s+([0-9a-fA-F]+)', map_text)
     if not symbol:
         raise RuntimeError('Diagnostic symbol absent from matching linker map')
@@ -294,7 +295,10 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         report['actor_world']=dict(words=actor_world,scope='Actual retained actor spheres swept two units along six world axes against stationary geometry; diagnostic mask 0x460, no movement response.')
                         actor_fall=memory_snapshot['symbols']['rf_actor_fall_diagnostic']['words']
                         if actor_fall!=actor_fall_reference:raise RuntimeError(f'Actor fall mismatch: {actor_fall}; PC {actor_fall_reference}')
-                        report['actor_fall']=dict(words=actor_fall,scope='Passive falling prediction on copied actor state through first static contact velocity response; no position/time clipping, damage, continued substeps or rendered movement.')
+                        report['actor_fall']=dict(words=actor_fall,scope='Passive falling prediction on copied actor state through first contact position/time clipping and static velocity response; no damage, continued substeps or rendered movement.')
+                        actor_time=memory_snapshot['symbols']['rf_scene_actor_contact_time']['words']
+                        if actor_time!=actor_time_reference:raise RuntimeError(f'Actor contact time mismatch: {actor_time}; PC {actor_time_reference}')
+                        report['actor_contact_time']=actor_time
                         config_reference=bytes.fromhex(subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--physics-config',str(root/'Installed_Game/tables.vpp'),'miner1'],text=True))
                         config_words=memory_snapshot['symbols']['resident_miner_config']['words']
                         if struct.pack('<117I',*config_words)!=config_reference:raise RuntimeError('Full guest actor configuration differs from PC')

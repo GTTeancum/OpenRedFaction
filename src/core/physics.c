@@ -3,6 +3,27 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_contact_advance(rf_physics_body_state *state,float dt,float fraction,float *remaining)
+{
+    float delta[3],position[3],adjusted=fraction,left;double length;uint32_t i;
+    if(!state || !remaining || !isfinite(dt) || dt<0 || !isfinite(fraction) || fraction<0 || fraction>=1 || (state->flags&0x4000))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(state->position[i]) || !isfinite(state->next_position[i]))return RF_RANGE;
+        delta[i]=(float)((double)state->next_position[i]-state->position[i]);if(!isfinite(delta[i]))return RF_RANGE;
+    }
+    length=sqrt(((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2]);
+    if(!isfinite(length) || length==0)return RF_RANGE;
+    left=(float)((double)dt-(double)dt*fraction);
+    if(!(state->flags&0x400000)) {
+        double ratio=(length*fraction-(double).05f)/length;
+        adjusted=ratio<0?0:(float)ratio;
+    }
+    for(i=0;i<3;++i) {
+        volatile float travel=(float)((double)delta[i]*adjusted);
+        position[i]=(float)((double)state->position[i]+travel);if(!isfinite(position[i]))return RF_RANGE;
+    }
+    memcpy(state->position,position,sizeof(position));state->scalar_144=adjusted;*remaining=left;return RF_OK;
+}
 int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3],
     const float support_velocity[3],const float contact_velocity[3],float *impact_speed)
 {

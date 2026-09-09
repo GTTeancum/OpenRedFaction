@@ -68,6 +68,7 @@ public class ExportBaseline extends GhidraScript {
         for(long target : new long[]{0x4bf740L,0x4bfc00L,0x4bfc60L,0x4c0050L,0x4c0100L,0x4c0160L,0x4c01b0L,0x4c0220L,0x4c0320L,0x4c04e0L,0x4c05a0L,0x4c06d0L}) addresses.add(target); // Trigger dispatch and eligibility.
         addresses.add(0x4cf500L); addresses.add(0x4cf9a0L);
         addresses.add(0x49ec90L); addresses.add(0x49f010L);
+        addresses.add(0x487770L); // Repeated actor motion passes call 49f3c0 / 49fe40.
         // Actor motion integration / contact-response candidates; verify before naming.
         for (long target : new long[]{0x49cd80L,0x49cf40L,0x49d0a0L,0x49d280L,
             0x49d330L,0x49d7e0L,0x49de50L,0x49e050L,0x49e180L,0x49e400L,

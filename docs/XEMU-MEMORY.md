@@ -138,3 +138,28 @@ unadjusted hit fraction; 4a002b..4a005c subtracts the 0.05-unit separation margi
 (5894f4) from traveled distance, clamps the adjusted fraction at zero, and
 4a0060..4a0077 advances position. Flag 0x400000 bypasses that margin. Preserve
 this distinction when connecting position clipping and repeated substeps.
+
+## Contact position and remaining time
+
+`rf_physics_contact_advance` now implements 49ffd2..4a007c for the non-0x4000
+actor branch and raw hit fraction below one. It updates position and the stored
+adjusted fraction and returns remaining time calculated from the original raw
+fraction. `tools/verify_physics_advance.py` matches 256 original instruction
+executions on PC and NXDK, including support-flag bypass and zero-clamped
+separation. No original callee is replaced. The port rejects zero displacement
+and nonfinite inputs instead of propagating undefined fractions.
+
+Integrated run `artifacts/xemu/20260909-145109-832802/report.json` passes on
+64 MiB XEMU: adjusted fraction 0, remaining time 0.014501864090561867 seconds.
+The harness compares both words directly with PC, along with the full fixture
+state hash and existing response/scene/door comparisons. Both builds and all
+four CTests pass. This still stops after the first contact; no visible change.
+
+The next control-flow target is 487770, which calls actor proposal 49f3c0 at
+4877c9 and actor completion/response 49fe40 at 487935, with collision processing
+between them (48ca60 and per-sphere-mode 49bb70). It loops over remaining
+objects/time, commits via 48a230, and has iteration/time termination guards.
+49f3c0 sets flag 0x1000000 after preparation; falling helper 49e750 skips force
+and gravity integration when that flag is already set, using zero acceleration
+for the next proposal. Do not reuse the current first-pass falling API for
+remaining-time passes without implementing that distinction.

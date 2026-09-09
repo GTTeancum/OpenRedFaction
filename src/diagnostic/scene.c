@@ -115,12 +115,14 @@ typedef struct actor_sweep_record {
 actor_sweep_record rf_scene_actor_sweep_records[48];
 rf_physics_body_state rf_scene_actor_fall_state;
 float rf_scene_actor_contact[7]; /* impact speed, contact normal, response velocity */
+float rf_scene_actor_contact_time[2]; /* adjusted fraction, remaining time */
 int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t out[8])
 {
     rf_physics_body_state current=scene_actor_body.state,proposal;
     float support[3]={0},delta[3],start[3],normal[3],fraction=1;uint32_t step,i,k,matched,sphere=UINT32_MAX,hash=2166136261u;
     if(!world || !out || !scene_actor_body.allocated_bytes || !scene_actor_body.spheres.count)return RF_RANGE;
     memset(rf_scene_actor_contact,0,sizeof(rf_scene_actor_contact));
+    memset(rf_scene_actor_contact_time,0,sizeof(rf_scene_actor_contact_time));
     for(step=0;step<120;++step) {
         proposal=current;
         {int status=rf_physics_fall_propose(&proposal,1.0f/60,9.8f,support);if(status)return status;}
@@ -133,10 +135,11 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
             if(matched && (sphere==UINT32_MAX || hit.hit.fraction<fraction)) {sphere=i;fraction=hit.hit.fraction;memcpy(normal,hit.hit.normal,sizeof(normal));}
         }
         if(sphere!=UINT32_MAX) {
-            /* Contact velocity branch only: stationary non-liquid floor, no
-             * rotating actor predicate. Position/time clipping and continued
-             * substeps are still required before this becomes a game update. */
-            int status=rf_physics_static_contact(&proposal,normal,support,support,rf_scene_actor_contact);if(status)return status;
+            /* Stationary non-liquid floor, no rotating actor predicate.
+             * Continued substeps and actor pose/room commit remain separate. */
+            int status=rf_physics_contact_advance(&proposal,1.0f/60,fraction,rf_scene_actor_contact_time+1);if(status)return status;
+            rf_scene_actor_contact_time[0]=proposal.scalar_144;
+            status=rf_physics_static_contact(&proposal,normal,support,support,rf_scene_actor_contact);if(status)return status;
             memcpy(rf_scene_actor_contact+1,normal,sizeof(normal));
             memcpy(rf_scene_actor_contact+4,proposal.velocity,sizeof(proposal.velocity));
             current=proposal;break;

@@ -8,6 +8,16 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--advance")) {
+        struct {float dt,fraction,position[3],next[3];uint32_t flags;} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_physics_body_state state={0};float remaining;
+            memcpy(state.position,input.position,12);memcpy(state.next_position,input.next,12);state.flags=input.flags;
+            if(rf_physics_contact_advance(&state,input.dt,input.fraction,&remaining))return 3;
+            if(fwrite(state.position,12,1,stdout)!=1 || fwrite(&state.scalar_144,4,1,stdout)!=1 || fwrite(&remaining,4,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--contact")) {
         float values[15];
         while(fread(values,sizeof(values),1,stdin)==1) {

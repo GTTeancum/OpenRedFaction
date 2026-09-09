@@ -103,4 +103,10 @@ int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
  * select movement modes. Finite inputs required; errors preserve outputs. */
 int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3],
     const float support_velocity[3],const float contact_velocity[3],float *impact_speed);
+/* Translation block 49ffd2..4a007c for hit fraction [0,1). Remaining time uses
+ * the raw fraction; position uses the 0.05-unit separation margin unless flag
+ * 0x400000 is set. Updates position and scalar_144 only; bounds, rotation and
+ * response are separate. Finite inputs and nonzero displacement required.
+ * Flag 0x4000 selects another original path and is rejected. Errors preserve outputs. */
+int rf_physics_contact_advance(rf_physics_body_state *state,float dt,float fraction,float *remaining);
 #endif
