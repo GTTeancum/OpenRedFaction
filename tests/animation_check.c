@@ -1,4 +1,7 @@
 #include "rf/animation_check.h"
+#include "rf/entity_assets.h"
+#include <stdlib.h>
+#include <math.h>
 #include <fcntl.h>
 #include <io.h>
 #include <string.h>
@@ -37,6 +40,53 @@ static int frame_check(void *context,uint32_t frame,rf_preview_mesh *mesh)
 int main(int argc, char **argv)
 {
     uint32_t output[8]; int status;
+    if(argc==8 && !strcmp(argv[1],"--level-placement")) {
+        rf_vpp archive,meshes;rf_level level;rf_level_actor_assets actor;
+        rf_animation_placement placement;rf_model_projection local;rf_preview_mesh mesh={0};uint32_t i,j,n;
+        if(rf_vpp_open(&archive,argv[2]))return 3;
+        status=rf_level_open(&level,&archive,argv[3]);if(status)return 3;
+        if(rf_vpp_open(&meshes,argv[5]))return 3;
+        status=rf_level_actor_assets_load(&level,(int32_t)strtol(argv[4],NULL,10),argv[7],&meshes,512*1024,&actor);
+        if(status || strcmp(actor.mesh.name,"miner.v3c"))return 3;
+        if(rf_animation_placement_from_level(&level,&actor.entity,&placement) ||
+           rf_model_local_view(&placement.world_view,placement.position,placement.orientation,&local))return 3;
+        for(n=0;n<100;++n) {
+            float camera_point[3]={(float)(n%10)-5,(float)(n/10)-5,20+(float)n};
+            float world[3],point[3],delta[3],view[3]={0},clip[3];uint8_t vertex[40]={0};uint32_t visible;
+            rf_model_render_cache cache={0};
+            for(i=0;i<3;++i) {
+                world[i]=level.player_position[i];
+                for(j=0;j<3;++j)world[i]+=level.player_orientation[j][i]*camera_point[j];
+                delta[i]=world[i]-level.player_position[i];
+            }
+            for(i=0;i<3;++i) {
+                point[i]=0;
+                for(j=0;j<3;++j) {
+                    view[i]+=level.player_orientation[i][j]*delta[j];
+                    point[i]+=actor.entity.orientation[i][j]*(world[j]-actor.entity.position[j]);
+                }
+            }
+            if(rf_model_project_vertex(point,&local,&cache,clip,vertex,&visible))return 3;
+            if(fabsf(cache.projected[0]-(320+320*view[0]/view[2]))>.02f ||
+               fabsf(cache.projected[1]-(240-320*view[1]/view[2]))>.02f)return 3;
+        }
+        for(n=0;n<2;++n) {
+            status=rf_animation_preview_placed(argv[5],argv[6],&placement,n?63:0,&mesh,1024*1024);
+            if(status || mesh.count%3)return 3;
+            for(i=0;i<mesh.count;++i)if(!isfinite(mesh.vertices[i].position[0]) || !isfinite(mesh.vertices[i].position[1]))return 3;
+            printf("UID %d frame %u triangles %u\n",actor.entity.uid,n?63:0,mesh.count/3);rf_preview_close(&mesh);
+        }
+        {rf_animation_placement before=placement;float saved=level.player_position[0];
+         level.player_position[0]=NAN;
+         if(rf_animation_placement_from_level(&level,&actor.entity,&placement)!=RF_FORMAT || memcmp(&before,&placement,sizeof(before)))return 3;
+         level.player_position[0]=saved;}
+        if(rf_animation_preview_placed(argv[5],argv[6],&placement,64,&mesh,1024*1024)!=RF_RANGE || mesh.vertices)return 3;
+        for(i=0;i<3;++i)placement.position[i]=level.player_position[i]-1000*level.player_orientation[2][i];
+        if(rf_animation_preview_placed(argv[5],argv[6],&placement,0,&mesh,1024*1024) || mesh.count || mesh.bytes)return 3;
+        rf_preview_close(&mesh);
+        rf_vpp_close(&meshes);rf_vpp_close(&archive);
+        puts("PASS: 100 world/model projection comparisons and two authored-placement snapshots");return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--placed-stream")) {
         rf_animation_placement placement={0};placed_check check={0};uint32_t mode;
         placement.world_view.camera[0]=2.2f;placement.world_view.camera[1]=8;placement.world_view.camera[2]=16;

@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Two Live Mines miners now produce posed geometry at authored transforms using
+the world preview camera; combine world/actor draws and reconcile near clipping
+before treating their camera paths as fully equivalent.
+
 All 78 Live Mines entity records now bind by UID to installed skeletal meshes
 and authored skins with exact transforms; feed these bindings into world drawing
 and resolve each actor's animation state instead of the scripted miner fixture.

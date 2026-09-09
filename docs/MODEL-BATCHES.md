@@ -1,5 +1,30 @@
 # Model batch data
 
+`rf_animation_placement_from_level` adapts a raw level spawn camera and authored
+entity transform for the model pipeline. The static preview uses a 90-degree
+horizontal FOV at 640x480: its vertical projected scale is 320, whereas the
+square-frustum model inspection used 240. Scaling the model view's up row by
+4/3 makes its side clipping and projected Y agree with that aspect ratio while
+retaining the existing 320/240 viewport half-sizes. Far depth is 1000. Inputs
+must be finite; failures preserve output. This is diagnostic camera scaffolding,
+not recovery of the original gameplay eye or FOV configuration.
+
+`rf_animation_preview_placed` exposes a single scripted miner frame at supplied
+placement, including valid empty output when fully culled. It retains the
+existing mesh ownership and fixed animation workspace. The caller must ensure
+the selected entity uses miner.v3c; arbitrary model/state playback is not yet
+supported. The model near-plane classifier still differs from the static
+preview's z=0.1 clipping, so this adapter does not establish near-plane parity.
+
+PC `rf_animation_check --level-placement levels1.vpp L1S1.rfl UID meshes.vpp
+motions.vpp tables.vpp` exercises UID binding, placement conversion and frame
+generation. For UIDs 9858 and 8322, 100 projected points each agree with an
+independent world-camera calculation within 0.02 pixels. UID 9858 emits 420/414
+triangles at frames 0/63; UID 8322 emits 428/426. Both tests also cover invalid
+frame rejection, nonfinite-camera output preservation and a fully culled
+snapshot. PC/NXDK builds and four CTest checks pass. These are generated model
+draw inputs; no combined world/actor framebuffer or new Xbox scene is claimed.
+
 The animation diagnostic now owns a fixed 27,648-byte heap workspace for its
 256 decoded bone records and 256 pose matrices, instead of keeping those arrays
 on the stack across renderer callbacks. Allocation failure uses the existing

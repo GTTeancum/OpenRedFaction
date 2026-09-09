@@ -280,6 +280,41 @@ done:
 int rf_animation_check(const char *meshes_path,const char *motions_path,uint32_t out[8])
 { return animation_run(meshes_path,motions_path,out,NULL,0,0,NULL,NULL,NULL); }
 
+int rf_animation_placement_from_level(const rf_level *level,const rf_level_entity *entity,
+    rf_animation_placement *placement)
+{
+    rf_animation_placement value={0};uint32_t i,j;
+    if(!level || !entity || !placement)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(level->player_position[i]) || !isfinite(entity->position[i]))return RF_FORMAT;
+        value.world_view.camera[i]=level->player_position[i];value.position[i]=entity->position[i];
+        for(j=0;j<3;++j) {
+            float scale=i==1?4.0f/3.0f:1.0f;
+            if(!isfinite(level->player_orientation[i][j]) || !isfinite(entity->orientation[i][j]))return RF_FORMAT;
+            value.world_view.rotation[i*3+j]=level->player_orientation[i][j]*scale;
+            if(!isfinite(value.world_view.rotation[i*3+j]))return RF_FORMAT;
+            value.orientation[i*3+j]=entity->orientation[i][j];
+        }
+    }
+    value.world_view.perspective=value.world_view.compute_clip=value.world_view.clipping=1;
+    value.world_view.far_clip=1;value.world_view.far_depth=1000;
+    value.world_view.screen[0]=320;value.world_view.screen[1]=-240;
+    value.world_view.screen[2]=320;value.world_view.screen[3]=240;
+    value.planes.near_depth=.1f;value.planes.far_depth=1000;
+    value.clip_projection.scale[0]=320;value.clip_projection.scale[1]=240;value.clip_projection.clamp=1;
+    *placement=value;return RF_OK;
+}
+int rf_animation_preview_placed(const char *meshes_path,const char *motions_path,
+    const rf_animation_placement *placement,uint32_t frame,rf_preview_mesh *mesh,uint32_t budget)
+{
+    uint32_t out[8];int status;
+    if(!placement || !mesh || mesh->vertices || frame>=64 || budget<sizeof(rf_preview_vertex))return RF_RANGE;
+    memset(mesh,0,sizeof(*mesh));mesh->vertices=malloc(budget);if(!mesh->vertices)return RF_IO;
+    status=animation_run(meshes_path,motions_path,out,mesh,frame,budget,NULL,NULL,placement);
+    if(status) {rf_preview_close(mesh);return status;}
+    mesh->bytes=mesh->count*sizeof(rf_preview_vertex);return RF_OK;
+}
+
 int rf_animation_preview(const char *meshes_path,const char *motions_path,uint32_t frame,rf_preview_mesh *mesh,uint32_t budget)
 {
     uint32_t out[8];int status;
