@@ -33,4 +33,12 @@ typedef struct rf_physics_mass_tensor {
  * term is added by the original. Errors leave output unchanged. */
 int rf_physics_spheres_accumulate(const rf_physics_sphere *source,uint32_t count,float density,
     const rf_physics_mass_tensor *initial,rf_physics_mass_tensor *result);
+/* Original 4fccf0: a zero determinant preserves the input matrix successfully.
+ * Finite input required; unrepresentable intermediate/output values fail with
+ * RF_RANGE, leaving output unchanged. Input and output may alias. */
+int rf_physics_tensor_inverse(const float source[9],float result[9]);
+/* Existing-sphere generated-mass branch including the inverse tensor step.
+ * Does not copy spheres into a runtime body or initialize the other fields. */
+int rf_physics_spheres_prepare(const rf_physics_sphere *source,uint32_t count,float density,
+    const rf_physics_mass_tensor *initial,rf_physics_mass_tensor *result);
 #endif

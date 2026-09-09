@@ -3,6 +3,127 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+/* Original 4fc4c0 term order, retaining extended precision until the caller's
+ * float determinant store. Save/restore the host control word. */
+static double tensor_determinant(const float *source,float *rounded)
+{
+    double value;
+#if (defined(_MSC_VER) && defined(_M_IX86)) || defined(__i386__)
+    unsigned short saved,control;
+#if defined(_MSC_VER)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,source
+        mov edx,rounded
+        lea eax,value
+        fld dword ptr [ecx+32]
+        fmul dword ptr [ecx]
+        fmul dword ptr [ecx+16]
+        fld dword ptr [ecx+12]
+        fmul dword ptr [ecx+8]
+        fmul dword ptr [ecx+28]
+        faddp st(1),st(0)
+        fld dword ptr [ecx+20]
+        fmul dword ptr [ecx+4]
+        fmul dword ptr [ecx+24]
+        faddp st(1),st(0)
+        fld dword ptr [ecx+8]
+        fmul dword ptr [ecx+24]
+        fmul dword ptr [ecx+16]
+        fsubp st(1),st(0)
+        fld dword ptr [ecx+20]
+        fmul dword ptr [ecx]
+        fmul dword ptr [ecx+28]
+        fsubp st(1),st(0)
+        fld dword ptr [ecx+12]
+        fmul dword ptr [ecx+4]
+        fmul dword ptr [ecx+32]
+        fsubp st(1),st(0)
+        fst dword ptr [edx]
+        fstp qword ptr [eax]
+        fldcw saved
+    }
+#else
+    __asm__ volatile("fnstcw %0":"=m"(saved));
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "fld dword ptr [ecx+32]\n\t"
+        "fmul dword ptr [ecx]\n\t"
+        "fmul dword ptr [ecx+16]\n\t"
+        "fld dword ptr [ecx+12]\n\t"
+        "fmul dword ptr [ecx+8]\n\t"
+        "fmul dword ptr [ecx+28]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fld dword ptr [ecx+20]\n\t"
+        "fmul dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [ecx+24]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fld dword ptr [ecx+8]\n\t"
+        "fmul dword ptr [ecx+24]\n\t"
+        "fmul dword ptr [ecx+16]\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "fld dword ptr [ecx+20]\n\t"
+        "fmul dword ptr [ecx]\n\t"
+        "fmul dword ptr [ecx+28]\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "fld dword ptr [ecx+12]\n\t"
+        "fmul dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [ecx+32]\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "fst dword ptr [edx]\n\t"
+        "fstp qword ptr [eax]\n\t"
+        ".att_syntax prefix"
+        ::"c"(source),"d"(rounded),"a"(&value):"memory","st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#endif
+#else
+    const float *m=source;
+    value=(((((long double)m[8]*m[0]*m[4]+(long double)m[3]*m[2]*m[7])+
+        (long double)m[5]*m[1]*m[6])-(long double)m[2]*m[6]*m[4])-
+        (long double)m[5]*m[0]*m[7])-(long double)m[3]*m[1]*m[8];
+    *rounded=(float)value;
+#endif
+    return value;
+}
+int rf_physics_tensor_inverse(const float source[9],float result[9])
+{
+    double m[9],det,last;float value[9];float denominator;volatile float minor[8];uint32_t i;
+    if(!source || !result)return RF_RANGE;
+    for(i=0;i<9;++i) {if(!isfinite(source[i]))return RF_RANGE;m[i]=source[i];}
+    /* 4fc4c0 keeps this exact term order; 4fccf0 compares the unrounded
+     * determinant with zero, but divides by its stored float value. */
+    det=tensor_determinant(source,&denominator);
+    if(det==0) {memmove(result,source,9*sizeof(float));return RF_OK;}
+    if(!isfinite(denominator) || denominator==0)return RF_RANGE;
+    minor[0]=(float)(m[4]*m[8]-m[5]*m[7]);
+    minor[1]=(float)(-(m[1]*m[8]-m[2]*m[7]));
+    minor[2]=(float)(m[1]*m[5]-m[2]*m[4]);
+    minor[3]=(float)(-(m[3]*m[8]-m[5]*m[6]));
+    minor[4]=(float)(m[0]*m[8]-m[2]*m[6]);
+    minor[5]=(float)(-(m[0]*m[5]-m[2]*m[3]));
+    minor[6]=(float)(m[3]*m[7]-m[4]*m[6]);
+    minor[7]=(float)(-(m[0]*m[7]-m[1]*m[6]));
+    /* The final 505260 result stays in the FPU through the first eight stores. */
+    last=m[0]*m[4]-m[1]*m[3];
+    for(i=0;i<9;++i) {
+        double divided=(i==8?last:(double)minor[i])/(double)denominator;
+        if(!isfinite(divided) || fabs(divided)>FLT_MAX)return RF_RANGE;
+        value[i]=(float)divided;
+    }
+    memcpy(result,value,sizeof(value));return RF_OK;
+}
+int rf_physics_spheres_prepare(const rf_physics_sphere *source,uint32_t count,float density,
+    const rf_physics_mass_tensor *initial,rf_physics_mass_tensor *result)
+{
+    rf_physics_mass_tensor value;int status;
+    if(!result)return RF_RANGE;
+    status=rf_physics_spheres_accumulate(source,count,density,initial,&value);if(status)return status;
+    status=rf_physics_tensor_inverse(value.tensor,value.tensor);if(status)return status;
+    *result=value;return RF_OK;
+}
 int rf_physics_spheres_accumulate(const rf_physics_sphere *source,uint32_t count,float density,
     const rf_physics_mass_tensor *initial,rf_physics_mass_tensor *result)
 {

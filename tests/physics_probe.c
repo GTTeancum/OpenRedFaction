@@ -8,7 +8,15 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
-    if(argc==2 && !strcmp(argv[1],"--accumulate")) {
+    if(argc==2 && !strcmp(argv[1],"--inverse")) {
+        float matrix[9];struct {float matrix[9];int32_t status;} result;
+        while(fread(matrix,sizeof(matrix),1,stdin)==1) {
+            memset(&result,0xa5,sizeof(result));result.status=rf_physics_tensor_inverse(matrix,result.matrix);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
+    if(argc==2 && (!strcmp(argv[1],"--accumulate") || !strcmp(argv[1],"--prepare"))) {
         rf_physics_sphere source[32];rf_physics_mass_tensor initial;uint32_t count;float density;
         struct {rf_physics_mass_tensor value;int32_t status;} result;
         _Static_assert(sizeof(result)==44,"Mass tensor wire format");
@@ -16,7 +24,9 @@ int main(int argc,char **argv)
             if(count>32 || fread(&density,4,1,stdin)!=1 || fread(&initial,sizeof(initial),1,stdin)!=1 ||
                 fread(source,sizeof(*source),count,stdin)!=count)return 2;
             memset(&result,0xa5,sizeof(result));
-            result.status=rf_physics_spheres_accumulate(source,count,density,&initial,&result.value);
+            result.status=!strcmp(argv[1],"--prepare")?
+                rf_physics_spheres_prepare(source,count,density,&initial,&result.value):
+                rf_physics_spheres_accumulate(source,count,density,&initial,&result.value);
             if(fwrite(&result,sizeof(result),1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;

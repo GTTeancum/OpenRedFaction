@@ -299,6 +299,42 @@ and also accepts an output alias of the initial structure. Matrix inversion
 at 4fccf0, geometric-model mass generation, full initializer integration and
 live Xbox entity physics remain open. No new rendered behavior is claimed.
 
+## Inverse inertia tensor and composed sphere preparation
+
+`rf_physics_tensor_inverse` now reconstructs complete 4fccf0, including the
+4fc4c0 determinant and 505260 two-by-two minors. The determinant is compared
+with zero before rounding; if zero, the original leaves every matrix byte
+unchanged. Otherwise, division uses the stored float determinant. The first
+eight cofactors are also stored as floats before division, while the ninth
+remains in the FPU. This ordering is retained by the shared implementation.
+
+The composed sphere fixture 198 exposed a double-precision determinant
+mismatch that shifted all nine inverse elements. A small x87 determinant
+helper now retains the original extended precision and operation order on
+32-bit PC/NXDK, saving and restoring the caller's control word. Other targets
+use a long-double fallback and remain unverified. The surrounding inverse
+calculation and the new `rf_physics_spheres_prepare` composition are shared C.
+
+`tools/verify_physics_tensor_inverse.py` executes complete original inversion
+without hooks. All 1,007 zero/identity, integer-singular, near-singular,
+mixed-scale and random nonsymmetric inputs match byte for byte on PC and
+compiled NXDK. Twenty-one port-only cases reject nonfinite input and
+unrepresentable determinants without changing output. NXDK also checks all
+1,028 cases with aliased input/output and verifies control-word restoration.
+These are finite fixtures, not an exhaustive floating-point proof.
+
+`verify_physics_sphere_mass.py --prepare` extends execution through the original
+inversion call at 49edf0 and stops at 49edf5. Shared accumulation followed by
+inversion matches all 640 original cases, plus 25 unchanged-output guards,
+on both builds. Original source spheres and all parameter bytes outside the
+mass/tensor remain unchanged. The accumulation-only checks still pass.
+
+Reports: `artifacts/physics-tensor-inverse-verification.json` and
+`artifacts/physics-sphere-prepare-verification.json`. Both builds and four
+CTest checks pass. The composed helper does not yet populate a runtime body,
+copy its spheres, handle geometric-model mass generation or register live
+entities. Those are still required before campaign physics integration.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

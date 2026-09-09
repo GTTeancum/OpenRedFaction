@@ -74,6 +74,9 @@ Shared budgeted sphere ownership preserves authored 24-byte records and passes
 Shared existing-sphere mass/tensor accumulation now matches 640 original cases
 on PC/NXDK with 25 invalid-input guards; recover matrix inversion and connect
 the complete initializer before constructing live entity physics.
+Shared tensor inversion now matches 1,007 original cases and composed sphere
+preparation matches 640 on PC/NXDK; connect body initialization and recover
+geometric-model mass generation before live entity physics.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
