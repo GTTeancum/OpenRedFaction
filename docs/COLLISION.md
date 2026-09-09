@@ -1988,3 +1988,27 @@ failure-preservation guards. The original diagnostic name-lookup flags are off.
 This primitive does not yet implement 46a8f0's controller dirty gating, handle
 list traversal, controller pose storage or dirty-bit clearing; those and running
 scene integration remain open.
+
+
+### Controller position commit
+
+`rf_group_commit_positions` now reconstructs 46a8f0 over caller-owned poses and
+indexed handle slots. It checks controller flag mask 80000008, commits the
+controller pose, then each valid mover/general-list reference through 48a230,
+and clears the controller mask. Full handle equality rejects stale generations;
+missing slots are skipped. Duplicates are retained, and general objects are
+committed regardless of flag 08000000 (unlike the propagation collector).
+
+Lists and slots are stable, separate caller storage; flags cannot overlap poses.
+A two-pass finite-data validation prevents partial mutation on an invalid later
+pose without heap allocation. This error policy is a port guard. Only attachment
+fields of the supplied controller view are read; runtime mirrors and collision
+views must be synchronized by their owner. Clean controllers return before
+inspecting any pose or list. The slot table is bounded to 1,024 entries.
+
+`tools/verify_group_commit.py` passes 2,000 complete original controller calls,
+covering all 18,000 mapped object poses on PC and compiled NXDK code. It also
+checks late invalid-target atomicity, clean invalid data and a controller listed
+in its own attachments. The runtime still needs authored controller ownership,
+position mirror synchronization, collision-view synchronization and rendering
+integration before this becomes animated scene behavior.

@@ -168,6 +168,20 @@ typedef struct rf_group_controller_view {
     const uint32_t *mover_handles;uint32_t mover_count;
     const uint32_t *general_handles;uint32_t general_count;
 } rf_group_controller_view;
+typedef struct rf_group_pose_slot {
+    uint32_t handle;rf_group_attached_pose *pose;
+} rf_group_pose_slot;
+/* 46a8f0: dirty-gated controller position commit, followed by mover/general
+ * lists with full-handle lookup, then clear 80000008. Only attachment fields
+ * of bindings are consumed. Slots are indexed by handle low 16 bits (max1024).
+ * Missing/stale handles are skipped; general-object exclusion is NOT applied.
+ * No allocation. Stable lists/slots must not alias flags or pose storage;
+ * flags must not alias poses. Slot poses may include the controller itself.
+ * Validate all affected poses before mutation; finite-contract failure preserves
+ * flags and all poses. Runtime position mirrors/collision views sync externally. */
+int rf_group_commit_positions(uint32_t *flags,rf_group_attached_pose *controller,
+    const rf_group_controller_view *bindings,const rf_group_pose_slot *slots,
+    uint32_t slot_count);
 /* Resolve one registered target's contributions from controllers in original
  * list order, mover list before general list; preserves duplicates and rejects
  * stale generations by full-handle comparison. Target must be a live registered

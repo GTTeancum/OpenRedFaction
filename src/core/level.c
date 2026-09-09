@@ -539,6 +539,33 @@ int rf_group_translation_propagate(rf_group_attached_pose *pose,
     if(!group_finite(next.pending,6) || !group_finite(next.minimum,6))return RF_FORMAT;
     *pose=next;return RF_OK;
 }
+int rf_group_commit_positions(uint32_t *flags,rf_group_attached_pose *controller,
+    const rf_group_controller_view *bindings,const rf_group_pose_slot *slots,
+    uint32_t slot_count)
+{
+    uint32_t pass,list,j;int status;rf_group_attached_pose test;
+    if(!flags)return RF_RANGE;
+    if(!(*flags&0x80000008u))return RF_OK;
+    if(!controller || !bindings || slot_count>1024 || (slot_count && !slots) ||
+       (bindings->mover_count && !bindings->mover_handles) ||
+       (bindings->general_count && !bindings->general_handles))return RF_RANGE;
+    for(pass=0;pass<2;pass++) {
+        rf_group_attached_pose *target=controller;
+        if(!pass) {test=*target;target=&test;}
+        status=rf_group_pose_set_position(target,target->pending);if(status)return status;
+        for(list=0;list<2;list++) {
+            const uint32_t *handles=list?bindings->general_handles:bindings->mover_handles;
+            uint32_t length=list?bindings->general_count:bindings->mover_count;
+            for(j=0;j<length;j++) {
+                uint32_t handle=handles[j],index=handle&0xffffu;
+                if(handle==UINT32_MAX || index>=slot_count || !slots[index].pose || slots[index].handle!=handle)continue;
+                target=slots[index].pose;if(!pass) {test=*target;target=&test;}
+                status=rf_group_pose_set_position(target,target->pending);if(status)return status;
+            }
+        }
+    }
+    *flags&=~0x80000008u;return RF_OK;
+}
 int rf_group_translation_bind_pose(rf_group_attached_pose *pose,uint32_t handle,
     const rf_group_controller_view *controllers,uint32_t count,float dt,uint32_t force)
 {

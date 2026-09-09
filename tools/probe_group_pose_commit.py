@@ -8,7 +8,9 @@ from unicorn.x86_const import *
 exe=root/'Installed_Game/RF.exe';assert hashlib.sha256(exe.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
 im=pefile.PE(str(exe)).get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(0x400000,(len(im)+4095)//4096*4096);u.mem_write(0x400000,im)
 base=0x30000000;u.mem_map(base,65536);stack=base+60000;stop=base+64000;rng=random.Random(0x46a8f0)
-u.mem_write(0x64ecb9,bytes(2));assignments=0
+u.mem_write(0x64ecb9,bytes(2));assignments=0;port_cases=[];port_expected=[]
+def mapped(blob):
+ return b''.join(blob[offset:offset+size] for offset,size in [(0x7c,4),(0x180,4),(0x238,12),(0x244,36),(0xe4,12),(0x3c,12),(0xf0,12),(0x144,12),(0x48,36),(0xfc,36),(0x120,36),(0x190,12),(0x19c,12)])
 for n in range(2000):
  flags=rng.getrandbits(32);flags=(flags&~0x80000008)|[0,8,0x80000000,0x80000008][n%4]
  blobs=[];poses=[];radii=[]
@@ -22,6 +24,7 @@ for n in range(2000):
  for k,offset in enumerate([0x2cc,0x2c0]):
   ptr=base+12000+k*1024;ids=lists[k];struct.pack_into('<3I',blobs[0],offset,len(ids),len(ids),ptr)
   u.mem_write(ptr,struct.pack('<'+'I'*len(ids),*ids) if ids else bytes(4))
+ port_cases.append(struct.pack('<3I',flags,*[len(ids) for ids in lists])+b''.join(struct.pack('<16I',*(ids+[0xffffffff]*(16-len(ids)))) for ids in lists)+b''.join(mapped(blob) for blob in blobs))
  for i,blob in enumerate(blobs):u.mem_write(base+i*1024,bytes(blob))
  u.mem_write(stack,struct.pack('<2I',stop,base));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x37f)
  u.emu_start(0x46a8f0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
@@ -36,5 +39,6 @@ for n in range(2000):
    old,=struct.unpack_from('<I',blob,0x7c);struct.pack_into('<I',blob,0x7c,old|0x4000000)
   if i==0 and touched:struct.pack_into('<I',blob,0x318,flags&~0x80000008)
   assert bytes(u.mem_read(base+i*1024,1024))==blob,(n,i,'object mutation')
+ port_expected.append(struct.pack('<I',struct.unpack_from('<I',blobs[0],0x318)[0])+b''.join(mapped(bytes(u.mem_read(base+i*1024,1024))) for i in range(9)))
 report=dict(result='PASS',controllers=2000,objects_checked=18000,objects_committed=assignments,scope='Complete original 46a8f0 with unchanged array access, handle lookup and 48a230 position assignment. Both attachment lists, duplicate/missing/stale handles, all dirty-bit combinations, bounds and whole-object writes. Debug lookup disabled. This proves pending-position commit, not interpolation or a C scene integration.')
 (root/'artifacts/group-pose-commit-original.json').write_text(json.dumps(report,indent=2));print(report)

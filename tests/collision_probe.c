@@ -10,6 +10,19 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--group-commit")) {
+        struct {uint32_t flags,counts[2],handles[2][16];rf_group_attached_pose poses[9];} in;
+        struct {int32_t status;uint32_t flags;rf_group_attached_pose poses[9];} out;
+        rf_group_controller_view bindings={0};rf_group_pose_slot slots[9];uint32_t i;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.flags=in.flags;memcpy(out.poses,in.poses,sizeof(out.poses));
+            for(i=0;i<9;i++) {slots[i].handle=0x12340000+i;slots[i].pose=out.poses+i;}
+            bindings.mover_handles=in.handles[0];bindings.mover_count=in.counts[0];bindings.general_handles=in.handles[1];bindings.general_count=in.counts[1];
+            out.status=in.counts[0]>16 || in.counts[1]>16?RF_RANGE:rf_group_commit_positions(&out.flags,out.poses,&bindings,slots,9);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--pose-position")) {
         struct {rf_group_attached_pose pose;float position[3];uint32_t alias;} in;
         struct {int32_t status;rf_group_attached_pose pose;} out;
