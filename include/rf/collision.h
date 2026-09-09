@@ -67,6 +67,22 @@ typedef struct rf_collision_face {
     const float (*vertices)[3];uint32_t count;
     rf_collision_face_filter filter;
 } rf_collision_face;
+/* Point-room branch of 4e3800 with null reference face (as used by 4e1630).
+ * Caller initializes endpoint=start+direction*query_length and zero selection.
+ * selected_face is a nonzero caller token, not an RF.exe pointer. */
+typedef struct rf_collision_room_query {
+    float start[3],direction[3],endpoint[3];
+    uint32_t selected_face;
+    float distance;
+    uint32_t front,hits;
+} rf_collision_room_query;
+/* Includes box rejection, signed-plane tolerance, front-side tie priority,
+ * polygon containment and edge-line retry. retry=1 requests another direction
+ * and preserves query. Does not apply room/face filters or traverse the world.
+ * Finite input, nonzero token and valid ordered polygon required. */
+int rf_collision_room_query_face(rf_collision_room_query *query,
+    const rf_collision_face *face,uint32_t token,uint32_t *retry);
+
 typedef struct rf_collision_ray_hit {float fraction,point[3],normal[3];} rf_collision_ray_hit;
 /* Geometric output conversion of 498e80: matrix columns dot local point and
  * normal, then translate the stored point. No normal normalization. Caller

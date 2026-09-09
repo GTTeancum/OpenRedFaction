@@ -1380,3 +1380,55 @@ int rf_collision_flat_faces(const rf_collision_face *faces,uint32_t count,uint32
     }
     if(value.hits)*result=value;*matched=value.hits!=0;return RF_OK;
 }
+
+/* 4e08c0 computes distance to the infinite edge line, without endpoint clamp. */
+static double room_edge_distance(const float a[3],const float b[3],const float p[3])
+{
+    float n[3],projected[3],delta[3],inverse,d,travel;double length;uint32_t i;
+    for(i=0;i<3;++i)n[i]=b[i]-a[i];
+    length=sqrt((double)n[0]*n[0]+(double)n[1]*n[1]+(double)n[2]*n[2]);
+    if(length<0.0001f)memcpy(projected,a,12);
+    else {
+        inverse=(float)(1.0/length);for(i=0;i<3;++i)n[i]=n[i]*inverse;
+        d=(float)(-(((double)n[2]*p[2]+(double)n[1]*p[1])+(double)n[0]*p[0]));
+        travel=(float)((((double)n[2]*a[2]+(double)n[1]*a[1])+(double)n[0]*a[0])+d);
+        for(i=0;i<3;++i) {volatile float part=n[i]*travel;projected[i]=a[i]-part;}
+    }
+    for(i=0;i<3;++i)delta[i]=projected[i]-p[i];
+    return (double)delta[0]*delta[0]+(double)delta[1]*delta[1]+(double)delta[2]*delta[2];
+}
+int rf_collision_room_query_face(rf_collision_room_query *query,
+    const rf_collision_face *face,uint32_t token,uint32_t *retry)
+{
+    rf_collision_room_query value;float point[3],box_point[3],denominator,t,distance;
+    double dot,side,parameter;uint32_t i,hit,front;int status;
+    if(!query || !face || !retry || !token)return RF_RANGE;
+    if(!face->vertices || !face->count || face->count>65536)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(query->start[i]) || !isfinite(query->direction[i]) || !isfinite(query->endpoint[i]))return RF_FORMAT;
+    for(i=0;i<4;++i)if(!isfinite(face->plane[i]))return RF_FORMAT;
+    if(!isfinite(query->distance) || query->distance<0 || query->front>1)return RF_FORMAT;
+    value=*query;
+    status=rf_collision_segment_box(face->minimum,face->maximum,value.start,value.endpoint,box_point,&hit);if(status)return status;
+    if(!hit){*retry=0;return RF_OK;}
+    dot=((double)value.direction[2]*face->plane[2]+(double)value.direction[1]*face->plane[1])+(double)value.direction[0]*face->plane[0];
+    if(dot==0){*retry=0;return RF_OK;}denominator=(float)dot;
+    side=(((double)value.start[2]*face->plane[2]+(double)value.start[1]*face->plane[1])+(double)value.start[0]*face->plane[0])+face->plane[3];
+    parameter=-side/denominator;t=(float)parameter;
+    if(parameter<=-0.0001f){*retry=0;return RF_OK;}
+    if(!isfinite(t))return RF_FORMAT;
+    distance=fabsf(t);front=side>=-0.0001f; /* coplanar null-reference defaults front */
+    if(value.selected_face) {
+        if((double)value.distance+0.0001f<distance){*retry=0;return RF_OK;}
+        if(!((double)value.distance-0.0001f>distance)) {
+            if(value.front && !front){*retry=0;return RF_OK;}
+            if(!(!value.front && front) && distance>=value.distance){*retry=0;return RF_OK;}
+        }
+    }
+    for(i=0;i<3;++i){volatile float part=value.direction[i]*t;point[i]=value.start[i]+part;}
+    status=rf_collision_polygon_contains(face->plane,point,face->vertices,face->count,&hit);if(status)return status;
+    if(!hit){*retry=0;return RF_OK;}
+    if(t>0.0001f)for(i=0;i<face->count;++i)
+        if(room_edge_distance(face->vertices[i],face->vertices[(i+1)%face->count],point)<9.99999905104687e-9f){*retry=1;return RF_OK;}
+    value.selected_face=token;value.distance=distance;value.front=front;++value.hits;
+    memcpy(value.endpoint,point,12);*query=value;*retry=0;return RF_OK;
+}

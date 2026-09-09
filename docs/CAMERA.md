@@ -1456,3 +1456,34 @@ query length from solid bounds and finally inspects the selected face and
 4e3a70 classification before returning face +44 owner. The Ghidra stack model
 is unreliable around 5754d0; confirm the query helpers and assembly before
 porting this. An AABB-only room choice would not reproduce the original.
+
+## Containing-room face query (4e3800)
+
+`rf_collision_room_query_face` implements the null-reference-face branch used
+by 4e1630. It reuses reconstructed 508b70 bounds/segment rejection and 4e1f50
+polygon containment. It preserves signed plane tolerance (-0.0001), stored
+float parameter/distance, front-side priority within the 0.0001 distance band,
+and the shortened query endpoint after an accepted face. A nonzero caller token
+represents the selected face without retaining original executable pointers.
+
+A polygon-contained hit with parameter greater than 0.0001 invokes the edge
+proximity test (4e0850/4e08c0). This uses squared distance to an infinite edge
+line, not a clamped segment. A distance below original constant 589d3c
+(approximately 1e-8) returns retry without changing selected query state.
+Near-zero edge length falls back to distance from its first endpoint.
+Reference-face coplanarity voting is not implemented because the containing-room
+caller explicitly supplies null; do not use this API for reference-face callers.
+Room skip bytes and face flags are the traversal's responsibility.
+
+`tools/verify_collision_room_face.py` runs original 4e3800 with unchanged
+geometric callees and real circular edge lists. All 1,200 PC and 1,200 compiled
+NXDK cases match status/retry and complete query state byte-for-byte, including
+345 selected faces and 29 retry outcomes. The fixtures include axis-aligned
+and rotated quads, boundaries and tied distances. This is evidence for those
+fixtures, not an exhaustive proof of double-versus-x87 arithmetic equivalence.
+Both builds and four CTests pass. The routine is not yet bound to XEMU rendering.
+
+Remaining containing-room work: 4e0c20 direction generation, 4e1630 ordered
+room/tree/face traversal and retry threshold, and final face-owner resolution.
+Exported 4e3a70 returns 2 without a face; with null reference face it returns 1
+for a front selected face and 2 otherwise. 4ce4a0 rejects face flags 0x0c.

@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Containing-room face testing now matches 1,200 original cases on both PC and
+compiled NXDK, including tie priority and edge-line retries. Reconstruct
+4e0c20 direction generation and 4e1630 traversal/owner selection next, then bind
+the locator to entity room refresh. No new image for this unbound geometry API.
+
 Room refresh 48a190 now matches 384 original cases on PC and compiled NXDK.
 It updates room/query position and clears the dirty flag, not physics/orientation.
 The locator and notification are explicit callback boundaries; reconstruct

@@ -12,6 +12,17 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--room-face")) {
+        struct {rf_collision_room_query query;float plane[4],lo[3],hi[3],vertices[4][3];uint32_t token;} in;
+        struct {int32_t status;uint32_t retry;rf_collision_room_query query;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_collision_face face={0};memcpy(face.plane,in.plane,16);memcpy(face.minimum,in.lo,12);memcpy(face.maximum,in.hi,12);
+            face.vertices=in.vertices;face.count=4;out.query=in.query;out.retry=99;
+            out.status=rf_collision_room_query_face(&out.query,&face,in.token,&out.retry);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
     if((argc==2 || argc==3) && (!strcmp(argv[1],"--door-cycle") || !strcmp(argv[1],"--door-cycle-smooth"))) {
         struct {rf_group_translation_runtime runtime;rf_group_attached_pose controller,mover;float keys[2][8];} in;
         struct {int32_t status;rf_group_translation_runtime runtime;rf_group_attached_pose controller,mover;} out;
