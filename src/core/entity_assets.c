@@ -1,5 +1,19 @@
 #include "rf/entity_assets.h"
 #include <string.h>
+#include <stdlib.h>
+int rf_entity_assets_load(const char *path,const char *class_name,const char *skin,
+    rf_entity_assets *assets,uint32_t budget)
+{
+    rf_vpp archive;rf_vpp_entry entry;void *text=NULL;int status;
+    if(!path || !class_name || !skin || !assets)return RF_RANGE;
+    status=rf_vpp_open(&archive,path);if(status)return status;
+    status=rf_vpp_find(&archive,"entity.tbl",&entry);
+    if(!status && (!entry.size || entry.size>budget))status=RF_RANGE;
+    if(!status) {text=malloc(entry.size);if(!text)status=RF_RANGE;}
+    if(!status)status=rf_vpp_read(&archive,&entry,0,text,entry.size);
+    if(!status)status=rf_entity_assets_read(text,entry.size,class_name,skin,assets);
+    free(text);rf_vpp_close(&archive);return status;
+}
 int rf_entity_skeletal_filename(const char *authored,char compiled[64])
 {
     uint32_t length=0,stem=0;int dot=0;

@@ -43,6 +43,13 @@ int main(int argc,char **argv)
     text=malloc(entry.size);if(!text)return 2;
     status=rf_vpp_read(&archive,&entry,0,text,entry.size);
     if(!status)status=rf_entity_assets_read(text,entry.size,argv[2],argv[3],&assets);
+    if(!status) {
+        rf_entity_assets loaded,before;
+        if(rf_entity_assets_load(argv[1],argv[2],argv[3],&loaded,entry.size) || memcmp(&loaded,&assets,sizeof(assets)))return 4;
+        memset(&loaded,0xa5,sizeof(loaded));before=loaded;
+        if(rf_entity_assets_load(argv[1],argv[2],argv[3],&loaded,entry.size-1)!=RF_RANGE || memcmp(&loaded,&before,sizeof(loaded)))return 4;
+        if(rf_entity_assets_load(argv[1],argv[2],"missing-skin",&loaded,entry.size)!=RF_NOT_FOUND || memcmp(&loaded,&before,sizeof(loaded)))return 4;
+    }
     if(!status) {printf("%s\n",assets.model);for(i=0;i<assets.texture_count;++i)printf("%s\n",assets.textures[i]);}
     free(text);rf_vpp_close(&archive);return status?3:0;
 }

@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Parker's skin now completes 64 frames on stock-memory XEMU and matches the PC
+framebuffer. Audit diagnostic stack usage and the earlier NV2A assertion, then
+connect authored skins and real level entities to combined world drawing.
+
 All five miner skin bundles now pass material and budget checks, and Parker's
 authored skin renders in the PC preview. Connect skin selection on Xbox and
 real level entities, and verify the original runtime skin-switch semantics.

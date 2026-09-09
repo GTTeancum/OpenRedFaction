@@ -5,6 +5,7 @@
 #include "rf/material.h"
 #include "rf/lightmap.h"
 #include "rf/animation_check.h"
+#include "rf/entity_assets.h"
 #include "renderer.h"
 #include <string.h>
 #include <stdio.h>
@@ -14,7 +15,7 @@
 #include <xboxkrnl/xboxkrnl.h>
 
 /* Read-only monitor evidence. Resolve its VA from the matching linker map. */
-volatile uint32_t rf_diagnostic[56] = {0x52464447u, 8u, 0};
+volatile uint32_t rf_diagnostic[58] = {0x52464447u, 9u, 0};
 static rf_geometry resident_geometry;
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;
@@ -34,10 +35,26 @@ static int model_preview(void)
     static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
     rf_vpp meshes,archives[5];rf_model_file model;rf_model_materials bundle={0};rf_preview_mesh mesh={0};
     uint32_t opened=0,i;int status;FILE *stream_flag;
+    static rf_entity_assets skin_assets;const char *skin_names[64];
+    memset(&skin_assets,0,sizeof(skin_assets));
+    FILE *skin_file=fopen("D:\\model-skin.txt","rb");
+    if(skin_file) {
+        char skin[64],compiled[64];size_t size=fread(skin,1,sizeof(skin),skin_file);
+        int failed=ferror(skin_file);fclose(skin_file);
+        if(failed || size==sizeof(skin))return RF_RANGE;
+        while(size && (skin[size-1]=='\r' || skin[size-1]=='\n'))--size;
+        if(!size || memchr(skin,0,size))return RF_FORMAT;skin[size]=0;
+        status=rf_entity_assets_load("D:\\tables.vpp","miner1",skin,&skin_assets,512*1024);
+        if(status)return status;
+        status=rf_entity_skeletal_filename(skin_assets.model,compiled);
+        if(status || strcmp(compiled,"miner.v3c"))return RF_FORMAT;
+        for(i=0;i<skin_assets.texture_count;++i)skin_names[i]=skin_assets.textures[i];
+        rf_diagnostic[56]=rf_filename_checksum(skin);rf_diagnostic[57]=skin_assets.texture_count;
+    }
     status=rf_vpp_open(&meshes,"D:\\meshes.vpp");if(status)return status;
     status=rf_model_file_open(&model,&meshes,"miner.v3c");
     while(!status && opened<5) {status=rf_vpp_open(archives+opened,paths[opened]);if(!status)++opened;}
-    if(!status)status=rf_model_materials_open(&bundle,&model,archives,opened,4*1024*1024);
+    if(!status)status=rf_model_materials_open_skin(&bundle,&model,skin_names,skin_assets.texture_count,archives,opened,4*1024*1024);
     stream_flag=fopen("D:\\model-stream.flag","rb");
     if(stream_flag) {
         rf_animation_placement placement={0};

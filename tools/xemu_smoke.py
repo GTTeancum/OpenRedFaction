@@ -22,6 +22,8 @@ from pathlib import Path
 class Monitor:
     def __init__(self, port):
         self.sock = socket.create_connection(('127.0.0.1', port), timeout=2)
+        # Use a bounded response wait distinct from the connection timeout.
+        self.sock.settimeout(30)
         self.stream = self.sock.makefile('rwb')
         self.receive()
         self.command('qmp_capabilities')
@@ -59,6 +61,7 @@ def main():
     parser.add_argument('--display', choices=['none', 'xemu'], default='xemu')
     parser.add_argument('--reference', type=Path, help='Require framebuffer comparison against this PC reference image')
     parser.add_argument('--no-capture', action='store_true', help='Validate runtime telemetry without capturing a framebuffer')
+    parser.add_argument('--skin',help='Expected miner1 skin selected by the guest model-skin.txt file')
     args = parser.parse_args()
     if args.no_capture and args.reference is not None:
         parser.error('--reference requires framebuffer capture')
@@ -127,7 +130,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     report['memory'] = monitor.command('query-memory-size-summary')
                     if report['memory'].get('base-memory') != 64 * 1024 * 1024:
                         raise RuntimeError('XEMU did not report exactly 64 MiB')
-                reply = monitor.command('human-monitor-command', {'command-line': f'x /56wx 0x{address:x}'})
+                reply = monitor.command('human-monitor-command', {'command-line': f'x /58wx 0x{address:x}'})
                 words = []
                 for line in reply.splitlines():
                     if ':' in line:
@@ -135,7 +138,15 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                 if words and (not report['samples'] or words != report['samples'][-1]):
                     report['samples'].append(words)
                     print('Guest telemetry:', [hex(w) for w in words], flush=True)
-                if len(words) == 56 and words[:3] == [0x52464447, 8, 5]:
+                if len(words) == 58 and words[:3] == [0x52464447, 9, 5]:
+                    replacements=[];skin_checksum=0
+                    if args.skin:
+                        assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()
+                        replacements=assets[1:]
+                        skin_checksum=int(subprocess.check_output([str(root/'build/pc/Release/rf_checksum_driver.exe')],input=args.skin.encode('ascii').hex()+'\n',text=True).strip(),16)
+                    if words[56:58]!=[skin_checksum,len(replacements)]:
+                        raise RuntimeError('Guest skin selection differs from requested reference')
+                    report['skin']=dict(name=args.skin,checksum=skin_checksum,replacements=len(replacements))
                     report['animation'] = dict(actual=words[48:56],expected=animation_reference,
                         scope='64 scripted controller/candidate-helper frames with real sidesteps; hashes of bones, playback/controller/references/candidate effects, eye and cache state; absent rolls and sounds')
                     if words[48:56] != animation_reference:
@@ -195,12 +206,16 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     if words[31] in (1,2):
                         names=set()
                         rows=subprocess.check_output([str(root/'build/pc/Release/rf_model_file_probe.exe'),str(root/'Installed_Game/meshes.vpp'),'miner.v3c','--materials'],text=True)
+                        material_index=0
                         for row in rows.splitlines():
                             if row.startswith('M '):
                                 raw=bytes.fromhex(row.split()[3])
                                 for offset in (0,48):
                                     name=raw[offset:offset+32].split(b'\0')[0].decode('ascii').lower()
+                                    if replacements and offset==0:name=replacements[material_index].lower()
                                     if name:names.add(name)
+                                material_index+=1
+                        if replacements and material_index!=len(replacements):raise RuntimeError('Skin/model material count differs')
                         expected_gpu_bytes=4
                         for name in names:
                             for archive_name in ('maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp'):
@@ -257,7 +272,10 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                 monitor.command('quit')
             except Exception:
                 pass
-            monitor.close()
+            try:
+                monitor.close()
+            except OSError:
+                pass # Preserve the original failure and still reap/write report.
         if process is not None:
             try:
                 process.wait(timeout=5)

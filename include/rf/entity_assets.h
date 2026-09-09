@@ -13,6 +13,10 @@ typedef struct rf_entity_assets {
  * on failure. Limits: token 255 bytes, asset 63 bytes, 64 skin replacements. */
 int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name,
     const char *skin,rf_entity_assets *assets);
+/* Load entity.tbl into temporary storage capped by table_budget; release it
+ * before return. Output unchanged on failure. Port-owned archive integration. */
+int rf_entity_assets_load(const char *tables_path,const char *class_name,
+    const char *skin,rf_entity_assets *assets,uint32_t table_budget);
 /* Skeletal loader 0x51ce60's .v3c specialization of 0x5142d0/0x514330.
  * This does not select the loader for arbitrary entity model types (.v3d etc.).
  * Replaces everything from the last dot, including dots in directory names;

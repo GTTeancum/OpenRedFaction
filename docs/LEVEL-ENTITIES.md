@@ -1,5 +1,35 @@
 # Level entity records
 
+Xbox model previews now accept a `model-skin.txt` disc file containing a miner1
+skin name (up to 63 bytes including any trailing CR/LF). Missing file selects
+base materials; empty, oversized or embedded-NUL selections fail. Both PC and
+Xbox use `rf_entity_assets_load`, which loads entity.tbl into temporary heap
+storage under a caller-specified cap (512 KiB here), reads metadata, and frees
+the table before material loading. Failure preserves the caller's output.
+The probe checks all 168 selections against the buffer reader, exact table-size
+budgets, one-byte-short rejection and missing-skin output preservation.
+PC/NXDK builds and four CTest checks pass.
+
+Diagnostic ABI version 9 adds skin-name checksum and replacement count in words
+56/57; `xemu_smoke.py --skin Parker` checks both and derives the selected GPU
+texture allocation. PC `--model-skin-last` produces frame 63 for comparison.
+Stock 64 MiB XEMU run `20260908-223040-356250` passes all 64 submitted frames,
+Parker checksum 0x19d75f2e, 12 replacements and 794,628 GPU image bytes. Its
+native framebuffer was visually inspected and passes PC comparison: 4 pixels
+over error 3, maximum channel error 114, mean maximum error 0.004235. Repeat
+`20260908-223124-961060` passes without capture. Base-selection control
+`20260908-223011-295569` also passes without capture. This remains a posed
+inspection; no combined level/actor rendering or original skin-switch parity.
+
+Initial stack-local metadata builds hit XEMU's NV2A surface/DMA-limit assertion,
+including a base-skin control. Keeping the 4,164-byte selection in static
+diagnostic storage instead produced the successful runs above. The executable
+reserves a 64 KiB stack; this reduces nested stack demand but does not establish
+the assertion's root cause. Audit the animation/preview stack and GPU transition
+before claiming the failure fully explained. The harness now gives QMP a
+bounded 30-second response timeout and tolerates close errors so an emulator
+disconnect cannot prevent process cleanup and writing its diagnostic report.
+
 `rf_model_materials_open_skin` adds bounded ordered primary-texture substitution
 to the shared material loader. Nonempty selections must match the complete
 SUBM material count; names must terminate within 32 bytes. Zero count uses base
