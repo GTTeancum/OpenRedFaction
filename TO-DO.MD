@@ -57,6 +57,8 @@ UID/relationship/friendliness writes, and door-target initial flags are mapped.
 Recover complete factory initialization before constructing live entity states.
 Shared C spawn-field extraction now matches all 1,610 entities on PC/NXDK with
 bounded raw parsing; integrate these fields into runtime construction.
+Shared entity creation-flag conversion now matches 1,152 original factory-prefix
+cases on PC/NXDK; allocation and remaining entity initialization are still open.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and

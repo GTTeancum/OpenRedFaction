@@ -4,6 +4,9 @@
 #include "rf/vpp.h"
 
 #define RF_OBJECT_SLOTS 1024
+/* Object flags assembled by 422360 before generic allocation. descriptor_kind
+ * is class descriptor +0x94. Remaining factory initialization is separate. */
+uint32_t rf_entity_creation_object_flags(uint32_t creation_flags,uint32_t descriptor_kind);
 /* Compact caller-owned views of the fields required by entity predicates.
  * These are not binary RF.exe structs or complete gameplay entities. */
 typedef struct rf_entity_view {

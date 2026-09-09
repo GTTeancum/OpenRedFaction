@@ -1,5 +1,13 @@
 #include "rf/entity.h"
 #include <math.h>
+uint32_t rf_entity_creation_object_flags(uint32_t creation_flags,uint32_t descriptor_kind)
+{
+    uint32_t flags=descriptor_kind==3?0x10000u:0u;
+    if(creation_flags&1)flags|=8;
+    if(creation_flags&2)flags|=0x4000;
+    if(creation_flags&4)flags|=0x20000;
+    return flags;
+}
 
 const rf_entity_view *rf_object_lookup(const rf_entity_registry *registry, int32_t handle)
 {

@@ -3,8 +3,17 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
-int main(void)
+int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--creation-flags")) {
+        uint32_t in[2],out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            out=rf_entity_creation_object_flags(in[0],in[1]);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     struct { int32_t target,query,attached[8]; struct {
         int32_t slot,handle,type,kind; uint32_t flags[3];
         int32_t action,linked,weapons[2]; float speed;

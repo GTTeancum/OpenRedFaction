@@ -92,6 +92,24 @@ minimal record, trailing bytes, invalid optional flag, full-word friendliness,
 low-byte truncation and nonzero creation-flag bytes 1/2/255. Both builds and all
 four CTest checks pass. Report: `artifacts/entity-spawn-verification.json`.
 
+## Shared creation-flag conversion
+
+`rf_entity_creation_object_flags` reconstructs the flag assembly at the start
+of original factory 422360: descriptor +0x94 equal to 3 contributes 0x10000,
+creation bit 1 contributes 8, bit 2 contributes 0x4000 and bit 4 contributes
+0x20000. Other creation bits do not contribute at this stage. This is the flag
+value prepared before generic allocation, not a final initialized entity.
+
+`tools/verify_entity_creation_flags.py` executes the original entry through
+422477 without intercepted helpers, using a valid class and absent player
+index. All 1,152 cases match the shared function on PC and actual NXDK-linked
+code: six descriptor kinds, 64 creation words including upper bits, and network
+bytes 0/1/2. Network byte exactly 1 adds creation bit 8 earlier in the factory,
+but that bit does not change this object-flag assembly. Player-index-dependent
+descriptor substitution, invalid class handling and later initialization are
+not covered. Existing entity predicate checks remain green (2,007 cases and
+one cycle rejection). Report: `artifacts/entity-creation-flags-verification.json`.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and
