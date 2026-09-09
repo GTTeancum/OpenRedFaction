@@ -1,5 +1,22 @@
 # Model batch data
 
+`rf_model_clip_attributes` recovers `0x54954c..0x549626`: interpolate UV0 for
+flag 1, UV1 for flag 2 and RGB for flag 4. The model renderer supplies flags 5.
+UVs use `(outside-inside)*factor+inside` with a final float store; byte colors
+use truncation through original `__ftol`, not nearest rounding. Disabled fields,
+position, flags and alpha remain untouched. A local result supports aliased
+inputs. The port accepts finite factors in [0,1] and flags 0–7; intersection
+generation must establish that domain or handle a reported range error.
+
+`tools/verify_model_clip_attributes.py` compares 3,000 unchanged original-block
+cases with original integer-conversion callees and dyadic factors, covering all
+UV/RGB flag combinations. All output bytes match; four invalid-argument cases
+preserve output. The harness explicitly sets x87 control word 0x37f per case;
+an initial run without that setup produced a one-ULP mismatch. These fixtures
+do not establish universal x87 equivalence. Intersection factors/positions,
+alpha interpolation and pool allocation are not part of this helper.
+PC/NXDK builds and four CTest checks pass.
+
 `rf_model_prepare_clip_triangle` recovers the three 48-byte clipping records
 assembled at `0x52f5b2..0x52f699`. Position and lit RGB use the signed-reuse
 resolved cache entry; each corner retains its own clip mask and UVs. It sets

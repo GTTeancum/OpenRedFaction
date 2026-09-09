@@ -148,6 +148,11 @@ typedef enum rf_model_triangle_route { RF_MODEL_TRIANGLE_REJECT=0,RF_MODEL_TRIAN
  * clipped polygon. All indices must fit original signed-short cache addressing. */
 int rf_model_route_triangle(const rf_model_render_cache *cache,uint32_t count,const uint16_t indices[3],
     uint16_t flags,const rf_model_projection *view,uint32_t *route);
+/* 0x54954c..0x549626: interpolate UV0 (bit1), UV1 (bit2), RGB (bit4).
+ * Original model clipping passes flags=5. Caller supplies intersection factor
+ * in [0,1]; position, clip flags and alpha are untouched. Aliasing supported. */
+int rf_model_clip_attributes(const uint8_t inside[48],const uint8_t outside[48],double factor,
+    uint32_t flags,uint8_t result[48]);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.

@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Clipping UV/RGB interpolation now matches 3,000 original-block cases under
+explicit x87 rounding setup. Recover plane intersection factors/positions and
+assemble per-plane polygon clipping with bounded temporary vertices.
+
 Triangle clipping-input assembly now matches 6,000 original records, preserving
 own UVs and reused positions/lighting. Recover edge interpolation, temporary
 vertex lifetime and per-plane traversal before clipped triangle submission.

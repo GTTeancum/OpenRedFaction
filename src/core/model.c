@@ -5,6 +5,20 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_clip_attributes(const uint8_t inside[48],const uint8_t outside[48],double factor,
+    uint32_t flags,uint8_t result[48])
+{
+    uint8_t value[48];unsigned i;
+    if(!inside || !outside || !result || !(factor>=0 && factor<=1) || (flags&~7u))return RF_RANGE;
+    memcpy(value,result,sizeof(value));
+    for(i=0;i<4;++i)if(flags&(i<2?1u:2u)) {
+        float a,b,out;memcpy(&a,inside+28+i*4,4);memcpy(&b,outside+28+i*4,4);
+        out=(float)(((double)b-a)*factor+a);memcpy(value+28+i*4,&out,4);
+    }
+    if(flags&4)for(i=44;i<47;++i)value[i]=(uint8_t)(int32_t)(((double)outside[i]-inside[i])*factor+inside[i]);
+    memcpy(result,value,sizeof(value));return RF_OK;
+}
+
 int rf_model_route_triangle(const rf_model_render_cache *cache,uint32_t count,const uint16_t indices[3],
     uint16_t flags,const rf_model_projection *view,uint32_t *route)
 {
