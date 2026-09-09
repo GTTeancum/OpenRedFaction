@@ -22,12 +22,43 @@ static rf_geometry resident_geometry;
 static rf_geometry_collision_world resident_collision;
 volatile uint32_t rf_collision_diagnostic[9]={0x52464357u};
 volatile uint32_t rf_sweep_diagnostic[8]={0x52465357u};
+static rf_level_owned_groups resident_groups;
+volatile uint32_t rf_group_storage_diagnostic[10]={0x52464753u};
+static uint32_t group_storage_hash(void)
+{
+    uint32_t i,j,part,hash=2166136261u;
+    for(i=0;i<resident_groups.count;i++) {
+        const rf_level_owned_group *g=resident_groups.groups+i;
+        const void *data[5]={&g->record,g->keys,g->legacy,g->ids[0],g->ids[1]};
+        uint32_t sizes[5]={sizeof(g->record),g->record.key_count*sizeof(*g->keys),g->record.legacy_count*sizeof(*g->legacy),g->record.ids_count[0]*4,g->record.ids_count[1]*4};
+        for(part=0;part<5;part++)for(j=0;j<sizes[part];j++)hash=(hash^((const unsigned char *)data[part])[j])*16777619u;
+    }
+    return hash;
+}
+static int group_storage_check(void)
+{
+    uint32_t hash=group_storage_hash();rf_group_storage_diagnostic[8]=hash;rf_group_storage_diagnostic[9]++;
+    if(hash!=rf_group_storage_diagnostic[7]) {rf_group_storage_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
+    return RF_OK;
+}
+static int group_storage_open(const rf_level *level)
+{
+    uint32_t i;int status=rf_level_owned_groups_open(level,256u*1024u,&resident_groups);
+    rf_group_storage_diagnostic[1]=status?(uint32_t)status:1;if(status)return status;
+    rf_group_storage_diagnostic[2]=resident_groups.count;rf_group_storage_diagnostic[3]=resident_groups.allocated_bytes;
+    for(i=0;i<resident_groups.count;i++) {
+        const rf_level_group *g=&resident_groups.groups[i].record;
+        rf_group_storage_diagnostic[4]+=g->key_count;rf_group_storage_diagnostic[5]+=g->ids_count[0]+g->ids_count[1];rf_group_storage_diagnostic[6]+=g->legacy_count;
+    }
+    rf_group_storage_diagnostic[7]=group_storage_hash();return group_storage_check();
+}
 static rf_geometry_collision_movers resident_movers;
 volatile uint32_t rf_mover_diagnostic[12]={0x52464d56u};
 static int mover_check(const rf_level *level)
 {
     rf_geometry_movers source={0};uint32_t *ids=NULL,i,j,k,v,group,hash=2166136261u;
     int status;MM_STATISTICS memory={0};
+    status=group_storage_open(level);if(status)goto done;
     status=rf_geometry_movers_open(level,1024u*1024u,&source);if(status)goto done;
     ids=(uint32_t *)malloc(source.count?source.count*4:4);if(!ids) {status=RF_RANGE;goto done;}
     for(i=0;i<source.count;i++)ids[i]=0x12340000+i; /* Diagnostic handles, not gameplay registration. */
@@ -120,7 +151,7 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     (void)context;
     if(rf_diagnostic[37]!=frame)return RF_FORMAT;
     rf_diagnostic[57]=world;
-    return rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);
+    {int status=rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:group_storage_check();}
 }
 static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
 {
@@ -352,6 +383,7 @@ int main(void)
             }
             rf_vpp_close(&archive);
         }
+        if(result==RF_OK)result=group_storage_check(); /* Level archive is closed; owned data remains resident. */
         rf_diagnostic[2] = result == RF_OK ? 5u : 0x80000100u | (uint32_t)(-result);
     }
     for (;;) Sleep(1000);

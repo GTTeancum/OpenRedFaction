@@ -89,6 +89,14 @@ def main():
     mover_symbol=re.search(r'_rf_mover_diagnostic\s+([0-9a-fA-F]+)',map_text)
     if not mover_symbol:raise RuntimeError('Mover diagnostic symbol absent')
     mover_reference=list(map(int,subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--combined-world',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl']).split()))
+    group_symbol=re.search(r'_rf_group_storage_diagnostic\s+([0-9a-fA-F]+)',map_text)
+    if not group_symbol:raise RuntimeError('Owned group diagnostic symbol absent')
+    group_raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--owned-groups',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl'])
+    group_count,group_bytes=struct.unpack_from('<2I',group_raw);group_hash=2166136261
+    for byte in group_raw[8:]:group_hash=((group_hash^byte)*16777619)&0xffffffff
+    group_inventory=next(l for l in json.loads((root/'artifacts/moving-groups.json').read_text())['results'] if l['file'].lower()=='l1s1.rfl')
+    group_totals=[sum(len(g[field]) for g in group_inventory['records']) for field in ('keys','ids1','legacy')]
+    group_totals[1]+=sum(len(g['ids2']) for g in group_inventory['records'])
     run = root / 'artifacts/xemu' / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     run.mkdir(parents=True)
     eeprom = run / 'eeprom.bin'
@@ -176,6 +184,14 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     if len(mover)!=12 or mover[:3]!=[0x52464d56,1,mover_reference[1]] or mover[5:10]!=want or mover[11] or not 0<mover[10]<=words[3] or mover[3]+collision[2]!=mover_reference[7] or mover[4]<mover[3]:
                         raise RuntimeError(f'Guest combined mover query differs from PC: {mover}; reference {mover_reference}')
                     report['collision_movers']=dict(count=mover[2],retained_bytes=mover[3],peak_bytes=mover[4],queries=mover[5],hits=mover[6],moving_hits=mover[7],static_hits=mover[8],checksum=hex(mover[9]),available_bytes_after_build=mover[10]*4096,scope='Initial owned movers retained with world/rendering. Combined ray output and nullable visibility match PC; diagnostic handles, no gameplay registration or pose updates.')
+                    group_reply=monitor.command('human-monitor-command',{'command-line':f'x /10wx 0x{int(group_symbol[1],16):x}'})
+                    groups=[]
+                    for line in group_reply.splitlines():
+                        if ':' in line:groups.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
+                    group_want=[0x52464753,1,group_count,group_bytes]+group_totals+[group_hash,group_hash]
+                    if len(groups)!=10 or groups[:9]!=group_want or groups[9]<(66 if args.scene_states else 2):
+                        raise RuntimeError(f'Guest owned controller data differs from PC or lifetime checks missing: {groups}; expected {group_want}')
+                    report['controller_storage']=dict(groups=groups[2],retained_bytes=groups[3],keys=groups[4],ids=groups[5],legacy_poses=groups[6],checksum=hex(groups[8]),lifetime_checks=groups[9],scope='Owned authored controller data matches PC after rendered frames and level archive closure; no controller playback or registration.')
                     replacements=[];skin_checksum=0
                     if args.skin:
                         assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()

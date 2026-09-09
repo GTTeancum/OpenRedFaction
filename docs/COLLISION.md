@@ -2082,3 +2082,26 @@ one-byte-short budget, truncated section, output preservation and repeated close
 checks pass. Maximum retained allocation is 114,176 bytes on the 32-bit PC build.
 NXDK builds successfully; persistent scene integration and XEMU lifetime checks
 remain open.
+
+
+### Owned controller storage in 64 MiB XEMU
+
+The Xbox diagnostic now loads and retains `resident_groups` before constructing
+mover collision views, using a 256 KiB storage budget. A separate telemetry block
+hashes record/key/legacy/UID bytes in the same order as the PC owned-data probe.
+It rechecks after each streamed render frame and after the level archive closes.
+`tools/xemu_smoke.py` compares the complete-data checksum, counts, retained bytes
+and lifetime-check count against PC and the independent group inventory.
+
+`artifacts/xemu/20260909-093229-770905/report.json` passes with exactly 67,108,864
+base RAM bytes and zero plugged memory. Live Mines retains five groups, nine
+keys, five membership IDs and five legacy poses in 10,340 bytes. All 66 lifetime
+checks preserve checksum 7d74d5cd (load, 64 rendered frames, archive closure).
+Existing combined collision checks retain 148 hits from 148 queries, including
+90 moving-solid and 58 static hits, checksum e561d46f. Observed available memory
+is 42,881,024 bytes after renderer upload and 45,387,776 after CPU mesh release;
+these are diagnostic observations, not full-game peak memory proof.
+
+No framebuffer was captured because the rendered result is unchanged. Controller
+storage is now resident alongside rendering, but registration, persistent runtime
+poses/attachments, controller playback and mover rendering remain open.
