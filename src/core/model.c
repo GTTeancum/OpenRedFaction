@@ -5,6 +5,18 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_render_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],
+    float normalized[3],uint8_t rgb[3])
+{
+    float value[3];double squared,inverse;unsigned i;int status;
+    if(!vector || !lights || !ambient || !normalized || !rgb)return RF_RANGE;
+    squared=((double)vector[0]*vector[0]+(double)vector[1]*vector[1])+(double)vector[2]*vector[2];
+    inverse=1.0/sqrt(squared);
+    for(i=0;i<3;++i)value[i]=(float)(inverse*vector[i]);
+    status=rf_model_vertex_lighting(value,lights,ambient,rgb);if(status)return status;
+    memcpy(normalized,value,sizeof(value));return RF_OK;
+}
+
 int rf_model_lod_metric(uint32_t mode,const float position[3],const float camera[3],
     float numerator,float denominator,double *out)
 {

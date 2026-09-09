@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Visible fresh-vertex normalization and lighting now match 2,000 original
+call-site cases. Connect duplicate-vertex cache reuse and draw submission;
+the missing normalization step is now explicit in the recovered render path.
+
 The original camera-distance metric and detail choice now match 2,000 tested
 cases. Supply live camera/scale state and connect selected model geometry to
 draw submission; the current visible scene still contains static geometry only.

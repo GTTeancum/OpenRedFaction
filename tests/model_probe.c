@@ -11,6 +11,15 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--render-vertex-lighting")) {
+        struct {float vector[3],lights[3][6],ambient[3];} data;
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            float normal[3];uint8_t rgb[3];
+            if(rf_model_render_vertex_lighting(data.vector,data.lights,data.ambient,normal,rgb))return 2;
+            if(fwrite(normal,sizeof(normal),1,stdout)!=1 || fwrite(rgb,3,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--select-lod-camera")) {
         struct {float thresholds[3];uint32_t count,flags;int32_t alternate,minimum,scaled,animated;
             uint32_t mode;float position[3],camera[3],numerator,denominator;} data;

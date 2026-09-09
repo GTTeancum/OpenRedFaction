@@ -100,6 +100,12 @@ int rf_model_render_vertex_pair(const float position[3],const float second[3],
 /* Original 0x52fcf0 lighting: three direction/RGB records and ambient RGB.
  * Vector is supplied as consumed by that helper, with no normalization. */
 int rf_model_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],uint8_t rgb[3]);
+/* Fresh visible vertex 0x52f31e..0x52f34d with lighting enabled: normalize
+ * deformed second stream via 0x4faaf0, then light it. No singular fallback.
+ * Normalized output may alias input; source-vector non-finites are preserved
+ * through arithmetic, not repaired. Camera clipping is external. */
+int rf_model_render_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],
+    float normalized[3],uint8_t rgb[3]);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.

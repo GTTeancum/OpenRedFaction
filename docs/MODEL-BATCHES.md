@@ -1,5 +1,22 @@
 # Model batch data
 
+`rf_model_render_vertex_lighting` connects the previously recovered lighting
+helper to the normalization at its actual renderer call site. At `0x52f31e`,
+visible fresh vertices call `0x4faaf0` on the deformed second stream, then call
+`0x52fcf0` when lighting is enabled. The normalization computes inverse length
+and multiplies all three components with float stores. It has no zero/NaN
+fallback, unlike the local-light direction helper. This closes the missing
+normalization between rendering deformation and lighting; the lighting helper
+itself still does not normalize. Clipping precedes this block.
+
+`tools/verify_render_vertex_lighting.py` executes the unchanged call-site block
+`0x52f31e..0x52f34d` and complete callees for 2,000 inputs, including zero,
+NaN, infinities, subnormal and large finite vectors. All normalized-vector/RGB
+records match byte for byte in these fixtures. The verifier permits 1e-6 vector
+error and matches NaN classification, while requiring exact RGB. No universal
+x87 precision claim is made. PC/NXDK builds and four CTest checks pass.
+Duplicate-vertex cache integration and visible model drawing remain open.
+
 `rf_model_lod_metric` recovers complete `0x5182f0` through `0x5479b0` and
 the unchanged distance helpers `0x4faed0 / 0x409fa0 / 0x40a000`. Render mode
 0x66 subtracts camera coordinates with float stores, computes Euclidean length,
