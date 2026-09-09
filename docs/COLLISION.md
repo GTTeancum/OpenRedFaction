@@ -801,3 +801,58 @@ Both builds and four CTest checks pass. The 6,000-case thin-face, 9,000-case
 sphere/plane and 9,013-case sphere/edge comparisons remain green. Swept room-tree
 and world traversal, transformed-query composition, texture modes, actor response
 and guest execution of this new sweep remain open. There is no visual change.
+
+## Swept tree and local room traversal
+
+`rf_collision_sweep_tree` extends the reconstructed `0x4deab0` path to finite
+radii. Every node's bounds are expanded by radius before the center segment is
+tested, including radii below the face helper's thin-path threshold. Parent
+faces remain first, followed by the right child before the left child through
+the explicit stack. Accepted contacts tighten the fraction limit. The aggregate
+count adds every improving contact returned by a face, including multiple edges,
+while the result retains the latest face index and plane/edge classification.
+Query flag 1 returns after the first face that accepts a contact; it does not
+interrupt that face's internal edge loop. The separate normal displacement is
+passed through for original query +0x40 semantics.
+
+`rf_collision_sweep_rooms` covers the uncached, solid-local hierarchy branch of
+`0x4df1c0`. It forms start/end component bounds and expands them by radius before
+inclusive room-overlap checks. A primary room's skip byte and overlap gate still
+control access to its child list; children ignore the skip byte and are visited
+in their supplied order, without recursion. The primary tree is queried first.
+Counts accumulate across room trees, nearest limits carry forward, and first-hit
+mode exits after the first accepting room. Zero displacement remains a miss.
+The local-coordinate branch uses the same displacement for sweep and normal
+formation. Unsupported flags 0x1180 remain RF_NOT_FOUND. Preferred faces, cached
+face lists, fallback solid-face lists and coordinate transforms are not yet part
+of this API.
+
+Neither query allocates memory. Existing tree scratch must be used serially;
+input bounds, indices, finite radius and capacity are validated. Errors preserve
+result/matched, and misses preserve result while setting matched to zero. The
+reported face index is still an index in the room's reordered tree; loaded-world
+integration must map it through source_indices to the level face ID.
+
+`python tools/verify_collision_sweep_tree.py` passes 5,000 complete original
+`0x4deab0` calls against PC and NXDK-linked code, retaining all original geometric
+callees and the original stack probe. Three-node fixtures exercise empty face
+lists, swapped child order, equal-depth faces, first/nearest modes, edge hits,
+independent normal displacement and radii on both sides of the thin threshold.
+There are 2,732 hits, 546 final edge contacts and 415 queries with multiple
+updates. Five malformed index, cycle, limit and radius guards pass.
+Report: `artifacts/collision-sweep-tree-verification.json`.
+
+`python tools/verify_collision_sweep_rooms.py` passes 5,000 complete original
+`0x4df1c0` calls in the selected local, uncached hierarchy configuration, with
+all tree/face callees unchanged. Four single-face room trees exercise ordered
+primary/child lists, duplicates, skip flags, overlap rejection, radius changes,
+stationary queries and first/nearest modes. There are 1,632 hits, 672 final edge
+contacts and 388 queries with multiple updates. Eight malformed-input and
+unsupported-mode guards pass. Report:
+`artifacts/collision-sweep-rooms-verification.json`.
+
+Full PC/NXDK builds and four CTest checks pass. The 1,800-case thin-tree,
+2,400-case thin-room and 12,000-case finite-face regressions also pass. These are
+synthetic original/port CPU comparisons; loaded-level sweep validation, XEMU
+execution, transformed/moving solids and actor collision response remain open.
+Rendering is unchanged, so no screenshot was captured.

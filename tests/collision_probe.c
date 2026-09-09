@@ -63,6 +63,26 @@ int main(int argc,char **argv)
         printf("%u %u %u %u %u %u %u %u %u %u\n",world.room_count,faces,world.primary_count,world.child_count,world.allocated_bytes,world.peak_bytes,queries,hits,errors,hashes[0]);
         free(poison);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--sweep-rooms")) {
+        struct {struct {float bounds[6],z;uint32_t skip,first,count;} rooms[4];uint32_t primary[2],children[4];float start[3],delta[3],limit;uint32_t flags;float radius;} in;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_collision_room_view rooms[4];rf_collision_tree trees[4];rf_collision_node nodes[4];rf_collision_face faces[4];float vertices[4][4][3];uint32_t stacks[4],i,j;
+            struct {int32_t status;uint32_t matched;rf_collision_sweep_room_hit hit;} out;
+            memset(trees,0,sizeof(trees));memset(faces,0,sizeof(faces));
+            for(i=0;i<4;i++) {
+                float z=in.rooms[i].z;
+                memcpy(rooms[i].minimum,in.rooms[i].bounds,24);rooms[i].skip=in.rooms[i].skip;rooms[i].first_child=in.rooms[i].first;rooms[i].child_count=in.rooms[i].count;rooms[i].tree=trees+i;
+                trees[i].nodes=nodes+i;trees[i].node_count=trees[i].node_capacity=1;trees[i].faces=faces+i;trees[i].face_count=1;trees[i].stack=stacks+i;
+                for(j=0;j<3;j++) {nodes[i].minimum[j]=faces[i].minimum[j]=j==2?z-.0001f:-2.0001f;nodes[i].maximum[j]=faces[i].maximum[j]=j==2?z+.0001f:2.0001f;}
+                nodes[i].first_face=0;nodes[i].face_count=1;nodes[i].left=nodes[i].right=UINT32_MAX;
+                faces[i].plane[2]=1;faces[i].plane[3]=-z;faces[i].vertices=vertices[i];faces[i].count=4;
+                for(j=0;j<4;j++) {vertices[i][j][0]=(j==0 || j==3)?-2:2;vertices[i][j][1]=j<2?-2:2;vertices[i][j][2]=z;}
+            }
+            memset(&out,0xa5,sizeof(out));out.status=rf_collision_sweep_rooms(rooms,4,in.primary,2,in.children,4,in.flags,in.start,in.delta,in.radius,in.limit,&out.hit,&out.matched);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--room-query")) {
         struct {struct {float bounds[6],z;uint32_t skip,first,count;} rooms[4];uint32_t primary[2],children[4];float start[3],delta[3],limit;uint32_t flags;} in;
         while(fread(&in,sizeof(in),1,stdin)==1) {
@@ -186,6 +206,25 @@ int main(int argc,char **argv)
             memcpy(node.minimum,in.bounds,24);
             for(i=0;i<8;i++)memcpy(faces[i].minimum,in.faces[i],24);
             memset(&out,0xa5,sizeof(out));out.status=rf_collision_partition(&node,faces,8,out.labels,&out.axis,out.counts);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--sweep-tree")) {
+        struct {rf_collision_node nodes[3];float z[3],start[3],delta[3],limit;uint32_t flags;float normal_delta[3],radius;} in;
+        struct {int32_t status;uint32_t matched;rf_collision_sweep_tree_hit result;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_collision_face faces[3];float vertices[3][4][3];uint32_t stack[3],i,j;
+            for(i=0;i<3;i++) {
+                static const float xy[4][2]={{-2,-2},{2,-2},{2,2},{-2,2}};
+                memset(faces+i,0,sizeof(faces[i]));faces[i].plane[2]=1;faces[i].plane[3]=-in.z[i];
+                faces[i].minimum[0]=faces[i].minimum[1]=-2.0001f;faces[i].maximum[0]=faces[i].maximum[1]=2.0001f;
+                faces[i].minimum[2]=in.z[i]-.0001f;faces[i].maximum[2]=in.z[i]+.0001f;
+                for(j=0;j<4;j++) {vertices[i][j][0]=xy[j][0];vertices[i][j][1]=xy[j][1];vertices[i][j][2]=in.z[i];}
+                faces[i].vertices=vertices[i];faces[i].count=4;
+            }
+            memset(&out.result,0xa5,sizeof(out.result));out.matched=0xa5a5a5a5;
+            out.status=rf_collision_sweep_tree(in.nodes,3,faces,3,in.flags,in.start,in.delta,in.normal_delta,in.radius,in.limit,stack,3,&out.result,&out.matched);
             if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
         }
         return ferror(stdin)?2:0;

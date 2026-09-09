@@ -808,6 +808,46 @@ int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
     *matched=value.hits!=0;return RF_OK;
 }
 
+int rf_collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
+    const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
+    const float start[3],const float displacement[3],const float normal_displacement[3],float radius,float limit,
+    uint32_t *stack,uint32_t capacity,rf_collision_sweep_tree_hit *result,uint32_t *matched)
+{
+    rf_collision_sweep_tree_hit value;float end[3],scratch[3],lo[3],hi[3];uint32_t i,j,used=0,visited=0,hit;int status;
+    if(!start || !displacement || !normal_displacement || !result || !matched || (node_count && (!nodes || !stack || capacity<node_count)) || (face_count && !faces))return RF_RANGE;
+    if(!isfinite(radius) || radius<0 || !isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    for(j=0;j<3;j++) {if(!isfinite(start[j]) || !isfinite(displacement[j]) || !isfinite(normal_displacement[j]))return RF_FORMAT;end[j]=start[j]+displacement[j];if(!isfinite(end[j]))return RF_FORMAT;}
+    for(i=0;i<node_count;i++) {
+        const rf_collision_node *n=nodes+i;
+        if(n->first_face>face_count || n->face_count>face_count-n->first_face ||
+           (n->left!=UINT32_MAX && n->left>=node_count) || (n->right!=UINT32_MAX && n->right>=node_count))return RF_RANGE;
+        for(j=0;j<3;j++)if(!isfinite(n->minimum[j]) || !isfinite(n->maximum[j]) || n->minimum[j]>n->maximum[j])return RF_FORMAT;
+    }
+    value.hits=0;if(node_count)stack[used++]=0;
+    while(used) {
+        const rf_collision_node *n=nodes+stack[--used];
+        if(++visited>node_count)return RF_FORMAT;
+        for(j=0;j<3;j++) {lo[j]=n->minimum[j]-radius;hi[j]=n->maximum[j]+radius;}
+        status=rf_collision_segment_box(lo,hi,start,end,scratch,&hit);if(status)return status;
+        if(!hit)continue;
+        for(i=0;i<n->face_count;i++) {
+            uint32_t index=n->first_face+i;rf_collision_face face=faces[index];rf_collision_sweep_hit candidate;
+            face.filter.query_flags=query_flags;
+            status=rf_collision_sweep_face(&face,start,displacement,normal_displacement,radius,limit,&candidate,&hit);if(status)return status;
+            if(hit) {
+                if(candidate.hits>UINT32_MAX-value.hits)return RF_RANGE;
+                value.hit=candidate.hit;value.edge=candidate.edge;value.face_index=index;value.hits+=candidate.hits;limit=value.hit.fraction;
+                if(query_flags&1u)goto done;
+            }
+        }
+        if(n->left!=UINT32_MAX) {if(used==capacity)return RF_RANGE;stack[used++]=n->left;}
+        if(n->right!=UINT32_MAX) {if(used==capacity)return RF_RANGE;stack[used++]=n->right;}
+    }
+ done:
+    if(value.hits)*result=value;
+    *matched=value.hits!=0;return RF_OK;
+}
+
 static uint32_t split_axis(const float *lo,const float *hi)
 {
     uint32_t axis=0;float y;
@@ -909,6 +949,52 @@ int rf_collision_thin_rooms(const rf_collision_room_view *rooms,uint32_t room_co
             if(room_overlaps(room,lo,hi)) {
                 status=rf_collision_thin_tree(tree->nodes,tree->node_count,tree->faces,tree->face_count,query_flags,
                     start,displacement,limit,tree->stack,tree->node_capacity,&value.tree,&hit);if(status)return status;
+                if(hit) {
+                    if(value.tree.hits>UINT32_MAX-hits)return RF_RANGE;
+                    hits+=value.tree.hits;limit=value.tree.hit.fraction;value.room=index;
+                    if(query_flags&1u)goto done;
+                }
+            }
+            if(k==parent->child_count)break;
+        }
+    }
+ done:
+    if(hits) {value.tree.hits=hits;*result=value;}
+    *matched=hits!=0;return RF_OK;
+}
+int rf_collision_sweep_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],float radius,float limit,
+    rf_collision_sweep_room_hit *result,uint32_t *matched)
+{
+    float lo[3],hi[3];uint32_t i,j,k,hits=0;rf_collision_sweep_room_hit value;int status;
+    if(!start || !displacement || !result || !matched || (room_count && !rooms) ||
+       (primary_count && !primary) || (child_count && !children))return RF_RANGE;
+    if(query_flags&0x1180u)return RF_NOT_FOUND;
+    if(!isfinite(radius) || radius<0 || !isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    for(j=0;j<3;j++) {
+        float end=start[j]+displacement[j];
+        if(!isfinite(start[j]) || !isfinite(displacement[j]) || !isfinite(end))return RF_FORMAT;
+        lo[j]=(start[j]<end?start[j]:end)-radius;hi[j]=(start[j]<end?end:start[j])+radius;
+        if(!isfinite(lo[j]) || !isfinite(hi[j]))return RF_FORMAT;
+    }
+    for(i=0;i<room_count;i++) {
+        const rf_collision_room_view *room=rooms+i;
+        if(!room->tree || room->skip>255 || room->first_child>child_count || room->child_count>child_count-room->first_child)return RF_RANGE;
+        for(j=0;j<3;j++)if(!isfinite(room->minimum[j]) || !isfinite(room->maximum[j]) || room->minimum[j]>room->maximum[j])return RF_FORMAT;
+    }
+    for(i=0;i<primary_count;i++)if(primary[i]>=room_count)return RF_RANGE;
+    for(i=0;i<child_count;i++)if(children[i]>=room_count)return RF_RANGE;
+    if(displacement[0]==0 && displacement[1]==0 && displacement[2]==0) {*matched=0;return RF_OK;}
+    for(i=0;i<primary_count;i++) {
+        const rf_collision_room_view *parent=rooms+primary[i];
+        if((parent->skip && !(query_flags&8u)) || !room_overlaps(parent,lo,hi))continue;
+        for(k=0;;k++) {
+            uint32_t index=k?children[parent->first_child+k-1]:primary[i],hit;
+            const rf_collision_room_view *room=rooms+index;const rf_collision_tree *tree=room->tree;
+            if(room_overlaps(room,lo,hi)) {
+                status=rf_collision_sweep_tree(tree->nodes,tree->node_count,tree->faces,tree->face_count,query_flags,
+                    start,displacement,displacement,radius,limit,tree->stack,tree->node_capacity,&value.tree,&hit);if(status)return status;
                 if(hit) {
                     if(value.tree.hits>UINT32_MAX-hits)return RF_RANGE;
                     hits+=value.tree.hits;limit=value.tree.hit.fraction;value.room=index;

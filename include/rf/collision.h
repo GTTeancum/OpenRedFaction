@@ -88,6 +88,17 @@ int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
     const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
     const float start[3],const float displacement[3],float limit,
     uint32_t *stack,uint32_t capacity,rf_collision_tree_hit *result,uint32_t *matched);
+typedef struct rf_collision_sweep_tree_hit {
+    rf_collision_ray_hit hit;uint32_t face_index,hits,edge;
+} rf_collision_sweep_tree_hit;
+/* Swept 4deab0: expand every node by radius, then ordered finite-face queries.
+ * Same stack/ownership and first-hit rules as thin_tree; count every improving
+ * contact (including multiple edges within one face). Inputs are solid-local;
+ * the separate normal displacement retains original query +40 semantics. */
+int rf_collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
+    const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
+    const float start[3],const float displacement[3],const float normal_displacement[3],float radius,float limit,
+    uint32_t *stack,uint32_t capacity,rf_collision_sweep_tree_hit *result,uint32_t *matched);
 /* 4f9050 split decision before allocation. Upper half is tested first;
  * labels are 0=parent, 1=upper, 2=lower. Both child counts must be nonzero.
  * Caller supplies count labels. No mutation of faces or node; invalid inputs
@@ -121,4 +132,12 @@ int rf_collision_thin_rooms(const rf_collision_room_view *rooms,uint32_t room_co
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
     uint32_t query_flags,const float start[3],const float displacement[3],float limit,
     rf_collision_room_hit *result,uint32_t *matched);
+typedef struct rf_collision_sweep_room_hit {rf_collision_sweep_tree_hit tree;uint32_t room;} rf_collision_sweep_room_hit;
+/* Uncached local-coordinate hierarchy of 4df1c0 with radius-expanded sweep
+ * bounds. Same primary/child selection, unsupported modes and owned tree
+ * scratch rules as thin_rooms. Start/displacement are already solid-local. */
+int rf_collision_sweep_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],float radius,float limit,
+    rf_collision_sweep_room_hit *result,uint32_t *matched);
 #endif

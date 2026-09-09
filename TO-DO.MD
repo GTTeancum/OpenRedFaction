@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Finite-face sweeps now match 12,000 complete original calls on PC and NXDK;
-extend room-tree/world queries to swept radii, recover actor movement response,
-and validate the new sweep in XEMU.
+Swept tree and local room queries each match 5,000 original calls on PC and
+NXDK; bind swept results to loaded-world face IDs, validate real-level sweeps
+and XEMU execution, then recover transformed queries and actor response.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry
