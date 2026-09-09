@@ -1014,3 +1014,33 @@ Next integration work must preserve these query triggers and ordering while
 adding a route that actually loses and regains support. The existing 64-frame
 routes still have zero support losses. No new screenshot or XEMU run was needed
 for this source audit; executable game code was unchanged.
+
+
+## Immediate stance support integration
+
+Accepted live crouch/stand transitions now call the shared ground query and
+static landing/support commit immediately after replacing sphere centers,
+matching the direct 4a0840 calls in original 4289d0 and 428a60. The call precedes
+the fixture's speed-mode update and animation advancement. The rendering view
+is refreshed from the resulting body pose before generating that frame's mesh.
+Stance changes no longer serve as a substitute movement flag in the later
+ordinary support gate. Its general actor flag/category/attachment inputs remain
+unimplemented. Moving supports and complete original query side effects remain
+outside this static-world binding.
+
+Two new guest arrays retain the 64 potential stance queries: 33 words per raw
+probe/hit record and nine words per decision/pose record (query, mode before and
+after, position before and after), 10,752 bytes total. PC checks require exactly
+the two accepted changes to query, and their resulting poses to be the rendered
+poses. The copied ceiling-clearance test passes -1 to suppress live support
+side effects and still tests clearance/center changes only.
+
+Run `artifacts/xemu/20260909-173908-972553/report.json` passes all new records
+and existing actor/geometry comparisons on stock 64 MiB XEMU. In the drive
+profile, frame 41 moves Y from -3.91847563 to -3.92274046 before rendering;
+frame 56 moves Y from -3.94883037 to -3.94900179. Passive and sustained-X profiles
+also pass their PC checks. Both builds and four CTests pass. The original
+landing/support verifier passes 42 prepared contacts on PC/NXDK, plus its two
+original no-hit/steep support-loss cases. No new framebuffer was captured.
+This closes the delayed stance-query ordering gap recorded in the preceding
+audit, but does not demonstrate walking off a ledge or full gameplay.

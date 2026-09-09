@@ -21,6 +21,8 @@ extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_stance_frames[64][4];
 extern uint32_t rf_scene_actor_locomotion_frames[64][12];
 extern uint32_t rf_scene_actor_animation_timing[64][3];
+extern uint32_t rf_scene_actor_stance_support[64][9];
+extern unsigned char rf_scene_actor_stance_ground[];
 extern uint32_t rf_scene_actor_initial_animation[12];
 extern uint32_t rf_scene_actor_selector_frames[64][8];
 extern uint32_t rf_scene_actor_clearance_diagnostic[8];
@@ -213,6 +215,16 @@ int main(int argc,char **argv)
                     float dt;memcpy(&dt,rf_scene_actor_animation_timing[i],4);
                     if(dt!=(i?1.0f/60.0f:1.0f/30.0f))return 3;
                 }
+                {uint32_t queries=0;
+                 for(i=0;i<64;++i) {
+                    const uint32_t *r=rf_scene_actor_stance_support[i];
+                    int changed=rf_scene_actor_selector_frames[i][4]!=rf_scene_actor_selector_frames[i][5];
+                    if((r[0]!=0)!=changed)return 3;
+                    if(r[0]) {++queries;if(memcmp(r+6,rf_scene_actor_render_frames[i]+2,12))return 3;}
+                 }
+                 if(queries!=2)return 3;}
+                printf("ACTOR_STANCE_SUPPORT");for(i=0;i<576;++i)printf(" %u",((uint32_t*)rf_scene_actor_stance_support)[i]);puts("");
+                printf("ACTOR_STANCE_GROUND");for(i=0;i<2112;++i) {uint32_t word;memcpy(&word,rf_scene_actor_stance_ground+i*4,4);printf(" %u",word);}puts("");
                 printf("ACTOR_CLOCK");for(i=0;i<192;++i)printf(" %u",((uint32_t*)rf_scene_actor_animation_timing)[i]);puts("");
                 printf("ACTOR_INITIAL_ANIMATION");for(i=0;i<12;++i)printf(" %u",rf_scene_actor_initial_animation[i]);puts("");
                 printf("ACTOR_SELECTOR");for(i=0;i<512;++i)printf(" %u",((uint32_t*)rf_scene_actor_selector_frames)[i]);puts("");

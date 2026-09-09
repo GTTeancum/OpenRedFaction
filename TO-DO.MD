@@ -8,9 +8,15 @@ Immediate open items:
 
 Support-gate audit: 256 original predicate cases pass in
 `tools/verify_actor_support_gate.py`. Full entity integration must carry actor
-flag 8, attachment/category conditions and direct crouch-time ground queries;
-the fixture's position/stance movement gate remains simplified. See the latest
+flag 8 and attachment/category conditions;
+the fixture's position movement gate remains simplified. See the latest
 support-query audit in `docs/XEMU-MEMORY.md` before extending traversal.
+
+Accepted crouch/stand changes now query and commit static support immediately
+after sphere replacement, before animation and rendering. Run
+`20260909-173908-972553` passes all stance-query memory comparisons in 64 MiB
+XEMU. The standing-clearance copy test still isolates clearance/center changes;
+full general query gates and live ledge traversal remain open.
 
 Capture and post screenshots only when there is a new visible result.
 

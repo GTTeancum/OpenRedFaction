@@ -203,16 +203,10 @@ static int actor_movement_select(void *context,uint32_t frame,rf_motion_controll
     record[9]=(uint32_t)controller->current;record[10]=(uint32_t)controller->next;
     memcpy(record+11,&controller->duration,4);return RF_OK;
 }
-static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
+static int actor_ground_query(const rf_geometry_collision_world *world,actor_ground_record *r)
 {
-    actor_ground_record *r=rf_scene_actor_ground_records+frame;float start[3],delta[3];uint32_t k;int status;
-    if(frame==0) {
-        memset(rf_scene_actor_ground_stats,0,sizeof(rf_scene_actor_ground_stats));
-        rf_scene_actor_ground_stats[0]=0x52464750;rf_scene_actor_ground_stats[4]=UINT32_MAX;
-        rf_scene_actor_ground_stats[5]=2166136261u;rf_scene_actor_ground_stats[6]=sizeof(*r);
-    }
+    float start[3],delta[3];uint32_t k;int status;
     memset(r,0,sizeof(*r));
-    rf_scene_actor_ground_modes[frame]=rf_scene_actor_landing[1];
     /* Original falling/grounded depths, stationary support velocity. Queries
      * are retained every frame; commits obey the grounded movement gate. */
     status=rf_physics_ground_prepare(scene_actor_body.spheres.items,scene_actor_body.spheres.count,
@@ -224,6 +218,18 @@ static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t 
     }
     status=rf_geometry_collision_world_sweep(world,r->probe.query_flags,start,delta,r->probe.sphere.radius,1,&r->hit,&r->matched);
     if(status)return status;
+    return RF_OK;
+}
+static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
+{
+    actor_ground_record *r=rf_scene_actor_ground_records+frame;uint32_t k;int status;
+    if(frame==0) {
+        memset(rf_scene_actor_ground_stats,0,sizeof(rf_scene_actor_ground_stats));
+        rf_scene_actor_ground_stats[0]=0x52464750;rf_scene_actor_ground_stats[4]=UINT32_MAX;
+        rf_scene_actor_ground_stats[5]=2166136261u;rf_scene_actor_ground_stats[6]=sizeof(*r);
+    }
+    rf_scene_actor_ground_modes[frame]=rf_scene_actor_landing[1];
+    status=actor_ground_query(world,r);if(status)return status;
     ++rf_scene_actor_ground_stats[1];
     if(r->matched && r->hit.hit.fraction<1) {
         ++rf_scene_actor_ground_stats[2];
@@ -253,7 +259,31 @@ static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics
     }
     return RF_OK;
 }
-static int actor_stance_update(const rf_geometry_collision_world *world,uint32_t request,int *blocked)
+actor_ground_record rf_scene_actor_stance_ground[64];
+uint32_t rf_scene_actor_stance_support[64][9]; /* query, mode before/after, position before/after */
+static int actor_stance_ground_commit(const rf_geometry_collision_world *world,uint32_t frame)
+{
+    actor_ground_record *r=rf_scene_actor_stance_ground+frame;
+    uint32_t *d=rf_scene_actor_stance_support[frame];int status,walkable;
+    d[0]=1;d[1]=rf_scene_actor_landing[1];memcpy(d+3,scene_actor_body.state.position,12);
+    status=actor_ground_query(world,r);if(status)return status;
+    walkable=r->matched && r->hit.hit.fraction<1 && r->hit.hit.normal[1]>=.5f;
+    if(walkable) {
+        if(rf_scene_actor_landing[1]==3) {
+            status=rf_physics_static_land(&scene_actor_body.state,&r->probe,r->hit.hit.fraction);if(status)return status;
+            rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;
+            ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
+        } else {
+            status=rf_physics_static_support(&scene_actor_body.state,&r->probe,r->hit.hit.fraction);if(status)return status;
+            ++rf_scene_actor_landing[6];
+        }
+    } else if(rf_scene_actor_landing[1]==1) {
+        scene_actor_body.state.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
+    }
+    status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
+    d[2]=rf_scene_actor_landing[1];memcpy(d+6,scene_actor_body.state.position,12);return RF_OK;
+}
+static int actor_stance_update(const rf_geometry_collision_world *world,uint32_t request,int *blocked,int live_frame)
 {
     int status;*blocked=0;
     if(request>1)return RF_RANGE;
@@ -268,6 +298,8 @@ static int actor_stance_update(const rf_geometry_collision_world *world,uint32_t
         if(!*blocked) {
             status=rf_physics_stance_centers(&scene_actor_body.spheres,rf_scene_actor_stance_cache.centers[request],
                 rf_scene_actor_stance_cache.count,&rf_scene_actor_stance_flags,request);if(status)return status;
+            /* 4289d0/428a60 query immediately after replacing centers. */
+            if(live_frame>=0) {status=actor_stance_ground_commit(world,(uint32_t)live_frame);if(status)return status;}
             status=actor_set_speed_mode(request!=0);if(status)return status;
         }
     }
@@ -288,7 +320,7 @@ static int actor_selector_effect(void *context,uint32_t frame,const rf_motion_st
     if(decision->effect!=RF_MOTION_STANCE_NONE) {
         if(decision->effect!=RF_MOTION_STANCE_CROUCH && decision->effect!=RF_MOTION_STANCE_STAND)return RF_FORMAT;
         rf_scene_actor_stance_request=decision->effect==RF_MOTION_STANCE_CROUCH;
-        status=actor_stance_update(stream->collision,rf_scene_actor_stance_request,&rf_scene_actor_stance_blocked);if(status)return status;
+        status=actor_stance_update(stream->collision,rf_scene_actor_stance_request,&rf_scene_actor_stance_blocked,(int)frame);if(status)return status;
     }
     record[5]=rf_scene_actor_stance_flags;record[6]=(uint32_t)rf_scene_actor_stance_blocked;
     record[7]=(uint32_t)rf_scene_actor_movement_settings.mode;return RF_OK;
@@ -332,7 +364,7 @@ static int actor_clearance_check(const rf_geometry_collision_world *world)
         if(sphere!=UINT32_MAX)memcpy(q+6,normal,12);
         q[9]=fraction;q[10]=sphere==UINT32_MAX?-1:(float)sphere;
         before=actor_stance_hash();
-        status=actor_stance_update(world,0,&blocked);if(status)goto done;
+        status=actor_stance_update(world,0,&blocked,-1);if(status)goto done;
         after=actor_stance_hash();q[11]=(float)blocked;
         if(i==0) {
             rf_scene_actor_clearance_diagnostic[4]=before;rf_scene_actor_clearance_diagnostic[5]=after;
@@ -533,7 +565,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             rf_physics_body_state next=scene_actor_body.state;
             const actor_ground_record *ground=rf_scene_actor_ground_records+frame;
             int walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
-            int moved=frame && rf_scene_actor_stance_frames[frame][1]!=rf_scene_actor_stance_frames[frame-1][1];uint32_t axis;
+            int moved=0;uint32_t axis;
             if(frame)for(axis=0;axis<3;++axis) {
                 float previous;memcpy(&previous,rf_scene_actor_render_frames[frame-1]+2+axis,4);
                 if(previous!=next.position[axis])moved=1;
@@ -615,6 +647,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             placement.stance_effect=actor_selector_effect;placement.stance_context=&stream;
             placement.movement_select=actor_movement_select;placement.step_seconds=scene_step_seconds;
             memset(rf_scene_actor_locomotion_frames,0,sizeof(rf_scene_actor_locomotion_frames));
+            memset(rf_scene_actor_stance_ground,0,sizeof(rf_scene_actor_stance_ground));
+            memset(rf_scene_actor_stance_support,0,sizeof(rf_scene_actor_stance_support));
             rf_scene_actor_stance_flags=rf_scene_actor_stance_request=0;
             memset(rf_scene_actor_selector_frames,0,sizeof(rf_scene_actor_selector_frames));
             rf_scene_actor_movement_settings.mode=1;

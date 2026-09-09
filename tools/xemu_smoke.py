@@ -106,6 +106,8 @@ def main():
         if args.actor_body:actor_ground_modes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND_MODES ')).split()[1:]))
         if args.actor_body:actor_contact_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CONTACTS ')).split()[1:]))
         if args.actor_body:actor_locomotion_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_LOCOMOTION ')).split()[1:]))
+        if args.actor_body:actor_stance_support_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE_SUPPORT ')).split()[1:]))
+        if args.actor_body:actor_stance_ground_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE_GROUND ')).split()[1:]))
         if args.actor_body:actor_clock_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CLOCK ')).split()[1:]))
         if args.actor_body:actor_initial_animation_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_INITIAL_ANIMATION ')).split()[1:]))
         if args.actor_body:actor_selector_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SELECTOR ')).split()[1:]))
@@ -320,6 +322,9 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             locomotion=memory_snapshot['symbols']['rf_scene_actor_locomotion_frames']['words']
                             if locomotion!=actor_locomotion_reference:raise RuntimeError('Actor input-driven locomotion selector differs from PC')
                             report['actor_locomotion']=dict(frames_match_pc=64,executed=sum(locomotion[::12]),scope='Shared actual steering/mode drives original movement selector; ordinary unarmed candidates, scripted crouch eligibility.')
+                            for symbol,reference in [('rf_scene_actor_stance_support',actor_stance_support_reference),('rf_scene_actor_stance_ground',actor_stance_ground_reference)]:
+                                if memory_snapshot['symbols'][symbol]['words']!=reference:raise RuntimeError('Immediate stance support differs from PC: '+symbol)
+                            report['actor_stance_support']=dict(frames_match_pc=64,queries=sum(actor_stance_support_reference[i*9] for i in range(64)),scope='Accepted stance changes query and commit static support before animation and rendering; fixture eligibility remains scripted.')
                             clock=memory_snapshot['symbols']['rf_scene_actor_animation_timing']['words']
                             if clock!=actor_clock_reference:raise RuntimeError('Actor animation timing differs from PC')
                             report['actor_clock']=dict(frames_match_pc=64,initialization_step=1/30,runtime_step=1/60,scope='Controller and playback share physics step after a separate diagnostic initialization update.')

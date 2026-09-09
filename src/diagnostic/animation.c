@@ -237,6 +237,10 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 rf_motion_stance_decision decision;
                 status=rf_motion_select_stance(&controller,motions,8,frame>=32 && frame<56,*placement->stance_flags,&decision);if(status)goto done;
                 status=placement->stance_effect(placement->stance_context,frame,&decision,&controller);if(status)goto done;
+                if(placement->physics_body && placement->physics_body->allocated_bytes) {
+                    const rf_physics_body_state *body=&placement->physics_body->state;
+                    status=rf_model_local_view(&placement->world_view,body->position,body->orientation,&render_view);if(status)goto done;
+                }
                 handled=decision.handled;
             }
             if(!handled && placement && placement->movement_select) {
