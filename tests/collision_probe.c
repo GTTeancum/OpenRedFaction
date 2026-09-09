@@ -145,6 +145,33 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==4 && !strcmp(argv[1],"--owned-groups")) {
+        rf_vpp archive;rf_level level;rf_level_owned_groups owned={0},exact={0},guard;
+        uint32_t i,list;int status;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 2;
+        status=rf_level_owned_groups_open(&level,4*1024*1024,&owned);if(status)return 3;
+        if(rf_level_owned_groups_open(&level,owned.allocated_bytes,&exact))return 4;
+        rf_level_owned_groups_close(&exact);memset(&guard,0xa5,sizeof(guard));exact=guard;
+        if(rf_level_owned_groups_open(&level,owned.allocated_bytes-1,&exact)!=RF_RANGE || memcmp(&exact,&guard,sizeof(guard)))return 5;
+        {
+            rf_level cut=level;
+            for(i=0;i<cut.section_count;i++)if(cut.sections[i].type==0x3000) {
+                if(!cut.sections[i].size)return 7;cut.sections[i].size--;exact=guard;
+                if(rf_level_owned_groups_open(&cut,4*1024*1024,&exact)!=RF_FORMAT || memcmp(&exact,&guard,sizeof(guard)))return 8;
+                break;
+            }
+        }
+        rf_vpp_close(&archive);memset(&level,0xdd,sizeof(level));
+        if(fwrite(&owned.count,4,1,stdout)!=1 || fwrite(&owned.allocated_bytes,4,1,stdout)!=1)return 6;
+        for(i=0;i<owned.count;i++) {
+            const rf_level_owned_group *g=owned.groups+i;
+            if(fwrite(&g->record,sizeof(g->record),1,stdout)!=1 ||
+               fwrite(g->keys,sizeof(*g->keys),g->record.key_count,stdout)!=g->record.key_count ||
+               fwrite(g->legacy,sizeof(*g->legacy),g->record.legacy_count,stdout)!=g->record.legacy_count)return 6;
+            for(list=0;list<2;list++)if(fwrite(g->ids[list],4,g->record.ids_count[list],stdout)!=g->record.ids_count[list])return 6;
+        }
+        rf_level_owned_groups_close(&owned);rf_level_owned_groups_close(&owned);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--groups")) {
         rf_vpp archive;rf_level level;rf_level_group_reader reader;rf_level_group g;int status;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_level_groups_begin(&level,&reader))return 2;

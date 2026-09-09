@@ -26,7 +26,9 @@ in PC checks, with NXDK synchronization verified separately. Connect persistent
 authored controller ownership and rendering, then trigger/events and XEMU.
 Translation initialization now matches original state/selected-key blocks for
 2,441 authored key positions on PC/NXDK; build persistent owned controllers
-using the preserved base pose and validated selected start key.
+using the preserved base pose and validated selected start key. Owned controller
+inputs now retain all 1,223 groups after archive closure (max 114,176 bytes per
+level); connect this storage to scene runtime state and test its Xbox lifetime.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

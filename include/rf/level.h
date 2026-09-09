@@ -66,6 +66,23 @@ int rf_level_group_key_at(const rf_level *level,const rf_level_group *group,
     uint32_t index,rf_level_group_key *key);
 int rf_level_group_id_at(const rf_level *level,const rf_level_group *group,
     uint32_t list,uint32_t index,uint32_t *uid);
+typedef struct rf_level_group_legacy {
+    uint32_t uid;float pose[12]; /* Raw serialized legacy pose order. */
+} rf_level_group_legacy;
+typedef struct rf_level_owned_group {
+    rf_level_group record;rf_level_group_key *keys;
+    rf_level_group_legacy *legacy;uint32_t *ids[2];
+} rf_level_owned_group;
+typedef struct rf_level_owned_groups {
+    void *storage;rf_level_owned_group *groups;uint32_t count,allocated_bytes;
+} rf_level_owned_groups;
+/* Own serialized controller inputs in file order with one bounded allocation.
+ * Budget includes the owner struct and all owned data (not allocator overhead
+ * or bounded stack scratch). Level/archive must stay stable during open and
+ * may close afterward. Errors preserve output; close is repeatable. No runtime
+ * registration/initialization, UID-to-handle conversion or rotation conversion. */
+int rf_level_owned_groups_open(const rf_level *level,uint32_t budget,rf_level_owned_groups *result);
+void rf_level_owned_groups_close(rf_level_owned_groups *groups);
 /* Initial 469250 flag mapping after original byte-reader normalization.
  * Requires a first key. No registration or state advancement; unknown flag
  * meanings stay unnamed. Errors preserve output. */

@@ -14,6 +14,7 @@ int rf_level_entity_find(const rf_level *level,int32_t uid,rf_level_entity *enti
 }
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
 
 static uint32_t le32(const unsigned char *p)
 {
@@ -291,6 +292,57 @@ int rf_level_group_id_at(const rf_level *level,const rf_level_group *group,uint3
     r.cursor=(uint32_t)offset;status=group_number(&r,&value);if(!status)*uid=value;return status;
 }
 
+void rf_level_owned_groups_close(rf_level_owned_groups *groups)
+{
+    if(groups) {free(groups->storage);memset(groups,0,sizeof(*groups));}
+}
+int rf_level_owned_groups_open(const rf_level *level,uint32_t budget,rf_level_owned_groups *result)
+{
+    rf_level_owned_groups value={0};rf_level_group_reader reader,fields;
+    rf_level_group record;uint64_t bytes,part;uint32_t i,j,list;int status;
+    unsigned char *cursor,*end;
+    if(!level || !result)return RF_RANGE;
+    status=rf_level_groups_begin(level,&reader);if(status)return status;
+    value.count=reader.count;bytes=sizeof(value)+(uint64_t)value.count*sizeof(*value.groups);
+    if(bytes>budget)return RF_RANGE;
+    while((status=rf_level_group_next(&reader,&record))==RF_OK) {
+        bytes+=(uint64_t)record.key_count*sizeof(rf_level_group_key)+(uint64_t)record.legacy_count*sizeof(rf_level_group_legacy)+
+               ((uint64_t)record.ids_count[0]+record.ids_count[1])*4;
+        if(bytes>budget)return RF_RANGE;
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    value.allocated_bytes=(uint32_t)bytes;
+    if(bytes>sizeof(value)) {
+        value.storage=calloc(1,(size_t)(bytes-sizeof(value)));if(!value.storage)return RF_RANGE;
+        value.groups=(rf_level_owned_group *)value.storage;
+    }
+    if(!value.count) {*result=value;return RF_OK;}
+    cursor=(unsigned char *)(value.groups+value.count);end=(unsigned char *)value.storage+bytes-sizeof(value);
+    status=rf_level_groups_begin(level,&reader);if(status)goto failed;
+    if(reader.count!=value.count) {status=RF_FORMAT;goto failed;}
+    for(i=0;i<value.count;i++) {
+        rf_level_owned_group *g=value.groups+i;
+        status=rf_level_group_next(&reader,&record);if(status)goto failed;
+        part=(uint64_t)record.key_count*sizeof(*g->keys)+(uint64_t)record.legacy_count*sizeof(*g->legacy)+
+             ((uint64_t)record.ids_count[0]+record.ids_count[1])*4;
+        if(part>(uint64_t)(end-cursor)) {status=RF_FORMAT;goto failed;}
+        g->record=record;g->keys=(rf_level_group_key *)cursor;cursor+=record.key_count*sizeof(*g->keys);
+        g->legacy=(rf_level_group_legacy *)cursor;cursor+=record.legacy_count*sizeof(*g->legacy);
+        fields=reader;fields.cursor=record.key_offset;
+        for(j=0;j<record.key_count;j++)if((status=group_key(&fields,g->keys+j)))goto failed;
+        fields.cursor=record.legacy_offset;
+        for(j=0;j<record.legacy_count;j++)if((status=group_number(&fields,&g->legacy[j].uid)) ||
+            (status=group_floats(&fields,g->legacy[j].pose,12)))goto failed;
+        for(list=0;list<2;list++) {
+            g->ids[list]=(uint32_t *)cursor;cursor+=record.ids_count[list]*4;fields.cursor=record.ids_offset[list];
+            for(j=0;j<record.ids_count[list];j++)if((status=group_number(&fields,g->ids[list]+j)))goto failed;
+        }
+    }
+    if(cursor!=end) {status=RF_FORMAT;goto failed;}
+    *result=value;return RF_OK;
+ failed:
+    rf_level_owned_groups_close(&value);return status;
+}
 int rf_level_group_initial_flags(const rf_level_group *group,
     const rf_level_group_key *first,uint32_t *flags)
 {

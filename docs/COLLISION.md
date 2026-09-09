@@ -2058,3 +2058,27 @@ compiled NXDK. Six port guards also pass. This verifies the constructor state
 blocks, not the complete constructor: allocation, base-pose factory setup,
 registration, sound/event links, rotation and persistent scene ownership remain
 open. The verifier deliberately selects every key, not only authored starts.
+
+
+### Owned controller input storage
+
+`rf_level_owned_groups_open` retains controller records, all keys and legacy
+poses, and both raw UID lists in file order. It validates/sizes the section,
+then uses one zeroed allocation with sequential key reads. The budget includes
+the owner structure and all retained bytes; allocator overhead and bounded stack
+scratch are excluded. Inputs stay stable during loading and may close afterward.
+Errors leave the caller output unchanged. Closing the owner is repeatable.
+
+All raw values are retained, including rotation, sound labels/values, key links,
+flags, selected start index, and legacy poses in serialized order. This storage
+performs no registration, UID-to-handle conversion, or rotation conversion.
+Section offsets in records are provenance, not live archive dependencies.
+
+`tools/verify_owned_groups.py` validates all 68 sections / 1,223 groups / 2,441
+keys / 1,633 IDs / 1,641 legacy poses. Record/key/ID bytes match the independently
+verified reader and legacy bytes match the independent inventory. Serialization
+occurs after archive closure and overwriting the level object. Exact budget,
+one-byte-short budget, truncated section, output preservation and repeated close
+checks pass. Maximum retained allocation is 114,176 bytes on the 32-bit PC build.
+NXDK builds successfully; persistent scene integration and XEMU lifetime checks
+remain open.
