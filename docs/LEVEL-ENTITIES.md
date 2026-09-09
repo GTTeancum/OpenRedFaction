@@ -1,5 +1,31 @@
 # Level entity records
 
+`rf_level_actor_assets_load` now binds a selected level UID to its decoded
+entity record, table metadata and installed compiled skeletal mesh entry.
+It preserves the complete authored transform, class/script/state-animation and
+skin fields. Only `.vcm` declarations are supported here; empty and other model
+types return FORMAT, while missing UIDs/classes/skins/files return NOT_FOUND.
+There is no silent alias or fallback model. Caller output remains unchanged on
+failure and callers retain their level and mesh archives. Table loading uses
+the supplied temporary-byte cap; this per-actor helper currently reloads the
+table and is not an efficient bulk scene loader or a gameplay entity factory.
+
+`rf_level_entity_find` validates the entire entity section before publishing
+the matching record, rejecting duplicate matching UIDs and malformed later
+records. The level tests check absent UID, duplicate UID and a valid first
+match followed by malformed data, including output preservation.
+
+`tools/verify_level_actor_assets.py` checks all 78 L1S1 records against the
+separately verified entity export, table declarations and archive inventory.
+All 78 bind successfully, with exact float transform bytes and ordered skin
+lists. Five rejection fixtures cover absent UID/class, unsupported static-model
+declaration, empty model and missing compiled mesh, with output preservation.
+PC/NXDK builds and four CTest checks pass. This validates binding composition,
+not the original gameplay loader, animation selection or rendered placement.
+Nearby miner UID 9858 retains its base materials; UID 8322 selects skin b.
+Next connect these records to the combined world/actor renderer, keeping
+original animation-state and gameplay initialization as separate open work.
+
 Xbox model previews now accept a `model-skin.txt` disc file containing a miner1
 skin name (up to 63 bytes including any trailing CR/LF). Missing file selects
 base materials; empty, oversized or embedded-NUL selections fail. Both PC and

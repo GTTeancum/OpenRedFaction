@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+All 78 Live Mines entity records now bind by UID to installed skeletal meshes
+and authored skins with exact transforms; feed these bindings into world drawing
+and resolve each actor's animation state instead of the scripted miner fixture.
+
 Animation scratch now uses a fixed 27 KiB heap allocation, reducing its Xbox
 stack frame to 19,152 bytes; the measured stream-frame subtotal is 31,196 bytes.
 Measure library/kernel stack demand and connect real actors to world drawing.

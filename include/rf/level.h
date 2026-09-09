@@ -36,4 +36,7 @@ typedef struct rf_level_entity_reader {
  * NOT_FOUND after exact section exhaustion; errors preserve reader and output. */
 int rf_level_entities_begin(const rf_level *level,rf_level_entity_reader *reader);
 int rf_level_entity_next(rf_level_entity_reader *reader,rf_level_entity *entity);
+/* Full validated scan for one UID; duplicates are FORMAT, absent UID is
+ * NOT_FOUND. Output unchanged on failure, including later malformed records. */
+int rf_level_entity_find(const rf_level *level,int32_t uid,rf_level_entity *entity);
 #endif

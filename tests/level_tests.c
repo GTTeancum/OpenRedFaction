@@ -56,8 +56,10 @@ int main(void)
         CHECK(rf_level_entity_next(&reader,&entity)==RF_OK);
         CHECK(entity.uid==123 && entity.position[0]==1 && entity.orientation[0][0]==3 && entity.orientation[1][0]==4 && entity.orientation[2][0]==2);
         CHECK(entity.offset==4 && entity.bytes==155);
+        CHECK(rf_level_entity_find(&level,123,&entity)==RF_OK && entity.uid==123);
         CHECK(rf_level_entity_next(&reader,&entity)==RF_NOT_FOUND);
         memset(&entity,0xa5,sizeof(entity));saved=entity;
+        CHECK(rf_level_entity_find(&level,124,&entity)==RF_NOT_FOUND && !memcmp(&entity,&saved,sizeof(entity)));
         for(cut=4;cut<159;++cut) {
             reader=start;reader.section.size=cut;before=reader;
             CHECK(rf_level_entity_next(&reader,&entity)!=RF_OK);
@@ -73,6 +75,16 @@ int main(void)
     rf_vpp_close(&archive);image[4217]=0;
     image[4362]=2;CHECK(run(&level,&archive)==RF_OK);
     {rf_level_entity_reader r;rf_level_entity e;CHECK(rf_level_entities_begin(&level,&r)==RF_OK);CHECK(rf_level_entity_next(&r,&e)==RF_FORMAT);}
+    rf_vpp_close(&archive);
+    image[4362]=0;memcpy(image+4367,image+4212,155);
+    word(2108,434);word(4204,314);word(4208,2);
+    CHECK(run(&level,&archive)==RF_OK);
+    {rf_level_entity e,saved;memset(&e,0xa5,sizeof(e));saved=e;
+     CHECK(rf_level_entity_find(&level,123,&e)==RF_FORMAT && !memcmp(&e,&saved,sizeof(e)));}
+    rf_vpp_close(&archive);word(4367,124);word(4373,0x7fc00000);
+    CHECK(run(&level,&archive)==RF_OK);
+    {rf_level_entity e,saved;memset(&e,0xa5,sizeof(e));saved=e;
+     CHECK(rf_level_entity_find(&level,123,&e)==RF_FORMAT && !memcmp(&e,&saved,sizeof(e)));}
     rf_vpp_close(&archive);
     CHECK(remove("level-fixture.tmp") == 0);
     puts("Level bounds, invalid headers, duplicate sections, truncation and spawn ordering passed");

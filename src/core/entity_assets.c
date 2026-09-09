@@ -35,6 +35,20 @@ static int same(const char *a,const char *b)
         if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;if(x!=y)return 0;}
     return *a==*b;
 }
+int rf_level_actor_assets_load(const rf_level *level,int32_t uid,const char *tables_path,
+    rf_vpp *meshes,uint32_t table_budget,rf_level_actor_assets *result)
+{
+    rf_level_actor_assets value;char compiled[64];const char *extension;int status;
+    if(!level || !tables_path || !meshes || !result)return RF_RANGE;
+    status=rf_level_entity_find(level,uid,&value.entity);if(status)return status;
+    status=rf_entity_assets_load(tables_path,value.entity.class_name,value.entity.skin,&value.assets,table_budget);
+    if(status)return status;
+    extension=strrchr(value.assets.model,'.');
+    if(!extension || !same(extension,".vcm"))return RF_FORMAT;
+    status=rf_entity_skeletal_filename(value.assets.model,compiled);if(status)return status;
+    status=rf_vpp_find(meshes,compiled,&value.mesh);if(status)return status;
+    *result=value;return RF_OK;
+}
 static int token(lexer *l,char out[256],int *quoted)
 {
     uint32_t n=0;unsigned c;

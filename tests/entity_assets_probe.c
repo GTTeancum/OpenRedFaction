@@ -6,6 +6,21 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==7 && !strcmp(argv[1],"--level")) {
+        rf_vpp meshes;rf_level level;rf_level_actor_assets actor,before;
+        char *end;long uid=strtol(argv[6],&end,10);if(!*argv[6] || *end)return 2;
+        if(rf_vpp_open(&archive,argv[2]))return 2;
+        if(rf_vpp_open(&meshes,argv[5])) {rf_vpp_close(&archive);return 2;}
+        status=rf_level_open(&level,&archive,argv[3]);memset(&actor,0xa5,sizeof(actor));before=actor;
+        if(!status)status=rf_level_actor_assets_load(&level,(int32_t)uid,argv[4],&meshes,512*1024,&actor);
+        if(!status) {
+            printf("%d %s %s %s\n",actor.entity.uid,actor.entity.class_name,actor.entity.skin,actor.mesh.name);
+            printf("%.9g %.9g %.9g\n",actor.entity.position[0],actor.entity.position[1],actor.entity.position[2]);
+            for(i=0;i<9;++i)printf("%.9g%s",actor.entity.orientation[i/3][i%3],i==8?"\n":" ");
+            for(i=0;i<actor.assets.texture_count;++i)puts(actor.assets.textures[i]);
+        } else {if(memcmp(&actor,&before,sizeof(actor)))return 4;printf("%d\n",status);}
+        rf_vpp_close(&meshes);rf_vpp_close(&archive);return status?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--compiled-name")) {
         char input[64],output[64];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

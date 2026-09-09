@@ -1,6 +1,7 @@
 #ifndef RF_ENTITY_ASSETS_H
 #define RF_ENTITY_ASSETS_H
 #include "rf/vpp.h"
+#include "rf/level.h"
 typedef struct rf_entity_assets {
     char model[64];
     char textures[64][64];uint32_t texture_count;
@@ -25,4 +26,16 @@ int rf_entity_assets_load(const char *tables_path,const char *class_name,
  * output on failure. Callers must skip model-less entities: empty input here
  * deliberately produces .v3c, matching the original filename helper. */
 int rf_entity_skeletal_filename(const char *authored,char compiled[64]);
+typedef struct rf_level_actor_assets {
+    rf_level_entity entity;
+    rf_entity_assets assets;
+    rf_vpp_entry mesh;
+} rf_level_actor_assets;
+/* Port-owned binding: select a validated UID, load its class/skin metadata,
+ * resolve a .vcm declaration and find the compiled mesh. Only skeletal authored
+ * models are supported; empty/other extensions return FORMAT. No aliasing,
+ * spawning, animation selection or mesh decoding. Caller retains level/mesh
+ * archives. table_budget caps temporary table bytes; output unchanged on error. */
+int rf_level_actor_assets_load(const rf_level *level,int32_t uid,const char *tables_path,
+    rf_vpp *meshes,uint32_t table_budget,rf_level_actor_assets *result);
 #endif

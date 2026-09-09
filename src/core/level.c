@@ -1,4 +1,16 @@
 #include "rf/level.h"
+int rf_level_entity_find(const rf_level *level,int32_t uid,rf_level_entity *entity)
+{
+    rf_level_entity_reader reader;rf_level_entity current,selected={0};int status,found=0;
+    if(!level || !entity)return RF_RANGE;
+    status=rf_level_entities_begin(level,&reader);if(status)return status;
+    while((status=rf_level_entity_next(&reader,&current))==RF_OK) {
+        if(current.uid==uid) {if(found)return RF_FORMAT;selected=current;found=1;}
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;
+    *entity=selected;return RF_OK;
+}
 #include <string.h>
 
 static uint32_t le32(const unsigned char *p)
