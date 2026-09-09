@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Duplicate-vertex processing now matches 2,000 original branch executions.
+Recover fresh projection and connect cache lifecycle, deformation, lighting
+and model draw submission using the resident batches.
+
 Visible fresh-vertex normalization and lighting now match 2,000 original
 call-site cases. Connect duplicate-vertex cache reuse and draw submission;
 the missing normalization step is now explicit in the recovered render path.

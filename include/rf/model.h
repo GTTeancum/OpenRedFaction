@@ -106,6 +106,20 @@ int rf_model_vertex_lighting(const float vector[3],const float lights[3][6],cons
  * through arithmetic, not repaired. Camera clipping is external. */
 int rf_model_render_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],
     float normalized[3],uint8_t rgb[3]);
+/* Port-owned view of original separate renderer cache arrays. Projected Z is
+ * reciprocal depth. Duplicate processing only updates world and clip. */
+typedef struct rf_model_render_cache {
+    float world[3],projected[3];uint8_t clip,depth,rgb[3],reserved[3];
+} rf_model_render_cache;
+typedef struct rf_model_render_output {
+    uint32_t lighting;uint8_t rgb[3],alpha;float depth_scale,reciprocal_scale;
+} rf_model_render_output;
+/* Original positive-reuse branch 0x52edbc..0x52ee9d plus UV tail 0x52f3bd.
+ * Distance is batch-local, positive and <=index. vertex holds 40 writable
+ * original-format bytes; untouched fields remain intact, and clipped copies
+ * do not write it at all. Caller owns separate cache/vertex storage. */
+int rf_model_render_reuse_vertex(rf_model_render_cache *cache,uint32_t count,uint32_t index,int32_t distance,
+    const rf_model_render_output *output,const float uv[2],uint8_t vertex[40]);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.

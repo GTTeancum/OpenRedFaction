@@ -1,5 +1,30 @@
 # Model batch data
 
+`rf_model_render_reuse_vertex` reconstructs the positive-reuse branch entered
+at `0x52edac`, including its UV tail through `0x52f3cc`. It copies the prior
+vertex's world position and clip byte. A nonzero clip byte leaves all 40 output
+vertex bytes untouched. Otherwise it copies projected X/Y, scales reciprocal
+depth through original `0x52fce0` and the separate reciprocal scale, writes
+cached or flat BGR plus current alpha and the depth byte, then writes the
+duplicate's own UVs. Bytes not written by the original remain intact.
+
+The port's 32-byte cache view represents separate original global arrays.
+Reuse does not populate the destination's projected coordinates, depth byte
+or RGB cache. The API performs no allocation and rejects nonpositive/out-of-
+range backward distances without modifying outputs. This is supplied-cache
+processing; fresh projection and cache lifecycle remain separate work.
+
+`tools/verify_render_reuse.py` runs 2,000 unchanged original branch executions,
+including full copy and depth callees. All cache-array and output-vertex bytes
+match, with 1,042 clipped and 958 visible cases, both lighting modes, distinct
+UVs and preserved fields. Five port bounds cases pass. PC/NXDK builds and four
+CTest checks pass. The helper is not yet connected to visible model drawing.
+
+The installed-file audit finds no chained reuse: all 24,861 positive references
+point directly to fresh vertices across 599 batches and 95 models. This is
+consistent with the original leaving duplicate projection/RGB caches untouched;
+it is an installed-data observation, not a guarantee for arbitrary mod assets.
+
 `rf_model_render_vertex_lighting` connects the previously recovered lighting
 helper to the normalization at its actual renderer call site. At `0x52f31e`,
 visible fresh vertices call `0x4faaf0` on the deformed second stream, then call

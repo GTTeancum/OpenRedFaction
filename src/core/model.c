@@ -5,6 +5,22 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_render_reuse_vertex(rf_model_render_cache *cache,uint32_t count,uint32_t index,int32_t distance,
+    const rf_model_render_output *output,const float uv[2],uint8_t vertex[40])
+{
+    const rf_model_render_cache *source;const uint8_t *rgb;float value;
+    if(!cache || !output || !uv || !vertex || index>=count || distance<=0 || (uint32_t)distance>index)return RF_RANGE;
+    source=cache+index-(uint32_t)distance;
+    memcpy(cache[index].world,source->world,12);cache[index].clip=source->clip;
+    if(source->clip)return RF_OK;
+    memcpy(vertex,source->projected,8);
+    value=output->depth_scale*source->projected[2];memcpy(vertex+8,&value,4);
+    value=output->reciprocal_scale*source->projected[2];memcpy(vertex+12,&value,4);
+    rgb=output->lighting?source->rgb:output->rgb;
+    vertex[16]=rgb[2];vertex[17]=rgb[1];vertex[18]=rgb[0];vertex[19]=output->alpha;
+    vertex[23]=source->depth;memcpy(vertex+24,uv,8);return RF_OK;
+}
+
 int rf_model_render_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],
     float normalized[3],uint8_t rgb[3])
 {

@@ -11,6 +11,16 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--render-reuse")) {
+        struct {rf_model_render_cache cache[8];rf_model_render_output output;uint32_t index;int32_t distance;float uv[2];} data;
+        _Static_assert(sizeof(data)==288,"Reuse probe wire layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            int32_t status;uint8_t vertex[40];memset(vertex,0xa5,sizeof(vertex));
+            status=rf_model_render_reuse_vertex(data.cache,8,data.index,data.distance,&data.output,data.uv,vertex);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(data.cache,sizeof(data.cache),1,stdout)!=1 || fwrite(vertex,40,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--render-vertex-lighting")) {
         struct {float vector[3],lights[3][6],ambient[3];} data;
         while(fread(&data,sizeof(data),1,stdin)==1) {

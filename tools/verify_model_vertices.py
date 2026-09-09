@@ -8,7 +8,7 @@ resident_lods=0
 weight_sums=set();triangle_flags=set()
 nonfinite_normals={}
 link_audit=[]
-reused=negative_reuse=0;max_reuse=0
+reused=negative_reuse=0;max_reuse=0;chained_reuse=0
 def checksum(data):
     value=2166136261
     for byte in data:value=((value^byte)*16777619)&0xffffffff
@@ -42,6 +42,7 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
                         distance=struct.unpack_from('<h',regions[5],n*2)[0]
                         assert distance<=n,(entry['name'],li,bi,n,distance)
                         reused+=distance>0;negative_reuse+=distance<0;max_reuse=max(max_reuse,distance)
+                        if distance>0:chained_reuse+=struct.unpack_from('<h',regions[5],(n-distance)*2)[0]>0
                         rb.extend(struct.pack('<i',distance))
                         floats=regions[0][n*12:n*12+12]+regions[1][n*12:n*12+12]+regions[2][n*8:n*8+8]
                         values=struct.unpack('<8f',floats)
@@ -76,6 +77,7 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
 report=dict(result='PASS',models=models,batches=batches,vertices=vertices,triangles=triangles,reused_vertices=reused,negative_reuse=negative_reuse,max_reuse=max_reuse,weight_sums=sorted(weight_sums),triangle_flags=sorted(triangle_flags),nonfinite_normals=nonfinite_normals,
     scope='Every installed vertex and triangle byte checked by per-batch hash, finite positions/UV and in-range indices; raw normals/bone slots preserved, no skinning or original renderer equivalence')
 report.update(resident_lods=resident_lods,exact_budget_loads=resident_lods,budget_rejections=resident_lods)
+report['chained_reuse']=chained_reuse
 report['scope']+='; resident arrays, material mappings and exact Win32 memory accounting also checked'
 (root/'artifacts/model-vertices-verification.json').write_text(json.dumps(report,indent=2));print(report)
 (root/'artifacts/model-link-audit.json').write_text(json.dumps(link_audit,indent=2))
