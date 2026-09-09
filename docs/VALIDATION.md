@@ -325,6 +325,27 @@ Report: `artifacts/motion-movement-verification.json`. Earlier priority,
 candidate selection and physics/AI behavior are outside this verification.
 # Animation stance gate
 
+`python tools/verify_motion_crouch_eligibility.py` compares the combined
+`0x402ab0` and `0x429ae0` eligibility branches to
+`rf_motion_crouch_eligibility`: 8,751 original executions, comprising 8,593
+denials, 125 approvals and 33 pending visibility queries. The original mode
+predicate `0x42a060` and object lookup `0x40a0e0` execute unchanged. Observation
+stops at `0x429b99` before target-eye calculation whenever a valid target needs
+the ray test; those cases prove the query is required, not its result. Another
+249 port guards verify invalid global-byte/target-presence inputs preserve the
+output. Report: `artifacts/motion-crouch-eligibility-verification.json`.
+
+The caller supplies the resolved target presence and excluded weapon IDs from
+globals `0x872118` and `0x872468`. The port retains their comparisons without
+guessing weapon names. Missing logical motion 9, either excluded weapon, modes
+12/15/13/11/9, and the global-byte/entity-bit gate deny crouch. Remaining action,
+AI-state and flag conditions are reconstructed directly. A QUERY result must
+be resolved through the target-eye/transformed class-offset ray test with mask
+`0x27`; its original return byte exactly one denies eligibility. Only final
+NO/YES values may feed `rf_motion_select_stance`. The ray test and collision
+effects remain open, and this path is not yet used by the diagnostic scene.
+Both PC and NXDK builds, four CTest checks and the stance regression pass.
+
 `python tools/verify_motion_stance.py` matches 2,292 executions beginning at
 `0x41f743` (eligible) or `0x41f7ab` (ineligible) against
 `rf_motion_select_stance`. It runs the original membership, request and physical
@@ -338,7 +359,7 @@ The helper requests the selected special state with a 0.25-second blend, or
 requests crouch geometry once that state is current and transition duration is
 zero. An ineligible physically crouched entity requests a stand attempt and
 continues into movement selection. Eligibility is supplied by the caller; this
-does not reconstruct `0x402ab0`, `0x429ae0`, crouch geometry mutation `0x4289d0`,
+does not itself reconstruct `0x402ab0`, `0x429ae0`, crouch geometry mutation `0x4289d0`,
 or stand-up collision checking `0x428a60`. Callers must apply the requested
 physics effect before continuing. It is not yet connected to scene playback.
 PC and NXDK builds and all four registered CTest checks pass; no new visual

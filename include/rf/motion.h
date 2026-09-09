@@ -111,6 +111,19 @@ typedef struct rf_motion_movement {
 int rf_motion_select_movement(rf_motion_controller *controller, const int32_t motions[23],
                               const rf_motion_movement *movement);
 enum { RF_MOTION_STANCE_NONE=0, RF_MOTION_STANCE_CROUCH=1, RF_MOTION_STANCE_STAND=2 };
+enum { RF_MOTION_CROUCH_NO=0, RF_MOTION_CROUCH_YES=1, RF_MOTION_CROUCH_QUERY=2 };
+typedef struct rf_motion_crouch_input {
+    int32_t motion_9, weapon, excluded_weapons[2], mode, action;
+    int32_t state_740, stance_7bc, behavior_554, property_4ec;
+    uint32_t flags_7d0, global_64ecb9, global_6fc4d8, target_present;
+} rf_motion_crouch_input;
+/* 402ab0 and 429ae0 through its visibility-query boundary. target_present
+ * describes an already resolved 40a0e0 object. Global fields are byte values.
+ * QUERY requires the original target eye / transformed class offset ray test
+ * (498e80, mask 0x27); only a return byte exactly one denies crouch.
+ * Do not pass QUERY as stance eligibility. No collision query is fabricated.
+ * Invalid byte/boolean views leave result unchanged. */
+int rf_motion_crouch_eligibility(const rf_motion_crouch_input *input,uint32_t *result);
 typedef struct rf_motion_stance_decision {int32_t handled;uint32_t effect;} rf_motion_stance_decision;
 /* 0x41f743..0x41f7c1 after eligibility predicates: eligible is the resolved
  * 402ab0 && 429ae0 result. entity_flags is +810; bit 400 is physical crouch.

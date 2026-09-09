@@ -121,6 +121,25 @@ int rf_motion_select_movement(rf_motion_controller *controller, const int32_t mo
     if (selected<0 || rf_motion_has_state(controller,selected)) return RF_OK;
     return rf_motion_request_state(controller,motions,selected,.25f);
 }
+int rf_motion_crouch_eligibility(const rf_motion_crouch_input *input,uint32_t *result)
+{
+    uint32_t value=RF_MOTION_CROUCH_NO;
+    if(!input || !result || input->global_64ecb9>255 || input->global_6fc4d8>255 || input->target_present>1)return RF_RANGE;
+    if((input->global_64ecb9 || input->global_6fc4d8) && (input->flags_7d0&0x2000000u))goto done;
+    if(input->motion_9==-1 || input->weapon==input->excluded_weapons[0] || input->weapon==input->excluded_weapons[1])goto done;
+    if(input->mode==12 || input->mode==15 || input->mode==13 || input->mode==11 || input->mode==9)goto done;
+    if(input->action==3) {
+        if(input->state_740==2) {value=input->behavior_554==11;goto done;}
+        if(input->stance_7bc==1) {
+            if(input->behavior_554!=1 && input->behavior_554!=11)
+                value=input->target_present?RF_MOTION_CROUCH_QUERY:RF_MOTION_CROUCH_YES;
+            goto done;
+        }
+    }
+    if(input->action==12 && input->behavior_554!=1 && input->property_4ec==1 && (input->flags_7d0&0x4000u))value=RF_MOTION_CROUCH_YES;
+done:
+    *result=value;return RF_OK;
+}
 int rf_motion_select_stance(rf_motion_controller *controller,const int32_t motions[23],
     int32_t special_state,uint32_t eligible,uint32_t entity_flags,rf_motion_stance_decision *decision)
 {

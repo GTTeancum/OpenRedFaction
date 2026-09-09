@@ -11,6 +11,15 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--crouch-eligibility")) {
+        rf_motion_crouch_input input;int32_t status;uint32_t result;
+        _Static_assert(sizeof(input)==56,"Crouch input wire layout");
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            result=0xa5a5a5a5;status=rf_motion_crouch_eligibility(&input,&result);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&result,4,1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--stance")) {
         struct {rf_motion_controller controller;int32_t motions[23],special;uint32_t eligible,flags;} input;
         int32_t status;rf_motion_stance_decision decision;
