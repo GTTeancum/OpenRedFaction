@@ -295,6 +295,27 @@ int rf_collision_query_local(const float start[3],const float displacement[3],
     memcpy(local_start,first,12);memcpy(local_displacement,last,12);*active=1;return RF_OK;
 }
 
+/* 498fb4..499011: output pose uses moving solid +e4/+fc, not +3c/+48. */
+int rf_collision_contact_world(const rf_collision_ray_hit *local,const float origin[3],
+    const float matrix[3][3],rf_collision_ray_hit *world)
+{
+    rf_collision_ray_hit value;float column[3];uint32_t i,j;
+    if(!local || !origin || !matrix || !world)return RF_RANGE;
+    if(!isfinite(local->fraction))return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(local->point[i]) || !isfinite(local->normal[i]) || !isfinite(origin[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(matrix[i][j]))return RF_FORMAT;
+    }
+    value.fraction=local->fraction;
+    for(i=0;i<3;i++) {
+        for(j=0;j<3;j++)column[j]=matrix[j][i];
+        value.normal[i]=edge_dot(local->normal,column,1,NULL);
+        {volatile float rotated=edge_dot(local->point,column,1,NULL);value.point[i]=origin[i]+rotated;}
+        if(!isfinite(value.point[i]) || !isfinite(value.normal[i]))return RF_FORMAT;
+    }
+    *world=value;return RF_OK;
+}
+
 static float edge_length(const float *a)
 {
     float reversed[3]={a[2],a[1],a[0]};return edge_dot(reversed,reversed,1,NULL);

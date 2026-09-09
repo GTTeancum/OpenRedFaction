@@ -10,6 +10,15 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--contact-world")) {
+        struct {rf_collision_ray_hit local;float origin[3],matrix[3][3];} in;
+        struct {int32_t status;rf_collision_ray_hit world;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=rf_collision_contact_world(&in.local,in.origin,in.matrix,&out.world);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--query-local")) {
         struct {float start[3],delta[3],origin[3],matrix[3][3];uint32_t flags;} in;
         struct {int32_t status;uint32_t active;float start[3],delta[3];} out;

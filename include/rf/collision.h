@@ -59,6 +59,12 @@ typedef struct rf_collision_face {
     rf_collision_face_filter filter;
 } rf_collision_face;
 typedef struct rf_collision_ray_hit {float fraction,point[3],normal[3];} rf_collision_ray_hit;
+/* Geometric output conversion of 498e80: matrix columns dot local point and
+ * normal, then translate the stored point. No normal normalization. Caller
+ * supplies output pose (moving solid +e4/+fc), distinct from query input pose.
+ * Finite inputs required; errors preserve output. Input/output may alias. */
+int rf_collision_contact_world(const rf_collision_ray_hit *local,const float origin[3],
+    const float matrix[3][3],rf_collision_ray_hit *world);
 /* Thin, zero-radius geometric path of 4dec10. Includes filters, box, plane,
  * nearest-fraction gate and polygon containment. Accepted hits replace result;
  * misses/errors preserve it. matched is set only on success. Texture-check

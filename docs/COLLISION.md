@@ -988,3 +988,39 @@ room queries, 12,000 input transformations and 44,082 loaded-world sweeps across
 94 levels, including byte-identical replay after source geometry is freed. This
 new transformed path has not yet run in XEMU. World-space output conversion,
 moving-solid iteration and actor response remain open. Rendering is unchanged.
+
+## Moving-solid geometric output conversion
+
+`rf_collision_contact_world` reconstructs the geometric result block
+`0x498fb4..0x499011` within the original ray-query wrapper `0x498e80`. It copies
+the fraction, applies `0x4faa90` to both local normal and local point, then adds
+the output origin to the already-stored transformed point using `0x40a350`.
+The normal is not normalized again. `0x4faa90` dots matrix columns against the
+vector with Z/Y/X extended intermediates, whereas input conversion `0x4faa30`
+uses contiguous rows. The shared x87 dot helper preserves that accumulation and
+restores the caller's control word. Errors from nonfinite inputs/results preserve
+the output; a temporary result also permits input/output aliasing.
+
+The original moving-solid wrapper prepares the query using object position
++0x3c and matrix +0x48, but converts the returned contact using position +0xe4
+and matrix +0xfc. These field roles are established by instructions at
+`0x498f5f..0x498f96` and `0x498fb4..0x499011`; their temporal meaning is still
+unrecovered. The port therefore accepts an explicit output pose and does not
+assume it is the same pose used for the input query. It does not infer an inverse
+matrix or silently normalize a supplied matrix/normal.
+
+`python tools/verify_collision_contact_world.py` passes 12,000 original output
+blocks against PC and actual NXDK-linked code. Execution begins at `0x498fb4`
+with original local fraction/point/normal stack fields and object output-pose
+fields populated, then stops at `0x499011` before metadata lookup. Every vector
+and matrix callee runs unchanged. Random rotations, arbitrary matrices, large
+origins and tiny coordinates produce exact fraction, point and normal bytes.
+Five nonfinite-input guards pass. Report:
+`artifacts/collision-contact-world-verification.json`.
+
+Both builds and four CTest checks pass; the 5,003-case transformed-room comparison
+and its 11 guards remain green. Ghidra exports now include both `0x4faa90` and
+`0x40a350`. The helper has not yet been exercised in XEMU. Moving-solid list
+iteration, output material/object metadata, segment shortening between candidate
+solids, the final static-world query and actor response remain open. No rendering
+or gameplay movement behavior changes yet.
