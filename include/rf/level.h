@@ -157,6 +157,11 @@ typedef struct rf_group_attached_pose {
 int rf_group_translation_propagate(rf_group_attached_pose *pose,
     const rf_group_translation_contribution *contributions,uint32_t count,
     float dt,uint32_t force);
+/* 48a230 position assignment used by 46a8f0 commit. Position may alias pose.
+ * Copies public/current/pending positions and rebuilds radius bounds; preserves
+ * velocity and matrices. Finite inputs/results only; failures preserve pose.
+ * Controller dirty gating/list traversal/dirty clearing belong to the caller. */
+int rf_group_pose_set_position(rf_group_attached_pose *pose,const float position[3]);
 typedef struct rf_group_controller_view {
     const rf_group_translation_runtime *runtime;
     const rf_level_group_key *first_key;

@@ -30,7 +30,9 @@ rng=random.Random(0x48a230);cases=[]
 for r in records:
  for radius in [-1,0,.25,1,10]:cases.append((r['position'],radius))
 for i in range(1000):cases.append(([rng.uniform(-1e6,1e6) for _ in range(3)],rng.uniform(0,100)))
-u.mem_write(0x64ecb9,bytes(2));aliases=0
+u.mem_write(0x64ecb9,bytes(2));aliases=0;port_cases=[];port_expected=[]
+def mapped(blob):
+ return b''.join(blob[offset:offset+size] for offset,size in [(0x7c,4),(0x180,4),(0x238,12),(0x244,36),(0xe4,12),(0x3c,12),(0xf0,12),(0x144,12),(0x48,36),(0xfc,36),(0x120,36),(0x190,12),(0x19c,12)])
 for n,(position,radius) in enumerate(cases):
  position=list(struct.unpack('<3f',struct.pack('<3f',*position)));radius=struct.unpack('<f',struct.pack('<f',radius))[0];pose=struct.pack('<3f',*position)
  initial=bytearray(bytes([0xa5])*0x298);struct.pack_into('<f',initial,0x180,radius);struct.pack_into('<I',initial,0x7c,0x12345678)
@@ -38,11 +40,13 @@ for n,(position,radius) in enumerate(cases):
  if ptr!=source:initial[0xf0:0xfc]=pose;aliases+=1
  u.mem_write(obj,bytes(initial));u.mem_write(ptr,pose);u.mem_write(stack,struct.pack('<2I',stop,ptr));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_ECX,obj);u.reg_write(UC_X86_REG_FPCW,0x37f)
  u.emu_start(0x48a230,stop,count=10000);assert u.reg_read(UC_X86_REG_EIP)==stop
+ port_cases.append(mapped(initial)+pose+struct.pack('<I',int(ptr!=source)))
  want=bytearray(initial)
  for offset in [0x3c,0xe4,0xf0]:want[offset:offset+12]=pose
  want[0x190:0x19c]=struct.pack('<3f',*[p-radius for p in position]) if radius>0 else pose
  want[0x19c:0x1a8]=struct.pack('<3f',*[p+radius for p in position]) if radius>0 else pose
  struct.pack_into('<I',want,0x7c,0x12345678|0x4000000)
  assert bytes(u.mem_read(obj,len(want)))==want,(n,position,radius,'position assignment')
+ port_expected.append(mapped(bytes(u.mem_read(obj,len(want)))))
 report=dict(result='PASS',physics_pose_blocks=len(records),factory_base_pose_blocks=len(records),position_assignments=len(cases),aliased_sources=aliases,scope='Original 49f051..49f0ab verifies physics pose copies; 486ee6..486f0f verifies factory position +238 and matrices +48/+244 for every file mover pose with unchanged helpers. Complete unmodified 48a230 with debug lookup disabled verifies all object bytes, positive/nonpositive radius bounds, position copies and dirty flag, including source alias at f0. This is not complete factory/physics construction.')
 (root/'artifacts/mover-pose-initialization.json').write_text(json.dumps(report,indent=2));print(report)

@@ -1969,3 +1969,22 @@ ownership, runtime handle allocation, normal position commit, rendering updates,
 rotation and gameplay trigger/event/response boundaries remain open. These new
 forced real-level checks run on PC; NXDK binding is checked through Unicorn, not
 a new XEMU animation run.
+
+
+### Position assignment for the normal commit pass
+
+`rf_group_pose_set_position` reconstructs 48a230's pose writes: copy the supplied
+position to public/current/pending, rebuild bounds as position +/- positive
+radius (or a point for nonpositive radius), and set object flag 04000000.
+Velocity, base pose and all matrices remain unchanged. The source may be the
+pose's own pending vector, as used by original controller commit 46a8f0.
+NaN/infinite inputs and overflowing bounds return RF_FORMAT without mutation;
+these guards are the port's finite-data contract, not original error behavior.
+
+`tools/verify_pose_position.py` compares all 236 mapped pose bytes against 8,030
+complete original 48a230 executions on PC and compiled NXDK code, including
+4,015 aliased sources, authored positions and random positions, plus three
+failure-preservation guards. The original diagnostic name-lookup flags are off.
+This primitive does not yet implement 46a8f0's controller dirty gating, handle
+list traversal, controller pose storage or dirty-bit clearing; those and running
+scene integration remain open.

@@ -19,8 +19,9 @@ Capture and post screenshots only when there is a new visible result.
 
 Ordered controller binding now matches 2,000 original calls on PC/NXDK, and
 forced translation updates all 1,406 owned mover poses/collision views on PC.
-Connect authored controller ownership, normal position commit and rendering,
-then complete the remaining trigger/event boundaries and validate in XEMU.
+Position assignment now matches 8,030 original calls on PC/NXDK, including
+pending-source aliasing; connect controller commit lists, authored controller
+ownership and rendering, then complete trigger/event boundaries and XEMU checks.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

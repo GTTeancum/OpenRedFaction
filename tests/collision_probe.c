@@ -10,6 +10,15 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--pose-position")) {
+        struct {rf_group_attached_pose pose;float position[3];uint32_t alias;} in;
+        struct {int32_t status;rf_group_attached_pose pose;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.pose=in.pose;out.status=rf_group_pose_set_position(&out.pose,in.alias?out.pose.pending:in.position);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--group-bind")) {
         struct {uint32_t count,force;float dt;rf_group_attached_pose pose;struct {float first[3],pending[3];uint32_t flags,mover,general;} controllers[2];} in;
         struct {int32_t status;rf_group_attached_pose pose;} out;

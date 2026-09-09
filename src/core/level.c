@@ -494,6 +494,19 @@ static int group_finite(const void *values,uint32_t count)
     for(i=0;i<count;i++) {memcpy(&bits,(const unsigned char *)values+4*i,4);if((bits&0x7f800000u)==0x7f800000u)return 0;}
     return 1;
 }
+int rf_group_pose_set_position(rf_group_attached_pose *pose,const float position[3])
+{
+    rf_group_attached_pose next;uint32_t j;
+    if(!pose || !position)return RF_RANGE;
+    if(!group_finite(position,3) || !group_finite(&pose->radius,1))return RF_FORMAT;
+    next=*pose;memcpy(next.position,position,12);memcpy(next.public_position,position,12);memcpy(next.pending,position,12);
+    for(j=0;j<3;j++) {
+        next.minimum[j]=next.radius>0?next.position[j]-next.radius:next.position[j];
+        next.maximum[j]=next.radius>0?next.position[j]+next.radius:next.position[j];
+    }
+    if(!group_finite(next.minimum,6))return RF_FORMAT;
+    next.flags|=0x4000000;*pose=next;return RF_OK;
+}
 int rf_group_translation_propagate(rf_group_attached_pose *pose,
     const rf_group_translation_contribution *contributions,uint32_t count,
     float dt,uint32_t force)
