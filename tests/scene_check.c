@@ -3,6 +3,7 @@
 #include "rf/entity_assets.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 extern uint32_t rf_scene_actor_physics_diagnostic[8];
 extern uint32_t rf_scene_actor_live_enabled,rf_scene_actor_frame_count,rf_scene_actor_live_summary[8],rf_scene_actor_ring_frames[64];
 extern uint32_t rf_scene_actor_route_enabled,rf_scene_actor_routes[8][16];
@@ -112,7 +113,8 @@ int main(int argc,char **argv)
         if(argc==6) {FILE *output=fopen(argv[5],"wb");if(!output || fwrite(mesh.vertices,1,mesh.bytes,output)!=mesh.bytes || fclose(output))return 3;}
         fclose(input);free(poses);rf_preview_close(&mesh);rf_scene_world_geometry_close(&owned);rf_geometry_close(&world);return 0;
     }
-    if(argc==4 && !strcmp(argv[1],"--retained-world")) {
+    if(argc==4 && (!strcmp(argv[1],"--retained-world") || !strcmp(argv[1],"--moving-camera"))) {
+        int moving_camera=!strcmp(argv[1],"--moving-camera");
         rf_vpp archive;rf_level source,camera;rf_geometry world={0};rf_scene_world_geometry owned={0};
         rf_materials images={0};rf_preview_mesh mesh={0},expected={0};rf_geometry_materials mapping={0};
         rf_group_attached_pose *poses;uint32_t i,j,frame,capacity,hash=2166136261u;void *address;
@@ -124,17 +126,35 @@ int main(int argc,char **argv)
         capacity=mesh.bytes+1024*1024;address=realloc(mesh.vertices,capacity);if(!address)return 1;mesh.vertices=address;
         poses=malloc(owned.movers.count*sizeof(*poses));if(owned.movers.count && !poses)return 1;
         mapping.offsets=owned.offsets;mapping.slots=owned.slots;mapping.count=owned.geometry_count;mapping.textures.count=owned.material_count;
-        for(frame=0;frame<3;++frame) {
+        for(frame=0;frame<(moving_camera?32u:3u);++frame) {
+            if(moving_camera) {
+                float angle=frame*.01f,cs=cosf(angle),sn=sinf(angle);
+                for(j=0;j<3;++j) {
+                    camera.player_position[j]=owned.camera_position[j]+frame*(j==0?.1f:j==1?.03f:.05f);
+                    camera.player_orientation[0][j]=owned.camera_orientation[0][j]*cs-owned.camera_orientation[2][j]*sn;
+                    camera.player_orientation[1][j]=owned.camera_orientation[1][j];
+                    camera.player_orientation[2][j]=owned.camera_orientation[0][j]*sn+owned.camera_orientation[2][j]*cs;
+                }
+            }
             for(i=0;i<owned.movers.count;++i) {
                 memset(poses+i,0xa5,sizeof(*poses));
                 for(j=0;j<3;++j)poses[i].position[j]=owned.movers.items[i].position[j]+frame*(float)(j+1);
                 memcpy(poses[i].output_matrix,owned.movers.items[i].orientation,36);
             }
-            if(rf_scene_world_update(&owned,poses,owned.movers.count,&mesh,capacity) || mesh.vertices!=address ||
+            if((moving_camera?rf_scene_world_update_camera(&owned,poses,owned.movers.count,camera.player_position,camera.player_orientation,&mesh,capacity):
+                rf_scene_world_update(&owned,poses,owned.movers.count,&mesh,capacity)) || mesh.vertices!=address ||
                 rf_preview_build_world(&expected,&world,&owned.movers,poses,&mapping,&camera,capacity) ||
                 mesh.bytes!=expected.bytes || (mesh.bytes && memcmp(mesh.vertices,expected.vertices,mesh.bytes)))return 3;
             for(i=0;i<mesh.bytes;++i)hash=(hash^((const unsigned char *)mesh.vertices)[i])*16777619u;
             rf_preview_close(&expected);
+        }
+        if(moving_camera) {
+            rf_preview_mesh before=mesh;float bad[3]={NAN,0,0};uint32_t before_hash=2166136261u,after_hash=2166136261u;
+            for(i=0;i<mesh.bytes;++i)before_hash=(before_hash^((const unsigned char*)mesh.vertices)[i])*16777619u;
+            if(rf_scene_world_update_camera(&owned,poses,owned.movers.count,bad,camera.player_orientation,&mesh,capacity)!=RF_RANGE || memcmp(&before,&mesh,sizeof(mesh)))return 3;
+            for(i=0;i<mesh.bytes;++i)after_hash=(after_hash^((const unsigned char*)mesh.vertices)[i])*16777619u;
+            if(before_hash!=after_hash)return 3;
+            puts("PASS: 32 moving-camera projections match fresh builds after archive closure; fixed mesh allocation and invalid-camera guard");
         }
         printf("%u %u %u %u\n",owned.movers.count,owned.allocated_bytes,capacity,hash);
         free(poses);rf_preview_close(&mesh);rf_scene_world_geometry_close(&owned);rf_scene_world_geometry_close(&owned);

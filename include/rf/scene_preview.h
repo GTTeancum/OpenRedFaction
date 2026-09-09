@@ -26,6 +26,13 @@ void rf_scene_world_geometry_close(rf_scene_world_geometry *geometry);
 int rf_scene_world_update(const rf_scene_world_geometry *geometry,
     const rf_group_attached_pose *poses,uint32_t pose_count,
     rf_preview_mesh *mesh,uint32_t capacity_bytes);
+/* Reproject retained geometry using an explicit camera without mutating its
+ * saved inspection view. No allocation or archive access. Finite camera inputs
+ * are required; invalid camera input leaves mesh unchanged. Remaining failure
+ * semantics are those of rf_scene_world_update/preview updater. */
+int rf_scene_world_update_camera(const rf_scene_world_geometry *geometry,
+    const rf_group_attached_pose *poses,uint32_t pose_count,const float position[3],
+    const float orientation[3][3],rf_preview_mesh *mesh,uint32_t capacity_bytes);
 /* Load authored mover meshes with the world and a deduplicated texture table.
  * Outputs must be empty. Geometry source budget is 1 MiB plus pointer array;
  * mesh/material budgets include their own temporary allocations. Source mover

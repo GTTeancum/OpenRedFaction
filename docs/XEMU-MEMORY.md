@@ -1221,3 +1221,30 @@ actor comparisons and native framebuffer comparison: 10 of 307200 pixels exceed
 three channel levels; mean maximum-channel error 0.06783203125. The new native
 image is `artifacts/xemu/20260909-180017-502708/framebuffer.png`. It shows frame
 663 at the endpoint; it does not show uninterrupted traversal from the spawn.
+
+
+## Retained world reprojection with an explicit camera
+
+`rf_scene_world_update_camera` accepts a camera position and orientation alongside
+the retained world and optional mover poses. It makes a shallow temporary view
+of the geometry owner, substitutes camera values, and uses the existing world
+updater. It does not mutate the saved inspection camera, allocate a new mesh,
+load archives or duplicate geometry payloads. Invalid/nonfinite camera input
+returns RF_RANGE before touching the output. Other errors retain the existing
+preview updater's capacity/stable-input contract.
+
+`rf_scene_check.exe --moving-camera Installed_Game/levels1.vpp L1S1.rfl` checks
+32 translated/yaw-rotated views with changing mover poses after closing the
+archive and overwriting the original level object. Every projected vertex
+matches a fresh world build using the same explicit view, and the mesh address
+stays fixed. Its final rolling hash is 2651622685. The prior fixed-camera
+`--retained-world` check still returns hash 2134686494. A rejected NaN camera
+leaves both mesh metadata and payload unchanged. Both PC/NXDK builds and four
+CTests pass.
+
+This prepares world reprojection for following the actor, but the live scene
+still uses its fixed endpoint view. It does not implement camera placement,
+collision avoidance, smoothing, a player camera or a moving-camera XEMU run.
+The next connection must give both actor projection and world reprojection the
+same per-frame view, then validate draw capacity and native output in 64 MiB.
+No new screenshot was captured because the live view has not changed.

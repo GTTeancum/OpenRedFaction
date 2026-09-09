@@ -91,6 +91,19 @@ int rf_scene_world_update(const rf_scene_world_geometry *geometry,
     memcpy(camera.player_position,geometry->camera_position,12);memcpy(camera.player_orientation,geometry->camera_orientation,36);
     return rf_preview_update_world(mesh,capacity_bytes,geometry->world,&geometry->movers,poses,&mapping,&camera);
 }
+int rf_scene_world_update_camera(const rf_scene_world_geometry *geometry,
+    const rf_group_attached_pose *poses,uint32_t pose_count,const float position[3],
+    const float orientation[3][3],rf_preview_mesh *mesh,uint32_t capacity_bytes)
+{
+    rf_scene_world_geometry view;uint32_t i,j;
+    if(!geometry || !position || !orientation)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(position[i]))return RF_RANGE;
+        for(j=0;j<3;++j)if(!isfinite(orientation[i][j]))return RF_RANGE;
+    }
+    view=*geometry;memcpy(view.camera_position,position,12);memcpy(view.camera_orientation,orientation,36);
+    return rf_scene_world_update(&view,poses,pose_count,mesh,capacity_bytes);
+}
 int rf_scene_preview_camera(rf_level *level,int32_t uid)
 {
     rf_level_entity entity;uint32_t i,j;int status;

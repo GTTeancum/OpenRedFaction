@@ -51,6 +51,11 @@ comparison (10 pixels over three channel levels). A new native screenshot shows
 the later walking pose. The live checker now includes retained movable-world
 geometry to match Xbox at this camera; full-route camera motion remains open.
 
+Retained world reprojection now accepts an explicit changing camera without
+reloading geometry or reallocating its mesh. The PC `--moving-camera` check
+passes 32 translated/rotated views after archive closure, matching fresh builds.
+Connect this API to the live actor camera and validate that path in XEMU next.
+
 Capture and post screenshots only when there is a new visible result.
 
 Latest memory-harness run: `20260909-165657-464529` PASS; 64 MiB confirmed,
