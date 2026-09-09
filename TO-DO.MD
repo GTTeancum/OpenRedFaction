@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Live Mines collision queries now use initial file/room filter metadata and
+match all 7,418 original face-query results; recover later room mutations and
+world traversal before using them for gameplay.
+
 Collision face bounds now match the original finalizer for all 7,418 Live Mines
 faces, including its 0.0001 expansion; continue recovering room state and
 runtime filter metadata before world traversal.

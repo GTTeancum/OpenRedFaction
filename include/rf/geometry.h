@@ -38,4 +38,10 @@ int rf_geometry_get_corner(const rf_geometry *geometry, uint32_t face, uint32_t 
 int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
     const rf_collision_face_filter *filter,float (*scratch)[3],uint32_t capacity,
     rf_collision_face *face);
+/* Version-180 initial collision metadata from loaded face and owning room.
+ * Full flags, low signed 16-bit portal, room detail byte and initial life gate.
+ * Does not reflect later texture/room mutation; caller must maintain that state.
+ * No allocation; output unchanged on failure. */
+int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t index,
+    uint32_t query_flags,rf_collision_face_filter *filter);
 #endif

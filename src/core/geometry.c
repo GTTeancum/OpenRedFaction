@@ -222,3 +222,18 @@ int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
     memcpy(value.plane,source.plane,sizeof(value.plane));value.vertices=scratch;
     value.count=source.corners;value.filter=*filter;*face=value;return RF_OK;
 }
+
+int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t index,
+    uint32_t query_flags,rf_collision_face_filter *filter)
+{
+    rf_geometry_face face;rf_collision_face_filter value;const unsigned char *room;
+    uint32_t portal;int status;
+    if(!filter)return RF_RANGE;
+    status=rf_geometry_get_face(geometry,index,&face);if(status)return status;
+    if(face.room>=geometry->rooms)return RF_FORMAT;
+    room=geometry->data+geometry->room_offsets[face.room];portal=face.portal&0xffffu;
+    value.query_flags=query_flags;value.face_flags=face.flags;
+    value.property_34=portal>=0x8000u?(int32_t)portal-65536:(int32_t)portal;
+    value.owner_present=1;value.owner_kind=room[34];value.owner_state=f32(room+36)>0?0:1;
+    *filter=value;return RF_OK;
+}

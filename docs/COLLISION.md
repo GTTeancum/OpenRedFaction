@@ -261,3 +261,31 @@ faces; it becomes one only when every face has flag 0x2000 (also one for an
 empty list). `0x4ccf50` rebuilds the room's bounding structure through
 `0x4f9340`. These are Ghidra/instruction observations, not yet reconstructed
 runtime room behavior. They do not establish texture-derived flag semantics.
+
+## Initial file/room collision filters
+
+`rf_geometry_initial_collision_filter` now produces initial filter views from
+loaded geometry: full file flags, the low signed 16 bits of the portal field,
+and the face's owning room. It uses room file byte +34 for the initial owner
+kind and room life at +36 to initialize owner state to zero when life is
+positive, otherwise one. Output is unchanged on failure, and no allocation is
+performed. Geometry must be a successfully opened, unmodified object.
+
+Source evidence: the loader narrows portal to a word at `0x4ede8b`; attribute
+creation copies it to runtime face +0x34. Room constructor `0x4ccd06` initializes
+room +0x98 to one; the life read/store/comparison at `0x4eda87..0x4edaa6` clears
+it for positive life. The preceding byte reads place detail in `0x4ce110`,
+which copies the byte to room +0 and updates the solid's room lists. This API
+reconstructs the initial scalar values only, not those list mutations or later
+damage, destruction, liquid or texture-derived state changes.
+
+`python tools/verify_collision_level.py --initial` runs every Live Mines face
+using these initial filter views. Of 7,418 centered face rays, 7,087 hit and
+331 are rejected, matching complete original `0x4dec10` calls and the actual
+NXDK-linked query for every output byte. Original bound-finalizer comparisons
+and capacity guards also pass. The test maps the produced initial views into
+original runtime structs; it is not an execution of the complete original
+level loader. Report: `artifacts/collision-level-initial-verification.json`.
+The clear-metadata diagnostic remains separately available and still passes;
+both builds and all four CTest checks pass. World traversal and later mutable
+room/face state remain open.
