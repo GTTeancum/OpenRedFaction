@@ -439,3 +439,27 @@ some of them afterward; do not attribute zero defaults to the constructor or
 copy a fabricated full initialized state. Next trace remaining initialization
 writes and execute the action targets above. Evidence report:
 `artifacts/event-construction-verification.json`.
+
+
+## Door event action effects
+
+`tools/verify_door_event_actions.py` executes complete original Set_Friendliness
+4bc280, setter 489f70, type predicate 4895f0, array helpers and actual handle
+lookup. Twenty-four cases pass across six values and empty/valid/mixed/duplicate
+link lists. Every byte of each synthetic target is compared after execution.
+Missing, stale and out-of-range handles are skipped. Each valid object receives
+the unmodified 32-bit value from event +0x2b8 at object +0x1f8. Type-0 objects
+also receive -1 at +0x560; its precise gameplay meaning remains unconfirmed.
+There is no value clamp or entity-only gate in this action. Ordered duplicate
+references are visited by the original loop.
+
+UnHide on method 4bcdd0 only sets byte +0x2bc to 1; off method 4bcde0 only sets
+byte +0x2bd to 1. Eight patterned-state cases verify the exact single-byte
+writes. This requests later processing, not immediate visibility mutation.
+The subsequent method at 4bcdf0 checks these flags and a separate timer; its
+full behavior remains to be recovered. Common off method 4b9f80 is a no-op
+for Goto_Player and Set_Friendliness (two patterned-state cases pass).
+
+Report: `artifacts/door-event-actions-verification.json`. Actual shared action
+implementation, target-state integration and deferred UnHide processing remain
+open; these checks use original code on synthetic registered target objects.

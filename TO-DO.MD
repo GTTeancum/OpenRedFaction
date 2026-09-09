@@ -30,6 +30,9 @@ exhaustive timing precision remain outside current verification.
 The three door-event constructors pass six original-code patterned-storage
 cases; timer/link initialization and action targets are identified. Trace the
 remaining factory/loader initialization before registering event runtime states.
+Set_Friendliness action now passes 24 original-code target-state cases; UnHide
+on/off request bytes pass eight cases and two common off no-ops pass. Implement
+shared actions and recover deferred UnHide processing; do not unhide immediately.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
