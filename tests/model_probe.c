@@ -12,6 +12,18 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--clip-pool")) {
+        rf_model_clip_pool pool;uint32_t command[2];memset(&pool,0xa5,sizeof(pool));rf_model_clip_pool_reset(&pool);
+        while(fread(command,sizeof(command),1,stdin)==1) {
+            int32_t status=0;uint32_t slot=99;
+            if(command[0]==0)rf_model_clip_pool_reset(&pool);
+            else if(command[0]==1)status=rf_model_clip_pool_allocate(&pool,&slot);
+            else if(command[0]==2)status=rf_model_clip_pool_release(&pool,command[1]);else return 2;
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&slot,4,1,stdout)!=1 || fwrite(&pool.used,4,1,stdout)!=1 ||
+                fwrite(pool.order,sizeof(pool.order),1,stdout)!=1 || fwrite(pool.records,sizeof(pool.records),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--classify-clip")) {
         struct {uint8_t record[48];rf_model_projection view;uint32_t mode;} data;
         while(fread(&data,sizeof(data),1,stdin)==1) {

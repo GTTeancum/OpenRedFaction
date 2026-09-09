@@ -162,6 +162,16 @@ int rf_model_clip_intersection(uint32_t plane,const float inside[3],const float 
 /* 0x518320 -> 0x518bd0 -> 0x5475d0. Mode 0x66 updates record byte24;
  * other modes preserve it. Plane checks consume camera-space position. */
 int rf_model_classify_clip_vertex(uint32_t mode,const rf_model_projection *view,uint8_t record[48]);
+typedef struct rf_model_clip_pool {
+    uint8_t records[48][48];uint32_t order[48],used;uint64_t live;
+} rf_model_clip_pool;
+/* Original 0x549270 reset retains record bytes. Allocation 0x5496e0 allows
+ * 47 live slots; attempt 48 increments used then fails. After failure reset
+ * before reuse. Release 0x5492d0 pushes the slot back onto the free list.
+ * Port live tracking rejects invalid/double releases without writes. */
+void rf_model_clip_pool_reset(rf_model_clip_pool *pool);
+int rf_model_clip_pool_allocate(rf_model_clip_pool *pool,uint32_t *slot);
+int rf_model_clip_pool_release(rf_model_clip_pool *pool,uint32_t slot);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.

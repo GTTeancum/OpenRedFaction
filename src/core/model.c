@@ -5,6 +5,27 @@
 #include <stdlib.h>
 #include <float.h>
 
+void rf_model_clip_pool_reset(rf_model_clip_pool *pool)
+{
+    uint32_t i;if(!pool)return;
+    for(i=0;i<48;++i)pool->order[i]=i;
+    pool->used=0;pool->live=0;
+}
+int rf_model_clip_pool_allocate(rf_model_clip_pool *pool,uint32_t *slot)
+{
+    uint32_t index;
+    if(!pool || !slot || pool->used>=48)return RF_RANGE;
+    index=pool->order[pool->used];
+    if(index>=48 || (pool->live&((uint64_t)1<<index)))return RF_RANGE;
+    if(++pool->used>=48)return RF_RANGE;
+    pool->records[index][25]=4;pool->live|=(uint64_t)1<<index;*slot=index;return RF_OK;
+}
+int rf_model_clip_pool_release(rf_model_clip_pool *pool,uint32_t slot)
+{
+    if(!pool || !pool->used || pool->used>=48 || slot>=48 || !(pool->live&((uint64_t)1<<slot)))return RF_RANGE;
+    pool->order[--pool->used]=slot;pool->live&=~((uint64_t)1<<slot);return RF_OK;
+}
+
 static uint8_t model_clip_mask(const float position[3],const rf_model_projection *view)
 {
     uint8_t clip=0;

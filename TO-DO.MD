@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Clipping temporary-vertex allocation and release now match 2,043 original
+operations, including the 47-success allocation limit. Assemble the per-plane
+polygon walker using the recovered pool, intersections and attributes.
+
 Generated-vertex clip classification now matches 3,000 original cases and
 shares the verified fresh-projection mask calculation. Assemble temporary
 vertex allocation/release and polygon traversal around the recovered stages.

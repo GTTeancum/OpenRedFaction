@@ -1,5 +1,27 @@
 # Model batch data
 
+`rf_model_clip_pool` provides caller-owned storage for 48 original 48-byte
+records and a slot-order array. Reset mirrors `0x549270`, rebuilding slot order
+and clearing usage while preserving record contents. Allocation follows
+`0x5496e0`: read a slot, increment usage, fail when the new count reaches 48;
+successful allocation only writes generated flag byte 25 to 4. Thus there are
+47 successful allocations before first exhaustion. Release follows `0x5492d0`,
+decrementing usage and placing the released slot at the free-list head.
+
+A port-owned live bitset rejects invalid or double releases without corrupting
+the pool. Calls after exhaustion require reset; unlike the original unchecked
+follow-up access, they fail without further mutation. Reset, allocation and
+release perform no heap allocation. Record contents must be initialized by the
+owner before their first use; preserved fields are intentional.
+
+`tools/verify_model_clip_pool.py` compares 2,043 operations with complete
+unchanged reset/allocate/release functions, including ten first-exhaustion
+events. Counters, normalized slot order and all record bytes match. Three
+port-only guard cases pass. This is pool behavior, not polygon traversal;
+the recovered plane walker still needs to use these slots and free rejected
+generated vertices in original order.
+PC/NXDK builds and four CTest checks pass.
+
 `rf_model_classify_clip_vertex` recovers complete `0x518320` through
 `0x518bd0 / 0x5475d0`. Render mode 0x66 writes only byte 24 of the 48-byte
 record; other modes leave it intact. The shared mask calculation follows side,
