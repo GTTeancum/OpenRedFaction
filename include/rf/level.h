@@ -86,6 +86,20 @@ typedef struct rf_group_motion_state {
  * Active transitions are unchanged; malformed idle input preserves state. */
 int rf_group_motion_activate(rf_group_motion_state *state,uint32_t key_count);
 enum {RF_GROUP_SOUND_START=1,RF_GROUP_SOUND_END=2};
+typedef struct rf_group_translation_step {
+    float from[3],to[3],timing,acceleration_time,deceleration_time,dt;
+    uint32_t flags;
+    float speed,elapsed,distance;
+} rf_group_translation_step;
+typedef struct rf_group_translation_progress {
+    float speed,elapsed,distance,length;
+} rf_group_translation_progress;
+/* Numeric portion of 4698ad..469b16. Caller selects current-key forward timing
+ * or next-key backward timing; acceleration/deceleration use the current key.
+ * Runs before timer/trigger tests. Finite inputs and outputs required; errors
+ * preserve result. No allocation, pose change, event or key transition. */
+int rf_group_translation_integrate(const rf_group_translation_step *step,
+    rf_group_translation_progress *result);
 /* Translation arrival transition 469da4..46a02a, after position, event/link
  * updates and any dwell decision. Caller has already set current_key to the
  * arrived next_key. Returns sound requests for caller dispatch; no sound or

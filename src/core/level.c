@@ -12,6 +12,7 @@ int rf_level_entity_find(const rf_level *level,int32_t uid,rf_level_entity *enti
     *entity=selected;return RF_OK;
 }
 #include <string.h>
+#include <math.h>
 
 static uint32_t le32(const unsigned char *p)
 {
@@ -373,6 +374,38 @@ int rf_group_translation_arrive(rf_group_motion_state *state,uint32_t key_count,
         state->phase=0;
     }
     *sound_requests=sound;return RF_OK;
+}
+int rf_group_translation_integrate(const rf_group_translation_step *step,
+    rf_group_translation_progress *result)
+{
+    rf_group_translation_progress out;float delta[3],target,braking;
+    double length,acceleration=0,threshold;uint32_t i,bits;
+    if(!step || !result)return RF_RANGE;
+    for(i=0;i<14;i++)if(i!=10) {
+        memcpy(&bits,(const unsigned char *)step+4*i,4);
+        if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;
+    }
+    for(i=0;i<3;i++)delta[i]=step->from[i]-step->to[i];
+    length=sqrt((double)delta[0]*delta[0]+(double)delta[1]*delta[1]+(double)delta[2]*delta[2]);
+    out.length=(float)length;
+    target=(step->flags&0x400)?step->timing:(float)(length/step->timing);
+    if(step->acceleration_time>0 && step->elapsed<=step->acceleration_time)
+        acceleration=(double)target/step->acceleration_time;
+    if(step->deceleration_time>0) {
+        braking=(float)((double)target/step->deceleration_time);
+        threshold=(double)out.length-(double)step->deceleration_time*step->deceleration_time*braking*.5;
+        if((!(step->flags&0x2000) || threshold>0) && threshold<=step->distance)acceleration=-(double)braking;
+    }
+    if(acceleration==0 && step->elapsed==0)out.speed=target;
+    else {
+        out.speed=(float)((double)step->dt*acceleration+step->speed);
+        if(out.speed<.4f)out.speed=.4f;
+        else if(out.speed>target)out.speed=target;
+    }
+    out.elapsed=(float)((double)step->dt+step->elapsed);
+    out.distance=(float)((double)step->dt*out.speed+step->distance);
+    for(i=0;i<4;i++) {memcpy(&bits,(const unsigned char *)&out+4*i,4);if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;}
+    *result=out;return RF_OK;
 }
 int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
     uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,

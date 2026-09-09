@@ -1721,3 +1721,34 @@ bytes and requests match. Seven port-only guards preserve outputs. Report:
 `artifacts/group-arrival-verification.json`. This is not yet full translation,
 dwell/event handling, audio playback or integration into the running scene.
 PC and NXDK builds and all four CTest checks pass. No visual change occurred.
+
+### Shared C translation numeric integration
+
+`rf_group_translation_integrate` reconstructs the numeric work in
+4698ad..469b16, before timer/trigger tests. Its caller supplies the current and
+next positions, the direction-selected timing field and the current key's
+acceleration/deceleration times. It returns speed, elapsed time, accumulated
+distance and segment length; it does not yet change a pose or advance keys.
+
+Position differences round to float before length calculation. The duration
+mode derives target speed from length/timing; flag 400 uses timing as speed.
+Acceleration applies through the equality boundary on elapsed time. Braking
+uses a float-rounded deceleration rate and preserves the forward-only positive
+threshold check. When acceleration and elapsed time are both zero, speed is
+assigned directly. Otherwise speed is integrated, then clamped with the
+original ordered tests: below 0.4 is handled before above-target. This ordering
+matters when the target speed is below 0.4. Elapsed time and distance update
+before the caller checks timers. The helper uses double intermediates and
+explicit float stores; universal equivalence to original x87 extended
+precision is not established and rounding-boundary coverage remains open.
+
+`python tools/verify_group_integration.py` executes the unchanged original
+block, vector-distance helper and clamp for 10,100 cases. All 10,085 finite
+results match PC and compiled NXDK C bit-for-bit across all four output floats.
+Whole original object writes are checked. Cases cover both directions/timing
+modes, acceleration/braking, varied positions and tick/state values, plus zero
+length and zero/negative/extreme timing. Fifteen nonfinite original outcomes
+and three nonfinite-input guards instead produce port errors with unchanged
+output; this difference is explicit, not a claim to reproduce those original
+outcomes. Full-tick handling for those paths must be recovered before scene
+integration. Report: `artifacts/group-integration-verification.json`.
