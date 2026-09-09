@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Drive the verified steering pipeline with process-local input and exercise uneven-ground support and support loss in XEMU.
+- [ ] Extend the working process-local steering fixture to exercise live support loss and recovery in XEMU.
 - [ ] Replace provisional spawn pose, initial inertia and cached colliders with verified runtime behavior.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -77,6 +77,12 @@ PC/NXDK in 42 cases; original no-hit/steep transitions pass two prepared cases.
 XEMU confirms 320 original/PC query-preparation checks including its 64 live
 mode-dependent records. The passive run performs two post-landing support
 commits and no support losses; support loss still needs a moving live fixture.
+A process-local +X .25 input pulse now drives frames 24..47 through authored
+steering. Run 20260909-160442-543906 passes in 64 MiB XEMU: all 64 input and
+rendered geometry records match PC, with 40 ground-support commits and zero
+support losses. Its 320 original query-preparation checks also pass. The new
+framebuffer shows the displaced miner; animation is still scripted, and this
+is not a gameplay controller. Live support loss/recovery remains open.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

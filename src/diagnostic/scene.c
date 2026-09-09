@@ -132,6 +132,9 @@ uint32_t rf_scene_actor_landing[8]; /* magic, descriptor index, frame, landings,
 rf_movement_descriptor rf_scene_actor_movement[2]; /* authored run and fall */
 rf_entity_movement_values rf_scene_actor_movement_values;
 uint32_t rf_scene_actor_ground_modes[64];
+uint32_t rf_scene_actor_drive_enabled;
+float rf_scene_actor_input_frames[64][3];
+void rf_scene_actor_drive(int enabled) {rf_scene_actor_drive_enabled=enabled!=0;}
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
     actor_ground_record *r=rf_scene_actor_ground_records+frame;float start[3],delta[3];uint32_t k;int status;
@@ -234,7 +237,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
     out[0]=0x5246464c;out[1]=1;out[2]=step;out[3]=sphere;memcpy(out+4,&fraction,4);out[5]=hash;
     memcpy(out+6,current.position+1,4);memcpy(out+7,current.velocity+1,4);return RF_OK;
 }
-static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state)
+static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state,const float command[3])
 {
     float remaining=1.0f/60,support[3]={0},normal[3];uint32_t pass=0,contacts=0;int status;
     int grounded=rf_scene_actor_landing[1]==1;
@@ -248,6 +251,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
              * and force instead of an idle-only assignment. */
             float drag=fmaxf(.5f,(float)((double)state->coefficients[1]/state->mass));
             float steering[3],input[3]={0};
+            if(!pass)memcpy(input,command,12); /* Original repeated passes omit steering. */
             status=rf_movement_acceleration(rf_scene_actor_movement[0].translation,input,rf_scene_actor_movement_values.acceleration,
                 state->orientation,state->orientation,state->orientation,steering);if(status)return status;
             status=rf_physics_ground_propose(state,remaining,drag,steering,support);
@@ -322,6 +326,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     if(stream->collision) {
         uint32_t hash=2166136261u;
         int status=actor_ground_check(stream->collision,frame);if(status)return status;
+        memset(rf_scene_actor_input_frames[frame],0,12);
+        if(rf_scene_actor_drive_enabled && frame>=24 && frame<48)rf_scene_actor_input_frames[frame][0]=.25f;
         for(i=0;i<actor->bytes;++i)hash=(hash^((const unsigned char*)actor->vertices)[i])*16777619u;
         rf_scene_actor_render_frames[frame][0]=actor->count;rf_scene_actor_render_frames[frame][1]=hash;
         memcpy(rf_scene_actor_render_frames[frame]+2,scene_actor_body.state.position,12);
@@ -351,7 +357,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                     next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
                 }
             }
-            status=actor_tick(stream->collision,&next);if(status)return status;
+            status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame]);if(status)return status;
             status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return status;
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);

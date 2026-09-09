@@ -14,6 +14,8 @@ extern uint32_t rf_scene_actor_landing[8];
 extern rf_movement_descriptor rf_scene_actor_movement[2];
 extern rf_entity_movement_values rf_scene_actor_movement_values;
 extern uint32_t rf_scene_actor_ground_modes[64];
+extern uint32_t rf_scene_actor_drive_enabled;
+extern float rf_scene_actor_input_frames[64][3];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored,body_mode;
@@ -28,7 +30,7 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
        mesh->bytes>c->world.bytes+1024*1024 || memcmp(mesh->vertices,c->world.vertices,c->world.bytes))return RF_FORMAT;
     if(c->address && (c->address!=mesh->vertices || c->material_address!=materials->items))return RF_FORMAT;
     c->address=mesh->vertices;c->material_address=materials->items;
-    if(c->body_mode && frame>22 && (rf_scene_actor_landing[1]!=1 ||
+    if(c->body_mode && !rf_scene_actor_drive_enabled && frame>22 && (rf_scene_actor_landing[1]!=1 ||
        scene_actor_body.state.velocity[0]!=0 || scene_actor_body.state.velocity[1]!=0 ||
        scene_actor_body.state.velocity[2]!=0))return RF_FORMAT;
     bytes=(const uint8_t*)(mesh->vertices+world);
@@ -104,10 +106,11 @@ int main(int argc,char **argv)
     }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
-    check c={0};uint32_t i,mode;int status,body_mode=argc==13 && !strcmp(argv[12],"--body");rf_geometry_collision_world body_world={0};
+    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--drive"),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
     if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && !body_mode)))return 2;
     c.authored=argc==13;
     c.body_mode=body_mode;
+    rf_scene_actor_drive(drive);
     c.meshes=argv[4];c.motions=argv[5];
     if(rf_vpp_open(&levels,argv[1]) || rf_level_open(&level,&levels,argv[2]) ||
        rf_scene_preview_camera(&level,(int32_t)strtol(argv[3],NULL,10)) ||
@@ -139,11 +142,13 @@ int main(int argc,char **argv)
                 if(rf_scene_actor_ground_stats[1]!=64 || !rf_scene_actor_ground_stats[3])return 3;
                 printf("ACTOR_GROUND");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_ground_stats[i]);puts("");}
             if(body_mode) {
-                if(rf_scene_actor_landing[2]!=22 || rf_scene_actor_landing[3]!=1 || rf_scene_actor_landing[4]!=41)return 3;
+                if(!drive && (rf_scene_actor_landing[2]!=22 || rf_scene_actor_landing[3]!=1 || rf_scene_actor_landing[4]!=41))return 3;
+                if(drive && (scene_actor_body.state.position[0]<=c.placement.position[0]+.2f || rf_scene_actor_landing[6]<3))return 3;
                 printf("ACTOR_LANDING");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_landing[i]);puts("");
                 printf("ACTOR_MOVEMENT");for(i=0;i<16;++i) {uint32_t word;memcpy(&word,(const unsigned char*)rf_scene_actor_movement+i*4,4);printf(" %u",word);}puts("");
                 printf("ACTOR_SPEED");for(i=0;i<4;++i) {uint32_t word;memcpy(&word,(const unsigned char*)&rf_scene_actor_movement_values+i*4,4);printf(" %u",word);}puts("");
                 printf("ACTOR_GROUND_MODES");for(i=0;i<64;++i)printf(" %u",rf_scene_actor_ground_modes[i]);puts("");
+                printf("ACTOR_INPUT");for(i=0;i<192;++i) {uint32_t word;memcpy(&word,(const unsigned char*)rf_scene_actor_input_frames+i*4,4);printf(" %u",word);}puts("");
             }
             if(rf_scene_actor_physics_diagnostic[1]!=1 || rf_scene_actor_physics_diagnostic[2]!=64 || rf_scene_actor_physics_diagnostic[3]!=3)return 3;
             printf("PHYSICS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_physics_diagnostic[i]);puts("");

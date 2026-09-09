@@ -83,4 +83,7 @@ int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *mes
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
     rf_scene_frame_sink sink,void *context,const rf_geometry_collision_world *collision);
+/* Diagnostic process-local input pulse: +X=.25 on frames 24..47. This does
+ * not read or inject host input and does not implement a gameplay controller. */
+void rf_scene_actor_drive(int enabled);
 #endif

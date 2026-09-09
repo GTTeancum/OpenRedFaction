@@ -522,3 +522,32 @@ commits and zero support losses. The 320 original preparation checks pass on
 that snapshot. Both builds and four CTests pass. The no-hit/steep transition is
 verified against prepared original state, but live XEMU support loss remains
 unexercised until controlled motion is added. No new screenshot was captured.
+
+
+## Process-local steering fixture
+
+Place `actor-drive.flag` beside the Xbox diagnostic XBE (with the existing
+scene stream/state flags), rebuild the disc, and run the harness with
+`--actor-drive`. This implies `--actor-body` and verifies the enabled flag in
+RAM. PC equivalents are scene checker `--drive` and preview
+`--scene-drive-last`. No host or application-window input is generated.
+
+The fixture supplies +X .25 on frames 24..47, zero elsewhere, through the
+loaded class acceleration and movement descriptor. Only the first proposal
+pass applies steering; repeated passes omit it. Falling remains passive.
+Guest symbols `rf_scene_actor_drive_enabled` and `rf_scene_actor_input_frames`
+record the mode and all 192 input floats. The harness compares every input
+word with PC along with the existing body, geometry and support telemetry.
+
+Run `artifacts/xemu/20260909-160442-543906/report.json` passes in stock 64 MiB
+XEMU: 63 updates, one landing at frame 22, 40 subsequent support commits,
+zero support losses and no capped frames. All 64 geometry and input records
+match PC. The captured probes pass 320 original/PC preparation comparisons.
+The native guest framebuffer passes comparison with `pc-driven.ppm`: 21 of
+307200 pixels exceed three channel levels, with mean maximum-channel error
+0.0329134. Both builds, four CTests, and driven/passive scene checks pass.
+
+This demonstrates controlled diagnostic movement over static support. It
+does not establish support-loss recovery, moving platforms, player controls,
+AI, or locomotion-driven animation. The starting pose, inertia and cached
+frame-zero colliders retain their previously documented limitations.
