@@ -10,6 +10,32 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--solid-ray-posed")) {
+        struct {float z[3];uint32_t enabled[3],flags;float start[3],end[3],poses[2][30];uint32_t want_result;} in;
+        struct {int32_t status;uint32_t matched;rf_collision_solid_hit hit;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_collision_solid_view solids[3]={0};rf_collision_room_view rooms[3]={0};rf_collision_tree trees[3]={0};
+            rf_collision_node nodes[3]={0};rf_collision_face faces[3]={0};float vertices[3][4][3];uint32_t primary=0,work[3],i,j;
+            for(i=0;i<3;i++) {
+                float z=in.z[i];rf_collision_solid_view *solid=solids+i;
+                solid->rooms=rooms+i;solid->room_count=1;solid->primary=&primary;solid->primary_count=1;solid->object_id=100+i;
+                solid->input_matrix[0][0]=solid->input_matrix[1][1]=solid->input_matrix[2][2]=1;
+                memcpy(solid->output_matrix,solid->input_matrix,36);
+                for(j=0;j<3;j++) {
+                    solid->minimum[j]=rooms[i].minimum[j]=nodes[i].minimum[j]=faces[i].minimum[j]=j==2?z-.0001f:-3;
+                    solid->maximum[j]=rooms[i].maximum[j]=nodes[i].maximum[j]=faces[i].maximum[j]=j==2?z+.0001f:3;
+                }
+                rooms[i].tree=trees+i;trees[i].nodes=nodes+i;trees[i].node_count=trees[i].node_capacity=1;trees[i].faces=faces+i;trees[i].face_count=1;trees[i].stack=work+i;
+                nodes[i].face_count=in.enabled[i];nodes[i].left=nodes[i].right=UINT32_MAX;
+                faces[i].plane[2]=1;faces[i].plane[3]=-z;faces[i].vertices=vertices[i];faces[i].count=4;
+                for(j=0;j<4;j++) {vertices[i][j][0]=(j==0 || j==3)?-3:3;vertices[i][j][1]=j<2?-3:3;vertices[i][j][2]=z;}
+            }
+            for(i=0;i<2;i++)memcpy(solids[i].minimum,in.poses[i],120);
+            memset(&out,0xa5,sizeof(out));out.status=rf_collision_ray_solids(solids,2,solids+2,in.start,in.end,in.flags,in.want_result?&out.hit:NULL,&out.matched);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--solid-ray")) {
         struct {float z[3];uint32_t enabled[3],flags;float start[3],end[3];} in;
         struct {int32_t status;uint32_t matched;rf_collision_solid_hit hit;} out;

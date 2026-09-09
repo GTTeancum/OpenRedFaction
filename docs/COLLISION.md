@@ -1078,3 +1078,41 @@ coverage; component transform checks alone do not prove those full-wrapper cases
 Runtime mover extraction/order, live poses, material metadata, caches/fallbacks,
 XEMU execution and actor response remain open. This is the original ray/visibility
 wrapper, not the separate swept actor movement routine. Rendering is unchanged.
+
+## Distinct-pose wrapper verification and mover creation lead
+
+`python tools/verify_collision_solid_poses.py` now compares 4,010 complete original
+`0x498e80` calls against PC and NXDK-linked code. The ten analytic identity-pose
+cases remain, followed by 4,000 queries with independently translated/rotated
+input and output poses for both moving solids. The static hierarchy remains in
+world coordinates. There are 3,728 hits. All result-producing cases match exact
+fraction, point, normal and object/solid/room/face identity.
+
+The set includes 1,333 visibility-only calls with a NULL result pointer, of which
+1,234 hit. Both original and port leave the sentinel output buffer untouched.
+Forty-four successful visibility-only calls deliberately contain an unused NaN
+in an output-pose matrix, proving that the result-conversion branch is skipped
+rather than needlessly validating or using that matrix. This does not relax
+finite-data requirements for poses actually used to produce results. Report:
+`artifacts/collision-solid-poses-verification.json`. No core change was needed;
+the PC probe was extended to supply the full poses and optional output. Its build
+and four CTest checks pass. The combined wrapper still has no XEMU execution or
+runtime moving-solid binding.
+
+New original global-reference exports in `moving-solid-xrefs.tsv` identify
+`0x469160` as the sentinel-list initializer and `0x46b020` as a creation lead.
+Ghidra output for `0x46b020` calls object factory `0x486da0` with type 9, stores
+its second argument as the object's collision-solid pointer at +0x294, and
+appends the new object at the tail of sentinel `0x64e6e0`: next +0x28c points to
+the sentinel, previous +0x290 points to the old tail, the old tail's next points
+to the new object, and global tail `0x64e970` is updated. Initial head/tail both
+point to the sentinel. Therefore initial query order follows creation order,
+subject to later removals/reinsertions that still need recovery.
+
+The creator also allocates a 20-byte linked record referencing the supplied solid
+and the object's +0x3c/+0x48 input pose, linking it through global `0x64e3a8`.
+These are original-code leads, not a reconstructed object factory or proof of the
+on-disk mover format. Next work is to trace creator callers into level loading,
+recover object lifetime and pose updates, and bind those solids to the verified
+query APIs. Material/output metadata and actor response remain open. Rendering
+is unchanged; no screen was captured.
