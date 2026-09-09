@@ -104,3 +104,30 @@ The latter uses empty metadata to exercise counting rather than the old-size
 precondition. These are PC checks; the new updater is compiled for NXDK but
 has not yet replaced the scene's authored static projection or driven visible
 motion. Retain the mover source/mappings and connect it to the frame loop next.
+
+## Retained scene geometry owner
+
+`rf_scene_world_open_retained` now exposes `rf_scene_world_geometry`, which
+owns the mover payload/index arrays and local material mappings, borrows the
+world geometry, and copies the inspection camera's position/orientation.
+Images and the initial projected mesh are separate outputs with separate
+ownership; later actor material appends cannot invalidate the retained mapping.
+`rf_scene_world_update` rebuilds into a caller-owned allocation using a pose
+array in mover order, checking its count. It performs no archive access or
+allocation. The world geometry must remain alive. Closing the owner does not
+close images or the projected mesh. `rf_scene_world_open` remains a wrapper
+that closes the owner immediately after projection.
+
+`python tools/verify_retained_scene.py` verifies 68 levels and 204 pose cases
+after closing the level archive, poisoning the source level and closing the
+material images. It compares the reused mesh against direct projection with
+an independently saved camera and checks repeated owner closure. Maximum
+retained owner/mover/mapping allocation is 307,984 bytes; the borrowed world,
+images and vertex allocation are separate. This is PC lifetime evidence and
+NXDK compilation, not Xbox retained lifetime or rendered movement.
+
+For live door rendering, keep this owner in Xbox main through archive closure
+and update from resident collision/controller poses. The GPU stream must track
+its allocation capacity independently of the current world draw boundary:
+clipping can change world vertex counts as doors move. The current renderer
+still rejects a boundary change, so that integration remains open.

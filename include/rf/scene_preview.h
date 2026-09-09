@@ -2,6 +2,30 @@
 #define RF_SCENE_PREVIEW_H
 #include "rf/material.h"
 #include "rf/preview.h"
+typedef struct rf_scene_world_geometry {
+    const rf_geometry *world;
+    rf_geometry_movers movers;
+    uint32_t *offsets,*slots;
+    uint32_t geometry_count,material_count,allocated_bytes;
+    float camera_position[3],camera_orientation[3][3];
+} rf_scene_world_geometry;
+/* Retain mover source geometry and local material mappings for reprojection.
+ * Borrows world (must outlive this owner); copies only the preview camera.
+ * Archives and the source level may close after success. Output mesh, material
+ * images, and geometry owner have separate ownership and close functions.
+ * All outputs must be empty; failure preserves them. Geometry payload cap is
+ * 1 MiB, plus owner and temporary geometry pointer array; mapping allocations
+ * are included in material_budget during load and allocated_bytes afterward. */
+int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
+    rf_vpp *maps,uint32_t map_count,rf_preview_mesh *mesh,rf_materials *materials,
+    uint32_t mesh_budget,uint32_t material_budget,rf_scene_world_geometry *geometry);
+void rf_scene_world_geometry_close(rf_scene_world_geometry *geometry);
+/* No allocation or archive access. Poses must match retained mover order and
+ * count; NULL with zero pose_count selects authored file poses. Keeps the saved
+ * inspection camera. Same stable-input/capacity contract as preview updater. */
+int rf_scene_world_update(const rf_scene_world_geometry *geometry,
+    const rf_group_attached_pose *poses,uint32_t pose_count,
+    rf_preview_mesh *mesh,uint32_t capacity_bytes);
 /* Load authored mover meshes with the world and a deduplicated texture table.
  * Outputs must be empty. Geometry source budget is 1 MiB plus pointer array;
  * mesh/material budgets include their own temporary allocations. Source mover

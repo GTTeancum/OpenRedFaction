@@ -41,21 +41,55 @@ int rf_scene_preview_mover_camera(rf_level *level,int32_t uid,float distance)
 done:
     rf_geometry_movers_close(&movers);return status;
 }
-int rf_scene_world_open(const rf_level *level,const rf_geometry *world,
+void rf_scene_world_geometry_close(rf_scene_world_geometry *geometry)
+{
+    if(!geometry)return;
+    rf_geometry_movers_close(&geometry->movers);free(geometry->offsets);free(geometry->slots);
+    memset(geometry,0,sizeof(*geometry));
+}
+int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
     rf_vpp *maps,uint32_t map_count,rf_preview_mesh *mesh,rf_materials *materials,
-    uint32_t mesh_budget,uint32_t material_budget)
+    uint32_t mesh_budget,uint32_t material_budget,rf_scene_world_geometry *geometry)
 {
     rf_geometry_movers movers={0};rf_geometry_materials bundle={0};
     const rf_geometry **sources=NULL;uint32_t i;int status;
-    if(!mesh || mesh->vertices || mesh->bytes || !materials || materials->items || materials->count)return RF_RANGE;
+    if(!geometry || geometry->world || geometry->movers.data || geometry->offsets || geometry->slots ||
+        !mesh || mesh->vertices || mesh->bytes || !materials || materials->items || materials->count)return RF_RANGE;
     status=rf_geometry_movers_open(level,1024*1024,&movers);if(status)goto done;
     sources=malloc(((size_t)movers.count+1)*sizeof(*sources));if(!sources){status=RF_RANGE;goto done;}
     sources[0]=world;for(i=0;i<movers.count;++i)sources[i+1]=&movers.items[i].geometry;
     status=rf_geometry_materials_open(&bundle,sources,movers.count+1,maps,map_count,material_budget);
     if(!status)status=rf_preview_build_world(mesh,world,&movers,NULL,&bundle,level,mesh_budget);
-    if(!status){*materials=bundle.textures;memset(&bundle.textures,0,sizeof(bundle.textures));}
+    if(!status) {
+        rf_scene_world_geometry next={0};next.world=world;next.movers=movers;
+        next.offsets=bundle.offsets;next.slots=bundle.slots;next.geometry_count=bundle.count;next.material_count=bundle.textures.count;
+        next.allocated_bytes=sizeof(next)+movers.allocated_bytes-sizeof(movers)+
+            (bundle.count+1)*sizeof(uint32_t)+bundle.offsets[bundle.count]*sizeof(uint32_t);
+        memcpy(next.camera_position,level->player_position,12);memcpy(next.camera_orientation,level->player_orientation,36);
+        *geometry=next;memset(&movers,0,sizeof(movers));bundle.offsets=bundle.slots=NULL;
+        *materials=bundle.textures;memset(&bundle.textures,0,sizeof(bundle.textures));
+    }
 done:
     free(sources);rf_geometry_materials_close(&bundle);rf_geometry_movers_close(&movers);return status;
+}
+int rf_scene_world_open(const rf_level *level,const rf_geometry *world,
+    rf_vpp *maps,uint32_t map_count,rf_preview_mesh *mesh,rf_materials *materials,
+    uint32_t mesh_budget,uint32_t material_budget)
+{
+    rf_scene_world_geometry geometry={0};
+    int status=rf_scene_world_open_retained(level,world,maps,map_count,mesh,materials,mesh_budget,material_budget,&geometry);
+    rf_scene_world_geometry_close(&geometry);return status;
+}
+int rf_scene_world_update(const rf_scene_world_geometry *geometry,
+    const rf_group_attached_pose *poses,uint32_t pose_count,
+    rf_preview_mesh *mesh,uint32_t capacity_bytes)
+{
+    rf_geometry_materials mapping={0};rf_level camera={0};
+    if(!geometry || !geometry->world || (poses?pose_count!=geometry->movers.count:pose_count!=0))return RF_RANGE;
+    mapping.offsets=geometry->offsets;mapping.slots=geometry->slots;mapping.count=geometry->geometry_count;
+    mapping.textures.count=geometry->material_count;
+    memcpy(camera.player_position,geometry->camera_position,12);memcpy(camera.player_orientation,geometry->camera_orientation,36);
+    return rf_preview_update_world(mesh,capacity_bytes,geometry->world,&geometry->movers,poses,&mapping,&camera);
 }
 int rf_scene_preview_camera(rf_level *level,int32_t uid)
 {

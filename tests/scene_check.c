@@ -40,6 +40,34 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
 }
 int main(int argc,char **argv)
 {
+    if(argc==4 && !strcmp(argv[1],"--retained-world")) {
+        rf_vpp archive;rf_level source,camera;rf_geometry world={0};rf_scene_world_geometry owned={0};
+        rf_materials images={0};rf_preview_mesh mesh={0},expected={0};rf_geometry_materials mapping={0};
+        rf_group_attached_pose *poses;uint32_t i,j,frame,capacity,hash=2166136261u;void *address;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&source,&archive,argv[3]) ||
+            rf_geometry_open(&world,&source,8*1024*1024))return 1;
+        camera=source;
+        if(rf_scene_world_open_retained(&source,&world,NULL,0,&mesh,&images,8*1024*1024,4*1024*1024,&owned))return 1;
+        rf_vpp_close(&archive);memset(&source,0xa5,sizeof(source));rf_materials_close(&images);
+        capacity=mesh.bytes+1024*1024;address=realloc(mesh.vertices,capacity);if(!address)return 1;mesh.vertices=address;
+        poses=malloc(owned.movers.count*sizeof(*poses));if(owned.movers.count && !poses)return 1;
+        mapping.offsets=owned.offsets;mapping.slots=owned.slots;mapping.count=owned.geometry_count;mapping.textures.count=owned.material_count;
+        for(frame=0;frame<3;++frame) {
+            for(i=0;i<owned.movers.count;++i) {
+                memset(poses+i,0xa5,sizeof(*poses));
+                for(j=0;j<3;++j)poses[i].position[j]=owned.movers.items[i].position[j]+frame*(float)(j+1);
+                memcpy(poses[i].output_matrix,owned.movers.items[i].orientation,36);
+            }
+            if(rf_scene_world_update(&owned,poses,owned.movers.count,&mesh,capacity) || mesh.vertices!=address ||
+                rf_preview_build_world(&expected,&world,&owned.movers,poses,&mapping,&camera,capacity) ||
+                mesh.bytes!=expected.bytes || (mesh.bytes && memcmp(mesh.vertices,expected.vertices,mesh.bytes)))return 3;
+            for(i=0;i<mesh.bytes;++i)hash=(hash^((const unsigned char *)mesh.vertices)[i])*16777619u;
+            rf_preview_close(&expected);
+        }
+        printf("%u %u %u %u\n",owned.movers.count,owned.allocated_bytes,capacity,hash);
+        free(poses);rf_preview_close(&mesh);rf_scene_world_geometry_close(&owned);rf_scene_world_geometry_close(&owned);
+        rf_geometry_close(&world);return 0;
+    }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
     check c={0};uint32_t i,mode;int status;

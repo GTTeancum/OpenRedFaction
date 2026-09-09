@@ -69,6 +69,12 @@ allocation; 204 PC pose cases across 68 levels match separate projection and
 remapping, including failure preservation for late invalid poses and short
 capacity. Retain mover geometry/mappings in the scene owner and call this
 updater from committed door motion during the renderer's frame loop.
+The retained scene owner now passes 204 PC pose/lifetime cases across 68 levels
+after archive closure, source-level poisoning and image closure, with at most
+307,984 bytes of mover geometry/mappings. Keep this owner in the Xbox scene
+and draw committed door ticks; the existing compatibility loader still closes
+it after initial projection. GPU streaming currently requires a fixed world
+vertex boundary and must accept changing world counts within its fixed capacity.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
