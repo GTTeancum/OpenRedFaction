@@ -159,3 +159,22 @@ Next implement this conversion in shared C against explicit owned registries,
 preserve object-first and ordered key-owner precedence, and verify edge cases
 against these original functions. General object registration, entity backlinks
 and the associated event/trigger ownership are still required.
+
+
+## Shared C UID resolver
+
+`rf_level_link_resolve` in `src/core/level.c` implements the verified lookup
+precedence using caller-owned ordered object rows and flattened key-owner rows.
+Key rows must preserve controller-list order followed by each controller's key
+order. The output records the resulting value, selected registry kind and row
+index, allowing a future caller to perform the entity backlink operation without
+repeating lookup. Unresolved values remain the original UID. It allocates no
+memory and does not register objects, mutate registries or activate targets.
+
+`tools/verify_uid_resolution.py` compares 2,000 deterministic cases against
+unchanged original 48a4a0 and 46afc0 on both PC and compiled NXDK (Unicorn).
+Cases include ordered duplicates, object-first precedence, missing values,
+object UID -1 exclusion with key fallback, and -999 flag filtering. All pass.
+These tests use synthetic registries, with each key row represented by one
+original controller, and do not claim full registry ownership or backlink
+integration. Report: `artifacts/uid-resolution-verification.json`.

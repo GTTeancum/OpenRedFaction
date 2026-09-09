@@ -36,8 +36,10 @@ Original dispatch 4c0320 now passes four door-list execution cases, preserving
 interleaved mover/event order and mover suppression. The fixture uses synthetic
 registered handles and intercepts downstream actions. The verifier now also
 executes original post-load UID conversion 4611a1..461231 with the real object
-and key-owner lookup functions for both door lists. Implement shared C
-conversion and registries, then activation state and runtime integration.
+and key-owner lookup functions for both door lists. Shared C UID resolution
+now matches 2,000 original lookup cases on PC and compiled NXDK, including
+duplicate precedence and special UIDs. Connect persistent ordered registries,
+entity backlinks and owned trigger/event data, then activation and dispatch.
 
 Ordered controller binding now matches 2,000 original calls on PC/NXDK, and
 forced translation updates all 1,406 owned mover poses/collision views on PC.

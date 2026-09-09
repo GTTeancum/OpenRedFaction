@@ -818,3 +818,21 @@ int rf_group_mover_memberships_open(const rf_group_runtime_collection *runtime,
  failed:
     free(scratch);rf_group_mover_memberships_close(&value);return status;
 }
+
+int rf_level_link_resolve(uint32_t uid,const rf_level_uid_object *objects,uint32_t object_count,
+    const rf_level_uid_key *keys,uint32_t key_count,rf_level_link_target *target)
+{
+    rf_level_link_target result;uint32_t i;
+    if(!target || (object_count && !objects) || (key_count && !keys))return RF_RANGE;
+    result.value=uid;result.kind=0;result.index=UINT32_MAX;
+    if(uid!=UINT32_MAX)for(i=0;i<object_count;++i) {
+        if(objects[i].uid==uid && (uid!=(uint32_t)-999 || !(objects[i].flags&2))) {
+            result.value=objects[i].handle;result.kind=1;result.index=i;
+            *target=result;return RF_OK;
+        }
+    }
+    for(i=0;i<key_count;++i)if(keys[i].uid==uid) {
+        result.value=keys[i].handle;result.kind=2;result.index=i;break;
+    }
+    *target=result;return RF_OK;
+}

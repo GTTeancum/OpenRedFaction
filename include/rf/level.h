@@ -283,4 +283,18 @@ int rf_level_trigger_next(rf_level_trigger_reader *reader,rf_level_trigger *trig
 /* Access one raw ordered link from a successfully decoded record. */
 int rf_level_trigger_link(const rf_level *level,const rf_level_trigger *trigger,
     uint32_t index,uint32_t *uid);
+/* Ordered registry views for post-load conversion at 4611a1. Objects follow
+ * original object-list order; key owners flatten controller-list/key order.
+ * Caller owns storage. No registration, allocation or entity backlink writes. */
+typedef struct rf_level_uid_object { uint32_t uid,handle,flags; } rf_level_uid_object;
+typedef struct rf_level_uid_key { uint32_t uid,handle; } rf_level_uid_key;
+typedef struct rf_level_link_target {
+    uint32_t value,kind,index; /* kind: 0 unresolved, 1 object, 2 key owner */
+} rf_level_link_target;
+/* First object match, then first key owner; missing UID stays unchanged.
+ * Object UID -1 never matches; -999 skips object flag bit 2. Key lookup has
+ * neither exclusion. Index identifies the selected registry row, or UINT32_MAX.
+ * Invalid arguments preserve output. Output must not overlap input arrays. */
+int rf_level_link_resolve(uint32_t uid,const rf_level_uid_object *objects,uint32_t object_count,
+    const rf_level_uid_key *keys,uint32_t key_count,rf_level_link_target *target);
 #endif

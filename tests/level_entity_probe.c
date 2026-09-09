@@ -6,6 +6,17 @@ int main(int argc,char **argv)
 {
     rf_vpp archive;rf_level level;rf_level_entity_reader reader;rf_level_entity entity;int status;
     _Static_assert(sizeof(entity)==1084,"Entity probe wire layout");
+    if(argc==2 && !strcmp(argv[1],"--resolve-links")) {
+        uint32_t header[3];rf_level_uid_object objects[32];rf_level_uid_key keys[32];rf_level_link_target target;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(header,sizeof(header),1,stdin)==1) {
+            if(header[1]>32 || header[2]>32 || fread(objects,sizeof(*objects),header[1],stdin)!=header[1] ||
+                fread(keys,sizeof(*keys),header[2],stdin)!=header[2])return 2;
+            if(rf_level_link_resolve(header[0],objects,header[1],keys,header[2],&target) ||
+                fwrite(&target,sizeof(target),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==4 && !strcmp(argv[3],"--triggers")) {
         rf_level_trigger_reader cursor;rf_level_trigger record={0};uint32_t i,uid;
         _Static_assert(sizeof(record)==668,"Trigger probe wire layout");
