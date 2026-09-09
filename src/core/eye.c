@@ -74,3 +74,174 @@ int rf_camera_effect_step(rf_camera_effect_state *state,int32_t now_ms,float *co
     if(cone < -1)cone=-1;if(cone > 1)cone=1;
     *state=value;*cosine=cone;*active=1;return RF_OK;
 }
+
+static void camera_normalize(float normal[3])
+{
+#if (defined(_MSC_VER) && defined(_M_IX86)) || defined(__i386__)
+    unsigned short saved,control;
+#if defined(_MSC_VER)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,normal
+        fld dword ptr [ecx]
+        fmul dword ptr [ecx]
+        fld dword ptr [ecx+4]
+        fmul dword ptr [ecx+4]
+        faddp st(1),st(0)
+        fld dword ptr [ecx+8]
+        fmul dword ptr [ecx+8]
+        faddp st(1),st(0)
+        fsqrt
+        fld1
+        fdivrp st(1),st(0)
+        fld st(0)
+        fmul dword ptr [ecx]
+        fstp dword ptr [ecx]
+        fld st(0)
+        fmul dword ptr [ecx+4]
+        fstp dword ptr [ecx+4]
+        fmul dword ptr [ecx+8]
+        fstp dword ptr [ecx+8]
+        fldcw saved
+    }
+#else
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "fld dword ptr [ecx]\n\t"
+        "fmul dword ptr [ecx]\n\t"
+        "fld dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [ecx+4]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fld dword ptr [ecx+8]\n\t"
+        "fmul dword ptr [ecx+8]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fsqrt\n\t"
+        "fld1\n\t"
+        "fdivrp st(1),st(0)\n\t"
+        "fld st(0)\n\t"
+        "fmul dword ptr [ecx]\n\t"
+        "fstp dword ptr [ecx]\n\t"
+        "fld st(0)\n\t"
+        "fmul dword ptr [ecx+4]\n\t"
+        "fstp dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [ecx+8]\n\t"
+        "fstp dword ptr [ecx+8]\n\t"
+        ".att_syntax prefix"::"c"(normal):"memory","st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#endif
+#else
+    long double r=1/sqrtl((long double)normal[0]*normal[0]+(long double)normal[1]*normal[1]+(long double)normal[2]*normal[2]);
+    unsigned i;for(i=0;i<3;++i)normal[i]=(float)(normal[i]*r);
+#endif
+}
+
+typedef struct camera_cone_terms {int32_t first,second;float minimum,scale,one,tau,radius;} camera_cone_terms;
+
+static void camera_cone(camera_cone_terms *terms,float output[3])
+{
+#if (defined(_MSC_VER) && defined(_M_IX86)) || defined(__i386__)
+    unsigned short saved,control;
+#if defined(_MSC_VER)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,terms
+        mov edx,output
+        fild dword ptr [ecx]
+        fmul dword ptr [ecx+12]
+        fld dword ptr [ecx+16]
+        fsub dword ptr [ecx+8]
+        fmulp st(1),st(0)
+        fadd dword ptr [ecx+8]
+        fstp dword ptr [edx+8]
+        fild dword ptr [ecx+4]
+        fmul dword ptr [ecx+12]
+        fmul dword ptr [ecx+20]
+        fld dword ptr [edx+8]
+        fmul dword ptr [edx+8]
+        fsubr dword ptr [ecx+16]
+        fsqrt
+        fstp dword ptr [ecx+24]
+        fld st(0)
+        fcos
+        fmul dword ptr [ecx+24]
+        fstp dword ptr [edx]
+        fsin
+        fmul dword ptr [ecx+24]
+        fstp dword ptr [edx+4]
+        fldcw saved
+    }
+#else
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "fild dword ptr [ecx]\n\t"
+        "fmul dword ptr [ecx+12]\n\t"
+        "fld dword ptr [ecx+16]\n\t"
+        "fsub dword ptr [ecx+8]\n\t"
+        "fmulp st(1),st(0)\n\t"
+        "fadd dword ptr [ecx+8]\n\t"
+        "fstp dword ptr [edx+8]\n\t"
+        "fild dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [ecx+12]\n\t"
+        "fmul dword ptr [ecx+20]\n\t"
+        "fld dword ptr [edx+8]\n\t"
+        "fmul dword ptr [edx+8]\n\t"
+        "fsubr dword ptr [ecx+16]\n\t"
+        "fsqrt\n\t"
+        "fstp dword ptr [ecx+24]\n\t"
+        "fld st(0)\n\t"
+        "fcos\n\t"
+        "fmul dword ptr [ecx+24]\n\t"
+        "fstp dword ptr [edx]\n\t"
+        "fsin\n\t"
+        "fmul dword ptr [ecx+24]\n\t"
+        "fstp dword ptr [edx+4]\n\t"
+        ".att_syntax prefix"::"c"(terms),"d"(output):"memory","st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#endif
+#else
+    long double a=(long double)terms->second*terms->scale*terms->tau;
+    output[2]=(float)((long double)terms->first*terms->scale*(1-(long double)terms->minimum)+terms->minimum);
+    terms->radius=(float)sqrtl(1-(long double)output[2]*output[2]);output[0]=(float)(cosl(a)*terms->radius);output[1]=(float)(sinl(a)*terms->radius);
+#endif
+}
+
+static void camera_cross(const float a[3],const float b[3],float out[3])
+{
+    uint32_t i;for(i=0;i<3;++i)out[i]=(float)((double)a[(i+1)%3]*b[(i+2)%3]-(double)a[(i+2)%3]*b[(i+1)%3]);
+}
+static int camera_nonzero(const float v[3]) {return v[0]!=0 || v[1]!=0 || v[2]!=0;}
+int rf_camera_effect_apply(rf_camera_effect_state *state,int32_t now_ms,
+    uint32_t draw0,uint32_t draw1,float orientation[9],uint32_t *active)
+{
+    rf_camera_effect_state next;float cosine=0,basis[3][3]={{0}},local[3],changed[3],rebuilt[3][3]={{0}};
+    camera_cone_terms terms;uint32_t enabled,i;int status;
+    if(!state || !orientation || !active)return RF_RANGE;
+    next=*state;status=rf_camera_effect_step(&next,now_ms,&cosine,&enabled);if(status)return status;
+    if(!enabled){*active=0;return RF_OK;}
+    if(draw0>32767 || draw1>32767)return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(orientation[i]))return RF_FORMAT;
+    memcpy(basis[2],orientation+6,12);
+    if(basis[2][0]<.0001f && basis[2][0]>-.0001f && basis[2][2]<.0001f && basis[2][2]>-.0001f) {
+        basis[0][0]=1;basis[2][0]=basis[2][2]=0;basis[2][1]=orientation[7]<0?-1.0f:1.0f;basis[1][2]=-basis[2][1];
+    } else {
+        basis[0][0]=basis[2][2];basis[0][2]=-basis[2][0];camera_normalize(basis[0]);camera_cross(basis[2],basis[0],basis[1]);
+    }
+    terms.first=(int32_t)draw0;terms.second=(int32_t)draw1;terms.minimum=cosine;
+    terms.scale=1.0f/32768.0f;terms.one=1;terms.tau=6.2831854820251465f;terms.radius=0;
+    camera_cone(&terms,local);transform(local,basis,changed);
+    if(!camera_nonzero(changed))return RF_FORMAT;
+    memcpy(rebuilt[2],changed,12);camera_normalize(rebuilt[2]);
+    if(camera_nonzero(orientation+3)) {memcpy(rebuilt[1],orientation+3,12);camera_normalize(rebuilt[1]);}
+    else if(camera_nonzero(orientation))camera_cross(rebuilt[2],orientation,rebuilt[1]);
+    else if(rebuilt[2][0]==0 && rebuilt[2][2]==0 && rebuilt[2][1]!=0)rebuilt[1][2]=1;
+    else rebuilt[1][1]=1;
+    camera_cross(rebuilt[1],rebuilt[2],rebuilt[0]);camera_cross(rebuilt[2],rebuilt[0],rebuilt[1]);
+    for(i=0;i<9;++i)if(!isfinite(((float*)rebuilt)[i]))return RF_FORMAT;
+    memcpy(orientation,rebuilt,36);*state=next;*active=1;return RF_OK;
+}

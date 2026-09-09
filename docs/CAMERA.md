@@ -1584,3 +1584,34 @@ float radius and x87 trig. 504db0 calls 57312d and scales by 589de8. Finally
 4fc960 reconstructs the eye orientation using the changed forward and prior
 basis vectors, with fallback paths. These random and orientation stages remain
 unreconstructed; the deterministic room-direction helper is not a substitute.
+
+## Full first-person effect geometry
+
+`rf_camera_effect_apply` now composes the timer/decay logic with 4fae00 cone
+sampling and the complete 4fc960 orientation rebuild. The caller supplies the
+two original rand outputs (0..32767); they matter only for an active effect.
+The API does not silently use host rand() or claim ownership of the game's
+random stream. Expired effects leave the orientation/state unchanged.
+
+The first draw is scaled by 1/32768 and interpolates between the cone cosine
+and 1, storing the resulting local Z as float. The second draw selects an
+azimuth using the same scale and original binary32 2*pi constant. The radius
+has a separate float store before x87 sine/cosine multiplication. The generated
+vector is transformed through the original forward-derived basis, including
+its strict near-vertical branch and non-unit input behavior.
+
+Rebuilding normalizes forward, prefers the previous up vector when present,
+otherwise derives up from the previous right or an axis fallback. It then
+crosses up/forward to form right and forward/right to form up. There is no
+extra final normalization of those cross products. This detail is intentionally
+preserved rather than substituting a generic look-at matrix.
+
+`tools/verify_camera_effect_apply.py` executes full original 40db70 with all
+geometry, timer and clamp callees unchanged. Only player resolution and rand
+return values are supplied at boundaries. All 1,800 PC cases and 1,800 compiled
+NXDK executions match strength/deadline, all nine orientation floats and
+active status byte-for-byte. 1,285 cases are active; fixtures include expired
+and disabled timers, cone extremes, vertical views, non-unit bases and missing
+up/right vectors. Both builds and four CTests pass. These are instruction-level
+comparisons, not an XEMU camera rendering result. Initial eye offsets and game
+RNG sequence ownership remain necessary before full player-view integration.

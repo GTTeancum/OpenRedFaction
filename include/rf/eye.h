@@ -28,4 +28,12 @@ int rf_camera_effect_reset(rf_camera_effect_state *state,int32_t now_ms);
  * remain. Expired effects preserve cosine and state. No random direction or
  * orientation rebuild is performed here. Errors preserve every output. */
 int rf_camera_effect_step(rf_camera_effect_state *state,int32_t now_ms,float *cosine,uint32_t *active);
+/* Complete resolved-entity 40db70 effect, including 4fae00 and 4fc960.
+ * draw0/draw1 are the two original rand() outputs (0..32767), used only if
+ * active. This does not own or advance a global RNG. Orientation is row-major
+ * right/up/forward. Finite inputs required; nonfinite/degenerate generated
+ * forward is a port error.
+ * Errors preserve state/orientation/active. Expired effects ignore draws. */
+int rf_camera_effect_apply(rf_camera_effect_state *state,int32_t now_ms,
+    uint32_t draw0,uint32_t draw1,float orientation[9],uint32_t *active);
 #endif

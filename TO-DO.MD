@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+The complete first-person camera effect now matches 1,800 original cases on
+both PC and compiled NXDK, including cone sampling and orientation rebuilding.
+Bind initialized player eye offsets and the game's random sequence next; the
+rendered camera is still the diagnostic follow view. See docs/CAMERA.md.
+
 First-person camera effect reset/timer/decay now matches 600 original cases on
 PC and compiled NXDK. Reset must expire the timer at now, not disable it.
 Recover random cone direction and orientation rebuilding next, while resolving
