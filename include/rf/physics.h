@@ -54,4 +54,34 @@ int rf_physics_tensor_world(const float local[9],const float orientation[9],floa
  * Does not copy spheres into a runtime body or initialize the other fields. */
 int rf_physics_spheres_prepare(const rf_physics_sphere *source,uint32_t count,float density,
     const rf_physics_mass_tensor *initial,rf_physics_mass_tensor *result);
+typedef struct rf_physics_body_parameters {
+    float coefficients[3],mass,local_tensor[9],position[3],orientation[9],velocity[3],vector_78[3];
+    uint32_t flags;
+} rf_physics_body_parameters;
+/* Only fields assigned by fresh 49f010 initialization are represented here;
+ * unnamed offsets retain neutral labels until their runtime uses are recovered. */
+typedef struct rf_physics_body_state {
+    float coefficients[3],mass,local_tensor[9],world_tensor[9];
+    float position[3],previous_position[3],orientation[9],previous_orientation[9];
+    float velocity[3],vector_c8[3],mass_vector_d4[3],vector_e0[3],vector_ec[3];
+    rf_physics_bounds bounds;
+    uint32_t flags,state_124;
+    float vector_138[3],scalar_144;
+    int32_t reference_15c;
+    uint32_t word_164,word_168;
+} rf_physics_body_state;
+typedef struct rf_physics_body {
+    rf_physics_body_state state;
+    rf_physics_spheres spheres;
+    uint32_t allocated_bytes;
+} rf_physics_body;
+/* Fresh 49f010 setup (third argument zero), with pre-resolved coefficients and
+ * already prepared mass/local inverse tensor. Sphere flags 0x70 select the
+ * source list; otherwise it is ignored. Positive sphere parameter_10 sets
+ * output flag 0x2000. One owned sphere allocation, budget includes entire body
+ * and records without allocator overhead. Empty owner required; errors preserve
+ * it. No geometric-model mass generation, reinitialization or entity registration. */
+int rf_physics_body_open(const rf_physics_body_parameters *parameters,
+    const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_body *result);
+void rf_physics_body_close(rf_physics_body *body);
 #endif

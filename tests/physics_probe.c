@@ -8,6 +8,24 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--body")) {
+        rf_physics_body_parameters parameters;rf_physics_sphere source[32];uint32_t count;
+        _Static_assert(sizeof(parameters)==128 && sizeof(rf_physics_body_state)==308,"Body wire layout");
+        while(fread(&parameters,sizeof(parameters),1,stdin)==1) {
+            rf_physics_body body={0},empty={0};uint32_t budget,used;
+            if(fread(&count,4,1,stdin)!=1 || count>32 || fread(source,sizeof(*source),count,stdin)!=count)return 2;
+            used=(parameters.flags&0x70)?count:0;budget=(uint32_t)(sizeof(body)+used*sizeof(*source));
+            if(rf_physics_body_open(&parameters,source,count,budget-1,&body)!=RF_RANGE || memcmp(&body,&empty,sizeof(body)))return 3;
+            if(rf_physics_body_open(&parameters,source,count,budget,&body) || body.allocated_bytes!=budget || body.spheres.count!=used)return 3;
+            if(rf_physics_body_open(&parameters,source,count,budget,&body)!=RF_RANGE)return 3;
+            memset(source,0xa5,sizeof(source));memset(&parameters,0xa5,sizeof(parameters));
+            if(fwrite(&body.state,sizeof(body.state),1,stdout)!=1 || fwrite(&used,4,1,stdout)!=1 ||
+                fwrite(body.spheres.items,sizeof(*source),used,stdout)!=used)return 1;
+            rf_physics_body_close(&body);rf_physics_body_close(&body);
+            if(memcmp(&body,&empty,sizeof(body)))return 3;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--bounds")) {
         rf_physics_sphere source[32];uint32_t count;float position[3];
         struct {rf_physics_bounds value;int32_t status;} result;

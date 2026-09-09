@@ -3,6 +3,36 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+void rf_physics_body_close(rf_physics_body *body)
+{
+    if(body) {rf_physics_spheres_close(&body->spheres);memset(body,0,sizeof(*body));}
+}
+int rf_physics_body_open(const rf_physics_body_parameters *parameters,
+    const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_body *result)
+{
+    rf_physics_body value={0};rf_physics_body_state *state=&value.state;uint32_t i;uint64_t bytes;int status;
+    if(!parameters || !result || result->allocated_bytes || result->spheres.items || result->spheres.count || result->spheres.allocated_bytes)return RF_RANGE;
+    if(!(parameters->flags&0x70)) {count=0;source=NULL;}
+    bytes=sizeof(value)+(uint64_t)count*sizeof(*source);
+    if(bytes>budget || (count && !source) || !isfinite(parameters->mass))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        double product=(double)parameters->mass*parameters->vector_78[i];
+        if(!isfinite(parameters->coefficients[i]) || !isfinite(parameters->velocity[i]) ||
+            !isfinite(product) || fabs(product)>FLT_MAX)return RF_RANGE;
+        state->coefficients[i]=parameters->coefficients[i];state->velocity[i]=parameters->velocity[i];
+        state->vector_c8[i]=parameters->vector_78[i];state->mass_vector_d4[i]=(float)product;
+    }
+    status=rf_physics_tensor_world(parameters->local_tensor,parameters->orientation,state->world_tensor);if(status)return status;
+    status=rf_physics_spheres_bounds(source,count,parameters->position,&state->bounds);if(status)return status;
+    state->mass=parameters->mass;state->flags=parameters->flags;
+    memcpy(state->local_tensor,parameters->local_tensor,sizeof(state->local_tensor));
+    memcpy(state->position,parameters->position,sizeof(state->position));memcpy(state->previous_position,state->position,sizeof(state->position));
+    memcpy(state->orientation,parameters->orientation,sizeof(state->orientation));memcpy(state->previous_orientation,state->orientation,sizeof(state->orientation));
+    for(i=0;i<count;++i)if(source[i].parameter_10>0)state->flags|=0x2000;
+    state->vector_138[1]=1;state->scalar_144=1;state->reference_15c=-1;
+    status=rf_physics_spheres_open(source,count,(uint32_t)(budget-sizeof(value)+sizeof(value.spheres)),&value.spheres);if(status)return status;
+    value.allocated_bytes=(uint32_t)bytes;*result=value;return RF_OK;
+}
 int rf_physics_spheres_bounds(const rf_physics_sphere *source,uint32_t count,
     const float position[3],rf_physics_bounds *result)
 {

@@ -400,6 +400,46 @@ radius, bounds, tensors, mapped initialization fields and sphere owner are now
 available, but still need to be combined into a runtime body initializer and
 connected to entity construction. No new rendered behavior is claimed.
 
+## Shared owned physics body
+
+`rf_physics_body_open/close` now combines fresh 49f010 field initialization,
+world tensor updates, sphere bounds and retained sphere records. Input material
+coefficients are already resolved, and mass/local inverse tensor are already
+prepared. This models the original third-argument-zero path with an initially
+empty destination sphere list. It does not redo 49ec90 mass generation.
+
+The 308-byte `rf_physics_body_state` represents fields assigned by that path:
+coefficients, mass, local/world tensors, current/previous transforms, velocity,
+the input vector and mass product, cleared vectors, radius/bounds, flags and
+the verified scalar/timer defaults. Uncertain fields keep original-offset names.
+Original untouched words are omitted rather than assigned invented defaults.
+Body flags incorporate 0x2000 when a copied sphere's +0x10 parameter is positive.
+The input parameter structure is immutable; callers obtain updated flags from
+the resulting body, unlike the original mutable parameter block.
+
+Only flags masked by 0x70 select sphere copying; otherwise the source list is
+ignored. The body owns its copied records after source release. Its budget
+includes the complete body and exactly count*24 record bytes, excluding heap
+overhead; the existing sphere owner accounts its own subset without double
+counting. On 32-bit PC/Xbox, an empty body accounts 324 bytes and a 32-sphere
+body 1,092 bytes. Failure preserves the owner, reopening a live body fails,
+and closing frees records and clears the complete structure.
+
+`tools/verify_physics_body.py` executes complete original 49f010 and all callees,
+supplying only heap allocation/free. For 480 cases across eight flag modes,
+0/1/2/16/17/32 spheres, varied transforms and zero/positive mass, all 308 shared
+state bytes and all retained records match original output on PC and compiled
+NXDK. Original parameters change only at the expected flags word. Both builds
+exercise exact/one-byte-short budgets, reopening, source poisoning and repeated
+close. NXDK additionally exercises 200 allocation failures and 62 nonfinite
+parameter cases, preserving caller storage without leaking allocations.
+
+Report: `artifacts/physics-body-verification.json`. NXDK checks run linked code
+with a supplied process-local heap, not a live Xbox body in XEMU. Runtime entity
+registration, class/model parameter resolution, remaining constructor fields,
+body reinitialization and geometric-model mass generation remain open. There
+is no new rendered output.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and
