@@ -94,3 +94,37 @@ it does not resolve a UID. 4c0210 only sets bit 0x10 at trigger offset 0x2b0;
 it is not a call that immediately dispatches the trigger. Trigger construction
 4bf970 registers object type 5, copies configuration, and appends it to the
 trigger list. Runtime target resolution and activation remain open.
+
+
+## Original dispatch execution checkpoint
+
+`tools/verify_trigger_dispatch.py` executes unchanged original 4c0320 together
+with its real array helpers and handle lookup 40a0e0. Four single-player cases
+pass for the two authored door link lists, with and without mover suppression.
+The fixture supplies synthetic registered runtime handles and intercepts only
+mover activation 46aba0 and event enqueue 4b6760; those actions are not executed.
+No load-time UID conversion or reconstructed C equivalence is claimed.
+
+The list lives at trigger +0x2d4. 40a0e0 indexes table 7394cc by the low 16 handle
+bits, rejects indices >=1024 and null entries, and verifies the complete handle
+against object +0x2c. Thus the dispatcher expects converted runtime handles,
+not the raw authored UIDs. It switches on object type at +0x24: type 8 calls
+46aba0 unless the third argument's low byte is nonzero, and type 6 calls
+4b6760 in single-player. Both receive target handle, source trigger handle,
+and activating-object handle, in that order. Event and controller actions
+remain interleaved in the authored list order. Suppressing mover calls leaves
+event calls active. The generated trace is `artifacts/trigger-dispatch-verification.json`.
+
+Other observed branches still require execution coverage: type 5 clears a
+linked trigger's disabled bit via 4c0200; type 4 invokes 410e10 plus sound/timer
+work; failed object lookup tries 45afe0/45b040. Multiplayer restricts event
+dispatch and is outside this checkpoint.
+
+Activation wrapper 4c0220 calls dispatch before incrementing +0x2a0, applies
+count/removal and cooldown behavior, stores the global time at +0x2a8, then
+sets flag 0x40. Eligibility 4c06d0 rejects disabled (0x10), already-activated
+(0x40), exhausted-count and continuous (0x8) cases before checking cooldown and
+actor-specific conditions. Tick 4bf740 clears 0x40. These are decompilation
+leads, not yet verified portable gameplay behavior. Next recover the load-time
+UID conversion and full activation state path rather than feeding raw UIDs to
+the handle dispatcher or globally activating the four controllers.
