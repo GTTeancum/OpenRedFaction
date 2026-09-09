@@ -2,16 +2,18 @@
 
 Immediate open items:
 - [ ] Extend the working process-local steering fixture to exercise live support loss and recovery in XEMU.
-- [ ] Bind ground-surface traction and verify blocked standing, then resolve initial class pose/inertia.
+- [ ] Verify blocked standing and resolve initial class pose/inertia.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
 Capture and post screenshots only when there is a new visible result.
 
-Latest memory-harness rerun: `20260909-165220-678181` PASS; 64 MiB confirmed
-by QMP, 468 configuration bytes and all 64 actor frame records match PC.
-No movement contacts, blocked standing or support loss occurred in this route;
-those remain coverage gaps. See `docs/XEMU-MEMORY.md` for reproduction and limits.
+Latest memory-harness run: `20260909-165657-464529` PASS; 64 MiB confirmed,
+all 64 surface/traction records match PC and all 240 material coefficient bytes
+match the authored table. The miner selects Rock on landing at frame 22.
+Ground traction now comes from the support face texture prefix, removing the
+fixed value. Blocked standing and support loss remain coverage gaps.
+See `docs/XEMU-MEMORY.md` for reproduction and limits.
 
 Working approach: complete the first miner integration across loading, rendering
 and physics before expanding isolated subsystem coverage. Use the existing

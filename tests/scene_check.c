@@ -19,6 +19,7 @@ extern float rf_scene_actor_input_frames[64][3];
 extern uint32_t rf_scene_actor_contact_count,rf_scene_actor_contacts[64][25];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_stance_frames[64][4];
+extern uint32_t rf_scene_actor_surface_frames[64][2];
 extern uint32_t rf_scene_actor_movement_frames[64][3];
 extern uint32_t rf_scene_actor_render_frames[64][5];
 typedef struct check {
@@ -135,7 +136,7 @@ int main(int argc,char **argv)
         c.base=materials.count;c.next=c.changed=c.last=0;c.address=c.material_address=NULL;c.stop=mode==1;
         before=mesh;saved=materials;
         if(body_mode)status=rf_scene_stream_miner_body(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
-            &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c,&body_world);
+            &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c,&body_world,&geometry);
         else if(c.authored)status=rf_scene_stream_miner_states(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
             &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c);
         else status=rf_scene_stream_miner(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
@@ -169,6 +170,7 @@ int main(int argc,char **argv)
                     memcpy(&speed,rf_scene_actor_movement_frames[i]+1,4);
                     if(rf_scene_actor_movement_frames[i][2]!=(crouched?0u:1u) || speed!=(crouched?3.0f:6.0f))return 3;
                 }
+                printf("ACTOR_SURFACES");for(i=0;i<128;++i)printf(" %u",((uint32_t*)rf_scene_actor_surface_frames)[i]);puts("");
                 printf("ACTOR_SPEED_MODES");for(i=0;i<192;++i)printf(" %u",((uint32_t*)rf_scene_actor_movement_frames)[i]);puts("");
                 printf("ACTOR_STANCE");for(i=0;i<256;++i)printf(" %u",((uint32_t*)rf_scene_actor_stance_frames)[i]);puts("");
                 printf("ACTOR_STANCE_CACHE");for(i=0;i<50;++i) {uint32_t word;memcpy(&word,(const unsigned char*)&rf_scene_actor_stance_cache+i*4,4);printf(" %u",word);}puts("");

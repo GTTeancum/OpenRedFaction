@@ -435,7 +435,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         if(stream_flag) {
             fclose(stream_flag);rf_diagnostic[31]=5;
             if(!status && actor_body_preview)status=rf_scene_stream_miner_body(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
-                maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL,&resident_collision);
+                maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL,&resident_collision,&resident_geometry);
             else if(!status)status=rf_scene_stream_miner_states(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
                 maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL);
         } else if(!status)status=rf_scene_stream_miner(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",

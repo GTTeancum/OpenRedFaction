@@ -122,7 +122,7 @@ int main(int argc, char **argv)
             if(actor_body) {
                 rf_geometry_collision_world collision={0};result=rf_geometry_collision_world_open(&geometry,8*1024*1024,&collision);
                 if(!result)result=rf_scene_stream_miner_body(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
-                    archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL,&collision);
+                    archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL,&collision,&geometry);
                 rf_geometry_collision_world_close(&collision);
             }
             else if(scene_states)result=rf_scene_stream_miner_states(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],

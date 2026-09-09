@@ -30,6 +30,18 @@ typedef struct rf_entity_material {
     uint32_t index;
     float elasticity,friction,density,buoyancy,traction;
 } rf_entity_material;
+/* Bounded port table storage. Lookup follows original 468740: exact ASCII
+ * case-insensitive prefix before the first underscore, first declaration wins.
+ * Read requires all ten coefficient records; output unchanged on error. The
+ * lookup takes a successfully parsed table and NUL-terminated texture name. */
+typedef struct rf_surface_materials {
+    rf_entity_material materials[10];
+    uint32_t count;
+    struct {char name[32];uint32_t material;} prefixes[64];
+} rf_surface_materials;
+int rf_surface_materials_read(const void *text,uint32_t bytes,rf_surface_materials *result);
+uint32_t rf_surface_material_lookup(const rf_surface_materials *table,const char *texture);
+
 /* Bounded materials.tbl metadata reader. Unknown names select Default as in
  * 4686c0. Requires all five finite coefficients; output unchanged on failure.
  * Does not load bitmap prefixes, debris or hit sounds. No allocation. */

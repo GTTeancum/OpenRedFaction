@@ -30,6 +30,19 @@ int main(int argc,char **argv)
         for(i=0;i<sizeof(value);++i)printf("%02x",((const unsigned char*)&value)[i]);
         printf("\n");return 0;
     }
+    if(argc==4 && !strcmp(argv[1],"--surface")) {
+        rf_surface_materials palette,before;uint32_t index;
+        memset(&palette,0xa5,sizeof(palette));before=palette;
+        if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"materials.tbl",&entry) || entry.size>65536)return 2;
+        text=malloc(entry.size);if(!text)return 2;
+        status=rf_vpp_read(&archive,&entry,0,text,entry.size);
+        if(!status)status=rf_surface_materials_read(text,entry.size,&palette);
+        free(text);rf_vpp_close(&archive);
+        if(status && memcmp(&palette,&before,sizeof(palette)))return 4;
+        if(status)return 3;
+        index=rf_surface_material_lookup(&palette,argv[3]);
+        printf("%u %.9g\n",index,(double)palette.materials[index].traction);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--material")) {
         rf_entity_material material,before;
         memset(&material,0xa5,sizeof(material));before=material;

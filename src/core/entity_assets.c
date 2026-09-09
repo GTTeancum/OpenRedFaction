@@ -299,6 +299,47 @@ int rf_entity_material_read(const void *text,uint32_t bytes,const char *name,
     value.elasticity=coefficients[0];value.friction=coefficients[1];value.density=coefficients[2];
     value.buoyancy=coefficients[3];value.traction=coefficients[4];*result=value;return RF_OK;
 }
+int rf_surface_materials_read(const void *text,uint32_t bytes,rf_surface_materials *result)
+{
+    static const char *names[]={"Default","Rock","Metal","Flesh","Water","Lava","Solid","Sand","Ice","Glass"};
+    rf_surface_materials value={0};lexer l={(const unsigned char*)text,bytes,0};
+    char t[256];uint32_t i,current=0;int status,quoted,section=0,selected=0,ended=0;
+    if(!text || !result)return RF_RANGE;
+    for(i=0;i<10;++i) {
+        status=rf_entity_material_read(text,bytes,names[i],value.materials+i);if(status)return status;
+    }
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"#Materials")) {section=1;continue;}
+        if(!section)continue;
+        if(same(t,"#End")) {ended=1;break;}
+        if(same(t,"$name:")) {
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            current=0;selected=1;
+            for(i=0;i<10;++i)if(same(t,names[i])) {current=i;break;}
+        } else if(same(t,"$bitmap")) {
+            if(token(&l,t,&quoted) || quoted || !same(t,"prefix:"))return RF_FORMAT;
+            if(!selected || token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            if(value.count==64 || strlen(t)>=32)return RF_RANGE;
+            strcpy(value.prefixes[value.count].name,t);
+            value.prefixes[value.count++].material=current;
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!ended)return RF_FORMAT;
+    *result=value;return RF_OK;
+}
+uint32_t rf_surface_material_lookup(const rf_surface_materials *table,const char *texture)
+{
+    const char *end;char prefix[32];uint32_t i;size_t length;
+    if(!table || !texture || table->count>64)return 0;
+    end=strchr(texture,'_');if(!end)return 0;
+    length=(size_t)(end-texture);if(length>=sizeof(prefix))return 0;
+    memcpy(prefix,texture,length);prefix[length]=0;
+    for(i=0;i<table->count;++i)if(same(prefix,table->prefixes[i].name))
+        return table->prefixes[i].material<10?table->prefixes[i].material:0;
+    return 0;
+}
 int rf_entity_sphere_declarations_read(const void *text,uint32_t bytes,const char *class_name,
     rf_entity_sphere_declarations *result)
 {

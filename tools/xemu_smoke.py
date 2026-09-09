@@ -105,6 +105,7 @@ def main():
         if args.actor_body:actor_speed_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SPEED ')).split()[1:]))
         if args.actor_body:actor_ground_modes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND_MODES ')).split()[1:]))
         if args.actor_body:actor_contact_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CONTACTS ')).split()[1:]))
+        if args.actor_body:actor_surface_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SURFACES ')).split()[1:]))
         if args.actor_body:actor_speed_modes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SPEED_MODES ')).split()[1:]))
         if args.actor_body:actor_stance_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE ')).split()[1:]))
         if args.actor_body:actor_stance_cache_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE_CACHE ')).split()[1:]))
@@ -310,7 +311,10 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         report['actor_physics']=dict(words=actor_physics,scope='Shared authored config and frame-zero model spheres installed into body; retained across 64 rendered diagnostic frames. Provisional identity tensor and scripted spawn pose; no actor motion response or AI.')
                         memory_snapshot=guest_snapshot(monitor,map_text)
                         if args.actor_body:
-                            report['actor_run_motion']=dict(routine='49e400',traction=struct.unpack('<f',struct.pack('<I',memory_snapshot['symbols']['rf_scene_actor_run_traction']['words'][0]))[0],scope='Run speed convergence and slope response; diagnostic traction 1 until ground material binding is implemented.')
+                            report['actor_run_motion']=dict(routine='49e400',traction=struct.unpack('<f',struct.pack('<I',memory_snapshot['symbols']['rf_scene_actor_run_traction']['words'][0]))[0],scope='Run speed convergence and slope response; traction resolved from support face texture prefix and materials.tbl.')
+                            surfaces=memory_snapshot['symbols']['rf_scene_actor_surface_frames']['words']
+                            if surfaces!=actor_surface_reference:raise RuntimeError('Actor floor material/traction differs from PC')
+                            report['actor_surfaces']=dict(frames_match_pc=64,material_indices=sorted(set(surfaces[::2])),scope='Stationary support face to authored texture prefix; retains previous material when unsupported.')
                             speed_modes=memory_snapshot['symbols']['rf_scene_actor_movement_frames']['words']
                             if speed_modes!=actor_speed_modes_reference:raise RuntimeError('Actor stance movement settings differ from PC')
                             report['actor_speed_modes_match_pc']=64

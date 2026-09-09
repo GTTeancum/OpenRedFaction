@@ -1,14 +1,14 @@
 # Guest memory evidence
 
 Current result: the memory harness passes a fresh stock 64 MiB XEMU run,
-`artifacts/xemu/20260909-165220-678181/report.json`. QMP reports 67,108,864
+`artifacts/xemu/20260909-165657-464529/report.json`. QMP reports 67,108,864
 base-memory bytes and zero plugged memory. All 468 actor configuration bytes,
 64 rendered geometry records, input records, stance records and movement-setting
 records match PC. The fixture lands at frame 22 and completes 63 updates without
 capped passes. The supplied screenshot's NXDK `strtod` assertion is fixed.
 
-Remaining assumptions: diagnostic initial pose/inertia, scripted animation and
-input, and fixed surface traction 1. This route observes no movement contacts,
+Remaining assumptions: diagnostic initial pose/inertia and scripted animation
+and input. Ground traction now uses the authored support surface. This route observes no movement contacts,
 no blocked standing and no support loss, so it does not establish those paths.
 PC agreement establishes cross-platform consistency; original-instruction
 comparisons described below provide separate evidence for reconstructed routines.
@@ -754,3 +754,40 @@ three channel levels (mean maximum-channel error .0318717). Both runs complete
 63 updates without capped passes. Both builds, four CTests, passive and driven
 scene checks pass. Initial pose/inertia, correct surface binding, support loss,
 blocked standing, full input/AI and entity lifecycle remain open.
+
+
+## Authored ground surface binding
+
+The scene now resolves the stationary support hit's source face, texture name,
+material prefix and authored traction before its run proposal. The body stream
+borrows the same source geometry used to build its collision world. A temporary
+bounded materials.tbl parse loads ten coefficient records and fifteen installed
+prefixes; one byte per level texture remains for the stream, then is freed.
+The temporary text (at most 64 KiB) and 2,548-byte palette are freed before
+animation streaming. The 240-byte coefficient table and 512-byte frame telemetry
+remain available as guest symbols. There is no per-frame allocation.
+
+Original 468740 compares the exact substring before the first underscore,
+case-insensitively, against declarations in order. It does not match arbitrary
+starting text or remove directories. No underscore or no match yields Default.
+The C parser uses fixed bounds of 64 declarations and 31-byte prefixes, rejects
+oversized input and preserves output on failure. This is bounded port parsing,
+not a reconstruction of the original table parser or bitmap-handle cache.
+Original 467edc loads traction; 4688a0 retrieves the selected material value.
+
+`verify_surface_materials.py` executes complete original 468740 with a prepared
+registry containing all fifteen authored prefixes, without replacing callees.
+All 67 lookup cases match the PC table reader/lookup and linked NXDK lookup.
+Five malformed table cases check transactional failure; a duplicate-prefix
+fixture checks first-declaration priority. Passing a guest snapshot additionally
+compares all 240 coefficient bytes independently to materials.tbl and verifies
+all 64 captured traction values against their recorded material indices.
+
+Run `artifacts/xemu/20260909-165657-464529/report.json` passes on stock 64 MiB
+XEMU. Every surface record matches PC. Default index 0 is retained before the
+first support; Rock index 1 is selected at frame 22 and retained through frame
+63. Both have traction 1, so the previous visible trajectory is unchanged and
+no framebuffer was captured. Both builds and all four CTests pass. The live
+fixture still has no blocked standing, support loss or movement contacts; this
+run does not establish those cases or movement across ice and other surfaces.
+Moving-object surface policy and original spawn/lifecycle integration remain open.

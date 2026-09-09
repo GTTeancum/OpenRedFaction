@@ -106,6 +106,7 @@ typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity;rf_scene_frame_sink sink;void *context;
     const rf_geometry_collision_world *collision;
+    const rf_geometry *geometry;unsigned char *surface_indices;
 } scene_stream;
 rf_physics_body scene_actor_body;
 uint32_t rf_scene_actor_physics_diagnostic[8];
@@ -133,7 +134,31 @@ rf_movement_descriptor rf_scene_actor_movement[2]; /* authored run and fall */
 rf_entity_movement_values rf_scene_actor_movement_values;
 rf_movement_config rf_scene_actor_movement_config;
 rf_movement_settings rf_scene_actor_movement_settings;
-float rf_scene_actor_run_traction=1.0f; /* Diagnostic default; ground bitmap/material binding pending. */
+float rf_scene_actor_run_traction;
+rf_entity_material rf_scene_actor_surface_values[10];
+uint32_t rf_scene_actor_ground_material;
+uint32_t rf_scene_actor_surface_frames[64][2]; /* material index, traction bits */
+static int scene_surface_open(rf_vpp *archive,scene_stream *stream)
+{
+    rf_vpp_entry entry;rf_surface_materials *palette=NULL;void *text=NULL;
+    uint32_t i;int status=rf_vpp_find(archive,"materials.tbl",&entry);char name[256];
+    if(status)return status;
+    if(!entry.size || entry.size>65536 || !stream->geometry)return RF_RANGE;
+    text=malloc(entry.size);palette=malloc(sizeof(*palette));
+    if(!text || !palette) {status=RF_IO;goto done;}
+    status=rf_vpp_read(archive,&entry,0,text,entry.size);if(status)goto done;
+    status=rf_surface_materials_read(text,entry.size,palette);if(status)goto done;
+    stream->surface_indices=malloc(stream->geometry->textures?stream->geometry->textures:1);
+    if(!stream->surface_indices) {status=RF_IO;goto done;}
+    for(i=0;i<stream->geometry->textures;++i) {
+        status=rf_geometry_texture_name(stream->geometry,i,name,sizeof(name));if(status)goto done;
+        stream->surface_indices[i]=(unsigned char)rf_surface_material_lookup(palette,name);
+    }
+    memcpy(rf_scene_actor_surface_values,palette->materials,sizeof(rf_scene_actor_surface_values));
+    rf_scene_actor_ground_material=0;rf_scene_actor_run_traction=palette->materials[0].traction;
+done:
+    free(text);free(palette);return status;
+}
 uint32_t rf_scene_actor_movement_frames[64][3]; /* response, speed, numeric mode */
 static int actor_set_speed_mode(int crouched)
 {
@@ -371,6 +396,18 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
          rf_scene_actor_stance_frames[frame][2]=h;}
         rf_scene_actor_stance_frames[frame][3]=(uint32_t)blocked;
         status=actor_ground_check(stream->collision,frame);if(status)return status;
+        {
+            const actor_ground_record *ground=rf_scene_actor_ground_records+frame;
+            if(ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f) {
+                rf_geometry_face face;
+                status=rf_geometry_get_face(stream->geometry,ground->hit.face,&face);if(status)return status;
+                if(face.texture>=stream->geometry->textures)return RF_FORMAT;
+                rf_scene_actor_ground_material=stream->surface_indices[face.texture];
+                rf_scene_actor_run_traction=rf_scene_actor_surface_values[rf_scene_actor_ground_material].traction;
+            }
+            rf_scene_actor_surface_frames[frame][0]=rf_scene_actor_ground_material;
+            memcpy(rf_scene_actor_surface_frames[frame]+1,&rf_scene_actor_run_traction,4);
+        }
         memset(rf_scene_actor_input_frames[frame],0,12);
         if(rf_scene_actor_drive_enabled==1 && frame>=24 && frame<48)rf_scene_actor_input_frames[frame][0]=.25f;
         if(rf_scene_actor_drive_enabled==2 && frame>=24 && frame<63)rf_scene_actor_input_frames[frame][0]=-1.0f;
@@ -415,7 +452,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
-    rf_scene_frame_sink sink,void *context,int state_mode,const rf_geometry_collision_world *collision)
+    rf_scene_frame_sink sink,void *context,int state_mode,const rf_geometry_collision_world *collision,const rf_geometry *geometry)
 {
     rf_vpp archive,motions;rf_model_file model;rf_level_actor_assets binding;rf_entity_physics_config physics_config;
     rf_entity_state_set *states=NULL;int motions_opened=0;
@@ -425,7 +462,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(!level || !mesh || !materials || !mesh->vertices || !materials->items ||
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||
        materials->allocated_bytes>=material_budget)return RF_RANGE;
-    stream.world=mesh->count;stream.base=materials->count;
+    stream.world=mesh->count;stream.base=materials->count;stream.geometry=geometry;
     if(sink && (uint64_t)mesh->bytes+1024*1024>mesh_budget)return RF_RANGE;
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     status=rf_level_actor_assets_load(level,uid,tables_path,&archive,512*1024,&binding);if(status)goto done;
@@ -437,6 +474,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision)status=rf_movement_descriptor_load(&tables,physics_config.authored.movement_index,65536,rf_scene_actor_movement);
         if(!status && collision)status=rf_movement_descriptor_load(&tables,3,65536,rf_scene_actor_movement+1);
         if(!status && collision)status=rf_entity_movement_load(&tables,binding.entity.class_name,512*1024,&rf_scene_actor_movement_values);
+        if(!status && collision)status=scene_surface_open(&tables,&stream);
         rf_vpp_close(&tables);if(status)goto done;
         /* Live landing currently implements the ordinary class-run branch.
          * Reject other descriptors/special landing classes rather than silently
@@ -504,7 +542,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,&stream);
     }
 done:
-    free(states);if(motions_opened)rf_vpp_close(&motions);
+    free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;
 }
@@ -513,7 +551,7 @@ int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget)
 {
     return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
-        mesh,materials,mesh_budget,material_budget,NULL,NULL,0,NULL);
+        mesh,materials,mesh_budget,material_budget,NULL,NULL,0,NULL,NULL);
 }
 int rf_scene_stream_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
@@ -522,7 +560,7 @@ int rf_scene_stream_miner(const rf_level *level,int32_t uid,const char *meshes_p
 {
     if(!sink)return RF_RANGE;
     return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
-        mesh,materials,mesh_budget,material_budget,sink,context,0,NULL);
+        mesh,materials,mesh_budget,material_budget,sink,context,0,NULL,NULL);
 }
 int rf_scene_stream_miner_states(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
@@ -531,14 +569,14 @@ int rf_scene_stream_miner_states(const rf_level *level,int32_t uid,const char *m
 {
     if(!sink)return RF_RANGE;
     return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
-        mesh,materials,mesh_budget,material_budget,sink,context,1,NULL);
+        mesh,materials,mesh_budget,material_budget,sink,context,1,NULL,NULL);
 }
 int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
-    rf_scene_frame_sink sink,void *context,const rf_geometry_collision_world *collision)
+    rf_scene_frame_sink sink,void *context,const rf_geometry_collision_world *collision,const rf_geometry *geometry)
 {
-    if(!sink || !collision)return RF_RANGE;
+    if(!sink || !collision || !geometry)return RF_RANGE;
     return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
-        mesh,materials,mesh_budget,material_budget,sink,context,1,collision);
+        mesh,materials,mesh_budget,material_budget,sink,context,1,collision,geometry);
 }
