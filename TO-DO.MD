@@ -30,6 +30,9 @@ the original class parser still needs to supply the descriptor fields.
 The shared CSPH reader now exposes all 114 model spheres across 95 installed
 V3C files. miner.v3c supplies radii .60/.40/.15 with parent indices -1/15/8;
 apply the recovered bone pose path and named class overrides before spawning.
+Shared animated sphere placement now matches 318 original queries, including
+18 miner standing/crouching sphere poses; apply class overrides and resolve
+material coefficients before connecting entity 9858 to its physics body.
 
 Original event activation now passes 2,160 cases, delayed-tick prefix 1,620
 cases, and three re-activation steps. Timer replacement, disabled caller-field

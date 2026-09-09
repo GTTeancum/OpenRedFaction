@@ -514,6 +514,33 @@ live Xbox streaming of these records is not yet exercised. Report:
 `artifacts/model-spheres-verification.json`. Next, connect the existing skeletal
 pose data to the two bone-relative miner spheres and apply the class overrides.
 
+## Animated collision sphere placement connected to sampled poses
+
+`rf_model_collision_sphere_pose` now transforms a loaded CSPH center through
+the caller's evaluated bone matrix and copies its radius. Parent -1 uses an
+identity matrix, matching 51b2e0; nonnegative parents select the supplied bone
+array. It preserves 4ff020's component-specific addition order and float stores.
+Finite-input checks, a nonnegative radius requirement and bone bounds checks
+leave output unchanged on failure. Virtual-bone/attachment indices beyond this
+array remain unsupported and return RF_RANGE instead of invented placement.
+
+`tools/verify_model_sphere_pose.py` executes complete original 503270, 501500,
+51c590, 51b2e0 and transform callees without hooks. Valid cached bone matrices
+avoid unrelated animation advancement. Three hundred synthetic queries cover
+parent -1 and four actual bone indices. Eighteen additional queries use all
+three loaded miner spheres with the existing shared skeleton sampler for
+ult2_stand.rfa and ult2_crouch.rfa at ticks 0, 200 and 4000. These real asset
+queries connect the new sphere reader's records with the established pose path.
+
+All 318 original center/radius outputs match PC and compiled NXDK exactly.
+Thirty-five port-only invalid-parent, negative-radius and nonfinite sphere or
+matrix cases also preserve output on both builds. Report:
+`artifacts/model-sphere-pose-verification.json`, including the 18 resulting
+miner centers/radii. This verifies the query with already evaluated matrices,
+not uncached original animation evaluation or full entity initialization.
+Named class overrides, material resolution, class-specific center adjustments
+and live Xbox runtime binding remain open. No new rendered output was produced.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

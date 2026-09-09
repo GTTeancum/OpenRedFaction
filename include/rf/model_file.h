@@ -50,6 +50,12 @@ int rf_model_file_attachment(const rf_model_file *model, uint32_t lod, uint32_t 
  * when parent is nonnegative; pose transformation is a separate runtime step.
  * NOT_FOUND past the last sphere; malformed data/errors preserve output. */
 int rf_model_file_collision_sphere(const rf_model_file *model,uint32_t index,rf_model_collision_sphere *sphere);
+/* Animated 503270/501500 sphere placement with already evaluated bone matrices.
+ * Parent -1 uses identity. Returns center[3],radius in model space; radius is
+ * copied without scaling. Bone/tag evaluation and class overrides are separate.
+ * Invalid input leaves output unchanged. */
+int rf_model_collision_sphere_pose(const rf_model_collision_sphere *sphere,
+    const float (*matrices)[12],uint32_t bones,float result[4]);
 /* Stream one 84-byte serialized SUBM material. This is not the 200-byte
  * runtime material layout; conversion is separate. Output unchanged on error. */
 int rf_model_file_material(const rf_model_file *model,uint32_t submesh,uint32_t index,uint8_t raw[84]);

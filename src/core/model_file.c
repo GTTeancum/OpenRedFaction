@@ -4,6 +4,22 @@
 #include <math.h>
 #include <stdlib.h>
 typedef struct reader { rf_model_file *model; uint32_t cursor; int status; } reader;
+int rf_model_collision_sphere_pose(const rf_model_collision_sphere *sphere,
+    const float (*matrices)[12],uint32_t bones,float result[4])
+{
+    static const float identity[12]={1,0,0,0,1,0,0,0,1,0,0,0};
+    const float *m;float value[4];double x,y,z;uint32_t i;
+    if(!sphere || !result || sphere->parent<-1 || !isfinite(sphere->radius) || sphere->radius<0)return RF_RANGE;
+    if(sphere->parent>=0 && (!matrices || (uint32_t)sphere->parent>=bones))return RF_RANGE;
+    m=sphere->parent<0?identity:matrices[sphere->parent];
+    for(i=0;i<12;++i)if(!isfinite(m[i]))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(sphere->center[i]))return RF_RANGE;
+    x=sphere->center[0];y=sphere->center[1];z=sphere->center[2];
+    value[0]=(float)(((m[3]*y+m[6]*z)+m[0]*x)+m[9]);
+    for(i=1;i<3;++i)value[i]=(float)(((m[3+i]*y+m[i]*x)+m[6+i]*z)+m[9+i]);
+    for(i=0;i<3;++i)if(!isfinite(value[i]))return RF_RANGE;
+    value[3]=sphere->radius;memcpy(result,value,sizeof(value));return RF_OK;
+}
 int rf_model_file_collision_sphere(const rf_model_file *model,uint32_t index,rf_model_collision_sphere *sphere)
 {
     uint32_t i,j;uint8_t raw[44];rf_model_collision_sphere value={0};int status;

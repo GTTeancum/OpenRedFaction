@@ -2,6 +2,8 @@
 #include "rf/model.h"
 #include <string.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <io.h>
 static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 {
     const unsigned char *bytes=data;uint32_t i;
@@ -13,6 +15,18 @@ int main(int argc, char **argv)
     rf_model_file model;
     uint32_t i;
     int result;
+    if(argc==2 && !strcmp(argv[1],"--sphere-pose")) {
+        uint8_t raw[44];float matrices[256][12];uint32_t count;rf_model_collision_sphere sphere={0};
+        struct {float value[4];int32_t status;} output;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(raw,sizeof(raw),1,stdin)==1) {
+            if(fread(&count,4,1,stdin)!=1 || count>256 || fread(matrices,48,count,stdin)!=count)return 2;
+            memcpy(sphere.name,raw,24);memcpy(&sphere.parent,raw+24,4);memcpy(sphere.center,raw+28,12);memcpy(&sphere.radius,raw+40,4);
+            memset(&output,0xa5,sizeof(output));output.status=rf_model_collision_sphere_pose(&sphere,matrices,count,output.value);
+            if(fwrite(&output,sizeof(output),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?1:0;
+    }
     if ((argc != 3 && argc != 4) || rf_vpp_open(&archive, argv[1])) return 2;
     result = rf_model_file_open(&model, &archive, argv[2]);
     if(!result && argc==4 && !strcmp(argv[3],"--spheres")) {
