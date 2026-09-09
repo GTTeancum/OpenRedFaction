@@ -43,6 +43,11 @@ and six malformed fixtures pass, and NXDK builds. Connect it to runtime archive
 loading. Authored mass/material/class flags now read successfully for all 63
 installed classes with seven malformed-input guards. Recover post-parse class
 defaults/mutations and connect these inputs to the miner's runtime body.
+Creation-order tracing shows positive authored mass skips sphere mass/tensor
+preparation; first-actor body creation precedes class-sphere cache construction
+and replacement. Preserve this order and resolve the initial animation state.
+Class +1b4 is optional `$Use:` kind (turret=4), not movement mode; recover its
+absent-field default before treating all class physics inputs as resolved.
 
 Original event activation now passes 2,160 cases, delayed-tick prefix 1,620
 cases, and three re-activation steps. Timer replacement, disabled caller-field

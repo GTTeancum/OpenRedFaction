@@ -1,5 +1,31 @@
 # Level entity records
 
+Integration ordering correction from the original creation path: 0x422360 clears
+the physics parameter block, copies authored mass and any already-cached class
+spheres, then calls the generic factory. In 0x49ec90, positive mass branches at
+0x49ecb6 directly to 0x49efa4, skipping density-derived mass and tensor inversion.
+For miner1 mass 100, do not call `rf_physics_spheres_prepare` unconditionally.
+With no cached spheres, the subsequent empty-list path adds a fallback sphere
+and calls 0x4fce70; with existing spheres it preserves the input tensor.
+This distinction must be represented when binding first and subsequent actors.
+
+Only later does creation set animation state, run controller 0x41f270 and the
+1/30-second model update (0x4231f0..0x423208), then call 0x423b90 at 0x42324f.
+That guard builds class spheres through 0x423bd0 once per class. It replaces the
+first actor's body sphere list and recomputes bounds without repeating the
+earlier density/tensor calculation. Class flags 0x24000 suppress posed center
+X/Z before caching; miner1 has these flags. The previously checked arbitrary
+stand/crouch poses are not proof of the actual spawn pose. Preserve this order
+and resolve controller-selected initial state before claiming creation parity.
+
+The class+0x1b4 field tested against 4 by physics creation is a use-kind:
+0x489610 parses `$Use:` names vehicle=1, switch=2, command=3, turret=4,
+monitor=5, medic=6 (plus two further kinds). A recognized kind also requires
+the next numeric field; an unknown kind writes zero, while absent `$Use:`
+leaves the supplied field unchanged. It is not a movement-mode enum. Record
+its constructor default and bind the optional authored field before general
+class physics initialization.
+
 `rf_entity_class_physics_read` reads authored mass, material name and the two
 flag lists without allocation, preserving output on errors. Flags use the
 original name tables and ASCII-insensitive equality: original 0x57c130's
