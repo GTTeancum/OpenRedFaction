@@ -1621,3 +1621,44 @@ routine 46ab70 calls 46a9c0, which draws key markers, connecting lines and text.
 Activation helper 46a120 starts controller sound handles through 5056a0; it is
 not the interpolator. These routines must not be used as per-frame motion
 updates merely because they traverse controllers or run during activation.
+
+### Pending-position commit and playback entry points
+
+Complete original function 46a8f0, called from 487e00, commits pending positions
+when controller flags contain either bit 8 or 80000000. It first passes its own
++f0 position to 48a230, then does the same for valid handles in +2cc followed by
++2c0. Each handle uses 40a0e0: low 16 bits index the 1,024-entry object table,
+and the resolved object's full handle must match. Missing and stale handles
+are skipped. Finally it clears controller mask 80000008. Other controller bits
+remain. No orientation is changed by this routine; it does not compute attached
+objects' pending positions or derive them from the controller position.
+
+`python tools/probe_group_pose_commit.py` runs the entire unchanged function,
+array helpers, handle lookup and position assignment with debug lookup disabled.
+All 2,000 controller fixtures pass, checking complete 1,024-byte snapshots of
+18,000 objects and 10,627 committed objects. Coverage includes all four dirty
+mask combinations, both handle lists, duplicates, absent/stale handles and
+positive/nonpositive radius bounds. Report:
+`artifacts/group-pose-commit-original.json`. This is original-code evidence,
+not a C port or a scene playback test.
+
+Expanded Ghidra exports identify translation update 469800, which delegates to
+46a3d0 when controller bit 4 is set. The following are decompiler-backed leads
+that still require original execution before reconstruction:
+
+- Translation uses current/next keys, +2f4 speed, +300 elapsed accumulation and
+  +304 traveled distance. Direction selects different key timing fields; flag
+  400 changes the timing field's use from duration to speed. Acceleration and
+  deceleration affect the speed, with a clamp helper at 40a4c0.
+- Timer and trigger checks occur after speed/distance accumulation. Intermediate
+  position increments start from +e4 and write +f0; arrival can snap to the next
+  key before key-transition logic runs on a later tick. Do not replace this
+  ordering with a normalized key-position lerp.
+- The bit-4 path at 46a3d0 updates +2f0 angle using first-key rotation and timing,
+  direction and acceleration/deceleration envelope flags. Mode 5 has a distinct
+  elapsed-time wrap. Matrix/axis helpers and terminal transitions remain open.
+- 46a060 changes bit 1 in objects resolved from the first key's +4c/+50 links;
+  these must not be confused with the mover membership arrays.
+
+Next work is executing these update paths and recovering propagation into
+attached objects before wiring scene motion. Existing render output is unchanged.

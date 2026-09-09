@@ -38,6 +38,9 @@ public class ExportBaseline extends GhidraScript {
         for (long target : targets) addresses.add(target);
         addresses.add(0x469250L); addresses.add(0x466090L);
         for (long target : new long[]{0x46a9c0L, 0x46a120L, 0x46afa0L, 0x46b330L}) addresses.add(target);
+        addresses.add(0x46a8f0L); // Pending-position commit called from 487e00.
+        for (long target : new long[]{0x4696d0L,0x469770L,0x469800L,0x46a060L,
+                0x46a0d0L,0x46a1e0L,0x46a280L,0x46a3d0L,0x46a8c0L}) addresses.add(target);
         addresses.add(0x463820L); // Section 0x3000 dispatch at 460f9e.
         addresses.add(0x4cf500L); addresses.add(0x4cf9a0L);
         addresses.add(0x49ec90L); addresses.add(0x49f010L);
