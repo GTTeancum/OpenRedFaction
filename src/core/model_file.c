@@ -1,6 +1,7 @@
 #include "rf/model_file.h"
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
 typedef struct reader { rf_model_file *model; uint32_t cursor; int status; } reader;
 static uint32_t integer(reader *r, uint32_t bytes)
 {
@@ -271,4 +272,48 @@ int rf_model_file_batch_material(const rf_model_file *model,uint32_t lod_index,u
     for(i=0;i<lod->section_index;++i)if(model->sections[i].type==0x5355424d)flattened+=model->sections[i].material_count;
     flattened+=value;if(flattened>UINT32_MAX)return RF_RANGE;
     *material=(uint32_t)flattened;return RF_OK;
+}
+void rf_model_geometry_close(rf_model_geometry *g)
+{
+    if(!g)return;
+    free(g->batches);free(g->vertices);free(g->triangles);free(g->reuse);memset(g,0,sizeof(*g));
+}
+int rf_model_geometry_open(rf_model_geometry *g,const rf_model_file *model,uint32_t lod,uint32_t budget)
+{
+    rf_model_geometry next={0};uint64_t bytes,vertices=0,triangles=0;uint32_t i,j;int status;
+    if(!g || !model || !model->archive || lod>=model->lod_count || lod>=RF_MODEL_MAX_LODS ||
+        g->batches || g->vertices || g->triangles || g->reuse || g->accounted_bytes)return RF_RANGE;
+    next.batch_count=model->lods[lod].batch_count;
+    bytes=sizeof(next)+(uint64_t)next.batch_count*sizeof(*next.batches);
+    if(bytes>budget)return RF_RANGE;
+    for(i=0;i<next.batch_count;++i) {
+        rf_model_batch batch;status=rf_model_file_batch(model,lod,i,&batch);if(status)return status;
+        vertices+=batch.vertices;triangles+=batch.triangles;
+    }
+    bytes+=vertices*(sizeof(*next.vertices)+sizeof(*next.reuse))+triangles*sizeof(*next.triangles);
+    if(bytes>budget || bytes>SIZE_MAX || vertices>UINT32_MAX || triangles>UINT32_MAX)return RF_RANGE;
+    next.vertex_count=(uint32_t)vertices;next.triangle_count=(uint32_t)triangles;next.accounted_bytes=(uint32_t)bytes;
+    if(next.batch_count)next.batches=calloc(next.batch_count,sizeof(*next.batches));
+    if(vertices) { next.vertices=malloc((size_t)vertices*sizeof(*next.vertices));next.reuse=malloc((size_t)vertices*sizeof(*next.reuse)); }
+    if(triangles)next.triangles=malloc((size_t)triangles*sizeof(*next.triangles));
+    if((next.batch_count && !next.batches) || (vertices && (!next.vertices || !next.reuse)) || (triangles && !next.triangles)) { status=RF_IO;goto fail; }
+    vertices=triangles=0;
+    for(i=0;i<next.batch_count;++i) {
+        rf_model_batch batch;rf_model_draw_batch *draw=next.batches+i;
+        status=rf_model_file_batch(model,lod,i,&batch);if(status)goto fail;
+        draw->first_vertex=(uint32_t)vertices;draw->vertices=batch.vertices;
+        draw->first_triangle=(uint32_t)triangles;draw->triangles=batch.triangles;draw->material=UINT32_MAX;
+        status=rf_model_file_batch_material(model,lod,i,&draw->material);if(status && status!=RF_NOT_FOUND)goto fail;
+        for(j=0;j<batch.vertices;++j) {
+            status=rf_model_file_vertex(model,&batch,j,next.vertices+(size_t)vertices+j);if(status)goto fail;
+            status=rf_model_file_vertex_reuse(model,&batch,j,next.reuse+(size_t)vertices+j);if(status)goto fail;
+        }
+        for(j=0;j<batch.triangles;++j) {
+            status=rf_model_file_triangle(model,&batch,j,next.triangles+(size_t)triangles+j);if(status)goto fail;
+        }
+        vertices+=batch.vertices;triangles+=batch.triangles;
+    }
+    *g=next;return RF_OK;
+fail:
+    rf_model_geometry_close(&next);return status;
 }

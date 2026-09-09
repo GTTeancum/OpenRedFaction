@@ -13,6 +13,27 @@ int main(int argc, char **argv)
     int result;
     if ((argc != 3 && argc != 4) || rf_vpp_open(&archive, argv[1])) return 2;
     result = rf_model_file_open(&model, &archive, argv[2]);
+    if(!result && argc==4 && !strcmp(argv[3],"--geometry")) {
+        uint32_t n;
+        for(i=0;i<model.lod_count && !result;++i) {
+            rf_model_geometry g={0};uint32_t budget;
+            result=rf_model_geometry_open(&g,&model,i,4*1024*1024);if(result)break;
+            budget=g.accounted_bytes;rf_model_geometry_close(&g);
+            if(rf_model_geometry_open(&g,&model,i,budget-1)!=RF_RANGE || g.vertices || g.batches || g.accounted_bytes) { result=RF_FORMAT;break; }
+            result=rf_model_geometry_open(&g,&model,i,budget);if(result)break;
+            printf("G %u %u %u %u %u\n",i,g.batch_count,g.vertex_count,g.triangle_count,g.accounted_bytes);
+            for(n=0;n<g.batch_count;++n) {
+                rf_model_draw_batch *b=g.batches+n;
+                printf("V %u %u %u %u %u\n",i,n,
+                    hash_bytes(2166136261u,g.vertices+b->first_vertex,b->vertices*40),
+                    hash_bytes(2166136261u,g.triangles+b->first_triangle,b->triangles*8),
+                    hash_bytes(2166136261u,g.reuse+b->first_vertex,b->vertices*4));
+                printf("M %u %u %u\n",i,n,b->material);
+            }
+            rf_model_geometry_close(&g);rf_model_geometry_close(&g);
+        }
+        rf_vpp_close(&archive);return result?3:0;
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--vertices")) {
         uint32_t b,n;
         _Static_assert(sizeof(rf_model_vertex)==40,"Vertex probe layout");

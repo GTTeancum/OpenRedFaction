@@ -56,4 +56,18 @@ int rf_model_file_vertex_reuse(const rf_model_file *model,const rf_model_batch *
 /* Resolve batch texture slot through LOD table to the flattened material
  * index used by rf_model_materials. Negative original slots return NOT_FOUND. */
 int rf_model_file_batch_material(const rf_model_file *model,uint32_t lod,uint32_t batch,uint32_t *material);
+typedef struct rf_model_draw_batch {
+    uint32_t first_vertex,vertices,first_triangle,triangles,material;
+} rf_model_draw_batch;
+typedef struct rf_model_geometry {
+    rf_model_draw_batch *batches;rf_model_vertex *vertices;
+    rf_model_triangle *triangles;int32_t *reuse;
+    uint32_t batch_count,vertex_count,triangle_count,accounted_bytes;
+} rf_model_geometry;
+/* Port-owned geometry for one LOD. Triangle indices/reuse remain batch-local;
+ * material is flattened, or UINT32_MAX for an original negative draw slot.
+ * Budget includes this struct and arrays, not allocator metadata or caller
+ * archive/model/texture state. Zero-initialize; close before reuse. */
+int rf_model_geometry_open(rf_model_geometry *geometry,const rf_model_file *model,uint32_t lod,uint32_t budget);
+void rf_model_geometry_close(rf_model_geometry *geometry);
 #endif

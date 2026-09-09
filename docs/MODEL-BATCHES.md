@@ -1,5 +1,24 @@
 # Model batch data
 
+`rf_model_geometry_open` now assembles one LOD into owned batch ranges,
+vertices, triangles and reuse records, with flattened material indices.
+Triangle indices and reuse distances remain local to their batch. Its explicit
+budget accounts for the geometry header and all four arrays; allocator metadata,
+caller-owned archives, model directories and textures are excluded. This is
+port-owned storage, not a reconstruction of the original allocator. Failed
+loads release temporary allocations without publishing a partial result.
+
+Independent traversal verifies all 170 LODs across 95 models: 599 batches,
+85,866 vertices and 99,214 triangles. Every LOD passes at its exact accounted
+budget and rejects a budget one byte smaller. Array hashes, reuse records,
+batch material mappings and allocation accounting match the independent reader.
+The shared miner animation diagnostic uses this loader under a 1 MiB cap;
+its original-code comparison still matches all 47,616 deformation evaluations.
+PC build, four CTest checks, NXDK build and 64 MiB XEMU pass. Emulator evidence
+is `artifacts/xemu/20260908-201548-908306/report.json`. No screenshot was taken:
+the visible scene is unchanged. Renderer deformation, lighting and model draw
+submission remain open.
+
 `rf_model_file_batch_material` now resolves a batch's signed slot at offset
 0x20 in its 56-byte blob header through the LOD texture table. The table's
 byte ID selects a SUBM material; the accessor adds prior SUBM material counts

@@ -4,6 +4,7 @@ from pathlib import Path
 from inspect_models import inspect
 root=Path(__file__).resolve().parents[1]
 models=batches=vertices=triangles=0
+resident_lods=0
 weight_sums=set();triangle_flags=set()
 nonfinite_normals={}
 link_audit=[]
@@ -17,14 +18,18 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
         if not entry['name'].lower().endswith('.v3c'):continue
         path=root/'Installed_Game'/archive['path']
         with path.open('rb') as f:f.seek(entry['offset']);raw=f.read(entry['size'])
-        expected=[];li=0;structure=inspect(raw)
+        expected=[];geometry_headers=[];material_lines=[];material_base=0;li=0;structure=inspect(raw)
         bone_sections=[s for s in structure['sections'] if s['type']=='0x424f4e45']
         bone_count=struct.unpack_from('<I',raw,bone_sections[0]['offset']+8)[0] if bone_sections else 0
         for section in structure['sections']:
             for lod in section.get('lods',[]):
+                lod_vertices=lod_triangles=0
                 start=lod['data_offset'];relative=(lod['batches']*56+15)&~15
                 for bi in range(lod['batches']):
                     v,t,p,ix,extra,links,uv,fmt=struct.unpack_from('<7HI',raw,start+lod['data_bytes']+4+bi*18)
+                    lod_vertices+=v;lod_triangles+=t
+                    slot=struct.unpack_from('<i',raw,start+bi*56+32)[0]
+                    material_lines.append(f"M {li} {bi} {material_base+lod['textures'][slot]['slot']}")
                     assert fmt==0x518c41
                     sizes=[p,p,uv,ix,t*16 if lod['flags']&32 else 0,extra,links,lod['unknown']*2 if lod['flags']&1 else 0]
                     regions=[]
@@ -57,12 +62,21 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
                         assert max(a,b,c)<v;triangle_flags.add(flags)
                     expected.append(f'V {li} {bi} {checksum(vb)} {checksum(tb)} {checksum(rb)}')
                     vertices+=v;triangles+=t;batches+=1
+                geometry_headers.append(f"G {li} {lod['batches']} {lod_vertices} {lod_triangles} {32+lod['batches']*20+lod_vertices*44+lod_triangles*8}")
                 li+=1
+            material_base+=section.get('materials',0)
         output=subprocess.check_output([str(root/'build/pc/Release/rf_model_file_probe.exe'),str(path),entry['name'],'--vertices'],text=True)
         assert output.splitlines()==expected,entry['name']
+        resident=subprocess.check_output([str(root/'build/pc/Release/rf_model_file_probe.exe'),str(path),entry['name'],'--geometry'],text=True).splitlines()
+        assert [s for s in resident if s.startswith('V ')]==expected,entry['name']
+        assert [s for s in resident if s.startswith('G ')]==geometry_headers,entry['name']
+        assert [s for s in resident if s.startswith('M ')]==material_lines,entry['name']
+        resident_lods+=li
         models+=1
 report=dict(result='PASS',models=models,batches=batches,vertices=vertices,triangles=triangles,reused_vertices=reused,negative_reuse=negative_reuse,max_reuse=max_reuse,weight_sums=sorted(weight_sums),triangle_flags=sorted(triangle_flags),nonfinite_normals=nonfinite_normals,
     scope='Every installed vertex and triangle byte checked by per-batch hash, finite positions/UV and in-range indices; raw normals/bone slots preserved, no skinning or original renderer equivalence')
+report.update(resident_lods=resident_lods,exact_budget_loads=resident_lods,budget_rejections=resident_lods)
+report['scope']+='; resident arrays, material mappings and exact Win32 memory accounting also checked'
 (root/'artifacts/model-vertices-verification.json').write_text(json.dumps(report,indent=2));print(report)
 (root/'artifacts/model-link-audit.json').write_text(json.dumps(link_audit,indent=2))
 print(dict(anomalies=len(link_audit),referenced=sum(x['referenced'] for x in link_audit),

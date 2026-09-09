@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The shared animation diagnostic now uses a budgeted resident geometry loader
+on PC and 64 MiB XEMU. Independent traversal validates all 170 model LODs,
+including exact-budget success and one-byte-under rejection. Connect resident
+batches to renderer deformation, lighting and draw submission for visible models.
+
 All 599 model batches now resolve through their LOD texture tables to owned
 material indices. Connect these mappings and renderer-specific deformation
 to draw submission, then validate the first visible character output.
