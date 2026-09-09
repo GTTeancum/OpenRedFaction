@@ -153,6 +153,28 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==4 && !strcmp(argv[1],"--runtime-groups")) {
+        rf_vpp archive;rf_level level;rf_level_owned_groups source={0};rf_group_runtime_collection runtime={0},exact={0},guard;
+        uint32_t i,translation=0,rotation=0;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_level_owned_groups_open(&level,4*1024*1024,&source))return 2;
+        rf_vpp_close(&archive);memset(&level,0xdd,sizeof(level));
+        if(rf_group_runtime_open(&source,0,1024*1024,&runtime))return 3;
+        if(rf_group_runtime_open(&source,0,runtime.allocated_bytes,&exact))return 4;rf_group_runtime_close(&exact);
+        memset(&guard,0xa5,sizeof(guard));exact=guard;
+        if(rf_group_runtime_open(&source,0,runtime.allocated_bytes-1,&exact)!=RF_RANGE || memcmp(&guard,&exact,sizeof(guard)))return 5;
+        for(i=source.count;i>0;i--)if(runtime.items[i-1].kind==RF_GROUP_RUNTIME_TRANSLATION) {
+            uint32_t saved=source.groups[i-1].record.unknown;source.groups[i-1].record.unknown=UINT32_MAX;exact=guard;
+            if(rf_group_runtime_open(&source,0,1024*1024,&exact)!=RF_RANGE || memcmp(&guard,&exact,sizeof(guard)))return 6;
+            source.groups[i-1].record.unknown=saved;break;
+        }
+        for(i=0;i<runtime.count;i++) {translation+=runtime.items[i].kind==RF_GROUP_RUNTIME_TRANSLATION;rotation+=runtime.items[i].kind==RF_GROUP_RUNTIME_ROTATION_PENDING;}
+        if(fwrite(&runtime.count,4,1,stdout)!=1 || fwrite(&runtime.allocated_bytes,4,1,stdout)!=1 || fwrite(&translation,4,1,stdout)!=1 || fwrite(&rotation,4,1,stdout)!=1)return 7;
+        for(i=0;i<runtime.count;i++) {
+            rf_group_runtime_entry *e=runtime.items+i;if(e->source!=source.groups+i)return 8;
+            if(fwrite(&e->kind,4,1,stdout)!=1 || fwrite(&e->initial_flags,4,1,stdout)!=1 || fwrite(&e->translation,76,1,stdout)!=1 || fwrite(&e->pose,236,1,stdout)!=1)return 7;
+        }
+        rf_group_runtime_close(&runtime);rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--owned-groups")) {
         rf_vpp archive;rf_level level;rf_level_owned_groups owned={0},exact={0},guard;
         uint32_t i,list;int status;

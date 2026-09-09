@@ -693,3 +693,33 @@ int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
     }
     *ref_count=at;*handle_count=h;return RF_OK;
 }
+
+void rf_group_runtime_close(rf_group_runtime_collection *runtime)
+{
+    if(runtime) {free(runtime->items);memset(runtime,0,sizeof(*runtime));}
+}
+int rf_group_runtime_open(const rf_level_owned_groups *source,int32_t now_ms,
+    uint32_t budget,rf_group_runtime_collection *result)
+{
+    rf_group_runtime_collection value={0};uint64_t bytes;uint32_t i;int status;int32_t clock_check;
+    if(!source || !result || (source->count && !source->groups))return RF_RANGE;
+    status=rf_timer_set(&clock_check,now_ms,0);if(status)return status;
+    bytes=sizeof(value)+(uint64_t)source->count*sizeof(*value.items);if(bytes>budget)return RF_RANGE;
+    value.count=source->count;value.allocated_bytes=(uint32_t)bytes;
+    if(value.count) {value.items=calloc(value.count,sizeof(*value.items));if(!value.items)return RF_RANGE;}
+    for(i=0;i<value.count;i++) {
+        rf_group_runtime_entry *entry=value.items+i;const rf_level_owned_group *g=source->groups+i;
+        entry->source=g;if(!g->record.key_count)continue;
+        if(!g->keys) {status=RF_RANGE;goto failed;}
+        status=rf_level_group_initial_flags(&g->record,g->keys,&entry->initial_flags);if(status)goto failed;
+        status=rf_group_controller_pose(g->keys,&entry->pose);if(status)goto failed;
+        if(entry->initial_flags&4) {entry->kind=RF_GROUP_RUNTIME_ROTATION_PENDING;continue;}
+        if(g->record.unknown>=g->record.key_count) {status=RF_RANGE;goto failed;}
+        status=rf_group_translation_initialize(&entry->translation,&entry->pose,entry->initial_flags,
+            g->record.mode>5?1:g->record.mode,g->keys+g->record.unknown,g->record.unknown,g->record.key_count,now_ms);
+        if(status)goto failed;entry->kind=RF_GROUP_RUNTIME_TRANSLATION;
+    }
+    *result=value;return RF_OK;
+ failed:
+    rf_group_runtime_close(&value);return status;
+}

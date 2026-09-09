@@ -97,6 +97,11 @@ def main():
     group_inventory=next(l for l in json.loads((root/'artifacts/moving-groups.json').read_text())['results'] if l['file'].lower()=='l1s1.rfl')
     group_totals=[sum(len(g[field]) for g in group_inventory['records']) for field in ('keys','ids1','legacy')]
     group_totals[1]+=sum(len(g['ids2']) for g in group_inventory['records'])
+    runtime_symbol=re.search(r'_rf_group_runtime_diagnostic\s+([0-9a-fA-F]+)',map_text)
+    if not runtime_symbol:raise RuntimeError('Controller runtime diagnostic symbol absent')
+    runtime_raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--runtime-groups',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl'])
+    runtime_header=list(struct.unpack_from('<4I',runtime_raw));runtime_hash=2166136261
+    for byte in runtime_raw[16:]:runtime_hash=((runtime_hash^byte)*16777619)&0xffffffff
     run = root / 'artifacts/xemu' / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     run.mkdir(parents=True)
     eeprom = run / 'eeprom.bin'
@@ -192,6 +197,12 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     if len(groups)!=10 or groups[:9]!=group_want or groups[9]<(66 if args.scene_states else 2):
                         raise RuntimeError(f'Guest owned controller data differs from PC or lifetime checks missing: {groups}; expected {group_want}')
                     report['controller_storage']=dict(groups=groups[2],retained_bytes=groups[3],keys=groups[4],ids=groups[5],legacy_poses=groups[6],checksum=hex(groups[8]),lifetime_checks=groups[9],scope='Owned authored controller data matches PC after rendered frames and level archive closure; no controller playback or registration.')
+                    runtime_reply=monitor.command('human-monitor-command',{'command-line':f'x /8wx 0x{int(runtime_symbol[1],16):x}'})
+                    runtime=[]
+                    for line in runtime_reply.splitlines():
+                        if ':' in line:runtime.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
+                    if runtime!=[0x52464752,1]+runtime_header+[runtime_hash,runtime_hash]:raise RuntimeError(f'Guest controller runtime differs from PC: {runtime}')
+                    report['controller_runtime']=dict(groups=runtime[2],retained_bytes=runtime[3],translations=runtime[4],rotation_pending=runtime[5],checksum=hex(runtime[7]),lifetime_checks=groups[9],scope='Persistent base poses and initialized inactive translations match PC through rendering/archive closure. Rotation pending; no attachment/activation/playback.')
                     replacements=[];skin_checksum=0
                     if args.skin:
                         assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()

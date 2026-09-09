@@ -2127,3 +2127,33 @@ complete 4a0cb0 with a poisoned initial radius and empty list, and unchanged
 public-position vector copy. Complete mapped pose bytes and two nonfinite guards
 pass. This is factory-pose reconstruction, not complete allocation, registration,
 rotation playback or persistent scene controller binding.
+
+
+### Persistent controller runtime collection
+
+`rf_group_runtime_open` allocates persistent entries in authored order, borrowing
+stable `rf_level_owned_groups` inputs. Each nonempty entry retains its base pose
+and original initial flags. Translation entries compose the verified factory
+pose and selected-key initialization at the supplied game time; file modes above
+5 normalize to 1 as in 463820. Empty records retain an EMPTY marker. Rotation
+entries retain source/base/flags with ROTATION_PENDING, and their translation
+state is explicitly invalid. Callers must check kind before motion. This does
+not implement rotation by treating it as translation or discard its authored data.
+
+The budget covers the collection header and entries, excluding allocator overhead.
+Failure preserves the caller output, and close is repeatable. No handles,
+attachments or activation are created by this layer. The owned source must
+outlive the runtime collection. `tools/verify_runtime_groups.py` checks all 68
+levels / 1,223 entries: 1,112 translations and 111 pending rotations. Full pose
+and runtime fields match the independent inventory plus original-verified
+initialization semantics. Exact/short budgets, late invalid starting key and
+output preservation pass; maximum runtime storage is 17,184 bytes.
+
+The Xbox diagnostic retains this collection beside the controller inputs and
+checks its pointer-free serialized fields after each streamed frame and archive
+closure. `artifacts/xemu/20260909-094041-857774/report.json` passes on stock
+64 MiB: Live Mines has four initialized inactive translations and one pending
+rotation, 1,632 runtime bytes, checksum 84f77ab0 and 66 lifetime checks. Available
+memory after renderer upload is 42,876,928 bytes, and after CPU mesh release is
+45,383,680 bytes. Existing collision checks remain unchanged. No screenshot was
+captured because controllers are not yet attached, activated or rendered in motion.

@@ -219,6 +219,23 @@ int rf_group_commit_positions(uint32_t *flags,rf_group_attached_pose *controller
  * pose. Registry/UID registration and clearing controller dirty flags are external. */
 int rf_group_translation_bind_pose(rf_group_attached_pose *pose,uint32_t handle,
     const rf_group_controller_view *controllers,uint32_t count,float dt,uint32_t force);
+enum {RF_GROUP_RUNTIME_EMPTY,RF_GROUP_RUNTIME_TRANSLATION,RF_GROUP_RUNTIME_ROTATION_PENDING};
+typedef struct rf_group_runtime_entry {
+    const rf_level_owned_group *source;uint32_t kind,initial_flags;
+    rf_group_translation_runtime translation;rf_group_attached_pose pose;
+} rf_group_runtime_entry;
+typedef struct rf_group_runtime_collection {
+    rf_group_runtime_entry *items;uint32_t count,allocated_bytes;
+} rf_group_runtime_collection;
+/* Persistent runtime storage in authored order, borrowing stable owned inputs.
+ * Translation entries are initialized; rotation entries retain base pose/flags
+ * but translation state is invalid (kind ROTATION_PENDING), pending recovery.
+ * Empty records remain EMPTY. Callers must check kind before running motion.
+ * Source outlives result. One allocation, budget includes owner and entries;
+ * errors preserve output. Does not allocate handles, bind members or activate. */
+int rf_group_runtime_open(const rf_level_owned_groups *source,int32_t now_ms,
+    uint32_t budget,rf_group_runtime_collection *result);
+void rf_group_runtime_close(rf_group_runtime_collection *runtime);
 /* 46b6e8..46b79c mover membership pass. objects follow original global list
  * order; first matching UID wins, with -1 absent and -999 excluding flag 2.
  * Compacts refs in place, appends accepted handles, updates parents/flags and

@@ -22,6 +22,18 @@ static rf_geometry resident_geometry;
 static rf_geometry_collision_world resident_collision;
 volatile uint32_t rf_collision_diagnostic[9]={0x52464357u};
 volatile uint32_t rf_sweep_diagnostic[8]={0x52465357u};
+static rf_group_runtime_collection resident_group_runtime;
+volatile uint32_t rf_group_runtime_diagnostic[8]={0x52464752u};
+static uint32_t group_runtime_hash(void)
+{
+    uint32_t i,j,part,hash=2166136261u;
+    for(i=0;i<resident_group_runtime.count;i++) {
+        const rf_group_runtime_entry *e=resident_group_runtime.items+i;
+        const void *data[4]={&e->kind,&e->initial_flags,&e->translation,&e->pose};uint32_t sizes[4]={4,4,76,236};
+        for(part=0;part<4;part++)for(j=0;j<sizes[part];j++)hash=(hash^((const unsigned char *)data[part])[j])*16777619u;
+    }
+    return hash;
+}
 static rf_level_owned_groups resident_groups;
 volatile uint32_t rf_group_storage_diagnostic[10]={0x52464753u};
 static uint32_t group_storage_hash(void)
@@ -39,6 +51,8 @@ static int group_storage_check(void)
 {
     uint32_t hash=group_storage_hash();rf_group_storage_diagnostic[8]=hash;rf_group_storage_diagnostic[9]++;
     if(hash!=rf_group_storage_diagnostic[7]) {rf_group_storage_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
+    hash=group_runtime_hash();rf_group_runtime_diagnostic[7]=hash;
+    if(hash!=rf_group_runtime_diagnostic[6]) {rf_group_runtime_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
     return RF_OK;
 }
 static int group_storage_open(const rf_level *level)
@@ -50,6 +64,14 @@ static int group_storage_open(const rf_level *level)
         const rf_level_group *g=&resident_groups.groups[i].record;
         rf_group_storage_diagnostic[4]+=g->key_count;rf_group_storage_diagnostic[5]+=g->ids_count[0]+g->ids_count[1];rf_group_storage_diagnostic[6]+=g->legacy_count;
     }
+    status=rf_group_runtime_open(&resident_groups,0,64u*1024u,&resident_group_runtime);
+    rf_group_runtime_diagnostic[1]=status?(uint32_t)status:1;if(status)return status;
+    rf_group_runtime_diagnostic[2]=resident_group_runtime.count;rf_group_runtime_diagnostic[3]=resident_group_runtime.allocated_bytes;
+    for(i=0;i<resident_group_runtime.count;i++) {
+        rf_group_runtime_diagnostic[4]+=resident_group_runtime.items[i].kind==RF_GROUP_RUNTIME_TRANSLATION;
+        rf_group_runtime_diagnostic[5]+=resident_group_runtime.items[i].kind==RF_GROUP_RUNTIME_ROTATION_PENDING;
+    }
+    rf_group_runtime_diagnostic[6]=group_runtime_hash();
     rf_group_storage_diagnostic[7]=group_storage_hash();return group_storage_check();
 }
 static rf_geometry_collision_movers resident_movers;
