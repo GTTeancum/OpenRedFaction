@@ -36,6 +36,13 @@ public class ExportBaseline extends GhidraScript {
         long[] targets = {0x5760c3L, 0x52c070L, 0x52bb50L, 0x52be70L, 0x52bd40L, 0x54f160L};
         LinkedHashSet<Long> addresses = new LinkedHashSet<>();
         for (long target : targets) addresses.add(target);
+        try (PrintWriter out = new PrintWriter(new File(dir,"model-extension-xrefs.tsv"),StandardCharsets.UTF_8)) {
+            for(long target : new long[]{5918332L,5853020L,5918348L,5918359L}) for(var reference : getReferencesTo(toAddr(target))) {
+                Function f=getFunctionContaining(reference.getFromAddress());
+                out.printf("%x\t%s\t%s%n",target,reference.getFromAddress(),f==null?"none":f.getEntryPoint());
+                if(f!=null)addresses.add(f.getEntryPoint().getOffset());
+            }
+        }
         for (long target : new long[]{0x40ddf0L, 0x40d760L, 0x40d780L, 0x547150L}) addresses.add(target);
         for (long target : new long[]{0x425830L, 0x41ac60L, 0x40d850L}) addresses.add(target);
         addresses.add(0x409f40L); addresses.add(0x409f70L);

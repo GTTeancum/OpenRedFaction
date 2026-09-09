@@ -1,5 +1,31 @@
 # Level entity records
 
+`rf_entity_skeletal_filename` reconstructs the `.v3c` specialization of original
+filename helper 0x5142d0, called at 0x51ce8f by skeletal loader 0x51ce60. Its
+callee 0x514330 finds the last dot using the unchanged CRT helper at 0x573b10,
+copies the preceding bytes and appends the requested extension. This includes
+dots in directory names; case is preserved. No dot means append, while empty
+input becomes `.v3c`. The caller must therefore skip entities without a model.
+The port requires termination within 64 input bytes and a result of at most
+63 bytes plus NUL, supports in-place conversion and preserves output on failure.
+Those capacity guards are added port policy; the original helper is unbounded.
+
+`tools/verify_entity_model_filename.py` executes the original helper and its
+unchanged callees with `.v3c`, comparing all 64 output bytes for 1,960 accepted
+fixtures. Another 41 cases validate capacity rejection/output preservation;
+the probe self-test also checks in-place conversion and null input. PC/NXDK
+builds and all four existing CTest tests pass. This establishes filename
+conversion, not file loading or model-type selection.
+
+Of 50 table classes authored with `.vcm`, 49 resolve to names in `meshes.vpp`;
+`edf_ship.v3c` is absent there and needs investigation. Twelve other model
+declarations use `.v3d` and remain outside this skeletal resolution path.
+For example, the archive contains `sturret_head.v3m`, not `sturret_head.v3c`.
+The table parser at 0x41b910 distinguishes extension types around 0x41ba35;
+recover that dispatch and the static-model path before treating this as a
+general entity model resolver. Ghidra export records extension references in
+`model-extension-xrefs.tsv`. No runtime scene integration or new image yet.
+
 `rf_entity_assets_read` now selects authored model names and ordered skin
 texture lists from caller-owned `entity.tbl` text without allocating memory.
 It supports the installed quoted-string, whitespace, parentheses and `//`
@@ -20,8 +46,9 @@ the runtime API consumes an existing buffer and owns no table storage.
 
 `miner1` names `miner.vcm` and has five authored skin variants (b/c/d/e/Parker),
 each with 12 replacement names. Its installed geometry is `miner.v3c`; the reader
-preserves the authored extension because original compiled-name resolution
-has not been connected. Skin replacement application is also still open.
+preserves the authored extension, and the separate skeletal filename helper
+now converts it to the compiled name. Runtime model selection and skin
+replacement application are still open.
 The installed level classes `camera1` and `Bucket Bot` do not directly match
 the table class declarations; do not invent a model or silently alias them.
 

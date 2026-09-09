@@ -1,5 +1,19 @@
 #include "rf/entity_assets.h"
 #include <string.h>
+int rf_entity_skeletal_filename(const char *authored,char compiled[64])
+{
+    uint32_t length=0,stem=0;int dot=0;
+    if(!authored || !compiled)return RF_RANGE;
+    while(length<64 && authored[length]) {
+        if(authored[length]=='.') {stem=length;dot=1;}
+        ++length;
+    }
+    if(length==64)return RF_RANGE;
+    if(!dot)stem=length;
+    if(stem>59)return RF_RANGE;
+    memmove(compiled,authored,stem);memcpy(compiled+stem,".v3c",5);
+    return RF_OK;
+}
 typedef struct lexer {const unsigned char *text;uint32_t size,at;} lexer;
 static int same(const char *a,const char *b)
 {

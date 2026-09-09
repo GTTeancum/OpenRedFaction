@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The skeletal compiled-name helper matches 1,960 original-code cases and resolves
+49 entity classes to installed meshes; 41 capacity guards pass. Recover the
+separate .v3d model path, investigate missing edf_ship.v3c, apply skin lists and
+connect real level actors to world drawing.
+
 Entity asset metadata now matches all 63 table classes and 168 class/skin
 selections. Recover compiled model filename resolution and apply skin lists;
 investigate level class names camera1 and Bucket Bot before actor creation.
