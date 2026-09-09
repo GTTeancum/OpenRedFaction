@@ -29,7 +29,7 @@ for i,cls in enumerate(classes):
             cases.append(item)
             # Inventory observation only: compiled-extension conversion already
             # documented separately; no runtime alias or fallback is invented.
-            if motion and motion.rsplit('.',1)[0].lower()+'.rfa' not in motion_names:missing.append(item)
+            if motion and motion.split('.',1)[0].lower()+'.rfa' not in motion_names:missing.append(item)
         actual=subprocess.check_output([probe,'--state',str(root/'Installed_Game/tables.vpp'),cls[1],weapon,'absent-state'],text=True).strip()
         assert actual=='-3',(cls[1],weapon,actual)
 report=dict(result='PASS',classes=len(classes),state_selections=len(cases),missing_compiled_motions=missing,

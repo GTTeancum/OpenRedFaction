@@ -284,6 +284,31 @@ cover animated bone poses, parent-index integration or Xbox arithmetic at runtim
 
 ## State registration and motion-file leads
 
+`rf_motion_compiled_filename` now reconstructs `0x53a9d6..0x53aa54` with
+63-byte input/output limits. Executing the original block established that
+its CRT call `0x575410` finds the **first** dot, including dots in directory
+names: `two.dots.mvf` becomes `two.rfa`. This differs from the skeletal-model
+filename helper's last-dot rule. The port copies the original input before
+overwriting the extension, preserving bytes beyond the new terminator exactly
+as the original does. Empty input produces `.rfa`; in-place use is supported.
+Capacity failures preserve the destination and are explicit port guards.
+`tools/verify_motion_filename.py` runs the unchanged instruction block and CRT
+callee: 2,361 accepted cases match all 64 destination bytes exactly and 40
+capacity/nontermination cases preserve output. File I/O is excluded from that
+original-code comparison.
+
+`rf_entity_state_motion_open` now composes exact table selection, compiled naming
+and the existing bounded motion-file validator. It returns a handle borrowing
+the caller's open motion archive; failure preserves output. Empty declarations
+and missing compiled assets return NOT_FOUND without a substitute. The table
+text is currently loaded and released per request, so bulk registration should
+share parsed data rather than repeat that work for every state.
+`tools/verify_state_motion_bindings.py` checks all 1,139 declarations against
+independently indexed archive names and 80-byte headers: 1,137 open successfully,
+and the two `EDF1_Idle` references remain missing. PC/NXDK builds, filename and
+state guards, and four CTest checks pass. This is asset binding, not the original
+registration/cache semantics or a change to the scene's scripted playback.
+
 The port now exposes `rf_entity_state_motion_read/load` for one named `+State`
 declaration in `entity.tbl`. Empty weapon means the base block; a named weapon
 means only its `+Weapon Specific` block, with no inferred fallback. Keys ignore

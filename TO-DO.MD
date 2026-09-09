@@ -17,6 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Authored state binding now opens 1,137 compiled motions and reports the two
+missing EDF1_Idle references; register these handles and drive real actor states.
+
 State-motion metadata now matches all 1,139 base/weapon declarations across 63
 classes; connect those mappings to registration/playback and resolve missing
 EDF1_Idle plus the already missing edf_ship model without inventing substitutes.

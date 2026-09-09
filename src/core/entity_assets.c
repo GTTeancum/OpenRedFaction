@@ -28,6 +28,18 @@ int rf_entity_skeletal_filename(const char *authored,char compiled[64])
     memmove(compiled,authored,stem);memcpy(compiled+stem,".v3c",5);
     return RF_OK;
 }
+int rf_entity_state_motion_open(const char *tables_path,const char *class_name,
+    const char *weapon,const char *state,rf_vpp *motions,uint32_t budget,rf_motion_file *file)
+{
+    char authored[64],compiled[64];rf_motion_file value;int status;
+    if(!motions || !file)return RF_RANGE;
+    status=rf_entity_state_motion_load(tables_path,class_name,weapon,state,authored,budget);
+    if(status)return status;
+    if(!*authored)return RF_NOT_FOUND;
+    status=rf_motion_compiled_filename(authored,compiled);if(status)return status;
+    status=rf_motion_file_open(&value,motions,compiled);if(status)return status;
+    *file=value;return RF_OK;
+}
 typedef struct lexer {const unsigned char *text;uint32_t size,at;} lexer;
 static int same(const char *a,const char *b)
 {

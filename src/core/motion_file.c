@@ -1,6 +1,19 @@
 #include "rf/motion_file.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_compiled_filename(const char *authored,char compiled[64])
+{
+    uint32_t length=0,stem=0;int dot=0;
+    if(!authored || !compiled)return RF_RANGE;
+    while(length<64 && authored[length]) {
+        if(!dot && authored[length]=='.') {stem=length;dot=1;}
+        ++length;
+    }
+    if(length==64)return RF_RANGE;
+    if(!dot)stem=length;
+    if(stem>59)return RF_RANGE;
+    memmove(compiled,authored,length+1);memcpy(compiled+stem,".rfa",5);return RF_OK;
+}
 static uint32_t get32(const unsigned char *p)
 {
     return (uint32_t)p[0] | (uint32_t)p[1]<<8 | (uint32_t)p[2]<<16 | (uint32_t)p[3]<<24;

@@ -2,6 +2,7 @@
 #define RF_ENTITY_ASSETS_H
 #include "rf/vpp.h"
 #include "rf/level.h"
+#include "rf/motion_file.h"
 typedef struct rf_entity_assets {
     char model[64];
     char textures[64][64];uint32_t texture_count;
@@ -28,6 +29,11 @@ int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *clas
     const char *weapon,const char *state,char motion[64]);
 int rf_entity_state_motion_load(const char *tables_path,const char *class_name,
     const char *weapon,const char *state,char motion[64],uint32_t table_budget);
+/* Port binding of one exact table declaration to a validated compiled motion.
+ * No fallback or registration/cache policy. Absent/empty/missing motion returns
+ * NOT_FOUND. Caller keeps motions archive open. Output unchanged on failure. */
+int rf_entity_state_motion_open(const char *tables_path,const char *class_name,
+    const char *weapon,const char *state,rf_vpp *motions,uint32_t table_budget,rf_motion_file *file);
 /* Skeletal loader 0x51ce60's .v3c specialization of 0x5142d0/0x514330.
  * This does not select the loader for arbitrary entity model types (.v3d etc.).
  * Replaces everything from the last dot, including dots in directory names;

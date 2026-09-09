@@ -6,6 +6,24 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==7 && !strcmp(argv[1],"--state-open")) {
+        rf_motion_file file,before;
+        if(rf_vpp_open(&archive,argv[3]))return 2;
+        memset(&file,0xa5,sizeof(file));before=file;
+        status=rf_entity_state_motion_open(argv[2],argv[4],argv[5],argv[6],&archive,512*1024,&file);
+        if(status && memcmp(&file,&before,sizeof(file)))return 4;
+        printf("%d\n",status);if(!status)printf("%s\n%u %u\n",file.entry.name,file.header[1],file.header[6]);
+        rf_vpp_close(&archive);return 0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--motion-name")) {
+        char input[64],output[64];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,1,64,stdin)==64) {
+            memset(output,0xa5,64);status=rf_motion_compiled_filename(input,output);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(output,1,64,stdout)!=64)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==6 && !strcmp(argv[1],"--state")) {
         char motion[64],before[64];memset(motion,0xa5,64);memcpy(before,motion,64);
         status=rf_entity_state_motion_load(argv[2],argv[3],argv[4],argv[5],motion,512*1024);
@@ -13,6 +31,12 @@ int main(int argc,char **argv)
         printf("%d\n",status);if(!status)puts(motion);return 0;
     }
     if(argc==2 && !strcmp(argv[1],"--state-guards")) {
+        char compiled[64],saved[64];
+        strcpy(compiled,"two.dots.mvf");
+        if(rf_motion_compiled_filename(compiled,compiled) || strcmp(compiled,"two.rfa"))return 3;
+        memset(compiled,'x',64);memcpy(saved,compiled,64);
+        if(rf_motion_compiled_filename(compiled,compiled)!=RF_RANGE || memcmp(compiled,saved,64))return 3;
+        if(rf_motion_compiled_filename(NULL,compiled)!=RF_RANGE || memcmp(compiled,saved,64))return 3;
         const char good[]="$Name: \"Actor\" +State: \"stand\" \"base.mvf\" +State: \"custom\" \"\" "
             "+Weapon Specific: \"gun\" +State: \"stand\" \"gun.mvf\" $Name: \"other\" +State: \"stand\" \"other.mvf\"";
         const char duplicate[]="$Name: \"Actor\" +State: \"stand\" \"one.mvf\" +State: \"stand\" \"two.mvf\"";

@@ -10,6 +10,11 @@ typedef struct rf_motion_track {
     uint32_t offset, size, rotation_count, position_count;
     rf_motion_weight_envelope envelope;
 } rf_motion_track;
+/* Bounded reconstruction of loader 0x53a9d6..0x53aa54: replace from the first
+ * dot anywhere in the name, or append .rfa when absent. Case is preserved.
+ * Input/output limit 63 bytes plus NUL; supports in-place use. Failure leaves
+ * output unchanged. Empty input produces .rfa; callers must handle absent names. */
+int rf_motion_compiled_filename(const char *authored,char compiled[64]);
 /* No allocations. Archive must remain open. Failure clears the file handle. */
 int rf_motion_file_open(rf_motion_file *file, rf_vpp *archive, const char *name);
 /* Indexed access rereads archive metadata; outputs stay unchanged on failure. */
