@@ -3,6 +3,38 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_spheres_accumulate(const rf_physics_sphere *source,uint32_t count,float density,
+    const rf_physics_mass_tensor *initial,rf_physics_mass_tensor *result)
+{
+    rf_physics_mass_tensor value;uint32_t i,j;
+    if(!source || !count || !initial || !result || !isfinite(density) || density<0 || !isfinite(initial->mass))return RF_RANGE;
+    for(j=0;j<9;++j)if(!isfinite(initial->tensor[j]))return RF_RANGE;
+    value=*initial;
+    for(i=0;i<count;++i) {
+        double x=source[i].center[0],y=source[i].center[1],z=source[i].center[2],r=source[i].radius;
+        double generated,xy,yz;volatile float mass,xx,yy,xz;
+        if(!isfinite(x) || !isfinite(y) || !isfinite(z) || !isfinite(r) || r<0)return RF_RANGE;
+        generated=((r*r)*r)*(double)density*(double)4.18879032135009765625f;
+        if(generated>FLT_MAX)return RF_RANGE;
+        mass=(float)generated;xx=(float)(x*x);yy=(float)(y*y);
+        xy=x*y*(double)mass;xz=(float)(x*z*(double)mass);yz=z*y*(double)mass;
+        /* The x87 loop retains products except its x*z spill and the x*x,
+         * y*y values reloaded for the final diagonal (49ed68/49edc2). */
+        value.tensor[0]=(float)((y*y+z*z)*(double)mass+value.tensor[0]);
+        value.tensor[1]=(float)(value.tensor[1]-xy);
+        value.tensor[2]=(float)((double)value.tensor[2]-xz);
+        value.tensor[3]=(float)(value.tensor[3]-xy);
+        value.tensor[4]=(float)((x*x+z*z)*(double)mass+value.tensor[4]);
+        value.tensor[5]=(float)(value.tensor[5]-yz);
+        value.tensor[6]=(float)((double)value.tensor[6]-xz);
+        value.tensor[7]=(float)(value.tensor[7]-yz);
+        value.tensor[8]=(float)(((double)xx+yy)*(double)mass+value.tensor[8]);
+        value.mass=(float)((double)mass+value.mass);
+        if(!isfinite(value.mass))return RF_RANGE;
+        for(j=0;j<9;++j)if(!isfinite(value.tensor[j]))return RF_RANGE;
+    }
+    *result=value;return RF_OK;
+}
 void rf_physics_spheres_close(rf_physics_spheres *spheres)
 {
     if(spheres) {free(spheres->items);memset(spheres,0,sizeof(*spheres));}

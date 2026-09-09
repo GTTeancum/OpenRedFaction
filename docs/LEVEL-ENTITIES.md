@@ -266,6 +266,39 @@ and null-source guards preserve output. NXDK builds successfully; resident Xbox
 sphere ownership is not yet exercised. Report:
 `artifacts/physics-sphere-copy-verification.json`.
 
+## Authored sphere mass and tensor accumulation
+
+`rf_physics_spheres_accumulate` reconstructs original 49ec90's existing-sphere
+mass-generation loop, ending before the matrix inversion call at 49edf0.
+The caller selects this branch when sphere mode is enabled, the source list is
+nonempty and parameter mass is nonpositive. The routine preserves the initial
+mass and all nine tensor elements instead of zeroing them. Thus a supplied -1
+mass remains a -1 offset in the accumulated result.
+
+Each sphere contributes `radius^3 * density * 4.188790321350098`, rounded to
+float. Its center contributes the parallel-axis tensor terms; the original
+loop adds no local `2/5 * mass * radius^2` sphere term. Ordered float stores
+matter: the x*z contribution is stored before subtraction, whereas x*y and
+z*y remain in x87 registers. The final diagonal reloads rounded x*x and y*y;
+the other diagonals use retained products. Shared C makes these float stores
+explicit and uses double intermediates. This is verified over the fixtures,
+not a proof of equivalence to extended x87 arithmetic for every binary32 input.
+
+`tools/verify_physics_sphere_mass.py` executes original 49ec90 through 49edf0
+without intercepting any calls. Its 640 cases cover nonpositive initial masses,
+zero and nonsymmetric initial tensors, all four sphere modes, material-index
+fallback, 1/2/3/16/17/32 spheres, and zero/random centers and radii. It checks
+unchanged source records and all parameter bytes outside the mass/tensor.
+The resulting 40 bytes match PC and compiled NXDK exactly in every case.
+Another 25 port-only invalid-input cases verify unchanged output, including
+nonfinite inputs, negative radius/density, empty lists and overflowing results.
+
+PC/NXDK builds and four CTest checks pass. Report:
+`artifacts/physics-sphere-mass-verification.json`. The API allocates no memory
+and also accepts an output alias of the initial structure. Matrix inversion
+at 4fccf0, geometric-model mass generation, full initializer integration and
+live Xbox entity physics remain open. No new rendered behavior is claimed.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

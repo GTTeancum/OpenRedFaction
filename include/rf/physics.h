@@ -23,4 +23,14 @@ typedef struct rf_physics_spheres {
  * negative radii; other field bits are preserved. Errors preserve output. */
 int rf_physics_spheres_open(const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_spheres *result);
 void rf_physics_spheres_close(rf_physics_spheres *spheres);
+typedef struct rf_physics_mass_tensor {
+    float mass,tensor[9];
+} rf_physics_mass_tensor;
+/* 49ec90 existing-sphere accumulation before matrix inversion at 49edf0.
+ * Starts from the supplied mass/tensor, including a negative initial mass;
+ * caller selects the original mass-generation branch. Requires nonempty
+ * spheres, finite inputs and nonnegative density/radii. No sphere self-inertia
+ * term is added by the original. Errors leave output unchanged. */
+int rf_physics_spheres_accumulate(const rf_physics_sphere *source,uint32_t count,float density,
+    const rf_physics_mass_tensor *initial,rf_physics_mass_tensor *result);
 #endif

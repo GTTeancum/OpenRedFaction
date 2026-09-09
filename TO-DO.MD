@@ -71,6 +71,9 @@ Shared C fallback mass/sphere fields now match 4,020 original cases on PC/NXDK,
 with nine input guards; add sphere ownership and existing-sphere inertia next.
 Shared budgeted sphere ownership preserves authored 24-byte records and passes
 11 PC lists; wire Xbox residency and recover generated inertia for existing spheres.
+Shared existing-sphere mass/tensor accumulation now matches 640 original cases
+on PC/NXDK with 25 invalid-input guards; recover matrix inversion and connect
+the complete initializer before constructing live entity physics.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
