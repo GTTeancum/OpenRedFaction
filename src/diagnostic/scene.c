@@ -14,17 +14,43 @@ int rf_scene_preview_camera(rf_level *level,int32_t uid)
     }
     return RF_OK;
 }
-int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_path,
+typedef struct scene_stream {
+    rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
+    uint32_t world,base,capacity;rf_scene_frame_sink sink;void *context;
+} scene_stream;
+static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
+{
+    scene_stream *stream=context;uint32_t i,slot;
+    uint64_t bytes=(uint64_t)stream->world*sizeof(rf_preview_vertex)+actor->bytes;
+    if(actor->count%3 || actor->bytes!=(uint64_t)actor->count*sizeof(rf_preview_vertex) ||
+       bytes>stream->capacity)return RF_RANGE;
+    for(i=0;i<actor->count;++i) {
+        if(actor->vertices[i].material>=stream->bundle->count)return RF_FORMAT;
+        memcpy(&slot,stream->bundle->items[actor->vertices[i].material].record.bytes+0x10,4);
+        if(slot>=stream->materials->count-stream->base)return RF_FORMAT;
+    }
+    for(i=0;i<actor->count;++i) {
+        memcpy(&slot,stream->bundle->items[actor->vertices[i].material].record.bytes+0x10,4);
+        actor->vertices[i].material=stream->base+slot;
+    }
+    memcpy(stream->mesh->vertices+stream->world,actor->vertices,actor->bytes);
+    stream->mesh->count=stream->world+actor->count;stream->mesh->bytes=(uint32_t)bytes;
+    return stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
+}
+static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
-    rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget)
+    rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
+    rf_scene_frame_sink sink,void *context)
 {
     rf_vpp archive;rf_model_file model;rf_level_actor_assets binding;
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
-    uint64_t bytes,count;uint32_t i;int status;
+    uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream stream={0};
     if(!level || !mesh || !materials || !mesh->vertices || !materials->items ||
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||
        materials->allocated_bytes>=material_budget)return RF_RANGE;
+    stream.world=mesh->count;stream.base=materials->count;
+    if(sink && (uint64_t)mesh->bytes+1024*1024>mesh_budget)return RF_RANGE;
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     status=rf_level_actor_assets_load(level,uid,tables_path,&archive,512*1024,&binding);if(status)goto done;
     if(strcmp(binding.mesh.name,"miner.v3c")) {status=RF_FORMAT;goto done;}
@@ -35,8 +61,9 @@ int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_
     status=rf_model_materials_open_skin(&bundle,&model,names,binding.assets.texture_count,maps,map_count,
         material_budget-materials->allocated_bytes);if(status)goto done;
     bytes=((uint64_t)mesh->count+actor.count)*sizeof(*vertices);
+    capacity=sink?(uint64_t)mesh->bytes+1024*1024:bytes;
     count=(uint64_t)materials->count+bundle.textures.count;
-    if(bytes>mesh_budget || bytes>SIZE_MAX || count>256) {status=RF_RANGE;goto done;}
+    if(capacity>mesh_budget || capacity>SIZE_MAX || bytes>capacity || count>256) {status=RF_RANGE;goto done;}
     for(i=0;i<actor.count;++i) {
         uint32_t material=actor.vertices[i].material,slot;
         if(material>=bundle.count) {status=RF_FORMAT;goto done;}
@@ -44,7 +71,7 @@ int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_
         if(slot>=bundle.textures.count) {status=RF_FORMAT;goto done;}
         actor.vertices[i].material=materials->count+slot;
     }
-    vertices=malloc((size_t)bytes);items=malloc((size_t)count*sizeof(*items));
+    vertices=malloc((size_t)capacity);items=malloc((size_t)count*sizeof(*items));
     if(!vertices || !items) {status=RF_IO;goto done;}
     memcpy(vertices,mesh->vertices,mesh->bytes);memcpy(vertices+mesh->count,actor.vertices,actor.bytes);
     memcpy(items,materials->items,materials->count*sizeof(*items));
@@ -56,7 +83,29 @@ int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_
     materials->loaded+=bundle.textures.loaded;materials->missing+=bundle.textures.missing;
     /* Image ownership moved to combined materials, instance records stay local. */
     free(bundle.textures.items);memset(&bundle.textures,0,sizeof(bundle.textures));
+    if(sink) {
+        rf_preview_close(&actor);
+        stream.mesh=mesh;stream.materials=materials;stream.bundle=&bundle;
+        stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;
+        status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,&stream);
+    }
 done:
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;
+}
+int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_path,
+    const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
+    rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget)
+{
+    return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
+        mesh,materials,mesh_budget,material_budget,NULL,NULL);
+}
+int rf_scene_stream_miner(const rf_level *level,int32_t uid,const char *meshes_path,
+    const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
+    rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
+    rf_scene_frame_sink sink,void *context)
+{
+    if(!sink)return RF_RANGE;
+    return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
+        mesh,materials,mesh_budget,material_budget,sink,context);
 }

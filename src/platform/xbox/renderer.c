@@ -53,18 +53,22 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     static rf_preview_vertex *stream_gpu;
     static gpu_texture *stream_textures;
     static const rf_materials *stream_materials;
-    uint32_t vertex_bytes=model==2?1024*1024:mesh?mesh->bytes:0;
+    static const rf_lightmaps *stream_lightmaps;
+    static int stream_mode;static uint32_t stream_world;
+    int streaming=model==2 || model==4;
+    uint32_t vertex_bytes=streaming?1024*1024+(model==4?world_vertices*sizeof(rf_preview_vertex):0):mesh?mesh->bytes:0;
     const uint32_t program[] = {
 #include "preview_vertex.inl"
     };
-    if (!mesh || (!mesh->count && model!=2) || !materials || materials->count > 256 || !lightmaps || lightmaps->count > 256) return RF_FORMAT;
+    if (!mesh || (!mesh->count && !streaming) || !materials || materials->count > 256 || !lightmaps || lightmaps->count > 256) return RF_FORMAT;
     for (i = 0; i < materials->count; ++i) upload_bytes += materials->items[i].image.bytes;
     for (i = 0; i < lightmaps->count; ++i) upload_bytes += lightmaps->images[i].bytes;
-    if (upload_bytes > 8u*1024u*1024u || mesh->bytes > 8u*1024u*1024u) return RF_RANGE;
+    if (upload_bytes > 8u*1024u*1024u || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
     for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
     if(mesh->bytes>vertex_bytes)return RF_RANGE;
-    if(model==2 && stream_gpu) {
-        if(stream_materials!=materials)return RF_RANGE;
+    if(streaming && stream_gpu) {
+        if(stream_materials!=materials || stream_mode!=model || stream_world!=world_vertices ||
+           (model==4 && stream_lightmaps!=lightmaps))return RF_RANGE;
         gpu=stream_gpu;textures=stream_textures;
         while(pb_busy()) {}
     } else {
@@ -83,7 +87,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             free(textures); MmFreeContiguousMemory(gpu); pb_kill(); return result;
         }
     }
-    if(model==2) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;}
+    if(streaming) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;
+        stream_mode=model;stream_world=world_vertices;stream_lightmaps=lightmaps;}
     }
     memcpy(gpu,mesh->vertices,mesh->bytes);
     for (i = 0; i < mesh->count; ++i) if (gpu[i].material < materials->count && textures[gpu[i].material].pixels) {
@@ -122,7 +127,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     p = pb_push1(p, NV097_SET_DEPTH_FUNC, NV097_SET_DEPTH_FUNC_V_LESS);
     pb_end(p);
     pb_show_front_screen();
-    for (frame = 0; frame < (model==2?1u:3u); ++frame) {
+    for (frame = 0; frame < (streaming?1u:3u); ++frame) {
         pb_wait_for_vbl(); pb_reset(); pb_target_back_buffer();
         pb_erase_depth_stencil_buffer(0, 0, 640, 480);
         pb_fill(0, 0, 640, 480, 0xff101018);
@@ -148,8 +153,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             while (count < 252 && i+count < mesh->count && mesh->vertices[i+count].material == material && mesh->vertices[i+count].lightmap == lightmap) count += 3;
             texture = material < materials->count && textures[material].pixels ? textures+material : textures+materials->count;
             p = pb_begin();
-            p = pb_push1(p,NV097_SET_BLEND_ENABLE,model && (model!=3 || i>=world_vertices) && texture->transparent);
-            p = pb_push1(p,NV097_SET_DEPTH_MASK,!(model && (model!=3 || i>=world_vertices) && texture->transparent));
+            p = pb_push1(p,NV097_SET_BLEND_ENABLE,model && (model<3 || i>=world_vertices) && texture->transparent);
+            p = pb_push1(p,NV097_SET_DEPTH_MASK,!(model && (model<3 || i>=world_vertices) && texture->transparent));
             p = pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
             p = pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
             p = pb_push1(p, NV097_SET_TEXTURE_OFFSET, (uint32_t)texture->pixels & 0x03ffffff);
@@ -171,11 +176,11 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         while (pb_busy()) {}
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();
-        capture[4] = mesh->count; capture[5] = model==2?capture[5]+1:frame+1;
+        capture[4] = mesh->count; capture[5] = streaming?capture[5]+1:frame+1;
         while (pb_finished()) {}
     }
     /* GPU and framebuffer remain alive for native capture; application lifetime. */
-    if(model==2)pb_wait_for_vbl();else free(textures);
+    if(streaming)pb_wait_for_vbl();else free(textures);
     return RF_OK;
 }
 int rf_xbox_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,volatile uint32_t capture[6],volatile uint32_t memory[3])
@@ -189,4 +194,10 @@ int rf_xbox_scene_preview(const rf_preview_mesh *mesh,const rf_materials *materi
 {
     if(!mesh || world_vertices>mesh->count || world_vertices%3)return RF_RANGE;
     return preview(mesh,materials,lightmaps,capture,memory,3,world_vertices);
+}
+int rf_xbox_scene_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
+    uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3])
+{
+    if(!mesh || world_vertices>mesh->count || world_vertices%3 || world_vertices>(7u*1024u*1024u)/sizeof(rf_preview_vertex))return RF_RANGE;
+    return preview(mesh,materials,lightmaps,capture,memory,4,world_vertices);
 }

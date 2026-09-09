@@ -20,14 +20,30 @@ volatile uint32_t rf_diagnostic[58] = {0x52464447u, 9u, 0};
 static rf_geometry resident_geometry;
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;
+static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
+    const rf_materials *materials,uint32_t world)
+{
+    (void)context;
+    if(rf_diagnostic[37]!=frame)return RF_FORMAT;
+    rf_diagnostic[57]=world;
+    return rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);
+}
 static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
 {
     static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
-    rf_vpp maps[5];uint32_t opened=0,world;int status;
+    rf_vpp maps[5];uint32_t opened=0,world;int status;FILE *stream_flag;
     status=rf_scene_preview_camera(level,9858);if(status)return status;
     rf_preview_close(mesh);status=rf_preview_build(mesh,&resident_geometry,level,8*1024*1024);if(status)return status;
     world=mesh->count;
     while(!status && opened<5) {status=rf_vpp_open(maps+opened,paths[opened]);if(!status)++opened;}
+    stream_flag=fopen("D:\\scene-stream.flag","rb");
+    if(stream_flag) {
+        fclose(stream_flag);rf_diagnostic[31]=4;rf_diagnostic[56]=9858;
+        if(!status)status=rf_scene_stream_miner(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
+            maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL);
+        while(opened)rf_vpp_close(maps+--opened);
+        return status;
+    }
     if(!status)status=rf_scene_preview_miner(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
         maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024);
     while(opened)rf_vpp_close(maps+--opened);

@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Live Mines now retains its world and textures while miner UID 9858 animates for
+64 frames on stock-memory XEMU, with the final pose matching PC; replace the
+scripted miner sequence with authored actor states and recover the gameplay eye.
+
 Placed diagnostic models now explicitly clip at the world's 0.1-unit near plane;
 1,200 original polygon fixtures and a real miner boundary test pass, with the
 existing combined image unchanged and numeric 64 MiB XEMU passing. Recover the

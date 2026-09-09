@@ -14,4 +14,16 @@ int rf_scene_preview_camera(rf_level *level,int32_t uid);
 int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget);
+/* Stream 64 scripted poses with fixed world prefix/materials and one combined
+ * allocation (world bytes plus 1 MiB actor capacity, included in mesh_budget).
+ * Sink borrows the current combined mesh synchronously; it must not mutate it.
+ * Setup failure preserves inputs. Once streaming starts, inputs own combined
+ * resources even on sink/producer failure; caller closes them on every exit.
+ * Last produced pose remains in mesh. Textures are loaded only during setup. */
+typedef int (*rf_scene_frame_sink)(void *context,uint32_t frame,const rf_preview_mesh *mesh,
+    const rf_materials *materials,uint32_t world_vertices);
+int rf_scene_stream_miner(const rf_level *level,int32_t uid,const char *meshes_path,
+    const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
+    rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
+    rf_scene_frame_sink sink,void *context);
 #endif

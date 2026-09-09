@@ -9,6 +9,9 @@
 #include <math.h>
 #include <string.h>
 static float edge(const float *a, const float *b, float x, float y) { return (x-a[0])*(b[1]-a[1])-(y-a[1])*(b[0]-a[0]); }
+static int scene_last(void *context,uint32_t frame,const rf_preview_mesh *mesh,
+    const rf_materials *materials,uint32_t world)
+{(void)context;(void)frame;(void)mesh;(void)materials;(void)world;return RF_OK;}
 static int miner_skin(const char *path,const char *skin,rf_entity_assets *assets)
 {
     char compiled[64];int result=rf_entity_assets_load(path,"miner1",skin,assets,512*1024);
@@ -50,7 +53,8 @@ int main(int argc, char **argv)
     FILE *output;
     rf_entity_assets skin_assets={0};const char *skin_names[64];
     uint32_t world_vertices=0;
-    int scene_close=argc>1 && !strcmp(argv[1],"--scene-close");
+    int scene_stream=argc>1 && !strcmp(argv[1],"--scene-close-last");
+    int scene_close=scene_stream || (argc>1 && !strcmp(argv[1],"--scene-close"));
     int scene_mode=scene_close || (argc>1 && !strcmp(argv[1],"--scene"));
     int skin_mode=argc>1 && (!strcmp(argv[1],"--model-skin") || !strcmp(argv[1],"--model-skin-last"));
     int model_mode=skin_mode || (argc>1 && (!strcmp(argv[1],"--model") || !strcmp(argv[1],"--model-last")));
@@ -91,7 +95,9 @@ int main(int argc, char **argv)
         } else if (!result) result = rf_materials_open(&materials, &geometry, archives, opened, 4*1024*1024);
         if(!result && scene_mode) {
             world_vertices=mesh.count;
-            result=rf_scene_preview_miner(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
+            if(scene_stream)result=rf_scene_stream_miner(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
+                archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL);
+            else result=rf_scene_preview_miner(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
                 archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024);
             if(!result)printf("Combined %u world and %u actor triangles\n",world_vertices/3,(mesh.count-world_vertices)/3);
         }

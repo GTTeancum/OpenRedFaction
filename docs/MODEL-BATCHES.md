@@ -1,5 +1,46 @@
 # Model batch data
 
+The combined scene now streams all 64 scripted miner frames on stock 64 MiB
+XEMU. `rf_scene_stream_miner` shares setup with the frozen helper, binds the
+authored entity/skin once, and retains world geometry and texture ownership.
+Its combined CPU vertex allocation reserves world bytes plus 1 MiB for the
+actor under the 8 MiB mesh cap. The producer uses its existing reusable 1 MiB
+actor mesh and 27 KiB pose workspace. Each callback validates/remaps the actor
+material indices and replaces the combined actor suffix; the world prefix
+stays byte-identical. Setup failure preserves inputs; after ownership transfer,
+sink/producer failure leaves combined resources for the caller to close.
+This remains scripted diagnostic playback, not authored entity animation states
+or a gameplay loop. Setup currently also computes a frame-0 preview before
+starting the stream; eliminating that duplicated work is a future cleanup.
+
+Xbox `scene-preview.flag` plus `scene-stream.flag` selects mode 4. One GPU
+vertex allocation reserves the same world-plus-1-MiB capacity, and textures and
+lightmaps upload once. Each frame redraws the fixed world and changing actor
+with their existing depth/blend policies. The GPU vertex copy still includes
+the world prefix each frame. Resources remain alive for the application lifetime;
+level transitions and a general renderer teardown are not implemented here.
+The scene stream's compiler-reported project stack subtotal is 36,596 bytes
+against a 65,536-byte reserve, excluding arguments, libraries, kernel/interrupt
+usage and other call branches; this is not a runtime high-water bound.
+
+`rf_scene_check` passes on Live Mines UIDs 9858 and 8322, covering 64 ordered
+frames with changing actor hashes, fixed world bytes and allocation addresses,
+four independently generated pose snapshots, sink cancellation on frame 2 and
+an insufficient-capacity guard that leaves inputs unchanged. Both skins follow
+their own authored metadata. PC `--scene-close-last` retains frame 63 for
+rasterization: UID 9858 produces 2,405 world plus 464 actor triangles, changing
+33,097 pixels from frame 0. PC/NXDK builds and all four CTest checks pass.
+
+`tools/xemu_smoke.py --scene-stream --reference
+artifacts/live-mines-stream-last-pc.ppm` passes at
+`artifacts/xemu/20260908-230633-978735/report.json`: 64 submitted scene frames,
+4,419,588 GPU image bytes, 1,452,616 GPU vertex-capacity bytes and 44,593,152
+available physical bytes at the retained frame's upload snapshot. The native
+final framebuffer comparison passes with 12 pixels differing by more than 3
+levels, maximum channel error 245 and mean maximum error 0.03247. Only the final
+frame is captured/visually inspected; this is neither an every-frame image
+comparison nor PS2 parity or a whole-game memory/performance guarantee.
+
 Placed diagnostic models now use `rf_model_geometry_clip_near` after batch
 projection to replace nonpositive-Z bit 128 with explicit near-plane bit 1.
 The level adapter supplies 0.1, matching the world preview. Fresh vertices use
