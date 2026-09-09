@@ -8,6 +8,17 @@ int main(int argc,char **argv)
     struct { int32_t status; float position[3]; } output;
     _Static_assert(sizeof(input) == 96, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--effect")) {
+        struct {rf_camera_effect_state state;int32_t now;uint32_t reset;} in;
+        struct {int32_t status;rf_camera_effect_state state;float cosine;uint32_t active;} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.state=in.state;out.cosine=17;out.active=99;
+            out.status=in.reset?rf_camera_effect_reset(&out.state,in.now):rf_camera_effect_step(&out.state,in.now,&out.cosine,&out.active);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--camera-pose")) {
         rf_first_person_pose pose;struct {int32_t status;rf_first_person_pose pose;} value;
         _Static_assert(sizeof(pose)==84,"Camera pose wire layout");

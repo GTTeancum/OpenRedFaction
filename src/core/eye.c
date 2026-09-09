@@ -1,4 +1,5 @@
 #include "rf/eye.h"
+#include "rf/timer.h"
 #include <math.h>
 #include <string.h>
 static int crouched(int32_t state) { return state >= 8 && state <= 10; }
@@ -51,4 +52,25 @@ int rf_first_person_pose_copy(const float eye[3],const float body_orientation[3]
     }
     memcpy(value.position,eye,12);memcpy(value.body_orientation,body_orientation,36);
     memcpy(value.eye_orientation,eye_orientation,36);*result=value;return RF_OK;
+}
+
+int rf_camera_effect_reset(rf_camera_effect_state *state,int32_t now_ms)
+{
+    rf_camera_effect_state value={0};int status;
+    if(!state)return RF_RANGE;
+    status=rf_timer_set(&value.deadline,now_ms,0);if(status)return status;
+    *state=value;return RF_OK;
+}
+int rf_camera_effect_step(rf_camera_effect_state *state,int32_t now_ms,float *cosine,uint32_t *active)
+{
+    rf_camera_effect_state value;float cone;int expired,status;int32_t remaining;
+    if(!state || !cosine || !active)return RF_RANGE;
+    if(!isfinite(state->strength) || !isfinite(state->duration))return RF_FORMAT;
+    status=rf_timer_expired(state->deadline,now_ms,&expired);if(status)return status;
+    if(expired){*active=0;return RF_OK;}
+    value=*state;cone=1.0f-value.strength;
+    status=rf_timer_remaining(value.deadline,now_ms,&remaining);if(status)return status;
+    if(remaining<1000)value.strength=(float)((double)value.strength*0.6002401113510132f);
+    if(cone < -1)cone=-1;if(cone > 1)cone=1;
+    *state=value;*cosine=cone;*active=1;return RF_OK;
 }

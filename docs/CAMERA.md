@@ -1551,3 +1551,36 @@ Final result: all 94 installed levels pass 8,214 original/PC comparisons and
 Report: `artifacts/loaded-room-locator-verification.json`. Both builds, four
 CTests and the Live Mines retained-world sweep/budget regression pass. No new
 XEMU run or image is claimed for this loaded-data verification.
+
+## First-person effect state and reset
+
+`rf_camera_effect_reset` reconstructs the per-player slice 41d9af..41d9c7:
+zero strength/duration and set the deadline to the current game time via
+4fa360(0). This is an expired timer, not an inactive negative deadline. The
+entity creation tail also calls 4fa360 at 423746; its full initialization
+context remains a separate proof obligation.
+
+`rf_camera_effect_step` reconstructs 40db70 through its timer, strength and
+clamp calculations. Expired effects do nothing. Otherwise it stores binary32
+`1 - strength` BEFORE any decay. With less than 1000ms remaining, it multiplies
+stored strength by original constant 58949c (0.6002401113510132). It clamps the
+pre-decay value to [-1,1] and exposes that cone cosine. Negative disabled timers
+are not expired and therefore still enter the effect path; they must not be
+used as the default reset representation. Random direction and orientation
+rebuilding are not yet performed by this state API.
+
+`tools/verify_camera_effect.py` matches 600 original cases on PC and 600 compiled
+NXDK executions, including reset, timer wrap, disabled/expired timers, the
+999/1000/1001ms boundary and out-of-range strengths before clamping. Original
+40db70 timer/clamp code executes; player lookup, 4fae00 and 4fc960 are observed
+fixture boundaries. 346 cases enter the active path. Both builds and four
+CTests pass. No runtime camera change or new XEMU image is claimed.
+
+Next direction-effect leads: 4fae00 builds the 4fcfa0 basis around the current
+forward vector, calls 4fadb0, then places the local vector using 4facb0. 4fadb0
+consumes two random draws: 504e40 selects Z between the cone cosine and 1;
+504db0 supplies the azimuth fraction multiplied by 2*pi. It uses an intermediate
+float radius and x87 trig. 504db0 calls 57312d and scales by 589de8. Finally
+4fc960 reconstructs the eye orientation using the changed forward and prior
+basis vectors, with fallback paths. These random and orientation stages remain
+unreconstructed; the deterministic room-direction helper is not a substitute.

@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+First-person camera effect reset/timer/decay now matches 600 original cases on
+PC and compiled NXDK. Reset must expire the timer at now, not disable it.
+Recover random cone direction and orientation rebuilding next, while resolving
+initial player eye offsets before camera rendering integration.
+
 Moving-actor room membership now passes the 664-frame XEMU follow run
 `20260909-185445-343865`: room 53 to 52, no lookup misses, full PC-matching
 room telemetry and unchanged body/render hashes. Integrate the original player
