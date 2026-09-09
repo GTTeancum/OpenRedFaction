@@ -28,6 +28,10 @@ Python inventory, including truncation, link bounds and exact EOF checks. PC
 and NXDK builds and all four CTest checks pass. Recover original activation/UID
 resolution before replacing diagnostic activation.
 See docs/TRIGGERS.md for the read evidence and ordered linkage table.
+The bounded event inventory now exhausts 4,446 records and 4,901 links across
+93 levels. Door extras resolve to Set_Friendliness (9826), Goto_Player (8694),
+and UnHide (8695). Reconstruct their target resolution and runtime actions;
+a C event reader and persistent event/trigger ownership remain open.
 
 Ordered controller binding now matches 2,000 original calls on PC/NXDK, and
 forced translation updates all 1,406 owned mover poses/collision views on PC.

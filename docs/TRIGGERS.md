@@ -59,3 +59,38 @@ parse the other event links. Preserve
 the complete ordered list when dispatching; do not activate all door groups
 globally or silently drop unresolved links. The current visible door test still
 uses explicit simultaneous activation of all four translation controllers.
+
+
+## Event records and remaining door behavior
+
+`tools/inspect_events.py` follows loader 462150 for v180 and reads the 90-name
+original event type table at 5a1a3c, guarded by the executable hash above.
+Lookup 4bd700 calls 5001d0/57c130; the latter compares ASCII letters without
+case, which matters for authored lowercase `invert`. All 93 event sections
+exhaust exactly: 4,446 events and 4,901 ordered links. This is an offline
+layout inventory, not a runtime event implementation or original execution test.
+
+Read order: UID, type string, position, name string, header byte, delay float,
+two bytes, two words, two floats, two strings, link count and ordered UIDs.
+Types 4/63/70 (Teleport/Teleport_Player/Play_Vclip) append nine orientation
+floats from version 145; type 46 (Alarm) does so from version 152. Finally,
+52d170 reads four color bytes from version 176 (call at 462378, threshold at
+462370). The inventory supports only v180 and preserves raw field meanings.
+
+The formerly unresolved Live Mines door links resolve to these event records:
+
+| Trigger | Event UID/type | Raw delay | Ordered event links |
+| --- | --- | --- | --- |
+| 8542 | 9826 Set_Friendliness | 1.0 | 8678, 8324, 8326 |
+| 8522 | 8694 Goto_Player | 0.0 | 8696, 8697 |
+| 8522 | 8695 UnHide | 0.0 | 8696, 8697 |
+
+These names establish why selecting only door-controller links would omit
+campaign behavior. Target objects and the event actions still require recovery.
+The report is ignored `artifacts/events.json`.
+
+Additional original evidence: 45ec40 only appends a word to a growable array;
+it does not resolve a UID. 4c0210 only sets bit 0x10 at trigger offset 0x2b0;
+it is not a call that immediately dispatches the trigger. Trigger construction
+4bf970 registers object type 5, copies configuration, and appends it to the
+trigger list. Runtime target resolution and activation remain open.
