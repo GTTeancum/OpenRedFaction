@@ -110,4 +110,18 @@ int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3]
  * response are separate. Finite inputs and nonzero displacement required.
  * Flag 0x4000 selects another original path and is rejected. Errors preserve outputs. */
 int rf_physics_contact_advance(rf_physics_body_state *state,float dt,float fraction,float *remaining);
+typedef struct rf_physics_ground_probe {
+    float start[3],end[3];
+    rf_physics_sphere sphere;
+    rf_physics_bounds bounds;
+    uint32_t sphere_index,query_flags;
+} rf_physics_ground_probe;
+/* 4a0840 preparation and 499ed0 query flags. Lowest center-Y sphere, identity
+ * query orientation. Caller supplies the original falling predicate result,
+ * class speed and support Y velocity. No world query or landing transition.
+ * Nonempty spheres and finite nonnegative radius/dt/speed required; errors
+ * preserve output. No allocation. */
+int rf_physics_ground_prepare(const rf_physics_sphere *spheres,uint32_t count,
+    const float next_position[3],uint32_t collision_flags,int falling,float dt,
+    float class_speed,float support_y,rf_physics_ground_probe *result);
 #endif

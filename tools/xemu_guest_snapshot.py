@@ -24,6 +24,11 @@ def snapshot(monitor,map_text):
             result['authored']={'mass':struct.unpack_from('<f',raw)[0],'material':raw[4:68].split(bytes(1))[0].decode('ascii','replace'),
                 'flags':hex(data[17]),'flags2':hex(data[18]),'movement_index':data[19],'use_kind':data[20],
                 'material_index':data[22],'sphere_declarations':data[28]}
+    for name,count in [('rf_scene_actor_ground_stats',8),('rf_scene_actor_ground_records',2112)]:
+        match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',map_text)
+        if match:
+            address=int(match[1],16)
+            result['symbols'][name]={'address':hex(address),'words':words(monitor,address,count)}
     sweep=result['symbols'].get('rf_actor_world_diagnostic',{}).get('words',[])
     match=re.search(r'_rf_scene_actor_sweep_records\s+([0-9a-fA-F]+)',map_text)
     if match and len(sweep)==8 and sweep[:2]==[0x52464157,1] and 0<sweep[2]<=48 and sweep[6]==80:

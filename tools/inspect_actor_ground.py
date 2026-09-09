@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -53,6 +54,8 @@ def run(snapshot):
     margin = struct.unpack('<f', cpu.mem_read(0x5894f4, 4))[0]
     falling_depth = struct.unpack('<f', cpu.mem_read(0x5893c4, 4))[0]
     checks = []
+    pc_inputs = bytearray()
+    pc_expected = bytearray()
     # Mode 3 is the observed original falling descriptor value. Mode 0 and
     # support-speed cases below are synthetic branch checks, not guest modes.
     for mode, support_y, speed in [(3, 0., 0.), (3, 2., 0.), (0, 0., 4.), (0, -2., 4.)]:
@@ -104,9 +107,22 @@ def run(snapshot):
             upper = [f32(max(a, b) + radius) for a, b in zip(start, end)]
             assert bytes(cpu.mem_read(0x7c6fe0, 24)) == floats(*lower, *upper)
             assert bytes(cpu.mem_read(hit_ptr + 24, 4)) == floats(1)
+            assert count == 3, 'PC probe currently expects the three miner spheres'
+            pc_inputs += sphere_bytes + words(*position_words, state[69], int(mode == 3)) + floats(dt, speed, support_y)
+            query_flags = (state[69] & ~0x1000) | 4 | (0x100 if radius < margin else 0)
+            pc_expected += (bytes(cpu.mem_read(start_ptr, 12)) + bytes(cpu.mem_read(end_ptr, 12))
+                            + bytes(cpu.mem_read(base + 0x5000, 24)) + floats(radius)
+                            + bytes(cpu.mem_read(0x7c6fe0, 24)) + words(selected, query_flags))
             checks.append(dict(frame=frame, mode=mode, support_y=support_y,
                                start=start, end=end, lower=lower, upper=upper))
-    return dict(status='PASS', executable_sha256=digest, checks=len(checks),
+    pc = subprocess.check_output([str(ROOT / 'build/pc/Release/rf_physics_probe.exe'), '--ground'], input=pc_inputs)
+    assert pc == pc_expected, 'Shared C ground preparation differs from original'
+    guest_ground = snapshot['symbols'].get('rf_scene_actor_ground_records', {}).get('words')
+    if guest_ground is not None:
+        assert len(guest_ground) == 2112
+        for frame in range(64):
+            assert words(*guest_ground[frame * 33:frame * 33 + 21]) == pc_expected[frame * 84:(frame + 1) * 84], 'Guest probe differs from original'
+    return dict(status='PASS', executable_sha256=digest, checks=len(checks), pc_matches_original=True, guest_preparation_matches_original=guest_ground is not None,
                 scope='Original 4a0840 entry through 4a0a57, before world query; no callee replacements. Guest sphere/position inputs with synthetic movement descriptors and support velocities.',
                 selected_sphere=selected, selected_sphere_values=spheres[selected],
                 margin=margin, falling_depth=falling_depth,

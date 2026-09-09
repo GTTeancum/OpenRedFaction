@@ -9,6 +9,7 @@ extern rf_physics_body scene_actor_body;
 extern rf_physics_body_state rf_scene_actor_fall_state;
 extern uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
 extern uint32_t rf_scene_actor_tick_stats[8];
+extern uint32_t rf_scene_actor_ground_stats[8];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored,body_mode;
@@ -130,7 +131,9 @@ int main(int argc,char **argv)
         if(mode==0 && (status || c.next!=64 || !c.changed))return 3;
         if(mode==0) {
             if(body_mode) {if(rf_scene_actor_tick_stats[1]!=63)return 3;
-                printf("ACTOR_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_tick_stats[i]);puts("");}
+                printf("ACTOR_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_tick_stats[i]);puts("");
+                if(rf_scene_actor_ground_stats[1]!=64 || !rf_scene_actor_ground_stats[3])return 3;
+                printf("ACTOR_GROUND");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_ground_stats[i]);puts("");}
             if(rf_scene_actor_physics_diagnostic[1]!=1 || rf_scene_actor_physics_diagnostic[2]!=64 || rf_scene_actor_physics_diagnostic[3]!=3)return 3;
             printf("PHYSICS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_physics_diagnostic[i]);puts("");
             {rf_geometry_collision_world collision={0};uint32_t sweep[8];

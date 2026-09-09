@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Implement the original ground-support query and landing/movement transition to resolve the miner's slope drift.
+- [ ] Apply the original landing/movement transition to the verified stationary-world support query to resolve the miner's slope drift.
 - [ ] Replace provisional spawn pose, initial inertia and cached colliders with verified runtime behavior.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -41,6 +41,11 @@ prepared cases). It selects sphere 0 by lowest center Y, uses a 0.05 start lift
 and a 0.10 falling probe depth. Grounded depth retains extended precision until
 the final position store. This verifies query preparation only; world-query
 results, landing transition and grounded movement remain open.
+The shared C ground preparation now feeds a stationary-world query each rendered
+frame. Run 20260909-152946-815112 passes in stock 64 MiB XEMU: all 64 raw query
+records match PC, with 42 walkable contacts starting at frame 22. Captured probe
+preparation matches original instructions; it uses the recovered query flag 4.
+This observation does not yet change the passive body's movement mode.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

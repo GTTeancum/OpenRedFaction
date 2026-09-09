@@ -344,6 +344,35 @@ int rf_physics_spheres_open(const rf_physics_sphere *source,uint32_t count,uint3
     }
     value.count=count;value.allocated_bytes=(uint32_t)bytes;*result=value;return RF_OK;
 }
+int rf_physics_ground_prepare(const rf_physics_sphere *spheres,uint32_t count,
+    const float next_position[3],uint32_t collision_flags,int falling,float dt,
+    float class_speed,float support_y,rf_physics_ground_probe *result)
+{
+    rf_physics_ground_probe value={0};uint32_t i,k,selected=0;volatile float lifted;
+    if(!spheres || !count || !next_position || !result || !isfinite(dt) || dt<0 ||
+       !isfinite(class_speed) || class_speed<0 || !isfinite(support_y))return RF_RANGE;
+    for(k=0;k<3;++k)if(!isfinite(next_position[k]))return RF_RANGE;
+    for(i=0;i<count;++i) {
+        if(!isfinite(spheres[i].radius) || spheres[i].radius<0)return RF_RANGE;
+        for(k=0;k<3;++k)if(!isfinite(spheres[i].center[k]))return RF_RANGE;
+        if(spheres[i].center[1]<spheres[selected].center[1])selected=i;
+    }
+    value.sphere=spheres[selected];value.sphere_index=selected;
+    value.bounds.radius=(float)(fabs((double)value.sphere.center[1])+value.sphere.radius);
+    memcpy(value.start,next_position,12);memcpy(value.end,next_position,12);
+    lifted=(float)((double)next_position[1]+.05f);
+    value.start[1]=support_y>0?(float)((double)lifted+(double)dt*support_y):lifted;
+    value.end[1]=(float)((double)next_position[1]-(falling?(double).1f:(double)dt*class_speed+.05f));
+    value.query_flags=(collision_flags&~0x1000u)|4;
+    if(value.bounds.radius<.05f)value.query_flags|=0x100;
+    for(k=0;k<3;++k) {
+        value.bounds.minimum[k]=(float)((double)fminf(value.start[k],value.end[k])-value.bounds.radius);
+        value.bounds.maximum[k]=(float)((double)fmaxf(value.start[k],value.end[k])+value.bounds.radius);
+        if(!isfinite(value.start[k]) || !isfinite(value.end[k]) ||
+           !isfinite(value.bounds.minimum[k]) || !isfinite(value.bounds.maximum[k]))return RF_RANGE;
+    }
+    *result=value;return RF_OK;
+}
 int rf_physics_fallback_prepare(float density,float radius,float mass,rf_physics_fallback *result)
 {
     rf_physics_fallback value={0};double generated;

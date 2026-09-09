@@ -95,6 +95,7 @@ def main():
         actor_final_vertices=int(re.search(r'Frame 63 actor triangles (\d+)',output)[1])*3
         actor_frame_reference=[(int(n)*3,int(h,16)) for n,h in re.findall(r'Frame \d+ actor triangles (\d+) hash ([0-9a-f]+)',output)][:64]
         if args.actor_body:actor_tick_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_TICKS ')).split()[1:]))
+        if args.actor_body:actor_ground_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND ')).split()[1:]))
         actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
         actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
         actor_fall_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FALL ')).split()[1:]))
@@ -303,6 +304,13 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             ticks=memory_snapshot['symbols']['rf_scene_actor_tick_stats']['words']
                             if ticks!=actor_tick_reference:raise RuntimeError(f'Actor tick sequence differs: {ticks}; PC {actor_tick_reference}')
                             report['actor_ticks']=dict(frames=ticks[1],passes=ticks[2],contacts=ticks[3],capped_frames=ticks[4],maximum_passes=ticks[5])
+                            ground=memory_snapshot['symbols']['rf_scene_actor_ground_stats']['words']
+                            if ground!=actor_ground_reference:raise RuntimeError(f'Actor ground probes differ: {ground}; PC {actor_ground_reference}')
+                            ground_records=memory_snapshot['symbols']['rf_scene_actor_ground_records']['words']
+                            ground_hash=2166136261
+                            for byte in struct.pack('<2112I',*ground_records):ground_hash=((ground_hash^byte)*16777619)&0xffffffff
+                            if ground_hash!=ground[5]:raise RuntimeError('Captured ground record hash differs from guest summary')
+                            report['actor_ground']=dict(records=ground[1],hits=ground[2],walkable=ground[3],first_walkable_frame=ground[4],hash=hex(ground[5]),scope='Stationary-world support observation in prepared falling mode; no landing transition.')
                             pose=memory_snapshot['symbols']['rf_scene_actor_pose']['words']
                             body=memory_snapshot['symbols']['scene_actor_body']['words']
                             if not pose[0]&0x4000000 or any(pose[i:i+3]!=body[22:25] for i in (14,17,20)) or body[22:25]!=body[25:28] or pose[53:59]!=body[62:68]:raise RuntimeError('Actor public/current/pending pose or bounds diverged')

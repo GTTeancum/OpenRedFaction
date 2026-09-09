@@ -1,7 +1,7 @@
 # Guest memory evidence
 
-Current result: the memory harness and 64-frame live actor comparison pass in
-stock 64 MiB XEMU (`artifacts/xemu/20260909-151445-192163/report.json`). The
+Current result: the memory harness, ground probes and 64-frame live actor comparison pass in
+stock 64 MiB XEMU (`artifacts/xemu/20260909-152946-815112/report.json`). The
 `strtod` assertion in the supplied screenshot is fixed. Grounding, spawn pose,
 inertia and animation-dependent collider updates remain unverified. Sections
 below record successive implementation stages; the latest live-update section
@@ -329,3 +329,35 @@ derives additional flags internally, so its complete policy still needs tracing.
 This harness does not run the world query, decide support, apply landing damage,
 or change movement descriptors. It adds evidence without claiming the observed
 slope drift is fixed. No new framebuffer is warranted by this inspection.
+
+## Shared ground probe and stationary-world integration
+
+`rf_physics_ground_prepare` now reconstructs the preparation in shared C.
+499ed0 derives query flags as `(body_collision_flags & ~0x1000) | 4`, adding
+0x100 when the temporary body's broad radius is below 0.05. The miner's fixture
+therefore uses query flag 4, not the earlier passive sweep mask 0x460. The
+query uses the selected sphere's radius and identity-oriented center; the
+broader `abs(center_y) + radius` remains a body-bound value.
+
+Actor-body mode issues this stationary-world probe once per rendered frame
+without changing movement. Each 132-byte record retains all 84 preparation
+bytes, the complete 44-byte world hit and match flag. The fixed 64-record array
+costs 8,448 bytes plus 32 summary bytes; queries introduce no allocation or
+second Xbox collision world. QMP captures the records and summary, checks their
+raw hash, and compares the full record hash with PC.
+
+Run `artifacts/xemu/20260909-152946-815112/report.json` passes on stock 64 MiB
+XEMU. All 64 records match PC (`d8c768e6`), with 42 hits satisfying the original
+normal-Y threshold of 0.5, first at zero-based frame 22. All 64 rendered actor
+geometry comparisons and existing live physics counters still match. Both
+builds, scene cancellation/capacity checks and four CTests pass.
+
+`inspect_actor_ground.py` now compares shared PC C output with all 256 original
+prepared cases and checks the 64 actual Xbox preparation records against the
+original. Both comparisons pass on this snapshot. The synthetic non-falling
+and support-velocity branches are PC/original checks; only the falling, zero
+support branch ran in XEMU. Moving support objects, player-specific queries,
+damage, landing mode changes and grounded movement remain open. Support exists
+before the passive fixture's first collision, so waiting for that collision
+alone is not a faithful substitute for the original support update. No new
+screen was captured because this change only observes support.
