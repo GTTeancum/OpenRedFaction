@@ -1389,3 +1389,30 @@ AABB, sphere radius/center and origin radius; the NXDK test checks balanced x87
 stack after every call. Report: `artifacts/vertex-bounds-verification.json`.
 Full PC/NXDK builds and four CTest checks pass. Initial mover binding and XEMU
 execution of this new path remain open.
+
+
+### Owned initial mover collision bindings
+
+`rf_geometry_collision_movers_open` constructs file-order solid views with
+owned flat collision faces, copied file UIDs and caller-provided runtime object
+handles. Handles correspond to original object+0x2c, which 498e80 returns;
+they are deliberately not inferred from the file UID at object+0x20. This API
+does not implement the original handle registry or object factory.
+
+Each solid computes its bounds from the full serialized vertex array, using
+budgeted temporary typed storage freed before allocating collision faces.
+Recovered origin radius produces position +/- radius bounds; initial input and
+output positions/matrices copy the file pose. Views borrow only the collection's
+owned faces. Source geometry/archive may close after success. All retained
+arrays, objects and temporary vertex storage count against one peak budget;
+allocator overhead and source data are excluded. Failures free partial storage
+and preserve output. Zero-vertex or room-bearing solids are rejected explicitly.
+
+`python tools/verify_mover_binding.py` passes all 68 levels / 1,406 movers on PC.
+It compares exact poses and bounds against original radius/pose evidence,
+verifies separately supplied diagnostic handles and file UIDs after source
+closure, and checks exact and one-byte-short peak budgets. Maximum retained
+and peak requests are both 201,460 bytes across the installed levels. Report:
+`artifacts/mover-binding-verification.json`. Both builds and four CTest checks
+pass. Combined loaded world/mover query verification, XEMU, runtime registration,
+changing poses and lifetime remain open. No visible result changed.

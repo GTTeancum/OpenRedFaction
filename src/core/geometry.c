@@ -356,6 +356,52 @@ int rf_geometry_room_children(const rf_geometry *geometry,uint32_t room,
     }
     *count=total;return RF_OK;
 }
+void rf_geometry_collision_movers_close(rf_geometry_collision_movers *m)
+{
+    uint32_t i;if(!m)return;
+    for(i=0;i<m->count;i++)rf_geometry_collision_flat_close(m->owned+i);
+    free(m->storage);memset(m,0,sizeof(*m));
+}
+int rf_geometry_collision_movers_open(const rf_geometry_movers *source,
+    const uint32_t *object_ids,uint32_t budget,rf_geometry_collision_movers *result)
+{
+    rf_geometry_collision_movers value={0};uint64_t base,retained,peak;
+    float (*vertices)[3]=NULL;uint32_t i,j;int status;
+    if(!source || !result || (source->count && (!source->items || !object_ids)))return RF_RANGE;
+    base=(uint64_t)source->count*(sizeof(*value.owned)+sizeof(*value.views)+sizeof(*value.uids));
+    retained=peak=base+sizeof(value);if(peak>budget)return RF_RANGE;
+    if(source->count) {
+        value.storage=calloc(1,(size_t)base);if(!value.storage)return RF_RANGE;
+        value.owned=(rf_geometry_collision_flat *)value.storage;
+        value.views=(rf_collision_solid_view *)(value.owned+source->count);
+        value.uids=(int32_t *)(value.views+source->count);
+    }
+    value.count=source->count;
+    for(i=0;i<source->count;i++) {
+        const rf_geometry_mover *m=source->items+i;const rf_geometry *g=&m->geometry;
+        rf_collision_solid_view *view=value.views+i;rf_collision_bounds bounds;
+        uint64_t scratch=(uint64_t)g->vertices*12;
+        if(!g->data || g->rooms || !g->vertices) {status=RF_FORMAT;goto fail;}
+        if(retained+scratch>budget) {status=RF_RANGE;goto fail;}
+        if(retained+scratch>peak)peak=retained+scratch;
+        vertices=(float(*)[3])malloc((size_t)scratch);if(!vertices) {status=RF_RANGE;goto fail;}
+        for(j=0;j<g->vertices;j++) {status=rf_geometry_vertex(g,j,vertices[j]);if(status)goto fail;}
+        status=rf_collision_vertex_bounds(vertices,g->vertices,&bounds);
+        free(vertices);vertices=NULL;if(status)goto fail;
+        status=rf_geometry_collision_flat_open(g,(uint32_t)(budget-retained+sizeof(*value.owned)),value.owned+i);
+        if(status)goto fail;
+        retained+=value.owned[i].allocated_bytes-sizeof(*value.owned);if(retained>peak)peak=retained;
+        value.uids[i]=m->uid;view->object_id=object_ids[i];
+        memcpy(view->input_origin,m->position,12);memcpy(view->output_origin,m->position,12);
+        memcpy(view->input_matrix,m->orientation,36);memcpy(view->output_matrix,m->orientation,36);
+        for(j=0;j<3;j++) {view->minimum[j]=m->position[j]-bounds.origin_radius;view->maximum[j]=m->position[j]+bounds.origin_radius;}
+        if(!finite_words((const unsigned char *)view->minimum,30)) {status=RF_FORMAT;goto fail;}
+        view->flat_faces=value.owned[i].faces;view->flat_count=value.owned[i].count;
+    }
+    value.allocated_bytes=(uint32_t)retained;value.peak_bytes=(uint32_t)peak;*result=value;return RF_OK;
+fail:
+    free(vertices);rf_geometry_collision_movers_close(&value);return status;
+}
 int rf_geometry_primary_rooms(const rf_geometry *geometry,uint32_t *indices,
     uint32_t capacity,uint32_t *count)
 {

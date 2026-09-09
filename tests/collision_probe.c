@@ -10,6 +10,29 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==4 && !strcmp(argv[1],"--bound-movers")) {
+        rf_vpp archive;rf_level level;rf_geometry_movers source={0};
+        rf_geometry_collision_movers owned={0},exact={0},guard;uint32_t *ids,i;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 2;
+        if(rf_geometry_movers_open(&level,8*1024*1024,&source))return 3;
+        ids=(uint32_t *)malloc(source.count?source.count*4:4);if(!ids)return 4;
+        for(i=0;i<source.count;i++)ids[i]=0x12340000+i; /* Explicit diagnostic runtime handles. */
+        if(rf_geometry_collision_movers_open(&source,ids,8*1024*1024,&owned))return 5;
+        if(rf_geometry_collision_movers_open(&source,ids,owned.peak_bytes,&exact))return 6;
+        rf_geometry_collision_movers_close(&exact);
+        memset(&guard,0xa5,sizeof(guard));exact=guard;
+        if(rf_geometry_collision_movers_open(&source,ids,owned.peak_bytes-1,&exact)!=RF_RANGE || memcmp(&guard,&exact,sizeof(guard)))return 7;
+        free(ids);rf_geometry_movers_close(&source);rf_vpp_close(&archive);
+        if(fwrite(&owned.count,4,1,stdout)!=1 || fwrite(&owned.allocated_bytes,4,1,stdout)!=1 || fwrite(&owned.peak_bytes,4,1,stdout)!=1)return 8;
+        for(i=0;i<owned.count;i++) {
+            rf_collision_solid_view *view=owned.views+i;
+            if(view->flat_faces!=owned.owned[i].faces || view->flat_count!=owned.owned[i].count ||
+                view->rooms || view->room_count || view->primary || view->primary_count || view->children || view->child_count)return 9;
+            if(fwrite(owned.uids+i,4,1,stdout)!=1 || fwrite(&view->object_id,4,1,stdout)!=1 ||
+                fwrite(&view->flat_count,4,1,stdout)!=1 || fwrite(view->minimum,120,1,stdout)!=1)return 8;
+        }
+        rf_geometry_collision_movers_close(&owned);rf_geometry_collision_movers_close(&owned);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vertex-bounds")) {
         uint32_t count;float (*vertices)[3];struct {int32_t status;rf_collision_bounds bounds;} out;
         while(fread(&count,4,1,stdin)==1) {

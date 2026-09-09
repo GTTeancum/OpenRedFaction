@@ -77,6 +77,22 @@ typedef struct rf_geometry_collision_flat {
 int rf_geometry_collision_flat_open(const rf_geometry *geometry,uint32_t budget,
     rf_geometry_collision_flat *result);
 void rf_geometry_collision_flat_close(rf_geometry_collision_flat *flat);
+typedef struct rf_geometry_collision_movers {
+    void *storage;
+    rf_geometry_collision_flat *owned;
+    rf_collision_solid_view *views;
+    int32_t *uids;
+    uint32_t count,allocated_bytes,peak_bytes;
+} rf_geometry_collision_movers;
+/* Own initial mover collision views in file/creation order. object_ids are
+ * caller-registered runtime handles (original object+2c), NOT file UIDs (+20).
+ * Budget covers object, all retained storage and vertex-bound scratch, excluding
+ * input movers and allocator overhead. Source may close after success. No
+ * runtime registration, simulation, destruction policy or later pose updates.
+ * Failure preserves output; close before reuse. */
+int rf_geometry_collision_movers_open(const rf_geometry_movers *source,
+    const uint32_t *object_ids,uint32_t budget,rf_geometry_collision_movers *result);
+void rf_geometry_collision_movers_close(rf_geometry_collision_movers *movers);
 typedef struct rf_geometry_collision_room {
     rf_collision_tree tree;
     float (*vertices)[3];

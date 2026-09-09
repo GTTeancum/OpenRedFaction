@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-The shared bounds/sphere implementation matches all 1,406 movers on PC
-and NXDK; bind owned geometry to initial mover collision views, then recover
-later pose updates and lifetime before scene integration.
+Owned initial collision bindings now pass for all 1,406 movers; verify
+combined world/mover queries and run this path in 64 MiB XEMU, then recover
+runtime handle registration, later pose updates and lifetime.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
