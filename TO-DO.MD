@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+All 7,418 Live Mines faces now bind to collision views and match original ray
+results on PC and NXDK; recover runtime filter metadata and world traversal
+before using the query for gameplay visibility or actor movement.
+
 The combined zero-radius face query now matches 6,000 complete original calls
 on PC and NXDK; connect real level faces and world traversal, then recover
 texture-check modes and swept actor collision.

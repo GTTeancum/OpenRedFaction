@@ -175,3 +175,35 @@ unchanged output. All 6,003 cases also run the NXDK-linked routine in Unicorn.
 Report: `artifacts/collision-thin-verification.json`. PC/NXDK builds and four
 CTest checks pass. Real level-face binding and traversal are the next integration
 steps; this function is not yet used by the running diagnostic scene.
+
+## Loaded level-face binding
+
+`rf_geometry_collision_face` connects an opened level geometry object to a
+collision face view. It copies the file plane, resolves corners to vertices in
+file order and derives axis-aligned extrema. The caller owns and sizes the
+vertex scratch buffer; the function allocates nothing. The returned view borrows
+that buffer and remains valid until it is reused. Capacity is measured in
+vertices. Errors preserve the output view, while scratch may be partially
+written. Successfully opened geometry must remain unmodified during the call.
+
+Runtime filter metadata is an explicit argument. The adapter does not assume
+that the file's one-byte flags equal the runtime face flags, synthesize owner
+records or guess the signed face field. This boundary remains necessary until
+the runtime face construction/loading path is recovered.
+
+`python tools/verify_collision_level.py` binds every one of Live Mines
+`L1S1.rfl`'s 7,418 faces. The largest contains 16 corners. Each face is tested
+with a ray starting at the vertex average plus its normal and displaced by
+minus twice that normal. All 7,418 results hit and match complete original
+`0x4dec10` calls exactly for fraction, point and normal; the same bound inputs
+also match the actual NXDK-linked thin-face function in Unicorn. Every face
+additionally checks an undersized capacity and unchanged output view. The
+probe uses a fixed 3,072-byte scratch buffer and the existing 8 MiB geometry
+budget. It loads geometry on PC; the Xbox comparison validates the compiled
+query on its bound faces, not loading the level inside XEMU.
+
+Report: `artifacts/collision-level-verification.json`. All calls deliberately
+use internal query flags `0x461` and clear diagnostic face/owner fields. This
+is evidence for geometric binding and intersection, not equivalence of runtime
+filter metadata, world traversal, nearest world hit or gameplay collision.
+PC/NXDK builds and the four registered CTest checks pass. No rendering changed.

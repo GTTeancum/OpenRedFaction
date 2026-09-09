@@ -1,6 +1,7 @@
 #ifndef RF_GEOMETRY_H
 #define RF_GEOMETRY_H
 #include "rf/level.h"
+#include "rf/collision.h"
 
 typedef struct rf_geometry {
     unsigned char *data;
@@ -28,4 +29,13 @@ int rf_geometry_texture_name(const rf_geometry *geometry, uint32_t index, char *
 int rf_geometry_lightmap(const rf_geometry *geometry, uint32_t mapping, uint32_t image_count, uint32_t *image);
 int rf_geometry_get_face(const rf_geometry *geometry, uint32_t index, rf_geometry_face *face);
 int rf_geometry_get_corner(const rf_geometry *geometry, uint32_t face, uint32_t corner, rf_geometry_corner *result);
+/* Bind a loaded file face to borrowed collision vertices with exact corner
+ * order and derived bounds. filter MUST be supplied from resolved runtime
+ * metadata; file flag bytes are not assumed equivalent to runtime flags.
+ * No allocation. capacity is vertices, not bytes. Output is unchanged on
+ * failure; scratch may be partially written. Borrow ends when scratch changes.
+ * Geometry must be an unmodified, successfully opened object. */
+int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
+    const rf_collision_face_filter *filter,float (*scratch)[3],uint32_t capacity,
+    rf_collision_face *face);
 #endif

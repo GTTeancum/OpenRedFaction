@@ -198,3 +198,25 @@ int rf_geometry_get_corner(const rf_geometry *g, uint32_t index, uint32_t corner
     result->lightmap_uv[1] = stride == 20 ? f32(p + 16) : 0;
     return RF_OK;
 }
+
+int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
+    const rf_collision_face_filter *filter,float (*scratch)[3],uint32_t capacity,
+    rf_collision_face *face)
+{
+    rf_geometry_face source;rf_geometry_corner corner;rf_collision_face value;
+    uint32_t i,j,accepted;int status;
+    if(!filter || !scratch || !face)return RF_RANGE;
+    status=rf_collision_face_accept(filter,&accepted);if(status)return status;
+    status=rf_geometry_get_face(geometry,index,&source);if(status)return status;
+    if(!source.corners || source.corners>capacity || source.corners>65536)return RF_RANGE;
+    for(i=0;i<source.corners;i++) {
+        status=rf_geometry_get_corner(geometry,index,i,&corner);if(status)return status;
+        status=rf_geometry_vertex(geometry,corner.vertex,scratch[i]);if(status)return status;
+        for(j=0;j<3;j++) {
+            if(!i || scratch[i][j]<value.minimum[j])value.minimum[j]=scratch[i][j];
+            if(!i || scratch[i][j]>value.maximum[j])value.maximum[j]=scratch[i][j];
+        }
+    }
+    memcpy(value.plane,source.plane,sizeof(value.plane));value.vertices=scratch;
+    value.count=source.corners;value.filter=*filter;*face=value;return RF_OK;
+}
