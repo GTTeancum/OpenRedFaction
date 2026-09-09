@@ -283,6 +283,19 @@ int rf_level_trigger_next(rf_level_trigger_reader *reader,rf_level_trigger *trig
 /* Access one raw ordered link from a successfully decoded record. */
 int rf_level_trigger_link(const rf_level *level,const rf_level_trigger *trigger,
     uint32_t index,uint32_t *uid);
+typedef struct rf_level_owned_trigger {
+    rf_level_trigger record;uint32_t *links;
+} rf_level_owned_trigger;
+typedef struct rf_level_owned_triggers {
+    void *storage;rf_level_owned_trigger *items;uint32_t count,allocated_bytes;
+} rf_level_owned_triggers;
+/* One bounded allocation, authored order and raw links; budget includes owner
+ * and heap payload, excluding allocator overhead and bounded stack scratch.
+ * Source must stay stable during open, may close afterward. Errors preserve
+ * output. Open requires an empty destination; close is repeatable. No runtime
+ * activation or UID conversion. Record offsets remain source provenance only. */
+int rf_level_owned_triggers_open(const rf_level *level,uint32_t budget,rf_level_owned_triggers *result);
+void rf_level_owned_triggers_close(rf_level_owned_triggers *triggers);
 /* Ordered registry views for post-load conversion at 4611a1. Objects follow
  * original object-list order; key owners flatten controller-list/key order.
  * Caller owns storage. No registration, allocation or entity backlink writes. */

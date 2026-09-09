@@ -836,3 +836,40 @@ int rf_level_link_resolve(uint32_t uid,const rf_level_uid_object *objects,uint32
     }
     *target=result;return RF_OK;
 }
+
+void rf_level_owned_triggers_close(rf_level_owned_triggers *triggers)
+{
+    if(triggers) {free(triggers->storage);memset(triggers,0,sizeof(*triggers));}
+}
+int rf_level_owned_triggers_open(const rf_level *level,uint32_t budget,rf_level_owned_triggers *result)
+{
+    rf_level_owned_triggers value={0};rf_level_trigger_reader reader;rf_level_trigger record;
+    uint64_t bytes;uint32_t i,j;unsigned char *cursor,*end;int status;
+    if(!level || !result)return RF_RANGE;
+    status=rf_level_triggers_begin(level,&reader);if(status)return status;
+    value.count=reader.count;bytes=sizeof(value)+(uint64_t)value.count*sizeof(*value.items);
+    if(bytes>budget)return RF_RANGE;
+    while((status=rf_level_trigger_next(&reader,&record))==RF_OK) {
+        bytes+=(uint64_t)record.link_count*4;if(bytes>budget)return RF_RANGE;
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    value.allocated_bytes=(uint32_t)bytes;
+    if(!value.count) {*result=value;return RF_OK;}
+    value.storage=calloc(1,(size_t)(bytes-sizeof(value)));if(!value.storage)return RF_RANGE;
+    value.items=(rf_level_owned_trigger *)value.storage;
+    cursor=(unsigned char *)(value.items+value.count);end=(unsigned char *)value.storage+bytes-sizeof(value);
+    status=rf_level_triggers_begin(level,&reader);if(status)goto failed;
+    if(reader.count!=value.count) {status=RF_FORMAT;goto failed;}
+    for(i=0;i<value.count;++i) {
+        rf_level_owned_trigger *item=value.items+i;
+        status=rf_level_trigger_next(&reader,&item->record);if(status)goto failed;
+        if((uint64_t)item->record.link_count*4>(uint64_t)(end-cursor)) {status=RF_FORMAT;goto failed;}
+        item->links=(uint32_t *)cursor;cursor+=item->record.link_count*4;
+        for(j=0;j<item->record.link_count;++j)
+            if((status=rf_level_trigger_link(level,&item->record,j,item->links+j)))goto failed;
+    }
+    if(cursor!=end) {status=RF_FORMAT;goto failed;}
+    *result=value;return RF_OK;
+ failed:
+    rf_level_owned_triggers_close(&value);return status;
+}

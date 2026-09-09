@@ -178,3 +178,24 @@ object UID -1 exclusion with key fallback, and -999 flag filtering. All pass.
 These tests use synthetic registries, with each key row represented by one
 original controller, and do not claim full registry ownership or backlink
 integration. Report: `artifacts/uid-resolution-verification.json`.
+
+
+## Owned trigger input storage
+
+`rf_level_owned_triggers_open/close` retain every decoded record and raw ordered
+UID list in one bounded allocation. The owner preserves authored order and all
+configuration, counts its own struct and heap payload against the caller's
+budget, and leaves output unchanged on error. The source must remain stable
+while opening; afterward no archive or level pointer is retained. Serialized
+record offsets are provenance only. This storage does not yet initialize or
+register runtime triggers, resolve links or dispatch events.
+
+The expanded `tools/verify_trigger_reader.py` passes all 93 levels, 2,367
+records and 4,471 links. The ownership probe closes the archive and overwrites
+the level object before emitting records and links, then compares every byte
+against the independently inventoried reader output. Exact budgets succeed;
+one-byte-short budgets fail without changing output; repeated close clears
+the owner. Maximum PC accounted allocation is 55,696 bytes (host pointer sizes
+included). NXDK compilation passes; owned-trigger execution in Xbox is not yet
+validated. Allocator overhead and bounded stack scratch are excluded from the
+reported budget, as with owned mover groups.

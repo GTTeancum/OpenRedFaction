@@ -17,6 +17,27 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==4 && !strcmp(argv[3],"--owned-triggers")) {
+        rf_level_owned_triggers owned={0},small={0},saved={0};uint32_t i,bytes;
+        _setmode(_fileno(stdout),_O_BINARY);
+        if(rf_vpp_open(&archive,argv[1]) || rf_level_open(&level,&archive,argv[2]) ||
+            rf_level_owned_triggers_open(&level,1024*1024,&owned))return 2;
+        bytes=owned.allocated_bytes;
+        if(rf_level_owned_triggers_open(&level,bytes-1,&small)!=RF_RANGE || memcmp(&small,&saved,sizeof(small)))return 4;
+        rf_level_owned_triggers_close(&owned);
+        if(rf_level_owned_triggers_open(&level,bytes,&owned))return 4;
+        rf_vpp_close(&archive);memset(&level,0xa5,sizeof(level));
+        if(fwrite(&owned.count,4,1,stdout)!=1)return 3;
+        for(i=0;i<owned.count;++i) {
+            rf_level_owned_trigger *item=owned.items+i;
+            if(fwrite(&item->record,sizeof(item->record),1,stdout)!=1 ||
+                fwrite(item->links,4,item->record.link_count,stdout)!=item->record.link_count)return 3;
+        }
+        fprintf(stderr,"%u\n",bytes);
+        rf_level_owned_triggers_close(&owned);rf_level_owned_triggers_close(&owned);
+        if(memcmp(&owned,&saved,sizeof(owned)))return 4;
+        return 0;
+    }
     if(argc==4 && !strcmp(argv[3],"--triggers")) {
         rf_level_trigger_reader cursor;rf_level_trigger record={0};uint32_t i,uid;
         _Static_assert(sizeof(record)==668,"Trigger probe wire layout");

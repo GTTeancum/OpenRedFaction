@@ -31,7 +31,11 @@ See docs/TRIGGERS.md for the read evidence and ordered linkage table.
 The bounded event inventory now exhausts 4,446 records and 4,901 links across
 93 levels. Door extras resolve to Set_Friendliness (9826), Goto_Player (8694),
 and UnHide (8695). Reconstruct their target resolution and runtime actions;
-a C event reader and persistent event/trigger ownership remain open.
+a C event reader and persistent event ownership remain open. Owned trigger
+inputs now retain all 2,367 records and 4,471 links after archive closure in PC
+checks across 93 levels (max 55,696 accounted bytes); exact budget, short-budget
+failure and repeat-close checks pass. NXDK builds; connect ownership to Xbox
+runtime, ordered registries and activation.
 Original dispatch 4c0320 now passes four door-list execution cases, preserving
 interleaved mover/event order and mover suppression. The fixture uses synthetic
 registered handles and intercepts downstream actions. The verifier now also

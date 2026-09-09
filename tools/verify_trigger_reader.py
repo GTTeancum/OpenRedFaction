@@ -18,6 +18,11 @@ def string(value):
 for level in inventory['results']:
     raw = subprocess.check_output([str(root/'build/pc/Release/rf_level_entity_probe.exe'),
                                    str(root/'Installed_Game'/level['archive']), level['file'], '--triggers'])
+    owned = subprocess.run([str(root/'build/pc/Release/rf_level_entity_probe.exe'),
+                            str(root/'Installed_Game'/level['archive']), level['file'], '--owned-triggers'],
+                           capture_output=True, check=True)
+    assert owned.stdout == raw, (level['file'], 'owned lifetime')
+    owned_bytes = int(owned.stderr)
     count, = struct.unpack_from('<I', raw)
     assert count == len(level['records'])
     at = 4
@@ -36,11 +41,12 @@ for level in inventory['results']:
         assert raw[at:at+len(expected_links)]==expected_links
         at += len(expected_links)
     assert at==len(raw)
-    results.append(dict(file=level['file'], records=count, links=sum(len(r['links']) for r in level['records'])))
+    results.append(dict(file=level['file'], owned_bytes=owned_bytes, records=count, links=sum(len(r['links']) for r in level['records'])))
 report = dict(result='PASS', levels=len(results), triggers=sum(r['records'] for r in results),
-              links=sum(r['links'] for r in results),
+              links=sum(r['links'] for r in results), max_owned_bytes=max(r['owned_bytes'] for r in results),
               scope='PC C reader: every preserved field and ordered link vs Python inventory; each record '
                     'truncated by one byte preserves cursor/output; out-of-range link preserves output; exact EOF. '
-                    'Not original parser execution, owned runtime triggers or activation.', results=results)
+                    'Owned records/links match after archive closure and level overwrite, exact budget succeeds, one byte short preserves output, repeat close clears owner. '
+                    'Not original parser execution, runtime activation or Xbox ownership execution.', results=results)
 (root/'artifacts/trigger-reader-verification.json').write_text(json.dumps(report, indent=2))
 print({key:value for key,value in report.items() if key!='results'})
