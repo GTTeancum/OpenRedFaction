@@ -48,8 +48,10 @@ preparation; first-actor body creation precedes class-sphere cache construction
 and replacement. Preserve this order and resolve the initial animation state.
 Shared body sphere replacement now preserves mass/tensors, updates bounds and
 spring flag, and enforces peak old-plus-new allocation budget. PC lifetime/guard
-checks pass and NXDK builds; original full replacement comparison and XEMU
-integration remain open.
+checks pass and NXDK builds. Original installation block 42405d..424168 now
+matches linked NXDK in 180 cases, with 160 allocation failures preserving the
+old owner. Pose/class construction, later crouch setup and XEMU integration
+remain open.
 Class +1b4 is optional `$Use:` kind (turret=4), not movement mode; recover its
 absent-field default before treating all class physics inputs as resolved.
 

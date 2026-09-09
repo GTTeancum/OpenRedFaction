@@ -14,8 +14,21 @@ failure, invalid later sphere, closed-body rejection, complete unrelated-state
 preservation, analytic radius/bounds, clearing/setting spring flags, source
 aliasing, empty replacement and repeated close. PC and NXDK builds pass. These
 are shared ownership/sequence checks; the complete original 0x423bd0 replacement
-sequence and allocation failure under NXDK have not yet been compared, and no
-runtime scene uses this API yet.
+sequence outside that installation block is not covered, and no runtime scene
+uses this API yet.
+
+`verify_physics_replacement.py` now executes original 0x42405d..0x424168,
+including array clear/append and bounds callees with only heap allocation/free
+supplied, against linked NXDK replacement. All 180 cases pass for 0..8 new
+spheres and 0/1/8 old spheres, randomized body storage/flags, and positive,
+zero, negative or NaN spring parameters. All 308 represented body bytes and
+ordered sphere records match; unrelated original storage is checked too.
+One-byte-short peak budgets preserve the owner, and 160 injected NXDK allocation
+failures preserve old storage. Original clear frees before copying; the shared
+API deliberately retains old storage until success to provide transactional
+failure handling, accounting for that higher peak. Prior class/pose creation,
+later crouch handling and XEMU execution are excluded. Report:
+`artifacts/physics-replacement-verification.json`.
 
 Integration ordering correction from the original creation path: 0x422360 clears
 the physics parameter block, copies authored mass and any already-cached class
