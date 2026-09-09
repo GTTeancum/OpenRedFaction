@@ -198,6 +198,33 @@ sphere allocation, generated mass/inertia, nonidentity inertia and full entity
 physics integration remain open; ordinary entity factory parameters commonly
 select collision-sphere mode and need that additional path.
 
+## Fallback collision sphere
+
+`tools/verify_physics_fallback_sphere.py` executes complete original preparation
+49ec90 and its callees with no model and empty source/destination sphere lists.
+Only heap allocation 573619 is supplied; original array growth, constructors,
+element copies, material lookup, initialization and bounds work execute. All
+180 fixtures pass across five material indices, four sphere modes, three masses
+and three positive radii. Material coefficients are seeded fixture values, not
+claims about the installed material table's loaded values.
+
+When parameter mass is nonpositive in this no-model path, it becomes material
+density times radius squared. Positive mass is preserved. This observed formula
+must not be replaced with a sphere-volume formula. Empty source lists receive
+one fallback sphere: zero local center, supplied radius and -1 at element +0x10.
+The initializer copies it into the destination physics list; the resulting
+physics radius matches the supplied radius. Sphere mode flags remain unchanged.
+The sixth word of the 24-byte element is copied too, but the fixture does not
+assign it a default or meaning because the fallback local does not establish it.
+
+The original grows each empty list to capacity 16 (384 bytes), allocating two
+such buffers in these cases. Growth helper 40eeb0 and element copy 40ef70 run
+unchanged. This reveals temporary-versus-runtime storage behavior; it is not
+an instruction to keep the original allocation granularity in the Xbox port.
+Report: `artifacts/physics-fallback-sphere-verification.json`. Existing sphere
+lists, geometric-model inertia, allocation failure and a shared physics
+implementation remain open.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and
