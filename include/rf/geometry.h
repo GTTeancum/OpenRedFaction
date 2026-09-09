@@ -81,7 +81,7 @@ typedef struct rf_geometry_world_hit {
 } rf_geometry_world_hit;
 /* Own initial room geometry and ordered lists under one peak budget. Excludes
  * input geometry and allocator overhead; input may be closed after success.
- * Initial +1 skip bytes are zero as in the constructor. Finalizer rejection,
+ * Initial +1 skip bytes are zero as in the constructor. Generated-face finalization,
  * later mutations, caches and transforms remain unrecovered. Failure preserves
  * output; close existing output before reuse. */
 int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget,
@@ -92,4 +92,12 @@ void rf_geometry_collision_world_close(rf_geometry_collision_world *world);
 int rf_geometry_collision_world_ray(const rf_geometry_collision_world *world,
     uint32_t flags,const float start[3],const float delta[3],float limit,
     rf_geometry_world_hit *result,uint32_t *matched);
+typedef struct rf_geometry_world_sweep_hit {
+    rf_collision_ray_hit hit;uint32_t face,room,hits,edge;
+} rf_geometry_world_sweep_hit;
+/* Local uncached swept query using owned world storage; returns level face IDs.
+ * No allocations; serialize calls sharing the world's tree scratch. */
+int rf_geometry_collision_world_sweep(const rf_geometry_collision_world *world,
+    uint32_t flags,const float start[3],const float delta[3],float radius,float limit,
+    rf_geometry_world_sweep_hit *result,uint32_t *matched);
 #endif

@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Swept tree and local room queries each match 5,000 original calls on PC and
-NXDK; bind swept results to loaded-world face IDs, validate real-level sweeps
-and XEMU execution, then recover transformed queries and actor response.
+Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
+in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
+and actor movement response before driving gameplay collision.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

@@ -20,6 +20,31 @@ volatile uint32_t rf_diagnostic[58] = {0x52464447u, 9u, 0};
 static rf_geometry resident_geometry;
 static rf_geometry_collision_world resident_collision;
 volatile uint32_t rf_collision_diagnostic[9]={0x52464357u};
+volatile uint32_t rf_sweep_diagnostic[8]={0x52465357u};
+static int sweep_check(void)
+{
+    uint32_t i,j,k,q,hash=2166136261u;MM_STATISTICS memory={0};
+    for(i=0;i<resident_collision.room_count;i++)for(q=0;q<3;q++) {
+        const rf_collision_tree *tree=&resident_collision.rooms[i].tree;const rf_collision_face *face;
+        float start[3]={0},delta[3];struct {int32_t status;uint32_t matched;rf_geometry_world_sweep_hit hit;} out;
+        const unsigned char *bytes=(const unsigned char*)&out;
+        if(!tree->face_count)continue;face=tree->faces;
+        for(j=0;j<face->count;j++)for(k=0;k<3;k++)start[k]+=face->vertices[j][k];
+        for(k=0;k<3;k++) {
+            float anchor=q==0?start[k]/face->count:q==1?face->vertices[0][k]:(face->vertices[0][k]+face->vertices[1%face->count][k])*.5f;
+            start[k]=anchor+face->plane[k]+.0037f*(k+1);delta[k]=-2*face->plane[k]+.0013f*(k+1);
+        }
+        memset(&out,0xa5,sizeof(out));out.status=rf_geometry_collision_world_sweep(&resident_collision,0x460,start,delta,.25f*(q+1),1,&out.hit,&out.matched);
+        rf_sweep_diagnostic[2]++;
+        if(out.status)rf_sweep_diagnostic[5]++;
+        else {rf_sweep_diagnostic[3]+=out.matched;if(out.matched)rf_sweep_diagnostic[4]+=out.hit.edge!=0;}
+        for(j=0;j<sizeof(out);j++)hash=(hash^bytes[j])*16777619u;
+    }
+    rf_sweep_diagnostic[6]=hash;memory.Length=sizeof(memory);
+    if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_sweep_diagnostic[7]=memory.AvailablePages;
+    rf_sweep_diagnostic[1]=rf_sweep_diagnostic[5]?(uint32_t)RF_FORMAT:1;
+    return rf_sweep_diagnostic[5]?RF_FORMAT:RF_OK;
+}
 static int collision_check(void)
 {
     uint32_t i,j,k,hash=2166136261u;MM_STATISTICS memory={0};int status;
@@ -40,7 +65,7 @@ static int collision_check(void)
     rf_collision_diagnostic[7]=hash;memory.Length=sizeof(memory);
     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_collision_diagnostic[8]=memory.AvailablePages;
     rf_collision_diagnostic[1]=rf_collision_diagnostic[6]?(uint32_t)RF_FORMAT:1;
-    return rf_collision_diagnostic[6]?RF_FORMAT:RF_OK;
+    return rf_collision_diagnostic[6]?RF_FORMAT:sweep_check();
 }
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;

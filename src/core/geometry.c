@@ -371,3 +371,18 @@ int rf_geometry_collision_world_ray(const rf_geometry_collision_world *world,
     }
     *matched=found;return RF_OK;
 }
+
+int rf_geometry_collision_world_sweep(const rf_geometry_collision_world *world,
+    uint32_t flags,const float start[3],const float delta[3],float radius,float limit,
+    rf_geometry_world_sweep_hit *result,uint32_t *matched)
+{
+    rf_collision_sweep_room_hit hit;uint32_t found;int status;
+    if(!world || !result || !matched)return RF_RANGE;
+    status=rf_collision_sweep_rooms(world->views,world->room_count,world->primary,world->primary_count,
+        world->children,world->child_count,flags,start,delta,radius,limit,&hit,&found);if(status)return status;
+    if(found) {
+        rf_geometry_world_sweep_hit value;value.hit=hit.tree.hit;value.room=hit.room;value.hits=hit.tree.hits;value.edge=hit.tree.edge;
+        value.face=world->rooms[hit.room].tree.source_indices[hit.tree.face_index];*result=value;
+    }
+    *matched=found;return RF_OK;
+}

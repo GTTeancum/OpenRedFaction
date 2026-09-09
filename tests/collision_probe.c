@@ -63,6 +63,50 @@ int main(int argc,char **argv)
         printf("%u %u %u %u %u %u %u %u %u %u\n",world.room_count,faces,world.primary_count,world.child_count,world.allocated_bytes,world.peak_bytes,queries,hits,errors,hashes[0]);
         free(poison);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return 0;
     }
+    if(argc==4 && !strcmp(argv[1],"--world-sweep")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0},guard,sentinel;
+        uint32_t i,j,k,q,pass,edge_hits=0,faces=0,queries=0,hits=0,errors=0,hashes[2]={2166136261u,2166136261u},geometry_bytes;void *poison=NULL;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,8u*1024u*1024u))return 3;
+        if(rf_geometry_collision_world_open(&geometry,8u*1024u*1024u,&world))return 4;
+        memset(&guard,0xa5,sizeof(guard));sentinel=guard;
+        if(rf_geometry_collision_world_open(&geometry,world.peak_bytes-1,&guard)!=RF_RANGE || memcmp(&guard,&sentinel,sizeof(guard)))return 5;
+        if(rf_geometry_collision_world_open(&geometry,world.peak_bytes,&guard))return 6;
+        rf_geometry_collision_world_close(&guard);
+        for(i=0;i<world.room_count;i++) {
+            const rf_collision_tree *tree=&world.rooms[i].tree;
+            if(world.views[i].tree!=tree || memcmp(world.views[i].minimum,world.rooms[i].minimum,24))return 7;
+            faces+=tree->face_count;
+            for(j=0;j<tree->face_count;j++) {rf_geometry_face face;if(rf_geometry_get_face(&geometry,tree->source_indices[j],&face) || face.room!=i)return 8;}
+        }
+        if(faces!=geometry.faces)return 9;
+        geometry_bytes=geometry.bytes;
+        for(pass=0;pass<2;pass++) {
+            for(i=0;i<world.room_count;i++)for(q=0;q<3;q++) {
+                const rf_collision_tree *tree=&world.rooms[i].tree;const rf_collision_face *face;float start[3]={0},delta[3];
+                struct {int32_t status;uint32_t matched;rf_geometry_world_sweep_hit hit;} out;const unsigned char *bytes=(const unsigned char*)&out;
+                if(!tree->face_count)continue;face=tree->faces;
+                for(j=0;j<face->count;j++)for(k=0;k<3;k++)start[k]+=face->vertices[j][k];
+                for(k=0;k<3;k++) {
+                    float anchor=q==0?start[k]/face->count:q==1?face->vertices[0][k]:(face->vertices[0][k]+face->vertices[1%face->count][k])*.5f;
+                    start[k]=anchor+face->plane[k]+.0037f*(k+1);delta[k]=-2*face->plane[k]+.0013f*(k+1);
+                }
+                memset(&out,0xa5,sizeof(out));out.status=rf_geometry_collision_world_sweep(&world,0x460,start,delta,.25f*(q+1),1,&out.hit,&out.matched);
+                if(!pass) {queries++;errors+=out.status!=0;if(!out.status) {hits+=out.matched;if(out.matched)edge_hits+=out.hit.edge!=0;}}
+                if(!out.status && out.matched) {
+                    const rf_collision_tree *target;uint32_t found=0;
+                    if(out.hit.face>=faces || out.hit.room>=world.room_count)return 10;
+                    target=&world.rooms[out.hit.room].tree;
+                    for(j=0;j<target->face_count;j++)if(target->source_indices[j]==out.hit.face)found=1;
+                    if(!found)return 13;
+                }
+                for(j=0;j<sizeof(out);j++)hashes[pass]=(hashes[pass]^bytes[j])*16777619u;
+            }
+            if(!pass) {rf_geometry_close(&geometry);poison=malloc(geometry_bytes);if(!poison)return 11;memset(poison,0xdd,geometry_bytes);}
+        }
+        if(hashes[0]!=hashes[1])return 12;
+        printf("%u %u %u %u %u %u %u %u %u %u %u\n",world.room_count,faces,world.primary_count,world.child_count,world.allocated_bytes,world.peak_bytes,queries,hits,errors,hashes[0],edge_hits);
+        free(poison);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--sweep-rooms")) {
         struct {struct {float bounds[6],z;uint32_t skip,first,count;} rooms[4];uint32_t primary[2],children[4];float start[3],delta[3],limit;uint32_t flags;float radius;} in;
         while(fread(&in,sizeof(in),1,stdin)==1) {

@@ -856,3 +856,46 @@ Full PC/NXDK builds and four CTest checks pass. The 1,800-case thin-tree,
 synthetic original/port CPU comparisons; loaded-level sweep validation, XEMU
 execution, transformed/moving solids and actor collision response remain open.
 Rendering is unchanged, so no screenshot was captured.
+
+## Loaded-world sweeps and 64 MiB guest execution
+
+`rf_geometry_collision_world_sweep` now binds the local swept-room query to the
+owned collision world and translates reordered tree indices through source_indices
+to level face IDs. Results retain room ID, aggregate contact count and plane/edge
+classification. It shares the existing world storage and serialized tree scratch;
+there is no extra per-query allocation or separate swept geometry copy.
+
+`python tools/verify_collision_world_sweep.py` passes all 94 installed levels.
+For each nonempty room, three queries use its first tree face's centroid, first
+vertex and first-edge midpoint as anchors, with small coordinate perturbations
+and radii 0.25, 0.5 and 0.75. Across 44,082 queries there are 39,263 hits, including
+13,568 edge contacts, and zero errors. Returned face IDs are checked against the
+returned room's source-index mapping. Complete output bytes replay identically
+after source geometry is closed and replacement storage is filled with poison.
+Exact peak budgets succeed and peak-minus-one fails without changing the output.
+Maximum retained/peak world bytes remain 2,069,416 / 2,093,376. This checks owned
+storage and real-data execution, not a new full original-world differential test.
+Report: `artifacts/collision-world-sweep-verification.json`.
+
+The NXDK diagnostic now runs the same three query fixtures per nonempty Live
+Mines room. A separate eight-word `rf_sweep_diagnostic` publishes status, query,
+hit and edge counts, errors, full-output FNV-1a checksum and available pages.
+The XEMU harness resolves it from the matching linker map, reads it through QMP,
+and checks a freshly computed PC reference before accepting the run. The existing
+ray and animation checks remain active.
+
+`python tools/xemu_smoke.py --scene-states --no-capture` passed with exactly
+67,108,864 bytes of guest RAM and no additional memory in
+`artifacts/xemu/20260909-014622-698953/report.json`. All 162 sweep queries hit,
+32 ended on edges, and zero errors occurred. Output checksum `0x56cf1a44` matches
+PC, including contact coordinates, normals, level face identities and counts.
+The existing 54 room rays still match `0x2052a365`. Available memory was
+61,509,632 bytes both before and after the sweep batch. Collision storage remained
+resident throughout the existing 64-frame authored miner-state scene, with
+45,416,448 bytes available after CPU mesh release. These are observed diagnostic
+memory values, not a full-game peak or performance guarantee.
+
+Both builds and four CTest checks pass. Transformed and moving-solid queries,
+runtime room/face mutations, support/slide response and actual actor movement are
+still open. The sweeps do not move the diagnostic miner; rendering is unchanged,
+and the run explicitly performed no framebuffer capture.
