@@ -368,13 +368,14 @@ int rf_geometry_collision_movers_open(const rf_geometry_movers *source,
     rf_geometry_collision_movers value={0};uint64_t base,retained,peak;
     float (*vertices)[3]=NULL;uint32_t i,j;int status;
     if(!source || !result || (source->count && (!source->items || !object_ids)))return RF_RANGE;
-    base=(uint64_t)source->count*(sizeof(*value.owned)+sizeof(*value.views)+sizeof(*value.uids));
+    base=(uint64_t)source->count*(sizeof(*value.owned)+sizeof(*value.views)+sizeof(*value.uids)+sizeof(*value.poses));
     retained=peak=base+sizeof(value);if(peak>budget)return RF_RANGE;
     if(source->count) {
         value.storage=calloc(1,(size_t)base);if(!value.storage)return RF_RANGE;
         value.owned=(rf_geometry_collision_flat *)value.storage;
         value.views=(rf_collision_solid_view *)(value.owned+source->count);
         value.uids=(int32_t *)(value.views+source->count);
+        value.poses=(rf_group_attached_pose *)(value.uids+source->count);
     }
     value.count=source->count;
     for(i=0;i<source->count;i++) {
@@ -397,6 +398,12 @@ int rf_geometry_collision_movers_open(const rf_geometry_movers *source,
         for(j=0;j<3;j++) {view->minimum[j]=m->position[j]-bounds.origin_radius;view->maximum[j]=m->position[j]+bounds.origin_radius;}
         if(!finite_words((const unsigned char *)view->minimum,30)) {status=RF_FORMAT;goto fail;}
         view->flat_faces=value.owned[i].faces;view->flat_count=value.owned[i].count;
+        /* 486ee6 base pose + 49f051 physics pose; mover factory passes flags 0. */
+        value.poses[i].flags=0x6000000;value.poses[i].radius=bounds.origin_radius;
+        memcpy(value.poses[i].base_position,m->position,12);memcpy(value.poses[i].base_matrix,m->orientation,36);
+        memcpy(value.poses[i].position,m->position,12);memcpy(value.poses[i].public_position,m->position,12);memcpy(value.poses[i].pending,m->position,12);
+        memcpy(value.poses[i].input_matrix,m->orientation,36);memcpy(value.poses[i].output_matrix,m->orientation,36);memcpy(value.poses[i].pending_matrix,m->orientation,36);
+        memcpy(value.poses[i].minimum,view->minimum,12);memcpy(value.poses[i].maximum,view->maximum,12);
     }
     value.allocated_bytes=(uint32_t)retained;value.peak_bytes=(uint32_t)peak;*result=value;return RF_OK;
 fail:

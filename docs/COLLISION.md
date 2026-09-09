@@ -1911,3 +1911,35 @@ count/unsupported/nonfinite/zero-dt guards preserve state. Report:
 `artifacts/group-propagation-verification.json`. The isolated NXDK instruction
 budget includes its library's byte-wise copies of the pose snapshot. Both builds
 and four CTest checks pass. This is not connected to scene rendering yet.
+
+### Owned authored mover base/runtime poses
+
+The original factory block 486ee6..486f0f copies its supplied matrix into
+object+48/+244 and supplied position into +238. The expanded
+`verify_mover_pose_initialization.py` executes that block with unchanged helpers
+for all 1,406 installed movers, checking every object byte, in addition to the
+previous physics pose/position-assignment checks. All pass. This establishes
+the base poses needed by the propagation code from the authored geometry data.
+
+`rf_geometry_collision_movers_open` now retains one 236-byte attached-pose
+snapshot per mover in the existing owned allocation. It initializes authored
+base/current/pending poses, all three matrices, zero velocity and the original
+origin-radius bounds. Initial factory flags are 06000000: the type-9 factory
+call at 46b0ae passes flag argument zero, and 486f52 ORs this mask. Later
+attachment flags and state changes must still be applied by the runtime binder.
+The collection's storage accounting includes these snapshots and its new pointer;
+source geometry and archives may close after construction.
+
+Updated `verify_mover_binding.py` compares every snapshot field for all 68
+levels / 1,406 movers after source closure, alongside collision views, exact
+and one-byte-short budgets and failure preservation. All pass; maximum retained
+and peak allocation is 210,668 bytes. The 94-level combined collision replay
+still passes all 41,910 queries after source closure/poisoning.
+
+Both builds and four CTest checks pass. A fresh native-telemetry XEMU run with
+`--scene-states --no-capture` passes on exactly 67,108,864 bytes of guest RAM:
+`artifacts/xemu/20260909-090601-292806/report.json`. Live Mines retains five
+movers in 13,468 bytes, including their new pose storage. Its combined 148-ray
+fixture still returns 90 mover hits and 58 static hits, checksum e561d46f.
+The snapshots are retained in the guest but not yet updated by authored
+controllers or consumed by rendering; no new visible result occurred.

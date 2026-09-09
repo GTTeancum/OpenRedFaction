@@ -199,7 +199,8 @@ int main(int argc,char **argv)
             if(view->flat_faces!=owned.owned[i].faces || view->flat_count!=owned.owned[i].count ||
                 view->rooms || view->room_count || view->primary || view->primary_count || view->children || view->child_count)return 9;
             if(fwrite(owned.uids+i,4,1,stdout)!=1 || fwrite(&view->object_id,4,1,stdout)!=1 ||
-                fwrite(&view->flat_count,4,1,stdout)!=1 || fwrite(view->minimum,120,1,stdout)!=1)return 8;
+                fwrite(&view->flat_count,4,1,stdout)!=1 || fwrite(view->minimum,120,1,stdout)!=1 ||
+                fwrite(owned.poses+i,sizeof(*owned.poses),1,stdout)!=1)return 8;
         }
         rf_geometry_collision_movers_close(&owned);rf_geometry_collision_movers_close(&owned);return 0;
     }

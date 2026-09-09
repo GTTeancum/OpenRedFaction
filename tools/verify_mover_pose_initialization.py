@@ -4,7 +4,7 @@ from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32
-from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_ECX,UC_X86_REG_EIP,UC_X86_REG_ESI,UC_X86_REG_EDI,UC_X86_REG_FPCW
+from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_ECX,UC_X86_REG_EIP,UC_X86_REG_ESI,UC_X86_REG_EDI,UC_X86_REG_EBP,UC_X86_REG_FPCW
 exe=root/'Installed_Game/RF.exe';assert hashlib.sha256(exe.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
 im=pefile.PE(str(exe)).get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(0x400000,(len(im)+4095)//4096*4096);u.mem_write(0x400000,im)
 base=0x30000000;u.mem_map(base,65536);obj=base;params=base+4096;source=base+8192;stack=base+60000;stop=base+64000
@@ -21,6 +21,11 @@ for r in records:
  for offset in [0xfc,0x120]:want[offset:offset+36]=matrix
  want[0x144:0x150]=bytes(12);want[0x168:0x174]=bytes(12)
  assert bytes(u.mem_read(obj,len(want)))==want,(r['uid'],'physics pose copy')
+ # Factory base pose copies: matrix -> +48/+244, position -> +238.
+ u.reg_write(UC_X86_REG_ESI,obj);u.reg_write(UC_X86_REG_EDI,params+0x3c);u.reg_write(UC_X86_REG_EBP,params);u.reg_write(UC_X86_REG_ESP,stack)
+ u.emu_start(0x486ee6,0x486f0f,count=10000);assert u.reg_read(UC_X86_REG_EIP)==0x486f0f
+ want[0x238:0x244]=position;want[0x244:0x268]=matrix;want[0x48:0x6c]=matrix
+ assert bytes(u.mem_read(obj,len(want)))==want,(r['uid'],'factory base pose')
 rng=random.Random(0x48a230);cases=[]
 for r in records:
  for radius in [-1,0,.25,1,10]:cases.append((r['position'],radius))
@@ -39,5 +44,5 @@ for n,(position,radius) in enumerate(cases):
  want[0x19c:0x1a8]=struct.pack('<3f',*[p+radius for p in position]) if radius>0 else pose
  struct.pack_into('<I',want,0x7c,0x12345678|0x4000000)
  assert bytes(u.mem_read(obj,len(want)))==want,(n,position,radius,'position assignment')
-report=dict(result='PASS',physics_pose_blocks=len(records),position_assignments=len(cases),aliased_sources=aliases,scope='Original 49f051..49f0ab with real callees verifies copies into object e4/f0/fc/120 and two cleared vectors for every file mover pose. Complete unmodified 48a230 with debug lookup disabled verifies all object bytes, positive/nonpositive radius bounds, position copies and dirty flag, including source alias at f0. This is not complete factory/physics construction or a C/NXDK port.')
+report=dict(result='PASS',physics_pose_blocks=len(records),factory_base_pose_blocks=len(records),position_assignments=len(cases),aliased_sources=aliases,scope='Original 49f051..49f0ab verifies physics pose copies; 486ee6..486f0f verifies factory position +238 and matrices +48/+244 for every file mover pose with unchanged helpers. Complete unmodified 48a230 with debug lookup disabled verifies all object bytes, positive/nonpositive radius bounds, position copies and dirty flag, including source alias at f0. This is not complete factory/physics construction.')
 (root/'artifacts/mover-pose-initialization.json').write_text(json.dumps(report,indent=2));print(report)

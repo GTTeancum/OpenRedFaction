@@ -82,13 +82,15 @@ typedef struct rf_geometry_collision_movers {
     rf_geometry_collision_flat *owned;
     rf_collision_solid_view *views;
     int32_t *uids;
+    rf_group_attached_pose *poses;
     uint32_t count,allocated_bytes,peak_bytes;
 } rf_geometry_collision_movers;
 /* Own initial mover collision views in file/creation order. object_ids are
  * caller-registered runtime handles (original object+2c), NOT file UIDs (+20).
  * Budget covers object, all retained storage and vertex-bound scratch, excluding
  * input movers and allocator overhead. Source may close after success. No
- * runtime registration, simulation, destruction policy or later pose updates.
+ * Owns factory/physics pose snapshots including base poses for propagation;
+ * no runtime registration, simulation, destruction policy or later pose updates.
  * Failure preserves output; close before reuse. */
 int rf_geometry_collision_movers_open(const rf_geometry_movers *source,
     const uint32_t *object_ids,uint32_t budget,rf_geometry_collision_movers *result);
