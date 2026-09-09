@@ -63,6 +63,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     uint16_t generations[256]={0}; uint32_t count=0,i,frame; int status,opened=0,found=0;
     void *payload=NULL;
     float (*stored)[12]=NULL,(*prepared)[12]=NULL;uint16_t prepared_generations[256]={0};
+    rf_model_vertex *vertices=NULL;uint32_t vertex_count=0,batch_index,vertex_index;
     if (!out) return RF_RANGE;
     memset(out,0,8*4); out[0]=1;
     status=rf_vpp_open(&meshes,meshes_path); if (status!=RF_OK) goto done;
@@ -81,6 +82,20 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     prepared=stored+count;
     for(i=0;i<count;++i) {
         status=rf_model_bone_transform(bones[i].rotation,bones[i].position,stored[i]);if(status)goto done;
+    }
+    for(batch_index=0;batch_index<model.lods[0].batch_count;++batch_index) {
+        rf_model_batch batch;status=rf_model_file_batch(&model,0,batch_index,&batch);if(status)goto done;
+        if(batch.vertices>1024*1024/sizeof(*vertices)-vertex_count) { status=RF_RANGE;goto done; }
+        vertex_count+=batch.vertices;
+    }
+    if(!vertex_count) { status=RF_FORMAT;goto done; }
+    vertices=calloc(vertex_count,sizeof(*vertices));if(!vertices) { status=RF_RANGE;goto done; }
+    vertex_index=0;
+    for(batch_index=0;batch_index<model.lods[0].batch_count;++batch_index) {
+        rf_model_batch batch;uint32_t v;status=rf_model_file_batch(&model,0,batch_index,&batch);if(status)goto done;
+        for(v=0;v<batch.vertices;++v,++vertex_index) {
+            status=rf_model_file_vertex(&model,&batch,v,vertices+vertex_index);if(status)goto done;
+        }
     }
     out[1]=count;
     for (i=0;i<model.lods[0].attachment_count;++i) {
@@ -178,9 +193,15 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
         out[5]=hash_bytes(out[5],generations,count*2); displacement[0]=0;
         status=rf_model_prepare_skinning(stored,matrices,count,(uint16_t)state.generation,prepared,prepared_generations,count);if(status)goto done;
         out[5]=hash_bytes(out[5],prepared,count*48);out[5]=hash_bytes(out[5],prepared_generations,count*2);
+        for(vertex_index=0;vertex_index<vertex_count;++vertex_index) {
+            rf_model_vertex *v=vertices+vertex_index;float position[3];
+            status=rf_model_collision_vertex(v->position,v->weights,v->bones,prepared,count,position);if(status)goto done;
+            out[5]=hash_bytes(out[5],position,sizeof(position));
+        }
         out[2]=frame+1;
     }
 done:
+    free(vertices);
     free(stored);
     free(payload);
     if (opened==2) rf_vpp_close(&archive);

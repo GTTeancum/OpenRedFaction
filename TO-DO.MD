@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+All 744 miner LOD0 vertices now deform over 64 animation frames on PC and
+64 MiB XEMU, matching 47,616 original collision-deformation evaluations.
+Connect renderer-specific vertex processing, materials and lighting to drawing.
+
 The shared miner diagnostic now prepares skinning matrices from real skeleton
 and animation data across 64 frames, matching original code on PC and 64 MiB
 XEMU. Connect actual vertex batches, material slots and lighting to drawing.

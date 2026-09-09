@@ -1,5 +1,21 @@
 # Model batch data
 
+The shared miner diagnostic now loads all 744 vertices from LOD 0 and runs
+their actual position/weight/bone records through collision deformation after
+each prepared pose. It retains 29,760 bytes of vertex records for the 64-frame
+sequence under an explicit 1 MiB vertex-data cap; allocation is released on
+every exit path. Triangle collision tests and renderer deformation are not
+substituted by this numeric check.
+
+The independent verifier traverses the original LOD payload and executes the
+unchanged collision block for every vertex/frame, totaling 47,616 evaluations.
+The eight-word result is now
+`[2,25,64,3699116198,3589827904,4200471932,1621267238,1404]`.
+PC build, four CTest checks, NXDK and 64 MiB XEMU all pass; evidence is
+`artifacts/xemu/20260908-200823-522166/report.json`. No screenshot was captured
+because the displayed static scene is unchanged. Next connect renderer-specific
+vertex reuse, material selection and lighting to visible model drawing.
+
 The shared 64-frame animation diagnostic now connects actual miner BONE data
 and evaluated animation poses to prepared skinning matrices. It builds the
 25 stored transforms once, allocates 2,400 bytes for stored/prepared matrices,

@@ -19,6 +19,14 @@ def read(name):
 raw=read('miner.v3c'); section=next(s for s in inspect(raw)['sections'] if s['type']=='0x424f4e45'); start=section['offset']+8
 count,=struct.unpack_from('<I',raw,start)
 lod=next(s for s in inspect(raw)['sections'] if s['type']=='0x5355424d')['lods'][0]
+collision_vertices=[];relative=(lod['batches']*56+15)&~15
+for bi in range(lod['batches']):
+    v,t,p,ix,extra,links,uv,fmt=struct.unpack_from('<7HI',raw,lod['data_offset']+lod['data_bytes']+4+bi*18)
+    sizes=[p,p,uv,ix,t*16 if lod['flags']&32 else 0,extra,links,lod['unknown']*2 if lod['flags']&1 else 0]
+    regions=[]
+    for size in sizes:
+        regions.append(raw[lod['data_offset']+relative:lod['data_offset']+relative+size]);relative=(relative+size+15)&~15
+    for vi in range(v):collision_vertices.append((regions[0][vi*12:vi*12+12],regions[6][vi*8:vi*8+8]))
 attachments=raw[lod['attachment_offset']:lod['attachment_offset']+lod['props']*100]
 eye_index=next(i for i in range(lod['props']) if attachments[i*100:i*100+68].split(b'\0')[0]==b'eye')
 a,b,c,tags=[order_address+i*4096 for i in (1,2,3,4)]
@@ -177,9 +185,17 @@ for frame in range(64):
     put(stack+64000,'<7I',stop,0,0,0,0,0,0);u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_ECX,obj)
     u.emu_start(0x51ba00,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
     hashes[2]=fnv(hashes[2],rd(obj+0x960,count*48)+b''.join(rd(obj+0x1396+i*48,2) for i in range(count)))
+    for position,links in collision_vertices:
+        collision_stack=stack+60000;link_address=order_address+0x6100
+        u.mem_write(collision_stack,bytes(256));u.mem_write(collision_stack+0x40,position);u.mem_write(link_address,links)
+        put(collision_stack+0xc0,'<I',obj);u.reg_write(UC_X86_REG_ESP,collision_stack);u.reg_write(UC_X86_REG_EDI,link_address)
+        u.emu_start(0x54e344,0x54e3c0,count=10000);assert u.reg_read(UC_X86_REG_EIP)==0x54e3c0
+        hashes[2]=fnv(hashes[2],rd(collision_stack+0x4c,12))
 expected=[2,count,64,*hashes,4+count*56]
 actual=list(struct.unpack('<8I',subprocess.check_output([str(root/'build/pc/Release/rf_animation_check.exe'),str(root/'Installed_Game/meshes.vpp'),str(root/'Installed_Game/motions.vpp')])))
 assert len(reset_calls)==16 and 17 in starts and 18 in starts and len(starts)<48,(starts,reset_calls)
 assert len(queue_calls)==1 and len(followup_calls)==1,(queue_calls,followup_calls)
 report=dict(result='PASS' if actual==expected else 'FAIL',expected=expected,actual=actual,action_starts=starts,reset_calls=len(reset_calls),queue_calls=len(queue_calls),followup_calls=len(followup_calls),scope='64-frame ammo/replacement, whole empty handler to outgoing action including nonlocal current-weapon lookup, selection tail with queue/followup clear, entity predicates, scripted controller, preparation/candidate blocks, valid active-weapon reset with nonloop/effect stops, playback, skeleton/cache, stored-bone transforms and prepared skinning matrices, and eye against unmodified original instructions; earlier selection gates, actual activation, message/sound execution and local-player presentation excluded')
+report.update(collision_vertices=len(collision_vertices),collision_evaluations=64*len(collision_vertices))
+report['scope']+='; all miner LOD0 collision positions evaluated by original block each frame'
 (root/'artifacts/animation-check-original.json').write_text(json.dumps(report,indent=2));print(report);assert actual==expected
