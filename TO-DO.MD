@@ -37,8 +37,10 @@ now retain 1,112 initialized translations and 111 explicit pending rotations;
 Live Mines runtime lifetime passes 64 MiB XEMU. Bind authored memberships to
 registered objects, then activation, propagation/commit and rendering. Owned
 mover membership lists now match all 1,421 authored references on PC using
-diagnostic handles; integrate these lists with resident Xbox objects and add
-general-object attachment and actual handle registration.
+diagnostic handles. Resident Xbox mover objects now retain those memberships
+and synchronized flags through 66 lifetime checks in 64 MiB XEMU; connect
+activation/propagation/commit and rendering, then general-object attachment
+and actual handle registration.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

@@ -22,6 +22,11 @@ static rf_geometry resident_geometry;
 static rf_geometry_collision_world resident_collision;
 volatile uint32_t rf_collision_diagnostic[9]={0x52464357u};
 volatile uint32_t rf_sweep_diagnostic[8]={0x52465357u};
+static rf_group_mover_memberships resident_memberships;
+static rf_group_object *resident_mover_objects;
+static uint32_t *resident_controller_handles;
+volatile uint32_t rf_group_membership_diagnostic[11]={0x5246474du};
+static int membership_check(void);
 static rf_group_runtime_collection resident_group_runtime;
 volatile uint32_t rf_group_runtime_diagnostic[8]={0x52464752u};
 static uint32_t group_runtime_hash(void)
@@ -53,7 +58,7 @@ static int group_storage_check(void)
     if(hash!=rf_group_storage_diagnostic[7]) {rf_group_storage_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
     hash=group_runtime_hash();rf_group_runtime_diagnostic[7]=hash;
     if(hash!=rf_group_runtime_diagnostic[6]) {rf_group_runtime_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
-    return RF_OK;
+    return rf_group_membership_diagnostic[1]==1?membership_check():RF_OK;
 }
 static int group_storage_open(const rf_level *level)
 {
@@ -76,6 +81,52 @@ static int group_storage_open(const rf_level *level)
 }
 static rf_geometry_collision_movers resident_movers;
 volatile uint32_t rf_mover_diagnostic[12]={0x52464d56u};
+static uint32_t membership_hash(void)
+{
+    uint32_t i,j,part,hash=2166136261u;const unsigned char *objects=(const unsigned char *)resident_mover_objects;
+    for(j=0;j<resident_movers.count*sizeof(*resident_mover_objects);j++)hash=(hash^objects[j])*16777619u;
+    for(i=0;i<resident_memberships.count;i++) {
+        const rf_group_mover_membership *m=resident_memberships.items+i;
+        const void *data[3]={&m->count,&m->rotation_sign,m->handles};uint32_t sizes[3]={4,4,m->count*4};
+        for(part=0;part<3;part++)for(j=0;j<sizes[part];j++)hash=(hash^((const unsigned char *)data[part])[j])*16777619u;
+    }
+    return hash;
+}
+static int membership_check(void)
+{
+    uint32_t i,hash=membership_hash();rf_group_membership_diagnostic[8]=hash;rf_group_membership_diagnostic[9]++;
+    for(i=0;i<resident_movers.count;i++)if(resident_movers.poses[i].flags!=resident_mover_objects[i].flags ||
+        resident_movers.views[i].object_id!=resident_mover_objects[i].handle)goto failed;
+    if(hash==rf_group_membership_diagnostic[7])return RF_OK;
+ failed:
+    rf_group_membership_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;
+}
+static int membership_open(void)
+{
+    uint32_t i;int status;
+    if((uint64_t)resident_movers.count+resident_group_runtime.count>1024)return RF_RANGE;
+    resident_mover_objects=calloc(resident_movers.count?resident_movers.count:1,sizeof(*resident_mover_objects));
+    resident_controller_handles=calloc(resident_group_runtime.count?resident_group_runtime.count:1,4);
+    if(!resident_mover_objects || !resident_controller_handles) {status=RF_RANGE;goto failed;}
+    for(i=0;i<resident_movers.count;i++) {
+        rf_group_object *o=resident_mover_objects+i;o->uid=resident_movers.uids[i];o->type=9;
+        o->handle=resident_movers.views[i].object_id;o->parent=UINT32_MAX;o->flags=resident_movers.poses[i].flags;
+    }
+    for(i=0;i<resident_group_runtime.count;i++)resident_controller_handles[i]=0x23450000+resident_movers.count+i;
+    status=rf_group_mover_memberships_open(&resident_group_runtime,resident_mover_objects,resident_movers.count,
+        resident_controller_handles,0,64u*1024u,&resident_memberships);if(status)goto failed;
+    for(i=0;i<resident_movers.count;i++)resident_movers.poses[i].flags=resident_mover_objects[i].flags;
+    rf_group_membership_diagnostic[1]=1;rf_group_membership_diagnostic[2]=resident_memberships.count;rf_group_membership_diagnostic[3]=resident_movers.count;
+    rf_group_membership_diagnostic[4]=resident_memberships.allocated_bytes;rf_group_membership_diagnostic[5]=resident_memberships.peak_bytes;
+    for(i=0;i<resident_memberships.count;i++)rf_group_membership_diagnostic[6]+=resident_memberships.items[i].count;
+    rf_group_membership_diagnostic[7]=membership_hash();
+    rf_group_membership_diagnostic[10]=resident_movers.count*sizeof(*resident_mover_objects)+resident_group_runtime.count*4;
+    return membership_check();
+ failed:
+    free(resident_mover_objects);resident_mover_objects=NULL;free(resident_controller_handles);resident_controller_handles=NULL;
+    rf_group_mover_memberships_close(&resident_memberships);rf_group_membership_diagnostic[1]=(uint32_t)status;return status;
+}
+
 static int mover_check(const rf_level *level)
 {
     rf_geometry_movers source={0};uint32_t *ids=NULL,i,j,k,v,group,hash=2166136261u;
@@ -86,6 +137,7 @@ static int mover_check(const rf_level *level)
     for(i=0;i<source.count;i++)ids[i]=0x12340000+i; /* Diagnostic handles, not gameplay registration. */
     status=rf_geometry_collision_movers_open(&source,ids,1024u*1024u,&resident_movers);
     free(ids);ids=NULL;rf_geometry_movers_close(&source);if(status)goto done;
+    status=membership_open();if(status)goto done;
     rf_mover_diagnostic[2]=resident_movers.count;rf_mover_diagnostic[3]=resident_movers.allocated_bytes;
     rf_mover_diagnostic[4]=resident_movers.peak_bytes;
     for(group=0;group<2;group++)for(i=0;i<(group?resident_movers.count:resident_collision.room_count);i++) {

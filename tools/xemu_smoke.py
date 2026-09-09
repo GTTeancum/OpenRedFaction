@@ -102,6 +102,15 @@ def main():
     runtime_raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--runtime-groups',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl'])
     runtime_header=list(struct.unpack_from('<4I',runtime_raw));runtime_hash=2166136261
     for byte in runtime_raw[16:]:runtime_hash=((runtime_hash^byte)*16777619)&0xffffffff
+    membership_symbol=re.search(r'_rf_group_membership_diagnostic\s+([0-9a-fA-F]+)',map_text)
+    if not membership_symbol:raise RuntimeError('Membership diagnostic symbol absent')
+    membership_raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--member-groups',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl'])
+    membership_header=list(struct.unpack_from('<4I',membership_raw));membership_hash=2166136261
+    for byte in membership_raw[16:]:membership_hash=((membership_hash^byte)*16777619)&0xffffffff
+    membership_at=16+membership_header[1]*20;membership_accepted=0
+    for _ in range(membership_header[0]):
+        n,=struct.unpack_from('<I',membership_raw,membership_at);membership_accepted+=n;membership_at+=8+4*n
+    if membership_at!=len(membership_raw):raise RuntimeError('Malformed PC membership reference')
     run = root / 'artifacts/xemu' / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     run.mkdir(parents=True)
     eeprom = run / 'eeprom.bin'
@@ -203,6 +212,14 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         if ':' in line:runtime.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
                     if runtime!=[0x52464752,1]+runtime_header+[runtime_hash,runtime_hash]:raise RuntimeError(f'Guest controller runtime differs from PC: {runtime}')
                     report['controller_runtime']=dict(groups=runtime[2],retained_bytes=runtime[3],translations=runtime[4],rotation_pending=runtime[5],checksum=hex(runtime[7]),lifetime_checks=groups[9],scope='Persistent base poses and initialized inactive translations match PC through rendering/archive closure. Rotation pending; no attachment/activation/playback.')
+                    membership_reply=monitor.command('human-monitor-command',{'command-line':f'x /11wx 0x{int(membership_symbol[1],16):x}'})
+                    memberships=[]
+                    for line in membership_reply.splitlines():
+                        if ':' in line:memberships.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
+                    want=[0x5246474d,1]+membership_header+[membership_accepted,membership_hash,membership_hash]
+                    if len(memberships)!=11 or memberships[:9]!=want or memberships[9]!=groups[9] or memberships[10]!=20*membership_header[1]+4*membership_header[0]:
+                        raise RuntimeError(f'Guest mover memberships differ from PC: {memberships}; expected {want}')
+                    report['controller_memberships']=dict(groups=memberships[2],objects=memberships[3],retained_bytes=memberships[4],peak_bytes=memberships[5],references=memberships[6],checksum=hex(memberships[8]),lifetime_checks=memberships[9],object_and_controller_table_bytes=memberships[10],scope='Authored mover lists and object parents/flags match PC through rendering/archive closure; pose flags and collision IDs synchronized. Diagnostic handles, no general-object binding or motion activation.')
                     replacements=[];skin_checksum=0
                     if args.skin:
                         assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()

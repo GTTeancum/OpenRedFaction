@@ -2184,3 +2184,32 @@ maximum retained membership bytes are 928 and maximum accounted peak is 2,352.
 NXDK builds, but these owned memberships are not yet connected to the resident
 Xbox object table or active scene propagation/rendering. Real registry allocation
 and general-object attachment remain open.
+
+
+### Resident Xbox mover membership integration
+
+The Xbox diagnostic now retains a mover object table, controller handles and
+owned membership lists beside its existing poses/collision views. It populates
+the object table from loaded mover UIDs and diagnostic handles, binds authored
+memberships through the shared owner, and synchronizes resulting object flags
+back into the resident poses. Handle slots are disjoint between diagnostic
+movers and controllers; this is not a reconstructed gameplay registry allocator.
+
+A new telemetry block hashes the complete ordered object table and membership
+count/sign/handle fields, using the same serialization as PC `--member-groups`.
+Lifetime checks also verify that mover pose flags and collision IDs still agree
+with the object table. Checks run at attachment, after 64 streamed render frames,
+and after archive closure. The XEMU harness compares the full hash, counts and
+memory accounting against the PC probe.
+
+`artifacts/xemu/20260909-094719-594497/report.json` passes with exactly 64 MiB
+base RAM and no plugged memory: five controllers, five mover objects and five
+references, checksum ffb0424a over 66 checks. Membership storage is 100 retained
+bytes / 204 peak bytes, plus 120 retained object/controller table bytes. Existing
+collision and renderer checks still pass. Available bytes after upload and CPU
+mesh release remain 42,876,928 and 45,383,680 respectively. These remain limited
+diagnostic memory observations.
+
+No new frame was captured: membership binding does not yet activate controllers
+or update mover rendering. General-object memberships, registry allocation,
+rotation playback and gameplay trigger/event boundaries remain open.
