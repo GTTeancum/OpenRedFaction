@@ -35,6 +35,10 @@ Shared animated sphere placement now matches 318 original queries, including
 original/PC/NXDK cases, and the bounded table reader checks all 151 declarations
 across 63 installed classes. Resolve material coefficients and authored class
 flags, then connect the posed/overridden spheres and entity 9858 to its body.
+Material source is now located: materials.tbl supplies flesh elasticity .2,
+friction .8 and density 800, stored by original 0x467e68..0x467ea2.
+Implement bounded material loading and class flag loading from the recovered
+name tables; preserve material index ordering rather than declaration order.
 
 Original event activation now passes 2,160 cases, delayed-tick prefix 1,620
 cases, and three re-activation steps. Timer replacement, disabled caller-field

@@ -1,5 +1,25 @@
 # Level entity records
 
+Class physics input evidence: 0x41bbe7 stores authored mass at class+0x68;
+0x41bc0b calls material-name lookup 0x4686c0 and stores its byte at +0x98.
+The ten names at 0x59cb10 are Default, Rock, Metal, Flesh, Water, Lava, Solid,
+Sand, Ice, Glass, so Flesh is index 3. Unknown material names return index 0.
+Material coefficients are runtime data, not constants in the executable image:
+0x467e68/0x467e85/0x467ea2 store elasticity/friction/density from materials.tbl
+at 0x649f50/54/58 plus index*28. The installed flesh entry supplies .2, .8,
+800 respectively (buoyancy .1, traction 1). Read these through the archive;
+do not hardcode flesh values or depend on table declaration order, which places
+Glass before Sand despite its index 9.
+
+0x41bc2e passes 28 name pointers at 0x594598 to flag parser 0x513020;
+0x41bc5a passes eight at 0x594608. The parser ORs 1 shifted by the matching
+name index. For miner1's authored primary names the bits are walk=0,
+fly=1, climb=2, holds_weapons=3, sentient=4, swim=8, mouselook=14,
+humanoid=17, envirosuit=24, yielding 0x0102411f before later class changes.
+Secondary collide_player is bit 0. The parser's comparison at 0x5130b1
+calls 0x57c130; its case behavior and complete class defaults still require
+verification before implementing general authored flag loading.
+
 Named class collision-sphere overrides now use `rf_entity_sphere_overrides`.
 Original 0x423e7e..0x42405d walks declarations in order, using
 0x503260 -> 0x5014c0 -> 0x53c2fb to find the first ASCII-insensitive name
