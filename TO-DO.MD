@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Uncached thin room queries now match 2,400 complete original calls on PC/NXDK;
-recover runtime primary/detail lists, cached and special query paths, transforms
-and finalizer rejection before gameplay integration and XEMU validation.
+Explicit child-room lists now match 13,929 original loader links across 94 levels
+on PC/NXDK; recover primary-room ordering and later list mutations, then bind
+room queries to gameplay and validate in XEMU.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

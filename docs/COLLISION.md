@@ -503,3 +503,34 @@ bounds/limits and the unsupported special mode, with preserved outputs. Report:
 `artifacts/collision-room-query-verification.json`. Both builds, the 1,800-call
 tree regression and all four CTest checks pass. This CPU fixture does not establish
 XEMU gameplay correctness or correctness of the unrecovered world-query branches.
+
+## Explicit file child-room lists
+
+The records immediately after the variable-size room records are now identified
+as initial child-room lists. `0x4edc44..0x4edc8a` reads a parent index into the
+solid's +0x90 all-room array, then a child count and child indices into that same
+array. Each resolved child pointer is appended to parent +0x6c with `0x45ec40`.
+This step reads supplied relationships rather than computing geometric overlap.
+Repeated parent records append more entries; duplicate child entries are retained.
+
+The geometry parser now retains the record count and offset, validates parent
+and child indices against the room count, and rejects truncated lists.
+`rf_geometry_room_children` returns a room's children in that original append
+order without allocating memory. Insufficient output capacity preserves both the
+indices and count. Like the other geometry accessors, it requires an unmodified,
+successfully opened geometry object. There are no new payload/index allocations;
+the geometry object grows by two uint32 fields. Primary-room ordering and later
+relationship rebuilding remain separate open work.
+
+`python tools/verify_room_links.py` compares all 13,929 links across 14,694 rooms
+in 94 levels with the original loader block and the PC/NXDK accessor. Original
+binary reads, index lookup and append helpers run unchanged; arrays are sized
+in advance so the fixture does not exercise original allocation growth. It
+also compares a repeated-parent/duplicate-child/empty-list fixture against the
+NXDK accessor and checks preserved outputs at insufficient capacity. Three PC
+parser guards use temporary standalone VPP/RFL fixtures to reject an out-of-range
+parent, an out-of-range child and an oversized truncated child list, after first
+proving the base fixture loads successfully. Report:
+`artifacts/room-links-verification.json`. Both builds, all 94 resident geometry
+load regressions and four CTest checks pass. Full gameplay room-list binding and
+XEMU validation remain open.

@@ -9,6 +9,7 @@ typedef struct rf_geometry {
     uint32_t textures, rooms, vertices, faces, corners, mappings;
     uint32_t vertices_offset, mapping_offset, tail_offset;
     uint32_t *texture_offsets, *room_offsets, *face_offsets;
+    uint32_t room_links_offset,room_link_records;
 } rf_geometry;
 typedef struct rf_geometry_face {
     float plane[4];
@@ -58,4 +59,9 @@ typedef struct rf_geometry_collision_room {
 int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
     uint32_t budget,rf_geometry_collision_room *result);
 void rf_geometry_collision_room_close(rf_geometry_collision_room *room);
+/* Initial explicit room-child records, appended in file order. Repeated parent
+ * records and duplicate children are retained, matching 4edc44..4edc8a.
+ * No allocation; indices and count remain unchanged on failure. */
+int rf_geometry_room_children(const rf_geometry *geometry,uint32_t room,
+    uint32_t *indices,uint32_t capacity,uint32_t *count);
 #endif

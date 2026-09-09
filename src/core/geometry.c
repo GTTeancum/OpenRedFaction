@@ -76,11 +76,13 @@ static int parse(cursor *c)
         if (p[32]) { take(c, 8); string(c); take(c, 37); }
         if (p[33]) take(c, 4);
     }
-    count = number(c);
+    count = number(c);g->room_link_records=count;g->room_links_offset=c->at;
     if ((uint64_t)count * 8 > g->bytes - c->at) c->error = RF_FORMAT;
     for (i = 0; i < count && !c->error; ++i) {
-        uint32_t links;
-        number(c); links = number(c); take(c, (uint64_t)links * 4);
+        uint32_t parent,links;
+        parent=number(c);links=number(c);p=take(c,(uint64_t)links*4);
+        if(parent>=g->rooms)c->error=RF_FORMAT;
+        if(p)for(j=0;j<links;j++)if(u32(p+j*4)>=g->rooms) {c->error=RF_FORMAT;break;}
     }
     count = number(c); take(c, (uint64_t)count * 32);
     g->vertices = number(c); g->vertices_offset = c->at;
@@ -236,6 +238,26 @@ int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t in
     value.property_34=portal>=0x8000u?(int32_t)portal-65536:(int32_t)portal;
     value.owner_present=1;value.owner_kind=room[34];value.owner_state=f32(room+36)>0?0:1;
     *filter=value;return RF_OK;
+}
+int rf_geometry_room_children(const rf_geometry *geometry,uint32_t room,
+    uint32_t *indices,uint32_t capacity,uint32_t *count)
+{
+    uint32_t i,j,total=0,at;const unsigned char *p;
+    if(!geometry || !geometry->data || !count || room>=geometry->rooms)return RF_RANGE;
+    p=geometry->data+geometry->room_links_offset;
+    for(i=0;i<geometry->room_link_records;i++) {
+        uint32_t parent=u32(p),n=u32(p+4);p+=8;
+        if(parent==room) {if(n>UINT32_MAX-total)return RF_RANGE;total+=n;}
+        p+=(size_t)n*4;
+    }
+    if(total>capacity || (total && !indices))return RF_RANGE;
+    p=geometry->data+geometry->room_links_offset;at=0;
+    for(i=0;i<geometry->room_link_records;i++) {
+        uint32_t parent=u32(p),n=u32(p+4);p+=8;
+        if(parent==room)for(j=0;j<n;j++)indices[at++]=u32(p+j*4);
+        p+=(size_t)n*4;
+    }
+    *count=total;return RF_OK;
 }
 
 void rf_geometry_collision_room_close(rf_geometry_collision_room *room)
