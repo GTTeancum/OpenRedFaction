@@ -19,6 +19,7 @@ extern float rf_scene_actor_input_frames[64][3];
 extern uint32_t rf_scene_actor_contact_count,rf_scene_actor_contacts[64][25];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_stance_frames[64][4];
+extern uint32_t rf_scene_actor_locomotion_frames[64][12];
 extern uint32_t rf_scene_actor_initial_animation[12];
 extern uint32_t rf_scene_actor_selector_frames[64][8];
 extern uint32_t rf_scene_actor_clearance_diagnostic[8];
@@ -194,6 +195,16 @@ int main(int argc,char **argv)
                    rf_scene_actor_initial_animation[2]!=0 || rf_scene_actor_initial_animation[3]!=UINT32_MAX ||
                    rf_scene_actor_initial_animation[4]!=0 || rf_scene_actor_initial_animation[9]!=1 ||
                    rf_scene_actor_initial_animation[11]!=0x3f800000)return 3;
+                for(i=0;i<64;++i) {
+                    const uint32_t *r=rf_scene_actor_locomotion_frames[i];
+                    if(rf_scene_actor_selector_frames[i][3]) {if(r[0])return 3;continue;}
+                    if(r[0]!=1 || r[1]!=rf_scene_actor_ground_modes[i] ||
+                       memcmp(r+3,rf_scene_actor_input_frames[i],12))return 3;
+                    if(r[3]==0 && r[4]==0 && r[5]==0) {if(r[9]!=0 && r[10]!=0)return 3;}
+                    else if(r[1]==1 && r[2]==1) {if(r[9]!=4 && r[10]!=4)return 3;}
+                }
+                if(rf_scene_actor_locomotion_frames[16][9]!=0 || rf_scene_actor_locomotion_frames[16][10]!=UINT32_MAX)return 3;
+                printf("ACTOR_LOCOMOTION");for(i=0;i<768;++i)printf(" %u",((uint32_t*)rf_scene_actor_locomotion_frames)[i]);puts("");
                 printf("ACTOR_INITIAL_ANIMATION");for(i=0;i<12;++i)printf(" %u",rf_scene_actor_initial_animation[i]);puts("");
                 printf("ACTOR_SELECTOR");for(i=0;i<512;++i)printf(" %u",((uint32_t*)rf_scene_actor_selector_frames)[i]);puts("");
                 printf("ACTOR_CLEARANCE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_clearance_diagnostic[i]);

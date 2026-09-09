@@ -929,3 +929,32 @@ native framebuffer differs from PC by over three channel levels at 16 of
 307200 pixels, with mean maximum-channel error 0.03264974. The new visible
 pose was captured at `framebuffer.png`. Full startup selection, class-cache
 creation ordering, input/AI and support-loss traversal remain open.
+
+
+## Movement animation follows steering and movement mode
+
+The live actor no longer receives the fixed stand/walk schedule at frames
+0/16/48. When stance selection is unhandled, an animation callback passes the
+same process-local steering used by physics, the active physics descriptor and
+numeric movement mode into `rf_motion_select_movement`. Ordinary unarmed
+candidates 0/2/4 come from 41f6ee..41f729. Priority/AI candidate selection is not
+implemented by this binding. The original movement tail decides when to request
+an animation and avoids repeating an already current/next state. Standalone
+animation fixtures retain their schedules. Crouch eligibility is still scripted
+and takes precedence, as the recovered handled decision requires.
+
+A shared command helper prevents animation and physics from sampling different
+steering schedules. Guest `rf_scene_actor_locomotion_frames` holds 64 records
+of execution, descriptor/numeric mode, input, candidates and resulting controller
+state/duration (3,072 bytes). Scene checks compare each executed record's input
+to its physics input, verify stance-handled frames skip the movement selector,
+and require idle/run choices appropriate to the supplied mode. Frame 16 now
+remains stand with no transition. The short pulse requests run state 4 at 24,
+then requests stand state 0 at 48 after successful standing clearance.
+
+Run `artifacts/xemu/20260909-172348-379119/report.json` passes stock 64 MiB XEMU.
+All 64 locomotion records and the existing geometry/body/stance/surface checks
+match PC. Both builds, four CTests, all three PC scene profiles and 6,000 original
+movement-tail comparisons pass. No new framebuffer was captured. This connects
+animation selection to actual fixture movement inputs; it does not add player
+input, AI, animation speed scaling, priority selection or full entity lifecycle.

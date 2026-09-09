@@ -177,6 +177,30 @@ float rf_scene_actor_input_frames[64][3];
 uint32_t rf_scene_actor_contact_count;
 uint32_t rf_scene_actor_contacts[64][25]; /* frame, pass, mode, 15 input + 7 result floats */
 void rf_scene_actor_drive(int profile) {rf_scene_actor_drive_enabled=(uint32_t)profile;}
+static void actor_command(uint32_t frame,float command[3])
+{
+    memset(command,0,12);
+    if(rf_scene_actor_drive_enabled==1 && frame>=24 && frame<48)command[0]=.25f;
+    if(rf_scene_actor_drive_enabled==2 && frame>=24 && frame<63)command[0]=-1.0f;
+}
+uint32_t rf_scene_actor_locomotion_frames[64][12]; /* executed, mode/direction, input, candidates, current/next/duration */
+static int actor_movement_select(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
+{
+    rf_motion_movement movement={0};uint32_t *record;int status;(void)context;
+    if(frame>=64)return RF_RANGE;
+    actor_command(frame,movement.vector);
+    movement.mode=frame?(int32_t)rf_scene_actor_landing[1]:3;
+    movement.direction=rf_scene_actor_movement_settings.mode;
+    /* Ordinary unarmed candidates from 41f6ee..41f729. Priority/AI candidate
+     * selection remains outside this miner fixture. */
+    movement.idle_state=0;movement.move_state=2;movement.alternate_state=4;
+    status=rf_motion_select_movement(controller,motions,&movement);if(status)return status;
+    record=rf_scene_actor_locomotion_frames[frame];record[0]=1;
+    record[1]=(uint32_t)movement.mode;record[2]=(uint32_t)movement.direction;
+    memcpy(record+3,movement.vector,12);record[6]=0;record[7]=2;record[8]=4;
+    record[9]=(uint32_t)controller->current;record[10]=(uint32_t)controller->next;
+    memcpy(record+11,&controller->duration,4);return RF_OK;
+}
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
     actor_ground_record *r=rf_scene_actor_ground_records+frame;float start[3],delta[3];uint32_t k;int status;
@@ -495,9 +519,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             rf_scene_actor_surface_frames[frame][0]=rf_scene_actor_ground_material;
             memcpy(rf_scene_actor_surface_frames[frame]+1,&rf_scene_actor_run_traction,4);
         }
-        memset(rf_scene_actor_input_frames[frame],0,12);
-        if(rf_scene_actor_drive_enabled==1 && frame>=24 && frame<48)rf_scene_actor_input_frames[frame][0]=.25f;
-        if(rf_scene_actor_drive_enabled==2 && frame>=24 && frame<63)rf_scene_actor_input_frames[frame][0]=-1.0f;
+        actor_command(frame,rf_scene_actor_input_frames[frame]);
         for(i=0;i<actor->bytes;++i)hash=(hash^((const unsigned char*)actor->vertices)[i])*16777619u;
         rf_scene_actor_render_frames[frame][0]=actor->count;rf_scene_actor_render_frames[frame][1]=hash;
         memcpy(rf_scene_actor_render_frames[frame]+2,scene_actor_body.state.position,12);
@@ -589,6 +611,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(collision && state_mode) {
             placement.stance_cache=&rf_scene_actor_stance_cache;placement.stance_flags=&rf_scene_actor_stance_flags;
             placement.stance_effect=actor_selector_effect;placement.stance_context=&stream;
+            placement.movement_select=actor_movement_select;
+            memset(rf_scene_actor_locomotion_frames,0,sizeof(rf_scene_actor_locomotion_frames));
             rf_scene_actor_stance_flags=rf_scene_actor_stance_request=0;
             memset(rf_scene_actor_selector_frames,0,sizeof(rf_scene_actor_selector_frames));
             rf_scene_actor_movement_settings.mode=1;

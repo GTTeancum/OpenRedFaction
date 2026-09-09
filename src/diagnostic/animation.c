@@ -238,7 +238,11 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 status=placement->stance_effect(placement->stance_context,frame,&decision,&controller);if(status)goto done;
                 handled=decision.handled;
             }
-            if(!handled && frame%16==0 && (!(placement && placement->physics_config && placement->physics_body) || !rf_motion_has_state(&controller,sequence[frame/16]))) {status=rf_motion_request_state(&controller,motions,sequence[frame/16],.25f);if(status)goto done;}
+            if(!handled && placement && placement->movement_select) {
+                status=placement->movement_select(placement->stance_context,frame,&controller,motions);if(status)goto done;
+            } else if(!handled && frame%16==0 && (!(placement && placement->physics_config && placement->physics_body) || !rf_motion_has_state(&controller,sequence[frame/16]))) {
+                status=rf_motion_request_state(&controller,motions,sequence[frame/16],.25f);if(status)goto done;
+            }
             status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,resources,resource_count);if(status)goto done;
         } else {
         inventory.reserve[0]=frame<32 ? 1 : 0;

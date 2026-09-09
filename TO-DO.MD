@@ -29,6 +29,11 @@ skips a redundant stand-to-stand transition. Run `20260909-171941-116367`
 passes initial animation telemetry, all actor comparisons and native framebuffer
 comparison. Full initial selector inputs remain unresolved; the stand choice
 is still diagnostic. A new pose screenshot was captured for this change.
+Live movement animation now uses the reconstructed selector with the same
+steering and numeric movement mode as physics; the fixed frame-16 walk request
+is removed from this path. Run `20260909-172348-379119` matches all 64 locomotion
+records in XEMU. Ordinary unarmed candidates and crouch eligibility remain
+explicit fixture inputs; gameplay priorities/AI selection remain open.
 See `docs/XEMU-MEMORY.md` for reproduction and limits.
 
 Working approach: complete the first miner integration across loading, rendering
