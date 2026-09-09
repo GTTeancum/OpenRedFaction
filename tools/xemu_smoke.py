@@ -94,7 +94,7 @@ def main():
     sweep_reference=list(map(int,subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--world-sweep',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl']).split()))
     mover_symbol=re.search(r'_rf_mover_diagnostic\s+([0-9a-fA-F]+)',map_text)
     if not mover_symbol:raise RuntimeError('Mover diagnostic symbol absent')
-    mover_reference=list(map(int,subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--combined-world',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl']).split()))
+    mover_reference=list(map(int,subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--registered-combined-world',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl']).split()))
     logic_symbol=re.search(r'_rf_level_logic_diagnostic\s+([0-9a-fA-F]+)',map_text)
     if not logic_symbol:raise RuntimeError('Owned level logic symbol absent')
     logic_payload=bytearray();logic_counts=[];logic_links=[];logic_bytes=32
@@ -107,6 +107,8 @@ def main():
         logic_links.append(links);logic_bytes+=count*stride+4*links;logic_payload+=payload[4:]
     logic_hash=2166136261
     for byte in logic_payload:logic_hash=((logic_hash^byte)*16777619)&0xffffffff
+    registry_symbol=re.search(r'_rf_registry_diagnostic\s+([0-9a-fA-F]+)',map_text)
+    if not registry_symbol:raise RuntimeError('Registry diagnostic absent')
     group_symbol=re.search(r'_rf_group_storage_diagnostic\s+([0-9a-fA-F]+)',map_text)
     if not group_symbol:raise RuntimeError('Owned group diagnostic symbol absent')
     group_raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--owned-groups',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl'])
@@ -122,7 +124,7 @@ def main():
     for byte in runtime_raw[16:]:runtime_hash=((runtime_hash^byte)*16777619)&0xffffffff
     membership_symbol=re.search(r'_rf_group_membership_diagnostic\s+([0-9a-fA-F]+)',map_text)
     if not membership_symbol:raise RuntimeError('Membership diagnostic symbol absent')
-    membership_raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--member-groups',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl'])
+    membership_raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--registered-member-groups',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl'])
     membership_header=list(struct.unpack_from('<4I',membership_raw));membership_hash=2166136261
     for byte in membership_raw[16:]:membership_hash=((membership_hash^byte)*16777619)&0xffffffff
     membership_at=16+membership_header[1]*20;membership_accepted=0
@@ -251,7 +253,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     want=mover_reference[2:7]
                     if len(mover)!=12 or mover[:3]!=[0x52464d56,1,mover_reference[1]] or mover[5:10]!=want or mover[11] or not 0<mover[10]<=words[3] or mover[3]+collision[2]!=mover_reference[7] or mover[4]<mover[3]:
                         raise RuntimeError(f'Guest combined mover query differs from PC: {mover}; reference {mover_reference}')
-                    report['collision_movers']=dict(count=mover[2],retained_bytes=mover[3],peak_bytes=mover[4],queries=mover[5],hits=mover[6],moving_hits=mover[7],static_hits=mover[8],checksum=hex(mover[9]),available_bytes_after_build=mover[10]*4096,scope='Initial owned movers retained with world/rendering. Combined ray output and nullable visibility match PC; diagnostic handles, no gameplay registration or pose updates.')
+                    report['collision_movers']=dict(count=mover[2],retained_bytes=mover[3],peak_bytes=mover[4],queries=mover[5],hits=mover[6],moving_hits=mover[7],static_hits=mover[8],checksum=hex(mover[9]),available_bytes_after_build=mover[10]*4096,scope='Initial owned movers retained with world/rendering. Combined ray output and nullable visibility match PC; registry-assigned handles in explicit mover-first creation order; no general-object construction.')
                     logic_reply=monitor.command('human-monitor-command',{'command-line':f'x /10wx 0x{int(logic_symbol[1],16):x}'})
                     logic=[]
                     for line in logic_reply.splitlines():
@@ -259,6 +261,13 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     logic_want=[0x52464c47,1,*logic_counts,logic_bytes,*logic_links,logic_hash,logic_hash]
                     if len(logic)!=10 or logic[:9]!=logic_want or logic[9]<(66 if args.scene_states else 2):
                         raise RuntimeError(f'Owned level logic differs: {logic}; expected {logic_want}')
+                    registry_reply=monitor.command('human-monitor-command',{'command-line':f'x /6wx 0x{int(registry_symbol[1],16):x}'})
+                    registry=[]
+                    for line in registry_reply.splitlines():
+                        if ':' in line:registry.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
+                    if len(registry)!=6 or registry[:5]!=[0x52465247,1,membership_header[1],group_count,12300] or registry[5]<(65 if args.scene_states else 1):
+                        raise RuntimeError(f'Registry lifetime mismatch: {registry}')
+                    report['object_registry']=dict(movers=registry[2],controllers=registry[3],bytes=registry[4],checks=registry[5],scope='Registered resident movers then controllers; original handle algorithm, explicit diagnostic creation order. Trigger/event registration pending.')
                     report['level_logic']=dict(triggers=logic[2],events=logic[3],retained_bytes=logic[4],trigger_links=logic[5],event_links=logic[6],hash=hex(logic[8]),lifetime_checks=logic[9],scope='Owned records and raw links match PC through archive closure; no runtime registration or activation.')
                     group_reply=monitor.command('human-monitor-command',{'command-line':f'x /10wx 0x{int(group_symbol[1],16):x}'})
                     groups=[]
@@ -281,7 +290,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     want=[0x5246474d,1]+membership_header+[membership_accepted,membership_hash,membership_hash]
                     if len(memberships)!=11 or memberships[:9]!=want or memberships[9]!=groups[9] or memberships[10]!=20*membership_header[1]+4*membership_header[0]:
                         raise RuntimeError(f'Guest mover memberships differ from PC: {memberships}; expected {want}')
-                    report['controller_memberships']=dict(groups=memberships[2],objects=memberships[3],retained_bytes=memberships[4],peak_bytes=memberships[5],references=memberships[6],checksum=hex(memberships[8]),lifetime_checks=memberships[9],object_and_controller_table_bytes=memberships[10],scope='Authored mover lists and object parents/flags match PC through rendering/archive closure; pose flags and collision IDs synchronized. Diagnostic handles, no general-object binding or motion activation.')
+                    report['controller_memberships']=dict(groups=memberships[2],objects=memberships[3],retained_bytes=memberships[4],peak_bytes=memberships[5],references=memberships[6],checksum=hex(memberships[8]),lifetime_checks=memberships[9],object_and_controller_table_bytes=memberships[10],scope='Authored mover lists and object parents/flags match PC through rendering/archive closure; pose flags and collision IDs synchronized. Registry-assigned handles; no general-object binding or authored activation.')
                     motion_reply=monitor.command('human-monitor-command',{'command-line':f'x /8wx 0x{int(motion_symbol[1],16):x}'})
                     motion=[]
                     for line in motion_reply.splitlines():

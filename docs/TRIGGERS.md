@@ -305,3 +305,28 @@ in the NXDK checks; PC output and subsequent operation traces match. Original
 constructor/destructor side effects remain excluded. The NXDK initialization
 check executes the actual library memset with a sufficient instruction budget.
 Both builds and the existing CTest suite pass.
+
+
+## Resident mover/controller registration
+
+The Xbox membership path now registers resident mover descriptors followed by
+controller runtime entries in the shared registry. Collision view IDs, authored
+memberships and controller-parent fields use these generated handles. Lifetime
+checks resolve every handle back to its resident object. Temporary collision
+input IDs are replaced before attachment or queries; failure clears the registry
+before freeing descriptors. This removes fixed fixture handles from the resident
+Xbox mover path, while the explicit mover-first creation order remains diagnostic
+and does not claim original whole-level construction order.
+
+PC registered membership comparisons preserve all 1,421 authored attachments,
+flags and rotation signs across 68 levels (1,406 movers, 1,223 controllers).
+`tools/verify_registered_memberships.py` compares against the existing attachment
+fixture with only handle/parent values remapped. Existing legacy probe modes
+remain available for original low-level tests.
+
+64 MiB XEMU run `artifacts/xemu/20260909-111756-906491/report.json` passes with
+five registered movers and five registered controllers, including handle lookup
+lifetime checks, registered collision-query results and the complete 600-frame
+door cycle. Mesh trace remains `22d17eea`. The registry adds 12,300 resident
+bytes. Triggers/events are retained but still need registered runtime instances;
+activation is still explicitly requested by the door diagnostic. No new capture.

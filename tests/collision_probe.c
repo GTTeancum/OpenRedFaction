@@ -1,3 +1,4 @@
+#include "rf/object_registry.h"
 #include "rf/collision.h"
 #include "rf/geometry.h"
 #include "rf/preview.h"
@@ -216,7 +217,8 @@ int main(int argc,char **argv)
         }
         printf("%u %u %u %u\n",movers.count,cases,vertices,shifted);rf_geometry_movers_close(&movers);rf_vpp_close(&archive);return 0;
     }
-    if(argc==4 && !strcmp(argv[1],"--member-groups")) {
+    if(argc==4 && (!strcmp(argv[1],"--member-groups") || !strcmp(argv[1],"--registered-member-groups"))) {
+        rf_object_registry registry;int registered=!strcmp(argv[1],"--registered-member-groups");
         rf_vpp archive;rf_level level;rf_level_owned_groups source={0};rf_group_runtime_collection runtime={0};rf_geometry_movers movers={0};
         rf_group_mover_memberships members={0},exact={0},guard;rf_group_object *objects,*before;uint32_t *controllers,i,object_count;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_level_owned_groups_open(&level,4*1024*1024,&source) || rf_geometry_movers_open(&level,8*1024*1024,&movers))return 2;
@@ -225,6 +227,12 @@ int main(int argc,char **argv)
         for(i=0;i<source.count;i++)controllers[i]=0x23450000+movers.count+i;
         object_count=movers.count;rf_geometry_movers_close(&movers);rf_vpp_close(&archive);
         if(rf_group_runtime_open(&source,0,1024*1024,&runtime))return 4;
+        if(registered) {
+            rf_object_registry_init(&registry);
+            for(i=0;i<object_count;i++)if(rf_object_registry_insert(&registry,objects+i,&objects[i].handle))return 4;
+            for(i=0;i<runtime.count;i++)if(rf_object_registry_insert(&registry,runtime.items+i,controllers+i))return 4;
+            for(i=0;i<object_count;i++)if(rf_object_registry_lookup(&registry,objects[i].handle)!=objects+i)return 4;
+        }
         {
          if(rf_group_mover_memberships_open(&runtime,objects,object_count,controllers,0,1024*1024,&members))return 5;
          if(rf_group_mover_memberships_open(&runtime,objects,object_count,controllers,0,members.peak_bytes,&exact))return 6;
@@ -309,7 +317,8 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&archive);return status==RF_NOT_FOUND?0:7;
     }
-    if(argc==4 && !strcmp(argv[1],"--combined-world")) {
+    if(argc==4 && (!strcmp(argv[1],"--combined-world") || !strcmp(argv[1],"--registered-combined-world"))) {
+        rf_object_registry registry;int registered=!strcmp(argv[1],"--registered-combined-world");
         rf_vpp archive;rf_level level;rf_geometry geometry={0};rf_geometry_movers source={0};
         rf_geometry_collision_world world={0};rf_geometry_collision_movers movers={0},empty={0};
         uint32_t *ids,i,j,k,pass,group,queries=0,hits=0,moving_hits=0,static_hits=0,hash[2]={2166136261u,2166136261u},bytes;
@@ -320,6 +329,10 @@ int main(int argc,char **argv)
         ids=(uint32_t *)malloc(source.count?source.count*4:4);if(!ids)return 5;
         for(i=0;i<source.count;i++)ids[i]=0x12340000+i;
         if(rf_geometry_collision_movers_open(&source,ids,8*1024*1024,&movers))return 6;
+        if(registered) {
+            rf_object_registry_init(&registry);
+            for(i=0;i<movers.count;i++)if(rf_object_registry_insert(&registry,movers.poses+i,&movers.views[i].object_id))return 6;
+        }
         free(ids);bytes=geometry.bytes+source.allocated_bytes;
         for(pass=0;pass<2;pass++) {
             for(group=0;group<2;group++)for(i=0;i<(group?movers.count:world.room_count);i++) {

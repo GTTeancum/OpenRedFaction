@@ -1,4 +1,5 @@
 #include "rf/vpp.h"
+#include "rf/object_registry.h"
 #include "rf/checksum.h"
 #include "rf/level.h"
 #include "rf/geometry.h"
@@ -30,6 +31,8 @@ volatile uint32_t rf_sweep_diagnostic[8]={0x52465357u};
 static rf_group_mover_memberships resident_memberships;
 static rf_group_object *resident_mover_objects;
 static uint32_t *resident_controller_handles;
+static rf_object_registry resident_registry;
+volatile uint32_t rf_registry_diagnostic[6]={0x52465247u};
 volatile uint32_t rf_group_membership_diagnostic[11]={0x5246474du};
 static int membership_check(void);
 static rf_group_runtime_collection resident_group_runtime;
@@ -148,9 +151,12 @@ static int membership_check(void)
     uint32_t i,hash=membership_hash();rf_group_membership_diagnostic[8]=hash;rf_group_membership_diagnostic[9]++;
     for(i=0;i<resident_movers.count;i++)if(resident_movers.poses[i].flags!=resident_mover_objects[i].flags ||
         resident_movers.views[i].object_id!=resident_mover_objects[i].handle)goto failed;
+    for(i=0;i<resident_movers.count;i++)if(rf_object_registry_lookup(&resident_registry,resident_mover_objects[i].handle)!=resident_mover_objects+i)goto failed;
+    for(i=0;i<resident_group_runtime.count;i++)if(rf_object_registry_lookup(&resident_registry,resident_controller_handles[i])!=resident_group_runtime.items+i)goto failed;
+    rf_registry_diagnostic[5]++;
     if(hash==rf_group_membership_diagnostic[7])return RF_OK;
  failed:
-    rf_group_membership_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;
+    rf_registry_diagnostic[1]=(uint32_t)RF_FORMAT;rf_group_membership_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;
 }
 static int membership_open(void)
 {
@@ -159,11 +165,18 @@ static int membership_open(void)
     resident_mover_objects=calloc(resident_movers.count?resident_movers.count:1,sizeof(*resident_mover_objects));
     resident_controller_handles=calloc(resident_group_runtime.count?resident_group_runtime.count:1,4);
     if(!resident_mover_objects || !resident_controller_handles) {status=RF_RANGE;goto failed;}
+    rf_object_registry_init(&resident_registry);
     for(i=0;i<resident_movers.count;i++) {
         rf_group_object *o=resident_mover_objects+i;o->uid=resident_movers.uids[i];o->type=9;
-        o->handle=resident_movers.views[i].object_id;o->parent=UINT32_MAX;o->flags=resident_movers.poses[i].flags;
+        o->parent=UINT32_MAX;o->flags=resident_movers.poses[i].flags;
+        status=rf_object_registry_insert(&resident_registry,o,&o->handle);if(status)goto failed;
+        resident_movers.views[i].object_id=o->handle;
     }
-    for(i=0;i<resident_group_runtime.count;i++)resident_controller_handles[i]=0x23450000+resident_movers.count+i;
+    for(i=0;i<resident_group_runtime.count;i++) {
+        status=rf_object_registry_insert(&resident_registry,resident_group_runtime.items+i,resident_controller_handles+i);if(status)goto failed;
+    }
+    rf_registry_diagnostic[1]=1;rf_registry_diagnostic[2]=resident_movers.count;
+    rf_registry_diagnostic[3]=resident_group_runtime.count;rf_registry_diagnostic[4]=sizeof(resident_registry);
     status=rf_group_mover_memberships_open(&resident_group_runtime,resident_mover_objects,resident_movers.count,
         resident_controller_handles,0,64u*1024u,&resident_memberships);if(status)goto failed;
     for(i=0;i<resident_movers.count;i++)resident_movers.poses[i].flags=resident_mover_objects[i].flags;
@@ -174,6 +187,7 @@ static int membership_open(void)
     rf_group_membership_diagnostic[10]=resident_movers.count*sizeof(*resident_mover_objects)+resident_group_runtime.count*4;
     return membership_check();
  failed:
+    rf_object_registry_init(&resident_registry);rf_registry_diagnostic[1]=(uint32_t)status;
     free(resident_mover_objects);resident_mover_objects=NULL;free(resident_controller_handles);resident_controller_handles=NULL;
     rf_group_mover_memberships_close(&resident_memberships);rf_group_membership_diagnostic[1]=(uint32_t)status;return status;
 }
@@ -249,7 +263,7 @@ static int mover_check(const rf_level *level)
     status=group_storage_open(level);if(status)goto done;
     status=rf_geometry_movers_open(level,1024u*1024u,&source);if(status)goto done;
     ids=(uint32_t *)malloc(source.count?source.count*4:4);if(!ids) {status=RF_RANGE;goto done;}
-    for(i=0;i<source.count;i++)ids[i]=0x12340000+i; /* Diagnostic handles, not gameplay registration. */
+    for(i=0;i<source.count;i++)ids[i]=UINT32_MAX; /* Replaced by registration before queries or attachments. */
     status=rf_geometry_collision_movers_open(&source,ids,1024u*1024u,&resident_movers);
     free(ids);ids=NULL;rf_geometry_movers_close(&source);if(status)goto done;
     status=membership_open();if(status)goto done;

@@ -50,7 +50,11 @@ Original handle pool blocks now pass 1,032 allocations, eight releases and
 1,047 lookups: 1,024-slot FIFO reuse, generation wrap and stale-handle rejection.
 The shared C registry now matches original PC/NXDK traces across 2,100
 operations and occupies 12,300 bytes on Xbox. Connect it to owned object
-lifetimes and constructors; mover diagnostic handles still bypass registration.
+lifetimes and constructors. Resident Xbox movers/controllers now use registry
+handles for collision IDs, memberships and parents, with five of each passing
+64 MiB XEMU lifetime and 600-frame door checks. Registered PC memberships
+preserve all 1,421 links across 68 levels. Register trigger/event runtime
+instances next; mover-first creation order remains diagnostic.
 Original dispatch 4c0320 now passes four door-list execution cases, preserving
 interleaved mover/event order and mover suppression. The fixture uses synthetic
 registered handles and intercepts downstream actions. The verifier now also
