@@ -6,6 +6,13 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Memory harness revalidation `20260909-191614-644905` PASS: live XEMU confirms
+stock 64 MiB, 664 frames, ten PC-matching actor rings, final body state, and
+room transition with zero misses. Available memory after upload is 41,054,208
+bytes. The supplied strtod assertion does not recur. Original player camera,
+initialization and campaign memory peaks remain open; see docs/XEMU-MEMORY.md.
+No screenshot captured because there is no new visible result.
+
 Camera effects now use an explicit original-compatible RNG stream and match
 1,800 original/PC/NXDK cases including final RNG state. Initial player eye
 state and game-wide RNG seeding/consumer order remain open before view binding.

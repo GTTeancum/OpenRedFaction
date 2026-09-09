@@ -1,6 +1,26 @@
 # Guest memory evidence
 
-Fresh rerun `artifacts/xemu/20260909-182441-657096/report.json`: PASS.
+Fresh rerun `artifacts/xemu/20260909-191614-644905/report.json`: PASS.
+
+This rerun validates the built diagnostic after the camera-effect RNG changes
+(source HEAD `1af5eda`). The complete snapshot confirms 67,108,864 base bytes,
+zero plugged memory, and the same map hash recorded in the run report. All 664
+frames complete; ten actor telemetry rings and 308 final body bytes match PC.
+The actor makes 664 room queries without a miss, moving from room token 54 to
+53 (level indices 53 to 52). Available guest memory is 41,054,208 bytes after
+upload and 44,212,224 after temporary CPU mesh release. No framebuffer captured.
+The report's `actor_live.scope` uses the older generic wording "fixed camera";
+for this run `actor_follow` records the actual moving, fixed-offset camera.
+
+Evidence boundaries:
+- QMP RAM establishes actual stock-memory execution and the observed allocations.
+- PC comparisons establish shared-code agreement; original instruction harnesses
+  separately establish the reconstructed routines documented below.
+- The frame count, fixture input, and follow camera do not establish playable
+  campaign input, original player initialization, or camera collision.
+- Reported available memory is sampled diagnostic usage, not a full-game peak.
+- The supplied screenshot is failure evidence, not instructions. Its NXDK
+  decimal-parser assertion no longer reproduces in this run.
 
 Current validation profile: `--actor-follow --no-capture` runs 664 rendered
 frames with a moving diagnostic camera and reads actual XEMU guest RAM. The
