@@ -82,3 +82,25 @@ state schedule runs. This shows authored static poses, not visible door motion.
 Fine diagonal artifacts are visible on the door surface in both backends;
 their cause and PS2 fidelity remain open. Rendering must next retain local
 geometry and update from committed resident mover poses in the frame loop.
+
+## Reusable projected mesh
+
+`rf_preview_update_world` uses the world builder's validation/counting pass,
+then writes into a caller-owned vertex allocation. It allocates no memory and
+retains the buffer address; `mesh.count` and `mesh.bytes` describe the used
+range, while the caller tracks capacity separately. Source geometry, poses,
+camera and material mappings must remain stable and must not alias the output
+through both passes. Capacity/validation failures preserve the old frame.
+The ordinary allocating builder shares this implementation. Visible faces now
+reject out-of-range local texture indices during counting, before any writes.
+
+The material probe now compares three runtime pose configurations on all 68
+levels (204 cases) against separate projection and explicit material remapping.
+It uses authored transforms, then shifts of [1,2,3] and [2,4,6], keeping one
+allocation throughout. All unused pose fields are poisoned, so rendering must
+read the committed position/output matrix. Late invalid poses and a one-byte-
+short capacity must leave mesh metadata and previous vertex bytes untouched.
+The latter uses empty metadata to exercise counting rather than the old-size
+precondition. These are PC checks; the new updater is compiled for NXDK but
+has not yet replaced the scene's authored static projection or driven visible
+motion. Retain the mover source/mappings and connect it to the frame loop next.

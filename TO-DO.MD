@@ -64,6 +64,11 @@ The door-focused view now visibly renders mover 8544 with textures in stock
 64 MiB XEMU and passes PC framebuffer comparison (964 triangles, no actor in
 view). Connect committed door motion to retained render geometry and frames;
 inspect the visible fine diagonal surface artifacts before claiming fidelity.
+Shared world/mover reprojection now supports a fixed caller-owned vertex
+allocation; 204 PC pose cases across 68 levels match separate projection and
+remapping, including failure preservation for late invalid poses and short
+capacity. Retain mover geometry/mappings in the scene owner and call this
+updater from committed door motion during the renderer's frame loop.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

@@ -30,4 +30,14 @@ void rf_preview_close(rf_preview_mesh *mesh);
 int rf_preview_build_world(rf_preview_mesh *mesh,const rf_geometry *world,
     const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
     const rf_geometry_materials *materials,const rf_level *level,uint32_t budget);
+/* Reproject into an existing caller-owned allocation with capacity_bytes.
+ * Updates count/bytes to the used range, retaining the allocation address.
+ * No allocation; inputs and buffer must not alias and must remain stable
+ * through validation/counting and writing. Validation/capacity errors preserve
+ * mesh and vertex bytes. Buffer capacity is tracked separately from mesh.bytes.
+ * Close normally with rf_preview_close when the allocation came from malloc. */
+int rf_preview_update_world(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geometry *world,const rf_geometry_movers *movers,
+    const rf_group_attached_pose *poses,const rf_geometry_materials *materials,
+    const rf_level *level);
 #endif

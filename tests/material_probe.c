@@ -2,6 +2,7 @@
 #include "rf/preview.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 int main(int argc, char **argv)
 {
     rf_vpp level_archive, archives[16];
@@ -50,6 +51,51 @@ int main(int argc, char **argv)
             }
             if(at!=combined.count)return 3;
             rf_preview_close(&combined);
+        }
+        {
+            rf_group_attached_pose *poses=malloc(movers.count*sizeof(*poses));
+            rf_preview_mesh live={0},part={0};void *address;uint32_t frame,at;
+            if(movers.count && !poses)return 3;
+            live.vertices=malloc(8*1024*1024);address=live.vertices;if(!address)return 3;
+            for(frame=0;frame<3;++frame) {
+                for(g=0;g<movers.count;++g) {
+                    memset(poses+g,0xa5,sizeof(*poses));
+                    for(j=0;j<3;++j)poses[g].position[j]=movers.items[g].position[j]+frame*(float)(j+1);
+                    memcpy(poses[g].output_matrix,movers.items[g].orientation,36);
+                }
+                if(rf_preview_update_world(&live,8*1024*1024,&world,&movers,poses,&bundle,&level) || live.vertices!=address)return 3;
+                at=0;
+                for(g=0;g<bundle.count;++g) {
+                    result=g?rf_preview_build_transformed(&part,sources[g],&level,poses[g-1].position,
+                        (const float (*)[3])poses[g-1].output_matrix,0,8*1024*1024):rf_preview_build(&part,&world,&level,8*1024*1024);
+                    if(result || part.count>live.count-at)return 3;
+                    for(j=0;j<part.count;++j)part.vertices[j].material=bundle.slots[bundle.offsets[g]+part.vertices[j].material];
+                    if(part.bytes && memcmp(part.vertices,live.vertices+at,part.bytes))return 3;
+                    at+=part.count;rf_preview_close(&part);
+                }
+                if(at!=live.count)return 3;
+                {
+                    rf_preview_mesh before=live;void *copy=malloc(live.bytes?live.bytes:1);
+                    if(!copy)return 3;if(live.bytes)memcpy(copy,live.vertices,live.bytes);
+                    if(live.bytes) {
+                        /* Empty metadata forces the count pass to discover the
+                         * short capacity instead of rejecting the old size. */
+                        live.count=live.bytes=0;
+                        if(rf_preview_update_world(&live,before.bytes-1,&world,&movers,poses,&bundle,&level)!=RF_RANGE ||
+                            live.vertices!=address || live.bytes || live.count)return 3;
+                        live=before;
+                    }
+                    if(movers.count) {
+                        float value=poses[movers.count-1].position[0];poses[movers.count-1].position[0]=NAN;
+                        if(rf_preview_update_world(&live,8*1024*1024,&world,&movers,poses,&bundle,&level)!=RF_FORMAT ||
+                            memcmp(&live,&before,sizeof(live)))return 3;
+                        poses[movers.count-1].position[0]=value;
+                    }
+                    if(live.bytes && memcmp(copy,live.vertices,live.bytes))return 3;
+                    free(copy);
+                }
+            }
+            free(poses);rf_preview_close(&live);
         }
         printf("B %u %u %u %u %u %u\n",bundle.count,bundle.textures.count,
             bundle.textures.loaded,bundle.textures.missing,bundle.resident_bytes,peak);

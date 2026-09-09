@@ -63,6 +63,7 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
         float color;int status;
         rf_geometry_get_face(g, f, &face);
         if (face.portal || (face.flags & 1) || face.texture == UINT32_MAX) continue;
+        if(face.texture>=g->textures)return RF_FORMAT;
         if (face.lightmap_mapping != UINT32_MAX && rf_geometry_lightmap(g, face.lightmap_mapping, UINT32_MAX, &lightmap)) return RF_FORMAT;
         if(face.texture>=UINT32_MAX-material_base)return RF_RANGE;
         if(origin) {
@@ -144,12 +145,15 @@ void rf_preview_close(rf_preview_mesh *mesh)
 {
     if (mesh) { free(mesh->vertices); memset(mesh, 0, sizeof(*mesh)); }
 }
-int rf_preview_build_world(rf_preview_mesh *mesh,const rf_geometry *world,
+static int world_mesh(rf_preview_mesh *mesh,const rf_geometry *world,
     const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
-    const rf_geometry_materials *materials,const rf_level *level,uint32_t budget)
+    const rf_geometry_materials *materials,const rf_level *level,uint32_t budget,int reuse)
 {
     rf_preview_mesh next={0};uint32_t pass,i,j,total=0,capacity=budget/sizeof(rf_preview_vertex);int status;
-    if(!mesh || mesh->vertices || mesh->bytes || !world || !world->data || !movers ||
+    if(!mesh || (!reuse && (mesh->vertices || mesh->bytes)) ||
+        (reuse && ((budget && !mesh->vertices) || mesh->bytes>budget ||
+            (uint64_t)mesh->count*sizeof(rf_preview_vertex)!=mesh->bytes)) ||
+        !world || !world->data || !movers ||
         (movers->count && !movers->items) || movers->count==UINT32_MAX || !materials ||
         materials->count!=movers->count+1 || !materials->offsets || materials->offsets[0] || !level)return RF_RANGE;
     for(i=0;i<materials->count;++i) {
@@ -181,10 +185,24 @@ int rf_preview_build_world(rf_preview_mesh *mesh,const rf_geometry *world,
         }
         if(!pass) {
             total=at;capacity=total;next.count=total;next.bytes=total*sizeof(rf_preview_vertex);
-            if(next.bytes) {next.vertices=malloc(next.bytes);if(!next.vertices){status=RF_RANGE;goto fail;}}
+            if(reuse)next.vertices=mesh->vertices;
+            else if(next.bytes) {next.vertices=malloc(next.bytes);if(!next.vertices){status=RF_RANGE;goto fail;}}
         } else if(at!=total){status=RF_FORMAT;goto fail;}
     }
     *mesh=next;return RF_OK;
 fail:
-    rf_preview_close(&next);return status;
+    if(!reuse)rf_preview_close(&next);return status;
+}
+int rf_preview_build_world(rf_preview_mesh *mesh,const rf_geometry *world,
+    const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
+    const rf_geometry_materials *materials,const rf_level *level,uint32_t budget)
+{
+    return world_mesh(mesh,world,movers,poses,materials,level,budget,0);
+}
+int rf_preview_update_world(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geometry *world,const rf_geometry_movers *movers,
+    const rf_group_attached_pose *poses,const rf_geometry_materials *materials,
+    const rf_level *level)
+{
+    return world_mesh(mesh,world,movers,poses,materials,level,capacity_bytes,1);
 }
