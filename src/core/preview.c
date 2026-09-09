@@ -3,28 +3,35 @@
 #include <string.h>
 #include <math.h>
 typedef struct point { float x, y, z, u, v, lu, lv; } point;
+/* Keep clipping arithmetic at float precision on both SSE and x87 builds. */
+static float interpolate(float a,float b,float t)
+{
+    volatile float delta=b-a,scaled=t*delta;
+    return a+scaled;
+}
 static float distance(point p, unsigned plane)
 {
+    volatile float vertical=p.z*0.75f;
     switch (plane) {
     case 0: return p.z - 0.1f;
     case 1: return 1000.0f - p.z;
     case 2: return p.z + p.x;
     case 3: return p.z - p.x;
-    case 4: return p.z * 0.75f + p.y;
-    default: return p.z * 0.75f - p.y;
+    case 4: return vertical + p.y;
+    default: return vertical - p.y;
     }
 }
 static unsigned clip(const point *input, unsigned count, point *output, unsigned plane)
 {
     unsigned i, used = 0;
     point previous = input[count - 1];
-    float before = distance(previous, plane);
+    volatile float before = distance(previous, plane);
     for (i = 0; i < count; ++i) {
         point current = input[i];
-        float after = distance(current, plane);
+        volatile float after = distance(current, plane);
         if ((before >= 0) != (after >= 0)) {
-            float t = before / (before - after);
-            output[used++] = (point){previous.x + t * (current.x - previous.x), previous.y + t * (current.y - previous.y), previous.z + t * (current.z - previous.z), previous.u + t * (current.u - previous.u), previous.v + t * (current.v - previous.v), previous.lu + t * (current.lu - previous.lu), previous.lv + t * (current.lv - previous.lv)};
+            volatile float span=before-after,t=before/span;
+            output[used++] = (point){interpolate(previous.x,current.x,t),interpolate(previous.y,current.y,t),interpolate(previous.z,current.z,t),interpolate(previous.u,current.u,t),interpolate(previous.v,current.v,t),interpolate(previous.lu,current.lu,t),interpolate(previous.lv,current.lv,t)};
         }
         if (after >= 0) output[used++] = current;
         previous = current; before = after;

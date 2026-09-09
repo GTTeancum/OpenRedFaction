@@ -66,7 +66,11 @@ def main():
     parser.add_argument('--scene-stream',action='store_true',help='Expect 64 combined scene frames, retained frame 63')
     parser.add_argument('--scene-states',action='store_true',help='Expect authored-state scene playback')
     parser.add_argument('--door-view',action='store_true',help='Expect door-view.flag camera on mover 8544 during authored-state playback')
+    parser.add_argument('--door-motion',action='store_true',help='Expect door-motion.flag to draw 600 simultaneous door updates at 1/60-second steps')
+    parser.add_argument('--door-motion-frames',type=int,default=600,help='Expected optional door-motion-frames.txt diagnostic endpoint (1..600)')
     args = parser.parse_args()
+    if args.door_motion:args.door_view=True
+    if not 1<=args.door_motion_frames<=600:parser.error('door motion frames must be 1..600')
     if args.door_view:args.scene_states=True
     if args.scene_states:args.scene_stream=True
     if args.scene_stream:args.scene=True
@@ -117,14 +121,20 @@ def main():
     if not motion_symbol:raise RuntimeError('Door motion diagnostic symbol absent')
     bound_raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--bound-movers',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl'])
     mover_poses={struct.unpack_from('<i',bound_raw,12+368*i)[0]:bound_raw[144+368*i:380+368*i] for i in range(struct.unpack_from('<I',bound_raw)[0])}
-    final_runtime=bytearray(runtime_raw[16:]);motion_hash=2166136261;motion_doors=0;motion_ticks=0
+    final_runtime=bytearray(runtime_raw[16:]);motion_hash=2166136261;motion_doors=0;motion_ticks=0;render_poses=[];door_traces=[]
+    steps=args.door_motion_frames if args.door_motion else 40
     for gi,g in enumerate(group_inventory['records']):
         if g['flags'][1]:continue
         at=16+320*gi;uid=g['ids2'][0];keywire=b''.join(struct.pack('<8f',*k['position'],*k['timing']) for k in g['keys'])
-        trace=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--door-cycle'],input=runtime_raw[at+8:at+320]+mover_poses[uid]+keywire)
-        if len(trace)!=40*552:raise RuntimeError('Unexpected PC door trace length')
-        for byte in trace:motion_hash=((motion_hash^byte)*16777619)&0xffffffff
-        last=trace[-552:];final_runtime[320*gi+8:320*gi+320]=last[4:316];mover_poses[uid]=last[316:552];motion_doors+=1;motion_ticks+=40
+        trace=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--door-cycle-smooth' if args.door_motion else '--door-cycle',str(steps)],input=runtime_raw[at+8:at+320]+mover_poses[uid]+keywire)
+        if len(trace)!=steps*552:raise RuntimeError('Unexpected PC door trace length')
+        door_traces.append((uid,trace))
+        last=trace[-552:];final_runtime[320*gi+8:320*gi+320]=last[4:316];motion_doors+=1;motion_ticks+=steps
+    ordered=[(uid,trace[frame*552:(frame+1)*552]) for frame in range(steps) for uid,trace in door_traces] if args.door_motion else [(uid,trace[frame*552:(frame+1)*552]) for uid,trace in door_traces for frame in range(steps)]
+    for index,(uid,tick) in enumerate(ordered):
+        for byte in tick:motion_hash=((motion_hash^byte)*16777619)&0xffffffff
+        mover_poses[uid]=tick[316:552]
+        if args.door_motion and (index+1)%motion_doors==0:render_poses.append(b''.join(mover_poses.values()))
     final_runtime_hash=2166136261
     for byte in final_runtime:final_runtime_hash=((final_runtime_hash^byte)*16777619)&0xffffffff
     view_hash=2166136261
@@ -133,6 +143,18 @@ def main():
         for byte in view:view_hash=((view_hash^byte)*16777619)&0xffffffff
     run = root / 'artifacts/xemu' / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     run.mkdir(parents=True)
+    render_reference=[];render_hash=2166136261
+    if args.door_motion:
+        render_symbol=re.search(r'_rf_door_render_diagnostic\s+([0-9a-fA-F]+)',map_text)
+        if not render_symbol:raise RuntimeError('Door render diagnostic symbol absent')
+        pose_path=run/'door-poses.bin';pose_path.write_bytes(b''.join(render_poses))
+        (root/'artifacts/door-render-final.bin').write_bytes(render_poses[-1])
+        render_reference=[list(map(int,line.split())) for line in subprocess.check_output([
+            str(root/'build/pc/Release/rf_scene_check.exe'),'--pose-world',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl',str(pose_path),str(run/'door-pc-mesh.bin')],text=True).splitlines()]
+        if len(render_reference)!=steps:raise RuntimeError('Wrong PC render frame count')
+        for pair in render_reference:
+            for byte in struct.pack('<2I',*pair):render_hash=((render_hash^byte)*16777619)&0xffffffff
+        (run/'door-render-reference.json').write_text(json.dumps(render_reference))
     eeprom = run / 'eeprom.bin'
     shutil.copyfile(args.xemu_root / 'eeprom.bin', eeprom)
     config = run / 'xemu.toml'
@@ -252,7 +274,20 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()
                         replacements=assets[1:]
                         skin_checksum=int(subprocess.check_output([str(root/'build/pc/Release/rf_checksum_driver.exe')],input=args.skin.encode('ascii').hex()+'\n',text=True).strip(),16)
-                    if args.scene and (args.skin or words[31]!=(5 if args.scene_states else 4 if args.scene_stream else 3) or words[56:58]!=[9858,2892 if args.door_view else 7455] or words[36]!=(2892 if args.door_view else 8838 if args.scene_states else 8847 if args.scene_stream else 8802)):
+                    if args.door_motion:
+                        render_reply=monitor.command('human-monitor-command', {'command-line':f'x /10wx 0x{int(render_symbol.group(1),16):x}'})
+                        render=[]
+                        for line in render_reply.splitlines():
+                            if ':' in line:render.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
+                        if len(render)==10:
+                            target=run/'door-xbox-mesh.bin'
+                            monitor.command('human-monitor-command', {'command-line':f'memsave 0x{render[8]:x} {render[9]} "{target.as_posix()}"'})
+                        if len(render)!=10 or render[:3]!=[0x52464452,1,steps] or render[4]!=1024*1024+2892*56 or render[5:8]!=[render_hash,*render_reference[-1]] or not 0<render[3]<1024*1024:
+                            raise RuntimeError(f'Guest rendered door meshes differ from PC: {render}')
+                        report['door_render']=dict(frames=render[2],retained_geometry_bytes=render[3],vertex_capacity_bytes=render[4],trace_hash=hex(render[5]),last_vertices=render[6],last_mesh_hash=hex(render[7]),step_seconds=1/60,scope='Every committed pose mesh matches PC after archive closure; one CPU/GPU vertex allocation, changing draw counts. All four panels activated together and stepped before each render; diagnostic scheduling, no gameplay trigger dispatch.')
+                    expected_world=render_reference[-1][0] if args.door_motion else 2892 if args.door_view else 7455
+                    expected_total=expected_world if args.door_view else 8838 if args.scene_states else 8847 if args.scene_stream else 8802
+                    if args.scene and (args.skin or words[31]!=(5 if args.scene_states else 4 if args.scene_stream else 3) or words[56:58]!=[9858,expected_world] or words[36]!=expected_total):
                         raise RuntimeError('Combined scene camera/UID/draw ranges differ from fixture')
                     if not args.scene and words[56:58]!=[skin_checksum,len(replacements)]:
                         raise RuntimeError('Guest skin selection differs from requested reference')
@@ -342,14 +377,18 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     report['scene']='authored-state Live Mines / miner 9858' if words[31]==5 else 'streamed Live Mines / miner 9858' if words[31]==4 else 'Live Mines / miner 9858 close inspection' if words[31]==3 else 'streamed miner inspection' if words[31]==2 else 'posed miner inspection' if words[31] else 'Live Mines static geometry'
                     if args.door_view:report['scene']='Live Mines mover 8544 door inspection; actor-state playback outside view'
                     vertex_capacity=1024*1024+words[57]*56 if words[31] in (4,5) else 1024*1024 if words[31]==2 else words[36]*56
+                    if args.door_motion:vertex_capacity=1024*1024+2892*56
                     if not 0 < words[44] <= words[47] <= words[3] or words[45:47] != [expected_gpu_bytes, vertex_capacity]:
                         raise RuntimeError('Unexpected GPU allocation or memory telemetry')
                     report['renderer_memory'] = dict(available_bytes_after_upload=words[44]*4096,
                         gpu_image_requested_bytes=words[45], gpu_vertex_requested_bytes=words[46],
                         available_bytes_after_cpu_mesh_release=words[47]*4096,
                         scope='Observed retained diagnostic frame, not full-game peak')
+                    if args.door_motion:
+                        report['renderer_memory']['available_bytes_with_retained_cpu_mesh']=report['renderer_memory'].pop('available_bytes_after_cpu_mesh_release')
+                        report['door_motion']['scope']='Resident simultaneous door controller/mover ticks and collision views match PC; 1/60-second diagnostic steps, unobstructed gates, absent sound/event dispatch and crate rotation.'
                     report['materials'] = dict(loaded=words[38], allocated_bytes=words[39], pixel_checksum=hex(words[40]), missing=words[41], available_pages=words[42],scope='Validated resident level materials; model GPU image bytes are checked separately')
-                    if words[33:35] != [640, 480] or words[35] < 640*4 or words[36] == 0 or words[37] != (64 if words[31] in (2,4,5) else 3):
+                    if words[33:35] != [640, 480] or words[35] < 640*4 or words[36] == 0 or words[37] != (64+steps if args.door_motion else 64 if words[31] in (2,4,5) else 3):
                         raise RuntimeError('Invalid native renderer capture descriptor')
                     if not args.no_capture:
                         capture = run / 'framebuffer.bin'

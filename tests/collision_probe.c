@@ -11,11 +11,14 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
-    if(argc==2 && !strcmp(argv[1],"--door-cycle")) {
+    if((argc==2 || argc==3) && (!strcmp(argv[1],"--door-cycle") || !strcmp(argv[1],"--door-cycle-smooth"))) {
         struct {rf_group_translation_runtime runtime;rf_group_attached_pose controller,mover;float keys[2][8];} in;
         struct {int32_t status;rf_group_translation_runtime runtime;rf_group_attached_pose controller,mover;} out;
         rf_level_group_key keys[2]={{0}};rf_group_controller_view binding={0};rf_group_pose_slot slot;
         uint32_t i,frame,handle=0x12340000;
+        int smooth=!strcmp(argv[1],"--door-cycle-smooth");float dt=smooth?1.0f/60.0f:.25f;
+        uint32_t steps=argc==3?(uint32_t)strtoul(argv[2],NULL,10):smooth?600:40;
+        if(!steps || steps>600)return 2;
         if(fread(&in,sizeof(in),1,stdin)!=1)return 2;
         out.runtime=in.runtime;out.controller=in.controller;out.mover=in.mover;
         for(i=0;i<2;i++) {memcpy(keys[i].position,in.keys[i],12);memcpy(keys[i].timing,in.keys[i]+3,20);}
@@ -23,14 +26,14 @@ int main(int argc,char **argv)
         slot.handle=handle;slot.pose=&out.mover;
         if(rf_group_motion_activate(&out.runtime.motion,2))return 3;
         /* Controlled translation diagnostic: no trigger obstruction or event links. */
-        for(frame=0;frame<40;frame++) {
+        for(frame=0;frame<steps;frame++) {
             rf_group_translation_frame tick;uint32_t sounds=0;
-            out.status=rf_group_translation_tick_begin(&out.runtime,keys,2,.25f,(int32_t)(frame*250),&tick);
+            out.status=rf_group_translation_tick_begin(&out.runtime,keys,2,dt,(int32_t)(smooth?frame*1000/60:frame*250),&tick);
             if(!out.status && tick.stage==RF_GROUP_TICK_GATES)out.status=rf_group_translation_tick_move(&out.runtime,&tick);
             if(!out.status && tick.stage==RF_GROUP_TICK_ARRIVAL)out.status=rf_group_translation_tick_finish(&out.runtime,&tick,2,&sounds);
             if(!out.status) {
                 out.controller.flags=out.runtime.object_flags;memcpy(out.controller.pending,out.runtime.pending,12);memcpy(out.controller.velocity,out.runtime.velocity,12);
-                out.status=rf_group_translation_bind_pose(&out.mover,handle,&binding,1,.25f,0);
+                out.status=rf_group_translation_bind_pose(&out.mover,handle,&binding,1,dt,0);
             }
             if(!out.status)out.status=rf_group_commit_positions(&out.runtime.motion.flags,&out.controller,&binding,&slot,1);
             if(!out.status) {memcpy(out.runtime.position,out.controller.position,12);out.runtime.object_flags=out.controller.flags;}

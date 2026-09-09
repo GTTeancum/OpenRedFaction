@@ -40,6 +40,26 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
 }
 int main(int argc,char **argv)
 {
+    if((argc==5 || argc==6) && !strcmp(argv[1],"--pose-world")) {
+        rf_vpp archive;rf_level level;rf_geometry world={0};rf_scene_world_geometry owned={0};
+        rf_materials images={0};rf_preview_mesh mesh={0};rf_group_attached_pose *poses;
+        FILE *input;uint32_t capacity,i,hash;void *buffer;size_t size;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) ||
+            rf_scene_preview_mover_camera(&level,8544,6.0f) || rf_geometry_open(&world,&level,8*1024*1024) ||
+            rf_scene_world_open_retained(&level,&world,NULL,0,&mesh,&images,8*1024*1024,4*1024*1024,&owned))return 1;
+        rf_vpp_close(&archive);memset(&level,0xa5,sizeof(level));rf_materials_close(&images);
+        capacity=mesh.bytes+1024*1024;buffer=realloc(mesh.vertices,capacity);if(!buffer)return 1;mesh.vertices=buffer;
+        size=owned.movers.count*sizeof(*poses);poses=malloc(size);if(!size || !poses)return 1;
+        input=fopen(argv[4],"rb");if(!input)return 1;
+        for(;;) {
+            size_t got=fread(poses,1,size,input);if(!got && feof(input))break;if(got!=size)return 3;
+            if(rf_scene_world_update(&owned,poses,owned.movers.count,&mesh,capacity) || mesh.vertices!=buffer)return 3;
+            hash=2166136261u;for(i=0;i<mesh.bytes;++i)hash=(hash^((const unsigned char *)mesh.vertices)[i])*16777619u;
+            printf("%u %u\n",mesh.count,hash);
+        }
+        if(argc==6) {FILE *output=fopen(argv[5],"wb");if(!output || fwrite(mesh.vertices,1,mesh.bytes,output)!=mesh.bytes || fclose(output))return 3;}
+        fclose(input);free(poses);rf_preview_close(&mesh);rf_scene_world_geometry_close(&owned);rf_geometry_close(&world);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--retained-world")) {
         rf_vpp archive;rf_level source,camera;rf_geometry world={0};rf_scene_world_geometry owned={0};
         rf_materials images={0};rf_preview_mesh mesh={0},expected={0};rf_geometry_materials mapping={0};

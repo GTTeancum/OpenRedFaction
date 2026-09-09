@@ -19,6 +19,11 @@
 /* Read-only monitor evidence. Resolve its VA from the matching linker map. */
 volatile uint32_t rf_diagnostic[58] = {0x52464447u, 9u, 0};
 static rf_geometry resident_geometry;
+static rf_scene_world_geometry resident_render_geometry;
+static int door_render_frame(void);
+static rf_preview_mesh door_mesh;
+static uint32_t door_capacity;
+volatile uint32_t rf_door_render_diagnostic[10]={0x52464452u};
 static rf_geometry_collision_world resident_collision;
 volatile uint32_t rf_collision_diagnostic[9]={0x52464357u};
 volatile uint32_t rf_sweep_diagnostic[8]={0x52465357u};
@@ -130,11 +135,27 @@ static int membership_open(void)
 volatile uint32_t rf_door_motion_diagnostic[8]={0x5246444du};
 static int door_motion_check(void)
 {
-    rf_group_pose_slot *slots=NULL;uint32_t i,j,k,frame,hash=2166136261u,view_hash=2166136261u;int status=RF_OK;MM_STATISTICS memory={0};
+    rf_group_pose_slot *slots=NULL;uint32_t i,j,k,frame,step,hash=2166136261u,view_hash=2166136261u;int status=RF_OK;MM_STATISTICS memory={0};
+    float dt=.25f;uint32_t render_steps=600;
+    FILE *render_flag=fopen("D:\\door-motion.flag","rb");
+    if(render_flag) {
+        fclose(render_flag);
+        if(rf_diagnostic[31]!=5 || !resident_render_geometry.world){status=RF_RANGE;goto done;}
+        door_capacity=rf_diagnostic[46];door_mesh.vertices=malloc(door_capacity);
+        if(!door_mesh.vertices){status=RF_RANGE;goto done;}
+        rf_door_render_diagnostic[3]=resident_render_geometry.allocated_bytes;
+        rf_door_render_diagnostic[4]=door_capacity;rf_door_render_diagnostic[5]=2166136261u;
+        dt=1.0f/60.0f;
+        render_flag=fopen("D:\\door-motion-frames.txt","rb");
+        if(render_flag){int parsed=fscanf(render_flag,"%u",&render_steps);fclose(render_flag);if(parsed!=1 || !render_steps || render_steps>600){status=RF_RANGE;goto done;}}
+        for(i=0;i<resident_movers.count;++i)if(i>=resident_render_geometry.movers.count ||
+            resident_movers.uids[i]!=resident_render_geometry.movers.items[i].uid){status=RF_FORMAT;goto done;}
+    }
     slots=calloc(resident_movers.count?resident_movers.count:1,sizeof(*slots));if(!slots) {status=RF_RANGE;goto done;}
     for(i=0;i<resident_movers.count;i++) {slots[i].handle=resident_movers.views[i].object_id;slots[i].pose=resident_movers.poses+i;}
     rf_door_motion_diagnostic[7]=resident_movers.count*sizeof(*slots);
-    for(i=0;i<resident_group_runtime.count;i++) {
+    for(step=0;step<(door_mesh.vertices?render_steps:resident_group_runtime.count);++step) {
+    for(i=door_mesh.vertices?0:step;i<(door_mesh.vertices?resident_group_runtime.count:step+1);i++) {
         rf_group_runtime_entry *entry=resident_group_runtime.items+i;const rf_level_owned_group *g=entry->source;
         const rf_group_mover_membership *m=resident_memberships.items+i;rf_group_controller_view binding={0};rf_group_attached_pose *mover;uint32_t index;
         if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION)continue;
@@ -143,15 +164,17 @@ static int door_motion_check(void)
         for(j=0;j<2;j++)for(k=0;k<3;k++)if(g->keys[j].links[k]!=UINT32_MAX) {status=RF_RANGE;goto done;}
         index=m->handles[0]&0xffffu;if(index>=resident_movers.count || slots[index].handle!=m->handles[0]) {status=RF_RANGE;goto done;}
         mover=slots[index].pose;binding.runtime=&entry->translation;binding.first_key=g->keys;binding.mover_handles=m->handles;binding.mover_count=m->count;
-        status=rf_group_motion_activate(&entry->translation.motion,2);if(status)goto done;
-        rf_door_motion_diagnostic[2]++;
-        for(frame=0;frame<40;frame++) {
+        if(!door_mesh.vertices || !step) {
+            status=rf_group_motion_activate(&entry->translation.motion,2);if(status)goto done;
+            rf_door_motion_diagnostic[2]++;
+        }
+        for(frame=door_mesh.vertices?step:0;frame<(door_mesh.vertices?step+1:40u);frame++) {
             rf_group_translation_frame tick;uint32_t sounds=0;const void *data[4]={&status,&entry->translation,&entry->pose,mover};uint32_t sizes[4]={4,76,236,236};
-            status=rf_group_translation_tick_begin(&entry->translation,g->keys,2,.25f,(int32_t)(frame*250),&tick);if(status)goto done;
+            status=rf_group_translation_tick_begin(&entry->translation,g->keys,2,dt,(int32_t)(door_mesh.vertices?frame*1000/60:frame*250),&tick);if(status)goto done;
             if(tick.stage==RF_GROUP_TICK_GATES) {status=rf_group_translation_tick_move(&entry->translation,&tick);if(status)goto done;}
             if(tick.stage==RF_GROUP_TICK_ARRIVAL) {status=rf_group_translation_tick_finish(&entry->translation,&tick,2,&sounds);if(status)goto done;}
             entry->pose.flags=entry->translation.object_flags;memcpy(entry->pose.pending,entry->translation.pending,12);memcpy(entry->pose.velocity,entry->translation.velocity,12);
-            status=rf_group_translation_bind_pose(mover,m->handles[0],&binding,1,.25f,0);if(status)goto done;
+            status=rf_group_translation_bind_pose(mover,m->handles[0],&binding,1,dt,0);if(status)goto done;
             status=rf_group_commit_positions(&entry->translation.motion.flags,&entry->pose,&binding,slots,resident_movers.count);if(status)goto done;
             memcpy(entry->translation.position,entry->pose.position,12);entry->translation.object_flags=entry->pose.flags;
             status=rf_geometry_collision_movers_sync(&resident_movers);if(status)goto done;
@@ -159,11 +182,18 @@ static int door_motion_check(void)
             rf_door_motion_diagnostic[3]++;
         }
     }
+    if(door_mesh.vertices){status=door_render_frame();if(status)goto done;}
+    }
     for(i=0;i<resident_movers.count;i++)for(j=0;j<120;j++)view_hash=(view_hash^((const unsigned char *)resident_movers.views[i].minimum)[j])*16777619u;
     rf_door_motion_diagnostic[4]=hash;rf_door_motion_diagnostic[5]=view_hash;
     rf_group_runtime_diagnostic[7]=group_runtime_hash();memory.Length=sizeof(memory);
     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_door_motion_diagnostic[6]=memory.AvailablePages;
  done:
+    if(door_mesh.vertices) {
+        rf_door_render_diagnostic[8]=(uint32_t)door_mesh.vertices;rf_door_render_diagnostic[9]=door_mesh.bytes;
+        rf_door_render_diagnostic[1]=status?(uint32_t)status:1;
+        memory.Length=sizeof(memory);if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_diagnostic[47]=memory.AvailablePages;
+    }
     free(slots);rf_door_motion_diagnostic[1]=status?(uint32_t)status:1;return status;
 }
 static int mover_check(const rf_level *level)
@@ -258,6 +288,20 @@ static int collision_check(const rf_level *level)
 }
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;
+static int door_render_frame(void)
+{
+    uint32_t i,hash=2166136261u,pair[2];int status;
+    status=rf_scene_world_update(&resident_render_geometry,resident_movers.poses,resident_movers.count,&door_mesh,door_capacity);
+    if(status)return status;
+    for(i=0;i<door_mesh.bytes;++i)hash=(hash^((const unsigned char *)door_mesh.vertices)[i])*16777619u;
+    pair[0]=door_mesh.count;pair[1]=hash;
+    for(i=0;i<sizeof(pair);++i)rf_door_render_diagnostic[5]=(rf_door_render_diagnostic[5]^((const unsigned char *)pair)[i])*16777619u;
+    rf_door_render_diagnostic[6]=door_mesh.count;rf_door_render_diagnostic[7]=hash;
+    rf_diagnostic[57]=door_mesh.count;
+    status=rf_xbox_scene_stream_frame(&door_mesh,&resident_materials,&resident_lightmaps,door_mesh.count,&rf_diagnostic[32],&rf_diagnostic[44]);
+    if(!status)rf_door_render_diagnostic[2]++;
+    return status;
+}
 static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
@@ -275,7 +319,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status)return status;}
     rf_preview_close(mesh);rf_materials_close(&resident_materials);
     while(!status && opened<5) {status=rf_vpp_open(maps+opened,paths[opened]);if(!status)++opened;}
-    if(!status)status=rf_scene_world_open(level,&resident_geometry,maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024);
+    if(!status)status=rf_scene_world_open_retained(level,&resident_geometry,maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,&resident_render_geometry);
     world=mesh->count;
     stream_flag=fopen("D:\\scene-stream.flag","rb");
     if(stream_flag) {

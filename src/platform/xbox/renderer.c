@@ -54,9 +54,10 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     static gpu_texture *stream_textures;
     static const rf_materials *stream_materials;
     static const rf_lightmaps *stream_lightmaps;
-    static int stream_mode;static uint32_t stream_world;
+    static int stream_mode;static uint32_t stream_capacity;
     int streaming=model==2 || model==4;
     uint32_t vertex_bytes=streaming?1024*1024+(model==4?world_vertices*sizeof(rf_preview_vertex):0):mesh?mesh->bytes:0;
+    if(streaming && stream_gpu)vertex_bytes=stream_capacity;
     const uint32_t program[] = {
 #include "preview_vertex.inl"
     };
@@ -67,7 +68,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
     if(mesh->bytes>vertex_bytes)return RF_RANGE;
     if(streaming && stream_gpu) {
-        if(stream_materials!=materials || stream_mode!=model || stream_world!=world_vertices ||
+        if(stream_materials!=materials || stream_mode!=model ||
            (model==4 && stream_lightmaps!=lightmaps))return RF_RANGE;
         gpu=stream_gpu;textures=stream_textures;
         while(pb_busy()) {}
@@ -88,7 +89,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         }
     }
     if(streaming) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;
-        stream_mode=model;stream_world=world_vertices;stream_lightmaps=lightmaps;}
+        stream_mode=model;stream_capacity=vertex_bytes;stream_lightmaps=lightmaps;}
     }
     memcpy(gpu,mesh->vertices,mesh->bytes);
     for (i = 0; i < mesh->count; ++i) if (gpu[i].material < materials->count && textures[gpu[i].material].pixels) {

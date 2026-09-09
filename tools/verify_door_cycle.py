@@ -2,6 +2,10 @@
 import hashlib,json,struct,subprocess,sys,re
 from pathlib import Path
 import pefile
+smooth='--smooth' in sys.argv
+steps=600 if smooth else 40
+dt=struct.unpack('<f',struct.pack('<f',1/60 if smooth else .25))[0]
+dt_bits=struct.unpack('<I',struct.pack('<f',dt))[0]
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32
 from unicorn.x86_const import *
@@ -29,11 +33,11 @@ for gi,g in enumerate(inventory['records']):
  if g['flags'][1]:continue
  assert len(g['keys'])==2 and len(g['ids2'])==1 and not g['ids1'] and all(k['links']==[0xffffffff]*3 for k in g['keys'])
  start=16+320*gi;runtime=runtimes[start+8:start+84];cp=runtimes[start+84:start+320];mp=mover_poses[g['ids2'][0]];keywire=b''.join(struct.pack('<8f',*k['position'],*k['timing']) for k in g['keys'])
- pc=subprocess.check_output([probe,'--door-cycle'],input=runtime+cp+mp+keywire);assert len(pc)==40*552
+ pc=subprocess.check_output([probe,'--door-cycle-smooth' if smooth else '--door-cycle'],input=runtime+cp+mp+keywire);assert len(pc)==steps*552
  cb=bytearray(1024);mb=bytearray(1024);map_in(cb,cp,pose_fields);map_in(cb,runtime,runtime_fields);map_in(mb,mp,pose_fields)
  struct.pack_into('<I',mb,0x2c,0x12340000);struct.pack_into('<I',cb,0x2c,0x23450001);struct.pack_into('<I',cb,0x28c,0x64e3b0);struct.pack_into('<3I',cb,0x29c,2,2,arrays);struct.pack_into('<3I',cb,0x2cc,1,1,arrays+64)
  for offset in [0x2d8,0x2dc,0x2e0,0x2e4,0x314,0x31c,0x320,0x324,0x328]:struct.pack_into('<i',cb,offset,-1)
- u.mem_write(obj,bytes(mb));u.mem_write(controller,bytes(cb));u.mem_write(arrays,struct.pack('<2I',keys,keys+128));u.mem_write(arrays+64,struct.pack('<I',0x12340000));u.mem_write(0x7394cc,struct.pack('<2I',obj,controller));u.mem_write(0x64e63c,struct.pack('<I',controller));u.mem_write(0x64ecb9,bytes(2));u.mem_write(0x5a4014,struct.pack('<f',.25))
+ u.mem_write(obj,bytes(mb));u.mem_write(controller,bytes(cb));u.mem_write(arrays,struct.pack('<2I',keys,keys+128));u.mem_write(arrays+64,struct.pack('<I',0x12340000));u.mem_write(0x7394cc,struct.pack('<2I',obj,controller));u.mem_write(0x64e63c,struct.pack('<I',controller));u.mem_write(0x64ecb9,bytes(2));u.mem_write(0x5a4014,struct.pack('<f',dt))
  for i,k in enumerate(g['keys']):
   kb=bytearray(128);struct.pack_into('<I',kb,0,k['uid']);kb[4:16]=keywire[32*i:32*i+12];kb[0x34:0x48]=keywire[32*i+12:32*i+32];struct.pack_into('<3I',kb,0x48,*k['links']);u.mem_write(keys+128*i,bytes(kb))
  u.mem_write(stack+0x340,struct.pack('<I',0xffffffff));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_EBX,controller);u.reg_write(UC_X86_REG_EDI,controller+0x29c)
@@ -44,18 +48,20 @@ for gi,g in enumerate(inventory['records']):
   kb=bytearray(356);kb[24:36]=keywire[32*i:32*i+12];kb[72:92]=keywire[32*i+12:32*i+32];x.mem_write(xbase+2048+356*i,bytes(kb))
  invoke('rf_group_motion_activate',[xbase,2])
  moving=0
- for frame in range(40):
-  u.mem_write(0x5a3ed8,struct.pack('<i',frame*250));call(0x469800,controller);call(0x46bbe0,0);call(0x46a8f0,controller)
+ for frame in range(steps):
+  now=frame*1000//60 if smooth else frame*250
+  u.mem_write(0x5a3ed8,struct.pack('<i',now));call(0x469800,controller);call(0x46bbe0,0);call(0x46a8f0,controller)
   want=bytes(4)+mapped(controller,runtime_fields)+mapped(controller,pose_fields)+mapped(obj,pose_fields)
   got=pc[552*frame:552*(frame+1)];assert got==want,(g['name'],frame,[(i,got[i:i+4].hex(),want[i:i+4].hex()) for i in range(0,552,4) if got[i:i+4]!=want[i:i+4]])
-  invoke('rf_group_translation_tick_begin',[xbase,xbase+2048,2,0x3e800000,frame*250,xbase+1200]);stage,=struct.unpack('<I',x.mem_read(xbase+1272,4))
+  invoke('rf_group_translation_tick_begin',[xbase,xbase+2048,2,dt_bits,now,xbase+1200]);stage,=struct.unpack('<I',x.mem_read(xbase+1272,4))
   if stage==2:invoke('rf_group_translation_tick_move',[xbase,xbase+1200]);stage,=struct.unpack('<I',x.mem_read(xbase+1272,4))
   if stage==3:invoke('rf_group_translation_tick_finish',[xbase,xbase+1200,2,xbase+1400])
   x.mem_write(xbase+256,bytes(x.mem_read(xbase+36,4)));x.mem_write(xbase+256+80,bytes(x.mem_read(xbase+52,12)));x.mem_write(xbase+256+92,bytes(x.mem_read(xbase+64,12)))
-  invoke('rf_group_translation_bind_pose',[xbase+512,0x12340000,xbase+1024,1,0x3e800000,0]);invoke('rf_group_commit_positions',[xbase,xbase+256,xbase+1024,xbase+1064,1])
+  invoke('rf_group_translation_bind_pose',[xbase+512,0x12340000,xbase+1024,1,dt_bits,0]);invoke('rf_group_commit_positions',[xbase,xbase+256,xbase+1024,xbase+1064,1])
   x.mem_write(xbase+40,bytes(x.mem_read(xbase+256+56,12)));x.mem_write(xbase+36,bytes(x.mem_read(xbase+256,4)))
   xbox=bytes(4)+bytes(x.mem_read(xbase,76))+bytes(x.mem_read(xbase+256,236))+bytes(x.mem_read(xbase+512,236));assert xbox==want,(g['name'],frame,'NXDK connected cycle')
   moving+=mapped(obj,pose_fields)[56:68]!=mp[56:68]
- results.append(dict(name=g['name'],mover_uid=g['ids2'][0],ticks=40,moved_frames=moving))
+ results.append(dict(name=g['name'],mover_uid=g['ids2'][0],ticks=steps,moved_frames=moving))
 report=dict(result='PASS',doors=len(results),ticks=160,scope='Connected PC/NXDK activation, staged controller ticks, attached mover binding/propagation and position commits vs original activation block and complete unchanged 469800/46bbe0/46a8f0. Actual Live Mines key timings/positions/base mover poses. Gates unobstructed, sound handles disabled, door event links absent; crate rotation excluded. Compiled NXDK functions run in Unicorn; no XEMU motion or visual playback yet.',results=results)
-(root/'artifacts/door-cycle-verification.json').write_text(json.dumps(report,indent=2));print(report)
+report['ticks']=steps*len(results);report['step_seconds']=dt
+(root/('artifacts/door-cycle-smooth-verification.json' if smooth else 'artifacts/door-cycle-verification.json')).write_text(json.dumps(report,indent=2));print(report)

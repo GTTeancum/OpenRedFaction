@@ -53,7 +53,8 @@ int main(int argc, char **argv)
     FILE *output;
     rf_entity_assets skin_assets={0};const char *skin_names[64];
     uint32_t world_vertices=0;
-    int door_view=argc>1 && !strcmp(argv[1],"--scene-door-states-last");
+    int door_motion=argc>1 && !strcmp(argv[1],"--scene-door-motion-last");
+    int door_view=door_motion || (argc>1 && !strcmp(argv[1],"--scene-door-states-last"));
     int scene_states=door_view || (argc>1 && !strcmp(argv[1],"--scene-states-last"));
     int scene_stream=scene_states || (argc>1 && !strcmp(argv[1],"--scene-close-last"));
     int scene_close=scene_stream || (argc>1 && !strcmp(argv[1],"--scene-close"));
@@ -71,7 +72,7 @@ int main(int argc, char **argv)
         if(argc<6 || rf_vpp_open(&archive,argv[2]) || rf_animation_preview(argv[2],argv[3],(!strcmp(argv[1],"--model-last") || !strcmp(argv[1],"--model-skin-last"))?63:0,&mesh,1024*1024))return 1;
     } else {
         if(rf_vpp_open(&archive, argv[scene_mode?2:1]) || rf_level_open(&level, &archive, argv[scene_mode?3:2]))return 1;
-        if(scene_close && rf_scene_preview_camera(&level,(int32_t)strtol(argv[8],NULL,10)))return 1;
+        if(scene_close && !door_motion && rf_scene_preview_camera(&level,(int32_t)strtol(argv[8],NULL,10)))return 1;
         if(door_view && rf_scene_preview_mover_camera(&level,8544,6.0f))return 1;
         if(rf_geometry_open(&geometry,&level,8*1024*1024) || rf_preview_build(&mesh,&geometry,&level,8*1024*1024))return 1;
     }
@@ -97,9 +98,23 @@ int main(int argc, char **argv)
             rf_model_materials_close(&bundle);
         } else if(!result && scene_mode) {
             rf_preview_close(&mesh);
-            result=rf_scene_world_open(&level,&geometry,archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024);
+            if(door_motion) {
+                rf_scene_world_geometry owned={0};rf_group_attached_pose *poses=NULL;FILE *input=NULL;
+                result=rf_scene_world_open_retained(&level,&geometry,archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,&owned);
+                if(!result) {
+                    uint32_t capacity=mesh.bytes+1024*1024;void *buffer=realloc(mesh.vertices,capacity);
+                    size_t size=owned.movers.count*sizeof(*poses);
+                    if(buffer)mesh.vertices=buffer;else result=RF_RANGE;
+                    poses=malloc(size?size:1);input=fopen(argv[8],"rb");
+                    if(!poses || !input)result=RF_IO;
+                    if(!result && (fread(poses,1,size,input)!=size || fgetc(input)!=EOF || ferror(input)))result=RF_FORMAT;
+                    if(!result)result=rf_scene_world_update(&owned,poses,owned.movers.count,&mesh,capacity);
+                }
+                if(input)fclose(input);free(poses);rf_scene_world_geometry_close(&owned);
+            } else result=rf_scene_world_open(&level,&geometry,archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024);
         } else if (!result) result = rf_materials_open(&materials, &geometry, archives, opened, 4*1024*1024);
-        if(!result && scene_mode) {
+        if(!result && door_motion)world_vertices=mesh.count;
+        if(!result && scene_mode && !door_motion) {
             world_vertices=mesh.count;
             if(scene_states)result=rf_scene_stream_miner_states(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
                 archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL);

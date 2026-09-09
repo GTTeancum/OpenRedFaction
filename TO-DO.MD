@@ -75,6 +75,17 @@ after archive closure, source-level poisoning and image closure, with at most
 and draw committed door ticks; the existing compatibility loader still closes
 it after initial projection. GPU streaming currently requires a fixed world
 vertex boundary and must accept changing world counts within its fixed capacity.
+Committed mover poses now drive the Xbox draw loop with retained source data
+and fixed CPU/GPU capacity. The visible diagnostic now updates all door panels
+together at 1/60-second steps, correcting the earlier quarter-second jumps and
+sequential panel cycles. Original/PC/NXDK checks pass 2,400 smooth motion ticks;
+the open-door 120-frame XEMU check passes exact mesh hashes and framebuffer
+comparison. Connect actual trigger/event pairing and the gameplay clock, retain
+actors in the same running world, then restore collision obstruction and audio.
+The full synchronized 600-frame cycle now passes stock 64 MiB XEMU with exact
+PC mesh traces and all 2,400 controller/mover ticks; the open-door snapshot is
+verified separately. Reprojection and timing remain diagnostic, not performance-
+qualified gameplay rendering.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

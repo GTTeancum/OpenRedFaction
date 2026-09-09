@@ -131,3 +131,63 @@ and update from resident collision/controller poses. The GPU stream must track
 its allocation capacity independently of the current world draw boundary:
 clipping can change world vertex counts as doors move. The current renderer
 still rejects a boundary change, so that integration remains open.
+
+## Rendered door motion
+
+Xbox scene loading now keeps the render geometry owner after initial actor
+inspection and archive closure. `door-motion.flag` enables drawing from each
+committed pose update. The CPU buffer and GPU buffer each retain their initial
+1,210,528-byte capacity; current world vertex count may change with clipping.
+The GPU stream checks current used bytes against its saved allocation capacity
+instead of rejecting a changed world/actor draw boundary. The final CPU mesh
+remains resident for native diagnostic inspection.
+
+The visible harness initially used the old 0.25-second, panel-by-panel logic;
+this caused the reported stepping and separate opening. Visible motion now
+activates all four translation panels on the first tick, updates every panel
+at 1/60 second, and renders after all commits. Default duration is 600 frames;
+optional `door-motion-frames.txt` selects an endpoint from 1 to 600. This is a
+fixed-step inspection schedule, not recovered trigger pairing or a real-time
+gameplay clock. The non-rendering legacy motion check remains available.
+
+`verify_door_cycle.py --smooth` compares 600 ticks for each of four real doors
+against the original and compiled NXDK, including the exact float 1/60 time
+step and integer millisecond timer values. All 2,400 ticks pass. XEMU's monitor
+interleaves these PC traces in frame/group order, checks controller/collision
+hashes, and checks every projected mesh against `rf_scene_check --pose-world`.
+Frame counts and used/capacity bytes are validated independently.
+
+Cross-backend mesh comparison exposed one frustum-edge vertex that differed
+by 1/16 pixel and a few float bits. The diagnostic clipper now explicitly
+rounds plane distances and interpolation stages to float precision on SSE
+and x87. This fixes the mismatch without weakening the hash check. The prior
+camera/material inspection relied only on framebuffer tolerance; this new
+check verifies the pre-upload vertex stream too.
+
+Open-door capture/report:
+`artifacts/xemu/20260909-103453-382443/` passes on stock 64 MiB, with 120 rendered
+steps, 480 controller ticks, 2,811 final vertices, mesh trace `eac34fab`, and
+final mesh `2f4d4d70`. PC framebuffer maximum channel difference is one, with
+no pixels above three. Retained mover source/mappings consume 21,265 bytes;
+available memory with the CPU mesh retained is 44,343,296 bytes. The capture
+shows both panels moving away from the doorway.
+
+The full 600-frame synchronized cycle also passes in stock 64 MiB XEMU:
+`artifacts/xemu/20260909-103538-711185/report.json`. Every mesh trace and all
+2,400 controller/mover steps match PC; no additional screenshot was taken,
+because the cycle returns to the previously shown closed position.
+
+For an open-door reference, generate the pose sequence with
+`xemu_smoke.py --door-motion --door-motion-frames 120 --no-capture`; it writes
+`artifacts/door-render-final.bin`. PC preview mode `--scene-door-motion-last`
+uses that pose-file path in the usual scene actor-UID argument position.
+Pass its PPM output to the smoke tool's `--reference` for native comparison.
+The flag file and expected frame argument must match. Rebuild the ISO after
+changing staged files (remove only the generated ISO first if make considers
+it current). Captures should only be requested for a new visible result.
+
+Still open: actual trigger/event pairing, obstruction, sounds, runtime actor
+updates alongside moving geometry, gameplay-clock scheduling, rendering
+performance and the existing fine surface artifacts. The entire world is
+currently reprojected for each diagnostic frame; this is not the final Xbox
+visibility or rendering architecture.
