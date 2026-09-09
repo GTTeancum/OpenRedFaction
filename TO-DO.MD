@@ -21,8 +21,9 @@ Ordered controller binding now matches 2,000 original calls on PC/NXDK, and
 forced translation updates all 1,406 owned mover poses/collision views on PC.
 Position assignment now matches 8,030 original calls on PC/NXDK, including
 pending-source aliasing; controller commit lists now match 2,000 original calls
-on PC/NXDK. Connect authored controller ownership, runtime position mirrors,
-collision-view synchronization and rendering, then trigger/events and XEMU.
+on PC/NXDK. Normal commit now synchronizes all 1,406 real-level collision views
+in PC checks, with NXDK synchronization verified separately. Connect persistent
+authored controller ownership and rendering, then trigger/events and XEMU.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

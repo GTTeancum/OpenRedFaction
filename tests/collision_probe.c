@@ -217,7 +217,7 @@ int main(int argc,char **argv)
         printf("%u %u %u %u %u %u %u %u\n",world.room_count,movers.count,queries,hits,moving_hits,static_hits,hash[0],world.allocated_bytes+movers.allocated_bytes);
         free(poison);rf_geometry_collision_world_close(&world);rf_geometry_collision_movers_close(&movers);return 0;
     }
-    if(argc==4 && (!strcmp(argv[1],"--bound-movers") || !strcmp(argv[1],"--shifted-movers"))) {
+    if(argc==4 && (!strcmp(argv[1],"--bound-movers") || !strcmp(argv[1],"--shifted-movers") || !strcmp(argv[1],"--committed-movers"))) {
         rf_vpp archive;rf_level level;rf_geometry_movers source={0};
         rf_geometry_collision_movers owned={0},exact={0},guard;uint32_t *ids,i;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 2;
@@ -230,7 +230,7 @@ int main(int argc,char **argv)
         memset(&guard,0xa5,sizeof(guard));exact=guard;
         if(rf_geometry_collision_movers_open(&source,ids,owned.peak_bytes-1,&exact)!=RF_RANGE || memcmp(&guard,&exact,sizeof(guard)))return 7;
         rf_geometry_movers_close(&source);rf_vpp_close(&archive);
-        if(!strcmp(argv[1],"--shifted-movers")) {
+        if(strcmp(argv[1],"--bound-movers")) {
             rf_group_translation_runtime runtime={0};rf_level_group_key first={0};rf_group_controller_view controller={0};
             runtime.motion.flags=8;runtime.pending[0]=1;runtime.pending[1]=2;runtime.pending[2]=3;
             controller.runtime=&runtime;controller.first_key=&first;controller.mover_handles=ids;controller.mover_count=owned.count;
@@ -244,7 +244,19 @@ int main(int argc,char **argv)
                     memcmp(snapshot,owned.poses,pose_bytes) || memcmp(snapshot+pose_bytes,owned.views,view_bytes))return 12;
                 free(snapshot);
             }
-            if(rf_geometry_collision_movers_propagate(&owned,&controller,1,.25f,1))return 10;
+            if(!strcmp(argv[1],"--committed-movers")) {
+                rf_group_attached_pose controller_pose={0};rf_group_pose_slot *slots;
+                if(owned.count>1024)return 13;
+                slots=calloc(owned.count?owned.count:1,sizeof(*slots));if(!slots)return 14;
+                for(i=0;i<owned.count;i++) {slots[i].handle=ids[i];slots[i].pose=owned.poses+i;}
+                if(rf_geometry_collision_movers_propagate(&owned,&controller,1,.25f,0))return 15;
+                for(i=0;i<owned.count;i++)if(memcmp(owned.views[i].input_origin,owned.poses[i].base_position,12))return 16;
+                memcpy(controller_pose.pending,runtime.pending,12);
+                if(rf_group_commit_positions(&runtime.motion.flags,&controller_pose,&controller,slots,owned.count) || runtime.motion.flags)return 17;
+                memcpy(runtime.position,controller_pose.position,12);runtime.object_flags=controller_pose.flags;
+                if(rf_geometry_collision_movers_sync(&owned))return 18;
+                free(slots);
+            } else if(rf_geometry_collision_movers_propagate(&owned,&controller,1,.25f,1))return 10;
         }
         free(ids);
         if(fwrite(&owned.count,4,1,stdout)!=1 || fwrite(&owned.allocated_bytes,4,1,stdout)!=1 || fwrite(&owned.peak_bytes,4,1,stdout)!=1)return 8;

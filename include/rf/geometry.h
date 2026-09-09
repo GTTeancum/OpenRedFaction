@@ -95,6 +95,10 @@ typedef struct rf_geometry_collision_movers {
 int rf_geometry_collision_movers_open(const rf_geometry_movers *source,
     const uint32_t *object_ids,uint32_t budget,rf_geometry_collision_movers *result);
 void rf_geometry_collision_movers_close(rf_geometry_collision_movers *movers);
+/* Synchronize owned poses into collision views after a position commit.
+ * No allocation or pose mutation; preserves face pointers, IDs and ordering.
+ * Caller must supply valid finite poses (as produced by pose operations). */
+int rf_geometry_collision_movers_sync(rf_geometry_collision_movers *movers);
 /* Apply ordered controller bindings to owned poses and collision views.
  * Controllers/keys/handle arrays must remain stable and not alias mover storage.
  * No allocation. Validate all poses before committing any change. Normal

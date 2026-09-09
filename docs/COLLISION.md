@@ -2012,3 +2012,23 @@ checks late invalid-target atomicity, clean invalid data and a controller listed
 in its own attachments. The runtime still needs authored controller ownership,
 position mirror synchronization, collision-view synchronization and rendering
 integration before this becomes animated scene behavior.
+
+
+### Synchronizing committed poses into collision views
+
+`rf_geometry_collision_movers_sync` copies bounds and the distinct input/output
+origins and matrices from owned poses into existing collision views, preserving
+all face pointers, IDs and ordering. Propagation now uses this same helper, and
+callers can invoke it after controller commits without allocating new geometry.
+The caller supplies valid poses produced by the pose operations.
+
+The real-level `--committed-movers` probe now performs normal propagation,
+checks that collision origins have not advanced early, commits through controller
+handle lists, synchronizes runtime position/flags and collision views, and retains
+velocity. `tools/verify_mover_binding.py` checks the resulting full poses/views
+for all 1,406 movers across 68 levels, after source closure and without changing
+retained geometry budgets. It separately runs the compiled NXDK synchronization
+helper over those committed poses, checking complete view bytes including fields
+that must remain untouched. The test controller and handle table are diagnostic;
+persistent authored controller ownership and running scene/render integration
+remain open. No new XEMU or visible animation result is claimed by these checks.
