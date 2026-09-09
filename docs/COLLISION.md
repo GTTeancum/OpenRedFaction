@@ -31,8 +31,8 @@ Report: `artifacts/collision-box-verification.json`.
 - `0x4dec10` filters candidate faces, dispatches thin rays through bounding-box
   test `0x508b70` then plane test `0x506550`, and checks polygon containment with
   `0x4e1f50`. Nonzero-radius sweeps use `0x5071b0` and edge work instead; that
-  swept path remains open. The candidate filters and polygon containment have
-  been exported but are not yet reconstructed.
+  swept path remains open. Candidate filters are exported but not yet
+  reconstructed; projected polygon containment is verified below.
 - Crouch eligibility `0x429ae0` resolves target position via `0x48a8d0`, builds
   a ray origin from the entity position and transformed class offset, then calls
   `0x498e80` with mask `0x27`. The target helper uses a valid type-zero entity's
@@ -54,7 +54,7 @@ Report: `artifacts/collision-box-verification.json`.
   cannot be replaced with only a collider-height change.
 
 These call-graph observations come from Ghidra and original instructions;
-only the segment/box and segment/plane routines have been reconstructed here.
+the segment/box, segment/plane and projected containment routines are verified.
 The export script now retains the named collision functions for further work.
 
 ## One-sided plane crossing
@@ -84,3 +84,31 @@ image and checks terminal return addresses. Report:
 `artifacts/collision-plane-verification.json`. Both builds, all four CTest
 checks, and the 16,000-case box regression pass. This proves the primitive,
 not polygon containment, world traversal or gameplay collision.
+
+## Projected polygon containment
+
+`rf_collision_polygon_contains` reconstructs `0x4e1f50` with axis selection
+`0x4fa6d0`. A bounded, ordered vertex array replaces the original circular edge
+list; the last vertex seeds the previous edge endpoint. No allocation is needed.
+Dominant-axis selection uses strict comparisons: X wins only if larger than Y
+and Z, otherwise Y wins only if larger than Z, otherwise Z wins. The sign of
+that normal component selects the ordering of the remaining axes from the
+original table at `0x5a3ee0`. A zero normal follows the original Z/nonpositive
+path; containment is projected and does not establish coplanarity.
+
+The crossing test uses half-open vertical intervals and a strict horizontal
+comparison against the extended intersection. It applies no epsilon or general
+on-edge override. The x86 implementations restore the x87 control word after
+each comparison. Port guards reject nonfinite coordinates and counts outside
+1..65536 without changing the output; even one/two-vertex loops follow the
+original computation. Input arrays must contain the declared count.
+
+`python tools/verify_collision_polygon.py` executes 6,858 complete original
+calls, including the original axis helper and circular edge-list traversal,
+and matches 821 inside results. Another 142 guard cases preserve output.
+All 7,000 fixtures also execute the NXDK-linked function in Unicorn. Fixtures
+cover concave star loops, arbitrary vertex orders, reversed winding, normal
+axis/sign ties, zero normals, degenerate loops and exact vertex/edge points.
+Report: `artifacts/collision-polygon-verification.json`, including the linked
+Xbox image fingerprint. This is primitive CPU validation, not an XEMU gameplay
+test; world traversal, candidate filters and swept collision remain open.

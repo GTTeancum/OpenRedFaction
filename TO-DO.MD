@@ -17,6 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Projected polygon containment now matches 6,858 original cases on PC and NXDK;
+combine it with plane/box tests and recover face filters and world traversal.
+
 The one-sided segment/plane test now matches 11,876 original cases on PC and
 NXDK; recover polygon containment and face filtering before querying the world.
 

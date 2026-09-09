@@ -142,3 +142,58 @@ int rf_collision_segment_plane(const float start[3],const float displacement[3],
     if(accepted)*fraction=value;
     *hit=accepted;return RF_OK;
 }
+
+/* Compare against the extended edge intersection before any float store. */
+static int edge_right(float px,float py,float x,float y,float previous_x,float previous_y)
+{
+    unsigned short flags;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    unsigned short saved,control;
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        fld previous_x
+        fsub x
+        fld py
+        fsub y
+        fmulp st(1),st(0)
+        fld previous_y
+        fsub y
+        fdivp st(1),st(0)
+        fadd x
+        fcomp px
+        fnstsw flags
+        fldcw saved
+    }
+#elif defined(__i386__) || defined(__x86_64__)
+    unsigned short saved,control;
+    __asm__ volatile("fnstcw %0":"=m"(saved));
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %7\n\tflds %5\n\tfsubs %3\n\tflds %2\n\tfsubs %4\n\tfmulp\n\tflds %6\n\tfsubs %4\n\tfdivrp\n\tfadds %3\n\tfcomps %1\n\tfnstsw %0\n\tfldcw %8"
+        :"=m"(flags):"m"(px),"m"(py),"m"(x),"m"(y),"m"(previous_x),"m"(previous_y),"m"(control),"m"(saved):"st","st(1)");
+#else
+    return (long double)px<(((long double)previous_x-x)*((long double)py-y))/((long double)previous_y-y)+x;
+#endif
+    return !(flags&0x4100u);
+}
+int rf_collision_polygon_contains(const float normal[3],const float point[3],
+    const float (*vertices)[3],uint32_t count,uint32_t *inside)
+{
+    static const uint32_t axes[3][2]={{2,1},{0,2},{1,0}};
+    uint32_t axis,x,y,i,j,result=0;float a,b,c,px,py,previous_x,previous_y;
+    if(!normal || !point || !vertices || !inside || !count || count>65536)return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(normal[j]) || !isfinite(point[j]))return RF_FORMAT;
+    for(i=0;i<count;i++)for(j=0;j<3;j++)if(!isfinite(vertices[i][j]))return RF_FORMAT;
+    a=fabsf(normal[0]);b=fabsf(normal[1]);c=fabsf(normal[2]);
+    axis=a>b?(a>c?0:2):(b>c?1:2);
+    x=axes[axis][normal[axis]>0?0:1];y=axes[axis][normal[axis]>0?1:0];
+    px=point[x];py=point[y];previous_x=vertices[count-1][x];previous_y=vertices[count-1][y];
+    for(i=0;i<count;i++) {
+        float current_x=vertices[i][x],current_y=vertices[i][y];
+        if((current_y>py)!=(previous_y>py))
+            if(edge_right(px,py,current_x,current_y,previous_x,previous_y))result^=1;
+        previous_x=current_x;previous_y=current_y;
+    }
+    *inside=result;return RF_OK;
+}
