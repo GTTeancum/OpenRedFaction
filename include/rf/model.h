@@ -2,6 +2,17 @@
 #define RF_MODEL_H
 #include "rf/vpp.h"
 #include "rf/motion_file.h"
+typedef struct rf_model_motion_registry {
+    uint32_t *identities;uint8_t *flags;uint32_t count,capacity;
+} rf_model_motion_registry;
+/* Registry portion of 0x51cc42..0x51cc93: first matching resolved identity/flag
+ * wins, otherwise append. Identity is a nonzero caller-owned stable token for
+ * a resolved motion (the original uses a skeleton pointer). Flag is an exact
+ * byte, not normalized to bool. Caller resolves/loads the motion separately.
+ * Capacity/error handling is port-owned; all failures preserve registry/output.
+ * added is 1 for a new entry, 0 for a reused entry. No allocation or I/O. */
+int rf_model_register_motion(rf_model_motion_registry *registry,uint32_t identity,
+    uint8_t flag,int32_t *index,int *added);
 
 /* Fixed-width material record used by original model-instance arrays.
  * Unknown fields remain bytes; pointer-valued slots are not native pointers. */

@@ -13,6 +13,19 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--register-motion")) {
+        struct {uint32_t count,capacity,identity,flag,identities[32];uint8_t flags[32];} data;
+        struct {int32_t status,index,added;uint32_t count,identities[32];uint8_t flags[32];} result;
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            rf_model_motion_registry registry={data.identities,data.flags,data.count,data.capacity};
+            if(data.capacity>32 && data.capacity!=UINT32_MAX)return 2;
+            result.index=result.added=-12345;
+            result.status=rf_model_register_motion(&registry,data.identity,(uint8_t)data.flag,&result.index,&result.added);
+            result.count=registry.count;memcpy(result.identities,data.identities,128);memcpy(result.flags,data.flags,32);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--near-clip-guards")) {
         rf_model_vertex vertices[3]={0};int32_t reuse[3]={0};
         rf_model_draw_batch batch={0,3,0,1,0};rf_model_triangle triangle={{0,1,2},0x20};

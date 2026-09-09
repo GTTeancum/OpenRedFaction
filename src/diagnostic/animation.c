@@ -39,6 +39,8 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_vpp meshes, archive; rf_model_file model; rf_motion_file files[4];
     const rf_motion_file *handles[4]={&files[0],&files[1],&files[2],&files[3]};
     rf_motion_playback_resource resources[4]={0}; rf_motion_playback_state state={0};
+    uint32_t motion_identities[4]={0};uint8_t motion_flags[4]={0};int32_t registered[4];
+    rf_model_motion_registry registration={motion_identities,motion_flags,0,4};
     rf_turn_effects effects={0}; rf_turn_actor actor={0};
     rf_locomotion_candidate_input selection={0,1,{0,0,0},0};
     rf_locomotion_candidates candidates;
@@ -128,18 +130,22 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
     state.phase=.25f; state.generation=1;
     for (i=0;i<4;++i) {
-        rf_motion_track track;
+        rf_motion_track track;int added;
         status=rf_motion_file_open(&files[i],&archive,names[i]); if (status!=RF_OK) goto done;
+        /* These four resolved files are distinct. Stable local tokens stand in
+         * for original skeleton identities; file resolution remains separate. */
+        status=rf_model_register_motion(&registration,i+1,(uint8_t)(i<2),registered+i,&added);
+        if(status || !added || registered[i]!=(int32_t)i) {status=RF_FORMAT;goto done;}
         status=rf_motion_file_track(&files[i],0,&track); if (status!=RF_OK) goto done;
         resources[i].comparison=track.envelope; resources[i].looping=i<2;
         resources[i].markers[0]=3200; resources[i].markers[1]=6400;
     }
     for (i=0;i<23;++i) motions[i]=-1;
-    motions[0]=0; motions[8]=1;
+    motions[0]=registered[0]; motions[8]=registered[1];
     for (i=0;i<45;++i) actions[i]=sounds[i]=-1;
     /* Original 0x4181d0 names actions 17/18 sidestep_left/right. Roll actions
      * 19/20 are absent; preparation still invokes its weapon-reset adapter. */
-    actions[17]=2; actions[18]=3;
+    actions[17]=registered[2]; actions[18]=registered[3];
     actor.info_flags=context.movement.flags; actor.weapon=0;
     actor.direction.entity_flags=10;
     entity.handle=0x10000; entity.linked_handle=-1;

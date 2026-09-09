@@ -4,6 +4,19 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_model_register_motion(rf_model_motion_registry *registry,uint32_t identity,
+    uint8_t flag,int32_t *index,int *added)
+{
+    uint32_t i;
+    if(!registry || !registry->identities || !registry->flags || !identity || !index || !added ||
+       registry->count>registry->capacity || registry->capacity>INT32_MAX)return RF_RANGE;
+    for(i=0;i<registry->count;++i)if(registry->identities[i]==identity && registry->flags[i]==flag) {
+        *index=(int32_t)i;*added=0;return RF_OK;
+    }
+    if(registry->count==registry->capacity)return RF_RANGE;
+    i=registry->count;registry->identities[i]=identity;registry->flags[i]=flag;registry->count=i+1;
+    *index=(int32_t)i;*added=1;return RF_OK;
+}
 
 int rf_model_local_view(const rf_model_projection *world,const float position[3],
     const float orientation[9],rf_model_projection *local)

@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Motion identity/loop-flag registration now matches 2,098 original-code cases
+and drives the passing XEMU fixture; connect bulk authored state registration
+and motion-cache ownership to replace the remaining fixed four-file setup.
+
 Authored state binding now opens 1,137 compiled motions and reports the two
 missing EDF1_Idle references; register these handles and drive real actor states.
 

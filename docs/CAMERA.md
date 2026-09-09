@@ -284,6 +284,35 @@ cover animated bone poses, parent-index integration or Xbox arithmetic at runtim
 
 ## State registration and motion-file leads
 
+`rf_model_register_motion` reconstructs the registry search/append portion of
+`0x51cc10`. The original resolves a skeleton identity before `0x51cc42`, then
+searches the count at instance +0xf58, identities at +0xf5c and exact flag bytes
+at +0x120c. It reuses the first matching identity/flag pair or appends both and
+increments the count. The same identity with another flag gets another ID.
+The port uses caller-owned nonzero identity tokens and bounded parallel arrays;
+invalid inputs or a full nonmatching registry preserve arrays and outputs.
+An existing match remains valid at capacity. Resolution, lazy loading after
+append and their original assertion/failure behavior remain outside this helper.
+
+`tools/verify_motion_registration.py` executes original instructions from
+`0x51cc42` to the reuse return boundary or the `0x51cc93` load-call boundary.
+It does not replace executed instructions; an observation hook stops before
+the excluded load call. All 2,098 valid fixtures match identities, flags, count
+and reused indices exactly: 698 reuse and 1,400 append cases. The new index is
+inferred from the original post-load count-minus-one expression, not a tested
+loader effect. Another 302 port guard fixtures preserve all outputs. General
+byte flags, duplicate matches, full-capacity reuse and bounds are covered.
+
+The shared animation diagnostic now registers its four already opened files
+and uses the resulting IDs in state/action arrays. Its four distinct resolved
+files use local identity tokens 1..4; this does not establish global name-cache
+identity or replace the fixed motion filenames with bulk table registration.
+PC/NXDK builds, four CTest checks and the 64-frame combined scene pass at
+`artifacts/xemu/20260908-232053-446765/report.json`, without capture. The PC final
+image is byte-identical to its previous reference. The compiler-reported scene
+stream stack subtotal is now 36,640 bytes, still excluding libraries, arguments
+and kernel/interrupt usage; it remains an incomplete bound.
+
 `rf_motion_compiled_filename` now reconstructs `0x53a9d6..0x53aa54` with
 63-byte input/output limits. Executing the original block established that
 its CRT call `0x575410` finds the **first** dot, including dots in directory
