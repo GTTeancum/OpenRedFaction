@@ -1789,3 +1789,37 @@ The PC image command is:
 ```powershell
 ./build/pc/Release/rf_pc_preview.exe --scene-eye-last Installed_Game/levels1.vpp L1S1.rfl artifacts/scene-eye-view.ppm Installed_Game/meshes.vpp Installed_Game/motions.vpp Installed_Game/tables.vpp 9858 Installed_Game/maps1.vpp Installed_Game/maps2.vpp Installed_Game/maps3.vpp Installed_Game/maps4.vpp Installed_Game/maps_en.vpp
 ```
+
+
+## Look angle update (49de50)
+
+`rf_look_update` reconstructs the scalar path through 49dfcd. Entity fields:
+rotation command 708/70c/710, pending pitch 728 and yaw 724, body angles
+864/868/86c, eye-relative angles 87c/880/884, angular velocity 150/154/158.
+Class info 294->64 supplies angular speed; entity 1b0 supplies the timestep.
+Pitch delta uses speed * timestep * command.x + pending pitch; yaw uses
+command.y * speed * timestep + pending yaw. The original rounds each delta
+before dividing by timestep for angular velocity. Both pending deltas and
+all three command components are consumed.
+
+Body pitch/roll and eye yaw/roll become zero. Eye pitch clamps to the binary32
+values +/-1.5707963705062866. Yaw outside +/-6283.185546875 resets to zero;
+otherwise repeated binary32 additions/subtractions wrap into inclusive
++/-6.2831854820251465. This is not wrapping into +/-pi. Nonpositive timestep
+and nonfinite inputs are explicit port errors, preserving state.
+
+`python tools/verify_look_update.py --nxdk` executes the original unmodified
+49de50..49dfcd instructions, including vector-clearing callees. All 1,200
+finite cases match all 56 state bytes on PC and compiled NXDK under Unicorn.
+This is not a live XEMU test and does not validate original caller selection.
+Full PC/NXDK builds and the four existing CTests pass.
+
+The remaining original path builds body orientation with 4fbee0, copies it to
+120 and 48, then builds eye orientation at 7e0 through 4a0d70 using body plus
+eye angles. **Do not replace 4a0d70 with a conventional Euler matrix:** its raw
+code uses sin(pitch) vertically and 1-abs(sin(pitch)) horizontally before
+4fc500 normalization. Verify these instructions and matrix conventions next,
+then bind separate look orientation into the shared scene and live XEMU
+telemetry. The current diagnostic still uses body orientation for the eyes.
+49cd30 physics commit and the 174/870/888 auxiliary clears are not owned by
+this scalar API. No screenshot was captured for this unbound change.

@@ -42,4 +42,13 @@ int rf_camera_effect_apply(rf_camera_effect_state *state,int32_t now_ms,
  * No seed choice is inferred. Errors preserve state, RNG, orientation, active. */
 int rf_camera_effect_apply_random(rf_camera_effect_state *state,int32_t now_ms,
     rf_random_state *random,float orientation[9],uint32_t *active);
+/* Scalar portion of 49de50 through 49dfcd. Radians; positive finite dt.
+ * Pending pitch/yaw are consumed; rotation command is cleared. Body pitch/
+ * roll and eye yaw/roll are reset. Matrix rebuild and physics commit are caller
+ * work; this API does not implement mouse/controller acquisition. */
+typedef struct rf_look_state {
+    float command[3],pending_pitch,pending_yaw;
+    float body_angles[3],eye_angles[3],angular_velocity[3];
+} rf_look_state;
+int rf_look_update(rf_look_state *state,float angular_speed,float dt);
 #endif

@@ -260,3 +260,30 @@ int rf_camera_effect_apply_random(rf_camera_effect_state *state,int32_t now_ms,
     status=rf_camera_effect_apply(state,now_ms,first,second,orientation,active);if(status)return status;
     *random=next;return RF_OK;
 }
+
+int rf_look_update(rf_look_state *state,float angular_speed,float dt)
+{
+    rf_look_state v;float pitch_delta,yaw_delta;double yaw,pitch;unsigned i;
+    const float tau=6.2831854820251465f,limit=6283.185546875f,half_pi=1.5707963705062866f;
+    if(!state)return RF_RANGE;
+    if(!isfinite(angular_speed) || !isfinite(dt) || dt<=0)return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(state->command[i]) ||
+        !isfinite(state->body_angles[i]) || !isfinite(state->eye_angles[i]))return RF_FORMAT;
+    if(!isfinite(state->pending_pitch) || !isfinite(state->pending_yaw))return RF_FORMAT;
+    v=*state;
+    pitch_delta=(float)((double)angular_speed*dt*v.command[0]+v.pending_pitch);
+    yaw_delta=(float)((double)v.command[1]*angular_speed*dt+v.pending_yaw);
+    v.angular_velocity[0]=pitch_delta/dt;v.angular_velocity[1]=yaw_delta/dt;v.angular_velocity[2]=0;
+    if(!isfinite(pitch_delta) || !isfinite(yaw_delta) ||
+       !isfinite(v.angular_velocity[0]) || !isfinite(v.angular_velocity[1]))return RF_RANGE;
+    yaw=(double)yaw_delta+v.body_angles[1];pitch=(double)pitch_delta+v.eye_angles[0];
+    v.body_angles[0]=v.body_angles[2]=0;v.eye_angles[1]=v.eye_angles[2]=0;
+    v.eye_angles[0]=(float)pitch;
+    if(pitch>half_pi)v.eye_angles[0]=half_pi;
+    if(v.eye_angles[0]<-half_pi)v.eye_angles[0]=-half_pi;
+    v.body_angles[1]=(yaw>limit || yaw<-limit)?0:(float)yaw;
+    while(v.body_angles[1]>tau)v.body_angles[1]=(float)((double)v.body_angles[1]-tau);
+    while(v.body_angles[1]<-tau)v.body_angles[1]=(float)((double)v.body_angles[1]+tau);
+    memset(v.command,0,sizeof(v.command));v.pending_pitch=v.pending_yaw=0;
+    *state=v;return RF_OK;
+}

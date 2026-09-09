@@ -8,6 +8,15 @@ int main(int argc,char **argv)
     struct { int32_t status; float position[3]; } output;
     _Static_assert(sizeof(input) == 96, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--look")) {
+        struct {rf_look_state state;float speed,dt;} in;
+        struct {int32_t status;rf_look_state state;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.state=in.state;out.status=rf_look_update(&out.state,in.speed,in.dt);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--effect-random")) {
         struct {rf_camera_effect_state state;int32_t now;rf_random_state random;float orientation[9];} in;
         struct {int32_t status;rf_camera_effect_state state;float orientation[9];uint32_t active;rf_random_state random;} out;

@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Look-angle scalar update now matches 1,200 original cases on PC and compiled
+NXDK, including consumed deltas, pitch clamp and original yaw wrapping.
+Reconstruct the nonstandard 4a0d70 eye-matrix builder before binding separate
+look to the scene. No new rendered result; see docs/CAMERA.md.
+
 First-person diagnostic now binds loaded eye offsets to body/controller state.
 All 664 PC poses (including 30 transition frames) match original eye/camera
 instructions byte-for-byte. XEMU run 20260909-194149-709809 passes in 64 MiB;
