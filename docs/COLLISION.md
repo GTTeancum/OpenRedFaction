@@ -28,6 +28,11 @@ Report: `artifacts/collision-box-verification.json`.
 
 ## Call graph and remaining work
 
+- `0x4dec10` filters candidate faces, dispatches thin rays through bounding-box
+  test `0x508b70` then plane test `0x506550`, and checks polygon containment with
+  `0x4e1f50`. Nonzero-radius sweeps use `0x5071b0` and edge work instead; that
+  swept path remains open. The candidate filters and polygon containment have
+  been exported but are not yet reconstructed.
 - Crouch eligibility `0x429ae0` resolves target position via `0x48a8d0`, builds
   a ray origin from the entity position and transformed class offset, then calls
   `0x498e80` with mask `0x27`. The target helper uses a valid type-zero entity's
@@ -49,5 +54,33 @@ Report: `artifacts/collision-box-verification.json`.
   cannot be replaced with only a collider-height change.
 
 These call-graph observations come from Ghidra and original instructions;
-only the segment/box routine above has been reconstructed and verified here.
+only the segment/box and segment/plane routines have been reconstructed here.
 The export script now retains the named collision functions for further work.
+
+## One-sided plane crossing
+
+`rf_collision_segment_plane` reconstructs complete `0x506550` including the
+numeric behavior of distance helper `0x4163a0` and dot product `0x40a0b0`.
+Input is a start position, displacement (not an endpoint), and four plane
+coefficients. It rejects negative signed start distance before rounding that
+comparison, then compares the negated extended normal/displacement dot against
+the stored float distance. Accepted fraction is stored float distance divided
+by that extended dot. Dot products accumulate Z then Y then X. Misses preserve
+the caller's fraction. The x86 paths restore the caller's x87 control word.
+
+Coplanar parallel inputs reproduce the original hit byte one and negative NaN
+fraction from zero/zero; this must not be consumed as a valid point by future
+world-query code without checking the higher-level original behavior. Nonfinite
+inputs are rejected by the port with unchanged outputs. Zero normals remain
+accepted inputs to preserve the original arithmetic behavior. Non-x86 fallback
+uses long double and has not been proved equivalent; the supported PC/Xbox x86
+paths are the ones verified.
+
+`python tools/verify_collision_plane.py` matches all output bits for 11,876
+complete original executions: 2,901 hit results including 1,235 NaN fractions.
+Another 124 invalid-input guards pass. All 12,000 fixtures also execute the
+actual NXDK-linked routine in Unicorn. The verifier fingerprints the linked
+image and checks terminal return addresses. Report:
+`artifacts/collision-plane-verification.json`. Both builds, all four CTest
+checks, and the 16,000-case box regression pass. This proves the primitive,
+not polygon containment, world traversal or gameplay collision.

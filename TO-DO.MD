@@ -17,6 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The one-sided segment/plane test now matches 11,876 original cases on PC and
+NXDK; recover polygon containment and face filtering before querying the world.
+
 The original segment/box collision primitive now matches 15,678 original cases
 on PC and NXDK; reconstruct world traversal and support queries described in
 docs/COLLISION.md to complete crouch/stand physics.

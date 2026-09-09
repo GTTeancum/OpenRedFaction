@@ -60,3 +60,85 @@ int rf_collision_segment_box(const float minimum[3],const float maximum[3],
     }
     return RF_OK;
 }
+
+int rf_collision_segment_plane(const float start[3],const float displacement[3],
+    const float plane[4],float *fraction,uint32_t *hit)
+{
+    float distance,value=0;uint32_t accepted=0,j;
+    if(!start || !displacement || !plane || !fraction || !hit)return RF_RANGE;
+    for(j=0;j<4;j++)if(!isfinite(plane[j]))return RF_FORMAT;
+    for(j=0;j<3;j++)if(!isfinite(start[j]) || !isfinite(displacement[j]))return RF_FORMAT;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    {
+        unsigned short saved,control;
+        __asm { fnstcw saved }
+        control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+        __asm {
+            fldcw control
+            mov edx,plane
+            mov ecx,start
+            fld dword ptr [edx+8]
+            fmul dword ptr [ecx+8]
+            fld dword ptr [edx+4]
+            fmul dword ptr [ecx+4]
+            faddp st(1),st(0)
+            fld dword ptr [edx]
+            fmul dword ptr [ecx]
+            faddp st(1),st(0)
+            fadd dword ptr [edx+12]
+            fst distance
+            fldz
+            fxch st(1)
+            fcompp
+            fnstsw ax
+            test ah,1
+            jnz plane_done
+            mov ecx,displacement
+            fld dword ptr [edx+8]
+            fmul dword ptr [ecx+8]
+            fld dword ptr [edx+4]
+            fmul dword ptr [ecx+4]
+            faddp st(1),st(0)
+            fld dword ptr [edx]
+            fmul dword ptr [ecx]
+            faddp st(1),st(0)
+            fchs
+            fcom distance
+            fnstsw ax
+            test ah,1
+            jnz plane_pop
+            fld distance
+            fdiv st(0),st(1)
+            fstp value
+            mov accepted,1
+        plane_pop:
+            fstp st(0)
+        plane_done:
+            fldcw saved
+        }
+    }
+#elif defined(__i386__) || defined(__x86_64__)
+    {
+        unsigned short saved,control;
+        __asm__ volatile("fnstcw %0":"=m"(saved));
+        control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+        __asm__ volatile(
+            "fldcw %[control]\n\t"
+            "flds 8(%[p])\n\tfmuls 8(%[s])\n\tflds 4(%[p])\n\tfmuls 4(%[s])\n\tfaddp\n\tflds (%[p])\n\tfmuls (%[s])\n\tfaddp\n\tfadds 12(%[p])\n\tfsts %[distance]\n\tfldz\n\tfxch %%st(1)\n\tfcompp\n\tfnstsw %%ax\n\ttestb $1,%%ah\n\tjnz 2f\n\t"
+            "flds 8(%[p])\n\tfmuls 8(%[d])\n\tflds 4(%[p])\n\tfmuls 4(%[d])\n\tfaddp\n\tflds (%[p])\n\tfmuls (%[d])\n\tfaddp\n\tfchs\n\tfcoms %[distance]\n\tfnstsw %%ax\n\ttestb $1,%%ah\n\tjnz 1f\n\t"
+            "flds %[distance]\n\tfdiv %%st(1),%%st\n\tfstps %[value]\n\tmovl $1,%[accepted]\n1:\n\tfstp %%st(0)\n2:\n\tfldcw %[saved]"
+            :[distance]"=m"(distance),[value]"+m"(value),[accepted]"+m"(accepted)
+            :[s]"r"(start),[d]"r"(displacement),[p]"r"(plane),[control]"m"(control),[saved]"m"(saved)
+            :"ax","cc","st","st(1)","memory");
+    }
+#else
+    {
+        long double a=((long double)plane[2]*start[2]+(long double)plane[1]*start[1])+(long double)plane[0]*start[0]+plane[3];
+        long double b=-(((long double)plane[2]*displacement[2]+(long double)plane[1]*displacement[1])+(long double)plane[0]*displacement[0]);
+        distance=(float)a;
+        if(a>=0 && b>=distance) {value=(float)(distance/b);accepted=1;}
+    }
+#endif
+    if(accepted)*fraction=value;
+    *hit=accepted;return RF_OK;
+}

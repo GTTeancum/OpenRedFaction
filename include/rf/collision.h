@@ -9,4 +9,11 @@
  * data leaves point/hit untouched. No allocation or world traversal. */
 int rf_collision_segment_box(const float minimum[3],const float maximum[3],
     const float start[3],const float end[3],float point[3],uint32_t *hit);
+/* Complete 506550: start plus displacement against plane (normal,d).
+ * Rejects a start behind the plane or insufficient front-to-back travel.
+ * Misses preserve fraction. Coplanar parallel input returns hit=1 and NaN,
+ * matching the original; callers must resolve that before using the fraction.
+ * Finite inputs required; invalid inputs preserve fraction/hit. */
+int rf_collision_segment_plane(const float start[3],const float displacement[3],
+    const float plane[4],float *fraction,uint32_t *hit);
 #endif
