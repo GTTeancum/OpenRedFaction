@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Collision face bounds now match the original finalizer for all 7,418 Live Mines
+faces, including its 0.0001 expansion; continue recovering room state and
+runtime filter metadata before world traversal.
+
 Face access now preserves the original 32-bit file flags across 460,720 faces;
 recover post-load flag changes and room ownership before enabling gameplay
 collision metadata and world traversal.

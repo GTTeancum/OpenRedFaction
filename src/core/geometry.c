@@ -217,6 +217,8 @@ int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
             if(!i || scratch[i][j]>value.maximum[j])value.maximum[j]=scratch[i][j];
         }
     }
+    /* 4dfe20 finalizer at 4e002b: binary32 0x38d1b717 on both sides. */
+    for(j=0;j<3;j++) {value.minimum[j]-=0.0001f;value.maximum[j]+=0.0001f;}
     memcpy(value.plane,source.plane,sizeof(value.plane));value.vertices=scratch;
     value.count=source.corners;value.filter=*filter;*face=value;return RF_OK;
 }

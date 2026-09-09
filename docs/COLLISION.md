@@ -180,7 +180,7 @@ steps; this function is not yet used by the running diagnostic scene.
 
 `rf_geometry_collision_face` connects an opened level geometry object to a
 collision face view. It copies the file plane, resolves corners to vertices in
-file order and derives axis-aligned extrema. The caller owns and sizes the
+file order and derives axis-aligned extrema with the original expansion. The caller owns and sizes the
 vertex scratch buffer; the function allocates nothing. The returned view borrows
 that buffer and remains valid until it is reused. Capacity is measured in
 vertices. Errors preserve the output view, while scratch may be partially
@@ -239,3 +239,25 @@ The loader also narrows the file portal field to runtime face +0x34 and assigns
 room ownership through `0x4ccec0`; these are trace leads requiring further
 verification before creating authoritative runtime filter views. Post-load
 texture/room-derived flag changes remain open.
+
+## Original bound finalization
+
+The face finalizer `0x4dfe20` revealed a missing step in the level adapter:
+after accumulating vertex extrema, `0x4e002b..0x4e0045` subtracts binary32
+`0x38d1b717` (0.0001) from each minimum and adds it to each maximum through
+`0x465ee0` and `0x465ec0`. Exact vertex extrema alone were narrower than the
+original broad-phase bounds. `rf_geometry_collision_face` now applies this
+expansion, preserving each final float store.
+
+`verify_collision_level.py` now additionally executes the original complete
+extrema loop and expansion at `0x4dff92..0x4e0045`, using actual circular face
+edge lists. All six bound floats match bit-for-bit for all 7,418 Live Mines
+faces. Their original and NXDK thin-ray comparisons still pass, as do both
+builds and all four CTest checks. This does not prove the remaining plane
+recalculation and degeneracy handling elsewhere in the finalizer.
+
+Further setup traces: `0x4ce160` derives room byte +2 by scanning its linked
+faces; it becomes one only when every face has flag 0x2000 (also one for an
+empty list). `0x4ccf50` rebuilds the room's bounding structure through
+`0x4f9340`. These are Ghidra/instruction observations, not yet reconstructed
+runtime room behavior. They do not establish texture-derived flag semantics.
