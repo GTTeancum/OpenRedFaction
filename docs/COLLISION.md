@@ -1776,3 +1776,32 @@ guards preserve outputs. Report: `artifacts/group-position-verification.json`.
 Both builds and all four CTest checks pass. Double-intermediate rounding limits
 remain as documented for integration; this is not full controller playback,
 trigger/dwell handling or attached-object propagation. No new visual result.
+
+### Composed translation trajectory replay
+
+`python tools/verify_group_translation_replay.py` now compares the reconstructed
+stages together against complete unchanged original 469800 ticks and 46a8f0
+commits. It runs 40 trajectories of 40 ticks each: modes 1 through 5, both
+directions, duration/speed timing forms and zero/half-second dwell. Motion
+stages execute on both PC and compiled NXDK; the harness also executes compiled
+NXDK timer expiration and deadline-setting helpers. It compares speed, elapsed
+time, distance, pending/committed positions, key indices, terminal key, flags
+and deadline on successive ticks. All 1,600 ticks pass, including repeated
+turns/wraps and idle ticks after stopping. Report:
+`artifacts/group-translation-replay.json`.
+
+The fixture's arrival ordering is now exercised across dwell: assign the
+arrived current key, clear speed/distance, and, when flag 1 is clear and dwell
+is positive, set the deadline, set flag 1 and request the end sound without
+running the mode transition. Later ticks still integrate while the timer is
+waiting. At expiry, flag 1 requests arrival again; then the existing C mode
+transition runs and can clear flag 1/request a start sound. Elapsed phase is
+not reset when dwell first begins. This is an observed full-tick baseline for
+these fixtures, not an inferred pause model.
+
+The replay is diagnostic composition: Python still provides the verified dwell
+decision, dirty-flag updates and pending-position commit; there is no production
+full-tick wrapper yet. Keys have no external links, acceleration is zero and
+sound handles are disabled. Trigger/event callbacks, dwell-rounding edge cases,
+rotation, rounding limits and attached-object pose propagation remain open.
+No runtime source changed in this verification step and no visual result changed.
