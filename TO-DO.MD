@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Entity-local camera and view rotation now match 2,000 original placement-block
+cases. Connect supplied world/entity transforms to scene model drawing and
+recover the remaining view-stack and secondary-view state.
+
 The miner inspection now streams 64 changing frames through reusable CPU/GPU
 buffers on 64 MiB XEMU. Add sustained scene playback, world placement, original
 lighting/material effects and performance measurements before PS2 comparison.

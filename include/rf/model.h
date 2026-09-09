@@ -106,7 +106,8 @@ int rf_model_vertex_lighting(const float vector[3],const float lights[3][6],cons
  * through arithmetic, not repaired. Camera clipping is external. */
 int rf_model_render_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],
     float normalized[3],uint8_t rgb[3]);
-/* Port-owned view of original separate renderer cache arrays. Projected Z is
+/* Port-owned view of original separate renderer cache arrays. The historical
+ * 'world' field is model-local when used with rf_model_local_view. Projected Z is
  * reciprocal depth. Duplicate processing only updates world and clip. */
 typedef struct rf_model_render_cache {
     float world[3],projected[3];uint8_t clip,depth,rgb[3],reserved[3];
@@ -121,6 +122,12 @@ typedef struct rf_model_projection {
     float far_depth;
     uint32_t perspective,compute_clip,clipping,far_clip,screen_clip;
 } rf_model_projection;
+/* Primary view update in 0x547485..0x5474cc: transform world camera into
+ * entity-local space and compose view rotation with transposed orientation.
+ * Other projection fields are preserved; aliasing input/output is supported.
+ * Does not reproduce the original global view stack or secondary view state. */
+int rf_model_local_view(const rf_model_projection *world,const float position[3],
+    const float orientation[9],rf_model_projection *local);
 /* Fresh projection 0x52f154..0x52f31e/0x52f3cc. Updates projected/clip/depth
  * cache fields and vertex byte 23. clip_position updates only with compute_clip.
  * visible describes the screen-rejection branch, not whether clip bits are zero.

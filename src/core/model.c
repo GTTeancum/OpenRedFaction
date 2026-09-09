@@ -5,6 +5,25 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_local_view(const rf_model_projection *world,const float position[3],
+    const float orientation[9],rf_model_projection *local)
+{
+    static const uint8_t order[9][3]={{0,2,1},{2,1,0},{1,0,2},{2,1,0},{2,1,0},{0,1,2},{2,1,0},{2,0,1},{1,0,2}};
+    rf_model_projection result;float delta[3];unsigned i,j,k;
+    if(!world || !position || !orientation || !local)return RF_RANGE;
+    result=*world;
+    for(i=0;i<3;++i)delta[i]=world->camera[i]-position[i];
+    for(i=0;i<3;++i) {
+        result.camera[i]=(float)(((double)delta[2]*orientation[i*3+2]+(double)delta[1]*orientation[i*3+1])+(double)delta[0]*orientation[i*3]);
+        for(j=0;j<3;++j) {
+            double terms[3];const uint8_t *o=order[i*3+j];
+            for(k=0;k<3;++k)terms[k]=(double)world->rotation[i*3+k]*orientation[j*3+k];
+            result.rotation[i*3+j]=(float)((terms[o[0]]+terms[o[1]])+terms[o[2]]);
+        }
+    }
+    *local=result;return RF_OK;
+}
+
 int rf_model_emit_clip_polygon(uint8_t *const *records,uint32_t count,uint8_t common,
     const uint16_t triangle[3],uint16_t base,const rf_model_clip_projection *projection,
     const rf_model_render_output *attributes,float depth_factor,rf_model_triangle_output *output)

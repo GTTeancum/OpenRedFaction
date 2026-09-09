@@ -1,5 +1,28 @@
 # Model batch data
 
+`rf_model_local_view` reconstructs the primary entity-placement view update
+at `0x547485..0x5474cc`, inside `0x5473f0` called by the model renderer.
+It first stores camera minus entity position as floats, then rotates that delta
+by rows of the entity orientation. The view rotation becomes the old view
+rotation multiplied by the transposed entity orientation, following the
+original matrix helper's per-element addition order. Other fields of the
+portable projection description remain unchanged; in-place conversion works.
+Double intermediates approximate x87 rather than establishing universal bit
+equivalence. The position cache historically named `world` is model-local when
+this view is used: placement changes the view, rather than requiring every
+cached vertex and bone matrix to be translated into world space.
+
+`tools/verify_model_local_view.py` compares 2,000 executions of the unchanged
+original block and its complete subtraction, rotation, transpose, matrix product
+and copy callees. The harness provides ECX as set by the immediately preceding
+original instruction and resets x87 rounding for each fixture. Dyadic positions
+and matrices include identity and quarter-turn entity orientations; all 112
+portable view bytes match, including preserved projection settings. PC/NXDK
+builds and all four CTest checks pass. The global push/pop view stack and the
+secondary view state updated by the remainder of `0x5473f0` are not included.
+This helper is not yet connected to a placed scene actor, so no new screenshot
+was captured. Ghidra exports now include both `0x5473f0` and `0x547540`.
+
 `rf_animation_stream` now drives a synchronous frame consumer across the 64
 scripted diagnostic frames. Pose, controller and resident geometry state advance
 once through the sequence. A single budgeted preview allocation is reset and

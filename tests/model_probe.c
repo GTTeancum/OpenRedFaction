@@ -12,6 +12,15 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--local-view")) {
+        struct {rf_model_projection view;float position[3],orientation[9];} data;
+        _Static_assert(sizeof(data)==160,"local view probe layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            if(rf_model_local_view(&data.view,data.position,data.orientation,&data.view))return 2;
+            if(fwrite(&data.view,sizeof(data.view),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--batch-triangles")) {
         const float positions[9][3]={{0,0,1},{.5f,0,1},{0,.5f,1},{-2,0,1},{0,.5f,1},{0,-.5f,1},{-3,0,1},{-2,.5f,1},{-2,-.5f,1}};
         const uint16_t expected[9]={0,1,2,4,5,9,4,9,10};
