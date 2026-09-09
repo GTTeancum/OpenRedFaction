@@ -98,6 +98,46 @@ static int sphere_number(lexer *l,float *result)
     value=strtod(t,&end);if(end==t || *end || !isfinite(value) || fabs(value)>FLT_MAX)return RF_FORMAT;
     *result=(float)value;return RF_OK;
 }
+static int class_flags(lexer *l,uint32_t secondary,uint32_t *result)
+{
+    /* Original pointer tables 594598 (28) and 594608 (8), bit = name index. */
+    static const char *primary[]={"walk","fly","climb","holds_weapons","sentient","alt_fire","water_only","linked_primaries","swim","apc","sub","fighter","driller","turret","mouselook","crusher","medic","humanoid","no_collide","collide_corpse","is_camera","custom_corpse","jeep","ambient","envirosuit","nano_shield","slippery","fire_outside_range"};
+    static const char *second[]={"collide_player","collide_entity","merc","mutant","ignore_fire","drools slime","linked_eye","tankbot"};
+    const char *const *names=secondary?second:primary;uint32_t count=secondary?8:28,i,value=0;
+    char t[256];int quoted,status;
+    if(token(l,t,&quoted) || quoted || strcmp(t,"("))return RF_FORMAT;
+    while((status=token(l,t,&quoted))==RF_OK) {
+        if(!quoted && !strcmp(t,")")) {*result=value;return RF_OK;}
+        if(!quoted)return RF_FORMAT;
+        for(i=0;i<count;++i)if(same(t,names[i]))break;
+        if(i==count)return RF_FORMAT;value|=1u<<i;
+    }
+    return RF_FORMAT;
+}
+int rf_entity_class_physics_read(const void *text,uint32_t bytes,const char *name,
+    rf_entity_class_physics *result)
+{
+    lexer l={(const unsigned char*)text,bytes,0};rf_entity_class_physics value={0};
+    char t[256];uint32_t mask=0,bit;int status,quoted,found=0;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            found=same(t,name);
+        } else if(found) {
+            bit=same(t,"$Mass:")?1:same(t,"$Material:")?2:same(t,"$Flags:")?4:same(t,"$Flags2:")?8:0;
+            if(!bit)continue;if(mask&bit)return RF_FORMAT;mask|=bit;
+            if(bit==1) {if(sphere_number(&l,&value.mass))return RF_FORMAT;}
+            else if(bit==2) {if(token(&l,t,&quoted) || !quoted || asset(value.material,t))return RF_FORMAT;}
+            else if(class_flags(&l,bit==8,bit==8?&value.flags2:&value.flags))return RF_FORMAT;
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;if((mask&7)!=7)return RF_FORMAT;
+    *result=value;return RF_OK;
+}
 int rf_entity_material_read(const void *text,uint32_t bytes,const char *name,
     rf_entity_material *result)
 {

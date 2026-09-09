@@ -6,6 +6,18 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==4 && !strcmp(argv[1],"--class-physics")) {
+        rf_entity_class_physics value,before;
+        memset(&value,0xa5,sizeof(value));before=value;
+        if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"entity.tbl",&entry) || entry.size>512*1024)return 2;
+        text=malloc(entry.size);if(!text)return 2;
+        status=rf_vpp_read(&archive,&entry,0,text,entry.size);
+        if(!status)status=rf_entity_class_physics_read(text,entry.size,argv[3],&value);
+        free(text);rf_vpp_close(&archive);
+        if(status && memcmp(&value,&before,sizeof(value)))return 4;if(status)return 3;
+        for(i=0;i<sizeof(value);++i)printf("%02x",((const unsigned char*)&value)[i]);
+        printf("\n");return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--material")) {
         rf_entity_material material,before;
         memset(&material,0xa5,sizeof(material));before=material;

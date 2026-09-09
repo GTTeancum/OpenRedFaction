@@ -4,6 +4,15 @@
 #include "rf/level.h"
 #include "rf/motion_file.h"
 #include "rf/entity.h"
+typedef struct rf_entity_class_physics {
+    float mass;
+    char material[64];
+    uint32_t flags,flags2;
+} rf_entity_class_physics;
+/* Authored mass/material/flag metadata only; later class defaults and mutations
+ * are not applied. Unknown flags fail; errors preserve output. No allocation. */
+int rf_entity_class_physics_read(const void *text,uint32_t bytes,const char *name,
+    rf_entity_class_physics *result);
 typedef struct rf_entity_material {
     uint32_t index;
     float elasticity,friction,density,buoyancy,traction;

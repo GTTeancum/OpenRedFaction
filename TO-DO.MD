@@ -40,7 +40,9 @@ friction .8 and density 800, stored by original 0x467e68..0x467ea2.
 The bounded material reader now loads all five coefficients and preserves fixed
 material indices independent of declaration order; all ten installed materials
 and six malformed fixtures pass, and NXDK builds. Connect it to runtime archive
-loading and implement class flag loading from the recovered name tables.
+loading. Authored mass/material/class flags now read successfully for all 63
+installed classes with seven malformed-input guards. Recover post-parse class
+defaults/mutations and connect these inputs to the miner's runtime body.
 
 Original event activation now passes 2,160 cases, delayed-tick prefix 1,620
 cases, and three re-activation steps. Timer replacement, disabled caller-field

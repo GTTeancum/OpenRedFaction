@@ -1,5 +1,17 @@
 # Level entity records
 
+`rf_entity_class_physics_read` reads authored mass, material name and the two
+flag lists without allocation, preserving output on errors. Flags use the
+original name tables and ASCII-insensitive equality: original 0x57c130's
+default-locale branch lowercases A..Z. The required primary list and optional
+secondary list may be empty; repeated names OR the same bit. Unknown names,
+duplicate fields and nonfinite mass fail. This is metadata scaffolding, not
+the complete original parser or its subsequent descriptor mutations.
+`verify_class_physics.py` compares all 63 installed classes using flag names
+extracted independently from the fingerprinted executable, plus seven malformed
+fixtures. miner1 yields mass 100, flesh, primary 0x0102411f, secondary 1.
+Class initialization after parsing remains to be traced before body integration.
+
 `rf_entity_material_read` now provides a 24-byte material record from caller-owned
 materials.tbl text, with no allocation. It resolves the fixed ten-name index,
 falls back to Default for an unknown name, and reads elasticity, friction,
