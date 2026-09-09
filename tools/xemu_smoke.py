@@ -131,7 +131,7 @@ def main():
             follow_summary_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FOLLOW_SUMMARY ')).split()[1:]))
         if args.actor_live:
             live_world_vertices=int(next(line for line in output.splitlines() if line.startswith('ACTOR_LIVE_WORLD ')).split()[1])
-            live_reference={label:list(map(int,next(line for line in output.splitlines() if line.startswith(label+' ')).split()[1:])) for label in ['ACTOR_LIVE','ACTOR_LIVE_TICKS','ACTOR_LIVE_BODY']+['ACTOR_LIVE_RING_'+str(i) for i in range(10)]}
+            live_reference={label:list(map(int,next(line for line in output.splitlines() if line.startswith(label+' ')).split()[1:])) for label in ['ACTOR_LIVE','ACTOR_LIVE_TICKS','ACTOR_LIVE_BODY','ACTOR_ROOMS','ACTOR_ROOM_SUMMARY']+['ACTOR_LIVE_RING_'+str(i) for i in range(10)]}
         else:
             actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
             actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
@@ -340,6 +340,11 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             if symbols['rf_scene_actor_follow_frames']['words']!=follow_reference or symbols['rf_scene_actor_follow_summary']['words']!=follow_summary_reference:raise RuntimeError('Follow camera/world projection differs from PC')
                             if follow_summary_reference[4]!=2*1024*1024:raise RuntimeError('Unexpected follow CPU capacity')
                             report['actor_follow']=dict(cpu_vertex_capacity=follow_summary_reference[4],frames=follow_summary_reference[0],world_hash=follow_summary_reference[1],peak_world_bytes=follow_summary_reference[2],camera_hash=follow_summary_reference[3],camera_ring_matches_pc=64,scope='Fixed-offset camera; changing retained world and actor view, no camera collision.')
+                        for symbol,label in [('rf_scene_actor_room_frames','ACTOR_ROOMS'),('rf_scene_actor_room_summary','ACTOR_ROOM_SUMMARY')]:
+                            if symbols[symbol]['words']!=live_reference[label]:raise RuntimeError('Actor room membership differs from PC: '+symbol)
+                        if symbols['rf_scene_actor_room_state']['words']!=live_reference['ACTOR_ROOMS'][(663%64)*9+1:(663%64)*9+6]:raise RuntimeError('Final actor room state differs from last rendered record')
+                        room_summary=live_reference['ACTOR_ROOM_SUMMARY']
+                        report['actor_rooms']=dict(frames=room_summary[0],queries=room_summary[1],misses=room_summary[2],changes_including_initial=room_summary[3],hash=room_summary[4],initial_token=room_summary[5],final_token=room_summary[6],retries=room_summary[7],scope='Original room lookup/refresh composed at rendered-frame boundary for nonlocal diagnostic miner; tokens are level room index plus one, zero absent. General entity scheduler and local-player audio remain open.')
                         report['actor_live']=dict(frames=664,physics_updates=663,landings=live_reference['ACTOR_LIVE'][5],support_losses=live_reference['ACTOR_LIVE'][6],geometry_hash=live_reference['ACTOR_LIVE'][2],body_hash=live_reference['ACTOR_LIVE'][3],rings_match_pc=10,final_body_bytes_match_pc=308,scope='Continuous animation and moving body; fixed camera, fixture inputs, simplified entity gates. Hashes summarize all frames; rings retain final 64.')
                     if actor_physics_reference is not None:
                         reply=monitor.command('human-monitor-command',{'command-line':f'x /8wx 0x{int(actor_physics_symbol[1],16):x}'})

@@ -1375,3 +1375,35 @@ release it is 44220416 (previously 37928960). Exact reservations fall by 12 MiB
 while both meshes live, and the final retained GPU allocation falls by 6 MiB.
 These remain diagnostic memory observations, not full-campaign peak evidence.
 No framebuffer was captured because geometry and view behavior are unchanged.
+
+## Moving-actor room membership
+
+The diagnostic miner now maintains `rf_scene_actor_room_state` through the
+reconstructed 48a190 refresh, with the retained-level locator as its callback.
+Refresh occurs at each rendered-frame boundary, after the previous body update
+and current stance changes. A successful result carries a level room token
+(index + 1; zero means absent). The object pose's dirty flag is cleared through
+that refresh. This composes recovered routines into the diagnostic scheduler;
+it does not establish the complete original entity update order. The miner is
+nonlocal, so local-player room/audio notification is deliberately not invoked.
+
+A fixed 64 x 9 word ring records frame, room token, flags, last query position,
+selected source face, whether lookup ran, and retry count. An eight-word summary
+records all-frame count, queries, misses, membership changes including initial
+assignment, full rolling hash, initial/final tokens and total retries. The new
+telemetry costs 2,336 bytes plus the 20-byte room state; it allocates nothing per
+frame. XEMU snapshots include both records and state, and smoke validation
+compares the ring and full summary against PC.
+
+The PC 664-frame follow route performs 664 lookups without misses and changes
+from token 54 (room 53) to token 53 (room 52). The full room hash is 3635044975.
+World, camera, actor and body hashes remain unchanged. The ordinary 64-frame
+PC drive profile and four CTests also pass. Native XEMU confirmation is recorded
+below when complete; no new screenshot is warranted by this internal change.
+
+XEMU confirmation: `20260909-185445-343865` PASS on stock 64 MiB. All 576
+room-ring words and eight summary words match PC. The final five-word room
+state matches the final rendered record. All existing live actor/body/camera
+checks pass; 664 queries, zero misses, two assignments including initialization,
+and room hash 3635044975. No framebuffer captured. Both builds, the 64-frame
+PC drive regression and four CTests pass.

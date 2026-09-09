@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Moving-actor room membership now passes the 664-frame XEMU follow run
+`20260909-185445-343865`: room 53 to 52, no lookup misses, full PC-matching
+room telemetry and unchanged body/render hashes. Integrate the original player
+view and general entity update order next; local-player room audio remains open.
+
 The locator now binds retained level geometry and source face IDs, with no
 per-query allocation. All 94 levels pass 8,214 original/PC and 8,214 compiled
 NXDK comparisons after source closure. Connect moving-actor room state and

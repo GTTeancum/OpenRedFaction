@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+extern uint32_t rf_scene_actor_room_frames[64][9],rf_scene_actor_room_summary[8];
 extern uint32_t rf_scene_actor_physics_diagnostic[8];
 extern uint32_t rf_scene_actor_live_enabled,rf_scene_actor_frame_count,rf_scene_actor_live_summary[8],rf_scene_actor_ring_frames[64];
 extern uint32_t rf_scene_actor_route_enabled,rf_scene_actor_routes[8][16];
@@ -233,6 +234,13 @@ int main(int argc,char **argv)
                    memcmp(rf_scene_actor_locomotion_frames[i]+3,rf_scene_actor_input_frames[i],12))return 3;
             }
             if(memcmp(rf_scene_actor_render_frames[663%64]+2,scene_actor_body.state.position,12))return 3;
+            for(i=0;i<64;++i) {
+                const uint32_t *r=rf_scene_actor_room_frames[i];
+                if(r[0]!=rf_scene_actor_ring_frames[i] || (r[2]&0x04000000u))return 3;
+                if(r[7] && r[6]!=UINT32_MAX && memcmp(r+3,rf_scene_actor_render_frames[i]+2,12))return 3;
+            }
+            printf("ACTOR_ROOMS");for(i=0;i<576;++i)printf(" %u",((uint32_t*)rf_scene_actor_room_frames)[i]);puts("");
+            printf("ACTOR_ROOM_SUMMARY");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_room_summary[i]);puts("");
             printf("ACTOR_LIVE_WORLD %u\n",follow_camera?rf_scene_actor_follow_frames[663%64][1]:c.world.count);
             if(follow_camera) {
                 printf("ACTOR_FOLLOW");for(i=0;i<896;++i)printf(" %u",((uint32_t*)rf_scene_actor_follow_frames)[i]);puts("");

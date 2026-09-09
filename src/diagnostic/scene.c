@@ -607,12 +607,40 @@ static int actor_follow_view(void *context,uint32_t frame,rf_model_projection *v
      for(i=0;i<sizeof(rf_scene_actor_follow_frames[0]);++i)d[3]=(d[3]^((const unsigned char*)r)[i])*16777619u;}
     return RF_OK;
 }
+rf_entity_room_state rf_scene_actor_room_state;
+uint32_t rf_scene_actor_room_frames[64][9],rf_scene_actor_room_summary[8];
+typedef struct actor_room_context {const rf_geometry_collision_world *world;uint32_t called,face,retries;} actor_room_context;
+static int actor_room_locate(void *context,const float position[3],rf_entity_room_result *result)
+{
+    actor_room_context *c=context;rf_collision_room_location hit;int status;
+    c->called=1;status=rf_geometry_collision_world_locate(c->world,position,&hit);if(status)return status;
+    memset(result,0,sizeof(*result));result->room=hit.room==UINT32_MAX?0:hit.room+1;
+    result->name="";c->face=hit.face;c->retries=hit.retries;return RF_OK;
+}
+static int actor_room_refresh(const rf_geometry_collision_world *world,uint32_t frame)
+{
+    actor_room_context context={world,0,UINT32_MAX,0};uint32_t old=rf_scene_actor_room_state.room,i;
+    uint32_t *r=rf_scene_actor_room_frames[frame%64],*d=rf_scene_actor_room_summary;int status;
+    rf_scene_actor_room_state.flags=rf_scene_actor_pose.flags;
+    /* This miner is not the local player; room-audio notification is absent. */
+    status=rf_entity_room_refresh(&rf_scene_actor_room_state,scene_actor_body.state.position,0,actor_room_locate,NULL,&context);if(status)return status;
+    rf_scene_actor_pose.flags=rf_scene_actor_room_state.flags;
+    r[0]=frame;r[1]=rf_scene_actor_room_state.room;r[2]=rf_scene_actor_room_state.flags;
+    memcpy(r+3,rf_scene_actor_room_state.query_position,12);r[6]=context.face;r[7]=context.called;r[8]=context.retries;
+    d[0]=frame+1;d[1]+=context.called;d[2]+=context.called && context.face==UINT32_MAX;
+    d[3]+=old!=rf_scene_actor_room_state.room;if(!frame)d[5]=r[1];d[6]=r[1];d[7]+=context.retries;
+    for(i=0;i<36;++i)d[4]=(d[4]^((const unsigned char*)r)[i])*16777619u;
+    return RF_OK;
+}
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;
     if(stream->collision && frame==0) {
         int status=rf_scene_actor_world_check(stream->collision,rf_scene_actor_initial_world);if(status)return status;
         status=rf_scene_actor_fall_check(stream->collision,rf_scene_actor_initial_fall);if(status)return status;
+        memset(&rf_scene_actor_room_state,0,sizeof(rf_scene_actor_room_state));
+        memset(rf_scene_actor_room_frames,0,sizeof(rf_scene_actor_room_frames));
+        memset(rf_scene_actor_room_summary,0,sizeof(rf_scene_actor_room_summary));rf_scene_actor_room_summary[4]=2166136261u;
         memset(&rf_scene_actor_pose,0,sizeof(rf_scene_actor_pose));
         rf_scene_actor_pose.radius=scene_actor_body.state.bounds.radius;
         status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
@@ -649,6 +677,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
          for(j=0;j<scene_actor_body.spheres.count*sizeof(*scene_actor_body.spheres.items);++j)h=(h^p[j])*16777619u;
          rf_scene_actor_stance_frames[frame%64][2]=h;}
         rf_scene_actor_stance_frames[frame%64][3]=(uint32_t)blocked;
+        status=actor_room_refresh(stream->collision,frame);if(status)return status;
         status=actor_ground_check(stream->collision,frame);if(status)return status;
         {
             const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
