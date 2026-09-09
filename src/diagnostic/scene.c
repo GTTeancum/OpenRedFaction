@@ -40,9 +40,10 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
-    rf_scene_frame_sink sink,void *context)
+    rf_scene_frame_sink sink,void *context,int state_mode)
 {
-    rf_vpp archive;rf_model_file model;rf_level_actor_assets binding;
+    rf_vpp archive,motions;rf_model_file model;rf_level_actor_assets binding;
+    rf_entity_state_set *states=NULL;int motions_opened=0;
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream stream={0};
@@ -55,7 +56,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     status=rf_level_actor_assets_load(level,uid,tables_path,&archive,512*1024,&binding);if(status)goto done;
     if(strcmp(binding.mesh.name,"miner.v3c")) {status=RF_FORMAT;goto done;}
     status=rf_animation_placement_from_level(level,&binding.entity,&placement);if(status)goto done;
-    status=rf_animation_preview_placed(meshes_path,motions_path,&placement,0,&actor,1024*1024);if(status)goto done;
+    if(state_mode) {
+        states=malloc(sizeof(*states));if(!states) {status=RF_IO;goto done;}
+        status=rf_vpp_open(&motions,motions_path);if(status)goto done;motions_opened=1;
+        status=rf_entity_state_set_open(tables_path,binding.entity.class_name,"",&motions,512*1024,states);if(status)goto done;
+    } else {
+        status=rf_animation_preview_placed(meshes_path,motions_path,&placement,0,&actor,1024*1024);if(status)goto done;
+    }
     status=rf_model_file_open(&model,&archive,binding.mesh.name);if(status)goto done;
     for(i=0;i<binding.assets.texture_count;++i)names[i]=binding.assets.textures[i];
     status=rf_model_materials_open_skin(&bundle,&model,names,binding.assets.texture_count,maps,map_count,
@@ -73,7 +80,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     }
     vertices=malloc((size_t)capacity);items=malloc((size_t)count*sizeof(*items));
     if(!vertices || !items) {status=RF_IO;goto done;}
-    memcpy(vertices,mesh->vertices,mesh->bytes);memcpy(vertices+mesh->count,actor.vertices,actor.bytes);
+    memcpy(vertices,mesh->vertices,mesh->bytes);if(actor.bytes)memcpy(vertices+mesh->count,actor.vertices,actor.bytes);
     memcpy(items,materials->items,materials->count*sizeof(*items));
     memcpy(items+materials->count,bundle.textures.items,bundle.textures.count*sizeof(*items));
     free(mesh->vertices);free(materials->items);
@@ -87,9 +94,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         rf_preview_close(&actor);
         stream.mesh=mesh;stream.materials=materials;stream.bundle=&bundle;
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;
-        status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,&stream);
+        if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,&stream);
+        else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,&stream);
     }
 done:
+    free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;
 }
@@ -98,7 +107,7 @@ int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget)
 {
     return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
-        mesh,materials,mesh_budget,material_budget,NULL,NULL);
+        mesh,materials,mesh_budget,material_budget,NULL,NULL,0);
 }
 int rf_scene_stream_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
@@ -107,5 +116,14 @@ int rf_scene_stream_miner(const rf_level *level,int32_t uid,const char *meshes_p
 {
     if(!sink)return RF_RANGE;
     return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
-        mesh,materials,mesh_budget,material_budget,sink,context);
+        mesh,materials,mesh_budget,material_budget,sink,context,0);
+}
+int rf_scene_stream_miner_states(const rf_level *level,int32_t uid,const char *meshes_path,
+    const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
+    rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
+    rf_scene_frame_sink sink,void *context)
+{
+    if(!sink)return RF_RANGE;
+    return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
+        mesh,materials,mesh_budget,material_budget,sink,context,1);
 }

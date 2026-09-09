@@ -26,4 +26,11 @@ int rf_scene_stream_miner(const rf_level *level,int32_t uid,const char *meshes_p
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
     rf_scene_frame_sink sink,void *context);
+/* Same ownership/budgets as stream_miner; loads the actor class's base state set
+ * and runs the authored-state inspection schedule. Additional state-set storage
+ * and a 512 KiB temporary registration budget are outside mesh/material caps. */
+int rf_scene_stream_miner_states(const rf_level *level,int32_t uid,const char *meshes_path,
+    const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
+    rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
+    rf_scene_frame_sink sink,void *context);
 #endif

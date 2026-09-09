@@ -53,7 +53,8 @@ int main(int argc, char **argv)
     FILE *output;
     rf_entity_assets skin_assets={0};const char *skin_names[64];
     uint32_t world_vertices=0;
-    int scene_stream=argc>1 && !strcmp(argv[1],"--scene-close-last");
+    int scene_states=argc>1 && !strcmp(argv[1],"--scene-states-last");
+    int scene_stream=scene_states || (argc>1 && !strcmp(argv[1],"--scene-close-last"));
     int scene_close=scene_stream || (argc>1 && !strcmp(argv[1],"--scene-close"));
     int scene_mode=scene_close || (argc>1 && !strcmp(argv[1],"--scene"));
     int skin_mode=argc>1 && (!strcmp(argv[1],"--model-skin") || !strcmp(argv[1],"--model-skin-last"));
@@ -95,7 +96,9 @@ int main(int argc, char **argv)
         } else if (!result) result = rf_materials_open(&materials, &geometry, archives, opened, 4*1024*1024);
         if(!result && scene_mode) {
             world_vertices=mesh.count;
-            if(scene_stream)result=rf_scene_stream_miner(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
+            if(scene_states)result=rf_scene_stream_miner_states(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
+                archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL);
+            else if(scene_stream)result=rf_scene_stream_miner(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
                 archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL);
             else result=rf_scene_preview_miner(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
                 archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024);

@@ -24,8 +24,8 @@ for name in sequence:
     if len(matching)!=1:raise RuntimeError(f'Ambiguous/missing frame {name}')
     chain.append(matching[0])
 pe=pefile.PE(str(binary));reserve=pe.OPTIONAL_HEADER.SizeOfStackReserve
-scene_sequence=[('main',None),('scene_preview',None),('rf_scene_stream_miner',None),
-    ('scene_miner',None),('rf_animation_stream_placed',None),('animation_run',None),
+scene_sequence=[('main',None),('scene_preview',None),('rf_scene_stream_miner_states',None),
+    ('scene_miner',None),('rf_animation_stream_states',None),('animation_run',None),
     ('scene_frame','src/diagnostic/scene.c'),('scene_frame','src/platform/xbox/main.c'),
     ('rf_xbox_scene_stream_frame',None),('preview',None)]
 scene_chain=[]

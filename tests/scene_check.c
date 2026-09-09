@@ -5,7 +5,7 @@
 #include <string.h>
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
-    rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop;
+    rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored;
     const void *address,*material_address;
 } check;
 static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
@@ -22,7 +22,7 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     if(frame && hash!=c->last)++c->changed;c->last=hash;
     for(i=world;i<mesh->count;++i)if(mesh->vertices[i].material<c->base ||
         mesh->vertices[i].material>=materials->count || mesh->vertices[i].lightmap!=UINT32_MAX)return RF_FORMAT;
-    if(frame==0 || frame==4 || frame==32 || frame==63) {
+    if(!c->authored && (frame==0 || frame==4 || frame==32 || frame==63)) {
         rf_preview_mesh expected={0};int status=rf_animation_preview_placed(c->meshes,c->motions,
             &c->placement,frame,&expected,1024*1024);
         if(status)return status;
@@ -43,7 +43,8 @@ int main(int argc,char **argv)
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
     check c={0};uint32_t i,mode;int status;
-    if(argc!=12)return 2;
+    if(argc!=12 && (argc!=13 || strcmp(argv[12],"--states")))return 2;
+    c.authored=argc==13;
     c.meshes=argv[4];c.motions=argv[5];
     if(rf_vpp_open(&levels,argv[1]) || rf_level_open(&level,&levels,argv[2]) ||
        rf_scene_preview_camera(&level,(int32_t)strtol(argv[3],NULL,10)) ||
@@ -61,7 +62,9 @@ int main(int argc,char **argv)
            rf_materials_open(&materials,&geometry,maps,5,4*1024*1024))return 3;
         c.base=materials.count;c.next=c.changed=c.last=0;c.address=c.material_address=NULL;c.stop=mode==1;
         before=mesh;saved=materials;
-        status=rf_scene_stream_miner(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
+        if(c.authored)status=rf_scene_stream_miner_states(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
+            &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c);
+        else status=rf_scene_stream_miner(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
             &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c);
         if(mode==0 && (status || c.next!=64 || !c.changed))return 3;
         if(mode==1 && (status!=RF_NOT_FOUND || c.next!=3))return 3;
@@ -71,6 +74,7 @@ int main(int argc,char **argv)
     }
     rf_model_materials_close(&c.bundle);rf_preview_close(&c.world);rf_geometry_close(&geometry);
     for(i=0;i<5;++i)rf_vpp_close(maps+i);rf_vpp_close(&meshes);rf_vpp_close(&levels);
-    puts("PASS: 64 scene frames, fixed world and allocations, four independent pose snapshots, sink cancellation, capacity guard");
+    puts(c.authored?"PASS: 64 authored-state scene frames, fixed world and allocations, sink cancellation, capacity guard":
+        "PASS: 64 scene frames, fixed world and allocations, four independent pose snapshots, sink cancellation, capacity guard");
     return 0;
 }

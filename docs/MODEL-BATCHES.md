@@ -1,5 +1,44 @@
 # Model batch data
 
+The combined miner scene now has an authored-state playback mode. Shared
+`rf_scene_stream_miner_states` loads the placed entity class's base state set
+once and passes its registered handles/IDs to `rf_animation_stream_states`.
+The 19 miner motions are checked against the rig's bone count and provide the
+looping resources used by the recovered controller, update and pose evaluation.
+This path requests stand, walk, crouch and stand at frames 0, 16, 32 and 48;
+the request timing and initial phase remain diagnostic. It omits the legacy
+fixture's sidestep/weapon script and footstep markers. The model, ambient
+lighting and root-displacement fixture remain diagnostic; gameplay state
+selection, actions, weapon overrides, movement and camera are still open.
+
+PC `--scene-states-last` retains frame 63. Xbox `scene-preview.flag`,
+`scene-stream.flag` and `scene-states.flag` select mode 5 through the existing
+resident scene renderer. The new mode skips the legacy frame-0 preview during
+setup. State-set storage and its temporary registration allocation (capped at
+512 KiB) are additional to the mesh/material budgets; borrowed archives remain
+open throughout playback and are closed afterward, including error exits.
+The animation routine still opens an unused second motion archive in this mode;
+removing that shared-fixture setup is future cleanup.
+
+`rf_animation_check --authored-states` passes 64 deterministic frames, checks
+the unchanged input state set and reusable output buffer, and verifies that
+swapping the walk/crouch registered IDs changes 39 frames while preserving the
+first 16. Invalid registered IDs and mismatched bone counts stop before the
+first callback. `rf_scene_check ... --states` passes fixed-world/allocation,
+material-range, cancellation and capacity tests for all 64 frames. The legacy
+eight-word animation result remains unchanged. PC/NXDK builds and four CTest
+checks pass. The compiler-reported scene stream stack subtotal is 37,428 bytes,
+excluding libraries, arguments and kernel/interrupt usage; not a full bound.
+
+The new mode completes 64 frames on 64 MiB XEMU at
+`artifacts/xemu/20260908-233659-777570/report.json`. The final frame has 2,405 world
+and 461 actor triangles, with 4,419,588 GPU image bytes, 1,452,616 GPU vertex
+capacity bytes and 44,576,768 available physical bytes at the upload snapshot.
+Its native framebuffer comparison with PC passes: 11 pixels exceed error 3,
+maximum channel error 245, mean maximum error 0.031813. Only that final frame
+was captured and visually inspected; this is not an every-frame visual check,
+performance benchmark, whole-game memory bound or PS2 parity claim.
+
 The combined scene now streams all 64 scripted miner frames on stock 64 MiB
 XEMU. `rf_scene_stream_miner` shares setup with the frozen helper, binds the
 authored entity/skin once, and retains world geometry and texture ownership.

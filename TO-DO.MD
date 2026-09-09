@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The Xbox scene now plays registered authored stand/walk/crouch states from the
+miner's 19-motion set; replace the diagnostic request schedule with gameplay
+state selection and add authored action/weapon-specific playback.
+
 Bulk registration now resolves 180 authored state groups, including 19 miner
 base motions; feed these state sets into actor playback and retain explicit
 failure for the unresolved edf_ship group.

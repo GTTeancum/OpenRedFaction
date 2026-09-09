@@ -3,12 +3,13 @@
 #include "rf/vpp.h"
 #include "rf/preview.h"
 #include "rf/model.h"
+#include "rf/entity_assets.h"
 /* Shared PC/Xbox diagnostic, not a game loop. Output: status, bones, frames,
  * pose hash, playback/controller/reference hash, cache hash, eye hash,
  * temporary bone payload bytes. Uses scripted logical requests and overrides.
- * All entry points also own a fixed 27 KiB bone/pose heap workspace and 496-byte
- * motion descriptor cache, freed on every exit; preview budget controls output
- * mesh storage, not total memory. */
+ * All entry points own a fixed 27 KiB bone/pose heap workspace; the legacy
+ * fixture also owns a 496-byte motion descriptor cache. Both are freed on every
+ * exit; preview budget controls output mesh storage, not total memory. */
 int rf_animation_check(const char *meshes_path, const char *motions_path, uint32_t out[8]);
 /* Inspection fixture: one scripted pose through recovered render/triangle stages.
  * Fixed close camera, raw model material indices; caller resolves texture slots.
@@ -33,6 +34,13 @@ typedef struct rf_animation_placement {
  * the diagnostic ambient fixture; this does not load/spawn a level entity. */
 int rf_animation_stream_placed(const char *meshes_path,const char *motions_path,uint32_t budget,
     const rf_animation_placement *placement,rf_animation_frame_sink sink,void *context);
+/* Authored miner state-set inspection: stand, walk, crouch, stand requested at
+ * frames 0/16/32/48 through the recovered controller. All registered state
+ * handles come from the supplied set; scheduling remains diagnostic. No actions
+ * or footstep markers. Caller keeps the immutable set and its archive alive. */
+int rf_animation_stream_states(const char *meshes_path,const char *motions_path,uint32_t budget,
+    const rf_animation_placement *placement,const rf_entity_state_set *states,
+    rf_animation_frame_sink sink,void *context);
 /* Diagnostic world-camera adapter: raw level spawn, 640x480 / 90-degree
  * horizontal FOV matching rf_preview_build. Uses authored entity transform.
  * Not the recovered gameplay eye. The placed diagnostic explicitly classifies

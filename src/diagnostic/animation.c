@@ -32,13 +32,14 @@ static int reset_loaded_weapon(void *user)
     const rf_weapon_reset_ops ops={NULL,NULL,stop_reset_effect,NULL};
     return rf_weapon_reset(r->state,r->actor->weapon,r->descriptors,r->context,r->playback,r->resources,4,&ops,r);
 }
-static int animation_run(const char *meshes_path,const char *motions_path,uint32_t out[8],rf_preview_mesh *preview,uint32_t preview_frame,uint32_t budget,rf_animation_frame_sink sink,void *sink_context,const rf_animation_placement *placement)
+static int animation_run(const char *meshes_path,const char *motions_path,uint32_t out[8],rf_preview_mesh *preview,uint32_t preview_frame,uint32_t budget,rf_animation_frame_sink sink,void *sink_context,const rf_animation_placement *placement,const rf_entity_state_set *authored)
 {
     static const char *names[4]={"ult2_stand.rfa","ult2_crouch.rfa",
         "ult2_sidestep_left.rfa","ult2_sidestep_right.rfa"};
     rf_vpp meshes, archive; rf_model_file model; rf_motion_file files[4];
-    const rf_motion_file *handles[4]={&files[0],&files[1],&files[2],&files[3]};
-    rf_motion_playback_resource resources[4]={0}; rf_motion_playback_state state={0};
+    const rf_motion_file *handles[23]={&files[0],&files[1],&files[2],&files[3]};
+    rf_motion_playback_resource resources[23]={0}; rf_motion_playback_state state={0};
+    uint32_t resource_count=authored?authored->count:4;
     uint32_t motion_identities[4]={0};uint8_t motion_flags[4]={0};int32_t registered[4];
     rf_model_motion_registry registration={motion_identities,motion_flags,0,4};
     rf_motion_cache_record *motion_cache=NULL;
@@ -76,6 +77,13 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_model_render_output render_output={1,{255,255,255},255,1,1};
     if (!out) return RF_RANGE;
     memset(out,0,8*4); out[0]=1;
+    if(authored) {
+        if(!resource_count || resource_count>23)return RF_RANGE;
+        for(i=0;i<23;++i)if(authored->states[i]<-1 || authored->states[i]>=(int32_t)resource_count)return RF_RANGE;
+        if(authored->states[0]<0 || authored->states[2]<0 || authored->states[8]<0)return RF_NOT_FOUND;
+        memset(&candidates,0,sizeof(candidates));memset(&empty_action,0,sizeof(empty_action));
+        ready=eligible=reserve=replacement=0;sound_class=-1;
+    }
     /* Fixed 27 KiB workspace, separate from the caller's output-mesh budget.
      * Keep this live across callbacks without exhausting the Xbox's 64 KiB stack. */
     workspace=malloc(sizeof(*workspace));if(!workspace) {status=RF_IO;goto done;}
@@ -130,6 +138,15 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     state.completion.active.freeze_slot=-1;
     state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
     state.phase=.25f; state.generation=1;
+    if(authored) {
+        for(i=0;i<resource_count;++i) {
+            rf_motion_track track;handles[i]=authored->files+i;
+            if(handles[i]->header[6]!=count) {status=RF_FORMAT;goto done;}
+            status=rf_motion_file_track(handles[i],0,&track);if(status)goto done;
+            resources[i].comparison=track.envelope;resources[i].looping=1;
+        }
+        memcpy(motions,authored->states,sizeof(motions));
+    } else {
     motion_cache=calloc(4,sizeof(*motion_cache));if(!motion_cache) {status=RF_IO;goto done;}
     for (i=0;i<4;++i) {
         rf_motion_track track;int added;uint32_t identity;
@@ -145,10 +162,11 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     }
     for (i=0;i<23;++i) motions[i]=-1;
     motions[0]=registered[0]; motions[8]=registered[1];
+    }
     for (i=0;i<45;++i) actions[i]=sounds[i]=-1;
     /* Original 0x4181d0 names actions 17/18 sidestep_left/right. Roll actions
      * 19/20 are absent; preparation still invokes its weapon-reset adapter. */
-    actions[17]=registered[2]; actions[18]=registered[3];
+    if(!authored) {actions[17]=registered[2]; actions[18]=registered[3];}
     actor.info_flags=context.movement.flags; actor.weapon=0;
     actor.direction.entity_flags=10;
     entity.handle=0x10000; entity.linked_handle=-1;
@@ -171,6 +189,11 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             status=rf_model_local_view(&placement->world_view,placement->position,placement->orientation,&render_view);if(status)goto done;
             clip_projection=placement->clip_projection;clip_planes=placement->planes;
         }
+        if(authored) {
+            static const int32_t sequence[4]={0,2,8,0};
+            if(frame%16==0) {status=rf_motion_request_state(&controller,motions,sequence[frame/16],.25f);if(status)goto done;}
+            status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,resources,resource_count);if(status)goto done;
+        } else {
         inventory.reserve[0]=frame<32 ? 1 : 0;
         status=rf_weapon_reserve(&inventory,supply,0,&reserve); if (status!=RF_OK) goto done;
         status=rf_weapon_choose_available(&inventory,supply,preference,1,&replacement); if (status!=RF_OK) goto done;
@@ -205,12 +228,13 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         selection.combat_eligible=(uint32_t)eligible;
         status=rf_locomotion_choose_candidates(&candidates,&selection,motions,&effects,&state,resources,4,
             actions,sounds,&context,&actor,NULL,NULL,&sound_class); if (status!=RF_OK) goto done;
-        status=rf_motion_update(&state,resources,4,1.0f/30.0f); if (status!=RF_OK) goto done;
-        status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
+        }
+        status=rf_motion_update(&state,resources,resource_count,1.0f/30.0f); if (status!=RF_OK) goto done;
+        status=rf_model_evaluate_playback(bones,count,&state,handles,resources,resource_count,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         status=rf_model_compose_transform(local,matrices[eye.parent],tag); if (status!=RF_OK) goto done;
         out[3]=hash_bytes(out[3],matrices,count*48); out[4]=hash_bytes(out[4],&state,sizeof(state)); out[6]=hash_bytes(out[6],tag,48);
         out[4]=hash_bytes(out[4],&controller,sizeof(controller));
-        for (i=0;i<4;++i) out[4]=hash_bytes(out[4],&resources[i].references,4);
+        for (i=0;i<resource_count;++i) out[4]=hash_bytes(out[4],&resources[i].references,4);
         out[4]=hash_bytes(out[4],&effects,sizeof(effects));
         out[4]=hash_bytes(out[4],&sound_class,4);
         out[4]=hash_bytes(out[4],&candidates,sizeof(candidates));
@@ -221,7 +245,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         out[4]=hash_bytes(out[4],&empty_action,sizeof(empty_action));
         out[4]=hash_bytes(out[4],&weapon_selection,sizeof(weapon_selection));
         displacement[0]=1;
-        status=rf_model_evaluate_playback(bones,count,&state,handles,resources,4,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
+        status=rf_model_evaluate_playback(bones,count,&state,handles,resources,resource_count,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         if (displacement[0]!=1) { status=RF_FORMAT; goto done; }
         out[5]=hash_bytes(out[5],matrices,count*48); out[5]=hash_bytes(out[5],displacement,12);
         out[5]=hash_bytes(out[5],generations,count*2); displacement[0]=0;
@@ -291,7 +315,7 @@ done:
 }
 
 int rf_animation_check(const char *meshes_path,const char *motions_path,uint32_t out[8])
-{ return animation_run(meshes_path,motions_path,out,NULL,0,0,NULL,NULL,NULL); }
+{ return animation_run(meshes_path,motions_path,out,NULL,0,0,NULL,NULL,NULL,NULL); }
 
 int rf_animation_placement_from_level(const rf_level *level,const rf_level_entity *entity,
     rf_animation_placement *placement)
@@ -323,7 +347,7 @@ int rf_animation_preview_placed(const char *meshes_path,const char *motions_path
     uint32_t out[8];int status;
     if(!placement || !mesh || mesh->vertices || frame>=64 || budget<sizeof(rf_preview_vertex))return RF_RANGE;
     memset(mesh,0,sizeof(*mesh));mesh->vertices=malloc(budget);if(!mesh->vertices)return RF_IO;
-    status=animation_run(meshes_path,motions_path,out,mesh,frame,budget,NULL,NULL,placement);
+    status=animation_run(meshes_path,motions_path,out,mesh,frame,budget,NULL,NULL,placement,NULL);
     if(status) {rf_preview_close(mesh);return status;}
     mesh->bytes=mesh->count*sizeof(rf_preview_vertex);return RF_OK;
 }
@@ -333,7 +357,7 @@ int rf_animation_preview(const char *meshes_path,const char *motions_path,uint32
     uint32_t out[8];int status;
     if(!mesh || mesh->vertices || frame>=64 || budget<sizeof(rf_preview_vertex))return RF_RANGE;
     memset(mesh,0,sizeof(*mesh));mesh->vertices=malloc(budget);if(!mesh->vertices)return RF_IO;
-    status=animation_run(meshes_path,motions_path,out,mesh,frame,budget,NULL,NULL,NULL);
+    status=animation_run(meshes_path,motions_path,out,mesh,frame,budget,NULL,NULL,NULL,NULL);
     if(status || !mesh->count) {rf_preview_close(mesh);return status?status:RF_FORMAT;}
     mesh->bytes=mesh->count*sizeof(rf_preview_vertex);return RF_OK;
 }
@@ -342,7 +366,7 @@ int rf_animation_stream(const char *meshes_path,const char *motions_path,uint32_
     rf_preview_mesh mesh={0};uint32_t out[8];int status;
     if(!sink || budget<sizeof(rf_preview_vertex))return RF_RANGE;
     mesh.vertices=malloc(budget);if(!mesh.vertices)return RF_IO;
-    status=animation_run(meshes_path,motions_path,out,&mesh,0,budget,sink,context,NULL);
+    status=animation_run(meshes_path,motions_path,out,&mesh,0,budget,sink,context,NULL,NULL);
     rf_preview_close(&mesh);return status;
 }
 int rf_animation_stream_placed(const char *meshes_path,const char *motions_path,uint32_t budget,
@@ -351,6 +375,16 @@ int rf_animation_stream_placed(const char *meshes_path,const char *motions_path,
     rf_preview_mesh mesh={0};uint32_t out[8];int status;
     if(!placement || !sink || budget<sizeof(rf_preview_vertex))return RF_RANGE;
     mesh.vertices=malloc(budget);if(!mesh.vertices)return RF_IO;
-    status=animation_run(meshes_path,motions_path,out,&mesh,0,budget,sink,context,placement);
+    status=animation_run(meshes_path,motions_path,out,&mesh,0,budget,sink,context,placement,NULL);
+    rf_preview_close(&mesh);return status;
+}
+int rf_animation_stream_states(const char *meshes_path,const char *motions_path,uint32_t budget,
+    const rf_animation_placement *placement,const rf_entity_state_set *states,
+    rf_animation_frame_sink sink,void *context)
+{
+    rf_preview_mesh mesh={0};uint32_t out[8];int status;
+    if(!placement || !states || !sink || budget<sizeof(rf_preview_vertex))return RF_RANGE;
+    mesh.vertices=malloc(budget);if(!mesh.vertices)return RF_IO;
+    status=animation_run(meshes_path,motions_path,out,&mesh,0,budget,sink,context,placement,states);
     rf_preview_close(&mesh);return status;
 }

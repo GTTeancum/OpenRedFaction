@@ -6,6 +6,21 @@
 #include <io.h>
 #include <string.h>
 typedef struct stream_check {const char *meshes,*motions;void *address;uint32_t next,last_hash,changed;} stream_check;
+typedef struct authored_check {uint32_t hashes[64],next,mode,changed;const void *address;} authored_check;
+static int authored_frame(void *context,uint32_t frame,rf_preview_mesh *mesh)
+{
+    authored_check *c=context;uint32_t i,hash=2166136261u;const uint8_t *bytes=(const uint8_t*)mesh->vertices;
+    if(frame!=c->next++ || frame>=64 || !mesh->count || mesh->count%3 || mesh->bytes!=mesh->count*sizeof(rf_preview_vertex))return RF_FORMAT;
+    if(c->address && c->address!=mesh->vertices)return RF_FORMAT;c->address=mesh->vertices;
+    for(i=0;i<mesh->bytes;++i)hash=(hash^bytes[i])*16777619u;
+    if(!c->mode)c->hashes[frame]=hash;
+    else if(c->mode==1 && c->hashes[frame]!=hash)return RF_FORMAT;
+    else if(c->mode==2) {
+        if(frame<16 && c->hashes[frame]!=hash)return RF_FORMAT;
+        if(c->hashes[frame]!=hash)++c->changed;
+    }
+    return RF_OK;
+}
 typedef struct placed_check {uint32_t hashes[64],mode,next,changed;rf_animation_placement *placement;} placed_check;
 static int placed_frame(void *context,uint32_t frame,rf_preview_mesh *mesh)
 {
@@ -40,6 +55,30 @@ static int frame_check(void *context,uint32_t frame,rf_preview_mesh *mesh)
 int main(int argc, char **argv)
 {
     uint32_t output[8]; int status;
+    if(argc==5 && !strcmp(argv[1],"--authored-states")) {
+        rf_vpp motions;rf_entity_state_set set,before;rf_animation_placement placement={0};authored_check check={0};uint32_t mode;
+        if(rf_vpp_open(&motions,argv[3]) || rf_entity_state_set_open(argv[4],"miner1","",&motions,512*1024,&set))return 3;
+        if(set.count!=19 || set.states[0]!=0 || set.states[8]!=8)return 3;
+        placement.orientation[0]=placement.orientation[4]=placement.orientation[8]=1;
+        placement.world_view.camera[2]=2.2f;placement.world_view.rotation[0]=placement.world_view.rotation[8]=-1;
+        placement.world_view.rotation[4]=4.0f/3.0f;
+        placement.world_view.perspective=placement.world_view.compute_clip=placement.world_view.clipping=1;
+        placement.world_view.screen[0]=320;placement.world_view.screen[1]=-240;placement.world_view.screen[2]=320;placement.world_view.screen[3]=240;
+        placement.planes.near_depth=.1f;placement.clip_projection.scale[0]=320;placement.clip_projection.scale[1]=240;placement.clip_projection.clamp=1;
+        before=set;
+        for(mode=0;mode<3;++mode) {
+            check.mode=mode;check.next=0;check.address=NULL;
+            if(mode==2) {int32_t swap=set.states[2];set.states[2]=set.states[8];set.states[8]=swap;}
+            if(rf_animation_stream_states(argv[2],argv[3],1024*1024,&placement,&set,authored_frame,&check) || check.next!=64)return 3;
+            if(mode<2 && memcmp(&before,&set,sizeof(set)))return 3;
+        }
+        if(!check.changed)return 3;
+        check.next=0;set=before;set.states[2]=(int32_t)set.count;
+        if(rf_animation_stream_states(argv[2],argv[3],1024*1024,&placement,&set,authored_frame,&check)!=RF_RANGE || check.next)return 3;
+        set=before;++set.files[0].header[6];
+        if(rf_animation_stream_states(argv[2],argv[3],1024*1024,&placement,&set,authored_frame,&check)!=RF_FORMAT || check.next)return 3;
+        rf_vpp_close(&motions);printf("PASS: 19 authored motions, 64 deterministic frames, %u remapped-state differences, fixed buffer and invalid-state/bone-count guards\n",check.changed);return 0;
+    }
     if(argc==8 && !strcmp(argv[1],"--level-placement")) {
         rf_vpp archive,meshes;rf_level level;rf_level_actor_assets actor;
         rf_animation_placement placement;rf_model_projection local;rf_preview_mesh mesh={0};uint32_t i,j,n;
