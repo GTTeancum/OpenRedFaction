@@ -63,6 +63,8 @@ Original entity constructor and type-0 allocator now pass 15 patterned cases;
 trace generic factory overlays and class/asset initialization before live spawning.
 Generic factory identity/default overlays now pass 168 original no-model cases;
 integrate verified defaults while recovering physics, model and class setup.
+Complete original no-sphere physics initialization now passes 120 cases without
+intercepted calls; recover sphere allocation/mass generation for entity physics.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and

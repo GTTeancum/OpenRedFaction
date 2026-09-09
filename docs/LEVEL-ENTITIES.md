@@ -174,6 +174,30 @@ Report: `artifacts/object-factory-fields-verification.json`. Model loading,
 world placement, physics initialization, failure rollback and completed class
 setup remain to be reconstructed/integrated before operational entities.
 
+## Physics initialization execution
+
+`tools/verify_physics_initialization.py` executes complete original 49ec90,
+49f010 and all callees without hooks. The 120 fixtures use no collision-sphere
+mode, an empty destination sphere array, positive supplied mass and identity
+orientation/inertia. Five material indices, four flag patterns, three masses
+and two positions verify selected fields and unchanged parameter bytes.
+
+Material indices 1..9 select their table entries; zero, 10 and -1 use entry 0.
+The tested coefficients are copied from 649f50/649f54 with stride 28. Parameter
++0xc and mass +0x14 become physics +4 and +0x10. Positions become +0x5c/+0x68,
+orientation +0x74/+0x98, and inertia +0x14/+0x38 in the identity fixtures.
+Linear velocity goes to +0xbc; the +0x78 input vector goes to +0xc8 and its
+mass-scaled value to +0xd4. The routines reset the empty-list collision radius
+to zero at +0xf8, store flags at +0x120, clear +0x124 and establish additional
+sentinel/scalar values checked by the verifier. Parameter radius 99 does not
+override the empty-list radius in this mode.
+
+Report: `artifacts/physics-initialization-verification.json`. This establishes
+execution of the no-sphere path, not a complete shared initializer. Dynamic
+sphere allocation, generated mass/inertia, nonidentity inertia and full entity
+physics integration remain open; ordinary entity factory parameters commonly
+select collision-sphere mode and need that additional path.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and
