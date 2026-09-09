@@ -32,6 +32,16 @@ extern float rf_scene_actor_clearance_queries[2][12];
 extern uint32_t rf_scene_actor_surface_frames[64][2];
 extern uint32_t rf_scene_actor_movement_frames[64][3];
 extern uint32_t rf_scene_actor_render_frames[64][5];
+static int build_check_world(const rf_level *level,const rf_geometry *geometry,rf_vpp *maps,
+    rf_preview_mesh *mesh,rf_materials *materials)
+{
+    if(rf_scene_actor_live_enabled) {
+        rf_scene_world_geometry owned={0};
+        int status=rf_scene_world_open_retained(level,geometry,maps,5,mesh,materials,8*1024*1024,4*1024*1024,&owned);
+        rf_scene_world_geometry_close(&owned);return status;
+    }
+    {int status=rf_preview_build(mesh,geometry,level,8*1024*1024);return status?status:rf_materials_open(materials,geometry,maps,5,4*1024*1024);}
+}
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored,body_mode;
@@ -140,10 +150,15 @@ int main(int argc,char **argv)
     rf_scene_actor_drive(drive);rf_scene_actor_route_enabled=argc==13 && !strcmp(argv[12],"--traverse");
     c.meshes=argv[4];c.motions=argv[5];
     if(rf_vpp_open(&levels,argv[1]) || rf_level_open(&level,&levels,argv[2]) ||
-       rf_scene_preview_camera(&level,(int32_t)strtol(argv[3],NULL,10)) ||
+       (rf_scene_actor_live_enabled?rf_scene_preview_route_camera(&level,(int32_t)strtol(argv[3],NULL,10)):rf_scene_preview_camera(&level,(int32_t)strtol(argv[3],NULL,10))) ||
        rf_geometry_open(&geometry,&level,8*1024*1024) ||
        rf_preview_build(&c.world,&geometry,&level,8*1024*1024) || rf_vpp_open(&meshes,argv[4]))return 3;
     for(i=0;i<5;++i)if(rf_vpp_open(maps+i,argv[7+i]))return 3;
+    if(rf_scene_actor_live_enabled) {
+        rf_materials images={0};rf_preview_close(&c.world);
+        if(build_check_world(&level,&geometry,maps,&c.world,&images))return 3;
+        rf_materials_close(&images);
+    }
     if(rf_level_actor_assets_load(&level,(int32_t)strtol(argv[3],NULL,10),argv[6],&meshes,512*1024,&binding) ||
        rf_animation_placement_from_level(&level,&binding.entity,&c.placement) ||
        rf_model_file_open(&model,&meshes,binding.mesh.name))return 3;
@@ -169,8 +184,7 @@ int main(int argc,char **argv)
     }
     for(mode=0;mode<3;++mode) {
         rf_preview_mesh mesh={0},before;rf_materials materials={0},saved;
-        if(rf_preview_build(&mesh,&geometry,&level,8*1024*1024) ||
-           rf_materials_open(&materials,&geometry,maps,5,4*1024*1024))return 3;
+        if(build_check_world(&level,&geometry,maps,&mesh,&materials))return 3;
         c.base=materials.count;c.next=c.changed=c.last=0;c.address=c.material_address=NULL;c.stop=mode==1;
         before=mesh;saved=materials;
         if(body_mode)status=rf_scene_stream_miner_body(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
@@ -187,6 +201,7 @@ int main(int argc,char **argv)
                    memcmp(rf_scene_actor_locomotion_frames[i]+3,rf_scene_actor_input_frames[i],12))return 3;
             }
             if(memcmp(rf_scene_actor_render_frames[663%64]+2,scene_actor_body.state.position,12))return 3;
+            printf("ACTOR_LIVE_WORLD %u\n",c.world.count);
             printf("ACTOR_LIVE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_live_summary[i]);puts("");
             printf("ACTOR_LIVE_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_tick_stats[i]);puts("");
             {const void *arrays[]={rf_scene_actor_ring_frames,rf_scene_actor_render_frames,rf_scene_actor_animation_timing,

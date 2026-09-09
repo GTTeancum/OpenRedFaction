@@ -125,6 +125,7 @@ def main():
         if args.actor_body:actor_stance_cache_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE_CACHE ')).split()[1:]))
         if args.actor_body:actor_input_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_INPUT ')).split()[1:]))
         if args.actor_live:
+            live_world_vertices=int(next(line for line in output.splitlines() if line.startswith('ACTOR_LIVE_WORLD ')).split()[1])
             live_reference={label:list(map(int,next(line for line in output.splitlines() if line.startswith(label+' ')).split()[1:])) for label in ['ACTOR_LIVE','ACTOR_LIVE_TICKS','ACTOR_LIVE_BODY']+['ACTOR_LIVE_RING_'+str(i) for i in range(10)]}
         else:
             actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
@@ -485,7 +486,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         if len(render)!=10 or render[:3]!=[0x52464452,1,steps] or render[4]!=1024*1024+2892*56 or render[5:8]!=[render_hash,*render_reference[-1]] or not 0<render[3]<1024*1024:
                             raise RuntimeError(f'Guest rendered door meshes differ from PC: {render}')
                         report['door_render']=dict(frames=render[2],retained_geometry_bytes=render[3],vertex_capacity_bytes=render[4],trace_hash=hex(render[5]),last_vertices=render[6],last_mesh_hash=hex(render[7]),step_seconds=1/60,scope='Every committed pose mesh matches PC after archive closure; one CPU/GPU vertex allocation, changing draw counts. All four panels activated together and stepped before each render; diagnostic scheduling, no gameplay trigger dispatch.')
-                    expected_world=render_reference[-1][0] if args.door_motion else 2892 if args.door_view else 7455
+                    expected_world=live_world_vertices if args.actor_live else render_reference[-1][0] if args.door_motion else 2892 if args.door_view else 7455
                     expected_total=expected_world if args.door_view else 8838 if args.scene_states else 8847 if args.scene_stream else 8802
                     if (args.actor_body or args.actor_live) and not args.door_view:expected_total=expected_world+actor_final_vertices
                     if args.scene and (args.skin or words[31]!=(5 if args.scene_states else 4 if args.scene_stream else 3) or words[56:58]!=[9858,expected_world] or words[36]!=expected_total):

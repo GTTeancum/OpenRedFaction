@@ -102,6 +102,17 @@ int rf_scene_preview_camera(rf_level *level,int32_t uid)
     }
     return RF_OK;
 }
+int rf_scene_preview_route_camera(rf_level *level,int32_t uid)
+{
+    rf_level_entity entity;int status;
+    if(!level)return RF_RANGE;
+    status=rf_level_entity_find(level,uid,&entity);if(status)return status;
+    memcpy(level->player_position,entity.position,12);
+    level->player_position[0]+=16.6f;level->player_position[1]-=1.0f;level->player_position[2]+=2.4f;
+    memset(level->player_orientation,0,sizeof(level->player_orientation));
+    level->player_orientation[0][0]=-1;level->player_orientation[1][1]=1;level->player_orientation[2][2]=-1;
+    return RF_OK;
+}
 typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity;rf_scene_frame_sink sink;void *context;

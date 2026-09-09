@@ -36,6 +36,8 @@ int rf_scene_world_open(const rf_level *level,const rf_geometry *world,
 /* Diagnostic close inspection camera 2.2 units in front of an authored actor.
  * Changes only the supplied level's preview camera; not a gameplay camera. */
 int rf_scene_preview_camera(rf_level *level,int32_t uid);
+/* Fixed diagnostic view of the positive-X route endpoint; not a player camera. */
+int rf_scene_preview_route_camera(rf_level *level,int32_t uid);
 /* Inspection only: view a mover along its thinnest local axis, centered on
  * vertex bounds with world-up. Positive distance selects one side, negative
  * the other. Does not recover gameplay camera/collision placement. */

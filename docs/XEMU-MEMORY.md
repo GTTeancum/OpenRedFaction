@@ -1181,3 +1181,43 @@ still loses sight of the actor, so no new screenshot was taken.
 Complete run `20260909-175428-274474` PASS: stock 64 MiB, 664 rendered frames,
 663 physics updates, four landings including initial landing, three support
 losses, ten matching telemetry rings and 308 matching final body bytes.
+
+
+## Live-route endpoint inspection camera
+
+The live profile now uses `rf_scene_preview_route_camera` consistently in the
+PC checker, PC raster preview and Xbox scene. This is a fixed diagnostic camera
+near the known positive-X route endpoint: relative to the authored miner spawn,
+position offset (+16.6, -1.0, +2.4), facing negative Z. It is intentionally tied
+to this fixture, not recovered player-camera behavior or a dynamic chase camera.
+An attempted view along positive X was occluded by the tunnel bend; a moving
+camera remains necessary to keep the whole route visible.
+
+`rf_pc_preview.exe --scene-live-last` takes the same arguments as
+`--scene-drive-last` and rasterizes frame 663. The endpoint contains 2,876 world
+triangles and 479 actor triangles, showing the later walking pose. The memory
+harness now reads the expected world draw count from the matching live PC
+checker instead of assuming the original close camera's count. Geometry and
+physics ring comparisons remain active; changing the view does not change the
+body trajectory or the three support losses/recoveries.
+
+Both builds, four CTests and the short drive regression pass. The live XEMU run
+below compares all 664 frames' rolling hashes, final rings/body, and the native
+framebuffer against `artifacts/route-camera.ppm`. A native image is captured for
+this new visible pose/location; full route visibility and player control remain
+open.
+
+
+The first endpoint run `20260909-175827-110115` passed actor memory checks but
+found a world-count mismatch: the checker used only static geometry (2,796
+triangles), whereas Xbox and the PC raster preview include retained movable
+geometry (2,876). The live checker now uses the same retained-world construction
+for both its immutable world reference and scene input. This exposed 80 visible
+movable-world triangles at the new view; it was not an actor physics mismatch.
+The complete rerun and image comparison are recorded below.
+
+Run `20260909-180017-502708` PASS on stock 64 MiB XEMU, including all live
+actor comparisons and native framebuffer comparison: 10 of 307200 pixels exceed
+three channel levels; mean maximum-channel error 0.06783203125. The new native
+image is `artifacts/xemu/20260909-180017-502708/framebuffer.png`. It shows frame
+663 at the endpoint; it does not show uninterrupted traversal from the spawn.
