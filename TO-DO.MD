@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Clipped-vertex projection and fan emission now match 2,400 original projection
+cases and 600 output polygons, including 2,200 generated vertices. Connect these
+stages to routed resident model triangles and verify the assembled draw inputs.
+
 Multi-plane polygon traversal now matches 600 complete original-code triangle
 fixtures byte for byte, including temporary-slot lifetime and output order.
 Extend integrated coverage to near/custom planes and varying colors, then

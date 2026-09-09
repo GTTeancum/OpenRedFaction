@@ -5,6 +5,67 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_emit_clip_polygon(uint8_t *const *records,uint32_t count,uint8_t common,
+    const uint16_t triangle[3],uint16_t base,const rf_model_clip_projection *projection,
+    const rf_model_render_output *attributes,float depth_factor,rf_model_triangle_output *output)
+{
+    uint16_t indices[48];uint32_t i,needed;
+    if(count<3 || common)return RF_OK;
+    if(!records || !triangle || !projection || !attributes || !output || !output->vertices || !output->indices || count>48)return RF_RANGE;
+    needed=(count-2)*3;
+    if(output->vertex_count>=output->vertex_capacity || count>=output->vertex_capacity-output->vertex_count ||
+        output->index_count>=output->index_capacity || needed>=output->index_capacity-output->index_count ||
+        output->vertex_count>65535 || count>65536-output->vertex_count)return RF_RANGE;
+    for(i=0;i<count;++i)if(!records[i] || (!(records[i][25]&4) && records[i][26]>2))return RF_RANGE;
+    for(i=0;i<count;++i) {
+        uint8_t *record=records[i];
+        if(record[25]&4) {
+            uint8_t *vertex=output->vertices[output->vertex_count];float z,reciprocal,value,depth,biased;uint32_t bits;
+            indices[i]=(uint16_t)output->vertex_count++;
+            rf_model_project_clip_vertex(projection,record);
+            memcpy(vertex,record+12,8);memcpy(&z,record+8,4);
+            reciprocal=(float)(1.0/z);memcpy(record+20,&reciprocal,4);
+            value=reciprocal*attributes->reciprocal_scale;memcpy(vertex+12,&value,4);
+            value=reciprocal*attributes->depth_scale;memcpy(vertex+8,&value,4);
+            vertex[16]=record[46];vertex[17]=record[45];vertex[18]=record[44];vertex[19]=attributes->alpha;
+            memcpy(vertex+24,record+28,8);
+            depth=(float)(255.0-(double)depth_factor*z);
+            if(!(depth>=0))depth=0;else if(depth>255)depth=255;
+            biased=depth+12582912.0f;memcpy(&bits,&biased,4);vertex[23]=(uint8_t)bits;
+        } else indices[i]=triangle[record[26]];
+    }
+    for(i=1;i+1<count;++i) {
+        output->indices[output->index_count++]=(uint16_t)(base+indices[0]);
+        output->indices[output->index_count++]=(uint16_t)(base+indices[i]);
+        output->indices[output->index_count++]=(uint16_t)(base+indices[i+1]);
+    }
+    return RF_OK;
+}
+
+int rf_model_project_clip_vertex(const rf_model_clip_projection *view,uint8_t record[48])
+{
+    float position[3],projected[3],reciprocal,x;double y;
+    if(!view || !record)return RF_RANGE;
+    if(record[25]&3)return RF_OK;
+    memcpy(position,record,12);
+    if(view->clamp && !(position[2]>0)) {record[25]|=2;return RF_OK;}
+    record[25]|=1;
+    reciprocal=position[2]==0 || isnan(position[2])?FLT_MAX:(float)(1.0/position[2]);
+    projected[2]=reciprocal;
+    if(view->depth_bias!=0 && !isnan(view->depth_bias) &&
+        ((double)view->depth_bias*20<position[2] || isnan(position[2])))
+        projected[2]=(float)(1.0/((double)position[2]-view->depth_bias));
+    x=(float)((double)reciprocal*position[0]+1);
+    y=1-(double)reciprocal*position[1];
+    if(view->clamp) {
+        if(!(x>0))x=0;else if(x>=2)x=2;
+        if(!(y>0))y=0;else if(y>=2)y=2;
+    }
+    projected[0]=(float)((double)view->scale[0]*x+view->offset[0]);
+    projected[1]=(float)((double)view->scale[1]*y+view->offset[1]);
+    memcpy(record+12,projected,12);return RF_OK;
+}
+
 static int model_clip_edge(rf_model_clip_pool *pool,uint32_t plane,const uint8_t *a,const uint8_t *b,
     const rf_model_clip_planes *planes,const rf_model_projection *view,uint32_t mode,uint32_t attributes,uint8_t **out)
 {

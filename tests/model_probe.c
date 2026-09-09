@@ -12,6 +12,47 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--emit-clip-guards")) {
+        uint8_t records[3][48],saved[3][48],vertices[8][40],before[8][40],*pointers[3];uint16_t indices[16],old_indices[16],triangle[3]={0,1,2};
+        rf_model_clip_projection view={{320,240},{0,0},0,1};rf_model_render_output attributes={0,{40,50,60},255,1,1};
+        rf_model_triangle_output out={vertices,indices,3,6,0,16};float position[3]={0,0,1};unsigned i;
+        memset(records,0xa5,sizeof(records));memset(vertices,0xa5,sizeof(vertices));memset(indices,0xa5,sizeof(indices));
+        for(i=0;i<3;++i) {pointers[i]=records[i];memcpy(records[i],position,12);records[i][25]=4;records[i][26]=(uint8_t)i;}
+        memcpy(saved,records,sizeof(saved));memcpy(before,vertices,sizeof(before));memcpy(old_indices,indices,sizeof(indices));
+        for(i=0;i<4;++i) {
+            out.vertex_capacity=i==0?6:8;out.index_capacity=i==1?3:16;
+            pointers[1]=i==2?NULL:records[1];records[1][25]=i==3?0:4;records[1][26]=i==3?3:1;
+            memcpy(saved,records,sizeof(saved));
+            if(rf_model_emit_clip_polygon(pointers,3,0,triangle,0,&view,&attributes,1,&out)!=RF_RANGE || out.vertex_count!=3 || out.index_count ||
+                memcmp(saved,records,sizeof(saved)) || memcmp(before,vertices,sizeof(before)) || memcmp(old_indices,indices,sizeof(indices)))return 1;
+        }
+        if(rf_model_emit_clip_polygon(NULL,3,1,NULL,0,NULL,NULL,1,NULL)!=RF_OK)return 1;
+        puts("PASS: 5 clip emission guards");return 0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--emit-clip")) {
+        struct {uint8_t records[8][48];rf_model_clip_projection view;rf_model_render_output attributes;
+            float depth_factor;uint32_t count;uint16_t triangle[3],base;} data;
+        _Static_assert(sizeof(data)==440,"clip emission probe layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            uint8_t vertices[64][40],*records[8];uint16_t indices[144];uint32_t i;
+            rf_model_triangle_output out={vertices,indices,5,64,3,144};int32_t status;
+            memset(vertices,0xa5,sizeof(vertices));memset(indices,0xa5,sizeof(indices));
+            for(i=0;i<8;++i)records[i]=data.records[i];
+            status=rf_model_emit_clip_polygon(records,data.count,0,data.triangle,data.base,&data.view,&data.attributes,data.depth_factor,&out);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&out.vertex_count,4,1,stdout)!=1 || fwrite(&out.index_count,4,1,stdout)!=1 ||
+                fwrite(data.records,sizeof(data.records),1,stdout)!=1 || fwrite(vertices,sizeof(vertices),1,stdout)!=1 || fwrite(indices,sizeof(indices),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--project-clip")) {
+        struct {uint8_t record[48];rf_model_clip_projection view;} data;
+        _Static_assert(sizeof(data)==72,"clip projection probe layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            if(rf_model_project_clip_vertex(&data.view,data.record))return 2;
+            if(fwrite(data.record,48,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--clip-polygon")) {
         struct {uint8_t records[3][48];rf_model_clip_planes planes;rf_model_projection view;uint32_t mode,attributes;uint8_t masks[4];} data;
         _Static_assert(sizeof(data)==300,"clip polygon probe input layout");

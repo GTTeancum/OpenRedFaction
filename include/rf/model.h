@@ -180,6 +180,25 @@ int rf_model_clip_pool_release(rf_model_clip_pool *pool,uint32_t slot);
 int rf_model_clip_polygon(rf_model_clip_pool *pool,uint8_t *const *original,uint32_t count,
     const rf_model_clip_planes *planes,const rf_model_projection *view,uint32_t mode,uint32_t attributes,
     uint8_t *result[48],uint32_t *result_count,uint8_t mask[2]);
+typedef struct rf_model_clip_projection {
+    float scale[2];int32_t offset[2];float depth_bias;uint32_t clamp;
+} rf_model_clip_projection;
+/* Complete 0x5477a0: project a camera-space 48-byte clip record in place.
+ * Flags 1/2 in byte 25 skip already processed records; generated flag 4 remains.
+ * Updates projected XYZ at 12..23 and flags only. Bias changes reciprocal depth,
+ * not screen XY. Caller supplies the original viewport scales/integer offsets. */
+int rf_model_project_clip_vertex(const rf_model_clip_projection *view,uint8_t record[48]);
+typedef struct rf_model_triangle_output {
+    uint8_t (*vertices)[40];uint16_t *indices;
+    uint32_t vertex_count,vertex_capacity,index_count,index_capacity;
+} rf_model_triangle_output;
+/* 0x52f6c1..0x52f84e: append generated vertices and a fan using original corner
+ * indices for retained records. Uses the original strict capacity gates,
+ * conservatively reserving count vertices. RF_RANGE means no output writes.
+ * Counts below three/common masks reject without writes. base wraps to u16. */
+int rf_model_emit_clip_polygon(uint8_t *const *records,uint32_t count,uint8_t common,
+    const uint16_t triangle[3],uint16_t base,const rf_model_clip_projection *projection,
+    const rf_model_render_output *attributes,float depth_factor,rf_model_triangle_output *output);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.

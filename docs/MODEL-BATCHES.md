@@ -1,5 +1,35 @@
 # Model batch data
 
+`rf_model_project_clip_vertex` reconstructs complete `0x5477a0`: flags 1/2
+skip processed records, clamp mode rejects nonpositive/unordered Z, and new
+projections preserve generated flag 4. Zero/unordered Z outside clamp mode
+uses FLT_MAX for the initial reciprocal. The depth-bias gate is bias*20 < Z;
+adjusted reciprocal depth does not affect screen XY. X has an intermediate
+float store while Y remains extended until viewport scaling. The portable
+implementation uses double intermediates; universal x87 equivalence is not
+claimed. `tools/verify_model_clip_projection.py` compares 2,400 full original
+executions, all record bytes exact, including flags, clamping, bias boundaries
+and nonfinite inputs.
+
+`rf_model_emit_clip_polygon` reconstructs `0x52f6c1..0x52f84e`: retained
+records select the triangle corner by byte 26; generated records append
+40-byte vertices. After projection the original explicitly replaces reciprocal
+depth with 1/Z, emits scaled depth/reciprocal, BGR and current alpha, UV and the
+depth byte, preserving unused fields. Fan indices use the first polygon vertex
+and wrap the supplied base to 16 bits. The strict original capacity gates
+reserve the full polygon count even when some vertices are retained. Port
+guards reject invalid pointers/corner ordinals and index-width overflow before
+mutation; common masks or fewer than three vertices emit nothing.
+
+`tools/verify_model_clip_emission.py` runs the unchanged original emission
+branch and all projection/depth callees for 600 supplied polygons containing
+2,200 generated vertices. Counts, mutated clip records, full vertex buffers
+and index buffers match byte for byte, including preserved bytes and base wrap.
+Five port guard cases cover capacity equality, missing records, invalid corner
+selection and common-mask rejection. Both PC/NXDK builds and four CTest checks
+pass. These stages still need integration with actual clipped resident model
+triangles and renderer submission; they do not yet draw an animated character.
+
 `rf_model_clip_polygon` assembles `0x549e00 / 0x549bd0` with the recovered
 intersection, attribute, classification and pool helpers. Planes run in
 ascending bit order; each walker starts at the second input vertex and wraps
