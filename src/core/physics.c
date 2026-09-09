@@ -30,7 +30,7 @@ int rf_physics_ground_propose(rf_physics_body_state *state,float dt,float drag,
     }
     *state=value;return RF_OK;
 }
-int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction)
+int rf_physics_static_support(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction)
 {
     rf_physics_body_state value;float candidate;uint32_t k;
     if(!state || !probe || !isfinite(fraction) || fraction<0 || fraction>=1 ||
@@ -47,8 +47,13 @@ int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_
         value.bounds.maximum[k]=(float)((double)value.position[k]+value.bounds.radius);
         if(!isfinite(value.bounds.minimum[k]) || !isfinite(value.bounds.maximum[k]))return RF_RANGE;
     }
-    value.velocity[1]=0;value.flags&=~(0x400000u|0x200000u);
+    value.flags&=~0x400000u;
     *state=value;return RF_OK;
+}
+int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction)
+{
+    int status=rf_physics_static_support(state,probe,fraction);if(status)return status;
+    state->velocity[1]=0;state->flags&=~0x200000u;return RF_OK;
 }
 int rf_physics_contact_advance(rf_physics_body_state *state,float dt,float fraction,float *remaining)
 {

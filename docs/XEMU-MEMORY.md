@@ -490,3 +490,35 @@ XEMU. All four class values match PC in guest RAM, as do both movement
 descriptors, 64 rendered geometry records, ground probes, landing and motion
 counters. Both builds, the integrated scene checks and four CTests pass. No
 new screenshot was taken because the zero-input appearance is unchanged.
+
+## Grounded support maintenance
+
+`rf_physics_static_support` now exposes the position/bounds portion of landing
+without clearing velocity or flag 0x200000. Static landing calls this shared
+portion before its one-time velocity/flag changes. Forty-two captured contacts
+match original 4a0b31..4a0bfa on PC and compiled NXDK, including preserved
+nonzero horizontal and vertical velocity. The original 4a0a5c continuation also
+confirms that a fraction-one miss or normal below the walkable threshold enters
+4281a0, setting physics flag 1 and selecting ordinary fall descriptor 3.
+
+The live query now selects falling or grounded probe depth from the current
+mode, using authored speed 6 for grounded depth. Per-frame modes are captured
+in `rf_scene_actor_ground_modes` (256 bytes) and compared with PC. The inspector
+checks an additional 64 cases using those captured modes and class speed, for
+320 original/PC preparation comparisons, and compares every actual guest probe
+with the corresponding original result.
+
+Moved ordinary grounded actors commit static support, or switch to falling
+when the query lacks walkable support. The diagnostic movement gate compares
+the current pose with its previous rendered pose; original 487e00 also has
+special player, attachment and moving-support conditions that remain outside
+this fixture. Queries are recorded even when an unchanged static actor skips
+the commit. Moving-platform support is not implemented.
+
+Run `artifacts/xemu/20260909-160033-238997/report.json` passes on stock 64 MiB
+XEMU: all 64 rendered geometry records and mode-dependent ground records match
+PC. Guest telemetry confirms one landing, two subsequent support-position
+commits and zero support losses. The 320 original preparation checks pass on
+that snapshot. Both builds and four CTests pass. The no-hit/steep transition is
+verified against prepared original state, but live XEMU support loss remains
+unexercised until controlled motion is added. No new screenshot was captured.

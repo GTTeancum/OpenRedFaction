@@ -58,8 +58,14 @@ def run(snapshot):
     pc_expected = bytearray()
     # Mode 3 is the observed original falling descriptor value. Mode 0 and
     # support-speed cases below are synthetic branch checks, not guest modes.
-    for mode, support_y, speed in [(3, 0., 0.), (3, 2., 0.), (0, 0., 4.), (0, -2., 4.)]:
+    guest_modes = snapshot['symbols'].get('rf_scene_actor_ground_modes', {}).get('words')
+    scenarios = [(3, 0., 0.), (3, 2., 0.), (0, 0., 4.), (0, -2., 4.)]
+    if guest_modes is not None:
+        speed_word = snapshot['symbols']['rf_scene_actor_movement_values']['words'][0]
+        scenarios.append((-1, 0., struct.unpack('<f', words(speed_word))[0]))
+    for mode, support_y, speed in scenarios:
         for frame in range(64):
+            active_mode = guest_modes[frame] if mode == -1 else mode
             position_words = records[frame * 5 + 2:frame * 5 + 5]
             position = struct.unpack('<3f', words(*position_words))
             cpu.mem_write(base, bytes(0x10000))
@@ -68,7 +74,7 @@ def run(snapshot):
             cpu.mem_write(base + 0x4000, sphere_bytes)
             cpu.mem_write(base + 0x1ac, words(state[69]))
             cpu.mem_write(base + 0x858, words(base + 0x2000))
-            cpu.mem_write(base + 0x2004, words(mode))
+            cpu.mem_write(base + 0x2004, words(active_mode))
             cpu.mem_write(base + 0x294, words(base + 0x3000))
             cpu.mem_write(base + 0x3050, floats(speed))
             cpu.mem_write(base + 0x8a4, floats(support_y))
@@ -93,7 +99,7 @@ def run(snapshot):
             end = list(position)
             # Grounded depth remains in x87 extended precision through the
             # subtraction; only the final end coordinate is stored as float.
-            depth = falling_depth if mode == 3 else dt * speed + margin
+            depth = falling_depth if active_mode == 3 else dt * speed + margin
             end[1] = f32(end[1] - depth)
             assert bytes(cpu.mem_read(start_ptr, 12)) == floats(*start)
             assert bytes(cpu.mem_read(end_ptr, 12)) == floats(*end), (mode, frame, struct.unpack('<3f', cpu.mem_read(end_ptr, 12)), end)
@@ -108,20 +114,21 @@ def run(snapshot):
             assert bytes(cpu.mem_read(0x7c6fe0, 24)) == floats(*lower, *upper)
             assert bytes(cpu.mem_read(hit_ptr + 24, 4)) == floats(1)
             assert count == 3, 'PC probe currently expects the three miner spheres'
-            pc_inputs += sphere_bytes + words(*position_words, state[69], int(mode == 3)) + floats(dt, speed, support_y)
+            pc_inputs += sphere_bytes + words(*position_words, state[69], int(active_mode == 3)) + floats(dt, speed, support_y)
             query_flags = (state[69] & ~0x1000) | 4 | (0x100 if radius < margin else 0)
             pc_expected += (bytes(cpu.mem_read(start_ptr, 12)) + bytes(cpu.mem_read(end_ptr, 12))
                             + bytes(cpu.mem_read(base + 0x5000, 24)) + floats(radius)
                             + bytes(cpu.mem_read(0x7c6fe0, 24)) + words(selected, query_flags))
-            checks.append(dict(frame=frame, mode=mode, support_y=support_y,
+            checks.append(dict(frame=frame, mode=active_mode, support_y=support_y,
                                start=start, end=end, lower=lower, upper=upper))
     pc = subprocess.check_output([str(ROOT / 'build/pc/Release/rf_physics_probe.exe'), '--ground'], input=pc_inputs)
     assert pc == pc_expected, 'Shared C ground preparation differs from original'
     guest_ground = snapshot['symbols'].get('rf_scene_actor_ground_records', {}).get('words')
     if guest_ground is not None:
         assert len(guest_ground) == 2112
+        offset = 256 * 84 if guest_modes is not None else 0
         for frame in range(64):
-            assert words(*guest_ground[frame * 33:frame * 33 + 21]) == pc_expected[frame * 84:(frame + 1) * 84], 'Guest probe differs from original'
+            assert words(*guest_ground[frame * 33:frame * 33 + 21]) == pc_expected[offset + frame * 84:offset + (frame + 1) * 84], 'Guest probe differs from original'
     return dict(status='PASS', executable_sha256=digest, checks=len(checks), pc_matches_original=True, guest_preparation_matches_original=guest_ground is not None,
                 scope='Original 4a0840 entry through 4a0a57, before world query; no callee replacements. Guest sphere/position inputs with synthetic movement descriptors and support velocities.',
                 selected_sphere=selected, selected_sphere_values=spheres[selected],

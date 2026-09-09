@@ -18,10 +18,10 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
-    if(argc==2 && !strcmp(argv[1],"--land")) {
+    if(argc==2 && (!strcmp(argv[1],"--land") || !strcmp(argv[1],"--support"))) {
         struct {rf_physics_body_state state;rf_physics_ground_probe probe;float fraction;} input;
         while(fread(&input,sizeof(input),1,stdin)==1) {
-            if(rf_physics_static_land(&input.state,&input.probe,input.fraction))return 3;
+            if((!strcmp(argv[1],"--land")?rf_physics_static_land:rf_physics_static_support)(&input.state,&input.probe,input.fraction))return 3;
             if(fwrite(&input.state,sizeof(input.state),1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;

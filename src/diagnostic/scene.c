@@ -128,9 +128,10 @@ typedef struct actor_ground_record {
 _Static_assert(sizeof(actor_ground_record)==132,"Guest ground record layout");
 actor_ground_record rf_scene_actor_ground_records[64];
 uint32_t rf_scene_actor_ground_stats[8]; /* magic, records, hits, walkable, first walkable frame, hash, stride, status */
-uint32_t rf_scene_actor_landing[8]; /* magic, descriptor index, frame, transitions, idle ticks, status, reserved */
+uint32_t rf_scene_actor_landing[8]; /* magic, descriptor index, frame, landings, grounded ticks, status, support commits, support losses */
 rf_movement_descriptor rf_scene_actor_movement[2]; /* authored run and fall */
 rf_entity_movement_values rf_scene_actor_movement_values;
+uint32_t rf_scene_actor_ground_modes[64];
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
     actor_ground_record *r=rf_scene_actor_ground_records+frame;float start[3],delta[3];uint32_t k;int status;
@@ -140,10 +141,12 @@ static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t 
         rf_scene_actor_ground_stats[5]=2166136261u;rf_scene_actor_ground_stats[6]=sizeof(*r);
     }
     memset(r,0,sizeof(*r));
-    /* Prepared falling mode, zero support velocity. Observe support without
-     * changing movement mode; the complete landing transition remains open. */
+    rf_scene_actor_ground_modes[frame]=rf_scene_actor_landing[1];
+    /* Original falling/grounded depths, stationary support velocity. Queries
+     * are retained every frame; commits obey the grounded movement gate. */
     status=rf_physics_ground_prepare(scene_actor_body.spheres.items,scene_actor_body.spheres.count,
-        scene_actor_body.state.position,scene_actor_body.state.state_124,1,1.0f/60,0,0,&r->probe);if(status)return status;
+        scene_actor_body.state.position,scene_actor_body.state.state_124,rf_scene_actor_landing[1]==3,
+        1.0f/60,rf_scene_actor_movement_values.speed,0,&r->probe);if(status)return status;
     for(k=0;k<3;++k) {
         start[k]=(float)((double)r->probe.start[k]+r->probe.sphere.center[k]);
         delta[k]=(float)((double)r->probe.end[k]-r->probe.start[k]);
@@ -329,10 +332,24 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         if(stream->collision && frame<63) {
             rf_physics_body_state next=scene_actor_body.state;
             const actor_ground_record *ground=rf_scene_actor_ground_records+frame;
-            if(rf_scene_actor_landing[1]==3 && ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f) {
+            int walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
+            int moved=0;uint32_t axis;
+            if(frame)for(axis=0;axis<3;++axis) {
+                float previous;memcpy(&previous,rf_scene_actor_render_frames[frame-1]+2+axis,4);
+                if(previous!=next.position[axis])moved=1;
+            }
+            if(rf_scene_actor_landing[1]==3 && walkable) {
                 status=rf_physics_static_land(&next,&ground->probe,ground->hit.hit.fraction);if(status)return status;
                 rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;
                 ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
+            } else if(rf_scene_actor_landing[1]==1 && moved) {
+                if(walkable) {
+                    status=rf_physics_static_support(&next,&ground->probe,ground->hit.hit.fraction);if(status)return status;
+                    ++rf_scene_actor_landing[6];
+                } else {
+                    /* Ordinary actor 4281a0: set falling flag and mode 3. */
+                    next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
+                }
             }
             status=actor_tick(stream->collision,&next);if(status)return status;
             status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return status;
