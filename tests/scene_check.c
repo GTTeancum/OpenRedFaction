@@ -33,7 +33,7 @@ extern float rf_scene_actor_clearance_queries[2][12];
 extern uint32_t rf_scene_actor_surface_frames[64][2];
 extern uint32_t rf_scene_actor_movement_frames[64][3];
 extern uint32_t rf_scene_actor_render_frames[64][5];
-extern uint32_t rf_scene_actor_follow_frames[64][14];
+extern uint32_t rf_scene_actor_follow_frames[64][14],rf_scene_actor_follow_summary[4];
 static int follow_camera;
 static rf_scene_world_geometry follow_world;
 static int build_check_world(const rf_level *level,const rf_geometry *geometry,rf_vpp *maps,
@@ -233,7 +233,11 @@ int main(int argc,char **argv)
                    memcmp(rf_scene_actor_locomotion_frames[i]+3,rf_scene_actor_input_frames[i],12))return 3;
             }
             if(memcmp(rf_scene_actor_render_frames[663%64]+2,scene_actor_body.state.position,12))return 3;
-            printf("ACTOR_LIVE_WORLD %u\n",c.world.count);
+            printf("ACTOR_LIVE_WORLD %u\n",follow_camera?rf_scene_actor_follow_frames[663%64][1]:c.world.count);
+            if(follow_camera) {
+                printf("ACTOR_FOLLOW");for(i=0;i<896;++i)printf(" %u",((uint32_t*)rf_scene_actor_follow_frames)[i]);puts("");
+                printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<4;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
+            }
             printf("ACTOR_LIVE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_live_summary[i]);puts("");
             printf("ACTOR_LIVE_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_tick_stats[i]);puts("");
             {const void *arrays[]={rf_scene_actor_ring_frames,rf_scene_actor_render_frames,rf_scene_actor_animation_timing,

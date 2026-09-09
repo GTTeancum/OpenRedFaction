@@ -54,7 +54,7 @@ rf_entity_physics_config resident_miner_config;
 volatile uint32_t rf_actor_creation_diagnostic[6]={0x52464143u};
 uint32_t rf_actor_world_diagnostic[8];
 uint32_t rf_actor_fall_diagnostic[8];
-static int actor_body_preview;
+static int actor_body_preview,actor_follow_preview;
 extern uint32_t rf_scene_actor_live_enabled;
 extern uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
 volatile uint32_t rf_level_logic_diagnostic[12]={0x52464c47u};
@@ -410,7 +410,7 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
         status=rf_scene_actor_fall_check(&resident_collision,rf_actor_fall_diagnostic);if(status)return status;
     }
     rf_diagnostic[57]=world;
-    {int status=rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:group_storage_check();}
+    {int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],8*1024*1024):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:group_storage_check();}
 }
 static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
 {
@@ -429,12 +429,15 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     {extern uint32_t rf_scene_actor_live_enabled;
      stream_flag=fopen("D:\\actor-live.flag","rb");rf_scene_actor_live_enabled=stream_flag!=NULL;
      if(stream_flag){fclose(stream_flag);rf_scene_actor_drive(1);actor_body_preview=1;}}
+    stream_flag=fopen("D:\\actor-follow.flag","rb");actor_follow_preview=stream_flag!=NULL;
+    if(stream_flag){fclose(stream_flag);rf_scene_actor_live_enabled=1;rf_scene_actor_drive(1);actor_body_preview=1;}
     if(rf_scene_actor_live_enabled) {status=rf_scene_preview_route_camera(level,9858);if(status)return status;}
     stream_flag=fopen("D:\\door-view.flag","rb");
     if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status)return status;}
     rf_preview_close(mesh);rf_materials_close(&resident_materials);
     while(!status && opened<5) {status=rf_vpp_open(maps+opened,paths[opened]);if(!status)++opened;}
     if(!status)status=rf_scene_world_open_retained(level,&resident_geometry,maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,&resident_render_geometry);
+    if(!status && actor_follow_preview)rf_scene_actor_follow(&resident_render_geometry);
     world=mesh->count;
     stream_flag=fopen("D:\\scene-stream.flag","rb");
     if(stream_flag) {

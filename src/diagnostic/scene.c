@@ -134,6 +134,7 @@ typedef struct scene_stream {
 } scene_stream;
 static const rf_scene_world_geometry *actor_follow_world;
 void rf_scene_actor_follow(const rf_scene_world_geometry *world) {actor_follow_world=world;}
+uint32_t rf_scene_actor_follow_summary[4]; /* frames, world hash, peak world bytes, camera hash */
 uint32_t rf_scene_actor_follow_frames[64][14]; /* absolute frame, world vertices, camera position/orientation */
 static const float scene_step_seconds=1.0f/60.0f;
 rf_physics_body scene_actor_body;
@@ -599,7 +600,12 @@ static int actor_follow_view(void *context,uint32_t frame,rf_model_projection *v
     status=rf_scene_world_update_camera(actor_follow_world,NULL,0,position,orientation,stream->mesh,stream->capacity-1024*1024);if(status)return status;
     stream->world=stream->mesh->count;
     memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);view->rotation[4]=4.0f/3.0f;
-    r[0]=frame;r[1]=stream->world;memcpy(r+2,position,12);memcpy(r+5,orientation,36);return RF_OK;
+    r[0]=frame;r[1]=stream->world;memcpy(r+2,position,12);memcpy(r+5,orientation,36);
+    {uint32_t i,*d=rf_scene_actor_follow_summary;if(!frame) {d[0]=d[2]=0;d[1]=d[3]=2166136261u;}
+     d[0]=frame+1;if(stream->mesh->bytes>d[2])d[2]=stream->mesh->bytes;
+     for(i=0;i<stream->mesh->bytes;++i)d[1]=(d[1]^((const unsigned char*)stream->mesh->vertices)[i])*16777619u;
+     for(i=0;i<sizeof(rf_scene_actor_follow_frames[0]);++i)d[3]=(d[3]^((const unsigned char*)r)[i])*16777619u;}
+    return RF_OK;
 }
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {

@@ -1282,3 +1282,52 @@ preview. Xbox GPU capacity and dynamic world-count expectations must be wired
 before the 8 MiB CPU mesh can be exercised there. Native visual validation is
 still required; no screenshot was captured in this step. Player first-person
 camera behavior, collision avoidance and input remain separate open work.
+
+
+## Xbox follow-camera binding and bounded GPU stream
+
+`actor-follow.flag` selects the continuous live actor and binds the retained
+world owner to the shared follow-view callback. The Xbox renderer now has an
+explicit-capacity scene streaming entry point. Follow mode reserves one 8 MiB
+GPU vertex allocation, matching the bounded CPU scene allocation, and reuses it
+for every frame; attempts to change that capacity after stream creation are
+rejected. Existing fixed-camera entry points keep their previous capacities.
+This diagnostic reservation is not a final full-game memory budget.
+
+The PC raster preview accepts `--scene-follow-last`. Its sink retains the final
+world/actor boundary as the camera changes draw counts, and its retained source
+owner outlives the full stream. Both platforms use authored movable-world poses
+and the same body-relative camera; camera collision and simultaneous door pose
+updates remain open.
+
+`rf_scene_actor_follow_summary` records completed frames, a rolling hash of all
+reprojected world vertices, peak world mesh bytes and a rolling camera-record
+hash. The 64-slot camera ring contains absolute frame, world vertex count,
+position and orientation. `xemu_smoke.py --actor-follow --reference
+artifacts/follow-camera.ppm --seconds 300` compares those with PC in addition
+to the live actor rings, final body, renderer memory and native framebuffer.
+The follow flag must be included when rebuilding the disc; remove it before
+selecting another actor profile. The new native capture is a final frame, not
+proof of unobstructed visibility throughout the route.
+
+Both builds and four CTests pass. The XEMU outcome, memory observations and
+image comparison are recorded below. The PC endpoint image is visually close
+to the previously posted endpoint inspection; avoid reposting essentially the
+same still as evidence of the entire moving-camera sequence.
+
+
+Run `20260909-181012-800513` PASS in stock 64 MiB XEMU: 664 follow-camera
+frames, world hash 136623072, camera hash 3459837023 and peak world mesh 484848
+bytes. The full actor checks and final camera ring match PC. The native image
+comparison has 14 of 307200 pixels over three channel levels, mean maximum
+channel error 0.06679036458333333. The saved native image is `framebuffer.png`;
+it is visually close to the previously posted endpoint still and is not reposted.
+
+The renderer reports 28471296 bytes available after upload and 37928960 after
+CPU mesh release, with 4419588 GPU image bytes and an 8388608-byte GPU vertex
+reservation. These are diagnostic observations, not full-game peak or real
+hardware performance evidence. The world peak is below half a MiB, so both
+8 MiB scene reservations are substantially oversized for this route and should
+be reduced with another bounded-capacity validation. Camera obstruction,
+first-person view policy, simultaneous mover updates and gameplay input remain
+open.

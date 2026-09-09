@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Enable the PC-validated follow-camera path in XEMU with bounded GPU capacity and native visual checks.
+- [ ] Reduce the oversized follow-camera mesh reservations using measured peaks, then address camera collision and original player-view behavior.
 - [ ] Replace scripted stance eligibility and resolve the initial class animation pose.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -61,6 +61,12 @@ view across all 664 frames. The actor stays inside the view (at least 430
 projected triangles per frame), and the body hash stays 533762320. The shared
 code builds with NXDK, but Xbox follow-mode selection/GPU capacity and native
 visual validation remain open; camera collision is not implemented.
+
+Follow mode now passes 664 frames in stock 64 MiB XEMU, run
+`20260909-181012-800513`, including full world/camera hashes, actor memory and
+native framebuffer comparison. Peak world mesh is 484,848 bytes versus the
+current 8 MiB CPU/GPU reservations; shrink those before expanding runtime work.
+The final still is very similar to the last posted image, so it is not reposted.
 
 Capture and post screenshots only when there is a new visible result.
 

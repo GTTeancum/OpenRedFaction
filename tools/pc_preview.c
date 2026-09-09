@@ -11,7 +11,7 @@
 static float edge(const float *a, const float *b, float x, float y) { return (x-a[0])*(b[1]-a[1])-(y-a[1])*(b[0]-a[0]); }
 static int scene_last(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
-{(void)context;(void)frame;(void)mesh;(void)materials;(void)world;return RF_OK;}
+{(void)frame;(void)mesh;(void)materials;if(context)*(uint32_t*)context=world;return RF_OK;}
 static int miner_skin(const char *path,const char *skin,rf_entity_assets *assets)
 {
     char compiled[64];int result=rf_entity_assets_load(path,"miner1",skin,assets,512*1024);
@@ -55,7 +55,9 @@ int main(int argc, char **argv)
     uint32_t world_vertices=0;
     int door_motion=argc>1 && !strcmp(argv[1],"--scene-door-motion-last");
     int door_view=door_motion || (argc>1 && !strcmp(argv[1],"--scene-door-states-last"));
-    int actor_live=argc>1 && !strcmp(argv[1],"--scene-live-last");
+    rf_scene_world_geometry follow_owned={0};
+    int actor_follow=argc>1 && !strcmp(argv[1],"--scene-follow-last");
+    int actor_live=actor_follow || (argc>1 && !strcmp(argv[1],"--scene-live-last"));
     int actor_drive=argc>1 && !strcmp(argv[1],"--scene-contact-last")?2:argc>1 && !strcmp(argv[1],"--scene-drive-last");
     int actor_body=actor_live || actor_drive || (argc>1 && !strcmp(argv[1],"--scene-body-last"));
     int scene_states=actor_body || door_view || (argc>1 && !strcmp(argv[1],"--scene-states-last"));
@@ -117,7 +119,8 @@ int main(int argc, char **argv)
                     if(!result)result=rf_scene_world_update(&owned,poses,owned.movers.count,&mesh,capacity);
                 }
                 if(input)fclose(input);free(poses);rf_scene_world_geometry_close(&owned);
-            } else result=rf_scene_world_open(&level,&geometry,archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024);
+            } else if(actor_follow) {result=rf_scene_world_open_retained(&level,&geometry,archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,&follow_owned);if(!result)rf_scene_actor_follow(&follow_owned);}
+            else result=rf_scene_world_open(&level,&geometry,archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024);
         } else if (!result) result = rf_materials_open(&materials, &geometry, archives, opened, 4*1024*1024);
         if(!result && door_motion)world_vertices=mesh.count;
         if(!result && scene_mode && !door_motion) {
@@ -125,17 +128,18 @@ int main(int argc, char **argv)
             if(actor_body) {
                 rf_geometry_collision_world collision={0};result=rf_geometry_collision_world_open(&geometry,8*1024*1024,&collision);
                 if(!result)result=rf_scene_stream_miner_body(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
-                    archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL,&collision,&geometry);
+                    archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,&world_vertices,&collision,&geometry);
                 rf_geometry_collision_world_close(&collision);
             }
             else if(scene_states)result=rf_scene_stream_miner_states(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
-                archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL);
+                archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,&world_vertices);
             else if(scene_stream)result=rf_scene_stream_miner(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
-                archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,NULL);
+                archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024,scene_last,&world_vertices);
             else result=rf_scene_preview_miner(&level,(int32_t)strtol(argv[8],NULL,10),argv[5],argv[6],argv[7],
                 archives,opened,&mesh,&materials,8*1024*1024,4*1024*1024);
             if(!result)printf("Combined %u world and %u actor triangles\n",world_vertices/3,(mesh.count-world_vertices)/3);
         }
+        rf_scene_actor_follow(NULL);rf_scene_world_geometry_close(&follow_owned);
         while (opened) rf_vpp_close(archives + --opened);
         if (result) { rf_preview_close(&mesh); rf_geometry_close(&geometry); rf_vpp_close(&archive); return 1; }
         if (!model_mode && rf_lightmaps_open(&lightmaps, &level, 4*1024*1024)) return 1;

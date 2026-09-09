@@ -16,4 +16,6 @@ int rf_xbox_model_preview(const rf_preview_mesh *mesh,const rf_materials *materi
 /* One process-lifetime stream; material bundle identity remains fixed.
  * Reuses a 1 MiB GPU vertex buffer and uploaded textures. Final frame retained. */
 int rf_xbox_model_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,volatile uint32_t capture[6],volatile uint32_t memory[3]);
+int rf_xbox_scene_stream_frame_sized(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
+    uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3],uint32_t capacity);
 #endif

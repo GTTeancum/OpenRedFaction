@@ -41,7 +41,7 @@ static int upload(gpu_texture *out, const rf_image *image)
         field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_U, u) | field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_V, v);
     return RF_OK;
 }
-static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices)
+static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices,uint32_t requested_capacity)
 {
     uint32_t *p, i, frame;
     rf_preview_vertex *gpu;
@@ -57,6 +57,10 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     static int stream_mode;static uint32_t stream_capacity;
     int streaming=model==2 || model==4;
     uint32_t vertex_bytes=streaming?1024*1024+(model==4?world_vertices*sizeof(rf_preview_vertex):0):mesh?mesh->bytes:0;
+    if(requested_capacity) {
+        if(!streaming || requested_capacity>8*1024*1024 || (stream_gpu && stream_capacity!=requested_capacity))return RF_RANGE;
+        vertex_bytes=requested_capacity;
+    }
     if(streaming && stream_gpu)vertex_bytes=stream_capacity;
     const uint32_t program[] = {
 #include "preview_vertex.inl"
@@ -185,20 +189,24 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     return RF_OK;
 }
 int rf_xbox_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,volatile uint32_t capture[6],volatile uint32_t memory[3])
-{return preview(mesh,materials,lightmaps,capture,memory,0,0);}
+{return preview(mesh,materials,lightmaps,capture,memory,0,0,0);}
 int rf_xbox_model_preview(const rf_preview_mesh *mesh,const rf_materials *materials,volatile uint32_t capture[6],volatile uint32_t memory[3])
-{rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,1,0);}
+{rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,1,0,0);}
 int rf_xbox_model_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,volatile uint32_t capture[6],volatile uint32_t memory[3])
-{rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,2,0);}
+{rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,2,0,0);}
 int rf_xbox_scene_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
     uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3])
 {
     if(!mesh || world_vertices>mesh->count || world_vertices%3)return RF_RANGE;
-    return preview(mesh,materials,lightmaps,capture,memory,3,world_vertices);
+    return preview(mesh,materials,lightmaps,capture,memory,3,world_vertices,0);
 }
 int rf_xbox_scene_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
     uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3])
 {
     if(!mesh || world_vertices>mesh->count || world_vertices%3 || world_vertices>(7u*1024u*1024u)/sizeof(rf_preview_vertex))return RF_RANGE;
-    return preview(mesh,materials,lightmaps,capture,memory,4,world_vertices);
+    return preview(mesh,materials,lightmaps,capture,memory,4,world_vertices,0);
 }
+
+int rf_xbox_scene_stream_frame_sized(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
+    uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3],uint32_t capacity)
+{return preview(mesh,materials,lightmaps,capture,memory,4,world_vertices,capacity);}
