@@ -114,7 +114,7 @@ public class ExportBaseline extends GhidraScript {
             }
         }
         try (PrintWriter out = new PrintWriter(new File(dir, "moving-solid-xrefs.tsv"), StandardCharsets.UTF_8)) {
-            for (long target : new long[]{0x64e96cL,0x64e6e0L}) for (var reference : getReferencesTo(toAddr(target))) {
+            for (long target : new long[]{0x64e96cL,0x64e6e0L,0x46b020L}) for (var reference : getReferencesTo(toAddr(target))) {
                 Function f=getFunctionContaining(reference.getFromAddress());
                 out.printf("%x\t%s\t%s\t%s%n",target,reference.getFromAddress(),reference.getReferenceType(),f==null?"none":f.getEntryPoint());
                 if(f!=null)addresses.add(f.getEntryPoint().getOffset());

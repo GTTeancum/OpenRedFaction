@@ -3,7 +3,7 @@ import json
 import struct
 from pathlib import Path
 
-def inspect(data):
+def inspect(data, allow_unowned=False):
     cursor = 6
     def take(n):
         nonlocal cursor
@@ -41,7 +41,7 @@ def inspect(data):
         texture, lightmap = struct.unpack_from('<II', face, 16)
         room, count = struct.unpack_from('<II', face, 48)
         assert texture == 0xffffffff or texture < len(textures)
-        assert room < rooms and count >= 3
+        assert (room < rooms or (allow_unowned and room == 0xffffffff)) and count >= 3, (room,rooms,count)
         stride = 12 if lightmap == 0xffffffff else 20
         for _ in range(count):
             vertex = take(stride)

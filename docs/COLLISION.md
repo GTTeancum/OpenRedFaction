@@ -1116,3 +1116,47 @@ on-disk mover format. Next work is to trace creator callers into level loading,
 recover object lifetime and pose updates, and bind those solids to the verified
 query APIs. Material/output metadata and actor response remain open. Rendering
 is unchanged; no screen was captured.
+
+## Level mover records and the missing flat-face path
+
+Original creator `0x46b020` has a direct caller at `0x463c60`. This loader reads a
+count, then for each record reads an integer UID, a position through `0x514f90`,
+and orientation through `0x515520`; calls solid reader `0x4ed520(stream,0,1)`;
+consumes three trailing words in v180; and invokes the creator with UID, solid,
+position and orientation. If object creation fails, it destroys the loaded
+solid. The middle trailer read is version-gated at 0x7a (122), so it is present
+for the installed v180 levels. Trailer meanings are not yet reconstructed.
+
+`python tools/inspect_movers.py` inventories section 0x2000 directly in the
+installed VPPs. All 68 levels containing that section exhaust it exactly, totaling
+1,406 mover solids and 27,216 faces. Every mover has **zero rooms**, and every
+face therefore uses room index UINT32_MAX. All legacy tail counts are zero.
+The existing geometry inspection helper gained an explicit allow_unowned option;
+static geometry keeps its previous strict room-index validation and still parses
+all 94 static payloads unchanged. This option only affects the Python inventory,
+not the C geometry parser. Report: `artifacts/movers.json`.
+
+Live Mines has five records in serialized order: UIDs 8544, 8543, 8524, 8523 and
+21, with respectively 22, 18, 22, 18 and 14 faces. The complete mover section is
+19,897 bytes. Geometry spans, counts, raw pose values and the three unknown
+trailer words are recorded, without extracting assets into tracked source.
+
+`python tools/verify_mover_headers.py` compares all 1,406 headers with original
+instructions `0x463c8e..0x463cbd`, executing the actual UID/vector/matrix readers
+against memory-backed streams. Serialized orientation rows become runtime rows
+2,0,1, as in the other level poses. UID and all 48 pose bytes match, and the
+reader cursor reaches each inventoried geometry start. Separate original trailer
+instructions `0x463cce..0x463ce5` consume exactly the inventoried final 12 bytes.
+Report: `artifacts/mover-header-verification.json`. Embedded geometry reading,
+resource allocation and object construction are deliberately not substituted or
+claimed as executed by this bounded check.
+
+This evidence changes the integration order: the existing moving-ray comparisons
+used synthetic room hierarchies, whereas actual installed mover solids have no
+rooms. The current room-only views would return no contact for them. Original
+`0x4df1c0` has a separate solid-face-list fallback when its room hierarchy is
+absent. That path must be reconstructed and checked before binding real movers;
+creating artificial rooms would need separate equivalence evidence and is not
+the current plan. Then add a bounded C mover reader, owned unassigned-face
+geometry and runtime type-9 creation in file order. Pose lifetime, movement-group
+records, materials and actor response remain open. No rendered result changed.
