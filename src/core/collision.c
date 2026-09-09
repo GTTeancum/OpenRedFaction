@@ -1432,3 +1432,147 @@ int rf_collision_room_query_face(rf_collision_room_query *query,
     value.selected_face=token;value.distance=distance;value.front=front;++value.hits;
     memcpy(value.endpoint,point,12);*query=value;*retry=0;return RF_OK;
 }
+
+static void room_orbit(float terms[7],float output[3])
+{
+#if (defined(_MSC_VER) && defined(_M_IX86)) || defined(__i386__)
+    unsigned short saved,control;
+#if defined(_MSC_VER)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,terms
+        mov edx,output
+        fld dword ptr [ecx+4]
+        fsub dword ptr [ecx]
+        fld dword ptr [ecx+8]
+        fadd dword ptr [ecx+12]
+        fmul dword ptr [ecx+16]
+        fmulp st(1),st(0)
+        fadd dword ptr [ecx]
+        fmul dword ptr [ecx+20]
+        fld dword ptr [ecx+8]
+        fmul dword ptr [ecx+8]
+        fsubr dword ptr [ecx+12]
+        fsqrt
+        fstp dword ptr [ecx+24]
+        fld st(0)
+        fcos
+        fmul dword ptr [ecx+24]
+        fstp dword ptr [edx]
+        fsin
+        fmul dword ptr [ecx+24]
+        fstp dword ptr [edx+4]
+        fldcw saved
+    }
+#else
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "fld dword ptr [ecx+4]\n\t"
+        "fsub dword ptr [ecx]\n\t"
+        "fld dword ptr [ecx+8]\n\t"
+        "fadd dword ptr [ecx+12]\n\t"
+        "fmul dword ptr [ecx+16]\n\t"
+        "fmulp st(1),st(0)\n\t"
+        "fadd dword ptr [ecx]\n\t"
+        "fmul dword ptr [ecx+20]\n\t"
+        "fld dword ptr [ecx+8]\n\t"
+        "fmul dword ptr [ecx+8]\n\t"
+        "fsubr dword ptr [ecx+12]\n\t"
+        "fsqrt\n\t"
+        "fstp dword ptr [ecx+24]\n\t"
+        "fld st(0)\n\t"
+        "fcos\n\t"
+        "fmul dword ptr [ecx+24]\n\t"
+        "fstp dword ptr [edx]\n\t"
+        "fsin\n\t"
+        "fmul dword ptr [ecx+24]\n\t"
+        "fstp dword ptr [edx+4]\n\t"
+        ".att_syntax prefix"::"c"(terms),"d"(output):"memory","st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#endif
+#else
+    long double angle=((terms[1]-terms[0])*((long double)terms[2]+1)*.5L+terms[0])*terms[5];
+    terms[6]=(float)sqrtl(1-(long double)terms[2]*terms[2]);
+    output[0]=(float)(cosl(angle)*terms[6]);output[1]=(float)(sinl(angle)*terms[6]);
+#endif
+    output[2]=terms[2];
+}
+int rf_collision_room_direction(const float forward[3],float cosine,float result[3])
+{
+    float basis[3][3]={{0}},terms[7],orbit[3],value[3],column[3],swap;uint32_t i;
+    if(!forward || !result)return RF_RANGE;
+    if(!isfinite(cosine) || cosine < -1 || cosine > 1)return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(forward[i]))return RF_FORMAT;
+    memcpy(basis[2],forward,12);
+    if(forward[0]<0.0001f && forward[0]>-0.0001f && forward[2]<0.0001f && forward[2]>-0.0001f) {
+        basis[0][0]=1;basis[2][0]=basis[2][2]=0;
+        basis[2][1]=forward[1]<0?-1.0f:1.0f;basis[1][2]=-basis[2][1];
+    } else {
+        basis[0][0]=forward[2];basis[0][2]=-forward[0];sweep_normalize(basis[0]);
+        for(i=0;i<3;++i)basis[1][i]=(float)((double)forward[(i+1)%3]*basis[0][(i+2)%3]-(double)forward[(i+2)%3]*basis[0][(i+1)%3]);
+    }
+    terms[0]=fabsf(forward[0]);terms[1]=fabsf(forward[1]);swap=fabsf(forward[2]);
+    if(terms[0]<terms[1]) {float t=terms[0];terms[0]=terms[1];terms[1]=t;}
+    if(terms[1]<swap) {terms[1]=swap;if(terms[0]<swap){terms[1]=terms[0];terms[0]=swap;}}
+    terms[2]=cosine;terms[3]=1;terms[4]=.5f;terms[5]=6.2831854820251465f;terms[6]=0;
+    room_orbit(terms,orbit);
+    for(i=0;i<3;++i) {
+        column[0]=basis[0][i];column[1]=basis[1][i];column[2]=basis[2][i];
+        value[i]=edge_dot(orbit,column,1,0);if(!isfinite(value[i]))return RF_FORMAT;
+    }
+    memcpy(result,value,12);return RF_OK;
+}
+
+int rf_collision_locate_room(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const float minimum[3],
+    const float maximum[3],const float position[3],rf_collision_room_location *result)
+{
+    rf_collision_room_location value={UINT32_MAX,UINT32_MAX,0};rf_collision_room_query query;
+    float direction[3]={0,1,0},cosine=.9753f,length,scratch[3];
+    uint32_t p,i,j,used,visited,hit,retry;int status;
+    if(!minimum || !maximum || !position || !result || (room_count && !rooms) || (primary_count && !primary))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(minimum[i]) || !isfinite(maximum[i]) || minimum[i]>maximum[i] || !isfinite(position[i]))return RF_FORMAT;
+    for(p=0;p<primary_count;++p)if(primary[p]>=room_count)return RF_RANGE;
+    length=(float)((((double)maximum[0]-minimum[0])+((double)maximum[1]-minimum[1]))+((double)maximum[2]-minimum[2])+0.0001f);
+    if(!isfinite(length))return RF_FORMAT;
+    status=rf_collision_room_direction(direction,cosine,direction);if(status)return status;
+ restart:
+    memset(&query,0,sizeof(query));memcpy(query.start,position,12);memcpy(query.direction,direction,12);
+    for(i=0;i<3;++i){volatile float part=direction[i]*length;query.endpoint[i]=position[i]+part;if(!isfinite(query.endpoint[i]))return RF_FORMAT;}
+    value.room=value.face=UINT32_MAX;
+    for(p=0;p<primary_count;++p) {
+        const rf_collision_room_view *room=rooms+primary[p];const rf_collision_tree *tree=room->tree;
+        if(room->skip)continue;
+        if(!tree || (tree->face_count && !tree->faces) || (tree->node_count && (!tree->nodes || !tree->stack || tree->node_capacity<tree->node_count)))return RF_RANGE;
+        used=visited=0;if(tree->node_count)tree->stack[used++]=0;
+        do {
+            uint32_t first=0,count=tree->face_count;
+            if(tree->node_count) {
+                const rf_collision_node *node;
+                i=tree->stack[--used];if(i>=tree->node_count || ++visited>tree->node_count)return RF_FORMAT;
+                node=tree->nodes+i;first=node->first_face;count=node->face_count;
+                if(first>tree->face_count || count>tree->face_count-first)return RF_RANGE;
+                status=rf_collision_segment_box(node->minimum,node->maximum,query.start,query.endpoint,scratch,&hit);if(status)return status;
+                if(!hit)continue;
+                if(node->left!=UINT32_MAX){if(used==tree->node_capacity)return RF_RANGE;tree->stack[used++]=node->left;}
+                if(node->right!=UINT32_MAX){if(used==tree->node_capacity)return RF_RANGE;tree->stack[used++]=node->right;}
+            }
+            for(j=0;j<count;++j) {
+                uint32_t previous_hits=query.hits,index=first+j;
+                if(tree->faces[index].filter.face_flags&0x0c)continue;
+                status=rf_collision_room_query_face(&query,tree->faces+index,1,&retry);if(status)return status;
+                if(retry && ++value.retries<16) {
+                    if(cosine>-1){cosine=cosine-.13579f;if(cosine<-1)cosine=-1;}
+                    status=rf_collision_room_direction(direction,cosine,direction);if(status)return status;
+                    goto restart;
+                }
+                if(query.hits!=previous_hits){value.room=primary[p];value.face=index;}
+            }
+        } while(used);
+    }
+    if(!query.selected_face || !query.front)value.room=value.face=UINT32_MAX;
+    *result=value;return RF_OK;
+}

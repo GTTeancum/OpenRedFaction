@@ -1487,3 +1487,40 @@ Remaining containing-room work: 4e0c20 direction generation, 4e1630 ordered
 room/tree/face traversal and retry threshold, and final face-owner resolution.
 Exported 4e3a70 returns 2 without a face; with null reference face it returns 1
 for a front selected face and 2 otherwise. 4ce4a0 rejects face flags 0x0c.
+
+## Complete containing-room traversal and deterministic retries
+
+`rf_collision_room_direction` reconstructs 4e0c20 and the 4fcfa0 basis path.
+The phase depends on the two largest absolute forward components. It is not
+random. Original x87 sine/cosine and the intermediate float radius are retained;
+the vertical special case uses strict +/-0.0001 comparisons, and the original
+non-unit forward vector behavior is preserved. The caller may update in place.
+`tools/verify_room_direction.py` matches 2,176 original sequence steps on PC and
+4,352 compiled NXDK calls, including aliasing, vertical inputs and non-unit seeds.
+
+`rf_collision_locate_room` now composes the face query and direction generator
+into 4e1630's traversal. Inputs are prepared room views, the ordered primary
+list (solid +9c), original solid bounds and the point. It skips room +1, ignores
+face flags 0x0c, processes each node's face list before its children, and visits
+the right child before the left. No detail-child expansion is done by this
+routine. It also supports the original room-without-tree ordered face path.
+Shared tree scratch requires serialization; the query performs no allocation.
+
+The initial direction is derived from (0,1,0), parameter .9753. On an ambiguous
+edge, the global retry count increments. Counts below 16 restart all rooms with
+the next direction, decrementing the parameter by .13579 and clamping to -1.
+At count 16 and later the ambiguous face is ignored and traversal continues;
+this is not an unconditional failure after 16 hits. Accepted hits shorten the
+query endpoint. Final selection requires a front classified face and returns
+its owning room, with the caller responsible for mapping the local face index.
+The output uses UINT32_MAX for an absent room/face.
+
+`tools/verify_room_locator.py` executes complete original 4e1630 and all its
+callees without replacing geometry or direction helpers. The 600 synthetic
+cube cases exercise flat face lists, three-node trees, skips, flags, interior,
+exterior, boundary and edge-aligned points. PC and compiled NXDK room/face/retry
+results match: 296 owned points and 50 retries. These fixtures do not establish
+multi-room level ownership, all retry-limit combinations or runtime integration.
+Both builds and four CTests pass. Next bind this to retained loaded geometry,
+map selected source face/room identities, and verify real level points before
+using it for campaign entity membership. No new XEMU image for these APIs.

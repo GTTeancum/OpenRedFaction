@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+The original containing-room traversal and deterministic retry generator are
+now reconstructed: 600 full original/PC/NXDK locator cases match, with 50 actual
+retries. Bind the locator to retained level geometry and validate real room/face
+identities next; multi-room runtime membership remains open. See docs/CAMERA.md.
+
 Containing-room face testing now matches 1,200 original cases on both PC and
 compiled NXDK, including tie priority and edge-line retries. Reconstruct
 4e0c20 direction generation and 4e1630 traversal/owner selection next, then bind

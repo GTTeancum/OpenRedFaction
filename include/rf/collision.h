@@ -67,6 +67,11 @@ typedef struct rf_collision_face {
     const float (*vertices)[3];uint32_t count;
     rf_collision_face_filter filter;
 } rf_collision_face;
+/* 4e0c20: deterministic direction change around the supplied forward vector.
+ * Preserves original non-normalized forward behavior; finite cosine [-1,1].
+ * Output may alias input. Errors preserve output. */
+int rf_collision_room_direction(const float forward[3],float cosine,float result[3]);
+
 /* Point-room branch of 4e3800 with null reference face (as used by 4e1630).
  * Caller initializes endpoint=start+direction*query_length and zero selection.
  * selected_face is a nonzero caller token, not an RF.exe pointer. */
@@ -160,6 +165,16 @@ typedef struct rf_collision_room_view {
     uint32_t skip,first_child,child_count; /* Original room +1 byte, +6c array. */
     const rf_collision_tree *tree;
 } rf_collision_room_view;
+typedef struct rf_collision_room_location {uint32_t room,face,retries;} rf_collision_room_location;
+/* 4e1630 point-room traversal over primary rooms, without detail children.
+ * Bounds are the original solid bounds. Trees own ordered faces and scratch;
+ * calls must be serialized. On success room/face are UINT32_MAX for no owner.
+ * Uses tree face indices; caller maps these through source_indices. No allocation.
+ * Prepared trees must be acyclic with each node visited at most once. */
+int rf_collision_locate_room(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const float minimum[3],
+    const float maximum[3],const float position[3],rf_collision_room_location *result);
+
 typedef struct rf_collision_room_hit {rf_collision_tree_hit tree;uint32_t room;} rf_collision_room_hit;
 /* Uncached zero-radius hierarchy branch of 4df1c0, in solid-local coordinates.
  * Ordered primary rooms and their ordered children; children are not recursive.
