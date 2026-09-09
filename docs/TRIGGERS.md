@@ -43,8 +43,19 @@ non-first keys or duplicate UID matches in other levels. `other_links` means
 only that the UID did not match a moving-group key; event/entity resolution
 remains open. Reports live in ignored `artifacts/triggers.json`.
 
-Next: implement and verify the C trigger reader, recover UID-to-runtime-target
-resolution and trigger activation, then parse the other event links. Preserve
+The shared C reader in `src/core/level.c` now exposes bounded begin/next/link
+access without heap allocation or runtime activation. It preserves raw fields
+and ordered links; callers must keep the source archive and level alive.
+`tools/verify_trigger_reader.py` compares every field and link against the
+independent Python inventory: 93 levels, 2,367 records, 4,471 links pass.
+Each record also rejects a one-byte truncation without changing the cursor or
+output; out-of-range link access preserves output, and EOF is exact. PC and
+NXDK builds and all four CTest checks pass. This verifies the reconstructed
+layout, not execution equivalence with the original parser or trigger behavior.
+The generated report is `artifacts/trigger-reader-verification.json`.
+
+Next: recover UID-to-runtime-target resolution and trigger activation, then
+parse the other event links. Preserve
 the complete ordered list when dispatching; do not activate all door groups
 globally or silently drop unresolved links. The current visible door test still
 uses explicit simultaneous activation of all four translation controllers.

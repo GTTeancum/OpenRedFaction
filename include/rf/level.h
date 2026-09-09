@@ -262,4 +262,25 @@ int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
     uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,
     uint32_t *refs,uint32_t *ref_count,uint32_t *handles,uint32_t *handle_count,
     uint32_t handle_capacity,float *rotation);
+typedef struct rf_level_trigger {
+    uint32_t uid,offset,bytes,link_offset,link_count,shape;
+    char name[256],script[256];
+    uint32_t header_byte,flags[5],value_byte,box_flag,tail_flag;
+    uint32_t unknown_word,fields[3],tail_word;
+    float timing,position[3],radius,orientation_disk[9],dimensions_disk[3],values[2];
+} rf_level_trigger;
+/* Shared bounded section cursor; fields have the same meanings as the group
+ * reader. Trigger APIs accept only a trigger-section cursor (0x60000). */
+typedef rf_level_group_reader rf_level_trigger_reader;
+/* Original v180 read sequence 465510. Raw configuration fields only: byte
+ * names, timing conversion, flags and runtime meaning remain provisional.
+ * Shape 0 is sphere, 1 box; unused shape fields are zero. Matrix/dimensions
+ * retain disk order. No allocation or runtime trigger creation. Archive/level
+ * must remain alive. Errors preserve reader/output; NOT_FOUND means exact
+ * end of section. Name/script strings are bounded to 255 bytes plus NUL. */
+int rf_level_triggers_begin(const rf_level *level,rf_level_trigger_reader *reader);
+int rf_level_trigger_next(rf_level_trigger_reader *reader,rf_level_trigger *trigger);
+/* Access one raw ordered link from a successfully decoded record. */
+int rf_level_trigger_link(const rf_level *level,const rf_level_trigger *trigger,
+    uint32_t index,uint32_t *uid);
 #endif

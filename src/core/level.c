@@ -219,6 +219,58 @@ static int group_floats(rf_level_group_reader *r,float *out,uint32_t count)
     }
     return RF_OK;
 }
+static int trigger_byte(rf_level_trigger_reader *r,uint32_t *out)
+{
+    unsigned char byte;int status=group_read(r,&byte,1);if(!status)*out=byte;return status;
+}
+int rf_level_triggers_begin(const rf_level *level,rf_level_trigger_reader *reader)
+{
+    rf_level_trigger_reader next={0};const rf_level_section *section;int status;
+    if(!level || !reader)return RF_RANGE;
+    if(level->version!=180)return RF_FORMAT;
+    section=rf_level_find(level,0x60000);if(!section)return RF_NOT_FOUND;
+    next.level=level;next.section=*section;
+    status=group_number(&next,&next.count);if(status)return status;
+    if((uint64_t)next.count*4>section->size-next.cursor || (!next.count && next.cursor!=section->size))return RF_FORMAT;
+    *reader=next;return RF_OK;
+}
+int rf_level_trigger_next(rf_level_trigger_reader *reader,rf_level_trigger *trigger)
+{
+    rf_level_trigger_reader next;rf_level_trigger value={0};uint32_t i;int status;
+    if(!reader || !trigger || !reader->level || reader->section.type!=0x60000)return RF_RANGE;
+    if(reader->index>=reader->count)return reader->index==reader->count && reader->cursor==reader->section.size?RF_NOT_FOUND:RF_FORMAT;
+    next=*reader;value.offset=next.cursor;
+    if((status=group_number(&next,&value.uid)) || (status=group_string(&next,value.name)) ||
+        (status=trigger_byte(&next,&value.header_byte)) || (status=group_number(&next,&value.shape)) ||
+        (status=group_floats(&next,&value.timing,1)) || (status=group_number(&next,&value.unknown_word)) ||
+        (status=trigger_byte(&next,&value.flags[0])) || (status=group_string(&next,value.script)) ||
+        (status=trigger_byte(&next,&value.flags[1])) || (status=trigger_byte(&next,&value.value_byte)))return status;
+    for(i=2;i<5;++i)if((status=trigger_byte(&next,value.flags+i)))return status;
+    if((status=group_floats(&next,value.position,3)))return status;
+    if(value.shape==0) {
+        if((status=group_floats(&next,&value.radius,1)))return status;
+    } else if(value.shape==1) {
+        if((status=group_floats(&next,value.orientation_disk,9)) || (status=group_floats(&next,value.dimensions_disk,3)) ||
+            (status=trigger_byte(&next,&value.box_flag)))return status;
+    } else return RF_FORMAT;
+    for(i=0;i<3;++i)if((status=group_number(&next,value.fields+i)))return status;
+    if((status=trigger_byte(&next,&value.tail_flag)) || (status=group_floats(&next,value.values,2)) ||
+        (status=group_number(&next,&value.tail_word)) || (status=group_number(&next,&value.link_count)))return status;
+    value.link_offset=next.cursor;
+    if((uint64_t)value.link_count*4>next.section.size-next.cursor)return RF_FORMAT;
+    next.cursor+=value.link_count*4;value.bytes=next.cursor-value.offset;++next.index;
+    if(next.index==next.count && next.cursor!=next.section.size)return RF_FORMAT;
+    *reader=next;*trigger=value;return RF_OK;
+}
+int rf_level_trigger_link(const rf_level *level,const rf_level_trigger *trigger,uint32_t index,uint32_t *uid)
+{
+    const rf_level_section *section;unsigned char raw[4];uint64_t offset;int status;
+    if(!level || !trigger || !uid || index>=trigger->link_count)return RF_RANGE;
+    section=rf_level_find(level,0x60000);if(!section)return RF_NOT_FOUND;
+    offset=(uint64_t)trigger->link_offset+(uint64_t)index*4;
+    if(offset>section->size || section->size-offset<4)return RF_RANGE;
+    status=rf_level_read(level,section,(uint32_t)offset,raw,4);if(!status)*uid=le32(raw);return status;
+}
 static int group_key(rf_level_group_reader *r,rf_level_group_key *key)
 {
     float disk[9];uint32_t i;int status;
