@@ -24,7 +24,7 @@ extern uint32_t rf_scene_actor_stance_frames[64][4];
 extern uint32_t rf_scene_actor_locomotion_frames[64][12];
 extern uint32_t rf_scene_actor_animation_timing[64][3];
 extern uint32_t rf_scene_actor_stance_support[64][9];
-extern unsigned char rf_scene_actor_stance_ground[];
+extern unsigned char rf_scene_actor_stance_ground[],rf_scene_actor_ground_records[];
 extern uint32_t rf_scene_actor_initial_animation[12];
 extern uint32_t rf_scene_actor_selector_frames[64][8];
 extern uint32_t rf_scene_actor_clearance_diagnostic[8];
@@ -189,6 +189,11 @@ int main(int argc,char **argv)
             if(memcmp(rf_scene_actor_render_frames[663%64]+2,scene_actor_body.state.position,12))return 3;
             printf("ACTOR_LIVE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_live_summary[i]);puts("");
             printf("ACTOR_LIVE_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_tick_stats[i]);puts("");
+            {const void *arrays[]={rf_scene_actor_ring_frames,rf_scene_actor_render_frames,rf_scene_actor_animation_timing,
+                rf_scene_actor_input_frames,rf_scene_actor_locomotion_frames,rf_scene_actor_selector_frames,
+                rf_scene_actor_ground_records,rf_scene_actor_ground_modes,rf_scene_actor_surface_frames,rf_scene_actor_stance_frames};
+             const uint32_t counts[]={64,320,192,192,768,512,2112,64,128,256};uint32_t a,j;
+             for(a=0;a<10;++a) {printf("ACTOR_LIVE_RING_%u",a);for(j=0;j<counts[a];++j) {uint32_t word;memcpy(&word,(const unsigned char*)arrays[a]+j*4,4);printf(" %u",word);}puts("");}}
             printf("ACTOR_LIVE_BODY");for(i=0;i<77;++i) {uint32_t word;memcpy(&word,(const unsigned char*)&scene_actor_body.state+4*i,4);printf(" %u",word);}puts("");
             rf_preview_close(&mesh);rf_materials_close(&materials);break;
         }

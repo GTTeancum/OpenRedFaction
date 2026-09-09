@@ -1152,3 +1152,32 @@ also loses the actor before the route ends (zero actor triangles in the final
 frame), so a suitable full-route camera remains necessary. No screenshot was
 captured. General entity lifecycle/input/AI and full-game resource behavior
 remain outside this diagnostic.
+
+
+## Continuous-scene XEMU memory harness
+
+`python tools/xemu_smoke.py --actor-live --no-capture --seconds 180` now selects
+the PC `--live` reference and expects `actor-live.flag` in the built disc. It
+checks the 664-frame renderer endpoint and actual final draw count instead of
+the short scene's frame-63 assumptions. The mode selects its own fixture;
+combining it with the other actor profile switches is rejected.
+
+The harness compares the eight-word live summary, full tick counters and all
+308 final body bytes with PC. It also compares ten complete 64-slot rings:
+absolute frame IDs, rendered geometry/position, animation timing, steering,
+locomotion selection, stance selection, raw support queries, support modes,
+surface/traction and stance/collider hashes. Rolling geometry/body hashes cover
+all 664 callbacks; the rings retain frames 600..663 in modulo order. Existing
+archive, geometry, GPU allocation, stock-memory and native renderer checks also
+remain active. The generic short actor verifier is not applied to overwritten
+long-run rings.
+
+The initial run `20260909-175335-622687` completed all frames and passed the live
+memory comparisons, then failed an obsolete final-draw-count assertion. That
+assertion now uses the live PC endpoint; the complete rerun is recorded below.
+No game code was changed in response to that harness failure. The close camera
+still loses sight of the actor, so no new screenshot was taken.
+
+Complete run `20260909-175428-274474` PASS: stock 64 MiB, 664 rendered frames,
+663 physics updates, four landings including initial landing, three support
+losses, ten matching telemetry rings and 308 matching final body bytes.

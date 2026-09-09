@@ -73,7 +73,11 @@ def main():
     parser.add_argument('--door-motion-frames',type=int,default=600,help='Expected optional door-motion-frames.txt diagnostic endpoint (1..600)')
     parser.add_argument('--actor-contact',action='store_true',help='Expect actor-contact.flag sustained -X collision route')
     parser.add_argument('--actor-routes',action='store_true',help='Expect eight 600-step physics routes after the rendered drive fixture')
+    parser.add_argument('--actor-live',action='store_true',help='Expect actor-live.flag continuous 664-frame animated body scene')
     args = parser.parse_args()
+    if args.actor_live:
+        if args.actor_body or args.actor_drive or args.actor_contact or args.actor_routes:parser.error('--actor-live selects its own body profile')
+        args.scene_states=True
     if args.actor_routes:args.actor_drive=True
     if args.actor_contact:args.actor_drive=True
     if args.actor_drive:args.actor_body=True
@@ -97,8 +101,8 @@ def main():
         if not actor_physics_symbol:raise RuntimeError('Integrated actor physics symbol absent')
         scene_args=[str(root/'build/pc/Release/rf_scene_check.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','9858']
         scene_args += [str(root/'Installed_Game'/n) for n in ['meshes.vpp','motions.vpp','tables.vpp','maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp']]
-        output=subprocess.check_output(scene_args+['--traverse' if args.actor_routes else '--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
-        actor_final_vertices=int(re.search(r'Frame 63 actor triangles (\d+)',output)[1])*3
+        output=subprocess.check_output(scene_args+['--live' if args.actor_live else '--traverse' if args.actor_routes else '--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
+        actor_final_vertices=int(re.search(r'Frame '+str(663 if args.actor_live else 63)+r' actor triangles (\d+)',output)[1])*3
         actor_frame_reference=[(int(n)*3,int(h,16)) for n,h in re.findall(r'Frame \d+ actor triangles (\d+) hash ([0-9a-f]+)',output)][:64]
         if args.actor_routes:actor_routes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_ROUTES ')).split()[1:]))
         if args.actor_body:actor_tick_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_TICKS ')).split()[1:]))
@@ -120,10 +124,13 @@ def main():
         if args.actor_body:actor_stance_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE ')).split()[1:]))
         if args.actor_body:actor_stance_cache_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE_CACHE ')).split()[1:]))
         if args.actor_body:actor_input_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_INPUT ')).split()[1:]))
-        actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
-        actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
-        actor_fall_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FALL ')).split()[1:]))
-        actor_time_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_TIME ')).split()[1:]))
+        if args.actor_live:
+            live_reference={label:list(map(int,next(line for line in output.splitlines() if line.startswith(label+' ')).split()[1:])) for label in ['ACTOR_LIVE','ACTOR_LIVE_TICKS','ACTOR_LIVE_BODY']+['ACTOR_LIVE_RING_'+str(i) for i in range(10)]}
+        else:
+            actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
+            actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
+            actor_fall_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FALL ')).split()[1:]))
+            actor_time_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_TIME ')).split()[1:]))
     symbol = re.search(r'\s[0-9a-fA-F]+:[0-9a-fA-F]+\s+_rf_diagnostic\s+([0-9a-fA-F]+)', map_text)
     if not symbol:
         raise RuntimeError('Diagnostic symbol absent from matching linker map')
@@ -312,6 +319,17 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     report['collision_movers']=dict(count=mover[2],retained_bytes=mover[3],peak_bytes=mover[4],queries=mover[5],hits=mover[6],moving_hits=mover[7],static_hits=mover[8],checksum=hex(mover[9]),available_bytes_after_build=mover[10]*4096,scope='Initial owned movers retained with world/rendering. Combined ray output and nullable visibility match PC; registry-assigned handles in explicit mover-first creation order; no general-object construction.')
                     logic_reply=monitor.command('human-monitor-command',{'command-line':f'x /12wx 0x{int(logic_symbol[1],16):x}'})
                     logic=[]
+                    if args.actor_live:
+                        live_snapshot=guest_snapshot(monitor,map_text)
+                        (run/'guest-memory-complete.json').write_text(json.dumps(live_snapshot,indent=2))
+                        symbols=live_snapshot['symbols']
+                        for name,label,size in [('rf_scene_actor_live_summary','ACTOR_LIVE',8),('rf_scene_actor_tick_stats','ACTOR_LIVE_TICKS',8),('scene_actor_body','ACTOR_LIVE_BODY',77)]:
+                            if symbols[name]['words'][:size]!=live_reference[label]:raise RuntimeError('Live actor differs from PC: '+name)
+                        ring_names=['rf_scene_actor_ring_frames','rf_scene_actor_render_frames','rf_scene_actor_animation_timing','rf_scene_actor_input_frames','rf_scene_actor_locomotion_frames','rf_scene_actor_selector_frames','rf_scene_actor_ground_records','rf_scene_actor_ground_modes','rf_scene_actor_surface_frames','rf_scene_actor_stance_frames']
+                        for i,name in enumerate(ring_names):
+                            if symbols[name]['words']!=live_reference['ACTOR_LIVE_RING_'+str(i)]:raise RuntimeError('Live actor ring differs from PC: '+name)
+                        if symbols['rf_scene_actor_live_enabled']['words']!=[1] or symbols['rf_scene_actor_frame_count']['words']!=[664]:raise RuntimeError('Live actor mode/length mismatch')
+                        report['actor_live']=dict(frames=664,physics_updates=663,landings=live_reference['ACTOR_LIVE'][5],support_losses=live_reference['ACTOR_LIVE'][6],geometry_hash=live_reference['ACTOR_LIVE'][2],body_hash=live_reference['ACTOR_LIVE'][3],rings_match_pc=10,final_body_bytes_match_pc=308,scope='Continuous animation and moving body; fixed camera, fixture inputs, simplified entity gates. Hashes summarize all frames; rings retain final 64.')
                     if actor_physics_reference is not None:
                         reply=monitor.command('human-monitor-command',{'command-line':f'x /8wx 0x{int(actor_physics_symbol[1],16):x}'})
                         actor_physics=[]
@@ -469,7 +487,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         report['door_render']=dict(frames=render[2],retained_geometry_bytes=render[3],vertex_capacity_bytes=render[4],trace_hash=hex(render[5]),last_vertices=render[6],last_mesh_hash=hex(render[7]),step_seconds=1/60,scope='Every committed pose mesh matches PC after archive closure; one CPU/GPU vertex allocation, changing draw counts. All four panels activated together and stepped before each render; diagnostic scheduling, no gameplay trigger dispatch.')
                     expected_world=render_reference[-1][0] if args.door_motion else 2892 if args.door_view else 7455
                     expected_total=expected_world if args.door_view else 8838 if args.scene_states else 8847 if args.scene_stream else 8802
-                    if args.actor_body and not args.door_view:expected_total=expected_world+actor_final_vertices
+                    if (args.actor_body or args.actor_live) and not args.door_view:expected_total=expected_world+actor_final_vertices
                     if args.scene and (args.skin or words[31]!=(5 if args.scene_states else 4 if args.scene_stream else 3) or words[56:58]!=[9858,expected_world] or words[36]!=expected_total):
                         raise RuntimeError('Combined scene camera/UID/draw ranges differ from fixture')
                     if not args.scene and words[56:58]!=[skin_checksum,len(replacements)]:
@@ -571,7 +589,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         report['renderer_memory']['available_bytes_with_retained_cpu_mesh']=report['renderer_memory'].pop('available_bytes_after_cpu_mesh_release')
                         report['door_motion']['scope']='Resident simultaneous door controller/mover ticks and collision views match PC; 1/60-second diagnostic steps, unobstructed gates, absent sound/event dispatch and crate rotation.'
                     report['materials'] = dict(loaded=words[38], allocated_bytes=words[39], pixel_checksum=hex(words[40]), missing=words[41], available_pages=words[42],scope='Validated resident level materials; model GPU image bytes are checked separately')
-                    if words[33:35] != [640, 480] or words[35] < 640*4 or words[36] == 0 or words[37] != (64+steps if args.door_motion else 64 if words[31] in (2,4,5) else 3):
+                    if words[33:35] != [640, 480] or words[35] < 640*4 or words[36] == 0 or words[37] != (664 if args.actor_live else 64+steps if args.door_motion else 64 if words[31] in (2,4,5) else 3):
                         raise RuntimeError('Invalid native renderer capture descriptor')
                     if not args.no_capture:
                         capture = run / 'framebuffer.bin'
