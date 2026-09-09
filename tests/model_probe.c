@@ -12,6 +12,24 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--clip-polygon")) {
+        struct {uint8_t records[3][48];rf_model_clip_planes planes;rf_model_projection view;uint32_t mode,attributes;uint8_t masks[4];} data;
+        _Static_assert(sizeof(data)==300,"clip polygon probe input layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            rf_model_clip_pool pool;uint8_t *original[3],*result[48];uint32_t count=0,i,ids[48];int32_t status;
+            memset(&pool,0xa5,sizeof(pool));rf_model_clip_pool_reset(&pool);memset(ids,0xff,sizeof(ids));
+            for(i=0;i<3;++i)original[i]=data.records[i];
+            status=rf_model_clip_polygon(&pool,original,3,&data.planes,&data.view,data.mode,data.attributes,result,&count,data.masks);
+            if(!status)for(i=0;i<count;++i) {
+                uint32_t j;for(j=0;j<3;++j)if(result[i]==original[j])break;
+                if(j==3)for(j=0;j<48;++j)if(result[i]==pool.records[j]) {j+=3;break;}
+                ids[i]=j;
+            }
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&count,4,1,stdout)!=1 || fwrite(data.masks,2,1,stdout)!=1 || fwrite(ids,192,1,stdout)!=1 ||
+                fwrite(&pool.used,4,1,stdout)!=1 || fwrite(pool.order,192,1,stdout)!=1 || fwrite(pool.records,2304,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--clip-pool")) {
         rf_model_clip_pool pool;uint32_t command[2];memset(&pool,0xa5,sizeof(pool));rf_model_clip_pool_reset(&pool);
         while(fread(command,sizeof(command),1,stdin)==1) {

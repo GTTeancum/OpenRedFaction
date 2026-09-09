@@ -5,6 +5,59 @@
 #include <stdlib.h>
 #include <float.h>
 
+static int model_clip_edge(rf_model_clip_pool *pool,uint32_t plane,const uint8_t *a,const uint8_t *b,
+    const rf_model_clip_planes *planes,const rf_model_projection *view,uint32_t mode,uint32_t attributes,uint8_t **out)
+{
+    float inside[3],outside[3],position[3];double factor;uint32_t slot;int status;
+    status=rf_model_clip_pool_allocate(pool,&slot);if(status)return status;
+    memcpy(inside,a,12);memcpy(outside,b,12);
+    status=rf_model_clip_intersection(plane,inside,outside,planes,position,&factor);if(status)return status;
+    memcpy(pool->records[slot],position,12);
+    status=rf_model_clip_attributes(a,b,factor,attributes,pool->records[slot]);if(status)return status;
+    status=rf_model_classify_clip_vertex(mode,view,pool->records[slot]);if(status)return status;
+    *out=pool->records[slot];return RF_OK;
+}
+
+int rf_model_clip_polygon(rf_model_clip_pool *pool,uint8_t *const *original,uint32_t count,
+    const rf_model_clip_planes *planes,const rf_model_projection *view,uint32_t mode,uint32_t attributes,
+    uint8_t *result[48],uint32_t *result_count,uint8_t mask[2])
+{
+    uint8_t *lists[2][50];uint32_t active=0,plane,i;int status;
+    if(!pool || !original || !planes || !view || !result || !result_count || !mask || count<2 || count>46 || attributes>7)return RF_RANGE;
+    for(i=0;i<count;++i) {
+        if(!original[i] || (original[i][25]&4))return RF_RANGE;
+        lists[0][i]=original[i];
+    }
+    for(plane=1;plane<=64;plane<<=1)if(mask[0]&plane) {
+        uint32_t next=active^1,produced=0;
+        lists[active][count]=lists[active][0];lists[active][count+1]=lists[active][1];mask[0]=0;mask[1]=255;
+        for(i=1;i<=count;++i) {
+            uint8_t *current=lists[active][i];
+            if(!(current[24]&plane)) {
+                if(produced==48)return RF_RANGE;
+                lists[next][produced++]=current;mask[0]|=current[24];mask[1]&=current[24];
+            } else {
+                unsigned side;
+                for(side=0;side<2;++side) {
+                    uint8_t *neighbor=lists[active][side?i+1:i-1],*created;
+                    if(neighbor[24]&plane)continue;
+                    if(produced==48)return RF_RANGE;
+                    status=model_clip_edge(pool,plane,neighbor,current,planes,view,mode,attributes,&created);
+                    if(status) {mask[1]=255;*result_count=0;return status;}
+                    lists[next][produced++]=created;mask[0]|=created[24];mask[1]&=created[24];
+                }
+                if(current[25]&4) {
+                    uint32_t slot;for(slot=0;slot<48;++slot)if(current==pool->records[slot])break;
+                    status=rf_model_clip_pool_release(pool,slot);if(status)return status;
+                }
+            }
+        }
+        count=produced;active=next;if(mask[1])break;
+        if(count>48)return RF_RANGE;
+    }
+    memcpy(result,lists[active],count*sizeof(*result));*result_count=count;return RF_OK;
+}
+
 void rf_model_clip_pool_reset(rf_model_clip_pool *pool)
 {
     uint32_t i;if(!pool)return;

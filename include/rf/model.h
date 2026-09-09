@@ -172,6 +172,14 @@ typedef struct rf_model_clip_pool {
 void rf_model_clip_pool_reset(rf_model_clip_pool *pool);
 int rf_model_clip_pool_allocate(rf_model_clip_pool *pool,uint32_t *slot);
 int rf_model_clip_pool_release(rf_model_clip_pool *pool,uint32_t slot);
+/* Recovered 0x549e00 / 0x549bd0 model path (attribute flags 0..7).
+ * Caller resets/initializes pool first. Lists and pool records must not alias
+ * original records. Returned pointers refer to originals or caller pool until
+ * next reset. On failure pool may be partially consumed; reset before retry.
+ * Up to 46 original vertices; output capacity 48. mask[0]=union, [1]=common. */
+int rf_model_clip_polygon(rf_model_clip_pool *pool,uint8_t *const *original,uint32_t count,
+    const rf_model_clip_planes *planes,const rf_model_projection *view,uint32_t mode,uint32_t attributes,
+    uint8_t *result[48],uint32_t *result_count,uint8_t mask[2]);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.

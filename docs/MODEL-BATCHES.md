@@ -1,5 +1,31 @@
 # Model batch data
 
+`rf_model_clip_polygon` assembles `0x549e00 / 0x549bd0` with the recovered
+intersection, attribute, classification and pool helpers. Planes run in
+ascending bit order; each walker starts at the second input vertex and wraps
+the first last. Rejected vertices produce previous-edge then next-edge
+intersections before generated records are released. Pointer identity,
+preserved record fields and free-slot reuse follow that traversal.
+
+The caller supplies initialized/reset pool storage, original record pointers
+and union/common masks. The port bounds pointer lists to 48 entries, rejects
+generated input records and accepts attribute flags 0 through 7. Interpolation
+currently requires finite factors in [0,1]; failed calls may leave partial pool
+changes and require a reset. Returned pointers remain valid until the owner
+changes original records or resets/reuses the pool. This helper allocates no heap
+memory and does not submit triangles.
+
+`tools/verify_model_clip_polygon.py` executes complete unchanged `0x549e00`
+and its original callees for 600 positive-Z triangles across side/far planes,
+with UV interpolation and constant RGB. Output counts, masks, pointer identities,
+pool usage/order and all 2,304 pool-record bytes match exactly in every fixture.
+The verifier permits 2e-6 scaled float error, with zero observed. Integrated
+near/custom-plane and varying-color cases remain open; isolated intersection
+and attribute checks are documented below. Clipped-vertex projection, fan index
+emission and draw submission remain separate work.
+PC and NXDK builds plus all four CTest checks pass. This clipper has not yet
+been connected to the emulator diagnostic's draw path.
+
 `rf_model_clip_pool` provides caller-owned storage for 48 original 48-byte
 records and a slot-order array. Reset mirrors `0x549270`, rebuilding slot order
 and clearing usage while preserving record contents. Allocation follows

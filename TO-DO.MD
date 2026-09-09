@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Multi-plane polygon traversal now matches 600 complete original-code triangle
+fixtures byte for byte, including temporary-slot lifetime and output order.
+Extend integrated coverage to near/custom planes and varying colors, then
+recover clipped-vertex projection and bounded triangle-fan index emission.
+
 Clipping temporary-vertex allocation and release now match 2,043 original
 operations, including the 47-success allocation limit. Assemble the per-plane
 polygon walker using the recovered pool, intersections and attributes.
