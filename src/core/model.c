@@ -45,20 +45,41 @@ int rf_model_project_vertex(const float world[3],const rf_model_projection *view
     cache->clip=clip;return RF_OK;
 }
 
-int rf_model_render_reuse_vertex(rf_model_render_cache *cache,uint32_t count,uint32_t index,int32_t distance,
-    const rf_model_render_output *output,const float uv[2],uint8_t vertex[40])
+static void emit_render_vertex(const rf_model_render_cache *source,const rf_model_render_output *output,
+    const float uv[2],uint8_t vertex[40])
 {
-    const rf_model_render_cache *source;const uint8_t *rgb;float value;
-    if(!cache || !output || !uv || !vertex || index>=count || distance<=0 || (uint32_t)distance>index)return RF_RANGE;
-    source=cache+index-(uint32_t)distance;
-    memcpy(cache[index].world,source->world,12);cache[index].clip=source->clip;
-    if(source->clip)return RF_OK;
+    const uint8_t *rgb;float value;
     memcpy(vertex,source->projected,8);
     value=output->depth_scale*source->projected[2];memcpy(vertex+8,&value,4);
     value=output->reciprocal_scale*source->projected[2];memcpy(vertex+12,&value,4);
     rgb=output->lighting?source->rgb:output->rgb;
     vertex[16]=rgb[2];vertex[17]=rgb[1];vertex[18]=rgb[0];vertex[19]=output->alpha;
-    vertex[23]=source->depth;memcpy(vertex+24,uv,8);return RF_OK;
+    vertex[23]=source->depth;memcpy(vertex+24,uv,8);
+}
+
+int rf_model_render_reuse_vertex(rf_model_render_cache *cache,uint32_t count,uint32_t index,int32_t distance,
+    const rf_model_render_output *output,const float uv[2],uint8_t vertex[40])
+{
+    const rf_model_render_cache *source;
+    if(!cache || !output || !uv || !vertex || index>=count || distance<=0 || (uint32_t)distance>index)return RF_RANGE;
+    source=cache+index-(uint32_t)distance;
+    memcpy(cache[index].world,source->world,12);cache[index].clip=source->clip;
+    if(!source->clip)emit_render_vertex(source,output,uv,vertex);
+    return RF_OK;
+}
+
+int rf_model_finish_render_vertex(rf_model_render_cache *cache,float second[3],
+    const rf_model_render_output *output,const float lights[3][6],const float ambient[3],
+    const float uv[2],uint8_t vertex[40])
+{
+    double inverse;unsigned i;int status;
+    if(!cache || !second || !output || !lights || !ambient || !uv || !vertex)return RF_RANGE;
+    inverse=1.0/sqrt(((double)second[0]*second[0]+(double)second[1]*second[1])+(double)second[2]*second[2]);
+    for(i=0;i<3;++i)second[i]=(float)(inverse*second[i]);
+    if(output->lighting) {
+        status=rf_model_vertex_lighting(second,lights,ambient,cache->rgb);if(status)return status;
+    }
+    emit_render_vertex(cache,output,uv,vertex);return RF_OK;
 }
 
 int rf_model_render_vertex_lighting(const float vector[3],const float lights[3][6],const float ambient[3],

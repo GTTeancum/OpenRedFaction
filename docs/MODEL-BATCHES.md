@@ -1,5 +1,29 @@
 # Model batch data
 
+`rf_model_geometry_render_batch` now assembles resident vertex processing:
+fresh vertices deform both streams, retain world position, project, normalize
+the visible second stream, optionally light it and emit attributes; duplicates
+use the recovered cache path and their own UVs. `rf_model_finish_render_vertex`
+implements the visible fresh tail, including normalization even with lighting
+disabled. Fresh and duplicate paths share attribute emission without changing
+their different visibility/cache rules.
+
+Processing performs no allocation or archive reads. Caller-owned buffers use
+96 bytes per vertex (32 cache, 12 clipping position, 12 second stream, 40 output)
+plus the 20-byte Win32/Xbox buffer descriptor. Batch ranges, capacity, backward
+references and active bone indices are checked before writes. Caller buffers
+retain fields the original leaves untouched and must be initialized before
+first use. Triangle clipping/submission and material binding remain external.
+
+`tools/verify_model_render_batch.py` compares 250 batches / 2,000 vertices,
+including 592 duplicates, with consecutive unchanged original vertex paths
+`0x52edac..0x52f3cc`. All cache, clipping, second-stream and output bytes match.
+The verifier supplies streams, matrices and view globals and sets per-vertex
+registers externally; it does not emulate buffer locking or triangle submission.
+Invalid initial reuse and active bone-index fixtures reject without writes.
+PC/NXDK builds and four CTest checks pass. Next exercise real animated batches
+through these buffers and connect triangle processing to the Xbox renderer.
+
 `rf_model_project_vertex` reconstructs `0x52f154` through the visible/rejected
 branch at `0x52f31e / 0x52f3cc`. It subtracts camera position with float stores,
 applies the original matrix order, optionally replaces depth, computes frustum

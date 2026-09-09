@@ -4,6 +4,39 @@
 #include <math.h>
 #include <stdlib.h>
 typedef struct reader { rf_model_file *model; uint32_t cursor; int status; } reader;
+int rf_model_geometry_render_batch(const rf_model_geometry *geometry,uint32_t batch,
+    const float (*matrices)[12],uint32_t bones,const rf_model_projection *view,
+    const rf_model_lighting *lights,const rf_model_render_output *output,rf_model_render_buffers *buffers)
+{
+    const rf_model_draw_batch *draw;uint32_t i,j;int status;
+    if(!geometry || !geometry->batches || batch>=geometry->batch_count || !view || !lights || !output ||
+        !buffers || !buffers->cache || !buffers->clip || !buffers->second || !buffers->vertices || bones>256 ||
+        (bones && !matrices))return RF_RANGE;
+    draw=geometry->batches+batch;
+    if(draw->vertices>buffers->capacity || draw->first_vertex>geometry->vertex_count ||
+        draw->vertices>geometry->vertex_count-draw->first_vertex || !geometry->vertices || !geometry->reuse)return RF_RANGE;
+    for(i=0;i<draw->vertices;++i) {
+        const rf_model_vertex *v=geometry->vertices+draw->first_vertex+i;
+        int32_t reuse=geometry->reuse[draw->first_vertex+i];
+        if(reuse>0) {if((uint32_t)reuse>i)return RF_RANGE;}
+        else for(j=0;j<4 && v->weights[j];++j)if(v->bones[j]>=bones)return RF_RANGE;
+    }
+    for(i=0;i<draw->vertices;++i) {
+        const rf_model_vertex *v=geometry->vertices+draw->first_vertex+i;
+        int32_t reuse=geometry->reuse[draw->first_vertex+i];
+        if(reuse>0)status=rf_model_render_reuse_vertex(buffers->cache,draw->vertices,i,reuse,output,v->uv,buffers->vertices[i]);
+        else {
+            float pair[6];uint32_t visible;
+            status=rf_model_render_vertex_pair(v->position,v->normal,v->weights,v->bones,matrices,bones,pair);if(status)return status;
+            memcpy(buffers->cache[i].world,pair,12);memcpy(buffers->second[i],pair+3,12);
+            status=rf_model_project_vertex(pair,view,buffers->cache+i,buffers->clip[i],buffers->vertices[i],&visible);if(status)return status;
+            if(visible)status=rf_model_finish_render_vertex(buffers->cache+i,buffers->second[i],output,lights->lights,lights->ambient,v->uv,buffers->vertices[i]);
+        }
+        if(status)return status;
+    }
+    return RF_OK;
+}
+
 static uint32_t integer(reader *r, uint32_t bytes)
 {
     unsigned char raw[4] = {0};

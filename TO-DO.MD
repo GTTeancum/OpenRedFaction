@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Resident batch processing now assembles deformation, projection, lighting and
+reuse, matching 250 original-code batches. Exercise real animated geometry
+through it and connect triangle clipping/material binding/draw submission.
+
 Fresh model projection, depth and visibility now match 2,000 original-code
 cases. Assemble deformation, projection, lighting and duplicate reuse into
 resident batch processing, then connect triangle submission.

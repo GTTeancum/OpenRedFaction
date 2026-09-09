@@ -133,6 +133,11 @@ int rf_model_project_vertex(const float world[3],const rf_model_projection *view
  * do not write it at all. Caller owns separate cache/vertex storage. */
 int rf_model_render_reuse_vertex(rf_model_render_cache *cache,uint32_t count,uint32_t index,int32_t distance,
     const rf_model_render_output *output,const float uv[2],uint8_t vertex[40]);
+/* Visible fresh-vertex tail: normalize second in place, optionally cache RGB,
+ * emit projected attributes and this vertex's UVs. Caller has projected it. */
+int rf_model_finish_render_vertex(rf_model_render_cache *cache,float second[3],
+    const rf_model_render_output *output,const float lights[3][6],const float ambient[3],
+    const float uv[2],uint8_t vertex[40]);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.

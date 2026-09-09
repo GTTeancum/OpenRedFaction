@@ -1,6 +1,7 @@
 #ifndef RF_MODEL_FILE_H
 #define RF_MODEL_FILE_H
 #include "rf/vpp.h"
+#include "rf/model.h"
 #define RF_MODEL_MAX_SECTIONS 128
 #define RF_MODEL_MAX_LODS 128
 typedef struct rf_model_lod {
@@ -71,6 +72,16 @@ typedef struct rf_model_geometry {
  * archive/model/texture state. Zero-initialize; close before reuse. */
 int rf_model_geometry_open(rf_model_geometry *geometry,const rf_model_file *model,uint32_t lod,uint32_t budget);
 void rf_model_geometry_close(rf_model_geometry *geometry);
+typedef struct rf_model_render_buffers {
+    rf_model_render_cache *cache;float (*clip)[3],(*second)[3];uint8_t (*vertices)[40];uint32_t capacity;
+} rf_model_render_buffers;
+/* Process one resident batch into caller-owned buffers, no allocation or I/O.
+ * Buffers use batch-local indices and retain fields the original does not write.
+ * Invalid ranges/reuse/bone indices fail before writes; initialize buffers before
+ * first use. Triangle clipping/submission and material selection are external. */
+int rf_model_geometry_render_batch(const rf_model_geometry *geometry,uint32_t batch,
+    const float (*matrices)[12],uint32_t bones,const rf_model_projection *view,
+    const rf_model_lighting *lights,const rf_model_render_output *output,rf_model_render_buffers *buffers);
 /* Select a flattened LOD index within one SUBM using its serialized thresholds.
  * Metric and render gates have the same meaning as rf_model_select_lod.
  * No allocation; output unchanged on failure. */
