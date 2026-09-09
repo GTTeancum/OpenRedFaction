@@ -1370,3 +1370,22 @@ with the length retained in x87 until the sum is float-stored. This conservative
 centers the object's radius at its local origin. Ghidra export now includes
 `0x4cf500` and `0x4cf9a0`. C/NXDK sphere reconstruction, initial runtime binding,
 object lifetime and XEMU integration remain open.
+
+
+### Shared reconstructed vertex bounds
+
+`rf_collision_vertex_bounds` implements the nonempty 4cf9a0/4cf500 path and
+46b075 creation radius in shared C, with explicit x87 arithmetic for MSVC x86
+and NXDK. It preserves full vertex order, axis-extreme ties, float vector stores
+and extended sphere updates. No allocation is required. Empty input returns
+NOT_FOUND with output unchanged; invalid/nonfinite or overflowing calculations
+return an error with output unchanged. Other architectures use an unverified
+long-double fallback.
+
+`python tools/verify_vertex_bounds.py` passes exact output bytes for all 1,406
+installed movers and 1,010 synthetic forward/reverse cases against original
+execution. Four nonfinite/overflow guards pass. PC and NXDK agree, including
+AABB, sphere radius/center and origin radius; the NXDK test checks balanced x87
+stack after every call. Report: `artifacts/vertex-bounds-verification.json`.
+Full PC/NXDK builds and four CTest checks pass. Initial mover binding and XEMU
+execution of this new path remain open.

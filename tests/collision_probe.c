@@ -10,6 +10,17 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--vertex-bounds")) {
+        uint32_t count;float (*vertices)[3];struct {int32_t status;rf_collision_bounds bounds;} out;
+        while(fread(&count,4,1,stdin)==1) {
+            if(count>65536)return 2;
+            vertices=(float(*)[3])malloc(count?count*12:12);if(!vertices)return 3;
+            if(fread(vertices,12,count,stdin)!=count)return 4;
+            memset(&out,0xa5,sizeof(out));out.status=rf_collision_vertex_bounds(vertices,count,&out.bounds);free(vertices);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 5;
+        }
+        return ferror(stdin)?6:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--mover-queries")) {
         rf_vpp archive;rf_level level;rf_geometry_movers movers={0};
         rf_geometry_collision_flat *owned;uint32_t i,count;

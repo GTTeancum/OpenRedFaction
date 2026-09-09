@@ -3,6 +3,199 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Original 4cf500 arithmetic: squared spans, initial radius, expansion,
+ * and 46b075 origin radius. state = radius, radius_squared, center[3], origin_radius. */
+static void sphere_math(const float v[3],const float point[3],float state[6],int mode)
+{
+#if (defined(_MSC_VER) && defined(_M_IX86)) || defined(__i386__)
+    unsigned short saved,control;const float half=.5f;
+#if defined(_MSC_VER)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,v
+        mov edx,point
+        mov esi,state
+        mov edi,mode
+        lea ebx,half
+        fld dword ptr [ecx]
+        fmul dword ptr [ecx]
+        fld dword ptr [ecx+4]
+        fmul dword ptr [ecx+4]
+        faddp st(1),st(0)
+        fld dword ptr [ecx+8]
+        fmul dword ptr [ecx+8]
+        faddp st(1),st(0)
+        cmp edi,2
+        je sm_expand
+        cmp edi,3
+        je sm_finish
+        fst dword ptr [esi+4]
+        cmp edi,0
+        je sm_pop
+        fsqrt
+        fstp dword ptr [esi]
+        jmp sm_done
+        sm_finish:
+        fsqrt
+        fadd dword ptr [esi]
+        fstp dword ptr [esi+20]
+        jmp sm_done
+        sm_expand:
+        fcom dword ptr [esi+4]
+        fnstsw ax
+        test ah,0x41
+        jne sm_pop
+        fsqrt
+        fld st(0)
+        fadd dword ptr [esi]
+        fmul dword ptr [ebx]
+        fst dword ptr [esi]
+        fmul dword ptr [esi]
+        fstp dword ptr [esi+4]
+        fld st(0)
+        fsub dword ptr [esi]
+        fld st(0)
+        fmul dword ptr [edx+0]
+        fld dword ptr [esi+8]
+        fmul dword ptr [esi]
+        faddp st(1),st(0)
+        fdiv st(0),st(2)
+        fstp dword ptr [esi+8]
+        fld st(0)
+        fmul dword ptr [edx+4]
+        fld dword ptr [esi+12]
+        fmul dword ptr [esi]
+        faddp st(1),st(0)
+        fdiv st(0),st(2)
+        fstp dword ptr [esi+12]
+        fld st(0)
+        fmul dword ptr [edx+8]
+        fld dword ptr [esi+16]
+        fmul dword ptr [esi]
+        faddp st(1),st(0)
+        fdiv st(0),st(2)
+        fstp dword ptr [esi+16]
+        fstp st(0)
+        sm_pop:
+        fstp st(0)
+        sm_done:
+        fldcw saved
+    }
+#else
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "fld dword ptr [ecx]\n\t"
+        "fmul dword ptr [ecx]\n\t"
+        "fld dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [ecx+4]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fld dword ptr [ecx+8]\n\t"
+        "fmul dword ptr [ecx+8]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "cmp edi,2\n\t"
+        "je .Lsm_expand%=\n\t"
+        "cmp edi,3\n\t"
+        "je .Lsm_finish%=\n\t"
+        "fst dword ptr [esi+4]\n\t"
+        "cmp edi,0\n\t"
+        "je .Lsm_pop%=\n\t"
+        "fsqrt\n\t"
+        "fstp dword ptr [esi]\n\t"
+        "jmp .Lsm_done%=\n\t"
+        ".Lsm_finish%=:\n\t"
+        "fsqrt\n\t"
+        "fadd dword ptr [esi]\n\t"
+        "fstp dword ptr [esi+20]\n\t"
+        "jmp .Lsm_done%=\n\t"
+        ".Lsm_expand%=:\n\t"
+        "fcom dword ptr [esi+4]\n\t"
+        "fnstsw ax\n\t"
+        "test ah,0x41\n\t"
+        "jne .Lsm_pop%=\n\t"
+        "fsqrt\n\t"
+        "fld st(0)\n\t"
+        "fadd dword ptr [esi]\n\t"
+        "fmul dword ptr [ebx]\n\t"
+        "fst dword ptr [esi]\n\t"
+        "fmul dword ptr [esi]\n\t"
+        "fstp dword ptr [esi+4]\n\t"
+        "fld st(0)\n\t"
+        "fsub dword ptr [esi]\n\t"
+        "fld st(0)\n\t"
+        "fmul dword ptr [edx+0]\n\t"
+        "fld dword ptr [esi+8]\n\t"
+        "fmul dword ptr [esi]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fdiv st(0),st(2)\n\t"
+        "fstp dword ptr [esi+8]\n\t"
+        "fld st(0)\n\t"
+        "fmul dword ptr [edx+4]\n\t"
+        "fld dword ptr [esi+12]\n\t"
+        "fmul dword ptr [esi]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fdiv st(0),st(2)\n\t"
+        "fstp dword ptr [esi+12]\n\t"
+        "fld st(0)\n\t"
+        "fmul dword ptr [edx+8]\n\t"
+        "fld dword ptr [esi+16]\n\t"
+        "fmul dword ptr [esi]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fdiv st(0),st(2)\n\t"
+        "fstp dword ptr [esi+16]\n\t"
+        "fstp st(0)\n\t"
+        ".Lsm_pop%=:\n\t"
+        "fstp st(0)\n\t"
+        ".Lsm_done%=:\n\t"
+        ".att_syntax prefix"
+        ::"c"(v),"d"(point),"S"(state),"D"(mode),"b"(&half):"eax","cc","memory","st","st(1)","st(2)","st(3)");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#endif
+#else
+    long double squared=((long double)v[0]*v[0]+(long double)v[1]*v[1])+(long double)v[2]*v[2];
+    if(mode==3)state[5]=(float)(sqrtl(squared)+state[0]);
+    else if(mode<2) {state[1]=(float)squared;if(mode==1)state[0]=(float)sqrtl(squared);}
+    else if(squared>state[1]) {
+        long double distance=sqrtl(squared),radius=(distance+state[0])*.5L,gap;unsigned j;
+        state[0]=(float)radius;state[1]=(float)(radius*state[0]);gap=distance-state[0];
+        for(j=0;j<3;j++)state[j+2]=(float)(((long double)state[j+2]*state[0]+gap*point[j])/distance);
+    }
+#endif
+}
+int rf_collision_vertex_bounds(const float (*vertices)[3],uint32_t count,rf_collision_bounds *result)
+{
+    rf_collision_bounds value;uint32_t low[3]={0},high[3]={0},i,j,axis=0;
+    float span[3],diff[3],state[6]={0};
+    if(!result || (count && !vertices))return RF_RANGE;
+    if(!count)return RF_NOT_FOUND;
+    for(i=0;i<count;i++)for(j=0;j<3;j++) {
+        if(!isfinite(vertices[i][j]))return RF_FORMAT;
+        if(vertices[i][j]<vertices[low[j]][j])low[j]=i;
+        if(vertices[i][j]>vertices[high[j]][j])high[j]=i;
+    }
+    for(j=0;j<3;j++) {
+        value.minimum[j]=vertices[low[j]][j]-.0001f;value.maximum[j]=vertices[high[j]][j]+.0001f;
+        for(i=0;i<3;i++)diff[i]=vertices[high[j]][i]-vertices[low[j]][i];
+        sphere_math(diff,NULL,state,0);span[j]=state[1];if(span[j]>span[axis])axis=j;
+    }
+    for(j=0;j<3;j++) {
+        volatile float sum=vertices[low[axis]][j]+vertices[high[axis]][j];
+        state[j+2]=sum*.5f;diff[j]=vertices[high[axis]][j]-state[j+2];
+    }
+    sphere_math(diff,NULL,state,1);
+    for(i=0;i<count;i++) {
+        for(j=0;j<3;j++)diff[j]=vertices[i][j]-state[j+2];
+        sphere_math(diff,vertices[i],state,2);
+        for(j=0;j<5;j++)if(!isfinite(state[j]))return RF_FORMAT;
+    }
+    sphere_math(state+2,NULL,state,3);
+    if(!isfinite(state[5]))return RF_FORMAT;
+    value.radius=state[0];memcpy(value.center,state+2,12);value.origin_radius=state[5];
+    *result=value;return RF_OK;
+}
+
 /* Original edge quadratic, retaining x87 intermediates through sqrt/division.
  * terms: o.e, o.d, o.o, e.d, e.e, d.d, radius, A, B. */
 static int edge_roots(float terms[9],float roots[2],int endpoint)

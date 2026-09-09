@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Original bounds and creation radii are recorded for all 1,406 movers;
-reconstruct the order-sensitive expanding sphere with exact x87 stores,
-then bind owned movers and recover later pose updates/lifetime.
+The shared bounds/sphere implementation matches all 1,406 movers on PC
+and NXDK; bind owned geometry to initial mover collision views, then recover
+later pose updates and lifetime before scene integration.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

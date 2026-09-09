@@ -1,6 +1,15 @@
 #ifndef RF_COLLISION_H
 #define RF_COLLISION_H
 #include "rf/vpp.h"
+typedef struct rf_collision_bounds {
+    float minimum[3],maximum[3],radius,center[3],origin_radius;
+} rf_collision_bounds;
+/* 4cf9a0/4cf500 bounds plus 46b075 creation radius. Preserve input vertex
+ * order, including unused and duplicate vertices. No allocation. Empty input
+ * returns NOT_FOUND; errors preserve output. Nonfinite/overflow is FORMAT.
+ * Exact x87 arithmetic on supported x86 PC/NXDK; other targets unverified. */
+int rf_collision_vertex_bounds(const float (*vertices)[3],uint32_t count,
+    rf_collision_bounds *result);
 /* Input preparation of 4df1c0. Matrix rows dot (point-origin), with original
  * endpoint and vector stores; do not replace with a direct rotated delta.
  * Flag 4 copies local inputs and ignores origin/matrix. Zero displacement
