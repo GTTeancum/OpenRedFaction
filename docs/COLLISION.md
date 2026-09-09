@@ -1024,3 +1024,57 @@ and its 11 guards remain green. Ghidra exports now include both `0x4faa90` and
 iteration, output material/object metadata, segment shortening between candidate
 solids, the final static-world query and actor response remain open. No rendering
 or gameplay movement behavior changes yet.
+
+## Ordered moving/static ray composition
+
+`rf_collision_ray_solids` now reconstructs the geometric composition in
+`0x498e80`, using supplied moving-solid views in list order followed by a supplied
+static world view. Input is start/end, with displacement formed by a float
+subtraction. External flags are translated exactly as `0x499190`. Each moving
+solid's world bounds gate its transformed, zero-radius room query; accepted
+contacts use the separate output pose and retain the object's supplied ID.
+External flag 1 returns on the first accepted moving solid. The static world is
+queried afterward in direct-local mode, with UINT32_MAX object and solid indices.
+Results include geometry, object/solid indices and room/tree-face identity;
+material lookup and original ancillary output fields are not yet reconstructed.
+No allocation is introduced, and all supplied collision scratch remains shared
+and serialized. A NULL result is supported for visibility-only callers, skipping
+output conversion; errors preserve matched/result and misses preserve result.
+
+The shortening rule must not be replaced with an ordinary nearest-ray algorithm.
+After a moving hit, the original computes a stored endpoint
+`start + current_displacement * hit_fraction`, then replaces displacement with
+`endpoint - start`. It retains that same hit_fraction as the next query's upper
+limit rather than resetting the limit to 1 or accumulating a global fraction.
+This can reject a later, geometrically closer surface, and the returned fraction
+need not be relative to the initial full segment. For a ray from z=8 to z=-8:
+
+- A mover at z=0 hits at 0.5 and shortens displacement from -16 to -8.
+- A later mover at z=2 would hit the shortened ray at 0.75, so the retained 0.5
+  limit rejects it and keeps the z=0 result.
+- A later mover at z=4 hits at 0.5 and is accepted; shortening again yields -4.
+- A subsequent static face at z=6 hits at 0.5 and is accepted. The reported
+  fraction remains 0.5 even though its distance is 0.125 of the original ray.
+
+`python tools/probe_moving_ray.py` establishes ten analytic cases through complete
+unmodified `0x498e80`: retained-limit rejection/equality for movers and static
+world, successive shortening, first-hit exit, reversed order, static-only hit,
+and total miss. A read-only entry hook records each `0x4df1c0` displacement and
+limit; all actual callees run unchanged. Original texture index -1 selects the
+real no-material branch, with no substituted resource helper. Report:
+`artifacts/moving-ray-boundaries.json`.
+
+`python tools/verify_collision_solid_ray.py` compares those ten fixtures plus
+2,500 deterministic randomized cases against PC and actual NXDK-linked code.
+Two moving list entries and a static hierarchy use identity poses, randomized
+face presence/heights and ray endpoints, and first/nearest external flags. All
+2,419 hits and remaining miss outputs match, including point, normal, retained
+fraction and object/solid/room/face identity. Report:
+`artifacts/collision-solid-ray-verification.json`.
+
+Both builds and four CTest checks pass, with the transformed-room regression
+also passing. This combined wrapper still needs distinct-pose and optional-output
+coverage; component transform checks alone do not prove those full-wrapper cases.
+Runtime mover extraction/order, live poses, material metadata, caches/fallbacks,
+XEMU execution and actor response remain open. This is the original ray/visibility
+wrapper, not the separate swept actor movement routine. Rendering is unchanged.

@@ -162,4 +162,22 @@ int rf_collision_transformed_rooms(const rf_collision_room_view *rooms,uint32_t 
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
     uint32_t query_flags,const float start[3],const float displacement[3],const float origin[3],
     const float matrix[3][3],float radius,float limit,rf_collision_sweep_room_hit *result,uint32_t *matched);
+typedef struct rf_collision_solid_view {
+    const rf_collision_room_view *rooms;uint32_t room_count;
+    const uint32_t *primary;uint32_t primary_count;
+    const uint32_t *children;uint32_t child_count;
+    float minimum[3],maximum[3],input_origin[3],input_matrix[3][3];
+    float output_origin[3],output_matrix[3][3];uint32_t object_id;
+} rf_collision_solid_view;
+typedef struct rf_collision_solid_hit {
+    rf_collision_ray_hit hit;uint32_t object_id,solid_index,room,face_index;
+} rf_collision_solid_hit;
+/* Geometric 498e80 composition: ordered movers followed by static world.
+ * External flags are translated by original 499190. Radius is zero. Original
+ * retained fraction after shortening is intentional; not a generic closest ray.
+ * Result may be NULL for visibility-only queries. No material lookup, caches,
+ * preferred faces or world face-ID remapping. Scratch is shared/serialized. */
+int rf_collision_ray_solids(const rf_collision_solid_view *moving,uint32_t count,
+    const rf_collision_solid_view *stationary,const float start[3],const float end[3],
+    uint32_t flags,rf_collision_solid_hit *result,uint32_t *matched);
 #endif

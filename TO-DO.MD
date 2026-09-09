@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-World-space contact conversion now matches 12,000 original cases on PC and
-NXDK; compose moving-solid iteration with distinct input/output poses and
-original segment-shortening rules, then connect actor collision response.
+Moving-solid ray composition matches 2,510 original calls on PC and NXDK;
+validate distinct poses and visibility-only queries, bind runtime moving solids
+and result metadata, then connect actor collision response.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

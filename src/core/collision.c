@@ -1121,3 +1121,38 @@ int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_
     free(scratch);if(status) {rf_collision_tree_close(&value);return status;}
     *tree=value;return RF_OK;
 }
+
+int rf_collision_ray_solids(const rf_collision_solid_view *moving,uint32_t count,
+    const rf_collision_solid_view *stationary,const float start[3],const float end[3],
+    uint32_t flags,rf_collision_solid_hit *result,uint32_t *matched)
+{
+    rf_collision_solid_hit value={0};rf_collision_sweep_room_hit local;
+    float current_end[3],delta[3],scratch[3],limit=1;uint32_t i,j,hit,found=0,q;int status;
+    if((count && !moving) || !stationary || !start || !end || !matched)return RF_RANGE;
+    for(j=0;j<3;j++) {
+        if(!isfinite(start[j]) || !isfinite(end[j]))return RF_FORMAT;
+        current_end[j]=end[j];delta[j]=end[j]-start[j];if(!isfinite(delta[j]))return RF_FORMAT;
+    }
+    q=(((((flags&0xc0u)<<1)|(flags&0x20u))<<1)|(flags&0x1eu))<<4 | (flags&1u);
+    for(i=0;i<count;i++) {
+        const rf_collision_solid_view *solid=moving+i;
+        status=rf_collision_segment_box(solid->minimum,solid->maximum,start,current_end,scratch,&hit);if(status)return status;if(!hit)continue;
+        status=rf_collision_transformed_rooms(solid->rooms,solid->room_count,solid->primary,solid->primary_count,
+            solid->children,solid->child_count,q,start,delta,solid->input_origin,solid->input_matrix,0,limit,&local,&hit);if(status)return status;if(!hit)continue;
+        found=1;limit=local.tree.hit.fraction;
+        if(result) {
+            status=rf_collision_contact_world(&local.tree.hit,solid->output_origin,solid->output_matrix,&value.hit);if(status)return status;
+            value.object_id=solid->object_id;value.solid_index=i;value.room=local.room;value.face_index=local.tree.face_index;
+        }
+        if(flags&1u)goto done;
+        for(j=0;j<3;j++) {volatile float scaled=delta[j]*limit;current_end[j]=start[j]+scaled;delta[j]=current_end[j]-start[j];}
+    }
+    status=rf_collision_transformed_rooms(stationary->rooms,stationary->room_count,stationary->primary,stationary->primary_count,
+        stationary->children,stationary->child_count,q|4u,start,delta,NULL,NULL,0,limit,&local,&hit);if(status)return status;
+    if(hit) {
+        found=1;
+        if(result) {value.hit=local.tree.hit;value.object_id=UINT32_MAX;value.solid_index=UINT32_MAX;value.room=local.room;value.face_index=local.tree.face_index;}
+    }
+ done:
+    if(found && result)*result=value;*matched=found;return RF_OK;
+}
