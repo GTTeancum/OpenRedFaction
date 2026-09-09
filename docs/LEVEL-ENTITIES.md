@@ -138,6 +138,42 @@ chain in the fixtures. The generic 486da0 factory, class/asset initialization,
 handle assignment and completed gameplay entity creation remain outside this
 evidence. Report: `artifacts/entity-construction-verification.json`.
 
+## Generic factory identity and scalar defaults
+
+`tools/verify_object_factory_fields.py` executes complete generic factory 486da0
+with no world and no model. Allocation 487100, name assignment 4ffa80 and physics
+initialization 49ec90 are intercepted; handle-pool operations, parent lookup,
+vector/matrix copies and 48a160 execute unchanged. All 168 cases compare the full
+0x1494 object and input parameter block: seven object types, four flag patterns,
+valid/stale parent and three radii. This is not a full entity spawn or validation
+of the intercepted effects.
+
+The factory consumes the original free handle slot, stores its generated handle
+at +0x2c, assigns a temporary UID at +0x20 from decrementing global 59f7e4, sets
+type +0x24 and parent handle +0x30, and copies parameter word +0x10 to object
++0x1fc. It sets health +0x34 to 100 and armor +0x38 to zero. Position copies go
+to +0x3c, +0x6c, +0x238 and (via 48a160) +4; matrix copies go to +0x48/+0x244.
+The no-world spatial assignment writes zero at object +0.
+
+Without a valid parent, +0x28 becomes zero and friendliness +0x1f8 becomes 1.
+With a valid parent, those two fields are inherited unchanged. The level loader
+then overwrites them with authored values, explaining why these defaults must
+not replace the recovered level fields. The parent handle itself is retained
+even when it fails lookup.
+
+Input object flags receive 0x6000000, and an initial hidden bit 0x4000 also adds
+0x8000. Types other than 5/6/8/9/10 receive 0x400000 after physics/spatial setup.
+Several reference fields become -1; +0x270 becomes byte 255 and +0x278 zero.
+With no model, model +0x80 is zero, model index +0x84 is -1, and nonpositive
+radius selects 1.0. A negative input radius is replaced in the parameter block
+by that result; zero remains zero there. Flag 0x10000 clears parameter +0x94
+bit 0x20 before physics initialization. Full comparisons verify all other bytes
+remain as supplied to this isolated overlay.
+
+Report: `artifacts/object-factory-fields-verification.json`. Model loading,
+world placement, physics initialization, failure rollback and completed class
+setup remain to be reconstructed/integrated before operational entities.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and
