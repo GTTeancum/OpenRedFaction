@@ -410,3 +410,32 @@ and compare the final state. Recursive callbacks, actual game actions and all
 possible float values are still outside this evidence. The tested threshold
 neighbors cover 13 rounding boundaries per delay class, five adjacent binary32
 values each. Proceed to event construction/registration and campaign actions.
+
+
+## Door-event constructor execution
+
+`tools/verify_event_construction.py` executes complete original derived/base
+constructors for the three door-linked event types with zero-filled and A5-filled
+storage: six cases pass. The timer and empty-array constructors also execute
+unchanged. The allocator, generic object factory, factory overlays, loader and
+registration are excluded, so this does not establish the final loaded state.
+
+| Type | Constructor | Bytes | On action | Off action |
+| --- | --- | --- | --- | --- |
+| 6 Goto_Player | 4be510 | 700 | 4babb0 | 4b9f80 |
+| 30 Set_Friendliness | 4be8a0 | 700 | 4bc280 | 4b9f80 |
+| 50 UnHide | 4becb0 | 704 | 4bcdd0 | 4bcde0 |
+
+Original allocation dispatch 4b69d0 selects these constructors and sizes;
+generic object allocation 487100 returns the event pointer plus four. The
+shared base constructor 4bee70 calls base-object construction at event +4,
+initializes deadline +0x298 to -1 and the link array at +0x29c to empty, and
+sets a base vtable subsequently replaced by each derived constructor. UnHide
+also initializes its additional timer at +0x2b8 to -1.
+
+Patterned execution confirms type, delay, actor, source, flags and mode are
+not initialized by these constructors. Factory 4b6870 and loader 462150 write
+some of them afterward; do not attribute zero defaults to the constructor or
+copy a fabricated full initialized state. Next trace remaining initialization
+writes and execute the action targets above. Evidence report:
+`artifacts/event-construction-verification.json`.

@@ -27,6 +27,9 @@ compiled NXDK with non-mutating callbacks. Extended checks now total 3,922
 cases, including 12 callback mutations and 130 float-threshold neighbors.
 Register event states and implement actions; recursive callback behavior and
 exhaustive timing precision remain outside current verification.
+The three door-event constructors pass six original-code patterned-storage
+cases; timer/link initialization and action targets are identified. Trace the
+remaining factory/loader initialization before registering event runtime states.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
