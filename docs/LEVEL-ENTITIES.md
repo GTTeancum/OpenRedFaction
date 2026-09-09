@@ -110,6 +110,34 @@ descriptor substitution, invalid class handling and later initialization are
 not covered. Existing entity predicate checks remain green (2,007 cases and
 one cycle rejection). Report: `artifacts/entity-creation-flags-verification.json`.
 
+## Original constructor and allocation
+
+Type 0 in allocator 487100 selects allocation size 0x1494 (5,268 bytes) and
+constructor 40e380. `tools/verify_entity_construction.py` executes that complete
+constructor and all its callees on zero, A5 and 5A storage. It also executes
+the complete type-0 allocator path with only heap boundary 573619 supplied,
+covering allocation success/failure and count/high-water combinations. Three
+constructor cases and twelve allocator cases pass full object-byte comparisons.
+
+The constructor initializes selected string/container and timer subobjects;
+it does not zero the full entity. The report records all zero and inactive-timer
+write ranges. In particular, UID, type, handle, positions, object flags and
+friendliness retain patterned input at this stage. An empty pointer array at
++0x1418 is initialized, but the attachment head +0x268 is cleared afterward by
+the allocator. Do not turn constructor-no-op vector/matrix methods into inferred
+zero/default transform initialization.
+
+On success the allocator additionally clears +0x27c and +0x268, calls 48a160(0)
+(writes +0 and copies position +0x3c to +4), increments global count 73a850 and
+updates high-water value 73db0c if exceeded. It inserts the object at the tail
+of the list with sentinel 73d880, writing object links +0x10/+0x14. A further
+three-step sequence verifies tail insertion and all retained object bytes after
+each allocation, including previous-tail and sentinel updates. Failure returns
+null without those changes. Both constructor and allocator restore the exception
+chain in the fixtures. The generic 486da0 factory, class/asset initialization,
+handle assignment and completed gameplay entity creation remain outside this
+evidence. Report: `artifacts/entity-construction-verification.json`.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

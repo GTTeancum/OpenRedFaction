@@ -59,6 +59,8 @@ Shared C spawn-field extraction now matches all 1,610 entities on PC/NXDK with
 bounded raw parsing; integrate these fields into runtime construction.
 Shared entity creation-flag conversion now matches 1,152 original factory-prefix
 cases on PC/NXDK; allocation and remaining entity initialization are still open.
+Original entity constructor and type-0 allocator now pass 15 patterned cases;
+trace generic factory overlays and class/asset initialization before live spawning.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
