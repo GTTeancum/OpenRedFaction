@@ -82,6 +82,11 @@ int rf_model_attachment_transform(const float rotation[4], const float position[
 /* Reconstructed 0x51c620: row-vector local * parent, with implicit final column
  * (0,0,0,1). Aliased output is supported; errors leave it unchanged. */
 int rf_model_compose_transform(const float local[12], const float parent[12], float result[12]);
+/* 0x51ba00 after pose evaluation: compose stored bone transforms with pose,
+ * refreshing only entries whose 16-bit generation differs. Count <=256.
+ * On malformed matrices, earlier successful entries remain refreshed. */
+int rf_model_prepare_skinning(const float (*stored)[12],const float (*pose)[12],uint32_t count,
+    uint16_t generation,float (*prepared)[12],uint16_t *generations,uint32_t capacity);
 /* Collision deformation block 0x54e344: stop at first zero weight, multiply
  * by byte/256, no normalization. Matrices are prepared bone transforms.
  * This is not yet verified as the rendering skinning path. */

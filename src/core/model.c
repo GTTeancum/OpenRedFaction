@@ -5,6 +5,18 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_prepare_skinning(const float (*stored)[12],const float (*pose)[12],uint32_t count,
+    uint16_t generation,float (*prepared)[12],uint16_t *generations,uint32_t capacity)
+{
+    uint32_t i;int status;
+    if(count>256 || count>capacity || (count && (!stored || !pose || !prepared || !generations)))return RF_RANGE;
+    for(i=0;i<count;++i)if(generations[i]!=generation) {
+        status=rf_model_compose_transform(stored[i],pose[i],prepared[i]);if(status)return status;
+        generations[i]=generation;
+    }
+    return RF_OK;
+}
+
 int rf_model_lighting_setup(const rf_model_lighting_input *input,const rf_model_local_light *lights,
     const float (*colors)[3],uint32_t count,rf_model_lighting *result)
 {

@@ -11,6 +11,14 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--prepare-skinning")) {
+        struct { float stored[4][12],pose[4][12],prepared[4][12];uint16_t stamps[4],generation,pad; } data;
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            if(rf_model_prepare_skinning(data.stored,data.pose,4,data.generation,data.prepared,data.stamps,4)!=RF_OK)return 2;
+            if(fwrite(data.prepared,192,1,stdout)!=1 || fwrite(data.stamps,8,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lighting-setup")) {
         struct { rf_model_lighting_input input;rf_model_local_light lights[8];float colors[8][3]; } data;
         while(fread(&data,sizeof(data),1,stdin)==1) {

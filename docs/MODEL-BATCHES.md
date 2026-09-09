@@ -1,5 +1,22 @@
 # Model batch data
 
+`rf_model_prepare_skinning` connects the existing matrix composition helper
+to `0x51ba00`'s prepared-matrix cache. Once pose evaluation is current, original
+code composes each stored bone transform (definition +0x64, stride 76) with
+its animated pose (instance +0, stride 48) into instance +0x960, stride 48.
+It refreshes only when the entry's 16-bit stamp (+0x1396, stride 48) differs
+from instance generation +0x1cf8. The port accepts bounded caller-owned arrays
+and requires the pose to be evaluated first. It updates a stamp only after
+successful composition; malformed-input behavior is a port guard, not an
+original error-path reconstruction. Earlier successful entries remain updated.
+
+`tools/verify_prepare_skinning.py` executes complete unchanged `0x51ba00` and
+callees with pose stamps pre-current. Across 2,000 cases / 8,000 bones, 4,042
+prepared entries refresh and the remainder retain their existing contents;
+all matrices and stamps match bit-for-bit. Pose recomputation is deliberately
+outside this test's scope. PC build, CTest and NXDK build pass. Integrating the
+actual animated pose, stored transforms and deformation consumer remains open.
+
 `rf_model_lighting_setup` now assembles the complete `0x52dad0` operation from
 caller-owned model/global inputs and a candidate-light list. It scales ambient
 RGB by 255, builds both fixed directional contributions, handles the alternate

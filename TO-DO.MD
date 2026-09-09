@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Skinning-matrix preparation and generation caching now match 2,000 original
+cases across 8,000 bones. Connect actual stored transforms and animation poses
+to prepared matrices, then feed deformation, lighting and model drawing.
+
 Complete model lighting setup now matches 2,000 original-function cases.
 Connect world candidate lights and model inputs, finish second-stream/pose
 preparation, then integrate the recovered deformation and lighting into drawing.
