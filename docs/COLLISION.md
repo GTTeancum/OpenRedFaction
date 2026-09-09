@@ -559,3 +559,39 @@ capacity preserves outputs. Report: `artifacts/primary-rooms-verification.json`.
 Both builds, the child-list regression and four CTest checks pass. Loaded-world
 assembly, later list mutations, original face-finalizer rejection and XEMU query
 validation remain open.
+
+## Owned initial collision world
+
+`rf_geometry_collision_world_open` assembles owned room trees, room query views,
+the verified initial primary list, and explicit child lists under one budget.
+Each room view points to its stable owned tree and expanded bounds. Its initial
+skip byte is zero, matching constructor `0x4cccc6`; later changes to that byte
+are not inferred. Geometry can be closed after construction. The world retains
+all source-index mappings, so `rf_geometry_collision_world_ray` returns a level
+face index alongside the room, hit geometry and accepted-update count.
+
+Budget accounting includes the world object, room/view/list storage, owned
+vertices and trees, and the largest simultaneous construction scratch. Previously
+constructed rooms remain counted while subsequent rooms build. Embedded room
+and tree objects are counted once. The input geometry, allocator overhead and
+unrelated renderer/animation allocations are excluded. Failure closes partially
+constructed rooms and preserves output. Close existing objects before reuse;
+`rf_geometry_collision_world_close` releases storage and zeros the object.
+Queries reuse owned tree scratch and must be serialized per world.
+
+`python tools/verify_collision_world.py` builds all 94 worlds with an 8 MiB
+collision budget, repeats at each exact measured peak, and checks that one byte
+less fails without changing output. Every source face maps to its owning room
+and the world covers all loaded faces. One synthetic ray per nonempty room gives
+14,694 successful queries and 11,520 hits. Output bytes repeat exactly after the
+input geometry is closed and another allocation is filled with poison bytes,
+testing the independent lifetime of world storage. Across the levels, maximum
+retained storage is 2,069,416 bytes and maximum construction peak is 2,093,376
+bytes. Report: `artifacts/collision-world-verification.json`. These are collision
+storage figures, not total game memory. Both builds, the original 2,400-call room
+query regression on PC/NXDK and four CTest checks pass.
+
+This is integration of the recovered initial-data paths, not a complete original
+loader or gameplay world. Original face-finalizer rejection, later room/face
+mutations, preferred/cached queries, transforms, special face modes and sweeps
+remain open. Loaded-world guest heap and ray execution still require XEMU tests.

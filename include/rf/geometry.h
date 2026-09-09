@@ -69,4 +69,27 @@ int rf_geometry_room_children(const rf_geometry *geometry,uint32_t room,
  * No allocation; outputs unchanged on failure. */
 int rf_geometry_primary_rooms(const rf_geometry *geometry,uint32_t *indices,
     uint32_t capacity,uint32_t *count);
+typedef struct rf_geometry_collision_world {
+    void *storage;
+    rf_geometry_collision_room *rooms;
+    rf_collision_room_view *views;
+    uint32_t *primary,*children;
+    uint32_t room_count,primary_count,child_count,allocated_bytes,peak_bytes;
+} rf_geometry_collision_world;
+typedef struct rf_geometry_world_hit {
+    rf_collision_ray_hit hit;uint32_t face,room,hits;
+} rf_geometry_world_hit;
+/* Own initial room geometry and ordered lists under one peak budget. Excludes
+ * input geometry and allocator overhead; input may be closed after success.
+ * Initial +1 skip bytes are zero as in the constructor. Finalizer rejection,
+ * later mutations, caches and transforms remain unrecovered. Failure preserves
+ * output; close existing output before reuse. */
+int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget,
+    rf_geometry_collision_world *world);
+void rf_geometry_collision_world_close(rf_geometry_collision_world *world);
+/* Same supported scope as thin_rooms; returns level face identities. Shared
+ * tree scratch means calls on the same world must be serialized. */
+int rf_geometry_collision_world_ray(const rf_geometry_collision_world *world,
+    uint32_t flags,const float start[3],const float delta[3],float limit,
+    rf_geometry_world_hit *result,uint32_t *matched);
 #endif

@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Initial primary and child-room ordering now match the original across 94 levels;
-assemble budgeted loaded-world collision views, recover later room mutations
-and finalizer rejection, and validate queries in XEMU before gameplay use.
+Owned collision worlds now build and query across 94 levels below a 2.1 MB peak;
+validate the guest heap and loaded-world rays in XEMU, then recover finalizer
+rejection and mutable/query state before gameplay integration.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry
