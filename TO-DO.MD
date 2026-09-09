@@ -17,6 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The stance gate now matches 2,292 original-code cases; reconstruct crouch
+eligibility and collision effects before joining it to gameplay state selection.
+
 The Xbox scene now plays registered authored stand/walk/crouch states from the
 miner's 19-motion set; replace the diagnostic request schedule with gameplay
 state selection and add authored action/weapon-specific playback.

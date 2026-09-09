@@ -110,6 +110,19 @@ typedef struct rf_motion_movement {
  * are not included. Finite vectors and candidate indices [0,22] required. */
 int rf_motion_select_movement(rf_motion_controller *controller, const int32_t motions[23],
                               const rf_motion_movement *movement);
+enum { RF_MOTION_STANCE_NONE=0, RF_MOTION_STANCE_CROUCH=1, RF_MOTION_STANCE_STAND=2 };
+typedef struct rf_motion_stance_decision {int32_t handled;uint32_t effect;} rf_motion_stance_decision;
+/* 0x41f743..0x41f7c1 after eligibility predicates: eligible is the resolved
+ * 402ab0 && 429ae0 result. entity_flags is +810; bit 400 is physical crouch.
+ * Requests the supplied special state, then asks for crouch geometry only once
+ * that state is current with zero transition duration. Ineligible actors ask
+ * to stand when physically crouched, then continue movement selection.
+ * Caller MUST apply a requested effect through the corresponding physics path
+ * (4289d0/428a60) before continuing; this function does not change colliders.
+ * Finite controller times, eligible 0/1 and state [0,22] required. Errors leave
+ * controller/decision unchanged. handled=1 stops the remaining selector. */
+int rf_motion_select_stance(rf_motion_controller *controller,const int32_t motions[23],
+    int32_t special_state,uint32_t eligible,uint32_t entity_flags,rf_motion_stance_decision *decision);
 typedef struct rf_motion_priority {
     int32_t forced_state;
     uint32_t flags, physics_flags;

@@ -121,6 +121,21 @@ int rf_motion_select_movement(rf_motion_controller *controller, const int32_t mo
     if (selected<0 || rf_motion_has_state(controller,selected)) return RF_OK;
     return rf_motion_request_state(controller,motions,selected,.25f);
 }
+int rf_motion_select_stance(rf_motion_controller *controller,const int32_t motions[23],
+    int32_t special_state,uint32_t eligible,uint32_t entity_flags,rf_motion_stance_decision *decision)
+{
+    rf_motion_stance_decision value={0,RF_MOTION_STANCE_NONE};int status;
+    if(!controller || !motions || !decision || special_state<0 || special_state>=23 || eligible>1)return RF_RANGE;
+    if(!isfinite(controller->duration) || !isfinite(controller->elapsed))return RF_FORMAT;
+    if(eligible) {
+        value.handled=1;
+        if(!rf_motion_has_state(controller,special_state)) {
+            status=rf_motion_request_state(controller,motions,special_state,.25f);if(status)return status;
+        } else if(!(entity_flags&0x400u) && controller->current==special_state && controller->duration==0)
+            value.effect=RF_MOTION_STANCE_CROUCH;
+    } else if(entity_flags&0x400u)value.effect=RF_MOTION_STANCE_STAND;
+    *decision=value;return RF_OK;
+}
 
 int rf_motion_request_state(rf_motion_controller *controller, const int32_t motions[23],
                             int32_t requested, float duration)

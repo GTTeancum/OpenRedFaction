@@ -323,6 +323,27 @@ bone overrides, actual gameplay camera or animated character rendering.
 callees. It compares all controller fields and adds two C-only rejection cases.
 Report: `artifacts/motion-movement-verification.json`. Earlier priority,
 candidate selection and physics/AI behavior are outside this verification.
+# Animation stance gate
+
+`python tools/verify_motion_stance.py` matches 2,292 executions beginning at
+`0x41f743` (eligible) or `0x41f7ab` (ineligible) against
+`rf_motion_select_stance`. It runs the original membership, request and physical
+crouch-query functions unchanged, then stops before collider mutation, return,
+or the movement tail. Results include 1,439 no-effect cases, 60 enter-crouch
+requests and 793 stand-up requests, with exact controller bytes and decision
+outputs. A further 108 port guards reject invalid state/eligibility or nonfinite
+duration while preserving output. Report: `artifacts/motion-stance-verification.json`.
+
+The helper requests the selected special state with a 0.25-second blend, or
+requests crouch geometry once that state is current and transition duration is
+zero. An ineligible physically crouched entity requests a stand attempt and
+continues into movement selection. Eligibility is supplied by the caller; this
+does not reconstruct `0x402ab0`, `0x429ae0`, crouch geometry mutation `0x4289d0`,
+or stand-up collision checking `0x428a60`. Callers must apply the requested
+physics effect before continuing. It is not yet connected to scene playback.
+PC and NXDK builds and all four registered CTest checks pass; no new visual
+output is introduced by this helper.
+
 # Animation priority prefix
 
 `python tools/verify_motion_priority.py` matches 5,010 executions of the original
