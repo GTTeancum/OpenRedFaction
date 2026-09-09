@@ -219,3 +219,22 @@ section exhaustion. NXDK compilation passes. Report:
 `artifacts/event-reader-verification.json`. This is layout verification, not
 execution equivalence with the original parser. Owned event lifetime, type
 construction, registration, scheduling and event actions remain open.
+
+
+## Owned event input storage
+
+`rf_level_owned_events_open/close` retain all decoded records and raw ordered
+links in one budgeted allocation, independently of the source archive and
+level object. As with owned triggers, source offsets remain provenance only;
+opening requires stable source data and an empty destination. Errors preserve
+output, and repeated close clears the owner. Budget accounting includes owner
+and heap payload, excluding allocator overhead and bounded stack scratch.
+
+The expanded event verifier passes all 93 levels, 4,446 records and 4,901 links
+after archive closure and level-object overwrite. Exact budgets succeed,
+one-byte-short budgets fail without changing output, and repeat-close checks
+pass. Maximum accounted PC allocation is 212,044 bytes, including host pointer
+sizes. NXDK compilation passes, but event ownership has not yet been exercised
+in XEMU. This provides persistent inputs, not registered runtime events or
+scheduling/action behavior. Integrate both owners in the Xbox level lifetime,
+then attach ordered registries and reconstruct event initialization/dispatch.

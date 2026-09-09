@@ -8,6 +8,9 @@ def string(s):
  return b+bytes(256-len(b))
 for level in inventory['results']:
  raw=subprocess.check_output([str(root/'build/pc/Release/rf_level_entity_probe.exe'),str(root/'Installed_Game'/level['archive']),level['file'],'--events'])
+ owned=subprocess.run([str(root/'build/pc/Release/rf_level_entity_probe.exe'),str(root/'Installed_Game'/level['archive']),level['file'],'--owned-events'],capture_output=True,check=True)
+ assert owned.stdout==raw,(level['file'],'owned lifetime')
+ owned_bytes=int(owned.stderr)
  count,=struct.unpack_from('<I',raw);assert count==len(level['records']);at=4
  for r in level['records']:
   orientation=r['orientation_disk'];link_offset=r['offset']+r['bytes']-4-(36 if orientation else 0)-len(r['links'])*4
@@ -18,6 +21,6 @@ for level in inventory['results']:
   links=struct.pack('<'+'I'*len(r['links']),*r['links'])
   assert raw[at:at+len(links)]==links;at+=len(links)
  assert at==len(raw)
- results.append(dict(file=level['file'],events=count,links=sum(len(r['links']) for r in level['records'])))
-report=dict(result='PASS',levels=len(results),events=sum(r['events'] for r in results),links=sum(r['links'] for r in results),scope='PC C reader vs independent Python inventory: every preserved field and ordered link, each record one-byte truncation with output/cursor preservation, link bounds and exact EOF. No original parser execution, owned events or runtime actions.',results=results)
+ results.append(dict(file=level['file'],owned_bytes=owned_bytes,events=count,links=sum(len(r['links']) for r in level['records'])))
+report=dict(result='PASS',levels=len(results),events=sum(r['events'] for r in results),links=sum(r['links'] for r in results),max_owned_bytes=max(r['owned_bytes'] for r in results),scope='PC C reader vs independent Python inventory: every preserved field and ordered link, each record one-byte truncation with output/cursor preservation, link bounds and exact EOF. Owned records and links match after archive closure/level overwrite; exact budgets, short-budget output preservation and repeat-close checks pass. No original parser execution, Xbox ownership execution or runtime actions.',results=results)
 (root/'artifacts/event-reader-verification.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})

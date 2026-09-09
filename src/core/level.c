@@ -930,3 +930,40 @@ int rf_level_event_link(const rf_level *level,const rf_level_event *event,uint32
     if(offset>section->size || section->size-offset<4)return RF_RANGE;
     status=rf_level_read(level,section,(uint32_t)offset,raw,4);if(!status)*uid=le32(raw);return status;
 }
+
+void rf_level_owned_events_close(rf_level_owned_events *events)
+{
+    if(events) {free(events->storage);memset(events,0,sizeof(*events));}
+}
+int rf_level_owned_events_open(const rf_level *level,uint32_t budget,rf_level_owned_events *result)
+{
+    rf_level_owned_events value={0};rf_level_event_reader reader;rf_level_event record;
+    uint64_t bytes;uint32_t i,j;unsigned char *cursor,*end;int status;
+    if(!level || !result)return RF_RANGE;
+    status=rf_level_events_begin(level,&reader);if(status)return status;
+    value.count=reader.count;bytes=sizeof(value)+(uint64_t)value.count*sizeof(*value.items);
+    if(bytes>budget)return RF_RANGE;
+    while((status=rf_level_event_next(&reader,&record))==RF_OK) {
+        bytes+=(uint64_t)record.link_count*4;if(bytes>budget)return RF_RANGE;
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    value.allocated_bytes=(uint32_t)bytes;
+    if(!value.count) {*result=value;return RF_OK;}
+    value.storage=calloc(1,(size_t)(bytes-sizeof(value)));if(!value.storage)return RF_RANGE;
+    value.items=(rf_level_owned_event *)value.storage;
+    cursor=(unsigned char *)(value.items+value.count);end=(unsigned char *)value.storage+bytes-sizeof(value);
+    status=rf_level_events_begin(level,&reader);if(status)goto failed;
+    if(reader.count!=value.count) {status=RF_FORMAT;goto failed;}
+    for(i=0;i<value.count;++i) {
+        rf_level_owned_event *item=value.items+i;
+        status=rf_level_event_next(&reader,&item->record);if(status)goto failed;
+        if((uint64_t)item->record.link_count*4>(uint64_t)(end-cursor)) {status=RF_FORMAT;goto failed;}
+        item->links=(uint32_t *)cursor;cursor+=item->record.link_count*4;
+        for(j=0;j<item->record.link_count;++j)
+            if((status=rf_level_event_link(level,&item->record,j,item->links+j)))goto failed;
+    }
+    if(cursor!=end) {status=RF_FORMAT;goto failed;}
+    *result=value;return RF_OK;
+ failed:
+    rf_level_owned_events_close(&value);return status;
+}

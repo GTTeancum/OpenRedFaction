@@ -33,7 +33,10 @@ The bounded event inventory now exhausts 4,446 records and 4,901 links across
 and UnHide (8695). Reconstruct their target resolution and runtime actions;
 the shared C event reader now matches all 4,446 records and 4,901 links across
 93 levels, with truncation, link bounds and exact EOF checks. NXDK builds;
-persistent event ownership and runtime actions remain open. Owned trigger
+owned event inputs now retain every record/link after archive closure across
+93 PC level checks (max 212,044 accounted bytes), with exact/short budgets and
+repeat-close checks passing. Connect event ownership to Xbox; event runtime
+registration, scheduling and actions remain open. Owned trigger
 inputs now retain all 2,367 records and 4,471 links after archive closure in PC
 checks across 93 levels (max 55,696 accounted bytes); exact budget, short-budget
 failure and repeat-close checks pass. NXDK builds; connect ownership to Xbox

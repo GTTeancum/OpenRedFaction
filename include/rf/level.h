@@ -323,4 +323,17 @@ typedef rf_level_group_reader rf_level_event_reader;
 int rf_level_events_begin(const rf_level *level,rf_level_event_reader *reader);
 int rf_level_event_next(rf_level_event_reader *reader,rf_level_event *event);
 int rf_level_event_link(const rf_level *level,const rf_level_event *event,uint32_t index,uint32_t *uid);
+typedef struct rf_level_owned_event {
+    rf_level_event record;uint32_t *links;
+} rf_level_owned_event;
+typedef struct rf_level_owned_events {
+    void *storage;rf_level_owned_event *items;uint32_t count,allocated_bytes;
+} rf_level_owned_events;
+/* One bounded allocation, authored order and raw links; budget includes owner
+ * and heap payload, excluding allocator overhead and bounded stack scratch.
+ * Source must stay stable during open, may close afterward. Errors preserve
+ * output. Open requires an empty destination; close is repeatable. No runtime
+ * activation or UID conversion. Record offsets remain source provenance only. */
+int rf_level_owned_events_open(const rf_level *level,uint32_t budget,rf_level_owned_events *result);
+void rf_level_owned_events_close(rf_level_owned_events *events);
 #endif
