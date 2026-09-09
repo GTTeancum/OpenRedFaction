@@ -32,4 +32,19 @@ typedef struct rf_collision_face_filter {
  * bits remain unresolved. accepted=1 proceeds to geometric testing. Invalid
  * signed-word/byte/boolean views preserve accepted. */
 int rf_collision_face_accept(const rf_collision_face_filter *filter,uint32_t *accepted);
+typedef struct rf_collision_face {
+    float plane[4],minimum[3],maximum[3];
+    const float (*vertices)[3];uint32_t count;
+    rf_collision_face_filter filter;
+} rf_collision_face;
+typedef struct rf_collision_ray_hit {float fraction,point[3],normal[3];} rf_collision_ray_hit;
+/* Thin, zero-radius geometric path of 4dec10. Includes filters, box, plane,
+ * nearest-fraction gate and polygon containment. Accepted hits replace result;
+ * misses/errors preserve it. matched is set only on success. Texture-check
+ * flags 0x80/0x100 are currently unsupported (RF_NOT_FOUND after filtering).
+ * The crouch visibility mask 0x27 maps to supported internal flags 0x461.
+ * Finite data and fraction limit [0,1] required. Coplanar NaN is a port FORMAT
+ * error. This does not walk the world, increment original counters or own faces. */
+int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
+    const float displacement[3],float limit,rf_collision_ray_hit *result,uint32_t *matched);
 #endif

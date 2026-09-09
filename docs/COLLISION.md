@@ -144,3 +144,34 @@ owner fields, plus random full words and signed limits. Another 316 guards
 pass, totaling 28,672 PC/NXDK fixtures. Report:
 `artifacts/collision-filter-verification.json`. This does not cover the later
 texture-based rejection or nearest-hit/result-record updates in `0x4dec10`.
+
+## Combined thin-face query
+
+`rf_collision_thin_face` now joins the filter, bounding-box, one-sided plane,
+nearest-fraction and projected containment tests into a caller-owned face view.
+It constructs the endpoint with float addition, and constructs the intersection
+with separate float multiply/add stores, matching the original vector helpers.
+Equal fractions pass the nearest-fraction gate. Accepted results publish fraction,
+point and plane normal; misses and errors preserve the prior result. There is
+no allocation, world traversal or original global counter mutation.
+
+The crouch-visibility external mask `0x27` converts through original `0x499190`
+to internal `0x461`; this supported mode does not invoke later texture sampling.
+Other texture-check flags `0x80/0x100` return RF_NOT_FOUND after filtering until
+that branch is recovered. Swept radii are outside this API. Nonfinite or
+out-of-range fraction limits and a coplanar NaN fraction return RF_FORMAT;
+these are explicit port guards, not claims of original degenerate-ray behavior.
+
+`python tools/verify_collision_thin.py` compares 6,000 complete original
+`0x4dec10` calls with zero radius and flags `0x461`: 126 accepted hits, matching
+every fraction/point/normal byte. All original geometric and filter callees run
+unchanged; the fixture starts with original static scratch initialization marked
+complete to avoid process-exit registration. The original output count starts
+at zero and the fraction limit varies among 0.25, 0.5 and 1. Faces use rectangles
+on each signed axis with varied filters and rays. This does not prove arbitrary
+polygon integration beyond the separately tested containment primitive.
+Three port guards check unsupported flags, a NaN limit and coplanar input with
+unchanged output. All 6,003 cases also run the NXDK-linked routine in Unicorn.
+Report: `artifacts/collision-thin-verification.json`. PC/NXDK builds and four
+CTest checks pass. Real level-face binding and traversal are the next integration
+steps; this function is not yet used by the running diagnostic scene.

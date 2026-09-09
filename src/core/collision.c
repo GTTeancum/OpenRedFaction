@@ -217,3 +217,28 @@ int rf_collision_face_accept(const rf_collision_face_filter *filter,uint32_t *ac
  done:
     *accepted=value;return RF_OK;
 }
+
+int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
+    const float displacement[3],float limit,rf_collision_ray_hit *result,uint32_t *matched)
+{
+    rf_collision_ray_hit value;float end[3],box_point[3];uint32_t hit,j;int status;
+    if(!face || !start || !displacement || !result || !matched)return RF_RANGE;
+    if(!isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    status=rf_collision_face_accept(&face->filter,&hit);if(status)return status;
+    if(!hit) {*matched=0;return RF_OK;}
+    if(face->filter.query_flags&0x180u)return RF_NOT_FOUND;
+    for(j=0;j<3;j++) {
+        if(!isfinite(start[j]) || !isfinite(displacement[j]))return RF_FORMAT;
+        end[j]=start[j]+displacement[j];
+    }
+    status=rf_collision_segment_box(face->minimum,face->maximum,start,end,box_point,&hit);if(status)return status;
+    if(!hit) {*matched=0;return RF_OK;}
+    status=rf_collision_segment_plane(start,displacement,face->plane,&value.fraction,&hit);if(status)return status;
+    if(!hit) {*matched=0;return RF_OK;}
+    if(!isfinite(value.fraction))return RF_FORMAT;
+    for(j=0;j<3;j++) {volatile float scaled=displacement[j]*value.fraction;value.point[j]=start[j]+scaled;value.normal[j]=face->plane[j];}
+    if(value.fraction>limit) {*matched=0;return RF_OK;}
+    status=rf_collision_polygon_contains(face->plane,value.point,face->vertices,face->count,&hit);if(status)return status;
+    if(hit)*result=value;
+    *matched=hit;return RF_OK;
+}

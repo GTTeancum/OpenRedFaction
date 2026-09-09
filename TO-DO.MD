@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The combined zero-radius face query now matches 6,000 complete original calls
+on PC and NXDK; connect real level faces and world traversal, then recover
+texture-check modes and swept actor collision.
+
 The candidate face filter now matches 28,356 original cases on PC and NXDK;
 join it to geometric tests, recover later texture rejection and hit updates,
 then implement world traversal.
