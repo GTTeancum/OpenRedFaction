@@ -44,6 +44,50 @@ static uint32_t group_runtime_hash(void)
     }
     return hash;
 }
+static rf_level_owned_triggers resident_triggers;
+static rf_level_owned_events resident_events;
+volatile uint32_t rf_level_logic_diagnostic[10]={0x52464c47u};
+static uint32_t logic_hash_part(uint32_t hash,const void *data,uint32_t bytes)
+{
+    uint32_t i;for(i=0;i<bytes;++i)hash=(hash^((const unsigned char *)data)[i])*16777619u;
+    return hash;
+}
+static uint32_t logic_storage_hash(void)
+{
+    uint32_t i,hash=2166136261u;
+    for(i=0;i<resident_triggers.count;++i) {
+        const rf_level_owned_trigger *v=resident_triggers.items+i;
+        hash=logic_hash_part(hash,&v->record,sizeof(v->record));
+        hash=logic_hash_part(hash,v->links,v->record.link_count*4);
+    }
+    for(i=0;i<resident_events.count;++i) {
+        const rf_level_owned_event *v=resident_events.items+i;
+        hash=logic_hash_part(hash,&v->record,sizeof(v->record));
+        hash=logic_hash_part(hash,v->links,v->record.link_count*4);
+    }
+    return hash;
+}
+static int logic_storage_check(void)
+{
+    uint32_t hash=logic_storage_hash();rf_level_logic_diagnostic[8]=hash;rf_level_logic_diagnostic[9]++;
+    if(hash!=rf_level_logic_diagnostic[7]) {rf_level_logic_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
+    return RF_OK;
+}
+static int logic_storage_open(const rf_level *level)
+{
+    uint32_t i;int status=rf_level_owned_triggers_open(level,512u*1024u,&resident_triggers);
+    if(!status)status=rf_level_owned_events_open(level,512u*1024u-resident_triggers.allocated_bytes,&resident_events);
+    if(status) {
+        rf_level_owned_triggers_close(&resident_triggers);rf_level_owned_events_close(&resident_events);
+        rf_level_logic_diagnostic[1]=(uint32_t)status;return status;
+    }
+    rf_level_logic_diagnostic[1]=1;rf_level_logic_diagnostic[2]=resident_triggers.count;
+    rf_level_logic_diagnostic[3]=resident_events.count;
+    rf_level_logic_diagnostic[4]=resident_triggers.allocated_bytes+resident_events.allocated_bytes;
+    for(i=0;i<resident_triggers.count;++i)rf_level_logic_diagnostic[5]+=resident_triggers.items[i].record.link_count;
+    for(i=0;i<resident_events.count;++i)rf_level_logic_diagnostic[6]+=resident_events.items[i].record.link_count;
+    rf_level_logic_diagnostic[7]=logic_storage_hash();return RF_OK;
+}
 static rf_level_owned_groups resident_groups;
 volatile uint32_t rf_group_storage_diagnostic[10]={0x52464753u};
 static uint32_t group_storage_hash(void)
@@ -59,7 +103,8 @@ static uint32_t group_storage_hash(void)
 }
 static int group_storage_check(void)
 {
-    uint32_t hash=group_storage_hash();rf_group_storage_diagnostic[8]=hash;rf_group_storage_diagnostic[9]++;
+    uint32_t hash;if(logic_storage_check())return RF_FORMAT;
+    hash=group_storage_hash();rf_group_storage_diagnostic[8]=hash;rf_group_storage_diagnostic[9]++;
     if(hash!=rf_group_storage_diagnostic[7]) {rf_group_storage_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
     hash=group_runtime_hash();rf_group_runtime_diagnostic[7]=hash;
     if(hash!=rf_group_runtime_diagnostic[6]) {rf_group_runtime_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
@@ -67,7 +112,8 @@ static int group_storage_check(void)
 }
 static int group_storage_open(const rf_level *level)
 {
-    uint32_t i;int status=rf_level_owned_groups_open(level,256u*1024u,&resident_groups);
+    uint32_t i;int status=logic_storage_open(level);if(status)return status;
+    status=rf_level_owned_groups_open(level,256u*1024u,&resident_groups);
     rf_group_storage_diagnostic[1]=status?(uint32_t)status:1;if(status)return status;
     rf_group_storage_diagnostic[2]=resident_groups.count;rf_group_storage_diagnostic[3]=resident_groups.allocated_bytes;
     for(i=0;i<resident_groups.count;i++) {

@@ -238,3 +238,20 @@ sizes. NXDK compilation passes, but event ownership has not yet been exercised
 in XEMU. This provides persistent inputs, not registered runtime events or
 scheduling/action behavior. Integrate both owners in the Xbox level lifetime,
 then attach ordered registries and reconstruct event initialization/dispatch.
+
+
+## Xbox retained level logic checkpoint
+
+The Xbox level path now opens both owners before controller storage, sharing a
+512 KiB budget and retaining them for the diagnostic level lifetime. Combined
+record/link hashes are checked alongside the existing group lifetime checks,
+including after the level archive closes. This integrates owned inputs, not
+runtime registration, scheduling, trigger eligibility or event actions.
+
+64 MiB XEMU run `artifacts/xemu/20260909-110830-561169/report.json` passes:
+61 triggers, 184 events, 188 trigger links and 199 event links occupy 253,804
+accounted bytes. All fields and links match PC hash `0a544e5f` through 66
+lifetime checks (initialization, rendered actor frames and archive closure).
+The subsequent 600-frame door diagnostic still matches every PC mesh hash,
+with trace `22d17eea`; its four controllers remain explicitly activated by the
+diagnostic. No new framebuffer capture was taken.

@@ -41,6 +41,11 @@ inputs now retain all 2,367 records and 4,471 links after archive closure in PC
 checks across 93 levels (max 55,696 accounted bytes); exact budget, short-budget
 failure and repeat-close checks pass. NXDK builds; connect ownership to Xbox
 runtime, ordered registries and activation.
+Both owners now run in the Xbox level path under a shared 512 KiB budget.
+64 MiB XEMU retains 61 triggers, 184 events and 387 links (253,804 bytes),
+matching PC hashes through 66 lifetime checks and archive closure. The
+600-frame door diagnostic still passes; connect runtime registration and
+authored trigger/event execution to replace explicit diagnostic activation.
 Original dispatch 4c0320 now passes four door-list execution cases, preserving
 interleaved mover/event order and mover suppression. The fixture uses synthetic
 registered handles and intercepts downstream actions. The verifier now also

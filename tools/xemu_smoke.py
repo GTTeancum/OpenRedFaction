@@ -95,6 +95,18 @@ def main():
     mover_symbol=re.search(r'_rf_mover_diagnostic\s+([0-9a-fA-F]+)',map_text)
     if not mover_symbol:raise RuntimeError('Mover diagnostic symbol absent')
     mover_reference=list(map(int,subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--combined-world',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl']).split()))
+    logic_symbol=re.search(r'_rf_level_logic_diagnostic\s+([0-9a-fA-F]+)',map_text)
+    if not logic_symbol:raise RuntimeError('Owned level logic symbol absent')
+    logic_payload=bytearray();logic_counts=[];logic_links=[];logic_bytes=32
+    for kind,size,stride in [('triggers',668,672),('events',1144,1148)]:
+        payload=subprocess.check_output([str(root/'build/pc/Release/rf_level_entity_probe.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','--'+kind])
+        count,=struct.unpack_from('<I',payload);logic_counts.append(count);cursor=4;links=0
+        for i in range(count):
+            link_count,=struct.unpack_from('<I',payload,cursor+16);links+=link_count;cursor+=size+4*link_count
+        assert cursor==len(payload)
+        logic_links.append(links);logic_bytes+=count*stride+4*links;logic_payload+=payload[4:]
+    logic_hash=2166136261
+    for byte in logic_payload:logic_hash=((logic_hash^byte)*16777619)&0xffffffff
     group_symbol=re.search(r'_rf_group_storage_diagnostic\s+([0-9a-fA-F]+)',map_text)
     if not group_symbol:raise RuntimeError('Owned group diagnostic symbol absent')
     group_raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--owned-groups',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl'])
@@ -240,6 +252,14 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     if len(mover)!=12 or mover[:3]!=[0x52464d56,1,mover_reference[1]] or mover[5:10]!=want or mover[11] or not 0<mover[10]<=words[3] or mover[3]+collision[2]!=mover_reference[7] or mover[4]<mover[3]:
                         raise RuntimeError(f'Guest combined mover query differs from PC: {mover}; reference {mover_reference}')
                     report['collision_movers']=dict(count=mover[2],retained_bytes=mover[3],peak_bytes=mover[4],queries=mover[5],hits=mover[6],moving_hits=mover[7],static_hits=mover[8],checksum=hex(mover[9]),available_bytes_after_build=mover[10]*4096,scope='Initial owned movers retained with world/rendering. Combined ray output and nullable visibility match PC; diagnostic handles, no gameplay registration or pose updates.')
+                    logic_reply=monitor.command('human-monitor-command',{'command-line':f'x /10wx 0x{int(logic_symbol[1],16):x}'})
+                    logic=[]
+                    for line in logic_reply.splitlines():
+                        if ':' in line:logic.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
+                    logic_want=[0x52464c47,1,*logic_counts,logic_bytes,*logic_links,logic_hash,logic_hash]
+                    if len(logic)!=10 or logic[:9]!=logic_want or logic[9]<(66 if args.scene_states else 2):
+                        raise RuntimeError(f'Owned level logic differs: {logic}; expected {logic_want}')
+                    report['level_logic']=dict(triggers=logic[2],events=logic[3],retained_bytes=logic[4],trigger_links=logic[5],event_links=logic[6],hash=hex(logic[8]),lifetime_checks=logic[9],scope='Owned records and raw links match PC through archive closure; no runtime registration or activation.')
                     group_reply=monitor.command('human-monitor-command',{'command-line':f'x /10wx 0x{int(group_symbol[1],16):x}'})
                     groups=[]
                     for line in group_reply.splitlines():
