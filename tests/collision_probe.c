@@ -9,6 +9,48 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==4 && !strcmp(argv[1],"--rooms")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;uint32_t room,total=0,nodes=0,peak=0,queries=0,hits=0;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,8u*1024u*1024u))return 3;
+        for(room=0;room<geometry.rooms;room++) {
+            rf_geometry_collision_room owned={0},guard,sentinel;uint32_t i,j,k;
+            if(rf_geometry_collision_room_open(&geometry,room,8u*1024u*1024u,&owned))return 4;
+            memset(&guard,0xa5,sizeof(guard));sentinel=guard;
+            if(rf_geometry_collision_room_open(&geometry,room,owned.peak_bytes-1,&guard)!=RF_RANGE || memcmp(&guard,&sentinel,sizeof(guard)))return 5;
+            if(rf_geometry_collision_room_open(&geometry,room,owned.peak_bytes,&guard))return 6;
+            rf_geometry_collision_room_close(&guard);
+            total+=owned.tree.face_count;nodes+=owned.tree.node_count;if(owned.peak_bytes>peak)peak=owned.peak_bytes;
+            for(i=0;i<owned.tree.face_count;i++) {
+                rf_geometry_face original;rf_collision_face *face=owned.tree.faces+i;
+                float start[3]={0},delta[3],limit=1;uint32_t matched,brute=0;
+                rf_collision_tree_hit result;rf_collision_ray_hit hit;
+                if(rf_geometry_get_face(&geometry,owned.tree.source_indices[i],&original) || original.room!=room || original.corners!=face->count)return 7;
+                for(j=0;j<i;j++)if(owned.tree.source_indices[j]==owned.tree.source_indices[i])return 8;
+                for(j=0;j<face->count;j++) {
+                    rf_geometry_corner corner;float position[3];
+                    if(rf_geometry_get_corner(&geometry,owned.tree.source_indices[i],j,&corner) || rf_geometry_vertex(&geometry,corner.vertex,position) || memcmp(position,face->vertices[j],12))return 9;
+                    for(k=0;k<3;k++)start[k]+=position[k];
+                }
+                /* Skew synthetic rays to avoid coplanar parallel rays against
+                 * adjacent faces (the primitive intentionally preserves NaN). */
+                for(j=0;j<3;j++) {start[j]=start[j]/face->count+face->plane[j]+0.0037f*(j+1);delta[j]=-2*face->plane[j]+0.0013f*(j+1);}
+                /* Nearest mode: equal-depth identities can differ with traversal order. */
+                for(j=0;j<owned.tree.face_count;j++) {
+                    rf_collision_face candidate=owned.tree.faces[j];uint32_t accepted;
+                    candidate.filter.query_flags=0x460;
+                    {int status=rf_collision_thin_face(&candidate,start,delta,limit,&hit,&accepted);if(status) {fprintf(stderr,"room %u ray %u candidate %u status %d\n",room,i,j,status);return 10;}}
+                    if(accepted) {brute=1;limit=hit.fraction;}
+                }
+                if(rf_collision_thin_tree(owned.tree.nodes,owned.tree.node_count,owned.tree.faces,owned.tree.face_count,0x460,start,delta,1,owned.tree.stack,owned.tree.node_capacity,&result,&matched))return 11;
+                if(matched!=brute || (matched && result.hit.fraction!=limit))return 12;
+                queries++;hits+=matched;
+            }
+            rf_geometry_collision_room_close(&owned);
+        }
+        if(total!=geometry.faces)return 13;
+        printf("%u %u %u %u %u %u\n",geometry.rooms,total,nodes,peak,queries,hits);
+        rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
+    }
     if(argc==4 && (!strcmp(argv[1],"--level") || !strcmp(argv[1],"--level-initial"))) {
         int initial=!strcmp(argv[1],"--level-initial");
         rf_vpp archive;rf_level level;rf_geometry geometry;float scratch[256][3];

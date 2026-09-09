@@ -380,3 +380,36 @@ this does not validate the guest heap in XEMU. Report:
 `artifacts/collision-builder-verification.json`. PC/NXDK builds and all four
 CTest checks pass. Stable loaded-face storage, per-room ownership, world room
 selection and gameplay integration remain open.
+
+## Owned initial room geometry
+
+`rf_geometry_collision_room_open` binds all file faces whose room index matches
+the requested room, in file order, using initial collision metadata. It copies
+each face's ordered vertices into owned storage and builds the recovered tree.
+Tree source indices are translated back to level face indices. The resulting
+object does not borrow the input geometry; close it with
+`rf_geometry_collision_room_close`. Budget accounting covers the object, owned
+vertices, retained tree, temporary input views/index mapping and tree construction
+scratch. The input geometry and allocator metadata are excluded. Failures preserve
+the output; a previously open output must be closed before reuse.
+
+This is a new integration layer around recovered primitives. It does not claim
+that file order is the final original runtime room-list order. Detail-room
+attachment, post-load face changes, world room selection, moving geometry and
+mutable damage/Geo-Mod state remain unresolved. No world-query facade substitutes
+an all-room scan for that missing behavior.
+
+`python tools/verify_collision_rooms.py` passes 94 levels and 460,720 faces on PC.
+Every room is built with a generous budget, then rebuilt at its reported exact
+peak budget; one byte less must fail with preserved output. Checks verify exact
+source vertices, room membership, unique source face identities, total face
+coverage, and nearest-ray hit/fraction agreement with exhaustive per-room face
+queries. Rays are slightly skewed from face normals to avoid the already-known
+coplanar/parallel NaN primitive result on adjacent faces; this is a synthetic
+integration test, not an original-world-query comparison. Live Mines has 54
+rooms, 7,418 faces and 1,272 tree nodes. Its largest single-room peak is 194,095
+bytes; the maximum across all levels is 826,739 bytes. Rooms are tested sequentially,
+so these figures do not describe total resident world memory. Report:
+`artifacts/collision-rooms-verification.json`. Both builds pass, as do the 600-case
+original builder regression on PC/NXDK and four CTest checks. Guest heap and full
+room integration have not yet been tested in XEMU.

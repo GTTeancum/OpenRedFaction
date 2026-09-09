@@ -44,4 +44,17 @@ int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
  * No allocation; output unchanged on failure. */
 int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t index,
     uint32_t query_flags,rf_collision_face_filter *filter);
+typedef struct rf_geometry_collision_room {
+    rf_collision_tree tree;
+    float (*vertices)[3];
+    uint32_t room,allocated_bytes,peak_bytes;
+} rf_geometry_collision_room;
+/* Initial file-order room faces with owned vertices and tree. Source indices
+ * are level face indices. Budget includes object, storage and build scratch,
+ * excluding allocator metadata and the input geometry. Geometry may be closed
+ * after success. No world selection or mutable room/face state is inferred.
+ * Failure preserves output; close an existing object before reusing it. */
+int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
+    uint32_t budget,rf_geometry_collision_room *result);
+void rf_geometry_collision_room_close(rf_geometry_collision_room *room);
 #endif

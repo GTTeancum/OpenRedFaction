@@ -237,3 +237,46 @@ int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t in
     value.owner_present=1;value.owner_kind=room[34];value.owner_state=f32(room+36)>0?0:1;
     *filter=value;return RF_OK;
 }
+
+void rf_geometry_collision_room_close(rf_geometry_collision_room *room)
+{
+    if(room) {rf_collision_tree_close(&room->tree);free(room->vertices);memset(room,0,sizeof(*room));}
+}
+int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
+    uint32_t budget,rf_geometry_collision_room *result)
+{
+    rf_geometry_collision_room value={0};rf_collision_face *faces=NULL;
+    uint32_t *indices=NULL,count=0,i,at=0,vertex=0;uint64_t corners=0,base,temporary;
+    rf_geometry_face face;int status;
+    if(!geometry || !geometry->data || !result || room>=geometry->rooms)return RF_RANGE;
+    for(i=0;i<geometry->faces;i++) {
+        status=rf_geometry_get_face(geometry,i,&face);if(status)return status;
+        if(face.room==room) {count++;corners+=face.corners;}
+    }
+    base=sizeof(value)+corners*12;temporary=(uint64_t)count*(sizeof(*faces)+sizeof(*indices));
+    if(base+temporary>budget)return RF_RANGE;
+    value.room=room;
+    if(count) {
+        value.vertices=(float(*)[3])malloc((size_t)(corners*12));
+        faces=(rf_collision_face*)malloc((size_t)temporary);
+        if(!value.vertices || !faces) {status=RF_IO;goto done;}
+        indices=(uint32_t*)(faces+count);
+    }
+    for(i=0;i<geometry->faces;i++) {
+        rf_collision_face_filter filter;
+        status=rf_geometry_get_face(geometry,i,&face);if(status)goto done;
+        if(face.room!=room)continue;
+        status=rf_geometry_initial_collision_filter(geometry,i,0,&filter);if(status)goto done;
+        status=rf_geometry_collision_face(geometry,i,&filter,value.vertices+vertex,face.corners,faces+at);if(status)goto done;
+        indices[at++]=i;vertex+=face.corners;
+    }
+    status=rf_collision_tree_open(faces,count,(uint32_t)(budget-base-temporary+sizeof(value.tree)),&value.tree);
+    if(status)goto done;
+    for(i=0;i<count;i++)value.tree.source_indices[i]=indices[value.tree.source_indices[i]];
+    value.allocated_bytes=(uint32_t)(base+value.tree.allocated_bytes-sizeof(value.tree));
+    value.peak_bytes=(uint32_t)(base+temporary+value.tree.peak_bytes-sizeof(value.tree));
+ done:
+    free(faces);
+    if(status) {rf_geometry_collision_room_close(&value);return status;}
+    *result=value;return RF_OK;
+}
