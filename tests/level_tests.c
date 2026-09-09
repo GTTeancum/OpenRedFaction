@@ -47,6 +47,24 @@ int main(void)
     word(4200, 1); CHECK(run(&level, &archive) == RF_FORMAT); rf_vpp_close(&archive); word(4200, 0);
     word(2108, 111); CHECK(run(&level, &archive) != RF_OK); rf_vpp_close(&archive);
     /* One minimal variable-length entity after level info, before the end marker. */
+    {
+        unsigned char raw[156]={0};rf_level_owned_entity item={0};rf_level_entity_spawn fields,saved;
+        unsigned cut,flag;raw[0]=123;raw[57]=9;raw[61]=255;raw[62]=255;raw[63]=255;raw[64]=255;
+        raw[65]=0xef;raw[66]=0xbe;item.raw=raw;item.record.uid=123;item.record.bytes=155;
+        for(flag=0;flag<4;++flag) {
+            raw[135]=(unsigned char)(flag?flag==1?1:flag==2?2:255:0);raw[149]=raw[135];
+            CHECK(rf_level_entity_spawn_read(&item,&fields)==RF_OK);
+            CHECK(fields.relationship_51c==9 && fields.friendliness==0xffffffffu && fields.byte_28==0xef && fields.creation_flags==(flag?6u:0u));
+        }
+        memset(&fields,0xa5,sizeof(fields));saved=fields;
+        for(cut=0;cut<155;++cut) {
+            item.record.bytes=cut;CHECK(rf_level_entity_spawn_read(&item,&fields)!=RF_OK);
+            CHECK(!memcmp(&fields,&saved,sizeof(fields)));
+        }
+        item.record.bytes=156;CHECK(rf_level_entity_spawn_read(&item,&fields)==RF_FORMAT && !memcmp(&fields,&saved,sizeof(fields)));
+        item.record.bytes=155;raw[150]=2;
+        CHECK(rf_level_entity_spawn_read(&item,&fields)==RF_FORMAT && !memcmp(&fields,&saved,sizeof(fields)));
+    }
     word(2108,279);word(4116,3);word(4200,0x30000);word(4204,159);word(4208,1);word(4212,123);
     word(4218,0x3f800000);word(4230,0x40000000);word(4242,0x40400000);word(4254,0x40800000);
     CHECK(run(&level,&archive)==RF_OK);

@@ -6,8 +6,9 @@ int main(int argc,char **argv)
 {
     rf_vpp archive;rf_level level;rf_level_entity_reader reader;rf_level_entity entity;int status;
     _Static_assert(sizeof(entity)==1084,"Entity probe wire layout");
-    if(argc==4 && !strcmp(argv[3],"--owned-entities")) {
+    if(argc==4 && (!strcmp(argv[3],"--owned-entities") || !strcmp(argv[3],"--entity-spawn"))) {
         rf_level_owned_entities owned={0},small={0},saved={0};uint32_t i,bytes;
+        int spawn=!strcmp(argv[3],"--entity-spawn");
         _setmode(_fileno(stdout),_O_BINARY);
         if(rf_vpp_open(&archive,argv[1]) || rf_level_open(&level,&archive,argv[2]) ||
             rf_level_owned_entities_open(&level,1024*1024,&owned))return 2;
@@ -19,6 +20,15 @@ int main(int argc,char **argv)
         rf_vpp_close(&archive);memset(&level,0xa5,sizeof(level));
         for(i=0;i<owned.count;++i) {
             rf_level_owned_entity *item=owned.items+i;
+            if(spawn) {
+                rf_level_entity_spawn fields,sentinel;rf_level_owned_entity cut=*item;
+                if(rf_level_entity_spawn_read(item,&fields))return 4;
+                memset(&sentinel,0xa5,sizeof(sentinel));cut.record.bytes--;
+                if(rf_level_entity_spawn_read(&cut,&sentinel)==RF_OK)return 4;
+                {unsigned j;for(j=0;j<sizeof(sentinel);++j)if(((unsigned char *)&sentinel)[j]!=0xa5)return 4;}
+                if(fwrite(&fields,sizeof(fields),1,stdout)!=1)return 3;
+                continue;
+            }
             if(fwrite(&item->record,sizeof(item->record),1,stdout)!=1 ||
                 fwrite(item->raw,1,item->record.bytes,stdout)!=item->record.bytes)return 3;
         }

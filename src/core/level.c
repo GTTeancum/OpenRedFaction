@@ -117,6 +117,43 @@ failed:
     rf_level_owned_entities_close(&value);return status;
 }
 
+static int entity_raw_skip(uint32_t size,uint32_t *cursor,uint32_t bytes)
+{
+    if(*cursor>size || bytes>size-*cursor)return RF_RANGE;
+    *cursor+=bytes;return RF_OK;
+}
+static int entity_raw_string(const uint8_t *raw,uint32_t size,uint32_t *cursor)
+{
+    uint32_t start=*cursor,length;int status=entity_raw_skip(size,cursor,2);if(status)return status;
+    length=raw[start]|(uint32_t)raw[start+1]<<8;
+    return entity_raw_skip(size,cursor,length);
+}
+int rf_level_entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity_spawn *result)
+{
+    rf_level_entity_spawn value;const uint8_t *raw;uint32_t cursor=0,size,start,i;int status;
+    if(!entity || !result || !entity->raw)return RF_RANGE;
+    raw=entity->raw;size=entity->record.bytes;
+    status=entity_raw_skip(size,&cursor,4);if(status)return status;
+    if(le32(raw)!=(uint32_t)entity->record.uid)return RF_FORMAT;
+    status=entity_raw_string(raw,size,&cursor);if(status)return status;
+    status=entity_raw_skip(size,&cursor,48);if(status)return status;
+    status=entity_raw_string(raw,size,&cursor);if(status)return status;
+    start=cursor;status=entity_raw_skip(size,&cursor,13);if(status)return status;
+    value.relationship_51c=le32(raw+start+1);value.friendliness=le32(raw+start+5);
+    value.byte_28=raw[start+9];
+    for(i=0;i<2;++i) {status=entity_raw_string(raw,size,&cursor);if(status)return status;}
+    status=entity_raw_skip(size,&cursor,29);if(status)return status;
+    for(i=0;i<7;++i) {status=entity_raw_string(raw,size,&cursor);if(status)return status;}
+    status=entity_raw_skip(size,&cursor,18);if(status)return status;
+    start=cursor;status=entity_raw_skip(size,&cursor,17);if(status)return status;
+    value.creation_flags=(raw[start+1]?2u:0u)|(raw[start+15]?4u:0u);
+    if(raw[start+16]>1)return RF_FORMAT;
+    if(raw[start+16]) {status=entity_raw_skip(size,&cursor,4);if(status)return status;}
+    for(i=0;i<2;++i) {status=entity_raw_string(raw,size,&cursor);if(status)return status;}
+    if(cursor!=size)return RF_FORMAT;
+    *result=value;return RF_OK;
+}
+
 static int read_at(rf_level *level, uint32_t *cursor, void *data, uint32_t size)
 {
     int result = rf_vpp_read(level->archive, &level->entry, *cursor, data, size);

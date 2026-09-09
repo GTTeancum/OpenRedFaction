@@ -76,6 +76,22 @@ defaults. The expanded inventory still matches all 1,610 decoded records across
 66 levels. Next expose the needed fields in shared runtime construction and
 verify factory initialization before registering live entities.
 
+`rf_level_entity_spawn_read` now exposes these four recovered fields from an
+owned record in shared C: relationship +0x51c, friendliness, low byte +0x28 and
+creation flags. The 16-byte result introduces no allocation or change to owned
+record layout. It checks UID consistency, raw span boundaries, the optional
+field flag and exact record exhaustion before publishing. It expects a retained
+v180 record already validated by the main reader; it does not repeat transform
+or string-content validation, construct entities, or infer defaults.
+
+`python tools/verify_level_entities.py --spawn` passes all 1,610 entities across
+66 levels on PC and actual NXDK-linked code under Unicorn. The PC probe runs
+after archive closure, and checks one-byte-short record rejection and unchanged
+output for every entity. Synthetic level tests cover all 155 truncations of a
+minimal record, trailing bytes, invalid optional flag, full-word friendliness,
+low-byte truncation and nonzero creation-flag bytes 1/2/255. Both builds and all
+four CTest checks pass. Report: `artifacts/entity-spawn-verification.json`.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

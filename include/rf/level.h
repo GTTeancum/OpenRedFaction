@@ -52,6 +52,13 @@ typedef struct rf_level_owned_entities {
  * construction/registration. Close clears the owner and is repeatable. */
 int rf_level_owned_entities_open(const rf_level *level,uint32_t budget,rf_level_owned_entities *result);
 void rf_level_owned_entities_close(rf_level_owned_entities *entities);
+typedef struct rf_level_entity_spawn {
+    uint32_t relationship_51c,friendliness,byte_28,creation_flags;
+} rf_level_entity_spawn;
+/* Extract recovered 464010 fields from a retained v180 record. Allocation-free,
+ * checks raw span boundaries/exact exhaustion; errors preserve output. This is
+ * a projection of validated input, not complete factory state initialization. */
+int rf_level_entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity_spawn *result);
 typedef struct rf_level_group {
     char name[256],sounds[4][256];
     uint32_t offset,bytes,key_offset,key_count,legacy_offset,legacy_count;
