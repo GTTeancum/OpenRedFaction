@@ -271,6 +271,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
     rf_vpp maps[5];uint32_t opened=0,world;int status;FILE *stream_flag;
     status=rf_scene_preview_camera(level,9858);if(status)return status;
+    stream_flag=fopen("D:\\door-view.flag","rb");
+    if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status)return status;}
     rf_preview_close(mesh);rf_materials_close(&resident_materials);
     while(!status && opened<5) {status=rf_vpp_open(maps+opened,paths[opened]);if(!status)++opened;}
     if(!status)status=rf_scene_world_open(level,&resident_geometry,maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024);

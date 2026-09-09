@@ -60,6 +60,10 @@ PC framebuffer comparison. The miner camera occludes these additions (frame
 unchanged); add a door-focused inspection view, retain render geometry and
 connect committed resident poses to the actual render loop. Current scene
 movers use authored file poses and release source geometry after projection.
+The door-focused view now visibly renders mover 8544 with textures in stock
+64 MiB XEMU and passes PC framebuffer comparison (964 triangles, no actor in
+view). Connect committed door motion to retained render geometry and frames;
+inspect the visible fine diagonal surface artifacts before claiming fidelity.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

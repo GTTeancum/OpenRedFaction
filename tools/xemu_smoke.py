@@ -65,7 +65,9 @@ def main():
     parser.add_argument('--scene',action='store_true',help='Expect the close Live Mines / miner 9858 combined fixture')
     parser.add_argument('--scene-stream',action='store_true',help='Expect 64 combined scene frames, retained frame 63')
     parser.add_argument('--scene-states',action='store_true',help='Expect authored-state scene playback')
+    parser.add_argument('--door-view',action='store_true',help='Expect door-view.flag camera on mover 8544 during authored-state playback')
     args = parser.parse_args()
+    if args.door_view:args.scene_states=True
     if args.scene_states:args.scene_stream=True
     if args.scene_stream:args.scene=True
     if args.no_capture and args.reference is not None:
@@ -250,12 +252,13 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()
                         replacements=assets[1:]
                         skin_checksum=int(subprocess.check_output([str(root/'build/pc/Release/rf_checksum_driver.exe')],input=args.skin.encode('ascii').hex()+'\n',text=True).strip(),16)
-                    if args.scene and (args.skin or words[31]!=(5 if args.scene_states else 4 if args.scene_stream else 3) or words[56:58]!=[9858,7455] or words[36]!=(8838 if args.scene_states else 8847 if args.scene_stream else 8802)):
+                    if args.scene and (args.skin or words[31]!=(5 if args.scene_states else 4 if args.scene_stream else 3) or words[56:58]!=[9858,2892 if args.door_view else 7455] or words[36]!=(2892 if args.door_view else 8838 if args.scene_states else 8847 if args.scene_stream else 8802)):
                         raise RuntimeError('Combined scene camera/UID/draw ranges differ from fixture')
                     if not args.scene and words[56:58]!=[skin_checksum,len(replacements)]:
                         raise RuntimeError('Guest skin selection differs from requested reference')
                     report['skin']=dict(name=args.skin,checksum=skin_checksum,replacements=len(replacements))
                     if args.scene:report['actor']=dict(uid=words[56],world_vertices=words[57],actor_vertices=words[36]-words[57],camera='Diagnostic 2.2 units in front of authored actor; not gameplay eye')
+                    if args.door_view:report['actor']['camera']='Diagnostic mover 8544 bounds center, six units along thinnest local axis; actor outside view'
                     report['animation'] = dict(actual=words[48:56],expected=animation_reference,
                         scope='64 scripted controller/candidate-helper frames with real sidesteps; hashes of bones, playback/controller/references/candidate effects, eye and cache state; absent rolls and sounds')
                     if words[48:56] != animation_reference:
@@ -337,6 +340,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             else:raise RuntimeError('Missing model reference texture '+name)
                     elif words[31]!=0:raise RuntimeError('Unknown preview scene')
                     report['scene']='authored-state Live Mines / miner 9858' if words[31]==5 else 'streamed Live Mines / miner 9858' if words[31]==4 else 'Live Mines / miner 9858 close inspection' if words[31]==3 else 'streamed miner inspection' if words[31]==2 else 'posed miner inspection' if words[31] else 'Live Mines static geometry'
+                    if args.door_view:report['scene']='Live Mines mover 8544 door inspection; actor-state playback outside view'
                     vertex_capacity=1024*1024+words[57]*56 if words[31] in (4,5) else 1024*1024 if words[31]==2 else words[36]*56
                     if not 0 < words[44] <= words[47] <= words[3] or words[45:47] != [expected_gpu_bytes, vertex_capacity]:
                         raise RuntimeError('Unexpected GPU allocation or memory telemetry')

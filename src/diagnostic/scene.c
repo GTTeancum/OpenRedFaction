@@ -3,6 +3,44 @@
 #include "rf/entity_assets.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+int rf_scene_preview_mover_camera(rf_level *level,int32_t uid,float distance)
+{
+    rf_geometry_movers movers={0};uint32_t i,j,axis=0;int status;
+    float minimum[3],maximum[3],center[3],forward[3],right[3],up[3],length;
+    rf_collision_ray_hit local={0},world;
+    if(!level || !isfinite(distance) || fabsf(distance)<0.1f)return RF_RANGE;
+    status=rf_geometry_movers_open(level,1024*1024,&movers);if(status)return status;
+    for(i=0;i<movers.count;++i)if(movers.items[i].uid==uid)break;
+    if(i==movers.count){status=RF_NOT_FOUND;goto done;}
+    {
+        const rf_geometry_mover *m=movers.items+i;
+        if(!m->geometry.vertices){status=RF_FORMAT;goto done;}
+        status=rf_geometry_vertex(&m->geometry,0,minimum);if(status)goto done;
+        memcpy(maximum,minimum,sizeof(minimum));
+        for(i=1;i<m->geometry.vertices;++i) {
+            float p[3];status=rf_geometry_vertex(&m->geometry,i,p);if(status)goto done;
+            for(j=0;j<3;++j){if(p[j]<minimum[j])minimum[j]=p[j];if(p[j]>maximum[j])maximum[j]=p[j];}
+        }
+        for(j=0;j<3;++j){center[j]=(minimum[j]+maximum[j])*0.5f;if(maximum[j]-minimum[j]<maximum[axis]-minimum[axis])axis=j;}
+        memcpy(local.point,center,sizeof(center));local.normal[axis]=distance>0?1.0f:-1.0f;
+        status=rf_collision_contact_world(&local,m->position,m->orientation,&world);if(status)goto done;
+    }
+    length=sqrtf(world.normal[0]*world.normal[0]+world.normal[1]*world.normal[1]+world.normal[2]*world.normal[2]);
+    if(!isfinite(length) || length<0.0001f){status=RF_RANGE;goto done;}
+    for(j=0;j<3;++j)forward[j]=world.normal[j]/length;
+    right[0]=forward[2];right[1]=0;right[2]=-forward[0];
+    length=sqrtf(right[0]*right[0]+right[2]*right[2]);
+    if(length<0.0001f){status=RF_RANGE;goto done;}
+    right[0]/=length;right[2]/=length;
+    up[0]=forward[1]*right[2];up[1]=forward[2]*right[0]-forward[0]*right[2];up[2]=-forward[1]*right[0];
+    for(j=0;j<3;++j) {
+        level->player_position[j]=world.point[j]-fabsf(distance)*forward[j];
+        level->player_orientation[0][j]=right[j];level->player_orientation[1][j]=up[j];level->player_orientation[2][j]=forward[j];
+    }
+done:
+    rf_geometry_movers_close(&movers);return status;
+}
 int rf_scene_world_open(const rf_level *level,const rf_geometry *world,
     rf_vpp *maps,uint32_t map_count,rf_preview_mesh *mesh,rf_materials *materials,
     uint32_t mesh_budget,uint32_t material_budget)

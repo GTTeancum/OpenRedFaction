@@ -53,7 +53,8 @@ int main(int argc, char **argv)
     FILE *output;
     rf_entity_assets skin_assets={0};const char *skin_names[64];
     uint32_t world_vertices=0;
-    int scene_states=argc>1 && !strcmp(argv[1],"--scene-states-last");
+    int door_view=argc>1 && !strcmp(argv[1],"--scene-door-states-last");
+    int scene_states=door_view || (argc>1 && !strcmp(argv[1],"--scene-states-last"));
     int scene_stream=scene_states || (argc>1 && !strcmp(argv[1],"--scene-close-last"));
     int scene_close=scene_stream || (argc>1 && !strcmp(argv[1],"--scene-close"));
     int scene_mode=scene_close || (argc>1 && !strcmp(argv[1],"--scene"));
@@ -71,6 +72,7 @@ int main(int argc, char **argv)
     } else {
         if(rf_vpp_open(&archive, argv[scene_mode?2:1]) || rf_level_open(&level, &archive, argv[scene_mode?3:2]))return 1;
         if(scene_close && rf_scene_preview_camera(&level,(int32_t)strtol(argv[8],NULL,10)))return 1;
+        if(door_view && rf_scene_preview_mover_camera(&level,8544,6.0f))return 1;
         if(rf_geometry_open(&geometry,&level,8*1024*1024) || rf_preview_build(&mesh,&geometry,&level,8*1024*1024))return 1;
     }
     if (argc > 4) {

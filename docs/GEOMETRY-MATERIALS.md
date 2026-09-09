@@ -56,3 +56,29 @@ with mean maximum channel error 0.0318. The image is identical to the prior
 miner-camera capture because the added geometry is occluded. It was not
 reposted. Next: inspect a door directly, retain mover render geometry and
 update it from committed runtime poses during rendering.
+
+## Door inspection camera
+
+`rf_scene_preview_mover_camera` centers a diagnostic view on the selected
+mover's local vertex bounds, transforms its thinnest axis into world space,
+and constructs a world-up camera. Signed distance chooses the viewing side.
+This is inspection scaffolding, with no gameplay camera placement or camera
+collision. A vertical viewing axis is rejected. Temporary mover data closes
+after camera construction.
+
+PC flag `--scene-door-states-last` selects mover 8544 at distance six, keeping
+the usual scene command's actor UID 9858 and asset arguments. On Xbox, stage
+an empty `door-view.flag` beside the existing scene/stream/states flags before
+rebuilding the ISO. Run `python tools/xemu_smoke.py --door-view --reference
+artifacts/door-scene.ppm` after generating the matching PC reference. Remove
+the optional door flag and rebuild to restore the miner camera.
+
+Native XEMU capture
+`artifacts/xemu/20260909-101314-075642/framebuffer.png` shows the textured door
+and surrounding frame/rock. Its report passes stock 64 MiB and PC comparison:
+964 triangles, 123 pixels exceeding channel error three, mean maximum channel
+error 0.1175. The actor remains outside this camera's view while its diagnostic
+state schedule runs. This shows authored static poses, not visible door motion.
+Fine diagonal artifacts are visible on the door surface in both backends;
+their cause and PS2 fidelity remain open. Rendering must next retain local
+geometry and update from committed resident mover poses in the frame loop.
