@@ -1,5 +1,25 @@
 # Model batch data
 
+`rf_model_clip_intersection` reconstructs all seven plane-bit branches in
+`0x549324..0x54954c`, returning position and interpolation factor without
+allocating a temporary vertex. Near/far intersections retain the original
+factor-of-one fallback for zero/unordered depth differences. Side planes
+derive their ratio from signed X/Y minus Z and force the resulting Z onto
+the selected plane. The custom plane preserves float stores for difference
+vectors, denominator, factor and scaled displacement. Its point and normal
+are supplied explicitly in a 32-byte plane-state struct.
+
+`tools/verify_model_clip_intersection.py` runs 2,800 original executions through
+the attribute boundary, including original allocation/vector callees and pool
+reset. All seven bits, equal depths, dyadic coordinates and non-finite inputs
+are covered. All position/factor records match byte for byte in these fixtures;
+the verifier allows 2e-6 scaled error and fixes x87 mode to 0x37f. Portable
+double intermediates do not guarantee universal extended-precision parity.
+No clamp is applied to the factor here; integration must resolve the existing
+attribute helper's restricted factor domain explicitly. Attribute dispatch,
+new-vertex clip classification, pool lifetime and polygon traversal remain open.
+PC/NXDK builds and four CTest checks pass.
+
 `rf_model_clip_attributes` recovers `0x54954c..0x549626`: interpolate UV0 for
 flag 1, UV1 for flag 2 and RGB for flag 4. The model renderer supplies flags 5.
 UVs use `(outside-inside)*factor+inside` with a final float store; byte colors

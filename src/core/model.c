@@ -5,6 +5,35 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_clip_intersection(uint32_t plane,const float inside[3],const float outside[3],
+    const rf_model_clip_planes *planes,float position[3],double *factor)
+{
+    double t,denominator,numerator;float result[3];unsigned i;
+    if(!inside || !outside || !planes || !position || !factor || !plane || plane>64 || (plane&(plane-1)))return RF_RANGE;
+    if(plane&3) {
+        float depth=plane==2?planes->far_depth:planes->near_depth;
+        denominator=(double)outside[2]-inside[2];
+        t=denominator==0 || isnan(denominator)?1:((double)depth-inside[2])/denominator;
+        result[2]=depth;
+        for(i=0;i<2;++i)result[i]=(float)(((double)outside[i]-inside[i])*t+inside[i]);
+    } else if(plane==64) {
+        float delta[3],offset[3],denom,tf;
+        for(i=0;i<3;++i) {delta[i]=outside[i]-inside[i];offset[i]=inside[i]-planes->point[i];}
+        denominator=-(((double)planes->normal[0]*delta[0]+(double)planes->normal[1]*delta[1])+(double)planes->normal[2]*delta[2]);
+        denom=(float)denominator;
+        numerator=((double)planes->normal[0]*offset[0]+(double)planes->normal[1]*offset[1])+(double)planes->normal[2]*offset[2];
+        tf=denominator==0 || isnan(denominator)?1:(float)(numerator/denom);t=tf;
+        for(i=0;i<3;++i) {float scaled=delta[i]*tf;result[i]=inside[i]+scaled;}
+    } else {
+        unsigned axis=(plane&12)?0:1;double a=inside[axis],b=outside[axis];
+        if(plane&20) {a=-a;b=-b;}
+        numerator=a-inside[2];t=numerator/((numerator-b)+outside[2]);
+        for(i=0;i<2;++i)result[i]=(float)(((double)outside[i]-inside[i])*t+inside[i]);
+        result[2]=result[(plane&48)?1:0];if(plane&20)result[2]=-result[2];
+    }
+    memcpy(position,result,12);*factor=t;return RF_OK;
+}
+
 int rf_model_clip_attributes(const uint8_t inside[48],const uint8_t outside[48],double factor,
     uint32_t flags,uint8_t result[48])
 {

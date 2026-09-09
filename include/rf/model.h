@@ -153,6 +153,12 @@ int rf_model_route_triangle(const rf_model_render_cache *cache,uint32_t count,co
  * in [0,1]; position, clip flags and alpha are untouched. Aliasing supported. */
 int rf_model_clip_attributes(const uint8_t inside[48],const uint8_t outside[48],double factor,
     uint32_t flags,uint8_t result[48]);
+typedef struct rf_model_clip_planes {float near_depth,far_depth,point[3],normal[3];} rf_model_clip_planes;
+/* 0x549324..0x54954c intersection for one plane bit 1..0x40. Double factor
+ * approximates x87; custom-plane factor and intermediate vectors use float
+ * stores. Singular arithmetic is retained. No attributes/pool allocation. */
+int rf_model_clip_intersection(uint32_t plane,const float inside[3],const float outside[3],
+    const rf_model_clip_planes *planes,float position[3],double *factor);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.

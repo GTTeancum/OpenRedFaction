@@ -12,6 +12,15 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--clip-intersection")) {
+        struct {float inside[3],outside[3];rf_model_clip_planes planes;uint32_t plane;} data;
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            int32_t status;float position[3]={99,99,99};double factor=99;
+            status=rf_model_clip_intersection(data.plane,data.inside,data.outside,&data.planes,position,&factor);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(position,12,1,stdout)!=1 || fwrite(&factor,8,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--clip-attributes")) {
         struct {uint8_t inside[48],outside[48];double factor;uint32_t flags,pad;} data;
         while(fread(&data,sizeof(data),1,stdin)==1) {

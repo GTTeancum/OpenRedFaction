@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+All seven clip-plane intersection branches now match 2,800 original cases.
+Assemble intersection, attributes, clip classification and temporary-vertex
+lifetime into per-plane polygon traversal before draw submission.
+
 Clipping UV/RGB interpolation now matches 3,000 original-block cases under
 explicit x87 rounding setup. Recover plane intersection factors/positions and
 assemble per-plane polygon clipping with bounded temporary vertices.
