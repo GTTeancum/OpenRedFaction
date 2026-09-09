@@ -59,8 +59,9 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_turn_context context={{0x800,6,.3f,1.5f,20,7,9},-1,1,0,0};
     int32_t actions[45],sounds[45],sound_class;
     rf_motion_controller controller={0,-1,0,0,0,0}; int32_t motions[23];
-    rf_model_bone bones[256]; rf_model_attachment eye;
-    float matrices[256][12], local[12], tag[12], displacement[3]={.125f,-.25f,.5f};
+    struct pose_workspace {rf_model_bone bones[256];float matrices[256][12];} *workspace=NULL;
+    rf_model_bone *bones;rf_model_attachment eye;
+    float (*matrices)[12], local[12], tag[12], displacement[3]={.125f,-.25f,.5f};
     uint16_t generations[256]={0}; uint32_t count=0,i,frame; int status,opened=0,found=0;
     void *payload=NULL;
     float (*stored)[12]=NULL,(*prepared)[12]=NULL;uint16_t prepared_generations[256]={0};
@@ -72,6 +73,10 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_model_render_output render_output={1,{255,255,255},255,1,1};
     if (!out) return RF_RANGE;
     memset(out,0,8*4); out[0]=1;
+    /* Fixed 27 KiB workspace, separate from the caller's output-mesh budget.
+     * Keep this live across callbacks without exhausting the Xbox's 64 KiB stack. */
+    workspace=malloc(sizeof(*workspace));if(!workspace) {status=RF_IO;goto done;}
+    bones=workspace->bones;matrices=workspace->matrices;
     status=rf_vpp_open(&meshes,meshes_path); if (status!=RF_OK) goto done;
     opened=1; status=rf_vpp_open(&archive,motions_path); if (status!=RF_OK) goto done;
     opened=2; status=rf_model_file_open(&model,&meshes,"miner.v3c"); if (status!=RF_OK) goto done;
@@ -260,6 +265,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     }
     if(!emitted_indices && !placement)status=RF_FORMAT;
 done:
+    free(workspace);
     free(clip_pool);free(render_indices);
     free(render_memory);
     rf_model_geometry_close(&geometry);

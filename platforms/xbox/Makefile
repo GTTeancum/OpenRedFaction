@@ -19,7 +19,7 @@ SRCS += $(PROJECT_ROOT)/src/core/motion_file.c
 SRCS += $(PROJECT_ROOT)/src/core/model_file.c
 SRCS += $(PROJECT_ROOT)/src/core/entity_assets.c
 SRCS += $(PROJECT_ROOT)/src/diagnostic/animation.c
-CFLAGS += -std=c11 -O2 -Wall -Wextra -Werror -I$(PROJECT_ROOT)/include
+CFLAGS += -std=c11 -O2 -Wall -Wextra -Werror -fstack-usage -I$(PROJECT_ROOT)/include
 LDFLAGS += -map:main.map -entry:rf_diagnostic_start
 include $(NXDK_DIR)/Makefile
 
@@ -27,4 +27,5 @@ include $(NXDK_DIR)/Makefile
 # Explicit project-header prerequisites keep shared ABI edits from leaving stale
 # objects until dependency paths are normalized throughout the toolchain.
 $(filter %.obj,$(SRCS:.c=.obj)): $(wildcard $(PROJECT_ROOT)/include/rf/*.h) $(PROJECT_ROOT)/src/platform/xbox/renderer.h
+$(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/platforms/xbox/Makefile
 $(PROJECT_ROOT)/src/platform/xbox/renderer.obj: $(SHADER_OBJS)

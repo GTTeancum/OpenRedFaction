@@ -7,6 +7,7 @@
 *.rep/
 __pycache__/
 *.obj
+*.su
 *.c.d
 *.cpp.d
 *.log

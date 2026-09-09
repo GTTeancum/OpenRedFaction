@@ -1,5 +1,31 @@
 # Model batch data
 
+The animation diagnostic now owns a fixed 27,648-byte heap workspace for its
+256 decoded bone records and 256 pose matrices, instead of keeping those arrays
+on the stack across renderer callbacks. Allocation failure uses the existing
+error/cleanup path; every exit frees the workspace. This allocation is separate
+from the output-mesh budget and is explicitly documented in the public header.
+It changes diagnostic storage, not reconstructed animation semantics.
+
+The previous Xbox binary's animation prologue reserved 0xb6bc bytes plus four
+saved registers (46,796 bytes). Current NXDK `-fstack-usage` reports 19,152 bytes.
+`tools/audit_xbox_stack.py` summarizes 196 project functions and fingerprints
+the binary in `artifacts/xbox-stack.json`; generated `.su` files are ignored.
+The stream path main/model_preview/stream wrapper/animation_run/model_frame/
+renderer wrapper/preview totals 31,196 bytes of reported frames. The executable
+stack reserve remains 65,536 bytes. This subtotal excludes arguments, return
+addresses, other nested branches, CRT/NXDK and kernel/interrupt use; it is not a
+complete stack bound or proof that the earlier NV2A assertion was stack overflow.
+Project objects now depend on the Xbox Makefile so its compiler-option changes
+take effect on subsequent builds.
+
+PC builds, four CTest checks and placed-stream checks pass (64 equivalent
+transformed frames, 63 moving differences, 64 empty/culled frames). The final
+Parker PC framebuffer is byte-identical to the pre-change reference. Stock
+64 MiB XEMU run `20260908-223401-062508` passes 64 frames, selected-skin telemetry,
+GPU allocations and all eight animation words without framebuffer capture.
+Runtime stack high-water measurements and library/kernel demand remain open.
+
 `rf_animation_stream_placed` connects the recovered entity-local view helper
 to the running resident animation/triangle pipeline. Its placement description
 supplies world view, entity position/orientation and coherent clipping projection

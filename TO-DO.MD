@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Animation scratch now uses a fixed 27 KiB heap allocation, reducing its Xbox
+stack frame to 19,152 bytes; the measured stream-frame subtotal is 31,196 bytes.
+Measure library/kernel stack demand and connect real actors to world drawing.
+
 Parker's skin now completes 64 frames on stock-memory XEMU and matches the PC
 framebuffer. Audit diagnostic stack usage and the earlier NV2A assertion, then
 connect authored skins and real level entities to combined world drawing.
