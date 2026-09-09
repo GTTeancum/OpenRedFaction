@@ -652,3 +652,33 @@ gate in C, execute the no-plane branch, or validate runtime Geo-Mod mutations.
 It adds original-executable evidence for the existing initial-data adapter; no
 rendering or compiled gameplay behavior changed. Swept actor collision and
 mutable/query state remain the next gameplay dependencies.
+
+## Swept sphere against a plane
+
+`rf_collision_sphere_plane` reconstructs complete `0x5071b0`. It first tests
+strictly positive approach toward the plane front, then rejects a center behind
+the plane. The original tests these dot products in extended precision but stores
+approach speed and start distance as binary32 for subsequent operations. A
+front-side center closer than the radius returns fraction zero and projects the
+center onto the plane. Otherwise the gap must fit within the displacement's
+approach component; the returned fraction is `(distance - radius) / approach`.
+Contact is formed by subtracting the radius-scaled normal from the start, then
+adding the fraction-scaled displacement, with the original float stores retained.
+
+Motion away from or parallel to the plane is a miss even during initial overlap.
+The helper does not normalize supplied normals. Its radius convention expects
+the caller's plane convention, as in the original. Misses preserve fraction and
+point; nonfinite input or negative radius returns RF_FORMAT without changing any
+output. The x86 helper preserves the caller's x87 control word. This primitive
+does not test whether contact lies inside a polygon, consider polygon edges or
+walk room trees; it cannot yet replace the complete actor sweep.
+
+`python tools/verify_sphere_plane.py` passes 9,000 complete unmodified original
+calls, including all vector helpers, against PC and the actual NXDK-linked code.
+Axial overlap/boundary cases and randomized plane normals, offsets, positions,
+displacements and radii produce 2,490 hits, including 1,038 zero-fraction hits.
+Every fraction/contact output byte and miss-preservation result matches. Four
+port guards check negative/NaN radius, infinite start and NaN plane values.
+Report: `artifacts/sphere-plane-verification.json`. Both builds and four CTest
+checks pass. Sphere/edge helper `0x5072e0`, finite-polygon sweep composition,
+actor response and guest execution of this new primitive remain open.

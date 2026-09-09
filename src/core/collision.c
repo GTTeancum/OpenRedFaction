@@ -144,6 +144,111 @@ int rf_collision_segment_plane(const float start[3],const float displacement[3],
     *hit=accepted;return RF_OK;
 }
 
+int rf_collision_sphere_plane(const float start[3],const float displacement[3],
+    float radius,const float plane[4],float *fraction,float point[3],uint32_t *hit)
+{
+    float approach=0,distance=0,value=0,contact[3];uint32_t accepted=0,j;
+    if(!start || !displacement || !plane || !fraction || !point || !hit)return RF_RANGE;
+    if(!isfinite(radius) || radius<0)return RF_FORMAT;
+    for(j=0;j<4;j++)if(!isfinite(plane[j]))return RF_FORMAT;
+    for(j=0;j<3;j++)if(!isfinite(start[j]) || !isfinite(displacement[j]))return RF_FORMAT;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    {
+        unsigned short saved,control;
+        __asm { fnstcw saved }
+        control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+        __asm {
+            fldcw control
+            mov edx,plane
+            mov ecx,displacement
+            fld dword ptr [edx+8]
+            fmul dword ptr [ecx+8]
+            fld dword ptr [edx+4]
+            fmul dword ptr [ecx+4]
+            faddp st(1),st(0)
+            fld dword ptr [edx]
+            fmul dword ptr [ecx]
+            faddp st(1),st(0)
+            fchs
+            fst approach
+            fldz
+            fxch st(1)
+            fcompp
+            fnstsw ax
+            test ah,0x41
+            jnz sphere_done
+            mov ecx,start
+            fld dword ptr [edx+8]
+            fmul dword ptr [ecx+8]
+            fld dword ptr [edx+4]
+            fmul dword ptr [ecx+4]
+            faddp st(1),st(0)
+            fld dword ptr [edx]
+            fmul dword ptr [ecx]
+            faddp st(1),st(0)
+            fadd dword ptr [edx+12]
+            fst distance
+            fldz
+            fxch st(1)
+            fcompp
+            fnstsw ax
+            test ah,1
+            jnz sphere_done
+            fld distance
+            fcomp radius
+            fnstsw ax
+            test ah,1
+            jnz sphere_overlap
+            fld distance
+            fsub radius
+            fld approach
+            fcomp st(1)
+            fnstsw ax
+            test ah,1
+            jnz sphere_pop
+            fdiv approach
+            fstp value
+        sphere_overlap:
+            mov accepted,1
+            jmp sphere_done
+        sphere_pop:
+            fstp st(0)
+        sphere_done:
+            fldcw saved
+        }
+    }
+#elif defined(__i386__) || defined(__x86_64__)
+    {
+        unsigned short saved,control;
+        __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+        __asm__ volatile(
+            "fldcw %[control]\n\tflds 8(%[p])\n\tfmuls 8(%[d])\n\tflds 4(%[p])\n\tfmuls 4(%[d])\n\tfaddp\n\tflds (%[p])\n\tfmuls (%[d])\n\tfaddp\n\tfchs\n\tfsts %[approach]\n\tfldz\n\tfxch %%st(1)\n\tfcompp\n\tfnstsw %%ax\n\ttestb $0x41,%%ah\n\tjnz 3f\n\t"
+            "flds 8(%[p])\n\tfmuls 8(%[s])\n\tflds 4(%[p])\n\tfmuls 4(%[s])\n\tfaddp\n\tflds (%[p])\n\tfmuls (%[s])\n\tfaddp\n\tfadds 12(%[p])\n\tfsts %[distance]\n\tfldz\n\tfxch %%st(1)\n\tfcompp\n\tfnstsw %%ax\n\ttestb $1,%%ah\n\tjnz 3f\n\t"
+            "flds %[distance]\n\tfcomps %[radius]\n\tfnstsw %%ax\n\ttestb $1,%%ah\n\tjnz 1f\n\tflds %[distance]\n\tfsubs %[radius]\n\tflds %[approach]\n\tfcomp %%st(1)\n\tfnstsw %%ax\n\ttestb $1,%%ah\n\tjnz 2f\n\tfdivs %[approach]\n\tfstps %[value]\n1:\n\tmovl $1,%[accepted]\n\tjmp 3f\n2:\n\tfstp %%st(0)\n3:\n\tfldcw %[saved]"
+            :[approach]"+m"(approach),[distance]"+m"(distance),[value]"+m"(value),[accepted]"+m"(accepted)
+            :[p]"r"(plane),[s]"r"(start),[d]"r"(displacement),[radius]"m"(radius),[control]"m"(control),[saved]"m"(saved)
+            :"ax","cc","st","st(1)","memory");
+    }
+#else
+    {
+        long double b=-(((long double)plane[2]*displacement[2]+(long double)plane[1]*displacement[1])+(long double)plane[0]*displacement[0]);
+        long double a=((long double)plane[2]*start[2]+(long double)plane[1]*start[1])+(long double)plane[0]*start[0]+plane[3];
+        approach=(float)b;distance=(float)a;
+        if(b>0 && a>=0) {if(distance<radius)accepted=1;else if(approach>=(long double)distance-radius) {value=(float)(((long double)distance-radius)/approach);accepted=1;}}
+    }
+#endif
+    if(accepted) {
+        for(j=0;j<3;j++) {
+            volatile float offset=plane[j]*(distance<radius?distance:radius);
+            volatile float projected=start[j]-offset;
+            if(distance<radius)contact[j]=projected;
+            else {volatile float movement=displacement[j]*value;contact[j]=projected+movement;}
+        }
+        *fraction=value;memcpy(point,contact,sizeof(contact));
+    }
+    *hit=accepted;return RF_OK;
+}
+
 /* Compare against the extended edge intersection before any float store. */
 static int edge_right(float px,float py,float x,float y,float previous_x,float previous_y)
 {

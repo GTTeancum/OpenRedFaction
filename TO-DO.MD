@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-All 460,720 shipped faces pass complete original supplied-plane finalization;
-recover mutable/query state, swept actor collision and generated-geometry
-finalization before gameplay integration.
+Swept sphere/plane contact now matches 9,000 original calls on PC/NXDK;
+recover sphere/edge contact and combine finite-face sweeps, then reconstruct
+actor movement response and mutable world state.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

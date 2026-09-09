@@ -16,6 +16,13 @@ int rf_collision_segment_box(const float minimum[3],const float maximum[3],
  * Finite inputs required; invalid inputs preserve fraction/hit. */
 int rf_collision_segment_plane(const float start[3],const float displacement[3],
     const float plane[4],float *fraction,uint32_t *hit);
+/* Complete 5071b0 sphere against plane. Requires approach toward the front
+ * side; a center behind the plane is rejected even if radius overlaps it.
+ * Initial front-side overlap returns fraction zero and a projected contact.
+ * Misses preserve fraction/point; invalid finite/radius inputs preserve all
+ * outputs. This is a plane test, not polygon/edge or world collision. */
+int rf_collision_sphere_plane(const float start[3],const float displacement[3],
+    float radius,const float plane[4],float *fraction,float point[3],uint32_t *hit);
 /* 4e1f50 + projection-axis selection 4fa6d0, using an ordered closed
  * vertex array instead of the original circular edge list. Exact half-open
  * crossing rule; no epsilon or generic on-edge override. Tests projected
