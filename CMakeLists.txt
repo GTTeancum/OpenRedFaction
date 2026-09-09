@@ -137,3 +137,7 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME vpp_bounds COMMAND rf_vpp_tests)
 endif()
+
+target_sources(rf_core PRIVATE src/core/object_registry.c)
+add_executable(rf_object_registry_probe tests/object_registry_probe.c)
+target_link_libraries(rf_object_registry_probe PRIVATE rf_core)

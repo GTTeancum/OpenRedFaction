@@ -5,6 +5,7 @@ OUTPUT_DIR = $(PROJECT_ROOT)/build/xbox/disc
 GEN_XISO = redfaction-diagnostic.iso
 SRCS = $(PROJECT_ROOT)/src/core/vpp.c $(PROJECT_ROOT)/src/core/checksum.c $(PROJECT_ROOT)/src/core/level.c $(PROJECT_ROOT)/src/core/geometry.c $(PROJECT_ROOT)/src/core/preview.c $(PROJECT_ROOT)/src/core/image.c $(PROJECT_ROOT)/src/core/material.c $(PROJECT_ROOT)/src/platform/xbox/main.c $(PROJECT_ROOT)/src/platform/xbox/renderer.c
 SHADER_OBJS = $(PROJECT_ROOT)/src/platform/xbox/preview_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/preview_fragment.inl
+SRCS += $(PROJECT_ROOT)/src/core/object_registry.c
 SRCS += $(PROJECT_ROOT)/src/core/lightmap.c
 SRCS += $(PROJECT_ROOT)/src/core/eye.c
 SRCS += $(PROJECT_ROOT)/src/core/model.c

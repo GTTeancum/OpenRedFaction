@@ -48,8 +48,9 @@ matching PC hashes through 66 lifetime checks and archive closure. The
 authored trigger/event execution to replace explicit diagnostic activation.
 Original handle pool blocks now pass 1,032 allocations, eight releases and
 1,047 lookups: 1,024-slot FIFO reuse, generation wrap and stale-handle rejection.
-Implement the shared registry and connect it to owned object lifetimes; current
-mover diagnostic handles still bypass original registration.
+The shared C registry now matches original PC/NXDK traces across 2,100
+operations and occupies 12,300 bytes on Xbox. Connect it to owned object
+lifetimes and constructors; mover diagnostic handles still bypass registration.
 Original dispatch 4c0320 now passes four door-list execution cases, preserving
 interleaved mover/event order and mover suppression. The fixture uses synthetic
 registered handles and intercepts downstream actions. The verifier now also

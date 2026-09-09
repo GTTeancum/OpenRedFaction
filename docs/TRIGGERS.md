@@ -283,3 +283,25 @@ entries, then compares the complete handle against object +0x2c. A stale
 handle fails even when its slot has been reused. The next shared registry
 implementation must preserve this FIFO/generation behavior and connect it to
 owned object lifetimes; existing mover diagnostic handles remain scaffolding.
+
+
+## Shared object registry
+
+`include/rf/object_registry.h` and `src/core/object_registry.c` now provide
+allocation-free init/insert/lookup/remove over 1,024 borrowed object slots.
+A bounded ring queue preserves the original FIFO order without copying its
+intrusive list representation. Handles use the verified global generation
+range and full-handle lookup checks. The caller owns object construction and
+lifetime, must remove objects before freeing them, and must not register an
+object twice. Fresh initialization is explicit and is not a destructor.
+The registry occupies 12,300 bytes on Xbox; it has not yet replaced the mover
+fixture handles or been connected to event/trigger initialization.
+
+The expanded original handle-pool verifier compares PC and compiled NXDK
+registry operations against the original block results: 2,100 shared operations
+pass, including 1,032 allocations and 1,047 lookups. Full-capacity insertion,
+null-object insertion and repeated removal preserve registry/output on error
+in the NXDK checks; PC output and subsequent operation traces match. Original
+constructor/destructor side effects remain excluded. The NXDK initialization
+check executes the actual library memset with a sufficient instruction budget.
+Both builds and the existing CTest suite pass.
