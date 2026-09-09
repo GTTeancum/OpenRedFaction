@@ -1,5 +1,22 @@
 # Level entity records
 
+`rf_physics_body_replace_spheres` composes owned sphere copying with the recovered
+bounds update for post-creation class-sphere installation. It clears/rebuilds
+flag 0x2000 from positive sphere parameter_10, updates bounds and preserves all
+other represented body state, including mass and both tensors. An open owner is
+required. Peak budget includes body plus old and new records; the old allocation
+survives validation and allocation failure. Source may point into the old list.
+Final accounted storage drops to body plus the new records after replacement.
+Allocator overhead and fixed stack scratch are excluded, as for body_open.
+
+`rf_physics_probe --replace-guards` checks an exact peak budget, one-byte-short
+failure, invalid later sphere, closed-body rejection, complete unrelated-state
+preservation, analytic radius/bounds, clearing/setting spring flags, source
+aliasing, empty replacement and repeated close. PC and NXDK builds pass. These
+are shared ownership/sequence checks; the complete original 0x423bd0 replacement
+sequence and allocation failure under NXDK have not yet been compared, and no
+runtime scene uses this API yet.
+
 Integration ordering correction from the original creation path: 0x422360 clears
 the physics parameter block, copies authored mass and any already-cached class
 spheres, then calls the generic factory. In 0x49ec90, positive mass branches at

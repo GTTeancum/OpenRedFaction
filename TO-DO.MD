@@ -46,6 +46,10 @@ defaults/mutations and connect these inputs to the miner's runtime body.
 Creation-order tracing shows positive authored mass skips sphere mass/tensor
 preparation; first-actor body creation precedes class-sphere cache construction
 and replacement. Preserve this order and resolve the initial animation state.
+Shared body sphere replacement now preserves mass/tensors, updates bounds and
+spring flag, and enforces peak old-plus-new allocation budget. PC lifetime/guard
+checks pass and NXDK builds; original full replacement comparison and XEMU
+integration remain open.
 Class +1b4 is optional `$Use:` kind (turret=4), not movement mode; recover its
 absent-field default before treating all class physics inputs as resolved.
 

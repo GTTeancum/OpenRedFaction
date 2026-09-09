@@ -8,6 +8,31 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--replace-guards")) {
+        rf_physics_body body={0},saved;rf_physics_body_parameters p={0};
+        rf_physics_sphere old={{0,0,0},1,-1,0x12345678},next[2]={{{0,3,0},2,.5f,7},{{0,0,0},1,-1,8}};
+        uint32_t peak=(uint32_t)(sizeof(body)+3*sizeof(old));rf_physics_body_state expected;
+        p.mass=100;p.flags=0x80000078;p.position[0]=10;p.position[1]=20;p.position[2]=30;
+        p.local_tensor[0]=2;p.local_tensor[4]=3;p.local_tensor[8]=4;
+        p.orientation[0]=p.orientation[4]=p.orientation[8]=1;
+        if(rf_physics_body_replace_spheres(&body,next,2,peak)!=RF_RANGE)return 3;
+        if(rf_physics_body_open(&p,&old,1,peak,&body))return 3;
+        saved=body;expected=body.state;
+        if(rf_physics_body_replace_spheres(&body,next,2,peak-1)!=RF_RANGE || memcmp(&body,&saved,sizeof(body)) || memcmp(body.spheres.items,&old,sizeof(old)))return 3;
+        next[1].radius=-1;
+        if(rf_physics_body_replace_spheres(&body,next,2,peak)!=RF_RANGE || memcmp(&body,&saved,sizeof(body)))return 3;
+        next[1].radius=1;
+        if(rf_physics_body_replace_spheres(&body,next,2,peak))return 3;
+        expected.flags|=0x2000;expected.bounds.radius=5;
+        expected.bounds.minimum[0]=5;expected.bounds.minimum[1]=15;expected.bounds.minimum[2]=25;
+        expected.bounds.maximum[0]=15;expected.bounds.maximum[1]=25;expected.bounds.maximum[2]=35;
+        if(memcmp(&body.state,&expected,sizeof(expected)) || memcmp(body.spheres.items,next,sizeof(next)) || body.allocated_bytes!=sizeof(body)+sizeof(next))return 3;
+        /* Aliasing the old allocation must copy before freeing it. */
+        if(rf_physics_body_replace_spheres(&body,body.spheres.items+1,1,peak))return 3;
+        if(body.state.flags&0x2000 || memcmp(body.spheres.items,next+1,sizeof(old)))return 3;
+        if(rf_physics_body_replace_spheres(&body,NULL,0,(uint32_t)(sizeof(body)+sizeof(old))) || body.state.bounds.radius!=0 || body.allocated_bytes!=sizeof(body))return 3;
+        rf_physics_body_close(&body);rf_physics_body_close(&body);puts("sphere replacement guards PASS");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--body")) {
         rf_physics_body_parameters parameters;rf_physics_sphere source[32];uint32_t count;
         _Static_assert(sizeof(parameters)==128 && sizeof(rf_physics_body_state)==308,"Body wire layout");

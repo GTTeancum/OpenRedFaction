@@ -7,6 +7,26 @@ void rf_physics_body_close(rf_physics_body *body)
 {
     if(body) {rf_physics_spheres_close(&body->spheres);memset(body,0,sizeof(*body));}
 }
+int rf_physics_body_replace_spheres(rf_physics_body *body,
+    const rf_physics_sphere *source,uint32_t count,uint32_t budget)
+{
+    rf_physics_spheres replacement={0};rf_physics_bounds bounds;
+    uint64_t old_bytes,new_bytes,peak;uint32_t flags,i;int status;
+    if(!body || !body->allocated_bytes)return RF_RANGE;
+    old_bytes=(uint64_t)body->spheres.count*sizeof(*source);
+    new_bytes=(uint64_t)count*sizeof(*source);peak=sizeof(*body)+old_bytes+new_bytes;
+    if(body->allocated_bytes!=sizeof(*body)+old_bytes ||
+       body->spheres.allocated_bytes!=sizeof(body->spheres)+old_bytes ||
+       (body->spheres.count && !body->spheres.items) || peak>budget)return RF_RANGE;
+    status=rf_physics_spheres_bounds(source,count,body->state.position,&bounds);if(status)return status;
+    flags=body->state.flags&~0x2000u;
+    for(i=0;i<count;++i)if(source[i].parameter_10>0)flags|=0x2000;
+    status=rf_physics_spheres_open(source,count,(uint32_t)(sizeof(replacement)+new_bytes),&replacement);
+    if(status)return status;
+    rf_physics_spheres_close(&body->spheres);body->spheres=replacement;
+    body->state.bounds=bounds;body->state.flags=flags;
+    body->allocated_bytes=(uint32_t)(sizeof(*body)+new_bytes);return RF_OK;
+}
 int rf_physics_body_open(const rf_physics_body_parameters *parameters,
     const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_body *result)
 {

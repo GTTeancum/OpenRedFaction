@@ -84,4 +84,10 @@ typedef struct rf_physics_body {
 int rf_physics_body_open(const rf_physics_body_parameters *parameters,
     const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_body *result);
 void rf_physics_body_close(rf_physics_body *body);
+/* Class-sphere installation after creation: replace owned records, rebuild
+ * bounds and flag 0x2000, preserve all other state including mass/tensors.
+ * Budget covers peak body + old records + new records (no allocator overhead).
+ * Open body required. Source may alias old records; errors preserve body. */
+int rf_physics_body_replace_spheres(rf_physics_body *body,
+    const rf_physics_sphere *source,uint32_t count,uint32_t budget);
 #endif
