@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+File thresholds now drive the resident loader through the recovered selector,
+including the shared diagnostic on 64 MiB XEMU. Connect the live camera metric
+and model draw submission before implementing in-scene detail switching.
+
 Original model detail selection now matches 2,000 executable cases, including
 flag overrides and exact threshold boundaries. Retain file thresholds and
 connect the camera metric to selection-driven geometry residency and drawing.

@@ -7,6 +7,7 @@ typedef struct rf_model_lod {
     uint32_t offset, size, attachment_offset, attachment_count;
     uint32_t batch_offset, batch_count, flags, auxiliary;
     uint32_t texture_offset,texture_count,section_index;
+    float threshold;
 } rf_model_lod;
 /* File-relative regions in original 0x569920 order: positions, normals, UV,
  * indices, planes, extra, bone links, auxiliary. Encoding remains separate. */
@@ -70,4 +71,9 @@ typedef struct rf_model_geometry {
  * archive/model/texture state. Zero-initialize; close before reuse. */
 int rf_model_geometry_open(rf_model_geometry *geometry,const rf_model_file *model,uint32_t lod,uint32_t budget);
 void rf_model_geometry_close(rf_model_geometry *geometry);
+/* Select a flattened LOD index within one SUBM using its serialized thresholds.
+ * Metric and render gates have the same meaning as rf_model_select_lod.
+ * No allocation; output unchanged on failure. */
+int rf_model_file_select_lod(const rf_model_file *model,uint32_t submesh,uint32_t flags,
+    int alternate,int32_t minimum,int scaled,int animated,double metric,uint32_t *out);
 #endif

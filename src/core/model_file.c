@@ -1,4 +1,5 @@
 #include "rf/model_file.h"
+#include "rf/model.h"
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
@@ -22,18 +23,20 @@ static void skip(reader *r, uint64_t bytes)
 }
 static void submesh(reader *r)
 {
-    uint32_t version, lods, i, count;
+    uint32_t version, lods, i, count,thresholds[3];
     skip(r, 48);
     version = integer(r, 4); lods = integer(r, 4);
     if (r->status) return;
     if (version < 7 || version > INT32_MAX || lods < 1 || lods > 3) { r->status = RF_FORMAT; return; }
-    skip(r, (uint64_t)lods * 4 + 40);
+    for(i=0;i<lods;++i)thresholds[i]=integer(r,4);
+    skip(r,40);
     for (i = 0; i < lods && !r->status; ++i) {
         uint32_t batches, bytes, textures, t, flags, auxiliary, b;
         uint64_t relative;
         rf_model_lod *lod;
         if (r->model->lod_count == RF_MODEL_MAX_LODS) { r->status = RF_RANGE; return; }
         lod = &r->model->lods[r->model->lod_count++];
+        memcpy(&lod->threshold,thresholds+i,4);
         flags = integer(r, 4); auxiliary = integer(r, 4);
         batches = integer(r, 2); bytes = integer(r, 4);
         lod->offset = r->cursor; lod->size = bytes;
@@ -142,6 +145,25 @@ int rf_model_file_attachment(const rf_model_file *model, uint32_t lod_index, uin
     *attachment = value;
     return RF_OK;
 }
+int rf_model_file_select_lod(const rf_model_file *model,uint32_t submesh,uint32_t flags,
+    int alternate,int32_t minimum,int scaled,int animated,double metric,uint32_t *out)
+{
+    uint32_t section,n=0,i,count=0,indices[3],selected;float thresholds[3];int status;
+    if(!model || !model->archive || !out || model->section_count>RF_MODEL_MAX_SECTIONS ||
+        model->lod_count>RF_MODEL_MAX_LODS)return RF_RANGE;
+    for(section=0;section<model->section_count;++section)
+        if(model->sections[section].type==0x5355424d && n++==submesh)break;
+    if(section==model->section_count)return RF_RANGE;
+    for(i=0;i<model->lod_count;++i)if(model->lods[i].section_index==section) {
+        if(count==3)return RF_FORMAT;
+        thresholds[count]=model->lods[i].threshold;indices[count++]=i;
+    }
+    if(!count)return RF_FORMAT;
+    status=rf_model_select_lod(thresholds,count,flags,alternate,minimum,scaled,animated,metric,&selected);
+    if(status)return status;
+    *out=indices[selected];return RF_OK;
+}
+
 int rf_model_file_material(const rf_model_file *model,uint32_t submesh_index,uint32_t index,uint8_t raw[84])
 {
     uint32_t i,n=0; uint8_t value[84];

@@ -63,7 +63,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     uint16_t generations[256]={0}; uint32_t count=0,i,frame; int status,opened=0,found=0;
     void *payload=NULL;
     float (*stored)[12]=NULL,(*prepared)[12]=NULL;uint16_t prepared_generations[256]={0};
-    rf_model_geometry geometry={0};rf_model_vertex *vertices=NULL;uint32_t vertex_count=0,vertex_index;
+    rf_model_geometry geometry={0};rf_model_vertex *vertices=NULL;uint32_t vertex_count=0,vertex_index,selected_lod;
     if (!out) return RF_RANGE;
     memset(out,0,8*4); out[0]=1;
     status=rf_vpp_open(&meshes,meshes_path); if (status!=RF_OK) goto done;
@@ -83,7 +83,10 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     for(i=0;i<count;++i) {
         status=rf_model_bone_transform(bones[i].rotation,bones[i].position,stored[i]);if(status)goto done;
     }
-    status=rf_model_geometry_open(&geometry,&model,0,1024*1024);if(status)goto done;
+    /* Fixed highest-detail diagnostic: use the original alternate-mode gate.
+     * A camera-derived metric belongs to the live model draw path. */
+    status=rf_model_file_select_lod(&model,0,0,1,0,0,1,0,&selected_lod);if(status)goto done;
+    status=rf_model_geometry_open(&geometry,&model,selected_lod,1024*1024);if(status)goto done;
     vertices=geometry.vertices;vertex_count=geometry.vertex_count;
     if(!vertex_count) { status=RF_FORMAT;goto done; }
     out[1]=count;

@@ -1,5 +1,24 @@
 # Model batch data
 
+Model directories now retain each LOD's serialized threshold bits, adding four
+bytes per LOD (512 bytes at directory capacity), with no additional allocation.
+`rf_model_file_select_lod` gathers the owning SUBM's thresholds in file order,
+uses the recovered selector and returns the flattened LOD index accepted by
+`rf_model_geometry_open`. It rejects missing submeshes and malformed level
+counts without changing the caller's output.
+
+Independent traversal matches all 170 serialized thresholds across 95 models.
+Five modes and five supplied metrics per SUBM produce 2,375 successful selected
+geometry loads with matching vertex/triangle counts; all 95 invalid-submesh
+checks preserve output. Evidence: `artifacts/model-lod-files-verification.json`.
+
+The shared miner diagnostic now selects through this API using the original
+alternate-mode gate to keep its fixed highest-detail fixture. PC and NXDK
+builds, four CTest checks and 64 MiB XEMU pass with unchanged animation results;
+emulator evidence is `artifacts/xemu/20260908-202812-387666/report.json`.
+This exercises selection through residency, but does not yet calculate a live
+camera metric or switch detail while drawing. No screenshot was captured.
+
 `rf_model_select_lod` recovers the selector in `0x52faae..0x52fb1d`, including
 the threshold-match branch at `0x52fbe2`. Flags masked by 9 force the final
 LOD. Otherwise alternate mode selects zero; ordinary mode clamps the supplied

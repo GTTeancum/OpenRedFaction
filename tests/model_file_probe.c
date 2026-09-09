@@ -13,6 +13,25 @@ int main(int argc, char **argv)
     int result;
     if ((argc != 3 && argc != 4) || rf_vpp_open(&archive, argv[1])) return 2;
     result = rf_model_file_open(&model, &archive, argv[2]);
+    if(!result && argc==4 && !strcmp(argv[3],"--lod-selection")) {
+        uint32_t submesh,mode;const double metrics[]={0,10,100,1000,1000000};
+        for(i=0;i<model.lod_count;++i) {
+            uint32_t bits;memcpy(&bits,&model.lods[i].threshold,4);
+            printf("T %u %u\n",i,bits);
+        }
+        for(submesh=0;submesh<model.submeshes && !result;++submesh)
+            for(mode=0;mode<5 && !result;++mode)for(i=0;i<5 && !result;++i) {
+                uint32_t selected;rf_model_geometry g={0};
+                result=rf_model_file_select_lod(&model,submesh,mode==1?9:0,mode==2,mode==3?1:0,mode==4,1,metrics[i],&selected);
+                if(result)break;
+                result=rf_model_geometry_open(&g,&model,selected,4*1024*1024);if(result)break;
+                printf("S %u %u %u %u %u %u\n",submesh,mode,i,selected,g.vertex_count,g.triangle_count);
+                rf_model_geometry_close(&g);
+            }
+        i=99;
+        if(rf_model_file_select_lod(&model,model.submeshes,0,0,0,0,0,0,&i)!=RF_RANGE || i!=99)result=RF_FORMAT;
+        rf_vpp_close(&archive);return result?3:0;
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--geometry")) {
         uint32_t n;
         for(i=0;i<model.lod_count && !result;++i) {
