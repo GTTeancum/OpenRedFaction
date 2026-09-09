@@ -6,6 +6,29 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==6 && !strcmp(argv[1],"--state")) {
+        char motion[64],before[64];memset(motion,0xa5,64);memcpy(before,motion,64);
+        status=rf_entity_state_motion_load(argv[2],argv[3],argv[4],argv[5],motion,512*1024);
+        if(status && memcmp(motion,before,64))return 4;
+        printf("%d\n",status);if(!status)puts(motion);return 0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--state-guards")) {
+        const char good[]="$Name: \"Actor\" +State: \"stand\" \"base.mvf\" +State: \"custom\" \"\" "
+            "+Weapon Specific: \"gun\" +State: \"stand\" \"gun.mvf\" $Name: \"other\" +State: \"stand\" \"other.mvf\"";
+        const char duplicate[]="$Name: \"Actor\" +State: \"stand\" \"one.mvf\" +State: \"stand\" \"two.mvf\"";
+        const char bad[]="$Name: \"Actor\" +State: \"stand\" \"unterminated";
+        char motion[64],before[64];
+        if(rf_entity_state_motion_read(good,sizeof(good)-1,"ACTOR","","STAND",motion) || strcmp(motion,"base.mvf"))return 3;
+        if(rf_entity_state_motion_read(good,sizeof(good)-1,"actor","GUN","stand",motion) || strcmp(motion,"gun.mvf"))return 3;
+        if(rf_entity_state_motion_read(good,sizeof(good)-1,"actor","","custom",motion) || *motion)return 3;
+        memset(motion,0xa5,64);memcpy(before,motion,64);
+        if(rf_entity_state_motion_read(good,sizeof(good)-1,"actor","absent","stand",motion)!=RF_NOT_FOUND || memcmp(motion,before,64))return 3;
+        if(rf_entity_state_motion_read(good,sizeof(good)-1,"absent","","stand",motion)!=RF_NOT_FOUND || memcmp(motion,before,64))return 3;
+        if(rf_entity_state_motion_read(duplicate,sizeof(duplicate)-1,"actor","","stand",motion)!=RF_FORMAT || memcmp(motion,before,64))return 3;
+        if(rf_entity_state_motion_read(bad,sizeof(bad)-1,"actor","","stand",motion)!=RF_FORMAT || memcmp(motion,before,64))return 3;
+        if(rf_entity_state_motion_load("Installed_Game/tables.vpp","miner1","","stand",motion,1)!=RF_RANGE || memcmp(motion,before,64))return 3;
+        puts("PASS: base/weapon isolation, empty motion, absent keys, duplicate/malformed rejection, table budget, output preservation");return 0;
+    }
     if(argc==7 && !strcmp(argv[1],"--level")) {
         rf_vpp meshes;rf_level level;rf_level_actor_assets actor,before;
         char *end;long uid=strtol(argv[6],&end,10);if(!*argv[6] || *end)return 2;

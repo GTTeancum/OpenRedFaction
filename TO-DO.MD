@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+State-motion metadata now matches all 1,139 base/weapon declarations across 63
+classes; connect those mappings to registration/playback and resolve missing
+EDF1_Idle plus the already missing edf_ship model without inventing substitutes.
+
 Live Mines now retains its world and textures while miner UID 9858 animates for
 64 frames on stock-memory XEMU, with the final pose matching PC; replace the
 scripted miner sequence with authored actor states and recover the gameplay eye.

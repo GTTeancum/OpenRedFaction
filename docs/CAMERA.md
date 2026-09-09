@@ -284,6 +284,35 @@ cover animated bone poses, parent-index integration or Xbox arithmetic at runtim
 
 ## State registration and motion-file leads
 
+The port now exposes `rf_entity_state_motion_read/load` for one named `+State`
+declaration in `entity.tbl`. Empty weapon means the base block; a named weapon
+means only its `+Weapon Specific` block, with no inferred fallback. Keys ignore
+ASCII case; an explicitly empty motion succeeds with an empty name, while an
+absent declaration returns NOT_FOUND. Duplicate selected declarations and
+malformed syntax are rejected. A successful output is zero-filled to 64 bytes;
+all failures preserve the output. The load wrapper caps temporary table bytes
+and frees them before return. It does not convert filenames or play animation.
+
+Original `0x419a00` selects base state/action arrays when its weapon argument is
+negative and weapon-specific arrays otherwise, then searches 52-byte records
+and copies the matching motion string. The existing Ghidra export shows no
+cross-table fallback inside this helper. This is a lead for the runtime binding,
+not an unchanged-original-code equivalence test for the new text parser. The
+caller and registration policy still need integration and verification.
+
+`tools/verify_entity_states.py` independently splits class and weapon blocks
+and compares all 1,139 installed declarations across 63 classes against the C
+reader, including ASCII-insensitive keys and absent-state checks. Probe guards
+cover base/weapon isolation, empty motions, absent class/weapon, duplicate and
+malformed declarations, insufficient table budget and output preservation.
+PC/NXDK builds and four CTest checks pass. Only two declarations lack a matching
+compiled motion in `motions.vpp`: `edf_ship` base `stand` and `attack_stand` both
+name `EDF1_Idle.mvf`; that class also lacks its compiled skeletal model. These
+remain explicit missing inputs, with no replacement chosen. All 18 Live Mines
+miner1 records have an empty per-entity state-animation field, so the authored
+field alone does not establish their initial gameplay pose. The current scene
+continues using its scripted sequence; no new visual capture was needed.
+
 Initializer 0x418030 constructs 23 state names at 0x62f208 with 8-byte string
 objects. Index 0 is `stand`, index 8 is `crouch`, and indices 9/10 are
 `attack_crouch`/`attack_crouch_walk`. Entity initialization 0x422360 iterates

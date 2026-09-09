@@ -18,6 +18,16 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
  * before return. Output unchanged on failure. Port-owned archive integration. */
 int rf_entity_assets_load(const char *tables_path,const char *class_name,
     const char *skin,rf_entity_assets *assets,uint32_t table_budget);
+/* Select one authored +State motion from entity.tbl. Empty weapon selects only
+ * the base block; a named weapon selects only that +Weapon Specific block.
+ * No fallback, filename conversion or playback policy is inferred. ASCII case
+ * insensitive keys; quoted empty motion is a valid explicit declaration.
+ * Port metadata parser, not original table-parser equivalence. Output is a
+ * zero-filled 64-byte name on success and unchanged on failure. */
+int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *class_name,
+    const char *weapon,const char *state,char motion[64]);
+int rf_entity_state_motion_load(const char *tables_path,const char *class_name,
+    const char *weapon,const char *state,char motion[64],uint32_t table_budget);
 /* Skeletal loader 0x51ce60's .v3c specialization of 0x5142d0/0x514330.
  * This does not select the loader for arbitrary entity model types (.v3d etc.).
  * Replaces everything from the last dot, including dots in directory names;

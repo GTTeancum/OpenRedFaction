@@ -76,6 +76,52 @@ static int token(lexer *l,char out[256],int *quoted)
 }
 static int asset(char destination[64],const char *source)
 {size_t n=strlen(source);if(!n || n>=64)return RF_RANGE;memcpy(destination,source,n+1);return RF_OK;}
+int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *class_name,
+    const char *weapon,const char *state,char motion[64])
+{
+    lexer l={(const unsigned char*)text,bytes,0};char t[256],value[64]={0};
+    int quoted,status,selected=0,found=0,group,matched=0;
+    if(!text || !class_name || !*class_name || !weapon || !state || !*state || !motion)return RF_RANGE;
+    group=!*weapon;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
+            selected=same(t,class_name);found=selected;
+        } else if(selected && same(t,"+Weapon")) {
+            status=token(&l,t,&quoted);if(status || quoted || !same(t,"Specific:"))return RF_FORMAT;
+            status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
+            group=*weapon && same(t,weapon);
+        } else if(selected && same(t,"+State:")) {
+            int use;
+            status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
+            use=group && same(t,state);
+            status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
+            if(use) {
+                if(matched)return RF_FORMAT;
+                if(*t) {status=asset(value,t);if(status)return status;}
+                matched=1;
+            }
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found || !matched)return RF_NOT_FOUND;
+    memcpy(motion,value,64);return RF_OK;
+}
+int rf_entity_state_motion_load(const char *path,const char *class_name,
+    const char *weapon,const char *state,char motion[64],uint32_t budget)
+{
+    rf_vpp archive;rf_vpp_entry entry;void *text=NULL;int status;
+    if(!path || !class_name || !weapon || !state || !motion)return RF_RANGE;
+    status=rf_vpp_open(&archive,path);if(status)return status;
+    status=rf_vpp_find(&archive,"entity.tbl",&entry);
+    if(!status && (!entry.size || entry.size>budget))status=RF_RANGE;
+    if(!status) {text=malloc(entry.size);if(!text)status=RF_RANGE;}
+    if(!status)status=rf_vpp_read(&archive,&entry,0,text,entry.size);
+    if(!status)status=rf_entity_state_motion_read(text,entry.size,class_name,weapon,state,motion);
+    free(text);rf_vpp_close(&archive);return status;
+}
 int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
 {
     lexer l={(const unsigned char*)text,bytes,0};rf_entity_assets value={0};char t[256];
