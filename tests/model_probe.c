@@ -3,6 +3,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+#include <math.h>
 int main(int argc,char **argv)
 {
     struct { uint32_t counts[3]; char names[3][16][32]; char query[32]; } input;
@@ -12,6 +13,35 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--near-clip-guards")) {
+        rf_model_vertex vertices[3]={0};int32_t reuse[3]={0};
+        rf_model_draw_batch batch={0,3,0,1,0};rf_model_triangle triangle={{0,1,2},0x20};
+        rf_model_geometry geometry={&batch,vertices,&triangle,reuse,1,3,1,0};
+        rf_model_render_cache cache[3]={0},saved[3];float clip[3][3]={{0,0,-.125f},{-.125f,0,.5f},{.125f,.125f,.5f}};
+        uint8_t emitted[16][40]={0};uint16_t indices[32];rf_model_clip_pool pool;
+        rf_model_render_buffers buffers={cache,clip,NULL,emitted,3};
+        rf_model_projection view={0};rf_model_clip_planes planes={.125f,1000,{0},{0}};
+        rf_model_clip_projection projection={{320,240},{0,0},0,1};
+        rf_model_render_output attributes={0,{255,255,255},255,1,1};
+        rf_model_triangle_output result={emitted,indices,3,16,0,32};
+        view.perspective=view.compute_clip=view.clipping=1;view.rotation[0]=view.rotation[4]=view.rotation[8]=1;
+        view.screen[0]=320;view.screen[1]=-240;view.screen[2]=320;view.screen[3]=240;
+        for(n=0;n<3;++n) {float position[3];uint32_t visible;memcpy(position,clip[n],12);
+            if(rf_model_project_vertex(position,&view,cache+n,clip[n],emitted[n],&visible))return 3;}
+        if(rf_model_geometry_clip_near(&geometry,0,&buffers,.125f) || !(cache[0].clip&1) || (cache[0].clip&128))return 3;
+        if(rf_model_geometry_emit_batch(&geometry,0,&buffers,&view,&planes,&projection,&attributes,0,&pool,&result))return 3;
+        if(result.vertex_count!=5 || result.index_count!=6)return 3;
+        for(n=3;n<5;++n) {float q;memcpy(&q,emitted[n]+12,4);if(q!=8)return 3;}
+        memcpy(saved,cache,sizeof(cache));
+        if(rf_model_geometry_clip_near(&geometry,0,&buffers,NAN)!=RF_RANGE || memcmp(saved,cache,sizeof(cache)))return 3;
+        clip[2][2]=NAN;
+        if(rf_model_geometry_clip_near(&geometry,0,&buffers,.125f)!=RF_FORMAT || memcmp(saved,cache,sizeof(cache)))return 3;
+        reuse[2]=1;
+        if(rf_model_geometry_clip_near(&geometry,0,&buffers,.125f) || cache[2].clip!=cache[1].clip)return 3;
+        memcpy(saved,cache,sizeof(cache));reuse[0]=1;
+        if(rf_model_geometry_clip_near(&geometry,0,&buffers,.125f)!=RF_RANGE || memcmp(saved,cache,sizeof(cache)))return 3;
+        puts("PASS: near crossing emits two intersections and six indices; reuse and failure preservation");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--local-view")) {
         struct {rf_model_projection view;float position[3],orientation[9];} data;
         _Static_assert(sizeof(data)==160,"local view probe layout");

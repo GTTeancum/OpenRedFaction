@@ -4,6 +4,27 @@
 #include <math.h>
 #include <stdlib.h>
 typedef struct reader { rf_model_file *model; uint32_t cursor; int status; } reader;
+int rf_model_geometry_clip_near(const rf_model_geometry *geometry,uint32_t batch,
+    rf_model_render_buffers *buffers,float near_depth)
+{
+    const rf_model_draw_batch *draw;uint32_t i;
+    if(!geometry || !geometry->batches || !geometry->reuse || batch>=geometry->batch_count ||
+       !buffers || !buffers->cache || !buffers->clip || !isfinite(near_depth) || near_depth<=0)return RF_RANGE;
+    draw=geometry->batches+batch;
+    if(draw->vertices>buffers->capacity || draw->first_vertex>geometry->vertex_count ||
+       draw->vertices>geometry->vertex_count-draw->first_vertex)return RF_RANGE;
+    for(i=0;i<draw->vertices;++i) {
+        int32_t reuse=geometry->reuse[draw->first_vertex+i];
+        if(reuse>0) {if((uint32_t)reuse>i)return RF_RANGE;}
+        else if(!isfinite(buffers->clip[i][2]))return RF_FORMAT;
+    }
+    for(i=0;i<draw->vertices;++i) {
+        int32_t reuse=geometry->reuse[draw->first_vertex+i];
+        if(reuse>0)buffers->cache[i].clip=buffers->cache[i-reuse].clip;
+        else buffers->cache[i].clip=(buffers->cache[i].clip&~0x81u)|(buffers->clip[i][2]<near_depth?1:0);
+    }
+    return RF_OK;
+}
 int rf_model_geometry_emit_batch(const rf_model_geometry *geometry,uint32_t batch,
     const rf_model_render_buffers *buffers,const rf_model_projection *view,
     const rf_model_clip_planes *planes,const rf_model_clip_projection *projection,

@@ -1,5 +1,33 @@
 # Model batch data
 
+Placed diagnostic models now use `rf_model_geometry_clip_near` after batch
+projection to replace nonpositive-Z bit 128 with explicit near-plane bit 1.
+The level adapter supplies 0.1, matching the world preview. Fresh vertices use
+their clip-space Z; backward reuse entries inherit their source mask because
+the recovered batch projector does not write reused clip coordinates. The
+helper allocates nothing and validates the entire batch before changing masks.
+The original projector/classifier remains unchanged: this is a port policy,
+not a claim that original projection generated near-plane bits. The original
+runtime's near-plane setup still needs recovery.
+
+The unchanged original `0x549e00` and its callees now match all 1,200 complete
+polygon fixtures byte for byte, including 600 with supplied near bits and
+nonpositive Z. Custom-plane and general RGB interpolation remain outside this
+comparison. `rf_model_probe --near-clip-guards` checks a triangle crossing from
+negative Z to positive Z, two generated intersections, six emitted indices,
+reuse handling and failure preservation. The real UID 9858 placement test
+checks eight camera distances: two produce visible geometry, with three emitted
+vertices at the 0.1-unit boundary; all emitted reciprocal depths are positive,
+finite and at most 10 within tolerance.
+
+PC and NXDK builds and four CTest checks pass. The combined close-view PC image
+is byte-identical to its previous reference (SHA-256
+`cb76f4967badc4485e42886877f6e5158b78f7b0a8f03ef56fe683c586d2581b`).
+The stock-memory XEMU scene passes numeric validation at
+`artifacts/xemu/20260908-225939-098117/report.json`, without a new capture.
+That Xbox run checks the existing combined fixture; the near-boundary geometry
+checks above run on PC. The scene remains frozen diagnostic composition.
+
 The first combined world/actor fixture now renders on PC and stock 64 MiB Xbox.
 `rf_scene_preview_miner` selects an authored UID, generates scripted miner frame
 0 at that transform, loads the selected skin and appends its triangles/materials

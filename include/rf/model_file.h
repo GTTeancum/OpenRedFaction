@@ -75,6 +75,12 @@ void rf_model_geometry_close(rf_model_geometry *geometry);
 typedef struct rf_model_render_buffers {
     rf_model_render_cache *cache;float (*clip)[3],(*second)[3];uint8_t (*vertices)[40];uint32_t capacity;
 } rf_model_render_buffers;
+/* Port diagnostic policy after render_batch: classify z<near_depth as bit 1,
+ * replacing the original nonpositive-Z bit 128. Uses fresh clip coordinates
+ * and follows backward reuse entries. Does not alter original projection or
+ * clipping helpers. Positive finite near depth required; failure preserves cache. */
+int rf_model_geometry_clip_near(const rf_model_geometry *geometry,uint32_t batch,
+    rf_model_render_buffers *buffers,float near_depth);
 /* Process one resident batch into caller-owned buffers, no allocation or I/O.
  * Buffers use batch-local indices and retain fields the original does not write.
  * Invalid ranges/reuse/bone indices fail before writes; initialize buffers before

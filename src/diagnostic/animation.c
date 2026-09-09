@@ -240,6 +240,9 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 if(memcmp(v+24,vertices[index].uv,8) || v[16]!=60 || v[17]!=50 || v[18]!=40 || v[19]!=255 ||
                     v[20]!=0xa5 || v[21]!=0xa5 || v[22]!=0xa5 || v[32]!=0xa5 || v[39]!=0xa5) {status=RF_FORMAT;goto done;}
             }
+            if(placement && clip_planes.near_depth>0) {
+                status=rf_model_geometry_clip_near(&geometry,render_batch,&render_buffers,clip_planes.near_depth);if(status)goto done;
+            }
             status=rf_model_geometry_emit_batch(&geometry,render_batch,&render_buffers,&render_view,&clip_planes,&clip_projection,
                 &render_output,0,clip_pool,&triangle_output);if(status)goto done;
             if(triangle_output.index_count%3) {status=RF_FORMAT;goto done;}

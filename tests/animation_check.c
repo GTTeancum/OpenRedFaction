@@ -84,6 +84,25 @@ int main(int argc, char **argv)
         for(i=0;i<3;++i)placement.position[i]=level.player_position[i]-1000*level.player_orientation[2][i];
         if(rf_animation_preview_placed(argv[5],argv[6],&placement,0,&mesh,1024*1024) || mesh.count || mesh.bytes)return 3;
         rf_preview_close(&mesh);
+        if(rf_animation_placement_from_level(&level,&actor.entity,&placement))return 3;
+        {uint32_t visible_cases=0,near_vertices=0;
+        for(n=0;n<8;++n) {
+            static const float distances[8]={-.2f,0,.1f,.2f,.3f,.4f,.5f,1.0f};
+            for(i=0;i<3;++i) {
+                placement.world_view.camera[i]=actor.entity.position[i]+distances[n]*actor.entity.orientation[2][i];
+                for(j=0;j<3;++j)placement.world_view.rotation[i*3+j]=actor.entity.orientation[i][j]*(i==1?4.0f/3.0f:-1.0f);
+            }
+            if(rf_animation_preview_placed(argv[5],argv[6],&placement,0,&mesh,1024*1024))return 3;
+            if(mesh.count)++visible_cases;
+            for(i=0;i<mesh.count;++i) {
+                float q=mesh.vertices[i].texture[2];
+                if(!isfinite(q) || q<=0 || q>10.001f || !isfinite(mesh.vertices[i].position[2]))return 3;
+                if(fabsf(q-10.0f)<.001f)++near_vertices;
+            }
+            printf("Near camera %.3g triangles %u\n",distances[n],mesh.count/3);rf_preview_close(&mesh);
+        }
+        if(!visible_cases || !near_vertices)return 3;
+        printf("PASS: %u visible near-camera cases, %u vertices on the near plane\n",visible_cases,near_vertices);}
         rf_vpp_close(&meshes);rf_vpp_close(&archive);
         puts("PASS: 100 world/model projection comparisons and two authored-placement snapshots");return 0;
     }

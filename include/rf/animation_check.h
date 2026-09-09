@@ -34,8 +34,8 @@ int rf_animation_stream_placed(const char *meshes_path,const char *motions_path,
     const rf_animation_placement *placement,rf_animation_frame_sink sink,void *context);
 /* Diagnostic world-camera adapter: raw level spawn, 640x480 / 90-degree
  * horizontal FOV matching rf_preview_build. Uses authored entity transform.
- * Not the recovered gameplay eye. Model near-plane handling remains distinct
- * from the static world's 0.1 clipping plane; compare only points beyond it. */
+ * Not the recovered gameplay eye. The placed diagnostic explicitly classifies
+ * its 0.1 near plane before passing triangles to the recovered clipper. */
 int rf_animation_placement_from_level(const rf_level *level,const rf_level_entity *entity,
     rf_animation_placement *placement);
 /* One scripted miner frame at supplied placement; fully culled output is valid.

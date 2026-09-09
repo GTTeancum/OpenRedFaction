@@ -17,6 +17,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Placed diagnostic models now explicitly clip at the world's 0.1-unit near plane;
+1,200 original polygon fixtures and a real miner boundary test pass, with the
+existing combined image unchanged and numeric 64 MiB XEMU passing. Recover the
+original near-plane setup and extend the frozen scene into animated actors.
+
 Live Mines and miner UID 9858 now draw together on PC and stock-memory XEMU
 with a passing framebuffer comparison; restore the gameplay camera, reconcile
 near clipping and extend the frozen diagnostic into an animated actor scene.
