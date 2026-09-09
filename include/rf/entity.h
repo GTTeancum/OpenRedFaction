@@ -7,6 +7,10 @@
 /* Object flags assembled by 422360 before generic allocation. descriptor_kind
  * is class descriptor +0x94. Remaining factory initialization is separate. */
 uint32_t rf_entity_creation_object_flags(uint32_t creation_flags,uint32_t descriptor_kind);
+/* 42268b..42270e: class descriptor +0x724/+0x728 flags and +0x1b4 kind
+ * select physics flags independently of generic object flags. */
+uint32_t rf_entity_creation_physics_flags(uint32_t creation_flags,uint32_t class_flags_724,
+    uint32_t class_flags_728,uint32_t class_kind_1b4,uint8_t network_mode);
 /* Compact caller-owned views of the fields required by entity predicates.
  * These are not binary RF.exe structs or complete gameplay entities. */
 typedef struct rf_entity_view {

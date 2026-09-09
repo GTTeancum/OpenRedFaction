@@ -440,6 +440,38 @@ registration, class/model parameter resolution, remaining constructor fields,
 body reinitialization and geometric-model mass generation remain open. There
 is no new rendered output.
 
+## Class-dependent physics parameters: integration gap
+
+`rf_entity_creation_physics_flags` reconstructs original 42268b..42270e from
+class flags at +0x724/+0x728, class kind +0x1b4, creation bit zero and the network
+mode byte. Physics flags start at 0x80000000; the sphere-mode mask 0x70 is set
+when secondary class bit 2 is present or primary class bit 0x40000 is absent.
+Kind 4 adds 0x1000. Primary bit 0x4000 plus player creation adds 0x80. Primary
+mask 0x401200 chooses 0x4000 instead of 8. A nonzero network mode plus player
+creation adds 0x8000. These are separate from generic object-creation flags.
+
+`tools/verify_entity_physics_flags.py` compares 9,216 original-block results
+against PC and compiled NXDK. It exhausts the five relevant primary flag bits,
+adds random full-width flags, and covers secondary flag combinations, class
+kinds 0/4/-1, four creation masks and network bytes 0/1/2. The original player
+locals are supplied after normalization to creation bit zero; no calls are
+intercepted. Report: `artifacts/entity-physics-flags-verification.json`.
+
+The immediate runtime target is Live Mines miner1 UID 9858. Installed entity.tbl
+declares mass 100 and material flesh, plus collision entries named csphere_0,
+csphere_1 and csphere_2. The adjacent numeric pairs are not yet assigned shared
+semantics. The original factory reads a different, resolved class sphere array
+at descriptor +0xcec: 42da40 addresses inline 40-byte entries after its count.
+The factory copies center from entry +0x18, radius from +0, parameter from
++0x10 and opaque word from +0x14 into the 24-byte physics record. This is a
+disassembly map pending execution verification and model/tag resolution.
+
+That missing class/model conversion is why the body owner cannot yet represent
+the authored actor correctly. The separate scalar Collision Radius declaration
+must not silently replace the named sphere list. Complete that conversion and
+material lookup before binding the resident level entity to a runtime body;
+the factory-flag tests alone do not establish a spawned campaign entity.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

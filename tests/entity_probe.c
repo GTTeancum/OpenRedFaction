@@ -5,6 +5,15 @@
 #include <io.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--physics-flags")) {
+        uint32_t in[5],out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            out=rf_entity_creation_physics_flags(in[0],in[1],in[2],in[3],(uint8_t)in[4]);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--creation-flags")) {
         uint32_t in[2],out;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

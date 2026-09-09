@@ -4,6 +4,7 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Shortlist
 
+- [ ] Create Live Mines entity 9858 through shared class/model-derived physics and validate its runtime state in 64 MiB XEMU.
 - [ ] Extend the shared level-directory loader into a complete campaign world loader.
 - [ ] Recover the gameplay camera and entity eye transform instead of using raw spawn coordinates.
 - [ ] Draw the loaded static geometry and resolve its materials, lightmaps, visibility, and unknown records.
@@ -17,6 +18,15 @@ Capture and post screenshots only when there is a new visible result.
 - [ ] Consider multiplayer only after single-player completion.
 
 ## Current camera evidence
+
+Immediate integration target: miner1 UID 9858 in Live Mines. The body initializer
+is ready for prepared input, but class material/flags and named model collision
+spheres are not yet resolved into that input. Installed miner1 declares mass
+100, flesh material, and csphere_0/1/2; do not substitute the scalar collision
+radius for those authored model-derived spheres. Recover their class descriptor
+construction, then connect the existing resident level record and body owner.
+Shared class-dependent physics flags match 9,216 original cases on PC/NXDK;
+the original class parser still needs to supply the descriptor fields.
 
 Original event activation now passes 2,160 cases, delayed-tick prefix 1,620
 cases, and three re-activation steps. Timer replacement, disabled caller-field

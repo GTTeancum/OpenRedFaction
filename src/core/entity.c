@@ -1,5 +1,16 @@
 #include "rf/entity.h"
 #include <math.h>
+uint32_t rf_entity_creation_physics_flags(uint32_t creation_flags,uint32_t class_flags_724,
+    uint32_t class_flags_728,uint32_t class_kind_1b4,uint8_t network_mode)
+{
+    uint32_t flags=0x80000000u;
+    if((class_flags_728&2) || !(class_flags_724&0x40000))flags|=0x70;
+    if(class_kind_1b4==4)flags|=0x1000;
+    if((class_flags_724&0x4000) && (creation_flags&1))flags|=0x80;
+    flags|=(class_flags_724&0x401200)?0x4000:8;
+    if(network_mode && (creation_flags&1))flags|=0x8000;
+    return flags;
+}
 uint32_t rf_entity_creation_object_flags(uint32_t creation_flags,uint32_t descriptor_kind)
 {
     uint32_t flags=descriptor_kind==3?0x10000u:0u;
