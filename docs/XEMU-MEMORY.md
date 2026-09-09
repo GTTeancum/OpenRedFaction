@@ -595,3 +595,49 @@ recovery. The fixed diagnostic camera leaves the miner partly outside the
 final view; the capture is retained as test evidence, not a gameplay camera
 result. Animation, initial pose/inertia and cached colliders remain provisional
 as previously documented.
+
+
+## Live cached stance centers
+
+The scene now owns `rf_scene_actor_stance_cache`, a 200-byte record containing
+count, two sets of eight center vectors and the maximum standing-minus-crouch
+height difference. During frame-zero body setup, the animation adapter copies
+its current playback/resources, stops looping weights, selects the authored
+crouch motion and advances .2 seconds. It evaluates the pose, transforms the
+model spheres and applies class X/Z suppression. This reuses the previously
+verified 423bd0 pose-operation sequence while retaining the diagnostic initial
+standing pose as an explicit assumption. Using a copy preserves the existing
+scripted animation trace; it does not reproduce the full creation sequence's
+mutation and restoration of the live animation state.
+
+Only one temporary matrix allocation is added during cache creation: 48 bytes
+per bone (1200 bytes for this miner), freed before frame delivery. The cache
+has no heap ownership. Ordinary frames retain cached centers; they do not
+resample colliders from each rendered pose.
+
+The scripted controller requests crouched centers after its current state is
+8 and its transition duration reaches zero. When standing is requested, the
+scene sweeps the current crouched spheres toward the recovered clearance
+endpoint using the body's query flags with bit 4. A hit retains the crouched
+centers/flag. A successful change calls the verified center-only commit and
+forces support refresh even if position did not change. This is stance geometry
+integration, not the complete locomotion selector or crouch movement policy.
+
+`rf_scene_actor_stance_frames` contains 64 four-word records: requested stance,
+actor flags, full sphere-record hash and whether standing was blocked. Both
+the cache and the complete trace are captured from guest RAM and compared with
+PC. Scene checks require actual center changes, crouch and subsequent stand.
+
+Run `artifacts/xemu/20260909-162703-696777/report.json` passes in stock 64 MiB
+XEMU: stance changes at frames 39 and 48, nine crouched frames, no blocked
+standing, all 200 cache bytes and 64 records matching PC. The three standing
+center Y values are approximately -.231521, .170284 and .631437; crouched Y
+values are -.231521, -.139646 and .251714. Clearance height difference is
+.379723. All 29 contact responses and 64 rendered geometry records still match
+PC. Passive, short-pulse and contact scene checks pass, along with four CTests
+and 288 original/PC/NXDK stance comparisons.
+
+No framebuffer was captured: the PC reference is byte-identical to the prior
+contact-route image. These collider changes do not alter its scripted visible
+pose. Blocked standing, crouch movement descriptors, stance effects/timing,
+original initial-pose selection and full entity creation remain unverified.

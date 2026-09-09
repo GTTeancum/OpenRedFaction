@@ -17,6 +17,8 @@ extern uint32_t rf_scene_actor_ground_modes[64];
 extern uint32_t rf_scene_actor_drive_enabled;
 extern float rf_scene_actor_input_frames[64][3];
 extern uint32_t rf_scene_actor_contact_count,rf_scene_actor_contacts[64][25];
+extern rf_physics_stance_cache rf_scene_actor_stance_cache;
+extern uint32_t rf_scene_actor_stance_frames[64][4];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored,body_mode;
@@ -149,6 +151,12 @@ int main(int argc,char **argv)
                 if(drive==2 && (scene_actor_body.state.position[0]>=c.placement.position[0]-.2f || !rf_scene_actor_contact_count || rf_scene_actor_tick_stats[5]<2 || rf_scene_actor_tick_stats[4]))return 3;
                 if(rf_scene_actor_contact_count!=rf_scene_actor_tick_stats[3])return 3;
                 printf("ACTOR_CONTACTS %u",rf_scene_actor_contact_count);for(i=0;i<rf_scene_actor_contact_count*25;++i)printf(" %u",((uint32_t*)rf_scene_actor_contacts)[i]);puts("");
+                {uint32_t crouch=0,stand=0,blocked=0;
+                 for(i=0;i<64;++i) {if(rf_scene_actor_stance_frames[i][1]&0x400)++crouch;else if(i>40)++stand;blocked+=rf_scene_actor_stance_frames[i][3];}
+                 if(!crouch || !stand || rf_scene_actor_stance_cache.count!=3 || rf_scene_actor_stance_cache.height_difference<=0 || rf_scene_actor_stance_frames[40][2]==rf_scene_actor_stance_frames[0][2])return 3;
+                 printf("STANCE_SUMMARY %u %u %u\n",crouch,stand,blocked);}
+                printf("ACTOR_STANCE");for(i=0;i<256;++i)printf(" %u",((uint32_t*)rf_scene_actor_stance_frames)[i]);puts("");
+                printf("ACTOR_STANCE_CACHE");for(i=0;i<50;++i) {uint32_t word;memcpy(&word,(const unsigned char*)&rf_scene_actor_stance_cache+i*4,4);printf(" %u",word);}puts("");
                 printf("ACTOR_LANDING");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_landing[i]);puts("");
                 printf("ACTOR_MOVEMENT");for(i=0;i<16;++i) {uint32_t word;memcpy(&word,(const unsigned char*)rf_scene_actor_movement+i*4,4);printf(" %u",word);}puts("");
                 printf("ACTOR_SPEED");for(i=0;i<4;++i) {uint32_t word;memcpy(&word,(const unsigned char*)&rf_scene_actor_movement_values+i*4,4);printf(" %u",word);}puts("");

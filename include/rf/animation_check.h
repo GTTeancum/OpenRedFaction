@@ -30,6 +30,8 @@ typedef struct rf_animation_placement {
     rf_model_clip_projection clip_projection;
     const rf_entity_physics_config *physics_config;
     rf_physics_body *physics_body; /* Open body's pose drives rendering each frame. */
+    rf_physics_stance_cache *stance_cache; /* Optional cache from diagnostic initial pose. */
+    uint32_t *stance_request; /* Stable crouch state requested by scripted controller. */
     uint32_t *physics_diagnostic; /* Eight words; optional integrated fixture. */
 } rf_animation_placement;
 /* World/entity inputs are read each frame, allowing the owner to update them

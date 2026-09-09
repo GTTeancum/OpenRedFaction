@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Extend the working process-local steering fixture to exercise live support loss and recovery in XEMU.
-- [ ] Recover the initial class pose/inertia and connect cached standing/crouching colliders with clearance checks.
+- [ ] Verify blocked standing and crouch movement, then replace the provisional initial class pose/inertia.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
@@ -94,6 +94,13 @@ animation frame. Shared center switching and standing-clearance endpoint
 preparation match 288 original/PC/NXDK cases. Runtime use still requires the
 correct class standing/crouching pose cache, clearance query and ground refresh;
 do not replace the current cache with per-frame bone-derived spheres.
+Stance centers now switch in the live scene: crouch at frame 39, clear-space
+stand at frame 48, with ground refresh on either change. The 200-byte cache
+and all 64 stance records match PC in stock 64 MiB XEMU (20260909-162703-696777).
+The crouch pose is derived by stop-looping, weight selection and .2-second
+advance from a copy of the diagnostic initial playback state. Initial pose
+selection is still provisional; blocked standing, crouch movement descriptor
+selection, timing/effects and gameplay input remain open.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

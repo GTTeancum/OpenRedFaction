@@ -105,6 +105,8 @@ def main():
         if args.actor_body:actor_speed_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SPEED ')).split()[1:]))
         if args.actor_body:actor_ground_modes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND_MODES ')).split()[1:]))
         if args.actor_body:actor_contact_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CONTACTS ')).split()[1:]))
+        if args.actor_body:actor_stance_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE ')).split()[1:]))
+        if args.actor_body:actor_stance_cache_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE_CACHE ')).split()[1:]))
         if args.actor_body:actor_input_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_INPUT ')).split()[1:]))
         actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
         actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
@@ -307,6 +309,10 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         report['actor_physics']=dict(words=actor_physics,scope='Shared authored config and frame-zero model spheres installed into body; retained across 64 rendered diagnostic frames. Provisional identity tensor and scripted spawn pose; no actor motion response or AI.')
                         memory_snapshot=guest_snapshot(monitor,map_text)
                         if args.actor_body:
+                            stance=memory_snapshot['symbols']['rf_scene_actor_stance_frames']['words']
+                            cache=memory_snapshot['symbols']['rf_scene_actor_stance_cache']['words']
+                            if stance!=actor_stance_reference or cache!=actor_stance_cache_reference:raise RuntimeError('Actor stance cache or transition differs from PC')
+                            report['actor_stance']=dict(frames_match_pc=64,cache_bytes=200,crouched_frames=sum(bool(stance[i+1]&0x400) for i in range(0,256,4)),blocked_standing_frames=sum(stance[3::4]),scope='Cached stance-center transitions and stationary-world standing clearance; diagnostic initial pose and controller requests.')
                             inputs=memory_snapshot['symbols']['rf_scene_actor_input_frames']['words']
                             drive=memory_snapshot['symbols']['rf_scene_actor_drive_enabled']['words'][0]
                             if drive!=(2 if args.actor_contact else int(args.actor_drive)) or inputs!=actor_input_reference:raise RuntimeError('Actor process-local input differs from PC or requested fixture')

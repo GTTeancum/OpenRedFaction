@@ -90,6 +90,11 @@ void rf_physics_body_close(rf_physics_body *body);
  * Open body required. Source may alias old records; errors preserve body. */
 int rf_physics_body_replace_spheres(rf_physics_body *body,
     const rf_physics_sphere *source,uint32_t count,uint32_t budget);
+typedef struct rf_physics_stance_cache {
+    uint32_t count;
+    float centers[2][8][3]; /* standing, crouching */
+    float height_difference;
+} rf_physics_stance_cache;
 /* 4289d0 and cleared-overhead branch of 428a60, before ground refresh:
  * copy cached class centers into existing sphere records and toggle actor
  * flag 0x400. No allocation or bounds/radius update. Standing caller must

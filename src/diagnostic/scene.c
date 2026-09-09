@@ -132,6 +132,9 @@ uint32_t rf_scene_actor_landing[8]; /* magic, descriptor index, frame, landings,
 rf_movement_descriptor rf_scene_actor_movement[2]; /* authored run and fall */
 rf_entity_movement_values rf_scene_actor_movement_values;
 uint32_t rf_scene_actor_ground_modes[64];
+rf_physics_stance_cache rf_scene_actor_stance_cache;
+uint32_t rf_scene_actor_stance_request,rf_scene_actor_stance_flags;
+uint32_t rf_scene_actor_stance_frames[64][4]; /* requested, flags, sphere hash, standing blocked */
 uint32_t rf_scene_actor_drive_enabled;
 float rf_scene_actor_input_frames[64][3];
 uint32_t rf_scene_actor_contact_count;
@@ -172,7 +175,7 @@ static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t 
 float rf_scene_actor_contact[7]; /* impact speed, contact normal, response velocity */
 float rf_scene_actor_contact_time[4]; /* first adjusted fraction/time, final remaining time, passes */
 static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics_body_state *state,
-    float normal[3],float *fraction,uint32_t *sphere)
+    float normal[3],float *fraction,uint32_t *sphere,uint32_t query_flags)
 {
     float delta[3],start[3];uint32_t i,k,matched;
     *fraction=1;*sphere=UINT32_MAX;
@@ -182,7 +185,7 @@ static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics
         const rf_physics_sphere *s=scene_actor_body.spheres.items+i;rf_geometry_world_sweep_hit hit;int status;
         for(k=0;k<3;++k)start[k]=(float)((double)state->position[k]+(double)s->center[0]*state->orientation[k]+
             (double)s->center[1]*state->orientation[3+k]+(double)s->center[2]*state->orientation[6+k]);
-        status=rf_geometry_collision_world_sweep(world,0x460,start,delta,s->radius,1,&hit,&matched);if(status)return status;
+        status=rf_geometry_collision_world_sweep(world,query_flags,start,delta,s->radius,1,&hit,&matched);if(status)return status;
         if(matched && hit.hit.fraction<*fraction) {*sphere=i;*fraction=hit.hit.fraction;memcpy(normal,hit.hit.normal,12);}
     }
     return RF_OK;
@@ -198,7 +201,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
     for(step=0;step<120;++step) {
         proposal=current;
         {int status=rf_physics_fall_propose(&proposal,1.0f/60,9.8f,support);if(status)return status;}
-        {int status=actor_sweep(world,&proposal,normal,&fraction,&sphere);if(status)return status;}
+        {int status=actor_sweep(world,&proposal,normal,&fraction,&sphere,0x460);if(status)return status;}
         if(sphere!=UINT32_MAX) {
             /* Stationary non-liquid floor, no rotating actor predicate.
              * Continued substeps and actor pose/room commit remain separate. */
@@ -214,7 +217,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
                 while(remaining>0) {
                     float hit_fraction,impact;uint32_t hit_sphere;
                     status=rf_physics_fall_propose(&current,remaining,9.8f,support);if(status)return status;
-                    status=actor_sweep(world,&current,normal,&hit_fraction,&hit_sphere);if(status)return status;
+                    status=actor_sweep(world,&current,normal,&hit_fraction,&hit_sphere,0x460);if(status)return status;
                     if(hit_sphere==UINT32_MAX) {
                         memcpy(current.position,current.next_position,sizeof(current.position));current.scalar_144=1;remaining=0;
                     } else {
@@ -259,7 +262,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
         if(status)return status;
         memset(state->vector_e0,0,sizeof(state->vector_e0)); /* full 49f3c0 clears force after proposal */
         state->flags|=0x1000000;
-        status=actor_sweep(world,state,normal,&fraction,&sphere);if(status)return status;
+        status=actor_sweep(world,state,normal,&fraction,&sphere,0x460);if(status)return status;
         if(sphere==UINT32_MAX) {
             memcpy(state->position,state->next_position,sizeof(state->position));state->scalar_144=1;remaining=0;
         } else {
@@ -314,6 +317,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         rf_scene_actor_pose.radius=scene_actor_body.state.bounds.radius;
         status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
         memset(rf_scene_actor_tick_stats,0,sizeof(rf_scene_actor_tick_stats));rf_scene_actor_tick_stats[0]=0x5246544b;
+        rf_scene_actor_stance_flags=0;memset(rf_scene_actor_stance_frames,0,sizeof(rf_scene_actor_stance_frames));
         rf_scene_actor_contact_count=0;memset(rf_scene_actor_contacts,0,sizeof(rf_scene_actor_contacts));
         memset(rf_scene_actor_landing,0,sizeof(rf_scene_actor_landing));
         rf_scene_actor_landing[0]=0x52464c44;rf_scene_actor_landing[1]=3;rf_scene_actor_landing[2]=UINT32_MAX;
@@ -333,7 +337,27 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     memcpy(stream->mesh->vertices+stream->world,actor->vertices,actor->bytes);
     if(stream->collision) {
         uint32_t hash=2166136261u;
-        int status=actor_ground_check(stream->collision,frame);if(status)return status;
+        int status,blocked=0;
+        int crouched=(rf_scene_actor_stance_flags&0x400)!=0;
+        if(crouched!=(int)rf_scene_actor_stance_request) {
+            if(!rf_scene_actor_stance_request) {
+                rf_physics_body_state probe=scene_actor_body.state;float normal[3],fraction;uint32_t sphere;
+                status=rf_physics_stand_endpoint(probe.position,rf_scene_actor_stance_cache.height_difference,probe.next_position);if(status)return status;
+                status=actor_sweep(stream->collision,&probe,normal,&fraction,&sphere,(probe.state_124|4));if(status)return status;
+                blocked=sphere!=UINT32_MAX;
+            }
+            if(!blocked) {
+                status=rf_physics_stance_centers(&scene_actor_body.spheres,rf_scene_actor_stance_cache.centers[rf_scene_actor_stance_request],
+                    rf_scene_actor_stance_cache.count,&rf_scene_actor_stance_flags,rf_scene_actor_stance_request);if(status)return status;
+            }
+        }
+        rf_scene_actor_stance_frames[frame][0]=rf_scene_actor_stance_request;
+        rf_scene_actor_stance_frames[frame][1]=rf_scene_actor_stance_flags;
+        {uint32_t j,h=2166136261u;const unsigned char *p=(const unsigned char*)scene_actor_body.spheres.items;
+         for(j=0;j<scene_actor_body.spheres.count*sizeof(*scene_actor_body.spheres.items);++j)h=(h^p[j])*16777619u;
+         rf_scene_actor_stance_frames[frame][2]=h;}
+        rf_scene_actor_stance_frames[frame][3]=(uint32_t)blocked;
+        status=actor_ground_check(stream->collision,frame);if(status)return status;
         memset(rf_scene_actor_input_frames[frame],0,12);
         if(rf_scene_actor_drive_enabled==1 && frame>=24 && frame<48)rf_scene_actor_input_frames[frame][0]=.25f;
         if(rf_scene_actor_drive_enabled==2 && frame>=24 && frame<63)rf_scene_actor_input_frames[frame][0]=-1.0f;
@@ -348,7 +372,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             rf_physics_body_state next=scene_actor_body.state;
             const actor_ground_record *ground=rf_scene_actor_ground_records+frame;
             int walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
-            int moved=0;uint32_t axis;
+            int moved=frame && rf_scene_actor_stance_frames[frame][1]!=rf_scene_actor_stance_frames[frame-1][1];uint32_t axis;
             if(frame)for(axis=0;axis<3;++axis) {
                 float previous;memcpy(&previous,rf_scene_actor_render_frames[frame-1]+2+axis,4);
                 if(previous!=next.position[axis])moved=1;
@@ -417,6 +441,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         rf_physics_body_close(&scene_actor_body);memset(rf_scene_actor_physics_diagnostic,0,sizeof(rf_scene_actor_physics_diagnostic));
         placement.physics_config=&physics_config;placement.physics_body=&scene_actor_body;
         placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;
+        if(collision && state_mode) {placement.stance_cache=&rf_scene_actor_stance_cache;placement.stance_request=&rf_scene_actor_stance_request;}
     }
     if(state_mode) {
         states=malloc(sizeof(*states));if(!states) {status=RF_IO;goto done;}
