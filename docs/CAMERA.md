@@ -284,6 +284,37 @@ cover animated bone poses, parent-index integration or Xbox arithmetic at runtim
 
 ## State registration and motion-file leads
 
+`rf_motion_cache_acquire` reconstructs complete `0x539be0` lookup/initialization
+and `0x539d00` reference acquisition. The original scans 800 descriptors of
+124 bytes at `0x1c459e8`. It compares ASCII names case-insensitively after
+stripping their last-dot suffix, returning the first match even when an earlier
+slot is empty. Otherwise it initializes the first empty slot, preserving
+unwritten bytes and the acquired name's spelling, then increments the +0x70
+reference word with 32-bit wrap. Empty input preserves the original empty-name
+behavior: the initialized slot still appears free to a later lookup. This
+identity rule differs from the first-dot rule used to locate a compiled RFA.
+
+The caller supplies a bounded descriptor array. Port guards reject a full
+nonmatching cache, non-ASCII names and names that do not fit the original
+60-byte comparison buffers. Guards preserve descriptors and output index;
+the original has no equivalent safe full-cache behavior. Raw pointer fields
+remain unclassified storage, not dereferenceable host pointers.
+`tools/verify_motion_cache.py` executes both complete original functions and
+their CRT callees without replacement. All 1,041 valid fixtures match the chosen
+identity and every byte of eight supplied descriptors: 603 reuse and 438 new
+records, including case/extension aliases, empty slots, 59-byte names and
+reference wrap. Another 559 port guard fixtures preserve output. Payload lazy
+loading, reference release and global cache ownership remain outside this API.
+
+The running animation fixture now owns four heap descriptors (496 bytes), uses
+cache-slot-plus-one identities for model registration, and releases its local
+cache on every exit. It still opens four fixed files; the implementation does
+not yet perform bulk authored-state registration or global payload reuse.
+PC/NXDK builds and all four CTest checks pass. No new screenshot is needed for
+this identity-resolution change. Numeric stock-memory XEMU validation completes
+64 scene frames at `artifacts/xemu/20260908-232718-761231/report.json` without
+capture; animation hashes and the final draw counts match the existing fixture.
+
 `rf_model_register_motion` reconstructs the registry search/append portion of
 `0x51cc10`. The original resolves a skeleton identity before `0x51cc42`, then
 searches the count at instance +0xf58, identities at +0xf5c and exact flag bytes

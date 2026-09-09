@@ -41,6 +41,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_motion_playback_resource resources[4]={0}; rf_motion_playback_state state={0};
     uint32_t motion_identities[4]={0};uint8_t motion_flags[4]={0};int32_t registered[4];
     rf_model_motion_registry registration={motion_identities,motion_flags,0,4};
+    rf_motion_cache_record *motion_cache=NULL;
     rf_turn_effects effects={0}; rf_turn_actor actor={0};
     rf_locomotion_candidate_input selection={0,1,{0,0,0},0};
     rf_locomotion_candidates candidates;
@@ -129,12 +130,14 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     state.completion.active.freeze_slot=-1;
     state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
     state.phase=.25f; state.generation=1;
+    motion_cache=calloc(4,sizeof(*motion_cache));if(!motion_cache) {status=RF_IO;goto done;}
     for (i=0;i<4;++i) {
-        rf_motion_track track;int added;
+        rf_motion_track track;int added;uint32_t identity;
         status=rf_motion_file_open(&files[i],&archive,names[i]); if (status!=RF_OK) goto done;
-        /* These four resolved files are distinct. Stable local tokens stand in
-         * for original skeleton identities; file resolution remains separate. */
-        status=rf_model_register_motion(&registration,i+1,(uint8_t)(i<2),registered+i,&added);
+        status=rf_motion_cache_acquire(motion_cache,4,names[i],&identity);if(status)goto done;
+        /* Cache slot +1 is a nonzero stable identity for the caller-owned
+         * descriptors. Payload handles remain in files[], not raw pointer slots. */
+        status=rf_model_register_motion(&registration,identity+1,(uint8_t)(i<2),registered+i,&added);
         if(status || !added || registered[i]!=(int32_t)i) {status=RF_FORMAT;goto done;}
         status=rf_motion_file_track(&files[i],0,&track); if (status!=RF_OK) goto done;
         resources[i].comparison=track.envelope; resources[i].looping=i<2;
@@ -274,6 +277,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     }
     if(!emitted_indices && !placement)status=RF_FORMAT;
 done:
+    free(motion_cache);
     free(workspace);
     free(clip_pool);free(render_indices);
     free(render_memory);

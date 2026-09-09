@@ -1,6 +1,18 @@
 #ifndef RF_MOTION_FILE_H
 #define RF_MOTION_FILE_H
 #include "rf/motion.h"
+/* Original 124-byte motion cache descriptor; unclassified fields remain bytes,
+ * including original pointer slots. Caller owns storage and resource lifetime. */
+typedef struct rf_motion_cache_record {uint8_t bytes[124];} rf_motion_cache_record;
+/* 0x539be0 lookup/initialization plus 0x539d00 reference increment. Compare ASCII
+ * names ignoring case and their last-dot suffix; preserve the first acquired
+ * spelling. Empty slots have first name byte zero. Empty input retains original
+ * empty-slot behavior. Reference count at +0x70 wraps as uint32. No I/O/freeing.
+ * Port guards: capacity <=800, names fit original 60-byte comparison buffers,
+ * non-ASCII names
+ * rejected, full cache returns RANGE. Failures preserve cache and index. */
+int rf_motion_cache_acquire(rf_motion_cache_record *records,uint32_t capacity,
+    const char *name,uint32_t *index);
 typedef struct rf_motion_file {
     rf_vpp *archive;
     rf_vpp_entry entry;

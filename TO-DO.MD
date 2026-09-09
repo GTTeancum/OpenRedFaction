@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Motion-cache lookup and reference acquisition now match 1,041 original-code
+cases and supply diagnostic registration identities; finish payload release
+and bulk authored state registration before replacing the fixed file setup.
+
 Motion identity/loop-flag registration now matches 2,098 original-code cases
 and drives the passing XEMU fixture; connect bulk authored state registration
 and motion-cache ownership to replace the remaining fixed four-file setup.

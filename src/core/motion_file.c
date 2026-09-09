@@ -18,6 +18,43 @@ static uint32_t get32(const unsigned char *p)
 {
     return (uint32_t)p[0] | (uint32_t)p[1]<<8 | (uint32_t)p[2]<<16 | (uint32_t)p[3]<<24;
 }
+static int cache_stem(const char *name,uint32_t *length,uint32_t *stem)
+{
+    uint32_t n=0,last=0;int dot=0;
+    while(n<60 && name[n]) {
+        if((unsigned char)name[n]>127)return RF_FORMAT;
+        if(name[n]=='.') {last=n;dot=1;}++n;
+    }
+    if(n==60)return RF_RANGE;*length=n;*stem=dot?last:n;return RF_OK;
+}
+int rf_motion_cache_acquire(rf_motion_cache_record *records,uint32_t capacity,
+    const char *name,uint32_t *index)
+{
+    uint32_t length,stem,i,j,first=UINT32_MAX,selected=UINT32_MAX,reference;int status;
+    if(!records || !name || !index || capacity>800)return RF_RANGE;
+    status=cache_stem(name,&length,&stem);if(status)return status;
+    for(i=0;i<capacity;++i) {
+        const char *stored=(const char*)records[i].bytes;uint32_t size,end;
+        if(!*stored) {if(first==UINT32_MAX)first=i;continue;}
+        status=cache_stem(stored,&size,&end);if(status)return status;
+        if(stem!=end)continue;
+        for(j=0;j<stem;++j) {
+            unsigned a=(unsigned char)name[j],b=(unsigned char)stored[j];
+            if(a>='A' && a<='Z')a+=32;if(b>='A' && b<='Z')b+=32;
+            if(a!=b)break;
+        }
+        if(j==stem) {selected=i;break;}
+    }
+    if(selected==UINT32_MAX) {
+        if(first==UINT32_MAX)return RF_RANGE;selected=first;
+        memset(records[selected].bytes+0x40,0,0x2c);
+        records[selected].bytes[0x6c]=0;
+        memset(records[selected].bytes+0x70,0,12);
+        memmove(records[selected].bytes,name,length+1);
+    }
+    reference=get32(records[selected].bytes+0x70)+1;
+    memcpy(records[selected].bytes+0x70,&reference,4);*index=selected;return RF_OK;
+}
 static int32_t signed32(uint32_t bits)
 {
     return bits <= INT32_MAX ? (int32_t)bits : (int32_t)((int64_t)bits-4294967296LL);
