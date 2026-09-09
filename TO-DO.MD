@@ -83,6 +83,11 @@ rendered geometry records match PC, with 40 ground-support commits and zero
 support losses. Its 320 original query-preparation checks also pass. The new
 framebuffer shows the displaced miner; animation is still scripted, and this
 is not a gameplay controller. Live support loss/recovery remains open.
+The sustained -X contact route now exercises 29 actual contacts and 92 proposal
+passes across 63 updates in 64 MiB XEMU (run 20260909-161509-037641). Every
+captured response matches PC and original 49d7e0 before damage dispatch. The
+route stays grounded, so it does not close support-loss/recovery. Input and
+64 rendered geometry records match PC; all frames finish below the pass limit.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

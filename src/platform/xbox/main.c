@@ -420,6 +420,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     if(stream_flag){fclose(stream_flag);actor_body_preview=1;}
     stream_flag=fopen("D:\\actor-drive.flag","rb");rf_scene_actor_drive(stream_flag!=NULL);
     if(stream_flag){fclose(stream_flag);actor_body_preview=1;}
+    stream_flag=fopen("D:\\actor-contact.flag","rb");
+    if(stream_flag){fclose(stream_flag);rf_scene_actor_drive(2);actor_body_preview=1;}
     stream_flag=fopen("D:\\door-view.flag","rb");
     if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status)return status;}
     rf_preview_close(mesh);rf_materials_close(&resident_materials);

@@ -55,7 +55,7 @@ int main(int argc, char **argv)
     uint32_t world_vertices=0;
     int door_motion=argc>1 && !strcmp(argv[1],"--scene-door-motion-last");
     int door_view=door_motion || (argc>1 && !strcmp(argv[1],"--scene-door-states-last"));
-    int actor_drive=argc>1 && !strcmp(argv[1],"--scene-drive-last");
+    int actor_drive=argc>1 && !strcmp(argv[1],"--scene-contact-last")?2:argc>1 && !strcmp(argv[1],"--scene-drive-last");
     int actor_body=actor_drive || (argc>1 && !strcmp(argv[1],"--scene-body-last"));
     int scene_states=actor_body || door_view || (argc>1 && !strcmp(argv[1],"--scene-states-last"));
     int scene_stream=scene_states || (argc>1 && !strcmp(argv[1],"--scene-close-last"));

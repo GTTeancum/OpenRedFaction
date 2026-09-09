@@ -16,6 +16,7 @@ extern rf_entity_movement_values rf_scene_actor_movement_values;
 extern uint32_t rf_scene_actor_ground_modes[64];
 extern uint32_t rf_scene_actor_drive_enabled;
 extern float rf_scene_actor_input_frames[64][3];
+extern uint32_t rf_scene_actor_contact_count,rf_scene_actor_contacts[64][25];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored,body_mode;
@@ -106,7 +107,7 @@ int main(int argc,char **argv)
     }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
-    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--drive"),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
+    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && !strcmp(argv[12],"--drive"),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
     if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && !body_mode)))return 2;
     c.authored=argc==13;
     c.body_mode=body_mode;
@@ -143,7 +144,11 @@ int main(int argc,char **argv)
                 printf("ACTOR_GROUND");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_ground_stats[i]);puts("");}
             if(body_mode) {
                 if(!drive && (rf_scene_actor_landing[2]!=22 || rf_scene_actor_landing[3]!=1 || rf_scene_actor_landing[4]!=41))return 3;
-                if(drive && (scene_actor_body.state.position[0]<=c.placement.position[0]+.2f || rf_scene_actor_landing[6]<3))return 3;
+                if(drive && rf_scene_actor_landing[6]<3)return 3;
+                if(drive==1 && scene_actor_body.state.position[0]<=c.placement.position[0]+.2f)return 3;
+                if(drive==2 && (scene_actor_body.state.position[0]>=c.placement.position[0]-.2f || !rf_scene_actor_contact_count || rf_scene_actor_tick_stats[5]<2 || rf_scene_actor_tick_stats[4]))return 3;
+                if(rf_scene_actor_contact_count!=rf_scene_actor_tick_stats[3])return 3;
+                printf("ACTOR_CONTACTS %u",rf_scene_actor_contact_count);for(i=0;i<rf_scene_actor_contact_count*25;++i)printf(" %u",((uint32_t*)rf_scene_actor_contacts)[i]);puts("");
                 printf("ACTOR_LANDING");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_landing[i]);puts("");
                 printf("ACTOR_MOVEMENT");for(i=0;i<16;++i) {uint32_t word;memcpy(&word,(const unsigned char*)rf_scene_actor_movement+i*4,4);printf(" %u",word);}puts("");
                 printf("ACTOR_SPEED");for(i=0;i<4;++i) {uint32_t word;memcpy(&word,(const unsigned char*)&rf_scene_actor_movement_values+i*4,4);printf(" %u",word);}puts("");

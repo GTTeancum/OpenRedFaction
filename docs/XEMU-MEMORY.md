@@ -551,3 +551,47 @@ This demonstrates controlled diagnostic movement over static support. It
 does not establish support-loss recovery, moving platforms, player controls,
 AI, or locomotion-driven animation. The starting pose, inertia and cached
 frame-zero colliders retain their previously documented limitations.
+
+
+## Grounded contact route and response capture
+
+`actor-contact.flag` selects input profile 2, a sustained -X 1 input on frames
+24..62. It overrides `actor-drive.flag`; remove the contact flag and rebuild
+the disc to return to the short pulse. Use smoke option `--actor-contact`, PC
+checker `--contact`, and preview `--scene-contact-last`. The original short
+pulse remains profile 1, and no-input remains profile 0. Input is contained in
+the diagnostic process.
+
+`rf_scene_actor_contacts` holds up to 64 records of 25 words (6400 bytes),
+with `rf_scene_actor_contact_count` giving the used count. Overflow returns a
+diagnostic error instead of discarding evidence. Each record contains:
+
+- Words 0..2: update frame, proposal pass and movement descriptor index.
+- Words 3..17: velocity, angular velocity, normal, support velocity and contact
+  velocity, each three float words, before response.
+- Words 18..24: resulting velocity, angular velocity and impact value.
+
+The snapshot reader captures these symbols. The smoke harness compares the
+entire used trace with PC, as well as the input profile, all input words and
+existing geometry/support records. `verify_physics_contact.py <snapshot>`
+executes original 49d7e0 with each captured input and compares its result with
+guest RAM, PC and compiled NXDK. Captured cases stop at the damage call after
+reading its argument; no callee is replaced. This verifies the prepared static
+response path, not damage, gameplay effects or general object contacts. The
+randomized reference suite now covers 256 falling and 256 run cases.
+
+Run `artifacts/xemu/20260909-161509-037641/report.json` passes in stock 64 MiB
+XEMU: 63 updates, 92 proposal passes, 29 contacts, maximum three passes in one
+update and zero capped frames. All 29 response records match PC and original
+instructions, for 541 PC/NXDK comparisons including the 512 synthetic cases.
+All 64 geometry hashes and input records match PC; 320 original ground-query
+preparation comparisons pass. Four CTests and passive, short-pulse and contact
+scene checks pass. The framebuffer comparison passes with six of 307200 pixels
+over three channel levels (mean maximum-channel error 0.0299447).
+
+The miner stays grounded throughout the driven part, with 40 support commits
+and no support losses. This route does not verify walking off a ledge or
+recovery. The fixed diagnostic camera leaves the miner partly outside the
+final view; the capture is retained as test evidence, not a gameplay camera
+result. Animation, initial pose/inertia and cached colliders remain provisional
+as previously documented.

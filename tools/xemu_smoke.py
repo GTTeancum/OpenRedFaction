@@ -71,7 +71,9 @@ def main():
     parser.add_argument('--door-view',action='store_true',help='Expect door-view.flag camera on mover 8544 during authored-state playback')
     parser.add_argument('--door-motion',action='store_true',help='Expect door-motion.flag to draw 600 simultaneous door updates at 1/60-second steps')
     parser.add_argument('--door-motion-frames',type=int,default=600,help='Expected optional door-motion-frames.txt diagnostic endpoint (1..600)')
+    parser.add_argument('--actor-contact',action='store_true',help='Expect actor-contact.flag sustained -X collision route')
     args = parser.parse_args()
+    if args.actor_contact:args.actor_drive=True
     if args.actor_drive:args.actor_body=True
     if args.actor_body:args.scene_states=True
     if args.door_motion:args.door_view=True
@@ -93,7 +95,7 @@ def main():
         if not actor_physics_symbol:raise RuntimeError('Integrated actor physics symbol absent')
         scene_args=[str(root/'build/pc/Release/rf_scene_check.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','9858']
         scene_args += [str(root/'Installed_Game'/n) for n in ['meshes.vpp','motions.vpp','tables.vpp','maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp']]
-        output=subprocess.check_output(scene_args+['--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
+        output=subprocess.check_output(scene_args+['--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
         actor_final_vertices=int(re.search(r'Frame 63 actor triangles (\d+)',output)[1])*3
         actor_frame_reference=[(int(n)*3,int(h,16)) for n,h in re.findall(r'Frame \d+ actor triangles (\d+) hash ([0-9a-f]+)',output)][:64]
         if args.actor_body:actor_tick_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_TICKS ')).split()[1:]))
@@ -102,6 +104,7 @@ def main():
         if args.actor_body:actor_movement_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_MOVEMENT ')).split()[1:]))
         if args.actor_body:actor_speed_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SPEED ')).split()[1:]))
         if args.actor_body:actor_ground_modes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND_MODES ')).split()[1:]))
+        if args.actor_body:actor_contact_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CONTACTS ')).split()[1:]))
         if args.actor_body:actor_input_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_INPUT ')).split()[1:]))
         actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
         actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
@@ -306,8 +309,12 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         if args.actor_body:
                             inputs=memory_snapshot['symbols']['rf_scene_actor_input_frames']['words']
                             drive=memory_snapshot['symbols']['rf_scene_actor_drive_enabled']['words'][0]
-                            if bool(drive)!=args.actor_drive or inputs!=actor_input_reference:raise RuntimeError('Actor process-local input differs from PC or requested fixture')
-                            report['actor_input']=dict(drive=bool(drive),frames_match_pc=64,scope='Process-local +X .25 pulse on frames 24..47; no host input. Grounded steering only.')
+                            if drive!=(2 if args.actor_contact else int(args.actor_drive)) or inputs!=actor_input_reference:raise RuntimeError('Actor process-local input differs from PC or requested fixture')
+                            report['actor_input']=dict(drive=bool(drive),profile=drive,frames_match_pc=64,scope='Process-local grounded steering; profile 1: +X .25 frames 24..47; profile 2: -X 1 frames 24..62. No host input.')
+                            contact_count=memory_snapshot['symbols']['rf_scene_actor_contact_count']['words'][0]
+                            contact_words=memory_snapshot['symbols']['rf_scene_actor_contacts']['words'][:contact_count*25]
+                            if [contact_count]+contact_words!=actor_contact_reference:raise RuntimeError('Actor contact inputs/results differ from PC')
+                            report['actor_contacts_match_pc']=contact_count
                             frames=memory_snapshot['symbols']['rf_scene_actor_render_frames']['words']
                             if [(frames[i],frames[i+1]) for i in range(0,320,5)]!=actor_frame_reference:raise RuntimeError('Actor rendered frame sequence differs from PC')
                             if frames[2:5]==frames[317:320]:raise RuntimeError('Actor body never moved')
@@ -332,7 +339,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             speed=memory_snapshot['symbols']['rf_scene_actor_movement_values']['words']
                             if speed!=actor_speed_reference:raise RuntimeError('Authored class movement values differ from PC')
                             report['actor_movement_values']=list(struct.unpack('<4f',struct.pack('<4I',*speed)))
-                            report['actor_landing']=dict(mode=landing[1],frame=landing[2],transitions=landing[3],idle_ticks=landing[4],support_commits=landing[6],support_losses=landing[7],scope='Static run landing and moved-grounded support maintenance; no damage/sound/AI or moving platforms.')
+                            report['actor_landing']=dict(mode=landing[1],frame=landing[2],transitions=landing[3],grounded_ticks=landing[4],support_commits=landing[6],support_losses=landing[7],scope='Static run landing and moved-grounded support maintenance; no damage/sound/AI or moving platforms.')
                             pose=memory_snapshot['symbols']['rf_scene_actor_pose']['words']
                             body=memory_snapshot['symbols']['scene_actor_body']['words']
                             if not pose[0]&0x4000000 or any(pose[i:i+3]!=body[22:25] for i in (14,17,20)) or body[22:25]!=body[25:28] or pose[53:59]!=body[62:68]:raise RuntimeError('Actor public/current/pending pose or bounds diverged')

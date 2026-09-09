@@ -134,7 +134,9 @@ rf_entity_movement_values rf_scene_actor_movement_values;
 uint32_t rf_scene_actor_ground_modes[64];
 uint32_t rf_scene_actor_drive_enabled;
 float rf_scene_actor_input_frames[64][3];
-void rf_scene_actor_drive(int enabled) {rf_scene_actor_drive_enabled=enabled!=0;}
+uint32_t rf_scene_actor_contact_count;
+uint32_t rf_scene_actor_contacts[64][25]; /* frame, pass, mode, 15 input + 7 result floats */
+void rf_scene_actor_drive(int profile) {rf_scene_actor_drive_enabled=(uint32_t)profile;}
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
     actor_ground_record *r=rf_scene_actor_ground_records+frame;float start[3],delta[3];uint32_t k;int status;
@@ -246,9 +248,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
     do {
         float fraction,impact;uint32_t sphere;
         if(grounded) {
-            /* Ordinary run drag selection at 49f79a; steering remains zero in
-             * this passive scene. Shared proposal now handles nonzero velocity
-             * and force instead of an idle-only assignment. */
+            /* Ordinary run drag selection at 49f79a. */
             float drag=fmaxf(.5f,(float)((double)state->coefficients[1]/state->mass));
             float steering[3],input[3]={0};
             if(!pass)memcpy(input,command,12); /* Original repeated passes omit steering. */
@@ -263,9 +263,16 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
         if(sphere==UINT32_MAX) {
             memcpy(state->position,state->next_position,sizeof(state->position));state->scalar_144=1;remaining=0;
         } else {
+            uint32_t *record;
+            if(rf_scene_actor_contact_count>=64)return RF_RANGE;
+            record=rf_scene_actor_contacts[rf_scene_actor_contact_count++];
+            record[0]=rf_scene_actor_tick_stats[1];record[1]=pass;record[2]=rf_scene_actor_landing[1];
+            memcpy(record+3,state->velocity,24);memcpy(record+9,normal,12);
+            memcpy(record+12,support,12);memcpy(record+15,support,12);
             ++contacts;
             status=rf_physics_contact_advance(state,remaining,fraction,&remaining);if(status)return status;
             status=rf_physics_static_contact(state,normal,support,support,&impact);if(status)return status;
+            memcpy(record+18,state->velocity,24);memcpy(record+24,&impact,4);
         }
         if((pass>3 && remaining<.25f) || pass>9) {++pass;break;}
         ++pass;
@@ -307,6 +314,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         rf_scene_actor_pose.radius=scene_actor_body.state.bounds.radius;
         status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
         memset(rf_scene_actor_tick_stats,0,sizeof(rf_scene_actor_tick_stats));rf_scene_actor_tick_stats[0]=0x5246544b;
+        rf_scene_actor_contact_count=0;memset(rf_scene_actor_contacts,0,sizeof(rf_scene_actor_contacts));
         memset(rf_scene_actor_landing,0,sizeof(rf_scene_actor_landing));
         rf_scene_actor_landing[0]=0x52464c44;rf_scene_actor_landing[1]=3;rf_scene_actor_landing[2]=UINT32_MAX;
     }
@@ -327,7 +335,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         uint32_t hash=2166136261u;
         int status=actor_ground_check(stream->collision,frame);if(status)return status;
         memset(rf_scene_actor_input_frames[frame],0,12);
-        if(rf_scene_actor_drive_enabled && frame>=24 && frame<48)rf_scene_actor_input_frames[frame][0]=.25f;
+        if(rf_scene_actor_drive_enabled==1 && frame>=24 && frame<48)rf_scene_actor_input_frames[frame][0]=.25f;
+        if(rf_scene_actor_drive_enabled==2 && frame>=24 && frame<63)rf_scene_actor_input_frames[frame][0]=-1.0f;
         for(i=0;i<actor->bytes;++i)hash=(hash^((const unsigned char*)actor->vertices)[i])*16777619u;
         rf_scene_actor_render_frames[frame][0]=actor->count;rf_scene_actor_render_frames[frame][1]=hash;
         memcpy(rf_scene_actor_render_frames[frame]+2,scene_actor_body.state.position,12);
