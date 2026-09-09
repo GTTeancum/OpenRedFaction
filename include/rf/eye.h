@@ -1,6 +1,7 @@
 #ifndef RF_EYE_H
 #define RF_EYE_H
 #include "rf/vpp.h"
+#include "rf/random.h"
 typedef struct rf_eye_input {
     float position[3], orientation[3][3], standing_offset[3], crouching_offset[3];
     uint32_t flags;
@@ -36,4 +37,9 @@ int rf_camera_effect_step(rf_camera_effect_state *state,int32_t now_ms,float *co
  * Errors preserve state/orientation/active. Expired effects ignore draws. */
 int rf_camera_effect_apply(rf_camera_effect_state *state,int32_t now_ms,
     uint32_t draw0,uint32_t draw1,float orientation[9],uint32_t *active);
+/* State-owning adapter: exactly two draws when active, none when expired.
+ * Caller supplies the same stream used by other original-thread consumers.
+ * No seed choice is inferred. Errors preserve state, RNG, orientation, active. */
+int rf_camera_effect_apply_random(rf_camera_effect_state *state,int32_t now_ms,
+    rf_random_state *random,float orientation[9],uint32_t *active);
 #endif

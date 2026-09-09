@@ -1615,3 +1615,28 @@ and disabled timers, cone extremes, vertical views, non-unit bases and missing
 up/right vectors. Both builds and four CTests pass. These are instruction-level
 comparisons, not an XEMU camera rendering result. Initial eye offsets and game
 RNG sequence ownership remain necessary before full player-view integration.
+
+## Explicit random stream for camera effects
+
+`rf_random_next` reconstructs original 57312d using caller-owned 32-bit state:
+`state = state * 214013 + 2531011` modulo 2^32, returning bits 16..30. The
+original obtains this state at CRT thread-data +14 through 577eef. The port
+uses explicit state rather than NXDK/host rand(), and infers neither a seed
+nor a global initialization order.
+
+`rf_camera_effect_apply_random` consumes exactly two draws when the timer is
+not expired and none otherwise, then applies the reconstructed camera effect.
+It commits RNG advancement only if the port operation succeeds. Invalid inputs
+preserve RNG, effect state and orientation. Runtime callers must share the
+appropriate stream with other consumers from the same original thread; a new
+private seed for each camera call would not reproduce game-wide behavior.
+
+`tools/verify_camera_effect_random.py` executes full original 40db70 and the
+original rand implementation. Only resolved-player lookup and CRT thread-data
+access are supplied at boundaries. All 1,800 PC and 1,800 compiled NXDK cases
+match orientation, effect state, active status and final RNG state exactly.
+Of those, 1,285 are active and consume two draws; the other 515 consume none.
+A malformed-state guard also verifies no partial RNG/camera update. Both builds
+and four CTests pass. The API is ready for player ownership integration; actual
+seeding and ordering of other game RNG consumers remain unrecovered. No new
+XEMU camera binding or visible result is claimed.

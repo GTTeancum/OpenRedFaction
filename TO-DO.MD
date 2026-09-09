@@ -6,6 +6,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Camera effects now use an explicit original-compatible RNG stream and match
+1,800 original/PC/NXDK cases including final RNG state. Initial player eye
+state and game-wide RNG seeding/consumer order remain open before view binding.
+
 The complete first-person camera effect now matches 1,800 original cases on
 both PC and compiled NXDK, including cone sampling and orientation rebuilding.
 Bind initialized player eye offsets and the game's random sequence next; the

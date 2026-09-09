@@ -245,3 +245,18 @@ int rf_camera_effect_apply(rf_camera_effect_state *state,int32_t now_ms,
     for(i=0;i<9;++i)if(!isfinite(((float*)rebuilt)[i]))return RF_FORMAT;
     memcpy(orientation,rebuilt,36);*state=next;*active=1;return RF_OK;
 }
+
+int rf_camera_effect_apply_random(rf_camera_effect_state *state,int32_t now_ms,
+    rf_random_state *random,float orientation[9],uint32_t *active)
+{
+    rf_random_state next;uint32_t first=0,second=0;int expired,status;
+    if(!state || !random || !orientation || !active)return RF_RANGE;
+    status=rf_timer_expired(state->deadline,now_ms,&expired);if(status)return status;
+    next=*random;
+    if(!expired) {
+        status=rf_random_next(&next,&first);if(status)return status;
+        status=rf_random_next(&next,&second);if(status)return status;
+    }
+    status=rf_camera_effect_apply(state,now_ms,first,second,orientation,active);if(status)return status;
+    *random=next;return RF_OK;
+}
