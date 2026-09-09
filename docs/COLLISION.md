@@ -946,3 +946,45 @@ still require the port's explicit error policy. Full transformed room/contact
 comparison, conversion of contacts back to world space, moving-solid list order,
 and actor movement response remain open. Both builds and four CTest checks pass.
 This change has no visible rendering effect.
+
+## Transformed room-query composition
+
+`rf_collision_transformed_rooms` now combines verified input preparation with
+the uncached hierarchy path of `0x4df1c0`. It shares an internal prepared-room
+query with the existing local wrapper. That internal path receives local start,
+local displacement, original displacement for edge normals, and a separate
+original-motion active flag. Thus it preserves the original decision to continue
+when endpoint rounding collapses the local displacement to zero. The local
+wrapper retains its previous zero-input behavior and passes the same vector for
+both displacement roles.
+
+The matrix/origin conversion occurs only when flag 4 is clear. Results remain
+in the contact convention returned by `0x4df1c0`, including its original +0x40
+edge-normal calculation; this API does not yet convert contacts back to world
+space. Face indices still refer to reordered room-tree faces. Preferred-face
+shortcuts, cached face lists, fallback solid-face lists and special mode 0x1000
+remain outside the supported hierarchy path. Errors/misses retain the existing
+output-preservation rules, and no allocation is introduced.
+
+`python tools/verify_collision_transformed_rooms.py` passes 5,003 original calls
+against PC and actual NXDK-linked code. These include 5,000 randomized translated
+rotations/direct-local queries and three finite-output degenerate/inactive
+fixtures. Complete original `0x4df1c0` and every transform, room, tree and face
+callee run unchanged. The randomized cases yield 1,666 hits, 586 final edge
+contacts and 460 queries with multiple updates; fractions, points, normals,
+face/room identity, counts and classification match byte-for-byte.
+
+One additional original fixture collapses local displacement on a coplanar
+zero-radius face. The port correctly reaches the thin-plane helper and returns
+its existing RF_FORMAT policy for a nonfinite candidate fraction, preserving all
+outputs; it is classified as a port guard rather than a bit-identical original
+result. Original call-entry tracing confirms face queries are reached for all
+three collapsed-local fixtures and skipped for zero original displacement. Ten
+other malformed/unsupported input checks pass, for 11 guards total. Report:
+`artifacts/collision-transformed-rooms-verification.json`.
+
+Both builds and four CTest checks pass. Regressions also pass for 5,000 direct-local
+room queries, 12,000 input transformations and 44,082 loaded-world sweeps across
+94 levels, including byte-identical replay after source geometry is freed. This
+new transformed path has not yet run in XEMU. World-space output conversion,
+moving-solid iteration and actor response remain open. Rendering is unchanged.

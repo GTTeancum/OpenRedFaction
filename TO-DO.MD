@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Solid-local query preparation now matches 12,000 original cases on PC and
-NXDK; compose transformed room queries without treating rounded-zero local
-movement as an inactive original query, then recover moving-solid output/response.
+Transformed room queries now match 5,003 original calls on PC and NXDK, with
+explicit rounded-zero movement handling; recover world-space contact conversion
+and moving-solid traversal, then connect actor collision response.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

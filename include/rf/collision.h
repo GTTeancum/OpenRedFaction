@@ -148,4 +148,12 @@ int rf_collision_sweep_rooms(const rf_collision_room_view *rooms,uint32_t room_c
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
     uint32_t query_flags,const float start[3],const float displacement[3],float radius,float limit,
     rf_collision_sweep_room_hit *result,uint32_t *matched);
+/* Uncached hierarchy query including 4df1c0 input transformation. Results
+ * remain in the original function's local contact convention; edge normals
+ * retain original +40 displacement semantics. World-output conversion is a
+ * separate caller step. Flag 4 bypasses origin/matrix; no caches/special modes. */
+int rf_collision_transformed_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],const float origin[3],
+    const float matrix[3][3],float radius,float limit,rf_collision_sweep_room_hit *result,uint32_t *matched);
 #endif
