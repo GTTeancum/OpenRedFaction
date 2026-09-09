@@ -27,6 +27,9 @@ radius for those authored model-derived spheres. Recover their class descriptor
 construction, then connect the existing resident level record and body owner.
 Shared class-dependent physics flags match 9,216 original cases on PC/NXDK;
 the original class parser still needs to supply the descriptor fields.
+The shared CSPH reader now exposes all 114 model spheres across 95 installed
+V3C files. miner.v3c supplies radii .60/.40/.15 with parent indices -1/15/8;
+apply the recovered bone pose path and named class overrides before spawning.
 
 Original event activation now passes 2,160 cases, delayed-tick prefix 1,620
 cases, and three re-activation steps. Timer replacement, disabled caller-field

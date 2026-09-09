@@ -472,6 +472,48 @@ must not silently replace the named sphere list. Complete that conversion and
 material lookup before binding the resident level entity to a runtime body;
 the factory-flag tests alone do not establish a spawned campaign entity.
 
+## Model sphere source located and streamed
+
+Original 423bd0 constructs resolved class spheres from model data before
+applying named table overrides. 503250/501490 obtain the model sphere count;
+503270/501500 obtain center and radius. For animated model kind 2, 501500
+fetches a bone matrix through 51c590 and transforms the stored local center
+with 4ff020. Kind 1 copies the stored center directly. Model sphere records
+are 44 bytes: name[24], parent int32, center float[3], radius float. These
+execution paths are currently disassembly/decompiler evidence, not a complete
+verified reconstruction of 423bd0.
+
+The installed V3C files contain one 44-byte CSPH section per sphere (type
+0x43535048). New `rf_model_file_collision_sphere` streams the selected record
+without loading the model payload. It adds a safe name terminator, validates
+parent >= -1, finite centers and nonnegative finite radius, and preserves output
+on errors or end-of-list. Parent validation against a loaded skeleton and bone
+pose transformation remain caller responsibilities.
+
+For miner.v3c the actual records are:
+
+| Name | Parent | Local center (approximate) | Radius |
+| --- | ---: | --- | ---: |
+| csphere_0 | -1 | (-0.000073, -0.231521, -0.018492) | 0.60 |
+| csphere_1 | 15 | (-0.000405, 0.110772, 0.031623) | 0.40 |
+| csphere_2 | 8 | (-0.000423, 0.092343, 0.068714) | 0.15 |
+
+The table's required numeric pair is copied into resolved record +8/+0xc,
+with +4 selecting the first in single-player and second in network mode.
+It does not directly replace these model radii. The optional table radius
+override is applied only when positive. Optional +0x10/+0x14 values similarly
+replace the resolved fields only when +0x10 is positive. These mappings still
+need executable comparison before integration; do not infer physical meanings
+for the unnamed coefficients from their numeric values.
+
+`tools/verify_model_spheres.py` compares the shared PC reader against independent
+file inspection for all 114 records across 95 installed V3C files. All fields
+match. It rejects 55 malformed payload cases (44 truncations, trailing byte,
+nonfinite fields, invalid parent and negative radius). NXDK compilation passes;
+live Xbox streaming of these records is not yet exercised. Report:
+`artifacts/model-spheres-verification.json`. Next, connect the existing skeletal
+pose data to the two bone-relative miner spheres and apply the class overrides.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

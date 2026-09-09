@@ -4,6 +4,24 @@
 #include <math.h>
 #include <stdlib.h>
 typedef struct reader { rf_model_file *model; uint32_t cursor; int status; } reader;
+int rf_model_file_collision_sphere(const rf_model_file *model,uint32_t index,rf_model_collision_sphere *sphere)
+{
+    uint32_t i,j;uint8_t raw[44];rf_model_collision_sphere value={0};int status;
+    if(!model || !model->archive || !sphere || model->section_count>RF_MODEL_MAX_SECTIONS)return RF_RANGE;
+    for(i=0;i<model->section_count;++i) {
+        const rf_model_section *section=model->sections+i;
+        if(section->type!=0x43535048)continue;
+        if(index) {--index;continue;}
+        if(section->size!=sizeof(raw) || (uint64_t)section->offset+sizeof(raw)>model->entry.size)return RF_FORMAT;
+        status=rf_vpp_read(model->archive,&model->entry,section->offset,raw,sizeof(raw));if(status)return status;
+        memcpy(value.name,raw,24);memcpy(&value.parent,raw+24,4);
+        memcpy(value.center,raw+28,12);memcpy(&value.radius,raw+40,4);
+        if(value.parent<-1 || !isfinite(value.radius) || value.radius<0)return RF_FORMAT;
+        for(j=0;j<3;++j)if(!isfinite(value.center[j]))return RF_FORMAT;
+        *sphere=value;return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
 int rf_model_geometry_clip_near(const rf_model_geometry *geometry,uint32_t batch,
     rf_model_render_buffers *buffers,float near_depth)
 {

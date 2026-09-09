@@ -26,6 +26,11 @@ typedef struct rf_model_attachment {
     float rotation[4], position[3];
     int32_t parent;
 } rf_model_attachment;
+typedef struct rf_model_collision_sphere {
+    char name[25];
+    int32_t parent;
+    float center[3],radius;
+} rf_model_collision_sphere;
 typedef struct rf_model_section { uint32_t type, offset, size, material_offset, material_count; } rf_model_section;
 typedef struct rf_model_file {
     rf_vpp *archive;
@@ -41,6 +46,10 @@ int rf_model_file_open(rf_model_file *model, rf_vpp *archive, const char *name);
 /* Read one raw 100-byte attachment without loading its LOD blob. Fields remain
  * local to the referenced bone; parent validation needs the loaded skeleton. */
 int rf_model_file_attachment(const rf_model_file *model, uint32_t lod, uint32_t index, rf_model_attachment *attachment);
+/* Stream the indexed CSPH record (44 serialized bytes). Center is bone-local
+ * when parent is nonnegative; pose transformation is a separate runtime step.
+ * NOT_FOUND past the last sphere; malformed data/errors preserve output. */
+int rf_model_file_collision_sphere(const rf_model_file *model,uint32_t index,rf_model_collision_sphere *sphere);
 /* Stream one 84-byte serialized SUBM material. This is not the 200-byte
  * runtime material layout; conversion is separate. Output unchanged on error. */
 int rf_model_file_material(const rf_model_file *model,uint32_t submesh,uint32_t index,uint8_t raw[84]);

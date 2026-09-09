@@ -15,6 +15,22 @@ int main(int argc, char **argv)
     int result;
     if ((argc != 3 && argc != 4) || rf_vpp_open(&archive, argv[1])) return 2;
     result = rf_model_file_open(&model, &archive, argv[2]);
+    if(!result && argc==4 && !strcmp(argv[3],"--spheres")) {
+        rf_model_collision_sphere sphere,before;uint32_t index=0,j;int status;
+        for(;;) {
+            memset(&sphere,0xa5,sizeof(sphere));before=sphere;
+            status=rf_model_file_collision_sphere(&model,index,&sphere);
+            if(status==RF_NOT_FOUND) {if(memcmp(&sphere,&before,sizeof(sphere)))result=RF_FORMAT;break;}
+            if(status) {result=status;break;}
+            for(j=0;j<24;++j)printf("%02x",(unsigned char)sphere.name[j]);
+            for(j=0;j<5;++j) {
+                uint32_t bits;const void *field=j==0?(const void*)&sphere.parent:j<4?(const void*)&sphere.center[j-1]:(const void*)&sphere.radius;
+                memcpy(&bits,field,4);printf("%08x",bits);
+            }
+            printf("\n");++index;
+        }
+        rf_vpp_close(&archive);return result?3:0;
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--render-geometry")) {
         float matrices[256][12]={{0}};uint32_t bone,b;
         rf_model_projection view={0};rf_model_lighting lights={0};rf_model_render_output output={1,{255,255,255},255,1,1};

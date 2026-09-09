@@ -36,6 +36,8 @@ public class ExportBaseline extends GhidraScript {
         long[] targets = {0x5760c3L, 0x52c070L, 0x52bb50L, 0x52be70L, 0x52bd40L, 0x54f160L};
         LinkedHashSet<Long> addresses = new LinkedHashSet<>();
         for (long target : targets) addresses.add(target);
+        // Entity class/model collision sphere construction and named overrides.
+        for (long target : new long[]{0x423bd0L,0x503260L,0x42d9a0L,0x42da10L}) addresses.add(target);
         addresses.add(0x469250L); addresses.add(0x466090L);
         for (long target : new long[]{0x46a9c0L, 0x46a120L, 0x46afa0L, 0x46b330L}) addresses.add(target);
         addresses.add(0x46a8f0L); // Pending-position commit called from 487e00.
