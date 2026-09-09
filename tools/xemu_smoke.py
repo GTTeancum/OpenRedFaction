@@ -105,6 +105,7 @@ def main():
         if args.actor_body:actor_speed_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SPEED ')).split()[1:]))
         if args.actor_body:actor_ground_modes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND_MODES ')).split()[1:]))
         if args.actor_body:actor_contact_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CONTACTS ')).split()[1:]))
+        if args.actor_body:actor_selector_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SELECTOR ')).split()[1:]))
         if args.actor_body:actor_clearance_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_CLEARANCE ')).split()[1:]))
         if args.actor_body:actor_surface_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SURFACES ')).split()[1:]))
         if args.actor_body:actor_speed_modes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SPEED_MODES ')).split()[1:]))
@@ -313,6 +314,9 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         memory_snapshot=guest_snapshot(monitor,map_text)
                         if args.actor_body:
                             report['actor_run_motion']=dict(routine='49e400',traction=struct.unpack('<f',struct.pack('<I',memory_snapshot['symbols']['rf_scene_actor_run_traction']['words'][0]))[0],scope='Run speed convergence and slope response; traction resolved from support face texture prefix and materials.tbl.')
+                            selector=memory_snapshot['symbols']['rf_scene_actor_selector_frames']['words']
+                            if selector!=actor_selector_reference:raise RuntimeError('Actor stance selector/effect order differs from PC')
+                            report['actor_selector']=dict(frames_match_pc=64,crouch_frames=[i for i in range(64) if selector[i*8+2]==1],stand_frames=[i for i in range(64) if selector[i*8+2]==2],scope='Reconstructed stance selector effects applied before animation advancement; crouch eligibility remains scripted.')
                             clearance=memory_snapshot['symbols']['rf_scene_actor_clearance_diagnostic']['words']+memory_snapshot['symbols']['rf_scene_actor_clearance_queries']['words']
                             if clearance!=actor_clearance_reference:raise RuntimeError('Actor blocked/clear standing differs from PC')
                             report['actor_clearance']=dict(cases=clearance[1],blocked=clearance[2],clear=clearance[3],scope='Shared live stance helper on a copied crouched actor approaching actual level ceiling; rendered actor restored. Not a player traversing a low tunnel.')

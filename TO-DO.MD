@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Extend the working process-local steering fixture to exercise live support loss and recovery in XEMU.
-- [ ] Connect blocked collider stance to animation and resolve initial class pose/inertia.
+- [ ] Replace scripted stance eligibility and resolve initial class pose/inertia.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
@@ -15,7 +15,11 @@ Ground traction now comes from the support face texture prefix, removing the
 fixed value. Run `20260909-170239-776884` also passes blocked/clear standing
 using the scene transition helper on a copied crouched body near a real ceiling.
 The rendered route still lacks blocked-standing traversal and support loss;
-scripted animation must respect a refused collider stance before gameplay use.
+the original selector continues after a refused stand attempt without checking
+its return value. Do not invent a forced-crouch animation rule.
+The reconstructed stance selector is now connected before animation advancement;
+run `20260909-170656-795906` matches all 64 selector/effect records on PC/XEMU.
+It applies crouch at frame 40 and stand at 48. Eligibility remains scripted.
 See `docs/XEMU-MEMORY.md` for reproduction and limits.
 
 Working approach: complete the first miner integration across loading, rendering

@@ -31,7 +31,12 @@ typedef struct rf_animation_placement {
     const rf_entity_physics_config *physics_config;
     rf_physics_body *physics_body; /* Open body's pose drives rendering each frame. */
     rf_physics_stance_cache *stance_cache; /* Optional cache from diagnostic initial pose. */
-    uint32_t *stance_request; /* Stable crouch state requested by scripted controller. */
+    const uint32_t *stance_flags;
+    /* Apply original selector physics effect before controller advancement.
+     * Eligibility remains scripted in this diagnostic. Called once per frame. */
+    int (*stance_effect)(void *context,uint32_t frame,const rf_motion_stance_decision *decision,
+        const rf_motion_controller *controller);
+    void *stance_context;
     uint32_t *physics_diagnostic; /* Eight words; optional integrated fixture. */
 } rf_animation_placement;
 /* World/entity inputs are read each frame, allowing the owner to update them

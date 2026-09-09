@@ -226,7 +226,14 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         }
         if(authored) {
             static const int32_t sequence[4]={0,2,8,0};
-            if(frame%16==0) {status=rf_motion_request_state(&controller,motions,sequence[frame/16],.25f);if(status)goto done;}
+            int handled=0;
+            if(placement && placement->stance_effect && placement->stance_flags) {
+                rf_motion_stance_decision decision;
+                status=rf_motion_select_stance(&controller,motions,8,frame>=32 && frame<48,*placement->stance_flags,&decision);if(status)goto done;
+                status=placement->stance_effect(placement->stance_context,frame,&decision,&controller);if(status)goto done;
+                handled=decision.handled;
+            }
+            if(!handled && frame%16==0) {status=rf_motion_request_state(&controller,motions,sequence[frame/16],.25f);if(status)goto done;}
             status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,resources,resource_count);if(status)goto done;
         } else {
         inventory.reserve[0]=frame<32 ? 1 : 0;
@@ -319,7 +326,6 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                     if(status)goto done;
                 }
             }
-            if(placement->stance_request)*placement->stance_request=authored && controller.current==8 && controller.duration==0;
             if(placement->physics_diagnostic) {
                 uint32_t *d=placement->physics_diagnostic;
                 d[0]=0x52465041;d[1]=1;d[2]=frame+1;d[3]=body->spheres.count;d[4]=body->allocated_bytes;

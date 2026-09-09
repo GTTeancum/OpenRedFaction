@@ -824,3 +824,39 @@ standing pose independently of a refused collider switch. A real movement
 controller must keep animation and accepted collision stance consistent. This
 test proves refusal preserves collider/settings state, not animation behavior
 under a low ceiling. Support-loss traversal and original spawn pose remain open.
+
+
+## Stance selector integrated before animation advancement
+
+Correction to the preceding proposed animation policy: original 41f7b9 calls
+428a60, then 41f7be removes the argument and falls directly into the movement
+selector at 41f7c1. It does not inspect the standing result. The claim that this
+caller must force a crouch animation after refusal was an inference unsupported
+by that code. No such override has been introduced. Broader animation/eligibility
+behavior still needs the original caller context.
+
+The live actor now calls the existing reconstructed `rf_motion_select_stance`
+from animation selection, applies its requested physics effect synchronously,
+then advances the controller. The prior after-animation manual test of current
+state/duration has been removed for this path. The callback connects the scene's
+real standing clearance, cached sphere centers and movement settings. Eligibility
+is explicitly supplied by the diagnostic frame interval 32..47; priority, AI
+predicates and candidate selection are still outside this integration. The
+standalone animation fixture keeps its existing scripted requests.
+
+Guest `rf_scene_actor_selector_frames` records current/next states, effect,
+handled flag, physical flags before/after, clearance refusal and numeric movement
+mode for every frame (2,048 bytes). The scene checks one crouch and one stand
+effect, stable crouch state at commitment, and agreement with collider records.
+The original-order gate observes blend completion on the following frame, so
+crouch commits at 40 rather than the former manual frame 39. Stand commits at 48.
+This is still diagnostic timing (existing animation and physics time steps),
+not proof of original engine frame scheduling.
+
+Run `artifacts/xemu/20260909-170656-795906/report.json` passes stock 64 MiB XEMU:
+all 64 selector records, stance and speed settings, surface records, rendered
+geometry and the two ceiling-test queries match PC. Both builds, four CTests,
+all three PC scene profiles and the 2,292 original stance-decision cases pass
+(the latter stops before physics effects and supplies eligibility). No new
+framebuffer was captured for this ordering change. Full eligibility, initial
+pose/inertia, support-loss traversal and gameplay lifecycle remain open.

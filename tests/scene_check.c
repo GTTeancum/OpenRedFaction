@@ -19,6 +19,7 @@ extern float rf_scene_actor_input_frames[64][3];
 extern uint32_t rf_scene_actor_contact_count,rf_scene_actor_contacts[64][25];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_stance_frames[64][4];
+extern uint32_t rf_scene_actor_selector_frames[64][8];
 extern uint32_t rf_scene_actor_clearance_diagnostic[8];
 extern float rf_scene_actor_clearance_queries[2][12];
 extern uint32_t rf_scene_actor_surface_frames[64][2];
@@ -174,6 +175,21 @@ int main(int argc,char **argv)
                 }
                 if(rf_scene_actor_clearance_diagnostic[1]!=2 || rf_scene_actor_clearance_diagnostic[2]!=1 ||
                    rf_scene_actor_clearance_diagnostic[3]!=1 || rf_scene_actor_clearance_diagnostic[7]!=1)return 3;
+                {
+                    uint32_t crouch_effects=0,stand_effects=0;
+                    for(i=0;i<64;++i) {
+                        const uint32_t *r=rf_scene_actor_selector_frames[i];
+                        if(r[2]==RF_MOTION_STANCE_CROUCH) {
+                            ++crouch_effects;if(r[0]!=8 || r[3]!=1 || (r[4]&0x400) || !(r[5]&0x400))return 3;
+                        }
+                        if(r[2]==RF_MOTION_STANCE_STAND) {
+                            ++stand_effects;if(r[3] || !(r[4]&0x400) || (r[5]&0x400))return 3;
+                        }
+                        if(r[5]!=rf_scene_actor_stance_frames[i][1])return 3;
+                    }
+                    if(crouch_effects!=1 || stand_effects!=1)return 3;
+                }
+                printf("ACTOR_SELECTOR");for(i=0;i<512;++i)printf(" %u",((uint32_t*)rf_scene_actor_selector_frames)[i]);puts("");
                 printf("ACTOR_CLEARANCE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_clearance_diagnostic[i]);
                 for(i=0;i<24;++i) {uint32_t word;memcpy(&word,((float*)rf_scene_actor_clearance_queries)+i,4);printf(" %u",word);}puts("");
                 printf("ACTOR_SURFACES");for(i=0;i<128;++i)printf(" %u",((uint32_t*)rf_scene_actor_surface_frames)[i]);puts("");
