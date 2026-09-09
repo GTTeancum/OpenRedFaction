@@ -64,6 +64,9 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     void *payload=NULL;
     float (*stored)[12]=NULL,(*prepared)[12]=NULL;uint16_t prepared_generations[256]={0};
     rf_model_geometry geometry={0};rf_model_vertex *vertices=NULL;uint32_t vertex_count=0,vertex_index,selected_lod;
+    uint8_t *render_memory=NULL;uint32_t render_capacity=0,render_batch;
+    rf_model_render_buffers render_buffers={0};rf_model_projection render_view={0};rf_model_lighting render_lights={0};
+    rf_model_render_output render_output={1,{255,255,255},255,1,1};
     if (!out) return RF_RANGE;
     memset(out,0,8*4); out[0]=1;
     status=rf_vpp_open(&meshes,meshes_path); if (status!=RF_OK) goto done;
@@ -89,6 +92,19 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     status=rf_model_geometry_open(&geometry,&model,selected_lod,1024*1024);if(status)goto done;
     vertices=geometry.vertices;vertex_count=geometry.vertex_count;
     if(!vertex_count) { status=RF_FORMAT;goto done; }
+    for(i=0;i<geometry.batch_count;++i)if(geometry.batches[i].vertices>render_capacity)render_capacity=geometry.batches[i].vertices;
+    if(!render_capacity || render_capacity>1024*1024/96) {status=RF_RANGE;goto done;}
+    render_memory=malloc(render_capacity*96);if(!render_memory) {status=RF_IO;goto done;}
+    render_buffers.cache=(rf_model_render_cache*)render_memory;
+    render_buffers.clip=(float(*)[3])(render_memory+render_capacity*32);
+    render_buffers.second=(float(*)[3])(render_memory+render_capacity*44);
+    render_buffers.vertices=(uint8_t(*)[40])(render_memory+render_capacity*56);render_buffers.capacity=render_capacity;
+    /* Fixed view and ambient fixture; real animation poses feed the renderer.
+     * Triangle submission and world-derived lighting remain separate. */
+    render_view.camera[2]=-100;render_view.rotation[0]=render_view.rotation[4]=render_view.rotation[8]=1;
+    render_view.perspective=render_view.compute_clip=render_view.clipping=1;
+    render_view.screen[0]=320;render_view.screen[1]=-240;render_view.screen[2]=320;render_view.screen[3]=240;
+    render_lights.ambient[0]=40;render_lights.ambient[1]=50;render_lights.ambient[2]=60;
     out[1]=count;
     for (i=0;i<model.lods[0].attachment_count;++i) {
         status=rf_model_file_attachment(&model,0,i,&eye); if (status!=RF_OK) goto done;
@@ -190,9 +206,26 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
             status=rf_model_collision_vertex(v->position,v->weights,v->bones,prepared,count,position);if(status)goto done;
             out[5]=hash_bytes(out[5],position,sizeof(position));
         }
+        for(render_batch=0;render_batch<geometry.batch_count;++render_batch) {
+            const rf_model_draw_batch *draw=geometry.batches+render_batch;uint32_t n;
+            memset(render_memory,0xa5,render_capacity*96);
+            status=rf_model_geometry_render_batch(&geometry,render_batch,prepared,count,&render_view,&render_lights,&render_output,&render_buffers);if(status)goto done;
+            for(n=0;n<draw->vertices;++n) {
+                uint32_t index=draw->first_vertex+n;int32_t distance=geometry.reuse[index];
+                uint8_t *v=render_buffers.vertices[n];
+                if(distance>0) {
+                    if(memcmp(render_buffers.cache[n].world,render_buffers.cache[n-distance].world,12) ||
+                        render_buffers.cache[n].clip!=render_buffers.cache[n-distance].clip) {status=RF_FORMAT;goto done;}
+                    if(render_buffers.cache[n].clip)continue;
+                }
+                if(memcmp(v+24,vertices[index].uv,8) || v[16]!=60 || v[17]!=50 || v[18]!=40 || v[19]!=255 ||
+                    v[20]!=0xa5 || v[21]!=0xa5 || v[22]!=0xa5 || v[32]!=0xa5 || v[39]!=0xa5) {status=RF_FORMAT;goto done;}
+            }
+        }
         out[2]=frame+1;
     }
 done:
+    free(render_memory);
     rf_model_geometry_close(&geometry);
     free(stored);
     free(payload);

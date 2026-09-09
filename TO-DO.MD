@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Real miner poses now feed resident render batches on PC and 64 MiB XEMU,
+passing 47,616 vertex visits with bounded reusable buffers. Compare those render
+outputs against original code and connect triangle submission for visible models.
+
 All 599 installed model batches pass controlled resident-render processing,
 including UVs and duplicate copies. Connect real evaluated poses and emulator
 batch buffers, then triangle clipping and visible submission.

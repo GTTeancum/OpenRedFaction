@@ -1,5 +1,22 @@
 # Model batch data
 
+The shared animation diagnostic now runs all four miner LOD0 batches through
+resident rendering after every actual evaluated pose: 256 batch evaluations
+and 47,616 vertex visits across 64 frames. It uses the prepared 25-bone matrices,
+with a fixed view and ambient-only lighting. Its largest batch has 346 vertices;
+one 33,216-byte working allocation is reused, reset before each batch and freed
+on all exit paths. A separate 1 MiB working-buffer cap bounds allocation.
+
+Runtime checks verify per-vertex UVs, ambient color/alpha, preserved fields and
+duplicate world/clip copies. These pass on PC and 64 MiB XEMU; evidence is
+`artifacts/xemu/20260908-205654-012799/report.json`. PC/NXDK builds and four
+CTest checks pass. The original-code animation/collision comparison still
+matches its eight-word output, unchanged. The new render buffers are checked
+by runtime properties, not added to that original-code hash: full original
+comparison of these real animated render outputs remains open. Triangle
+submission and world-derived view/lighting are also open. No screenshot was
+taken because the displayed static scene is unchanged.
+
 `tools/verify_model_render_files.py` now exercises all 95 installed models,
 599 batches and 85,866 vertices through the resident batch processor, including
 all 24,861 duplicate references. Independent archive traversal verifies the
