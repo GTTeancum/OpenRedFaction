@@ -1267,3 +1267,32 @@ storage. Report: `artifacts/mover-flat-verification.json`.
 PC/NXDK builds and four CTest checks pass. Actual loaded-solid ray/sweep
 comparison, runtime creation and changing poses, lifetime, full original-loader
 execution and XEMU integration remain open. No visible result changed.
+
+
+### Actual loaded-mover ray and sphere queries
+
+`python tools/verify_mover_queries.py` passes 81,648 queries across all 68
+installed mover-bearing levels / 1,406 movers / 27,216 faces. Each face provides
+three anchors: centroid for a thin ray, first vertex for radius .25, and first
+edge midpoint for radius .75. Small deterministic offsets avoid exact coplanar
+fixtures. Query flags are 0x464, 0x465 and 0x1464 respectively. Each query traverses
+the complete solid's file-order face list with initial file metadata.
+
+The complete unmodified original `0x4df1c0` zero-room path and all callees run
+against linked copies of these faces. Results are byte-exact against the PC
+owned mover copies after closing source geometry/archive, and the NXDK-compiled
+`rf_collision_flat_faces` run under Unicorn. There are 75,723 hits, 30,758
+multi-update queries and 31,865 final edge contacts. Fraction, point, normal,
+face index, hit count, edge flag and preserved miss output all match. No core
+correction was required. Report: `artifacts/mover-query-verification.json`.
+This exercises direct/local queries, not actual changing runtime poses,
+material checks, preferred-face caches, original object creation or XEMU.
+
+The Ghidra export now includes `0x486da0` (type-9 caller's shared object factory)
+and `0x48a230` with instruction-confirmed thiscall convention. The latter's
+`0x48a26c..0x48a2a3` assigns the supplied position to object +0x3c, +0xe4 and
++0xf0. Its remaining path sets +0x190/+0x19c bounds from +0x180 radius (or copies
+the position for nonpositive radius), then sets flag 0x04000000. These are
+instruction/decompiler leads, not a ported object initializer. Factory calls
+`0x49ec90(object+0x88, parameters)`; follow this physics constructor for output
+orientation initialization before assuming input and output poses are equal.

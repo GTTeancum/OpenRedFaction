@@ -10,6 +10,25 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==4 && !strcmp(argv[1],"--mover-queries")) {
+        rf_vpp archive;rf_level level;rf_geometry_movers movers={0};
+        rf_geometry_collision_flat *owned;uint32_t i,count;
+        struct {uint32_t mover,flags;float start[3],delta[3],origin[3],matrix[3][3],radius,limit;} in;
+        struct {int32_t status;uint32_t matched;rf_collision_sweep_tree_hit hit;} out;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 2;
+        if(rf_geometry_movers_open(&level,8*1024*1024,&movers))return 3;
+        count=movers.count;owned=(rf_geometry_collision_flat *)calloc(count?count:1,sizeof(*owned));if(!owned)return 4;
+        for(i=0;i<count;i++)if(rf_geometry_collision_flat_open(&movers.items[i].geometry,8*1024*1024,owned+i))return 5;
+        rf_geometry_movers_close(&movers);rf_vpp_close(&archive);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));
+            out.status=in.mover>=count?RF_RANGE:rf_collision_flat_faces(owned[in.mover].faces,owned[in.mover].count,
+                in.flags,in.start,in.delta,in.origin,in.matrix,in.radius,in.limit,&out.hit,&out.matched);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 6;
+        }
+        for(i=0;i<count;i++)rf_geometry_collision_flat_close(owned+i);
+        free(owned);return ferror(stdin)?7:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--mover-faces")) {
         rf_vpp archive;rf_level level;rf_geometry_movers movers={0};
         rf_geometry_collision_flat *owned;uint32_t i,j,count,peak=0;

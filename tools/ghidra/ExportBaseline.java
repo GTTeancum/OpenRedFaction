@@ -17,7 +17,7 @@ public class ExportBaseline extends GhidraScript {
         dir.mkdirs();
         // Verified from original instructions: ECX is the destination object;
         // ret 8 / ret 4 consume stack arguments. Keep this visible to callers.
-        for (long target : new long[]{0x409f40L, 0x409f70L, 0x4faa90L, 0x4faa30L, 0x40a030L, 0x40a070L, 0x409fe0L}) {
+        for (long target : new long[]{0x48a230L, 0x409f40L, 0x409f70L, 0x4faa90L, 0x4faa30L, 0x40a030L, 0x40a070L, 0x409fe0L}) {
             Function helper = getFunctionAt(toAddr(target));
             if (helper != null) {
                 helper.setCallingConvention("__thiscall");
@@ -36,6 +36,7 @@ public class ExportBaseline extends GhidraScript {
         long[] targets = {0x5760c3L, 0x52c070L, 0x52bb50L, 0x52be70L, 0x52bd40L, 0x54f160L};
         LinkedHashSet<Long> addresses = new LinkedHashSet<>();
         for (long target : targets) addresses.add(target);
+        addresses.add(0x48a230L); addresses.add(0x486da0L); // Mover factory and initial position assignment.
         addresses.add(0x40f4f0L); // Shared table skin declarations ($Skin: at 0x594300).
         try (PrintWriter out = new PrintWriter(new File(dir,"model-extension-xrefs.tsv"),StandardCharsets.UTF_8)) {
             for(long target : new long[]{5918332L,5853020L,5918348L,5918359L}) for(var reference : getReferencesTo(toAddr(target))) {
