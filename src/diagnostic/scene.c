@@ -140,6 +140,7 @@ static const float scene_step_seconds=1.0f/60.0f;
 rf_physics_body scene_actor_body;
 uint32_t rf_scene_actor_physics_diagnostic[8];
 uint32_t rf_scene_actor_initial_animation[12];
+float rf_scene_actor_initial_eye_offsets[6];
 uint32_t rf_scene_actor_animation_timing[64][3];
 typedef struct actor_sweep_record {
     float start[3],delta[3],radius;int32_t status;uint32_t matched;
@@ -792,6 +793,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         placement.physics_config=&physics_config;placement.physics_body=&scene_actor_body;
         placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;
         placement.initial_animation=rf_scene_actor_initial_animation;placement.animation_timing=rf_scene_actor_animation_timing;
+        memset(rf_scene_actor_initial_eye_offsets,0,sizeof(rf_scene_actor_initial_eye_offsets));
+        placement.initial_eye_offsets=rf_scene_actor_initial_eye_offsets;
         if(collision && state_mode) {
             placement.stance_cache=&rf_scene_actor_stance_cache;placement.stance_flags=&rf_scene_actor_stance_flags;
             placement.stance_effect=actor_selector_effect;placement.stance_context=&stream;

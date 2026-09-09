@@ -31,6 +31,7 @@ typedef struct rf_animation_placement {
     const rf_entity_physics_config *physics_config;
     rf_physics_body *physics_body; /* Open body's pose drives rendering each frame. */
     rf_physics_stance_cache *stance_cache; /* Optional cache from diagnostic initial pose. */
+    float *initial_eye_offsets; /* Optional six floats: standing/crouching model-space eye, with class axis flags. Requires stance_cache. */
     uint32_t frame_count; /* Stream length; zero preserves the 64-frame diagnostic default. */
     uint32_t animation_timing_wrap; /* Nonzero uses a bounded timing ring indexed by absolute frame modulo capacity. */
     uint32_t animation_timing_capacity; /* Zero means legacy 64 records when timing is supplied. */

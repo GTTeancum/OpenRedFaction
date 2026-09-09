@@ -38,19 +38,37 @@ static int reset_loaded_weapon(void *user)
 static int stance_cache_build(const rf_model_file *model,const rf_model_bone *bones,uint32_t bone_count,
     const rf_motion_playback_state *initial,const rf_motion_file *const *handles,
     const rf_motion_playback_resource *resources,uint32_t resource_count,int32_t crouch,
-    const rf_entity_physics_config *config,const rf_physics_body *body,rf_physics_stance_cache *result)
+    const rf_entity_physics_config *config,const rf_physics_body *body,rf_physics_stance_cache *result,
+    const rf_model_attachment *eye,const float eye_transform[12],float *eye_offsets)
 {
     rf_motion_playback_state state=*initial;rf_motion_playback_resource copied[23];
     rf_physics_stance_cache value={0};uint16_t generations[256]={0};float displacement[3]={0};
-    float (*matrices)[12];uint32_t i;int status;
+    float (*matrices)[12],offsets[6],crouch_eye[12];uint32_t i;int status;
     if(resource_count>23 || bone_count>256 || body->spheres.count>8)return RF_RANGE;
     memcpy(copied,resources,resource_count*sizeof(*copied));
     matrices=malloc(bone_count*48);if(!matrices)return RF_IO;
-    status=rf_motion_stop_looping(&state,copied,resource_count);
+    status=RF_OK;
+    if(eye_offsets) {
+        /* Class offsets use identity/zero placement, not the diagnostic's
+         * root displacement. Re-evaluate the initial pose in this workspace. */
+        for(i=0;i<bone_count;++i)generations[i]=(uint16_t)(state.generation-1);
+        status=rf_model_evaluate_playback(bones,bone_count,&state,handles,copied,resource_count,displacement,matrices,generations,bone_count);
+        if(!status)status=rf_model_compose_transform(eye_transform,matrices[eye->parent],crouch_eye);
+        if(!status)memcpy(offsets,crouch_eye+9,12);
+    }
+    if(!status)status=rf_motion_stop_looping(&state,copied,resource_count);
     if(!status)status=rf_motion_set_weight(&state,copied,resource_count,crouch,1);
     if(!status)status=rf_motion_update(&state,copied,resource_count,.2f);
     for(i=0;i<bone_count;++i)generations[i]=(uint16_t)(state.generation-1);
     if(!status)status=rf_model_evaluate_playback(bones,bone_count,&state,handles,copied,resource_count,displacement,matrices,generations,bone_count);
+    if(!status && eye_offsets) {
+        status=rf_model_compose_transform(eye_transform,matrices[eye->parent],crouch_eye);
+        if(!status) {
+            memcpy(offsets+3,crouch_eye+9,12);
+            /* 423bd0 / 40a150: class flag 20000 keeps only eye height. */
+            if(config->authored.flags&0x20000u)offsets[0]=offsets[2]=offsets[3]=offsets[5]=0;
+        }
+    }
     value.count=body->spheres.count;
     for(i=0;!status && i<value.count;++i) {
         rf_model_collision_sphere sphere;float posed[4],difference;
@@ -62,7 +80,7 @@ static int stance_cache_build(const rf_model_file *model,const rf_model_bone *bo
         difference=(float)((double)value.centers[0][i][1]-value.centers[1][i][1]);
         value.height_difference=fmaxf(value.height_difference,difference);
     }
-    free(matrices);if(!status)*result=value;return status;
+    free(matrices);if(!status) {*result=value;if(eye_offsets)memcpy(eye_offsets,offsets,sizeof(offsets));}return status;
 }
 static int animation_run(const char *meshes_path,const char *motions_path,uint32_t out[8],rf_preview_mesh *preview,uint32_t preview_frame,uint32_t budget,rf_animation_frame_sink sink,void *sink_context,const rf_animation_placement *placement,const rf_entity_state_set *authored)
 {
@@ -355,7 +373,8 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 status=rf_physics_body_open(&parameters,NULL,0,4096,body);if(status)goto done;
                 status=rf_physics_body_replace_spheres(body,spheres,n,4096);if(status)goto done;
                 if(placement->stance_cache) {
-                    status=stance_cache_build(&model,bones,count,&state,handles,resources,resource_count,motions[8],config,body,placement->stance_cache);
+                    status=stance_cache_build(&model,bones,count,&state,handles,resources,resource_count,motions[8],config,body,placement->stance_cache,
+                        &eye,local,placement->initial_eye_offsets);
                     if(status)goto done;
                 }
             }

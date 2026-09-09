@@ -1,6 +1,13 @@
 # Guest memory evidence
 
-Fresh rerun `artifacts/xemu/20260909-191614-644905/report.json`: PASS.
+Latest run `artifacts/xemu/20260909-193237-875652/report.json`: PASS.
+The 664-frame follow profile now compares six initial eye-offset float words
+from guest RAM with PC: standing (0, .7854025363922119, 0), crouching
+(0, .14921127259731293, 0). `tools/verify_scene_eye.py` separately compares PC
+with original loaded-pose evidence. These are computed model offsets, not a
+first-person camera binding; no screenshot was captured.
+
+Prior rerun `artifacts/xemu/20260909-191614-644905/report.json`: PASS.
 
 This rerun validates the built diagnostic after the camera-effect RNG changes
 (source HEAD `1af5eda`). The complete snapshot confirms 67,108,864 base bytes,

@@ -1685,3 +1685,55 @@ armed blend yet. `423b90` caches eye/physics setup per class using flag
 `423bd0` also raises standing weight without first clearing other loops.
 Next establish whether class preloading initializes miner1 before player
 spawn, then verify the resulting loaded stand/attack/crouch eye sequence.
+
+
+## Live Mines class order and integrated eye offsets
+
+The cold single-player level-loading path in `45c540` calls `460820` before
+its conditional player spawn through `4a4130`. `460820` dispatches entity
+section 30000 to `464010` (call at 461006). That loader iterates records in
+serialized order and supplies creation flags only from bits 2/4, never the
+player bit 1. `422360` performs its first controller/model update before
+calling the class-cache gate `423b90` at 42324f. The gate tests class+724 bit
+40000000 before setting eye/physics data. The later loader scalar overlay and
+script/state handling occur after factory return.
+
+Reading the installed L1S1.rfl with the shared owned-entity parser gives:
+
+| Record index | UID | Class | Creation flags |
+| --- | --- | --- | --- |
+| 0 | 8456 | env_guard | 0 |
+| 1 | 8462 | env_guard | 0 |
+| 2 | 8625 | env_guard | 0 |
+| 3 | 8431 | miner1 | 0 |
+| 4 | 8432 | miner1 | 0 |
+
+Thus UID 8431 is the first serialized miner1, before ordinary player spawn;
+the diagnostic UID 9858 is record 77. The earlier candidate at 41884a belongs
+to the debug spawn command starting 418740, not class preloading. These are
+static call-path and actual-level-record observations, not a complete original
+level-load execution. Save restoration, prior class caches, recursive creation
+and other levels still need their own lifecycle handling.
+
+The shared diagnostic now retains six initial model-space eye coordinates in
+`rf_scene_actor_initial_eye_offsets`. It evaluates the loaded standing and
+crouching poses in the existing temporary stance workspace, applies original
+class flag 20000 (zero X/Z), and commits output only on successful setup. This
+adds 24 resident bytes and no new heap allocation. It does not yet implement
+a game-wide per-class cache or bind the camera to a player.
+
+An original/PC comparison caught and removed the legacy diagnostic root
+translation from the standing eye calculation: simply copying the rendered
+tag gave Y .535402536 instead of .785402536. The setup now independently
+samples the initial pose at zero displacement before the crouch update. It
+preserves the existing diagnostic body and animation behavior.
+
+`python tools/verify_scene_eye.py` runs the original loaded-model sequence and
+the integrated PC follow fixture, then compares all six float words. Passing
+values are (0, .7854025363922119, 0) standing and
+(0, .14921127259731293, 0) crouching. No heights are hardcoded in runtime code.
+
+Live XEMU run `artifacts/xemu/20260909-193237-875652/report.json` PASS verifies
+the same six words from guest RAM on stock 64 MiB alongside all 664 frames,
+body/animation/room/world comparisons. No framebuffer captured. First-person
+placement, camera collision and campaign input remain the next integration.

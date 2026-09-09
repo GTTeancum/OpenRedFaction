@@ -126,6 +126,7 @@ def main():
         if args.actor_body:actor_stance_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE ')).split()[1:]))
         if args.actor_body:actor_stance_cache_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_STANCE_CACHE ')).split()[1:]))
         if args.actor_body:actor_input_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_INPUT ')).split()[1:]))
+        if args.actor_body or args.actor_live:eye_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_EYE_OFFSETS ')).split()[1:]))
         if args.actor_follow:
             follow_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FOLLOW ')).split()[1:]))
             follow_summary_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FOLLOW_SUMMARY ')).split()[1:]))
@@ -330,6 +331,8 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         live_snapshot=guest_snapshot(monitor,map_text)
                         (run/'guest-memory-complete.json').write_text(json.dumps(live_snapshot,indent=2))
                         symbols=live_snapshot['symbols']
+                        if symbols['rf_scene_actor_initial_eye_offsets']['words']!=eye_reference:raise RuntimeError('Initial eye offsets differ from PC')
+                        report['initial_eye_offsets']=dict(values=list(struct.unpack('<6f',struct.pack('<6I',*eye_reference))),scope='Loaded diagnostic standing/crouching poses with original class axis flag; first-person camera binding remains open.')
                         for name,label,size in [('rf_scene_actor_live_summary','ACTOR_LIVE',8),('rf_scene_actor_tick_stats','ACTOR_LIVE_TICKS',8),('scene_actor_body','ACTOR_LIVE_BODY',77)]:
                             if symbols[name]['words'][:size]!=live_reference[label]:raise RuntimeError('Live actor differs from PC: '+name)
                         ring_names=['rf_scene_actor_ring_frames','rf_scene_actor_render_frames','rf_scene_actor_animation_timing','rf_scene_actor_input_frames','rf_scene_actor_locomotion_frames','rf_scene_actor_selector_frames','rf_scene_actor_ground_records','rf_scene_actor_ground_modes','rf_scene_actor_surface_frames','rf_scene_actor_stance_frames']

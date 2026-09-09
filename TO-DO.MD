@@ -2,9 +2,16 @@
 
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
-- [ ] Replace scripted stance eligibility and resolve the first instance that initializes class eye offsets.
+- [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Shared PC/Xbox scene now computes standing/crouching eye offsets from loaded
+poses, independently of diagnostic root translation. Original/PC comparison
+and live 64 MiB XEMU run 20260909-193237-875652 pass all six words and 664 frames.
+Live Mines record 3 (UID 8431) is the first serialized miner1 before ordinary
+player spawn. Bind player view next; broader class-cache lifecycle remains open.
+No new visible result, so no screenshot.
 
 Initial controller audit now passes eight original/PC creation-field cases:
 armed players blend stand to attack_stand; non-player and unarmed cases stay

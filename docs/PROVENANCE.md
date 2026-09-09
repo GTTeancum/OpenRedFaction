@@ -383,3 +383,18 @@ dispatches it to header reader 0x55a390, and 0x50fe39 maps returned depth to
 engine format using tables 0x51027c/0x510290. Predicate 0x510710 calls format
 lookup, then block 0x51071d tests 4/7/5. Shared helpers match these instruction
 blocks; full file IO and animated handle resolution are not claimed recovered.
+
+
+For focused follow-up decompilation, export only known function entry points:
+
+```powershell
+./tools/analyze.ps1 -SkipAnalysis -FunctionAddresses '45c540','460820','4a4130'
+```
+
+Quote hexadecimal addresses: PowerShell can interpret an unquoted value such
+as 4813e0 as a decimal scientific-notation number. `ExportSelected.java` does
+not invent missing functions or rerun the baseline export inventory. It writes
+`selected-functions.txt` only after all requested exports succeed; the wrapper
+checks its binary fingerprint and addresses. This catches Ghidra script errors
+that still return process exit code zero. Both a successful five-function
+export and an intentionally missing address were exercised.

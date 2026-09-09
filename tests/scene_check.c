@@ -28,6 +28,7 @@ extern uint32_t rf_scene_actor_animation_timing[64][3];
 extern uint32_t rf_scene_actor_stance_support[64][9];
 extern unsigned char rf_scene_actor_stance_ground[],rf_scene_actor_ground_records[];
 extern uint32_t rf_scene_actor_initial_animation[12];
+extern float rf_scene_actor_initial_eye_offsets[6];
 extern uint32_t rf_scene_actor_selector_frames[64][8];
 extern uint32_t rf_scene_actor_clearance_diagnostic[8];
 extern float rf_scene_actor_clearance_queries[2][12];
@@ -226,6 +227,11 @@ int main(int argc,char **argv)
             &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c);
         else status=rf_scene_stream_miner(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
             &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c);
+        if(mode==0 && body_mode && !status) {
+            if(!(rf_scene_actor_initial_eye_offsets[1]>rf_scene_actor_initial_eye_offsets[4]) ||
+               !(rf_scene_actor_initial_eye_offsets[4]>0))return 3;
+            printf("ACTOR_EYE_OFFSETS");for(i=0;i<6;++i) {uint32_t word;memcpy(&word,rf_scene_actor_initial_eye_offsets+i,4);printf(" %u",word);}puts("");
+        }
         if(mode==0 && rf_scene_actor_live_enabled) {
             if(status || c.next!=664 || !c.changed || rf_scene_actor_tick_stats[1]!=663 || rf_scene_actor_tick_stats[4] ||
                !rf_scene_actor_landing[7] || rf_scene_actor_landing[3]!=rf_scene_actor_landing[7]+1 || rf_scene_actor_landing[1]!=1)return 3;
