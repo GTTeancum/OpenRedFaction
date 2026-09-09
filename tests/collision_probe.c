@@ -36,6 +36,25 @@ int main(int argc,char **argv)
         }
         rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--build")) {
+        struct {float faces[16][6];uint32_t count,budget;} in;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_collision_face faces[16];rf_collision_tree tree={0};uint32_t i;int32_t status;
+            memset(faces,0,sizeof(faces));for(i=0;i<16;i++)memcpy(faces[i].minimum,in.faces[i],24);
+            status=in.count>16?RF_RANGE:rf_collision_tree_open(faces,in.count,in.budget,&tree);
+            if(status) {
+                rf_collision_tree guard,sentinel;
+                memset(&guard,0xa5,sizeof(guard));memcpy(&sentinel,&guard,sizeof(guard));
+                if(in.count<=16 && (rf_collision_tree_open(faces,in.count,in.budget,&guard)!=status || memcmp(&guard,&sentinel,sizeof(guard))))return 7;
+            }
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&tree.node_count,4,1,stdout)!=1 || fwrite(&tree.peak_bytes,4,1,stdout)!=1)return 2;
+            if(!status) {
+                if(fwrite(tree.nodes,sizeof(*tree.nodes),tree.node_count,stdout)!=tree.node_count || fwrite(tree.source_indices,4,in.count,stdout)!=in.count)return 2;
+            }
+            rf_collision_tree_close(&tree);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--partition")) {
         struct {float bounds[6],faces[8][6];} in;
         struct {int32_t status;uint32_t axis,counts[3];uint8_t labels[8];} out;

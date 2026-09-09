@@ -57,8 +57,8 @@ typedef struct rf_collision_tree_hit {
 /* 4deab0 zero-radius traversal: node faces first, right child before left;
  * query bit 0 returns first accepted hit, otherwise retain nearest (ties replace).
  * Nodes form a tree rooted at zero and reference ordered ranges in faces.
- * Caller provides node_count stack entries. No allocation; no builder or world
- * room selection. Errors preserve result/matched; scratch may change. */
+ * Caller provides node_count stack entries. No allocation or world room
+ * selection. Errors preserve result/matched; scratch may change. */
 int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
     const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
     const float start[3],const float displacement[3],float limit,
@@ -69,4 +69,15 @@ int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
  * preserve outputs. Node bounds must enclose all face bounds. */
 int rf_collision_partition(const rf_collision_node *node,const rf_collision_face *faces,
     uint32_t count,uint8_t *labels,uint32_t *axis,uint32_t counts[3]);
+typedef struct rf_collision_tree {
+    void *storage;rf_collision_node *nodes;rf_collision_face *faces;
+    uint32_t *source_indices,*stack,node_count,face_count,node_capacity;
+    uint32_t allocated_bytes,peak_bytes;
+} rf_collision_tree;
+/* Build original ordered partitions and child bounds without recursive stack
+ * growth. Copies face views, but borrows their vertex arrays. Budget includes
+ * this struct, retained storage and construction scratch (not allocator overhead).
+ * Failure preserves output. Close an existing tree before reusing its output. */
+int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_t budget,rf_collision_tree *tree);
+void rf_collision_tree_close(rf_collision_tree *tree);
 #endif

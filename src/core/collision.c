@@ -1,5 +1,6 @@
 #include "rf/collision.h"
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Preserve the original extended intermediates and single final float store. */
@@ -338,4 +339,52 @@ int rf_collision_partition(const rf_collision_node *node,const rf_collision_face
     center=(float)(((double)node->minimum[a]+node->maximum[a])*.5);
     for(i=0;i<count;i++) {uint8_t group=faces[i].minimum[a]>=center?1:faces[i].maximum[a]<=center?2:0;labels[i]=group;totals[group]++;}
     *axis=a;memcpy(counts,totals,sizeof(totals));return RF_OK;
+}
+
+void rf_collision_tree_close(rf_collision_tree *tree)
+{
+    if(tree) {free(tree->storage);memset(tree,0,sizeof(*tree));}
+}
+int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_t budget,rf_collision_tree *tree)
+{
+    rf_collision_tree value={0};uint64_t capacity,retained,scratch_bytes;unsigned char *scratch;
+    rf_collision_face *temporary;uint32_t *ids,used=0,i,j;uint8_t *labels;int status=RF_OK;
+    if(!tree || (count && !faces))return RF_RANGE;
+    capacity=count?(uint64_t)count*2-1:0;
+    retained=sizeof(value)+capacity*(sizeof(rf_collision_node)+sizeof(uint32_t))+(uint64_t)count*(sizeof(rf_collision_face)+sizeof(uint32_t));
+    scratch_bytes=(uint64_t)count*(sizeof(rf_collision_face)+sizeof(uint32_t)+1);
+    if(retained+scratch_bytes>budget || retained+scratch_bytes>UINT32_MAX)return RF_RANGE;
+    for(i=0;i<count;i++)for(j=0;j<3;j++)if(!isfinite(faces[i].minimum[j]) || !isfinite(faces[i].maximum[j]) || faces[i].minimum[j]>faces[i].maximum[j])return RF_FORMAT;
+    value.allocated_bytes=(uint32_t)retained;value.peak_bytes=(uint32_t)(retained+scratch_bytes);
+    if(!count) {*tree=value;return RF_OK;}
+    value.storage=malloc((size_t)(retained-sizeof(value)));scratch=(unsigned char*)malloc((size_t)scratch_bytes);
+    if(!value.storage || !scratch) {free(value.storage);free(scratch);return RF_IO;}
+    value.nodes=(rf_collision_node*)value.storage;value.faces=(rf_collision_face*)(value.nodes+capacity);
+    value.source_indices=(uint32_t*)(value.faces+count);value.stack=value.source_indices+count;
+    value.node_capacity=(uint32_t)capacity;value.face_count=count;value.node_count=1;
+    temporary=(rf_collision_face*)scratch;ids=(uint32_t*)(temporary+count);labels=(uint8_t*)(ids+count);
+    memcpy(value.faces,faces,(size_t)count*sizeof(*faces));for(i=0;i<count;i++)value.source_indices[i]=i;
+    value.nodes[0].first_face=0;value.nodes[0].face_count=count;value.stack[used++]=0;
+    while(used) {
+        uint32_t index=value.stack[--used],axis,groups[3],positions[3];rf_collision_node *node=value.nodes+index;
+        uint32_t first=node->first_face,n=node->face_count;
+        node->left=node->right=UINT32_MAX;
+        memcpy(node->minimum,value.faces[first].minimum,12);memcpy(node->maximum,value.faces[first].maximum,12);
+        for(i=1;i<n;i++)for(j=0;j<3;j++) {
+            if(value.faces[first+i].minimum[j]<node->minimum[j])node->minimum[j]=value.faces[first+i].minimum[j];
+            if(value.faces[first+i].maximum[j]>node->maximum[j])node->maximum[j]=value.faces[first+i].maximum[j];
+        }
+        status=rf_collision_partition(node,value.faces+first,n,labels,&axis,groups);if(status)break;
+        if(!groups[1] || !groups[2])continue;
+        positions[0]=0;positions[1]=groups[0];positions[2]=groups[0]+groups[1];
+        for(i=0;i<n;i++) {j=positions[labels[i]]++;temporary[j]=value.faces[first+i];ids[j]=value.source_indices[first+i];}
+        memcpy(value.faces+first,temporary,(size_t)n*sizeof(*temporary));memcpy(value.source_indices+first,ids,(size_t)n*sizeof(*ids));
+        if(value.node_count+2>value.node_capacity) {status=RF_RANGE;break;}
+        node->face_count=groups[0];node->left=value.node_count++;node->right=value.node_count++;
+        value.nodes[node->left].first_face=first+groups[0];value.nodes[node->left].face_count=groups[1];
+        value.nodes[node->right].first_face=first+groups[0]+groups[1];value.nodes[node->right].face_count=groups[2];
+        value.stack[used++]=node->right;value.stack[used++]=node->left;
+    }
+    free(scratch);if(status) {rf_collision_tree_close(&value);return status;}
+    *tree=value;return RF_OK;
 }

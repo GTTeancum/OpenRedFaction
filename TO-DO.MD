@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Collision-tree partition decisions now match 2,000 original executions on PC
-and NXDK; implement stable face redistribution and recursive node construction,
-then connect room trees to world queries.
+Complete collision-tree construction now matches 600 original executions on PC
+and NXDK with an explicit memory budget; bind stable level-face storage to room
+trees, recover world room selection, and validate guest allocation in XEMU.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

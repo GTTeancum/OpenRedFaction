@@ -346,3 +346,37 @@ faces. Three port guards check NaN, inverted bounds and a face outside its node.
 All 2,003 fixtures also pass against the actual NXDK-linked helper in Unicorn.
 Report: `artifacts/collision-partition-verification.json`. PC/NXDK builds and
 four CTest checks pass. Full recursive trees and world queries remain open.
+
+## Complete bounded tree construction
+
+`rf_collision_tree_open` now reconstructs union bounds (`0x4f8fd0`) and the
+complete partition builder (`0x4f9050`). Stable redistribution retains the
+original face order within parent, upper/left and lower/right groups. It creates
+both children before building the left subtree and then the right, preserving
+original node allocation order. Child bounds are recomputed from their faces.
+An explicit pending-node stack replaces recursive C stack growth. Each split
+requires two nonempty groups, bounding node capacity at `2 * face_count - 1`.
+
+The tree owns copied face views, source-index mappings, nodes and traversal
+scratch; vertex arrays remain borrowed and must stay alive. Source indices map
+reordered query results back to input faces. The budget includes the tree struct,
+retained storage and temporary redistribution scratch, excluding allocator
+metadata and borrowed vertices. On 32-bit targets, nonempty trees reserve
+`164 * face_count - 4` retained bytes and peak at `241 * face_count - 4` bytes.
+An empty tree needs 40 bytes. Invalid bounds, insufficient budgets and allocation
+failure preserve the output. `rf_collision_tree_close` frees storage and clears
+the struct. Existing trees must be closed before reusing their output object.
+
+`python tools/verify_collision_builder.py` compares 600 complete original
+constructions with PC and actual NXDK-linked code. Fixtures contain 1–16 faces,
+degenerate bounds, overlapping boxes and varied extents; the largest resulting
+tree has 19 nodes. Bounds match byte-for-byte, and ordered face identities and
+child topology match. Six additional checks cover exact/insufficient budgets,
+empty input and malformed bounds. Two NXDK allocation-failure checks verify
+cleanup and preserved output. The original pool allocator at `0x4f97b0` alone
+is substituted with bounded fixture storage; its list movement and child
+initialization execute unchanged. NXDK malloc/free are also fixture hooks, so
+this does not validate the guest heap in XEMU. Report:
+`artifacts/collision-builder-verification.json`. PC/NXDK builds and all four
+CTest checks pass. Stable loaded-face storage, per-room ownership, world room
+selection and gameplay integration remain open.
