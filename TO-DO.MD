@@ -2,9 +2,15 @@
 
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
-- [ ] Replace scripted stance eligibility and resolve the initial class animation pose.
+- [ ] Replace scripted stance eligibility and resolve the first instance that initializes class eye offsets.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Initial controller audit now passes eight original/PC creation-field cases:
+armed players blend stand to attack_stand; non-player and unarmed cases stay
+standing. Actual class eye setup is cached on first use, so identify the first
+miner1 instance before binding offsets. The full spawn routine remains open.
+See docs/CAMERA.md and tools/inspect_initial_player_motion.py.
 
 Memory harness revalidation `20260909-191614-644905` PASS: live XEMU confirms
 stock 64 MiB, 664 frames, ten PC-matching actor rings, final body state, and

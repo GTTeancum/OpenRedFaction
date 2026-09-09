@@ -36,6 +36,8 @@ public class ExportBaseline extends GhidraScript {
         long[] targets = {0x5760c3L, 0x52c070L, 0x52bb50L, 0x52be70L, 0x52bd40L, 0x54f160L};
         LinkedHashSet<Long> addresses = new LinkedHashSet<>();
         for (long target : targets) addresses.add(target);
+        // Inventory/AI initialization and player class lookup before first pose selection.
+        for (long target : new long[]{0x402c20L,0x409050L,0x4251c0L,0x42ab20L,0x4339d0L,0x433a00L}) addresses.add(target);
         // Player camera room membership, containing-room query and underwater notification.
         for (long target : new long[]{0x48a190L,0x4cd970L,0x4e1630L,0x4ce080L,0x5231e0L,0x4e3780L,0x4e3800L,0x4e3a30L,0x4e3a70L,0x4e0c20L,0x4ce4a0L}) addresses.add(target);
         // Entity class/model collision sphere construction and named overrides.

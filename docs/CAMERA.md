@@ -1640,3 +1640,48 @@ A malformed-state guard also verifies no partial RNG/camera update. Both builds
 and four CTests pass. The API is ready for player ownership integration; actual
 seeding and ordering of other game RNG consumers remain unrecovered. No new
 XEMU camera binding or visible result is claimed.
+
+
+## First selector during player creation
+
+`tools/inspect_initial_player_motion.py` executes the complete original
+`41f270`, including its `41f400` selector and loaded-character weight-control
+callees, without replacing a callee. Eight creation-field fixtures compare
+all 260 playback bytes, 24 controller bytes and 32 resource reference counts
+against the existing PC movement/controller composition. All pass. This is
+an original-instruction/PC test, not live XEMU or complete spawn execution.
+
+The armed-player fixture starts a transition from logical state 0 (`stand`)
+to 1 (`attack_stand`) lasting .25 seconds. The controller's first 1/30-second
+update leaves weights .8666666746 and .1333333403 respectively. Non-player
+fixtures, and an unarmed player fixture, retain standing at weight one.
+Either a primary or secondary weapon satisfies the armed predicate.
+
+The creation evidence used to choose these cases is:
+- `4a3310` calls `4251c0("miner1")`; **4251c0 is class lookup**, not entity
+  creation. Actual player entity creation calls `422360` at `4a41d3`.
+- `4a41bf` supplies creation flags 1. The beginning of `422360` maps that
+  low bit to generic object flag 8, consumed by `48aaf0` in armed selection.
+- `miner1` declares movement mode `run` and default primary `12mm handgun`.
+  The relevant selector mode is `(entity+858)->+4`, not generic object +1f8.
+- `402c20` initializes the inventory/AI subobject at entity+2a0. The test
+  executes its scalar-write span `402d68..402dac` against poisoned action
+  +520 and behavior +554 and verifies both become zero.
+- `422d21` assigns the default primary; `422df5` resolves movement by name;
+  `422e03` installs that descriptor. `4231d4..4231ea` seeds state zero with
+  no transition, then calls `41f270` before the model update.
+
+Limits: the remaining creation fields are materialized fixtures, with no
+linked entity, no script, zero steering/velocity, ordinary class and SP
+flags. Motion IDs and resource envelopes are synthetic control data; no
+loaded bone pose or actual default-weapon override table is sampled here.
+This does not prove all intervening spawn calls preserve these fields.
+The test verifies the whole controller for those conditions; it does not
+implement a complete player initializer or general middle selector in C.
+
+Do not replace the diagnostic camera with a hardcoded standing eye or the
+armed blend yet. `423b90` caches eye/physics setup per class using flag
+40000000, so the **first instance that initializes the class** matters.
+`423bd0` also raises standing weight without first clearing other loops.
+Next establish whether class preloading initializes miner1 before player
+spawn, then verify the resulting loaded stand/attack/crouch eye sequence.
