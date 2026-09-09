@@ -107,6 +107,42 @@ static int token(lexer *l,char out[256],int *quoted)
     }
     out[n]=0;return RF_OK;
 }
+int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf_movement_descriptor *result)
+{
+    static const char *names[]={"none","run","climb","fall","swim","apc","apc fall","sub","sub fall","fighter","turret","robot fly","hover","freelookcam","deadcam","john's descent flying mode"};
+    static const char *refs[2][4]={{"none","eye","body","parent"},{"none","eye-obj","body-obj","body-world"}};
+    rf_vpp_entry entry;rf_movement_descriptor value={0};lexer l;char t[256];void *text;
+    uint32_t mask=0,axis,kind,i;int status,quoted,found=0;
+    if(!tables || !result || index>=16)return RF_RANGE;
+    status=rf_vpp_find(tables,"movemodes.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto done;
+    l.text=text;l.size=entry.size;l.at=0;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$name:")) {
+            if(found)break;
+            if(token(&l,t,&quoted) || !quoted) {status=RF_FORMAT;goto done;}
+            found=same(t,names[index]);
+        } else if(found && (same(t,"$move") || same(t,"$rot"))) {
+            kind=same(t,"$rot");
+            if(token(&l,t,&quoted) || quoted) {status=RF_FORMAT;goto done;}
+            axis=same(t,"x")?0:same(t,"y")?1:same(t,"z")?2:3;
+            if(axis==3 || (mask&(1u<<(kind*3+axis))) || token(&l,t,&quoted) || quoted || !same(t,"ref:") ||
+               token(&l,t,&quoted) || !quoted) {status=RF_FORMAT;goto done;}
+            for(i=0;i<4;++i)if(same(t,refs[kind][i]))break;
+            (kind?value.rotation:value.translation)[axis]=i==4?0:i;
+            mask|=1u<<(kind*3+axis);
+        }
+    }
+    if(status==RF_NOT_FOUND || status==RF_OK) {
+        status=!found?RF_NOT_FOUND:mask!=63?RF_FORMAT:RF_OK;
+        if(!status) {value.enabled=1;value.index=index;*result=value;}
+    }
+done:
+    free(text);return status;
+}
 static int asset(char destination[64],const char *source)
 {size_t n=strlen(source);if(!n || n>=64)return RF_RANGE;memcpy(destination,source,n+1);return RF_OK;}
 static int sphere_number(lexer *l,float *result)

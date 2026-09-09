@@ -11,6 +11,7 @@ extern uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
 extern uint32_t rf_scene_actor_tick_stats[8];
 extern uint32_t rf_scene_actor_ground_stats[8];
 extern uint32_t rf_scene_actor_landing[8];
+extern rf_movement_descriptor rf_scene_actor_movement[2];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored,body_mode;
@@ -138,6 +139,7 @@ int main(int argc,char **argv)
             if(body_mode) {
                 if(rf_scene_actor_landing[2]!=22 || rf_scene_actor_landing[3]!=1 || rf_scene_actor_landing[4]!=41)return 3;
                 printf("ACTOR_LANDING");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_landing[i]);puts("");
+                printf("ACTOR_MOVEMENT");for(i=0;i<16;++i) {uint32_t word;memcpy(&word,(const unsigned char*)rf_scene_actor_movement+i*4,4);printf(" %u",word);}puts("");
             }
             if(rf_scene_actor_physics_diagnostic[1]!=1 || rf_scene_actor_physics_diagnostic[2]!=64 || rf_scene_actor_physics_diagnostic[3]!=3)return 3;
             printf("PHYSICS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_physics_diagnostic[i]);puts("");

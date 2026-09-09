@@ -97,6 +97,7 @@ def main():
         if args.actor_body:actor_tick_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_TICKS ')).split()[1:]))
         if args.actor_body:actor_ground_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND ')).split()[1:]))
         if args.actor_body:actor_landing_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_LANDING ')).split()[1:]))
+        if args.actor_body:actor_movement_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_MOVEMENT ')).split()[1:]))
         actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
         actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
         actor_fall_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FALL ')).split()[1:]))
@@ -314,6 +315,9 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             report['actor_ground']=dict(records=ground[1],hits=ground[2],walkable=ground[3],first_walkable_frame=ground[4],hash=hex(ground[5]),scope='Diagnostic falling-depth support probes; first accepted support feeds the separate static landing transition.')
                             landing=memory_snapshot['symbols']['rf_scene_actor_landing']['words']
                             if landing!=actor_landing_reference:raise RuntimeError('Actor landing differs from PC')
+                            movement=memory_snapshot['symbols']['rf_scene_actor_movement']['words']
+                            if movement!=actor_movement_reference:raise RuntimeError('Authored run/fall descriptors differ from PC')
+                            report['actor_movement']=dict(words=movement,scope='Authored run/fall descriptors; zero input in live fixture, body/disabled translation axes only.')
                             report['actor_landing']=dict(mode=landing[1],frame=landing[2],transitions=landing[3],idle_ticks=landing[4],scope='Stationary normal class-run landing, zero force/steering idle branch; no damage/sound/AI.')
                             pose=memory_snapshot['symbols']['rf_scene_actor_pose']['words']
                             body=memory_snapshot['symbols']['scene_actor_body']['words']

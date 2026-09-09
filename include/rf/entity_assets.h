@@ -4,6 +4,10 @@
 #include "rf/level.h"
 #include "rf/motion_file.h"
 #include "rf/entity.h"
+#include "rf/movement.h"
+/* movemodes.tbl fields and name/reference tables from original 433670.
+ * Bounded archive read, one scratch allocation; output preserved on failure. */
+int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf_movement_descriptor *result);
 typedef struct rf_entity_class_physics {
     float mass;
     char material[64];

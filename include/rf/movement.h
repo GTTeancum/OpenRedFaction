@@ -1,6 +1,9 @@
 #ifndef RF_MOVEMENT_H
 #define RF_MOVEMENT_H
 #include "rf/vpp.h"
+typedef struct rf_movement_descriptor {
+    uint32_t enabled,index,translation[3],rotation[3];
+} rf_movement_descriptor;
 typedef struct rf_movement_settings {
     float response, speed; /* Entity +8c and +8c0. Response meaning pending. */
     int32_t mode; /* Entity +8c4, read by animation selection. */
@@ -17,4 +20,9 @@ typedef struct rf_movement_config {
 int rf_movement_set_mode(rf_movement_settings *state, const rf_movement_config *config,
                          int32_t requested, int32_t forced_action, float entity_scale,
                          uint8_t override_enabled);
+/* Complete 433a50 translation-axis selection: 1 eye, 2 body, 3 parent;
+ * all other values select a zero axis. Three 3x3 matrices in original storage
+ * order; no normalization. Output may alias input or matrices. */
+int rf_movement_transform(const uint32_t reference[3],const float input[3],
+    const float eye[9],const float body[9],const float parent[9],float output[3]);
 #endif

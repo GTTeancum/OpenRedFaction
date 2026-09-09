@@ -428,3 +428,37 @@ XEMU: all 64 actor geometry records match PC, one landing at frame 22, 41
 grounded updates and 63 total proposal passes with no capped frames. Both builds,
 the integrated scene checks and all four CTests pass. No new image was captured:
 the zero-input miner remains planted, as in the preceding landing capture.
+
+## Authored movement descriptors and axis transform
+
+`rf_movement_descriptor_load` reads the six reference fields in movemodes.tbl
+into the original 32-byte descriptor layout (enabled, index, three translation
+references, three rotation references). Original 433670 maps translation names
+through 5963c4 (`none`, `eye`, `body`, `parent`) and rotation through 5963d4
+(`none`, `eye-obj`, `body-obj`, `body-world`); unknown references become zero.
+The bounded loader requires all six fields, rejects duplicate/malformed fields,
+and uses one temporary allocation capped by the caller's budget. It leaves the
+output unchanged on error. It is not a reconstruction of the complete original
+file-parser lifecycle.
+
+`rf_movement_transform` reconstructs complete original 433a50: each axis selects
+the corresponding eye/body/parent matrix vector, or zero for other selectors,
+then 4faa90 transforms the input with float output stores and no normalization.
+All 256 original/PC/NXDK cases pass, including every combination of the four
+axis selectors and invalid selectors. The same verifier checks all 16 installed
+descriptors against authored fields and original name/reference arrays. The
+original file parser is not executed in that binding comparison.
+
+The scene now loads run and fall descriptors and exposes both through
+`rf_scene_actor_movement` (64 bytes). Run and fall translate on body X/Z with Y
+disabled, and use rotation references 1/3/0. Grounded zero-input updates call
+the shared transform before the motion proposal. The fixture permits only
+body/disabled translation axes: eye and parent poses must be owned correctly
+before those modes are enabled. Class acceleration scaling/clamping, real input,
+rotation application, AI and grounded support maintenance remain open.
+
+Run `artifacts/xemu/20260909-154924-008044/report.json` passes in stock 64 MiB
+XEMU. All 64 authored descriptor bytes match PC, as do all 64 rendered geometry
+records, landing, ground probes and live proposal counters. Both builds and
+four CTests pass. No new framebuffer was captured because zero-input behavior
+is visibly unchanged.

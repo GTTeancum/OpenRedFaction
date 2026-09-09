@@ -129,6 +129,7 @@ _Static_assert(sizeof(actor_ground_record)==132,"Guest ground record layout");
 actor_ground_record rf_scene_actor_ground_records[64];
 uint32_t rf_scene_actor_ground_stats[8]; /* magic, records, hits, walkable, first walkable frame, hash, stride, status */
 uint32_t rf_scene_actor_landing[8]; /* magic, descriptor index, frame, transitions, idle ticks, status, reserved */
+rf_movement_descriptor rf_scene_actor_movement[2]; /* authored run and fall */
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
     actor_ground_record *r=rf_scene_actor_ground_records+frame;float start[3],delta[3];uint32_t k;int status;
@@ -242,7 +243,10 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
              * this passive scene. Shared proposal now handles nonzero velocity
              * and force instead of an idle-only assignment. */
             float drag=fmaxf(.5f,(float)((double)state->coefficients[1]/state->mass));
-            status=rf_physics_ground_propose(state,remaining,drag,support,support);
+            float steering[3],input[3]={0};
+            status=rf_movement_transform(rf_scene_actor_movement[0].translation,input,
+                state->orientation,state->orientation,state->orientation,steering);if(status)return status;
+            status=rf_physics_ground_propose(state,remaining,drag,steering,support);
         } else status=rf_physics_fall_propose(state,remaining,9.8f,support);
         if(status)return status;
         memset(state->vector_e0,0,sizeof(state->vector_e0)); /* full 49f3c0 clears force after proposal */
@@ -360,12 +364,22 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(sink) {
         rf_vpp tables;status=rf_vpp_open(&tables,tables_path);if(status)goto done;
         status=rf_entity_physics_config_load(&tables,binding.entity.class_name,512*1024,&physics_config);
+        if(!status && collision)status=rf_movement_descriptor_load(&tables,physics_config.authored.movement_index,65536,rf_scene_actor_movement);
+        if(!status && collision)status=rf_movement_descriptor_load(&tables,3,65536,rf_scene_actor_movement+1);
         rf_vpp_close(&tables);if(status)goto done;
         /* Live landing currently implements the ordinary class-run branch.
          * Reject other descriptors/special landing classes rather than silently
          * treating them as this passive miner fixture. */
         if(collision && (physics_config.authored.movement_index!=1 ||
            !(physics_config.authored.flags&1) || (physics_config.authored.flags&0x2000000))) {status=RF_FORMAT;goto done;}
+        if(collision) {
+            uint32_t mode,axis;
+            /* No eye/parent pose has been installed in this actor fixture yet.
+             * Only body/disabled axes are valid here; the shared transform
+             * supports all reference frames when their real poses are supplied. */
+            for(mode=0;mode<2;++mode)for(axis=0;axis<3;++axis)
+                if(rf_scene_actor_movement[mode].translation[axis]!=0 && rf_scene_actor_movement[mode].translation[axis]!=2) {status=RF_FORMAT;goto done;}
+        }
         rf_physics_body_close(&scene_actor_body);memset(rf_scene_actor_physics_diagnostic,0,sizeof(rf_scene_actor_physics_diagnostic));
         placement.physics_config=&physics_config;placement.physics_body=&scene_actor_body;
         placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;

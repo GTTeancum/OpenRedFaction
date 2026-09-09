@@ -1,5 +1,22 @@
 #include "rf/movement.h"
 #include <math.h>
+int rf_movement_transform(const uint32_t reference[3],const float input[3],
+    const float eye[9],const float body[9],const float parent[9],float output[3])
+{
+    float matrix[9],value[3];uint32_t axis,k;
+    if(!reference || !input || !eye || !body || !parent || !output)return RF_RANGE;
+    for(axis=0;axis<3;++axis) {
+        const float *source=reference[axis]==1?eye:reference[axis]==2?body:reference[axis]==3?parent:NULL;
+        if(!isfinite(input[axis]))return RF_RANGE;
+        for(k=0;k<3;++k) {matrix[axis*3+k]=source?source[axis*3+k]:0;
+            if(!isfinite(matrix[axis*3+k]))return RF_RANGE;}
+    }
+    for(k=0;k<3;++k) {
+        value[k]=(float)(((double)matrix[k]*input[0]+(double)matrix[3+k]*input[1])+(double)matrix[6+k]*input[2]);
+        if(!isfinite(value[k]))return RF_RANGE;
+    }
+    for(k=0;k<3;++k)output[k]=value[k];return RF_OK;
+}
 int rf_movement_set_mode(rf_movement_settings *state, const rf_movement_config *config,
                          int32_t requested, int32_t forced_action, float entity_scale,
                          uint8_t override_enabled)
