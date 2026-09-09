@@ -8,6 +8,16 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--ground-motion")) {
+        float v[18];
+        while(fread(v,sizeof(v),1,stdin)==1) {
+            rf_physics_body_state state={0};state.mass=v[0];
+            memcpy(state.position,v+3,12);memcpy(state.velocity,v+6,12);memcpy(state.vector_e0,v+9,12);
+            if(rf_physics_ground_propose(&state,v[1],v[2],v+12,v+15))return 3;
+            if(fwrite(state.velocity,12,1,stdout)!=1 || fwrite(state.next_position,12,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--land")) {
         struct {rf_physics_body_state state;rf_physics_ground_probe probe;float fraction;} input;
         while(fread(&input,sizeof(input),1,stdin)==1) {

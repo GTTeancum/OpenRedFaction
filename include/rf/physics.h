@@ -129,4 +129,11 @@ int rf_physics_ground_prepare(const rf_physics_sphere *spheres,uint32_t count,
  * Caller has accepted the contact normal and resolves the movement descriptor.
  * No damage, sound, animation, contact metadata or entity registry writes. */
 int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction);
+/* Prepared grounded translation 49f7c3..49f89f: steering acceleration has
+ * already been transformed/clamped and drag resolved by movement mode. Drag
+ * and force/mass are applied even on a repeated pass; caller supplies zero
+ * steering on that pass and manages force clearing. Updates velocity/next
+ * position only. Finite inputs, positive mass, nonnegative dt/drag required. */
+int rf_physics_ground_propose(rf_physics_body_state *state,float dt,float drag,
+    const float steering_acceleration[3],const float support_velocity[3]);
 #endif

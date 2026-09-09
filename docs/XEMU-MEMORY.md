@@ -398,3 +398,33 @@ landing for comparison; those records are not the original grounded scheduling
 policy and do not repeatedly apply the landing transition.
 The follow-up run `artifacts/xemu/20260909-153914-036824/report.json` passes
 after adding the unsupported-class guard; it skips redundant framebuffer capture.
+
+## Prepared grounded motion replaces the idle shortcut
+
+`rf_physics_ground_propose` reconstructs 49f7c3..49f89f after steering and drag
+selection. Acceleration subtracts stored drag-times-velocity and adds stored
+force/mass; velocity adds stored acceleration-times-dt. Proposed position adds
+updated velocity plus support velocity times dt, then **adds** the stored
+acceleration-times-half-dt-squared term. The original falling block subtracts
+that last term. These paths deliberately retain their distinct arithmetic.
+
+`tools/verify_ground_motion.py` compares 256 prepared cases against original
+instructions and unchanged callees, then actual compiled NXDK machine code.
+Both pass byte-for-byte, including nonzero steering, force, velocity and support
+velocity. Half the fixtures use zero prepared steering, as required on repeated
+passes. This verifies the prepared proposal, not the omitted steering transform,
+special movement-mode drag selection or collision policy.
+
+The live ordinary-run fixture now uses this proposal with zero steering and
+`max(0.5, response/mass)` drag from original 49f79a, followed by the common sweep,
+response and remaining-time loop. Force is cleared after proposal as in the
+full 49f3c0 path. Zero displacement skips the world query, matching 4df1c0.
+It no longer rejects nonzero force/velocity or substitutes an idle assignment.
+General support maintenance and loss, moving supports, AI steering and input
+selection remain open; zero-input live behavior alone does not validate those.
+
+Run `artifacts/xemu/20260909-154308-802121/report.json` passes on stock 64 MiB
+XEMU: all 64 actor geometry records match PC, one landing at frame 22, 41
+grounded updates and 63 total proposal passes with no capped frames. Both builds,
+the integrated scene checks and all four CTests pass. No new image was captured:
+the zero-input miner remains planted, as in the preceding landing capture.

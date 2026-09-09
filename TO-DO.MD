@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Extend verified static landing and zero-input grounded idle into general grounded movement, support loss and moving platforms.
+- [ ] Connect authored steering and grounded support maintenance to the verified grounded motion calculation, including support loss and moving platforms.
 - [ ] Replace provisional spawn pose, initial inertia and cached colliders with verified runtime behavior.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -53,6 +53,12 @@ for 42 captured contacts, including preserved horizontal velocity; the original
 grounded dispatcher confirms the zero-input idle case. General grounded motion,
 support loss, moving platforms and landing effects remain open. The live fixture
 rejects unsupported class descriptors and nonzero grounded force/velocity.
+The nonzero force/velocity rejection and idle-only assignment have now been
+replaced by shared prepared grounded motion (49f7c3..49f89f). Original/PC/NXDK
+comparisons pass on 256 cases covering drag, steering acceleration, force and
+support velocity. The live miner remains zero-input, but every grounded tick
+now executes the real proposal and common sweep/remaining-time path. Authored
+steering, general support maintenance and moving-object policy remain open.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

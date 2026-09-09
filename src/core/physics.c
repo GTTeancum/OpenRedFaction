@@ -3,6 +3,33 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_ground_propose(rf_physics_body_state *state,float dt,float drag,
+    const float steering_acceleration[3],const float support_velocity[3])
+{
+    rf_physics_body_state value;volatile float half_dt_squared;uint32_t k;
+    if(!state || !steering_acceleration || !support_velocity || !isfinite(dt) || dt<0 ||
+       !isfinite(drag) || drag<0 || !isfinite(state->mass) || state->mass<=0)return RF_RANGE;
+    value=*state;half_dt_squared=(float)((double)dt*dt*.5);
+    for(k=0;k<3;++k) {
+        volatile float resistance,acceleration,force,increment,combined,travel,base,correction;
+        if(!isfinite(state->position[k]) || !isfinite(state->velocity[k]) ||
+           !isfinite(state->vector_e0[k]) || !isfinite(steering_acceleration[k]) || !isfinite(support_velocity[k]))return RF_RANGE;
+        resistance=(float)((double)drag*state->velocity[k]);
+        acceleration=(float)((double)steering_acceleration[k]-resistance);
+        force=(float)((double)state->vector_e0[k]/state->mass);
+        acceleration=(float)((double)acceleration+force);
+        increment=(float)((double)acceleration*dt);
+        value.velocity[k]=(float)((double)state->velocity[k]+increment);
+        combined=(float)((double)value.velocity[k]+support_velocity[k]);
+        travel=(float)((double)combined*dt);base=(float)((double)state->position[k]+travel);
+        correction=(float)((double)acceleration*half_dt_squared);
+        /* Original grounded branch adds this term after updated-velocity
+         * travel. Falling uses subtraction; do not silently unify them. */
+        value.next_position[k]=(float)((double)base+correction);
+        if(!isfinite(value.velocity[k]) || !isfinite(value.next_position[k]))return RF_RANGE;
+    }
+    *state=value;return RF_OK;
+}
 int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction)
 {
     rf_physics_body_state value;float candidate;uint32_t k;

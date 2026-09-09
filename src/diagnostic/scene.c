@@ -167,6 +167,7 @@ static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics
     float delta[3],start[3];uint32_t i,k,matched;
     *fraction=1;*sphere=UINT32_MAX;
     for(k=0;k<3;++k)delta[k]=state->next_position[k]-state->position[k];
+    if(delta[0]==0 && delta[1]==0 && delta[2]==0)return RF_OK; /* 4df1c0 zero-displacement exit */
     for(i=0;i<scene_actor_body.spheres.count;++i) {
         const rf_physics_sphere *s=scene_actor_body.spheres.items+i;rf_geometry_world_sweep_hit hit;int status;
         for(k=0;k<3;++k)start[k]=(float)((double)state->position[k]+(double)s->center[0]*state->orientation[k]+
@@ -231,19 +232,20 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
 static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state)
 {
     float remaining=1.0f/60,support[3]={0},normal[3];uint32_t pass=0,contacts=0;int status;
-    if(rf_scene_actor_landing[1]==1) {
-        uint32_t k;
-        /* Verified zero-input run branch of 49f646..49f8aa. Fail explicitly
-         * if this passive fixture needs general grounded force/steering. */
-        for(k=0;k<3;++k)if(state->velocity[k]!=0 || state->vector_e0[k]!=0)return RF_RANGE;
-        memcpy(state->next_position,state->position,12);state->flags|=0x1000000;
-        ++rf_scene_actor_tick_stats[1];rf_scene_actor_tick_stats[6]=0;rf_scene_actor_tick_stats[7]=1;
-        ++rf_scene_actor_landing[4];return RF_OK;
-    }
+    int grounded=rf_scene_actor_landing[1]==1;
+    if(grounded)++rf_scene_actor_landing[4];
     state->flags&=~0x1000000u;
     do {
         float fraction,impact;uint32_t sphere;
-        status=rf_physics_fall_propose(state,remaining,9.8f,support);if(status)return status;
+        if(grounded) {
+            /* Ordinary run drag selection at 49f79a; steering remains zero in
+             * this passive scene. Shared proposal now handles nonzero velocity
+             * and force instead of an idle-only assignment. */
+            float drag=fmaxf(.5f,(float)((double)state->coefficients[1]/state->mass));
+            status=rf_physics_ground_propose(state,remaining,drag,support,support);
+        } else status=rf_physics_fall_propose(state,remaining,9.8f,support);
+        if(status)return status;
+        memset(state->vector_e0,0,sizeof(state->vector_e0)); /* full 49f3c0 clears force after proposal */
         state->flags|=0x1000000;
         status=actor_sweep(world,state,normal,&fraction,&sphere);if(status)return status;
         if(sphere==UINT32_MAX) {
