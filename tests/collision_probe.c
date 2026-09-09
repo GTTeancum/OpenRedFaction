@@ -10,6 +10,17 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--group-initialize")) {
+        struct {rf_group_attached_pose pose;uint32_t flags,mode,index,count;int32_t now;float position[3];} in;
+        struct {int32_t status;rf_group_translation_runtime runtime;rf_group_attached_pose pose;} out;
+        rf_level_group_key selected={0};
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out.runtime,0xa5,sizeof(out.runtime));out.pose=in.pose;memcpy(selected.position,in.position,12);
+            out.status=rf_group_translation_initialize(&out.runtime,&out.pose,in.flags,in.mode,&selected,in.index,in.count,in.now);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--group-commit")) {
         struct {uint32_t flags,counts[2],handles[2][16];rf_group_attached_pose poses[9];} in;
         struct {int32_t status;uint32_t flags;rf_group_attached_pose poses[9];} out;

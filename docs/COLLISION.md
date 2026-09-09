@@ -2032,3 +2032,29 @@ helper over those committed poses, checking complete view bytes including fields
 that must remain untouched. The test controller and handle table are diagnostic;
 persistent authored controller ownership and running scene/render integration
 remain open. No new XEMU or visible animation result is claimed by these checks.
+
+
+### Translation controller initialization
+
+The second integer following the file mode (`rf_level_group.unknown`) is the
+selected start-key index: 463820 stores it at constructor parameter +34, and
+469604/469659 read it for the translation starting position/current key. The
+factory receives the first key position/orientation earlier in 469250, so the
+base pose must survive selection of a different starting key.
+
+`rf_group_translation_initialize` initializes the translation runtime after
+factory/base pose creation. Caller-supplied initial flags/mode are retained;
+current key is selected, next and terminal keys are -1, phase/speed/distance
+and velocity are zero, and the initial deadline is current game time. It assigns
+the selected position via 48a230 while preserving base pose, radius and matrices,
+then synchronizes runtime positions and object flags. Invalid indices, rotation,
+mode, clock or nonfinite position fail without changing either output.
+
+`tools/verify_group_initialize.py` executes original 469570..469593 including
+4fa360(0), and 4695f5..469662 including unchanged vector helpers and 48a230.
+All 2,441 authored key positions, varied selected indices, radii, clocks, modes
+and nonrotation flags match the complete mapped runtime/pose bytes on PC and
+compiled NXDK. Six port guards also pass. This verifies the constructor state
+blocks, not the complete constructor: allocation, base-pose factory setup,
+registration, sound/event links, rotation and persistent scene ownership remain
+open. The verifier deliberately selects every key, not only authored starts.

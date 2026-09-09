@@ -507,6 +507,20 @@ int rf_group_pose_set_position(rf_group_attached_pose *pose,const float position
     if(!group_finite(next.minimum,6))return RF_FORMAT;
     next.flags|=0x4000000;*pose=next;return RF_OK;
 }
+int rf_group_translation_initialize(rf_group_translation_runtime *runtime,
+    rf_group_attached_pose *pose,uint32_t flags,uint32_t mode,
+    const rf_level_group_key *selected,uint32_t index,uint32_t key_count,int32_t now_ms)
+{
+    rf_group_translation_runtime value={0};rf_group_attached_pose next;int status;
+    if(!runtime || !pose || !selected || flags&4 || mode>5 || !key_count ||
+       key_count>INT32_MAX || index>=key_count)return RF_RANGE;
+    status=rf_timer_set(&value.deadline,now_ms,0);if(status)return status;
+    next=*pose;status=rf_group_pose_set_position(&next,selected->position);if(status)return status;
+    memset(next.velocity,0,12);value.motion.flags=flags;value.motion.mode=mode;
+    value.motion.current_key=(int32_t)index;value.motion.next_key=-1;value.motion.terminal_key=-1;
+    value.object_flags=next.flags;memcpy(value.position,next.position,12);memcpy(value.pending,next.pending,12);
+    *pose=next;*runtime=value;return RF_OK;
+}
 int rf_group_translation_propagate(rf_group_attached_pose *pose,
     const rf_group_translation_contribution *contributions,uint32_t count,
     float dt,uint32_t force)

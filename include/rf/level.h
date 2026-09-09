@@ -162,6 +162,14 @@ int rf_group_translation_propagate(rf_group_attached_pose *pose,
  * velocity and matrices. Finite inputs/results only; failures preserve pose.
  * Controller dirty gating/list traversal/dirty clearing belong to the caller. */
 int rf_group_pose_set_position(rf_group_attached_pose *pose,const float position[3]);
+/* Translation state initialization from 469250 after factory/base pose setup.
+ * Caller provides initial flags/mode and the selected key (file group.unknown
+ * is the start-key index). Keeps the factory base pose/matrices and radius.
+ * Outputs must not overlap; no allocation; errors preserve both outputs.
+ * Does not register objects, attach members, initialize rotation or play sound. */
+int rf_group_translation_initialize(rf_group_translation_runtime *runtime,
+    rf_group_attached_pose *pose,uint32_t flags,uint32_t mode,
+    const rf_level_group_key *selected,uint32_t index,uint32_t key_count,int32_t now_ms);
 typedef struct rf_group_controller_view {
     const rf_group_translation_runtime *runtime;
     const rf_level_group_key *first_key;
