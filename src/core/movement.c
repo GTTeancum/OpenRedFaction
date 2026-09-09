@@ -1,5 +1,19 @@
 #include "rf/movement.h"
 #include <math.h>
+int rf_movement_acceleration(const uint32_t reference[3],const float input[3],float acceleration,
+    const float eye[9],const float body[9],const float parent[9],float output[3])
+{
+    float scaled[3],value[3];double length;uint32_t k;int status;
+    if(!input || !output || !isfinite(acceleration) || acceleration<0)return RF_RANGE;
+    for(k=0;k<3;++k)scaled[k]=(float)((double)input[k]*acceleration);
+    status=rf_movement_transform(reference,scaled,eye,body,parent,value);if(status)return status;
+    length=sqrt(((double)value[0]*value[0]+(double)value[1]*value[1])+(double)value[2]*value[2]);
+    if(length>acceleration) {
+        float scale=(float)((double)acceleration/length);
+        for(k=0;k<3;++k)value[k]=(float)((double)value[k]*scale);
+    }
+    for(k=0;k<3;++k)output[k]=value[k];return RF_OK;
+}
 int rf_movement_transform(const uint32_t reference[3],const float input[3],
     const float eye[9],const float body[9],const float parent[9],float output[3])
 {

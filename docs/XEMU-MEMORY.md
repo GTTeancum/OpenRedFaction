@@ -462,3 +462,31 @@ XEMU. All 64 authored descriptor bytes match PC, as do all 64 rendered geometry
 records, landing, ground probes and live proposal counters. Both builds and
 four CTests pass. No new framebuffer was captured because zero-input behavior
 is visibly unchanged.
+
+## Class acceleration and steering clamp
+
+`rf_entity_movement_load` binds class fields +50..5c from entity.tbl. Original
+41be39..41bea0 reads `$Max Vel:`, optional `+slow factor:` and `+fast factor:`,
+then `$Acceleration:`. The missing-factor writes use ESI=0x3f800000 set at
+41bd0d, so both factors default to 1. The bounded shared reader rejects missing
+required fields and negative/nonfinite values, preserves output on failure,
+and uses a temporary archive-sized allocation within the supplied budget.
+This is numeric binding, not the entire original class parser.
+
+Miner1 resolves speed 6, slow factor .5, fast factor 1.5, acceleration 20.
+Five parser fixtures check default factors, a fast-only override, missing
+acceleration, negative acceleration and malformed factor syntax.
+
+`rf_movement_acceleration` reproduces 49f6cd..49f753: store input times class
+acceleration, transform through the selected axes, measure transformed length,
+then scale by a stored float ratio when length exceeds class acceleration.
+All 256 original/PC/NXDK cases pass, including disabled axes, mixed reference
+frames and zero acceleration. Grounded scene updates now call this stage with
+authored acceleration. Input remains zero; repeated-pass nonzero-input policy
+still needs integration when a real input source is added.
+
+Run `artifacts/xemu/20260909-155517-851835/report.json` passes in stock 64 MiB
+XEMU. All four class values match PC in guest RAM, as do both movement
+descriptors, 64 rendered geometry records, ground probes, landing and motion
+counters. Both builds, the integrated scene checks and four CTests pass. No
+new screenshot was taken because the zero-input appearance is unchanged.

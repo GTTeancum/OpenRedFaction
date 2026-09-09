@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Supply class acceleration and real movement input to the verified axis transform, then complete grounded support maintenance and support loss.
+- [ ] Supply real movement input to the verified steering pipeline and complete grounded support maintenance and support loss.
 - [ ] Replace provisional spawn pose, initial inertia and cached colliders with verified runtime behavior.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -65,6 +65,11 @@ cases. Live run/fall descriptors are loaded from the archive and exposed in gues
 RAM; the grounded zero-input path uses the transform. Class acceleration scaling,
 clamping, live input and eye/parent pose ownership remain open. The miner scene
 explicitly rejects eye/parent translation references until those poses exist.
+Class movement values now come from entity.tbl: miner1 speed 6, slow factor .5,
+fast factor 1.5 and acceleration 20. The shared scale/transform/clamp stage
+matches 256 original/PC/NXDK cases and is connected to grounded updates. All four
+values match guest RAM in XEMU. Real input and grounded support maintenance are
+still required before claiming controlled actor movement.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

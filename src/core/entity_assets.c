@@ -174,6 +174,45 @@ static int sphere_number(lexer *l,float *result)
     if(!isfinite(value) || value>FLT_MAX)return RF_FORMAT;
     *result=(float)(negative?-value:value);return RF_OK;
 }
+int rf_entity_movement_load(rf_vpp *tables,const char *name,uint32_t budget,rf_entity_movement_values *result)
+{
+    rf_vpp_entry entry;rf_entity_movement_values value={0,1,1,0};void *text;lexer l;
+    char t[256];int status,quoted,found=0;uint32_t mask=0;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto done;
+    l.text=text;l.size=entry.size;l.at=0;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$name:")) {
+            if(found)break;
+            if(token(&l,t,&quoted) || !quoted) {status=RF_FORMAT;goto done;}
+            found=same(t,name);
+        } else if(found && same(t,"$Max")) {
+            lexer saved;
+            if(token(&l,t,&quoted)) {status=RF_FORMAT;goto done;}
+            if(quoted || !same(t,"Vel:"))continue;
+            if(mask&1 || sphere_number(&l,&value.speed)) {status=RF_FORMAT;goto done;}mask|=1;
+            saved=l;
+            if(!token(&l,t,&quoted) && !quoted && same(t,"+slow")) {
+                if(token(&l,t,&quoted) || quoted || !same(t,"factor:") || sphere_number(&l,&value.slow_factor)) {status=RF_FORMAT;goto done;}
+            } else l=saved;
+            saved=l;
+            if(!token(&l,t,&quoted) && !quoted && same(t,"+fast")) {
+                if(token(&l,t,&quoted) || quoted || !same(t,"factor:") || sphere_number(&l,&value.fast_factor)) {status=RF_FORMAT;goto done;}
+            } else l=saved;
+        } else if(found && same(t,"$Acceleration:")) {
+            if(mask&2 || sphere_number(&l,&value.acceleration)) {status=RF_FORMAT;goto done;}mask|=2;
+        }
+    }
+    if(status==RF_OK || status==RF_NOT_FOUND) {
+        status=!found?RF_NOT_FOUND:mask!=3 || value.speed<0 || value.acceleration<0 || value.slow_factor<0 || value.fast_factor<0?RF_FORMAT:RF_OK;
+        if(!status)*result=value;
+    }
+done:
+    free(text);return status;
+}
 static int class_flags(lexer *l,uint32_t secondary,uint32_t *result)
 {
     /* Original pointer tables 594598 (28) and 594608 (8), bit = name index. */

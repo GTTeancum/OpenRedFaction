@@ -8,6 +8,11 @@
 /* movemodes.tbl fields and name/reference tables from original 433670.
  * Bounded archive read, one scratch allocation; output preserved on failure. */
 int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf_movement_descriptor *result);
+typedef struct rf_entity_movement_values {
+    float speed,slow_factor,fast_factor,acceleration;
+} rf_entity_movement_values;
+/* Numeric class +50..5c fields at 41be39..41bea0; absent factors default to 1. */
+int rf_entity_movement_load(rf_vpp *tables,const char *name,uint32_t budget,rf_entity_movement_values *result);
 typedef struct rf_entity_class_physics {
     float mass;
     char material[64];

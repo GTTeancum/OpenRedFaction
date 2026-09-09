@@ -98,6 +98,7 @@ def main():
         if args.actor_body:actor_ground_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_GROUND ')).split()[1:]))
         if args.actor_body:actor_landing_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_LANDING ')).split()[1:]))
         if args.actor_body:actor_movement_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_MOVEMENT ')).split()[1:]))
+        if args.actor_body:actor_speed_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_SPEED ')).split()[1:]))
         actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
         actor_world_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_WORLD ')).split()[1:]))
         actor_fall_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FALL ')).split()[1:]))
@@ -318,6 +319,9 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             movement=memory_snapshot['symbols']['rf_scene_actor_movement']['words']
                             if movement!=actor_movement_reference:raise RuntimeError('Authored run/fall descriptors differ from PC')
                             report['actor_movement']=dict(words=movement,scope='Authored run/fall descriptors; zero input in live fixture, body/disabled translation axes only.')
+                            speed=memory_snapshot['symbols']['rf_scene_actor_movement_values']['words']
+                            if speed!=actor_speed_reference:raise RuntimeError('Authored class movement values differ from PC')
+                            report['actor_movement_values']=list(struct.unpack('<4f',struct.pack('<4I',*speed)))
                             report['actor_landing']=dict(mode=landing[1],frame=landing[2],transitions=landing[3],idle_ticks=landing[4],scope='Stationary normal class-run landing, zero force/steering idle branch; no damage/sound/AI.')
                             pose=memory_snapshot['symbols']['rf_scene_actor_pose']['words']
                             body=memory_snapshot['symbols']['scene_actor_body']['words']

@@ -11,6 +11,20 @@ int main(int argc,char **argv)
     int32_t status;
     _Static_assert(sizeof(input)==56,"Movement settings wire layout");
     _setmode(_fileno(stdin),_O_BINARY); _setmode(_fileno(stdout),_O_BINARY);
+    if(argc==4 && !strcmp(argv[1],"--class")) {
+        rf_vpp archive;rf_entity_movement_values value;int result;
+        if(rf_vpp_open(&archive,argv[2]))return 3;
+        result=rf_entity_movement_load(&archive,argv[3],512*1024,&value);rf_vpp_close(&archive);if(result)return 3;
+        return fwrite(&value,sizeof(value),1,stdout)==1?0:1;
+    }
+    if(argc==2 && !strcmp(argv[1],"--acceleration")) {
+        struct {uint32_t reference[3];float input[3],eye[9],body[9],parent[9],acceleration;} v;float result[3];
+        while(fread(&v,sizeof(v),1,stdin)==1) {
+            if(rf_movement_acceleration(v.reference,v.input,v.acceleration,v.eye,v.body,v.parent,result))return 3;
+            if(fwrite(result,sizeof(result),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--descriptor")) {
         rf_vpp archive;rf_movement_descriptor value;int result;
         if(rf_vpp_open(&archive,argv[2]))return 3;

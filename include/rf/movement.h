@@ -25,4 +25,8 @@ int rf_movement_set_mode(rf_movement_settings *state, const rf_movement_config *
  * order; no normalization. Output may alias input or matrices. */
 int rf_movement_transform(const uint32_t reference[3],const float input[3],
     const float eye[9],const float body[9],const float parent[9],float output[3]);
+/* 49f6cd..49f753: scale local input by class acceleration, transform it, then
+ * clamp transformed length to acceleration. Repeated passes bypass this stage. */
+int rf_movement_acceleration(const uint32_t reference[3],const float input[3],float acceleration,
+    const float eye[9],const float body[9],const float parent[9],float output[3]);
 #endif
