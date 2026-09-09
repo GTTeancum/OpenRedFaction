@@ -317,6 +317,27 @@ static uint32_t group_object_find(const rf_group_object *objects,uint32_t count,
         (uid!=(uint32_t)-999 || !(objects[i].flags&2)))return i;
     return UINT32_MAX;
 }
+int rf_group_motion_activate(rf_group_motion_state *state,uint32_t key_count)
+{
+    if(!state)return RF_RANGE;
+    if(state->next_key!=-1)return RF_OK;
+    if(!key_count || key_count>INT32_MAX || state->current_key<0 ||
+        (uint32_t)state->current_key>=key_count || (!(state->flags&4) && key_count<2))return RF_RANGE;
+    if(state->flags&4) {
+        state->next_key=0;
+        if(state->flags&0x40) {state->phase=0;state->flags=(state->flags&~0x20u)|0x10;}
+    } else if(state->flags&0x2000) {
+        state->next_key=state->current_key+1;
+        if((uint32_t)state->next_key>=key_count)state->next_key=0;
+        state->terminal_key=state->mode==1?(int32_t)key_count-1:-1;
+    } else {
+        state->next_key=state->current_key-1;
+        if(state->next_key<0)state->next_key=(int32_t)key_count-1;
+        state->terminal_key=state->mode==1?0:-1;
+    }
+    state->flags|=8;if(state->mode==1)state->flags&=~1u;
+    return RF_OK;
+}
 int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
     uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,
     uint32_t *refs,uint32_t *ref_count,uint32_t *handles,uint32_t *handle_count,

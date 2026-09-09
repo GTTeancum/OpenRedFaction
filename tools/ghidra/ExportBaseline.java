@@ -37,6 +37,7 @@ public class ExportBaseline extends GhidraScript {
         LinkedHashSet<Long> addresses = new LinkedHashSet<>();
         for (long target : targets) addresses.add(target);
         addresses.add(0x469250L); addresses.add(0x466090L);
+        for (long target : new long[]{0x46a9c0L, 0x46a120L, 0x46afa0L, 0x46b330L}) addresses.add(target);
         addresses.add(0x463820L); // Section 0x3000 dispatch at 460f9e.
         addresses.add(0x4cf500L); addresses.add(0x4cf9a0L);
         addresses.add(0x49ec90L); addresses.add(0x49f010L);

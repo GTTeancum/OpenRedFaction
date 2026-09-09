@@ -74,6 +74,17 @@ int rf_level_group_initial_flags(const rf_level_group *group,
 typedef struct rf_group_object {
     int32_t uid;uint32_t type,handle,parent,flags;
 } rf_group_object;
+typedef struct rf_group_motion_state {
+    uint32_t flags,mode;
+    int32_t current_key,next_key;
+    float phase;
+    int32_t terminal_key;
+} rf_group_motion_state;
+/* Activation state transition 46ac43..46acb2 (including 46adab branch).
+ * Call only after the original activation eligibility checks. Does not emit
+ * sounds/events, wake objects, or advance/interpolate poses. No allocation.
+ * Active transitions are unchanged; malformed idle input preserves state. */
+int rf_group_motion_activate(rf_group_motion_state *state,uint32_t key_count);
 /* 46b6e8..46b79c mover membership pass. objects follow original global list
  * order; first matching UID wins, with -1 absent and -999 excluding flag 2.
  * Compacts refs in place, appends accepted handles, updates parents/flags and

@@ -1592,3 +1592,32 @@ contents are compared; the unused compacted tail is unspecified. All pass:
 CTest checks pass. This helper is not yet connected to scene controller
 creation, the first ID-list pass, saved-state continuation or motion playback.
 There is no new visual result.
+
+### Controller activation state transition
+
+`rf_group_motion_activate` reconstructs 46ac43..46acb2 and its 46adab branch
+inside activation function 46aba0. It is called after activation eligibility,
+not as a substitute for those checks. If next-key +2fc differs from -1,
+the block leaves state alone. Otherwise bit 4 selects key zero; when bit 40 is
+also set it zeros +300, clears bit 20 and sets bit 10. Without bit 4, mask 2000
+selects forward stepping; otherwise it steps backward, wrapping at either end.
+Mode 1 sets +30c to the corresponding final endpoint (last or zero); other
+modes set -1. The bit-4 branch preserves +30c. All idle activations set bit 8,
+and mode 1 clears bit 1. Field +300 is provisionally named phase; its playback
+units and accumulation remain unverified.
+
+`python tools/verify_group_activation.py` executes the original block and its
+unchanged gate/count/handle helpers for 4,096 seeded states, including single
+key bit-4 groups, endpoint wrapping, all six mode values, phase reset and
+already-active no-ops. It checks the entire original object for unexpected
+mutations and compares exact state bytes with PC and compiled NXDK C. Five
+port-only malformed-input guards preserve state. All pass; report:
+`artifacts/group-activation-verification.json`. Both builds and four CTest
+checks pass. This does not yet recover eligibility, sound/event calls, object
+wakeup, interpolation or pose propagation. No scene behavior changes yet.
+
+New Ghidra exports distinguish debug rendering from playback: controller-list
+routine 46ab70 calls 46a9c0, which draws key markers, connecting lines and text.
+Activation helper 46a120 starts controller sound handles through 5056a0; it is
+not the interpolator. These routines must not be used as per-frame motion
+updates merely because they traverse controllers or run during activation.
