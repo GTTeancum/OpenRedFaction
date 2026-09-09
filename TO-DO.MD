@@ -69,6 +69,8 @@ Original fallback-sphere preparation now passes 180 cases with real array growth
 and copies; implement shared sphere preparation and recover existing-sphere inertia.
 Shared C fallback mass/sphere fields now match 4,020 original cases on PC/NXDK,
 with nine input guards; add sphere ownership and existing-sphere inertia next.
+Shared budgeted sphere ownership preserves authored 24-byte records and passes
+11 PC lists; wire Xbox residency and recover generated inertia for existing spheres.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and

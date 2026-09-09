@@ -240,6 +240,32 @@ build. Guards are port policy, not claimed original behavior. Both builds and
 all four CTest checks pass. Exhaustive floating-point equivalence, including
 all density values and extreme exponent combinations, remains unproven.
 
+## Authored sphere transfer and ownership
+
+`tools/verify_physics_sphere_copy.py` executes complete preparation with existing
+sphere lists and positive mass, supplying only heap allocate/free. Ten fixtures
+cover counts 1/2/16/17/32 and positive/negative element parameter +0x10. Original
+growth allocates capacity 16 then doubles to 32, copies every 24-byte record in
+order and frees the previous buffer. Positive +0x10 sets flag 0x2000 in both
+parameters and runtime physics. Axis-aligned fixture offsets verify radius as
+the maximum center distance plus sphere radius. General-center rounding,
+generated inertia and allocation failure are not covered.
+
+Shared `rf_physics_spheres_open/close` now retains these records in one allocation
+with exactly the required capacity. Budget includes owner and records, excluding
+allocator overhead. Centers and radii must be finite and radii nonnegative;
+the remaining fields, including opaque +0x14 bits, copy unchanged. Open requires
+an empty destination and preserves it on error; source may close after success.
+Close frees storage and clears the owner. This is storage ownership, not physics
+initialization or application of the recovered flag/radius rules.
+
+The PC probe compares all original output records, poisons its source, checks
+exact/short budgets, rejects live-owner reopening and verifies repeated close.
+Ten original lists plus an empty list pass; malformed-center, negative-radius
+and null-source guards preserve output. NXDK builds successfully; resident Xbox
+sphere ownership is not yet exercised. Report:
+`artifacts/physics-sphere-copy-verification.json`.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and
