@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The miner inspection now streams 64 changing frames through reusable CPU/GPU
+buffers on 64 MiB XEMU. Add sustained scene playback, world placement, original
+lighting/material effects and performance measurements before PS2 comparison.
+
 A textured, posed miner now renders on PC and 64 MiB XEMU, with a passing
 framebuffer comparison and translucent faceplate. Add visible animation playback,
 world placement, original lighting/material effects and PS2 visual comparison.

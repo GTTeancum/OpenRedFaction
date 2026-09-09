@@ -37,11 +37,11 @@ int main(int argc, char **argv)
     unsigned char *rgb;
     uint32_t i;
     FILE *output;
-    int model_mode=argc>1 && !strcmp(argv[1],"--model");
+    int model_mode=argc>1 && (!strcmp(argv[1],"--model") || !strcmp(argv[1],"--model-last"));
     const char *output_path=model_mode?(argc>4?argv[4]:NULL):(argc>3?argv[3]:NULL);
     if (argc < 4 || argc > 20) return 2;
     if(model_mode) {
-        if(argc<6 || rf_vpp_open(&archive,argv[2]) || rf_animation_preview(argv[2],argv[3],0,&mesh,1024*1024))return 1;
+        if(argc<6 || rf_vpp_open(&archive,argv[2]) || rf_animation_preview(argv[2],argv[3],!strcmp(argv[1],"--model-last")?63:0,&mesh,1024*1024))return 1;
     } else if (rf_vpp_open(&archive, argv[1]) || rf_level_open(&level, &archive, argv[2]) ||
         rf_geometry_open(&geometry, &level, 8*1024*1024) || rf_preview_build(&mesh, &geometry, &level, 8*1024*1024)) return 1;
     if (argc > 4) {

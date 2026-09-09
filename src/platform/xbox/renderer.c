@@ -49,6 +49,11 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     uint32_t white = 0xffffffffu;
     rf_image fallback = {1, 1, 4, 0, (unsigned char *)&white};
     uint64_t upload_bytes = 4;
+    /* One process-lifetime inspection stream; resource arrays are uploaded once. */
+    static rf_preview_vertex *stream_gpu;
+    static gpu_texture *stream_textures;
+    static const rf_materials *stream_materials;
+    uint32_t vertex_bytes=model==2?1024*1024:mesh?mesh->bytes:0;
     const uint32_t program[] = {
 #include "preview_vertex.inl"
     };
@@ -57,10 +62,15 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     for (i = 0; i < lightmaps->count; ++i) upload_bytes += lightmaps->images[i].bytes;
     if (upload_bytes > 8u*1024u*1024u || mesh->bytes > 8u*1024u*1024u) return RF_RANGE;
     for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
+    if(mesh->bytes>vertex_bytes)return RF_RANGE;
+    if(model==2 && stream_gpu) {
+        if(stream_materials!=materials)return RF_RANGE;
+        gpu=stream_gpu;textures=stream_textures;
+        while(pb_busy()) {}
+    } else {
     if (pb_init()) return RF_IO;
-    gpu = MmAllocateContiguousMemoryEx(mesh->bytes, 0, 0x03ffb000, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
+    gpu = MmAllocateContiguousMemoryEx(vertex_bytes, 0, 0x03ffb000, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
     if (!gpu) { pb_kill(); return RF_RANGE; }
-    memcpy(gpu, mesh->vertices, mesh->bytes);
     textures = calloc(materials->count + 1 + lightmaps->count, sizeof(*textures));
     if (!textures) { MmFreeContiguousMemory(gpu); pb_kill(); return RF_RANGE; }
     for (i = 0; i < materials->count + 1 + lightmaps->count; ++i) {
@@ -73,6 +83,9 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             free(textures); MmFreeContiguousMemory(gpu); pb_kill(); return result;
         }
     }
+    if(model==2) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;}
+    }
+    memcpy(gpu,mesh->vertices,mesh->bytes);
     for (i = 0; i < mesh->count; ++i) if (gpu[i].material < materials->count && textures[gpu[i].material].pixels) {
         gpu[i].color[0] = gpu[i].color[1] = gpu[i].color[2] = 1.0f;
     }
@@ -84,7 +97,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         MM_STATISTICS statistics = {0};
         statistics.Length = sizeof(statistics);
         if (NT_SUCCESS(MmQueryStatistics(&statistics))) memory[0] = statistics.AvailablePages;
-        memory[1] = (uint32_t)upload_bytes; memory[2] = mesh->bytes;
+        memory[1] = (uint32_t)upload_bytes; memory[2] = vertex_bytes;
     }
     p = pb_begin();
     p = pb_push1(p, NV097_SET_TRANSFORM_PROGRAM_START, 0);
@@ -109,7 +122,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     p = pb_push1(p, NV097_SET_DEPTH_FUNC, NV097_SET_DEPTH_FUNC_V_LESS);
     pb_end(p);
     pb_show_front_screen();
-    for (frame = 0; frame < 3; ++frame) {
+    for (frame = 0; frame < (model==2?1u:3u); ++frame) {
         pb_wait_for_vbl(); pb_reset(); pb_target_back_buffer();
         pb_erase_depth_stencil_buffer(0, 0, 640, 480);
         pb_fill(0, 0, 640, 480, 0xff101018);
@@ -158,14 +171,16 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         while (pb_busy()) {}
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();
-        capture[4] = mesh->count; capture[5] = frame+1;
+        capture[4] = mesh->count; capture[5] = model==2?capture[5]+1:frame+1;
         while (pb_finished()) {}
     }
     /* GPU and framebuffer remain alive for native capture; application lifetime. */
-    free(textures);
+    if(model==2)pb_wait_for_vbl();else free(textures);
     return RF_OK;
 }
 int rf_xbox_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,volatile uint32_t capture[6],volatile uint32_t memory[3])
 {return preview(mesh,materials,lightmaps,capture,memory,0);}
 int rf_xbox_model_preview(const rf_preview_mesh *mesh,const rf_materials *materials,volatile uint32_t capture[6],volatile uint32_t memory[3])
 {rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,1);}
+int rf_xbox_model_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,volatile uint32_t capture[6],volatile uint32_t memory[3])
+{rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,2);}

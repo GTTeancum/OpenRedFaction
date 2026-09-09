@@ -1,5 +1,40 @@
 # Model batch data
 
+`rf_animation_stream` now drives a synchronous frame consumer across the 64
+scripted diagnostic frames. Pose, controller and resident geometry state advance
+once through the sequence. A single budgeted preview allocation is reset and
+filled each frame; its borrowed lifetime ends when the consumer returns. The
+consumer may remap material slots, because the next frame rewrites every used
+vertex. Consumer errors stop processing and release producer allocations.
+
+The Xbox model stream retains uploaded textures and a single 1 MiB contiguous
+GPU vertex allocation for the process lifetime. It waits for outstanding GPU
+work before overwriting that allocation, flushes writes and submits each frame.
+Two vertical-blank waits pace each diagnostic step, but there is no measured
+steady frame-rate guarantee. Shader state is still uploaded per frame. This is
+a single 64-frame inspection stream ending on its final frame, not a resumable
+game loop, world actor system or sustained performance test.
+
+Keep both `model-preview.flag` and `model-stream.flag` in the staged Xbox disc
+and rebuild the ISO to select streaming. Removing only the stream flag selects
+the earlier fixed-pose inspection. Telemetry scene 2 reports 64 submitted frames
+and the 1 MiB reserved GPU vertex allocation. The PC preview option
+`--model-last` has the same arguments as `--model` and renders frame 63 for
+comparison. `rf_animation_check.exe --stream Installed_Game/meshes.vpp
+Installed_Game/motions.vpp` validates all 64 delivered meshes, ordered callbacks,
+63 changing transitions and one reused allocation; frames 0, 4, 32 and 63 also
+match separate fixed-frame results byte for byte. It deliberately remaps every
+material after each callback to test that consumer mutations do not leak.
+
+PC/NXDK builds and all four CTest checks pass. Native XEMU run
+`artifacts/xemu/20260908-214922-522800/report.json` passes on 64 MiB after
+64 submissions. Its final frame contains 464 triangles; comparison to the PC
+frame passes with 4 of 307,200 pixels exceeding channel error 3, maximum 113,
+mean per-pixel maximum error 0.00412. The final native framebuffer was visually
+inspected. Intermediate images were not captured or visually audited; runtime
+telemetry and the PC mesh checks establish sequence progress, not visual
+correctness of every frame. Existing animation hash scope is unchanged.
+
 The first textured miner inspection now draws on both PC and stock-memory
 XEMU. `rf_animation_preview` evaluates the existing scripted pose sequence,
 collects one requested frame through the recovered batch and triangle pipeline,

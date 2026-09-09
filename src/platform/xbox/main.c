@@ -18,15 +18,31 @@ volatile uint32_t rf_diagnostic[56] = {0x52464447u, 8u, 0};
 static rf_geometry resident_geometry;
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;
+static int model_frame(void *context,uint32_t frame,rf_preview_mesh *mesh)
+{
+    rf_model_materials *bundle=context;uint32_t i;
+    if(rf_diagnostic[37]!=frame)return RF_FORMAT;
+    for(i=0;i<mesh->count;++i) {
+        uint32_t material=mesh->vertices[i].material;
+        if(material>=bundle->count)return RF_FORMAT;
+        memcpy(&mesh->vertices[i].material,bundle->items[material].record.bytes+0x10,4);
+    }
+    return rf_xbox_model_stream_frame(mesh,&bundle->textures,&rf_diagnostic[32],&rf_diagnostic[44]);
+}
 static int model_preview(void)
 {
     static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
     rf_vpp meshes,archives[5];rf_model_file model;rf_model_materials bundle={0};rf_preview_mesh mesh={0};
-    uint32_t opened=0,i;int status;
+    uint32_t opened=0,i;int status;FILE *stream_flag;
     status=rf_vpp_open(&meshes,"D:\\meshes.vpp");if(status)return status;
     status=rf_model_file_open(&model,&meshes,"miner.v3c");
     while(!status && opened<5) {status=rf_vpp_open(archives+opened,paths[opened]);if(!status)++opened;}
     if(!status)status=rf_model_materials_open(&bundle,&model,archives,opened,4*1024*1024);
+    stream_flag=fopen("D:\\model-stream.flag","rb");
+    if(stream_flag) {
+        fclose(stream_flag);rf_diagnostic[31]=2;
+        if(!status)status=rf_animation_stream("D:\\meshes.vpp","D:\\motions.vpp",1024*1024,model_frame,&bundle);
+    } else {
     if(!status)status=rf_animation_preview("D:\\meshes.vpp","D:\\motions.vpp",0,&mesh,1024*1024);
     if(!status)for(i=0;i<mesh.count;++i) {
         uint32_t material=mesh.vertices[i].material;
@@ -34,6 +50,7 @@ static int model_preview(void)
         memcpy(&mesh.vertices[i].material,bundle.items[material].record.bytes+0x10,4);
     }
     if(!status) {rf_diagnostic[31]=1;status=rf_xbox_model_preview(&mesh,&bundle.textures,&rf_diagnostic[32],&rf_diagnostic[44]);}
+    }
     rf_preview_close(&mesh);rf_model_materials_close(&bundle);
     while(opened)rf_vpp_close(archives+--opened);
     rf_vpp_close(&meshes);return status;
