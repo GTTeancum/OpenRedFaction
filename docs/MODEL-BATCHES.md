@@ -1,5 +1,27 @@
 # Model batch data
 
+`rf_model_select_lod` recovers the selector in `0x52faae..0x52fb1d`, including
+the threshold-match branch at `0x52fbe2`. Flags masked by 9 force the final
+LOD. Otherwise alternate mode selects zero; ordinary mode clamps the supplied
+minimum to the final LOD and scans thresholds backward, accepting equality.
+The metric is multiplied by 2.5 only when both scaling and animation-instance
+gates are set. Unordered comparisons do not select a threshold. Thresholds are
+neither sorted nor sanitized. The port requires 1–3 levels and a nonnegative
+minimum, leaving output unchanged on invalid arguments.
+
+`tools/verify_model_lod.py` compares 2,000 unchanged original-block executions,
+including original metric callees, equality, unordered values and flag gates.
+The fixtures use axis-aligned positions and unit metric scale; the C API takes
+the resulting metric as input. Three separate port bounds checks pass, as do
+PC/NXDK builds and four CTest checks. File threshold retention, camera-derived
+metric calculation and selection-driven residency remain to be connected.
+
+The newly exported `0x52fa40` dispatcher calls prepared-skinning setup and then
+`0x52e9e0`; it does not rewrite the second stream. The inspected loader chain
+`0x53b408 -> 0x53ae5f -> 0x5696f0 -> 0x569880 -> 0x569920` likewise retains
+the stream contents. This narrows the preparation investigation but does not
+prove that no other lifecycle code writes the data. No visible change is claimed.
+
 `rf_model_geometry_open` now assembles one LOD into owned batch ranges,
 vertices, triangles and reuse records, with flattened material indices.
 Triangle indices and reuse distances remain local to their batch. Its explicit

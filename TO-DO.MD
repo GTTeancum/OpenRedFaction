@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Original model detail selection now matches 2,000 executable cases, including
+flag overrides and exact threshold boundaries. Retain file thresholds and
+connect the camera metric to selection-driven geometry residency and drawing.
+
 The shared animation diagnostic now uses a budgeted resident geometry loader
 on PC and 64 MiB XEMU. Independent traversal validates all 170 model LODs,
 including exact-budget success and one-byte-under rejection. Connect resident

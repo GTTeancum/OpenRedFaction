@@ -58,6 +58,14 @@ public class ExportBaseline extends GhidraScript {
         addresses.add(0x52fcf0L);
         addresses.add(0x52dad0L);addresses.add(0x52d980L);
         addresses.add(0x51c620L);addresses.add(0x51ba00L);
+        addresses.add(0x51ce60L);
+        try (PrintWriter out = new PrintWriter(new File(dir,"model-render-callers.tsv"),StandardCharsets.UTF_8)) {
+            for(long target : new long[]{0x52e9e0L,0x53ae5fL,0x5696f0L}) for(var reference : getReferencesTo(toAddr(target))) {
+                Function f=getFunctionContaining(reference.getFromAddress());
+                out.printf("%x\t%s\t%s%n",target,reference.getFromAddress(),f==null?"none":f.getEntryPoint());
+                if(f!=null)addresses.add(f.getEntryPoint().getOffset());
+            }
+        }
         for(long target : new long[]{0x503f50L,0x504000L,0x54e200L,0x565890L,0x52de10L,0x52e9e0L}) addresses.add(target);
         // Candidate byte-weight normalization consumers; classify before reuse.
         try (PrintWriter out = new PrintWriter(new File(dir,"byte-weight-xrefs.tsv"),StandardCharsets.UTF_8)) {

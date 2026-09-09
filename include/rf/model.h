@@ -151,4 +151,9 @@ int rf_model_evaluate_playback(const rf_model_bone *bones, uint32_t count, const
                                const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
                                uint32_t resource_count, float root_displacement[3], float (*matrices)[12],
                                uint16_t *generations, uint32_t capacity);
+/* Detail selection from 0x52faae..0x52fb1d (and 0x52fbe2).
+ * Metric is supplied by the caller (original 0x5182f0); thresholds retain file
+ * order. No allocation/loading. Invalid count or minimum leaves output intact. */
+int rf_model_select_lod(const float *thresholds,uint32_t count,uint32_t flags,
+    int alternate,int32_t minimum,int scaled,int animated,double metric,uint32_t *out);
 #endif

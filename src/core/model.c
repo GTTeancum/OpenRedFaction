@@ -5,6 +5,21 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_select_lod(const float *thresholds,uint32_t count,uint32_t flags,
+    int alternate,int32_t minimum,int scaled,int animated,double metric,uint32_t *out)
+{
+    int32_t index,selected=0;
+    if(!thresholds || !out || !count || count>3 || minimum<0)return RF_RANGE;
+    if(flags&9)selected=(int32_t)count-1;
+    else if(!alternate && count>1) {
+        selected=minimum<(int32_t)count-1?minimum:(int32_t)count-1;
+        if(scaled && animated)metric*=2.5;
+        for(index=(int32_t)count-1;index>=selected;--index)
+            if(metric>=thresholds[index]) {selected=index;break;}
+    }
+    *out=(uint32_t)selected;return RF_OK;
+}
+
 int rf_model_prepare_skinning(const float (*stored)[12],const float (*pose)[12],uint32_t count,
     uint16_t generation,float (*prepared)[12],uint16_t *generations,uint32_t capacity)
 {
