@@ -12,6 +12,7 @@ def names(address,count):
         values.append(image[p:p+64].split(bytes(1))[0].decode().lower())
     return values
 tables=[names(0x594598,28),names(0x594608,8)]
+movement=names(0x596384,16);uses={'vehicle':1,'switch':2,'command':3,'turret':4,'monitor':5,'medic':6,'ai response':9,'play_sound':10}
 inventory=json.loads((root/'artifacts/inventory.json').read_text())
 entry=next(e for f in inventory['files'] if f['path']=='tables.vpp' for e in f['vpp']['entries'] if e['name']=='entity.tbl')
 with (root/'Installed_Game/tables.vpp').open('rb') as f:
@@ -27,7 +28,10 @@ for i in range(1,len(blocks),2):
         if m:
             for word in re.findall(r'"([^"]+)"',m[1]):value|=1<<table.index(word.lower())
         flags.append(value)
-    expected=struct.pack('<f64sII',mass,material.encode(),*flags).hex()
+    mode=movement.index(re.search(r'\$Movemode:\s*"([^"]+)"',block,re.I)[1].lower())
+    use=re.search(r'\$Use:\s*"([^"]+)"(?:\s*\+radius:\s*(\S+))?',block,re.I)
+    kind=uses.get(use[1].lower(),0) if use else 0;radius=float(use[2]) if kind else 0
+    expected=struct.pack('<f64sIIIIf',mass,material.encode(),*flags,mode,kind,radius).hex()
     actual=subprocess.check_output([str(probe),'--class-physics',str(root/'Installed_Game/tables.vpp'),name.upper()],text=True).strip()
     assert actual==expected,name
     records.append(dict(name=name,mass=mass,material=material,flags=flags))
@@ -38,9 +42,11 @@ def check(text):
     struct.pack_into('<I',data,2108,len(payload));data[4096:4096+len(payload)]=payload
     path=folder/'fixture.vpp';path.write_bytes(data)
     return subprocess.run([str(probe),'--class-physics',str(path),'actor'],capture_output=True)
-valid='$Name: "actor" $Mass: 100 $Material: "flesh" $Flags: ("WALK" "walk")'
-assert check(valid).stdout.decode().strip()==struct.pack('<f64sII',100,b'flesh',1,0).hex()
-bad=[valid.replace('100','nan'),valid.replace('100','"100"'),valid.replace('"WALK"','"unknown"'),valid.replace(')', ''),valid.replace('$Mass: 100',''),valid+' $Flags: ()',valid.replace('"flesh"','"'+64*'a'+'"')]
+valid='$Name: "actor" $Mass: 100 $Material: "flesh" $Flags: ("WALK" "walk") $Movemode: "RUN"'
+assert check(valid).stdout.decode().strip()==struct.pack('<f64sIIIIf',100,b'flesh',1,0,1,0,0).hex()
+for name,kind in uses.items():
+    assert check(valid+' $Use: "'+name.upper()+'" +radius: .5').stdout.decode().strip()==struct.pack('<f64sIIIIf',100,b'flesh',1,0,1,kind,.5).hex()
+bad=[valid.replace('100','nan'),valid.replace('100','"100"'),valid.replace('"WALK"','"unknown"'),valid.replace(')', ''),valid.replace('$Mass: 100',''),valid+' $Flags: ()',valid.replace('"flesh"','"'+64*'a'+'"'),valid.replace('"RUN"','"unknown"'),valid+' $Use: "turret"',valid+' $Use: "turret" +radius: nan']
 for text in bad:assert check(text).returncode==3
 report=dict(result='PASS',classes=len(records),malformed_cases=len(bad),records=records,scope='Authored input comparison using original flag tables; not full original parser execution or post-parse class defaults.')
 (root/'artifacts/class-physics-verification.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='records'})

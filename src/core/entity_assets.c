@@ -4,6 +4,24 @@
 #include <stdlib.h>
 #include <math.h>
 #include <float.h>
+int rf_entity_physics_config_load(rf_vpp *tables,const char *class_name,
+    uint32_t scratch_budget,rf_entity_physics_config *result)
+{
+    rf_vpp_entry entity,material;rf_entity_physics_config value={0};
+    uint32_t size;void *scratch;int status;
+    if(!tables || !class_name || !*class_name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"entity.tbl",&entity);if(status)return status;
+    status=rf_vpp_find(tables,"materials.tbl",&material);if(status)return status;
+    size=entity.size>material.size?entity.size:material.size;
+    if(!entity.size || !material.size || size>scratch_budget)return RF_RANGE;
+    scratch=malloc(size);if(!scratch)return RF_RANGE;
+    status=rf_vpp_read(tables,&entity,0,scratch,entity.size);
+    if(!status)status=rf_entity_class_physics_read(scratch,entity.size,class_name,&value.authored);
+    if(!status)status=rf_entity_sphere_declarations_read(scratch,entity.size,class_name,&value.spheres);
+    if(!status)status=rf_vpp_read(tables,&material,0,scratch,material.size);
+    if(!status)status=rf_entity_material_read(scratch,material.size,value.authored.material,&value.material);
+    free(scratch);if(!status)*result=value;return status;
+}
 int rf_entity_assets_load(const char *path,const char *class_name,const char *skin,
     rf_entity_assets *assets,uint32_t budget)
 {
@@ -93,10 +111,32 @@ static int asset(char destination[64],const char *source)
 {size_t n=strlen(source);if(!n || n>=64)return RF_RANGE;memcpy(destination,source,n+1);return RF_OK;}
 static int sphere_number(lexer *l,float *result)
 {
-    char t[256],*end;int quoted,status;double value;
+    char t[256];uint32_t at=0,digits=0;int quoted,status,negative=0,fraction=0,exponent=0,exp_negative=0;double value=0;
     status=token(l,t,&quoted);if(status || quoted)return RF_FORMAT;
-    value=strtod(t,&end);if(end==t || *end || !isfinite(value) || fabs(value)>FLT_MAX)return RF_FORMAT;
-    *result=(float)value;return RF_OK;
+    /* NXDK strtod/strtof are assertion stubs. Authored decimal syntax only. */
+    if(t[at]=='+' || t[at]=='-')negative=t[at++]=='-';
+    while(t[at]>='0' && t[at]<='9') {value=value*10+(t[at++]-'0');++digits;}
+    if(t[at]=='.') {
+        ++at;while(t[at]>='0' && t[at]<='9') {value=value*10+(t[at++]-'0');++digits;++fraction;}
+    }
+    if(!digits)return RF_FORMAT;
+    if(t[at]=='e' || t[at]=='E') {
+        ++at;if(t[at]=='+' || t[at]=='-')exp_negative=t[at++]=='-';
+        digits=0;while(t[at]>='0' && t[at]<='9') {if(exponent<10000)exponent=exponent*10+t[at]-'0';++at;++digits;}
+        if(!digits)return RF_FORMAT;
+    }
+    if(t[at])return RF_FORMAT;
+    exponent=(exp_negative?-exponent:exponent)-fraction;
+    if(value!=0) {
+        if(exponent>308)return RF_FORMAT;
+        if(exponent< -600)value=0;
+        else {
+            while(exponent>0) {value*=10;--exponent;}
+            while(exponent<0) {value/=10;++exponent;}
+        }
+    }
+    if(!isfinite(value) || value>FLT_MAX)return RF_FORMAT;
+    *result=(float)(negative?-value:value);return RF_OK;
 }
 static int class_flags(lexer *l,uint32_t secondary,uint32_t *result)
 {
@@ -117,8 +157,11 @@ static int class_flags(lexer *l,uint32_t secondary,uint32_t *result)
 int rf_entity_class_physics_read(const void *text,uint32_t bytes,const char *name,
     rf_entity_class_physics *result)
 {
+    static const char *movement[]={"none","run","climb","fall","swim","apc","apc fall","sub","sub fall","fighter","turret","robot fly","hover","freelookcam","deadcam","john's descent flying mode"};
+    static const char *uses[]={"vehicle","switch","command","turret","monitor","medic","ai response","play_sound"};
+    static const uint32_t kinds[]={1,2,3,4,5,6,9,10};
     lexer l={(const unsigned char*)text,bytes,0};rf_entity_class_physics value={0};
-    char t[256];uint32_t mask=0,bit;int status,quoted,found=0;
+    char t[256];uint32_t mask=0,bit,i;int status,quoted,found=0;
     if(!text || !name || !*name || !result)return RF_RANGE;
     while((status=token(&l,t,&quoted))==RF_OK) {
         if(quoted)continue;
@@ -127,15 +170,26 @@ int rf_entity_class_physics_read(const void *text,uint32_t bytes,const char *nam
             if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
             found=same(t,name);
         } else if(found) {
-            bit=same(t,"$Mass:")?1:same(t,"$Material:")?2:same(t,"$Flags:")?4:same(t,"$Flags2:")?8:0;
+            bit=same(t,"$Mass:")?1:same(t,"$Material:")?2:same(t,"$Flags:")?4:same(t,"$Flags2:")?8:same(t,"$Movemode:")?16:same(t,"$Use:")?32:0;
             if(!bit)continue;if(mask&bit)return RF_FORMAT;mask|=bit;
             if(bit==1) {if(sphere_number(&l,&value.mass))return RF_FORMAT;}
             else if(bit==2) {if(token(&l,t,&quoted) || !quoted || asset(value.material,t))return RF_FORMAT;}
-            else if(class_flags(&l,bit==8,bit==8?&value.flags2:&value.flags))return RF_FORMAT;
+            else if(bit==16) {
+                if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+                for(i=0;i<16;++i)if(same(t,movement[i]))break;
+                if(i==16)return RF_FORMAT;value.movement_index=i;
+            } else if(bit==32) {
+                if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+                for(i=0;i<8;++i)if(same(t,uses[i]))break;
+                if(i<8) {
+                    value.use_kind=kinds[i];
+                    if(token(&l,t,&quoted) || quoted || !same(t,"+radius:") || sphere_number(&l,&value.use_radius))return RF_FORMAT;
+                }
+            } else if(class_flags(&l,bit==8,bit==8?&value.flags2:&value.flags))return RF_FORMAT;
         }
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
-    if(!found)return RF_NOT_FOUND;if((mask&7)!=7)return RF_FORMAT;
+    if(!found)return RF_NOT_FOUND;if((mask&23)!=23)return RF_FORMAT;
     *result=value;return RF_OK;
 }
 int rf_entity_material_read(const void *text,uint32_t bytes,const char *name,

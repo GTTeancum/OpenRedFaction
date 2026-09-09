@@ -250,6 +250,44 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         out[5]=hash_bytes(out[5],matrices,count*48); out[5]=hash_bytes(out[5],displacement,12);
         out[5]=hash_bytes(out[5],generations,count*2); displacement[0]=0;
         status=rf_model_prepare_skinning(stored,matrices,count,(uint16_t)state.generation,prepared,prepared_generations,count);if(status)goto done;
+        if(placement && placement->physics_config && placement->physics_body) {
+            rf_physics_body *body=placement->physics_body;
+            if(frame==0) {
+                const rf_entity_physics_config *config=placement->physics_config;
+                rf_entity_class_sphere resolved[8]={0};rf_physics_sphere spheres[8];
+                rf_physics_body_parameters parameters={0};uint32_t n=0,j;
+                for(j=0;j<8;++j) {
+                    rf_model_collision_sphere sphere;float posed[4];
+                    status=rf_model_file_collision_sphere(&model,j,&sphere);
+                    if(status==RF_NOT_FOUND) {status=RF_OK;break;}if(status)goto done;
+                    status=rf_model_collision_sphere_pose(&sphere,matrices,count,posed);if(status)goto done;
+                    if(strlen(sphere.name)>=24) {status=RF_RANGE;goto done;}
+                    strcpy(resolved[j].name,sphere.name);memcpy(resolved[j].center,posed,12);
+                    if(config->authored.flags&0x24000)resolved[j].center[0]=resolved[j].center[2]=0;
+                    resolved[j].radius=posed[3];resolved[j].selected_scalar=1;resolved[j].parameter_10=-1;resolved[j].model_index=j;++n;
+                }
+                status=rf_entity_sphere_overrides(resolved,n,config->spheres.items,config->spheres.count,0);if(status)goto done;
+                for(j=0;j<n;++j) {
+                    memcpy(spheres[j].center,resolved[j].center,12);spheres[j].radius=resolved[j].radius;
+                    spheres[j].parameter_10=resolved[j].parameter_10;spheres[j].opaque_14=resolved[j].opaque_14;
+                }
+                parameters.mass=config->authored.mass;parameters.coefficients[0]=config->material.elasticity;
+                parameters.coefficients[1]=10;parameters.coefficients[2]=config->material.friction;
+                memcpy(parameters.position,placement->position,12);memcpy(parameters.orientation,placement->orientation,36);
+                /* Provisional first-body identity tensor; final creation sequence remains open. */
+                parameters.local_tensor[0]=parameters.local_tensor[4]=parameters.local_tensor[8]=1;
+                parameters.flags=rf_entity_creation_physics_flags(0,config->authored.flags,config->authored.flags2,config->authored.use_kind,0);
+                status=rf_physics_body_open(&parameters,NULL,0,4096,body);if(status)goto done;
+                status=rf_physics_body_replace_spheres(body,spheres,n,4096);if(status)goto done;
+            }
+            if(placement->physics_diagnostic) {
+                uint32_t *d=placement->physics_diagnostic;
+                d[0]=0x52465041;d[1]=1;d[2]=frame+1;d[3]=body->spheres.count;d[4]=body->allocated_bytes;
+                d[5]=hash_bytes(2166136261u,&body->state,sizeof(body->state));
+                d[6]=hash_bytes(2166136261u,body->spheres.items,body->spheres.count*sizeof(*body->spheres.items));
+                memcpy(d+7,&body->state.bounds.radius,4);
+            }
+        }
         out[5]=hash_bytes(out[5],prepared,count*48);out[5]=hash_bytes(out[5],prepared_generations,count*2);
         for(vertex_index=0;vertex_index<vertex_count;++vertex_index) {
             rf_model_vertex *v=vertices+vertex_index;float position[3];

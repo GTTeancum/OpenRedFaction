@@ -50,6 +50,8 @@ static uint32_t group_runtime_hash(void)
 static rf_level_owned_triggers resident_triggers;
 static rf_level_owned_events resident_events;
 static rf_level_owned_entities resident_entities;
+rf_entity_physics_config resident_miner_config;
+volatile uint32_t rf_actor_creation_diagnostic[6]={0x52464143u};
 volatile uint32_t rf_level_logic_diagnostic[12]={0x52464c47u};
 static uint32_t logic_hash_part(uint32_t hash,const void *data,uint32_t bytes)
 {
@@ -98,7 +100,26 @@ static int logic_storage_open(const rf_level *level)
     rf_level_logic_diagnostic[10]=resident_entities.count;rf_level_logic_diagnostic[11]=resident_entities.allocated_bytes;
     for(i=0;i<resident_triggers.count;++i)rf_level_logic_diagnostic[5]+=resident_triggers.items[i].record.link_count;
     for(i=0;i<resident_events.count;++i)rf_level_logic_diagnostic[6]+=resident_events.items[i].record.link_count;
-    rf_level_logic_diagnostic[7]=logic_storage_hash();return RF_OK;
+    rf_level_logic_diagnostic[7]=logic_storage_hash();
+    for(i=0;i<resident_entities.count;++i)if(resident_entities.items[i].record.uid==9858) {
+        rf_vpp tables;
+        rf_actor_creation_diagnostic[1]=2;rf_actor_creation_diagnostic[2]=9858;
+        status=rf_vpp_open(&tables,"D:\\tables.vpp");
+        if(!status) {
+            status=rf_entity_physics_config_load(&tables,resident_entities.items[i].record.class_name,
+                512u*1024u,&resident_miner_config);
+            rf_vpp_close(&tables);
+        }
+        rf_actor_creation_diagnostic[1]=status?(uint32_t)status:1;
+        rf_actor_creation_diagnostic[2]=9858;
+        rf_actor_creation_diagnostic[3]=sizeof(resident_miner_config);
+        if(!status) {
+            rf_actor_creation_diagnostic[4]=logic_hash_part(2166136261u,&resident_miner_config,sizeof(resident_miner_config));
+            rf_actor_creation_diagnostic[5]=resident_miner_config.spheres.count;
+        }
+        if(status)return status;break;
+    }
+    return RF_OK;
 }
 static rf_level_owned_groups resident_groups;
 volatile uint32_t rf_group_storage_diagnostic[10]={0x52464753u};

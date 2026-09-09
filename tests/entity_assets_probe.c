@@ -6,6 +6,18 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==4 && !strcmp(argv[1],"--physics-config")) {
+        rf_entity_physics_config value,before;rf_vpp_entry material;uint32_t budget;
+        memset(&value,0xa5,sizeof(value));before=value;
+        if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"entity.tbl",&entry) || rf_vpp_find(&archive,"materials.tbl",&material))return 2;
+        budget=entry.size>material.size?entry.size:material.size;if(budget>512*1024 || !budget)return 2;
+        if(rf_entity_physics_config_load(&archive,argv[3],budget-1,&value)!=RF_RANGE || memcmp(&value,&before,sizeof(value)))return 4;
+        status=rf_entity_physics_config_load(&archive,argv[3],budget,&value);rf_vpp_close(&archive);
+        memset(&archive,0xa5,sizeof(archive));
+        if(status && memcmp(&value,&before,sizeof(value)))return 4;if(status)return 3;
+        for(i=0;i<sizeof(value);++i)printf("%02x",((const unsigned char*)&value)[i]);
+        printf("\n");return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--class-physics")) {
         rf_entity_class_physics value,before;
         memset(&value,0xa5,sizeof(value));before=value;

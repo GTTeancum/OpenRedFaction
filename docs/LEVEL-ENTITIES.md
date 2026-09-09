@@ -1,5 +1,33 @@
 # Level entity records
 
+Integration milestone (PC/XEMU verified; provisional spawn behavior): the shared scene stream now loads the selected
+actor's class/material/sphere configuration through `rf_entity_physics_config_load`.
+That archive adapter reads entity.tbl once and reuses one temporary allocation
+for materials.tbl; its cap is the larger entry size. The 468-byte result owns
+all values and survives archive closure. Movement index and optional use-kind
+are now included: miner1 has run index 1 and ai-response kind 9, radius 2.
+All 63 class records still match independent installed-data extraction; eight
+use kinds and ten malformed fixtures are checked. The movement index is an
+authored name-table index, not an initialized movement descriptor.
+
+The animation/scene fixture constructs an owned physics body from the exact
+frame-zero bone matrices used for skinning, applies class center X/Z suppression
+and named sphere overrides, and retains three spheres across 64 rendered frames.
+Its 396-byte body includes records; the body setup cap is 4 KiB. This is a
+provisional integration: it supplies identity local inertia, zero initial
+velocities and the existing scripted pose. It does not claim original spawn
+timing, crouch collider switching, collision response, AI, or registry insertion.
+The fixture's body remains available after streaming and is closed before the
+next scene. `rf_scene_actor_physics_diagnostic` exposes status/frame count,
+sphere count/storage, full body hash, sphere hash and radius bits. PC scene
+checks cover all 64 frames and cancellation; XEMU compares these eight words
+against the same shared PC scene, alongside existing world/door validations.
+The run at `artifacts/xemu/20260909-142439-773475/report.json` passes on 64 MiB;
+full guest config bytes also match PC in `actor-config-comparison.json`.
+The first integrated run exposed NXDK's asserting strtod stub; bounded decimal
+parsing now avoids it on both targets. See docs/XEMU-MEMORY.md for memory evidence
+and limits, including the remaining provisional pose and local inertia.
+
 `inspect_class_construction.py` executes the complete original 0x42d290 without
 hooks on zero, A5 and 5A patterned class storage. Use-kind +1b4 and flags +724/+728
 remain untouched, while resolved sphere count +cec is explicitly zeroed.

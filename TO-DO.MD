@@ -2,6 +2,21 @@
 
 Capture and post screenshots only when there is a new visible result.
 
+Working approach: complete the first miner integration across loading, rendering
+and physics before expanding isolated subsystem coverage. Use the existing
+diagnostic pose if spawn selection is unresolved, label that assumption, and
+replace it as evidence becomes available. Verify integrated PC/XEMU behavior;
+add isolated comparisons only for failures or fidelity risks on this path.
+
+Integration now runs in 64 MiB XEMU: UID 9858's class/material configuration,
+frame-zero model pose and three collision spheres are connected to an owned
+body during the 64-frame rendered scene. All 468 configuration bytes and body
+hashes match PC; the 600-frame door regression also passes. Pose/inertia remain
+explicit diagnostic assumptions; collision response and entity registration
+are next. See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
+The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
+and movement name run (index 1); do not use absent-field defaults for this actor.
+
 ## Shortlist
 
 - [ ] Create Live Mines entity 9858 through shared class/model-derived physics and validate its runtime state in 64 MiB XEMU.

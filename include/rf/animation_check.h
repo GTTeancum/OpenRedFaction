@@ -4,6 +4,7 @@
 #include "rf/preview.h"
 #include "rf/model.h"
 #include "rf/entity_assets.h"
+#include "rf/physics.h"
 /* Shared PC/Xbox diagnostic, not a game loop. Output: status, bones, frames,
  * pose hash, playback/controller/reference hash, cache hash, eye hash,
  * temporary bone payload bytes. Uses scripted logical requests and overrides.
@@ -27,6 +28,9 @@ typedef struct rf_animation_placement {
     float position[3],orientation[9];
     rf_model_clip_planes planes;
     rf_model_clip_projection clip_projection;
+    const rf_entity_physics_config *physics_config;
+    rf_physics_body *physics_body;
+    uint32_t *physics_diagnostic; /* Eight words; optional integrated fixture. */
 } rf_animation_placement;
 /* World/entity inputs are read each frame, allowing the owner to update them
  * synchronously in its sink. Viewport settings must agree between the two

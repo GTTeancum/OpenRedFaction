@@ -106,6 +106,8 @@ typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity;rf_scene_frame_sink sink;void *context;
 } scene_stream;
+rf_physics_body scene_actor_body;
+uint32_t rf_scene_actor_physics_diagnostic[8];
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;
@@ -130,7 +132,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
     rf_scene_frame_sink sink,void *context,int state_mode)
 {
-    rf_vpp archive,motions;rf_model_file model;rf_level_actor_assets binding;
+    rf_vpp archive,motions;rf_model_file model;rf_level_actor_assets binding;rf_entity_physics_config physics_config;
     rf_entity_state_set *states=NULL;int motions_opened=0;
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
@@ -144,6 +146,14 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     status=rf_level_actor_assets_load(level,uid,tables_path,&archive,512*1024,&binding);if(status)goto done;
     if(strcmp(binding.mesh.name,"miner.v3c")) {status=RF_FORMAT;goto done;}
     status=rf_animation_placement_from_level(level,&binding.entity,&placement);if(status)goto done;
+    if(sink) {
+        rf_vpp tables;status=rf_vpp_open(&tables,tables_path);if(status)goto done;
+        status=rf_entity_physics_config_load(&tables,binding.entity.class_name,512*1024,&physics_config);
+        rf_vpp_close(&tables);if(status)goto done;
+        rf_physics_body_close(&scene_actor_body);memset(rf_scene_actor_physics_diagnostic,0,sizeof(rf_scene_actor_physics_diagnostic));
+        placement.physics_config=&physics_config;placement.physics_body=&scene_actor_body;
+        placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;
+    }
     if(state_mode) {
         states=malloc(sizeof(*states));if(!states) {status=RF_IO;goto done;}
         status=rf_vpp_open(&motions,motions_path);if(status)goto done;motions_opened=1;

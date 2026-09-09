@@ -3,6 +3,7 @@
 #include "rf/entity_assets.h"
 #include <stdlib.h>
 #include <string.h>
+extern uint32_t rf_scene_actor_physics_diagnostic[8];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored;
@@ -115,6 +116,10 @@ int main(int argc,char **argv)
         else status=rf_scene_stream_miner(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
             &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c);
         if(mode==0 && (status || c.next!=64 || !c.changed))return 3;
+        if(mode==0) {
+            if(rf_scene_actor_physics_diagnostic[1]!=1 || rf_scene_actor_physics_diagnostic[2]!=64 || rf_scene_actor_physics_diagnostic[3]!=3)return 3;
+            printf("PHYSICS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_physics_diagnostic[i]);puts("");
+        }
         if(mode==1 && (status!=RF_NOT_FOUND || c.next!=3))return 3;
         if(mode==2 && (status!=RF_RANGE || c.next || memcmp(&before,&mesh,sizeof(mesh)) ||
             memcmp(&saved,&materials,sizeof(materials))))return 3;

@@ -8,8 +8,12 @@ typedef struct rf_entity_class_physics {
     float mass;
     char material[64];
     uint32_t flags,flags2;
+    uint32_t movement_index,use_kind;
+    float use_radius;
 } rf_entity_class_physics;
-/* Authored mass/material/flag metadata only; later class defaults and mutations
+/* Authored mass/material/flag/use metadata only; movement_index identifies the
+ * original 16-name table, not a resolved active movement descriptor. Missing
+ * use-kind/radius starts at zero for a fresh static class. Later class defaults and mutations
  * are not applied. Unknown flags fail; errors preserve output. No allocation. */
 int rf_entity_class_physics_read(const void *text,uint32_t bytes,const char *name,
     rf_entity_class_physics *result);
@@ -31,6 +35,17 @@ typedef struct rf_entity_sphere_declarations {
  * preserve output. This is not the original full table parser. */
 int rf_entity_sphere_declarations_read(const void *text,uint32_t bytes,const char *class_name,
     rf_entity_sphere_declarations *result);
+typedef struct rf_entity_physics_config {
+    rf_entity_class_physics authored;
+    rf_entity_material material;
+    rf_entity_sphere_declarations spheres;
+} rf_entity_physics_config;
+/* Port-owned archive binding: reads entity.tbl once, then reuses the same
+ * scratch allocation for materials.tbl. Budget caps that temporary allocation;
+ * output is caller-owned and contains no archive pointers. Errors preserve it.
+ * Does not resolve model spheres/poses or construct a gameplay body. */
+int rf_entity_physics_config_load(rf_vpp *tables,const char *class_name,
+    uint32_t scratch_budget,rf_entity_physics_config *result);
 typedef struct rf_entity_assets {
     char model[64];
     char textures[64][64];uint32_t texture_count;

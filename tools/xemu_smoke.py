@@ -17,6 +17,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from xemu_guest_snapshot import snapshot as guest_snapshot
 
 
 class Monitor:
@@ -82,6 +83,14 @@ def main():
         str(root/'build/pc/Release/rf_animation_check.exe'),
         str(root/'Installed_Game/meshes.vpp'), str(root/'Installed_Game/motions.vpp')])))
     map_text = (build / 'main.map').read_text()
+    actor_physics_reference=None
+    if args.scene_states:
+        actor_physics_symbol=re.search(r'_rf_scene_actor_physics_diagnostic\s+([0-9a-fA-F]+)',map_text)
+        if not actor_physics_symbol:raise RuntimeError('Integrated actor physics symbol absent')
+        scene_args=[str(root/'build/pc/Release/rf_scene_check.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','9858']
+        scene_args += [str(root/'Installed_Game'/n) for n in ['meshes.vpp','motions.vpp','tables.vpp','maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp']]
+        output=subprocess.check_output(scene_args+['--states'],text=True)
+        actor_physics_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('PHYSICS ')).split()[1:]))
     symbol = re.search(r'\s[0-9a-fA-F]+:[0-9a-fA-F]+\s+_rf_diagnostic\s+([0-9a-fA-F]+)', map_text)
     if not symbol:
         raise RuntimeError('Diagnostic symbol absent from matching linker map')
@@ -217,6 +226,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
         with (run / 'stdout.log').open('wb') as out, (run / 'stderr.log').open('wb') as err:
             process = subprocess.Popen(command, cwd=run, stdout=out, stderr=err, startupinfo=startup, creationflags=flags)
             deadline = time.monotonic() + args.seconds
+            next_snapshot=time.monotonic()+15
             while time.monotonic() < deadline:
                 if process.poll() is not None:
                     raise RuntimeError(f'XEMU exited {process.returncode}; inspect {run}')
@@ -237,6 +247,12 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                 if words and (not report['samples'] or words != report['samples'][-1]):
                     report['samples'].append(words)
                     print('Guest telemetry:', [hex(w) for w in words], flush=True)
+                if time.monotonic()>=next_snapshot:
+                    memory_snapshot=guest_snapshot(monitor,map_text)
+                    (run/'guest-memory-latest.json').write_text(json.dumps(memory_snapshot,indent=2))
+                    report['guest_memory_latest']='guest-memory-latest.json'
+                    print('Guest memory:',memory_snapshot.get('authored'),flush=True)
+                    next_snapshot=time.monotonic()+15
                 if len(words) == 58 and words[:3] == [0x52464447, 9, 5]:
                     collision_reply=monitor.command('human-monitor-command',{'command-line':f'x /9wx 0x{int(collision_symbol[1],16):x}'})
                     collision=[]
@@ -263,6 +279,20 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     report['collision_movers']=dict(count=mover[2],retained_bytes=mover[3],peak_bytes=mover[4],queries=mover[5],hits=mover[6],moving_hits=mover[7],static_hits=mover[8],checksum=hex(mover[9]),available_bytes_after_build=mover[10]*4096,scope='Initial owned movers retained with world/rendering. Combined ray output and nullable visibility match PC; registry-assigned handles in explicit mover-first creation order; no general-object construction.')
                     logic_reply=monitor.command('human-monitor-command',{'command-line':f'x /12wx 0x{int(logic_symbol[1],16):x}'})
                     logic=[]
+                    if actor_physics_reference is not None:
+                        reply=monitor.command('human-monitor-command',{'command-line':f'x /8wx 0x{int(actor_physics_symbol[1],16):x}'})
+                        actor_physics=[]
+                        for line in reply.splitlines():
+                            if ':' in line:actor_physics.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
+                        if actor_physics!=actor_physics_reference:raise RuntimeError(f'Actor physics mismatch: {actor_physics}; PC {actor_physics_reference}')
+                        report['actor_physics']=dict(words=actor_physics,scope='Shared authored config and frame-zero model spheres installed into body; retained across 64 rendered diagnostic frames. Provisional identity tensor and scripted spawn pose; no actor motion response or AI.')
+                        memory_snapshot=guest_snapshot(monitor,map_text)
+                        config_reference=bytes.fromhex(subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--physics-config',str(root/'Installed_Game/tables.vpp'),'miner1'],text=True))
+                        config_words=memory_snapshot['symbols']['resident_miner_config']['words']
+                        if struct.pack('<117I',*config_words)!=config_reference:raise RuntimeError('Full guest actor configuration differs from PC')
+                        report['actor_config_bytes_match_pc']=len(config_reference)
+                        (run/'guest-memory-complete.json').write_text(json.dumps(memory_snapshot,indent=2))
+                        report['guest_memory_complete']='guest-memory-complete.json'
                     for line in logic_reply.splitlines():
                         if ':' in line:logic.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
                     logic_want=[0x52464c47,1,*logic_counts,logic_bytes,*logic_links,logic_hash,logic_hash]
