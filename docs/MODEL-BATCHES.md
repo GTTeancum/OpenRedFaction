@@ -1,5 +1,27 @@
 # Model batch data
 
+`rf_model_prepare_clip_triangle` recovers the three 48-byte clipping records
+assembled at `0x52f5b2..0x52f699`. Position and lit RGB use the signed-reuse
+resolved cache entry; each corner retains its own clip mask and UVs. It sets
+generated flags to zero and the corner ordinal to 0/1/2. Unrelated bytes remain
+untouched. Index and resolved-source bounds are validated before any writes;
+bounded negative reuse follows the original subtraction rather than being
+silently treated as zero. No allocation or pool mutation is performed here.
+
+`tools/verify_model_clip_inputs.py` executes the unchanged original assembly
+block, constructors, pool reset and copy callees in 2,000 cases / 6,000 records.
+All 144 output bytes per triangle match, including preserved fields, lighting
+modes and reused position/RGB with independent UVs. Three bounds fixtures pass.
+PC/NXDK builds and four CTest checks pass.
+
+Ghidra exports now include `0x549e00`, `0x549bd0`, `0x549310` and pool helpers.
+The dispatcher visits selected plane bits 1 through 0x40 in ascending order,
+swaps input/output pointer lists after each plane and exits on common rejection.
+The pool reset establishes 48 pointers to 48-byte temporary vertices. The
+per-plane traversal starts at the second input vertex with a wrapped pair at
+the list tail. Edge interpolation and pool lifetime still need reconstruction
+and executable verification; the clip input helper alone does not clip polygons.
+
 `rf_model_route_triangle` reconstructs renderer routing beginning at `0x52f473`.
 Screen-rejection mode drops a triangle if any vertex clip byte is nonzero.
 Otherwise, enabled frustum clipping first rejects a nonzero intersection of

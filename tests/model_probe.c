@@ -12,6 +12,16 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--prepare-clip")) {
+        struct {rf_model_vertex vertices[4];int32_t reuse[4];rf_model_render_cache cache[4];float clip[4][3];uint16_t indices[3],pad;rf_model_render_output output;} data;
+        _Static_assert(sizeof(data)==376,"Clip input wire layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            int32_t status;uint8_t records[3][48];memset(records,0xa5,sizeof(records));
+            status=rf_model_prepare_clip_triangle(data.vertices,data.reuse,data.cache,data.clip,4,data.indices,&data.output,records);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(records,sizeof(records),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--triangle-route")) {
         struct {rf_model_render_cache cache[3];rf_model_projection view;uint16_t indices[3],flags;} data;
         _Static_assert(sizeof(data)==216,"Triangle route wire layout");

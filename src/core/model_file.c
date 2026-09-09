@@ -4,6 +4,28 @@
 #include <math.h>
 #include <stdlib.h>
 typedef struct reader { rf_model_file *model; uint32_t cursor; int status; } reader;
+int rf_model_prepare_clip_triangle(const rf_model_vertex *vertices,const int32_t *reuse,
+    const rf_model_render_cache *cache,const float (*clip)[3],uint32_t count,
+    const uint16_t indices[3],const rf_model_render_output *output,uint8_t records[3][48])
+{
+    uint32_t i,sources[3];
+    if(!vertices || !reuse || !cache || !clip || !indices || !output || !records)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        uint32_t index=indices[i];int64_t source;
+        if(index>=count || index>INT16_MAX)return RF_RANGE;
+        source=(int64_t)index-reuse[index];
+        if(source<0 || source>=count)return RF_RANGE;
+        sources[i]=(uint32_t)source;
+    }
+    for(i=0;i<3;++i) {
+        uint32_t index=indices[i];const uint8_t *rgb=output->lighting?cache[sources[i]].rgb:output->rgb;
+        memcpy(records[i],clip[sources[i]],12);records[i][24]=cache[index].clip;
+        records[i][25]=0;records[i][26]=(uint8_t)i;
+        memcpy(records[i]+28,vertices[index].uv,8);memcpy(records[i]+44,rgb,3);
+    }
+    return RF_OK;
+}
+
 int rf_model_geometry_render_batch(const rf_model_geometry *geometry,uint32_t batch,
     const float (*matrices)[12],uint32_t bones,const rf_model_projection *view,
     const rf_model_lighting *lights,const rf_model_render_output *output,rf_model_render_buffers *buffers)

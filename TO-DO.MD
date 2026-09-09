@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Triangle clipping-input assembly now matches 6,000 original records, preserving
+own UVs and reused positions/lighting. Recover edge interpolation, temporary
+vertex lifetime and per-plane traversal before clipped triangle submission.
+
 Triangle rejection/direct/clipping routing now matches 3,000 original cases.
 Recover polygon clipping and bounded index emission, then connect the routed
 triangles to material binding and Xbox draw submission.

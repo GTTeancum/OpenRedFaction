@@ -82,6 +82,13 @@ typedef struct rf_model_render_buffers {
 int rf_model_geometry_render_batch(const rf_model_geometry *geometry,uint32_t batch,
     const float (*matrices)[12],uint32_t bones,const rf_model_projection *view,
     const rf_model_lighting *lights,const rf_model_render_output *output,rf_model_render_buffers *buffers);
+/* Original 0x52f5b2..0x52f699 clipping inputs: position/RGB from the fresh
+ * cache entry, own clip mask and UV, corner ordinal and zero generated flags.
+ * Records are 48 original-layout bytes; unrelated bytes stay untouched.
+ * Invalid indices/reuse leave all records unchanged. */
+int rf_model_prepare_clip_triangle(const rf_model_vertex *vertices,const int32_t *reuse,
+    const rf_model_render_cache *cache,const float (*clip)[3],uint32_t count,
+    const uint16_t indices[3],const rf_model_render_output *output,uint8_t records[3][48]);
 /* Select a flattened LOD index within one SUBM using its serialized thresholds.
  * Metric and render gates have the same meaning as rf_model_select_lod.
  * No allocation; output unchanged on failure. */
