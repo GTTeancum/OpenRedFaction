@@ -1,5 +1,20 @@
 # Model batch data
 
+`tools/verify_model_render_files.py` now exercises all 95 installed models,
+599 batches and 85,866 vertices through the resident batch processor, including
+all 24,861 duplicate references. Independent archive traversal verifies the
+batch vertex/reuse counts. The C probe checks duplicate world/clip copies,
+per-vertex UVs, ambient RGB/alpha and untouched output bytes. All pass.
+It allocates exactly 96 working bytes per batch vertex and frees the buffers
+after each batch, retaining one LOD under the existing 4 MiB test budget.
+
+This is a controlled integration fixture with identity transforms for all 256
+bone slots, a fixed camera and ambient-only lighting. It does not claim real
+skeletal poses, original-code equivalence for every source vertex, triangle
+submission or visual parity. It does include the installed non-finite second
+streams without sanitizing their bits. PC build passes. Real evaluated poses
+and emulator-side batch processing remain the next integration step.
+
 `rf_model_geometry_render_batch` now assembles resident vertex processing:
 fresh vertices deform both streams, retain world position, project, normalize
 the visible second stream, optionally light it and emit attributes; duplicates

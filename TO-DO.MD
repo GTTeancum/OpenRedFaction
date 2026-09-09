@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+All 599 installed model batches pass controlled resident-render processing,
+including UVs and duplicate copies. Connect real evaluated poses and emulator
+batch buffers, then triangle clipping and visible submission.
+
 Resident batch processing now assembles deformation, projection, lighting and
 reuse, matching 250 original-code batches. Exercise real animated geometry
 through it and connect triangle clipping/material binding/draw submission.

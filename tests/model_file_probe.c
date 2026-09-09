@@ -1,6 +1,7 @@
 #include "rf/model_file.h"
 #include "rf/model.h"
 #include <string.h>
+#include <stdlib.h>
 static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 {
     const unsigned char *bytes=data;uint32_t i;
@@ -14,6 +15,43 @@ int main(int argc, char **argv)
     int result;
     if ((argc != 3 && argc != 4) || rf_vpp_open(&archive, argv[1])) return 2;
     result = rf_model_file_open(&model, &archive, argv[2]);
+    if(!result && argc==4 && !strcmp(argv[3],"--render-geometry")) {
+        float matrices[256][12]={{0}};uint32_t bone,b;
+        rf_model_projection view={0};rf_model_lighting lights={0};rf_model_render_output output={1,{255,255,255},255,1,1};
+        for(bone=0;bone<256;++bone)matrices[bone][0]=matrices[bone][4]=matrices[bone][8]=1;
+        view.camera[2]=-100;view.rotation[0]=view.rotation[4]=view.rotation[8]=1;
+        view.perspective=1;view.compute_clip=1;view.clipping=1;
+        view.screen[0]=320;view.screen[1]=-240;view.screen[2]=320;view.screen[3]=240;
+        lights.ambient[0]=40;lights.ambient[1]=50;lights.ambient[2]=60;
+        for(i=0;i<model.lod_count && !result;++i) {
+            rf_model_geometry g={0};result=rf_model_geometry_open(&g,&model,i,4*1024*1024);if(result)break;
+            for(b=0;b<g.batch_count && !result;++b) {
+                rf_model_draw_batch *draw=g.batches+b;uint32_t n,count=draw->vertices,fresh=0,reused=0;
+                uint8_t *memory;rf_model_render_buffers buffers;
+                if(count>65535) {result=RF_RANGE;break;}
+                memory=malloc(count?count*96:1);if(!memory) {result=RF_IO;break;}
+                memset(memory,0xa5,count*96);
+                buffers.cache=(rf_model_render_cache*)memory;buffers.clip=(float(*)[3])(memory+count*32);
+                buffers.second=(float(*)[3])(memory+count*44);buffers.vertices=(uint8_t(*)[40])(memory+count*56);buffers.capacity=count;
+                result=rf_model_geometry_render_batch(&g,b,matrices,256,&view,&lights,&output,&buffers);
+                for(n=0;n<count && !result;++n) {
+                    uint32_t index=draw->first_vertex+n;int32_t distance=g.reuse[index];
+                    uint8_t *v=buffers.vertices[n];
+                    if(distance>0) {
+                        ++reused;
+                        if(memcmp(buffers.cache[n].world,buffers.cache[n-distance].world,12) || buffers.cache[n].clip!=buffers.cache[n-distance].clip)result=RF_FORMAT;
+                        if(buffers.cache[n].clip)continue;
+                    } else ++fresh;
+                    if(memcmp(v+24,g.vertices[index].uv,8) || v[16]!=60 || v[17]!=50 || v[18]!=40 || v[19]!=255)result=RF_FORMAT;
+                    if(v[20]!=0xa5 || v[21]!=0xa5 || v[22]!=0xa5 || v[32]!=0xa5 || v[39]!=0xa5)result=RF_FORMAT;
+                }
+                if(!result)printf("R %u %u %u %u %u\n",i,b,count,fresh,reused);
+                free(memory);
+            }
+            rf_model_geometry_close(&g);
+        }
+        rf_vpp_close(&archive);return result?3:0;
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--lod-selection")) {
         uint32_t submesh,mode;const double metrics[]={0,10,100,1000,1000000};
         for(i=0;i<model.lod_count;++i) {
