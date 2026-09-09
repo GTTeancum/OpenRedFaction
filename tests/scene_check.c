@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 extern uint32_t rf_scene_actor_physics_diagnostic[8];
+extern uint32_t rf_scene_actor_live_enabled,rf_scene_actor_frame_count,rf_scene_actor_live_summary[8],rf_scene_actor_ring_frames[64];
 extern uint32_t rf_scene_actor_route_enabled,rf_scene_actor_routes[8][16];
 extern float rf_scene_actor_contact_time[4];
 extern rf_physics_body scene_actor_body;
@@ -131,10 +132,11 @@ int main(int argc,char **argv)
     }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
-    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
+    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse") || !strcmp(argv[12],"--live")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
     if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && strcmp(argv[12],"--long-animation") && !body_mode)))return 2;
     c.authored=argc==13;
     c.body_mode=body_mode;
+    rf_scene_actor_live_enabled=argc==13 && !strcmp(argv[12],"--live");
     rf_scene_actor_drive(drive);rf_scene_actor_route_enabled=argc==13 && !strcmp(argv[12],"--traverse");
     c.meshes=argv[4];c.motions=argv[5];
     if(rf_vpp_open(&levels,argv[1]) || rf_level_open(&level,&levels,argv[2]) ||
@@ -177,6 +179,19 @@ int main(int argc,char **argv)
             &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c);
         else status=rf_scene_stream_miner(&level,binding.entity.uid,argv[4],argv[5],argv[6],maps,5,
             &mesh,&materials,mode==2?mesh.bytes+1024*1024-1:8*1024*1024,4*1024*1024,frame_check,&c);
+        if(mode==0 && rf_scene_actor_live_enabled) {
+            if(status || c.next!=664 || !c.changed || rf_scene_actor_tick_stats[1]!=663 || rf_scene_actor_tick_stats[4] ||
+               !rf_scene_actor_landing[7] || rf_scene_actor_landing[3]!=rf_scene_actor_landing[7]+1 || rf_scene_actor_landing[1]!=1)return 3;
+            for(i=0;i<64;++i) {
+                if(rf_scene_actor_ring_frames[i]<600 || rf_scene_actor_ring_frames[i]>=664 || rf_scene_actor_ring_frames[i]%64!=i ||
+                   memcmp(rf_scene_actor_locomotion_frames[i]+3,rf_scene_actor_input_frames[i],12))return 3;
+            }
+            if(memcmp(rf_scene_actor_render_frames[663%64]+2,scene_actor_body.state.position,12))return 3;
+            printf("ACTOR_LIVE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_live_summary[i]);puts("");
+            printf("ACTOR_LIVE_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_tick_stats[i]);puts("");
+            printf("ACTOR_LIVE_BODY");for(i=0;i<77;++i) {uint32_t word;memcpy(&word,(const unsigned char*)&scene_actor_body.state+4*i,4);printf(" %u",word);}puts("");
+            rf_preview_close(&mesh);rf_materials_close(&materials);break;
+        }
         if(mode==0 && (status || c.next!=64 || !c.changed))return 3;
         if(mode==0) {
             if(body_mode) {if(rf_scene_actor_tick_stats[1]!=63)return 3;
@@ -310,7 +325,7 @@ int main(int argc,char **argv)
     rf_geometry_collision_world_close(&body_world);
     rf_model_materials_close(&c.bundle);rf_preview_close(&c.world);rf_geometry_close(&geometry);
     for(i=0;i<5;++i)rf_vpp_close(maps+i);rf_vpp_close(&meshes);rf_vpp_close(&levels);
-    puts(c.authored?"PASS: 64 authored-state scene frames, fixed world and allocations, sink cancellation, capacity guard":
+    puts(rf_scene_actor_live_enabled?"PASS: 664 continuous animated body frames, support loss/recovery, fixed scene allocations":c.authored?"PASS: 64 authored-state scene frames, fixed world and allocations, sink cancellation, capacity guard":
         "PASS: 64 scene frames, fixed world and allocations, four independent pose snapshots, sink cancellation, capacity guard");
     return 0;
 }

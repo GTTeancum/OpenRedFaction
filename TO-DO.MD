@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Connect the verified longer support-loss/recovery route to continuous animation and rendering.
+- [ ] Validate the 664-frame animated moving-body scene in XEMU and frame its full route with a suitable camera.
 - [ ] Replace scripted stance eligibility and resolve the initial class animation pose.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -29,6 +29,12 @@ restarting its controller/cache or reallocating its mesh. The new PC
 `--long-animation` check passes 600 frames with an identical 64-frame prefix and
 bounded timing storage. The scene's fixed-size telemetry/callbacks still need
 extension before combining this with the longer moving-body route.
+
+The shared scene now runs 664 continuous animated/body frames in the PC
+`--live` profile: three support losses/recoveries, 663 physics updates and no
+capped updates. Telemetry uses 64-slot rings with absolute frame IDs. NXDK builds
+pass, but this new live mode still needs XEMU memory validation; the fixed close
+camera loses sight of the miner before the route ends.
 
 Capture and post screenshots only when there is a new visible result.
 

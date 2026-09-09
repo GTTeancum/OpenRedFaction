@@ -55,6 +55,7 @@ volatile uint32_t rf_actor_creation_diagnostic[6]={0x52464143u};
 uint32_t rf_actor_world_diagnostic[8];
 uint32_t rf_actor_fall_diagnostic[8];
 static int actor_body_preview;
+extern uint32_t rf_scene_actor_live_enabled;
 extern uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
 volatile uint32_t rf_level_logic_diagnostic[12]={0x52464c47u};
 static uint32_t logic_hash_part(uint32_t hash,const void *data,uint32_t bytes)
@@ -401,10 +402,10 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
 {
     (void)context;
     if(rf_diagnostic[37]!=frame)return RF_FORMAT;
-    if(frame==63 && actor_body_preview) {
+    if(frame==(rf_scene_actor_live_enabled?663u:63u) && actor_body_preview) {
         memcpy(rf_actor_world_diagnostic,rf_scene_actor_initial_world,sizeof(rf_actor_world_diagnostic));
         memcpy(rf_actor_fall_diagnostic,rf_scene_actor_initial_fall,sizeof(rf_actor_fall_diagnostic));
-    } else if(frame==63) {
+    } else if(frame==63 && !actor_body_preview) {
         int status=rf_scene_actor_world_check(&resident_collision,rf_actor_world_diagnostic);if(status)return status;
         status=rf_scene_actor_fall_check(&resident_collision,rf_actor_fall_diagnostic);if(status)return status;
     }
@@ -424,6 +425,9 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     if(stream_flag){fclose(stream_flag);rf_scene_actor_drive(2);actor_body_preview=1;}
     {extern uint32_t rf_scene_actor_route_enabled;
      stream_flag=fopen("D:\\actor-routes.flag","rb");rf_scene_actor_route_enabled=stream_flag!=NULL;
+     if(stream_flag){fclose(stream_flag);rf_scene_actor_drive(1);actor_body_preview=1;}}
+    {extern uint32_t rf_scene_actor_live_enabled;
+     stream_flag=fopen("D:\\actor-live.flag","rb");rf_scene_actor_live_enabled=stream_flag!=NULL;
      if(stream_flag){fclose(stream_flag);rf_scene_actor_drive(1);actor_body_preview=1;}}
     stream_flag=fopen("D:\\door-view.flag","rb");
     if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status)return status;}

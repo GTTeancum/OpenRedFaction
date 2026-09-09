@@ -108,7 +108,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_model_render_buffers render_buffers={0};rf_model_projection render_view={0};rf_model_lighting render_lights={0};
     rf_model_render_output render_output={1,{255,255,255},255,1,1};
     uint32_t frame_count=sink && placement && placement->frame_count?placement->frame_count:64;
-    if(placement && placement->animation_timing && frame_count>(placement->animation_timing_capacity?placement->animation_timing_capacity:64))return RF_RANGE;
+    if(placement && placement->animation_timing && !placement->animation_timing_wrap && frame_count>(placement->animation_timing_capacity?placement->animation_timing_capacity:64))return RF_RANGE;
     if (!out || (placement && (!isfinite(placement->step_seconds) || placement->step_seconds<0))) return RF_RANGE;
     memset(out,0,8*4); out[0]=1;
     if(authored) {
@@ -289,9 +289,10 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         }
         status=rf_motion_update(&state,resources,resource_count,frame_seconds); if (status!=RF_OK) goto done;
         if(placement && placement->animation_timing) {
-            memcpy(placement->animation_timing[frame],&frame_seconds,4);
-            memcpy(placement->animation_timing[frame]+1,&state.phase,4);
-            placement->animation_timing[frame][2]=state.generation;
+            uint32_t timing_frame=placement->animation_timing_wrap?frame%(placement->animation_timing_capacity?placement->animation_timing_capacity:64):frame;
+            memcpy(placement->animation_timing[timing_frame],&frame_seconds,4);
+            memcpy(placement->animation_timing[timing_frame]+1,&state.phase,4);
+            placement->animation_timing[timing_frame][2]=state.generation;
         }
         if(frame==0 && placement && placement->initial_animation) {
             uint32_t *d=placement->initial_animation;

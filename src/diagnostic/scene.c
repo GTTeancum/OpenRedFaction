@@ -175,6 +175,10 @@ rf_physics_stance_cache rf_scene_actor_stance_cache;
 uint32_t rf_scene_actor_stance_request,rf_scene_actor_stance_flags;
 uint32_t rf_scene_actor_stance_frames[64][4]; /* requested, flags, sphere hash, standing blocked */
 uint32_t rf_scene_actor_drive_enabled;
+uint32_t rf_scene_actor_live_enabled;
+uint32_t rf_scene_actor_frame_count=64;
+uint32_t rf_scene_actor_ring_frames[64];
+uint32_t rf_scene_actor_live_summary[8]; /* magic, frames, geometry hash, body hash, mode, landings, losses, status */
 float rf_scene_actor_input_frames[64][3];
 uint32_t rf_scene_actor_contact_count;
 uint32_t rf_scene_actor_contacts[64][25]; /* frame, pass, mode, 15 input + 7 result floats */
@@ -184,12 +188,13 @@ static void actor_command(uint32_t frame,float command[3])
     memset(command,0,12);
     if(rf_scene_actor_drive_enabled==1 && frame>=24 && frame<48)command[0]=.25f;
     if(rf_scene_actor_drive_enabled==2 && frame>=24 && frame<63)command[0]=-1.0f;
+    if(rf_scene_actor_live_enabled && frame>=63)command[0]=1.0f;
 }
 uint32_t rf_scene_actor_locomotion_frames[64][12]; /* executed, mode/direction, input, candidates, current/next/duration */
 static int actor_movement_select(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
 {
     rf_motion_movement movement={0};uint32_t *record;int status;(void)context;
-    if(frame>=64)return RF_RANGE;
+    if(frame>=rf_scene_actor_frame_count)return RF_RANGE;
     actor_command(frame,movement.vector);
     movement.mode=frame?(int32_t)rf_scene_actor_landing[1]:3;
     movement.direction=rf_scene_actor_movement_settings.mode;
@@ -197,7 +202,7 @@ static int actor_movement_select(void *context,uint32_t frame,rf_motion_controll
      * selection remains outside this miner fixture. */
     movement.idle_state=0;movement.move_state=2;movement.alternate_state=4;
     status=rf_motion_select_movement(controller,motions,&movement);if(status)return status;
-    record=rf_scene_actor_locomotion_frames[frame];record[0]=1;
+    record=rf_scene_actor_locomotion_frames[frame%64];record[0]=1;
     record[1]=(uint32_t)movement.mode;record[2]=(uint32_t)movement.direction;
     memcpy(record+3,movement.vector,12);record[6]=0;record[7]=2;record[8]=4;
     record[9]=(uint32_t)controller->current;record[10]=(uint32_t)controller->next;
@@ -222,13 +227,13 @@ static int actor_ground_query(const rf_geometry_collision_world *world,actor_gro
 }
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
-    actor_ground_record *r=rf_scene_actor_ground_records+frame;uint32_t k;int status;
+    actor_ground_record *r=rf_scene_actor_ground_records+(frame%64);uint32_t k;int status;
     if(frame==0) {
         memset(rf_scene_actor_ground_stats,0,sizeof(rf_scene_actor_ground_stats));
         rf_scene_actor_ground_stats[0]=0x52464750;rf_scene_actor_ground_stats[4]=UINT32_MAX;
         rf_scene_actor_ground_stats[5]=2166136261u;rf_scene_actor_ground_stats[6]=sizeof(*r);
     }
-    rf_scene_actor_ground_modes[frame]=rf_scene_actor_landing[1];
+    rf_scene_actor_ground_modes[frame%64]=rf_scene_actor_landing[1];
     status=actor_ground_query(world,r);if(status)return status;
     ++rf_scene_actor_ground_stats[1];
     if(r->matched && r->hit.hit.fraction<1) {
@@ -263,8 +268,8 @@ actor_ground_record rf_scene_actor_stance_ground[64];
 uint32_t rf_scene_actor_stance_support[64][9]; /* query, mode before/after, position before/after */
 static int actor_stance_ground_commit(const rf_geometry_collision_world *world,uint32_t frame)
 {
-    actor_ground_record *r=rf_scene_actor_stance_ground+frame;
-    uint32_t *d=rf_scene_actor_stance_support[frame];int status,walkable;
+    actor_ground_record *r=rf_scene_actor_stance_ground+(frame%64);
+    uint32_t *d=rf_scene_actor_stance_support[frame%64];int status,walkable;
     d[0]=1;d[1]=rf_scene_actor_landing[1];memcpy(d+3,scene_actor_body.state.position,12);
     status=actor_ground_query(world,r);if(status)return status;
     walkable=r->matched && r->hit.hit.fraction<1 && r->hit.hit.normal[1]>=.5f;
@@ -311,8 +316,10 @@ static int actor_selector_effect(void *context,uint32_t frame,const rf_motion_st
     const rf_motion_controller *controller)
 {
     scene_stream *stream=context;uint32_t *record;int status;
-    if(frame>=64)return RF_RANGE;
-    record=rf_scene_actor_selector_frames[frame];
+    if(frame>=rf_scene_actor_frame_count)return RF_RANGE;
+    memset(rf_scene_actor_stance_ground+(frame%64),0,sizeof(*rf_scene_actor_stance_ground));
+    memset(rf_scene_actor_stance_support[frame%64],0,sizeof(rf_scene_actor_stance_support[0]));
+    record=rf_scene_actor_selector_frames[frame%64];
     record[0]=(uint32_t)controller->current;record[1]=(uint32_t)controller->next;
     record[2]=decision->effect;record[3]=(uint32_t)decision->handled;record[4]=rf_scene_actor_stance_flags;
     rf_scene_actor_stance_blocked=0;
@@ -460,8 +467,8 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
         } else {
             uint32_t scratch[25],*record=scratch;
             if(actor_trace_contacts) {
-                if(rf_scene_actor_contact_count>=64)return RF_RANGE;
-                record=rf_scene_actor_contacts[rf_scene_actor_contact_count++];
+                if(rf_scene_actor_contact_count>=64) {if(!rf_scene_actor_live_enabled)return RF_RANGE;}
+                else record=rf_scene_actor_contacts[rf_scene_actor_contact_count++];
             }
             record[0]=rf_scene_actor_tick_stats[1];record[1]=pass;record[2]=rf_scene_actor_landing[1];
             memcpy(record+3,state->velocity,24);memcpy(record+9,normal,12);
@@ -590,16 +597,16 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         uint32_t hash=2166136261u;
         int status,blocked=rf_scene_actor_stance_blocked;
         if(frame==47) {status=actor_clearance_check(stream->collision);if(status)return status;}
-        memcpy(rf_scene_actor_movement_frames[frame],&rf_scene_actor_movement_settings,12);
-        rf_scene_actor_stance_frames[frame][0]=rf_scene_actor_stance_request;
-        rf_scene_actor_stance_frames[frame][1]=rf_scene_actor_stance_flags;
+        memcpy(rf_scene_actor_movement_frames[frame%64],&rf_scene_actor_movement_settings,12);
+        rf_scene_actor_stance_frames[frame%64][0]=rf_scene_actor_stance_request;
+        rf_scene_actor_stance_frames[frame%64][1]=rf_scene_actor_stance_flags;
         {uint32_t j,h=2166136261u;const unsigned char *p=(const unsigned char*)scene_actor_body.spheres.items;
          for(j=0;j<scene_actor_body.spheres.count*sizeof(*scene_actor_body.spheres.items);++j)h=(h^p[j])*16777619u;
-         rf_scene_actor_stance_frames[frame][2]=h;}
-        rf_scene_actor_stance_frames[frame][3]=(uint32_t)blocked;
+         rf_scene_actor_stance_frames[frame%64][2]=h;}
+        rf_scene_actor_stance_frames[frame%64][3]=(uint32_t)blocked;
         status=actor_ground_check(stream->collision,frame);if(status)return status;
         {
-            const actor_ground_record *ground=rf_scene_actor_ground_records+frame;
+            const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
             if(ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f) {
                 rf_geometry_face face;
                 status=rf_geometry_get_face(stream->geometry,ground->hit.face,&face);if(status)return status;
@@ -607,24 +614,33 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 rf_scene_actor_ground_material=stream->surface_indices[face.texture];
                 rf_scene_actor_run_traction=rf_scene_actor_surface_values[rf_scene_actor_ground_material].traction;
             }
-            rf_scene_actor_surface_frames[frame][0]=rf_scene_actor_ground_material;
-            memcpy(rf_scene_actor_surface_frames[frame]+1,&rf_scene_actor_run_traction,4);
+            rf_scene_actor_surface_frames[frame%64][0]=rf_scene_actor_ground_material;
+            memcpy(rf_scene_actor_surface_frames[frame%64]+1,&rf_scene_actor_run_traction,4);
         }
-        actor_command(frame,rf_scene_actor_input_frames[frame]);
+        actor_command(frame,rf_scene_actor_input_frames[frame%64]);
+        rf_scene_actor_ring_frames[frame%64]=frame;
         for(i=0;i<actor->bytes;++i)hash=(hash^((const unsigned char*)actor->vertices)[i])*16777619u;
-        rf_scene_actor_render_frames[frame][0]=actor->count;rf_scene_actor_render_frames[frame][1]=hash;
-        memcpy(rf_scene_actor_render_frames[frame]+2,scene_actor_body.state.position,12);
+        rf_scene_actor_render_frames[frame%64][0]=actor->count;rf_scene_actor_render_frames[frame%64][1]=hash;
+        memcpy(rf_scene_actor_render_frames[frame%64]+2,scene_actor_body.state.position,12);
+        if(rf_scene_actor_live_enabled) {
+            uint32_t *d=rf_scene_actor_live_summary;
+            if(!frame) {memset(d,0,32);d[0]=0x52464c56;d[2]=d[3]=2166136261u;}
+            d[1]=frame+1;
+            for(i=0;i<actor->bytes;++i)d[2]=(d[2]^((const unsigned char*)actor->vertices)[i])*16777619u;
+            for(i=0;i<sizeof(scene_actor_body.state);++i)d[3]=(d[3]^((const unsigned char*)&scene_actor_body.state)[i])*16777619u;
+            d[4]=rf_scene_actor_landing[1];d[5]=rf_scene_actor_landing[3];d[6]=rf_scene_actor_landing[7];d[7]=1;
+        }
     }
     stream->mesh->count=stream->world+actor->count;stream->mesh->bytes=(uint32_t)bytes;
     {
         int status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);if(status)return status;
-        if(stream->collision && frame<63) {
+        if(stream->collision && frame+1<rf_scene_actor_frame_count) {
             rf_physics_body_state next=scene_actor_body.state;
-            const actor_ground_record *ground=rf_scene_actor_ground_records+frame;
+            const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
             int walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
             int moved=0;uint32_t axis;
             if(frame)for(axis=0;axis<3;++axis) {
-                float previous;memcpy(&previous,rf_scene_actor_render_frames[frame-1]+2+axis,4);
+                float previous;memcpy(&previous,rf_scene_actor_render_frames[(frame-1)%64]+2+axis,4);
                 if(previous!=next.position[axis])moved=1;
             }
             if(rf_scene_actor_landing[1]==3 && walkable) {
@@ -640,7 +656,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                     next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
                 }
             }
-            status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame],ground->hit.hit.normal);if(status)return status;
+            status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
             status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return status;
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
@@ -703,6 +719,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             placement.stance_cache=&rf_scene_actor_stance_cache;placement.stance_flags=&rf_scene_actor_stance_flags;
             placement.stance_effect=actor_selector_effect;placement.stance_context=&stream;
             placement.movement_select=actor_movement_select;placement.step_seconds=scene_step_seconds;
+            rf_scene_actor_frame_count=rf_scene_actor_live_enabled?664:64;
+            placement.frame_count=rf_scene_actor_frame_count;placement.animation_timing_wrap=rf_scene_actor_live_enabled;
+
             memset(rf_scene_actor_locomotion_frames,0,sizeof(rf_scene_actor_locomotion_frames));
             memset(rf_scene_actor_stance_ground,0,sizeof(rf_scene_actor_stance_ground));
             memset(rf_scene_actor_stance_support,0,sizeof(rf_scene_actor_stance_support));
@@ -751,7 +770,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,&stream);
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,&stream);
-        if(!status && collision && rf_scene_actor_route_enabled)status=actor_routes(&stream);
+        if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);

@@ -1116,3 +1116,39 @@ Both PC/NXDK builds and four CTests pass. The XEMU regression below exercises
 the existing 64 rendered frames plus eight extended physics routes; it does not
 claim that 600 animated frames have yet run in XEMU. No screenshot was captured.
 `artifacts/xemu/20260909-174748-838687/report.json` passes that stock 64 MiB regression.
+
+
+## Continuous animated moving-body scene (PC validated)
+
+The `--live` PC scene profile now keeps the same animation controller and owned
+physics body through 664 rendered callbacks. It uses the existing 64-frame
+steering/stance setup, then positive-X steering from frame 63 through 662.
+The producer advances animation throughout movement, falling and recovery;
+no body or controller reset occurs at the old endpoint. All per-frame scene
+telemetry is retained in 64-slot rings, indexed by absolute frame modulo 64.
+`rf_scene_actor_ring_frames` identifies each slot's absolute frame. Stance query
+slots are cleared before reuse, preventing old queries from appearing current.
+The optional animation timing ring has explicit capacity and wrapping semantics;
+non-wrapping timing buffers retain their overflow guard.
+
+The live summary stores magic, frame count, rolling geometry/body hashes, final
+mode, landing/loss counts and status. The full resulting body state contributes
+to the body hash once per rendered frame. Long contact handling retains the
+first 64 contact records while counting all contacts; it does not abort physics
+when the trace is full. The normal short diagnostic retains its overflow error.
+
+PC validation completes 664 frames and 663 updates, with 433 contacts, three
+support losses, three recoveries after the initial landing, and no capped update.
+The geometry hash is 3874259347 and body hash 533762320. Checks cover fixed mesh
+and material addresses, immutable world vertices, sequential callbacks, final
+ring indices/steering consistency and the final rendered body position. All six
+PC profiles, four CTests and both PC/NXDK builds pass.
+
+Xbox selects this mode with `actor-live.flag`; its final actor diagnostics now
+use frame 663 and skip the obsolete frame-63 final check. This new mode has not
+yet been validated by the XEMU harness. Its expected frame-count/ring comparisons
+must be added before claiming Xbox runtime success. The existing close camera
+also loses the actor before the route ends (zero actor triangles in the final
+frame), so a suitable full-route camera remains necessary. No screenshot was
+captured. General entity lifecycle/input/AI and full-game resource behavior
+remain outside this diagnostic.
