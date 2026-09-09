@@ -31,8 +31,8 @@ Report: `artifacts/collision-box-verification.json`.
 - `0x4dec10` filters candidate faces, dispatches thin rays through bounding-box
   test `0x508b70` then plane test `0x506550`, and checks polygon containment with
   `0x4e1f50`. Nonzero-radius sweeps use `0x5071b0` and edge work instead; that
-  swept path remains open. Candidate filters are exported but not yet
-  reconstructed; projected polygon containment is verified below.
+  swept path remains open. The initial candidate filter and projected polygon
+  containment are verified below; later texture rejection remains open.
 - Crouch eligibility `0x429ae0` resolves target position via `0x48a8d0`, builds
   a ray origin from the entity position and transformed class offset, then calls
   `0x498e80` with mask `0x27`. The target helper uses a valid type-zero entity's
@@ -111,4 +111,36 @@ cover concave star loops, arbitrary vertex orders, reversed winding, normal
 axis/sign ties, zero normals, degenerate loops and exact vertex/edge points.
 Report: `artifacts/collision-polygon-verification.json`, including the linked
 Xbox image fingerprint. This is primitive CPU validation, not an XEMU gameplay
-test; world traversal, candidate filters and swept collision remain open.
+test; world traversal, later texture rejection and swept collision remain open.
+
+## Candidate face filter
+
+`rf_collision_face_accept` reconstructs the prefix `0x4dec10..0x4deced`, using
+compact views of query +0x50, face flags +0x28, signed 16-bit face +0x34 and the
+optional face owner +0x44. All seven predicate callees are accounted for:
+
+| Query condition | Face/owner condition that rejects |
+| --- | --- |
+| bit 0x20 set | face bit 0x40 set (`0x4d4db0`) |
+| bit 0x40 set | face bit 0x80 set (`0x4d7d60`) |
+| bit 0x400 set | owner exists, byte +0 equals 1 and byte +0x98 equals 0 (`0x4e36a0`, `0x494a50`) |
+| bit 0x2 clear | signed face +0x34 greater than zero (`0x49cc80`) |
+| bit 0x1000 clear | face bit 0x4 set (`0x416260`) |
+| bits 0x8 and 0x2000 clear | face bit 0x2000 set (`0x4ce450`) |
+| bits 0x8 and 0x800 clear | face bit 0x1 set |
+
+The original order is retained. Accept means proceed to geometry, not that a
+collision occurred. Names for unresolved flags and the signed field have not
+been invented. The caller resolves the optional owner into this view. Port
+guards reject out-of-range byte, signed-word or presence fields and preserve
+output. No allocation, geometry calls or entity mutation occurs here.
+
+`python tools/verify_collision_filter.py` compares 28,356 original executions
+against PC and the actual NXDK-linked function: 7,551 accepted. Its original
+execution stops at `0x4deced` before geometric work and runs all predicate
+callees unchanged. Fixtures cover every combination of eight relevant query
+bits and five relevant face bits at signed-field values -1/0/1, with varied
+owner fields, plus random full words and signed limits. Another 316 guards
+pass, totaling 28,672 PC/NXDK fixtures. Report:
+`artifacts/collision-filter-verification.json`. This does not cover the later
+texture-based rejection or nearest-hit/result-record updates in `0x4dec10`.

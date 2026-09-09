@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+The candidate face filter now matches 28,356 original cases on PC and NXDK;
+join it to geometric tests, recover later texture rejection and hit updates,
+then implement world traversal.
+
 Projected polygon containment now matches 6,858 original cases on PC and NXDK;
 combine it with plane/box tests and recover face filters and world traversal.
 

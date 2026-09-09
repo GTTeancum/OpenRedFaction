@@ -197,3 +197,23 @@ int rf_collision_polygon_contains(const float normal[3],const float point[3],
     }
     *inside=result;return RF_OK;
 }
+
+int rf_collision_face_accept(const rf_collision_face_filter *filter,uint32_t *accepted)
+{
+    uint32_t q,f,value=0;
+    if(!filter || !accepted || filter->property_34 < -32768 || filter->property_34 > 32767 ||
+       filter->owner_present>1 || filter->owner_kind>255 || filter->owner_state>255)return RF_RANGE;
+    q=filter->query_flags;f=filter->face_flags;
+    if((q&0x20u) && (f&0x40u))goto done;
+    if((q&0x40u) && (f&0x80u))goto done;
+    if((q&0x400u) && filter->owner_present && filter->owner_kind==1 && !filter->owner_state)goto done;
+    if(!(q&2u) && filter->property_34>0)goto done;
+    if(!(q&0x1000u) && (f&4u))goto done;
+    if(!(q&8u)) {
+        if((f&0x2000u) && !(q&0x2000u))goto done;
+        if((f&1u) && !(q&0x800u))goto done;
+    }
+    value=1;
+ done:
+    *accepted=value;return RF_OK;
+}

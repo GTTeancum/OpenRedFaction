@@ -23,4 +23,13 @@ int rf_collision_segment_plane(const float start[3],const float displacement[3],
  * errors preserve inside. No allocation. */
 int rf_collision_polygon_contains(const float normal[3],const float point[3],
     const float (*vertices)[3],uint32_t count,uint32_t *inside);
+typedef struct rf_collision_face_filter {
+    uint32_t query_flags,face_flags; /* Query +50, face +28. */
+    int32_t property_34; /* Signed 16-bit face +34. */
+    uint32_t owner_present,owner_kind,owner_state; /* Face +44, owner +0/+98 bytes. */
+} rf_collision_face_filter;
+/* 4dec10..4deced, including all seven original predicates. Names of unknown
+ * bits remain unresolved. accepted=1 proceeds to geometric testing. Invalid
+ * signed-word/byte/boolean views preserve accepted. */
+int rf_collision_face_accept(const rf_collision_face_filter *filter,uint32_t *accepted);
 #endif
