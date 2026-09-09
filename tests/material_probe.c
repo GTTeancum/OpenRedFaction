@@ -9,13 +9,20 @@ int main(int argc, char **argv)
     rf_materials materials;
     uint32_t count, i;
     int result;
-    if (argc>=6 && argc<=21 && !strcmp(argv[1],"--model")) {
-        rf_model_file model;rf_model_materials bundle={0};uint32_t j;
+    if (argc>=6 && argc<=21 && (!strcmp(argv[1],"--model") || !strcmp(argv[1],"--model-skin"))) {
+        rf_model_file model;rf_model_materials bundle={0};uint32_t j,n=0;
+        char storage[64][64];const char *names[64];
+        if(!strcmp(argv[1],"--model-skin")) {
+            while(n<64 && fgets(storage[n],sizeof(storage[n]),stdin)) {
+                storage[n][strcspn(storage[n],"\r\n")]=0;names[n]=storage[n];++n;
+            }
+            if(ferror(stdin) || !feof(stdin))return 2;
+        }
         count=(uint32_t)argc-5;
         if(rf_vpp_open(&level_archive,argv[2]))return 1;
         result=rf_model_file_open(&model,&level_archive,argv[3]);if(result){rf_vpp_close(&level_archive);return 1;}
         for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+5])) {while(i)rf_vpp_close(archives+--i);rf_vpp_close(&level_archive);return 1;}
-        result=rf_model_materials_open(&bundle,&model,archives,count,(uint32_t)strtoul(argv[4],NULL,10));
+        result=rf_model_materials_open_skin(&bundle,&model,names,n,archives,count,(uint32_t)strtoul(argv[4],NULL,10));
         for(i=0;i<count;++i)rf_vpp_close(archives+i);rf_vpp_close(&level_archive);
         if(!result) {
             printf("%u %u %u %u\n",bundle.count,bundle.textures.count,bundle.resident_bytes,bundle.peak_bytes);

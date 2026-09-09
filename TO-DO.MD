@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+All five miner skin bundles now pass material and budget checks, and Parker's
+authored skin renders in the PC preview. Connect skin selection on Xbox and
+real level entities, and verify the original runtime skin-switch semantics.
+
 The skeletal compiled-name helper matches 1,960 original-code cases and resolves
 49 entity classes to installed meshes; 41 capacity guards pass. Recover the
 separate .v3d model path, investigate missing edf_ship.v3c, apply skin lists and

@@ -1,5 +1,5 @@
 """Check per-model texture slots, material bytes and Win32 allocation accounting."""
-import json, struct, subprocess
+import json, struct, subprocess, sys
 from pathlib import Path
 from inspect_models import inspect
 
@@ -23,13 +23,25 @@ def read(path, entry):
         return stream.read(entry['size'])
 
 results = []
-for path, entry in models:
+skin_mode='--skins' in sys.argv
+cases=[(path,entry,'',None) for path,entry in models]
+if skin_mode:
+    table=json.loads((root/'artifacts/entity-assets-verification.json').read_text())
+    miner=next(a for a in table['assets'] if a['name']=='miner1')
+    path,entry=next((p,e) for p,e in models if e['name'].lower()=='miner.v3c')
+    cases=[(path,entry,skin,names) for skin,names in miner['skins'].items()]
+for path, entry, skin, replacements in cases:
     raw = read(path, entry)
     records = []
     for section in inspect(raw)['sections']:
         if section['type'] == '0x5355424d':
             start = section['material_offset']
             records.extend(raw[start+i*84:start+(i+1)*84] for i in range(section['materials']))
+    input_text=None
+    if replacements is not None:
+        assert len(replacements)==len(records)
+        records=[name.encode().ljust(32,b'\0')+record[32:] for name,record in zip(replacements,records,strict=True)]
+        input_text='\n'.join(replacements)+'\n'
     names = []
     pairs = []
     for record in records:
@@ -45,8 +57,8 @@ for path, entry in models:
     pixels = sum(struct.unpack_from('<H', im, 12)[0]*struct.unpack_from('<H', im, 14)[0]*4 for im in images)
     resident = 36 + len(records)*236 + len(names)*28 + pixels
     peak = resident + len(records)*100
-    args = [str(root/'build/pc/Release/rf_material_probe.exe'), '--model', str(path), entry['name'], str(peak), *map(str, selected)]
-    run = subprocess.run(args, capture_output=True, text=True)
+    args = [str(root/'build/pc/Release/rf_material_probe.exe'), '--model-skin' if skin_mode else '--model', str(path), entry['name'], str(peak), *map(str, selected)]
+    run = subprocess.run(args, input=input_text,capture_output=True, text=True)
     assert run.returncode == 0, (entry['name'], run.stdout, run.stderr)
     lines = run.stdout.splitlines()
     assert list(map(int, lines[0].split())) == [len(records), len(names), resident, peak]
@@ -69,16 +81,21 @@ for path, entry in models:
         assert line == f'M {dst.hex()} {struct.unpack_from("<I", record, 32)[0]}', entry['name']
     low = args.copy()
     low[4] = str(peak-1)
-    fail = subprocess.run(low, capture_output=True, text=True)
+    fail = subprocess.run(low, input=input_text,capture_output=True, text=True)
     assert fail.returncode == 1 and fail.stdout.strip() == '-4', (entry['name'], fail.stdout)
-    missing = subprocess.run(args[:5]+[str(path)], capture_output=True, text=True)
+    missing = subprocess.run(args[:5]+[str(path)], input=input_text,capture_output=True, text=True)
     assert missing.returncode == 1 and missing.stdout.strip() == '-3', (entry['name'], missing.stdout)
-    results.append(dict(name=entry['name'], materials=len(records), textures=len(names), resident_bytes=resident, peak_bytes=peak))
+    if replacements is not None:
+        for bad in (replacements[:-1],replacements+['extra.tga'],['']+replacements[1:],['x'*32]+replacements[1:]):
+            rejected=subprocess.run(args,input='\n'.join(bad)+'\n',capture_output=True,text=True)
+            assert rejected.returncode==1 and rejected.stdout.strip()=='-4',(skin,rejected.stdout)
+    results.append(dict(name=entry['name'],skin=skin, materials=len(records), textures=len(names), resident_bytes=resident, peak_bytes=peak))
 
 report = dict(result='PASS', models=len(results), materials=sum(r['materials'] for r in results),
+              selection_guards=4*len(results) if skin_mode else 0,
               budget_rejections=len(results), missing_texture_rejections=len(results),
               largest=max(results, key=lambda r:r['peak_bytes']),
               scope='Port-owned material bundles with actual installed textures; byte mapping, local slots and exact Win32 budget checked; not original allocator equivalence or rendering',
               details=results)
-(root/'artifacts/model-residency-verification.json').write_text(json.dumps(report, indent=2))
+(root/('artifacts/model-skin-residency-verification.json' if skin_mode else 'artifacts/model-residency-verification.json')).write_text(json.dumps(report, indent=2))
 print({k:v for k,v in report.items() if k != 'details'})

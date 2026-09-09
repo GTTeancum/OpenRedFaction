@@ -1,5 +1,34 @@
 # Level entity records
 
+`rf_model_materials_open_skin` adds bounded ordered primary-texture substitution
+to the shared material loader. Nonempty selections must match the complete
+SUBM material count; names must terminate within 32 bytes. Zero count uses base
+materials. Secondary maps and other serialized fields are retained, while
+deduplication and alpha classification use the selected images. The existing
+resident/peak budget and failure cleanup apply. This is port-owned skin-loading
+scaffolding, not a reconstructed original runtime skin switch. One original
+`$Skin:` parser at 0x40f4f0 passes capacity 12 to 0x512e20 at 0x40fa55; that
+static observation does not prove the material substitution algorithm.
+
+`tools/verify_model_residency.py --skins` checks all five miner1 variants
+(b/c/d/e/Parker), 60 complete runtime material records, selected texture slots,
+secondary maps, alpha flags and exact Win32 memory accounting. Each bundle uses
+797,800 resident bytes and 799,000 peak bytes. Five insufficient-budget cases,
+five missing-texture cases and 20 invalid selection count/name cases fail with
+empty outputs. The original base path still passes all 95 models/733 records;
+PC/NXDK builds and four CTest checks pass.
+
+The PC diagnostic accepts `--model-skin meshes.vpp motions.vpp output.ppm
+tables.vpp skin maps1.vpp ...`. It reads miner1 metadata from the supplied table
+(512 KiB input cap), verifies its skeletal filename matches the diagnostic's
+miner geometry, then applies its skin list. This is explicitly a miner pose
+inspection, not arbitrary entity spawning. Missing skins fail before rendering.
+Parker's first-frame preview at `artifacts/miner-parker-pc.png` was visually
+inspected; comparison with the same base pose changes 465 pixels, confined to
+the face rectangle [283,142)-(309,163). The faceplate remains translucent.
+Xbox selection, level placement and original skin-switch equivalence are open;
+this new visible result is PC only.
+
 `rf_entity_skeletal_filename` reconstructs the `.v3c` specialization of original
 filename helper 0x5142d0, called at 0x51ce8f by skeletal loader 0x51ce60. Its
 callee 0x514330 finds the last dot using the unchanged CRT helper at 0x573b10,

@@ -2,11 +2,27 @@
 #include "rf/material.h"
 #include "rf/lightmap.h"
 #include "rf/animation_check.h"
+#include "rf/entity_assets.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
 static float edge(const float *a, const float *b, float x, float y) { return (x-a[0])*(b[1]-a[1])-(y-a[1])*(b[0]-a[0]); }
+static int miner_skin(const char *path,const char *skin,rf_entity_assets *assets)
+{
+    rf_vpp archive;rf_vpp_entry entry;char *text=NULL,compiled[64];int result;
+    result=rf_vpp_open(&archive,path);if(result)return result;
+    result=rf_vpp_find(&archive,"entity.tbl",&entry);
+    if(!result && entry.size>512*1024)result=RF_RANGE;
+    if(!result) {text=malloc(entry.size);if(!text)result=RF_RANGE;}
+    if(!result)result=rf_vpp_read(&archive,&entry,0,text,entry.size);
+    if(!result)result=rf_entity_assets_read(text,entry.size,"miner1",skin,assets);
+    if(!result)result=rf_entity_skeletal_filename(assets->model,compiled);
+    /* Pose diagnostic currently owns miner geometry; do not pair another mesh
+     * with that pose stream if the supplied table has a different declaration. */
+    if(!result && strcmp(compiled,"miner.v3c"))result=RF_FORMAT;
+    free(text);rf_vpp_close(&archive);return result;
+}
 static int address(int value, int size, int clamp)
 { return clamp ? (value < 0 ? 0 : value >= size ? size-1 : value) : (value % size + size) % size; }
 static void sample(const rf_image *image, float s, float t, int clamp, float color[4])
@@ -37,9 +53,15 @@ int main(int argc, char **argv)
     unsigned char *rgb;
     uint32_t i;
     FILE *output;
-    int model_mode=argc>1 && (!strcmp(argv[1],"--model") || !strcmp(argv[1],"--model-last"));
+    rf_entity_assets skin_assets={0};const char *skin_names[64];
+    int skin_mode=argc>1 && !strcmp(argv[1],"--model-skin");
+    int model_mode=skin_mode || (argc>1 && (!strcmp(argv[1],"--model") || !strcmp(argv[1],"--model-last")));
     const char *output_path=model_mode?(argc>4?argv[4]:NULL):(argc>3?argv[3]:NULL);
     if (argc < 4 || argc > 20) return 2;
+    if(skin_mode) {
+        if(argc<8 || miner_skin(argv[5],argv[6],&skin_assets))return 1;
+        for(i=0;i<skin_assets.texture_count;++i)skin_names[i]=skin_assets.textures[i];
+    }
     if(model_mode) {
         if(argc<6 || rf_vpp_open(&archive,argv[2]) || rf_animation_preview(argv[2],argv[3],!strcmp(argv[1],"--model-last")?63:0,&mesh,1024*1024))return 1;
     } else if (rf_vpp_open(&archive, argv[1]) || rf_level_open(&level, &archive, argv[2]) ||
@@ -48,7 +70,7 @@ int main(int argc, char **argv)
         rf_vpp archives[16];
         uint32_t opened = 0;
         int result = RF_OK;
-        for (i = model_mode?5:4; i < (uint32_t)argc; ++i) {
+        for (i = skin_mode?7:model_mode?5:4; i < (uint32_t)argc; ++i) {
             result = rf_vpp_open(archives+opened, argv[i]);
             if (result) break;
             ++opened;
@@ -56,7 +78,7 @@ int main(int argc, char **argv)
         if(!result && model_mode) {
             rf_model_file model;rf_model_materials bundle={0};
             result=rf_model_file_open(&model,&archive,"miner.v3c");
-            if(!result)result=rf_model_materials_open(&bundle,&model,archives,opened,4*1024*1024);
+            if(!result)result=rf_model_materials_open_skin(&bundle,&model,skin_names,skin_assets.texture_count,archives,opened,4*1024*1024);
             if(!result)for(i=0;i<mesh.count;++i) {
                 uint32_t slot=mesh.vertices[i].material;
                 if(slot>=bundle.count) {result=RF_FORMAT;break;}

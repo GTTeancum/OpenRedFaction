@@ -82,7 +82,8 @@ static int equal_texture_name(const char *a,const char *b)
         if (!x) return 1;
     }
 }
-int rf_model_materials_open(rf_model_materials *m,const rf_model_file *model,
+int rf_model_materials_open_skin(rf_model_materials *m,const rf_model_file *model,
+    const char *const *primary_names,uint32_t primary_count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)
 {
     rf_model_materials next={0}; uint8_t *raw=NULL;const char **names=NULL;int32_t *mapping=NULL;
@@ -90,6 +91,12 @@ int rf_model_materials_open(rf_model_materials *m,const rf_model_file *model,
     if (!m || !model || !model->archive || model->section_count>RF_MODEL_MAX_SECTIONS ||
         (!archives && archive_count) || m->items || m->textures.items || m->resident_bytes) return RF_RANGE;
     for(i=0;i<model->section_count;++i) if(model->sections[i].type==0x5355424d) count+=model->sections[i].material_count;
+    if(primary_count && (!primary_names || primary_count!=count))return RF_RANGE;
+    for(i=0;i<primary_count;++i) {
+        size_t length=0;if(!primary_names[i])return RF_RANGE;
+        while(length<32 && primary_names[i][length])++length;
+        if(!length || length==32)return RF_RANGE;
+    }
     base=sizeof(next)+count*sizeof(*next.items);
     scratch=count*(84+2*sizeof(*names)+2*sizeof(*mapping));used=base+scratch;
     if(count>INT32_MAX/2 || used>budget || used>SIZE_MAX) return RF_RANGE;
@@ -104,6 +111,9 @@ int rf_model_materials_open(rf_model_materials *m,const rf_model_file *model,
             uint8_t *record=raw+(size_t)at*84;
             status=rf_model_file_material(model,mesh,j,record);if(status)goto done;
             if(!record[0] || !memchr(record,0,32) || !memchr(record+48,0,32)) { status=RF_FORMAT;goto done; }
+            if(primary_count) {
+                memset(record,0,32);memcpy(record,primary_names[at],strlen(primary_names[at]));
+            }
             for(k=0;k<2;++k) {
                 const char *name=(const char *)record+(k?48:0);uint32_t slot;
                 mapping[at*2+k]=-1;if(!*name)continue;
@@ -130,4 +140,9 @@ done:
     free(raw);free(names);free(mapping);
     if(status)rf_model_materials_close(&next);else *m=next;
     return status;
+}
+int rf_model_materials_open(rf_model_materials *m,const rf_model_file *model,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{
+    return rf_model_materials_open_skin(m,model,NULL,0,archives,archive_count,budget);
 }

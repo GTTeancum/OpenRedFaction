@@ -38,5 +38,14 @@ typedef struct rf_model_materials {
  * Zero-initialize before first use; close before reuse; failure leaves empty. */
 int rf_model_materials_open(rf_model_materials *materials,const rf_model_file *model,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
+/* Ordered primary-texture substitution scaffolding for authored entity skins,
+ * not the original runtime skin-switch implementation. Nonzero primary_count
+ * must exactly match all material records in SUBM section order. Names must
+ * be nonempty and terminate within 32 bytes. Zero count selects base materials.
+ * Secondary maps and other disk fields remain intact; deduplication and alpha
+ * classification use the selected images. Same ownership/budget contract above. */
+int rf_model_materials_open_skin(rf_model_materials *materials,const rf_model_file *model,
+    const char *const *primary_names,uint32_t primary_count,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_model_materials_close(rf_model_materials *materials);
 #endif
