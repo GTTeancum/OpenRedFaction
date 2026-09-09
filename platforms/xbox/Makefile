@@ -17,6 +17,7 @@ SRCS += $(PROJECT_ROOT)/src/core/weapon.c
 SRCS += $(PROJECT_ROOT)/src/core/effect.c
 SRCS += $(PROJECT_ROOT)/src/core/motion_file.c
 SRCS += $(PROJECT_ROOT)/src/core/model_file.c
+SRCS += $(PROJECT_ROOT)/src/core/entity_assets.c
 SRCS += $(PROJECT_ROOT)/src/diagnostic/animation.c
 CFLAGS += -std=c11 -O2 -Wall -Wextra -Werror -I$(PROJECT_ROOT)/include
 LDFLAGS += -map:main.map -entry:rf_diagnostic_start

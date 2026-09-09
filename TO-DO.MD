@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Entity asset metadata now matches all 63 table classes and 168 class/skin
+selections. Recover compiled model filename resolution and apply skin lists;
+investigate level class names camera1 and Bucket Bot before actor creation.
+
 The bounded level-entity reader matches 1,610 records across 66 installed
 levels. Resolve entity classes/skins to model assets and feed real transforms
 into scene drawing; Live Mines miner1 UID 9858 is a nearby placement candidate.

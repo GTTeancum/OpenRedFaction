@@ -1,5 +1,30 @@
 # Level entity records
 
+`rf_entity_assets_read` now selects authored model names and ordered skin
+texture lists from caller-owned `entity.tbl` text without allocating memory.
+It supports the installed quoted-string, whitespace, parentheses and `//`
+comment syntax, with ASCII-insensitive class/skin selection. Limits are 255
+bytes per token, 63 per asset name and 64 replacements. Missing class or skin
+returns NOT_FOUND; failures preserve the output. An empty model is valid for
+a class with no authored mesh, such as the freelook camera. Other table fields
+remain uninterpreted. This is metadata-reading scaffolding, not a decompilation
+of the original general table parser; unsupported syntax is not claimed.
+
+`tools/verify_entity_assets.py` independently extracts installed declarations
+and checks all 63 classes and 168 base/skin selections against the compiled C
+reader, including commented-out skins and original replacement ordering.
+The probe self-test covers comments/case, missing selections, an unterminated
+quote, replacement overflow and unchanged output on failure. PC/NXDK builds
+and four CTest checks pass. The caller-side probe caps its table load at 512 KiB;
+the runtime API consumes an existing buffer and owns no table storage.
+
+`miner1` names `miner.vcm` and has five authored skin variants (b/c/d/e/Parker),
+each with 12 replacement names. Its installed geometry is `miner.v3c`; the reader
+preserves the authored extension because original compiled-name resolution
+has not been connected. Skin replacement application is also still open.
+The installed level classes `camera1` and `Bucket Bot` do not directly match
+the table class declarations; do not invent a model or silently alias them.
+
 `rf_level_entities_begin` and `rf_level_entity_next` traverse the installed
 v180 entity section (0x30000) without allocating its payload. Each result
 contains UID, class/script names, position, reordered orientation, state
