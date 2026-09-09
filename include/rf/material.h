@@ -48,4 +48,20 @@ int rf_model_materials_open_skin(rf_model_materials *materials,const rf_model_fi
     const char *const *primary_names,uint32_t primary_count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_model_materials_close(rf_model_materials *materials);
+typedef struct rf_geometry_materials {
+    rf_materials textures;
+    uint32_t *offsets, *slots;
+    uint32_t count, resident_bytes, peak_bytes;
+} rf_geometry_materials;
+/* Shared world/mover texture residency scaffolding, not original allocation
+ * policy. Geometry i's local texture j maps to slots[offsets[i]+j]. Names
+ * deduplicate case-insensitively in first-use order, including missing images.
+ * Owns all mappings/images; input geometries and archives may close afterward.
+ * Budget includes owner, retained arrays/images and temporary names/pointers,
+ * excluding allocator metadata. Zero-initialize; close before reuse. Failure
+ * preserves output. Inputs must remain stable throughout the call. */
+int rf_geometry_materials_open(rf_geometry_materials *materials,
+    const rf_geometry *const *geometries,uint32_t count,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget);
+void rf_geometry_materials_close(rf_geometry_materials *materials);
 #endif

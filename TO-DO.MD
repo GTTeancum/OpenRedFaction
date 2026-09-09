@@ -46,7 +46,13 @@ and compiled NXDK. The same 160 ticks now run on resident controllers/movers
 in stock 64 MiB XEMU with exact PC traces and collision-view synchronization;
 connect moving geometry to rendering and the frame loop. Shared transformed
 mover projection now passes 4,218 pose cases; load/remap mover materials and
-append their draw geometry to the scene before frame-loop integration.
+append their draw geometry to the scene before frame-loop integration. Shared
+world/mover material residency now maps 5,919 texture references across 68
+levels, deduplicating names and owning images after source closure. Live Mines
+uses 17 unique slots for 28 references (16 loaded, one missing), with all mover
+textures already present in the world table. PC budget/ownership/image checks
+and PC/NXDK builds pass; connect this bundle and its local-slot mappings to
+scene geometry, then validate visible movers and frame-loop motion in XEMU.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

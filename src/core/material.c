@@ -82,6 +82,57 @@ static int equal_texture_name(const char *a,const char *b)
         if (!x) return 1;
     }
 }
+void rf_geometry_materials_close(rf_geometry_materials *m)
+{
+    if(!m)return;
+    rf_materials_close(&m->textures);free(m->offsets);free(m->slots);
+    memset(m,0,sizeof(*m));
+}
+int rf_geometry_materials_open(rf_geometry_materials *m,
+    const rf_geometry *const *geometries,uint32_t count,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{
+    rf_geometry_materials next={0};char *storage=NULL;const char **names=NULL;
+    uint64_t total=0,base,scratch;uint32_t i,j,at=0,unique=0;int status=RF_OK;
+    if(!m || m->offsets || m->slots || m->textures.items || m->resident_bytes ||
+        (!geometries && count) || (!archives && archive_count))return RF_RANGE;
+    for(i=0;i<count;++i) {
+        if(!geometries[i] || !geometries[i]->data)return RF_RANGE;
+        total+=geometries[i]->textures;
+    }
+    base=sizeof(next)+((uint64_t)count+1)*sizeof(uint32_t)+total*sizeof(uint32_t);
+    scratch=total*(61+sizeof(*names));
+    if(total>UINT32_MAX || base+scratch>budget || base+scratch>SIZE_MAX)return RF_RANGE;
+    next.offsets=malloc(((size_t)count+1)*sizeof(uint32_t));
+    if(!next.offsets){status=RF_RANGE;goto done;}
+    if(total) {
+        next.slots=malloc((size_t)total*sizeof(uint32_t));
+        storage=malloc((size_t)total*61);names=malloc((size_t)total*sizeof(*names));
+        if(!next.slots || !storage || !names){status=RF_RANGE;goto done;}
+    }
+    next.count=count;
+    for(i=0;i<count;++i) {
+        next.offsets[i]=at;
+        for(j=0;j<geometries[i]->textures;++j,++at) {
+            uint32_t slot;char *name=storage+(size_t)unique*61;
+            status=rf_geometry_texture_name(geometries[i],j,name,61);if(status)goto done;
+            if(!*name){status=RF_FORMAT;goto done;}
+            for(slot=0;slot<unique;++slot)if(equal_texture_name(name,names[slot]))break;
+            if(slot==unique)names[unique++]=name;
+            next.slots[at]=slot;
+        }
+    }
+    next.offsets[count]=at;
+    status=rf_materials_open_names(&next.textures,names,unique,archives,archive_count,
+        budget-(uint32_t)(base+scratch));
+    if(status)goto done;
+    next.resident_bytes=(uint32_t)base+next.textures.allocated_bytes;
+    next.peak_bytes=next.resident_bytes+(uint32_t)scratch;
+done:
+    free(storage);free(names);
+    if(status)rf_geometry_materials_close(&next);else *m=next;
+    return status;
+}
 int rf_model_materials_open_skin(rf_model_materials *m,const rf_model_file *model,
     const char *const *primary_names,uint32_t primary_count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)
