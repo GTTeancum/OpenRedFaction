@@ -52,8 +52,10 @@ checks pass and NXDK builds. Original installation block 42405d..424168 now
 matches linked NXDK in 180 cases, with 160 allocation failures preserving the
 old owner. Pose/class construction, later crouch setup and XEMU integration
 remain open.
-Class +1b4 is optional `$Use:` kind (turret=4), not movement mode; recover its
-absent-field default before treating all class physics inputs as resolved.
+Class +1b4 is optional `$Use:` kind (turret=4), not movement mode; its initial
+absent-field value is static zero, confirmed for all 75 original descriptors
+and three patterned constructor runs. Add optional use-kind metadata and trace
+4246e0 class/model setup before treating class physics inputs as resolved.
 
 Original event activation now passes 2,160 cases, delayed-tick prefix 1,620
 cases, and three re-activation steps. Timer replacement, disabled caller-field

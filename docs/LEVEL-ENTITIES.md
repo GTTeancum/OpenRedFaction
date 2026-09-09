@@ -1,5 +1,23 @@
 # Level entity records
 
+`inspect_class_construction.py` executes the complete original 0x42d290 without
+hooks on zero, A5 and 5A patterned class storage. Use-kind +1b4 and flags +724/+728
+remain untouched, while resolved sphere count +cec is explicitly zeroed.
+All 75 descriptors in the executable's initial static image have zero at the
+three untouched fields. Thus absent `$Use:` starts at zero for initial static
+classes; this is not a claim about reloading a mutated descriptor. Report:
+`artifacts/class-construction-inspection.json`.
+
+Further creation tracing: 0x424520 performs model/class setup through 0x4246e0
+and sets class flag 0x20000000 after success; it does not select movement mode.
+0x433a00 resolves the authored `$Movemode:` through the 16-name pointer table
+at 0x596384 and returns the 0x4339d0 descriptor, stored at actor+858.
+The separate tensor rewrite at 0x422bb0..0x422c99 is guarded by 0x42d7b0,
+which tests class flags &0x401200; miner1's authored flags do not select it.
+These findings narrow the remaining spawn path but do not establish the initial
+locomotion state or animation cursor. Ghidra now explicitly exports these
+creation helpers and the class constructor for continued tracing.
+
 `rf_physics_body_replace_spheres` composes owned sphere copying with the recovered
 bounds update for post-creation class-sphere installation. It clears/rebuilds
 flag 0x2000 from positive sphere parameter_10, updates bounds and preserves all
