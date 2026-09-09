@@ -9,17 +9,24 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
-    if(argc==4 && !strcmp(argv[1],"--rooms")) {
+    if(argc==4 && (!strcmp(argv[1],"--rooms") || !strcmp(argv[1],"--room-layout") || !strcmp(argv[1],"--room-layout-tight"))) {
+        int tight=!strcmp(argv[1],"--room-layout-tight"),layout=strcmp(argv[1],"--rooms")!=0;
         rf_vpp archive;rf_level level;rf_geometry geometry;uint32_t room,total=0,nodes=0,peak=0,queries=0,hits=0;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,8u*1024u*1024u))return 3;
         for(room=0;room<geometry.rooms;room++) {
             rf_geometry_collision_room owned={0},guard,sentinel;uint32_t i,j,k;
+            if(tight)memset(geometry.data+geometry.room_offsets[room]+4,0,24);
             if(rf_geometry_collision_room_open(&geometry,room,8u*1024u*1024u,&owned))return 4;
             memset(&guard,0xa5,sizeof(guard));sentinel=guard;
             if(rf_geometry_collision_room_open(&geometry,room,owned.peak_bytes-1,&guard)!=RF_RANGE || memcmp(&guard,&sentinel,sizeof(guard)))return 5;
             if(rf_geometry_collision_room_open(&geometry,room,owned.peak_bytes,&guard))return 6;
             rf_geometry_collision_room_close(&guard);
             total+=owned.tree.face_count;nodes+=owned.tree.node_count;if(owned.peak_bytes>peak)peak=owned.peak_bytes;
+            if(layout) {
+                if(fwrite(geometry.data+geometry.room_offsets[room]+4,24,1,stdout)!=1 || fwrite(owned.minimum,24,1,stdout)!=1 || fwrite(&owned.tree.face_count,4,1,stdout)!=1)return 14;
+                for(i=0;i<owned.tree.face_count;i++)if(fwrite(owned.tree.source_indices+i,4,1,stdout)!=1 || fwrite(owned.tree.faces[i].minimum,24,1,stdout)!=1)return 14;
+                rf_geometry_collision_room_close(&owned);continue;
+            }
             for(i=0;i<owned.tree.face_count;i++) {
                 rf_geometry_face original;rf_collision_face *face=owned.tree.faces+i;
                 float start[3]={0},delta[3],limit=1;uint32_t matched,brute=0;
@@ -48,7 +55,7 @@ int main(int argc,char **argv)
             rf_geometry_collision_room_close(&owned);
         }
         if(total!=geometry.faces)return 13;
-        printf("%u %u %u %u %u %u\n",geometry.rooms,total,nodes,peak,queries,hits);
+        if(!layout)printf("%u %u %u %u %u %u\n",geometry.rooms,total,nodes,peak,queries,hits);
         rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
     }
     if(argc==4 && (!strcmp(argv[1],"--level") || !strcmp(argv[1],"--level-initial"))) {

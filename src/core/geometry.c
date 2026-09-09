@@ -256,6 +256,10 @@ int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
     base=sizeof(value)+corners*12;temporary=(uint64_t)count*(sizeof(*faces)+sizeof(*indices));
     if(base+temporary>budget)return RF_RANGE;
     value.room=room;
+    for(i=0;i<3;i++) {
+        value.minimum[i]=f32(geometry->data+geometry->room_offsets[room]+4+i*4);
+        value.maximum[i]=f32(geometry->data+geometry->room_offsets[room]+16+i*4);
+    }
     if(count) {
         value.vertices=(float(*)[3])malloc((size_t)(corners*12));
         faces=(rf_collision_face*)malloc((size_t)temporary);
@@ -268,6 +272,10 @@ int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
         if(face.room!=room)continue;
         status=rf_geometry_initial_collision_filter(geometry,i,0,&filter);if(status)goto done;
         status=rf_geometry_collision_face(geometry,i,&filter,value.vertices+vertex,face.corners,faces+at);if(status)goto done;
+        {uint32_t j;for(j=0;j<3;j++) {
+            if(faces[at].minimum[j]<value.minimum[j])value.minimum[j]=faces[at].minimum[j];
+            if(faces[at].maximum[j]>value.maximum[j])value.maximum[j]=faces[at].maximum[j];
+        }}
         indices[at++]=i;vertex+=face.corners;
     }
     status=rf_collision_tree_open(faces,count,(uint32_t)(budget-base-temporary+sizeof(value.tree)),&value.tree);

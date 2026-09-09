@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Owned initial room trees now pass binding and exhaustive ray checks across 94
-levels and 460,720 faces; recover original room-list ordering and world room
-selection, connect mutable state, and validate guest allocation in XEMU.
+Initial room attachment now matches original append order and bounds across
+14,694 rooms, plus 54 expansion fixtures; recover finalizer rejection and world
+room selection, connect mutable state, and validate guest allocation in XEMU.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry

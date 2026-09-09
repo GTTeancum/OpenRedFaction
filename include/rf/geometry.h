@@ -47,6 +47,7 @@ int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t in
 typedef struct rf_geometry_collision_room {
     rf_collision_tree tree;
     float (*vertices)[3];
+    float minimum[3],maximum[3]; /* File room bounds expanded by attached faces. */
     uint32_t room,allocated_bytes,peak_bytes;
 } rf_geometry_collision_room;
 /* Initial file-order room faces with owned vertices and tree. Source indices

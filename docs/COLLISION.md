@@ -413,3 +413,56 @@ so these figures do not describe total resident world memory. Report:
 `artifacts/collision-rooms-verification.json`. Both builds pass, as do the 600-case
 original builder regression on PC/NXDK and four CTest checks. Guest heap and full
 room integration have not yet been tested in XEMU.
+
+## Original room attachment and selection trace
+
+`0x4edfeb..0x4edff2` attaches a face only after successful `0x4dfe20`
+finalization and a non-null resolved room. `0x4ccec0` removes any existing owner
+membership through `0x4ce240`, writes face +0x44, and appends through `0x4ce200`
+to room +0x28. That helper increments the list count and walks to its tail;
+face +0x5c is the next link. Thus initial accepted faces retain input order.
+Reattachment removes then appends, which can change that order. The routine also
+expands room +8/+0x14 bounds by face +0x10/+0x1c, with strict min/max comparisons
+retaining the room value on ties. The owned-room integration now exposes these
+bounds, starting with the file room bounds. Full original finalizer rejection,
+reattachment and later changes are still absent from the integration.
+
+`python tools/verify_collision_room_attachment.py` runs unchanged original
+`0x4ccec0`, including its list and min/max helpers, on 460,720 initial face views
+across 14,694 rooms in 94 levels. Owner pointers and append order match, and
+final bounds match the PC room adapter byte-for-byte. The supplied room bounds
+already contain the face bounds in all these rooms. A further 54 Live Mines
+fixtures start with zero-size room bounds to exercise expansion: all 54 expand
+and match. Total: 14,748 room cases and 468,138 attachments. No original helpers
+are hooked. Report: `artifacts/collision-room-attachment-verification.json`.
+This verifies attachment given accepted faces, not the complete original loader.
+
+Instruction-level observations for implementing world selection at `0x4df1c0`:
+
+- The solid is ECX; query, result and reset-limit flag are three stack arguments
+  (`ret 12`). Query +0x50 contains internal flags. Bit 4 copies start/displacement
+  directly into +0x54/+0x60; the other branch applies the query transform.
+- An existing query face (+0) can short-circuit first-hit queries. Global
+  cache count `0xca06e0` and state byte `0xca06e4` select the cached-face path;
+  its pointer array begins at `0xc9f690`.
+- Without the cache path, solid +0x90 controls the hierarchy/fallback decision.
+  The fallback scans solid +0x70 face links via `0x45ec30`. Its exact gate
+  ownership and cache invalidation still need recovery.
+- The hierarchical path builds a segment AABB and expands it by query radius
+  (+0x4c), then iterates the solid +0x9c room array in index order. It skips a
+  room when its +1 byte is nonzero unless query bit 8 is set (`0x45ebb0`).
+  `0x507990` performs inclusive AABB overlap against room +8/+0x14.
+- It queries the primary room tree (+0x3c), then its +0x6c child array in index
+  order, testing each child's bounds. Child checks do not repeat the +1-byte
+  predicate. Positive hit count with query bit 1 exits this hierarchy path.
+- `0x4ce110` changes the room detail byte (+0) and moves its pointer between
+  solid +0x9c and +0xa8 arrays. The +0x6c attachment population is still open.
+- Query bit 0x1000 has additional handling for room +0x184 and selected room
+  faces. Cached and uncached paths differ, so neither is replaced by a generic
+  scan. This branch, cache lifetime and original finalizer behavior remain open.
+
+These observations are backed by the pinned executable instructions and exported
+Ghidra functions; world selection itself is not implemented or tested yet. PC
+and NXDK builds pass. The owned-room budget increases by 24 bytes for retained
+bounds; current single-room peaks are 194,119 bytes for Live Mines and 826,763
+bytes across all levels.
