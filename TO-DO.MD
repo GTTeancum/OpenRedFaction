@@ -24,6 +24,11 @@ Initial miner inertia is corrected: positive authored mass plus its populated
 model sphere list preserves the zero parameter tensor, rather than identity.
 Original preparation checks and XEMU run `20260909-171406-829227` pass, including
 144 initial/final tensor bytes. Initial animation pose remains provisional.
+Live actor playback now starts at the original constructor's phase zero and
+skips a redundant stand-to-stand transition. Run `20260909-171941-116367`
+passes initial animation telemetry, all actor comparisons and native framebuffer
+comparison. Full initial selector inputs remain unresolved; the stand choice
+is still diagnostic. A new pose screenshot was captured for this change.
 See `docs/XEMU-MEMORY.md` for reproduction and limits.
 
 Working approach: complete the first miner integration across loading, rendering

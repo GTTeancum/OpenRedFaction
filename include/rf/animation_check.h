@@ -37,6 +37,7 @@ typedef struct rf_animation_placement {
     int (*stance_effect)(void *context,uint32_t frame,const rf_motion_stance_decision *decision,
         const rf_motion_controller *controller);
     void *stance_context;
+    uint32_t *initial_animation; /* Seed phase/generation, first controller and active slot (12 words). */
     uint32_t *physics_diagnostic; /* Eight words; optional integrated fixture. */
 } rf_animation_placement;
 /* World/entity inputs are read each frame, allowing the owner to update them

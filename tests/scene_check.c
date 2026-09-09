@@ -19,6 +19,7 @@ extern float rf_scene_actor_input_frames[64][3];
 extern uint32_t rf_scene_actor_contact_count,rf_scene_actor_contacts[64][25];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_stance_frames[64][4];
+extern uint32_t rf_scene_actor_initial_animation[12];
 extern uint32_t rf_scene_actor_selector_frames[64][8];
 extern uint32_t rf_scene_actor_clearance_diagnostic[8];
 extern float rf_scene_actor_clearance_queries[2][12];
@@ -189,6 +190,11 @@ int main(int argc,char **argv)
                     }
                     if(crouch_effects!=1 || stand_effects!=1)return 3;
                 }
+                if(rf_scene_actor_initial_animation[0]!=0 || rf_scene_actor_initial_animation[1]!=1 ||
+                   rf_scene_actor_initial_animation[2]!=0 || rf_scene_actor_initial_animation[3]!=UINT32_MAX ||
+                   rf_scene_actor_initial_animation[4]!=0 || rf_scene_actor_initial_animation[9]!=1 ||
+                   rf_scene_actor_initial_animation[11]!=0x3f800000)return 3;
+                printf("ACTOR_INITIAL_ANIMATION");for(i=0;i<12;++i)printf(" %u",rf_scene_actor_initial_animation[i]);puts("");
                 printf("ACTOR_SELECTOR");for(i=0;i<512;++i)printf(" %u",((uint32_t*)rf_scene_actor_selector_frames)[i]);puts("");
                 printf("ACTOR_CLEARANCE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_clearance_diagnostic[i]);
                 for(i=0;i<24;++i) {uint32_t word;memcpy(&word,((float*)rf_scene_actor_clearance_queries)+i,4);printf(" %u",word);}puts("");

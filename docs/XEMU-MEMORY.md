@@ -896,3 +896,36 @@ comparisons match PC. Both builds, four CTests and all three PC scene profiles
 pass. No framebuffer was captured: this translational fixture has no visible
 rotation change. Initial animation pose, full creation ordering/registration,
 scripted eligibility and support-loss traversal remain open.
+
+
+## Constructor animation phase and redundant initial blend
+
+The live actor previously inherited phase .25 from the standalone render fixture.
+Original constructor instructions 51af14..51af7e zero phase +1d04 and set generation
++1cf8 to one. Configured actor creation now uses that seed, while standalone
+pose-preview fixtures retain their existing setup. A second diagnostic issue
+requested a stand-to-stand blend at frame zero. The original movement selector
+uses 42a650 before requesting states; the configured actor's scripted fallback
+now uses the reconstructed membership query to avoid that redundant request.
+
+The new `rf_scene_actor_initial_animation` guest symbol stores 48 bytes: seed
+phase/generation, first controller, updated phase, active count, first tick and
+weight. The scene checks phase zero/generation one, current stand with no next
+state or blend, one active motion and weight one. The first update reaches
+motion tick 320. Full original startup priority/eligibility inputs remain open,
+so the choice of stand is still a diagnostic assumption rather than proven
+original creation-pose selection.
+
+`verify_actor_animation_seed.py` executes original 51af0b..51af84 with three
+initial memory patterns, verifying phase/generation and empty slots. It can also
+check the captured actor seed/controller. This covers field initialization,
+not the full constructor or resource loading. The existing original membership
+and selector comparisons cover the reused redundant-request gate.
+
+Run `artifacts/xemu/20260909-171941-116367/report.json` passes stock 64 MiB XEMU:
+all initial animation, selector, collider, surface and geometry comparisons
+match PC. Both builds, four CTests and three PC scene profiles pass. Its new
+native framebuffer differs from PC by over three channel levels at 16 of
+307200 pixels, with mean maximum-channel error 0.03264974. The new visible
+pose was captured at `framebuffer.png`. Full startup selection, class-cache
+creation ordering, input/AI and support-loss traversal remain open.

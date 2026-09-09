@@ -169,7 +169,12 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     status=rf_model_attachment_transform(eye.rotation,eye.position,local); if (status!=RF_OK) goto done;
     state.completion.active.freeze_slot=-1;
     state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
-    state.phase=.25f; state.generation=1;
+    state.phase=placement && placement->physics_config && placement->physics_body?0:.25f; state.generation=1;
+    /* Original model constructor 51af6c/51af7e: generation one, phase zero. */
+    if(placement && placement->initial_animation) {
+        memset(placement->initial_animation,0,48);
+        memcpy(placement->initial_animation,&state.phase,4);placement->initial_animation[1]=state.generation;
+    }
     if(authored) {
         for(i=0;i<resource_count;++i) {
             rf_motion_track track;handles[i]=authored->files+i;
@@ -233,7 +238,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 status=placement->stance_effect(placement->stance_context,frame,&decision,&controller);if(status)goto done;
                 handled=decision.handled;
             }
-            if(!handled && frame%16==0) {status=rf_motion_request_state(&controller,motions,sequence[frame/16],.25f);if(status)goto done;}
+            if(!handled && frame%16==0 && (!(placement && placement->physics_config && placement->physics_body) || !rf_motion_has_state(&controller,sequence[frame/16]))) {status=rf_motion_request_state(&controller,motions,sequence[frame/16],.25f);if(status)goto done;}
             status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,resources,resource_count);if(status)goto done;
         } else {
         inventory.reserve[0]=frame<32 ? 1 : 0;
@@ -272,6 +277,16 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             actions,sounds,&context,&actor,NULL,NULL,&sound_class); if (status!=RF_OK) goto done;
         }
         status=rf_motion_update(&state,resources,resource_count,1.0f/30.0f); if (status!=RF_OK) goto done;
+        if(frame==0 && placement && placement->initial_animation) {
+            uint32_t *d=placement->initial_animation;
+            memcpy(d+2,&controller,sizeof(controller));
+            memcpy(d+8,&state.phase,4);
+            d[9]=state.completion.active.count;
+            if(state.completion.active.count) {
+                memcpy(d+10,&state.completion.active.slots[0].tick,4);
+                memcpy(d+11,&state.completion.active.slots[0].weight,4);
+            }
+        }
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,resource_count,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         status=rf_model_compose_transform(local,matrices[eye.parent],tag); if (status!=RF_OK) goto done;
         out[3]=hash_bytes(out[3],matrices,count*48); out[4]=hash_bytes(out[4],&state,sizeof(state)); out[6]=hash_bytes(out[6],tag,48);
