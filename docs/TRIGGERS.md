@@ -367,3 +367,26 @@ stored source/actor/mode, and clears the timer after those calls. Action side
 effects can therefore occur before timer clearing; callback ordering must be
 preserved in shared reconstruction. Next implement the common event state path
 with these rules, then recover downstream event actions and registration.
+
+
+## Shared event activation and timer prefix
+
+`src/core/event.c` and `include/rf/event.h` now implement common event state
+activation and timer expiry with callbacks for on/off actions and propagation.
+The caller supplies the state, clock and actual actions; no heap allocation,
+registration or global queue is introduced. Positive reactivation replaces the
+one deadline; disabled activation still updates source/actor. Immediate calls
+clear the timer before actions, while expired ticks clear it afterward. The
+callback may mutate the still-live state; subsequent propagation reads fields
+in the original order. Type-specific per-frame update routines remain external.
+
+The expanded activation verifier matches all 3,780 non-mutating-callback cases
+against unchanged original code on both PC and compiled NXDK in Unicorn,
+including final state and action order. Callback mutation/reentrancy and actual
+campaign actions are not yet covered. Invalid clocks, nonfinite active delays
+and durations beyond the existing timer contract are rejected before state
+mutation. The type-79 computation uses double intermediates with the original
+binary32 factor; the tested timing cases match x87 output, but arbitrary
+float-rounding boundaries remain a verification item. PC/NXDK builds and the
+existing CTest suite pass. Next validate callback-side mutations and wire event
+construction, handles and authored actions into this state path.

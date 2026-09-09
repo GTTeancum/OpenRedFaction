@@ -1,5 +1,5 @@
 """Execute original event activation/scheduling, intercepting action effects."""
-import hashlib,json,struct,sys
+import hashlib,json,struct,sys,subprocess,re
 from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
@@ -10,6 +10,13 @@ b=pefile.PE(str(exe)).get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32);u.m
 base=0x30000000;u.mem_map(base,0x10000);stack=base+0xe000;stop=base+0xf000;vtable=base+0x1000;on=base+0x2000;off=on+16
 pack=lambda *v:struct.pack('<'+'I'*len(v),*v)
 read=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
+commands=bytearray();expected=bytearray()
+def capture(state,tick,now,source,actor,mode):
+ def fields(data):return data[0x290:0x29c]+data[0x2a8:0x2b0]+data[0x2b0:0x2b4]+pack(data[0x2b4])
+ commands.extend(fields(state)+pack(tick,now,source,actor,mode))
+ code=0
+ for action in actions:code=code*4+{'off':1,'on':2,'propagate':3}[action]
+ expected.extend(fields(bytes(u.mem_read(base,0x2c0)))+pack(0,code))
 actions=[]
 def hook(cpu,address,size,data):
  if address not in (on,off,0x4b8b00):return
@@ -43,6 +50,7 @@ for kind in range(90):
     else:
      assert read(base+0x298)==0xffffffff and actions==(['on' if mode==1 else 'off']+(['propagate'] if propagate else [])),(kind,mode,actions)
      assert bytes(u.mem_read(base+0x2b4,1))==b'\x55';counts['immediate']+=1
+    capture(state,0,now,source,actor,mode)
     cases+=1
 tick_cases=0
 # Execute the timer/action prefix only; type-specific per-frame updates follow.
@@ -60,6 +68,7 @@ for kind in range(90):
      assert actions==(['on' if mode else 'off']+(['propagate'] if kind not in excluded else [])),(kind,mode,flags,actions)
      assert read(base+0x298)==0xffffffff
     else:assert not actions and read(base+0x298)==now+delta
+    capture(state,1,now,source,actor,mode)
     tick_cases+=1
 # Re-activation replaces one deadline, rather than adding a second queued item.
 state=bytearray(0x2c0);struct.pack_into('<I',state,0,vtable)
@@ -75,5 +84,28 @@ u.mem_write(base+0x2b0,pack(1))
 activate(300,source+2,actor+2,1)
 assert read(base+0x298)==1200 and read(base+0x2a8)==actor+2 and read(base+0x2ac)==source+2
 assert bytes(u.mem_read(base+0x2b4,1))==bytes([0])
-report=dict(result='PASS',cases=cases,tick_cases=tick_cases,retrigger_cases=3,counts=counts,no_automatic_propagation_types=excluded,special_delay_scale=dict(type=79,scale=scale),scope='Original 4b8b70, timer helpers, ftol and propagation predicate execute unchanged. Virtual actions and 4b8b00 link propagation intercepted; Delayed tick prefix 4b8ce0..4b8d45 executes unchanged; type-specific per-frame updates excluded. No action implementation or C equivalence claimed.')
+raw=subprocess.check_output([str(root/'build/pc/Release/rf_event_probe.exe')],input=commands)
+assert raw==expected,('PC event mismatch',next((i for i,(a,b) in enumerate(zip(raw,expected)) if a!=b),None))
+xp=pefile.PE(str(root/'build/xbox/main.exe'));xb=xp.get_memory_mapped_image();origin=xp.OPTIONAL_HEADER.ImageBase
+x=Uc(UC_ARCH_X86,UC_MODE_32);x.mem_map(origin,(len(xb)+4095)//4096*4096);x.mem_write(origin,xb);x.mem_map(base,0x10000)
+mapping=(root/'build/xbox/main.map').read_text()
+entries=[int(re.search('_rf_event_'+name+r'\s+([0-9a-fA-F]+)',mapping)[1],16) for name in ('activate','tick')]
+xcode=0
+callback=base+0x3000
+def xhook(cpu,address,size,data):
+ global xcode
+ if address!=callback:return
+ sp=cpu.reg_read(UC_X86_REG_ESP);ret=struct.unpack('<I',cpu.mem_read(sp,4))[0]
+ action=struct.unpack('<I',cpu.mem_read(sp+12,4))[0];xcode=xcode*4+action+1
+ cpu.reg_write(UC_X86_REG_ESP,sp+4);cpu.reg_write(UC_X86_REG_EIP,ret)
+x.hook_add(UC_HOOK_CODE,xhook)
+for at in range(0,len(commands),48):
+ state=commands[at:at+28];tick,now,source,actor,mode=struct.unpack_from('<5I',commands,at+28)
+ x.mem_write(base,bytes(state));xcode=0
+ args=[base,now,callback,0] if tick else [base,now,source,actor,mode,callback,0]
+ x.mem_write(stack,pack(stop,*args));x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x37f)
+ x.emu_start(entries[tick],stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop
+ got=bytes(x.mem_read(base,28))+pack(x.reg_read(UC_X86_REG_EAX),xcode)
+ assert got==expected[(at//48)*36:(at//48+1)*36],('NXDK',at//48,got.hex())
+report=dict(result='PASS',pc_cases=len(commands)//48,nxdk_cases=len(commands)//48,cases=cases,tick_cases=tick_cases,retrigger_cases=3,counts=counts,no_automatic_propagation_types=excluded,special_delay_scale=dict(type=79,scale=scale),scope='Original 4b8b70, timer helpers, ftol and propagation predicate execute unchanged. Virtual actions and 4b8b00 link propagation intercepted; Delayed tick prefix 4b8ce0..4b8d45 executes unchanged; type-specific per-frame updates excluded. PC and compiled NXDK state/output/action-order match 3,780 cases with non-mutating callbacks. No actual event actions, callback mutation coverage or type-specific per-frame updates claimed.')
 (root/'artifacts/event-activation-verification.json').write_text(json.dumps(report,indent=2));print(report)

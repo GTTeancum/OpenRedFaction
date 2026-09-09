@@ -141,3 +141,7 @@ endif()
 target_sources(rf_core PRIVATE src/core/object_registry.c)
 add_executable(rf_object_registry_probe tests/object_registry_probe.c)
 target_link_libraries(rf_object_registry_probe PRIVATE rf_core)
+
+target_sources(rf_core PRIVATE src/core/event.c)
+add_executable(rf_event_probe tests/event_probe.c)
+target_link_libraries(rf_event_probe PRIVATE rf_core)
