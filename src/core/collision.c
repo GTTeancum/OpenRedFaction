@@ -280,3 +280,62 @@ int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
     if(value.hits)*result=value;
     *matched=value.hits!=0;return RF_OK;
 }
+
+static uint32_t split_axis(const float *lo,const float *hi)
+{
+    uint32_t axis=0;float y;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    unsigned short saved,control;
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,lo
+        mov edx,hi
+        fld dword ptr [edx]
+        fsub dword ptr [ecx]
+        fld dword ptr [edx+4]
+        fsub dword ptr [ecx+4]
+        fst y
+        fcomp st(1)
+        fnstsw ax
+        test ah,0x41
+        jnz split_z
+        fstp st(0)
+        fld y
+        mov axis,1
+    split_z:
+        fld dword ptr [edx+8]
+        fsub dword ptr [ecx+8]
+        fcomp st(1)
+        fnstsw ax
+        test ah,0x41
+        fstp st(0)
+        jnz split_done
+        mov axis,2
+    split_done:
+        fldcw saved
+    }
+#elif defined(__i386__) || defined(__x86_64__)
+    unsigned short saved,control;
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %[control]\n\tflds (%[hi])\n\tfsubs (%[lo])\n\tflds 4(%[hi])\n\tfsubs 4(%[lo])\n\tfsts %[y]\n\tfcomp %%st(1)\n\tfnstsw %%ax\n\ttestb $0x41,%%ah\n\tjnz 1f\n\tfstp %%st(0)\n\tflds %[y]\n\tmovl $1,%[axis]\n1:\n\tflds 8(%[hi])\n\tfsubs 8(%[lo])\n\tfcomp %%st(1)\n\tfnstsw %%ax\n\ttestb $0x41,%%ah\n\tfstp %%st(0)\n\tjnz 2f\n\tmovl $2,%[axis]\n2:\n\tfldcw %[saved]"
+        :[axis]"+m"(axis),[y]"=m"(y):[hi]"r"(hi),[lo]"r"(lo),[control]"m"(control),[saved]"m"(saved):"ax","cc","st","st(1)","memory");
+#else
+    long double span=(long double)hi[0]-lo[0],ys=(long double)hi[1]-lo[1];y=(float)ys;
+    if(ys>span) {axis=1;span=y;}if((long double)hi[2]-lo[2]>span)axis=2;
+#endif
+    return axis;
+}
+int rf_collision_partition(const rf_collision_node *node,const rf_collision_face *faces,
+    uint32_t count,uint8_t *labels,uint32_t *axis,uint32_t counts[3])
+{
+    uint32_t i,j,a,totals[3]={0,0,0};float center;
+    if(!node || !axis || !counts || (count && (!faces || !labels)))return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(node->minimum[j]) || !isfinite(node->maximum[j]) || node->minimum[j]>node->maximum[j])return RF_FORMAT;
+    for(i=0;i<count;i++)for(j=0;j<3;j++)if(!isfinite(faces[i].minimum[j]) || !isfinite(faces[i].maximum[j]) || faces[i].minimum[j]>faces[i].maximum[j] || faces[i].minimum[j]<node->minimum[j] || faces[i].maximum[j]>node->maximum[j])return RF_FORMAT;
+    a=split_axis(node->minimum,node->maximum);
+    center=(float)(((double)node->minimum[a]+node->maximum[a])*.5);
+    for(i=0;i<count;i++) {uint8_t group=faces[i].minimum[a]>=center?1:faces[i].maximum[a]<=center?2:0;labels[i]=group;totals[group]++;}
+    *axis=a;memcpy(counts,totals,sizeof(totals));return RF_OK;
+}

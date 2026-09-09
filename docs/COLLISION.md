@@ -318,3 +318,31 @@ invalid child, NaN fraction limit and traversed cycle with preserved outputs.
 Report: `artifacts/collision-tree-verification.json`. Both builds, the Live Mines
 initial-metadata regression and four CTest checks pass. This CPU fixture is not
 an XEMU gameplay traversal test; level hierarchy construction is still open.
+
+## Tree partition decision
+
+The builder chain is now traced: `0x4f9340` appends room faces in linked-list
+order, `0x4f8fd0` computes their union bounds and `0x4f9050` partitions. The
+recovered `rf_collision_partition` performs the decision before child allocation.
+It selects the longest axis using strict comparisons, retaining X on ties before
+Y and Z. Original Y-span rounding is preserved in the x86 comparison helper.
+Faces wholly in the upper half receive label 1; that test has precedence over
+the lower half (label 2). Faces crossing the split remain in the parent (0).
+Bounds must be finite, ordered and contained in the node. Errors preserve all
+outputs. The caller supplies the labels; there is no allocation or face mutation.
+
+The original only creates children if both labels 1 and 2 have nonzero counts.
+It moves faces in original order with append helper `0x4d30e0`, updates their
+node owner pointers, recomputes child union bounds, then builds left and right
+subtrees. That redistribution and allocation are not yet implemented by this
+decision helper. The resulting upper child occupies the original left slot,
+which traversal visits after the lower/right child.
+
+`python tools/verify_collision_partition.py` compares 2,000 original executions
+through the leaf/allocation boundary, then uses unchanged `0x4f8f90` for every
+face label. Axis, labels and group counts match; 1,917 cases can split. Fixtures
+use varied extents, exact split-plane ties, degenerate boxes and parent-spanning
+faces. Three port guards check NaN, inverted bounds and a face outside its node.
+All 2,003 fixtures also pass against the actual NXDK-linked helper in Unicorn.
+Report: `artifacts/collision-partition-verification.json`. PC/NXDK builds and
+four CTest checks pass. Full recursive trees and world queries remain open.

@@ -36,6 +36,18 @@ int main(int argc,char **argv)
         }
         rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--partition")) {
+        struct {float bounds[6],faces[8][6];} in;
+        struct {int32_t status;uint32_t axis,counts[3];uint8_t labels[8];} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_collision_node node;rf_collision_face faces[8];unsigned i;
+            memcpy(node.minimum,in.bounds,24);
+            for(i=0;i<8;i++)memcpy(faces[i].minimum,in.faces[i],24);
+            memset(&out,0xa5,sizeof(out));out.status=rf_collision_partition(&node,faces,8,out.labels,&out.axis,out.counts);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--tree")) {
         struct {rf_collision_node nodes[3];float z[3],start[3],delta[3],limit;uint32_t flags;} in;
         struct {int32_t status;uint32_t matched;rf_collision_tree_hit result;} out;

@@ -63,4 +63,10 @@ int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
     const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
     const float start[3],const float displacement[3],float limit,
     uint32_t *stack,uint32_t capacity,rf_collision_tree_hit *result,uint32_t *matched);
+/* 4f9050 split decision before allocation. Upper half is tested first;
+ * labels are 0=parent, 1=upper, 2=lower. Both child counts must be nonzero.
+ * Caller supplies count labels. No mutation of faces or node; invalid inputs
+ * preserve outputs. Node bounds must enclose all face bounds. */
+int rf_collision_partition(const rf_collision_node *node,const rf_collision_face *faces,
+    uint32_t count,uint8_t *labels,uint32_t *axis,uint32_t counts[3]);
 #endif
