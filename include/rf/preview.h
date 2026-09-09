@@ -14,5 +14,12 @@ typedef struct rf_preview_mesh { rf_preview_vertex *vertices; uint32_t count, by
  * 640x480, 90 degree horizontal FOV, +Z forward, 0.1..1000 depth range.
  * Temporary face shading keeps geometry inspectable until materials are restored. */
 int rf_preview_build(rf_preview_mesh *mesh, const rf_geometry *geometry, const rf_level *level, uint32_t budget);
+/* Same diagnostic projection/clipping for solid-local geometry at a supplied
+ * committed pose. material_base offsets its local texture slots into a caller
+ * material table; lightmap indices remain level-wide. Caller keeps inputs stable
+ * through both passes; close before reuse. Not original renderer reconstruction. */
+int rf_preview_build_transformed(rf_preview_mesh *mesh,const rf_geometry *geometry,
+    const rf_level *level,const float origin[3],const float matrix[3][3],
+    uint32_t material_base,uint32_t budget);
 void rf_preview_close(rf_preview_mesh *mesh);
 #endif

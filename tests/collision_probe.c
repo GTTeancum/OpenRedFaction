@@ -1,5 +1,6 @@
 #include "rf/collision.h"
 #include "rf/geometry.h"
+#include "rf/preview.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
@@ -179,6 +180,38 @@ int main(int argc,char **argv)
             if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
         }
         return ferror(stdin)?2:0;
+    }
+    if(argc==4 && !strcmp(argv[1],"--mover-preview")) {
+        rf_vpp archive;rf_level level;rf_geometry_movers movers={0};uint32_t i,j,k,pass,vertices=0,cases=0,shifted=0;
+        const float identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_movers_open(&level,8*1024*1024,&movers))return 2;
+        for(i=0;i<movers.count;i++) {
+            rf_geometry *g=&movers.items[i].geometry,baked=*g;rf_preview_mesh prior={0};baked.data=malloc(g->bytes);if(!baked.data)return 3;
+            for(pass=0;pass<3;pass++) {
+                rf_preview_mesh mesh={0},reference={0},exact={0},short_mesh={0};float origin[3]={0};const float (*matrix)[3]=pass?movers.items[i].orientation:identity;
+                memcpy(baked.data,g->data,g->bytes);memcpy(level.player_orientation,identity,36);
+                for(k=0;k<3;k++) {origin[k]=pass?movers.items[i].position[k]:0;level.player_position[k]=origin[k];if(pass==2)origin[k]+=(float)(k+1);}
+                level.player_position[2]-=20;
+                for(j=0;j<g->vertices;j++) {
+                    rf_collision_ray_hit local={0},world;if(rf_geometry_vertex(g,j,local.point) || rf_collision_contact_world(&local,origin,matrix,&world))return 4;
+                    memcpy(baked.data+g->vertices_offset+12*j,world.point,12);
+                }
+                for(j=0;j<g->faces;j++) {
+                    rf_geometry_face face;rf_collision_ray_hit local={0},world;if(rf_geometry_get_face(g,j,&face))return 4;memcpy(local.normal,face.plane,12);
+                    if(rf_collision_contact_world(&local,origin,matrix,&world))return 4;memcpy(baked.data+g->face_offsets[j],world.normal,12);
+                }
+                if(rf_preview_build_transformed(&mesh,g,&level,origin,matrix,17,8*1024*1024) || rf_preview_build(&reference,&baked,&level,8*1024*1024))return 5;
+                for(j=0;j<reference.count;j++)reference.vertices[j].material+=17;
+                if(mesh.count!=reference.count || mesh.bytes!=reference.bytes || (mesh.bytes && memcmp(mesh.vertices,reference.vertices,mesh.bytes)))return 6;
+                if(rf_preview_build_transformed(&exact,g,&level,origin,matrix,17,mesh.bytes) || exact.bytes!=mesh.bytes || (mesh.bytes && memcmp(exact.vertices,mesh.vertices,mesh.bytes)))return 7;
+                if(mesh.bytes && rf_preview_build_transformed(&short_mesh,g,&level,origin,matrix,17,mesh.bytes-1)!=RF_RANGE)return 8;
+                if(pass==2 && (prior.count!=mesh.count || (mesh.bytes && memcmp(prior.vertices,mesh.vertices,mesh.bytes))))shifted++;
+                vertices+=mesh.count;cases++;rf_preview_close(&prior);prior=mesh;
+                rf_preview_close(&reference);rf_preview_close(&exact);rf_preview_close(&short_mesh);
+            }
+            rf_preview_close(&prior);free(baked.data);
+        }
+        printf("%u %u %u %u\n",movers.count,cases,vertices,shifted);rf_geometry_movers_close(&movers);rf_vpp_close(&archive);return 0;
     }
     if(argc==4 && !strcmp(argv[1],"--member-groups")) {
         rf_vpp archive;rf_level level;rf_level_owned_groups source={0};rf_group_runtime_collection runtime={0};rf_geometry_movers movers={0};

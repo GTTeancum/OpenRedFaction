@@ -44,7 +44,9 @@ and actual handle registration. The four authored Live Mines door cycles now
 match 160 connected original activation/tick/propagation/commit steps on PC
 and compiled NXDK. The same 160 ticks now run on resident controllers/movers
 in stock 64 MiB XEMU with exact PC traces and collision-view synchronization;
-connect moving geometry to rendering and the frame loop.
+connect moving geometry to rendering and the frame loop. Shared transformed
+mover projection now passes 4,218 pose cases; load/remap mover materials and
+append their draw geometry to the scene before frame-loop integration.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

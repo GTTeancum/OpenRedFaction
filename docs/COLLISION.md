@@ -2266,3 +2266,27 @@ collision and renderer checks pass. There is no new screenshot because mover
 geometry is not yet submitted to rendering. Trigger obstruction, sound dispatch,
 crate rotation, real registry allocation and general-object/event behavior remain
 open; the diagnostic explicitly assumes unobstructed translation gates.
+
+
+### Transformed mover geometry for the shared renderer input
+
+`rf_preview_build_transformed` extends the existing diagnostic projection and
+clipping path to solid-local geometry at a committed origin/matrix. It uses the
+original-verified contact transform convention for vertices and face normals,
+preserves texture UVs and level lightmap indices, and offsets geometry-local
+material slots into a caller-managed scene texture table. The existing static
+entry point retains its untransformed behavior. Material overflow/reserved
+sentinel indices are rejected. This remains diagnostic rendering, not a claim
+that the original renderer/camera/material semantics have been reconstructed.
+
+`tools/verify_mover_preview.py` tests identity, authored and translated poses for
+all 1,406 movers across 68 levels: 4,218 pose cases and 597,693 emitted vertices.
+Full vertex bytes match the existing projection of geometry baked into world
+space, including transformed face-normal shading, UV/lightmap coordinates and
+material remapping. Exact/short mesh budgets pass. All 1,406 translated meshes
+change their projected result under the fixed inspection camera. PC/NXDK builds
+and the four standard tests pass.
+
+The transformed builder is available to both backends, but mover texture
+residency/remapping, adding these meshes to the scene draw list, and frame-loop
+motion integration are still open. No new scene image has been captured yet.
