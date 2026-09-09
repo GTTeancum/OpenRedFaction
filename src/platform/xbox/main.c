@@ -7,6 +7,7 @@
 #include "rf/animation_check.h"
 #include "renderer.h"
 #include <string.h>
+#include <stdio.h>
 #include <hal/debug.h>
 #include <hal/video.h>
 #include <windows.h>
@@ -17,6 +18,26 @@ volatile uint32_t rf_diagnostic[56] = {0x52464447u, 8u, 0};
 static rf_geometry resident_geometry;
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;
+static int model_preview(void)
+{
+    static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
+    rf_vpp meshes,archives[5];rf_model_file model;rf_model_materials bundle={0};rf_preview_mesh mesh={0};
+    uint32_t opened=0,i;int status;
+    status=rf_vpp_open(&meshes,"D:\\meshes.vpp");if(status)return status;
+    status=rf_model_file_open(&model,&meshes,"miner.v3c");
+    while(!status && opened<5) {status=rf_vpp_open(archives+opened,paths[opened]);if(!status)++opened;}
+    if(!status)status=rf_model_materials_open(&bundle,&model,archives,opened,4*1024*1024);
+    if(!status)status=rf_animation_preview("D:\\meshes.vpp","D:\\motions.vpp",0,&mesh,1024*1024);
+    if(!status)for(i=0;i<mesh.count;++i) {
+        uint32_t material=mesh.vertices[i].material;
+        if(material>=bundle.count) {status=RF_FORMAT;break;}
+        memcpy(&mesh.vertices[i].material,bundle.items[material].record.bytes+0x10,4);
+    }
+    if(!status) {rf_diagnostic[31]=1;status=rf_xbox_model_preview(&mesh,&bundle.textures,&rf_diagnostic[32],&rf_diagnostic[44]);}
+    rf_preview_close(&mesh);rf_model_materials_close(&bundle);
+    while(opened)rf_vpp_close(archives+--opened);
+    rf_vpp_close(&meshes);return status;
+}
 static int load_materials(void)
 {
     static const char *paths[] = {"D:\\maps1.vpp", "D:\\maps2.vpp", "D:\\maps3.vpp", "D:\\maps4.vpp", "D:\\maps_en.vpp"};
@@ -138,7 +159,9 @@ int main(void)
                         if (NT_SUCCESS(MmQueryStatistics(&memory))) rf_diagnostic[42] = memory.AvailablePages;
                         if (result == RF_OK) result = rf_preview_build(&mesh, &resident_geometry, &level, 8u*1024u*1024u);
                         if (result == RF_OK) {
-                            result = rf_xbox_preview(&mesh, &resident_materials, &resident_lightmaps, &rf_diagnostic[32], &rf_diagnostic[44]);
+                            FILE *model_flag=fopen("D:\\model-preview.flag","rb");
+                            if(model_flag) {fclose(model_flag);result=model_preview();}
+                            else result = rf_xbox_preview(&mesh, &resident_materials, &resident_lightmaps, &rf_diagnostic[32], &rf_diagnostic[44]);
                             rf_preview_close(&mesh);
                             if (NT_SUCCESS(MmQueryStatistics(&memory))) rf_diagnostic[47] = memory.AvailablePages;
                         }

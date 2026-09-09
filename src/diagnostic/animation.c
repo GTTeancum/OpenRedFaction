@@ -7,6 +7,7 @@
 #include "rf/effect.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 static uint32_t hash_bytes(uint32_t hash, const void *bytes, size_t count)
 {
@@ -31,7 +32,7 @@ static int reset_loaded_weapon(void *user)
     const rf_weapon_reset_ops ops={NULL,NULL,stop_reset_effect,NULL};
     return rf_weapon_reset(r->state,r->actor->weapon,r->descriptors,r->context,r->playback,r->resources,4,&ops,r);
 }
-int rf_animation_check(const char *meshes_path, const char *motions_path, uint32_t out[8])
+static int animation_run(const char *meshes_path,const char *motions_path,uint32_t out[8],rf_preview_mesh *preview,uint32_t preview_frame,uint32_t budget)
 {
     static const char *names[4]={"ult2_stand.rfa","ult2_crouch.rfa",
         "ult2_sidestep_left.rfa","ult2_sidestep_right.rfa"};
@@ -109,6 +110,7 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
     render_view.camera[2]=-100;render_view.rotation[0]=render_view.rotation[4]=render_view.rotation[8]=1;
     render_view.perspective=render_view.compute_clip=render_view.clipping=1;
     render_view.screen[0]=320;render_view.screen[1]=-240;render_view.screen[2]=320;render_view.screen[3]=240;
+    if(preview) {render_view.camera[2]=2.2f;render_view.rotation[0]=render_view.rotation[8]=-1;}
     render_lights.ambient[0]=40;render_lights.ambient[1]=50;render_lights.ambient[2]=60;
     out[1]=count;
     for (i=0;i<model.lods[0].attachment_count;++i) {
@@ -232,6 +234,20 @@ int rf_animation_check(const char *meshes_path, const char *motions_path, uint32
             if(triangle_output.index_count%3) {status=RF_FORMAT;goto done;}
             for(n=0;n<triangle_output.index_count;++n)if(render_indices[n]>=triangle_output.vertex_count) {status=RF_FORMAT;goto done;}
             emitted_indices+=triangle_output.index_count;
+            if(preview && frame==preview_frame) {
+                if(triangle_output.index_count>budget/sizeof(rf_preview_vertex)-preview->count) {status=RF_RANGE;goto done;}
+                for(n=0;n<triangle_output.index_count;++n) {
+                    const uint8_t *v=render_buffers.vertices[render_indices[n]];float xy[2],q,uv[2];
+                    rf_preview_vertex *p=preview->vertices+preview->count++;
+                    memcpy(xy,v,8);memcpy(&q,v+12,4);memcpy(uv,v+24,8);
+                    if(!isfinite(xy[0]) || !isfinite(xy[1]) || !isfinite(q) || q<=0) {status=RF_FORMAT;goto done;}
+                    p->position[0]=floorf(xy[0]*16)/16;p->position[1]=floorf(xy[1]*16)/16;
+                    p->position[2]=(1000.0f/999.9f)*(1-.1f*q)*16777215;
+                    p->color[0]=p->color[1]=p->color[2]=1;
+                    p->texture[0]=uv[0]*q;p->texture[1]=uv[1]*q;p->texture[2]=q;p->material=draw->material;
+                    p->lightmap_texture[0]=p->lightmap_texture[1]=0;p->lightmap_texture[2]=q;p->lightmap=UINT32_MAX;
+                }
+            }
         }
         out[2]=frame+1;
     }
@@ -246,4 +262,17 @@ done:
     if (opened) rf_vpp_close(&meshes);
     out[0]=status==RF_OK ? 2u : 0x80000000u | (uint32_t)(-status);
     return status;
+}
+
+int rf_animation_check(const char *meshes_path,const char *motions_path,uint32_t out[8])
+{ return animation_run(meshes_path,motions_path,out,NULL,0,0); }
+
+int rf_animation_preview(const char *meshes_path,const char *motions_path,uint32_t frame,rf_preview_mesh *mesh,uint32_t budget)
+{
+    uint32_t out[8];int status;
+    if(!mesh || mesh->vertices || frame>=64 || budget<sizeof(rf_preview_vertex))return RF_RANGE;
+    memset(mesh,0,sizeof(*mesh));mesh->vertices=malloc(budget);if(!mesh->vertices)return RF_IO;
+    status=animation_run(meshes_path,motions_path,out,mesh,frame,budget);
+    if(status || !mesh->count) {rf_preview_close(mesh);return status?status:RF_FORMAT;}
+    mesh->bytes=mesh->count*sizeof(rf_preview_vertex);return RF_OK;
 }

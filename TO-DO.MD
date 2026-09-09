@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+A textured, posed miner now renders on PC and 64 MiB XEMU, with a passing
+framebuffer comparison and translucent faceplate. Add visible animation playback,
+world placement, original lighting/material effects and PS2 visual comparison.
+
 Resident model batches now assemble triangle routing, clipping and emission,
 and real miner poses exercise index output on PC and 64 MiB XEMU. Independently
 compare full assembled batches and connect their materials/vertices/indices to

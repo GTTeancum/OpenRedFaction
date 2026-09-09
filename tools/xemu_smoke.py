@@ -190,14 +190,36 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         raise RuntimeError('Guest material allocations or decoded pixel checksum differ from reference')
                     if words[43] != 23:
                         raise RuntimeError('Guest lightmap load did not report 23 images')
-                    report['lightmaps'] = dict(count=words[43], mapping_validation='all resident mapping indices in range')
-                    if not 0 < words[44] <= words[47] <= words[3] or words[45:47] != [3624964, words[36]*56]:
+                    report['lightmaps'] = dict(count=words[43], mapping_validation='all resident level mapping indices in range; not used by model preview')
+                    expected_gpu_bytes=3624964
+                    if words[31]==1:
+                        names=set()
+                        rows=subprocess.check_output([str(root/'build/pc/Release/rf_model_file_probe.exe'),str(root/'Installed_Game/meshes.vpp'),'miner.v3c','--materials'],text=True)
+                        for row in rows.splitlines():
+                            if row.startswith('M '):
+                                raw=bytes.fromhex(row.split()[3])
+                                for offset in (0,48):
+                                    name=raw[offset:offset+32].split(b'\0')[0].decode('ascii').lower()
+                                    if name:names.add(name)
+                        expected_gpu_bytes=4
+                        for name in names:
+                            for archive_name in ('maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp'):
+                                source=next(f for f in inventory['files'] if f['path']==archive_name)
+                                asset=next((e for e in source['vpp']['entries'] if e['name'].lower()==name),None)
+                                if asset:
+                                    with (Path(inventory['root'])/archive_name).open('rb') as original:
+                                        original.seek(asset['offset']);data=original.read(asset['size'])
+                                    size=Image.open(io.BytesIO(data)).size;expected_gpu_bytes+=size[0]*size[1]*4;break
+                            else:raise RuntimeError('Missing model reference texture '+name)
+                    elif words[31]!=0:raise RuntimeError('Unknown preview scene')
+                    report['scene']='posed miner inspection' if words[31] else 'Live Mines static geometry'
+                    if not 0 < words[44] <= words[47] <= words[3] or words[45:47] != [expected_gpu_bytes, words[36]*56]:
                         raise RuntimeError('Unexpected GPU allocation or memory telemetry')
                     report['renderer_memory'] = dict(available_bytes_after_upload=words[44]*4096,
                         gpu_image_requested_bytes=words[45], gpu_vertex_requested_bytes=words[46],
                         available_bytes_after_cpu_mesh_release=words[47]*4096,
                         scope='Observed frozen scene, not full-game peak')
-                    report['materials'] = dict(loaded=words[38], allocated_bytes=words[39], pixel_checksum=hex(words[40]), missing=words[41], available_pages=words[42])
+                    report['materials'] = dict(loaded=words[38], allocated_bytes=words[39], pixel_checksum=hex(words[40]), missing=words[41], available_pages=words[42],scope='Validated resident level materials; model GPU image bytes are checked separately')
                     if words[33:35] != [640, 480] or words[35] < 640*4 or words[36] == 0 or words[37] != 3:
                         raise RuntimeError('Invalid native renderer capture descriptor')
                     if not args.no_capture:

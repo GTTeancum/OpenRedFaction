@@ -10,7 +10,7 @@ static uint32_t field(uint32_t mask, uint32_t value)
     while (!(mask & (1u << shift))) ++shift;
     return (value << shift) & mask;
 }
-typedef struct gpu_texture { uint32_t *pixels, format; } gpu_texture;
+typedef struct gpu_texture { uint32_t *pixels, format,transparent; } gpu_texture;
 static uint32_t swizzled(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
     uint32_t bit, out = 0, destination = 1;
@@ -30,6 +30,7 @@ static int upload(gpu_texture *out, const rf_image *image)
     if (!out->pixels) return RF_RANGE;
     for (y = 0; y < image->height; ++y) for (x = 0; x < image->width; ++x) {
         const unsigned char *p = image->rgba + (y*image->width+x)*4;
+        if(p[3]<255)out->transparent=1;
         out->pixels[swizzled(x,y,image->width,image->height)] = (uint32_t)p[3]<<24 | (uint32_t)p[0]<<16 | (uint32_t)p[1]<<8 | p[2];
     }
     out->format = field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA, 1) |
@@ -40,7 +41,7 @@ static int upload(gpu_texture *out, const rf_image *image)
         field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_U, u) | field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_V, v);
     return RF_OK;
 }
-int rf_xbox_preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3])
+static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model)
 {
     uint32_t *p, i, frame;
     rf_preview_vertex *gpu;
@@ -134,6 +135,10 @@ int rf_xbox_preview(const rf_preview_mesh *mesh, const rf_materials *materials, 
             while (count < 252 && i+count < mesh->count && mesh->vertices[i+count].material == material && mesh->vertices[i+count].lightmap == lightmap) count += 3;
             texture = material < materials->count && textures[material].pixels ? textures+material : textures+materials->count;
             p = pb_begin();
+            p = pb_push1(p,NV097_SET_BLEND_ENABLE,model && texture->transparent);
+            p = pb_push1(p,NV097_SET_DEPTH_MASK,!(model && texture->transparent));
+            p = pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
+            p = pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
             p = pb_push1(p, NV097_SET_TEXTURE_OFFSET, (uint32_t)texture->pixels & 0x03ffffff);
             p = pb_push1(p, NV097_SET_TEXTURE_FORMAT, texture->format);
             p = pb_push1(p, NV097_SET_TEXTURE_ADDRESS, 0x00010101);
@@ -160,3 +165,7 @@ int rf_xbox_preview(const rf_preview_mesh *mesh, const rf_materials *materials, 
     free(textures);
     return RF_OK;
 }
+int rf_xbox_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,volatile uint32_t capture[6],volatile uint32_t memory[3])
+{return preview(mesh,materials,lightmaps,capture,memory,0);}
+int rf_xbox_model_preview(const rf_preview_mesh *mesh,const rf_materials *materials,volatile uint32_t capture[6],volatile uint32_t memory[3])
+{rf_lightmaps empty={0};return preview(mesh,materials,&empty,capture,memory,1);}

@@ -1,3 +1,4 @@
 float4 main(float4 color : COLOR, float4 texture : TEXCOORD0, float4 lightmap : TEXCOORD1, uniform sampler2D image : TEXUNIT0, uniform sampler2D lighting : TEXUNIT1) : COLOR {
-    return tex2Dproj(image, texture) * color * tex2Dproj(lighting, lightmap) * 2.0;
+    float4 base = tex2Dproj(image, texture);
+    return float4(base.rgb * color.rgb * tex2Dproj(lighting, lightmap).rgb * 2.0, base.a);
 }

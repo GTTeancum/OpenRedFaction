@@ -1,5 +1,46 @@
 # Model batch data
 
+The first textured miner inspection now draws on both PC and stock-memory
+XEMU. `rf_animation_preview` evaluates the existing scripted pose sequence,
+collects one requested frame through the recovered batch and triangle pipeline,
+then converts its indexed 40-byte records into the existing preview backend's
+expanded vertices. The inspection uses a fixed front camera at Z=2.2, one-megabyte
+mesh allocation budget, full-bright texture display and the preview's screen-depth
+conversion/1/16-pixel grid. These camera, lighting and backend choices are
+diagnostic scaffolding, not recovered game presentation. Raw batch materials
+resolve through the loaded model instances' primary texture slots.
+
+The faceplate primary image is white with alpha ranging 0..89. Both preview
+backends now support source-alpha blending for this inspection; the Xbox
+fragment program preserves texture alpha separately from doubled RGB lighting.
+The Xbox disables depth writes for textures containing nonopaque pixels. This
+is basic inspection transparency in existing batch order: original sorting,
+secondary reflection textures (including RefMap01), material animation and
+world lighting remain open. There is no visible animation loop yet.
+
+PC invocation (from the repository root):
+```
+build/pc/Release/rf_pc_preview.exe --model Installed_Game/meshes.vpp Installed_Game/motions.vpp artifacts/miner-pose-front.ppm Installed_Game/maps1.vpp Installed_Game/maps2.vpp Installed_Game/maps3.vpp Installed_Game/maps4.vpp Installed_Game/maps_en.vpp
+```
+The Xbox diagnostic selects the same pose when its staged disc contains
+`model-preview.flag`; removing that file and rebuilding the ISO restores the
+Live Mines preview. Rebuild the ISO after changing the flag (the existing ISO
+can be removed explicitly before `tools/build-xbox.sh`). The normal archive,
+animation and level validations still run. Telemetry word 31 identifies model
+inspection as 1; level mode remains 0. Level texture/lightmap telemetry describes
+the validated resident level resources, while GPU allocation checks use the
+selected scene's textures. The harness derives model GPU texture bytes from
+original material names and independent image dimensions.
+
+`artifacts/xemu/20260908-214421-693301/report.json` records PASS on 64 MiB,
+447 triangles, 75,096 requested GPU vertex bytes and 794,628 requested GPU image
+bytes. Its native guest framebuffer was visually inspected: a complete miner
+pose, textures and transparent faceplate are visible. The PC comparison passes:
+10 of 307,200 pixels exceed channel error 3 (maximum 160 at differing pixels;
+mean per-pixel maximum error 0.00779). This is backend agreement for one pose,
+not original-game or PS2 visual parity. PC/NXDK builds and all four CTest checks
+pass. Screenshot capture was appropriate here because this is new visible output.
+
 `rf_model_geometry_emit_batch` connects resident triangles to the recovered
 routing, clip-input preparation, polygon walker and generated-vertex/fan
 emission. Direct triangles append their original indices plus a 16-bit base;
