@@ -209,6 +209,19 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--sweep")) {
+        struct {float plane[4],lo[3],hi[3],vertices[8][3],start[3],delta[3],limit;rf_collision_face_filter filter;uint32_t count;float normal_delta[3],radius;} in;
+        struct {int32_t status;uint32_t matched;rf_collision_sweep_hit hit;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_collision_face face;
+            memcpy(face.plane,in.plane,16);memcpy(face.minimum,in.lo,12);memcpy(face.maximum,in.hi,12);
+            face.vertices=in.vertices;face.count=in.count;face.filter=in.filter;
+            memset(&out.hit,0xa5,sizeof(out.hit));out.matched=0xa5a5a5a5;
+            out.status=in.count>8?RF_RANGE:rf_collision_sweep_face(&face,in.start,in.delta,in.normal_delta,in.radius,in.limit,&out.hit,&out.matched);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--thin")) {
         struct {float plane[4],lo[3],hi[3],vertices[8][3],start[3],delta[3],limit;rf_collision_face_filter filter;uint32_t count;} in;
         struct {int32_t status;uint32_t matched;rf_collision_ray_hit hit;} out;

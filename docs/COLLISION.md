@@ -746,3 +746,58 @@ Full PC and NXDK builds, four CTest checks and the 9,000-case sphere/plane
 regression pass. This is CPU-level verification, not guest execution of the new
 primitive. Finite-face composition, ordered edge traversal, actor movement
 response and XEMU sweep integration remain open; rendering is unchanged.
+
+## Finite-face sphere sweep composition
+
+`rf_collision_sweep_face` now reconstructs the geometric paths of `0x4dec10`
+with a fresh per-face hit count. It reuses the existing face filter and rejects
+unsupported texture-check modes 0x80/0x100 after filtering. Radius below the
+original binary32 threshold at `0x5894a0` (0.0001f) uses the thin-face path.
+Larger radii follow the original stages:
+
+1. Expand face bounds by radius (`0x436db0`, `0x436d70`), then test the center
+   segment against those bounds.
+2. Query the one-sided sphere/plane helper. A miss returns immediately. Reject a
+   plane fraction greater than the current limit; equality remains eligible.
+3. Test projected polygon containment. An interior contact commits the plane
+   normal, edge=0 and hits=1 immediately, without traversing edges.
+4. Otherwise form componentwise start/end bounds (`0x539460`), expand them by
+   radius (`0x465ee0`, `0x465ec0`), and walk ordered edges including the closing
+   last-to-first edge. Each edge must pass the segment/expanded-bounds test before
+   the asymmetric sphere/edge helper is called.
+5. Each improving edge contact tightens the fraction limit, increments hits and
+   replaces the contact. Edge fractions must be strictly below the current limit;
+   equal-time edges do not replace one another. The final edge flag is 1.
+
+Original query +0x60 supplies the sweep displacement, while +0x40 supplies the
+vector used to form the edge-response normal: normalize
+`start + normal_displacement * fraction - contact`. The port accepts these as
+separate arguments instead of assuming they are equal. Vector multiply, add and
+subtract retain their individual float stores. Normalization (`0x4faaf0`) sums
+X/Y/Z squares, takes the square root, and keeps the reciprocal length extended
+through each component store. The x86 helper restores the caller's x87 control
+word; the non-x86 long-double fallback remains unverified.
+
+The result contains fraction, contact, normal, edge classification and the number
+of improving contacts within this face. The wrapper does not reproduce an
+already-populated original output counter's return-value behavior: callers must
+accumulate counts across faces and preserve world identity themselves. Misses
+preserve the result and set matched=0; errors preserve both. As with other port
+geometry guards, malformed data returns an error. A degenerate edge-response
+normal producing nonfinite components returns RF_FORMAT rather than publishing
+the original unchecked NaNs. No allocation, original static scratch or runtime
+texture sampling is introduced.
+
+`python tools/verify_collision_sweep.py` passes 12,000 complete original calls
+against both PC and NXDK-linked CPU execution, with original geometric callees
+unchanged and static initialization already complete. Fixtures cover axial and
+rotated quadrilaterals, both windings, filters, below-threshold radii, independent
+normal displacement and six explicit plane/edge limit, direction and tangency
+cases. Exact output comparisons include 395 hits, 119 final edge contacts and
+11 cases with multiple improving edge hits. Five malformed-input guards pass.
+Report: `artifacts/collision-sweep-verification.json`.
+
+Both builds and four CTest checks pass. The 6,000-case thin-face, 9,000-case
+sphere/plane and 9,013-case sphere/edge comparisons remain green. Swept room-tree
+and world traversal, transformed-query composition, texture modes, actor response
+and guest execution of this new sweep remain open. There is no visual change.

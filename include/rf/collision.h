@@ -60,6 +60,18 @@ typedef struct rf_collision_ray_hit {float fraction,point[3],normal[3];} rf_coll
  * error. This does not walk the world, increment original counters or own faces. */
 int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     const float displacement[3],float limit,rf_collision_ray_hit *result,uint32_t *matched);
+typedef struct rf_collision_sweep_hit {
+    rf_collision_ray_hit hit;uint32_t edge,hits;
+} rf_collision_sweep_hit;
+/* Geometric 4dec10 sweep with fresh hit count. Query +60 displacement drives
+ * contact; separate +40 normal_displacement drives edge response normals.
+ * Radius below 0.0001 uses thin path. Ordered vertices close the edge loop.
+ * Unsupported texture flags, errors and misses follow thin_face conventions.
+ * No world traversal, transforms or actor response; no allocation. */
+int rf_collision_sweep_face(const rf_collision_face *face,const float start[3],
+    const float displacement[3],const float normal_displacement[3],float radius,
+    float limit,rf_collision_sweep_hit *result,uint32_t *matched);
+
 typedef struct rf_collision_node {
     float minimum[3],maximum[3];
     uint32_t first_face,face_count,left,right; /* UINT32_MAX means no child. */

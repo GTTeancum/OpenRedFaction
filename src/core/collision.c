@@ -658,6 +658,118 @@ int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     *matched=hit;return RF_OK;
 }
 
+/* 4faaf0: reciprocal length remains extended through component stores. */
+static void sweep_normalize(float normal[3])
+{
+#if (defined(_MSC_VER) && defined(_M_IX86)) || defined(__i386__)
+    unsigned short saved,control;
+#if defined(_MSC_VER)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,normal
+        fld dword ptr [ecx]
+        fmul dword ptr [ecx]
+        fld dword ptr [ecx+4]
+        fmul dword ptr [ecx+4]
+        faddp st(1),st(0)
+        fld dword ptr [ecx+8]
+        fmul dword ptr [ecx+8]
+        faddp st(1),st(0)
+        fsqrt
+        fld1
+        fdivrp st(1),st(0)
+        fld st(0)
+        fmul dword ptr [ecx]
+        fstp dword ptr [ecx]
+        fld st(0)
+        fmul dword ptr [ecx+4]
+        fstp dword ptr [ecx+4]
+        fmul dword ptr [ecx+8]
+        fstp dword ptr [ecx+8]
+        fldcw saved
+    }
+#else
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "fld dword ptr [ecx]\n\t"
+        "fmul dword ptr [ecx]\n\t"
+        "fld dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [ecx+4]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fld dword ptr [ecx+8]\n\t"
+        "fmul dword ptr [ecx+8]\n\t"
+        "faddp st(1),st(0)\n\t"
+        "fsqrt\n\t"
+        "fld1\n\t"
+        "fdivrp st(1),st(0)\n\t"
+        "fld st(0)\n\t"
+        "fmul dword ptr [ecx]\n\t"
+        "fstp dword ptr [ecx]\n\t"
+        "fld st(0)\n\t"
+        "fmul dword ptr [ecx+4]\n\t"
+        "fstp dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [ecx+8]\n\t"
+        "fstp dword ptr [ecx+8]\n\t"
+        ".att_syntax prefix"::"c"(normal):"memory","st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#endif
+#else
+    long double reciprocal=1/sqrtl(((long double)normal[0]*normal[0]+(long double)normal[1]*normal[1])+(long double)normal[2]*normal[2]);
+    unsigned j;for(j=0;j<3;j++)normal[j]=(float)(normal[j]*reciprocal);
+#endif
+}
+
+int rf_collision_sweep_face(const rf_collision_face *face,const float start[3],
+    const float displacement[3],const float normal_displacement[3],float radius,
+    float limit,rf_collision_sweep_hit *result,uint32_t *matched)
+{
+    rf_collision_sweep_hit value;float lo[3],hi[3],end[3],scratch[3];uint32_t hit,j,i;int status;
+    if(!face || !start || !displacement || !normal_displacement || !result || !matched)return RF_RANGE;
+    if(!isfinite(radius) || radius<0 || !isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    value.hits=0;value.edge=0;
+    if(radius<.0001f) {
+        status=rf_collision_thin_face(face,start,displacement,limit,&value.hit,&hit);if(status)return status;
+        if(hit) {value.hits=1;*result=value;}*matched=hit;return RF_OK;
+    }
+    status=rf_collision_face_accept(&face->filter,&hit);if(status)return status;
+    if(!hit)goto miss;
+    if(face->filter.query_flags&0x180u)return RF_NOT_FOUND;
+    for(j=0;j<3;j++) {
+        if(!isfinite(start[j]) || !isfinite(displacement[j]) || !isfinite(normal_displacement[j]))return RF_FORMAT;
+        end[j]=start[j]+displacement[j];lo[j]=face->minimum[j]-radius;hi[j]=face->maximum[j]+radius;
+    }
+    status=rf_collision_segment_box(lo,hi,start,end,scratch,&hit);if(status)return status;if(!hit)goto miss;
+    status=rf_collision_sphere_plane(start,displacement,radius,face->plane,&value.hit.fraction,value.hit.point,&hit);if(status)return status;if(!hit)goto miss;
+    if(value.hit.fraction>limit)goto miss;
+    status=rf_collision_polygon_contains(face->plane,value.hit.point,face->vertices,face->count,&hit);if(status)return status;
+    if(hit) {memcpy(value.hit.normal,face->plane,12);value.hits=1;goto accept;}
+    for(j=0;j<3;j++) {
+        lo[j]=(start[j]<end[j]?start[j]:end[j])-radius;
+        hi[j]=(start[j]<end[j]?end[j]:start[j])+radius;
+    }
+    for(i=0;i<face->count;i++) {
+        rf_collision_ray_hit candidate;
+        const float *a=face->vertices[i],*b=face->vertices[(i+1)%face->count];
+        status=rf_collision_segment_box(lo,hi,a,b,scratch,&hit);if(status)return status;if(!hit)continue;
+        status=rf_collision_sphere_edge(start,displacement,radius,a,b,limit,&candidate.fraction,candidate.point,&hit);if(status)return status;if(!hit)continue;
+        for(j=0;j<3;j++) {
+            volatile float scaled=normal_displacement[j]*candidate.fraction;
+            volatile float center=start[j]+scaled;candidate.normal[j]=center-candidate.point[j];
+        }
+        sweep_normalize(candidate.normal);
+        for(j=0;j<3;j++)if(!isfinite(candidate.normal[j]))return RF_FORMAT;
+        value.hit=candidate;value.edge=1;value.hits++;limit=candidate.fraction;
+    }
+    if(!value.hits)goto miss;
+ accept:
+    *result=value;*matched=1;return RF_OK;
+ miss:
+    *matched=0;return RF_OK;
+}
+
 int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
     const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
     const float start[3],const float displacement[3],float limit,

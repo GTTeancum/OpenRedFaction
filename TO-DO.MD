@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Sphere/edge sweeps now match 9,013 original calls on PC and NXDK; combine
-plane, polygon and ordered-edge tests into finite-face sweeps, then recover
-actor movement response and validate the new sweep in XEMU.
+Finite-face sweeps now match 12,000 complete original calls on PC and NXDK;
+extend room-tree/world queries to swept radii, recover actor movement response,
+and validate the new sweep in XEMU.
 
 Zero-radius collision tree traversal now matches 1,800 complete original calls;
 recover tree construction and world room selection, then connect loaded geometry
