@@ -1844,3 +1844,44 @@ are flushed after attaching observers, so previously executed helper blocks
 also receive their call observations. Both builds and all four CTest checks
 pass. These fixtures allow all external gates and have absent event links and
 disabled sound handles; this is not yet scene gameplay or attached-mover motion.
+
+### Complete original attached translation propagation
+
+46bbe0 is the attachment propagation pass. Its 0x612c stack allocation uses the
+unchanged stack-probe helper 5754d0. The force argument is read at adjusted
+stack+6140. Current raw Ghidra output incorrectly removes the propagation
+portion as unreachable; direct instructions and complete-function execution
+below establish that it runs. Do not use that truncated decompilation as
+evidence that this function only collects memberships.
+
+Collector 46c150 groups handles into 24-byte records containing the handle,
+byte contribution count, byte dirty-contribution count and controller pointers.
+The record has space for four pointers; the observed implementation has no
+capacity check. The pass visits controllers in list order, taking +2cc handles
+before +2c0 handles. Both lists use exact runtime-handle lookup; +2c0 additionally
+excludes object flag 08000000. Duplicate contributions are retained. An object
+updates when force is set or at least one contributor has mask 80000008 set;
+once updating, all collected controllers contribute, including clean ones.
+
+For translation without controller flag 800, the pass starts from object base
+position +238 and base matrix +244. Each controller contributes its pending
++f0 minus first-key position, with float stores on subtraction and each sum.
+The resulting orientation copies to +48, +fc and +120. Ordinary updates derive
+velocity as float((target-committed)/dt), then pending as committed plus the
+float-rounded velocity*dt. Forced updates instead assign target directly to
+committed/pending positions and clear velocity. Object dirty bit 04000000 is
+set. Bounds enclose committed and pending positions, then expand by +180
+radius, including the original nonpositive-radius behavior.
+
+`python tools/probe_group_propagation.py` executes complete unchanged 46bbe0,
+including stack probe, collection, lookup, pose and bounds helpers. All 2,000
+fixtures pass whole-mover-byte comparisons: 633 updates, including 354 forced
+updates and 171 updates with multiple contributions. In 200 ordinary updates,
+the velocity round trip produces a pending position different from the direct
+target. Inputs cover both membership lists, absent/stale/duplicate handles,
+dirty gating and positive/nonpositive radii. The fixture stays within four
+contributions. Report: `artifacts/group-propagation-original.json`.
+
+This establishes the translation path, not rotation, flag-800 orientation
+alignment, collision response, production C propagation or initialization of
+the base-pose fields from real level objects. Those remain open. No render change.

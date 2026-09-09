@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Staged C translation runtime matches 1,600 original ticks with dwell;
-implement the exposed trigger/event boundaries and attached-object pose
-propagation, then connect authored controllers to the scene.
+Original attached translation propagation passes 2,000 full-function fixtures;
+port its ordered contributions and velocity-derived pending pose, then connect
+authored movers and the remaining trigger/event boundaries to the scene.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
