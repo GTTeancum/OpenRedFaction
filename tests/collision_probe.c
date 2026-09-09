@@ -10,6 +10,67 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==4 && !strcmp(argv[1],"--combined-world")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry={0};rf_geometry_movers source={0};
+        rf_geometry_collision_world world={0};rf_geometry_collision_movers movers={0},empty={0};
+        uint32_t *ids,i,j,k,pass,group,queries=0,hits=0,moving_hits=0,static_hits=0,hash[2]={2166136261u,2166136261u},bytes;
+        void *poison=NULL;int status;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,8*1024*1024))return 2;
+        if(rf_geometry_collision_world_open(&geometry,8*1024*1024,&world))return 3;
+        status=rf_geometry_movers_open(&level,8*1024*1024,&source);if(status && status!=RF_NOT_FOUND)return 4;
+        ids=(uint32_t *)malloc(source.count?source.count*4:4);if(!ids)return 5;
+        for(i=0;i<source.count;i++)ids[i]=0x12340000+i;
+        if(rf_geometry_collision_movers_open(&source,ids,8*1024*1024,&movers))return 6;
+        free(ids);bytes=geometry.bytes+source.allocated_bytes;
+        for(pass=0;pass<2;pass++) {
+            for(group=0;group<2;group++)for(i=0;i<(group?movers.count:world.room_count);i++) {
+                const rf_collision_face *faces=group?movers.owned[i].faces:world.rooms[i].tree.faces;
+                uint32_t count=group?movers.owned[i].count:(world.rooms[i].tree.face_count?1:0);
+                for(j=0;j<count;j++) {
+                    const rf_collision_face *face=faces+j;float start[3],end[3],delta[3];uint32_t v,visible;
+                    rf_collision_ray_hit local={0},global;
+                    struct {int32_t status;uint32_t matched;rf_collision_solid_hit hit;} out;
+                    const unsigned char *raw=(const unsigned char *)&out;
+                    for(v=0;v<face->count;v++)for(k=0;k<3;k++)local.point[k]+=face->vertices[v][k];
+                    for(k=0;k<3;k++) {local.point[k]/=face->count;local.normal[k]=face->plane[k];}
+                    global=local;
+                    if(group && rf_collision_contact_world(&local,movers.views[i].output_origin,movers.views[i].output_matrix,&global))return 7;
+                    for(k=0;k<3;k++) {
+                        start[k]=global.point[k]+global.normal[k]+.0037f*(k+1);
+                        end[k]=global.point[k]-global.normal[k]+.005f*(k+1);delta[k]=end[k]-start[k];
+                    }
+                    if(!group) {
+                        rf_geometry_world_hit reference;rf_collision_solid_hit mapped;uint32_t a,b;
+                        if(rf_geometry_collision_world_ray(&world,0x464,start,delta,1,&reference,&a) ||
+                            rf_geometry_collision_ray(&world,&empty,start,end,0x26,&mapped,&b) || a!=b)return 8;
+                        if(a && (memcmp(&reference.hit,&mapped.hit,28) || reference.face!=mapped.face_index || reference.room!=mapped.room || mapped.solid_index!=UINT32_MAX))return 9;
+                    }
+                    memset(&out,0xa5,sizeof(out));out.status=rf_geometry_collision_ray(&world,&movers,start,end,0x26,&out.hit,&out.matched);
+                    if(out.status || rf_geometry_collision_ray(&world,&movers,start,end,0x26,NULL,&visible) || out.matched!=visible)return 10;
+                    if(!pass) {queries++;hits+=out.matched;}
+                    if(out.matched) {
+                        if(out.hit.solid_index!=UINT32_MAX) {
+                            if(out.hit.solid_index>=movers.count || out.hit.face_index>=movers.owned[out.hit.solid_index].count ||
+                                out.hit.object_id!=movers.views[out.hit.solid_index].object_id || out.hit.room!=UINT32_MAX)return 11;
+                            if(!pass)moving_hits++;
+                        } else {
+                            const rf_collision_tree *tree;uint32_t found=0;
+                            if(out.hit.room>=world.room_count || out.hit.object_id!=UINT32_MAX)return 12;
+                            tree=&world.rooms[out.hit.room].tree;
+                            for(v=0;v<tree->face_count;v++)if(tree->source_indices[v]==out.hit.face_index)found=1;
+                            if(!found)return 13;
+                            if(!pass)static_hits++;
+                        }
+                    }
+                    for(k=0;k<sizeof(out);k++)hash[pass]=(hash[pass]^raw[k])*16777619u;
+                }
+            }
+            if(!pass) {rf_geometry_close(&geometry);rf_geometry_movers_close(&source);rf_vpp_close(&archive);poison=malloc(bytes);if(!poison)return 14;memset(poison,0xdd,bytes);}
+        }
+        if(hash[0]!=hash[1])return 15;
+        printf("%u %u %u %u %u %u %u %u\n",world.room_count,movers.count,queries,hits,moving_hits,static_hits,hash[0],world.allocated_bytes+movers.allocated_bytes);
+        free(poison);rf_geometry_collision_world_close(&world);rf_geometry_collision_movers_close(&movers);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--bound-movers")) {
         rf_vpp archive;rf_level level;rf_geometry_movers source={0};
         rf_geometry_collision_movers owned={0},exact={0},guard;uint32_t *ids,i;

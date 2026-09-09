@@ -1416,3 +1416,40 @@ and peak requests are both 201,460 bytes across the installed levels. Report:
 `artifacts/mover-binding-verification.json`. Both builds and four CTest checks
 pass. Combined loaded world/mover query verification, XEMU, runtime registration,
 changing poses and lifetime remain open. No visible result changed.
+
+
+### Combined loaded world and mover ray path
+
+`rf_geometry_collision_ray` combines owned mover views with the resident static
+world through the recovered 498e80 wrapper. Static tree face indices map back to
+file face IDs; mover face indices retain file order. Runtime handles and nullable
+visibility semantics are preserved. Queries allocate nothing and share world
+tree scratch. This does not implement actor movement or mutable mover state.
+
+`python tools/verify_combined_world.py` passes 41,910 queries across all 94 levels:
+37,348 hits, including 25,134 mover hits and 12,214 static hits. Queries use the
+first face of each nonempty static room and every mover face with its initial
+pose. Tests check static-only agreement with the existing world query, ownership
+of every hit identity, visibility-only agreement, and exact output replay after
+closing source geometry/archive and poisoning the released storage. Largest
+combined retained request is 2,132,876 bytes. Report:
+`artifacts/combined-world-verification.json`. This is integration evidence over
+previously compared primitives/wrappers, not a complete original loaded-world
+execution comparison.
+
+The Xbox diagnostic now loads and retains Live Mines' five mover collision
+views. Their initial bounds and poses use the shared reconstructed routines;
+source mover geometry is freed before queries. Diagnostic runtime handles are
+explicitly supplied and remain separate from file UIDs. A native memory telemetry
+block reports combined results; the smoke harness compares a fresh PC run.
+
+`python tools/xemu_smoke.py --scene-states --no-capture` passes in exactly 64 MiB:
+148 queries / 148 hits, 90 mover hits and 58 static hits, checksum e561d46f.
+Mover retained and peak requests are both 12,284 bytes, alongside 1,570,360
+retained static collision bytes. Available memory after mover setup is 61,493,248
+bytes. Previous static ray/sweep checks and the 64-frame authored animation
+sequence also pass. Report:
+`artifacts/xemu/20260909-062341-789122/report.json`. Both builds and four CTest
+checks pass. No screenshot was captured because the visible scene is unchanged.
+Runtime handle allocation, moving-group pose updates/destruction and actor
+movement response remain open.

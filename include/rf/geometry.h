@@ -148,4 +148,12 @@ typedef struct rf_geometry_world_sweep_hit {
 int rf_geometry_collision_world_sweep(const rf_geometry_collision_world *world,
     uint32_t flags,const float start[3],const float delta[3],float radius,float limit,
     rf_geometry_world_sweep_hit *result,uint32_t *matched);
+/* Ordered initial movers then static world, using geometric 498e80 semantics.
+ * Static hits map tree indices to file face IDs; mover indices remain file
+ * creation order and their face indices remain file order. Runtime handles
+ * are preserved. NULL result performs the original visibility-only path.
+ * No allocation; serialize queries sharing world tree scratch. */
+int rf_geometry_collision_ray(const rf_geometry_collision_world *world,
+    const rf_geometry_collision_movers *movers,const float start[3],const float end[3],
+    uint32_t flags,rf_collision_solid_hit *result,uint32_t *matched);
 #endif

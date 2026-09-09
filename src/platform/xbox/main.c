@@ -10,6 +10,7 @@
 #include "renderer.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <hal/debug.h>
 #include <hal/video.h>
 #include <windows.h>
@@ -21,6 +22,49 @@ static rf_geometry resident_geometry;
 static rf_geometry_collision_world resident_collision;
 volatile uint32_t rf_collision_diagnostic[9]={0x52464357u};
 volatile uint32_t rf_sweep_diagnostic[8]={0x52465357u};
+static rf_geometry_collision_movers resident_movers;
+volatile uint32_t rf_mover_diagnostic[12]={0x52464d56u};
+static int mover_check(const rf_level *level)
+{
+    rf_geometry_movers source={0};uint32_t *ids=NULL,i,j,k,v,group,hash=2166136261u;
+    int status;MM_STATISTICS memory={0};
+    status=rf_geometry_movers_open(level,1024u*1024u,&source);if(status)goto done;
+    ids=(uint32_t *)malloc(source.count?source.count*4:4);if(!ids) {status=RF_RANGE;goto done;}
+    for(i=0;i<source.count;i++)ids[i]=0x12340000+i; /* Diagnostic handles, not gameplay registration. */
+    status=rf_geometry_collision_movers_open(&source,ids,1024u*1024u,&resident_movers);
+    free(ids);ids=NULL;rf_geometry_movers_close(&source);if(status)goto done;
+    rf_mover_diagnostic[2]=resident_movers.count;rf_mover_diagnostic[3]=resident_movers.allocated_bytes;
+    rf_mover_diagnostic[4]=resident_movers.peak_bytes;
+    for(group=0;group<2;group++)for(i=0;i<(group?resident_movers.count:resident_collision.room_count);i++) {
+        const rf_collision_face *faces=group?resident_movers.owned[i].faces:resident_collision.rooms[i].tree.faces;
+        uint32_t count=group?resident_movers.owned[i].count:(resident_collision.rooms[i].tree.face_count?1:0);
+        for(j=0;j<count;j++) {
+            const rf_collision_face *face=faces+j;float start[3],end[3];uint32_t visible;
+            rf_collision_ray_hit local={0},global;
+            struct {int32_t status;uint32_t matched;rf_collision_solid_hit hit;} out;
+            const unsigned char *raw=(const unsigned char *)&out;
+            for(v=0;v<face->count;v++)for(k=0;k<3;k++)local.point[k]+=face->vertices[v][k];
+            for(k=0;k<3;k++) {local.point[k]/=face->count;local.normal[k]=face->plane[k];}
+            global=local;
+            if(group) {status=rf_collision_contact_world(&local,resident_movers.views[i].output_origin,resident_movers.views[i].output_matrix,&global);if(status)goto done;}
+            for(k=0;k<3;k++) {start[k]=global.point[k]+global.normal[k]+.0037f*(k+1);end[k]=global.point[k]-global.normal[k]+.005f*(k+1);}
+            memset(&out,0xa5,sizeof(out));out.status=rf_geometry_collision_ray(&resident_collision,&resident_movers,start,end,0x26,&out.hit,&out.matched);
+            rf_mover_diagnostic[5]++;
+            if(out.status) {status=out.status;goto done;}
+            status=rf_geometry_collision_ray(&resident_collision,&resident_movers,start,end,0x26,NULL,&visible);
+            if(status || visible!=out.matched) {status=RF_FORMAT;goto done;}
+            rf_mover_diagnostic[6]+=out.matched;
+            if(out.matched)rf_mover_diagnostic[out.hit.solid_index==UINT32_MAX?8:7]++;
+            for(k=0;k<sizeof(out);k++)hash=(hash^raw[k])*16777619u;
+        }
+    }
+    rf_mover_diagnostic[9]=hash;memory.Length=sizeof(memory);
+    if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_mover_diagnostic[10]=memory.AvailablePages;
+ done:
+    free(ids);rf_geometry_movers_close(&source);rf_mover_diagnostic[1]=status?(uint32_t)status:1;
+    if(status)rf_mover_diagnostic[11]++;
+    return status;
+}
 static int sweep_check(void)
 {
     uint32_t i,j,k,q,hash=2166136261u;MM_STATISTICS memory={0};
@@ -45,7 +89,7 @@ static int sweep_check(void)
     rf_sweep_diagnostic[1]=rf_sweep_diagnostic[5]?(uint32_t)RF_FORMAT:1;
     return rf_sweep_diagnostic[5]?RF_FORMAT:RF_OK;
 }
-static int collision_check(void)
+static int collision_check(const rf_level *level)
 {
     uint32_t i,j,k,hash=2166136261u;MM_STATISTICS memory={0};int status;
     status=rf_geometry_collision_world_open(&resident_geometry,8u*1024u*1024u,&resident_collision);
@@ -65,7 +109,8 @@ static int collision_check(void)
     rf_collision_diagnostic[7]=hash;memory.Length=sizeof(memory);
     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_collision_diagnostic[8]=memory.AvailablePages;
     rf_collision_diagnostic[1]=rf_collision_diagnostic[6]?(uint32_t)RF_FORMAT:1;
-    return rf_collision_diagnostic[6]?RF_FORMAT:sweep_check();
+    if(rf_collision_diagnostic[6])return RF_FORMAT;
+    status=sweep_check();return status?status:mover_check(level);
 }
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;
@@ -280,7 +325,7 @@ int main(void)
                     debugPrint("Geometry: %u vertices, %u faces, %u bytes\n", resident_geometry.vertices, resident_geometry.faces, resident_geometry.allocated_bytes);
                     {
                         rf_preview_mesh mesh;
-                        result = collision_check();
+                        result = collision_check(&level);
                         if(result == RF_OK) result = rf_lightmaps_open(&resident_lightmaps, &level, 4u*1024u*1024u);
                         if (result == RF_OK) {
                             uint32_t mapping, image;

@@ -86,6 +86,9 @@ def main():
     sweep_symbol=re.search(r'_rf_sweep_diagnostic\s+([0-9a-fA-F]+)',map_text)
     if not sweep_symbol:raise RuntimeError('Sweep diagnostic symbol absent')
     sweep_reference=list(map(int,subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--world-sweep',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl']).split()))
+    mover_symbol=re.search(r'_rf_mover_diagnostic\s+([0-9a-fA-F]+)',map_text)
+    if not mover_symbol:raise RuntimeError('Mover diagnostic symbol absent')
+    mover_reference=list(map(int,subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--combined-world',str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl']).split()))
     run = root / 'artifacts/xemu' / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     run.mkdir(parents=True)
     eeprom = run / 'eeprom.bin'
@@ -165,6 +168,14 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     if len(sweep)!=8 or sweep[:2]!=[0x52465357,1] or sweep[2:7]!=want or not 0<sweep[7]<=words[3]:
                         raise RuntimeError(f'Guest world sweeps differ from PC: {sweep}; reference {want}')
                     report['collision_sweeps']=dict(queries=sweep[2],hits=sweep[3],edge_hits=sweep[4],errors=sweep[5],checksum=hex(sweep[6]),available_bytes_after_sweeps=sweep[7]*4096,scope='Three finite-radius queries per nonempty Live Mines room; exact PC output hash including level face IDs and edge normals. No actor movement response.')
+                    mover_reply=monitor.command('human-monitor-command',{'command-line':f'x /12wx 0x{int(mover_symbol[1],16):x}'})
+                    mover=[]
+                    for line in mover_reply.splitlines():
+                        if ':' in line:mover.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
+                    want=mover_reference[2:7]
+                    if len(mover)!=12 or mover[:3]!=[0x52464d56,1,mover_reference[1]] or mover[5:10]!=want or mover[11] or not 0<mover[10]<=words[3] or mover[3]+collision[2]!=mover_reference[7] or mover[4]<mover[3]:
+                        raise RuntimeError(f'Guest combined mover query differs from PC: {mover}; reference {mover_reference}')
+                    report['collision_movers']=dict(count=mover[2],retained_bytes=mover[3],peak_bytes=mover[4],queries=mover[5],hits=mover[6],moving_hits=mover[7],static_hits=mover[8],checksum=hex(mover[9]),available_bytes_after_build=mover[10]*4096,scope='Initial owned movers retained with world/rendering. Combined ray output and nullable visibility match PC; diagnostic handles, no gameplay registration or pose updates.')
                     replacements=[];skin_checksum=0
                     if args.skin:
                         assets=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),str(root/'Installed_Game/tables.vpp'),'miner1',args.skin],text=True).splitlines()

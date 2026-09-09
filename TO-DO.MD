@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Owned initial collision bindings now pass for all 1,406 movers; verify
-combined world/mover queries and run this path in 64 MiB XEMU, then recover
-runtime handle registration, later pose updates and lifetime.
+Combined world/mover queries now pass 41,910 PC cases and 148 Live Mines
+cases in 64 MiB XEMU; recover runtime handle registration, moving-group
+pose updates and lifetime before gameplay movement integration.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
