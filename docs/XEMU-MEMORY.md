@@ -791,3 +791,36 @@ no framebuffer was captured. Both builds and all four CTests pass. The live
 fixture still has no blocked standing, support loss or movement contacts; this
 run does not establish those cases or movement across ice and other surfaces.
 Moving-object surface policy and original spawn/lifecycle integration remain open.
+
+
+## Blocked and clear standing against the resident ceiling
+
+`actor_stance_update` now owns the existing scene stance decision and is also
+used by a bounded test at frame 47. Original 428abe..428acc returns immediately
+when 499ed0 reports an obstruction; sphere-center and flag updates occur only
+in the following clear branch. The shared decision follows that ordering.
+
+The test copies the actual crouched actor and its sphere records, sweeps upward
+to the first real ceiling, and tries standing from 0.2 units below that contact.
+It then tries from a lower clear position. Blocked standing must preserve every
+sphere byte, movement setting and stance flag; clear standing must install the
+standing centers and normal movement mode. Body ownership, settings and flags
+are restored afterward. No allocations or host input are introduced. This is
+a prepared world-clearance test on the scene helper, not a traversable low-tunnel
+route, and it does not execute the original world-query routine.
+
+Guest symbols `rf_scene_actor_clearance_diagnostic` (32 bytes) and
+`rf_scene_actor_clearance_queries` (96 bytes) expose both decisions, sphere IDs,
+endpoints, hit normals/fractions and preservation hashes. Run
+`artifacts/xemu/20260909-170239-776884/report.json` passes on stock 64 MiB XEMU.
+All 32 words match PC. The blocked test hits sphere 2 at fraction 0.41690731
+with normal Y -0.96733391; the clear query returns fraction 1 and no sphere.
+The original 64-frame actor comparisons still pass. Both builds, four CTests
+and passive/short-pulse/sustained-input PC scene checks pass. No framebuffer
+was captured because the rendered trajectory is unchanged.
+
+Remaining integration issue: the diagnostic animation schedule can request a
+standing pose independently of a refused collider switch. A real movement
+controller must keep animation and accepted collision stance consistent. This
+test proves refusal preserves collider/settings state, not animation behavior
+under a low ceiling. Support-loss traversal and original spawn pose remain open.

@@ -19,6 +19,8 @@ extern float rf_scene_actor_input_frames[64][3];
 extern uint32_t rf_scene_actor_contact_count,rf_scene_actor_contacts[64][25];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_stance_frames[64][4];
+extern uint32_t rf_scene_actor_clearance_diagnostic[8];
+extern float rf_scene_actor_clearance_queries[2][12];
 extern uint32_t rf_scene_actor_surface_frames[64][2];
 extern uint32_t rf_scene_actor_movement_frames[64][3];
 extern uint32_t rf_scene_actor_render_frames[64][5];
@@ -170,6 +172,10 @@ int main(int argc,char **argv)
                     memcpy(&speed,rf_scene_actor_movement_frames[i]+1,4);
                     if(rf_scene_actor_movement_frames[i][2]!=(crouched?0u:1u) || speed!=(crouched?3.0f:6.0f))return 3;
                 }
+                if(rf_scene_actor_clearance_diagnostic[1]!=2 || rf_scene_actor_clearance_diagnostic[2]!=1 ||
+                   rf_scene_actor_clearance_diagnostic[3]!=1 || rf_scene_actor_clearance_diagnostic[7]!=1)return 3;
+                printf("ACTOR_CLEARANCE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_clearance_diagnostic[i]);
+                for(i=0;i<24;++i) {uint32_t word;memcpy(&word,((float*)rf_scene_actor_clearance_queries)+i,4);printf(" %u",word);}puts("");
                 printf("ACTOR_SURFACES");for(i=0;i<128;++i)printf(" %u",((uint32_t*)rf_scene_actor_surface_frames)[i]);puts("");
                 printf("ACTOR_SPEED_MODES");for(i=0;i<192;++i)printf(" %u",((uint32_t*)rf_scene_actor_movement_frames)[i]);puts("");
                 printf("ACTOR_STANCE");for(i=0;i<256;++i)printf(" %u",((uint32_t*)rf_scene_actor_stance_frames)[i]);puts("");

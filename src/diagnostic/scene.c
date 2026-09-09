@@ -226,6 +226,84 @@ static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics
     }
     return RF_OK;
 }
+static int actor_stance_update(const rf_geometry_collision_world *world,uint32_t request,int *blocked)
+{
+    int status;*blocked=0;
+    if(request>1)return RF_RANGE;
+    int crouched=(rf_scene_actor_stance_flags&0x400)!=0;
+    if(crouched!=(int)request) {
+        if(!request) {
+            rf_physics_body_state probe=scene_actor_body.state;float normal[3],fraction;uint32_t sphere;
+            status=rf_physics_stand_endpoint(probe.position,rf_scene_actor_stance_cache.height_difference,probe.next_position);if(status)return status;
+            status=actor_sweep(world,&probe,normal,&fraction,&sphere,(probe.state_124|4));if(status)return status;
+            *blocked=sphere!=UINT32_MAX;
+        }
+        if(!*blocked) {
+            status=rf_physics_stance_centers(&scene_actor_body.spheres,rf_scene_actor_stance_cache.centers[request],
+                rf_scene_actor_stance_cache.count,&rf_scene_actor_stance_flags,request);if(status)return status;
+            status=actor_set_speed_mode(request!=0);if(status)return status;
+        }
+    }
+    return RF_OK;
+}
+uint32_t rf_scene_actor_clearance_diagnostic[8];
+float rf_scene_actor_clearance_queries[2][12]; /* start, end, normal, fraction, sphere, blocked */
+static uint32_t actor_stance_hash(void)
+{
+    uint32_t i,h=2166136261u;const unsigned char *p=(const unsigned char*)scene_actor_body.spheres.items;
+    for(i=0;i<scene_actor_body.spheres.count*sizeof(*scene_actor_body.spheres.items);++i)h=(h^p[i])*16777619u;
+    p=(const unsigned char*)&rf_scene_actor_movement_settings;
+    for(i=0;i<sizeof(rf_scene_actor_movement_settings);++i)h=(h^p[i])*16777619u;
+    return h;
+}
+/* Test the live transition helper on a copy near the first real ceiling above
+ * this crouched actor. A clear upward sweep establishes the approach path;
+ * the rendered actor, owned spheres and gameplay counters are restored. */
+static int actor_clearance_check(const rf_geometry_collision_world *world)
+{
+    rf_physics_body saved=scene_actor_body;rf_physics_sphere spheres[8];
+    rf_movement_settings settings=rf_scene_actor_movement_settings;
+    uint32_t flags=rf_scene_actor_stance_flags,sphere,i,before,after;float normal[3],fraction,ceiling;
+    int status,blocked=0;
+    memset(rf_scene_actor_clearance_diagnostic,0,sizeof(rf_scene_actor_clearance_diagnostic));
+    memset(rf_scene_actor_clearance_queries,0,sizeof(rf_scene_actor_clearance_queries));
+    rf_scene_actor_clearance_diagnostic[0]=0x5246434c;
+    if(!(flags&0x400) || saved.spheres.count>8)return RF_FORMAT;
+    memcpy(spheres,saved.spheres.items,saved.spheres.count*sizeof(*spheres));scene_actor_body.spheres.items=spheres;
+    scene_actor_body.state.next_position[1]=scene_actor_body.state.position[1]+64;
+    status=actor_sweep(world,&scene_actor_body.state,normal,&fraction,&sphere,scene_actor_body.state.state_124|4);
+    if(status)goto done;
+    if(sphere==UINT32_MAX || normal[1]>=0) {status=RF_NOT_FOUND;goto done;}
+    ceiling=scene_actor_body.state.position[1]+fraction*64;
+    for(i=0;i<2;++i) {
+        float *q=rf_scene_actor_clearance_queries[i];rf_physics_body_state probe;
+        scene_actor_body.state.position[1]=ceiling-(i?rf_scene_actor_stance_cache.height_difference+1:.2f);
+        probe=scene_actor_body.state;
+        status=rf_physics_stand_endpoint(probe.position,rf_scene_actor_stance_cache.height_difference,probe.next_position);if(status)goto done;
+        status=actor_sweep(world,&probe,normal,&fraction,&sphere,probe.state_124|4);if(status)goto done;
+        memcpy(q,probe.position,12);memcpy(q+3,probe.next_position,12);
+        if(sphere!=UINT32_MAX)memcpy(q+6,normal,12);
+        q[9]=fraction;q[10]=sphere==UINT32_MAX?-1:(float)sphere;
+        before=actor_stance_hash();
+        status=actor_stance_update(world,0,&blocked);if(status)goto done;
+        after=actor_stance_hash();q[11]=(float)blocked;
+        if(i==0) {
+            rf_scene_actor_clearance_diagnostic[4]=before;rf_scene_actor_clearance_diagnostic[5]=after;
+            if(!blocked || before!=after || rf_scene_actor_stance_flags!=flags ||
+               memcmp(spheres,saved.spheres.items,saved.spheres.count*sizeof(*spheres)) ||
+               memcmp(&settings,&rf_scene_actor_movement_settings,sizeof(settings))) {status=RF_FORMAT;goto done;}
+            rf_scene_actor_clearance_diagnostic[2]=1;
+        } else {
+            if(blocked || before==after || (rf_scene_actor_stance_flags&0x400) || rf_scene_actor_movement_settings.mode!=1) {status=RF_FORMAT;goto done;}
+            rf_scene_actor_clearance_diagnostic[3]=1;
+        }
+        ++rf_scene_actor_clearance_diagnostic[1];
+    }
+    rf_scene_actor_clearance_diagnostic[6]=flags;rf_scene_actor_clearance_diagnostic[7]=1;
+done:
+    scene_actor_body=saved;rf_scene_actor_movement_settings=settings;rf_scene_actor_stance_flags=flags;
+    return status;
+}
 int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t out[8])
 {
     rf_physics_body_state current=scene_actor_body.state,proposal;
@@ -353,6 +431,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         memset(rf_scene_actor_tick_stats,0,sizeof(rf_scene_actor_tick_stats));rf_scene_actor_tick_stats[0]=0x5246544b;
         rf_scene_actor_movement_settings.response=scene_actor_body.state.coefficients[1];
         status=actor_set_speed_mode(0);if(status)return status;
+        memset(rf_scene_actor_clearance_diagnostic,0,sizeof(rf_scene_actor_clearance_diagnostic));
         rf_scene_actor_stance_flags=0;memset(rf_scene_actor_stance_frames,0,sizeof(rf_scene_actor_stance_frames));
         rf_scene_actor_contact_count=0;memset(rf_scene_actor_contacts,0,sizeof(rf_scene_actor_contacts));
         memset(rf_scene_actor_landing,0,sizeof(rf_scene_actor_landing));
@@ -374,20 +453,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     if(stream->collision) {
         uint32_t hash=2166136261u;
         int status,blocked=0;
-        int crouched=(rf_scene_actor_stance_flags&0x400)!=0;
-        if(crouched!=(int)rf_scene_actor_stance_request) {
-            if(!rf_scene_actor_stance_request) {
-                rf_physics_body_state probe=scene_actor_body.state;float normal[3],fraction;uint32_t sphere;
-                status=rf_physics_stand_endpoint(probe.position,rf_scene_actor_stance_cache.height_difference,probe.next_position);if(status)return status;
-                status=actor_sweep(stream->collision,&probe,normal,&fraction,&sphere,(probe.state_124|4));if(status)return status;
-                blocked=sphere!=UINT32_MAX;
-            }
-            if(!blocked) {
-                status=rf_physics_stance_centers(&scene_actor_body.spheres,rf_scene_actor_stance_cache.centers[rf_scene_actor_stance_request],
-                    rf_scene_actor_stance_cache.count,&rf_scene_actor_stance_flags,rf_scene_actor_stance_request);if(status)return status;
-                status=actor_set_speed_mode(rf_scene_actor_stance_request!=0);if(status)return status;
-            }
-        }
+        status=actor_stance_update(stream->collision,rf_scene_actor_stance_request,&blocked);if(status)return status;
+        if(frame==47) {status=actor_clearance_check(stream->collision);if(status)return status;}
         memcpy(rf_scene_actor_movement_frames[frame],&rf_scene_actor_movement_settings,12);
         rf_scene_actor_stance_frames[frame][0]=rf_scene_actor_stance_request;
         rf_scene_actor_stance_frames[frame][1]=rf_scene_actor_stance_flags;
