@@ -54,6 +54,7 @@ public class ExportBaseline extends GhidraScript {
         if (unhideProcess != null) unhideProcess.setCallingConvention("__thiscall");
         addresses.add(0x4bcdf0L);
         for (long target : new long[]{0x4b8880L,0x45be80L,0x5001d0L}) addresses.add(target);
+        for (long target : new long[]{0x48a570L,0x48a660L,0x426fc0L,0x410c70L,0x42d8d0L,0x42d8e0L}) addresses.add(target);
         addresses.add(0x4b69d0L); // Event type allocator called by 487100.
         addresses.add(0x462150L); // Section 0x600 events, dispatch 460e1e.
         for(long target : new long[]{0x48a4a0L,0x46afc0L,0x4c0910L}) addresses.add(target); // Post-load trigger UID conversion at 4611a1.

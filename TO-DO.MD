@@ -39,6 +39,10 @@ Player eligibility now passes 96 branch cases; the type-specific factory's
 zero-delay arming and request reset pass 12 patterned cases. Connect the existing
 collision-ray wrapper and recover actual visibility effects before integrating
 the action; see docs/TRIGGERS.md.
+Original hide/unhide direct writes and dispatch now pass 80 target cases plus
+two null calls, including attachment toggles and recursive child visibility.
+Connect the existing weapon-reset reconstruction, recover remaining intercepted
+effects and map entity fields into shared runtime before gameplay visibility.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and

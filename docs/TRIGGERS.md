@@ -524,3 +524,42 @@ target, not a clear line of sight. The current event test substitutes the query
 result, so it does not yet prove event-to-world collision integration. Visibility
 effects 48a660/48a570 and entity registration remain to be reconstructed and
 connected before this becomes operational gameplay.
+
+## Visibility effect dispatch and direct writes
+
+`tools/verify_visibility_effects.py` executes complete original hide 48a570 and
+unhide 48a660 in 80 synthetic target cases plus two null calls. Original handle
+lookup, type filters 426fc0/410c70, array helpers, component setters and recursive
+child calls execute unchanged. Seven downstream subsystem calls are intercepted:
+505b50, 429770, 41ae70, 42ed20, 502b00, 503390 and 48c9a0. The verifier compares
+their ordered argument traces and all 24 KiB of fixture storage. This establishes
+the caller's direct writes and dispatch, not the intercepted callees' effects.
+
+Both methods accept null. Hide sets object +0x7c bit 0x4000; unhide clears it.
+The entity lookup resolves the object's handle and accepts only type 0. For such
+entities, both methods traverse the linked list rooted at +0x268, following node
++0x150 and setting byte +0x140 to zero/one. They also visit the pointer array at
++0x1418, setting component byte +0x28c via 42d8d0/42d8e0. Tests cover two nodes
+and two components, preserving all surrounding bytes. These structures' detailed
+subsystem meanings still need tracing.
+
+If entity +0x804 is not -1, 505b50 receives that value and float 0/1. Unhide
+then calls 429770(entity). Each of the two handles at +0x145c/+0x1460 is resolved
+through the type-4 filter and recursively hidden/unhidden; a stale second handle
+is skipped in the fixture. Hide subsequently calls 41ae70(handle, entity+0x2a4).
+If +0x13d8 is nonzero it calls 42ed20(value,0), then clears that field.
+
+After the entity-specific branch, unhide checks object +0x80. If nonzero, it
+queries 502b00; return value 3 triggers 503390(value,0,1.0f). Finally, if object
+flags contain 0x8000, unhide calls 48c9a0(object), then clears that flag using a
+fresh read after the call. Tests cover both resource-query outcomes, empty/full
+attachments, type-0/type-1 targets and five flag patterns. They do not cover
+callback mutations, cyclic child references or subsystem internals. Report:
+`artifacts/visibility-effects-verification.json`. Recover those dependencies
+and map these fields into shared entity runtime before implementing gameplay
+visibility; a render-only flag would omit the demonstrated side effects.
+
+The 41ae70 boundary is already reconstructed as `rf_weapon_reset` after entity
+resolution (docs/WEAPON.md). Here +0x2a4 is the weapon index. Reuse that shared
+reset and its existing subsystem adapters when integrating hide; this fixture
+only establishes when it is called and does not revalidate its internals.
