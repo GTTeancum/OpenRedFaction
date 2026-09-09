@@ -21,7 +21,7 @@ static int finite_words(const unsigned char *p, uint32_t n)
         if ((u32(p + i * 4) & 0x7f800000u) == 0x7f800000u) return 0;
     return 1;
 }
-typedef struct cursor { rf_geometry *g; uint32_t at, budget; int error; } cursor;
+typedef struct cursor { rf_geometry *g; uint32_t at, budget; int error, allow_unowned; } cursor;
 static const unsigned char *take(cursor *c, uint64_t n)
 {
     const unsigned char *p;
@@ -98,7 +98,7 @@ static int parse(cursor *c)
         texture = u32(p + 16); mapping = u32(p + 20); room = u32(p + 48); corners = u32(p + 52);
         stride = mapping == UINT32_MAX ? 12 : 20;
         if (!finite_words(p, 4) || (texture != UINT32_MAX && texture >= g->textures) ||
-            room >= g->rooms || corners < 3 || (uint64_t)g->corners + corners > UINT32_MAX) {
+            (room >= g->rooms && !(c->allow_unowned && room == UINT32_MAX)) || corners < 3 || (uint64_t)g->corners + corners > UINT32_MAX) {
             c->error = RF_FORMAT; break;
         }
         p = take(c, (uint64_t)corners * stride);
@@ -136,7 +136,7 @@ int rf_geometry_open(rf_geometry *g, const rf_level *level, uint32_t budget)
     if (!g->data) return RF_RANGE;
     g->allocated_bytes = g->bytes = section->size;
     result = rf_level_read(level, section, 0, g->data, g->bytes);
-    if (result == RF_OK) { c.g = g; c.at = 0; c.budget = budget; c.error = RF_OK; result = parse(&c); }
+    if (result == RF_OK) { c.g = g; c.at = 0; c.budget = budget; c.error = RF_OK; c.allow_unowned = 0; result = parse(&c); }
     if (result != RF_OK) rf_geometry_close(g);
     return result;
 }
@@ -145,6 +145,64 @@ void rf_geometry_close(rf_geometry *g)
     if (!g) return;
     free(g->texture_offsets); free(g->room_offsets); free(g->face_offsets); free(g->data);
     memset(g, 0, sizeof(*g));
+}
+void rf_geometry_movers_close(rf_geometry_movers *m)
+{
+    uint32_t i;
+    if(!m)return;
+    for(i=0;i<m->count;i++) {
+        m->items[i].geometry.data=NULL;
+        rf_geometry_close(&m->items[i].geometry);
+    }
+    free(m->items);free(m->data);memset(m,0,sizeof(*m));
+}
+int rf_geometry_movers_open(const rf_level *level,uint32_t budget,rf_geometry_movers *result)
+{
+    rf_geometry_movers m={0};const rf_level_section *section;
+    uint32_t count,i,j,at=4;uint64_t bytes;int status;
+    if(!result)return RF_RANGE;
+    if(!level || level->version!=180)return RF_FORMAT;
+    section=rf_level_find(level,0x2000);if(!section)return RF_NOT_FOUND;
+    if(section->size<4)return RF_FORMAT;
+    bytes=(uint64_t)sizeof(m)+section->size;
+    if(bytes>budget)return RF_RANGE;
+    m.data=(unsigned char *)malloc(section->size);if(!m.data)return RF_RANGE;
+    m.allocated_bytes=(uint32_t)bytes;
+    status=rf_level_read(level,section,0,m.data,section->size);if(status)goto fail;
+    count=u32(m.data);
+    /* Even an empty geometry needs a header, count fields and trailer. */
+    if((uint64_t)count*64>section->size-4) {status=RF_FORMAT;goto fail;}
+    bytes=(uint64_t)count*sizeof(*m.items);
+    if(bytes>budget-m.allocated_bytes) {status=RF_RANGE;goto fail;}
+    if(count) {
+        m.items=(rf_geometry_mover *)calloc(count,sizeof(*m.items));
+        if(!m.items) {status=RF_RANGE;goto fail;}
+    }
+    m.allocated_bytes+=(uint32_t)bytes;m.count=count;
+    for(i=0;i<count;i++) {
+        rf_geometry_mover *item=m.items+i;rf_geometry *g=&item->geometry;
+        cursor c;const unsigned char *p;
+        item->offset=at;
+        if(section->size-at<52) {status=RF_FORMAT;goto fail;}
+        p=m.data+at;if(!finite_words(p+4,12)) {status=RF_FORMAT;goto fail;}
+        memcpy(&item->uid,p,4);
+        for(j=0;j<3;j++)item->position[j]=f32(p+4+j*4);
+        for(j=0;j<9;j++)item->orientation[j/3][j%3]=f32(p+16+((j+3)%9)*4);
+        at+=52;item->geometry_offset=at;g->data=m.data+at;g->bytes=section->size-at;
+        c.g=g;c.at=0;c.budget=budget-m.allocated_bytes;c.error=RF_OK;c.allow_unowned=1;
+        status=parse(&c);if(status)goto fail;
+        /* 4ed520's pre-v181 legacy array follows its count at tail_offset. */
+        take(&c,(uint64_t)u32(g->data+g->tail_offset)*12);
+        if(c.error) {status=c.error;goto fail;}
+        g->bytes=c.at;at+=c.at;m.allocated_bytes+=g->allocated_bytes;
+        if(section->size-at<12) {status=RF_FORMAT;goto fail;}
+        for(j=0;j<3;j++)item->trailer[j]=u32(m.data+at+j*4);
+        at+=12;item->bytes=at-item->offset;
+    }
+    if(at!=section->size) {status=RF_FORMAT;goto fail;}
+    *result=m;return RF_OK;
+fail:
+    rf_geometry_movers_close(&m);return status;
 }
 int rf_geometry_vertex(const rf_geometry *g, uint32_t index, float position[3])
 {

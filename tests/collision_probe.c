@@ -10,6 +10,49 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==4 && !strcmp(argv[1],"--movers")) {
+        rf_vpp archive;rf_level level;rf_geometry_movers m={0},exact={0},guard;
+        uint32_t i,budget;int status;
+        if(rf_vpp_open(&archive,argv[2]))return 2;
+        status=rf_level_open(&level,&archive,argv[3]);
+        if(!status)status=rf_geometry_movers_open(&level,8*1024*1024,&m);
+        if(status)return 3;
+        budget=m.allocated_bytes;
+        if(rf_geometry_movers_open(&level,budget,&exact))return 4;
+        rf_geometry_movers_close(&exact);
+        memset(&guard,0xa5,sizeof(guard));exact=guard;
+        if(rf_geometry_movers_open(&level,budget-1,&exact)!=RF_RANGE || memcmp(&exact,&guard,sizeof(exact)))return 5;
+        for(i=0;i<m.count;i++) {
+            rf_level truncated=level;uint32_t j,k;
+            uint32_t cuts[4]={m.items[i].offset,m.items[i].geometry_offset-1,
+                m.items[i].geometry_offset+m.items[i].geometry.bytes-1,
+                m.items[i].offset+m.items[i].bytes-1};
+            for(j=0;j<4;j++) {
+                for(k=0;k<truncated.section_count;k++)if(truncated.sections[k].type==0x2000)truncated.sections[k].size=cuts[j];
+                exact=guard;
+                if(rf_geometry_movers_open(&truncated,8*1024*1024,&exact)!=RF_FORMAT || memcmp(&exact,&guard,sizeof(exact)))return 8;
+            }
+        }
+        rf_vpp_close(&archive); /* All geometry access below must be owned. */
+        printf("%u %u\n",m.count,budget);
+        for(i=0;i<m.count;i++) {
+            rf_geometry_mover *item=m.items+i;rf_geometry *g=&item->geometry;uint32_t j;
+            printf("%d %u %u %u %u %u %u %u %u %u",item->uid,item->offset,item->bytes,item->geometry_offset,g->bytes,g->textures,g->rooms,g->vertices,g->faces,g->mappings);
+            for(j=0;j<3;j++)printf(" %u",item->trailer[j]);
+            for(j=0;j<3;j++)printf(" %.9g",item->position[j]);
+            for(j=0;j<9;j++)printf(" %.9g",item->orientation[j/3][j%3]);
+            printf("\n");
+            for(j=0;j<g->faces;j++) {
+                rf_geometry_face face;uint32_t k;
+                if(rf_geometry_get_face(g,j,&face))return 6;
+                for(k=0;k<face.corners;k++) {
+                    rf_geometry_corner corner;float vertex[3];
+                    if(rf_geometry_get_corner(g,j,k,&corner) || rf_geometry_vertex(g,corner.vertex,vertex))return 7;
+                }
+            }
+        }
+        rf_geometry_movers_close(&m);rf_geometry_movers_close(&m);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--flat-query")) {
         struct {float z[4];uint32_t count,flags;float start[3],delta[3],radius,limit,origin[3],matrix[3][3];} in;
         struct {int32_t status;uint32_t matched;rf_collision_sweep_tree_hit hit;} out;

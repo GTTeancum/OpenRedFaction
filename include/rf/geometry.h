@@ -24,6 +24,24 @@ typedef struct rf_geometry_corner {
  * Close before reusing an already-open object; failures leave it empty. */
 int rf_geometry_open(rf_geometry *geometry, const rf_level *level, uint32_t budget);
 void rf_geometry_close(rf_geometry *geometry);
+typedef struct rf_geometry_mover {
+    int32_t uid;
+    float position[3],orientation[3][3];
+    uint32_t offset,bytes,geometry_offset,trailer[3];
+    rf_geometry geometry;
+} rf_geometry_mover;
+typedef struct rf_geometry_movers {
+    unsigned char *data;
+    rf_geometry_mover *items;
+    uint32_t count,allocated_bytes;
+} rf_geometry_movers;
+/* v180 section 0x2000, original loader 463c60. Owns one section payload and
+ * per-solid indices; embedded geometry borrows that payload. Do NOT close
+ * individual geometries. Budget includes this object, payload, records and
+ * indices (not allocator overhead). Failure preserves output. Close before
+ * reuse. No runtime object creation, animation or collision ownership inferred. */
+int rf_geometry_movers_open(const rf_level *level,uint32_t budget,rf_geometry_movers *result);
+void rf_geometry_movers_close(rf_geometry_movers *movers);
 int rf_geometry_vertex(const rf_geometry *geometry, uint32_t index, float position[3]);
 int rf_geometry_texture_name(const rf_geometry *geometry, uint32_t index, char *name, uint32_t capacity);
 /* Resolve a mapping record's first word; remaining 92 bytes stay opaque. */

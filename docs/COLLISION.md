@@ -1210,3 +1210,30 @@ bounded C reader for their embedded geometry and owned zero-room face storage,
 then runtime creation/poses and integration into the running scene. The new flat
 path has not yet run in XEMU, and actor movement/material metadata remain open.
 No visible scene change occurred.
+
+
+### Bounded installed mover loader
+
+`rf_geometry_movers_open` now reads v180 section 0x2000 using the recovered
+0x463c60 sequence. One owned payload backs all embedded geometries; texture,
+room and face indices are separately budgeted. The collection owns these
+geometries: individual geometry close calls are prohibited. The budget includes
+the collection, record array, payload and indices, excluding allocator overhead.
+No payload duplication or unbudgeted build scratch is needed. Failures preserve
+output and free partial state. Geometry parsing retains strict static room
+ownership and explicitly allows UINT32_MAX ownership in mover geometry.
+The legacy count/12-byte records and three trailer words are bounded; trailer
+semantics remain opaque. Orientation is reordered from serialized rows to match
+515520. This loads file data, not runtime type-9 objects.
+
+`python tools/verify_mover_loader.py` passes all 68 installed sections / 1,406
+movers / 27,216 faces against the independent Python inventory. It compares
+record and geometry spans, counts, poses and trailers; accesses every corner and
+vertex after archive closure; checks exact budgets, one-byte-short budgets,
+and 5,624 truncated header/geometry/trailer boundaries with unchanged failure
+outputs. Largest budget: 307,120 bytes. Report:
+`artifacts/mover-loader-verification.json`. PC and NXDK builds and four CTest
+checks pass. This is not execution of the original embedded geometry parser or
+XEMU validation. Owned flat collision views, original face-list ordering,
+runtime object creation, pose evolution and destruction still need recovery
+and integration. No visible result changed.

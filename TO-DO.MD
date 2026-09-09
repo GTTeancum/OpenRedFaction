@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Flat-face fallback and moving-ray integration now match original calls on PC
-and NXDK; add the bounded C mover loader and owned zero-room geometry for the
-1,406 inventoried solids before binding runtime type-9 objects.
+The bounded C mover loader now reads all 1,406 installed solids with owned
+section storage; construct owned flat collision views and recover runtime
+type-9 object binding, pose updates and lifetime before scene integration.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
