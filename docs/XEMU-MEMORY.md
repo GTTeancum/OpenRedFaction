@@ -163,3 +163,30 @@ objects/time, commits via 48a230, and has iteration/time termination guards.
 and gravity integration when that flag is already set, using zero acceleration
 for the next proposal. Do not reuse the current first-pass falling API for
 remaining-time passes without implementing that distinction.
+
+## Remaining-time pass
+
+The falling API now honors flag 0x1000000: preserve incoming velocity and use
+zero acceleration. Its caller manages the flag per frame. The original repeated
+branch is checked by `tools/verify_physics_fall.py --repeat`, which executes
+complete 49e750 with the flag set and unchanged callees. All 256 cases match PC
+and NXDK; the 256 first-pass cases still match. No float layout changed.
+
+The integrated copied-body fixture now finishes its first collision frame.
+After contact response it sets the flag, proposes movement over the remaining
+time and queries all three spheres again. Clear movement commits position and
+rebuilds bounds; further contacts clip/respond before another pass. It follows
+487770's pass-index termination checks (>3 with remaining time below .25, or
+>9). These are guards, not proof of whole-world scheduler reconstruction:
+moving bodies, shared collision batches, actor registration, room/pose commit
+and rendering are still separate work. The diagnostic records four timing
+floats: first adjusted fraction, first remaining time, final remaining time,
+and total pass count. PC requires the current fixture to consume all its time;
+XEMU compares every word and the final state hash.
+
+Run `artifacts/xemu/20260909-145630-453926/report.json` passes on stock 64 MiB
+XEMU. The first collision frame completes in two passes with zero remaining
+time. Final copied-body position is (-92.39078522, -3.90752268, 49.75749588),
+matching PC. Configuration/body/world and 600-frame door comparisons pass,
+as do both builds and all four CTests. No image was captured because this
+fixture is still separate from the rendered actor's pose.

@@ -92,8 +92,9 @@ int rf_physics_body_replace_spheres(rf_physics_body *body,
     const rf_physics_sphere *source,uint32_t count,uint32_t budget);
 /* Falling translation at 49e8b7..49e9e6, after steering/speed limiting.
  * Caller supplies frame time, gravity and support velocity; force is vector_e0.
- * Updates velocity and proposed next_position only. No contact response, bounds
- * commit, movement-mode selection or repeated-substep flag policy. Positive
+ * Flag 0x1000000 selects the original repeated-pass path: preserve velocity,
+ * use zero acceleration. Caller manages that flag per frame. Updates velocity
+ * and proposed next_position only. No contact response, bounds commit or movement-mode selection. Positive
  * mass and finite inputs required; errors preserve the state. */
 int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
     const float support_velocity[3]);

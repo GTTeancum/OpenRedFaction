@@ -28,10 +28,11 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
-    if(argc==2 && !strcmp(argv[1],"--fall")) {
+    if(argc==2 && (!strcmp(argv[1],"--fall") || !strcmp(argv[1],"--fall-repeat"))) {
         float values[15];
         while(fread(values,sizeof(values),1,stdin)==1) {
             rf_physics_body_state state={0};state.mass=values[0];
+            if(!strcmp(argv[1],"--fall-repeat"))state.flags=0x1000000;
             memcpy(state.position,values+3,12);memcpy(state.velocity,values+6,12);memcpy(state.vector_e0,values+9,12);
             if(rf_physics_fall_propose(&state,values[1],values[2],values+12))return 3;
             if(fwrite(state.velocity,12,1,stdout)!=1 || fwrite(state.next_position,12,1,stdout)!=1)return 1;

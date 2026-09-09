@@ -18,9 +18,10 @@ sweeps per retained sphere and captures raw guest contacts for PC comparison.
 Prepared falling translation now matches original instructions on PC/NXDK and
 feeds a passive falling fixture using the miner's actual spheres and level.
 The fixture now applies original contact position/time clipping and static
-velocity response once. Remaining-frame passes, actor pose/room commit and
-rendered movement remain open. The verified first hit advances zero distance
-after the 0.05-unit margin and retains 0.014501864 seconds for another pass.
+velocity response, then consumes the remaining frame without applying gravity
+again. Actor pose/room commit and rendered movement remain open. The first hit
+advances zero distance after the margin; a second pass consumes the remaining
+0.014501864 seconds using the response velocity.
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

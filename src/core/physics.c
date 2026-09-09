@@ -57,10 +57,13 @@ int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
         volatile float acceleration,increment,combined,travel,base,correction;
         if(!isfinite(state->position[i]) || !isfinite(state->velocity[i]) ||
            !isfinite(state->vector_e0[i]) || !isfinite(support_velocity[i]))return RF_RANGE;
-        acceleration=(float)((double)state->vector_e0[i]/state->mass);
-        if(i==1)acceleration=(float)((double)acceleration-gravity);
+        acceleration=0;
+        if(!(state->flags&0x1000000)) {
+            acceleration=(float)((double)state->vector_e0[i]/state->mass);
+            if(i==1)acceleration=(float)((double)acceleration-gravity);
+        }
         increment=(float)((double)acceleration*dt);
-        velocity[i]=(float)((double)state->velocity[i]+increment);
+        velocity[i]=(state->flags&0x1000000)?state->velocity[i]:(float)((double)state->velocity[i]+increment);
         combined=(float)((double)velocity[i]+support_velocity[i]);
         travel=(float)((double)combined*dt);base=(float)((double)state->position[i]+travel);
         correction=(float)((double)acceleration*half_dt_squared);

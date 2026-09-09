@@ -115,25 +115,33 @@ typedef struct actor_sweep_record {
 actor_sweep_record rf_scene_actor_sweep_records[48];
 rf_physics_body_state rf_scene_actor_fall_state;
 float rf_scene_actor_contact[7]; /* impact speed, contact normal, response velocity */
-float rf_scene_actor_contact_time[2]; /* adjusted fraction, remaining time */
+float rf_scene_actor_contact_time[4]; /* first adjusted fraction/time, final remaining time, passes */
+static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics_body_state *state,
+    float normal[3],float *fraction,uint32_t *sphere)
+{
+    float delta[3],start[3];uint32_t i,k,matched;
+    *fraction=1;*sphere=UINT32_MAX;
+    for(k=0;k<3;++k)delta[k]=state->next_position[k]-state->position[k];
+    for(i=0;i<scene_actor_body.spheres.count;++i) {
+        const rf_physics_sphere *s=scene_actor_body.spheres.items+i;rf_geometry_world_sweep_hit hit;int status;
+        for(k=0;k<3;++k)start[k]=(float)((double)state->position[k]+(double)s->center[0]*state->orientation[k]+
+            (double)s->center[1]*state->orientation[3+k]+(double)s->center[2]*state->orientation[6+k]);
+        status=rf_geometry_collision_world_sweep(world,0x460,start,delta,s->radius,1,&hit,&matched);if(status)return status;
+        if(matched && (*sphere==UINT32_MAX || hit.hit.fraction<*fraction)) {*sphere=i;*fraction=hit.hit.fraction;memcpy(normal,hit.hit.normal,12);}
+    }
+    return RF_OK;
+}
 int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t out[8])
 {
     rf_physics_body_state current=scene_actor_body.state,proposal;
-    float support[3]={0},delta[3],start[3],normal[3],fraction=1;uint32_t step,i,k,matched,sphere=UINT32_MAX,hash=2166136261u;
+    float support[3]={0},normal[3],fraction=1;uint32_t step,i,sphere=UINT32_MAX,hash=2166136261u;
     if(!world || !out || !scene_actor_body.allocated_bytes || !scene_actor_body.spheres.count)return RF_RANGE;
     memset(rf_scene_actor_contact,0,sizeof(rf_scene_actor_contact));
     memset(rf_scene_actor_contact_time,0,sizeof(rf_scene_actor_contact_time));
     for(step=0;step<120;++step) {
         proposal=current;
         {int status=rf_physics_fall_propose(&proposal,1.0f/60,9.8f,support);if(status)return status;}
-        for(k=0;k<3;++k)delta[k]=proposal.next_position[k]-current.position[k];
-        for(i=0;i<scene_actor_body.spheres.count;++i) {
-            const rf_physics_sphere *s=scene_actor_body.spheres.items+i;rf_geometry_world_sweep_hit hit;int status;
-            for(k=0;k<3;++k)start[k]=(float)((double)current.position[k]+(double)s->center[0]*current.orientation[k]+
-                (double)s->center[1]*current.orientation[3+k]+(double)s->center[2]*current.orientation[6+k]);
-            status=rf_geometry_collision_world_sweep(world,0x460,start,delta,s->radius,1,&hit,&matched);if(status)return status;
-            if(matched && (sphere==UINT32_MAX || hit.hit.fraction<fraction)) {sphere=i;fraction=hit.hit.fraction;memcpy(normal,hit.hit.normal,sizeof(normal));}
-        }
+        {int status=actor_sweep(world,&proposal,normal,&fraction,&sphere);if(status)return status;}
         if(sphere!=UINT32_MAX) {
             /* Stationary non-liquid floor, no rotating actor predicate.
              * Continued substeps and actor pose/room commit remain separate. */
@@ -142,7 +150,27 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
             status=rf_physics_static_contact(&proposal,normal,support,support,rf_scene_actor_contact);if(status)return status;
             memcpy(rf_scene_actor_contact+1,normal,sizeof(normal));
             memcpy(rf_scene_actor_contact+4,proposal.velocity,sizeof(proposal.velocity));
-            current=proposal;break;
+            current=proposal;
+            {
+                float remaining=rf_scene_actor_contact_time[1];uint32_t pass=1;
+                current.flags|=0x1000000;
+                while(remaining>0) {
+                    float hit_fraction,impact;uint32_t hit_sphere;
+                    status=rf_physics_fall_propose(&current,remaining,9.8f,support);if(status)return status;
+                    status=actor_sweep(world,&current,normal,&hit_fraction,&hit_sphere);if(status)return status;
+                    if(hit_sphere==UINT32_MAX) {
+                        memcpy(current.position,current.next_position,sizeof(current.position));current.scalar_144=1;remaining=0;
+                    } else {
+                        status=rf_physics_contact_advance(&current,remaining,hit_fraction,&remaining);if(status)return status;
+                        status=rf_physics_static_contact(&current,normal,support,support,&impact);if(status)return status;
+                    }
+                    if((pass>3 && remaining<.25f) || pass>9) {++pass;break;}
+                    ++pass;
+                }
+                rf_scene_actor_contact_time[2]=remaining;rf_scene_actor_contact_time[3]=(float)pass;
+                status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,current.position,&current.bounds);if(status)return status;
+            }
+            break;
         }
         /* Fixture accepts only unobstructed translations. Full actor pose/room
          * commit and contact response are not represented by this assignment. */

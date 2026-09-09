@@ -295,7 +295,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         report['actor_world']=dict(words=actor_world,scope='Actual retained actor spheres swept two units along six world axes against stationary geometry; diagnostic mask 0x460, no movement response.')
                         actor_fall=memory_snapshot['symbols']['rf_actor_fall_diagnostic']['words']
                         if actor_fall!=actor_fall_reference:raise RuntimeError(f'Actor fall mismatch: {actor_fall}; PC {actor_fall_reference}')
-                        report['actor_fall']=dict(words=actor_fall,scope='Passive falling prediction on copied actor state through first contact position/time clipping and static velocity response; no damage, continued substeps or rendered movement.')
+                        report['actor_fall']=dict(words=actor_fall,scope='Passive falling fixture completes the first static-contact frame with bounded remaining-time passes; no damage, full actor pose/room commit or rendered movement.')
                         actor_time=memory_snapshot['symbols']['rf_scene_actor_contact_time']['words']
                         if actor_time!=actor_time_reference:raise RuntimeError(f'Actor contact time mismatch: {actor_time}; PC {actor_time_reference}')
                         report['actor_contact_time']=actor_time

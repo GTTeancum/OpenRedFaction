@@ -72,8 +72,8 @@ int rf_scene_stream_miner_states(const rf_level *level,int32_t uid,const char *m
  * world axis against stationary geometry, without moving the body. Query mask
  * 0x460 is an inspection choice, not recovered gameplay movement policy. */
 int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t out[8]);
-/* Passive falling fixture on a copy of the actor state; applies the verified
- * contact position/time clipping and static velocity branch once, then stops.
- * Rendered body remains untouched. 120 steps maximum. */
+/* Passive falling fixture on a copy of the actor state; completes the first
+ * collision frame with bounded remaining-time passes, then stops. Rendered
+ * body remains untouched. 120 frames maximum before the first contact. */
 int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t out[8]);
 #endif

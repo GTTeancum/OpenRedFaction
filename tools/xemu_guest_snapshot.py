@@ -12,7 +12,7 @@ def words(monitor,address,count):
 
 def snapshot(monitor,map_text):
     result={'status':monitor.command('query-status'),'symbols':{}}
-    for name,count in [('rf_diagnostic',58),('rf_actor_creation_diagnostic',6),('rf_scene_actor_physics_diagnostic',8),('rf_actor_world_diagnostic',8),('rf_actor_fall_diagnostic',8),('rf_scene_actor_fall_state',77),('rf_scene_actor_contact',7),('rf_scene_actor_contact_time',2),('resident_miner_config',117),('scene_actor_body',81)]:
+    for name,count in [('rf_diagnostic',58),('rf_actor_creation_diagnostic',6),('rf_scene_actor_physics_diagnostic',8),('rf_actor_world_diagnostic',8),('rf_actor_fall_diagnostic',8),('rf_scene_actor_fall_state',77),('rf_scene_actor_contact',7),('rf_scene_actor_contact_time',4),('resident_miner_config',117),('scene_actor_body',81)]:
         match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',map_text)
         if not match:continue
         address=int(match[1],16);data=words(monitor,address,count)
