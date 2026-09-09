@@ -1,5 +1,17 @@
 # Level entity records
 
+`rf_entity_material_read` now provides a 24-byte material record from caller-owned
+materials.tbl text, with no allocation. It resolves the fixed ten-name index,
+falls back to Default for an unknown name, and reads elasticity, friction,
+density, buoyancy (authored spelling `$bouyancy:`), and traction. Negative
+authored coefficients are retained, including water elasticity and ice buoyancy.
+Missing/duplicate fields, quoted numbers and nonfinite values fail without
+changing output. Bitmap prefixes, debris and hit sounds are outside this reader.
+This is bounded metadata scaffolding; original parser equivalence is not claimed.
+`verify_entity_materials.py` compares all ten installed records, twelve lookup
+cases and six malformed fixtures including output preservation. PC probe and
+NXDK builds pass. Runtime archive binding and live body use remain open.
+
 Class physics input evidence: 0x41bbe7 stores authored mass at class+0x68;
 0x41bc0b calls material-name lookup 0x4686c0 and stores its byte at +0x98.
 The ten names at 0x59cb10 are Default, Rock, Metal, Flesh, Water, Lava, Solid,

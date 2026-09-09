@@ -98,6 +98,38 @@ static int sphere_number(lexer *l,float *result)
     value=strtod(t,&end);if(end==t || *end || !isfinite(value) || fabs(value)>FLT_MAX)return RF_FORMAT;
     *result=(float)value;return RF_OK;
 }
+int rf_entity_material_read(const void *text,uint32_t bytes,const char *name,
+    rf_entity_material *result)
+{
+    static const char *names[]={"Default","Rock","Metal","Flesh","Water","Lava","Solid","Sand","Ice","Glass"};
+    static const char *tags[]={"$elasticity:","$friction:","$density:","$bouyancy:","$traction:"};
+    lexer l={(const unsigned char*)text,bytes,0};rf_entity_material value={0};
+    float coefficients[5]={0};char t[256];uint32_t i,mask=0;int status,quoted,found=0,in_section=0;
+    if(!text || !name || !result)return RF_RANGE;
+    for(i=0;i<10;++i)if(same(name,names[i])) {value.index=i;break;}
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"#Materials")) {in_section=1;continue;}
+        if(!in_section)continue;
+        if(same(t,"#End"))break;
+        if(same(t,"$name:")) {
+            if(found)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            found=same(t,names[value.index]);
+        } else if(found) {
+            for(i=0;i<5;++i)if(same(t,tags[i])) {
+                if(mask&(1u<<i))return RF_FORMAT;
+                if(sphere_number(&l,coefficients+i))return RF_FORMAT;
+                mask|=1u<<i;break;
+            }
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;
+    if(mask!=31)return RF_FORMAT;
+    value.elasticity=coefficients[0];value.friction=coefficients[1];value.density=coefficients[2];
+    value.buoyancy=coefficients[3];value.traction=coefficients[4];*result=value;return RF_OK;
+}
 int rf_entity_sphere_declarations_read(const void *text,uint32_t bytes,const char *class_name,
     rf_entity_sphere_declarations *result)
 {

@@ -4,6 +4,15 @@
 #include "rf/level.h"
 #include "rf/motion_file.h"
 #include "rf/entity.h"
+typedef struct rf_entity_material {
+    uint32_t index;
+    float elasticity,friction,density,buoyancy,traction;
+} rf_entity_material;
+/* Bounded materials.tbl metadata reader. Unknown names select Default as in
+ * 4686c0. Requires all five finite coefficients; output unchanged on failure.
+ * Does not load bitmap prefixes, debris or hit sounds. No allocation. */
+int rf_entity_material_read(const void *text,uint32_t bytes,const char *name,
+    rf_entity_material *result);
 typedef struct rf_entity_sphere_declarations {
     uint32_t count;rf_entity_sphere_override items[8];
 } rf_entity_sphere_declarations;
