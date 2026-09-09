@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Add a moving camera to keep the full animated route visible; the endpoint inspection view is implemented.
+- [ ] Enable the PC-validated follow-camera path in XEMU with bounded GPU capacity and native visual checks.
 - [ ] Replace scripted stance eligibility and resolve the initial class animation pose.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -55,6 +55,12 @@ Retained world reprojection now accepts an explicit changing camera without
 reloading geometry or reallocating its mesh. The PC `--moving-camera` check
 passes 32 translated/rotated views after archive closure, matching fresh builds.
 Connect this API to the live actor camera and validate that path in XEMU next.
+
+PC `--follow` now reprojects the retained world and actor using one per-frame
+view across all 664 frames. The actor stays inside the view (at least 430
+projected triangles per frame), and the body hash stays 533762320. The shared
+code builds with NXDK, but Xbox follow-mode selection/GPU capacity and native
+visual validation remain open; camera collision is not implemented.
 
 Capture and post screenshots only when there is a new visible result.
 

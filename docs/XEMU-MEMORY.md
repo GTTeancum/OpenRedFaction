@@ -1248,3 +1248,37 @@ collision avoidance, smoothing, a player camera or a moving-camera XEMU run.
 The next connection must give both actor projection and world reprojection the
 same per-frame view, then validate draw capacity and native output in 64 MiB.
 No new screenshot was captured because the live view has not changed.
+
+
+## Shared follow-camera scene (PC validated)
+
+The animation placement now accepts a `prepare_view` callback. It runs after
+stance effects and before pose rendering, supplying one world-view projection
+for the current frame. The scene's optional `rf_scene_actor_follow` binding
+borrows a retained world owner and uses the current body position (authored
+spawn before creation) plus fixed offset (0, .7, 2.4), facing negative Z. The
+callback reprojects the world with this camera and uses the same camera for
+the actor. It retains authored mover poses; simultaneous moving-door poses
+are not supplied by this binding. There is no camera collision or smoothing.
+
+Follow mode reserves the caller's 8 MiB scene mesh budget once, leaving 1 MiB
+for actor vertices and up to 7 MiB for changing world projections. It does not
+allocate or reopen archives per frame. A mismatched source world/material
+count, missing body/world context or nonsynchronous preview use is rejected.
+The borrowed owner must outlive the stream; passing NULL disables following.
+
+The PC checker accepts `--follow` with the regular archive arguments. It checks
+all 664 callback indices, fixed mesh/material addresses, the camera's exact
+relation to each body pose, world/actor material boundaries and nonempty actor
+projection at every frame. The minimum projected actor count is 430 triangles,
+versus zero in the fixed endpoint view. This establishes frustum inclusion,
+not visibility through intervening world surfaces. The body hash remains
+533762320, with three support losses/recoveries; projected actor hash changes
+to 387910986. Short drive and fixed-camera live profiles also pass. Both builds
+and four CTests pass.
+
+This callback path is not yet selected by the Xbox frontend or PC raster
+preview. Xbox GPU capacity and dynamic world-count expectations must be wired
+before the 8 MiB CPU mesh can be exercised there. Native visual validation is
+still required; no screenshot was captured in this step. Player first-person
+camera behavior, collision avoidance and input remain separate open work.

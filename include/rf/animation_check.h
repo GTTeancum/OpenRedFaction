@@ -35,6 +35,8 @@ typedef struct rf_animation_placement {
     uint32_t animation_timing_wrap; /* Nonzero uses a bounded timing ring indexed by absolute frame modulo capacity. */
     uint32_t animation_timing_capacity; /* Zero means legacy 64 records when timing is supplied. */
     float step_seconds; /* Zero keeps standalone 1/30 step; configured actors share physics time after initialization. */
+    int (*prepare_view)(void *context,uint32_t frame,rf_model_projection *view);
+    void *view_context;
     const uint32_t *stance_flags;
     /* Apply original selector physics effect before controller advancement.
      * Eligibility remains scripted in this diagnostic. Called once per frame. */

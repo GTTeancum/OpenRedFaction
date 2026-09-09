@@ -130,8 +130,11 @@ typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity;rf_scene_frame_sink sink;void *context;
     const rf_geometry_collision_world *collision;
-    const rf_geometry *geometry;unsigned char *surface_indices;
+    const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];
 } scene_stream;
+static const rf_scene_world_geometry *actor_follow_world;
+void rf_scene_actor_follow(const rf_scene_world_geometry *world) {actor_follow_world=world;}
+uint32_t rf_scene_actor_follow_frames[64][14]; /* absolute frame, world vertices, camera position/orientation */
 static const float scene_step_seconds=1.0f/60.0f;
 rf_physics_body scene_actor_body;
 uint32_t rf_scene_actor_physics_diagnostic[8];
@@ -586,6 +589,18 @@ int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t
     out[0]=0x52464157;out[1]=1;out[2]=n;out[3]=hits;memcpy(out+4,&fraction,4);
     out[5]=hash;out[6]=sizeof(*rf_scene_actor_sweep_records);out[7]=scene_actor_body.allocated_bytes;return RF_OK;
 }
+static int actor_follow_view(void *context,uint32_t frame,rf_model_projection *view)
+{
+    scene_stream *stream=context;float position[3],orientation[3][3]={{-1,0,0},{0,1,0},{0,0,-1}};
+    uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
+    if(scene_actor_body.allocated_bytes)memcpy(position,scene_actor_body.state.position,12);
+    else memcpy(position,stream->actor_spawn,12);
+    position[1]+=.7f;position[2]+=2.4f;
+    status=rf_scene_world_update_camera(actor_follow_world,NULL,0,position,orientation,stream->mesh,stream->capacity-1024*1024);if(status)return status;
+    stream->world=stream->mesh->count;
+    memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);view->rotation[4]=4.0f/3.0f;
+    r[0]=frame;r[1]=stream->world;memcpy(r+2,position,12);memcpy(r+5,orientation,36);return RF_OK;
+}
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;
@@ -702,10 +717,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(!level || !mesh || !materials || !mesh->vertices || !materials->items ||
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||
        materials->allocated_bytes>=material_budget)return RF_RANGE;
+    if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
+        actor_follow_world->material_count!=materials->count))return RF_RANGE;
     stream.world=mesh->count;stream.base=materials->count;stream.geometry=geometry;
     if(sink && (uint64_t)mesh->bytes+1024*1024>mesh_budget)return RF_RANGE;
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     status=rf_level_actor_assets_load(level,uid,tables_path,&archive,512*1024,&binding);if(status)goto done;
+    memcpy(stream.actor_spawn,binding.entity.position,12);
     if(strcmp(binding.mesh.name,"miner.v3c")) {status=RF_FORMAT;goto done;}
     status=rf_animation_placement_from_level(level,&binding.entity,&placement);if(status)goto done;
     if(sink) {
@@ -766,7 +784,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     status=rf_model_materials_open_skin(&bundle,&model,names,binding.assets.texture_count,maps,map_count,
         material_budget-materials->allocated_bytes);if(status)goto done;
     bytes=((uint64_t)mesh->count+actor.count)*sizeof(*vertices);
-    capacity=sink?(uint64_t)mesh->bytes+1024*1024:bytes;
+    capacity=sink?(actor_follow_world?mesh_budget:(uint64_t)mesh->bytes+1024*1024):bytes;
     count=(uint64_t)materials->count+bundle.textures.count;
     if(capacity>mesh_budget || capacity>SIZE_MAX || bytes>capacity || count>256) {status=RF_RANGE;goto done;}
     for(i=0;i<actor.count;++i) {
@@ -791,6 +809,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(sink) {
         rf_preview_close(&actor);
         stream.mesh=mesh;stream.materials=materials;stream.bundle=&bundle;
+        if(actor_follow_world) {placement.prepare_view=actor_follow_view;placement.view_context=&stream;}
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,&stream);
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,&stream);

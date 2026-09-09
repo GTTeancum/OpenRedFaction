@@ -96,4 +96,8 @@ int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *mes
 /* Diagnostic process-local input; no host input or gameplay controller.
  * Profile 0: passive; 1: +X .25 frames 24..47; 2: -X 1 frames 24..62. */
 void rf_scene_actor_drive(int profile);
+/* Borrow a retained world for diagnostic camera following; NULL disables.
+ * Owner and source world must outlive the body stream. Fixed .7Y/2.4Z offset,
+ * no camera collision or original first-person policy. */
+void rf_scene_actor_follow(const rf_scene_world_geometry *world);
 #endif

@@ -33,12 +33,16 @@ extern float rf_scene_actor_clearance_queries[2][12];
 extern uint32_t rf_scene_actor_surface_frames[64][2];
 extern uint32_t rf_scene_actor_movement_frames[64][3];
 extern uint32_t rf_scene_actor_render_frames[64][5];
+extern uint32_t rf_scene_actor_follow_frames[64][14];
+static int follow_camera;
+static rf_scene_world_geometry follow_world;
 static int build_check_world(const rf_level *level,const rf_geometry *geometry,rf_vpp *maps,
     rf_preview_mesh *mesh,rf_materials *materials)
 {
     if(rf_scene_actor_live_enabled) {
         rf_scene_world_geometry owned={0};
-        int status=rf_scene_world_open_retained(level,geometry,maps,5,mesh,materials,8*1024*1024,4*1024*1024,&owned);
+        rf_scene_world_geometry *owner=follow_camera && !follow_world.world?&follow_world:&owned;
+        int status=rf_scene_world_open_retained(level,geometry,maps,5,mesh,materials,8*1024*1024,4*1024*1024,owner);
         rf_scene_world_geometry_close(&owned);return status;
     }
     {int status=rf_preview_build(mesh,geometry,level,8*1024*1024);return status?status:rf_materials_open(materials,geometry,maps,5,4*1024*1024);}
@@ -52,16 +56,22 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
     check *c=context;uint32_t i,hash=2166136261u;const uint8_t *bytes;
-    if(frame!=c->next++ || world!=c->world.count || mesh->count<world || mesh->count%3 ||
+    if(frame!=c->next++ || (!follow_camera && world!=c->world.count) || mesh->count<world || mesh->count%3 ||
        mesh->bytes!=(uint64_t)mesh->count*sizeof(rf_preview_vertex) ||
-       mesh->bytes>c->world.bytes+1024*1024 || memcmp(mesh->vertices,c->world.vertices,c->world.bytes))return RF_FORMAT;
+       mesh->bytes>(follow_camera?8*1024*1024:c->world.bytes+1024*1024) || (!follow_camera && memcmp(mesh->vertices,c->world.vertices,c->world.bytes)))return RF_FORMAT;
     if(c->address && (c->address!=mesh->vertices || c->material_address!=materials->items))return RF_FORMAT;
     c->address=mesh->vertices;c->material_address=materials->items;
+    if(follow_camera) {
+        const uint32_t *r=rf_scene_actor_follow_frames[frame%64];float camera[3],expected[3];
+        memcpy(camera,r+2,12);memcpy(expected,scene_actor_body.state.position,12);expected[1]+=.7f;expected[2]+=2.4f;
+        if(r[0]!=frame || r[1]!=world || memcmp(camera,expected,12) || mesh->count==world)return RF_FORMAT;
+        for(i=0;i<world;++i)if(mesh->vertices[i].material>=c->base)return RF_FORMAT;
+    }
     if(c->body_mode && !rf_scene_actor_drive_enabled && frame>22 && (rf_scene_actor_landing[1]!=1 ||
        scene_actor_body.state.velocity[0]!=0 || scene_actor_body.state.velocity[1]!=0 ||
        scene_actor_body.state.velocity[2]!=0))return RF_FORMAT;
     bytes=(const uint8_t*)(mesh->vertices+world);
-    for(i=0;i<mesh->bytes-c->world.bytes;++i)hash=(hash^bytes[i])*16777619u;
+    for(i=0;i<mesh->bytes-world*sizeof(rf_preview_vertex);++i)hash=(hash^bytes[i])*16777619u;
     if(frame && hash!=c->last)++c->changed;c->last=hash;
     for(i=world;i<mesh->count;++i)if(mesh->vertices[i].material<c->base ||
         mesh->vertices[i].material>=materials->count || mesh->vertices[i].lightmap!=UINT32_MAX)return RF_FORMAT;
@@ -75,7 +85,7 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
             memcpy(&slot,c->bundle.items[expected.vertices[i].material].record.bytes+0x10,4);
             expected.vertices[i].material=c->base+slot;
         }
-        status=expected.bytes!=mesh->bytes-c->world.bytes || memcmp(expected.vertices,bytes,expected.bytes);
+        status=expected.bytes!=mesh->bytes-world*sizeof(rf_preview_vertex) || memcmp(expected.vertices,bytes,expected.bytes);
         rf_preview_close(&expected);if(status)return RF_FORMAT;
     }
     printf("Frame %u actor triangles %u hash %08x\n",frame,(mesh->count-world)/3,hash);
@@ -162,11 +172,12 @@ int main(int argc,char **argv)
     }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
-    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse") || !strcmp(argv[12],"--live")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
+    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse") || !strcmp(argv[12],"--live") || !strcmp(argv[12],"--follow")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
     if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && strcmp(argv[12],"--long-animation") && !body_mode)))return 2;
     c.authored=argc==13;
     c.body_mode=body_mode;
-    rf_scene_actor_live_enabled=argc==13 && !strcmp(argv[12],"--live");
+    follow_camera=argc==13 && !strcmp(argv[12],"--follow");
+    rf_scene_actor_live_enabled=follow_camera || (argc==13 && !strcmp(argv[12],"--live"));
     rf_scene_actor_drive(drive);rf_scene_actor_route_enabled=argc==13 && !strcmp(argv[12],"--traverse");
     c.meshes=argv[4];c.motions=argv[5];
     if(rf_vpp_open(&levels,argv[1]) || rf_level_open(&level,&levels,argv[2]) ||
@@ -178,6 +189,7 @@ int main(int argc,char **argv)
         rf_materials images={0};rf_preview_close(&c.world);
         if(build_check_world(&level,&geometry,maps,&c.world,&images))return 3;
         rf_materials_close(&images);
+        if(follow_camera)rf_scene_actor_follow(&follow_world);
     }
     if(rf_level_actor_assets_load(&level,(int32_t)strtol(argv[3],NULL,10),argv[6],&meshes,512*1024,&binding) ||
        rf_animation_placement_from_level(&level,&binding.entity,&c.placement) ||
@@ -362,6 +374,7 @@ int main(int argc,char **argv)
             memcmp(&saved,&materials,sizeof(materials))))return 3;
         rf_preview_close(&mesh);rf_materials_close(&materials);
     }
+    rf_scene_actor_follow(NULL);rf_scene_world_geometry_close(&follow_world);
     rf_geometry_collision_world_close(&body_world);
     rf_model_materials_close(&c.bundle);rf_preview_close(&c.world);rf_geometry_close(&geometry);
     for(i=0;i<5;++i)rf_vpp_close(maps+i);rf_vpp_close(&meshes);rf_vpp_close(&levels);

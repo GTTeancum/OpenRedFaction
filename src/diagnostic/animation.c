@@ -225,13 +225,6 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     for (frame=0;frame<frame_count;++frame) {
         float frame_seconds=frame && placement && placement->step_seconds>0?placement->step_seconds:1.0f/30.0f;
         if(sink)preview->count=0;
-        if(placement) {
-            const rf_physics_body *body=placement->physics_body;
-            const float *position=body && body->allocated_bytes?body->state.position:placement->position;
-            const float *orientation=body && body->allocated_bytes?body->state.orientation:placement->orientation;
-            status=rf_model_local_view(&placement->world_view,position,orientation,&render_view);if(status)goto done;
-            clip_projection=placement->clip_projection;clip_planes=placement->planes;
-        }
         if(authored) {
             static const int32_t sequence[4]={0,2,8,0};
             int handled=0;
@@ -239,10 +232,6 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 rf_motion_stance_decision decision;
                 status=rf_motion_select_stance(&controller,motions,8,frame>=32 && frame<56,*placement->stance_flags,&decision);if(status)goto done;
                 status=placement->stance_effect(placement->stance_context,frame,&decision,&controller);if(status)goto done;
-                if(placement->physics_body && placement->physics_body->allocated_bytes) {
-                    const rf_physics_body_state *body=&placement->physics_body->state;
-                    status=rf_model_local_view(&placement->world_view,body->position,body->orientation,&render_view);if(status)goto done;
-                }
                 handled=decision.handled;
             }
             if(!handled && placement && placement->movement_select) {
@@ -286,6 +275,15 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         selection.combat_eligible=(uint32_t)eligible;
         status=rf_locomotion_choose_candidates(&candidates,&selection,motions,&effects,&state,resources,4,
             actions,sounds,&context,&actor,NULL,NULL,&sound_class); if (status!=RF_OK) goto done;
+        }
+        if(placement) {
+            const rf_physics_body *body=placement->physics_body;
+            const float *position=body && body->allocated_bytes?body->state.position:placement->position;
+            const float *orientation=body && body->allocated_bytes?body->state.orientation:placement->orientation;
+            rf_model_projection view=placement->world_view;
+            if(placement->prepare_view) {status=placement->prepare_view(placement->view_context,frame,&view);if(status)goto done;}
+            status=rf_model_local_view(&view,position,orientation,&render_view);if(status)goto done;
+            clip_projection=placement->clip_projection;clip_planes=placement->planes;
         }
         status=rf_motion_update(&state,resources,resource_count,frame_seconds); if (status!=RF_OK) goto done;
         if(placement && placement->animation_timing) {
