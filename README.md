@@ -4,6 +4,14 @@ Work in progress: shared C/C++ reconstruction targeting a stock 64 MiB Xbox
 through NXDK, with a maintained 32-bit PC build. Single-player comes first and
 visual quality must meet the PS2 version. **There is no playable port yet.**
 
+![Original Xbox build: first-person Live Mines diagnostic running in XEMU](docs/images/xbox-live-mines.png)
+
+**Xbox build running in XEMU with stock 64 MiB RAM.** Native 640 × 480 guest
+framebuffer capture of the Live Mines first-person diagnostic (September 9, 2026).
+The camera follows reconstructed standing/crouching eye offsets on a scripted
+route; player controls, weapon view and campaign gameplay remain unfinished.
+This is an emulator capture; real Xbox hardware testing is still pending.
+
 Current outputs include archive/level diagnostics, a shared static geometry,
 texture and lightmap preview for PC and Xbox, and reconstructed filename checksum,
 entity eye-update and character tag-lookup routines. Model loading, gameplay and
