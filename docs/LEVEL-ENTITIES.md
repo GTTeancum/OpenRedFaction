@@ -225,6 +225,21 @@ Report: `artifacts/physics-fallback-sphere-verification.json`. Existing sphere
 lists, geometric-model inertia, allocation failure and a shared physics
 implementation remain open.
 
+`rf_physics_fallback_prepare` in `src/core/physics.c` now reconstructs the
+fallback's generated/preserved mass and five defined sphere fields. The caller
+provides resolved density, radius and mass for the no-model/empty-list branch.
+The 24-byte output contains mass, zero center, radius and parameter +0x10 = -1;
+the undefined sixth original sphere word is not exposed. No allocation occurs.
+Sphere ownership, inversion of inertia and runtime insertion are still external.
+
+Expanded `verify_physics_fallback_sphere.py` checks 4,020 original cases across
+67 radii against PC and actual NXDK-linked code; mass and defined sphere bytes
+match exactly. Nine additional port guards reject nonfinite inputs, negative
+density/radius and generated-mass overflow without changing output on either
+build. Guards are port policy, not claimed original behavior. Both builds and
+all four CTest checks pass. Exhaustive floating-point equivalence, including
+all density values and extreme exponent combinations, remains unproven.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and
