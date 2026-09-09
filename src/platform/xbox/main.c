@@ -49,7 +49,8 @@ static uint32_t group_runtime_hash(void)
 }
 static rf_level_owned_triggers resident_triggers;
 static rf_level_owned_events resident_events;
-volatile uint32_t rf_level_logic_diagnostic[10]={0x52464c47u};
+static rf_level_owned_entities resident_entities;
+volatile uint32_t rf_level_logic_diagnostic[12]={0x52464c47u};
 static uint32_t logic_hash_part(uint32_t hash,const void *data,uint32_t bytes)
 {
     uint32_t i;for(i=0;i<bytes;++i)hash=(hash^((const unsigned char *)data)[i])*16777619u;
@@ -68,6 +69,11 @@ static uint32_t logic_storage_hash(void)
         hash=logic_hash_part(hash,&v->record,sizeof(v->record));
         hash=logic_hash_part(hash,v->links,v->record.link_count*4);
     }
+    for(i=0;i<resident_entities.count;++i) {
+        const rf_level_owned_entity *v=resident_entities.items+i;
+        hash=logic_hash_part(hash,&v->record,sizeof(v->record));
+        hash=logic_hash_part(hash,v->raw,v->record.bytes);
+    }
     return hash;
 }
 static int logic_storage_check(void)
@@ -80,13 +86,16 @@ static int logic_storage_open(const rf_level *level)
 {
     uint32_t i;int status=rf_level_owned_triggers_open(level,512u*1024u,&resident_triggers);
     if(!status)status=rf_level_owned_events_open(level,512u*1024u-resident_triggers.allocated_bytes,&resident_events);
+    if(!status)status=rf_level_owned_entities_open(level,512u*1024u-resident_triggers.allocated_bytes-resident_events.allocated_bytes,&resident_entities);
     if(status) {
         rf_level_owned_triggers_close(&resident_triggers);rf_level_owned_events_close(&resident_events);
+        rf_level_owned_entities_close(&resident_entities);
         rf_level_logic_diagnostic[1]=(uint32_t)status;return status;
     }
     rf_level_logic_diagnostic[1]=1;rf_level_logic_diagnostic[2]=resident_triggers.count;
     rf_level_logic_diagnostic[3]=resident_events.count;
-    rf_level_logic_diagnostic[4]=resident_triggers.allocated_bytes+resident_events.allocated_bytes;
+    rf_level_logic_diagnostic[4]=resident_triggers.allocated_bytes+resident_events.allocated_bytes+resident_entities.allocated_bytes;
+    rf_level_logic_diagnostic[10]=resident_entities.count;rf_level_logic_diagnostic[11]=resident_entities.allocated_bytes;
     for(i=0;i<resident_triggers.count;++i)rf_level_logic_diagnostic[5]+=resident_triggers.items[i].record.link_count;
     for(i=0;i<resident_events.count;++i)rf_level_logic_diagnostic[6]+=resident_events.items[i].record.link_count;
     rf_level_logic_diagnostic[7]=logic_storage_hash();return RF_OK;

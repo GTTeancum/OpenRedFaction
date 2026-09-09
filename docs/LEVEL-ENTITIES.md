@@ -24,6 +24,23 @@ comparison still passes, both PC/NXDK builds succeed and four CTest checks pass.
 Report: `artifacts/owned-level-entities-verification.json`. Xbox residency and
 registration of these records are the next integration steps.
 
+The Xbox level path now opens owned entities after triggers and events, sharing
+the existing 512 KiB logic-data cap. Failure releases all three owners. The
+resident-data hash includes decoded entity records followed by their complete
+raw bytes in authored order. Diagnostic words 10/11 expose entity count and
+accounted bytes; words 4/7/8 now include entities in total bytes and hashes.
+`xemu_smoke.py` derives these expected values from the PC owner export and
+compares them after the normal lifetime checks. Gameplay registration and
+event-target dispatch are still separate work.
+
+Stock 64 MiB XEMU run `20260909-123707-654594` passes: 78 entities occupy
+101,209 accounted bytes; combined entity/trigger/event ownership is 355,013
+bytes. All decoded/raw bytes match the PC-derived hash `40a0567f` through 66
+lifetime checks and archive closure. The 600-frame door render trace remains
+`22d17eea`, with all 2,400 controller ticks matching PC. This validates resident
+inputs alongside the diagnostic scene, not entity spawning or gameplay events.
+No framebuffer was captured because rendering behavior is unchanged.
+
 `rf_level_actor_assets_load` now binds a selected level UID to its decoded
 entity record, table metadata and installed compiled skeletal mesh entry.
 It preserves the complete authored transform, class/script/state-animation and

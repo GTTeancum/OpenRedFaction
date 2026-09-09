@@ -49,6 +49,9 @@ entities, collision eligibility and full visibility effects.
 Owned entity inputs now preserve decoded and raw records after archive closure
 for all 1,610 entities in 66 levels (max 101,209 accounted PC bytes); connect
 Xbox residency and runtime registration before dispatching events to entities.
+Xbox entity residency now passes stock 64 MiB XEMU: 78 entities, 355,013 total
+logic-data bytes and 66 PC-matching lifetime checks; runtime entity construction,
+registration and event dispatch remain open.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and

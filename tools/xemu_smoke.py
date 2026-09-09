@@ -105,6 +105,13 @@ def main():
             link_count,=struct.unpack_from('<I',payload,cursor+16);links+=link_count;cursor+=size+4*link_count
         assert cursor==len(payload)
         logic_links.append(links);logic_bytes+=count*stride+4*links;logic_payload+=payload[4:]
+    entity_run=subprocess.run([str(root/'build/pc/Release/rf_level_entity_probe.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','--owned-entities'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True)
+    entity_payload=entity_run.stdout;entity_count=0;entity_bytes=16;cursor=0
+    while cursor<len(entity_payload):
+        record_bytes,=struct.unpack_from('<I',entity_payload,cursor+1080)
+        cursor+=1084+record_bytes;entity_count+=1;entity_bytes+=1088+record_bytes
+    assert cursor==len(entity_payload)
+    logic_bytes+=entity_bytes;logic_payload+=entity_payload
     logic_hash=2166136261
     for byte in logic_payload:logic_hash=((logic_hash^byte)*16777619)&0xffffffff
     registry_symbol=re.search(r'_rf_registry_diagnostic\s+([0-9a-fA-F]+)',map_text)
@@ -254,12 +261,12 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     if len(mover)!=12 or mover[:3]!=[0x52464d56,1,mover_reference[1]] or mover[5:10]!=want or mover[11] or not 0<mover[10]<=words[3] or mover[3]+collision[2]!=mover_reference[7] or mover[4]<mover[3]:
                         raise RuntimeError(f'Guest combined mover query differs from PC: {mover}; reference {mover_reference}')
                     report['collision_movers']=dict(count=mover[2],retained_bytes=mover[3],peak_bytes=mover[4],queries=mover[5],hits=mover[6],moving_hits=mover[7],static_hits=mover[8],checksum=hex(mover[9]),available_bytes_after_build=mover[10]*4096,scope='Initial owned movers retained with world/rendering. Combined ray output and nullable visibility match PC; registry-assigned handles in explicit mover-first creation order; no general-object construction.')
-                    logic_reply=monitor.command('human-monitor-command',{'command-line':f'x /10wx 0x{int(logic_symbol[1],16):x}'})
+                    logic_reply=monitor.command('human-monitor-command',{'command-line':f'x /12wx 0x{int(logic_symbol[1],16):x}'})
                     logic=[]
                     for line in logic_reply.splitlines():
                         if ':' in line:logic.extend(int(w,16) for w in re.findall(r'0x[0-9a-fA-F]{8}\b',line.split(':',1)[1]))
                     logic_want=[0x52464c47,1,*logic_counts,logic_bytes,*logic_links,logic_hash,logic_hash]
-                    if len(logic)!=10 or logic[:9]!=logic_want or logic[9]<(66 if args.scene_states else 2):
+                    if len(logic)!=12 or logic[:9]!=logic_want or logic[9]<(66 if args.scene_states else 2) or logic[10:]!=[entity_count,entity_bytes]:
                         raise RuntimeError(f'Owned level logic differs: {logic}; expected {logic_want}')
                     registry_reply=monitor.command('human-monitor-command',{'command-line':f'x /6wx 0x{int(registry_symbol[1],16):x}'})
                     registry=[]
@@ -268,7 +275,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     if len(registry)!=6 or registry[:5]!=[0x52465247,1,membership_header[1],group_count,12300] or registry[5]<(65 if args.scene_states else 1):
                         raise RuntimeError(f'Registry lifetime mismatch: {registry}')
                     report['object_registry']=dict(movers=registry[2],controllers=registry[3],bytes=registry[4],checks=registry[5],scope='Registered resident movers then controllers; original handle algorithm, explicit diagnostic creation order. Trigger/event registration pending.')
-                    report['level_logic']=dict(triggers=logic[2],events=logic[3],retained_bytes=logic[4],trigger_links=logic[5],event_links=logic[6],hash=hex(logic[8]),lifetime_checks=logic[9],scope='Owned records and raw links match PC through archive closure; no runtime registration or activation.')
+                    report['level_logic']=dict(triggers=logic[2],events=logic[3],entities=logic[10],entity_bytes=logic[11],retained_bytes=logic[4],trigger_links=logic[5],event_links=logic[6],hash=hex(logic[8]),lifetime_checks=logic[9],scope='Owned trigger/event records and links plus decoded/raw entity records match PC through archive closure; no gameplay entity registration or activation.')
                     group_reply=monitor.command('human-monitor-command',{'command-line':f'x /10wx 0x{int(group_symbol[1],16):x}'})
                     groups=[]
                     for line in group_reply.splitlines():
