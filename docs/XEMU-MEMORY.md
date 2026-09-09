@@ -1331,3 +1331,35 @@ hardware performance evidence. The world peak is below half a MiB, so both
 be reduced with another bounded-capacity validation. Camera obstruction,
 first-person view policy, simultaneous mover updates and gameplay input remain
 open.
+
+
+## Follow-buffer reduction from measured usage
+
+`RF_SCENE_FOLLOW_CAPACITY` now defines a 2 MiB fixed follow-scene allocation on
+both CPU and GPU, replacing the 8 MiB reservations. The scene keeps its existing
+1 MiB actor reserve, leaving 1 MiB for world reprojection; the measured peak on
+this complete route was 484848 bytes. Bounds checks remain active and oversized
+projections fail rather than growing beyond the budget. This fixture-specific
+bound is not a claim that every campaign view fits the same geometry budget.
+
+The follow summary now includes the actual CPU capacity as a fifth word. The
+XEMU harness compares this to PC and requires both reported CPU capacity and
+GPU allocation to be 2097152 bytes. The expected simultaneous reservation
+reduction is 12 MiB (6 MiB per buffer); the full route still contributes all
+world/camera/body states to its comparison hashes. Neither geometry precision,
+texture quality, frame count nor physics timestep changes.
+
+Both builds, four CTests and the short drive regression pass. The full 664-frame
+XEMU comparison and measured memory change are recorded below. No screenshot is
+requested for this allocation-only change.
+
+
+Run `20260909-181406-561630` PASS in stock 64 MiB XEMU. World hash 136623072,
+camera hash 3459837023, actor geometry hash 387910986 and body hash 533762320
+match the prior 8 MiB run exactly; all support transitions and the 484848-byte
+world peak are unchanged. CPU/GPU capacities both report 2097152 bytes. Free
+memory after upload is 41062400 bytes (previously 28471296); after CPU mesh
+release it is 44220416 (previously 37928960). Exact reservations fall by 12 MiB
+while both meshes live, and the final retained GPU allocation falls by 6 MiB.
+These remain diagnostic memory observations, not full-campaign peak evidence.
+No framebuffer was captured because geometry and view behavior are unchanged.

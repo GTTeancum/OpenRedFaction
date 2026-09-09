@@ -2,6 +2,8 @@
 #define RF_SCENE_PREVIEW_H
 #include "rf/material.h"
 #include "rf/preview.h"
+/* Follow fixture: 1 MiB world projection plus 1 MiB actor output. */
+#define RF_SCENE_FOLLOW_CAPACITY (2u*1024u*1024u)
 typedef struct rf_scene_world_geometry {
     const rf_geometry *world;
     rf_geometry_movers movers;

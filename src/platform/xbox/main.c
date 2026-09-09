@@ -410,7 +410,7 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
         status=rf_scene_actor_fall_check(&resident_collision,rf_actor_fall_diagnostic);if(status)return status;
     }
     rf_diagnostic[57]=world;
-    {int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],8*1024*1024):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:group_storage_check();}
+    {int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],RF_SCENE_FOLLOW_CAPACITY):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:group_storage_check();}
 }
 static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
 {

@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Reduce the oversized follow-camera mesh reservations using measured peaks, then address camera collision and original player-view behavior.
+- [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Replace scripted stance eligibility and resolve the initial class animation pose.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -67,6 +67,11 @@ Follow mode now passes 664 frames in stock 64 MiB XEMU, run
 native framebuffer comparison. Peak world mesh is 484,848 bytes versus the
 current 8 MiB CPU/GPU reservations; shrink those before expanding runtime work.
 The final still is very similar to the last posted image, so it is not reposted.
+
+Follow CPU/GPU buffers are reduced to 2 MiB each, saving 12 MiB of simultaneous
+reservations. XEMU run `20260909-181406-561630` passes with unchanged world,
+camera, actor and body hashes. Reported available memory after upload rises to
+41,062,400 bytes. No new image was captured for this allocation-only change.
 
 Capture and post screenshots only when there is a new visible result.
 

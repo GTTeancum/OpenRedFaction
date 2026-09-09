@@ -33,7 +33,7 @@ extern float rf_scene_actor_clearance_queries[2][12];
 extern uint32_t rf_scene_actor_surface_frames[64][2];
 extern uint32_t rf_scene_actor_movement_frames[64][3];
 extern uint32_t rf_scene_actor_render_frames[64][5];
-extern uint32_t rf_scene_actor_follow_frames[64][14],rf_scene_actor_follow_summary[4];
+extern uint32_t rf_scene_actor_follow_frames[64][14],rf_scene_actor_follow_summary[5];
 static int follow_camera;
 static rf_scene_world_geometry follow_world;
 static int build_check_world(const rf_level *level,const rf_geometry *geometry,rf_vpp *maps,
@@ -58,7 +58,7 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     check *c=context;uint32_t i,hash=2166136261u;const uint8_t *bytes;
     if(frame!=c->next++ || (!follow_camera && world!=c->world.count) || mesh->count<world || mesh->count%3 ||
        mesh->bytes!=(uint64_t)mesh->count*sizeof(rf_preview_vertex) ||
-       mesh->bytes>(follow_camera?8*1024*1024:c->world.bytes+1024*1024) || (!follow_camera && memcmp(mesh->vertices,c->world.vertices,c->world.bytes)))return RF_FORMAT;
+       mesh->bytes>(follow_camera?RF_SCENE_FOLLOW_CAPACITY:c->world.bytes+1024*1024) || (!follow_camera && memcmp(mesh->vertices,c->world.vertices,c->world.bytes)))return RF_FORMAT;
     if(c->address && (c->address!=mesh->vertices || c->material_address!=materials->items))return RF_FORMAT;
     c->address=mesh->vertices;c->material_address=materials->items;
     if(follow_camera) {
@@ -236,7 +236,7 @@ int main(int argc,char **argv)
             printf("ACTOR_LIVE_WORLD %u\n",follow_camera?rf_scene_actor_follow_frames[663%64][1]:c.world.count);
             if(follow_camera) {
                 printf("ACTOR_FOLLOW");for(i=0;i<896;++i)printf(" %u",((uint32_t*)rf_scene_actor_follow_frames)[i]);puts("");
-                printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<4;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
+                printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
             }
             printf("ACTOR_LIVE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_live_summary[i]);puts("");
             printf("ACTOR_LIVE_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_tick_stats[i]);puts("");

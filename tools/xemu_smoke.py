@@ -74,7 +74,7 @@ def main():
     parser.add_argument('--actor-contact',action='store_true',help='Expect actor-contact.flag sustained -X collision route')
     parser.add_argument('--actor-routes',action='store_true',help='Expect eight 600-step physics routes after the rendered drive fixture')
     parser.add_argument('--actor-live',action='store_true',help='Expect actor-live.flag continuous 664-frame animated body scene')
-    parser.add_argument('--actor-follow',action='store_true',help='Expect actor-follow.flag moving camera and fixed 8 MiB GPU vertices')
+    parser.add_argument('--actor-follow',action='store_true',help='Expect actor-follow.flag moving camera and fixed 2 MiB GPU vertices')
     args = parser.parse_args()
     if args.actor_follow:args.actor_live=True
     if args.actor_live:
@@ -337,7 +337,8 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         if symbols['rf_scene_actor_live_enabled']['words']!=[1] or symbols['rf_scene_actor_frame_count']['words']!=[664]:raise RuntimeError('Live actor mode/length mismatch')
                         if args.actor_follow:
                             if symbols['rf_scene_actor_follow_frames']['words']!=follow_reference or symbols['rf_scene_actor_follow_summary']['words']!=follow_summary_reference:raise RuntimeError('Follow camera/world projection differs from PC')
-                            report['actor_follow']=dict(frames=follow_summary_reference[0],world_hash=follow_summary_reference[1],peak_world_bytes=follow_summary_reference[2],camera_hash=follow_summary_reference[3],camera_ring_matches_pc=64,scope='Fixed-offset camera; changing retained world and actor view, no camera collision.')
+                            if follow_summary_reference[4]!=2*1024*1024:raise RuntimeError('Unexpected follow CPU capacity')
+                            report['actor_follow']=dict(cpu_vertex_capacity=follow_summary_reference[4],frames=follow_summary_reference[0],world_hash=follow_summary_reference[1],peak_world_bytes=follow_summary_reference[2],camera_hash=follow_summary_reference[3],camera_ring_matches_pc=64,scope='Fixed-offset camera; changing retained world and actor view, no camera collision.')
                         report['actor_live']=dict(frames=664,physics_updates=663,landings=live_reference['ACTOR_LIVE'][5],support_losses=live_reference['ACTOR_LIVE'][6],geometry_hash=live_reference['ACTOR_LIVE'][2],body_hash=live_reference['ACTOR_LIVE'][3],rings_match_pc=10,final_body_bytes_match_pc=308,scope='Continuous animation and moving body; fixed camera, fixture inputs, simplified entity gates. Hashes summarize all frames; rings retain final 64.')
                     if actor_physics_reference is not None:
                         reply=monitor.command('human-monitor-command',{'command-line':f'x /8wx 0x{int(actor_physics_symbol[1],16):x}'})
@@ -586,7 +587,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     elif words[31]!=0:raise RuntimeError('Unknown preview scene')
                     report['scene']='authored-state Live Mines / miner 9858' if words[31]==5 else 'streamed Live Mines / miner 9858' if words[31]==4 else 'Live Mines / miner 9858 close inspection' if words[31]==3 else 'streamed miner inspection' if words[31]==2 else 'posed miner inspection' if words[31] else 'Live Mines static geometry'
                     if args.door_view:report['scene']='Live Mines mover 8544 door inspection; actor-state playback outside view'
-                    vertex_capacity=8*1024*1024 if args.actor_follow else 1024*1024+words[57]*56 if words[31] in (4,5) else 1024*1024 if words[31]==2 else words[36]*56
+                    vertex_capacity=2*1024*1024 if args.actor_follow else 1024*1024+words[57]*56 if words[31] in (4,5) else 1024*1024 if words[31]==2 else words[36]*56
                     if args.door_motion:vertex_capacity=1024*1024+2892*56
                     if not 0 < words[44] <= words[47] <= words[3] or words[45:47] != [expected_gpu_bytes, vertex_capacity]:
                         raise RuntimeError('Unexpected GPU allocation or memory telemetry')
