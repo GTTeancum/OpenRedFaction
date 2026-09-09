@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Supplied world-camera/entity transforms now drive the running model stream on
+64 MiB XEMU, with moving and fully culled placement checks on PC. Load real
+level entity transforms and combine placed models with the world draw path.
+
 Entity-local camera and view rotation now match 2,000 original placement-block
 cases. Connect supplied world/entity transforms to scene model drawing and
 recover the remaining view-stack and secondary-view state.

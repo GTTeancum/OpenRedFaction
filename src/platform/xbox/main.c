@@ -40,8 +40,18 @@ static int model_preview(void)
     if(!status)status=rf_model_materials_open(&bundle,&model,archives,opened,4*1024*1024);
     stream_flag=fopen("D:\\model-stream.flag","rb");
     if(stream_flag) {
+        rf_animation_placement placement={0};
         fclose(stream_flag);rf_diagnostic[31]=2;
-        if(!status)status=rf_animation_stream("D:\\meshes.vpp","D:\\motions.vpp",1024*1024,model_frame,&bundle);
+        /* Equivalent inspection framing through a translated quarter-turn
+         * entity, exercising model-local view conversion on the Xbox. */
+        placement.world_view.camera[0]=2.2f;placement.world_view.camera[1]=8;placement.world_view.camera[2]=16;
+        placement.world_view.rotation[2]=1;placement.world_view.rotation[4]=1;placement.world_view.rotation[6]=-1;
+        placement.world_view.perspective=placement.world_view.compute_clip=placement.world_view.clipping=1;
+        placement.world_view.screen[0]=320;placement.world_view.screen[1]=-240;placement.world_view.screen[2]=320;placement.world_view.screen[3]=240;
+        placement.position[1]=8;placement.position[2]=16;
+        placement.orientation[2]=-1;placement.orientation[4]=placement.orientation[6]=1;
+        placement.clip_projection.scale[0]=320;placement.clip_projection.scale[1]=240;placement.clip_projection.clamp=1;
+        if(!status)status=rf_animation_stream_placed("D:\\meshes.vpp","D:\\motions.vpp",1024*1024,&placement,model_frame,&bundle);
     } else {
     if(!status)status=rf_animation_preview("D:\\meshes.vpp","D:\\motions.vpp",0,&mesh,1024*1024);
     if(!status)for(i=0;i<mesh.count;++i) {

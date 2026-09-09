@@ -1,5 +1,35 @@
 # Model batch data
 
+`rf_animation_stream_placed` connects the recovered entity-local view helper
+to the running resident animation/triangle pipeline. Its placement description
+supplies world view, entity position/orientation and coherent clipping projection
+settings. These are read each frame, so a synchronous consumer can update the
+next placement without restarting pose state or reallocating the preview mesh.
+Model lighting remains the diagnostic ambient fixture. This is an adapter for
+supplied transforms; it does not load a level entity or reconstruct spawning.
+
+Fully culled frames now produce empty meshes successfully, including sequences
+that never emit a triangle. The Xbox stream renderer accepts such meshes and
+can clear/present a frame without drawing a model. Fresh screen-rejected records
+are excluded from the diagnostic's emitted-attribute validation. Near-camera
+intersection behavior and complete view-state recovery remain separate work.
+
+The PC `rf_animation_check.exe --placed-stream Installed_Game/meshes.vpp
+Installed_Game/motions.vpp` fixture verifies all 64 output hashes against the
+unplaced inspection using an equivalent translated quarter-turn entity and
+world camera. A second run changes placement after each callback and detects
+all 63 subsequent same-frame hash differences. A third run yields 64 empty
+meshes for an off-screen entity. These are integration properties, not a new
+original-code comparison or proof of full scene rendering.
+
+The Xbox streaming inspection now uses that translated quarter-turn fixture,
+preserving its visible framing while exercising the placement code. PC/NXDK
+builds and all four CTest checks pass; native run
+`artifacts/xemu/20260908-215751-805997/report.json` passes on 64 MiB after
+all 64 frames, retaining 464 final triangles. No screenshot was taken because
+the equivalent framing introduces no new visible result. Loading actual level
+entity placements and drawing models together with world geometry remain open.
+
 `rf_model_local_view` reconstructs the primary entity-placement view update
 at `0x547485..0x5474cc`, inside `0x5473f0` called by the model renderer.
 It first stores camera minus entity position as floats, then rotates that delta

@@ -32,7 +32,7 @@ static int reset_loaded_weapon(void *user)
     const rf_weapon_reset_ops ops={NULL,NULL,stop_reset_effect,NULL};
     return rf_weapon_reset(r->state,r->actor->weapon,r->descriptors,r->context,r->playback,r->resources,4,&ops,r);
 }
-static int animation_run(const char *meshes_path,const char *motions_path,uint32_t out[8],rf_preview_mesh *preview,uint32_t preview_frame,uint32_t budget,rf_animation_frame_sink sink,void *sink_context)
+static int animation_run(const char *meshes_path,const char *motions_path,uint32_t out[8],rf_preview_mesh *preview,uint32_t preview_frame,uint32_t budget,rf_animation_frame_sink sink,void *sink_context,const rf_animation_placement *placement)
 {
     static const char *names[4]={"ult2_stand.rfa","ult2_crouch.rfa",
         "ult2_sidestep_left.rfa","ult2_sidestep_right.rfa"};
@@ -153,6 +153,10 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     for (i=3;i<=6;++i) out[i]=2166136261u;
     for (frame=0;frame<64;++frame) {
         if(sink)preview->count=0;
+        if(placement) {
+            status=rf_model_local_view(&placement->world_view,placement->position,placement->orientation,&render_view);if(status)goto done;
+            clip_projection=placement->clip_projection;clip_planes=placement->planes;
+        }
         inventory.reserve[0]=frame<32 ? 1 : 0;
         status=rf_weapon_reserve(&inventory,supply,0,&reserve); if (status!=RF_OK) goto done;
         status=rf_weapon_choose_available(&inventory,supply,preference,1,&replacement); if (status!=RF_OK) goto done;
@@ -222,6 +226,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             for(n=0;n<draw->vertices;++n) {
                 uint32_t index=draw->first_vertex+n;int32_t distance=geometry.reuse[index];
                 uint8_t *v=render_buffers.vertices[n];
+                if(render_view.screen_clip && render_buffers.cache[n].clip)continue;
                 if(distance>0) {
                     if(memcmp(render_buffers.cache[n].world,render_buffers.cache[n-distance].world,12) ||
                         render_buffers.cache[n].clip!=render_buffers.cache[n-distance].clip) {status=RF_FORMAT;goto done;}
@@ -253,7 +258,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         out[2]=frame+1;
         if(sink) {preview->bytes=preview->count*sizeof(rf_preview_vertex);status=sink(sink_context,frame,preview);if(status)goto done;}
     }
-    if(!emitted_indices)status=RF_FORMAT;
+    if(!emitted_indices && !placement)status=RF_FORMAT;
 done:
     free(clip_pool);free(render_indices);
     free(render_memory);
@@ -267,14 +272,14 @@ done:
 }
 
 int rf_animation_check(const char *meshes_path,const char *motions_path,uint32_t out[8])
-{ return animation_run(meshes_path,motions_path,out,NULL,0,0,NULL,NULL); }
+{ return animation_run(meshes_path,motions_path,out,NULL,0,0,NULL,NULL,NULL); }
 
 int rf_animation_preview(const char *meshes_path,const char *motions_path,uint32_t frame,rf_preview_mesh *mesh,uint32_t budget)
 {
     uint32_t out[8];int status;
     if(!mesh || mesh->vertices || frame>=64 || budget<sizeof(rf_preview_vertex))return RF_RANGE;
     memset(mesh,0,sizeof(*mesh));mesh->vertices=malloc(budget);if(!mesh->vertices)return RF_IO;
-    status=animation_run(meshes_path,motions_path,out,mesh,frame,budget,NULL,NULL);
+    status=animation_run(meshes_path,motions_path,out,mesh,frame,budget,NULL,NULL,NULL);
     if(status || !mesh->count) {rf_preview_close(mesh);return status?status:RF_FORMAT;}
     mesh->bytes=mesh->count*sizeof(rf_preview_vertex);return RF_OK;
 }
@@ -283,6 +288,15 @@ int rf_animation_stream(const char *meshes_path,const char *motions_path,uint32_
     rf_preview_mesh mesh={0};uint32_t out[8];int status;
     if(!sink || budget<sizeof(rf_preview_vertex))return RF_RANGE;
     mesh.vertices=malloc(budget);if(!mesh.vertices)return RF_IO;
-    status=animation_run(meshes_path,motions_path,out,&mesh,0,budget,sink,context);
+    status=animation_run(meshes_path,motions_path,out,&mesh,0,budget,sink,context,NULL);
+    rf_preview_close(&mesh);return status;
+}
+int rf_animation_stream_placed(const char *meshes_path,const char *motions_path,uint32_t budget,
+    const rf_animation_placement *placement,rf_animation_frame_sink sink,void *context)
+{
+    rf_preview_mesh mesh={0};uint32_t out[8];int status;
+    if(!placement || !sink || budget<sizeof(rf_preview_vertex))return RF_RANGE;
+    mesh.vertices=malloc(budget);if(!mesh.vertices)return RF_IO;
+    status=animation_run(meshes_path,motions_path,out,&mesh,0,budget,sink,context,placement);
     rf_preview_close(&mesh);return status;
 }
