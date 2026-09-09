@@ -330,3 +330,40 @@ lifetime checks, registered collision-query results and the complete 600-frame
 door cycle. Mesh trace remains `22d17eea`. The registry adds 12,300 resident
 bytes. Triggers/events are retained but still need registered runtime instances;
 activation is still explicitly requested by the door diagnostic. No new capture.
+
+
+## Original event activation and delayed execution
+
+`tools/verify_event_activation.py` executes unchanged 4b8b70, its timer helpers,
+float-to-integer conversion, and propagation predicate 4b8c40. It passes 2,160
+activation cases across all 90 types, disabled/enabled states, negative/zero/
+positive delays and modes 0/1/2. Another 1,620 cases execute delayed-tick prefix
+4b8ce0..4b8d45 before/at/after deadlines, including disabled flags. Three
+re-activation steps verify timer replacement and caller updates. Virtual action
+methods and link propagation 4b8b00 are intercepted; neither event actions nor
+type-specific per-frame updates are implemented or tested here. Report:
+`artifacts/event-activation-verification.json`.
+
+4b6760 resolves the handle through 4b6800, which requires object type 6 and
+returns the object pointer minus four bytes. Event fields below are relative
+to that adjusted event pointer, explaining why event UID is at +0x24 rather
+than the base object's +0x20. The wrapper invokes 4b8b70 with on-mode 1.
+
+Activation stores actor at +0x2a8 and source at +0x2ac before checking flag
+bit 1 at +0x2b0. Disabled activation therefore changes the caller fields but
+leaves the deadline and saved mode intact. Positive delay schedules one timer
+at +0x298, replacing any prior deadline, and saves the mode byte at +0x2b4.
+The duration is truncated after computing delay * 1000 + 0.5; type 79
+(Fire_Weapon_No_Anim) additionally multiplies delay by the original binary32
+constant 0.9827237725257874 at 5897b8. Preserve this observed constant rather
+than inferring a conventional time unit.
+
+For nonpositive delay, activation clears the timer, calls virtual +4 only when
+mode equals 1 (otherwise virtual +8), then conditionally propagates links.
+Types 2, 3, 32, 36, 66, 69 and 89 suppress automatic propagation. The delayed
+tick does not check the disabled flag: on expiry it calls virtual +4 for any
+nonzero saved mode, virtual +8 for zero, conditionally propagates with the
+stored source/actor/mode, and clears the timer after those calls. Action side
+effects can therefore occur before timer clearing; callback ordering must be
+preserved in shared reconstruction. Next implement the common event state path
+with these rules, then recover downstream event actions and registration.

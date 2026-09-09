@@ -18,6 +18,11 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Original event activation now passes 2,160 cases, delayed-tick prefix 1,620
+cases, and three re-activation steps. Timer replacement, disabled caller-field
+updates and on/off ordering are documented in docs/TRIGGERS.md. Reconstruct
+shared event state transitions, preserving callback order, then event actions.
+
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
 4,471 links across 93 levels. Live Mines trigger 8542 references first keys of
