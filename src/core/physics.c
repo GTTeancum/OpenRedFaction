@@ -464,3 +464,67 @@ int rf_physics_stand_endpoint(const float position[3],float height_difference,fl
     if(!isfinite(value[1]))return RF_RANGE;
     memcpy(end,value,12);return RF_OK;
 }
+
+/* Preserve 49e4ab..49e4ea x87 transcendental rounding on NXDK. The caller
+ * control word is restored; binary32 stores remain explicit below. */
+static float run_blend(float ratio,float traction,float dt)
+{
+#if (defined(__i386__) || defined(_M_IX86)) && (defined(__clang__) || defined(__GNUC__))
+    const double decay=.05;float result;unsigned short saved,extended=0x37f;
+    __asm__ volatile("fnstcw %0":"=m"(saved));
+    __asm__ volatile("fldcw %0"::"m"(extended));
+    __asm__ volatile(
+        "flds %1; fdivs %2; fldln2; fldl %3; fyl2x; fdivrp; fdivrs %4; "
+        "fldl2e; fmulp; fld %%st(0); frndint; fxch %%st(1); fsub %%st(1); "
+        "f2xm1; fld1; faddp; fscale; fstp %%st(1); fld1; fsubp; fstps %0"
+        :"=m"(result):"m"(ratio),"m"(traction),"m"(decay),"m"(dt):"st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));return result;
+#else
+    return (float)(1.0-pow(.05,(double)dt/((double)ratio/traction)));
+#endif
+}
+int rf_physics_run_propose(rf_physics_body_state *state,float dt,float speed,float acceleration,
+    float traction,const float input[3],const float normal[3],const float support[3])
+{
+    rf_physics_body_state value;volatile float delta[3]={0},desired[3],projected[3];uint32_t i;
+    if(!state || !input || !normal || !support || !isfinite(dt) || dt<0 ||
+       !isfinite(speed) || speed<=0 || !isfinite(acceleration) || acceleration<=0 ||
+       !isfinite(traction) || traction<=0 || !isfinite(state->mass) || state->mass<=0)return RF_RANGE;
+    value=*state;
+    for(i=0;i<3;++i)if(!isfinite(input[i]) || !isfinite(normal[i]) || !isfinite(support[i]) ||
+        !isfinite(value.velocity[i]) || !isfinite(value.position[i]) || !isfinite(value.vector_e0[i]))return RF_RANGE;
+    if(!(value.flags&0x1000000)) {
+        volatile float ratio=(float)((double)speed/acceleration);
+        volatile float blend=run_blend(ratio,traction,dt);
+        double length;for(i=0;i<3;++i)desired[i]=input[i];
+        if(normal[1]!=0) {
+            volatile float dot=(float)(((double)input[0]*normal[0]+(double)input[1]*normal[1])+(double)input[2]*normal[2]);
+            volatile float y;
+            for(i=0;i<3;++i) {volatile float component=(float)((double)normal[i]*dot);projected[i]=(float)((double)input[i]-component);}
+            y=(float)((double)projected[1]/normal[1]);
+            if(y>=0) {
+                volatile float factor=(float)(1.0-(double)y*y);
+                for(i=0;i<3;++i)desired[i]=(float)((double)projected[i]*factor);
+            }
+        }
+        length=sqrt(((double)desired[0]*desired[0]+(double)desired[1]*desired[1])+(double)desired[2]*desired[2]);
+        if(length>1) {
+            double reciprocal=1.0/(float)length;
+            for(i=0;i<3;++i)desired[i]=(float)((double)desired[i]*reciprocal);
+        }
+        for(i=0;i<3;++i) {
+            volatile float target=(float)((double)desired[i]*speed),difference=(float)((double)target-value.velocity[i]);
+            volatile float force=(float)((double)value.vector_e0[i]/value.mass),impulse=(float)((double)force*dt);
+            delta[i]=(float)((double)difference*blend);delta[i]=(float)((double)delta[i]+impulse);
+            value.velocity[i]=(float)((double)value.velocity[i]+delta[i]);
+        }
+    }
+    for(i=0;i<3;++i) {
+        volatile float half=(float)((double)dt*dt*.5),correction=(float)((double)delta[i]*half);
+        volatile float combined=(float)((double)value.velocity[i]+support[i]),travel=(float)((double)combined*dt);
+        volatile float position=(float)((double)value.position[i]+travel);
+        value.next_position[i]=(float)((double)position-correction);
+        if(!isfinite(value.velocity[i]) || !isfinite(value.next_position[i]))return RF_RANGE;
+    }
+    *state=value;return RF_OK;
+}

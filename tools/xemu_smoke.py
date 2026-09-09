@@ -310,6 +310,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         report['actor_physics']=dict(words=actor_physics,scope='Shared authored config and frame-zero model spheres installed into body; retained across 64 rendered diagnostic frames. Provisional identity tensor and scripted spawn pose; no actor motion response or AI.')
                         memory_snapshot=guest_snapshot(monitor,map_text)
                         if args.actor_body:
+                            report['actor_run_motion']=dict(routine='49e400',traction=struct.unpack('<f',struct.pack('<I',memory_snapshot['symbols']['rf_scene_actor_run_traction']['words'][0]))[0],scope='Run speed convergence and slope response; diagnostic traction 1 until ground material binding is implemented.')
                             speed_modes=memory_snapshot['symbols']['rf_scene_actor_movement_frames']['words']
                             if speed_modes!=actor_speed_modes_reference:raise RuntimeError('Actor stance movement settings differ from PC')
                             report['actor_speed_modes_match_pc']=64

@@ -1,4 +1,4 @@
-"""Compare prepared grounded motion with original 49f7c3..49f89f."""
+"""Compare prepared non-run linear motion with original 49f7c3..49f89f."""
 import hashlib,json,random,re,struct,subprocess,sys
 from pathlib import Path
 import pefile

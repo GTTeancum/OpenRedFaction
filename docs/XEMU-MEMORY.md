@@ -680,3 +680,58 @@ The process-local pulse supplies steering directly. It does not yet implement
 the gameplay controller that consumes target speed to generate movement input.
 Consequently, this verifies the stored movement settings, not paced crouch
 locomotion, player control or AI. No extra velocity cap has been invented.
+
+
+## Correction: descriptor 1 run dispatch and actual crouch speed
+
+The earlier live integration chose the wrong prepared motion branch. Original
+49f674 calls 42a100, which returns true for descriptor indices 1 and 2; this
+selects 49e400 at 49f8a1. The previously verified 49f7c3 linear proposal is a
+different branch. Its isolated arithmetic comparisons remain valid, but they
+did not establish that branch as the miner's run path. The original zero-input
+idle comparison could not expose this integration error because both proposals
+left that actor stationary. Earlier nonzero live trajectories were diagnostic
+results, not faithful original run movement.
+
+`rf_physics_run_propose` now implements 49e400 for run descriptor 1. It takes
+transformed input, target speed, class acceleration, support normal/velocity
+and resolved traction. The speed/acceleration ratio is stored as float, and
+the convergence weight is `1 - pow(.05, dt / (ratio / traction))`. Original
+slope projection/asymmetric uphill handling and input normalization precede
+target-speed scaling. Velocity converges toward the target with external-force
+contribution; the position correction uses the original stored delta and time
+products. Repeated passes skip velocity convergence and integrate the existing
+velocity. Caller flags and forces remain owned by the scene scheduler.
+
+NXDK initially differed by one float level in the convergence weight. Its
+implementation now executes the original x87 logarithm/exponent instruction
+sequence with extended precision and restores the previous control word.
+`verify_run_motion.py` covers 384 complete original proposals through the
+49f646 dispatcher, explicitly observing entry into 49e400. All represented
+outputs match PC and linked NXDK, including slopes, force, support, normalized
+inputs and repeated passes. The linear helper is now documented as unsuitable
+for descriptor 1.
+
+The live scene transforms raw process-local input and calls the run proposal
+with its stance target speed and actual ground normal. Traction is explicitly
+1 for this diagnostic; `rf_scene_actor_run_traction` exposes it in RAM. Original
+467edc loads the material traction field, and 4688a0 retrieves it by ground
+material index. Ground-face bitmap/material binding remains open, so the
+fixture must not be treated as correct on ice, sand, water or other surfaces.
+
+Run `artifacts/xemu/20260909-164313-033930/report.json` passes the sustained
+-X route in stock 64 MiB XEMU. Actual X travel speed is 5.161285 before crouch,
+2.806549 near the end of crouch and 4.931488 after standing again under the
+same input. The scene regression checks that slowdown and recovery. This
+corrected route has zero contacts, so the old requirement to observe contacts
+was removed; the contact trace still compares exactly and reports its actual
+count. The historical `--actor-contact` option now denotes the sustained route,
+not a guarantee of collisions. All 64 geometry hashes and state records match
+PC; 320 original ground preparation comparisons also pass on its snapshot.
+
+The short-pulse run `artifacts/xemu/20260909-164452-099965/report.json` also
+passes. Its new native framebuffer matches PC with 15 of 307200 pixels over
+three channel levels (mean maximum-channel error .0318717). Both runs complete
+63 updates without capped passes. Both builds, four CTests, passive and driven
+scene checks pass. Initial pose/inertia, correct surface binding, support loss,
+blocked standing, full input/AI and entity lifecycle remain open.

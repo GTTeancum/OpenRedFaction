@@ -133,6 +133,7 @@ rf_movement_descriptor rf_scene_actor_movement[2]; /* authored run and fall */
 rf_entity_movement_values rf_scene_actor_movement_values;
 rf_movement_config rf_scene_actor_movement_config;
 rf_movement_settings rf_scene_actor_movement_settings;
+float rf_scene_actor_run_traction=1.0f; /* Diagnostic default; ground bitmap/material binding pending. */
 uint32_t rf_scene_actor_movement_frames[64][3]; /* response, speed, numeric mode */
 static int actor_set_speed_mode(int crouched)
 {
@@ -252,7 +253,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
     out[0]=0x5246464c;out[1]=1;out[2]=step;out[3]=sphere;memcpy(out+4,&fraction,4);out[5]=hash;
     memcpy(out+6,current.position+1,4);memcpy(out+7,current.velocity+1,4);return RF_OK;
 }
-static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state,const float command[3])
+static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state,const float command[3],const float ground_normal[3])
 {
     float remaining=1.0f/60,support[3]={0},normal[3];uint32_t pass=0,contacts=0;int status;
     int grounded=rf_scene_actor_landing[1]==1;
@@ -261,13 +262,11 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
     do {
         float fraction,impact;uint32_t sphere;
         if(grounded) {
-            /* Ordinary run drag selection at 49f79a. */
-            float drag=fmaxf(.5f,(float)((double)state->coefficients[1]/state->mass));
-            float steering[3],input[3]={0};
-            if(!pass)memcpy(input,command,12); /* Original repeated passes omit steering. */
-            status=rf_movement_acceleration(rf_scene_actor_movement[0].translation,input,rf_scene_actor_movement_values.acceleration,
-                state->orientation,state->orientation,state->orientation,steering);if(status)return status;
-            status=rf_physics_ground_propose(state,remaining,drag,steering,support);
+            float input[3];
+            status=rf_movement_transform(rf_scene_actor_movement[0].translation,command,
+                state->orientation,state->orientation,state->orientation,input);if(status)return status;
+            status=rf_physics_run_propose(state,remaining,rf_scene_actor_movement_settings.speed,
+                rf_scene_actor_movement_values.acceleration,rf_scene_actor_run_traction,input,ground_normal,support);
         } else status=rf_physics_fall_propose(state,remaining,9.8f,support);
         if(status)return status;
         memset(state->vector_e0,0,sizeof(state->vector_e0)); /* full 49f3c0 clears force after proposal */
@@ -404,7 +403,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                     next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
                 }
             }
-            status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame]);if(status)return status;
+            status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame],ground->hit.hit.normal);if(status)return status;
             status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return status;
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);

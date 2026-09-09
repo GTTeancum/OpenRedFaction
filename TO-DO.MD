@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Extend the working process-local steering fixture to exercise live support loss and recovery in XEMU.
-- [ ] Verify blocked standing and connect stance target speed to gameplay input, then resolve initial class pose/inertia.
+- [ ] Bind ground-surface traction and verify blocked standing, then resolve initial class pose/inertia.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
@@ -107,6 +107,14 @@ unchanged. All 64 setting records match complete original setup wrappers, PC
 and NXDK from XEMU run 20260909-163137-872744. Miner response remains 10 because
 its class lacks flag 0x800. Test steering bypasses the gameplay input/target-speed
 controller, so slower actual crouch movement is not yet established.
+Dispatch correction: descriptor 1 selects 49e400, not the prepared 49f7c3
+linear branch used by earlier live tests. Original idle checks could not detect
+that difference. The live scene now uses verified run convergence, slope
+handling and speed 6/3. All 384 original/PC/NXDK cases include real dispatch.
+Two 64 MiB XEMU routes match PC; sustained input slows during crouch and
+accelerates after standing. Traction remains an explicit diagnostic 1 pending
+ground bitmap/material binding; contact-route history does not prove contacts
+on the corrected trajectory (zero observed in these new routes).
 See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
 The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
 and movement name run (index 1); do not use absent-field defaults for this actor.

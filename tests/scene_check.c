@@ -20,6 +20,7 @@ extern uint32_t rf_scene_actor_contact_count,rf_scene_actor_contacts[64][25];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_stance_frames[64][4];
 extern uint32_t rf_scene_actor_movement_frames[64][3];
+extern uint32_t rf_scene_actor_render_frames[64][5];
 typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored,body_mode;
@@ -149,7 +150,14 @@ int main(int argc,char **argv)
                 if(!drive && (rf_scene_actor_landing[2]!=22 || rf_scene_actor_landing[3]!=1 || rf_scene_actor_landing[4]!=41))return 3;
                 if(drive && rf_scene_actor_landing[6]<3)return 3;
                 if(drive==1 && scene_actor_body.state.position[0]<=c.placement.position[0]+.2f)return 3;
-                if(drive==2 && (scene_actor_body.state.position[0]>=c.placement.position[0]-.2f || !rf_scene_actor_contact_count || rf_scene_actor_tick_stats[5]<2 || rf_scene_actor_tick_stats[4]))return 3;
+                if(drive==2 && (scene_actor_body.state.position[0]>=c.placement.position[0]-.2f || rf_scene_actor_tick_stats[4]))return 3;
+                if(drive==2) {
+                    float x[6],standing,crouched,restored;const uint32_t frames[6]={38,39,47,48,58,59};
+                    for(i=0;i<6;++i)memcpy(x+i,rf_scene_actor_render_frames[frames[i]]+2,4);
+                    standing=(x[0]-x[1])*60;crouched=(x[2]-x[3])*60;restored=(x[4]-x[5])*60;
+                    if(!(standing>crouched && restored>crouched && crouched>0))return 3;
+                    printf("RUN_SPEEDS %.8f %.8f %.8f\n",standing,crouched,restored);
+                }
                 if(rf_scene_actor_contact_count!=rf_scene_actor_tick_stats[3])return 3;
                 printf("ACTOR_CONTACTS %u",rf_scene_actor_contact_count);for(i=0;i<rf_scene_actor_contact_count*25;++i)printf(" %u",((uint32_t*)rf_scene_actor_contacts)[i]);puts("");
                 {uint32_t crouch=0,stand=0,blocked=0;

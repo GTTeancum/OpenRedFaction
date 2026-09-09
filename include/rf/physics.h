@@ -106,6 +106,11 @@ int rf_physics_stance_centers(rf_physics_spheres *spheres,const float (*centers)
  * standing/crouching height difference + .1 on Y, rounded after both adds.
  * Caller queries with the existing crouched body, not expanded spheres. */
 int rf_physics_stand_endpoint(const float position[3],float height_difference,float end[3]);
+/* Run (descriptor 1) path 49e400, with already transformed input and resolved
+ * surface traction. Preserves caller flags/force; updates velocity and next
+ * position. Repeated-pass flag 0x1000000 bypasses velocity convergence. */
+int rf_physics_run_propose(rf_physics_body_state *state,float dt,float speed,float acceleration,
+    float traction,const float input[3],const float normal[3],const float support[3]);
 /* Falling translation at 49e8b7..49e9e6, after steering/speed limiting.
  * Caller supplies frame time, gravity and support velocity; force is vector_e0.
  * Flag 0x1000000 selects the original repeated-pass path: preserve velocity,
@@ -148,11 +153,12 @@ int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_
 /* Static support position/bounds commit at 4a0b31..4a0bfa, before landing.
  * Preserves velocity and airborne flag 0x200000; clears moving-support flag. */
 int rf_physics_static_support(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction);
-/* Prepared grounded translation 49f7c3..49f89f: steering acceleration has
+/* Prepared linear translation 49f7c3..49f89f: steering acceleration has
  * already been transformed/clamped and drag resolved by movement mode. Drag
  * and force/mass are applied even on a repeated pass; caller supplies zero
  * steering on that pass and manages force clearing. Updates velocity/next
  * position only. Finite inputs, positive mass, nonnegative dt/drag required. */
+/* This branch is not selected for descriptor 1; use run_propose for run. */
 int rf_physics_ground_propose(rf_physics_body_state *state,float dt,float drag,
     const float steering_acceleration[3],const float support_velocity[3]);
 #endif

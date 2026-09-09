@@ -8,6 +8,14 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--run")) {
+        struct {rf_physics_body_state state;float dt,speed,acceleration,traction,input[3],normal[3],support[3];} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(rf_physics_run_propose(&input.state,input.dt,input.speed,input.acceleration,input.traction,input.input,input.normal,input.support))return 3;
+            if(fwrite(&input.state,sizeof(input.state),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--stance")) {
         struct {uint32_t count,flags,crouching;rf_physics_sphere spheres[8];float centers[8][3];float position[3],height;} input;
         struct {int32_t status;uint32_t flags;rf_physics_sphere spheres[8];float end[3];} result;
