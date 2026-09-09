@@ -1296,3 +1296,36 @@ the position for nonpositive radius), then sets flag 0x04000000. These are
 instruction/decompiler leads, not a ported object initializer. Factory calls
 `0x49ec90(object+0x88, parameters)`; follow this physics constructor for output
 orientation initialization before assuming input and output poses are equal.
+
+
+### Initial mover pose and position-assignment evidence
+
+`python tools/verify_mover_pose_initialization.py` executes original
+`0x49f051..0x49f0ab`, including real vector and matrix callees, for all 1,406
+installed mover poses. With physics destination object+0x88, file position
+copies to object +0xe4/+0xf0; file orientation copies unchanged to +0xfc/+0x120.
+The block also copies the zero initial linear vector to +0x144 and clears
++0x168. The test compares every byte of the 0x298-byte object, including
+untouched sentinel fields. It verifies this bounded block, not all physics
+constructor behavior.
+
+The same tool executes complete original `0x48a230` for 8,030 cases, with the
+optional debug-name lookup disabled through its normal global flags. Cases
+include all file positions with radii -1, 0, .25, 1 and 10, plus 1,000 seeded
+positions/radii. Exactly 4,015 calls use object+0xf0 as the source, matching
+creation's alias. Position copies to +0x3c/+0xe4/+0xf0; positive radius yields
+position-minus-radius bounds at +0x190 and position-plus-radius at +0x19c,
+while nonpositive radius copies position to both bounds. Flag 0x04000000 is
+set at +0x7c. All object bytes match; report:
+`artifacts/mover-pose-initialization.json`.
+
+Ghidra export includes physics preparation `0x49ec90` and initializer
+`0x49f010`. Factory `0x486da0` supplies object+0x88 to the preparation routine,
+which ends by calling the initializer. This evidence establishes the initial
+output pose; it does not justify keeping the two poses synchronized during
+simulation. No new C/NXDK object initializer or XEMU validation is claimed.
+
+Next radius lead: original mover creation `0x46b075..0x46b091` takes the length
+of solid+0x64, adds the float at solid+0x60 and stores the result in factory
+parameter +0x84. Follow solid bound finalization `0x4cf9a0` / `0x4cf500` to
+recover those quantities and their exact float stores before runtime binding.

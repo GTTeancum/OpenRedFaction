@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-All 81,648 loaded-mover ray/sphere queries match original calls on PC and
-NXDK; recover runtime type-9 object binding, physics-constructor orientation,
-pose updates and lifetime before scene integration.
+Initial mover pose copies and position assignment now match original
+instructions; recover solid-derived bounding radius, then bind owned movers
+to runtime objects and recover later pose updates/lifetime.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
