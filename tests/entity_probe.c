@@ -3,8 +3,29 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+static rf_entity_room_result room_result;
+static uint32_t room_queries,room_notices,room_notice_kind;
+static int room_locate(void *context,const float position[3],rf_entity_room_result *result)
+{(void)context;(void)position;++room_queries;*result=room_result;return RF_OK;}
+static void room_notify(void *context,const char *name)
+{(void)context;++room_notices;room_notice_kind=!strcmp(name,"underwater")?2:1;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--room-refresh")) {
+        struct {rf_entity_room_state state;float position[3];uint32_t local,room,liquid;float minimum_y,depth;} in;
+        uint32_t out[8];
+        _Static_assert(sizeof(in)==52,"Room wire input");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            room_queries=room_notices=room_notice_kind=0;
+            room_result.room=in.room;room_result.liquid=in.liquid;room_result.minimum_y=in.minimum_y;
+            room_result.liquid_depth=in.depth;room_result.name="test-room";
+            if(rf_entity_room_refresh(&in.state,in.position,in.local,room_locate,room_notify,0))return 3;
+            memcpy(out,&in.state,20);out[5]=room_queries;out[6]=room_notices;out[7]=room_notice_kind;
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 4;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--sphere-overrides")) {
         rf_entity_class_sphere spheres[8];rf_entity_sphere_override overrides[8];uint32_t header[3];
         _Static_assert(sizeof(*spheres)==64 && sizeof(*overrides)==44,"Sphere override wire layout");

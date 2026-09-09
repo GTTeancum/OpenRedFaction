@@ -6,6 +6,12 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Room refresh 48a190 now matches 384 original cases on PC and compiled NXDK.
+It updates room/query position and clears the dirty flag, not physics/orientation.
+The locator and notification are explicit callback boundaries; reconstruct
+4e1630 containing-room traversal before binding this to campaign entities.
+See `docs/CAMERA.md`. No new visible result or XEMU run for this unbound API.
+
 Latest memory harness rerun: `20260909-182441-657096` PASS, 664-frame follow
 profile in stock 64 MiB XEMU. Snapshots now carry UTC time, map hash and QMP
 memory size; report map hash matches the complete snapshot. Four PC CTests pass.

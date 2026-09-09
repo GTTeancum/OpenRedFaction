@@ -1422,3 +1422,37 @@ random/orientation operations remain uncomposed. The subsequent 48a190 entity
 commit also has state-dependent behavior and is not replaced by this pose helper.
 Player handle resolution, the actual player eye source, effects/commit and the
 first-person rendering binding are the next required integration work.
+
+## Post-camera room refresh (48a190)
+
+`rf_entity_room_refresh` now reconstructs the complete room-refresh control flow
+using caller-owned room tokens and explicit locator/notification callbacks.
+The earlier shorthand "entity commit" for this call was too broad: it does not
+copy orientation or physics state. It refreshes object +0 room and +4 previous
+query position, then clears object +7c bit 04000000.
+
+If there is no room, or the current +3c position differs, 48a190 calls 4cd970
+with `(0, position, position, 0)`. That wrapper takes its null-room branch into
+4e1630. A null result preserves the old room and previous query position. A
+successful result copies both even if the room token is unchanged. Only a
+changed room for the local player's entity invokes the notification boundary,
+before committing those fields. 4ce080 tests the room liquid byte +184 and
+`minimum_y (+c) + liquid_depth (+188) >= position.y`; it selects the literal
+"underwater", otherwise room name +4a. 5231e0 conditionally forwards that text
+through 5230b0/527d90; its downstream subsystem remains unidentified.
+
+`tools/verify_entity_room_refresh.py` executes the unmodified 48a190, its original
+vector/squared-distance helpers, and 4ce080. Lookup and notification are fixture
+boundaries. 384 PC cases and 384 compiled NXDK executions match room, query
+position, flags, query count and notification selection. Cases include absent,
+unchanged, changed and missed rooms, nonlocal entities, water boundaries and
+subnormal movement. Both builds and four CTests pass. This is not an XEMU-bound
+camera/entity membership implementation yet.
+
+The containing-room routine 4e1630 is now exported for continued reconstruction.
+It traverses solid +9c rooms and room face trees/lists, uses 4e3780/4e3800 query
+state, and retries a direction up to the counter threshold 16. It derives a
+query length from solid bounds and finally inspects the selected face and
+4e3a70 classification before returning face +44 owner. The Ghidra stack model
+is unreliable around 5754d0; confirm the query helpers and assembly before
+porting this. An AABB-only room choice would not reproduce the original.

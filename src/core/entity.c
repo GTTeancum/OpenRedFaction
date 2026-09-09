@@ -113,3 +113,30 @@ int rf_entity_combat_predicates(const rf_entity_registry *registry, const rf_ent
     }
     *ready=selected; *eligible=has; return RF_OK;
 }
+
+int rf_entity_room_refresh(rf_entity_room_state *state,const float position[3],
+    int local_player,rf_entity_room_locator locate,rf_entity_room_notify notify,void *context)
+{
+    rf_entity_room_result found={0};uint32_t i;int moved=0,status;
+    if(!state || !position || !locate)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(position[i]) || !isfinite(state->query_position[i]))return RF_FORMAT;
+        if(position[i]!=state->query_position[i])moved=1;
+    }
+    /* For finite float coordinates, original positive squared distance is
+     * equivalent to any differing component (including subnormal movement). */
+    if(!state->room || moved) {
+        status=locate(context,position,&found);if(status!=RF_OK)return status;
+        if(found.room) {
+            if(found.room!=state->room && local_player && notify) {
+                int underwater=found.liquid &&
+                    (double)found.minimum_y+(double)found.liquid_depth>=(double)position[1];
+                notify(context,underwater?"underwater":found.name);
+            }
+            state->room=found.room;
+            memcpy(state->query_position,position,12);
+        }
+    }
+    state->flags&=~0x04000000u;
+    return RF_OK;
+}

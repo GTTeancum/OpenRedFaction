@@ -53,4 +53,26 @@ int rf_entity_has_weapon(const rf_entity_registry *registry, const rf_entity_vie
  * Output unchanged on malformed views. No allocations or entity mutations. */
 int rf_entity_combat_predicates(const rf_entity_registry *registry, const rf_entity_view *entity,
     const int32_t *attached, uint32_t attached_count, int *ready, int *eligible);
+/* 48a190 room membership refresh. Room tokens are caller-owned nonzero IDs;
+ * zero means absent. The locator must implement containing-room semantics,
+ * not just bounds overlap. Locator results require finite liquid metadata and
+ * a valid borrowed name. Notification is emitted before membership changes.
+ * No orientation/physics assignment occurs here. */
+typedef struct rf_entity_room_state {
+    uint32_t room,flags;
+    float query_position[3];
+} rf_entity_room_state;
+typedef struct rf_entity_room_result {
+    uint32_t room,liquid;
+    float minimum_y,liquid_depth;
+    const char *name;
+} rf_entity_room_result;
+typedef int (*rf_entity_room_locator)(void *context,const float position[3],rf_entity_room_result *room);
+typedef void (*rf_entity_room_notify)(void *context,const char *name);
+/* Finite positions required. Locator failure preserves state. Successful miss
+ * preserves room/query position, but still clears flag 04000000. local_player
+ * means the caller has resolved and compared the local player's entity handle.
+ * Callbacks must not mutate state/position; name is borrowed during notification. */
+int rf_entity_room_refresh(rf_entity_room_state *state,const float position[3],
+    int local_player,rf_entity_room_locator locate,rf_entity_room_notify notify,void *context);
 #endif
