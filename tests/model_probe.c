@@ -12,6 +12,15 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--triangle-facing")) {
+        struct {float vertices[3][3],camera[3],forward[3];uint32_t flags,perspective;} data;
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            uint32_t accepted;
+            if(rf_model_triangle_facing(data.vertices[0],data.vertices[1],data.vertices[2],(uint16_t)data.flags,data.perspective,data.camera,data.forward,&accepted))return 2;
+            if(fwrite(&accepted,4,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--render-batch")) {
         struct {rf_model_vertex vertices[8];int32_t reuse[8];float matrices[4][12];rf_model_projection view;rf_model_lighting lights;rf_model_render_output output;} data;
         _Static_assert(sizeof(data)==756,"Batch probe wire layout");

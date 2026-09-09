@@ -1,5 +1,21 @@
 # Model batch data
 
+`rf_model_triangle_facing` recovers the culling branch at `0x52f4e8` through
+`0x5478f0` and its subtract/cross/dot helpers. Triangle flag 0x20 bypasses
+culling. Otherwise the normal is `(b-a) cross (c-b)` with original float stores.
+Perspective mode accepts a strictly positive dot of `(camera-a)` with that
+normal. Nonperspective mode accepts when the forward-vector dot is not strictly
+positive, including equality and unordered results. No normal normalization or
+epsilon is introduced. World vertices come from the renderer cache, including
+the copies populated by duplicate processing.
+
+`tools/verify_model_triangle_facing.py` executes the unchanged renderer branch
+and complete callees for 2,000 cases, covering both modes, flag bypass,
+degenerate triangles, NaN and infinity. All decisions match, with 1,196 accepted.
+The helper accepts caller-supplied vertices/view state and does not yet perform
+frustum rejection, polygon clipping or index submission.
+PC/NXDK builds and four CTest checks pass.
+
 The shared animation diagnostic now runs all four miner LOD0 batches through
 resident rendering after every actual evaluated pose: 256 batch evaluations
 and 47,616 vertex visits across 64 frames. It uses the prepared 25-bone matrices,

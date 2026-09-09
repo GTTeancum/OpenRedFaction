@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Model triangle facing now matches 2,000 original renderer cases, including
+two-sided flags and degenerate inputs. Connect frustum rejection, clipping and
+index emission to the processed animated batches.
+
 Real miner poses now feed resident render batches on PC and 64 MiB XEMU,
 passing 47,616 vertex visits with bounded reusable buffers. Compare those render
 outputs against original code and connect triangle submission for visible models.

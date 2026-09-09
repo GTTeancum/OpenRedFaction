@@ -5,6 +5,21 @@
 #include <stdlib.h>
 #include <float.h>
 
+int rf_model_triangle_facing(const float a[3],const float b[3],const float c[3],uint16_t flags,
+    uint32_t perspective,const float camera[3],const float forward[3],uint32_t *accepted)
+{
+    float ab[3],bc[3],normal[3],direction[3];double dot;unsigned i;
+    if(!accepted || !a || !b || !c || !camera || !forward)return RF_RANGE;
+    if(flags&0x20) {*accepted=1;return RF_OK;}
+    for(i=0;i<3;++i) {ab[i]=b[i]-a[i];bc[i]=c[i]-b[i];}
+    normal[0]=(float)((double)ab[1]*bc[2]-(double)ab[2]*bc[1]);
+    normal[1]=(float)((double)ab[2]*bc[0]-(double)ab[0]*bc[2]);
+    normal[2]=(float)((double)ab[0]*bc[1]-(double)ab[1]*bc[0]);
+    for(i=0;i<3;++i)direction[i]=perspective?camera[i]-a[i]:forward[i];
+    dot=((double)direction[0]*normal[0]+(double)direction[1]*normal[1])+(double)direction[2]*normal[2];
+    *accepted=perspective?(dot>0):!(dot>0);return RF_OK;
+}
+
 int rf_model_project_vertex(const float world[3],const rf_model_projection *view,
     rf_model_render_cache *cache,float clip_position[3],uint8_t vertex[40],uint32_t *visible)
 {

@@ -138,6 +138,11 @@ int rf_model_render_reuse_vertex(rf_model_render_cache *cache,uint32_t count,uin
 int rf_model_finish_render_vertex(rf_model_render_cache *cache,float second[3],
     const rf_model_render_output *output,const float lights[3][6],const float ambient[3],
     const float uv[2],uint8_t vertex[40]);
+/* Original 0x52f4e8 facing test. Flag 0x20 bypasses culling; otherwise
+ * normal=(b-a) cross (c-b). Perspective accepts dot(camera-a,normal)>0;
+ * nonperspective accepts !(dot(forward,normal)>0), including unordered. */
+int rf_model_triangle_facing(const float a[3],const float b[3],const float c[3],uint16_t flags,
+    uint32_t perspective,const float camera[3],const float forward[3],uint32_t *accepted);
 typedef struct rf_model_local_light { float position[3],radius_squared;uint32_t enabled; } rf_model_local_light;
 typedef struct rf_model_light_choice { int32_t index;float delta[3],distance_squared; } rf_model_light_choice;
 /* 0x52dcaf selection block: nearest enabled containing light, first tie wins.
