@@ -17,9 +17,9 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
-Original mover attachment now verifies all 1,421 references, duplicate
-membership and per-reference rotation sign changes; reconstruct that binding
-and finish controller initial state before motion playback.
+Shared C mover attachment matches 3,000 original-code cases on PC and NXDK;
+connect it to controller creation and runtime object storage, then recover
+motion playback and pose updates.
 
 Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
 in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries

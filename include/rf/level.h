@@ -71,4 +71,17 @@ int rf_level_group_id_at(const rf_level *level,const rf_level_group *group,
  * meanings stay unnamed. Errors preserve output. */
 int rf_level_group_initial_flags(const rf_level_group *group,
     const rf_level_group_key *first,uint32_t *flags);
+typedef struct rf_group_object {
+    int32_t uid;uint32_t type,handle,parent,flags;
+} rf_group_object;
+/* 46b6e8..46b79c mover membership pass. objects follow original global list
+ * order; first matching UID wins, with -1 absent and -999 excluding flag 2.
+ * Compacts refs in place, appends accepted handles, updates parents/flags and
+ * first-key runtime rotation. Duplicates remain. Arrays must not overlap.
+ * Caller owns storage. No allocation; errors preserve all state. This is only
+ * the type-9 membership loop, not registration or the saved-state second pass. */
+int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
+    uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,
+    uint32_t *refs,uint32_t *ref_count,uint32_t *handles,uint32_t *handle_count,
+    uint32_t handle_capacity,float *rotation);
 #endif

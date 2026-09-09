@@ -10,6 +10,20 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--attach-movers")) {
+        struct {uint32_t count,controller,flags,mode,refs_count,handles_count,capacity;float rotation;
+            rf_group_object objects[16];uint32_t refs[32],handles[32];} in;
+        struct {int32_t status;uint32_t refs_count,handles_count;float rotation;
+            rf_group_object objects[16];uint32_t refs[32],handles[32];} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.refs_count=in.refs_count;out.handles_count=in.handles_count;out.rotation=in.rotation;
+            memcpy(out.objects,in.objects,sizeof(out.objects));memcpy(out.refs,in.refs,sizeof(out.refs));memcpy(out.handles,in.handles,sizeof(out.handles));
+            out.status=in.count>16 || in.refs_count>32 || in.capacity>32?RF_RANGE:
+                rf_group_attach_movers(out.objects,in.count,in.controller,in.flags,in.mode,out.refs,&out.refs_count,out.handles,&out.handles_count,in.capacity,&out.rotation);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--group-flags")) {
         struct {uint32_t count;uint8_t flags[6],padding[2];float timing[2];} in;
         struct {int32_t status;uint32_t flags;} out;

@@ -1563,7 +1563,7 @@ cover missing UIDs, wrong object type, duplicate references, flag gates and
 both global-mode values. All pass. Report:
 `artifacts/group-attachment-original.json`. Arrays are preallocated to avoid
 original allocator growth; this is not the full attachment pass, first ID-list
-handling, saved-state continuation or playback. No C attachment port yet.
+handling, saved-state continuation or playback. The C port is described below.
 
 UID resolver 48a4a0 scans the global object list at 73d890, comparing object+20,
 and returns the first match. UID -1 is absent; UID -999 has an additional object
@@ -1571,3 +1571,24 @@ flag-bit-2 exclusion. A future registry adapter must preserve that lookup
 contract instead of assuming unique IDs without evidence. The generic relative
 attachment helper 48a330 has a separate caller at 47fc74; it is not called in
 the verified controller mover loop, so it must not be substituted here.
+
+### Shared C mover attachment
+
+`rf_group_attach_movers` reconstructs this membership loop over a caller-owned
+ordered object snapshot. It compacts surviving UIDs, appends runtime handles,
+updates mover parents/flags and flips first-key rotation per accepted reference
+under the original gate. Duplicate references and first-match lookup remain
+observable, including a wrong-type first match blocking a later type-9 match.
+The helper allocates nothing. It validates capacity before mutation and rejects
+nonfinite rotation; errors preserve all caller state. Arrays must not overlap.
+
+`python tools/verify_group_attachment.py` compares PC and compiled NXDK code
+with the unchanged original loop for 3,000 seeded cases covering ordered
+duplicate UIDs, -1/-999 lookup, missing and wrong-type objects, duplicate
+references, parent/flag updates and both global-mode values. Three additional
+capacity/nonfinite guards verify unchanged state on failure. Active list
+contents are compared; the unused compacted tail is unspecified. All pass:
+`artifacts/group-attachment-verification.json`. PC and NXDK builds and all four
+CTest checks pass. This helper is not yet connected to scene controller
+creation, the first ID-list pass, saved-state continuation or motion playback.
+There is no new visual result.

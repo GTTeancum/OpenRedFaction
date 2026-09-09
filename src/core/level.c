@@ -308,3 +308,36 @@ int rf_level_group_initial_flags(const rf_level_group *group,
     for(i=3;i<6;i++)if(group->flags[i])value|=1u<<(i+7);
     *flags=value;return RF_OK;
 }
+
+static uint32_t group_object_find(const rf_group_object *objects,uint32_t count,uint32_t uid)
+{
+    uint32_t i;
+    if(uid==UINT32_MAX)return UINT32_MAX;
+    for(i=0;i<count;i++)if((uint32_t)objects[i].uid==uid &&
+        (uid!=(uint32_t)-999 || !(objects[i].flags&2)))return i;
+    return UINT32_MAX;
+}
+int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
+    uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,
+    uint32_t *refs,uint32_t *ref_count,uint32_t *handles,uint32_t *handle_count,
+    uint32_t handle_capacity,float *rotation)
+{
+    uint32_t i,accepted=0,bits,at=0,h;
+    if(!ref_count || !handle_count || !rotation || (object_count && !objects) ||
+        (*ref_count && !refs) || *handle_count>handle_capacity)return RF_RANGE;
+    memcpy(&bits,rotation,4);if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;
+    for(i=0;i<*ref_count;i++) {
+        uint32_t index=group_object_find(objects,object_count,refs[i]);
+        if(index!=UINT32_MAX && objects[index].type==9)accepted++;
+    }
+    if(accepted>handle_capacity-*handle_count || (accepted && !handles))return RF_RANGE;
+    h=*handle_count;
+    for(i=0;i<*ref_count;i++) {
+        uint32_t index=group_object_find(objects,object_count,refs[i]);rf_group_object *object;
+        if(index==UINT32_MAX || objects[index].type!=9)continue;
+        object=objects+index;refs[at++]=refs[i];handles[h++]=object->handle;
+        object->parent=controller_handle;if(controller_flags&0x1000)object->flags|=0x40000;
+        if((controller_flags&4) && !global_mode && !(controller_flags&0x2100))*rotation=-*rotation;
+    }
+    *ref_count=at;*handle_count=h;return RF_OK;
+}
