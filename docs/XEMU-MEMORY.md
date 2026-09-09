@@ -987,3 +987,30 @@ PC/NXDK builds, four CTests and all three PC scene profiles pass. No framebuffer
 was captured. This verifies the reconstructed builds agree; original instruction
 evidence supports using a shared delta, but does not establish that the complete
 original frame scheduler or live gameplay input has been reconstructed.
+
+
+## Original support-query gate audit
+
+`python tools/verify_actor_support_gate.py` executes 487f82 through the query/skip
+branch with unchanged original 42a020, 429990, 486c90 and 4895d0 callees. All 256
+prepared combinations pass. It stops before 4a0840, so this does not establish
+world-query correctness or live support-loss traversal.
+
+The exact predicate is: modes 3/8 always query; category 1 with ground material
+-1 also queries; otherwise mode 1 requires attachment handle -1 and either
+movement, physics flag 0x400000, or actor flag 8. In particular, 4895d0 simply
+reads actor flag 8. The fixture's position/stance comparison omits these general
+entity conditions, which must be connected when the entity runtime is composed.
+
+The preceding 487f20..487f67 block marks movement on actor flag 0x2000000, or
+flag 0x4000000 with positive distance between +6c and +e4, and then changes the
+dirty flags. The threshold at 5893e0 is zero. This was inspected, not executed
+by the new verifier. Original crouch routine 4289d0 directly calls 4a0840 after
+replacing sphere centers; the fixture currently records/commits its support
+query later in the rendered frame. That ordering remains an integration gap,
+not proof that stance change is an original input to the movement predicate.
+
+Next integration work must preserve these query triggers and ordering while
+adding a route that actually loses and regains support. The existing 64-frame
+routes still have zero support losses. No new screenshot or XEMU run was needed
+for this source audit; executable game code was unchanged.

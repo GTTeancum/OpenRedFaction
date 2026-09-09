@@ -6,6 +6,12 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Support-gate audit: 256 original predicate cases pass in
+`tools/verify_actor_support_gate.py`. Full entity integration must carry actor
+flag 8, attachment/category conditions and direct crouch-time ground queries;
+the fixture's position/stance movement gate remains simplified. See the latest
+support-query audit in `docs/XEMU-MEMORY.md` before extending traversal.
+
 Capture and post screenshots only when there is a new visible result.
 
 Latest memory-harness run: `20260909-165657-464529` PASS; 64 MiB confirmed,
