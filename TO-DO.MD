@@ -17,6 +17,10 @@ Capture and post screenshots only when there is a new visible result.
 
 ## Current camera evidence
 
+Fresh model projection, depth and visibility now match 2,000 original-code
+cases. Assemble deformation, projection, lighting and duplicate reuse into
+resident batch processing, then connect triangle submission.
+
 Duplicate-vertex processing now matches 2,000 original branch executions.
 Recover fresh projection and connect cache lifecycle, deformation, lighting
 and model draw submission using the resident batches.

@@ -114,6 +114,19 @@ typedef struct rf_model_render_cache {
 typedef struct rf_model_render_output {
     uint32_t lighting;uint8_t rgb[3],alpha;float depth_scale,reciprocal_scale;
 } rf_model_render_output;
+typedef struct rf_model_projection {
+    float camera[3],rotation[9],fixed_depth,depth_factor;
+    float screen[4]; /* X/Y scales, X/Y offsets. */
+    float bounds[4]; /* left, top, right, bottom; strict comparisons. */
+    float far_depth;
+    uint32_t perspective,compute_clip,clipping,far_clip,screen_clip;
+} rf_model_projection;
+/* Fresh projection 0x52f154..0x52f31e/0x52f3cc. Updates projected/clip/depth
+ * cache fields and vertex byte 23. clip_position updates only with compute_clip.
+ * visible describes the screen-rejection branch, not whether clip bits are zero.
+ * Caller supplies original view globals; other cache/vertex bytes are retained. */
+int rf_model_project_vertex(const float world[3],const rf_model_projection *view,
+    rf_model_render_cache *cache,float clip_position[3],uint8_t vertex[40],uint32_t *visible);
 /* Original positive-reuse branch 0x52edbc..0x52ee9d plus UV tail 0x52f3bd.
  * Distance is batch-local, positive and <=index. vertex holds 40 writable
  * original-format bytes; untouched fields remain intact, and clipped copies

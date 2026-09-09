@@ -1,5 +1,27 @@
 # Model batch data
 
+`rf_model_project_vertex` reconstructs `0x52f154` through the visible/rejected
+branch at `0x52f31e / 0x52f3cc`. It subtracts camera position with float stores,
+applies the original matrix order, optionally replaces depth, computes frustum
+clip bits and retains camera-space position when requested. It then computes
+the clamped depth byte via `0x52fc70`, projects with reciprocal depth and applies
+strict screen bounds. Screen rejection overwrites the clip byte with 1; otherwise
+frustum flags remain. The returned visible flag describes the screen branch,
+not whether the frustum clip mask is zero. Depth output is written even on
+rejection. Other cache/output fields are preserved for adjacent render stages.
+
+The port accepts original view globals through a 112-byte caller-owned struct;
+it allocates no memory. Singular and non-finite arithmetic follows the recovered
+comparisons, including unordered depth clamping to zero. Projection uses double
+intermediates to approximate x87; universal threshold/rounding parity is unproven.
+`tools/verify_model_projection.py` executes the unchanged block and full clip,
+depth and conversion callees in 2,000 cases covering all five gates, signed/zero
+depth and non-finite inputs. All 2,000 output records match byte for byte, with
+893 screen rejections. The verifier allows 2e-6 scaled float error while requiring
+exact clip/depth/visibility and preserved bytes. Connect this stage to fresh
+deformation, lighting, cache lifetime and triangle submission for model drawing.
+PC/NXDK builds and four CTest checks pass for this change.
+
 `rf_model_render_reuse_vertex` reconstructs the positive-reuse branch entered
 at `0x52edac`, including its UV tail through `0x52f3cc`. It copies the prior
 vertex's world position and clip byte. A nonzero clip byte leaves all 40 output

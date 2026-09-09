@@ -11,6 +11,17 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--project-vertex")) {
+        struct {float world[3];rf_model_projection view;} data;
+        _Static_assert(sizeof(data)==124,"Projection probe wire layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            rf_model_render_cache cache;float clip[3];uint8_t vertex[40];uint32_t visible=99;
+            memset(&cache,0xa5,sizeof(cache));memset(clip,0xa5,sizeof(clip));memset(vertex,0xa5,sizeof(vertex));
+            if(rf_model_project_vertex(data.world,&data.view,&cache,clip,vertex,&visible))return 2;
+            if(fwrite(&cache,32,1,stdout)!=1 || fwrite(clip,12,1,stdout)!=1 || fwrite(vertex,40,1,stdout)!=1 || fwrite(&visible,4,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--render-reuse")) {
         struct {rf_model_render_cache cache[8];rf_model_render_output output;uint32_t index;int32_t distance;float uv[2];} data;
         _Static_assert(sizeof(data)==288,"Reuse probe wire layout");
