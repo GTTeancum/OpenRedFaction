@@ -33,6 +33,10 @@ remaining factory/loader initialization before registering event runtime states.
 Set_Friendliness action now passes 24 original-code target-state cases; UnHide
 on/off request bytes pass eight cases and two common off no-ops pass. Implement
 shared actions and recover deferred UnHide processing; do not unhide immediately.
+Deferred UnHide now passes 108 original-code no-player cases and five persistent
+ticks, confirming 500 ms shared timing, on/off priority and retained requests.
+Recover player eligibility, initial timer arming and actual visibility effects
+before connecting the action; see docs/TRIGGERS.md.
 
 Trigger loader 465510 and event loader 462150 are identified in the original
 level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and

@@ -463,3 +463,34 @@ for Goto_Player and Set_Friendliness (two patterned-state cases pass).
 Report: `artifacts/door-event-actions-verification.json`. Actual shared action
 implementation, target-state integration and deferred UnHide processing remain
 open; these checks use original code on synthetic registered target objects.
+
+## Deferred UnHide timing
+
+`tools/verify_unhide_deferred.py` executes the complete original 4bcdf0 method,
+including original timer, array and handle-lookup helpers. It passes 108 cases
+and a five-tick persistent-state sequence. Only downstream 48a660 (unhide) and
+48a570 (hide) effects are intercepted. There is no player in these fixtures.
+
+The method tests request bytes +0x2bc and +0x2bd for equality to one, not merely
+nonzero. An expired timer at +0x2b8 permits processing; inactive (-1) and future
+deadlines do not. The on branch runs first and sets the shared timer to now plus
+500 ms before visiting links. Valid handles are processed in order, including
+duplicates; stale handles are skipped. With no player, all valid targets receive
+unhide and the on byte clears. The off branch also requires the shared timer to
+expire, sets another 500 ms deadline, hides valid targets and clears its byte.
+Thus simultaneous requests retain off until a later tick; the persistent sequence
+checks the boundary immediately before and at each deadline, plus a new on request
+during cooldown. Empty link arrays still reset the timer and clear the request.
+
+The exported original method shows additional player-dependent eligibility for
+type-0 targets whose friendliness is not 2. It includes three name exceptions,
+predicate 45be80 (global 645320 nonzero), and query 498e80. If any valid target
+fails eligibility, the on request stays pending for another timer interval.
+These branches and actual visibility effects are not covered by this verifier.
+The constructor leaves this timer inactive; its initial arming path still needs
+to be traced before integrating an operational shared event. The vtable at
+589bec selects 4bcdf0 at slot +12, replacing the base delayed-tick method.
+
+Ghidra's automatic analysis missed the method; the export script now explicitly
+creates the function at the entry verified by original-code execution and sets
+its thiscall convention. Report: `artifacts/unhide-deferred-verification.json`.
