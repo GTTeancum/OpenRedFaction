@@ -856,3 +856,26 @@ artifacts/xemu/20260910-140511-757392/report.json passes with stock 67108864
 base bytes, no extra RAM, and the same scene particle/draw summaries. It is
 a regression replay, not evidence of visible authored Particle_State firing.
 Native authored activation and broader campaign trigger eligibility remain open.
+
+Installed Particle_State replay (2026-09-10)
+
+verify_campaign_particle_events.py loads all six campaign levels containing
+Particle_State events through the actual level, event, geometry, emitter and
+material owners. The PC probe uses a controlled precondition (emitters disabled,
+all other initialized particle state retained) and a test startup trigger to
+activate each authored event at 100 ms. It retains authored delays and UID links,
+checks no activation one millisecond before the deadline, then checks target
+enable bytes and spawn deadlines at expiry. Immediate events execute at 100 ms.
+Unrelated emitters retain their previous deadlines. The particle owner is
+restored between cases; event owners and registry handles are released.
+
+All 13 events pass across L4S1a, L4S1b, L5S2, L7S4, L9S3 and L18S3, enabling
+15 matched emitter targets. L4S1b has an empty-link event and no emitters.
+L18S3 event 11438 links 11439/11440/11447/11448; only 11440 exists in the
+decoded emitter list. The other three follow the original missing-UID no-op
+behavior; their intended content is unresolved and no emitters are invented.
+Report: artifacts/campaign-particle-events-verification.json. PC build and
+six CTests pass. Production code is unchanged in this checkpoint, so NXDK
+was not rebuilt. This proves owned-data scheduling/action integration, not
+natural campaign trigger eligibility, native execution or rendered effects.
+Native authored replay is the next verification gap; no new screenshot.

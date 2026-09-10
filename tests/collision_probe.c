@@ -1,3 +1,4 @@
+#include "rf/event.h"
 #include "rf/object_registry.h"
 #include "rf/collision.h"
 #include "rf/geometry.h"
@@ -9,6 +10,46 @@
 #include <io.h>
 #include <string.h>
 #include <stdlib.h>
+static int campaign_particle_events(const rf_level *level,rf_level_particles *particles)
+{
+    rf_runtime_events events={0};rf_object_registry registry;rf_runtime_triggers triggers={0};
+    rf_runtime_trigger trigger={0};rf_level_owned_trigger raw={0};rf_level_link_target target={0};
+    rf_startup_events_report report;rf_physics_gravity gravity={0};rf_level_particle_state *initial;
+    uint32_t i,j,n=0,pending;int status;
+    rf_object_registry_init(&registry);triggers.registry=&registry;triggers.items=&trigger;triggers.count=1;
+    trigger.authored=&raw;trigger.links=&target;raw.record.link_count=1;target.kind=1;
+    status=rf_runtime_events_open(level,&registry,512*1024,&events);if(status)return status;
+    initial=malloc(sizeof(*initial));if(!initial){rf_runtime_events_close(&events);return RF_IO;}
+    memcpy(initial,particles->state,sizeof(*initial));
+    for(i=0;i<events.count;i++)if(events.items[i].state.type==39)++n;
+    printf("EVENTS %u %u\n",n,particles->materials.count);
+    for(i=0;i<events.count;i++)if(events.items[i].state.type==39) {
+        rf_runtime_event *event=events.items+i;int32_t deadline,fire_time=100;
+        memcpy(particles->state,initial,sizeof(*initial));
+        /* Controlled replay precondition: all emitters disabled before the
+         * authored on-event. Existing particles and timers remain intact. */
+        for(j=0;j<particles->materials.count;j++)particles->state->slots[j].runtime.enabled&=~255u;
+        trigger.state=(rf_auto_trigger_state){0};trigger.state.flags=8;target.value=event->handle;
+        status=rf_runtime_startup_events(&triggers,&gravity,100,0,particles,&report);if(status)goto done;
+        deadline=event->state.deadline;
+        if(deadline>=0) {
+            for(j=0;j<particles->materials.count;j++)if(particles->state->slots[j].runtime.enabled&255u){status=RF_FORMAT;goto done;}
+            status=rf_runtime_events_tick(&events,&triggers,&gravity,deadline-1,particles,&report,&pending);if(status)goto done;
+            for(j=0;j<particles->materials.count;j++)if(particles->state->slots[j].runtime.enabled&255u){status=RF_FORMAT;goto done;}
+            fire_time=deadline;status=rf_runtime_events_tick(&events,&triggers,&gravity,deadline,particles,&report,&pending);if(status)goto done;
+        }
+        if(event->state.deadline!=-1){status=RF_FORMAT;goto done;}
+        printf("EVENT %u %d %d\n",event->authored->record.uid,deadline,fire_time);
+        for(j=0;j<particles->materials.count;j++) {
+            rf_particle_emitter_runtime *runtime=&particles->state->slots[j].runtime;
+            printf("EMITTER %u %u %d %d\n",particles->materials.bindings[j].uid,runtime->enabled&255u,
+                runtime->emitter.deadline,initial->slots[j].runtime.emitter.deadline);
+        }
+    }
+    status=RF_OK;
+done:
+    memcpy(particles->state,initial,sizeof(*initial));free(initial);rf_runtime_events_close(&events);return status;
+}
 int main(int argc,char **argv)
 {
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
@@ -91,7 +132,7 @@ int main(int argc,char **argv)
         if(memcmp(&materials,&empty,sizeof(empty)))return 6;
         return ferror(stdout)?7:0;
     }
-    if(argc==6 && !strcmp(argv[1],"--level-particles")) {
+    if(argc==6 && (!strcmp(argv[1],"--level-particles") || !strcmp(argv[1],"--campaign-particle-events"))) {
         rf_vpp archive,maps[4];rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};
         rf_level_particles particles={0},empty={0};uint32_t i,budget=(uint32_t)strtoul(argv[5],NULL,10);int status;char path[1024];
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) ||
@@ -102,6 +143,12 @@ int main(int argc,char **argv)
             if(snprintf(path,sizeof(path),"%s/maps%u.vpp",argv[4],i+1)<0 || rf_vpp_open(&maps[i],path))return 5;
         }
         status=rf_level_particles_open(&particles,&level,&world,maps,4,123,0,budget);
+        if(!strcmp(argv[1],"--campaign-particle-events")) {
+            if(!status)status=campaign_particle_events(&level,&particles);
+            rf_level_particles_close(&particles);
+            for(i=0;i<4;i++)rf_vpp_close(&maps[i]);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);
+            return status?11:0;
+        }
         for(i=0;i<4;i++)rf_vpp_close(&maps[i]);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);
         fwrite(&status,4,1,stdout);
         if(status){if(memcmp(&particles,&empty,sizeof(empty)))return 6;return 0;}
