@@ -834,3 +834,29 @@ This controlled root/precondition is an integration fixture, not an authored
 campaign trigger or natural actor contact. Contact/eligibility/key inputs and
 visual effect activation during gameplay remain to be connected. No screenshot
 was taken because this replay adds state evidence rather than new visuals.
+
+
+## Resolving trigger actor facts from entity views
+
+`rf_trigger_actor_resolve` reuses rf_entity_registry/object/entity lookup and
+an ordered snapshot of player entity handles. 4895d0 is simply object +7c
+flag8. 48aaf0 accepts that flag, otherwise looks up each player's type-zero
+entity and compares its linked handle +200 with the actor's full handle.
+The same predicate applies to the separately supplied object owner handle
+(+30); it is not the weapon-owner pointer used by combat predicates.
+
+Entity presence uses 426fc0(actor handle). 429990 requires that entity's
+class_type == 1; 4290d0 resolves its linked entity and requires class1 there.
+These type-zero cases use 486c90's class descriptor +1b4. Trigger +304 is
+resolved through 410c70, which requires object type4, not a trigger type5.
+Absent/wrong-kind/generation-mismatched handles resolve false. No new
+registry, allocation or entity mutation is introduced.
+
+`tools/verify_trigger_actor.py` executes all original predicates and lookup
+callees unchanged, without hooks, for 2048 fixtures. Every compact fact
+matches PC and compiled NXDK output. Cases include signed valid handles,
+generation mismatches, absent owners/attachments, class and kind variations,
+flag8 and ordered player attachment snapshots. The existing 4096 eligibility
+fixtures and six CTests also pass. Live creation and update ordering of these
+views, the player-field activation gate and natural contact polling remain
+open; this is a snapshot resolver, not a complete gameplay actor.

@@ -1,6 +1,7 @@
 #ifndef RF_EVENT_H
 #define RF_EVENT_H
 #include "rf/timer.h"
+#include "rf/entity.h"
 #include "rf/physics.h"
 #include "rf/level.h"
 #include "rf/object_registry.h"
@@ -48,6 +49,14 @@ typedef struct rf_trigger_contact_timer { float seconds;int32_t deadline; } rf_t
  * handling, not that an event fired. Errors preserve timer/ready. */
 int rf_trigger_contact_delay(rf_trigger_contact_timer *timer,int32_t now,
     uint32_t accepted,uint32_t *ready);
+
+/* Resolve 4c06d0 actor predicates using existing compact entity views and an
+ * ordered snapshot of player entity handles. owner_handle is object +30;
+ * attached_handle is trigger +304 (requires object type4). Views remain stable.
+ * No actor allocation or mutation; errors preserve facts. */
+int rf_trigger_actor_resolve(const rf_entity_registry *registry,const rf_entity_view *actor,
+    int32_t owner_handle,int32_t attached_handle,const int32_t *players,uint32_t player_count,
+    rf_trigger_actor_facts *facts);
 
 typedef struct rf_event_state {
     uint32_t type;float delay;int32_t deadline;

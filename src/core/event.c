@@ -99,6 +99,36 @@ int rf_trigger_contact_delay(rf_trigger_contact_timer *timer,int32_t now,
     }
     timer->deadline=deadline;*ready=accepted;return RF_OK;
 }
+static uint32_t trigger_player_selected(const rf_entity_registry *registry,
+    const rf_entity_view *actor,const int32_t *players,uint32_t count)
+{
+    uint32_t i;const rf_entity_view *entity;
+    if(!actor)return 0;if(actor->flags_7c&8)return 1;
+    for(i=0;i<count;i++) {
+        entity=rf_entity_lookup(registry,players[i]);
+        if(entity && entity->linked_handle==actor->handle)return 1;
+    }
+    return 0;
+}
+int rf_trigger_actor_resolve(const rf_entity_registry *registry,const rf_entity_view *actor,
+    int32_t owner_handle,int32_t attached_handle,const int32_t *players,uint32_t player_count,
+    rf_trigger_actor_facts *facts)
+{
+    rf_trigger_actor_facts value={0};const rf_entity_view *entity,*linked,*attached;
+    if(!registry || !actor || !facts || player_count>INT32_MAX || (player_count && !players))return RF_RANGE;
+    value.handle=(uint32_t)actor->handle;value.kind=(uint32_t)actor->type;
+    value.test_4895d0=(actor->flags_7c&8)!=0;
+    value.test_48aaf0=trigger_player_selected(registry,actor,players,player_count);
+    entity=rf_entity_lookup(registry,actor->handle);value.entity_present=entity!=NULL;
+    if(entity) {
+        value.test_429990=entity->class_type==1;
+        linked=rf_entity_lookup(registry,entity->linked_handle);
+        value.test_4290d0=linked && linked->class_type==1;
+    }
+    value.owner_test_48aaf0=trigger_player_selected(registry,rf_object_lookup(registry,owner_handle),players,player_count);
+    attached=rf_object_lookup(registry,attached_handle);value.attached_present=attached && attached->type==4;
+    *facts=value;return RF_OK;
+}
 int rf_trigger_eligible(const rf_trigger_gate *g,const rf_trigger_actor_facts *a,
     int32_t now,uint32_t input,uint32_t *eligible)
 {
