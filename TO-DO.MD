@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+All ten APU initialization allocation-failure boundaries restore pages in XEMU;
+subsequent successful initialization and sixteen-voice playback still pass.
+
 Production APU adapter passes sixteen overlapping voices with DSP output,
 overflow rejection, slot reuse and stale-stop protection; shutdown restores pages.
 

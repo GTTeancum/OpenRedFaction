@@ -8,6 +8,8 @@ volatile uint32_t rf_apu_probe[14]={0x52464150u};
 extern void *g_hw_ac97_buffer; /* Exposed only by the isolated build adapter. */
 uint16_t rf_apu_dma_snapshot[4096];
 volatile uint32_t rf_apu_adapter[5]; /* full peak, rejected, reused plays, restored pages, status */
+uint32_t rf_apu_fail_allocation,rf_apu_allocation_index;
+volatile uint32_t rf_apu_allocation_failures;
 static uint8_t wav[65536];
 static nxAudioVoice voice;
 volatile uint32_t rf_apu_lifecycle[6]; /* replay ms, stopped voices, recreated, second init, restored pages, status */
@@ -87,6 +89,16 @@ int main(void)
     nxAudioVoiceDestroy(&voice);nxAudioShutdown();
     rf_apu_lifecycle[4]=available();
     if(rf_apu_lifecycle[4]!=rf_apu_probe[3])goto fail;
+    /* Every partial-init allocation boundary must release all earlier pages. */
+    rf_apu_probe[1]=13;
+    for(uint32_t n=1;n<=10;n++) {
+        rf_apu_fail_allocation=n;rf_apu_allocation_index=0;
+        if(rf_xbox_audio_open()!=RF_IO || rf_apu_allocation_index!=n)goto fail;
+        rf_xbox_audio_close();
+        if(available()!=rf_apu_probe[3])goto fail;
+        ++rf_apu_allocation_failures;
+    }
+    rf_apu_fail_allocation=0;
     /* Exercise the production adapter with shared PCM page ownership. */
     rf_apu_probe[1]=12;
     if(rf_xbox_audio_open()!=RF_OK)goto fail;

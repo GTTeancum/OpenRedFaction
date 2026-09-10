@@ -52,6 +52,15 @@ if args.backend_only:
     (backend/'provenance.json').write_text(json.dumps(dict(nxaudio_revision=revision,assembler_archive_sha256=digest,
         adapted_core_sha256=hashlib.sha256(core.read_bytes()).hexdigest()),indent=2)+'\n')
     raise SystemExit(0)
+# Isolated probe only: fail each contiguous allocation without changing production.
+probe_core=core.read_text()
+probe_core=probe_core.replace('bool nxAudioInit (',
+    'extern unsigned int rf_apu_fail_allocation, rf_apu_allocation_index;\nbool nxAudioInit (',1)
+allocation='MmAllocateContiguousMemoryEx((size), 0, 0xFFFFFFFF, (align), PAGE_READWRITE)'
+assert allocation in probe_core
+probe_core=probe_core.replace(allocation,
+    '(rf_apu_fail_allocation && ++rf_apu_allocation_index == rf_apu_fail_allocation ? NULL : '+allocation+')',1)
+core.write_text(probe_core)
 for name,source in [('probe.c','tests/xbox_apu_probe.c'),('audio.c','src/core/audio.c'),('vpp.c','src/core/vpp.c'),('xbox_audio.c','src/platform/xbox/audio.c'),('audio.h','src/platform/xbox/audio.h')]:
     shutil.copyfile(root/source,build/name)
 inventory=json.loads((root/'artifacts/inventory.json').read_text())

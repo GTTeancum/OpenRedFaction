@@ -277,3 +277,15 @@ reinitialization checks. Its new adapter telemetry is [16,1,17,15825,0]. The ext
 adapter storage explains the lower image baseline versus earlier isolated tests.
 This checks shared-page lock balancing and capacity behavior, not individual
 contributions to the mixed DSP waveform, spatial fidelity or failure injection.
+
+### Partial initialization allocation failures
+
+Stock64MiB XEMU apu-20260910-181638 passes fault injection at each of the ten
+contiguous-allocation calls in nxAudioInit. The isolated builder wraps only its
+copied allocator expression; `--backend-only` production preparation exits before
+this instrumentation. For failure positions 1 through 10, the production adapter
+returns RF_IO, close is safe, and available pages equal the 15825 baseline.
+With injection disabled, the same process then passes the sixteen-voice capacity,
+reuse and shutdown checks. No production backend fix was needed for these paths.
+This validates partial initialization cleanup, not actual fragmentation behavior,
+interrupt failures or the voice-stop timeout fallback.
