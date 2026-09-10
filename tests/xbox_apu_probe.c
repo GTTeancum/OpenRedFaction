@@ -14,6 +14,7 @@ volatile uint32_t rf_apu_channel_counts[6]; /* left-only, right-only, mute: inte
 static int16_t calibration_pcm[48000];
 volatile uint32_t rf_apu_gain_sums[10],rf_apu_muted_start;
 volatile uint32_t rf_apu_residency[5]; /* cycles, loaded bytes, unloaded bytes, PCM hash, DSP cycles */
+volatile uint32_t rf_apu_single_release;
 static uint8_t wav[65536];
 static nxAudioVoice voice;
 volatile uint32_t rf_apu_lifecycle[6]; /* replay ms, stopped voices, recreated, second init, restored pages, status */
@@ -178,15 +179,25 @@ int main(void)
         if(cycle && hash!=rf_apu_residency[3])goto fail;
         rf_apu_residency[3]=hash;rf_vpp_close(&archive);
         if(rf_xbox_audio_open()!=RF_OK)goto fail;
-        rf_xbox_audio_events.play(NULL,0x70000u+cycle,resident,.5f,.5f);Sleep(150);
+        rf_xbox_audio_events.play(NULL,0x70000u+cycle,resident,.5f,0);
+        rf_xbox_audio_events.play(NULL,0x80000u+cycle,&calibration,0,.5f);Sleep(150);
         rf_xbox_audio_events.poll(NULL);
-        if(rf_xbox_audio_diagnostic[1]!=1 || !rf_xbox_audio_diagnostic[5] || rf_xbox_audio_diagnostic[3])goto fail;
+        if(rf_xbox_audio_diagnostic[1]!=2 || !rf_xbox_audio_diagnostic[5] || rf_xbox_audio_diagnostic[3])goto fail;
         ++rf_apu_residency[4];
-        /* Close synchronously releases device page locks before freeing bank PCM. */
-        rf_xbox_audio_events.reset(NULL);
-        if(rf_xbox_audio_diagnostic[11] || rf_audio_bank_unload(&bank,index) ||
+        /* Only release the bank borrower; the independent right-channel voice continues. */
+        if(rf_xbox_audio_release_voice(0x70000u+cycle) ||
+           rf_xbox_audio_release_voice(0x70000u+cycle)!=RF_NOT_FOUND ||
+           rf_xbox_audio_release_voice(0xdeadbeefu)!=RF_NOT_FOUND)goto fail;
+        if(rf_audio_bank_unload(&bank,index) ||
            rf_audio_bank_unload(&bank,index) || bank.bytes!=budget-bytes || rf_audio_bank_sample(&bank,index) ||
            memcmp(&parameters,rf_audio_bank_parameters(&bank,index),sizeof(parameters)))goto fail;
+        Sleep(150);
+        {const volatile int16_t *output=g_hw_ac97_buffer;uint32_t right=0;
+         for(uint32_t n=0;n<4096;n+=2){if(output[n])goto fail;if(output[n+1])++right;}
+         if(!right || rf_xbox_audio_diagnostic[4] || rf_xbox_audio_diagnostic[0]!=1)goto fail;}
+        ++rf_apu_single_release;
+        rf_xbox_audio_events.reset(NULL);
+        if(rf_xbox_audio_diagnostic[11])goto fail;
         rf_apu_residency[2]=bank.bytes;++rf_apu_residency[0];
         if(cycle<2) {
             if(rf_vpp_open(&archive,"D:\\bank.vpp"))goto fail;

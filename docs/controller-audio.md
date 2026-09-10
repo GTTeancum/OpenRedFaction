@@ -805,3 +805,24 @@ adapter, not automatic campaign residency, level transitions or real hardware.
 The136-byte figure is retained bank/slot accounting, not whole-process physical
 memory. Stop alone is asynchronous and does not release static buffer ownership;
 this fixture uses complete backend reset before freeing bank storage.
+
+### Release one Xbox voice without backend reset
+
+The production adapter now exposes rf_xbox_audio_release_voice(handle). It
+stops the matching slot, waits for stopped state, destroys the voice to release
+static-buffer page locks, and clears that slot. Unknown/stale handles return
+RF_NOT_FOUND. A stop failure or one-second state-wait timeout returns RF_IO
+without destroying the slot; callers must retain PCM on failure. This API is
+serialized with play/reset and is distinct from the asynchronous stop event.
+All voices borrowing a shared sample must be released before bank unload.
+
+Stock64MiB XEMU apu-20260910-192722 passes three selective-release cycles.
+Each starts bank PCM on the left and independent calibration PCM on the right.
+It releases the bank voice, checks repeated/stale handles, unloads the bank PCM,
+and observes zero left samples plus nonzero right samples after150ms without
+a backend reset. Reload cycles retain matching PCM and original settings.
+The full Xbox game build also passes. These are sampled DSP observations, not
+a continuous dropout recording. Timeout failure injection, automatic campaign
+eviction and physical hardware validation remain open. The previous complete
+backend-reset residency test remains historical evidence; this test now covers
+individual release while another voice remains active.

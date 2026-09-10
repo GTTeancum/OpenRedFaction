@@ -24,6 +24,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Xbox selective voice release now permits PCM unload with another voice playing;
+three native cycles pass, timeout injection and campaign residency integration remain.
+
 Native64MiB APU residency passes three playback/unload cycles and two reloads;
 bank accounting drops57150 to136 bytes, while automatic campaign policy remains open.
 

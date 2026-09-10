@@ -1,4 +1,4 @@
-/* Port APU adapter; samples are borrowed until reset returns. */
+/* Port APU adapter; samples are borrowed until voice release or reset returns. */
 #include "audio.h"
 #include "rf/audio.h"
 #include <nxaudio.h>
@@ -21,6 +21,16 @@ static int stopped(audio_slot *slot,uint32_t timeout)
         Sleep(1);
     }
     return 1;
+}
+int rf_xbox_audio_release_voice(uint32_t handle)
+{
+    uint32_t i;
+    if(!initialized)return RF_NOT_FOUND;
+    for(i=0;i<VOICES;i++)if(slots[i].created && slots[i].handle==handle) {
+        if(!nxAudioVoiceStop(&slots[i].voice) || !stopped(slots+i,1000))return RF_IO;
+        nxAudioVoiceDestroy(&slots[i].voice);memset(slots+i,0,sizeof(slots[i]));return RF_OK;
+    }
+    return RF_NOT_FOUND;
 }
 void rf_xbox_audio_close(void)
 {
