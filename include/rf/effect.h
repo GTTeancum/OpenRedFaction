@@ -11,6 +11,11 @@ typedef struct rf_particle_text_flags {
  * Boolean and packed numeric fields are applied separately by the loader.
  * Both strings must be NUL-terminated; NULL arguments preserve output. */
 int rf_particle_flags_read(const char *emitter,const char *particle,rf_particle_text_flags *result);
+/* Original 497afe..497ba2: optional bounciness, stickiness, swirliness,
+ * damage_factor values in that order. Presence bits 0..3 select fields;
+ * each low nibble is ORed into existing flags, without clamping or clearing.
+ * NULL arguments return RF_RANGE without modifying flags. */
+int rf_particle_flags_pack(rf_particle_text_flags *flags,unsigned present,const int values[4]);
 #include "rf/timer.h"
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */

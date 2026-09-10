@@ -16,9 +16,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Particle flag-string decoding now matches 598 original cases on PC/NXDK,
-including case-insensitive substring overlaps. Scalar/boolean/numeric fields,
-bounded table loading and particle simulation remain open.
+Particle flags now include original optional numeric packing, verified in
+992 original/PC/NXDK cases with supplied parser results; 598 flag-string
+cases still pass. Scalar/boolean fields, bounded table loading and particle
+simulation remain open. No new rendered effect yet.
 
 Vclip fixed-field defaults now have 512 original-loader execution fixtures.
 Implement bounded definition loading, including embedded particle blocks and

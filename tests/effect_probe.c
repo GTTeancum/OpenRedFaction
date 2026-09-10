@@ -10,6 +10,15 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-pack")) {
+        struct {rf_particle_text_flags flags;unsigned present;int values[4];} pack;
+        _Static_assert(sizeof(pack)==32,"Particle packing fixture layout");
+        while(fread(&pack,sizeof(pack),1,stdin)==1) {
+            if(rf_particle_flags_pack(&pack.flags,pack.present,pack.values))return 3;
+            if(fwrite(&pack.flags,sizeof(pack.flags),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-flags")) {
         char strings[2][512];rf_particle_text_flags flags;
         while(fread(strings,sizeof(strings),1,stdin)==1) {
