@@ -554,3 +554,20 @@ would use the previous render's listener pose. Preserve/update pose ownership
 explicitly and verify the original frame ordering before connecting spatial
 refresh. Camera inspection overrides should not silently move the gameplay
 listener. No runtime audio behavior changed during this investigation.
+
+### Executed refresh gain path
+
+`python tools/verify_audio_refresh.py` runs80 combinations through original5058c0,
+544390/544450 and522d30/522d80, retaining original spatial math, clamp, volume
+tables and ftol. Only device-handle resolution and final vtable setters are
+intercepted. Both final setter arguments match. Cases vary position, requested
+volume (.25,.5,1,2), group gain and sample default volume independently.
+
+Confirmed: refresh applies requested-volume attenuation and volume-group gain,
+clamps gain0..1, then uses522420. Changing sample default volume does not change
+those refreshed setter values (the test holds far cutoff fixed). Pan clamps to
+-1..1 then truncates pan*1000. No543a60/default-sample gain step occurs in refresh.
+That differs from initial playback, which does apply sample/category gain.
+This behavior must be preserved rather than normalized to one common gain formula.
+The hardware handle resolver is stubbed, so this check does not validate device
+handle lifetime or the still-unconnected campaign listener pass.
