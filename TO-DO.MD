@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Native APU running-voice left/right/mute routing passes DSP checks without
+restarting playback; original gain conversion and listener wiring remain open.
+
 Campaign banks retain first-registration controller volume/range/rolloff within
 the memory budget; global table ordering, loop flags and playback use remain open.
 

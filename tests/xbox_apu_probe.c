@@ -10,6 +10,7 @@ uint16_t rf_apu_dma_snapshot[4096];
 volatile uint32_t rf_apu_adapter[5]; /* full peak, rejected, reused plays, restored pages, status */
 uint32_t rf_apu_fail_allocation,rf_apu_allocation_index;
 volatile uint32_t rf_apu_allocation_failures;
+volatile uint32_t rf_apu_channel_counts[6]; /* left-only, right-only, mute: interleaved L/R nonzero counts */
 static uint8_t wav[65536];
 static nxAudioVoice voice;
 volatile uint32_t rf_apu_lifecycle[6]; /* replay ms, stopped voices, recreated, second init, restored pages, status */
@@ -84,7 +85,15 @@ int main(void)
     if(!nxAudioInit(&init))goto fail;
     rf_apu_lifecycle[3]=1;
     if(!nxAudioVoiceCreate(&voice,&format) || !nxAudioBufferSubmit(&voice,&buffer) || !nxAudioVoiceStart(&voice))goto fail;
-    Sleep(50);
+    for(uint32_t phase=0;phase<3;phase++) {
+        if(!nxAudioVoiceSetChannelGain(&voice,phase==0?1:0,phase==1?1:0,0,0,0,0))goto fail;
+        Sleep(150); /* More than three complete 8192-byte stereo DMA rings. */
+        const volatile int16_t *output=g_hw_ac97_buffer;
+        for(uint32_t n=0;n<4096;n++)if(output[n])++rf_apu_channel_counts[phase*2+(n&1)];
+        if(nxAudioVoiceGetState(&voice)==NX_STOPPED)goto fail;
+    }
+    if(!rf_apu_channel_counts[0] || rf_apu_channel_counts[1] || rf_apu_channel_counts[2] ||
+       !rf_apu_channel_counts[3] || rf_apu_channel_counts[4] || rf_apu_channel_counts[5])goto fail;
     if(!nxAudioVoiceStop(&voice) || !wait_stopped(1000))goto fail;
     nxAudioVoiceDestroy(&voice);nxAudioShutdown();
     rf_apu_lifecycle[4]=available();

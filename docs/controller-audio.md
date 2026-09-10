@@ -420,3 +420,19 @@ The180-frame PC door replay and independent full PCM reference remain unchanged.
 
 Stock64MiB XEMU replay-20260910-182835 also passes the180-frame door replay
 with APU output enabled, matching PC state and PCM and clean device shutdown.
+
+### Native running-voice channel updates
+
+Stock64MiB XEMU apu-20260910-183015 extends the isolated APU probe with channel
+updates on one running original door sample. It sets front-left only, front-right
+only, then both muted through nxAudioVoiceSetChannelGain, waiting150ms after each
+change (over three8192-byte stereo ring durations). Each unmuted side has nonzero
+DSP samples, each opposite side is entirely zero, and the final ring is entirely
+zero. Voice state remains active throughout; no restart occurs between updates.
+The prior lifecycle, initialization-failure and sixteen-voice checks still pass,
+with available pages restored to15824 for this image.
+
+This verifies channel routing and mute on native emulated APU output. It does not
+establish intermediate gain calibration, original DirectSound pan conversion,
+host audibility or real hardware. The production scene still needs listener-driven
+updates wired through its event adapter after those semantics are settled.
