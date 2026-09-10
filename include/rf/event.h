@@ -69,6 +69,22 @@ int rf_event_links_propagate(rf_event_links *links,uint32_t source,uint32_t acto
  * common callback action 0/1; propagation action 2 is handled by the caller.
  * On applies 4bcc00, off preserves gravity. No event registration or links. */
 int rf_event_gravity_action(rf_physics_gravity *gravity,float value,uint32_t action);
+typedef struct rf_event_explode_state {
+    uint32_t geometry_flag,room;
+    float position[3];int32_t effect;
+    float scale,secondary;
+} rf_event_explode_state;
+typedef struct rf_event_explode_request {
+    uint32_t geometry;int32_t effect;uint32_t room;
+    float position[3],direction[3],scale,secondary;
+} rf_event_explode_request;
+/* Request only: geometry means 467020(scale,-1,room,pos,unit_x,0,1);
+ * otherwise 436490(effect,room,0,pos,scale,secondary,0). The callback may
+ * mutate state, which is reread before the second request, but must retain it.
+ * Request storage lives only through the callback. No effects or lookup here. */
+typedef void (*rf_event_explode_callback)(void *context,const rf_event_explode_request *request);
+int rf_event_explode_action(rf_event_explode_state *state,uint32_t action,
+    rf_event_explode_callback callback,void *context);
 
 typedef struct rf_auto_trigger_state {
     uint32_t flags,count;

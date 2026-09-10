@@ -3,6 +3,23 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+int rf_event_explode_action(rf_event_explode_state *state,uint32_t action,
+    rf_event_explode_callback callback,void *context)
+{
+    rf_event_explode_request request={0};
+    if(!state || !callback || action>1)return RF_RANGE;
+    if(!action)return RF_OK;
+    if((state->geometry_flag&255u)==1 && state->room) {
+        request.geometry=1;request.effect=-1;request.room=state->room;
+        memcpy(request.position,state->position,sizeof(request.position));
+        request.direction[0]=1;request.scale=state->scale;
+        callback(context,&request);
+    }
+    memset(&request,0,sizeof(request));request.effect=state->effect;request.room=state->room;
+    memcpy(request.position,state->position,sizeof(request.position));
+    request.scale=state->scale;request.secondary=state->secondary;
+    callback(context,&request);return RF_OK;
+}
 int rf_event_links_propagate(rf_event_links *links,uint32_t source,uint32_t actor,
     uint32_t mode,rf_event_link_callback callback,void *context)
 {

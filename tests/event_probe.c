@@ -6,6 +6,13 @@
 #include <string.h>
 static uint32_t actions,mutation;
 static uint32_t auto_trace;
+static uint32_t explode_count,explode_hash;
+static void explode_callback(void *context,const rf_event_explode_request *request)
+{
+    uint32_t words[11],i;(void)context;memcpy(words,request,sizeof(words));
+    for(i=0;i<11;++i)explode_hash=(explode_hash^words[i])*16777619u;
+    ++explode_count;
+}
 static rf_event_links propagation_links;
 static uint32_t propagation_handles[8],propagation_alternate[8],propagation_calls,propagation_hash;
 static void propagation_callback(void *context,uint32_t handle,uint32_t source,
@@ -39,6 +46,17 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--explode")) {
+        struct {rf_event_explode_state state;uint32_t action;} input;uint32_t output[3];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            explode_count=0;explode_hash=2166136261u;
+            output[0]=(uint32_t)rf_event_explode_action(&input.state,input.action,explode_callback,NULL);
+            output[1]=explode_count;output[2]=explode_hash;
+            if(fwrite(output,sizeof(output),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--event-ticks")) {
         uint32_t mode,i,pending;
         for(mode=0;mode<4;++mode) {

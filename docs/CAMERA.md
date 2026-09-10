@@ -3642,3 +3642,29 @@ The fresh successful manifest exports 4bae20, 436490 and 467020. The latter
 consumers are larger effect/geometry paths requiring further reconstruction;
 raw Ghidra output remains generated and untracked. No live scene behavior,
 explosion image, sound or damage is claimed at this checkpoint.
+
+
+Shared Explode request emitter (2026-09-10)
+-----------------------------------------
+
+rf_event_explode_action accepts a compact state containing geometry flag, room,
+position, resolved effect index and the two parameter words. It emits a typed
+request for the optional geometry call followed by the general explosion call;
+the API documents their original fixed arguments. The geometry flag is tested
+as a byte, so 257 acts like 1 while 256 acts like 0. Off emits nothing. The
+callback receives a stack-local copy valid only during that callback. The
+second request rereads state after the first callback. Consumers may change
+state but must retain it; callback mutation is not covered by this verifier.
+
+verify_explode_event.py now compares original intercepted request traces with
+PC probe output and compiled NXDK rf_event_explode_action under Unicorn.
+All 432 cases pass, including high flag bits, empty rooms, negative effect
+indices and parameter patterns. Normalized request order/arguments match via
+FNV over the 11 request words. NXDK input state remains unchanged in these
+nonmutating cases. PC/NXDK builds, all 93 startup checks and five CTests pass.
+The compiled check is not a live XEMU effect run.
+
+This emitter performs no lookup, geometry change, rendering, sound or damage.
+It is not yet connected to scene dispatch; unsupported-action accounting remains
+honest. Recovering effect-name lookup and request consumers is still required
+before calling a scene explosion implemented. No new screenshot is warranted.

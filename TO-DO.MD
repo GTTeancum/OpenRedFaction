@@ -16,6 +16,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+The shared Explode request emitter now matches 432 original cases on PC and
+compiled NXDK. Effect-name lookup, scene dispatch and request consumers remain
+open; scene explosions are still counted as unsupported.
+
 Explode request routing is recovered: 288 original-action cases verify geometry
 request gating followed by general explosion arguments. Shared effect lookup,
 request execution, geometry changes, rendering/audio and damage remain open.
