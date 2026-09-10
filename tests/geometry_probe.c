@@ -9,13 +9,32 @@ int main(int argc, char **argv)
     rf_geometry geometry;
     uint32_t budget = 8u * 1024u * 1024u;
     int result,flags_mode=argc==4 && !strcmp(argv[3],"--flags"),links_mode=argc==4 && !strcmp(argv[3],"--links"),primary_mode=argc==4 && !strcmp(argv[3],"--primary");
-    if (argc != 3 && argc != 4) return 2;
+    if (argc != 3 && argc != 4 && !(argc==5 && !strcmp(argv[3],"--portal-graph"))) return 2;
     if (argc == 4 && !flags_mode && !links_mode && !primary_mode && strcmp(argv[3],"--portals")) budget = (uint32_t)strtoul(argv[3], NULL, 10);
     result = rf_vpp_open(&archive, argv[1]);
     if (result != RF_OK) return 3;
     result = rf_level_open(&level, &archive, argv[2]);
     if (result == RF_OK) result = rf_geometry_open(&geometry, &level, budget);
     if (result == RF_OK) {
+        if(argc==5 && !strcmp(argv[3],"--portal-graph")) {
+            rf_geometry_portal_graph graph={0},empty={0};uint32_t i,j;
+            int status=rf_geometry_portal_graph_open(&geometry,(uint32_t)strtoul(argv[4],NULL,10),&graph);
+            rf_geometry_close(&geometry);rf_vpp_close(&archive);
+            printf("%d\n",status);
+            if(status)return memcmp(&graph,&empty,sizeof(graph))?6:0;
+            printf("%u %u %u\n",graph.rooms,graph.count,graph.resident_bytes);
+            for(i=0;i<graph.rooms;i++) {
+                printf("%u",graph.offsets[i+1]-graph.offsets[i]);
+                for(j=graph.offsets[i];j<graph.offsets[i+1];j++)printf(" %u",graph.links[j]);
+                printf("\n");
+            }
+            for(i=0;i<graph.count;i++) {
+                uint32_t words[8];memcpy(words,graph.portals+i,32);
+                for(j=0;j<8;j++)printf("%08x%s",words[j],j==7?"\n":" ");
+            }
+            rf_geometry_portal_graph_close(&graph);rf_geometry_portal_graph_close(&graph);
+            return memcmp(&graph,&empty,sizeof(graph))?7:0;
+        }
         if(argc==4 && !strcmp(argv[3],"--portals")) {
             rf_geometry_portal *portals;uint32_t count=0,i,j,guard=0xa5a5a5a5;
             if(rf_geometry_portals(&geometry,NULL,0,&count))return 5;

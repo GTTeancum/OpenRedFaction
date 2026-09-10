@@ -28,6 +28,17 @@ typedef struct rf_geometry_portal {
  * output and count. Requires a successfully opened, unmodified geometry. */
 int rf_geometry_portals(const rf_geometry *geometry,rf_geometry_portal *portals,
     uint32_t capacity,uint32_t *count);
+typedef struct rf_geometry_portal_graph {
+    void *storage;rf_geometry_portal *portals;
+    uint32_t *offsets,*links,rooms,count,resident_bytes;
+} rf_geometry_portal_graph;
+/* Own endpoint/bounds records and CSR adjacency in original append order.
+ * Room r uses links[offsets[r]..offsets[r+1]); self-links append twice.
+ * Budget includes owner/arrays, excludes allocator metadata and input geometry.
+ * No geometry pointers escape. Zero-initialize output; close before reuse.
+ * Failure preserves output. Room eligibility and screen projection are separate. */
+int rf_geometry_portal_graph_open(const rf_geometry *geometry,uint32_t budget,rf_geometry_portal_graph *graph);
+void rf_geometry_portal_graph_close(rf_geometry_portal_graph *graph);
 /* New file-format implementation. Retains unknown bytes for later reconstruction.
  * budget covers requested payload/index allocations, excluding allocator metadata.
  * Close before reusing an already-open object; failures leave it empty. */

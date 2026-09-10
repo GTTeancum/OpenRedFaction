@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Persistent portal graphs match original constructor adjacency across all 94 levels;
+L1S1 uses 1408 bytes, max 6260, with exact-budget and ownership checks.
+
 Shared geometry exposes all 2862 authored portals across 94 levels; PC records
 match independent payload reads, with invalid endpoint/bounds guards.
 

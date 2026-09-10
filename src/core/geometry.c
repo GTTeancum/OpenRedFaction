@@ -164,6 +164,30 @@ void rf_geometry_close(rf_geometry *g)
     free(g->texture_offsets); free(g->room_offsets); free(g->face_offsets); free(g->data);
     memset(g, 0, sizeof(*g));
 }
+void rf_geometry_portal_graph_close(rf_geometry_portal_graph *graph)
+{
+    if(!graph)return;free(graph->storage);memset(graph,0,sizeof(*graph));
+}
+int rf_geometry_portal_graph_open(const rf_geometry *g,uint32_t budget,rf_geometry_portal_graph *graph)
+{
+    rf_geometry_portal_graph value={0};uint32_t i,j,n;uint64_t bytes;int status;
+    if(!graph || !g)return RF_RANGE;
+    status=rf_geometry_portals(g,NULL,0,&n);if(status)return status;
+    bytes=(uint64_t)n*(sizeof(rf_geometry_portal)+8)+((uint64_t)g->rooms+1)*4;
+    if(bytes+sizeof(value)>budget)return RF_RANGE;
+    value.storage=calloc(1,(size_t)bytes);if(!value.storage)return RF_RANGE;
+    value.portals=value.storage;value.offsets=(uint32_t*)(value.portals+n);
+    value.links=value.offsets+g->rooms+1;value.rooms=g->rooms;value.count=n;
+    value.resident_bytes=(uint32_t)(bytes+sizeof(value));
+    status=rf_geometry_portals(g,value.portals,n,&n);if(status)goto failed;
+    for(i=0;i<n;i++)for(j=0;j<2;j++)value.offsets[value.portals[i].rooms[j]+1]++;
+    for(i=1;i<=value.rooms;i++)value.offsets[i]+=value.offsets[i-1];
+    for(i=0;i<n;i++)for(j=0;j<2;j++)value.links[value.offsets[value.portals[i].rooms[j]]++]=i;
+    for(i=value.rooms;i>0;i--)value.offsets[i]=value.offsets[i-1];
+    value.offsets[0]=0;*graph=value;return RF_OK;
+failed:
+    rf_geometry_portal_graph_close(&value);return status;
+}
 void rf_geometry_movers_close(rf_geometry_movers *m)
 {
     uint32_t i;

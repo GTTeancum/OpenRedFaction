@@ -160,3 +160,21 @@ bound is ordered and finite. The probe checks insufficient-capacity preservation
 endpoint and nonfinite bounds in private VPP fixtures. This is file-format and
 PC accessor verification; original constructor execution, NXDK runtime binding
 and portal screen projection are still open. No installed game input is edited.
+
+## Persistent authored adjacency
+
+`rf_geometry_portal_graph_open` owns portal endpoints/bounds plus room offsets
+and adjacency indices in one allocation. It counts endpoints, computes offsets
+and appends each portal to both room lists in file order. A self-link would be
+appended twice, matching the constructor. Geometry can close after success.
+The graph deliberately carries no invented room visibility or projected bounds.
+
+`verify_portal_graph.py` executes original `4f9890` and actual vector append
+helpers for all 2862 portals across 94 levels, with preallocated vector capacity.
+Each room's ordered links and constructor-assigned index match the persistent PC
+graph. The probe reads bounds after geometry closure, checks exact-budget success,
+one-byte-under failure with empty output, and repeated cleanup. Measured graph
+residency is 1408 bytes in L1S1 and at most 6260 bytes across these levels; owner
+and arrays are included, allocator metadata and source geometry excluded.
+Both platform builds compile the graph; native Xbox residency, room flags,
+screen projection and traversal/renderer integration remain open.
