@@ -40,6 +40,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--particle-cone-oriented")) {
+        struct {float axis[3],cosine_min;rf_random_state random;} in;
+        struct {int32_t status;rf_random_state random;float direction[3];} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.random=in.random;
+            out.status=rf_particle_cone_oriented(in.axis,in.cosine_min,&out.random,out.direction);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-cone")) {
         struct {float cosine_min;rf_random_state random;} in;
         struct {int32_t status;rf_random_state random;float direction[3];} out;

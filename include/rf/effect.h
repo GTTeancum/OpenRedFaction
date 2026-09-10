@@ -76,6 +76,11 @@ int rf_particle_definition_prepare(const rf_particle_definition *authored,
  * Two CRT draws even for a zero-angle cone; caller rotates to world direction.
  * Errors preserve both output and RNG. This is not emitter execution. */
 int rf_particle_cone_sample(float cosine_min,rf_random_state *random,float direction[3]);
+/* Original 4fae00: 4fcfa0 basis, local sampler, then 4facb0 rotation.
+ * Preserves the original near-vertical snap and nonunit-axis behavior; caller
+ * supplies the resolved emitter direction. Errors preserve output and RNG. */
+int rf_particle_cone_oriented(const float axis[3],float cosine_min,
+    rf_random_state *random,float direction[3]);
 
 typedef struct rf_particle_spawn {
     float position[3],velocity[3],radius,growth,acceleration,gravity_scale,life;

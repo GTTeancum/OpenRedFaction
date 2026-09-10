@@ -305,8 +305,23 @@ cases. All bytes agree, including full-sphere and narrow-cone boundaries. Four
 out-of-range/nonfinite API guards preserve output and RNG. No allocation occurs.
 The comparison uses the verified 53-bit x87 environment.
 
-Original 0x4fae00 wraps this sampler with a basis built by 0x4fcfa0 and a transform
-at 0x4facb0. That world-direction conversion is not yet integrated. The current
+`rf_particle_cone_oriented` reconstructs the full 0x4fae00 wrapper, with a basis
+built by 0x4fcfa0 and transform at 0x4facb0. Both horizontal axis components
+strictly inside +/-0.0001 snap the basis to positive or negative Y according to
+the input Y sign; a zero axis snaps to positive Y. Otherwise only the right
+vector is normalized and the up vector is the forward/right cross product.
+Nonunit forward axes retain their original behavior. The transform preserves
+original product/addition order and float stores, with no allocation.
+
+`tools/verify_particle_cone_oriented.py` executes the entire unchanged wrapper,
+including basis construction and actual CRT random helpers. All XYZ and RNG
+bytes match PC/NXDK in 4096 cases, including exact vertical thresholds and
+adjacent floats, zero and nonunit axes, and cosine endpoints. Thirteen invalid
+input guards preserve output and RNG. This is compiled NXDK verification in
+Unicorn under the established 53-bit x87 environment, not a new native gameplay
+capture. Parent direction resolution and emitter execution remain separate.
+
+The current
 trace of 0x496c50 also identifies spawn displacement along the selected
 direction, speed/radius/lifetime random draws, optional parent velocity and a
 spawn-timer reset after particle allocation. Those steps still need a combined

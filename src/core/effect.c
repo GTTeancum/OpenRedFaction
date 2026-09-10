@@ -13,6 +13,33 @@ int rf_particle_cone_sample(float cosine_min,rf_random_state *random,float direc
     direction[0]=value[0];direction[1]=value[1];direction[2]=value[2];*random=next;return RF_OK;
 }
 
+int rf_particle_cone_oriented(const float axis[3],float cosine_min,
+    rf_random_state *random,float direction[3])
+{
+    float right[3],up[3],forward[3],local[3],value[3];rf_random_state next;
+    double inverse;unsigned i;int status;
+    if(!axis || !random || !direction)return RF_RANGE;
+    for(i=0;i<3;i++){if(!isfinite(axis[i]))return RF_RANGE;forward[i]=axis[i];}
+    if(axis[0]<0.0001f && axis[0]>-0.0001f && axis[2]<0.0001f && axis[2]>-0.0001f) {
+        right[0]=1;right[1]=right[2]=0;up[0]=up[1]=0;
+        up[2]=axis[1]<0?1.0f:-1.0f;
+        forward[0]=forward[2]=0;forward[1]=axis[1]<0?-1.0f:1.0f;
+    } else {
+        right[0]=axis[2];right[1]=0;right[2]=-axis[0];
+        inverse=1.0/sqrt(((double)right[0]*right[0]+(double)right[1]*right[1])+(double)right[2]*right[2]);
+        for(i=0;i<3;i++)right[i]=(float)((double)right[i]*inverse);
+        up[0]=(float)((double)forward[1]*right[2]-(double)forward[2]*right[1]);
+        up[1]=(float)((double)forward[2]*right[0]-(double)forward[0]*right[2]);
+        up[2]=(float)((double)forward[0]*right[1]-(double)forward[1]*right[0]);
+    }
+    next=*random;status=rf_particle_cone_sample(cosine_min,&next,local);if(status!=RF_OK)return status;
+    for(i=0;i<3;i++) {
+        value[i]=(float)(((double)local[2]*forward[i]+(double)local[1]*up[i])+(double)local[0]*right[i]);
+        if(!isfinite(value[i]))return RF_RANGE;
+    }
+    for(i=0;i<3;i++)direction[i]=value[i];*random=next;return RF_OK;
+}
+
 uint32_t rf_particle_render_mode(uint32_t flags,uint32_t normal_mode,uint32_t glow_mode)
 {
     uint32_t mode=(flags&2u)?glow_mode:normal_mode;

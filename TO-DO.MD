@@ -17,8 +17,8 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Emitter local cone sampling now matches 4096 original/PC/NXDK XYZ and RNG
-cases, including exactly two draws; world rotation and emission remain open.
+Emitter oriented cone sampling now matches 4096 original/PC/NXDK XYZ and RNG
+cases, including vertical threshold neighbors; full emission remains open.
 Connect authored emitters to spawn packets, pool allocation and timer reset.
 
 Real boom01 frames 0/7/15 pass six PC/XEMU draws: 1536 samples differ by at
