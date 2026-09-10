@@ -763,3 +763,86 @@ int rf_vclip_definition_load(rf_vpp *tables,const char *name,uint32_t scratch_bu
     if(!status)status=rf_vclip_definition_read(text,entry.size,name,result);
     free(text);return status;
 }
+
+static int effect_label(lexer *l,const char *label,int required)
+{
+    lexer saved=*l;char t[256];int q,status=token(l,t,&q);
+    if(!status && !q) {
+        char *colon=strchr(t,':');
+        if(colon){l->at-=(uint32_t)strlen(colon+1);colon[1]=0;}
+    }
+    if(!status && !q && same(t,label))return 1;
+    *l=saved;
+    if(status && status!=RF_NOT_FOUND)return status;
+    return required?RF_FORMAT:0;
+}
+static int effect_string(lexer *l,char *out,unsigned capacity)
+{
+    char t[256];int q,status=token(l,t,&q);
+    if(status || !q)return RF_FORMAT;if(strlen(t)>=capacity)return RF_RANGE;
+    strcpy(out,t);return RF_OK;
+}
+static int effect_optional_float(lexer *l,const char *label,float fallback,float *out)
+{
+    int status=effect_label(l,label,0);if(status<0)return status;
+    if(status)return sphere_number(l,out);*out=fallback;return RF_OK;
+}
+int rf_explosion_recipe_read(const void *text,uint32_t bytes,const char *name,rf_explosion_recipe *result)
+{
+    rf_explosion_recipe v={0};uint32_t start,length;char authored[64],t[256];lexer l;int q,status;
+    if(!result)return RF_RANGE;
+    status=named_effect_block(text,bytes,name,&start,&length,authored);if(status)return status;
+    if(strlen(authored)>=sizeof(v.name))return RF_RANGE;strcpy(v.name,authored);
+    l.text=(const unsigned char *)text+start;l.size=length;l.at=0;
+    if(effect_label(&l,"$Flags:",1)!=1 || token(&l,t,&q) || q || strcmp(t,"("))return RF_FORMAT;
+    for(;;) {
+        if(token(&l,t,&q))return RF_FORMAT;
+        if(!q && !strcmp(t,")"))break;
+        if(!q || !same(t,"no_trails"))return RF_FORMAT;v.flags|=1;
+    }
+    if(effect_label(&l,"$Explosion_Play_Time:",1)!=1 || sphere_number(&l,&v.play_time))return RF_FORMAT;
+    while((status=effect_label(&l,"+Central_Emitter:",0))==1) {
+        rf_explosion_central *c;
+        if(v.central_count==6)return RF_RANGE;c=v.central+v.central_count;
+        status=effect_string(&l,c->emitter,sizeof(c->emitter));if(status)return status;
+        if(effect_label(&l,"+process_per_frame:",1)!=1 || token(&l,t,&q) || q)return RF_FORMAT;
+        if(same(t,"yes") || same(t,"true") || !strcmp(t,"1"))c->process_per_frame=1;
+        else if(!same(t,"no") && !same(t,"false") && strcmp(t,"0"))return RF_FORMAT;
+        status=effect_optional_float(&l,"+min_size_before_use:",0,&c->min_size);if(status)return status;
+        status=effect_optional_float(&l,"+play_time_factor:",FLT_MAX,&c->play_factor);if(status)return status;
+        status=effect_optional_float(&l,"+rand_pos_factor:",0,&v.central_random);if(status)return status;
+        ++v.central_count;
+    }
+    if(status<0)return status;
+    status=effect_label(&l,"$Sparks_Emitter:",0);if(status<0)return status;
+    if(status) {
+        uint32_t mag=0,limit;unsigned at=0,negative=0;v.present|=1;
+        status=effect_string(&l,v.sparks,sizeof(v.sparks));if(status)return status;
+        if(effect_label(&l,"+number:",1)!=1 || token(&l,t,&q) || q)return RF_FORMAT;
+        if(t[at]=='+' || t[at]=='-')negative=t[at++]=='-';
+        if(!t[at])return RF_FORMAT;limit=negative?0x80000000u:0x7fffffffu;
+        for(;t[at];++at) {unsigned digit=(unsigned char)t[at]-'0';if(digit>9 || mag>(limit-digit)/10)return RF_FORMAT;mag=mag*10+digit;}
+        v.sparks_count=negative?(mag==0x80000000u?(-2147483647-1):-(int32_t)mag):(int32_t)mag;
+    }
+    status=effect_label(&l,"$Trail_Head_Emitter:",0);if(status<0)return status;
+    if(status) {
+        v.present|=2;status=effect_string(&l,v.head,sizeof(v.head));if(status)return status;
+        if(effect_label(&l,"+time_to_emit_head_parts:",1)!=1 || sphere_number(&l,&v.head_time))return RF_FORMAT;
+        status=effect_optional_float(&l,"+rand_pos_factor:",0,&v.head_random);if(status)return status;
+    }
+    status=effect_label(&l,"$Trail_Tail_Emitter:",0);if(status<0)return status;
+    if(status) {v.present|=4;status=effect_string(&l,v.tail,sizeof(v.tail));if(status)return status;}
+    if(token(&l,t,&q)!=RF_NOT_FOUND)return RF_FORMAT;
+    *result=v;return RF_OK;
+}
+int rf_explosion_recipe_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_explosion_recipe *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"explosion.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>scratch_budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_explosion_recipe_read(text,entry.size,name,result);
+    free(text);return status;
+}

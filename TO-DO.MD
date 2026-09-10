@@ -16,10 +16,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Original explosion recipe loader 48dd90 now passes 256 supplied-parser
-execution cases. Preserve its shared last-central random-position factor,
-FLT_MAX play-time default and untouched absent-trail fields when implementing
-recipe loading; details are in docs/EXPLOSION-RECIPES.md.
+Owned explosion recipes now decode all nine authored entries on PC/NXDK:
+18 PC named loads, nine short-budget guards and 26 NXDK valid/invalid cases
+pass. Defaults follow 256 original-loader cases. Resolve emitter names and
+connect recipe resources, scheduling and live execution next.
 
 Owned vclip definition loading now passes 126 PC/NXDK named checks across
 63 declarations and 63 scratch-budget rejection checks, including embedded

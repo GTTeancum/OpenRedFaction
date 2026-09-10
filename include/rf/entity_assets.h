@@ -27,6 +27,22 @@ typedef struct rf_vclip_definition {
  * preserved on failure. This is a bounded port parser, not the full original. */
 int rf_vclip_definition_read(const void *text,uint32_t bytes,const char *name,rf_vclip_definition *result);
 int rf_vclip_definition_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_vclip_definition *result);
+typedef struct rf_explosion_central {
+    char emitter[64];uint32_t process_per_frame;float min_size,play_factor;
+} rf_explosion_central;
+typedef struct rf_explosion_recipe {
+    char name[32];uint32_t flags,central_count;float play_time;
+    rf_explosion_central central[6];
+    char sparks[64],head[64],tail[64];int32_t sparks_count;
+    uint32_t present; /* bits 0/1/2: sparks/head/tail authored. */
+    float central_random,head_time,head_random;
+} rf_explosion_recipe;
+/* Ordered metadata reader using 48dd90 defaults, with six-slot bounds.
+ * Optional absent records are zeroed and marked absent, not runtime defaults.
+ * Central random is shared and overwritten by each central entry. Emitter
+ * names are owned but not resolved. Error preserves output. */
+int rf_explosion_recipe_read(const void *text,uint32_t bytes,const char *name,rf_explosion_recipe *result);
+int rf_explosion_recipe_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_explosion_recipe *result);
 /* movemodes.tbl fields and name/reference tables from original 433670.
  * Bounded archive read, one scratch allocation; output preserved on failure. */
 int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf_movement_descriptor *result);
