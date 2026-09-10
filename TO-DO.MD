@@ -16,6 +16,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Delayed Invert/Set_Gravity now tick after physics on the shared fixed-step
+clock. Three expiry-chain fixtures and native 64-MiB XEMU clock replay
+20260910-070755 pass; other scheduled event types retain pending deadlines.
+No reachable authored startup currently schedules these two delayed types.
+
 Invert (type 3) now dispatches opposite actions with the original actor/source
 semantics. Original 192 cases, five shared recursion fixtures and 93 authored
 graphs pass; L1S1 exercises it in 64-MiB XEMU replay 20260910-070306.

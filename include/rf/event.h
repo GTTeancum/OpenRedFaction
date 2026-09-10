@@ -126,13 +126,21 @@ typedef struct rf_startup_events_report {
  * activates common event state and implements Set_Gravity. Other actions,
  * event targets recurse in order and trigger targets toggle disabled bit 16.
  * Non-event/trigger targets and nonempty script eligibility remain unsupported.
- * Other event actions and delayed ticking remain pending. Immediate recursion
+ * Other event actions remain pending; rf_runtime_events_tick updates the two
+ * verified common-tick types. Immediate recursion
  * above 64 events fails RF_RANGE defensively; effects are not rolled back.
  * No full campaign completion claim.
  * Owners share one registry and stay alive throughout; clocks are caller-owned.
  * Dispatch may mutate state before an error; effects are not rolled back. */
 int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *gravity,
     int32_t now,uint32_t clock_bits,rf_startup_events_report *report);
+/* Ordered delayed update for verified common-tick types Invert/Set_Gravity.
+ * Other scheduled types remain pending and are counted, not cleared. Reports
+ * describe this call only. Owners share a live registry; no removal/reordering
+ * during callbacks. Recursive dispatch has the same limit as startup. */
+int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *triggers,
+    rf_physics_gravity *gravity,int32_t now,rf_startup_events_report *report,
+    uint32_t *unsupported_pending);
 
 typedef struct rf_unhide_state {
     int32_t deadline;

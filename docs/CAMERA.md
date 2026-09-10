@@ -3531,3 +3531,40 @@ Native 64-MiB XEMU replay-20260910-070306 passes L1S1; its authored Invert UID
 9956 is reached at startup, linking to UID 9957. Startup diagnostics and player
 state match PC. This is partial campaign integration, not complete event effects
 or full original recursive-chain equivalence. No new visual is claimed.
+
+
+Delayed runtime event update (2026-09-10)
+---------------------------------------
+
+Original 433260 calls the ordered virtual event update 4b6720 at 4333ea,
+after its physics update call 487a40 at 433326. Within 4b6720, events are
+visited through array 856470 and vtable +12. Both base Invert and Set_Gravity
+use 4b8ce0; its common delayed prefix was already verified, and its subsequent
+special-case switch starts at type 52, excluding types 3 and 44. This supports
+using the common tick for these types. Other virtual updates are not inferred.
+
+rf_runtime_events_tick now visits owned events in registration order and runs
+the recovered delayed prefix for types 3/44. Unsupported scheduled types remain
+intact and counted. Expiring events use the same recursive action dispatcher
+as startup. Reports describe one call; scene diagnostics accumulate effects.
+Three focused PC fixtures test modes 0/1/2 before/at/after expiry, scheduling a
+later event for the next millisecond, no duplicate expiry, preservation of a
+type-50 pending deadline, and the original lack of a disabled-flag gate at tick.
+Mode 2 executes the on action but propagates off, retaining the recovered quirk.
+
+The scene runs this after each simulated physics step. Its clock is explicitly
+an owned 60-Hz clock: floor((frame+1)*1000/60) milliseconds, wrapped using the
+existing timer period with positive endpoint retained. This is not recovered
+wall-clock, pause or whole-frame ordering parity. The final rendered frame has
+no following physics step and therefore no additional event update. Clock and
+report state are exposed through CAMPAIGN_EVENT_TICKS/rf_scene_event_ticks:
+tick count, last milliseconds, current unsupported pending count, then nine
+cumulative action-report words. No additional dynamic allocation is required.
+
+All 93 startup checks, five CTests and existing 3922 PC/NXDK common activation
+cases pass. PC/NXDK builds pass. Native stock-64-MiB XEMU replay-20260910-070755
+passes with 15 updates through 250 ms, matching PC diagnostics and player state.
+No currently reachable authored startup schedules a delayed Invert/Set_Gravity,
+so this native run proves clock/update integration, not an authored expiry.
+The focused fixtures supply expiry coverage. Remaining event types, their
+custom updates, full clock integration and native expiry fixtures remain open.

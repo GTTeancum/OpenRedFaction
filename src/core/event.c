@@ -90,6 +90,27 @@ int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *
     }
     return RF_OK;
 }
+int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *triggers,
+    rf_physics_gravity *gravity,int32_t now,rf_startup_events_report *report,
+    uint32_t *unsupported_pending)
+{
+    startup_context context={0};uint32_t i;int status,expired;
+    if(!events || !triggers || !gravity || !report || !unsupported_pending ||
+       !events->registry || events->registry!=triggers->registry || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    memset(report,0,sizeof(*report));*unsupported_pending=0;
+    context.triggers=triggers;context.gravity=gravity;context.report=report;context.now=now;context.depth=1;
+    for(i=0;i<events->count;++i) {
+        rf_runtime_event *event=events->items+i;
+        if(event->state.deadline<0)continue;
+        if(event->state.type!=3 && event->state.type!=44) {++*unsupported_pending;continue;}
+        status=rf_timer_expired(event->state.deadline,now,&expired);if(status)return status;
+        if(!expired)continue;
+        context.event=event;++report->events;
+        status=rf_event_tick(&event->state,now,startup_event_action,&context);
+        if(status)return status;if(context.status)return context.status;
+    }
+    return RF_OK;
+}
 int rf_runtime_triggers_resolve(rf_runtime_triggers *triggers,
     const rf_level_uid_object *objects,uint32_t object_count,
     const rf_level_uid_key *keys,uint32_t key_count)

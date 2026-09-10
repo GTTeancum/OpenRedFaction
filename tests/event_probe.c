@@ -39,6 +39,34 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--event-ticks")) {
+        uint32_t mode,i,pending;
+        for(mode=0;mode<3;++mode) {
+            rf_runtime_event items[3]={0};rf_level_owned_event authored[3]={0};
+            rf_runtime_events events={0};rf_runtime_triggers triggers={0};rf_object_registry registry;
+            rf_level_link_target link={0};rf_physics_gravity gravity,expected;rf_startup_events_report report;
+            rf_object_registry_init(&registry);events.registry=triggers.registry=&registry;events.items=items;events.count=3;
+            for(i=0;i<3;++i) {
+                items[i].object_kind=6;items[i].authored=authored+i;items[i].state.type=i==2?50:44;
+                items[i].state.deadline=i==1?-1:100;authored[i].record.values[0]=(float)(4-i);
+                if(rf_object_registry_insert(&registry,items+i,&items[i].handle))return 30;
+            }
+            authored[0].record.link_count=1;items[0].links=&link;link.kind=1;link.value=items[1].handle;
+            items[0].state.source=7;items[0].state.actor=8;items[0].state.mode=mode;items[0].state.flags=1;
+            items[1].state.delay=.001f;
+            rf_physics_gravity_set(&gravity,9.8f);
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,99,&report,&pending) || report.events || pending!=1)return 31;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,100,&report,&pending) || report.events!=2 ||
+               report.gravity_actions!=(mode?1u:0u) || items[0].state.deadline!=-1 || items[1].state.deadline!=101)return 32;
+            if(items[1].state.source!=(mode==1?7u:8u) || items[1].state.actor!=8)return 33;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,101,&report,&pending) || report.events!=1 ||
+               report.gravity_actions!=(mode==1?1u:0u) || items[1].state.deadline!=-1 || items[2].state.deadline!=100)return 34;
+            rf_physics_gravity_set(&expected,mode==1?3.0f:mode==2?4.0f:9.8f);
+            if(memcmp(&gravity,&expected,sizeof(gravity)))return 35;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,102,&report,&pending) || report.events || pending!=1)return 36;
+        }
+        puts("PASS 3 delayed event fixtures");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--startup-recursion")) {
         uint32_t scenario,i;
         for(scenario=0;scenario<5;++scenario) {
