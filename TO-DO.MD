@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Explicit runtime trigger firing now reaches shared event dispatch and preserves
+self-disable changes; natural actor/contact/key integration and XEMU replay remain open.
+
 SP activation bookkeeping matches 2048 original/PC/NXDK cases with mutable
 dispatch; player-field gates and live actor/link integration remain open.
 

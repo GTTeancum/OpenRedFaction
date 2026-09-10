@@ -132,9 +132,12 @@ typedef struct rf_auto_trigger_state {
     int32_t deadline,cooldown_ms;
     uint32_t activation_time_bits,handle;
 } rf_auto_trigger_state;
+typedef struct rf_trigger_activation {
+    rf_auto_trigger_state state;int32_t limit;uint32_t object_flags;
+} rf_trigger_activation;
 typedef struct rf_runtime_trigger {
     uint32_t object_kind,handle;
-    rf_auto_trigger_state state;
+    union {rf_auto_trigger_state state;rf_trigger_activation activation;};
     const rf_level_owned_trigger *authored;
     rf_level_link_target *links;
 } rf_runtime_trigger;
@@ -175,9 +178,6 @@ typedef void (*rf_auto_trigger_callback)(void *context,const rf_auto_trigger_sta
  * float game-clock representation, independent of timer milliseconds. */
 int rf_auto_trigger_fire(rf_auto_trigger_state *state,int32_t now,uint32_t clock_bits,
     int eligible,rf_auto_trigger_callback callback,void *context);
-typedef struct rf_trigger_activation {
-    rf_auto_trigger_state state;int32_t limit;uint32_t object_flags;
-} rf_trigger_activation;
 typedef void (*rf_trigger_activation_callback)(void *context,rf_trigger_activation *trigger,
     uint32_t actor,uint32_t suppress_movers);
 /* SP 4c0220 bookkeeping around linked dispatch. blocked is resolved global /
@@ -194,6 +194,15 @@ typedef struct rf_startup_events_report {
     uint32_t triggers,events,gravity_actions,unsupported_actions,unresolved_targets;
     uint32_t other_targets,script_gates,pending_links,delayed_events;
 } rf_startup_events_report;
+/* Explicit runtime activation after caller-resolved contact/key/player gates.
+ * Uses the shared registry/link dispatcher and SP bookkeeping on the owned
+ * trigger. The same supported action families as startup are available;
+ * reports expose unsupported/unresolved effects. No actor polling here.
+ * Effects already dispatched are not rolled back on a later dispatch error. */
+int rf_runtime_trigger_fire(rf_runtime_triggers *triggers,uint32_t handle,
+    uint32_t actor,int32_t now,uint32_t clock_bits,uint32_t blocked,uint32_t suppress_movers,
+    rf_physics_gravity *gravity,rf_level_particles *particles,
+    rf_startup_events_report *report,uint32_t *fired);
 /* Partial single-player startup dispatcher: follows resolved trigger links,
  * activates common event state and implements Set_Gravity. Other actions,
  * event targets recurse in order and trigger targets toggle disabled bit 16.

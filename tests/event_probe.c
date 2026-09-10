@@ -58,6 +58,33 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--runtime-trigger-fire")) {
+        static rf_object_registry registry;rf_runtime_triggers owner={0};rf_runtime_trigger trigger={0};
+        rf_runtime_event events[2]={{0}};rf_level_owned_trigger authored={0};rf_level_owned_event records[2]={{0}};
+        rf_level_link_target targets[2]={{0}},self={0};rf_startup_events_report report;
+        rf_physics_gravity gravity={0};uint32_t fired,i;
+        rf_object_registry_init(&registry);owner.registry=&registry;owner.items=&trigger;owner.count=1;
+        trigger.object_kind=5;trigger.authored=&authored;trigger.links=targets;authored.record.link_count=2;
+        trigger.activation.limit=1;trigger.state.deadline=100;trigger.state.cooldown_ms=50;
+        if(rf_object_registry_insert(&registry,&trigger,&trigger.handle))return 70;
+        trigger.state.handle=trigger.handle;
+        for(i=0;i<2;i++) {
+            events[i].object_kind=6;events[i].authored=records+i;events[i].state.type=i?44:3;events[i].state.deadline=-1;
+            if(rf_object_registry_insert(&registry,events+i,&events[i].handle))return 71;
+            targets[i].kind=1;targets[i].value=events[i].handle;
+        }
+        self.kind=1;self.value=trigger.handle;events[0].links=&self;records[0].record.link_count=1;
+        records[1].record.values[0]=12.5f;
+        if(rf_runtime_trigger_fire(&owner,trigger.handle,123,100,0x42c80000,1,0,&gravity,NULL,&report,&fired) ||
+            fired || trigger.state.count || report.triggers)return 72;
+        if(rf_runtime_trigger_fire(&owner,trigger.handle,123,100,0x42c80000,0,0,&gravity,NULL,&report,&fired) ||
+            !fired || trigger.state.count!=1 || trigger.state.flags!=80 || trigger.activation.object_flags!=2 ||
+            trigger.state.deadline!=150 || trigger.state.activation_time_bits!=0x42c80000 ||
+            gravity.acceleration!=12.5f || report.triggers!=1 || report.events!=2 || report.gravity_actions!=1 ||
+            events[1].state.actor!=123 || events[1].state.source!=trigger.handle)return 73;
+        if(rf_runtime_trigger_fire(&owner,events[0].handle,123,100,0,0,0,&gravity,NULL,&report,&fired)!=RF_NOT_FOUND)return 74;
+        puts("PASS runtime trigger dispatch, self-disable, gravity and limit mark");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--trigger-fire")) {
         struct {rf_trigger_activation trigger;uint32_t now,clock,blocked,actor,suppress,mutation;} input;
         struct {rf_trigger_activation trigger;uint32_t status,fired,trace;} output;

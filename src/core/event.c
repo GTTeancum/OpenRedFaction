@@ -217,6 +217,26 @@ static void startup_trigger_dispatch(void *context,const rf_auto_trigger_state *
         startup_target(c,c->trigger->links+i,state->handle,actor,1);
     }
 }
+static void runtime_trigger_dispatch(void *context,rf_trigger_activation *trigger,
+    uint32_t actor,uint32_t suppress_movers)
+{
+    startup_trigger_dispatch(context,&trigger->state,actor,suppress_movers);
+}
+int rf_runtime_trigger_fire(rf_runtime_triggers *triggers,uint32_t handle,
+    uint32_t actor,int32_t now,uint32_t clock_bits,uint32_t blocked,uint32_t suppress_movers,
+    rf_physics_gravity *gravity,rf_level_particles *particles,
+    rf_startup_events_report *report,uint32_t *fired)
+{
+    startup_context context={0};rf_runtime_trigger *trigger;uint32_t kind;int status;
+    if(!triggers || !triggers->registry || !gravity || !report || !fired)return RF_RANGE;
+    trigger=rf_object_registry_lookup(triggers->registry,handle);if(!trigger)return RF_NOT_FOUND;
+    memcpy(&kind,trigger,4);if(kind!=5)return RF_NOT_FOUND;
+    memset(report,0,sizeof(*report));context.triggers=triggers;context.trigger=trigger;
+    context.gravity=gravity;context.particles=particles;context.report=report;context.now=now;
+    status=rf_trigger_fire_sp(&trigger->activation,now,clock_bits,blocked,actor,suppress_movers,
+        runtime_trigger_dispatch,&context,fired);
+    return status?status:context.status;
+}
 int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *gravity,
     int32_t now,uint32_t clock_bits,rf_level_particles *particles,rf_startup_events_report *report)
 {
@@ -304,6 +324,7 @@ int rf_runtime_triggers_open(const rf_level *level,rf_object_registry *registry,
         }
         status=rf_auto_trigger_init(&item->state,&item->authored->record,UINT32_MAX,now);
         if(status)goto failed;
+        item->activation.limit=(int32_t)item->authored->record.unknown_word;
     }
     value.registry=registry;value.allocated_bytes=(uint32_t)bytes;
     for(i=0;i<value.decoded.count;++i) {

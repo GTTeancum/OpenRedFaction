@@ -781,3 +781,31 @@ fired result and callback-state hash agree. Half the fixtures mutate the
 permitted fields during dispatch. Cases include count wrap, signed limits,
 auto exemption, existing flags, global inhibit and cooldown clock wrapping.
 This validates compiled NXDK code in Unicorn, not live XEMU activation.
+
+
+## Owned runtime activation integration
+
+`rf_runtime_trigger_fire` now looks up an owned trigger by handle and invokes
+SP activation bookkeeping around the existing registry/link event dispatcher.
+It accepts caller-resolved blocked/actor inputs; it is not a contact poll and
+does not bypass or claim to implement the missing actor/key/player gates.
+Unsupported target/action families remain visible in the existing report.
+Already dispatched effects are not rolled back if a later dispatch fails.
+
+Runtime trigger storage overlays the existing state with the activation
+state, adding limit and object flags (8 bytes per trigger). Therefore linked
+events changing this trigger's flags modify the same storage that activation
+reads afterward. The authored unknown_word supplies signed limit: 465510
+reads it into local_90 (factory input +14); 4bf970 copies +14 to runtime +2a4.
+The existing startup interface still accesses the same state. Owner budget
+calculations include the enlarged item; the maximum observed owned trigger
+allocation is now 61392 bytes across 93 trigger-bearing installed levels.
+
+The `--runtime-trigger-fire` probe uses real registry entries and linked
+Invert/Set_Gravity events. It verifies blocked activation, actor/source
+propagation, self-disable surviving post-dispatch updates, gravity change,
+activation-limit marking, cooldown, clock bits and rejection of an event
+handle as a trigger. It is part of verify_runtime_startup.py. The 93-level
+ownership/budget and partial startup graph suites pass, as do PC/NXDK builds
+and the 2048-case original activation verifier. The integrated runtime path
+has been exercised on PC; a native XEMU replay remains open.
