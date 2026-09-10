@@ -2379,3 +2379,33 @@ release control flow, including preservation on failure, rather than collision
 geometry or the complete outer input path. The live campaign still needs a
 recorded low-ceiling traversal; the existing copied-actor clearance diagnostic
 and this original-code check are narrower evidence.
+
+
+### Outer stance gate (2026-09-09)
+
+`rf_player_stance_enabled` reconstructs the gate from `430c70` to the action-4
+query at `430daa`, using resolved entity ownership, environment-query result,
+movement/speed modes, entity kind, attachment +1380, player byte +f38 and the
+result of `444ac0`. Both press and release are gated. Mode 2 takes an environment
+transition path and never reaches stance input. Otherwise mode 1 with speed
+0/1, mode 3/8, or kind 1 with attachment +1380 equal to -1 can reach the query,
+provided the ownership, environment and blocking checks allow it. The meanings
+of +f38 and the global blocker are not named as UI states without evidence.
+
+`tools/verify_player_stance_gate.py` runs the original prefix with unchanged
+entity lookup, ownership comparison, movement/kind predicates and `444ac0`.
+Its 4,608 cases span missing/unowned/owned entities, environment absent/present,
+all 16 movement modes, three speed modes, two entity kinds, attachment -1/0,
+player block byte 0/255 and global result 0/1. Shared PC and compiled NXDK match
+all cases (69 reach stance input); a null NXDK input returns disabled. The world
+environment query is supplied and its transition handlers are skipped. This
+proves the gate, not environment mutation, action processing or full ownership.
+
+The campaign callback consumes live movement and speed mode through this gate.
+Ownership, environment, kind and block fields remain ordinary-player fixture
+values until the corresponding lifecycle is implemented; those are not live
+registry or lock checks yet. The existing 64-tick press/move/release test passes.
+
+Stock-64-MiB XEMU replay `20260909-231939` also passes, with exact PC stance,
+animation, input and final-body memory comparisons. PC/NXDK builds and all five
+CTest checks pass.

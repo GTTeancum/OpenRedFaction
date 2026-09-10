@@ -23,6 +23,12 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
+Shared C now implements the outer stance gate, matching 4,608 original-code
+cases on PC and compiled NXDK. Campaign stance now respects live movement/speed
+modes for both press and release. Ownership, environment lookup and blocking
+values remain explicit fixture defaults pending their live lifecycle integration.
+See tools/verify_player_stance_gate.py and docs/CAMERA.md.
+
 The original release handler now passes 162 execution fixtures covering blocked
 and clear query results, 0–8 spheres, absent/matching/nonmatching player lists,
 and zero/nonzero crouch bytes. A blocked result preserves the full actor, player

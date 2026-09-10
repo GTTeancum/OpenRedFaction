@@ -1,6 +1,14 @@
 #include "rf/player.h"
 #include <string.h>
 #include <math.h>
+uint32_t rf_player_stance_enabled(const rf_player_stance_gate *gate)
+{
+    if(!gate || !gate->owns_entity || gate->environment_present ||
+       gate->movement_mode==2 || gate->blocked_f38 || gate->global_blocked)return 0;
+    return (gate->movement_mode==1 && (gate->speed_mode==0 || gate->speed_mode==1)) ||
+        gate->movement_mode==3 || gate->movement_mode==8 ||
+        (gate->entity_kind==1 && gate->attachment_1380==-1);
+}
 int rf_player_motion_choose(const rf_player_motion_input *input,int32_t *state)
 {
     int32_t selected;float a,b,c,swap;long double partial,magnitude;uint32_t moving;

@@ -477,11 +477,17 @@ static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller
 {
     rf_motion_stance_decision decision={0,RF_MOTION_STANCE_NONE};
     rf_player_crouch_input eligibility={1,-1,-1,-1,(int32_t)rf_scene_actor_landing[1]};
+    /* Ownership/environment/locks are fixture defaults until the player
+     * registry and environment lifecycle supply their resolved values. */
+    rf_player_stance_gate gate={1,0,(int32_t)rf_scene_actor_landing[1],
+        (int32_t)rf_scene_actor_movement_settings.mode,0,-1,0,0};
     uint32_t request=player_poll?player_input.crouch:0;int status;
     /* Ordinary unattached player fixture. 430c70 owns immediate collision
      * effects before its state-9 request; input locks/vehicles remain separate. */
-    if(request && !campaign_crouched && rf_player_can_crouch(&eligibility))decision.effect=RF_MOTION_STANCE_CROUCH;
-    else if(!request && campaign_crouched)decision.effect=RF_MOTION_STANCE_STAND;
+    if(rf_player_stance_enabled(&gate)) {
+        if(request && !campaign_crouched && rf_player_can_crouch(&eligibility))decision.effect=RF_MOTION_STANCE_CROUCH;
+        else if(!request && campaign_crouched)decision.effect=RF_MOTION_STANCE_STAND;
+    }
     status=actor_selector_effect(context,frame,&decision,controller);if(status)return status;
     campaign_crouched=(rf_scene_actor_stance_flags&0x400)!=0;
     if(decision.effect==RF_MOTION_STANCE_CROUCH && campaign_crouched)

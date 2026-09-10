@@ -1,6 +1,17 @@
 #ifndef RF_PLAYER_H
 #define RF_PLAYER_H
 #include "rf/vpp.h"
+
+typedef struct rf_player_stance_gate {
+    uint32_t owns_entity,environment_present;
+    int32_t movement_mode,speed_mode,entity_kind,attachment_1380;
+    uint32_t blocked_f38,global_blocked;
+} rf_player_stance_gate;
+/* 430c70 through the action-4 query, with resolved ownership/environment and
+ * 444ac0 results. Missing entity means owns_entity=0. This gates both pressing
+ * and releasing crouch; it does not perform environment transitions or input. */
+uint32_t rf_player_stance_enabled(const rf_player_stance_gate *gate);
+
 typedef struct rf_player_crouch_input {
     uint32_t entity_present;
     int32_t control_kind,parent_kind,attachment_75c,movement_mode;
