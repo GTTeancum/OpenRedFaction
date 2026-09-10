@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Verify climb controls, authored approach and top-of-ladder traversal after the staged XEMU ascent.
+- [ ] Verify the authored ladder approach and top-platform traversal after stick-reachable XEMU climbing.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
@@ -12,6 +12,15 @@ Immediate open items:
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Look-directed climbing now passes a 180-tick PC/XEMU replay using only
+commands reachable from the existing controller sticks (no move-Y injection).
+Run tools/replay_climb_controls.py, then xemu_replay_check.py on its inputs
+with --climb. XEMU 20260910-003732 matches PC exactly and ascends 5.20467 units.
+The start remains staged inside the region; physical device behavior, authored
+approach and top-platform traversal remain unverified. Original 430c70/4280b0
+confirms immediate region exit with vertical-velocity reset, so avoid assuming
+the staged top-boundary re-entry alone proves the transition code is wrong.
 
 User confirmed interactive movement on 2026-09-09. Crouch, controller reconnect
 and Back+Start exit still need user checks.

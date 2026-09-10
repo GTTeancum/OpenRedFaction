@@ -2658,3 +2658,33 @@ fidelity claim. Entity +148 remains correctly wired as vertical velocity.
 
 L1S1 64-tick campaign crouch regression replay-20260910-003315 also passes
 with the normal level restored, including the new climb timeline ring.
+
+
+Look-directed climb regression (2026-09-10)
+
+replay_climb_controls.py uses only move-Z and look-pitch commands, all within
+[-1,1], with move-Y identically zero. Existing Xbox input.c maps left-stick up
+to positive move-Z and right-stick up to positive pitch, so these commands are
+reachable without adding a vertical movement button. This is source inspection
+plus process-local command replay, not injected SDL events or a physical device
+test. The authored movemodes.tbl climb translation selects eye X/Z and parent Y;
+the recovered movement transform therefore supports the view-directed ascent.
+
+The 180-tick scenario looks up for 80 ticks, moves forward from tick 80, then
+lowers the view from tick 105 to leave sideways before the top boundary.
+PC and stock-64-MiB XEMU replay-20260910-003732 pass with one entry/one exit,
+5.204667568 units of retained climbing ascent and no vertical command. The
+128-entry timeline wraps: validation compares the complete retained ring and
+sorts its valid records by frame; it does not claim all 180 intermediate frames
+are stored. The existing native body/stance/animation records also match.
+
+Original call-site review: 430c70 queries 45cca0 on entity+3c. With a region,
+42a100 accepts modes 1/2 or a changed previous-region pointer; 42d8b0 then
+prevents re-entering mode 2. Without a region, mode 2 invokes 4280b0. The latter
+restores the default movement descriptor and clears entity+148 vertical velocity.
+This agrees with the current transition policy. No upward impulse or ledge
+snap was found in this dispatch/exit path. That is a limited call-path finding,
+not proof that no other player/collision behavior assists climbing elsewhere.
+A look-held-at-the-top probe also re-enters repeatedly, as the parent-Y probe did.
+Test the authored approach, geometry, view and any jump action before deciding
+whether that observation represents missing traversal behavior or fixture setup.
