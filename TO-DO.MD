@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Eight authored-spawn PC approaches reached only static contacts; the2250-frame
+door-direct route stops near Z10, short of lower movers near Z-19; inspect route/stage next.
+
 Campaign ground queries now include movers with per-query contacts and support
 commits; L1S1/L2S1 XEMU replays pass; targeted mover contact/carry remain unverified.
 
