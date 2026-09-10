@@ -255,6 +255,33 @@ typedef struct rf_collision_solid_hit {
 int rf_collision_ray_solids(const rf_collision_solid_view *moving,uint32_t count,
     const rf_collision_solid_view *stationary,const float start[3],const float end[3],
     uint32_t flags,rf_collision_solid_hit *result,uint32_t *matched);
+typedef struct rf_collision_body_sphere {float center[3],radius;} rf_collision_body_sphere;
+typedef struct rf_collision_body_mover {
+    float minimum[3],maximum[3],origin[3],matrix[3][3],velocity[3];
+    uint32_t flags,object_id;
+} rf_collision_body_mover;
+typedef struct rf_collision_body_query {
+    float start[3],end[3],matrix[3][3],radius;
+    uint32_t flags;const rf_collision_body_sphere *spheres;uint32_t count;float limit;
+} rf_collision_body_query;
+typedef struct rf_collision_body_request {
+    uint32_t solid,sphere,flags; /* UINT32_MAX solid selects static world. */
+    float start[3],delta[3],radius,limit;
+} rf_collision_body_request;
+typedef struct rf_collision_body_candidate {
+    rf_collision_ray_hit hit;uint32_t texture,material,face_flags,face_token;
+} rf_collision_body_candidate;
+typedef int (*rf_collision_body_geometry)(void *context,const rf_collision_body_request *request,
+    rf_collision_body_candidate *candidate,uint32_t *matched);
+/* 499ed0 composition: mover outer/sphere inner, then static spheres. Full
+ * displacement survives accepted hits; retained fraction and mover broadphase
+ * bounds shrink. Later equal hits replace. Callback provides uncached local
+ * geometry and resolved metadata, with fraction <= request limit. Borrowed
+ * inputs must remain stable during callbacks. No allocation or cache management.
+ * Errors preserve output/matched; misses preserve output. No physical response. */
+int rf_collision_body_sweep(const rf_collision_body_query *body,
+    const rf_collision_body_mover *movers,uint32_t count,rf_collision_body_geometry geometry,
+    void *context,rf_collision_body_hit *result,uint32_t *matched);
 /* Uncached no-room branch of 4df1c0: ordered solid face list (+70, next +54).
  * Includes query transformation. Unlike the hierarchy path, query bit 0 does
  * not stop face iteration. No hierarchy/preferred-face/cache handling. */

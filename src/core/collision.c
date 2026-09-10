@@ -511,6 +511,87 @@ int rf_collision_mover_sphere_local(const float center[3],const float body_matri
     }
     memcpy(local_start,a,12);memcpy(local_delta,b,12);return RF_OK;
 }
+static int body_bounds(const rf_collision_body_query *body,const float end[3],float lo[3],float hi[3])
+{
+    uint32_t i;
+    for(i=0;i<3;i++) {
+        lo[i]=(body->start[i]<end[i]?body->start[i]:end[i])-body->radius;
+        hi[i]=(body->start[i]>end[i]?body->start[i]:end[i])+body->radius;
+        if(!isfinite(lo[i]) || !isfinite(hi[i]))return RF_FORMAT;
+    }
+    return RF_OK;
+}
+int rf_collision_body_sweep(const rf_collision_body_query *body,
+    const rf_collision_body_mover *movers,uint32_t count,rf_collision_body_geometry geometry,
+    void *context,rf_collision_body_hit *result,uint32_t *matched)
+{
+    rf_collision_body_hit value={0};rf_collision_body_request request;rf_collision_body_candidate candidate;
+    float lo[3],hi[3],delta[3],end[3],limit;uint32_t i,j,k,s,hit,any=0,world;int status;
+    if(!body || !geometry || !result || !matched || (count && !movers) ||
+       (body->count && !body->spheres) || count==UINT32_MAX)return RF_RANGE;
+    if(!isfinite(body->radius) || body->radius<0 || !isfinite(body->limit) || body->limit<0 || body->limit>1)return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(body->start[i]) || !isfinite(body->end[i]))return RF_FORMAT;
+        delta[i]=body->end[i]-body->start[i];if(!isfinite(delta[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(body->matrix[i][j]))return RF_FORMAT;
+    }
+    for(s=0;s<body->count;s++) {
+        if(!isfinite(body->spheres[s].radius) || body->spheres[s].radius<0)return RF_FORMAT;
+        for(i=0;i<3;i++)if(!isfinite(body->spheres[s].center[i]))return RF_FORMAT;
+    }
+    for(k=0;k<count;k++)for(i=0;i<3;i++) {
+        if(!isfinite(movers[k].minimum[i]) || !isfinite(movers[k].maximum[i]) ||
+           movers[k].minimum[i]>movers[k].maximum[i] || !isfinite(movers[k].origin[i]) ||
+           !isfinite(movers[k].velocity[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(movers[k].matrix[i][j]))return RF_FORMAT;
+    }
+    status=body_bounds(body,body->end,lo,hi);if(status)return status;
+    limit=body->limit;request.flags=body->flags|4;
+    if(body->radius<.05f)request.flags|=0x100;
+    for(k=0;k<=count;k++) {
+        world=k==count;
+        if(!world) {
+            if(movers[k].flags&0x40000)continue;
+            for(i=0;i<3;i++)if(lo[i]>=movers[k].maximum[i] || hi[i]<=movers[k].minimum[i])break;
+            if(i!=3)continue;
+        }
+        request.solid=world?UINT32_MAX:k;
+        for(s=0;s<body->count;s++) {
+            request.sphere=s;request.radius=body->spheres[s].radius;request.limit=limit;
+            if(world) {
+                for(i=0;i<3;i++) {
+                    float column[3]={body->matrix[0][i],body->matrix[1][i],body->matrix[2][i]};
+                    volatile float rotated=edge_dot(body->spheres[s].center,column,1,NULL);
+                    request.start[i]=rotated+body->start[i];request.delta[i]=delta[i];
+                    if(!isfinite(request.start[i]))return RF_FORMAT;
+                }
+            } else {
+                status=rf_collision_mover_sphere_local(body->spheres[s].center,body->matrix,
+                    body->start,body->end,movers[k].origin,movers[k].matrix,request.start,request.delta);
+                if(status)return status;
+            }
+            hit=0;memset(&candidate,0,sizeof(candidate));
+            status=geometry(context,&request,&candidate,&hit);if(status)return status;
+            if(!hit)continue;
+            if(!isfinite(candidate.hit.fraction) || candidate.hit.fraction<0 || candidate.hit.fraction>limit)return RF_FORMAT;
+            for(i=0;i<3;i++)if(!isfinite(candidate.hit.point[i]) || !isfinite(candidate.hit.normal[i]))return RF_FORMAT;
+            if(world) {
+                memset(&value,0,sizeof(value));memcpy(value.point,candidate.hit.point,12);
+                memcpy(value.normal,candidate.hit.normal,12);value.fraction=candidate.hit.fraction;
+                value.material=candidate.material;value.texture=candidate.texture;value.object_id=UINT32_MAX;
+                value.face_flag=(candidate.face_flags>>2)&1;value.face_token=candidate.face_token;
+            } else {
+                status=rf_collision_mover_contact(&candidate.hit,movers[k].origin,movers[k].matrix,
+                    movers[k].velocity,movers[k].object_id,candidate.texture,candidate.material,
+                    candidate.face_flags,candidate.face_token,&value);if(status)return status;
+                for(i=0;i<3;i++) {volatile float part=delta[i]*value.fraction;end[i]=body->start[i]+part;}
+                status=body_bounds(body,end,lo,hi);if(status)return status;
+            }
+            limit=value.fraction;any=1;
+        }
+    }
+    if(any)*result=value;*matched=any;return RF_OK;
+}
 int rf_collision_point_oriented_box(const float point[3],const float center[3],
     const float matrix[3][3],const float size[3],uint32_t *inside)
 {

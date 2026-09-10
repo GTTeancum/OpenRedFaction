@@ -29,11 +29,50 @@ static int32_t activation_play(void *context,int32_t sample,const float position
 { if(flags)abort();activation_record(context,1,(uint32_t)sample,position,volume);return sample+100; }
 static void activation_alert(void *context,uint32_t actor,const float position[3],float radius)
 {activation_record(context,2,actor,position,radius);}
+typedef struct body_fixture {
+    float heights[3];uint32_t enabled[3],flags,spheres;
+} body_fixture;
+typedef struct body_fixture_context {body_fixture input;uint32_t count;rf_collision_body_request trace[6];} body_fixture_context;
+static int body_fixture_geometry(void *context,const rf_collision_body_request *q,rf_collision_body_candidate *out,uint32_t *matched)
+{
+    body_fixture_context *c=context;uint32_t i=q->solid==UINT32_MAX?2:q->solid;
+    float z=c->input.heights[i],vertices[4][3]={{-3,-3,0},{3,-3,0},{3,3,0},{-3,3,0}};
+    rf_collision_face face={0};rf_collision_sweep_tree_hit hit;int status;uint32_t j;
+    if(c->count>=6)return RF_RANGE;c->trace[c->count++]=*q;
+    for(j=0;j<4;j++)vertices[j][2]=z;
+    face.plane[2]=1;face.plane[3]=-z;
+    face.minimum[0]=face.minimum[1]=-3;face.maximum[0]=face.maximum[1]=3;
+    face.minimum[2]=z-.0001f;face.maximum[2]=z+.0001f;face.vertices=vertices;face.count=4;
+    status=rf_collision_flat_faces(&face,c->input.enabled[i],q->flags,q->start,q->delta,NULL,NULL,q->radius,q->limit,&hit,matched);
+    if(!status && *matched) {out->hit=hit.hit;out->texture=UINT32_MAX;out->material=0;out->face_flags=0;out->face_token=i+1;}
+    return status;
+}
 int main(int argc,char **argv)
 {
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--body-sweep")) {
+        body_fixture_context c;
+        while(fread(&c.input,sizeof(c.input),1,stdin)==1) {
+            rf_collision_body_query q={0};rf_collision_body_mover movers[2]={{0}};
+            rf_collision_body_sphere spheres[2]={{{0,0,0},.5f},{{1,0,0},.5f}};
+            struct {int status;uint32_t matched;rf_collision_body_hit hit;uint32_t count;rf_collision_body_request trace[6];} out;
+            uint32_t i,j;memset(&out,0xa5,sizeof(out));c.count=0;memset(c.trace,0,sizeof(c.trace));
+            q.start[2]=8;q.end[2]=-8;q.radius=.5f;q.limit=1;q.flags=0x460;q.spheres=spheres;q.count=c.input.spheres;
+            for(i=0;i<3;i++)q.matrix[i][i]=1;
+            for(i=0;i<2;i++) {
+                movers[i].minimum[0]=movers[i].minimum[1]=-3;movers[i].maximum[0]=movers[i].maximum[1]=3;
+                movers[i].minimum[2]=c.input.heights[i]-.0001f;movers[i].maximum[2]=c.input.heights[i]+.0001f;
+                movers[i].object_id=100+i;movers[i].flags=i?0:c.input.flags;
+                for(j=0;j<3;j++)movers[i].matrix[j][j]=1;
+            }
+            out.hit.fraction=1;
+            out.status=rf_collision_body_sweep(&q,movers,2,body_fixture_geometry,&c,&out.hit,&out.matched);
+            out.count=c.count;memcpy(out.trace,c.trace,sizeof(c.trace));fwrite(&out,sizeof(out),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--oriented-box")) {
         float values[24];
         while(fread(values,sizeof(values),1,stdin)==1) {

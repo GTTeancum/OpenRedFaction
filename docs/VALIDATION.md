@@ -722,3 +722,9 @@ The corrected numeric 64 MiB XEMU run passes at
 artifacts/xemu/20260908-191635-867708/report.json, with unchanged pixel and
 animation hashes. No framebuffer capture. Live model binding and animated
 texture-handle resolution remain open.
+
+## Body sweep composition (499ed0)
+
+Shared rf_collision_body_sweep visits ordered movers, all spheres per mover, then static world spheres. It preserves full displacement while retaining the shrinking hit fraction; mover broadphase bounds shrink after accepted mover contacts. Disabled movers (40000) are skipped and later equal contacts replace earlier ones. Geometry/material resolution is a borrowed callback boundary; no heap allocation or physical response is included.
+
+python tools/verify_body_sweep.py executes the full original function and its actual plane geometry for 11 fixtures, compares PC reconstructed flat-face queries and every normalized 68-byte response, and executes NXDK composition under Unicorn with an analytic plane callback. Covers nearer/farther hits, mover/world ties, disabled movers, misses and two spheres. Both builds and six CTests pass. This is not an XEMU gameplay test; rotated composition, static cache equivalence, geometry-owner adapters and live scene wiring remain unverified/open.
