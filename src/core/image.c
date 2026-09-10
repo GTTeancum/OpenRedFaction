@@ -1,6 +1,34 @@
 #include "rf/image.h"
 #include <stdlib.h>
 #include <string.h>
+#ifdef RF_IMAGE_XBOX_NATIVE
+#include <xboxkrnl/xboxkrnl.h>
+#endif
+int rf_image_allocate_pixels(rf_image *image)
+{
+    if(!image || image->rgba || !image->width || !image->height || image->width>4096 || image->height>4096 ||
+       (uint64_t)image->width*image->height*4!=image->bytes)return RF_RANGE;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    if((image->width&(image->width-1)) || (image->height&(image->height-1)))return RF_FORMAT;
+    image->rgba=MmAllocateContiguousMemoryEx(image->bytes,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+#else
+    image->rgba=malloc(image->bytes);
+#endif
+    return image->rgba?RF_OK:RF_RANGE;
+}
+unsigned char *rf_image_pixel(const rf_image *image,uint32_t x,uint32_t y)
+{
+#ifdef RF_IMAGE_XBOX_NATIVE
+    uint32_t bit,index=0,destination=1;
+    for(bit=1;bit<image->width || bit<image->height;bit<<=1) {
+        if(bit<image->width){if(x&bit)index|=destination;destination<<=1;}
+        if(bit<image->height){if(y&bit)index|=destination;destination<<=1;}
+    }
+#else
+    uint32_t index=y*image->width+x;
+#endif
+    return image->rgba+index*4;
+}
 uint32_t rf_image_tga_format(uint32_t bits)
 {
     switch(bits) { case 8:return 1;case 16:return 5;case 24:return 6;case 32:return 7;default:return 0; }
@@ -37,7 +65,13 @@ static int read_bytes(reader *r, unsigned char *out, uint32_t size)
 }
 void rf_image_close(rf_image *image)
 {
-    if (image) { free(image->rgba); memset(image, 0, sizeof(*image)); }
+    if (!image)return;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    if(image->rgba)MmFreeContiguousMemory(image->rgba);
+#else
+    free(image->rgba);
+#endif
+    memset(image,0,sizeof(*image));
 }
 int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget)
 {
@@ -62,9 +96,8 @@ int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, ui
     total = width * height; stride = h[16] / 8;
     result = read_bytes(&r, id, h[0]);
     if (result) return result;
-    image->rgba = (unsigned char *)malloc(total * 4);
-    if (!image->rgba) return RF_RANGE;
     image->width = width; image->height = height; image->bytes = total * 4;
+    result=rf_image_allocate_pixels(image);if(result){rf_image_close(image);return result;}
     image->source_format=rf_image_tga_format(h[16]);
     while (at < total) {
         uint32_t count = 1, repeat = 0, i;
@@ -76,16 +109,16 @@ int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, ui
         }
         if (count > total - at) { result = RF_FORMAT; goto fail; }
         for (i = 0; i < count; ++i, ++at) {
-            uint32_t x = at % width, y = at / width, dst;
+            uint32_t x = at % width, y = at / width; unsigned char *dst;
             if (!repeat || !i) {
                 result = read_bytes(&r, pixel, stride);
                 if (result) goto fail;
             }
             if (h[17] & 16) x = width - 1 - x;
             if (!(h[17] & 32)) y = height - 1 - y;
-            dst = (y * width + x) * 4;
-            image->rgba[dst] = pixel[2]; image->rgba[dst+1] = pixel[1]; image->rgba[dst+2] = pixel[0];
-            image->rgba[dst+3] = alpha == 8 ? pixel[3] : 255;
+            dst=rf_image_pixel(image,x,y);
+            dst[0]=pixel[2];dst[1]=pixel[1];dst[2]=pixel[0];
+            dst[3]=alpha==8?pixel[3]:255;
         }
     }
     return RF_OK;
@@ -121,13 +154,13 @@ int rf_image_vbm(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint3
     }
     if(payload+32!=entry->size)return RF_FORMAT;
     total=width*height;
-    image->rgba=malloc(total*4);if(!image->rgba)return RF_RANGE;
     image->width=width;image->height=height;image->bytes=total*4;
+    status=rf_image_allocate_pixels(image);if(status){rf_image_close(image);return status;}
     image->source_format=format==0?5:format==1?4:3;
     /* 55dd20 encodes BGR(A) into 565, 4444 and 1555. Expand normalized
        channels to RGBA8; retain only the base mip in the current renderer. */
     for(i=0;i<total;++i) {
-        uint32_t v,red,green,blue,alpha=255;
+        uint32_t v,red,green,blue,alpha=255;unsigned char *dst;
         status=read_bytes(&r,pixel,2);if(status){rf_image_close(image);return status;}
         v=pixel[0]|(uint32_t)pixel[1]<<8;
         /* 511200 calls 511410 for static format 5 with version below 2. */
@@ -140,8 +173,9 @@ int rf_image_vbm(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint3
             red=((v>>(format==2?11:10))&31)*255/31;
             if(format==0)alpha=(v&32768)?255:0;
         }
-        image->rgba[i*4]=(unsigned char)red;image->rgba[i*4+1]=(unsigned char)green;
-        image->rgba[i*4+2]=(unsigned char)blue;image->rgba[i*4+3]=(unsigned char)alpha;
+        dst=rf_image_pixel(image,i%width,i/width);
+        dst[0]=(unsigned char)red;dst[1]=(unsigned char)green;
+        dst[2]=(unsigned char)blue;dst[3]=(unsigned char)alpha;
     }
     return RF_OK;
 }

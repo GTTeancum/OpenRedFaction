@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
+- [ ] Apply measured campaign resource budgets and validate L1S2 residency and climbing in 64-MiB XEMU.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Connect authored movement regions and recovered climb entry, motion and exit to the campaign player.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -1618,3 +1619,15 @@ entity orientation and blended during transitions, then added to position.
 400 deterministic cases match original x86 execution exactly in the PC test.
 The animated eye-tag branch returns explicit RF_NOT_FOUND; model-derived offsets,
 entity state loading and actual camera integration remain open.
+
+
+Xbox image sharing (2026-09-10): images/lightmaps now decode directly into
+contiguous swizzled RGBA8 memory, borrowed by the GPU as A8B8G8R8; PC retains
+row-major RGBA8. Owner lifetime and close still release the image allocation.
+No duplicate GPU texture allocation remains except the 1-pixel fallback.
+120-tick L1S1 campaign replay 20260910-002409 passes on 64-MiB XEMU.
+The earlier run 002039 has 10891 available pages versus 9798 in the previous
+235522 campaign run; this is a comparison across runs, not a controlled memory
+benchmark. Final native framebuffer comparison and pixel tests are recorded
+in docs/PROVENANCE.md. The 4-MiB material and 8-MiB GPU-image guards still need
+replacement with measured shared campaign budgets before L1S2 can run.

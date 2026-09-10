@@ -612,7 +612,7 @@ static int load_materials(void)
         const rf_image *image = &resident_materials.items[i].image;
         uint32_t j, hash = 2166136261u;
         if (!image->rgba) continue;
-        for (j = 0; j < image->bytes; ++j) hash = (hash ^ image->rgba[j]) * 16777619u;
+        for (j = 0; j < image->bytes; ++j) hash = (hash ^ rf_image_pixel(image,(j/4)%image->width,(j/4)/image->width)[j%4]) * 16777619u;
         checksum ^= hash;
     }
     rf_diagnostic[38] = resident_materials.loaded;

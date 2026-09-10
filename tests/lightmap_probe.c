@@ -9,6 +9,7 @@ int main(int argc, char **argv)
     rf_geometry geometry;
     int result;
     uint32_t i;
+    if(argc==1){printf("%u\n",(unsigned)sizeof(rf_image));return 0;}
     if (argc != 4) return 2;
     if (rf_vpp_open(&archive, argv[1])) return 1;
     result = rf_level_open(&level, &archive, argv[2]);

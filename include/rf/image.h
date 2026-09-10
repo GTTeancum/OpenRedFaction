@@ -4,9 +4,14 @@
 typedef struct rf_image {
     uint32_t width, height, bytes;
     uint32_t source_format; /* Original engine format; independent of RGBA storage. */
-    /* Top-left origin, RGBA8. Unspecified alpha bits are treated as opaque. */
+    /* RGBA8; use rf_image_pixel for top-left coordinates. Xbox storage is
+     * physically contiguous and swizzled, PC storage is row-major. */
     unsigned char *rgba;
 } rf_image;
+/* Storage helpers: caller supplies valid dimensions/bytes before allocation.
+ * Pixel coordinates must be in bounds. Close owns/reclaims the allocation. */
+int rf_image_allocate_pixels(rf_image *image);
+unsigned char *rf_image_pixel(const rf_image *image, uint32_t x, uint32_t y);
 /* True-color TGA types 2/10, 24/32-bit; no palette or interleaving.
  * budget bounds output allocation; input uses a fixed 4096-byte buffer.
  * Close before reuse. Failure leaves image empty. */

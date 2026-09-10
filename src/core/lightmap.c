@@ -49,8 +49,7 @@ int rf_lightmaps_open(rf_lightmaps *maps, const rf_level *level, uint32_t budget
         result = RF_RANGE;
         image->bytes = pixels*4;
         if (image->bytes > budget - maps->allocated_bytes) goto fail;
-        image->rgba = (unsigned char *)malloc(image->bytes);
-        if (!image->rgba) goto fail;
+        result=rf_image_allocate_pixels(image);if(result)goto fail;
         maps->allocated_bytes += image->bytes;
         while (decoded < pixels) {
             uint32_t n = pixels-decoded, j;
@@ -58,8 +57,8 @@ int rf_lightmaps_open(rf_lightmaps *maps, const rf_level *level, uint32_t budget
             result = rf_level_read(level, section, at, rgb, n*3);
             if (result) goto fail;
             for (j = 0; j < n; ++j) {
-                memcpy(image->rgba+(decoded+j)*4, rgb+j*3, 3);
-                image->rgba[(decoded+j)*4+3] = 255;
+                unsigned char *pixel=rf_image_pixel(image,(decoded+j)%image->width,(decoded+j)/image->width);
+                memcpy(pixel,rgb+j*3,3);pixel[3]=255;
             }
             at += n*3; decoded += n;
         }

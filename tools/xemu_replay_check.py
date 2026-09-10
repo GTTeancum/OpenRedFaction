@@ -3,7 +3,7 @@ import argparse,datetime,hashlib,json,os,re,shutil,socket,subprocess,sys,time
 from pathlib import Path
 from xemu_smoke import Monitor
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');args=p.parse_args()
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu');payload=args.input.read_bytes()
 if not payload or len(payload)%24 or len(payload)>60000*24:raise ValueError('Expected 1..60000 input records')
 frames=len(payload)//24;run=root/'artifacts/xemu'/('replay-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
@@ -85,6 +85,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     assert d[37]==frames and d[46]==2097152
     peak=max(s[36]*56 for s in report['samples']);report['sampled_gpu_mesh_peak_bytes']=peak
     if args.require_wide:assert peak>1048576 and expected('ACTOR_FOLLOW_SUMMARY')[2]>1048576
+    if args.capture:
+     from PIL import Image
+     monitor.command('stop');capture=run/'framebuffer.bin'
+     monitor.command('human-monitor-command',{'command-line':f'pmemsave 0x{d[32]&0x03ffffff:x} {d[35]*d[34]} "{capture.as_posix()}"'})
+     Image.frombytes('RGB',(d[33],d[34]),capture.read_bytes(),'raw','BGRX',d[35],1).save(run/'framebuffer.png')
+     report['capture']='Native guest framebuffer for renderer validation'
     report['result']='PASS';break
    time.sleep(.5)
   else:raise RuntimeError('Replay did not complete before deadline')

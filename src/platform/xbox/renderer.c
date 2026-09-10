@@ -24,32 +24,25 @@ static uint32_t field(uint32_t mask, uint32_t value)
     return (value << shift) & mask;
 }
 typedef struct gpu_texture { uint32_t *pixels, format,transparent; } gpu_texture;
-static uint32_t swizzled(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
-{
-    uint32_t bit, out = 0, destination = 1;
-    for (bit = 1; bit < width || bit < height; bit <<= 1) {
-        if (bit < width) { if (x & bit) out |= destination; destination <<= 1; }
-        if (bit < height) { if (y & bit) out |= destination; destination <<= 1; }
-    }
-    return out;
-}
-static int upload(gpu_texture *out, const rf_image *image)
+static int upload(gpu_texture *out, const rf_image *image, int fallback)
 {
     uint32_t x, y, u = 0, v = 0;
     if (!image->width || !image->height || (image->width & (image->width-1)) || (image->height & (image->height-1))) return RF_FORMAT;
     for (x = image->width; x > 1; x >>= 1) ++u;
     for (y = image->height; y > 1; y >>= 1) ++v;
-    out->pixels = MmAllocateContiguousMemoryEx(image->bytes, 0, 0x03ffb000, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
-    if (!out->pixels) return RF_RANGE;
-    for (y = 0; y < image->height; ++y) for (x = 0; x < image->width; ++x) {
-        const unsigned char *p = image->rgba + (y*image->width+x)*4;
-        if(p[3]<255)out->transparent=1;
-        out->pixels[swizzled(x,y,image->width,image->height)] = (uint32_t)p[3]<<24 | (uint32_t)p[0]<<16 | (uint32_t)p[1]<<8 | p[2];
+    /* Decoded images own GPU-ready storage for the entire render stream. */
+    out->pixels=(uint32_t *)image->rgba;
+    if(fallback) {
+        out->pixels=MmAllocateContiguousMemoryEx(4,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+        if(!out->pixels)return RF_RANGE;
+        *out->pixels=0xffffffff;
     }
+    for(y=0;y<image->height;++y)for(x=0;x<image->width;++x)
+        if(rf_image_pixel(image,x,y)[3]<255)out->transparent=1;
     out->format = field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA, 1) |
         field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE, NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR) |
         field(NV097_SET_TEXTURE_FORMAT_DIMENSIONALITY, 2) |
-        field(NV097_SET_TEXTURE_FORMAT_COLOR, NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8R8G8B8) |
+        field(NV097_SET_TEXTURE_FORMAT_COLOR, NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8B8G8R8) |
         field(NV097_SET_TEXTURE_FORMAT_MIPMAP_LEVELS, 1) |
         field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_U, u) | field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_V, v);
     return RF_OK;
@@ -61,6 +54,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     gpu_texture *textures;
     uint32_t white = 0xffffffffu;
     rf_image fallback = {1, 1, 4, 0, (unsigned char *)&white};
+    /* Bound referenced image payload; it is now shared, not copied. */
     uint64_t upload_bytes = 4;
     /* One process-lifetime inspection stream; resource arrays are uploaded once. */
     static rf_preview_vertex *stream_gpu;
@@ -101,9 +95,9 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         int result;
         const rf_image *image = i < materials->count ? &materials->items[i].image : i == materials->count ? &fallback : lightmaps->images + i - materials->count - 1;
         if (!image->rgba) continue;
-        result = upload(textures+i, image);
+        result = upload(textures+i, image,i==materials->count);
         if (result) {
-            while (i) { --i; if (textures[i].pixels) MmFreeContiguousMemory(textures[i].pixels); }
+            if(i>materials->count && textures[materials->count].pixels)MmFreeContiguousMemory(textures[materials->count].pixels);
             free(textures); MmFreeContiguousMemory(gpu); pb_kill(); return result;
         }
     }

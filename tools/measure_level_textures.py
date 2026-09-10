@@ -25,7 +25,7 @@ for name in unique:
 pixels=sum(t.get('base_rgba_bytes',0) for t in textures)
 # NXDK 32-bit owner/slot/pointer layout, matching current C structures.
 base=40+(groups+1)*4+len(names)*4;slots=len(unique)*28;scratch=len(names)*65
-report=dict(level=level,geometry_count=groups,texture_references=len(names),unique_textures=len(unique),base_rgba_bytes=pixels,nxdk_mapping_bytes=base,nxdk_texture_slot_bytes=slots,nxdk_name_scratch_bytes=scratch,nxdk_material_peak_bytes=pixels+base+slots+scratch,current_xbox_gpu_copy_bytes=pixels,textures=textures,scope='Header demand including unsupported formats; not proof of decoding or total Xbox process memory.')
+report=dict(level=level,geometry_count=groups,texture_references=len(names),unique_textures=len(unique),base_rgba_bytes=pixels,nxdk_mapping_bytes=base,nxdk_texture_slot_bytes=slots,nxdk_name_scratch_bytes=scratch,nxdk_material_peak_bytes=pixels+base+slots+scratch,current_xbox_gpu_copy_bytes=0,nxdk_pixel_allocation_page_bytes=sum((t.get("base_rgba_bytes",0)+4095)//4096*4096 for t in textures),textures=textures,scope='Header demand including unsupported formats; not proof of decoding or total Xbox process memory.')
 if '--verify-load' in sys.argv:
  args=[str(root/'build/pc/Release/rf_material_probe.exe'),'--residency',str(root/'Installed_Game'/archive['path']),level,str(report['nxdk_material_peak_bytes'])]
  args += [str(root/'Installed_Game'/p) for p in ['maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp']]

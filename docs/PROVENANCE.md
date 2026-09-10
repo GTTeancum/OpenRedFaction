@@ -435,3 +435,30 @@ These measurements exclude lightmaps, actor textures, allocator metadata and
 other process allocations. No game budget was raised and no total-Xbox-memory
 fit or live climb success is claimed. Investigate packed texture residency and
 GPU duplication, then validate representative total residency in 64-MiB XEMU.
+
+
+Xbox shared image storage (2026-09-10): RF_IMAGE_XBOX_NATIVE selects physically
+contiguous, write-combined, swizzled RGBA8 pixel ownership in core/image.c.
+This is new platform infrastructure, not an original allocator reconstruction.
+rf_image_pixel exposes top-left coordinates; PC stays row-major. TGA, VBM and
+lightmap writes use this accessor. The Xbox renderer borrows the allocation
+with NXDK NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8B8G8R8 (0x3a), eliminating its
+second swizzled copy. Image owners must outlive the renderer stream; image_close
+releases storage with MmFreeContiguousMemory. Only the white fallback receives
+a separate 4-byte requested allocation. Existing GPU-image telemetry now counts
+referenced payload rather than an additional allocation. Physical allocations
+also include page rounding, outside the existing payload budget contract.
+
+verify_vbm.py passes 393216 original packing/legacy-alpha cases on PC and
+linked NXDK, checks swizzled output, and adds five rectangular/single-axis/minimum
+layouts. Kernel allocation/free and stack probing are supplied by that harness;
+no host input is used. Kernel hooks are address-scoped and the PE handle closes
+before emulation so subsequent builds are not locked. The lightmap verifier's
+stale 16-byte image assumption was replaced with the compiled sizeof(rf_image);
+all 94 level budgets and 23 L1S1 pixel hashes pass. TGA's 41 installed/17 synthetic
+checks pass. Native 120-tick L1S1 campaign replay 20260910-002409 passes in stock
+64-MiB XEMU with write-combined image storage. Guest framebuffer versus PC:
+307200 pixels, maximum channel difference 1, no pixels above tolerance 3.
+This tests current diagnostic rendering, not original-game/PS2 fidelity or L1S2.
+Subsequent small allocator validation and fallback write-combine changes rebuild
+and pass the linked decoder checks; the full campaign remains unfinished.

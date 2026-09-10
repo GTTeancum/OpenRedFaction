@@ -29,7 +29,7 @@ SRCS += $(PROJECT_ROOT)/src/core/model_file.c
 SRCS += $(PROJECT_ROOT)/src/core/entity_assets.c
 SRCS += $(PROJECT_ROOT)/src/diagnostic/animation.c
 SRCS += $(PROJECT_ROOT)/src/diagnostic/scene.c
-CFLAGS += -std=c11 -O2 -Wall -Wextra -Werror -fstack-usage -I$(PROJECT_ROOT)/include
+CFLAGS += -DRF_IMAGE_XBOX_NATIVE -std=c11 -O2 -Wall -Wextra -Werror -fstack-usage -I$(PROJECT_ROOT)/include
 LDFLAGS += -map:main.map -entry:rf_diagnostic_start
 include $(NXDK_DIR)/Makefile
 

@@ -10,8 +10,9 @@ def main():
     inventory = json.loads((root/'artifacts/inventory.json').read_text())
     levels = json.loads((root/'artifacts/levels.json').read_text())
     probe = root/'build/pc/Release/rf_lightmap_probe.exe'
+    image_size=int(subprocess.check_output([str(probe)],text=True))
     for report in maps:
-        budget = report['rgba_bytes'] + report['count']*16  # Win32 rf_image
+        budget = report['rgba_bytes'] + report['count']*image_size  # Actual compiled image layout
         command = [str(probe), str(root/'Installed_Game'/report['archive']), report['file']]
         run = subprocess.run(command+[str(budget)], capture_output=True, text=True)
         assert run.returncode == 0, (report['file'], run.stdout, run.stderr)

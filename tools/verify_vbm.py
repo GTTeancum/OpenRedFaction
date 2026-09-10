@@ -20,7 +20,7 @@ b=pefile.PE(str(exe)).get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32)
 u.mem_map(0x400000,(len(b)+4095)//4096*4096);u.mem_write(0x400000,b)
 base=0x30000000;u.mem_map(base,0x100000);stack=base+0xf0000;stop=base+0xff000
 # Execute the linked NXDK decoder with archive I/O, allocation and stack probing supplied.
-pe=pefile.PE(str(root/'build/xbox/main.exe'));xb=pe.get_memory_mapped_image();origin=pe.OPTIONAL_HEADER.ImageBase
+pe=pefile.PE(str(root/'build/xbox/main.exe'));xb=pe.get_memory_mapped_image();origin=pe.OPTIONAL_HEADER.ImageBase;pe.close()
 x=Uc(UC_ARCH_X86,UC_MODE_32);x.mem_map(origin,(len(xb)+4095)//4096*4096);x.mem_write(origin,xb);x.mem_map(base,0x100000)
 mapping=(root/'build/xbox/main.map').read_text();symbol=lambda n:int(re.search(r'_'+n+r'\s+([0-9a-fA-F]+)',mapping)[1],16)
 chk=symbol('_chkstk');read=symbol('rf_vpp_read');alloc=symbol('malloc');release=symbol('free');decode=symbol('rf_image_vbm');data=b''
@@ -36,12 +36,29 @@ def hook(cpu,address,size,context):
   assert args[1]<=262144;value=base+0x50000
  else:value=0
  cpu.reg_write(UC_X86_REG_EAX,value);cpu.reg_write(UC_X86_REG_ESP,sp+4);cpu.reg_write(UC_X86_REG_EIP,ret)
-x.hook_add(UC_HOOK_CODE,hook)
+# Kernel allocation imports use stdcall; map a process-local service stub.
+alloc_iat=int(re.search(r'__imp__MmAllocateContiguousMemoryEx@20\s+([0-9a-fA-F]+)',mapping)[1],16)
+free_iat=int(re.search(r'__imp__MmFreeContiguousMemory@4\s+([0-9a-fA-F]+)',mapping)[1],16)
+x.mem_write(alloc_iat,struct.pack('<I',base+0xfe000));x.mem_write(free_iat,struct.pack('<I',base+0xfe010))
+def kernel(cpu,address,size,context):
+ if address not in (base+0xfe000,base+0xfe010):return
+ sp=cpu.reg_read(UC_X86_REG_ESP);ret,arg=struct.unpack('<2I',cpu.mem_read(sp,8))
+ if address==base+0xfe000:assert arg<=262144
+ cpu.reg_write(UC_X86_REG_EAX,base+0x50000);cpu.reg_write(UC_X86_REG_ESP,sp+(24 if address==base+0xfe000 else 8));cpu.reg_write(UC_X86_REG_EIP,ret)
+for address in (chk,read,alloc,release):x.hook_add(UC_HOOK_CODE,hook,begin=address,end=address)
+for address in (base+0xfe000,base+0xfe010):x.hook_add(UC_HOOK_CODE,kernel,begin=address,end=address)
+def swizzled_rgba(rgba):
+ result=bytearray(len(rgba))
+ for y in range(256):
+  for xx in range(256):
+   index=sum(((xx>>b)&1)<<(2*b) | ((y>>b)&1)<<(2*b+1) for b in range(8))
+   result[index*4:index*4+4]=rgba[(y*256+xx)*4:(y*256+xx)*4+4]
+ return result
 def xbox(payload,budget=262144):
  global data
  data=payload;x.mem_write(base,bytes(4096));x.mem_write(base+0x200+68,struct.pack('<I',len(data)))
  x.mem_write(stack,struct.pack('<5I',stop,base,base+0x100,base+0x200,budget));x.reg_write(UC_X86_REG_ESP,stack)
- try:x.emu_start(decode,stop,count=20000000)
+ try:x.emu_start(decode,stop,count=100000000)
  except Exception:
   print('NXDK fault',hex(x.reg_read(UC_X86_REG_EIP)),hex(x.reg_read(UC_X86_REG_ESP)));raise
  assert x.reg_read(UC_X86_REG_EIP)==stop
@@ -51,7 +68,7 @@ for version,fmt,engine in [(v,f,e) for v in (1,2) for f,e in [(0,5),(1,4),(2,3)]
  r=check(header(fmt,version=version)+pixels);assert r.returncode==0,r.stdout
  rgba=raw.read_bytes();assert len(rgba)==262144
  assert xbox(header(fmt,version=version)+pixels)==0
- assert bytes(x.mem_read(base+0x50000,262144))==rgba
+ assert bytes(x.mem_read(base+0x50000,262144))==swizzled_rgba(rgba)
  bgra=bytearray(rgba);bgra[0::4]=rgba[2::4];bgra[2::4]=rgba[0::4]
  u.mem_write(base,bytes(bgra));u.mem_write(stack,struct.pack('<6I',stop,base+0x50000,engine,base,7,65536))
  u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(0x55dd20,stop,count=10000000)
@@ -66,6 +83,20 @@ for version,fmt,engine in [(v,f,e) for v in (1,2) for f,e in [(0,5),(1,4),(2,3)]
   if fmt==1:want=bytes(((v>>8&15)*17,(v>>4&15)*17,(v&15)*17,(v>>12)*17))
   else:want=bytes(((v>>(11 if fmt==2 else 10)&31)*255//31,(v>>5&(63 if fmt==2 else 31))*255//(63 if fmt==2 else 31),(v&31)*255//31,255 if fmt==2 or v&32768 else 0))
   assert rgba[index*4:index*4+4]==want
+# Rectangular Morton layout, single-axis textures, and minimum size.
+for width,height in [(1,1),(1,64),(64,1),(16,128),(128,16)]:
+ payload=struct.pack('<%dH'%(width*height),*[i%65536 for i in range(width*height)])
+ assert check(header(w=width,h=height)+payload).returncode==0
+ rgba=raw.read_bytes();assert xbox(header(w=width,h=height)+payload)==0
+ actual=bytes(x.mem_read(base+0x50000,len(rgba)))
+ for y in range(height):
+  for xx in range(width):
+   bits=[]
+   for bit in range(max(width,height).bit_length()-1):
+    if 1<<bit<width:bits.append((xx>>bit)&1)
+    if 1<<bit<height:bits.append((y>>bit)&1)
+   index=sum(value<<i for i,value in enumerate(bits))
+   assert actual[index*4:index*4+4]==rgba[(y*width+xx)*4:(y*width+xx)*4+4]
 bad=[header()+pixels[:-1],header()+pixels+b'x',header(frames=2)+pixels,header(version=3)+pixels,header(fmt=3)+pixels,header(w=0)+pixels,header(mips=13)+pixels,header(mips=1)+pixels]
 for payload in bad:
  assert check(payload).stdout.strip()=='-2'
