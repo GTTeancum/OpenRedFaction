@@ -2248,3 +2248,31 @@ velocity handling and additional predicates. The campaign scene therefore still
 uses its existing diagnostic physics flags; enabling actual player flags requires
 reconstructing that branch, not removing the guard or routing players through
 the non-player response. The full player factory remains incomplete.
+
+## Player crouch eligibility versus diagnostic stance selection
+
+Original `430c70` has a distinct player-input crouch path. With its ownership,
+movement, UI/input and player-state gates satisfied, a new crouch request calls
+`4a5c50`. On success it calls `4289d0` immediately, sets player byte `+b1`,
+selects speed mode zero via `427450`, and requests logical animation state 9
+with duration .25. It does not wait for the animation transition before replacing
+collision centers. Release calls `428a60` and clears the player crouch state/
+restores speed only when clearance succeeds. These are disassembly/decompiler
+observations; the full outer input routine is not yet replayed or integrated.
+
+`rf_player_can_crouch` now reconstructs `4a5c50` using resolved object metadata.
+It rejects control-object kind 5, a missing entity, parent kind 1 or 4, entity
+attachment `+75c` other than -1, and movement modes other than 1/3. The original
+uses `4a5b30`, `4290d0`, `429d20`, `429f90`, real object lookups and `486c90` to
+resolve those gates. The C helper supplies eligibility only, without allocating
+an entity, mutating stance, checking clearance or inventing outer ownership.
+
+`python tools/verify_player_crouch.py` executes complete original `4a5c50` with
+all callees unchanged and no hooks, using registered object/class fixtures.
+All 3,456 combinations match PC and compiled NXDK exactly, with 40 allowed
+cases and unchanged input/object storage. Cases span entity presence, six
+control/parent kinds, three attachment handles and all movement modes 0..15.
+Report `artifacts/player-crouch-verification.json` includes executable hashes.
+Both builds and five CTests pass. Live campaign crouching still uses the prior
+diagnostic selector until immediate stance effects and the outer gates are
+connected; no live XEMU crouch equivalence is claimed by this predicate test.

@@ -11,6 +11,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared player crouch eligibility now matches the complete original routine in
+3,456 PC/NXDK cases. The original player changes collision stance immediately
+and requests animation state 9; replacing the diagnostic's delayed stance path
+and connecting outer input/ownership gates remain open. See docs/CAMERA.md.
+
 Original player contact response now executes in 768 fixtures covering normal
 retention/clearing, incoming correction, moving-contact boost, free tangential
 motion and grounded direction filtering. All nine tracked branches are reached;

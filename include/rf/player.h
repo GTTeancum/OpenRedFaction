@@ -1,6 +1,15 @@
 #ifndef RF_PLAYER_H
 #define RF_PLAYER_H
 #include "rf/vpp.h"
+typedef struct rf_player_crouch_input {
+    uint32_t entity_present;
+    int32_t control_kind,parent_kind,attachment_75c,movement_mode;
+} rf_player_crouch_input;
+/* 4a5c50 with resolved object lookups/kinds: control kind 5, parent kind 1/4,
+ * attachment != -1 or movement outside 1/3 prevents player crouching.
+ * Use kind -1 for a missing object. This is eligibility, not stance mutation,
+ * input ownership, the outer 430c70 gates or a clearance test. */
+uint32_t rf_player_can_crouch(const rf_player_crouch_input *input);
 
 typedef struct rf_player_spawn_state {
     uint32_t flags_10;

@@ -1,5 +1,11 @@
 #include "rf/player.h"
 #include <string.h>
+uint32_t rf_player_can_crouch(const rf_player_crouch_input *input)
+{
+    return input && input->entity_present && input->control_kind!=5 &&
+        input->parent_kind!=1 && input->parent_kind!=4 && input->attachment_75c==-1 &&
+        (input->movement_mode==1 || input->movement_mode==3);
+}
 
 int rf_player_bind_local(rf_player_local_binding *local,rf_player_entity_binding *entity,
     rf_player_select_weapon select_weapon,void *context)
