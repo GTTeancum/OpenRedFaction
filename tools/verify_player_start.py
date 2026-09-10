@@ -5,6 +5,7 @@ This does not execute the full level loader or player factory.
 """
 import hashlib
 import json
+import re
 import struct
 import subprocess
 import sys
@@ -133,6 +134,7 @@ for level in levels:
                         transform_words=list(struct.unpack('<12I', shared)), result='PASS'))
 
 prefix_cases = []
+compiled_inputs, compiled_expected = bytearray(), bytearray()
 for local in (False, True):
     for skin in (-1, 0, 2, 3):
         for override in (0, 1, 2):
@@ -141,6 +143,8 @@ for local in (False, True):
             u.mem_write(position, shared[:12])
             u.mem_write(orientation, shared[12:])
             alternate = struct.pack('<3f', 12.5, -7.25, 100.0)
+            compiled_inputs.extend(struct.pack('<IiiII',0xa5a5a5ad,7,int(local),3,override)
+                                   + alternate + struct.pack('<i',skin) + shared[:12])
             u.mem_write(0x7c7628, alternate)
             u.mem_write(0x7c75c8, bytes([override]))
             put(0x7c75d4, PLAYER if local else PLAYER + 0x4000)
@@ -159,11 +163,42 @@ for local in (False, True):
             assert bytes(u.mem_read(position, 12)) == (alternate if override == 1 else shared[:12])
             assert bytes(u.mem_read(orientation, 36)) == shared[12:]
             assert bytes(u.mem_read(0x7c75c8, 1)) == bytes([0 if override == 1 else override])
+            compiled_expected.extend(bytes(u.mem_read(PLAYER+0x10,4)) + bytes(u.mem_read(PLAYER+0xf5c,4))
+                + struct.pack('<iiI',int(local),3,u.mem_read(0x7c75c8,1)[0]) + alternate
+                + struct.pack('<I',actual[7]) + bytes(u.mem_read(position,12)))
             prefix_cases.append(dict(local=local, skin=skin, position_override_flag=override, result='PASS'))
+
+probe = ROOT / 'build/pc/Release/rf_entity_probe.exe'
+compiled = subprocess.check_output([str(probe),'--player-spawn'],input=compiled_inputs)
+assert compiled == compiled_expected, 'Compiled PC spawn preparation differs from original'
+nxdk_verified = False
+if '--nxdk' in sys.argv:
+    pe = pefile.PE(str(ROOT / 'build/xbox/main.exe'))
+    data = pe.get_memory_mapped_image()
+    nx = Uc(UC_ARCH_X86,UC_MODE_32)
+    nx.mem_map(pe.OPTIONAL_HEADER.ImageBase,(len(data)+4095)//4096*4096)
+    nx.mem_write(pe.OPTIONAL_HEADER.ImageBase,data)
+    nx.mem_map(STACK,65536)
+    mapping = (ROOT / 'build/xbox/main.map').read_text()
+    address = int(re.search(r'_rf_player_spawn_prepare\s+([0-9a-fA-F]+)',mapping)[1],16)
+    for offset in range(0,len(compiled_inputs),48):
+        wire = bytes(compiled_inputs[offset:offset+48])
+        nx.mem_write(STACK,wire)
+        nx.mem_write(STACK+0x8000,struct.pack('<6I',STACK+0xf000,STACK,
+            struct.unpack_from('<I',wire,8)[0],3,STACK+16,STACK+32))
+        nx.reg_write(UC_X86_REG_ESP,STACK+0x8000)
+        nx.emu_start(address,STACK+0xf000,count=10000)
+        assert nx.reg_read(UC_X86_REG_EIP)==STACK+0xf000
+        assert nx.reg_read(UC_X86_REG_EAX)==0
+        assert bytes(nx.mem_read(STACK,48))==compiled_expected[offset:offset+48]
+    nxdk_verified = True
 
 report = dict(result='PASS', original_sha256=digest,
               shared_exe_sha256=hashlib.sha256((ROOT / 'build/pc/Release/rf_pc.exe').read_bytes()).hexdigest(),
               scope='Original 463d20 loader with file gate/read fixtures; 45c798 SP startup and 4a4130 prefix to 422360 entry; no generic entity creation or orientation override',
-              levels=reports, factory_prefix_cases=prefix_cases)
+              levels=reports, factory_prefix_cases=prefix_cases,
+              compiled_pc_sha256=hashlib.sha256(probe.read_bytes()).hexdigest(),
+              compiled_nxdk_verified=nxdk_verified,
+              compiled_nxdk_sha256=hashlib.sha256((ROOT/'build/xbox/main.exe').read_bytes()).hexdigest() if nxdk_verified else None)
 (ROOT / 'artifacts/player-start-verification.json').write_text(json.dumps(report, indent=2) + '\n')
-print(f'PASS: {len(reports)} original player starts match shared C; {len(prefix_cases)} factory prefix branches verified')
+print(f'PASS: {len(reports)} original player starts; {len(prefix_cases)} factory prefix cases match compiled PC; NXDK={nxdk_verified}')

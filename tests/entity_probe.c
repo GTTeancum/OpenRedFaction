@@ -1,4 +1,5 @@
 #include "rf/entity.h"
+#include "rf/player.h"
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -11,6 +12,17 @@ static void room_notify(void *context,const char *name)
 {(void)context;++room_notices;room_notice_kind=!strcmp(name,"underwater")?2:1;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--player-spawn")) {
+        struct {rf_player_spawn_state player;int32_t local,count;
+            rf_player_position_override override;rf_player_spawn_request request;} in;
+        _Static_assert(sizeof(in)==48,"Player spawn wire input");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            if(rf_player_spawn_prepare(&in.player,in.local,in.count,&in.override,&in.request))return 3;
+            if(fwrite(&in,sizeof(in),1,stdout)!=1)return 4;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--room-refresh")) {
         struct {rf_entity_room_state state;float position[3];uint32_t local,room,liquid;float minimum_y,depth;} in;
         uint32_t out[8];

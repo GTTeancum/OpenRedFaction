@@ -1990,8 +1990,23 @@ indices -1/0/2/3 with a three-entry table, and position-override flag 0/1/2.
 Only exactly 1 consumes the position at `7c7628`, writes it into the caller's
 position buffer, and clears `7c75c8`. Flag 2 remains untouched. Orientation is
 unchanged in these cases; the separate `7c73b4` orientation-override branch
-through `4fcea0` is not covered. These branch assertions currently characterize
-the original; they are not a claim of a reconstructed C player factory.
+through `4fcea0` is not covered.
+
+`src/core/player.c` now reconstructs this bounded prefix as
+`rf_player_spawn_prepare`, with caller-owned player state, spawn request and
+pending position. It preserves the original signed skin-index comparison,
+local-only resets, and exactly-one override consumption. It allocates nothing
+and is compiled in both targets. Null pointers or a pending scalar outside the
+original byte range return RF_RANGE before mutations. Distinct stable records
+are an API precondition. The routine deliberately contains no orientation
+override or generic factory call; live scene ownership integration remains open.
+
+Run `python tools/verify_player_start.py --nxdk` after both builds. All 24 cases
+compare all 48 bytes of compact inputs/outputs against original instruction
+results, through the PC probe and the compiled NXDK routine executed in Unicorn.
+This verifies compiled CPU behavior, not an XEMU runtime integration. The
+report retains both compiled executable hashes. Both builds and five CTests
+also pass after this addition.
 
 Scope: `523990` is a fixture returning field-present and `52cf60` is a fixture
 supplying sequential 12-byte reads from the real player-start payload. The

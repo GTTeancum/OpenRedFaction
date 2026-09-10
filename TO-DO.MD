@@ -11,6 +11,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared C now implements the verified player-start prefix (skin normalization,
+local reset and position override), with all 24 cases matching original execution
+on PC and compiled NXDK. It allocates nothing; entity creation and live ownership
+integration remain open. See src/core/player.c.
+
 Original player-start loader and single-player factory argument preparation now
 match shared C across all 94 installed levels. This verifies the transform source
 and matrix ordering, plus the original factory prefix's local reset, skin
