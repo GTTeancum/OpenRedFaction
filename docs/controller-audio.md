@@ -362,3 +362,30 @@ code with x87 control 0x027f. Output digest:
 Both game builds and six CTests pass. This establishes the tested finite input
 range, not exhaustive floating-point equivalence. Sample metadata, playback gain
 conversion and live listener updates remain separate integration work.
+
+### Registration parameters and far cutoff provenance
+
+Original 469250 registration was checked against machine instructions because
+Ghidra folds the pending stack arguments into the intervening 4ff480 string
+accessor call. At 46944c..46945b it pushes rolloff 1, the authored value through
+EBX, near distance from the local (5 normally, 10 after the L14S2 comparison),
+and finally the returned filename before calling 5054b0. The wrapper passes
+these to 543580 with category 0. The deduplication branch in 543580 returns an
+existing record before applying new registration parameters, so first registration
+wins and scene loading order matters.
+
+543580 stores default volume at record +0x20, positive near distance at +0x24
+(substituting 1 when the requested near value is nonpositive), rolloff at +0x2c,
+and category at +0x34. Far distance (+0x28) comes from 544960:
+(1 - 1/rolloff) * near + (near * default_volume) / (rolloff * threshold),
+where threshold at 5894f4 is binary32 0.05 (0.05000000074505806).
+543a60 later multiplies the category gain at 01cd3b94, default volume, and
+requested gain. These formulas still need an executable comparison before use.
+
+The installed tables.vpp also contains sounds.tbl, whose entries specify filename,
+near distance, default volume and rolloff. Its comments describe rolloff direction
+opposite to the recovered attenuation formula; executable behavior is authoritative.
+Controller registration must not blindly replace its own parameters with table
+rows, especially given first-registration deduplication. Metadata lookup 56baa0
+returns a separate 180-byte filesystem record; its +0xa8 bit30 and +0xac bit29
+feed sample playback fields. Their source and loop semantics remain to be traced.
