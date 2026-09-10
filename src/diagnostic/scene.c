@@ -369,6 +369,11 @@ static rf_group_mover_memberships campaign_memberships;
 uint32_t rf_scene_campaign_memberships[5]; /* groups, links, retained/peak bytes, ordered binding hash */
 
 static uint32_t campaign_mover_count;
+static rf_collision_body_mover *campaign_sweep_scratch;
+static const rf_geometry **campaign_surface_sources;
+static rf_surface_materials *campaign_surface_palette;
+rf_geometry_body_hit rf_scene_actor_body_contact;
+uint32_t rf_scene_actor_body_sweeps[5]; /* queries, hits, mover hits, status, retained adapter bytes */
 uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, registration bytes */
 static void campaign_close_movers(void)
 {
@@ -378,6 +383,9 @@ static void campaign_close_movers(void)
     free(campaign_mover_wrappers);free(campaign_mover_objects);
     campaign_mover_wrappers=NULL;campaign_mover_objects=NULL;campaign_mover_count=0;
     rf_geometry_collision_movers_close(&campaign_movers);
+    free(campaign_sweep_scratch);campaign_sweep_scratch=NULL;
+    free(campaign_surface_sources);campaign_surface_sources=NULL;
+    free(campaign_surface_palette);campaign_surface_palette=NULL;
 }
 static int campaign_open_movers(const rf_geometry_movers *source)
 {
@@ -542,6 +550,7 @@ static int scene_surface_open(rf_vpp *archive,scene_stream *stream)
     memcpy(rf_scene_actor_surface_values,palette->materials,sizeof(rf_scene_actor_surface_values));
     rf_scene_actor_ground_material=0;rf_scene_actor_run_traction=palette->materials[0].traction;
 done:
+    if(!status && campaign_spawn) {free(campaign_surface_palette);campaign_surface_palette=palette;palette=NULL;}
     free(text);free(palette);return status;
 }
 uint32_t rf_scene_actor_movement_frames[64][3]; /* response, speed, numeric mode */
@@ -655,6 +664,32 @@ static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics
     *fraction=1;*sphere=UINT32_MAX;
     for(k=0;k<3;++k)delta[k]=state->next_position[k]-state->position[k];
     if(delta[0]==0 && delta[1]==0 && delta[2]==0)return RF_OK; /* 4df1c0 zero-displacement exit */
+    if(campaign_spawn) {
+        rf_collision_body_sphere spheres[8];rf_collision_body_query query={0};
+        rf_geometry_materials mapping={0};rf_geometry_body_surfaces surfaces;int status;
+        if(!actor_follow_world || !campaign_surface_palette || !campaign_surface_sources || scene_actor_body.spheres.count>8)return RF_RANGE;
+        for(i=0;i<scene_actor_body.spheres.count;i++) {
+            memcpy(spheres[i].center,scene_actor_body.spheres.items[i].center,12);
+            spheres[i].radius=scene_actor_body.spheres.items[i].radius;
+        }
+        memcpy(query.start,state->position,12);memcpy(query.end,state->next_position,12);
+        memcpy(query.matrix,state->orientation,36);query.radius=state->bounds.radius;
+        query.flags=query_flags;query.spheres=spheres;query.count=scene_actor_body.spheres.count;query.limit=1;
+        mapping.offsets=actor_follow_world->offsets;mapping.slots=actor_follow_world->slots;
+        mapping.count=actor_follow_world->geometry_count;mapping.textures.count=actor_follow_world->material_count;
+        surfaces.geometries=campaign_surface_sources;surfaces.count=mapping.count;
+        surfaces.mapping=&mapping;surfaces.palette=campaign_surface_palette;
+        status=rf_geometry_collision_body_sweep(world,&campaign_movers,&query,campaign_sweep_scratch,
+            campaign_movers.count,rf_geometry_body_surface,&surfaces,&rf_scene_actor_body_contact,&matched);
+        ++rf_scene_actor_body_sweeps[0];rf_scene_actor_body_sweeps[3]=(uint32_t)status;
+        if(status)return status;
+        if(matched) {
+            ++rf_scene_actor_body_sweeps[1];if(rf_scene_actor_body_contact.solid!=UINT32_MAX)++rf_scene_actor_body_sweeps[2];
+            *sphere=rf_scene_actor_body_contact.sphere;*fraction=rf_scene_actor_body_contact.contact.fraction;
+            memcpy(normal,rf_scene_actor_body_contact.contact.normal,12);
+        }
+        return RF_OK;
+    }
     for(i=0;i<scene_actor_body.spheres.count;++i) {
         const rf_physics_sphere *s=scene_actor_body.spheres.items+i;rf_geometry_world_sweep_hit hit;int status;
         for(k=0;k<3;++k)start[k]=(float)((double)state->position[k]+(double)s->center[0]*state->orientation[k]+
@@ -1459,6 +1494,15 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_groups[4]=campaign_group_registration.allocated_bytes;
             if(!actor_follow_world) {status=RF_RANGE;goto done;}
             status=campaign_open_movers(&actor_follow_world->movers);if(status)goto done;
+            campaign_sweep_scratch=calloc(campaign_movers.count?campaign_movers.count:1,sizeof(*campaign_sweep_scratch));
+            campaign_surface_sources=calloc((size_t)campaign_movers.count+1,sizeof(*campaign_surface_sources));
+            if(!campaign_sweep_scratch || !campaign_surface_sources){status=RF_RANGE;goto done;}
+            campaign_surface_sources[0]=geometry;
+            for(i=0;i<campaign_movers.count;i++)campaign_surface_sources[i+1]=&actor_follow_world->movers.items[i].geometry;
+            memset(rf_scene_actor_body_sweeps,0,sizeof(rf_scene_actor_body_sweeps));
+            memset(&rf_scene_actor_body_contact,0,sizeof(rf_scene_actor_body_contact));
+            rf_scene_actor_body_sweeps[4]=(campaign_movers.count?campaign_movers.count:1)*sizeof(*campaign_sweep_scratch)+
+                (campaign_movers.count+1)*sizeof(*campaign_surface_sources)+sizeof(*campaign_surface_palette);
             status=campaign_bind_movers();if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);

@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Include registered movers in player collision sweeps and support queries.
+- [ ] Include registered movers in ground support and verify targeted live mover contacts.
 - [ ] Connect combined controller activation to live mover ownership, effect backends and scene motion ticks.
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Complete particle rendering for animated textures, stretched sprites and mixed room/object passes.
@@ -19,6 +19,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Campaign player sweeps now query registered movers and static world with authored
+materials; L1S1/L2S1 XEMU replays pass; ground support and moving response remain open.
 
 Body-sweep surface callback resolves authored material prefixes and shared texture
 slots; 29 PC/NXDK checks pass; scene ownership and live sweep wiring remain open.
