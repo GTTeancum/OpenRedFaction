@@ -50,3 +50,24 @@ Existing runtime-trigger-fire and six CTests pass; both platforms build.
 verify_trigger_links.py retains 1024 original/PC/NXDK exact callback traces;
 verify_trigger_fire.py checks the original bookkeeping independently. The new
 owned wrapper is PC-tested, not yet exercised by live Xbox controller effects.
+
+## Authored lower-door numeric replay
+
+verify_authored_door_motion.py executes original469800 and46a8f0 with the
+retained L1S1 keys for controllers8593 and8591, their authored timing, mode2
+and initial flags80002002. Both start already activated on the same60Hz tick.
+The original source-trigger handle is absent, sound handles are disabled and
+key event links are absent as authored. Original obstruction/occupancy helpers
+execute against this empty fixture; this does not exercise a player in the door.
+
+840 ticks match the complete mapped numeric state on PC and NXDK. Both
+controllers first move at tick1. Controller8593 reaches the open position at
+tick142 and8591 at144. Their arrival bookkeeping follows at143/145; dwell
+ends at203/205; final closed idle is325/326. This small authored numerical
+difference must not be mistaken for the earlier separate-start defect or
+removed by forcing both controller trajectories to have identical endpoints.
+
+The remaining original gates are46a280 (hold open while occupied, guarded
+by bits1/2/2000 and mode!=1) and46a1e0/46bae0 (closing obstruction reversal).
+Live motion integration still needs these, arrival effects, sound ownership
+and attached-object commits. Report: artifacts/authored-door-motion.json.
