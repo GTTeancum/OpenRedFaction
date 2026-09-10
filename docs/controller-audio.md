@@ -82,3 +82,36 @@ close. First256 mixed stereo frames after archive close match an independent
 Python wave/integer-resampling hash3154186473. Both platforms build; existing
 144 PC/NXDK mixer cases and six CTests pass. Ownership has not yet run in live
 XEMU; scene loading, controller start/stop and device output remain open.
+
+## Live controller integration (supersedes the earlier ownership status)
+
+The campaign loads controller-authored names from the sibling audio.vpp once,
+deduplicates them in a 1 MiB bank, closes the archive, and retains PCM until
+level teardown. Mixer voices are cleared before the bank is freed. Four L1S1
+resources occupy 113848 bytes including slots; five nonempty names are missing,
+with no malformed or over-budget resources. Empty names remain sample -1.
+The Xbox build script stages the local original archive in the ignored disc
+directory; its 246208512 disk bytes are never allocated wholesale in RAM.
+
+Live activation and translation sound requests now call the existing 46a120
+selection helper. Arrival follows the inspected 46a0d0 stop-moving-handle then
+play-arrival-slot sequence. Alert/wakeup work remains pending independently.
+The output adapter currently plays at unity gain without spatial attenuation
+or metadata looping. Those parameters remain unreconstructed; this is not
+original Miles output equivalence or audible device playback.
+
+Each controller tick mixes 800 stereo frames into a reused 3200-byte buffer.
+LIVE_AUDIO reports loaded count, bank bytes, missing names, rejected resources,
+successful voice starts, unavailable requests, mixed stereo frames and a rolling
+FNV-1a PCM byte hash. All eight words match PC and stock64MiB XEMU in the
+180-frame traversal replay (replay-20260910-173237). Two valid voices and two
+unavailable requests produce 143200 frames with hash 3527213817.
+verify_live_door_audio.py independently decodes the original WAVs and computes
+that entire output using the original-verified arrival tick 145. It confirms
+143116 nonzero frames. This proves live event-to-PCM wiring, not device output.
+The 420-frame closing/reversal replay also matches PC/XEMU, including three
+valid voice starts, five unavailable requests, 335200 stereo frames and hash
+4013480469 (replay-20260910-173344). Door traversal and both reversals still pass.
+
+Outstanding: original metadata/volume/range/attenuation, looping where authored,
+device queue and underrun handling, audible Xbox/PC output, and broader effects.

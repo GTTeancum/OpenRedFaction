@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
+- [ ] Complete spatial controller audio and Xbox/PC device playback after verified live PCM dispatch.
 - [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
 - [ ] Complete controller sound/alert/wakeup effects, rotation and remaining key-target actions.
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
@@ -19,6 +20,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Live controller PCM now matches PC/stock64MiB XEMU; independent full-stream
+reference passes; spatial parameters and audible device output remain open.
 
 Owned deduplicated PCM bank passes PC lifetime/budget checks; two door
 files retain93402 bytes; scene audio wiring and native output remain open.

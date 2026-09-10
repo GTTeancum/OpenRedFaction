@@ -21,6 +21,7 @@ if not args.idle and args.frames>=180:assert traversal['crossed'],traversal
 triggers=row('TRIGGER_CONTACTS');assert triggers[3]>0 and triggers[5]==0,triggers
 activation=row('LIVE_ACTIVATION');assert activation[2]==2 and activation[5]==0 and activation[6]>0 and activation[6]==activation[7],activation
 motion=row('LIVE_MOTION');positions=row('DOOR_POSITIONS');assert motion[7]==0 and motion[4]>=2,motion
+audio=row('LIVE_AUDIO');assert audio[3]==0 and audio[4]>=2 and audio[6]==motion[0]*800,audio
 if args.idle and args.frames>=300:assert motion[2]>0,motion
 if args.cycle:assert motion[3]==2 and motion[4]>=6,motion
 if args.cycle or (args.idle and args.frames>=180) or args.frames==180:
@@ -31,7 +32,7 @@ if args.cycle or (args.idle and args.frames>=180) or args.frames==180:
   expected_positions.extend(struct.unpack('<3I',struct.pack('<3f',*g['keys'][1]['position'])))
  assert positions==expected_positions,(positions,expected_positions)
 
-report=dict(traversal=traversal,live_motion=motion,door_positions=positions,live_activation=activation,trigger_contacts=triggers,result='PASS',frames=args.frames,idle=args.idle,cycle=args.cycle,segments=segments,staged=True,body_sweeps=sweeps,contact=contact,
+report=dict(live_audio=audio,traversal=traversal,live_motion=motion,door_positions=positions,live_activation=activation,trigger_contacts=triggers,result='PASS',frames=args.frames,idle=args.idle,cycle=args.cycle,segments=segments,staged=True,body_sweeps=sweeps,contact=contact,
  mover_uid=([8544,8543][contact[17]] if contact[17] in (0,1) else None),pc_sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),
  input_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),scope='PC player collision with authored lower L1S1 door geometry from an explicit staged start. Live door pose integration; no route-from-spawn or moving-platform carry claim.')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(report,flush=True)

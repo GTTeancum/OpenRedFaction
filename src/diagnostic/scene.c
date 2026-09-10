@@ -4,6 +4,7 @@
 #include "rf/entity_assets.h"
 #include "rf/player.h"
 #include "rf/event.h"
+#include "rf/audio.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -395,8 +396,68 @@ uint32_t rf_scene_campaign_player[4]; /* registered handle, kind, initial object
 uint32_t rf_scene_trigger_contacts[6]; /* polls, ready, last ready UID, lower door ready, unsupported, status */
 typedef struct campaign_controller_effects {
     uint32_t source,actor,pending,starts,start_frame;
+    rf_group_sound_state sounds;
 } campaign_controller_effects;
 static campaign_controller_effects *campaign_controller_requests;
+static rf_audio_bank campaign_audio_bank;
+static rf_audio_mixer campaign_audio_mixer;
+static int16_t campaign_audio_frame[1600];
+/* loaded samples, retained bytes, missing names, rejected resources, played,
+ * unavailable requests, rendered frames, PCM byte hash. No device output yet. */
+uint32_t rf_scene_live_audio[8];
+static int campaign_audio_open(const char *tables_path)
+{
+    char path[1024];size_t prefix=0,n;uint32_t i,j,index,capacity;
+    rf_vpp archive={0};int status;
+    memset(rf_scene_live_audio,0,sizeof(rf_scene_live_audio));rf_scene_live_audio[7]=2166136261u;
+    rf_audio_mixer_init(&campaign_audio_mixer);
+    for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
+        campaign_controller_requests[i].sounds.samples[j]=-1;
+        campaign_controller_requests[i].sounds.handles[j]=-1;
+    }
+    for(n=0;tables_path[n];n++)if(tables_path[n]=='/' || tables_path[n]=='\\')prefix=n+1;
+    if(prefix+sizeof("audio.vpp")>sizeof(path))return RF_RANGE;
+    memcpy(path,tables_path,prefix);memcpy(path+prefix,"audio.vpp",sizeof("audio.vpp"));
+    status=rf_vpp_open(&archive,path);if(status)return status;
+    capacity=campaign_group_runtime.count*4;if(!capacity)capacity=1;if(capacity>2600)capacity=2600;
+    status=rf_audio_bank_open(&archive,capacity,1024*1024,&campaign_audio_bank);
+    if(!status)for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
+        const char *name=campaign_group_runtime.items[i].source->record.sounds[j];
+        if(!name[0])continue;
+        int loaded=rf_audio_bank_load(&campaign_audio_bank,name,&index);
+        if(!loaded)campaign_controller_requests[i].sounds.samples[j]=(int32_t)index;
+        else if(loaded==RF_NOT_FOUND)++rf_scene_live_audio[2];
+        else ++rf_scene_live_audio[3];
+    }
+    rf_scene_live_audio[0]=campaign_audio_bank.count;rf_scene_live_audio[1]=campaign_audio_bank.bytes;
+    rf_vpp_close(&archive);campaign_audio_bank.archive=NULL; /* All loading is complete. */
+    return status;
+}
+static int32_t campaign_sound_play(void *context,int32_t sample,const float position[3],float volume,uint32_t flags)
+{
+    const rf_wave_pcm *pcm;uint32_t handle;
+    (void)context;(void)position;(void)volume;(void)flags;
+    /* Unity/nonspatial output is an explicit adapter pending original sample
+     * metadata, volume, range and attenuation recovery; do not invent a loop. */
+    pcm=sample<0?NULL:rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
+    if(!pcm || rf_audio_voice_start(&campaign_audio_mixer,pcm,32768,32768,0,&handle)) {
+        ++rf_scene_live_audio[5];return -1;
+    }
+    ++rf_scene_live_audio[4];return (int32_t)handle;
+}
+static void campaign_sound_request(rf_group_runtime_entry *entry,campaign_controller_effects *request,uint32_t effects)
+{
+    if(effects&RF_GROUP_SOUND_START)rf_group_sound_start(&request->sounds,entry->translation.motion.flags,
+        entry->translation.motion.next_key,entry->pose.public_position,campaign_sound_play,NULL);
+    if(effects&RF_GROUP_SOUND_END) {
+        /* Original 46a0d0: stop retained moving voice, then play arrival slot. */
+        if(request->sounds.handles[1]!=-1) {
+            rf_audio_voice_stop(&campaign_audio_mixer,(uint32_t)request->sounds.handles[1]);
+            request->sounds.handles[1]=-1;
+        }
+        request->sounds.handles[2]=campaign_sound_play(NULL,request->sounds.samples[2],entry->pose.public_position,1,0);
+    }
+}
 static rf_group_controller_view *campaign_controller_views;
 static rf_group_pose_slot campaign_pose_slots[RF_OBJECT_CAPACITY];
 uint32_t rf_scene_live_motion[8]; /* ticks, propagated frames, holds, reversals, arrivals, sound requests, unresolved key effects, status */
@@ -426,9 +487,10 @@ static int campaign_link_effect(void *context,uint32_t kind,uint32_t handle,uint
             handle,&facts,&started);if(status)return status;
         campaign_actor_controller=facts.controller_handle;
         if(started) {
-            /* Retain outstanding sound/alert/wakeup work rather than pretending
-             * these effect backends ran. Source is needed by occupancy lookup. */
+            /* Retain outstanding alert/wakeup work. Sound dispatch below has
+             * a nonspatial PCM adapter; source is needed by occupancy lookup. */
             request->source=source;request->actor=actor;request->pending=1;
+            campaign_sound_request(entry,request,RF_GROUP_SOUND_START);
             ++request->starts;request->start_frame=c->frame;++rf_scene_live_activation[2];++rf_scene_live_activation[4];
             if(entry->source->keys[0].uid==8593)rf_scene_live_activation[6]=c->frame+1;
             if(entry->source->keys[0].uid==8591)rf_scene_live_activation[7]=c->frame+1;
@@ -510,7 +572,7 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
                     /* 46a060 remaining key-link effects have no live backend yet. */
                     for(j=1;j<3;++j)if(key->links[j]!=UINT32_MAX)++rf_scene_live_motion[6];
                     status=rf_group_translation_tick_finish(runtime,&tick,entry->source->record.key_count,&sounds);if(status)return status;
-                    if(sounds){request->pending|=sounds<<1;++rf_scene_live_motion[5];}
+                    if(sounds){campaign_sound_request(entry,request,sounds);++rf_scene_live_motion[5];}
                 }
             }
         }
@@ -529,6 +591,9 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
         if(campaign_movers.uids[i]==8543)memcpy(rf_scene_live_door_positions,campaign_movers.poses[i].position,12);
         if(campaign_movers.uids[i]==8544)memcpy(rf_scene_live_door_positions+3,campaign_movers.poses[i].position,12);
     }
+    status=rf_audio_mix(&campaign_audio_mixer,campaign_audio_frame,800);if(status)return status;
+    for(i=0;i<sizeof(campaign_audio_frame);i++)rf_scene_live_audio[7]=(rf_scene_live_audio[7]^((const uint8_t *)campaign_audio_frame)[i])*16777619u;
+    rf_scene_live_audio[6]+=800;
     ++rf_scene_live_motion[0];return RF_OK;
 }
 static rf_collision_body_mover *campaign_sweep_scratch;
@@ -539,6 +604,7 @@ uint32_t rf_scene_actor_body_sweeps[5]; /* queries, hits, mover hits, status, re
 uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, registration bytes */
 static void campaign_close_movers(void)
 {
+    rf_audio_mixer_init(&campaign_audio_mixer);rf_audio_bank_close(&campaign_audio_bank);
     if(campaign_player_object.view)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&campaign_player_object);
     uint32_t i;for(i=0;i<campaign_mover_count;i++)rf_object_registry_remove(&campaign_registry,campaign_mover_wrappers[i].handle);
     rf_group_mover_memberships_close(&campaign_memberships);
@@ -1743,6 +1809,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             for(i=0;i<campaign_movers.count;i++)campaign_surface_sources[i+1]=&actor_follow_world->movers.items[i].geometry;
             campaign_controller_requests=calloc(campaign_group_runtime.count?campaign_group_runtime.count:1,sizeof(*campaign_controller_requests));
             if(!campaign_controller_requests){status=RF_RANGE;goto done;}
+            status=campaign_audio_open(tables_path);if(status)goto done;
             memset(rf_scene_live_activation,0,sizeof(rf_scene_live_activation));campaign_actor_controller=UINT32_MAX;
             memset(rf_scene_trigger_contacts,0,sizeof(rf_scene_trigger_contacts));
             memset(&campaign_entities,0,sizeof(campaign_entities));memset(&campaign_player_view,0,sizeof(campaign_player_view));

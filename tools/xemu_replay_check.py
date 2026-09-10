@@ -182,6 +182,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      door_positions=words(monitor,symbol('rf_scene_live_door_positions'),6)
      assert door_positions==expected('DOOR_POSITIONS'),door_positions
      report['live_motion']=motion;report['door_positions']=door_positions
+     audio=words(monitor,symbol('rf_scene_live_audio'),8)
+     assert audio==expected('LIVE_AUDIO') and audio[3]==0,audio
+     assert audio[6]==motion[0]*800,audio
+     if args.door:assert audio[4]>=2,audio
+     report['live_audio']=audio
      body_sweeps=words(monitor,symbol('rf_scene_actor_body_sweeps'),5)
      assert body_sweeps==expected('BODY_SWEEPS') and body_sweeps[3]==0,body_sweeps
      report['body_sweeps']=body_sweeps
