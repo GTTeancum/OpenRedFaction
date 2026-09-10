@@ -16,6 +16,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Original generic target routing now passes 720 execution fixtures, including
+event off-source behavior, trigger enable/disable, stale handles and mover
+suppression with fallback. Shared dispatch and event-link resolution remain
+open; the evidence is in event-target-dispatch-verification.json.
+
 Ordered event-link walking now matches original 4b8b00 in 700 PC/NXDK cases,
 including callback list mutation and mode handling. Event target resolution,
 generic target dispatch and recursive scene propagation remain open; startup

@@ -3404,3 +3404,31 @@ source and actor become the input actor on off activation. This behavior still
 needs execution verification before connecting generic target dispatch. Do not
 replace it with assumed symmetric on/off argument handling. The new loop is
 not yet called by startup; outgoing event links remain explicitly pending.
+
+
+Original generic target routing execution (2026-09-10)
+----------------------------------------------------
+
+verify_event_target_dispatch.py supplies synthetic registrations and executes
+original 4b65c0/4b6640, typed lookups 4b6800/4c08e0/46afa0 and real 40a0e0,
+plus auxiliary linked-list lookup 45afe0. Event activation 4b8b70, mover action
+46aba0/46b5b0 and auxiliary action 45b040/45b010 are intercepted at their entry
+boundaries. Trigger bit operations 4c0200/4c0210 execute without interception.
+All 720 fixtures pass: absent/unhandled/event/trigger/mover object kinds, an
+optional colliding auxiliary identifier, on/off, suppression low-byte values
+0/1/256/257, valid/stale/out-of-range handles and three trigger flag patterns.
+
+Confirmed routing priority is event, trigger, mover, auxiliary. On events pass
+(source, actor, 1); off events pass (actor, actor, 0), preserving the original
+asymmetry. Trigger on clears only flag 16; off sets only flag 16. On movers
+receive (registered_handle, source, actor); off movers receive their handle
+only. Off suppression tests the low byte and skips mover lookup entirely,
+but still attempts the auxiliary lookup. Typed event/trigger matches suppress
+that fallback, as does a nonsuppressed mover match. Stale or out-of-range
+object handles can still match an auxiliary identifier in the separate list.
+
+Report: artifacts/event-target-dispatch-verification.json includes every case
+and observed effect trace. This is original-code routing evidence, not shared
+C/NXDK or live campaign equivalence. It supersedes the previous static-only
+uncertainty about off arguments. Event links still need owned runtime target
+resolution and recursive dispatch integration; startup pending counters remain.
