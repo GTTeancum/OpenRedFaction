@@ -591,3 +591,32 @@ subsystem integration is claimed. Generic factory failures remain original-only
 evidence. The common event regression still passes 3,922 PC/NXDK comparisons;
 both builds and all four CTest checks pass. No new XEMU visual test is warranted
 until this code is connected to the runtime.
+
+## Shared trigger eligibility (2026-09-10)
+
+rf_trigger_eligible reconstructs 4c06d0 from a stable trigger snapshot and
+resolved actor/registry facts. Reject flags 0x10/0x40/8, compare activation
+count and limit as signed values (limit -1 is unlimited), then use the
+original cooldown predicate. Filter 0 requires 4895d0 unless flag 2 is set;
+filter 3 rejects 48aaf0 result exactly one; filter 4 requires entity lookup,
+429990 and nonzero 48aaf0. Filter 2 searches allowed handles. Flag 1 requires
+a nonzero low input byte; flag 2 requires actor kind 2 and owner 48aaf0;
+flag 0x80 requires entity lookup and 4290d0. Attached handle -1 bypasses the
+410c70 existence check. Other filter values impose no filter-specific gate.
+
+Predicate field names retain source addresses to avoid prematurely assigning
+subsystem meaning. Seven lookup/predicate boundaries are supplied to the
+oracle: 4895d0, 48aaf0, 426fc0, 429990, 4290d0, 410c70 and 40a0e0. Original
+4c06d0, cooldown and array helpers execute unchanged. The portable helper
+does not perform callbacks, registry traversal or mutate trigger state; facts
+must remain stable. Input validation precedes evaluation and preserves output
+on errors, which is a port contract rather than original invalid-input behavior.
+
+verify_trigger_eligibility.py passes 4096 exact PC/NXDK decisions, with 149
+accepted fixtures. It covers signed counts, flags, timer endpoints, filters,
+allowed lists, missing entities and low-byte values, and verifies original
+trigger/actor storage remains unchanged. Report:
+artifacts/trigger-eligibility-verification.json. Both builds and six CTests
+pass. This supersedes the earlier unverified eligibility lead, but not the
+remaining contact geometry, live actor predicate resolution, trigger firing
+or per-frame reset/lifecycle work. No XEMU gameplay or new visual claim.

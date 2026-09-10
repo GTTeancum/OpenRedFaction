@@ -9,6 +9,24 @@
  * unknown/NULL. Name must be NUL-terminated. Type recognition does not imply
  * that the corresponding runtime action has been reconstructed. */
 int32_t rf_event_type_id(const char *name);
+typedef struct rf_trigger_gate {
+    uint32_t flags;int32_t activations,limit,deadline;
+    uint32_t filter;int32_t attached;uint32_t allowed_count;
+    const uint32_t *allowed_handles;
+} rf_trigger_gate;
+typedef struct rf_trigger_actor_facts {
+    uint32_t handle,kind;
+    uint32_t test_4895d0,test_48aaf0,entity_present,test_429990;
+    uint32_t owner_test_48aaf0,test_4290d0,attached_present;
+} rf_trigger_actor_facts;
+/* 4c06d0 eligibility with resolved actor/registry predicates. Predicate names
+ * identify original helpers; byte-valued results retain low-byte semantics.
+ * Facts must describe one stable snapshot, without callback mutation. Original
+ * cooldown and signed activation-limit comparison are retained. No contact
+ * geometry, registry traversal, firing, or trigger-state mutation. */
+int rf_trigger_eligible(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
+    int32_t now,uint32_t input,uint32_t *eligible);
+
 typedef struct rf_event_state {
     uint32_t type;float delay;int32_t deadline;
     uint32_t actor,source,flags,mode;

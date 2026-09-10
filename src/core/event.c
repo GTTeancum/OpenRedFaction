@@ -3,6 +3,28 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+int rf_trigger_eligible(const rf_trigger_gate *g,const rf_trigger_actor_facts *a,
+    int32_t now,uint32_t input,uint32_t *eligible)
+{
+    uint32_t i;int expired,status;
+    if(!g || !a || !eligible || g->allowed_count>INT32_MAX ||
+        (g->allowed_count && !g->allowed_handles))return RF_RANGE;
+    status=rf_timer_expired(g->deadline,now,&expired);if(status)return status;
+    *eligible=0;
+    if((g->flags&0x58u) || (g->limit!=-1 && g->activations>=g->limit) || !expired)return RF_OK;
+    if(g->filter==0 && !(a->test_4895d0&255u) && !(g->flags&2))return RF_OK;
+    if(g->filter==3 && (a->test_48aaf0&255u)==1)return RF_OK;
+    if(g->filter==4 && (!a->entity_present || !(a->test_429990&255u) || !(a->test_48aaf0&255u)))return RF_OK;
+    if(g->filter==2) {
+        for(i=0;i<g->allowed_count;i++)if(g->allowed_handles[i]==a->handle)break;
+        if(i==g->allowed_count)return RF_OK;
+    }
+    if((g->flags&1) && !(input&255u))return RF_OK;
+    if((g->flags&2) && (a->kind!=2 || !(a->owner_test_48aaf0&255u)))return RF_OK;
+    if((g->flags&128) && (!a->entity_present || !(a->test_4290d0&255u)))return RF_OK;
+    if(g->attached!=-1 && !a->attached_present)return RF_OK;
+    *eligible=1;return RF_OK;
+}
 int rf_event_explode_action(rf_event_explode_state *state,uint32_t action,
     rf_event_explode_callback callback,void *context)
 {

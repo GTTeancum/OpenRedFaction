@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Trigger eligibility matches 4096 original/PC/NXDK cases; live actor predicates,
+contact detection and gameplay activation still need integration.
+
 All 13 authored Particle_State events across six levels pass PC and stock
 64 MiB XEMU replay, with exact timing/state traces and final memory recovery.
 Natural campaign trigger activation and visible effects remain open.
