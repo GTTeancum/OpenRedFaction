@@ -3288,3 +3288,30 @@ one-byte-short rejection and record access after archive close. Stock-64-MiB
 XEMU replay-20260910-062110 passes with the combined owners and exact existing
 PC replay state. Both builds and five CTest checks pass. Reports:
 artifacts/runtime-triggers-verification.json and the native replay report.
+
+
+Runtime trigger link resolution (2026-09-10)
+------------------------------------------
+
+Each owned runtime trigger now has a separate target array, leaving authored
+UID links intact. The owner budget includes these arrays; peak trigger storage
+is now 60,736 bytes. rf_runtime_triggers_resolve rebuilds targets through the
+verified rf_level_link_resolve object-first/key-fallback rules using caller
+ordered views. Missing targets retain raw UID and kind 0. Re-resolution can
+therefore include additional registered families later without reloading assets.
+
+Campaign setup supplies current event-then-trigger registration views. This
+is an incomplete world registry: no entity/mover-key views or entity backlinks
+yet, and no claim that fixture handles/order equal the complete original world.
+Temporary scene view storage is freed immediately after resolution and bounded
+by registry capacity (at most 12,288 bytes). Startup dispatch is still separate.
+
+verify_runtime_trigger_links.py checks all 4,471 authored trigger links across
+93 levels against the registered family inventories. 2,809 resolve; 1,662 stay
+explicitly unresolved. All four Set_Gravity links resolve to their corresponding
+event handles. Owner/budget tests pass with the new arrays. Campaign memory
+diagnostics include total/resolved/unresolved counts and an ordered target hash
+over each raw UID and resulting value/kind/index. Stock-64-MiB XEMU jump replay
+20260910-062500 matches these diagnostics and all existing PC state. Both builds
+and five CTest checks pass. No new visual behavior or action execution claimed.
+Reports: artifacts/runtime-trigger-links-verification.json and native replay.

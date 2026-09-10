@@ -3,6 +3,21 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+int rf_runtime_triggers_resolve(rf_runtime_triggers *triggers,
+    const rf_level_uid_object *objects,uint32_t object_count,
+    const rf_level_uid_key *keys,uint32_t key_count)
+{
+    uint32_t i,j;int status;
+    if(!triggers || (object_count && !objects) || (key_count && !keys))return RF_RANGE;
+    for(i=0;i<triggers->count;++i) {
+        rf_runtime_trigger *item=triggers->items+i;
+        for(j=0;j<item->authored->record.link_count;++j) {
+            status=rf_level_link_resolve(item->authored->links[j],objects,object_count,keys,key_count,item->links+j);
+            if(status)return status;
+        }
+    }
+    return RF_OK;
+}
 void rf_runtime_triggers_close(rf_runtime_triggers *triggers)
 {
     uint32_t i;if(!triggers)return;
@@ -12,7 +27,8 @@ void rf_runtime_triggers_close(rf_runtime_triggers *triggers)
 int rf_runtime_triggers_open(const rf_level *level,rf_object_registry *registry,
     uint32_t budget,int32_t now,rf_runtime_triggers *result)
 {
-    rf_runtime_triggers value={0};uint64_t bytes;uint32_t i;int status;
+    rf_runtime_triggers value={0};uint64_t bytes,payload;uint32_t i,j;int status;
+    rf_level_link_target *cursor=NULL;
     if(!level || !registry || !result || result->items || result->decoded.storage ||
        result->count || result->registry || budget<sizeof(value) || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     status=rf_level_owned_triggers_open(level,budget-(uint32_t)sizeof(value),&value.decoded);
@@ -20,13 +36,20 @@ int rf_runtime_triggers_open(const rf_level *level,rf_object_registry *registry,
     if(status)return status;
     bytes=sizeof(value)+(uint64_t)value.decoded.allocated_bytes+
         (uint64_t)value.decoded.count*sizeof(*value.items);
+    for(i=0;i<value.decoded.count;++i)bytes+=(uint64_t)value.decoded.items[i].record.link_count*sizeof(*cursor);
     if(bytes>budget || value.decoded.count>registry->count) {status=RF_RANGE;goto failed;}
     if(value.decoded.count) {
-        value.items=calloc(value.decoded.count,sizeof(*value.items));
+        payload=bytes-sizeof(value)-value.decoded.allocated_bytes;
+        value.items=calloc(1,(size_t)payload);
         if(!value.items) {status=RF_RANGE;goto failed;}
+        cursor=(rf_level_link_target *)(value.items+value.decoded.count);
     }
     for(i=0;i<value.decoded.count;++i) {
         rf_runtime_trigger *item=value.items+i;item->object_kind=5;item->authored=value.decoded.items+i;
+        item->links=cursor;
+        for(j=0;j<item->authored->record.link_count;++j) {
+            cursor->value=item->authored->links[j];cursor->kind=0;cursor->index=UINT32_MAX;++cursor;
+        }
         status=rf_auto_trigger_init(&item->state,&item->authored->record,UINT32_MAX,now);
         if(status)goto failed;
     }

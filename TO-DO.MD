@@ -14,6 +14,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Runtime trigger targets now resolve against registered events/triggers while
+retaining raw UIDs: 2,809 of 4,471 links resolve, including all four gravity
+links; 1,662 await other object families. The native ordered-target hash and
+jump replay pass in 64-MiB XEMU (20260910-062500). Startup dispatch is open.
+
 Campaign triggers now share the event registry with bounded ownership and
 retained raw links. All 2,367 triggers pass ownership checks across 93 levels;
 64-MiB XEMU replay 20260910-062110 passes with both owners active. Resolving

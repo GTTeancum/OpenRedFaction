@@ -60,6 +60,7 @@ typedef struct rf_runtime_trigger {
     uint32_t object_kind,handle;
     rf_auto_trigger_state state;
     const rf_level_owned_trigger *authored;
+    rf_level_link_target *links;
 } rf_runtime_trigger;
 typedef struct rf_runtime_triggers {
     rf_level_owned_triggers decoded;
@@ -68,10 +69,17 @@ typedef struct rf_runtime_triggers {
     uint32_t count,allocated_bytes;
 } rf_runtime_triggers;
 /* Same ownership/budget/registry contract as rf_runtime_events_open. Retains
- * raw ordered UID links; no resolution, shape ownership or dispatch yet. */
+ * raw ordered UID links plus initially unresolved runtime targets. */
 int rf_runtime_triggers_open(const rf_level *level,rf_object_registry *registry,
     uint32_t budget,int32_t now,rf_runtime_triggers *result);
 void rf_runtime_triggers_close(rf_runtime_triggers *triggers);
+/* Rebuild targets from retained UIDs using original object-first/key-fallback
+ * resolution. Views must follow original lookup order and stay stable during
+ * the call. Missing targets retain the UID with kind 0. No dispatch, entity
+ * backlinks or registry insertion. Resolver views must not alias owner data. */
+int rf_runtime_triggers_resolve(rf_runtime_triggers *triggers,
+    const rf_level_uid_object *objects,uint32_t object_count,
+    const rf_level_uid_key *keys,uint32_t key_count);
 struct rf_level_trigger;
 /* v180 loader flags/timing and 4bf970 initial bookkeeping. Borrowed authored
  * record; handle comes from registration. No registration or shape creation.

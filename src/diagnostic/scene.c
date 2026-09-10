@@ -276,6 +276,35 @@ static rf_object_registry campaign_registry;
 static rf_runtime_events campaign_events;
 static rf_runtime_triggers campaign_triggers;
 uint32_t rf_scene_campaign_triggers[2]; /* registered triggers, owner bytes */
+uint32_t rf_scene_campaign_links[4]; /* total, resolved, unresolved, ordered target hash */
+static int campaign_resolve_trigger_links(void)
+{
+    uint32_t i,j,n=campaign_events.count+campaign_triggers.count;
+    rf_level_uid_object *objects=n?malloc((size_t)n*sizeof(*objects)):NULL;int status;
+    if(n && !objects)return RF_RANGE;
+    for(i=0;i<campaign_events.count;++i) {
+        objects[i].uid=campaign_events.items[i].authored->record.uid;
+        objects[i].handle=campaign_events.items[i].handle;objects[i].flags=0;
+    }
+    for(j=0;j<campaign_triggers.count;++j,++i) {
+        objects[i].uid=campaign_triggers.items[j].authored->record.uid;
+        objects[i].handle=campaign_triggers.items[j].handle;objects[i].flags=0;
+    }
+    /* Only these object families are registered so far. Mover keys/entities
+     * remain unresolved; the retained authored links allow later resolution. */
+    status=rf_runtime_triggers_resolve(&campaign_triggers,objects,n,NULL,0);free(objects);
+    memset(rf_scene_campaign_links,0,sizeof(rf_scene_campaign_links));
+    if(status)return status;
+    rf_scene_campaign_links[3]=2166136261u;
+    for(i=0;i<campaign_triggers.count;++i)for(j=0;j<campaign_triggers.items[i].authored->record.link_count;++j) {
+        rf_level_link_target *target=campaign_triggers.items[i].links+j;
+        uint32_t k,words[4]={campaign_triggers.items[i].authored->links[j],target->value,target->kind,target->index};
+        for(k=0;k<4;++k)rf_scene_campaign_links[3]=(rf_scene_campaign_links[3]^words[k])*16777619u;
+        ++rf_scene_campaign_links[0];
+        ++rf_scene_campaign_links[campaign_triggers.items[i].links[j].kind?1:2];
+    }
+    return RF_OK;
+}
 uint32_t rf_scene_campaign_events[3]; /* registered events, owner bytes, registry bytes */
 static rf_movement_descriptor campaign_modes[16];
 static float campaign_jump_strength;
@@ -1172,6 +1201,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
             rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;
+            status=campaign_resolve_trigger_links();if(status)goto done;
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             memset(&campaign_climb,0,sizeof(campaign_climb));memset(rf_scene_player_climb,0,sizeof(rf_scene_player_climb));

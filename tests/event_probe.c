@@ -25,15 +25,29 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
-    if(argc==4 && !strcmp(argv[1],"--owned-triggers")) {
+    if(argc==4 && (!strcmp(argv[1],"--owned-triggers") || !strcmp(argv[1],"--trigger-links"))) {
         rf_vpp archive;rf_level level;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
-        rf_object_registry registry;uint32_t i,bytes,handle,event_count;
+        rf_object_registry registry;uint32_t i,j,bytes,handle,event_count,n;
+        rf_level_uid_object objects[RF_OBJECT_CAPACITY];int emit=!strcmp(argv[1],"--trigger-links");
         if(rf_vpp_open(&archive,argv[2]))return 3;
         if(rf_level_open(&level,&archive,argv[3])) {rf_vpp_close(&archive);return 3;}
         rf_object_registry_init(&registry);
         if(rf_runtime_events_open(&level,&registry,1024*1024,&events))return 4;
         event_count=events.count;
         if(rf_runtime_triggers_open(&level,&registry,1024*1024,12345,&triggers))return 5;
+        n=events.count+triggers.count;
+        for(i=0;i<n;++i) {
+            objects[i].uid=i<events.count?events.items[i].authored->record.uid:triggers.items[i-events.count].authored->record.uid;
+            objects[i].handle=i<events.count?events.items[i].handle:triggers.items[i-events.count].handle;
+            objects[i].flags=0;
+        }
+        if(rf_runtime_triggers_resolve(&triggers,objects,n,NULL,0))return 13;
+        for(i=0;i<triggers.count;++i)for(j=0;j<triggers.items[i].authored->record.link_count;++j) {
+            rf_level_link_target *target=triggers.items[i].links+j;
+            if(target->kind && !rf_object_registry_lookup(&registry,target->value))return 14;
+            if(emit)printf("%u %u %u %u %u\n",triggers.items[i].authored->record.uid,
+                triggers.items[i].authored->links[j],target->value,target->kind,target->index);
+        }
         bytes=triggers.allocated_bytes;
         for(i=0;i<triggers.count;++i) {
             rf_runtime_trigger *t=triggers.items+i;rf_auto_trigger_state initial;
@@ -41,7 +55,7 @@ int main(int argc,char **argv)
                memcmp(&initial,&t->state,sizeof(initial)) || t->object_kind!=5 ||
                rf_object_registry_lookup(&registry,t->handle)!=t)return 6;
         }
-        printf("%u %u\n",triggers.count,bytes);
+        if(!emit)printf("%u %u\n",triggers.count,bytes);
         handle=triggers.count?triggers.items[0].handle:UINT32_MAX;
         rf_runtime_triggers_close(&triggers);rf_runtime_triggers_close(&triggers);
         if(registry.count!=RF_OBJECT_CAPACITY-event_count || rf_object_registry_lookup(&registry,handle))return 7;
