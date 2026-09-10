@@ -58,6 +58,17 @@ int rf_trigger_actor_resolve(const rf_entity_registry *registry,const rf_entity_
     int32_t owner_handle,int32_t attached_handle,const int32_t *players,uint32_t player_count,
     rf_trigger_actor_facts *facts);
 
+typedef struct rf_trigger_volume {
+    uint32_t shape;float center[3],radius,matrix[3][3],size[3];
+} rf_trigger_volume;
+/* SP 4bfc60 eligibility/contact/delay stage, before key and activation gates.
+ * Actor pose is +3c, +e4, +f0 in that order. Flag4 skips geometry; unknown
+ * shape rejects contact otherwise. Timer/ready are unchanged on errors.
+ * Stable caller-resolved facts; does not dispatch or mutate actor/gate. */
+int rf_trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
+    const rf_trigger_volume *volume,const float pose[3][3],rf_trigger_contact_timer *timer,
+    int32_t now,uint32_t input,uint32_t *ready);
+
 typedef struct rf_event_state {
     uint32_t type;float delay;int32_t deadline;
     uint32_t actor,source,flags,mode;

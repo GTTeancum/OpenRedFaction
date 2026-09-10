@@ -151,6 +151,22 @@ int rf_trigger_eligible(const rf_trigger_gate *g,const rf_trigger_actor_facts *a
     if(g->attached!=-1 && !a->attached_present)return RF_OK;
     *eligible=1;return RF_OK;
 }
+int rf_trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
+    const rf_trigger_volume *volume,const float pose[3][3],rf_trigger_contact_timer *timer,
+    int32_t now,uint32_t input,uint32_t *ready)
+{
+    uint32_t accepted;int status;
+    if(!volume || !pose || !timer || !ready)return RF_RANGE;
+    status=rf_trigger_eligible(gate,actor,now,input,&accepted);if(status)return status;
+    if(accepted && !(gate->flags&4)) {
+        if(volume->shape==0)status=rf_trigger_sphere_contact(volume->center,volume->radius,pose[0],&accepted);
+        else if(volume->shape==1)status=rf_trigger_box_contact(volume->center,volume->matrix,volume->size,
+            gate->flags,pose[0],pose[1],pose[2],&accepted);
+        else accepted=0;
+        if(status)return status;
+    }
+    return rf_trigger_contact_delay(timer,now,accepted,ready);
+}
 int rf_event_explode_action(rf_event_explode_state *state,uint32_t action,
     rf_event_explode_callback callback,void *context)
 {

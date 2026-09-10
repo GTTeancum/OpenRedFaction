@@ -860,3 +860,30 @@ flag8 and ordered player attachment snapshots. The existing 4096 eligibility
 fixtures and six CTests also pass. Live creation and update ordering of these
 views, the player-field activation gate and natural contact polling remain
 open; this is a snapshot resolver, not a complete gameplay actor.
+
+
+## Combined contact polling
+
+`rf_trigger_contact_poll` composes eligibility, volume contact and contact
+delay in the order used by SP 4bfc60. It consumes stable actor facts and
+pose (+3c,+e4,+f0), plus a decoded runtime volume. If eligibility fails,
+positive contact delay is canceled without evaluating geometry. Flag4 skips
+geometry; otherwise shape0 uses center/sphere, shape1 uses the complete box
+path including directional flag32, and other shapes reject contact. Ready
+means proceed to key/player gates and activation; it does not dispatch.
+Timer and ready outputs are preserved on errors.
+
+`tools/verify_trigger_poll.py` runs complete original SP 4bfc60 with no key
+reference, seven actor predicates supplied and final activation captured.
+All eligibility, geometry, conversion and timer callees execute unchanged.
+4096 fixtures match compiled PC and NXDK ready/deadline state, with 573
+ready outcomes. Independent shape/flag combinations cover ordinary and
+directional boxes, spheres, geometry bypass, unknown shapes, eligibility
+cancellation and delay endpoints. Original actor/gate storage is unchanged
+apart from the contact timer. The separately verified actor resolver can
+supply the facts; this test keeps its predicate boundary explicit.
+
+The function does not yet run from live scene actor updates. Snapshot update
+ordering, authored runtime-volume preparation and remaining key/player gates
+must be connected before natural campaign activation is claimed. The six
+regression CTests and both builds pass.

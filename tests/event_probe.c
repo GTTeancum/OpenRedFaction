@@ -58,6 +58,19 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--trigger-poll")) {
+        uint32_t input[54],output[3];rf_trigger_gate gate;rf_trigger_actor_facts actor;
+        rf_trigger_volume volume;float pose[3][3];rf_trigger_contact_timer timer;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            memcpy(&gate,input,28);gate.allowed_handles=input+18;memcpy(&actor,input+7,sizeof(actor));
+            memcpy(&volume,input+26,sizeof(volume));memcpy(pose,input+43,sizeof(pose));memcpy(&timer,input+52,sizeof(timer));
+            if(gate.allowed_count>8)return 2;output[2]=0xa5a5a5a5;
+            output[0]=(uint32_t)rf_trigger_contact_poll(&gate,&actor,&volume,pose,&timer,(int32_t)input[16],input[17],output+2);
+            output[1]=(uint32_t)timer.deadline;fwrite(output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--trigger-actor")) {
         int32_t input[26];rf_entity_view nodes[4];rf_entity_registry registry;rf_trigger_actor_facts facts;uint32_t output[10],i;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
