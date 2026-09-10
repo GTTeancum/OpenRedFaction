@@ -140,7 +140,29 @@ int rf_audio_bank_register(rf_audio_bank *bank,const char *name,float near_dista
 const rf_audio_parameters *rf_audio_bank_parameters(const rf_audio_bank *bank,uint32_t index)
 {return bank && bank->samples && index<bank->count?&bank->samples[index].parameters:NULL;}
 const rf_wave_pcm *rf_audio_bank_sample(const rf_audio_bank *bank,uint32_t index)
-{return bank && bank->samples && index<bank->count?&bank->samples[index].pcm:NULL;}
+{return bank && bank->samples && index<bank->count && bank->samples[index].storage?&bank->samples[index].pcm:NULL;}
+int rf_audio_bank_unload(rf_audio_bank *bank,uint32_t index)
+{
+    rf_audio_sample *sample;
+    if(!bank || !bank->samples || index>=bank->count)return RF_RANGE;
+    sample=bank->samples+index;free(sample->storage);sample->storage=NULL;
+    bank->bytes-=sample->bytes;sample->bytes=0;memset(&sample->pcm,0,sizeof(sample->pcm));return RF_OK;
+}
+int rf_audio_bank_reload(rf_audio_bank *bank,rf_vpp *archive,uint32_t index)
+{
+    rf_audio_sample *sample;rf_vpp_entry entry;rf_wave_pcm pcm={0};void *storage;int status;
+    if(!bank || !bank->samples || index>=bank->count)return RF_RANGE;
+    sample=bank->samples+index;if(sample->storage)return RF_OK;
+    if(!archive || !archive->stream)return RF_RANGE;
+    status=rf_vpp_find(archive,sample->name,&entry);if(status)return status;
+    if((uint64_t)bank->bytes+entry.size>bank->budget)return RF_RANGE;
+    if(!entry.size)return RF_FORMAT;
+    storage=malloc(entry.size);if(!storage)return RF_RANGE;
+    status=rf_vpp_read(archive,&entry,0,storage,entry.size);
+    if(!status)status=rf_wave_pcm_parse(storage,entry.size,&pcm);
+    if(status){free(storage);return status;}
+    sample->storage=storage;sample->pcm=pcm;sample->bytes=entry.size;bank->bytes+=entry.size;return RF_OK;
+}
 void rf_audio_bank_close(rf_audio_bank *bank)
 {
     uint32_t i;if(!bank)return;

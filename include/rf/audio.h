@@ -35,16 +35,23 @@ typedef struct rf_audio_bank {
  * whole retained files, excluding allocator overhead. Archive is borrowed for
  * loading; it may close after loading. Loaded PCM outlives the archive. Names
  * deduplicate case-insensitively. Missing/invalid/over-budget loads preserve
- * bank and index. Stop all borrowing voices before close. No eviction. */
+ * bank and index. Stop all borrowing voices before close or explicit unload. */
 int rf_audio_bank_open(rf_vpp *archive,uint32_t capacity,uint32_t budget,rf_audio_bank *bank);
 int rf_audio_bank_load(rf_audio_bank *bank,const char *name,uint32_t *index);
 /* First successful registration wins, including parameters, on duplicate names.
  * Nonpositive near normalizes to one; other parameters must be finite with
- * positive rolloff and nonnegative volume. Parameters share sample ownership. */
+ * positive rolloff and nonnegative volume. Duplicate registration/load returns
+ * the existing index even if explicitly unloaded; use reload to restore PCM. */
 int rf_audio_bank_register(rf_audio_bank *bank,const char *name,float near_distance,
     float volume,float rolloff,uint32_t *index);
 const rf_audio_parameters *rf_audio_bank_parameters(const rf_audio_bank *bank,uint32_t index);
 const rf_wave_pcm *rf_audio_bank_sample(const rf_audio_bank *bank,uint32_t index);
+/* Explicit residency control; caller must stop ALL device/mixer borrowers first.
+ * Unload preserves index/name/parameters and is idempotent. Sample returns NULL
+ * while unloaded. Reload borrows an open archive only for this call, preserves
+ * metadata, and leaves the bank unchanged on failure. No automatic eviction. */
+int rf_audio_bank_unload(rf_audio_bank *bank,uint32_t index);
+int rf_audio_bank_reload(rf_audio_bank *bank,rf_vpp *archive,uint32_t index);
 void rf_audio_bank_close(rf_audio_bank *bank);
 #define RF_AUDIO_VOICES 16u
 #define RF_AUDIO_RATE 48000u

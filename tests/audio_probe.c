@@ -68,6 +68,21 @@ int main(int argc,char **argv)
             rf_audio_voice_gain(&mixer,handle,32769,0)!=RF_RANGE || memcmp(&mixer,&before,sizeof(mixer)))return 41;
          if(rf_audio_mix(&reference,full,1) || rf_audio_mix(&mixer,scaled,1) || scaled[0]!=0 || scaled[1]!=full[1]/2)return 42;}
         if(rf_audio_voice_stop(&mixer,handle))return 28;
+        {rf_audio_parameters retained=*rf_audio_bank_parameters(&bank,first);uint32_t rehash=2166136261u;
+         if(rf_audio_bank_unload(&bank,first) || rf_audio_bank_unload(&bank,first) ||
+            bank.bytes!=bytes-a.size || bank.count!=2 || rf_audio_bank_sample(&bank,first) ||
+            !rf_audio_bank_sample(&bank,1) || memcmp(&retained,rf_audio_bank_parameters(&bank,first),sizeof(retained)))return 43;
+         if(rf_audio_bank_reload(&bank,&archive,first)!=RF_RANGE || rf_audio_bank_unload(&bank,2)!=RF_RANGE)return 44;
+         if(rf_vpp_open(&archive,argv[2]))return 45;
+         bank.budget=bytes-1;
+         if(rf_audio_bank_reload(&bank,&archive,first)!=RF_RANGE || bank.bytes!=bytes-a.size || rf_audio_bank_sample(&bank,first))return 46;
+         bank.budget=bytes;
+         if(rf_audio_bank_reload(&bank,&archive,first) || rf_audio_bank_reload(&bank,NULL,first) ||
+            bank.bytes!=bytes || bank.count!=2 || memcmp(&retained,rf_audio_bank_parameters(&bank,first),sizeof(retained)))return 47;
+         rf_vpp_close(&archive);rf_audio_mixer_init(&mixer);
+         if(rf_audio_voice_start(&mixer,rf_audio_bank_sample(&bank,first),32768,32768,0,&handle) || rf_audio_mix(&mixer,output,256))return 48;
+         for(i=0;i<sizeof(output);i++)rehash=(rehash^((unsigned char *)output)[i])*16777619u;
+         if(rehash!=hash || rf_audio_voice_stop(&mixer,handle))return 49;}
         rf_audio_bank_close(&bank);rf_audio_bank_close(&bank);
         if(bank.samples || bank.count || bank.bytes || bank.archive)return 29;
         printf("PASS audio bank bytes=%u pcm_after_archive_close_hash=%u\n",bytes,hash);return 0;

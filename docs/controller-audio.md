@@ -765,3 +765,23 @@ failed; correcting the fixture to the traced layout yields the results above.
 Counter balancing remains unresolved. Record getters544700/544650 examined
 during this trace do not establish where counters are incremented/decremented.
 No persistent runtime ownership implementation follows from this check alone.
+
+### Explicit bank PCM residency
+
+Shared C now exposes rf_audio_bank_unload/reload. Unload frees retained file
+bytes, clears the PCM view and deducts its allocation from the bank budget while
+keeping the registered name/index/spatial parameters. Repeated unload is harmless.
+Sample lookup returns NULL for an unloaded entry. Reload takes an explicitly open
+archive, validates the file and budget before committing storage, and retains
+metadata on failure. Duplicate registration still returns the same index; callers
+use reload explicitly to restore unloaded PCM. No slot size or fixed memory cost
+was added. All borrowing device and mixer voices must be stopped before unload.
+
+The expanded PC bank check passes exact byte reclamation, preservation of the
+other resident sample and registration parameters, closed-archive rejection,
+one-byte-short reload rejection, exact-budget reload and repeated reload. PCM
+after reopening then closing the archive reproduces hash3154186473 over the first
+256 stereo frames. PC and NXDK builds pass, as does the180-frame PC door replay
+with unchanged live-audio hash3527213817. Native runtime unload/reload is not yet
+validated. This is explicit resource management, not automatic campaign eviction
+or a claim that the unresolved counter policy is implemented.
