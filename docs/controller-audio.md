@@ -289,3 +289,30 @@ With injection disabled, the same process then passes the sixteen-voice capacity
 reuse and shutdown checks. No production backend fix was needed for these paths.
 This validates partial initialization cleanup, not actual fragmentation behavior,
 interrupt failures or the voice-stop timeout fallback.
+
+### Spatial dispatch recovery, pending execution comparison
+
+Further inspection of the fingerprinted original locates attenuation in 505740,
+called by positional dispatch 5056a0. Ghidra parameter types here are unreliable;
+the second argument is a position pointer, not a scalar float. Disassembly confirms
+sample records at 01cd3ba8 with stride 0x40: offsets 0x24, 0x28 and 0x2c supply
+the near distance, far cutoff and attenuation factor. Constants at 5893f8 and
+5893e0 are binary32 1 and 0. Beyond the far cutoff both output values are zero.
+Otherwise attenuation uses volume / ((distance / near - 1) * factor + 1), with
+special branches inside the near distance and for a zero denominator, followed
+by the original clamp helper. Original x87 intermediate precision matters.
+Listener/vector helpers and their calling conventions still require verification
+before reconstructing the complete positional calculation.
+
+505560 indexes the volume array at 01753c18 with its second argument. Thus the
+callback argument currently named flags represents a volume-group index on this
+path, not a looping bit mask. The sample-record byte at offset 0x3e selects
+543a80 versus 5439d0. Those wrappers pass 1 versus 0 respectively as the fourth
+argument to 522530. This is evidence for a sample-authored playback-mode branch;
+confirm 522530 and the metadata parser before assigning final loop semantics.
+Do not infer looping from the filename or from the controller callback's zero.
+The current unity/nonspatial adapter remains explicitly provisional.
+
+Next verification should execute original 505740 against bounded distance/range/
+factor cases, retaining original vector helpers and x87 rounding, then compare
+shared C output before connecting listener updates and per-sample metadata.
