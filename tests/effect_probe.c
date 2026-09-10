@@ -243,6 +243,19 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--particle-step-resolved")) {
+        struct {float dt;rf_particle particle;rf_particle_emitter_bounds bounds;rf_particle_owner_gate gate;} in;
+        struct {int32_t status;uint32_t live;rf_particle particle;rf_particle_emitter_bounds bounds;} out;
+        static rf_particle records[RF_PARTICLE_CAPACITY];rf_particle_list lists[6];rf_particle_pool pool;
+        rf_particle_pool_init(&pool,records,lists,6);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            records[0]=in.particle;pool.live[0]=1;pool.live[1]=0;
+            lists[0].next=lists[0].previous=1600;lists[5].next=lists[5].previous=0;
+            out.status=rf_particle_pool_step_resolved(&pool,0,in.dt,&in.bounds,&in.gate);out.live=pool.live[0];out.particle=records[0];out.bounds=in.bounds;
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-step-unowned")) {
         struct {float dt;rf_particle particle;rf_particle_emitter_bounds bounds;} in;
         struct {int32_t status;uint32_t live;rf_particle particle;rf_particle_emitter_bounds bounds;} out;

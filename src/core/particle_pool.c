@@ -252,15 +252,22 @@ int rf_particle_pool_recycle(rf_particle_pool *pool,uint32_t index)
     pool->live[p->pool]--;return RF_OK;
 }
 
-int rf_particle_pool_step_unowned(rf_particle_pool *pool,uint32_t index,float dt,
-    rf_particle_emitter_bounds *bounds)
+static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
+    rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate)
 {
     rf_particle value;unsigned i;double radius,length,inverse;float speed,bound=0;volatile float ratio;
     int track;
     if(!pool_valid(pool) || index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
     value=pool->particles[index];
     if(!(value.flags&1u) || value.pool>1 || !pool->live[value.pool])return RF_RANGE;
-    if((int32_t)value.owner>=0 || (value.emitter && !bounds) || (value.flags&0xff000010u) || (value.secondary&1u))return RF_NOT_FOUND;
+    if((int32_t)value.owner>=0) {
+        if(!gate)return RF_NOT_FOUND;
+        if(gate->entry_found && (!gate->runtime_present || !(gate->enabled&255u))) {
+            memcpy(pool->particles[index].previous_position,value.position,sizeof(value.position));
+            return RF_OK;
+        }
+    }
+    if((value.emitter && !bounds) || (value.flags&0xff000010u) || (value.secondary&1u))return RF_NOT_FOUND;
     track=value.emitter && bounds && bounds->owner>=0;
     if(track) {
         bound=bounds->maximum_distance_squared;
@@ -311,6 +318,18 @@ int rf_particle_pool_step_unowned(rf_particle_pool *pool,uint32_t index,float dt
     }
     for(i=0;i<3;i++)if(!isfinite(value.position[i]) || !isfinite(value.velocity[i]))return RF_RANGE;
     pool->particles[index]=value;if(track)bounds->maximum_distance_squared=bound;return RF_OK;
+}
+
+int rf_particle_pool_step_resolved(rf_particle_pool *pool,uint32_t index,float dt,
+    rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate)
+{
+    return particle_step(pool,index,dt,bounds,gate);
+}
+
+int rf_particle_pool_step_unowned(rf_particle_pool *pool,uint32_t index,float dt,
+    rf_particle_emitter_bounds *bounds)
+{
+    return particle_step(pool,index,dt,bounds,NULL);
 }
 
 int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt)
