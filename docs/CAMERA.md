@@ -3119,3 +3119,36 @@ type 44 on zero/A5 storage (eight total constructor cases). Existing common
 activation/timer regression remains green at 3,922 PC/NXDK cases. Reports:
 artifacts/gravity-event-verification.json and event-construction-verification.json.
 No new native XEMU or authored campaign event traversal is claimed here.
+
+
+Authored gravity triggers and startup order (2026-09-10)
+----------------------------------------------------
+
+The inventory has four Set_Gravity events, each with one incoming Trigger Auto
+and no outgoing links: L17S1 20046->20045 (4.0), L17S2 18651->18652 (3.0),
+L17S3 18758->18759 (4.0), L18S1 10478->10479 (9.8). Their trigger flag bytes
+are [0,0,0,1,0]; the auto runtime flag is bit 8. The event header bytes vary,
+so they must not be treated as a substitute for the incoming trigger.
+
+verify_gravity_trigger.py executes unmodified 4c01b0 -> 4c0220 -> 4c0320 ->
+4b6760/4b6800 -> 4b8b70 -> virtual 4bcc00 -> 4a0e20, plus empty event-link
+propagation and trigger cooldown, with no intercepted calls. Eight cases
+cover all four payloads with/without runtime disabled bit 16. Objects and
+handles are synthetically registered and runtime fields explicitly prepared;
+this does not prove the loader or shared C/NXDK dispatch chain. The original
+event object base is derived-event-base +4, an important handle lookup detail.
+
+Accepted auto activation records actor -1 and trigger source handle, increments
+the trigger count, sets cooldown deadline now+30000, records float-clock bits
+and sets flag 64. Gravity changes during dispatch, before that cooldown is set.
+The unchanged jump impulse remains verified. Report:
+artifacts/gravity-trigger-verification.json.
+
+Static call-site/decompiler evidence: 4316a0 calls auto sweep at 4316d3; its
+only direct CALL found in executable sections is 4360d7 inside 435df0. That
+function performs level startup, calls event post-load 4bd890 before 4316a0,
+and ends by running levelstart.vcs. Exports 4316d3.c.txt and 4360d7.c.txt
+include containing-function annotations. This establishes the intended startup
+placement by static inspection, not full startup execution. The shared runtime
+must register and resolve events before the sweep; do not apply gravity by
+level filename, event-header byte, proximity or an assumed 30-second delay.

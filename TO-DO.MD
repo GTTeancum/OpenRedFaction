@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Wire runtime gravity events and jump audio ownership, then validate obstructed jumping and authored traversal.
+- [ ] Wire level-start auto triggers through registered gravity events, recover jump audio ownership, and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -13,6 +13,12 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+All four authored gravity links now pass the unchanged original auto-trigger
+to setter chain, including disabled-trigger cases. The sweep belongs late in
+level startup, after event post-load processing; 30 seconds is a subsequent
+trigger cooldown, not a delay before gravity changes. Registrations remain
+synthetic in this harness; shared runtime startup wiring is still required.
 
 Set_Gravity (type 44) now has a shared action handler: 2,048 original on/off
 cases match PC/NXDK, with six additional shared API checks. Original construction
