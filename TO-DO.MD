@@ -16,6 +16,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Vclip name lookup matches 383 original cases on PC/NXDK. charge_explode is a
+vclip selecting rocket hit plus Medium Explosion sound; bounded vclip/particle
+definition loading and effect consumers remain open.
+
 The shared Explode request emitter now matches 432 original cases on PC and
 compiled NXDK. Effect-name lookup, scene dispatch and request consumers remain
 open; scene explosions are still counted as unsupported.

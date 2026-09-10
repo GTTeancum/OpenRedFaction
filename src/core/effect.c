@@ -1,4 +1,20 @@
 #include "rf/effect.h"
+int rf_vclip_name_lookup(const char *const names[64],const char *name)
+{
+    unsigned i;if(!names || !name || !*name)return -1;
+    for(i=0;i<64;++i) {
+        const unsigned char *a=(const unsigned char *)names[i],*b=(const unsigned char *)name;
+        if(!a)continue;
+        for(;;) {
+            unsigned x=*a++,y=*b++;
+            if(x>='A' && x<='Z')x+='a'-'A';
+            if(y>='A' && y<='Z')y+='a'-'A';
+            if(x!=y)break;
+            if(!x)return (int)i;
+        }
+    }
+    return -1;
+}
 int rf_effect_set_enabled(rf_effect_pair *pairs,uint32_t count,int32_t index,
     uint32_t override_mode,int32_t enabled,int32_t now_ms)
 {

@@ -1,5 +1,9 @@
 #ifndef RF_EFFECT_H
 #define RF_EFFECT_H
+/* Original 4c1d00 scans all 64 vclip name slots; for ASCII names, returns
+ * the first match. Empty/unknown names return -1. Names are NUL-terminated;
+ * null slots represent unused empty names. Caller owns definition storage. */
+int rf_vclip_name_lookup(const char *const names[64],const char *name);
 #include "rf/timer.h"
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */

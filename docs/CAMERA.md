@@ -3668,3 +3668,32 @@ This emitter performs no lookup, geometry change, rendering, sound or damage.
 It is not yet connected to scene dispatch; unsupported-action accounting remains
 honest. Recovering effect-name lookup and request consumers is still required
 before calling a scene explosion implemented. No new screenshot is warranted.
+
+
+Vclip name lookup and authored effect dependency (2026-09-10)
+-----------------------------------------------------------
+
+Original 4c1d00 resolves vclip names, not explosion.tbl names. It rejects an
+empty query, scans 64 slots beginning at 858cb8 with stride e0, gets each
+string through 4ff480 and compares with CRT 57c130, returning the first match
+or -1. It scans all slots rather than consulting active-count 8568ac. The
+shared rf_vclip_name_lookup follows that fixed-slot order for ASCII names,
+with defensive NULL query/table handling and NULL slots treated as unused.
+Non-ASCII locale behavior is outside the recovered API's verified scope.
+
+verify_vclip_lookup.py passes 383 cases against unchanged original lookup,
+string accessor and CRT comparison, on both PC and compiled NXDK: 63 authored
+names with case variants, misses, empty input, duplicate first-match and last
+slot. The table fixture is synthetic, populated from the read-only vclip.tbl;
+this does not prove the original table loader or all numeric indices. In that
+fixture charge_explode occupies slot 51. Both probe/NXDK builds and five
+CTests pass. Report: artifacts/vclip-lookup-verification.json.
+
+The installed vclip.tbl defines charge_explode with code_explode, an empty
+VBM filename, Explosion Name rocket hit and Foley Sound Medium Explosion.
+explosion.tbl has nine named explosion definitions; its rocket hit entry
+references several central particle emitters and sparks. Thus a single static
+sprite would not reproduce this authored effect. Vclip definition ownership,
+emitter/particle definitions, playback and sound consumers must be connected.
+This checkpoint adds lookup only; scene Explode remains unsupported and no
+new visual behavior or native rendered effect is claimed.
