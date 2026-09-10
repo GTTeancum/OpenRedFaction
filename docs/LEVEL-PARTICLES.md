@@ -720,3 +720,31 @@ No screenshot was taken: this repeats an isolated diagnostic layout.
 
 PC/NXDK builds and all six CTests pass. Mixed object passes, stretched particles,
 animated mip chains, campaign effect spawning and full-game residency remain open.
+
+Stretched particle geometry (2026-09-10)
+
+494b90 dispatches flag 0x4000 through 515ba0 to 558e30. This uses current and
+previous positions (particle offsets 12 and 108), not the velocity field. The
+558e30 displacement is previous-current, stored as float components. Its squared
+length below double 0.001 calls the ordinary billboard with zero angle; equality
+uses the stretched path. Radius is halved for the diamond offsets.
+
+The view input is the third row at 18186e0 of the original view matrix. Negate
+it, normalize displacement, cross negated view with displacement for side,
+normalize side, cross side with negated view and normalize again for the axis.
+4fab70 uses double intermediate norm/reciprocal and a zero-length fallback
+(1,0,0); this matters for parallel or zero view vectors. Dot products and float
+stores retain original operation order. The four vertices are current plus
+axis*(dot(axis,displacement)+radius/2), current plus side*radius/2, current minus
+axis*radius/2, current minus side*radius/2, with UVs (0,0),(1,0),(1,1),(0,1).
+
+rf_particle_stretch_build implements this world-space geometry. Its explicit
+fallback output requests the existing billboard path; fallback vertices are
+zeroed. Finite inputs and nonnegative radius are the port input contract.
+verify_particle_stretch.py executes full original 558e30 and all vector helpers,
+intercepting only final 558d40 submission and 515b40 fallback. All 2048 fixtures
+match exact PC/NXDK vertex and UV bytes; 684 fallbacks cover static/short movement.
+Fixtures include zero and parallel view vectors, varied directions and radii.
+Report: artifacts/particle-stretch-verification.json. PC/NXDK builds and six
+CTests pass. No XEMU or live stretched draw claim: 558d40 world transformation,
+5587c0 clipping and scene integration remain open. No new visual was captured.

@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Stretched-particle world geometry matches 2048 original/PC/NXDK cases, including
+684 billboard fallbacks; projection, clipping and live submission remain open.
+
 Level particle rendering now selects retained animation frames using particle age.
 All 20 emitter levels and the stock 64 MiB scene replay pass; retained explosion
 frame pixels and page recovery pass XEMU. Campaign effect spawning remains open.

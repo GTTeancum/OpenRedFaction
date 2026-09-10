@@ -16,6 +16,15 @@ static int queue_parent_lookup(void *context,uint32_t handle,rf_level_particle_o
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--particle-stretch")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        float in[10];struct {int32_t status;uint32_t fallback;rf_particle_billboard_vertex vertices[4];} out;
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            memset(&out,0,sizeof(out));out.status=rf_particle_stretch_build(in,in+3,in+6,in[9],out.vertices,&out.fallback);
+            fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--level-particle-queue")) {
         struct {rf_visibility_frustum frustum;uint32_t room,count;rf_particle particles[8];
             rf_emitter_slot emitters[4];rf_level_particle_object parent;} in;

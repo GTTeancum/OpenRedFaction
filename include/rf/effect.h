@@ -117,6 +117,12 @@ int rf_particle_initialize(const rf_particle_spawn *spawn,uint32_t pool,
 int rf_particle_frame_index(const rf_particle *particle,uint32_t *frame);
 
 typedef struct rf_particle_billboard_vertex {float position[3],uv[2];} rf_particle_billboard_vertex;
+/* 558e30 world-space stretched diamond, before 558d40 transform/submission.
+ * forward is the original view matrix third row. Previous-current displacement
+ * squared below 0.001 requests the ordinary zero-angle billboard fallback.
+ * Finite input and nonnegative radius required; errors preserve outputs. */
+int rf_particle_stretch_build(const float position[3],const float previous[3],
+    const float forward[3],float radius,rf_particle_billboard_vertex out[4],uint32_t *fallback);
 /* 5552a0..555483 camera-space quad before clipping/depth bias. Positive bitmap
  * dimensions; finite center/angle/radius/scales and nonnegative radius. Output
  * follows original polygon submission order. Caller supplies camera scale.

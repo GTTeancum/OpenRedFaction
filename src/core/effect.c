@@ -1,3 +1,4 @@
+#include <string.h>
 #include "rf/effect.h"
 #include "rf/visibility.h"
 #include <math.h>
@@ -361,6 +362,43 @@ int rf_particle_vertex_encode(const rf_particle_vertex_environment *e,
     *output=value;return RF_OK;
 }
 
+static void stretch_normalize(float v[3])
+{
+    double length=sqrt(((double)v[0]*v[0]+(double)v[1]*v[1])+(double)v[2]*v[2]);unsigned i;
+    if(length<=0){v[0]=1;v[1]=v[2]=0;return;}
+    for(i=0;i<3;i++)v[i]=(float)((1.0/length)*v[i]);
+}
+static void stretch_cross(const float a[3],const float b[3],float out[3])
+{
+    out[0]=(float)((double)a[1]*b[2]-(double)a[2]*b[1]);
+    out[1]=(float)((double)a[2]*b[0]-(double)a[0]*b[2]);
+    out[2]=(float)((double)a[0]*b[1]-(double)a[1]*b[0]);
+}
+int rf_particle_stretch_build(const float position[3],const float previous[3],
+    const float forward[3],float radius,rf_particle_billboard_vertex out[4],uint32_t *fallback)
+{
+    rf_particle_billboard_vertex value[4]={0};float delta[3],axis[3],side[3],back[3],half,extent;double dot;unsigned i;
+    if(!position || !previous || !forward || !out || !fallback || !isfinite(radius) || radius<0)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(position[i]) || !isfinite(previous[i]) || !isfinite(forward[i]))return RF_RANGE;
+        axis[i]=delta[i]=(float)(previous[i]-position[i]);back[i]=-forward[i];
+        if(!isfinite(delta[i]))return RF_RANGE;
+    }
+    dot=((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2];
+    if(dot<0.001){memset(out,0,sizeof(value));*fallback=1;return RF_OK;}
+    stretch_normalize(axis);stretch_cross(back,axis,side);stretch_normalize(side);
+    stretch_cross(side,back,axis);stretch_normalize(axis);half=(float)(radius*.5);
+    dot=((double)axis[2]*delta[2]+(double)axis[1]*delta[1])+(double)axis[0]*delta[0];
+    extent=(float)(dot+half);
+    for(i=0;i<3;i++) {
+        value[0].position[i]=(float)(position[i]+(float)(extent*axis[i]));
+        value[1].position[i]=(float)(position[i]+(float)(half*side[i]));
+        value[2].position[i]=(float)(position[i]-(float)(half*axis[i]));
+        value[3].position[i]=(float)(position[i]-(float)(half*side[i]));
+    }
+    value[1].uv[0]=value[2].uv[0]=value[2].uv[1]=value[3].uv[1]=1;
+    memcpy(out,value,sizeof(value));*fallback=0;return RF_OK;
+}
 int rf_particle_billboard_build(const float center[3],float angle,float radius,
     uint32_t width,uint32_t height,const float scale[2],rf_particle_billboard_vertex out[4])
 {
