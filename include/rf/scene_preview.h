@@ -4,6 +4,13 @@
 #include "rf/preview.h"
 /* Follow fixture: 1 MiB world projection plus 1 MiB actor output. */
 #define RF_SCENE_FOLLOW_CAPACITY (2u*1024u*1024u)
+/* Optional port-owned profiling clock in milliseconds; NULL disables. Counts
+ * start at tick 16 to exclude startup work. No changes to simulation timing. */
+void rf_scene_set_profile(uint32_t (*milliseconds)(void));
+/* Rows: boundary, animation/stance, view/projection, view hash, model rendering,
+ * scene checks/support, platform presentation/checks, physics commit.
+ * Each row: calls, elapsed low/high ms, maximum ms. */
+extern uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
 typedef struct rf_scene_world_geometry {
     const rf_geometry *world;
     rf_geometry_movers movers;

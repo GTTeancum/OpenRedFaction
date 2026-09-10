@@ -4,11 +4,19 @@ Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
 - [ ] Diagnose intermittent interactive RF_RANGE termination observed at tick 99.
-- [ ] Profile paced simulation and move unnecessary projection work out of catch-up ticks.
+- [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
 - [ ] USER: Test PC keyboard movement/look, crouch, focus loss, resizing and Escape exit.
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Xbox profiling identified world projection as the largest tick cost. Reusing fan
+corners and classifying unclipped triangles reduced measured projection from
+94.31 to 60.32 ms, with throughput rising from 7.37 to 9.81 ticks/guest second.
+All 94 level spawn images, 32 moving views, the 664-frame PC trace and the
+1920x1440 showcase remain exact. Full 664-tick stock-64-MiB XEMU verification
+20260909-205633-876144 also passes with matching PC hashes, rings and body state.
+See docs/PROJECTION-PERFORMANCE.md.
 
 Shared 60 Hz pacing now bounds catch-up and skips presentation on PC and ongoing
 Xbox sessions; deterministic fixtures remain unpaced. Unit checks and 8,000 compiled

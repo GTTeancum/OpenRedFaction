@@ -28,6 +28,7 @@ static rf_preview_mesh door_mesh;
 static uint32_t door_capacity;
 rf_frame_clock rf_player_frame_clock;
 static uint32_t player_pacing,scene_simulation_frames;
+static uint32_t profile_milliseconds(void){return GetTickCount();}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
     if(player_pacing) {
@@ -431,6 +432,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
     rf_vpp maps[5];uint32_t opened=0,world;int status,player_controls=0;FILE *stream_flag;
     player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
+    rf_scene_set_profile(NULL);
     status=rf_scene_preview_camera(level,9858);if(status)return status;
     actor_body_preview=0;stream_flag=fopen("D:\\actor-body.flag","rb");
     if(stream_flag){fclose(stream_flag);actor_body_preview=1;}
@@ -459,6 +461,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         if(frames){int scanned=fscanf(frames,"%u",&limit);fclose(frames);if(scanned!=1 || limit>60000)return RF_FORMAT;}
         status=rf_xbox_input_open();if(status)return status;
         player_controls=1;player_pacing=limit==0;
+        if(player_pacing)rf_scene_set_profile(profile_milliseconds);
         rf_scene_set_input(player_poll_paced,NULL,limit);
         rf_scene_actor_turn_enabled=rf_scene_actor_look_enabled=rf_scene_actor_eye_enabled=1;
         actor_follow_preview=rf_scene_actor_live_enabled=actor_body_preview=1;rf_scene_actor_drive(1);

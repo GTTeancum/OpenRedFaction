@@ -9,6 +9,22 @@ static rf_scene_input_poll player_poll;
 static void *player_context;
 static uint32_t player_frame_limit;
 static rf_scene_input player_input;
+static uint32_t (*profile_clock)(void);
+static uint32_t profile_last,profile_active;
+uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
+void rf_scene_set_profile(uint32_t (*milliseconds)(void))
+{profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));}
+static void profile_mark(uint32_t stage)
+{
+    uint32_t now,elapsed,*row;uint64_t total;
+    if(!profile_clock)return;
+    now=profile_clock();elapsed=now-profile_last;profile_last=now;
+    rf_scene_profile_stage[1]=stage;
+    if(!profile_active || !stage)return;
+    row=rf_scene_profile[stage];total=((uint64_t)row[2]<<32)+row[1]+elapsed;
+    ++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
+    if(elapsed>row[3])row[3]=elapsed;
+}
 uint32_t rf_scene_player_input_frames[64][7];
 void rf_scene_set_input(rf_scene_input_poll poll,void *context,uint32_t frame_limit)
 {player_poll=poll;player_context=context;player_frame_limit=frame_limit;}
@@ -20,7 +36,8 @@ static int player_begin_frame(void *context,uint32_t frame)
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
     if(value.crouch>1)return RF_FORMAT;
-    player_input=value;r[0]=frame;memcpy(r+1,&value,sizeof(value));return RF_OK;
+    player_input=value;r[0]=frame;memcpy(r+1,&value,sizeof(value));
+    profile_active=frame>=16;rf_scene_profile_stage[0]=frame;profile_mark(0);return RF_OK;
 }
 uint32_t rf_scene_showcase_enabled;
 int rf_scene_showcase_camera(rf_level *level)
@@ -639,6 +656,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
 {
     scene_stream *stream=context;float position[3],orientation[3][3]={{-1,0,0},{0,1,0},{0,0,-1}};
     uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
+    profile_mark(1);
     if(scene_actor_body.allocated_bytes)memcpy(position,scene_actor_body.state.position,12);
     else memcpy(position,stream->actor_spawn,12);
     if(rf_scene_actor_eye_enabled) {
@@ -676,6 +694,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         record[0]=frame;memcpy(record+1,&input,sizeof(input));memcpy(record+25,&pose,sizeof(pose));
     } else {position[1]+=.7f;position[2]+=2.4f;}
     status=rf_scene_world_update_camera(actor_follow_world,NULL,0,position,orientation,stream->mesh,stream->capacity-1024*1024);if(status)return status;
+    profile_mark(2);
     stream->world=stream->mesh->count;
     memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);
     {uint32_t axis;for(axis=3;axis<6;++axis)view->rotation[axis]*=4.0f/3.0f;}
@@ -684,7 +703,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
      d[0]=frame+1;d[4]=stream->capacity;if(stream->mesh->bytes>d[2])d[2]=stream->mesh->bytes;
      for(i=0;i<stream->mesh->bytes;++i)d[1]=(d[1]^((const unsigned char*)stream->mesh->vertices)[i])*16777619u;
      for(i=0;i<sizeof(rf_scene_actor_follow_frames[0]);++i)d[3]=(d[3]^((const unsigned char*)r)[i])*16777619u;}
-    return RF_OK;
+    profile_mark(3);return RF_OK;
 }
 rf_entity_room_state rf_scene_actor_room_state;
 uint32_t rf_scene_actor_room_frames[64][9],rf_scene_actor_room_summary[8];
@@ -714,6 +733,7 @@ static int actor_room_refresh(const rf_geometry_collision_world *world,uint32_t 
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;
+    profile_mark(4);
     if(stream->collision && frame==0) {
         int status=rf_scene_actor_world_check(stream->collision,rf_scene_actor_initial_world);if(status)return status;
         status=rf_scene_actor_fall_check(stream->collision,rf_scene_actor_initial_fall);if(status)return status;
@@ -787,7 +807,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     stream->mesh->count=stream->world+(rf_scene_actor_eye_enabled?0:actor->count);
     stream->mesh->bytes=rf_scene_actor_eye_enabled?stream->world*sizeof(rf_preview_vertex):(uint32_t)bytes;
     {
-        int status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);if(status)return status;
+        int status;profile_mark(5);
+        status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);if(status)return status;
+        profile_mark(6);
         if(stream->collision && frame+1<rf_scene_actor_frame_count) {
             rf_physics_body_state next=scene_actor_body.state;
             const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
@@ -816,6 +838,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
             scene_actor_body.state=next;
         }
+        profile_mark(7);
         return RF_OK;
     }
 }

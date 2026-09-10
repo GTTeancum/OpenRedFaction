@@ -66,6 +66,7 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
     for (f = 0; f < g->faces; ++f) {
         rf_geometry_face face;
         rf_geometry_corner a, b, c;
+        point anchor,previous;
         uint32_t corner, lightmap = UINT32_MAX;
         float color;int status;
         rf_geometry_get_face(g, f, &face);
@@ -80,14 +81,30 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
         color = 0.25f + 0.6f * fabsf(face.plane[0] * 0.3f + face.plane[1] * 0.8f + face.plane[2] * 0.5f);
         if (color > 1) color = 1;
         rf_geometry_get_corner(g, f, 0, &a);
+        if(face.corners<3)continue;
+        rf_geometry_get_corner(g,f,1,&b);
+        if((status=camera(g,level,&a,origin,matrix,&anchor)) ||
+           (status=camera(g,level,&b,origin,matrix,&previous)))return status;
         for (corner = 1; corner + 1 < face.corners; ++corner) {
             point buffers[2][12];
-            unsigned count = 3, plane, current = 0, i, j;
-            rf_geometry_get_corner(g, f, corner, &b); rf_geometry_get_corner(g, f, corner + 1, &c);
-            if((status=camera(g,level,&a,origin,matrix,&buffers[0][0])) ||
-               (status=camera(g,level,&b,origin,matrix,&buffers[0][1])) ||
-               (status=camera(g,level,&c,origin,matrix,&buffers[0][2])))return status;
-            for (plane = 0; plane < 6 && count; ++plane) {
+            unsigned count = 3, plane, current = 0, i, j, crossing=0;
+            /* A polygon fan reuses its anchor and the previous corner. Keep
+             * their rounded camera-space values rather than transforming each
+             * occurrence again. UVs belong to these same face corners. */
+            rf_geometry_get_corner(g, f, corner + 1, &c);
+            buffers[0][0]=anchor;buffers[0][1]=previous;
+            if((status=camera(g,level,&c,origin,matrix,&buffers[0][2])))return status;
+            previous=buffers[0][2];
+            /* Convex frustum: triangles wholly outside one plane cannot
+             * contribute, and wholly inside triangles need no polygon copies.
+             * Crossing triangles retain the original six-plane clip order. */
+            for(plane=0;plane<6;++plane) {
+                unsigned outside=0;
+                for(j=0;j<3;++j)outside+=distance(buffers[0][j],plane)<0;
+                if(outside==3){count=0;break;}
+                crossing|=outside;
+            }
+            for (plane = 0; crossing && plane < 6 && count; ++plane) {
                 count = clip(buffers[current], count, buffers[1-current], plane);
                 current = 1-current;
             }
