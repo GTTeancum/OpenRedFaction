@@ -24,6 +24,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Original support refresh passes168 actors over two ticks with real handle lookup;
+connect current mover velocity at the verified frame phase next.
+
 Campaign now declares88 global sounds before controller PCM; native door replay
 retains only four waveforms and verifies124024 bank bytes with unchanged output.
 

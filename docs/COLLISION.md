@@ -2808,3 +2808,23 @@ call while retaining the incoming fraction for this non-reset mode. Query
 flags are0x464 here, from body0x460 plus4; sphere radius0.5 is separate from the
 body broad radius. This is original-execution evidence only, not C/NXDK or live
 XEMU equivalence. No engine source changed and no new screenshot is warranted.
+
+
+## Per-frame support velocity refresh (41e370)
+
+`python tools/verify_support_refresh.py` executes unchanged original 41e370,
+including actual generation-checked lookup 40a0e0, vector copy and wake helper
+40a420. A synthetic linked list covers168 actors over two ticks plus an empty
+list. Whole actor records, support objects and registry bytes are checked.
+Modes1 and3 copy resolved support object+144 into actor+8a0; actor+8ac supplies
+the handle. Wake flags OR80000000 into actor+1a8 and06000000 into actor+7c.
+Other modes and stale/empty/absent handles preserve cached velocity and flags.
+Zero platform velocity still wakes the actor. The second tick changes support
+velocities, including stopping platforms, and verifies fresh values are read.
+
+The containing frame routine487a40 (Ghidra export487c33.c.txt) places the
+refresh after46bbe0(0) and before487770. That static call ordering is not yet
+a verified complete frame trace. The scene still passes zero support velocity
+to movement proposals; integration needs correct mover identity and scheduling.
+This check establishes original behavior only, not C/NXDK equivalence or
+playable lift traversal. Generated report: artifacts/support-refresh-verification.json.
