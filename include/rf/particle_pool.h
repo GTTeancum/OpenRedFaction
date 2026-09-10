@@ -126,4 +126,29 @@ typedef struct rf_particle_emitter_bounds {
  * apply. Errors preserve bounds; expiry does not expand bounds. */
 int rf_particle_pool_step_unowned(rf_particle_pool *pool,uint32_t index,float dt,
     rf_particle_emitter_bounds *bounds);
+typedef struct rf_emitter_slot {
+    rf_particle_emitter_runtime runtime;
+    rf_particle_emitter_bounds bounds;
+    float estimated_radius;
+    uint32_t source_id,copied_80,next,previous,active;
+} rf_emitter_slot;
+typedef struct rf_emitter_pool {
+    rf_emitter_slot *slots;
+    rf_particle_pool *particles;
+    rf_particle_list lists[2]; /* Free=0, active=1; sentinels 128/129. */
+    uint32_t live;
+} rf_emitter_pool;
+/* Caller owns 128 slots and a particle pool with at least 133 list headers.
+ * First-use only; emitter lists must be empty. Slots use indices; particle
+ * emitter handles are slot+1. No allocation. Reuse preserves runtime payload. */
+int rf_emitter_pool_init(rf_emitter_pool *pool,rf_emitter_slot *slots,rf_particle_pool *particles);
+/* 497ca0: initialize free-head, append active-tail and set estimated bounds.
+ * Exhaustion preserves RNG/output. Room and optional parent are resolved by
+ * the caller. index is a slot index, not a particle emitter handle. */
+int rf_emitter_pool_create(rf_emitter_pool *pool,const rf_particle_emitter_template *source,
+    int32_t owner,uint32_t room,uint32_t enabled,int32_t now_ms,
+    const rf_particle_emitter_parent *parent,rf_random_state *random,uint32_t *index);
+/* 497d80: detach live particles and return slot to free tail, without clearing
+ * its retained runtime fields. Duplicate/inactive releases return RF_RANGE. */
+int rf_emitter_pool_release(rf_emitter_pool *pool,uint32_t index);
 #endif

@@ -563,3 +563,29 @@ These observations and before/after allocation records are saved as ignored
 reference fixtures. Shared fixed emitter allocation/release, bounds estimate
 parity, room traversal and campaign integration remain open; this replay is
 original-executable evidence, not shared or native gameplay validation.
+
+
+## Shared fixed emitter pool
+
+`rf_emitter_pool` now manages 128 caller-owned 228-byte slots (29184 bytes),
+using index links for free/active lists. Particle handles map to slot index+1,
+requiring 133 particle list headers. Initialization requires empty emitter lists;
+allocation consumes the free head and appends the active tail, while release
+detaches particles and appends the free tail without clearing retained payload.
+No heap allocation occurs. Pool exhaustion preserves RNG and output index.
+
+After the shared initializer, allocation stores original estimated radius:
+0.5*(abs(gravity_scale*float(9.8))+abs(acceleration))*max_life*max_life
++abs(max_velocity)*max_life+max_radius, preserving the original operation order
+and final float store. Maximum squared distance is zeroed; bounds center is
+retained. Source identity and the opaque template field are stored per slot.
+
+`tools/verify_emitter_pool.py` compares original lifecycle fixtures with PC/NXDK
+for 320 allocations, 192 releases and two exhaustion attempts. It checks slot
+state, all free/active links and heads, counts, radius, RNG, created particles
+and detached payload. Templates vary speed, acceleration, gravity, life and
+radius ranges; reused slots contain deliberate retained-state sentinels. Both
+builds and six CTest checks pass. The 29184-byte slot figure excludes the
+192000-byte particle array, list headers and manager structs. Native campaign
+memory accounting, room traversal, frame integration and rendering remain open;
+NXDK lifecycle parity is measured through Unicorn.

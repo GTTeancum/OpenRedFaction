@@ -13,6 +13,34 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--emitter-pool")) {
+        struct {uint32_t operation,index,now;rf_particle_emitter_template source;} in;
+        struct {int32_t status;uint32_t index,seed,live;rf_emitter_slot slot;rf_particle particle;
+            uint32_t links[128][2];rf_particle_list heads[2];uint32_t particle_live[2];} out;
+        static rf_particle records[1600];static rf_emitter_slot slots[128];rf_particle_list lists[133];
+        rf_particle_pool particles;rf_emitter_pool pool;rf_random_state rng={123};
+        rf_particle_pool_init(&particles,records,lists,133);rf_emitter_pool_init(&pool,slots,&particles);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            uint32_t selected=UINT32_MAX,particle=UINT32_MAX;
+            memset(&out,0,sizeof(out));out.index=UINT32_MAX;
+            if(in.operation==0) {
+                out.status=rf_emitter_pool_create(&pool,&in.source,-1,0x2468,0,(int32_t)in.now,NULL,&rng,&out.index);
+                if(!out.status){selected=out.index;particle=lists[selected+5].next;}
+            } else if(in.operation==1 && in.index<128) {
+                selected=in.index;particle=lists[selected+5].next;
+                slots[selected].runtime.emitter.spawn.copied_48=0x11223344;
+                slots[selected].bounds.center[0]=1.25f;slots[selected].bounds.center[1]=-2.5f;slots[selected].bounds.center[2]=7;
+                slots[selected].runtime.duration=0.75f;slots[selected].runtime.elapsed=0.125f;
+                out.status=rf_emitter_pool_release(&pool,selected);
+            } else out.status=RF_RANGE;
+            out.seed=rng.value;out.live=pool.live;
+            if(selected<128)out.slot=slots[selected];if(particle<1600)out.particle=records[particle];
+            for(i=0;i<128;i++){out.links[i][0]=slots[i].next;out.links[i][1]=slots[i].previous;}
+            memcpy(out.heads,pool.lists,sizeof(out.heads));memcpy(out.particle_live,particles.live,sizeof(out.particle_live));
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-emitter-fresh")) {
         rf_particle_emitter_runtime in;
         struct {int32_t status;rf_particle_emitter_runtime runtime;} out;

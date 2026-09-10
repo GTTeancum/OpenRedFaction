@@ -1,5 +1,5 @@
 """Original fixed emitter pool allocation, exhaustion, release and FIFO reuse."""
-import runpy,struct,json
+import runpy,struct,json,random
 from pathlib import Path
 c=runpy.run_path(str(Path(__file__).with_name('verify_particle_emitter_init_trace.py')))
 u,root,base,stack,stop,thread=(c[k] for k in ('u','root','base','stack','stop','thread'))
@@ -29,6 +29,10 @@ def check():
     assert get(0x7bd998)==len(active_nodes)
     assert get(0x7a3cf4)==len(active_nodes)+len(detached_nodes)
 def allocate(now):
+    variation=random.Random(now+497)
+    for offset in (32,36,76,80):struct.pack_into('<f',raw,offset,variation.randint(-5000,5000)/512)
+    for offset in (56,60,64,68):struct.pack_into('<f',raw,offset,variation.randint(1,5000)/512)
+    u.mem_write(source,bytes(raw))
     put(0x5a3ed8,now);seed=get(thread+20)
     before=bytes(u.mem_read(free_nodes[0],344)) if free_nodes else None
     node=call(0x497ca0,0xffffffff,source,0x2468,0,0)
@@ -41,7 +45,7 @@ def allocate(now):
     after=bytes(u.mem_read(node,344))
     for a,b in ((0x98,0x9c),(0xa4,0xb0),(0x138,0x140)):
         assert after[a:b]==before[a:b]
-    events.append(dict(operation='allocate',slot=(node-first)//344,seed=seed,rng=get(thread+20),before=before.hex(),after=after.hex(),particle=bytes(u.mem_read(particle,120)).hex()))
+    events.append(dict(operation='allocate',source=bytes(raw).hex(),now=now,slot=(node-first)//344,seed=seed,rng=get(thread+20),before=before.hex(),after=after.hex(),particle=bytes(u.mem_read(particle,120)).hex()))
     check()
 def release(index):
     node=active_nodes.pop(index)
@@ -53,7 +57,7 @@ def release(index):
     assert after==expected
     particle_before[:8]=u.mem_read(particle,8);particle_before[0x68:0x6c]=bytes(4)
     assert bytes(u.mem_read(particle,120))==particle_before
-    events.append(dict(operation='release',slot=(node-first)//344));check()
+    events.append(dict(operation='release',slot=(node-first)//344,after=after.hex(),particle=bytes(u.mem_read(particle,120)).hex()));check()
 check()
 for i in range(128):allocate(i*10)
 allocate(2000)

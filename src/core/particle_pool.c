@@ -316,3 +316,63 @@ int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt)
 {
     return rf_particle_pool_step_unowned(pool,index,dt,NULL);
 }
+
+static void emitter_next(rf_emitter_pool *pool,uint32_t index,uint32_t next)
+{
+    if(index<128)pool->slots[index].next=next;else pool->lists[index-128].next=next;
+}
+static void emitter_previous(rf_emitter_pool *pool,uint32_t index,uint32_t previous)
+{
+    if(index<128)pool->slots[index].previous=previous;else pool->lists[index-128].previous=previous;
+}
+static void emitter_unlink(rf_emitter_pool *pool,uint32_t index)
+{
+    rf_emitter_slot *slot=&pool->slots[index];
+    emitter_next(pool,slot->previous,slot->next);emitter_previous(pool,slot->next,slot->previous);
+}
+static void emitter_append(rf_emitter_pool *pool,uint32_t list,uint32_t index)
+{
+    rf_emitter_slot *slot=&pool->slots[index];slot->next=128+list;slot->previous=pool->lists[list].previous;
+    emitter_next(pool,slot->previous,index);pool->lists[list].previous=index;
+}
+static int emitter_pool_valid(const rf_emitter_pool *pool)
+{
+    return pool && pool->slots && pool_valid(pool->particles) && pool->particles->list_count>=133;
+}
+int rf_emitter_pool_init(rf_emitter_pool *pool,rf_emitter_slot *slots,rf_particle_pool *particles)
+{
+    uint32_t i;
+    if(!pool || !slots || !pool_valid(particles) || particles->list_count<133)return RF_RANGE;
+    for(i=5;i<133;i++)if(particles->lists[i].next!=1600+i || particles->lists[i].previous!=1600+i)return RF_RANGE;
+    pool->slots=slots;pool->particles=particles;pool->live=0;
+    pool->lists[0].next=pool->lists[0].previous=128;pool->lists[1].next=pool->lists[1].previous=129;
+    memset(slots,0,sizeof(*slots)*128);
+    for(i=0;i<128;i++){rf_particle_emitter_fresh(&slots[i].runtime);emitter_append(pool,0,i);}
+    return RF_OK;
+}
+int rf_emitter_pool_create(rf_emitter_pool *pool,const rf_particle_emitter_template *source,
+    int32_t owner,uint32_t room,uint32_t enabled,int32_t now_ms,
+    const rf_particle_emitter_parent *parent,rf_random_state *random,uint32_t *index)
+{
+    uint32_t first;double radius;rf_emitter_slot *slot;rf_particle_emitter_init_result result;int status;
+    if(!emitter_pool_valid(pool) || !source || !random || !index)return RF_RANGE;
+    first=pool->lists[0].next;if(first==128)return RF_NOT_FOUND;
+    radius=fabs((double)source->gravity_scale*9.80000019073486328125)+fabs((double)source->acceleration);
+    radius=((radius*source->max_life)*source->max_life)*0.5;
+    radius+=fabs((double)source->max_velocity)*source->max_life;
+    radius+=source->max_radius;if(!isfinite((float)radius))return RF_RANGE;
+    slot=&pool->slots[first];
+    status=rf_particle_emitter_initialize(pool->particles,&slot->runtime,source,owner,room,first+1,
+        enabled,now_ms,parent,random,&result);if(status)return status;
+    emitter_unlink(pool,first);emitter_append(pool,1,first);slot->active=1;pool->live++;
+    slot->source_id=result.source_id;slot->copied_80=result.copied_80;
+    slot->bounds.owner=owner;slot->bounds.maximum_distance_squared=0;slot->estimated_radius=(float)radius;
+    *index=first;return RF_OK;
+}
+int rf_emitter_pool_release(rf_emitter_pool *pool,uint32_t index)
+{
+    int status;
+    if(!emitter_pool_valid(pool) || index>=128 || !pool->slots[index].active)return RF_RANGE;
+    status=rf_particle_pool_detach(pool->particles,index+1);if(status)return status;
+    emitter_unlink(pool,index);emitter_append(pool,0,index);pool->slots[index].active=0;pool->live--;return RF_OK;
+}

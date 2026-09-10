@@ -3,7 +3,7 @@
 Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Connect the verified emitter update to campaign objects, particle simulation and rendering.
-- [ ] Implement the verified fixed emitter pool and resolve rooms before campaign loading hookup.
+- [ ] Resolve emitter rooms and connect the verified fixed pool to campaign loading and frame updates.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
@@ -18,8 +18,8 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Original emitter lifecycle passes 320 allocations, 192 releases and two full-pool
-failures; release detaches live particles and slots are reused in FIFO order.
+Shared fixed emitter pool matches 320 original/PC/NXDK allocations, 192 releases
+and two full-pool failures; 128 slots use 29184 bytes with FIFO reuse.
 
 Fresh emitter defaults match all 128 original static entries on PC/NXDK;
 slot reuse remains distinct from first-use zero initialization.
