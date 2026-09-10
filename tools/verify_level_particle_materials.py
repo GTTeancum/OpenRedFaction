@@ -16,13 +16,22 @@ for level in inventory['results']:
     assert unique==len(names)
     assert list(struct.iter_unpack('<2I',raw[16:16+count*8]))==mapping
     offset=16+count*8;pixels=0;textures=[]
+    owner,slot,image_owner=struct.unpack_from('<3I',raw,offset);offset+=12
     for name in names:
         assert raw[offset:offset+64].split(b'\0')[0].decode('cp1252').lower()==name
-        width,height,bytes_,archive,checksum=struct.unpack_from('<5I',raw,offset+64)
-        assert bytes_==width*height*4 and width and height and archive<4
-        pixels+=bytes_;textures.append(dict(name=name,width=width,height=height,bytes=bytes_,checksum=checksum));offset+=84
+        frames=struct.unpack_from('<I',raw,offset+64)[0];offset+=68
+        assert frames>0
+        frame_data=[]
+        for frame in range(frames):
+            width,height,bytes_,archive,checksum=struct.unpack_from('<5I',raw,offset);offset+=20
+            assert bytes_==width*height*4 and width and height and archive<4
+            reference=list(map(int,subprocess.check_output([str(root/'build/pc/Release/rf_material_probe.exe'),
+                '--particle',name,str(frame),'1048576',str(root/'Installed_Game'/f'maps{archive+1}.vpp')]).split()))
+            assert reference[0]==0 and reference[2]==frames and reference[4:6]==[width,height] and reference[-1]==checksum
+            pixels+=bytes_+image_owner;frame_data.append(dict(width=width,height=height,bytes=bytes_,checksum=checksum))
+        textures.append(dict(name=name,frames=frames,frame_data=frame_data))
     assert offset==len(raw)
-    assert resident==24+count*(8+100)+pixels # Measured 32-bit shared owner/slot layouts.
+    assert resident==owner+count*(8+slot)+pixels
     assert run(level,resident)==raw
     assert run(level,resident-1)==struct.pack('<i',-4)
     results.append(dict(level=level['file'],emitters=count,unique=unique,resident_bytes=resident,textures=textures))

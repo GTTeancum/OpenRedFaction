@@ -275,19 +275,18 @@ static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_
 {
     rf_particle_screen_polygon polygon;rf_particle_draw_vertex vertices[12];rf_particle_vertex_environment environment={0};
     rf_particle_render_environment render_environment={1,1,0,2};rf_particle_render_states states={0};
-    const rf_particle *p;const rf_particle_bitmap *bitmap;uint32_t frame,mode,i,j;int status;
+    const rf_particle *p;const rf_particle_animation *animation;const rf_image *image;uint32_t frame,mode,i,j;int status;
     if(index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
     p=stream->particles.state->records+index;++row[2];
     if(p->flags&0x4000u)return RF_NOT_FOUND;
     if(p->bitmap>=stream->particles.materials.texture_count)return RF_RANGE;
-    bitmap=&stream->particles.materials.textures[p->bitmap].bitmap;
+    animation=&stream->particles.materials.textures[p->bitmap].animation;
     status=rf_particle_frame_index(p,&frame);if(status)return status;
-    /* The retained bundle currently owns frame zero, never substitute it for
-     * an animated frame selected by the original clock. */
-    if(frame)return RF_NOT_FOUND;
+    if(frame>=animation->count)return RF_RANGE;
+    image=animation->images+frame;
     mode=rf_particle_render_mode(p->flags,RF_PARTICLE_NORMAL_MODE,RF_PARTICLE_GLOW_MODE);
     status=rf_particle_world_billboard(&stream->particle_camera,p->position,p->orientation,p->radius,
-        bitmap->image.width,bitmap->image.height,&polygon);if(status)return status;
+        image->width,image->height,&polygon);if(status)return status;
     if(!polygon.count)return RF_OK;
     status=rf_particle_render_decode(mode,&render_environment,&states);if(status)return status;
     environment.rgba=p->color_current;environment.vertex_color=states.vertex_color;environment.vertex_alpha=states.vertex_alpha;
@@ -299,7 +298,7 @@ static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_
         for(j=0;j<sizeof(*vertices);j++)row[5]=(row[5]^bytes[j])*16777619u;
     }
     row[5]=(row[5]^mode)*16777619u;row[5]=(row[5]^p->bitmap)*16777619u;
-    if(sink){status=sink(context,vertices,polygon.count,&bitmap->image,mode);if(status)return status;}
+    if(sink){status=sink(context,vertices,polygon.count,image,mode);if(status)return status;}
     ++row[3];row[4]+=polygon.count;return RF_OK;
 }
 int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)

@@ -3,24 +3,27 @@
 #include <string.h>
 static int texture_test(const char *path)
 {
-    rf_pc_raster r={0};rf_vpp archive;rf_particle_definition definition={0};rf_particle_bitmap bitmap={0};
+    rf_pc_raster r={0};rf_vpp archive;rf_particle_definition definition={0};rf_particle_animation animation={0};rf_particle particle={0};
     rf_particle_draw_vertex v[4];unsigned i,j,x,y;int status;
     if(rf_pc_raster_open(&r,1) || rf_vpp_open(&archive,path))return 1;
     strcpy(definition.bitmap,"boom01.vbm");
+    status=rf_particle_animation_open(&animation,&definition,&archive,1,1048576);if(status)return 2;
+    rf_vpp_close(&archive);memset(&definition,0xdd,sizeof(definition));
+    particle.frame_count=(uint16_t)animation.count;particle.life=1;
     for(i=0;i<6;i++) {
+        uint32_t frame;particle.age=(float)(i%3==0?0:i%3==1?7:15)/animation.count;
+        status=rf_particle_frame_index(&particle,&frame);if(status || frame>=animation.count)return 2;
         for(j=0;j<r.pixels;j++){r.rgb[j*3]=32;r.rgb[j*3+1]=64;r.rgb[j*3+2]=96;r.depth[j]=16777215;}
-        status=rf_particle_bitmap_open(&bitmap,&definition,&archive,1,i%3==0?0:i%3==1?7:15,65536);if(status)return 2;
         memset(v,0,sizeof(v));
         for(j=0;j<4;j++) {
             v[j].screen[0]=32+((j==1 || j==2)?128:0);v[j].screen[1]=32+(j>=2?128:0);
             v[j].depth=1000;v[j].reciprocal_w=1;v[j].argb=0xffffffff;v[j].fog=0xff000000;
             v[j].uv[0]=(j==1 || j==2)?1:0;v[j].uv[1]=j>=2?1:0;
         }
-        status=rf_pc_raster_particle(&r,v,4,&bitmap.image,i<3?RF_PARTICLE_NORMAL_MODE:RF_PARTICLE_GLOW_MODE,1,0,0,0);if(status)return 3;
+        status=rf_pc_raster_particle(&r,v,4,animation.images+frame,i<3?RF_PARTICLE_NORMAL_MODE:RF_PARTICLE_GLOW_MODE,1,0,0,0);if(status)return 3;
         for(y=0;y<16;y++)for(x=0;x<16;x++){j=((36+y*8)*r.width+36+x*8)*3;printf("%u %u %u\n",r.rgb[j],r.rgb[j+1],r.rgb[j+2]);}
-        rf_particle_bitmap_close(&bitmap);
     }
-    rf_vpp_close(&archive);rf_pc_raster_close(&r);return 0;
+    rf_particle_animation_close(&animation);rf_pc_raster_close(&r);return 0;
 }
 int main(int argc,char **argv)
 {

@@ -18,8 +18,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-All-frame particle resource ownership passes 58 frame checks and exact budgets
-on PC; NXDK compiles. Live animated selection and XEMU residency remain open.
+Level particle rendering now selects retained animation frames using particle age.
+All 20 emitter levels and the stock 64 MiB scene replay pass; retained explosion
+frame pixels and page recovery pass XEMU. Campaign effect spawning remains open.
+Current L1S1 particle ownership is 238920 bytes; maximum authored level is 484864.
 
 Live L1S1 mist now renders on PC and stock 64 MiB XEMU; the inspection replay
 submits 1308 polygons with matching cumulative draw-packet hashes.

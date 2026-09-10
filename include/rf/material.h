@@ -32,7 +32,7 @@ int rf_particle_animation_open(rf_particle_animation *animation,const rf_particl
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_particle_animation_close(rf_particle_animation *animation);
 typedef struct rf_level_particle_texture {
-    char name[64];rf_particle_bitmap bitmap;
+    char name[64];rf_particle_animation animation;
 } rf_level_particle_texture;
 typedef struct rf_level_particle_binding {uint32_t uid,texture;} rf_level_particle_binding;
 typedef struct rf_level_particle_materials {
@@ -40,13 +40,13 @@ typedef struct rf_level_particle_materials {
     rf_level_particle_binding *bindings;rf_level_particle_texture *textures;
     uint32_t count,texture_count,resident_bytes;
 } rf_level_particle_materials;
-/* Owned first-frame textures and UID mappings for v180 level emitters, with
+/* Owned all-frame textures and UID mappings for v180 level emitters, with
  * case-insensitive deduplication. Budget includes owner, worst-case slot arrays
  * and pixels; fixed decoder/reader stack and allocator metadata excluded.
  * At most 128 emitters. Missing A00 yields an empty bundle. First matching
  * archive wins, including errors. Zero-initialize; close before reuse. Failed
  * loads preserve output and release partial allocations. Archives may close
- * after success. Animated playback/frame replacement remains caller work. */
+ * after success. Frame selection uses the particle clock; all base frames remain resident. */
 int rf_level_particle_materials_open(rf_level_particle_materials *materials,const rf_level *level,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_level_particle_materials_close(rf_level_particle_materials *materials);

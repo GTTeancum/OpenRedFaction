@@ -153,7 +153,7 @@ int rf_level_particles_open(rf_level_particles *particles,const rf_level *level,
         for(j=0;j<i;j++)if(value.materials.bindings[j].uid==record.uid){status=RF_FORMAT;goto failed;}
         status=rf_geometry_collision_world_locate(world,record.position,&location);if(status)goto failed;
         room=location.room==UINT32_MAX?0:location.room+1;
-        status=rf_level_emitter_template(&record,texture,value.materials.textures[texture].bitmap.frames,&source);if(status)goto failed;
+        status=rf_level_emitter_template(&record,texture,value.materials.textures[texture].animation.count,&source);if(status)goto failed;
         status=rf_emitter_pool_create(&value.state->emitters,&source,0,room,record.enabled!=0,now_ms,NULL,&value.state->random,&index);
         if(status)goto failed;
         if(index!=i){status=RF_FORMAT;goto failed;}

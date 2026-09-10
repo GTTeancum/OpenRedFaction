@@ -687,3 +687,36 @@ close pass. The pre-existing bigboom.vbm reference is absent from the installed
 archives. Largest sequence: MissileSmoke01.vbm, 26 frames, 426524 owned bytes
 on 32-bit PC. These are per-resource budgets, not a campaign memory peak.
 PC build, six CTests and NXDK build pass; this new owner has not run in XEMU.
+
+Retained animation integration (2026-09-10)
+
+The level texture bundle now owns rf_particle_animation and accounts for every
+frame descriptor and pixel allocation. Authored emitter templates receive the
+retained frame count. Scene drawing selects the image using the reconstructed
+rf_particle_frame_index age/lifetime behavior; selected nonzero frames no longer
+return RF_NOT_FOUND. Existing GPU-ready image storage avoids per-draw allocation.
+
+All 20 emitter-bearing levels / 87 emitters pass mapping, per-frame pixel checks
+after archive close, exact budgets, short-budget rejection and repeated cleanup.
+These authored level emitters all use static images; dynamic campaign animation
+coverage cannot be inferred from that corpus. Smaller slot records change L1S1
+material ownership to 16612 bytes, particle ownership to 238920 bytes, and the
+maximum level particle ownership to 484864 bytes. These supersede prior figures.
+
+XEMU report artifacts/xemu/20260910-134156-687987/report.json passes on 67108864
+base bytes / zero added RAM. Scene draw summary remains
+[664,773,5496,1308,5912,821542861,155648]; particle summary retains the same
+simulation hash with the new 238920-byte ownership total.
+
+The isolated native texture harness now retains all 16 boom01.vbm frames once,
+closes the archive and poisons definition storage, then selects frames 0/7/15
+through particle age for ordinary and additive draws. Report
+artifacts/xemu/particle-pixels-20260910-134325/report.json passes 1536 pixel
+samples against PC with maximum channel error 1. Owned bytes are 262484;
+available physical pages move 14185 -> 14121 -> 14185 after release.
+This verifies retained GPU texture use and cleanup, not full scene explosion
+spawning or PS2 parity. The harness now uses --repack for changed disc flags.
+No screenshot was taken: this repeats an isolated diagnostic layout.
+
+PC/NXDK builds and all six CTests pass. Mixed object passes, stretched particles,
+animated mip chains, campaign effect spawning and full-game residency remain open.

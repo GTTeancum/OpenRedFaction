@@ -6,8 +6,8 @@ from xemu_guest_snapshot import words
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu')
 run=root/'artifacts/xemu'/('particle-pixels-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
 flag=root/'build/xbox/disc/particle-render-test.flag';saved=flag.read_bytes() if flag.exists() else None
-process=monitor=None;report={'result':'FAIL','scope':'Native particle shader/blend/fog/depth pixel probes only; no campaign/PS2 parity claim.'}
-def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True,stdout=subprocess.DEVNULL)
+process=monitor=None;report={'result':'FAIL','scope':'Native particle shader/blend/fog/depth probes and retained 16-frame texture ownership, age-selected frames 0/7/15 after archive close, and physical page recovery; no campaign/PS2 parity claim.'}
+def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh','--repack'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True,stdout=subprocess.DEVNULL)
 try:
  flag.write_bytes(b'1');build();mapping=(root/'build/xbox/main.map').read_text()
  address=int(re.search(r'_rf_particle_pixel_diagnostic\s+([0-9a-fA-F]+)',mapping)[1],16)
@@ -67,6 +67,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   differences=[abs(a-b) for pixel,ref in zip(texture_actual,texture_pc) for a,b in zip(pixel,ref)]
   report['textures']=dict(state=texture_state[:8],actual_rgb=texture_actual,pc_rgb=texture_pc,max_channel_error=max(differences),differing_channels=sum(d!=0 for d in differences))
   assert texture_state[1:3]==[2,6] and len(texture_pc)==1536
+  assert texture_state[4:6]==[16,262484], 'All 16 decoded frames must remain resident'
   assert max(differences)<=2,report['textures']['max_channel_error']
   assert texture_state[3]>0 and texture_state[6]<texture_state[3] and texture_state[7]>=texture_state[3],texture_state[:8]
   assert texture_actual[:256]!=texture_actual[256:512], 'Distinct animation frames must differ'

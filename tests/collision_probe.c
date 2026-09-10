@@ -69,14 +69,23 @@ int main(int argc,char **argv)
         if(status) {if(memcmp(&materials,&empty,sizeof(empty)))return 5;return 0;}
         fwrite(&materials.count,4,1,stdout);fwrite(&materials.texture_count,4,1,stdout);fwrite(&materials.resident_bytes,4,1,stdout);
         fwrite(materials.bindings,sizeof(*materials.bindings),materials.count,stdout);
+        {
+            uint32_t sizes[3]={sizeof(materials),sizeof(rf_level_particle_texture),sizeof(rf_image)};
+            fwrite(sizes,sizeof(sizes),1,stdout);
+        }
         for(i=0;i<materials.texture_count;i++) {
-            rf_level_particle_texture *texture=&materials.textures[i];rf_image *image=&texture->bitmap.image;
-            uint32_t data[5]={image->width,image->height,image->bytes,texture->bitmap.archive_index,2166136261u},x,y,k;
-            for(y=0;y<image->height;y++)for(x=0;x<image->width;x++) {
-                const unsigned char *pixel=rf_image_pixel(image,x,y);
-                for(k=0;k<4;k++){data[4]^=pixel[k];data[4]*=16777619u;}
+            rf_level_particle_texture *texture=&materials.textures[i];uint32_t f;
+            fwrite(texture->name,64,1,stdout);
+            fwrite(&texture->animation.count,4,1,stdout);
+            for(f=0;f<texture->animation.count;f++) {
+                rf_image *image=texture->animation.images+f;
+                uint32_t data[5]={image->width,image->height,image->bytes,texture->animation.archive_index,2166136261u},x,y,k;
+                for(y=0;y<image->height;y++)for(x=0;x<image->width;x++) {
+                    const unsigned char *pixel=rf_image_pixel(image,x,y);
+                    for(k=0;k<4;k++){data[4]^=pixel[k];data[4]*=16777619u;}
+                }
+                fwrite(data,sizeof(data),1,stdout);
             }
-            fwrite(texture->name,64,1,stdout);fwrite(data,sizeof(data),1,stdout);
         }
         rf_level_particle_materials_close(&materials);rf_level_particle_materials_close(&materials);
         if(memcmp(&materials,&empty,sizeof(empty)))return 6;
@@ -105,7 +114,7 @@ int main(int argc,char **argv)
             for(i=0;i<particles.materials.count;i++) {
                 fwrite(&particles.materials.bindings[i],sizeof(particles.materials.bindings[i]),1,stdout);
                 fwrite(&particles.state->slots[i],sizeof(particles.state->slots[i]),1,stdout);
-                if(!rf_image_pixel(&particles.materials.textures[particles.materials.bindings[i].texture].bitmap.image,0,0))return 8;
+                if(!rf_image_pixel(particles.materials.textures[particles.materials.bindings[i].texture].animation.images,0,0))return 8;
             }
         }
         rf_level_particles_close(&particles);rf_level_particles_close(&particles);

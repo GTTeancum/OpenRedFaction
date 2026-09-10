@@ -208,7 +208,7 @@ done:
 void rf_level_particle_materials_close(rf_level_particle_materials *materials)
 {
     uint32_t i;if(!materials)return;
-    for(i=0;i<materials->texture_count;i++)rf_particle_bitmap_close(&materials->textures[i].bitmap);
+    for(i=0;i<materials->texture_count;i++)rf_particle_animation_close(&materials->textures[i].animation);
     free(materials->storage);memset(materials,0,sizeof(*materials));
 }
 int rf_level_particle_materials_open(rf_level_particle_materials *materials,const rf_level *level,
@@ -235,11 +235,11 @@ int rf_level_particle_materials_open(rf_level_particle_materials *materials,cons
         for(slot=0;slot<value.texture_count;slot++)if(equal_texture_name(record.bitmap,value.textures[slot].name))break;
         if(slot==value.texture_count) {
             memcpy(definition.bitmap,record.bitmap,length+1);
-            status=rf_particle_bitmap_open(&value.textures[slot].bitmap,&definition,archives,archive_count,0,
-                budget-value.resident_bytes+(uint32_t)sizeof(rf_particle_bitmap));
+            status=rf_particle_animation_open(&value.textures[slot].animation,&definition,archives,archive_count,
+                budget-value.resident_bytes+(uint32_t)sizeof(rf_particle_animation));
             if(status)goto failed;
             memcpy(value.textures[slot].name,record.bitmap,length+1);value.texture_count++;
-            value.resident_bytes+=value.textures[slot].bitmap.image.bytes;
+            value.resident_bytes+=value.textures[slot].animation.resident_bytes-(uint32_t)sizeof(rf_particle_animation);
         }
         value.bindings[i].uid=record.uid;value.bindings[i].texture=slot;
     }
