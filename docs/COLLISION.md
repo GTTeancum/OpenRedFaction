@@ -2517,3 +2517,31 @@ inventories. Both pass. These are bounded 16-frame registration replays, not
 natural door activation or whole-campaign memory/visual validation. Harness
 processes were reaped and normal disc flags restored. PC/NXDK builds, six
 CTests and the 93-level partial startup regression pass. No new visual capture.
+
+
+## Controller activation prefix and actor backlink
+
+rf_group_activation_begin covers 46aba0 after valid type8 controller lookup
+through 46acb2, before sound dispatch. A present actor with object +7c flag
+0x4000 rejects activation. Zero keys reject; a nonrotating controller requires
+two keys. Entity actors without flag8 receive controller handle +6cc when
+controller flag2 is set, except current=1/next=-1 or flag1 with next=1. This
+backlink update precedes the already-active next!=-1 return. The existing
+rf_group_motion_activate then applies idle motion selection and dirty flags.
+Actor facts must describe one resolved object/entity; the helper does not
+create that live snapshot or claim a complete controller activation.
+
+The caller receives started=1 only when execution reaches the pre-sound
+boundary, and must subsequently perform original sound/player/wakeup effects.
+Those effects, source handle +314 assignment, mover member binding and scene
+motion remain open. No dispatcher is wired to this partial prefix alone.
+Port-only malformed count/view/idle-state guards preserve state and outputs.
+
+verify_group_activation_begin.py executes original 46aba0 with all its actual
+registry/type/count/actor predicate helpers unchanged, stopping only at the
+pre-sound boundary or normal early return. Synthetic objects use real slot
+and generation checks. Full controller and actor memory is checked for extra
+mutations. 4096 cases match PC and NXDK: 907 starts, 303 backlink writes,
+including 196 active-mover writes; three invalid port cases preserve outputs.
+This is binary emulation of NXDK code, not a new XEMU gameplay replay. Both
+builds and six CTests pass; no new visual behavior or capture is claimed.

@@ -154,6 +154,17 @@ typedef struct rf_group_motion_state {
  * sounds/events, wake objects, or advance/interpolate poses. No allocation.
  * Active transitions are unchanged; malformed idle input preserves state. */
 int rf_group_motion_activate(rf_group_motion_state *state,uint32_t key_count);
+typedef struct rf_group_activation_actor {
+    uint32_t present,flags,entity_present,controller_handle;
+} rf_group_activation_actor;
+/* Original 46aba0 activation prefix through 46acb2, after valid type8 lookup.
+ * Actor fields are resolved from the same object/handle; entity_present means
+ * that object is an entity. Updates its +6cc backlink even for active movers.
+ * started requests the remaining sound/player/wakeup effects; this is not
+ * complete activation. No allocation. Invalid port input preserves outputs. */
+int rf_group_activation_begin(rf_group_motion_state *state,uint32_t key_count,
+    uint32_t controller_handle,rf_group_activation_actor *actor,uint32_t *started);
+
 enum {RF_GROUP_SOUND_START=1,RF_GROUP_SOUND_END=2};
 typedef struct rf_group_translation_step {
     float from[3],to[3],timing,acceleration_time,deceleration_time,dt;

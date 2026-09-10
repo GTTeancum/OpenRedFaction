@@ -615,6 +615,22 @@ int rf_group_motion_activate(rf_group_motion_state *state,uint32_t key_count)
     state->flags|=8;if(state->mode==1)state->flags&=~1u;
     return RF_OK;
 }
+int rf_group_activation_begin(rf_group_motion_state *state,uint32_t key_count,
+    uint32_t controller_handle,rf_group_activation_actor *actor,uint32_t *started)
+{
+    rf_group_motion_state next;uint32_t backlink;int status;
+    if(!state || !actor || !started || key_count>INT32_MAX ||
+        (actor->entity_present && !actor->present))return RF_RANGE;
+    if((actor->present && (actor->flags&0x4000)) || !key_count ||
+        (!(state->flags&4) && key_count<2)) {*started=0;return RF_OK;}
+    next=*state;backlink=actor->controller_handle;
+    if(actor->entity_present && !(actor->flags&8) && (state->flags&2) &&
+        !(state->current_key==1 && state->next_key==-1) &&
+        !((state->flags&1) && state->next_key==1))backlink=controller_handle;
+    status=rf_group_motion_activate(&next,key_count);if(status)return status;
+    *started=state->next_key==-1;*state=next;actor->controller_handle=backlink;
+    return RF_OK;
+}
 int rf_group_translation_arrive(rf_group_motion_state *state,uint32_t key_count,
     uint32_t *sound_requests)
 {

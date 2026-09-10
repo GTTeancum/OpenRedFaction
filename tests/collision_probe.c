@@ -487,6 +487,17 @@ int main(int argc,char **argv)
         }
         rf_group_mover_memberships_close(&members);rf_group_mover_memberships_close(&members);rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);free(objects);free(before);free(controllers);return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--group-activation-begin")) {
+        struct {uint32_t count,handle;rf_group_motion_state state;rf_group_activation_actor actor;} input;
+        struct {int32_t status;rf_group_motion_state state;rf_group_activation_actor actor;uint32_t started;} output;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            output.started=0xa5a5a5a5;
+            output.status=rf_group_activation_begin(&input.state,input.count,input.handle,&input.actor,&output.started);
+            output.state=input.state;output.actor=input.actor;fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--registered-groups")) {
         rf_vpp archive;rf_level level;rf_level_owned_groups source={0};rf_group_runtime_collection runtime={0};
         rf_group_registration registration={0},exact={0};static rf_object_registry registry,saved;

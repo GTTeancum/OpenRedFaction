@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
+- [ ] Complete controller activation effects, then connect scene mover membership and motion ticks.
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Complete particle rendering for animated textures, stretched sprites and mixed room/object passes.
 - [ ] Connect dynamic particle ownership, event mutations and shared campaign random state.
@@ -17,6 +18,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Controller activation eligibility/backlinks and motion selection match 4096
+original/PC/NXDK cases; sound/player/wakeup effects and live activation remain open.
 
 Scene controller/key links pass stock 64 MiB XEMU replays in L1S1 and L2S1,
 including two key-owner fallback links; activation and mover binding remain open.
