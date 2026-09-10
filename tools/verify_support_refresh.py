@@ -5,7 +5,9 @@ Synthetic actor lists and registry records; no intercepted calls or game loop.
 import hashlib
 import itertools
 import json
+import re
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -28,6 +30,16 @@ m.mem_map(base, 0x400000)
 stack, stop = base + 0x3f0000, base + 0x3f1000
 sentinel = 0x5cb060
 word = lambda value: struct.pack('<I', value)
+xp = pefile.PE(str(root / 'build/xbox/main.exe'))
+xb = xp.get_memory_mapped_image()
+xi = xp.OPTIONAL_HEADER.ImageBase
+x = Uc(UC_ARCH_X86, UC_MODE_32)
+x.mem_map(xi, (len(xb) + 4095) // 4096 * 4096)
+x.mem_write(xi, xb)
+x.mem_map(base, 0x400000)
+entry = int(re.search(r'_rf_physics_support_refresh\s+([0-9a-fA-F]+)',
+                     (root / 'build/xbox/main.map').read_text())[1], 16)
+commands, outputs = bytearray(), bytearray()
 
 
 def call():
@@ -35,6 +47,26 @@ def call():
     m.reg_write(UC_X86_REG_ESP, stack)
     m.emu_start(0x41e370, stop, count=1000000)
     assert m.reg_read(UC_X86_REG_EIP) == stop
+
+
+def compare_tick():
+    before = [bytes(m.mem_read(actor, 0x1000)) for actor, _ in expected]
+    call()
+    for i, (actor, _) in enumerate(expected):
+        mode, kind, _, _ = cases[i]
+        source = bytes(m.mem_read(objects[i][0] + 0x144, 12))
+        initial = before[i][0x8a0:0x8ac] + before[i][0x1a8:0x1ac] + before[i][0x7c:0x80]
+        want = (bytes(m.mem_read(actor + 0x8a0, 12)) +
+                bytes(m.mem_read(actor + 0x1a8, 4)) + bytes(m.mem_read(actor + 0x7c, 4)))
+        commands.extend(word(mode) + word(kind == 'valid') + source + initial)
+        outputs.extend(want)
+        x.mem_write(base, source + initial)
+        args = (stop, mode, base if kind == 'valid' else 0, base + 12, base + 24, base + 28)
+        x.mem_write(stack, struct.pack('<6I', *args))
+        x.reg_write(UC_X86_REG_ESP, stack)
+        x.emu_start(entry, stop, count=10000)
+        assert x.reg_read(UC_X86_REG_EIP) == stop
+        assert bytes(x.mem_read(base + 12, 20)) == want, ('NXDK', i)
 
 
 # Each valid object has a distinct slot and generation-checked runtime handle.
@@ -77,7 +109,7 @@ for i, (mode, kind, velocity, flags) in enumerate(cases):
 
 m.mem_write(0x5cb2ec, word(base))
 registry = bytes(m.mem_read(0x7394cc, 4096))
-call()
+compare_tick()
 for i, (actor, record) in enumerate(expected):
     assert bytes(m.mem_read(actor, len(record))) == record, cases[i]
 for obj, record in objects:
@@ -96,7 +128,7 @@ for i, (obj, record) in enumerate(objects):
         changed_actor = bytearray(record)
         changed_actor[0x8a0:0x8ac] = struct.pack('<3f', *velocity)
         expected[i] = (actor, bytes(changed_actor))
-call()
+compare_tick()
 for i, (actor, record) in enumerate(expected):
     assert bytes(m.mem_read(actor, len(record))) == record, ('second tick', cases[i])
 for obj, record in objects:
@@ -105,6 +137,9 @@ assert bytes(m.mem_read(0x7394cc, 4096)) == registry
 # Empty-list sentinel must return without dereferencing actor fields.
 m.mem_write(0x5cb2ec, word(sentinel))
 call()
+actual = subprocess.check_output([str(root / 'build/pc/Release/rf_physics_probe.exe'),
+                                  '--support-refresh'], input=commands)
+assert actual == outputs, 'PC support refresh differs from original'
 report = dict(result='PASS', original_sha256=digest, actors=len(cases),
               refreshed_per_tick=updated, ticks=2, empty_list=True,
               scope='Unchanged original 41e370 with real 40a0e0 lookup, vector copy '
@@ -112,6 +147,8 @@ report = dict(result='PASS', original_sha256=digest, actors=len(cases),
                     'bytes checked. Modes 1/3 only; stale/empty/absent handles '
                     'preserve cached velocity and flags; zero support velocity '
                     'still wakes eligible actors. Synthetic list/registry; no '
-                    'frame scheduling, platform traversal or C/NXDK equivalence claim.')
+                    'frame scheduling or platform traversal claim. PC and compiled '
+                    'NXDK helper match original velocity and both flag words for '
+                    'all336 actor updates with caller-supplied lookup results.')
 (root / 'artifacts/support-refresh-verification.json').write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))

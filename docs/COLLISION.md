@@ -2826,5 +2826,13 @@ The containing frame routine487a40 (Ghidra export487c33.c.txt) places the
 refresh after46bbe0(0) and before487770. That static call ordering is not yet
 a verified complete frame trace. The scene still passes zero support velocity
 to movement proposals; integration needs correct mover identity and scheduling.
-This check establishes original behavior only, not C/NXDK equivalence or
-playable lift traversal. Generated report: artifacts/support-refresh-verification.json.
+The shared rf_physics_support_refresh now reproduces the resolved-object branch
+and mode guards. The verifier supplies original lookup results to the shared
+helper and compares all336 updates against original velocity and both flag
+words on PC and compiled NXDK. Both builds and six CTests pass. The helper
+allocates nothing; caller owns lookup, cached velocity and flag storage. It is
+not yet connected to scene movement. The diagnostic currently combines
+controller propagation and position commit after actor movement; this must be
+separated to place support refresh after propagation and before body movement.
+No playable lift traversal or new native XEMU run is claimed. Generated report:
+artifacts/support-refresh-verification.json.

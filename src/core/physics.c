@@ -57,6 +57,13 @@ int rf_physics_support_commit(rf_physics_body_state *state,const rf_physics_grou
     if(moving)value.flags|=0x400000u;else value.flags&=~0x400000u;
     *state=value;*support_handle=moving?object_handle:0;return RF_OK;
 }
+void rf_physics_support_refresh(uint32_t mode,const float resolved_velocity[3],
+    float cached_velocity[3],uint32_t *body_flags,uint32_t *object_flags)
+{
+    if((mode!=1 && mode!=3) || !resolved_velocity)return;
+    memmove(cached_velocity,resolved_velocity,12);
+    *body_flags|=0x80000000u;*object_flags|=0x06000000u;
+}
 int rf_physics_static_support(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction)
 {
     uint32_t handle;

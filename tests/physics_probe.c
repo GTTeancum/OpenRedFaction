@@ -8,6 +8,15 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--support-refresh")) {
+        struct {uint32_t mode,resolved;float source[3],cached[3];uint32_t body_flags,object_flags;} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_physics_support_refresh(input.mode,input.resolved?input.source:NULL,
+                input.cached,&input.body_flags,&input.object_flags);
+            if(fwrite(input.cached,20,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--landing-velocity")) {
         float values[9];struct {int status;float result[3];} output;
         while(fread(values,sizeof(values),1,stdin)==1) {

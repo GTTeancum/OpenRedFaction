@@ -179,6 +179,13 @@ int rf_physics_static_support(rf_physics_body_state *state,const rf_physics_grou
  * contact-record ownership or landing transition. Errors preserve outputs. */
 int rf_physics_support_commit(rf_physics_body_state *state,const rf_physics_ground_probe *probe,
     float fraction,uint32_t moving,float contact_y,uint32_t object_handle,uint32_t *support_handle);
+/* 41e370/40a420 after caller resolves the support handle. Modes 1/3 copy
+ * current support velocity and set body/object wake flags. NULL resolved
+ * velocity means lookup failed: preserve all outputs. Output pointers must
+ * be valid and disjoint; resolved velocity may equal cached velocity.
+ * No allocation, lookup, mode transition or frame scheduling. */
+void rf_physics_support_refresh(uint32_t mode,const float resolved_velocity[3],
+    float cached_velocity[3],uint32_t *body_flags,uint32_t *object_flags);
 /* 419901..41993a landing velocity before movement-class dispatch: stored
  * (velocity + previous support) - new contact velocity, componentwise.
  * No normal projection, vertical reset, movement transition or support commit.
