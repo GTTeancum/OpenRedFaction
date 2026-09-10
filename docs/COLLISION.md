@@ -2669,3 +2669,32 @@ one valid controller, two keys, one mover and one secondary wake object;
 separate prefix/gather/wake verifiers retain broader edge-case coverage. Both
 builds and six CTests pass. NXDK is instruction-emulated; this is not a live
 XEMU campaign activation or new visual result.
+
+
+## Scene-owned registered mover poses
+
+The campaign scene now opens owned mover collision geometry and factory poses
+from the retained render geometry, then binds typed type9 registry wrappers to
+those poses. Object UID rows are appended after events/triggers/controllers
+for link resolution. Rendering consumes this same pose array on each camera
+update. Cleanup removes the registered handles before releasing wrappers and
+owned poses. Capacity is checked before registration; failures unwind partial
+ownership. Collision owner budget is1MiB, plus24 bytes per mover for wrappers
+and UID rows and temporary4-byte handle slots. The standalone native archive
+membership diagnostic still owns separate data; consolidation remains open.
+
+This establishes a common pose source but does not add mover collision to
+player sweeps: actor_sweep and support queries still use static world geometry.
+Controller membership, propagation/ticks and activation dispatch remain open.
+The existing mover ray path cannot substitute for swept sphere response.
+
+Stock64MiB XEMU 16-frame replays pass with exact PC mover telemetry, actor and
+render state, link hashes and event state:
+- artifacts/xemu/replay-20260910-153353/report.json: L1S1,5 movers,
+  13468 owned collision/pose bytes plus120 registration bytes.
+- artifacts/xemu/replay-20260910-153424/report.json: L2S1,11 movers,
+  54280 owned bytes plus264 registration bytes.
+The authored inventory verifier independently confirms mover counts and link
+hashes, including L2S1's two key-owner links. Both builds and six CTests pass.
+The harnesses reaped their processes and restored disc flags. No new visual
+capture: initial poses are being connected, not a new animated-door result.

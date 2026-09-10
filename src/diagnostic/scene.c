@@ -361,6 +361,45 @@ static rf_runtime_triggers campaign_triggers;
 static rf_level_owned_groups campaign_groups;
 static rf_group_runtime_collection campaign_group_runtime;
 static rf_group_registration campaign_group_registration;
+static rf_geometry_collision_movers campaign_movers;
+static rf_group_registered_mover *campaign_mover_wrappers;
+static rf_level_uid_object *campaign_mover_objects;
+static uint32_t campaign_mover_count;
+uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, registration bytes */
+static void campaign_close_movers(void)
+{
+    uint32_t i;for(i=0;i<campaign_mover_count;i++)rf_object_registry_remove(&campaign_registry,campaign_mover_wrappers[i].handle);
+    free(campaign_mover_wrappers);free(campaign_mover_objects);
+    campaign_mover_wrappers=NULL;campaign_mover_objects=NULL;campaign_mover_count=0;
+    rf_geometry_collision_movers_close(&campaign_movers);
+}
+static int campaign_open_movers(const rf_geometry_movers *source)
+{
+    uint32_t i,*handles=NULL;int status=RF_RANGE;
+    if(!source || source->count>campaign_registry.count)return RF_RANGE;
+    if(!source->count) {memset(rf_scene_campaign_movers,0,sizeof(rf_scene_campaign_movers));return RF_OK;}
+    campaign_mover_wrappers=calloc(source->count,sizeof(*campaign_mover_wrappers));
+    campaign_mover_objects=calloc(source->count,sizeof(*campaign_mover_objects));
+    handles=malloc(source->count*sizeof(*handles));
+    if(!campaign_mover_wrappers || !campaign_mover_objects || !handles)goto failed;
+    for(i=0;i<source->count;i++) {
+        rf_group_registered_mover *m=campaign_mover_wrappers+i;m->object_kind=9;
+        status=rf_object_registry_insert(&campaign_registry,m,&m->handle);if(status)goto failed;
+        ++campaign_mover_count;handles[i]=m->handle;
+    }
+    status=rf_geometry_collision_movers_open(source,handles,1024*1024,&campaign_movers);if(status)goto failed;
+    for(i=0;i<source->count;i++) {
+        campaign_mover_wrappers[i].pose=campaign_movers.poses+i;
+        campaign_mover_objects[i].uid=(uint32_t)campaign_movers.uids[i];
+        campaign_mover_objects[i].handle=handles[i];campaign_mover_objects[i].flags=campaign_movers.poses[i].flags;
+    }
+    rf_scene_campaign_movers[0]=campaign_mover_count;rf_scene_campaign_movers[1]=campaign_movers.allocated_bytes;
+    rf_scene_campaign_movers[2]=campaign_mover_count*(sizeof(*campaign_mover_wrappers)+sizeof(*campaign_mover_objects));
+    free(handles);return RF_OK;
+ failed:
+    free(handles);campaign_close_movers();return status;
+}
+
 uint32_t rf_scene_campaign_groups[5]; /* controllers, keys, source/runtime/registration bytes */
 rf_startup_events_report rf_scene_startup_events;
 uint32_t rf_scene_startup_gravity[4];
@@ -370,7 +409,7 @@ uint32_t rf_scene_campaign_event_links[4];
 uint32_t rf_scene_event_ticks[12]; /* ticks, clock ms, pending other types, cumulative action report */
 static int campaign_resolve_trigger_links(void)
 {
-    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count;
+    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count;
     rf_level_uid_object *objects=n?malloc((size_t)n*sizeof(*objects)):NULL;int status;
     if(n && !objects)return RF_RANGE;
     for(i=0;i<campaign_events.count;++i) {
@@ -383,7 +422,8 @@ static int campaign_resolve_trigger_links(void)
     }
     for(j=0;j<campaign_group_registration.count;++j,++i)
         objects[i]=campaign_group_registration.objects[j];
-    /* Fixture order: events, triggers, then controllers. Entity registration
+    for(j=0;j<campaign_mover_count;++j,++i)objects[i]=campaign_mover_objects[j];
+    /* Fixture order: events, triggers, controllers, then movers. Entity registration
      * and original whole-world handle order remain incomplete. */
     status=rf_runtime_triggers_resolve(&campaign_triggers,objects,n,
         campaign_group_registration.keys,campaign_group_registration.key_count);
@@ -1084,16 +1124,16 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     {uint32_t world_capacity=(stream->capacity-1024*1024)/sizeof(rf_preview_vertex)*sizeof(rf_preview_vertex);
      rf_preview_failure[0]=0;
      if(rf_scene_actor_eye_enabled && stream->mesh->bytes>world_capacity)
-        status=rf_scene_world_update_camera(actor_follow_world,NULL,0,position,orientation,stream->mesh,stream->capacity);
+        status=rf_scene_world_update_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,stream->mesh,stream->capacity);
      else {
-        status=rf_scene_world_update_camera_staged(actor_follow_world,NULL,0,position,orientation,
+        status=rf_scene_world_update_camera_staged(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,
         stream->mesh,world_capacity,stream->mesh->vertices+world_capacity/sizeof(rf_preview_vertex),
         stream->capacity-world_capacity);
         /* First-person rendering has no visible actor prefix to reserve. A
          * large world may use the whole allocation through the transactional
          * two-pass path instead of terminating at the staging-half boundary. */
         if(status==RF_RANGE && rf_scene_actor_eye_enabled && rf_preview_failure[0])
-            status=rf_scene_world_update_camera(actor_follow_world,NULL,0,position,orientation,stream->mesh,stream->capacity);
+            status=rf_scene_world_update_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,stream->mesh,stream->capacity);
      }
      if(status)return status;}
     profile_mark(2);
@@ -1382,6 +1422,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_groups[2]=campaign_groups.allocated_bytes;
             rf_scene_campaign_groups[3]=campaign_group_runtime.allocated_bytes;
             rf_scene_campaign_groups[4]=campaign_group_registration.allocated_bytes;
+            if(!actor_follow_world) {status=RF_RANGE;goto done;}
+            status=campaign_open_movers(&actor_follow_world->movers);if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
@@ -1503,6 +1545,7 @@ done:
     rf_level_visibility_close(&stream.visibility);
     rf_level_particles_close(&stream.particles);
     free(stream.particle_workspace);particle_draw_stream=NULL;
+    campaign_close_movers();
     rf_group_registration_close(&campaign_group_registration);
     rf_group_runtime_close(&campaign_group_runtime);
     rf_level_owned_groups_close(&campaign_groups);

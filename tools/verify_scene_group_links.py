@@ -12,6 +12,10 @@ events=records('events.json');triggers=records('triggers.json')
 groups=[g for g in records('moving-groups.json') if g['keys']]
 uids=[r['uid'] for r in events+triggers]+[g['keys'][0]['uid'] for g in groups]
 keys=[(k['uid'],len(events)+len(triggers)+i) for i,g in enumerate(groups) for k in g['keys']]
+movers=records('movers.json') if 'campaign_movers' in report else []
+if 'campaign_movers' in report:
+ assert report['campaign_movers'][0]==len(movers) and report['campaign_movers'][2]==24*len(movers)
+ uids.extend(r['uid'] for r in movers)
 assert report['campaign_groups'][:2]==[len(groups),len(keys)]
 def handle(i):return ((i+1)<<16)|i
 def check(rows,label):
@@ -28,7 +32,7 @@ def check(rows,label):
    for word in (uid,value,kind,index):result[3]=((result[3]^word)*16777619)&0xffffffff
  assert report[label]==result,(label,report[label],result)
  return dict(counters=result,key_owner_links=key_hits)
-result=dict(result='PASS',level=report['level'],controllers=len(groups),keys=len(keys),
+result=dict(result='PASS',level=report['level'],controllers=len(groups),keys=len(keys),movers=len(movers),
  trigger_links=check(triggers,'campaign_links'),event_links=check(events,'campaign_event_links'),
  scope='Authored inventories independently predict scene registration order and ordered link hashes; native replay also compares PC telemetry. Activation and whole-world original handle order excluded.')
 output=args.report.parent/'scene-group-links-verification.json';output.write_text(json.dumps(result,indent=2)+'\n');print(result)
