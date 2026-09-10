@@ -631,6 +631,39 @@ void __attribute__((no_stack_protector)) rf_diagnostic_start(void)
     WinMainCRTStartup();
 }
 
+/* Replay-only resource lifetime check; no host input or rendering. */
+volatile uint32_t rf_particle_resource_diagnostic[7]; /* status, loads, hash, peak bytes, pages before/min/after */
+static void particle_resource_check(void)
+{
+    FILE *flag=fopen("D:\\player-replay.bin","rb");rf_vpp maps;int status;unsigned round,i;
+    MM_STATISTICS memory={0};uint32_t hash=2166136261u;
+    if(!flag)return;fclose(flag);rf_particle_resource_diagnostic[0]=2;
+    status=rf_vpp_open(&maps,"D:\\maps2.vpp");if(status){rf_particle_resource_diagnostic[0]=(uint32_t)status;return;}
+    memory.Length=sizeof(memory);
+    for(round=0;round<3;++round) {
+        for(i=0;i<3;++i) {
+            rf_particle_definition definition={0};rf_particle_bitmap bitmap={0};uint32_t x,y;
+            strcpy(definition.bitmap,i?"boom01.vbm":"LightCorona01.tga");
+            status=rf_particle_bitmap_open(&bitmap,&definition,&maps,1,i==2?15:0,65536);
+            if(status)goto done;
+            if(round) {
+                if(bitmap.resident_bytes>rf_particle_resource_diagnostic[3])rf_particle_resource_diagnostic[3]=bitmap.resident_bytes;
+                if(NT_SUCCESS(MmQueryStatistics(&memory)) && memory.AvailablePages<rf_particle_resource_diagnostic[5])rf_particle_resource_diagnostic[5]=memory.AvailablePages;
+                for(y=0;y<bitmap.image.height;++y)for(x=0;x<bitmap.image.width;++x) {
+                    unsigned k;unsigned char *pixel=rf_image_pixel(&bitmap.image,x,y);
+                    for(k=0;k<4;++k)hash=(hash^pixel[k])*16777619u;
+                }
+                ++rf_particle_resource_diagnostic[1];
+            }
+            rf_particle_bitmap_close(&bitmap);
+        }
+        if(!round && NT_SUCCESS(MmQueryStatistics(&memory)))rf_particle_resource_diagnostic[4]=rf_particle_resource_diagnostic[5]=memory.AvailablePages;
+    }
+    if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_particle_resource_diagnostic[6]=memory.AvailablePages;
+    rf_particle_resource_diagnostic[2]=hash;
+done:
+    rf_vpp_close(&maps);rf_particle_resource_diagnostic[0]=status?(uint32_t)status:1;
+}
 int main(void)
 {
     rf_vpp archive;
@@ -648,6 +681,7 @@ int main(void)
         debugPrint("Physical pages: %lu; available: %lu\n", memory.TotalPhysicalPages, memory.AvailablePages);
     }
     OutputDebugStringA("RF_DIAGNOSTIC_BOOT\n");
+    particle_resource_check();
     result = rf_vpp_open(&archive, "D:\\tables.vpp");
     if (result == RF_OK) {
         rf_diagnostic[5] = archive.count;

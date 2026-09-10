@@ -16,11 +16,12 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Particle bitmap ownership now loads 31 present authored resources, including
-selected VBM frames; 131 PC binding/budget checks pass and NXDK builds.
-The authored bigboom.vbm reference is missing from the installed inventory.
-Native Xbox resource residency, playback scheduling, vclip/explosion binding
-and active simulation remain open; no new gameplay visual yet.
+Native 64-MiB XEMU particle resource replay 20260910-075740 passes: six
+TGA/VBM frame loads match PC pixel hashes, with warmed available pages
+15539 -> 15535 -> 15539 and peak resource bytes 16420. Campaign replay
+still passes. This checks pre-scene resource lifetime, not active particle
+rendering or peak campaign residency. Missing bigboom.vbm, playback scheduling,
+vclip/explosion binding and simulation remain open.
 
 Vclip fixed-field defaults now have 512 original-loader execution fixtures.
 Implement bounded definition loading, including embedded particle blocks and

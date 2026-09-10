@@ -101,6 +101,19 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
    if d[37]//60!=last:last=d[37]//60;print('Submitted',d[37],'frames',flush=True)
    if d[2]==5:
     final=snapshot(monitor,mapping);(run/'guest-memory-final.json').write_text(json.dumps(final,indent=2))
+    resources=words(monitor,symbol('rf_particle_resource_diagnostic'),7)
+    assert resources[0:2]==[1,6] and resources[4]>0 and resources[5]<resources[4] and resources[6]>=resources[4],resources
+    expected_resource_hash=2166136261
+    for repeat in range(2):
+     for resource,frame in [('LightCorona01.tga',None),('boom01.vbm',0),('boom01.vbm',15)]:
+      raw=run/'particle-resource.rgba'
+      command=[str(root/'build/pc/Release/rf_image_probe.exe'),str(root/'Installed_Game/maps2.vpp'),resource,str(raw),'65536']
+      if frame is not None:command.append(str(frame))
+      subprocess.run(command,check=True,capture_output=True)
+      for value in raw.read_bytes():expected_resource_hash=((expected_resource_hash^value)*16777619)&0xffffffff
+    assert resources[2]==expected_resource_hash,resources
+    report['particle_resources']=resources
+
     for name,label,count in [('rf_scene_actor_follow_summary','ACTOR_FOLLOW_SUMMARY',5),('rf_scene_player_input_frames','ACTOR_PLAYER_INPUT',448),('scene_actor_body','PC_PLAY_BODY',77)]:
      got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
     if args.campaign_spawn:
