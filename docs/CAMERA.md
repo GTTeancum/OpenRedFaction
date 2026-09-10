@@ -3261,3 +3261,30 @@ cost is 219,436 bytes. The 128-frame jump replay passes on PC and native
 and 184 registered L1S1 events reported by guest memory. Both builds and five
 CTest checks pass. Reports are artifacts/runtime-events-verification.json and
 artifacts/xemu/replay-20260910-061740/report.json. No new visual behavior.
+
+
+Campaign trigger ownership (2026-09-10)
+-------------------------------------
+
+rf_runtime_triggers_open retains decoded trigger records and ordered raw UID
+links, initializes shared auto-trigger state, and inserts kind-5 objects into
+the caller registry. It validates and initializes every record before inserting
+any handles. Registered handles are copied into the activation state. Budget
+checks include both owners and allocations; registry overhead is separate.
+Close removes trigger handles before freeing storage and leaves event handles
+intact. Full collision shape creation and script ownership remain open.
+
+Campaign scene setup now loads triggers into the same registry as events;
+cleanup closes triggers first. rf_scene_campaign_triggers / CAMPAIGN_TRIGGERS
+expose count and bytes, and the native replay harness reads these from guest
+memory. A 1-MiB cap currently applies to each owner; actual trigger peak is
+58,680 bytes across the installed levels. Neither owner resolves links or
+dispatches startup actions yet, so visible behavior remains unchanged.
+
+verify_runtime_triggers.py passes 2,367 records across 93 levels with event
+objects registered concurrently. It checks trigger initialization, handle
+lookup/removal, event-handle survival, repeated close, exact-budget reopen,
+one-byte-short rejection and record access after archive close. Stock-64-MiB
+XEMU replay-20260910-062110 passes with the combined owners and exact existing
+PC replay state. Both builds and five CTest checks pass. Reports:
+artifacts/runtime-triggers-verification.json and the native replay report.

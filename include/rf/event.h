@@ -56,6 +56,22 @@ typedef struct rf_auto_trigger_state {
     int32_t deadline,cooldown_ms;
     uint32_t activation_time_bits,handle;
 } rf_auto_trigger_state;
+typedef struct rf_runtime_trigger {
+    uint32_t object_kind,handle;
+    rf_auto_trigger_state state;
+    const rf_level_owned_trigger *authored;
+} rf_runtime_trigger;
+typedef struct rf_runtime_triggers {
+    rf_level_owned_triggers decoded;
+    rf_runtime_trigger *items;
+    rf_object_registry *registry;
+    uint32_t count,allocated_bytes;
+} rf_runtime_triggers;
+/* Same ownership/budget/registry contract as rf_runtime_events_open. Retains
+ * raw ordered UID links; no resolution, shape ownership or dispatch yet. */
+int rf_runtime_triggers_open(const rf_level *level,rf_object_registry *registry,
+    uint32_t budget,int32_t now,rf_runtime_triggers *result);
+void rf_runtime_triggers_close(rf_runtime_triggers *triggers);
 struct rf_level_trigger;
 /* v180 loader flags/timing and 4bf970 initial bookkeeping. Borrowed authored
  * record; handle comes from registration. No registration or shape creation.

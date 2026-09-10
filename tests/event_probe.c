@@ -25,6 +25,35 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==4 && !strcmp(argv[1],"--owned-triggers")) {
+        rf_vpp archive;rf_level level;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
+        rf_object_registry registry;uint32_t i,bytes,handle,event_count;
+        if(rf_vpp_open(&archive,argv[2]))return 3;
+        if(rf_level_open(&level,&archive,argv[3])) {rf_vpp_close(&archive);return 3;}
+        rf_object_registry_init(&registry);
+        if(rf_runtime_events_open(&level,&registry,1024*1024,&events))return 4;
+        event_count=events.count;
+        if(rf_runtime_triggers_open(&level,&registry,1024*1024,12345,&triggers))return 5;
+        bytes=triggers.allocated_bytes;
+        for(i=0;i<triggers.count;++i) {
+            rf_runtime_trigger *t=triggers.items+i;rf_auto_trigger_state initial;
+            if(rf_auto_trigger_init(&initial,&t->authored->record,t->handle,12345) ||
+               memcmp(&initial,&t->state,sizeof(initial)) || t->object_kind!=5 ||
+               rf_object_registry_lookup(&registry,t->handle)!=t)return 6;
+        }
+        printf("%u %u\n",triggers.count,bytes);
+        handle=triggers.count?triggers.items[0].handle:UINT32_MAX;
+        rf_runtime_triggers_close(&triggers);rf_runtime_triggers_close(&triggers);
+        if(registry.count!=RF_OBJECT_CAPACITY-event_count || rf_object_registry_lookup(&registry,handle))return 7;
+        for(i=0;i<events.count;++i)if(rf_object_registry_lookup(&registry,events.items[i].handle)!=events.items+i)return 8;
+        if(rf_runtime_triggers_open(&level,&registry,bytes-1,12345,&triggers)!=RF_RANGE ||
+           registry.count!=RF_OBJECT_CAPACITY-event_count || triggers.items)return 9;
+        if(rf_runtime_triggers_open(&level,&registry,bytes,12345,&triggers))return 10;
+        rf_vpp_close(&archive);
+        for(i=0;i<triggers.count;++i)if(triggers.items[i].authored->record.shape>1)return 11;
+        rf_runtime_triggers_close(&triggers);rf_runtime_events_close(&events);
+        return registry.count==RF_OBJECT_CAPACITY?0:12;
+    }
     if(argc==4 && !strcmp(argv[1],"--owned")) {
         rf_vpp archive;rf_level level;rf_runtime_events events={0};
         rf_object_registry registry;uint32_t i,bytes,handle;int status;

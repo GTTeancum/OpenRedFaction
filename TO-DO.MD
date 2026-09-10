@@ -14,6 +14,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Campaign triggers now share the event registry with bounded ownership and
+retained raw links. All 2,367 triggers pass ownership checks across 93 levels;
+64-MiB XEMU replay 20260910-062110 passes with both owners active. Resolving
+links and dispatching startup actions remain open.
+
 Campaign loading now owns decoded events and registered common runtime
 objects. All 4,446 records across 93 levels pass ownership/budget checks;
 64-MiB XEMU replay 20260910-061740 passes with 184 L1S1 events (219,436

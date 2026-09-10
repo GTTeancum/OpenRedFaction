@@ -3,6 +3,43 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+void rf_runtime_triggers_close(rf_runtime_triggers *triggers)
+{
+    uint32_t i;if(!triggers)return;
+    for(i=0;i<triggers->count;++i)rf_object_registry_remove(triggers->registry,triggers->items[i].handle);
+    free(triggers->items);rf_level_owned_triggers_close(&triggers->decoded);memset(triggers,0,sizeof(*triggers));
+}
+int rf_runtime_triggers_open(const rf_level *level,rf_object_registry *registry,
+    uint32_t budget,int32_t now,rf_runtime_triggers *result)
+{
+    rf_runtime_triggers value={0};uint64_t bytes;uint32_t i;int status;
+    if(!level || !registry || !result || result->items || result->decoded.storage ||
+       result->count || result->registry || budget<sizeof(value) || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    status=rf_level_owned_triggers_open(level,budget-(uint32_t)sizeof(value),&value.decoded);
+    if(status==RF_NOT_FOUND)status=RF_OK;
+    if(status)return status;
+    bytes=sizeof(value)+(uint64_t)value.decoded.allocated_bytes+
+        (uint64_t)value.decoded.count*sizeof(*value.items);
+    if(bytes>budget || value.decoded.count>registry->count) {status=RF_RANGE;goto failed;}
+    if(value.decoded.count) {
+        value.items=calloc(value.decoded.count,sizeof(*value.items));
+        if(!value.items) {status=RF_RANGE;goto failed;}
+    }
+    for(i=0;i<value.decoded.count;++i) {
+        rf_runtime_trigger *item=value.items+i;item->object_kind=5;item->authored=value.decoded.items+i;
+        status=rf_auto_trigger_init(&item->state,&item->authored->record,UINT32_MAX,now);
+        if(status)goto failed;
+    }
+    value.registry=registry;value.allocated_bytes=(uint32_t)bytes;
+    for(i=0;i<value.decoded.count;++i) {
+        rf_runtime_trigger *item=value.items+i;
+        status=rf_object_registry_insert(registry,item,&item->handle);if(status)goto failed;
+        item->state.handle=item->handle;++value.count;
+    }
+    *result=value;return RF_OK;
+failed:
+    rf_runtime_triggers_close(&value);return status;
+}
 void rf_runtime_events_close(rf_runtime_events *events)
 {
     uint32_t i;if(!events)return;

@@ -274,6 +274,8 @@ static rf_look_pose actor_look;
 static rf_level_owned_regions campaign_regions;
 static rf_object_registry campaign_registry;
 static rf_runtime_events campaign_events;
+static rf_runtime_triggers campaign_triggers;
+uint32_t rf_scene_campaign_triggers[2]; /* registered triggers, owner bytes */
 uint32_t rf_scene_campaign_events[3]; /* registered events, owner bytes, registry bytes */
 static rf_movement_descriptor campaign_modes[16];
 static float campaign_jump_strength;
@@ -1166,6 +1168,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_events[0]=campaign_events.count;
             rf_scene_campaign_events[1]=campaign_events.allocated_bytes;
             rf_scene_campaign_events[2]=sizeof(campaign_registry);
+            status=rf_runtime_triggers_open(level,&campaign_registry,1024*1024,0,&campaign_triggers);
+            if(status)goto done;
+            rf_scene_campaign_triggers[0]=campaign_triggers.count;
+            rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             memset(&campaign_climb,0,sizeof(campaign_climb));memset(rf_scene_player_climb,0,sizeof(rf_scene_player_climb));
@@ -1262,6 +1268,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
+    rf_runtime_triggers_close(&campaign_triggers);
     rf_runtime_events_close(&campaign_events);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
