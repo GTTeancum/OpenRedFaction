@@ -730,3 +730,21 @@ does not yet prove that metadata survives every campaign transition.
 The level reader460820 handles section0x3000 via463820, which constructs
 controllers through469250. Startup-to-level scheduling and bulk-release callers
 remain the next trace boundary before changing campaign registration behavior.
+
+### Level-entry counters and cleanup chain
+
+The level-entry path4356d0 calls45c540;45c540 calls506080 before460820 reads
+the new level.506080 checks audio-enabled017543d8, visits2600 records, and
+increments positive signed counters at+56 only when byte+60 is zero.
+`python tools/verify_audio_retention.py` executes that routine unchanged over
+full2600-slot fixtures with audio disabled/enabled, negative/zero/positive counters
+and both flag states. Every record byte and the registration count are checked:
+zero changes when disabled and780 eligible increments when enabled.
+
+The bulk-release caller is a tail jump at5439bd:5439b0 first calls544310,
+then invokes543980 only when its argument byte is zero. Its caller5060b0
+examines positional and other voice slots, stops/resets those whose sample
+counter is below2, then calls5439b0 with its argument. These latter branches
+are decompiler traces, not yet execution-verified. Their scheduling and counter
+balancing still need recovery before implementing a persistent residency policy.
+No runtime ownership change is justified solely by the verified increment.
