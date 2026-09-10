@@ -420,10 +420,10 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                  * calls 4fce70 to install identity. The miner model has spheres. */
                 if(parameters.mass<=0) {status=RF_FORMAT;goto done;} /* Generated-mass creation remains separate. */
                 if(n==0)parameters.local_tensor[0]=parameters.local_tensor[4]=parameters.local_tensor[8]=1;
-                /* Player creation sets physics flag 80, whose distinct 49d7e0
-                 * contact response is not yet reconstructed. Keep this scene
-                 * on diagnostic physics until that branch can be connected. */
-                parameters.flags=rf_entity_creation_physics_flags(0,config->authored.flags,config->authored.flags2,config->authored.use_kind,0);
+                /* The campaign contact adapter now handles the distinct
+                 * flag-80 response selected by original player creation. */
+                parameters.flags=rf_entity_creation_physics_flags(placement->campaign_player?1:0,
+                    config->authored.flags,config->authored.flags2,config->authored.use_kind,0);
                 status=rf_physics_body_open(&parameters,NULL,0,4096,body);if(status)goto done;
                 status=rf_physics_body_replace_spheres(body,spheres,n,4096);if(status)goto done;
             }

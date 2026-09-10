@@ -19,6 +19,7 @@ if args.campaign_spawn:
  start=next(c for c in starts['levels'] if c['file'].lower()=='l1s1.rfl')
  angles=next(c for c in look['cases'] if c['file'].lower()=='l1s1.rfl')
  assert expected('PLAYER_SPAWN')==[1]+start['transform_words']+angles['body_words']+angles['eye_words']
+ assert expected('PC_PLAY_BODY')[68]&0x80, 'Campaign player physics flag missing'
 hdd=root/'local/xemu-harness/pacing-base.qcow2'
 if not hdd.exists():raise ValueError('Run the pacing harness once to prepare its separate HDD base')
 assert (root/'build/xbox/disc/player-control.flag').exists()

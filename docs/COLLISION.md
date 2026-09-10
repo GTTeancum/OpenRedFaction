@@ -2360,3 +2360,42 @@ This helper is not yet called by the live scene. The next integration must
 verify the source and update ordering of entity direction `+714` and choose
 the correct predicate from live movement state. No live XEMU player-contact
 verification or full collision-loop equivalence is claimed by the CPU checks.
+
+## Direction writer and campaign contact integration
+
+The ordinary player input path `4a6060` selects entity `+708` as the control
+record and calls `430720 -> 430760 -> 4307a0`. Thus record `+c` is the direction
+at entity `+714`. Original `4307a0..430838` writes X as action 14 minus 13,
+Y as 15 minus 16, and Z as 11 minus 12; enabled gates add action 3 and subtract
+action 4 from Y. It does not normalize this vector. Later code processes look
+axes separately. `430fc0` clears direction, turn axes and the two extra look
+scalars while preserving the intervening flag byte/storage.
+
+`tools/inspect_player_direction.py` executes this writer prefix in 512 cases,
+replacing only `43d390` with explicit action values, and executes the complete
+clear routine. The action order, float stores, gate combinations and untouched
+record bytes all pass. Report `artifacts/player-direction-reference.json` records
+the original hash and inputs. Owner selection, vehicles, locked input and the
+full frame scheduler are outside this fixture; the ordinary owner path above
+is supported by disassembly rather than full factory execution.
+
+The opt-in campaign now supplies creation flag 1 to the already verified physics
+flag mapper. Scene contact dispatch selects `rf_physics_player_contact` when
+body flag 80 is present, supplies the shared resolved movement command as the
+body-space direction, and resolves the non-rotating mode predicate for 3/8.
+The helper performs the body transform once. Falling diagnostic checks use
+zero direction and mode 3. Existing non-player contacts retain their response.
+This preserves the adapters' existing input shaping; it does not reconstruct
+the original keyboard device layer, input locking or full crouch ownership.
+
+All eight 480-tick PC sweeps pass, and the normal 664-input trace/final image
+remain identical (`artifacts/player-contact-normal-regression.json`). Campaign
+initialization now explicitly checks body flag 80. Both builds, five CTests,
+768 PC/NXDK contact comparisons and 52 NXDK guards pass.
+Stock-64-MiB XEMU `replay-20260909-225224` passes the 480-tick diagonal movement
+and turn replay: exact PC input, initial state/cache, final body and world/camera
+hashes. Guest final flags are `810000f8`, including flag 80, and 64 contact records
+are retained (frames 60..305). This proves the player response is exercised in
+the live diagnostic; it does not compare every live contact against original
+execution or prove full game collision-loop equivalence. The normal interactive
+disc profile is restored afterward. No new screenshot was captured.

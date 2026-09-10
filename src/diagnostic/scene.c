@@ -518,6 +518,16 @@ done:
     scene_actor_body=saved;rf_scene_actor_movement_settings=settings;rf_scene_actor_stance_flags=flags;
     return status;
 }
+static int actor_contact(rf_physics_body_state *state,const float normal[3],const float support[3],
+    const float direction[3],uint32_t mode,float *impact)
+{
+    /* 4a6060 -> 4307a0 writes the resolved command to entity +714. Contact
+     * applies the body transform itself. This fixture has no rotating actor;
+     * 42a020 is true only for falling/free modes 3 and 8. */
+    if(state->flags&0x80)return rf_physics_player_contact(state,normal,support,support,direction,
+        mode,mode==3 || mode==8,impact);
+    return rf_physics_static_contact(state,normal,support,support,impact);
+}
 int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t out[8])
 {
     rf_physics_body_state current=scene_actor_body.state,proposal;
@@ -535,7 +545,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
              * Continued substeps and actor pose/room commit remain separate. */
             int status=rf_physics_contact_advance(&proposal,1.0f/60,fraction,rf_scene_actor_contact_time+1);if(status)return status;
             rf_scene_actor_contact_time[0]=proposal.scalar_144;
-            status=rf_physics_static_contact(&proposal,normal,support,support,rf_scene_actor_contact);if(status)return status;
+            status=actor_contact(&proposal,normal,support,support,3,rf_scene_actor_contact);if(status)return status;
             memcpy(rf_scene_actor_contact+1,normal,sizeof(normal));
             memcpy(rf_scene_actor_contact+4,proposal.velocity,sizeof(proposal.velocity));
             current=proposal;
@@ -550,7 +560,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
                         memcpy(current.position,current.next_position,sizeof(current.position));current.scalar_144=1;remaining=0;
                     } else {
                         status=rf_physics_contact_advance(&current,remaining,hit_fraction,&remaining);if(status)return status;
-                        status=rf_physics_static_contact(&current,normal,support,support,&impact);if(status)return status;
+                        status=actor_contact(&current,normal,support,support,3,&impact);if(status)return status;
                     }
                     if((pass>3 && remaining<.25f) || pass>9) {++pass;break;}
                     ++pass;
@@ -603,7 +613,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
             memcpy(record+12,support,12);memcpy(record+15,support,12);
             ++contacts;
             status=rf_physics_contact_advance(state,remaining,fraction,&remaining);if(status)return status;
-            status=rf_physics_static_contact(state,normal,support,support,&impact);if(status)return status;
+            status=actor_contact(state,normal,support,command,rf_scene_actor_landing[1],&impact);if(status)return status;
             memcpy(record+18,state->velocity,24);memcpy(record+24,&impact,4);
         }
         if((pass>3 && remaining<.25f) || pass>9) {++pass;break;}

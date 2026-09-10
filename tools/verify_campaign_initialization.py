@@ -18,6 +18,8 @@ run = subprocess.run([str(pc), '--spawn-replay', str(root/'Installed_Game'), str
                      cwd=root, capture_output=True, text=True, check=True)
 (folder/'pc.txt').write_text(run.stdout)
 rows = {line.split()[0]: list(map(int, line.split()[1:])) for line in run.stdout.splitlines() if line.startswith('PLAYER_')}
+body = next(list(map(int, line.split()[1:])) for line in run.stdout.splitlines() if line.startswith('PC_PLAY_BODY '))
+assert body[68]&0x80, 'Campaign player physics flag missing'
 word = lambda value: struct.unpack('<I', struct.pack('<f', value))[0]
 f32 = lambda value: struct.unpack('<f', struct.pack('<f', value))[0]
 motion = json.loads((root/'artifacts/initial-player-motion.json').read_text())
@@ -42,7 +44,7 @@ for pose in (standing, crouching):
 height = max(0, *(f32(a[1]-b[1]) for a, b in zip(standing['spheres'], crouching['spheres'])))
 assert rows['PLAYER_CLASS_STANCE'] == [count]+centers+[word(height)]
 report = dict(result='PASS', frames=120, pc_sha256=hashlib.sha256(pc.read_bytes()).hexdigest(),
-              initial_animation=initial, eye=rows['PLAYER_CLASS_EYE'], stance=rows['PLAYER_CLASS_STANCE'],
+              initial_animation=initial, eye=rows['PLAYER_CLASS_EYE'], stance=rows['PLAYER_CLASS_STANCE'], body_flags=body[68],
               scope='Integrated initial controller/first-slot weight and class centers/eye match original selector and loaded neutral NPC pose fixtures. Does not execute a full original factory, weapon ownership, player contact response or full campaign.')
 (folder/'report.json').write_text(json.dumps(report, indent=2)+'\n')
 print(json.dumps(report, indent=2))
