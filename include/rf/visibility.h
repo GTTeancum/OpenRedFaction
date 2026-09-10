@@ -40,6 +40,12 @@ typedef struct rf_visibility_portal {
     float rectangle[4];
 } rf_visibility_portal;
 typedef struct rf_visibility_plane {float normal[3],distance;uint32_t corner;} rf_visibility_plane;
+/* Plane constructors underlying 547b90/547b40, including 5398a0's minimum
+ * distance box-corner selector. Normal-point preserves normal magnitude;
+ * three-point normalizes (b-a) cross (c-b). Finite, nondegenerate point planes
+ * required. No allocation; errors preserve output. */
+int rf_visibility_plane_normal(const float normal[3],const float point[3],rf_visibility_plane *plane);
+int rf_visibility_plane_points(const float a[3],const float b[3],const float c[3],rf_visibility_plane *plane);
 enum {RF_PORTAL_PROJECT=0,RF_PORTAL_FULL_VIEW=1,RF_PORTAL_REJECT=2};
 /* 4d4860 preprojection branch using 507ba0 (inclusive one-unit expanded box)
  * and 518750 (strict positive plane distance at supplied extreme corner).

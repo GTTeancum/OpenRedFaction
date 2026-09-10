@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+View-plane constructors and corner selection match 2048 original/PC/NXDK cases;
+complete frustum assembly from view settings remains open.
+
 Clipped box projection matches 1024 full original/PC/NXDK cases (371 accepted);
 view setup and portal cache/renderer integration remain open.
 

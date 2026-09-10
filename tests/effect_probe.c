@@ -9,6 +9,16 @@
 #include <stdlib.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--visibility-plane")) {
+        struct {uint32_t mode;float a[3],b[3],c[3];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_visibility_plane plane;int32_t status;memset(&plane,0xa5,sizeof(plane));
+            status=in.mode?rf_visibility_plane_points(in.a,in.b,in.c,&plane):rf_visibility_plane_normal(in.a,in.b,&plane);
+            fwrite(&status,4,1,stdout);fwrite(&plane,sizeof(plane),1,stdout);
+        }
+        return ferror(stdin)||ferror(stdout);
+    }
     if(argc==2 && !strcmp(argv[1],"--box-project")) {
         struct {rf_visibility_projection view;float minimum[3],maximum[3];} in;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

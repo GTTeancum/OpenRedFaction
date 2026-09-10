@@ -214,3 +214,22 @@ Case 103 caught a missing post-clip common-plane rejection in the new box
 caller; skipping that face fixed the discrepancy. The particle helper itself
 did not need changed arithmetic. This is function replay; view setup, portal
 cache integration and native campaign rendering remain unfinished.
+
+## View-plane construction
+
+`rf_visibility_plane_normal` and `rf_visibility_plane_points` reconstruct the
+math behind `547b90` and `547b40`. The first preserves the supplied normal;
+the second forms float-rounded (b-a) and (c-b), crosses and normalizes them.
+Both compute negative normal-dot-point in original Z/Y/X order and select the
+minimum-distance box corner through `5398a0`'s strict-positive sign branches.
+Zero components take the nonpositive branch. The compact result omits the
+original clip-bit tag, opposite-corner selector and padding, which these callers
+do not consume. Degenerate three-point inputs are rejected without mutation.
+
+`verify_visibility_planes.py` compares 2048 original constructor executions,
+including actual vector/distance/selector helpers, with PC/NXDK results. Normal,
+distance and selected corner match exactly, including all normal sign/zero
+combinations. Full view setup `546a40` still needs reconstruction: it constructs
+the frustum corners, assembles different planes for perspective and flat modes,
+and updates scaled clipping distances. These plane constructors alone do not
+establish live camera/frustum equivalence.

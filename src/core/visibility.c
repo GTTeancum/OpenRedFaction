@@ -5,6 +5,36 @@ static int valid(const rf_visibility *s)
 {
     return s && (!s->count || (s->rooms && s->order)) && s->visible_count<=s->count;
 }
+int rf_visibility_plane_normal(const float normal[3],const float point[3],rf_visibility_plane *plane)
+{
+    static const uint32_t corners[8]={4,0,5,1,7,3,6,2};
+    rf_visibility_plane value;uint32_t i,bits=0;
+    if(!normal || !point || !plane)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(normal[i]) || !isfinite(point[i]))return RF_RANGE;
+        value.normal[i]=normal[i];bits=(bits<<1)|(normal[i]>0);
+    }
+    value.distance=(float)(-(((double)normal[2]*point[2]+(double)normal[1]*point[1])+(double)normal[0]*point[0]));
+    if(!isfinite(value.distance))return RF_RANGE;
+    value.corner=corners[bits];*plane=value;return RF_OK;
+}
+int rf_visibility_plane_points(const float a[3],const float b[3],const float c[3],rf_visibility_plane *plane)
+{
+    float first[3],second[3],normal[3];double inverse;uint32_t i;
+    if(!a || !b || !c || !plane)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(a[i]) || !isfinite(b[i]) || !isfinite(c[i]))return RF_RANGE;
+        first[i]=b[i]-a[i];second[i]=c[i]-b[i];
+    }
+    for(i=0;i<3;i++) {
+        uint32_t j=(i+1)%3,k=(i+2)%3;
+        normal[i]=(float)((double)first[j]*second[k]-(double)first[k]*second[j]);
+    }
+    inverse=1.0/sqrt(((double)normal[0]*normal[0]+(double)normal[1]*normal[1])+(double)normal[2]*normal[2]);
+    if(!isfinite(inverse))return RF_RANGE;
+    for(i=0;i<3;i++)normal[i]=(float)(normal[i]*inverse);
+    return rf_visibility_plane_normal(normal,a,plane);
+}
 int rf_visibility_portal_classify(const float camera[3],const float minimum[3],const float maximum[3],
     const rf_visibility_plane *planes,uint32_t count,uint32_t *action)
 {
