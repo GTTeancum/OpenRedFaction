@@ -115,3 +115,42 @@ valid voice starts, five unavailable requests, 335200 stereo frames and hash
 
 Outstanding: original metadata/volume/range/attenuation, looping where authored,
 device queue and underrun handling, audible Xbox/PC output, and broader effects.
+
+## Device probe: reproducible XEMU failure, not enabled in normal play
+
+An optional synchronous scene PCM sink now feeds an Xbox SDL device probe.
+The application queue is fixed at 3200 stereo frames (12800 bytes), protected
+by SDL's device lock, and performs no allocation in its producer or callback.
+Full-queue submissions are dropped and counted; empty callback frames become
+counted silence. The installed NXDK SDL driver uses two 4096-byte contiguous
+device buffers, in addition to SDL's own bookkeeping/work storage.
+
+Only the explicit audio-output.flag enables this probe. Normal interactive
+and replay runs retain deterministic PCM mixing without opening the device.
+Use xemu_replay_check.py INPUT --door --audio-capture for the failing diagnostic.
+It saves/restores the flag, selects QEMU's WAV backend, reads queue and shutdown
+telemetry through QMP, and rejects a silent capture or incomplete consumption.
+The harness still checks all existing movement/rendering evidence.
+
+XEMU 0.8.136 (fc24584ce88f0915ad7f04775bb7712c2e3f49ee), stock64MiB,
+replay-20260910-174126: all 180 scene frames submitted, only 3200 audio frames
+queued, zero consumed, 140000 dropped, zero callbacks/nonzero samples. Teardown
+phase 2 identifies SDL_CloseAudioDevice as the wait. The earlier 173803 run
+likewise timed out and produced a silent WAV. Processes were reaped and disc
+flags restored; neither run is a playback success. Queue correctness under a
+working callback and actual hardware playback are not yet verified.
+
+The symptom agrees with the open [XEMU XAudio callback report #1529](https://github.com/xemu-project/xemu/issues/1529).
+Installed SDL_xboxaudio.c waits on a semaphore posted by the XAudio DPC, and
+SDL_CloseAudioDevice waits for that thread to exit. This explains the observed
+wait but does not prove the underlying emulator defect's precise cause.
+The [QEMU WAV backend](https://www.qemu.org/docs/master/system/invocation.html)
+captures the emulator's device output without desktop or host input.
+
+Next backend candidate: [Ryzee119/nxdk-audio](https://github.com/Ryzee119/nxdk-audio),
+inspected locally at fc2deca2cc1e434805ac03ca7c2f500b3b028f36. It uses the APU
+voice/DSP path and declares MIT in its source; its HRTF attribution includes
+CC BY 4.0 material. No code from it has been incorporated. Evaluate bounded
+memory, build dependencies, callback lifetime and provenance before integration.
+Device playback must also use an independent audio clock: consuming 800 frames
+per simulation tick alone would leave gaps when rendering cannot sustain 60Hz.

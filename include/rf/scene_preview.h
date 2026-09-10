@@ -34,6 +34,11 @@ typedef int (*rf_scene_particle_sink)(void *context,const rf_particle_draw_verte
 /* Convert reciprocal world depth to the preview mesh's 24-bit Z convention. */
 #define RF_SCENE_PARTICLE_DEPTH_BIAS ((1000.0f/999.9f)*16777215.0f)
 #define RF_SCENE_PARTICLE_DEPTH_SCALE (-0.1f*RF_SCENE_PARTICLE_DEPTH_BIAS)
+typedef void (*rf_scene_audio_sink)(void *context,const int16_t *stereo,uint32_t frames);
+/* Optional synchronous platform sink. Borrows stereo48kHz PCM for this call
+ * only; copy into bounded device storage. NULL keeps deterministic mixing only.
+ * Configure before streaming; clear before destroying the sink context. */
+void rf_scene_set_audio(rf_scene_audio_sink sink,void *context);
 /* Synchronous preview pass, valid only inside the scene frame sink. Uses the
  * current camera and retained particle textures. NULL sink checks packets.
  * World/actor mesh is presented first by this diagnostic composition; complete

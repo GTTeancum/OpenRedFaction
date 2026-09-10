@@ -4,7 +4,7 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable guest SDL output and capture emulator WAV');args=p.parse_args()
 if args.door:
  if args.climb or args.approach or args.level:p.error('--door cannot combine with level/climb staging')
  args.campaign_spawn=True
@@ -44,6 +44,7 @@ if not hdd.exists():raise ValueError('Run the pacing harness once to prepare its
 assert (root/'build/xbox/disc/player-control.flag').exists()
 replay=root/'build/xbox/disc/player-replay.bin';saved=replay.read_bytes() if replay.exists() else None
 spawn_flag=root/'build/xbox/disc/campaign-spawn.flag';saved_spawn=spawn_flag.read_bytes() if spawn_flag.exists() else None
+audio_flag=root/'build/xbox/disc/audio-output.flag';saved_audio=audio_flag.read_bytes() if audio_flag.exists() else None
 door_flag=root/'build/xbox/disc/campaign-door.flag';saved_door=door_flag.read_bytes() if door_flag.exists() else None
 climb_flag=root/'build/xbox/disc/campaign-climb.flag';saved_climb=climb_flag.read_bytes() if climb_flag.exists() else None
 selection_file=root/'build/xbox/disc/campaign-level.bin';saved_selection=selection_file.read_bytes() if selection_file.exists() else None
@@ -65,6 +66,8 @@ try:
  else:climb_flag.unlink(missing_ok=True)
  if args.door:door_flag.write_bytes(b'1')
  else:door_flag.unlink(missing_ok=True)
+ if args.audio_capture:audio_flag.write_bytes(b'1')
+ else:audio_flag.unlink(missing_ok=True)
  report['staged_door']=args.door
  replay.write_bytes(payload)
  if args.campaign_spawn:spawn_flag.write_bytes(b'')
@@ -91,7 +94,7 @@ eeprom_path = '{eeprom.as_posix()}'
 hdd_path = '{hdd.as_posix()}'
 dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
 ''')
- command=[str(emulator/'xemu.exe'),'-config_path',str(config),'-m','64','-snapshot','-display','xemu','-audio','none','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off'];report['command']=command
+ command=[str(emulator/'xemu.exe'),'-config_path',str(config),'-m','64','-snapshot','-display','xemu','-audio',f'wav,id=rf_capture,path={run.as_posix()}/device.wav,out.frequency=48000' if args.audio_capture else 'none','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off'];report['command']=command
  startup=None
  if os.name=='nt':startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
  with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
@@ -109,6 +112,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     time.sleep(.5);continue
    if d[0]!=0x52464447:time.sleep(.5);continue
    report['samples'].append(d)
+   if args.audio_capture:
+    report['device_audio']=words(monitor,symbol('rf_xbox_audio_diagnostic'),8)
+    report['audio_close_phase']=words(monitor,symbol('rf_xbox_audio_close_phase'),1)
    if d[2]&0x80000000:raise RuntimeError(f'Guest error {d[2]:08x}')
    if d[37]//60!=last:last=d[37]//60;print('Submitted',d[37],'frames',flush=True)
    if d[2]==5:
@@ -243,6 +249,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      monitor.command('human-monitor-command',{'command-line':f'pmemsave 0x{d[32]&0x03ffffff:x} {d[35]*d[34]} "{capture.as_posix()}"'})
      Image.frombytes('RGB',(d[33],d[34]),capture.read_bytes(),'raw','BGRX',d[35],1).save(run/'framebuffer.png')
      report['capture']='Native guest framebuffer for renderer validation'
+    if args.audio_capture:
+     device_audio=words(monitor,symbol('rf_xbox_audio_diagnostic'),8)
+     report['device_audio']=device_audio
+     assert device_audio[0]==0 and device_audio[1]==device_audio[2] and device_audio[3]==0,device_audio
+     assert device_audio[2]==expected('LIVE_AUDIO')[6] and device_audio[6]==expected('LIVE_AUDIO')[7],device_audio
+     assert device_audio[5]>0,device_audio
     report['result']='PASS';break
    time.sleep(.5)
   else:raise RuntimeError('Replay did not complete before deadline')
@@ -262,6 +274,19 @@ finally:
   try:process.wait(timeout=10)
   except subprocess.TimeoutExpired:process.terminate();process.wait(timeout=10)
  try:
+  if args.audio_capture and (run/'device.wav').exists():
+   import wave,array
+   with wave.open(str(run/'device.wav')) as wav:
+    assert wav.getnchannels()==2 and wav.getsampwidth()==2 and wav.getframerate()==48000
+    pcm=wav.readframes(wav.getnframes())
+   values=array.array('h');values.frombytes(pcm)
+   report['device_wav']=dict(bytes=len(pcm),nonzero_samples=sum(v!=0 for v in values),sha256=hashlib.sha256(pcm).hexdigest())
+   if report['result']=='PASS':assert report['device_wav']['nonzero_samples']>0,'Device capture contains only silence'
+ except Exception as capture_error:
+  report['result']='FAIL';report['capture_error']=repr(capture_error)
+ try:
+  if saved_audio is None:audio_flag.unlink(missing_ok=True)
+  else:audio_flag.write_bytes(saved_audio)
   if saved_steps is None:step_file.unlink(missing_ok=True)
   else:step_file.write_bytes(saved_steps)
   if saved_selection is None:selection_file.unlink(missing_ok=True)
@@ -278,3 +303,4 @@ finally:
  except Exception as restore_error:
   report['result']='FAIL';report['restore_error']=repr(restore_error);raise
  finally:(run/'report.json').write_text(json.dumps(report,indent=2));print(run,report['result'],flush=True)
+ if report['result']!='PASS':raise RuntimeError(report.get('capture_error',report.get('error','Replay failed')))

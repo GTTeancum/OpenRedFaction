@@ -402,6 +402,10 @@ static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
 static rf_audio_mixer campaign_audio_mixer;
 static int16_t campaign_audio_frame[1600];
+static rf_scene_audio_sink campaign_audio_sink;
+static void *campaign_audio_context;
+void rf_scene_set_audio(rf_scene_audio_sink sink,void *context)
+{campaign_audio_sink=sink;campaign_audio_context=context;}
 /* loaded samples, retained bytes, missing names, rejected resources, played,
  * unavailable requests, rendered frames, PCM byte hash. No device output yet. */
 uint32_t rf_scene_live_audio[8];
@@ -594,6 +598,7 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
     status=rf_audio_mix(&campaign_audio_mixer,campaign_audio_frame,800);if(status)return status;
     for(i=0;i<sizeof(campaign_audio_frame);i++)rf_scene_live_audio[7]=(rf_scene_live_audio[7]^((const uint8_t *)campaign_audio_frame)[i])*16777619u;
     rf_scene_live_audio[6]+=800;
+    if(campaign_audio_sink)campaign_audio_sink(campaign_audio_context,campaign_audio_frame,800);
     ++rf_scene_live_motion[0];return RF_OK;
 }
 static rf_collision_body_mover *campaign_sweep_scratch;

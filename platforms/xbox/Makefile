@@ -7,6 +7,7 @@ GEN_XISO = redfaction-diagnostic.iso
 SRCS = $(PROJECT_ROOT)/src/core/audio.c $(PROJECT_ROOT)/src/core/vpp.c $(PROJECT_ROOT)/src/core/checksum.c $(PROJECT_ROOT)/src/core/level.c $(PROJECT_ROOT)/src/core/geometry.c $(PROJECT_ROOT)/src/core/preview.c $(PROJECT_ROOT)/src/core/image.c $(PROJECT_ROOT)/src/core/material.c $(PROJECT_ROOT)/src/platform/xbox/main.c $(PROJECT_ROOT)/src/platform/xbox/renderer.c
 SHADER_OBJS = $(PROJECT_ROOT)/src/platform/xbox/particle_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/particle_fragment.inl $(PROJECT_ROOT)/src/platform/xbox/preview_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/preview_fragment.inl
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/input.c
+SRCS += $(PROJECT_ROOT)/src/platform/xbox/audio.c
 SRCS += $(PROJECT_ROOT)/src/core/event.c
 SRCS += $(PROJECT_ROOT)/src/core/frame_clock.c
 SRCS += $(PROJECT_ROOT)/src/core/object_registry.c

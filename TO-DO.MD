@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
+- [ ] Replace the failing XEMU/SDL AC97 device path and decouple playback from the simulation clock.
 - [ ] Complete spatial controller audio and Xbox/PC device playback after verified live PCM dispatch.
 - [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
 - [ ] Complete controller sound/alert/wakeup effects, rotation and remaining key-target actions.
