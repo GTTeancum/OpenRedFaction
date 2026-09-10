@@ -416,7 +416,7 @@ void rf_scene_set_audio(rf_scene_audio_sink sink,void *context)
 /* loaded samples, retained bytes, missing names, rejected resources, played,
  * unavailable requests, rendered frames, PCM byte hash. No device output yet. */
 uint32_t rf_scene_live_audio[8];
-static int campaign_audio_open(const char *tables_path)
+static int campaign_audio_open(const char *tables_path,const char *level_name)
 {
     char path[1024];size_t prefix=0,n;uint32_t i,j,index,capacity;
     rf_vpp archive={0};int status;
@@ -435,7 +435,9 @@ static int campaign_audio_open(const char *tables_path)
     if(!status)for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
         const char *name=campaign_group_runtime.items[i].source->record.sounds[j];
         if(!name[0])continue;
-        int loaded=rf_audio_bank_load(&campaign_audio_bank,name,&index);
+        int loaded=rf_audio_bank_register(&campaign_audio_bank,name,
+            !strcmp(level_name,"L14S2.rfl")?10.0f:5.0f,
+            campaign_group_runtime.items[i].source->record.sound_values[j],1.0f,&index);
         if(!loaded)campaign_controller_requests[i].sounds.samples[j]=(int32_t)index;
         else if(loaded==RF_NOT_FOUND)++rf_scene_live_audio[2];
         else ++rf_scene_live_audio[3];
@@ -1826,7 +1828,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             for(i=0;i<campaign_movers.count;i++)campaign_surface_sources[i+1]=&actor_follow_world->movers.items[i].geometry;
             campaign_controller_requests=calloc(campaign_group_runtime.count?campaign_group_runtime.count:1,sizeof(*campaign_controller_requests));
             if(!campaign_controller_requests){status=RF_RANGE;goto done;}
-            status=campaign_audio_open(tables_path);if(status)goto done;
+            status=campaign_audio_open(tables_path,level->entry.name);if(status)goto done;
             memset(rf_scene_live_activation,0,sizeof(rf_scene_live_activation));campaign_actor_controller=UINT32_MAX;
             memset(rf_scene_trigger_contacts,0,sizeof(rf_scene_trigger_contacts));
             memset(&campaign_entities,0,sizeof(campaign_entities));memset(&campaign_player_view,0,sizeof(campaign_player_view));

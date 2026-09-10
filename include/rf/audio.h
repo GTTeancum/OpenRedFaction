@@ -5,7 +5,7 @@
  * Finite near > 0, rolloff > 0, default_volume >= 0 are caller preconditions. */
 float rf_audio_far_distance(float near_distance,float rolloff,float default_volume);
 /* Original 505740 positional calculation. Caller supplies finite vectors,
- * near_distance > 0, far_distance >= near_distance, factor >= 0, volume >= 0.
+ * near_distance > 0, finite far_distance, factor >= 0, volume >= 0.
  * Output order is pan, gain; listener_right is the listener orientation axis.
  * Does not apply the later volume-group/sample gain or device conversion. */
 void rf_audio_position(const float position[3],const float listener[3],
@@ -19,7 +19,8 @@ typedef struct rf_wave_pcm {
  * stereo, skips bounded metadata chunks and rejects ambiguous fmt/data chunks.
  * RIFF extent must equal supplied size. Errors preserve output. */
 int rf_wave_pcm_parse(const void *data,uint32_t size,rf_wave_pcm *result);
-typedef struct rf_audio_sample { char name[61];void *storage;rf_wave_pcm pcm;uint32_t bytes; } rf_audio_sample;
+typedef struct rf_audio_parameters {float near_distance,far_distance,volume,rolloff;} rf_audio_parameters;
+typedef struct rf_audio_sample { char name[61];void *storage;rf_wave_pcm pcm;uint32_t bytes;rf_audio_parameters parameters; } rf_audio_sample;
 typedef struct rf_audio_bank {
     rf_vpp *archive;rf_audio_sample *samples;uint32_t count,capacity,bytes,budget;
 } rf_audio_bank;
@@ -30,6 +31,12 @@ typedef struct rf_audio_bank {
  * bank and index. Stop all borrowing voices before close. No eviction. */
 int rf_audio_bank_open(rf_vpp *archive,uint32_t capacity,uint32_t budget,rf_audio_bank *bank);
 int rf_audio_bank_load(rf_audio_bank *bank,const char *name,uint32_t *index);
+/* First successful registration wins, including parameters, on duplicate names.
+ * Nonpositive near normalizes to one; other parameters must be finite with
+ * positive rolloff and nonnegative volume. Parameters share sample ownership. */
+int rf_audio_bank_register(rf_audio_bank *bank,const char *name,float near_distance,
+    float volume,float rolloff,uint32_t *index);
+const rf_audio_parameters *rf_audio_bank_parameters(const rf_audio_bank *bank,uint32_t index);
 const rf_wave_pcm *rf_audio_bank_sample(const rf_audio_bank *bank,uint32_t index);
 void rf_audio_bank_close(rf_audio_bank *bank);
 #define RF_AUDIO_VOICES 16u

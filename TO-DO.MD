@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Campaign banks retain first-registration controller volume/range/rolloff within
+the memory budget; global table ordering, loop flags and playback use remain open.
+
 Shared far-cutoff C matches4221 original PC/NXDK cases; registration ordering,
 category gain and live metadata loading remain open.
 

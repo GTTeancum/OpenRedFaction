@@ -401,3 +401,22 @@ random cases with positive near/rolloff and nonnegative volume. Output SHA256:
 The6688 positional cases still pass, as do both builds and six CTests.
 Registration normalization, deduplication ordering and category gain are excluded
 from this arithmetic check; the function is not yet used by live sound loading.
+
+### Campaign registration metadata ownership
+
+The owned sound bank now retains near distance, derived far cutoff, default volume
+and rolloff per sample. `rf_audio_bank_register` preserves parameters on duplicate
+filenames, normalizes nonpositive near distance to one, and rejects nonfinite or
+unsupported parameters before allocating. The older load-only adapter registers
+unity defaults. The current campaign registers each controller's authored volume,
+near5 (10 for L14S2.rfl), and rolloff1. Earlier global table registration and
+filesystem loop flags remain absent, so global registration order is not yet
+faithfully reproduced. Stored parameters are not yet applied to playback gain.
+
+The PC bank check verifies retained first-registration parameters when a duplicate
+requests different settings. Its two-sample budget grows from93402 to93434 bytes;
+the L1S1 scene reserves20 slots and grows from113848 to114168 bytes (320 extra).
+The180-frame PC door replay and independent full PCM reference remain unchanged.
+
+Stock64MiB XEMU replay-20260910-182835 also passes the180-frame door replay
+with APU output enabled, matching PC state and PCM and clean device shutdown.

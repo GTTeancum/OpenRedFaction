@@ -13,6 +13,6 @@ for i in range(256):
  value=-(abs(n)//48000) if n<0 else n//48000;expected.extend(struct.pack('<2h',value,value))
 hash_=2166136261
 for byte in expected:hash_=((hash_^byte)*16777619)&0xffffffff
-assert int(match[1])==93402 and int(match[2])==hash_
-report=dict(result='PASS',retained_bytes=93402,post_close_pcm_hash=hash_,scope='PC VPP bank: exact/one-byte-short budgets, case-insensitive deduplication, missing file and output preservation, playback data after archive close, invalid sample index, repeat bank close. First256 stereo frames match independent Python wave/integer interpolation. NXDK build only for ownership; no live device output or sample eviction.')
+assert int(match[1])==93434 and int(match[2])==hash_
+report=dict(result='PASS',retained_bytes=93434,post_close_pcm_hash=hash_,scope='PC VPP bank: exact/one-byte-short budgets, case-insensitive deduplication with first-registration spatial parameters, missing file and output preservation, playback data after archive close, invalid sample index, repeat bank close. First256 stereo frames match independent Python wave/integer interpolation. NXDK build only for ownership; no live device output or sample eviction.')
 (root/'artifacts/audio-bank-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
