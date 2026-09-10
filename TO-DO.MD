@@ -1,9 +1,8 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Apply measured campaign resource budgets and validate L1S2 residency and climbing in 64-MiB XEMU.
+- [ ] Verify climb controls, authored approach and top-of-ladder traversal after the staged XEMU ascent.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
-- [ ] Connect authored movement regions and recovered climb entry, motion and exit to the campaign player.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
@@ -26,28 +25,18 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
-Campaign code now wires owned region queries, climb entry/exit and movement.
-The L1S1 64-tick replay passes in stock-64-MiB XEMU (20260909-235522), including
-new query telemetry, but contains no climb region. The staged L1S2 replay fails
-at material-loading stage 11 before simulation; fix that and demonstrate actual
-entry/motion/exit. Entity +148 was corrected from "step offset" to vertical velocity.
-Run tools/replay_campaign_climb.py to reproduce the current failure.
-
-Static VBM decoding now supports version 1 RGB565, ARGB4444 and ARGB1555.
-All 196608 format/pixel combinations match on PC/NXDK and round-trip through
-original 55dd20 packing. The L1S2 replay gets past its VBM texture but now
-fails the material budget at mtl_contrl_panel00.tga. Measure retained texture
-and scratch allocations before changing budgets; stock 64 MiB remains mandatory.
-Animated VBM playback and retaining/rendering authored mip levels remain open.
-Run tools/verify_vbm.py; actual campaign climbing is still unverified.
-
-Static VBM versions 1/2 now supported, with original 511410 legacy alpha-bit
-inversion recovered for version-1 ARGB1555. Expanded PC/NXDK tests cover
-393216 words. L1S2 actual material peak is 9367476 bytes (8.93 MiB),
-including just 7800 bytes of temporary names; GPU copies would add 9357312
-bytes. tools/measure_level_textures.py L1S2.rfl --verify-load checks exact
-loading budgets. Reduce packed-pixel/GPU duplication and measure total XEMU
-residency; the game's 4 MiB material budget has not been raised.
+Campaign region lookup, climb entry, motion and exit now run on both targets.
+L1S2 staged ascent replay 20260910-003213 passes on stock-64-MiB XEMU:
+62 climbing ticks, 4.3717055 world units upward, one entry and one sideways
+exit; all 1152 timeline words and existing player records match PC exactly.
+9428 pages (36.8 MiB) remain at the final rendered frame. Native raster differs
+from PC by at most one channel value. This is not original-game/PS2 parity.
+Shared material/lightmap limits are 12/4 MiB after eliminating GPU duplication;
+these initial limits do not prove every campaign level fits. Authored approach,
+controller mapping and top-platform traversal remain open. A vertical-input
+probe at the top boundary re-entered repeatedly, so that transition needs work.
+The two-key L1S1 post-run door self-test is no longer applied to the L1S2 fixture;
+full L1S2 group/door simulation remains unverified. See docs/CAMERA.md.
 
 Owned movement-region storage now survives archive closure with a checked
 single allocation. All 147 records across 39 levels pass PC/NXDK ownership,

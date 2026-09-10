@@ -1,3 +1,4 @@
+#include "rf/resource_budget.h"
 #include "renderer.h"
 #include <pbkit/pbkit.h>
 #include <xboxkrnl/xboxkrnl.h>
@@ -76,7 +77,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if (!mesh || (!mesh->count && !streaming) || !materials || materials->count > 256 || !lightmaps || lightmaps->count > 256) return RF_FORMAT;
     for (i = 0; i < materials->count; ++i) upload_bytes += materials->items[i].image.bytes;
     for (i = 0; i < lightmaps->count; ++i) upload_bytes += lightmaps->images[i].bytes;
-    if (upload_bytes > 8u*1024u*1024u || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
+    if (upload_bytes > RF_CAMPAIGN_IMAGE_BUDGET || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
     for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
     if(mesh->bytes>vertex_bytes)return RF_RANGE;
     renderer_mark(0,&profile_previous,profiling);

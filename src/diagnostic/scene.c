@@ -242,6 +242,7 @@ static rf_level_owned_regions campaign_regions;
 static rf_movement_descriptor campaign_modes[16];
 static rf_player_climb_state campaign_climb;
 static const float campaign_identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
+uint32_t rf_scene_player_climb_frames[128][9]; /* frame, region, mode, position XYZ, velocity XYZ before motion */
 uint32_t rf_scene_player_climb[8]; /* queries, enters, exits, region, mode, bytes, sounds, sound ID */
 
 uint32_t rf_scene_actor_eye_frames[64][46]; /* frame, rf_eye_input, rf_first_person_pose */
@@ -521,7 +522,10 @@ static int campaign_climb_update(scene_stream *stream,uint32_t frame)
     }
     rf_scene_actor_movement_settings=campaign_climb.speed;
     rf_scene_actor_landing[1]=mode;scene_actor_body.state.velocity[1]=campaign_climb.vertical_velocity;
-    rf_scene_player_climb[4]=mode;return RF_OK;
+    rf_scene_player_climb[4]=mode;
+    {uint32_t *record=rf_scene_player_climb_frames[frame%128];record[0]=frame;record[1]=index;record[2]=mode;
+     memcpy(record+3,scene_actor_body.state.position,12);memcpy(record+6,scene_actor_body.state.velocity,12);}
+    return RF_OK;
 }
 static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
 {
@@ -1064,6 +1068,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             memset(&campaign_climb,0,sizeof(campaign_climb));memset(rf_scene_player_climb,0,sizeof(rf_scene_player_climb));
+            memset(rf_scene_player_climb_frames,0,sizeof(rf_scene_player_climb_frames));
             rf_scene_player_climb[3]=UINT32_MAX;rf_scene_player_climb[5]=campaign_regions.allocated_bytes;
         }
         stream.eye_flags=physics_config.authored.flags2;

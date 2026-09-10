@@ -1,3 +1,4 @@
+#include "rf/resource_budget.h"
 #include "rf/vpp.h"
 #include "rf/object_registry.h"
 #include "rf/checksum.h"
@@ -503,7 +504,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     if(stream_flag){fclose(stream_flag);status=rf_scene_showcase_camera(level);if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}return status;}}
     rf_preview_close(mesh);rf_materials_close(&resident_materials);
     while(!status && opened<5) {status=rf_vpp_open(maps+opened,paths[opened]);if(!status)++opened;}
-    if(!status)status=rf_scene_world_open_retained(level,&resident_geometry,maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,&resident_render_geometry);
+    if(!status)status=rf_scene_world_open_retained(level,&resident_geometry,maps,opened,mesh,&resident_materials,8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,&resident_render_geometry);
     if(!status && actor_follow_preview)rf_scene_actor_follow(&resident_render_geometry);
     world=mesh->count;
     stream_flag=fopen("D:\\scene-stream.flag","rb");
@@ -513,17 +514,17 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         if(stream_flag || player_controls) {
             if(stream_flag)fclose(stream_flag);rf_diagnostic[31]=5;
             if(!status && actor_body_preview)status=rf_scene_stream_miner_body(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
-                maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL,&resident_collision,&resident_geometry);
+                maps,opened,mesh,&resident_materials,8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,scene_frame,NULL,&resident_collision,&resident_geometry);
             else if(!status)status=rf_scene_stream_miner_states(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
-                maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL);
+                maps,opened,mesh,&resident_materials,8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,scene_frame,NULL);
         } else if(!status)status=rf_scene_stream_miner(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
-            maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL);
+            maps,opened,mesh,&resident_materials,8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,scene_frame,NULL);
         while(opened)rf_vpp_close(maps+--opened);
         if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}
         return status;
     }
     if(!status)status=rf_scene_preview_miner(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
-        maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024);
+        maps,opened,mesh,&resident_materials,8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET);
     while(opened)rf_vpp_close(maps+--opened);
     if(!status) {
         rf_diagnostic[31]=3;rf_diagnostic[56]=9858;rf_diagnostic[57]=world;
@@ -605,7 +606,7 @@ static int load_materials(void)
         if (result) break;
         ++opened;
     }
-    if (!result) result = rf_materials_open(&resident_materials, &resident_geometry, archives, 5, 4u*1024u*1024u);
+    if (!result) result = rf_materials_open(&resident_materials, &resident_geometry, archives, 5, RF_CAMPAIGN_MATERIAL_BUDGET);
     while (opened) rf_vpp_close(archives + --opened);
     if (result) return result;
     for (i = 0; i < resident_materials.count; ++i) {
@@ -632,6 +633,7 @@ int main(void)
 {
     rf_vpp archive;
     MM_STATISTICS memory = {0};
+    int live_mines_door_fixture=1;
     int result;
     rf_diagnostic[2] = 1;
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
@@ -668,7 +670,17 @@ int main(void)
         result = rf_vpp_open(&archive, "D:\\levels1.vpp");
         if (result == RF_OK) {
             rf_level level;
-            result = rf_level_open(&level, &archive, "L1S1.rfl");
+            FILE *climb_flag=fopen("D:\\campaign-climb.flag","rb");
+            int staged_climb=climb_flag!=NULL;
+            live_mines_door_fixture=!staged_climb;
+            if(climb_flag)fclose(climb_flag);
+            result = rf_level_open(&level, &archive, staged_climb?"L1S2.rfl":"L1S1.rfl");
+            if(result==RF_OK && staged_climb) {
+                rf_level_entity_reader reader;rf_player_movement_region region;
+                result=rf_level_regions_begin(&level,&reader);
+                if(!result)result=rf_level_region_next(&reader,&region);
+                if(!result)memcpy(level.player_position,region.center,12);
+            }
             if (result == RF_OK) {
                 const rf_level_section *geometry = rf_level_find(&level, 0x100);
                 const rf_level_section *lightmaps = rf_level_find(&level, 0x1200);
@@ -705,7 +717,7 @@ int main(void)
                     {
                         rf_preview_mesh mesh;
                         result = collision_check(&level);
-                        if(result == RF_OK) result = rf_lightmaps_open(&resident_lightmaps, &level, 4u*1024u*1024u);
+                        if(result == RF_OK) result = rf_lightmaps_open(&resident_lightmaps, &level, RF_CAMPAIGN_LIGHTMAP_BUDGET);
                         if (result == RF_OK) {
                             uint32_t mapping, image;
                             for (mapping = 0; mapping < resident_geometry.mappings && result == RF_OK; ++mapping)
@@ -732,7 +744,7 @@ int main(void)
             rf_vpp_close(&archive);
         }
         if(result==RF_OK)result=group_storage_check(); /* Level archive is closed; owned data remains resident. */
-        if(result==RF_OK)result=door_motion_check(); /* Noninteractive motion diagnostic after archive closure. */
+        if(result==RF_OK && live_mines_door_fixture)result=door_motion_check(); /* Two-key L1S1 fixture, not campaign simulation. */
         rf_diagnostic[2] = result == RF_OK ? 5u : 0x80000100u | (uint32_t)(-result);
     }
     for (;;) Sleep(1000);

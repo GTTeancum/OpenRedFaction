@@ -1,3 +1,4 @@
+#include "rf/resource_budget.h"
 /* Port-owned Windows frontend. Reads only messages addressed to its window.
  * The headless replay calls the shared provider directly; no OS input injection. */
 #define WIN32_LEAN_AND_MEAN
@@ -17,7 +18,7 @@ extern uint32_t rf_scene_actor_follow_summary[5];
 extern uint32_t rf_scene_player_input_frames[64][7];
 extern uint32_t rf_preview_failure[8],rf_animation_progress[4];
 extern rf_physics_body scene_actor_body;
-extern uint32_t rf_scene_actor_initial_animation[12],rf_scene_player_climb[8];
+extern uint32_t rf_scene_actor_initial_animation[12],rf_scene_player_climb[8],rf_scene_player_climb_frames[128][9];
 extern float rf_scene_actor_initial_eye_offsets[6];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_selector_frames[64][8],rf_scene_actor_locomotion_frames[64][12];
@@ -181,8 +182,8 @@ int main(int argc,char **argv)
         CHECK(rf_vpp_open(maps+i,path));++opened;
     }
     CHECK(rf_scene_world_open_retained(&level,&geometry,maps,opened,&mesh,&materials,
-        8*1024*1024,4*1024*1024,&retained));
-    CHECK(rf_lightmaps_open(&p.lightmaps,&level,4*1024*1024));
+        8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,&retained));
+    CHECK(rf_lightmaps_open(&p.lightmaps,&level,RF_CAMPAIGN_LIGHTMAP_BUDGET));
     CHECK(rf_pc_raster_open(&p.raster,1));
     if(!p.headless) {
         RECT rect={0,0,960,720};
@@ -206,15 +207,15 @@ int main(int argc,char **argv)
     rf_scene_actor_look_enabled=1;rf_scene_actor_turn_enabled=1;
     rf_scene_actor_drive(1);rf_scene_actor_follow(&retained);rf_scene_set_input(input,&p,limit);
     CHECK(rf_scene_stream_miner_body(&level,9858,meshes,motions,tables,maps,opened,&mesh,&materials,
-        8*1024*1024,4*1024*1024,present,&p,&collision,&geometry));
+        8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,present,&p,&collision,&geometry));
     if(p.headless) {
         if(p.frames!=limit){status=RF_FORMAT;goto cleanup;}
         if(spawn_profile){
-            const void *records[6]={rf_scene_actor_initial_animation,rf_scene_actor_initial_eye_offsets,&rf_scene_actor_stance_cache,rf_scene_actor_selector_frames,rf_scene_actor_locomotion_frames,rf_scene_player_climb};
-            const char *labels[6]={"PLAYER_INITIAL_ANIMATION","PLAYER_CLASS_EYE","PLAYER_CLASS_STANCE","PLAYER_STANCE_FRAMES","PLAYER_MOTION_FRAMES","PLAYER_CLIMB"};
-            const uint32_t sizes[6]={12,6,sizeof(rf_scene_actor_stance_cache)/4,512,768,8};uint32_t j;
+            const void *records[7]={rf_scene_actor_initial_animation,rf_scene_actor_initial_eye_offsets,&rf_scene_actor_stance_cache,rf_scene_actor_selector_frames,rf_scene_actor_locomotion_frames,rf_scene_player_climb,rf_scene_player_climb_frames};
+            const char *labels[7]={"PLAYER_INITIAL_ANIMATION","PLAYER_CLASS_EYE","PLAYER_CLASS_STANCE","PLAYER_STANCE_FRAMES","PLAYER_MOTION_FRAMES","PLAYER_CLIMB","PLAYER_CLIMB_FRAMES"};
+            const uint32_t sizes[7]={12,6,sizeof(rf_scene_actor_stance_cache)/4,512,768,8,1152};uint32_t j;
             printf("PLAYER_SPAWN");for(i=0;i<19;++i)printf(" %u",rf_scene_player_spawn_diagnostic[i]);puts("");
-            for(j=0;j<6;++j){printf("%s",labels[j]);for(i=0;i<sizes[j];++i){uint32_t word;memcpy(&word,(const char*)records[j]+i*4,4);printf(" %u",word);}puts("");}
+            for(j=0;j<7;++j){printf("%s",labels[j]);for(i=0;i<sizes[j];++i){uint32_t word;memcpy(&word,(const char*)records[j]+i*4,4);printf(" %u",word);}puts("");}
         }
         CHECK(rf_pc_raster_save(&p.raster,argv[4]));
         printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");

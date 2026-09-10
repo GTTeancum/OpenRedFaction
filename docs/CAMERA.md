@@ -2614,3 +2614,47 @@ climb telemetry words. L1S1 has no regions, so this is regression evidence only.
 The 768 entry and 128 exit PC/NXDK fixtures and CTest still pass. Next work is
 the L1S2 material failure, followed by actual entry/motion/exit replay and XEMU
 coverage of a region-containing level.
+
+
+L1S2 live climb integration (2026-09-10)
+
+The shared campaign budget is now 12 MiB materials and 4 MiB lightmaps, with a
+16 MiB referenced-image guard on Xbox. These are bounded initial campaign
+limits based on L1S2's measured 9,367,476-byte world material peak and room for
+actor textures. CPU/GPU pixels share storage; page rounding and other resident
+systems are validated by guest memory, not inferred from the material budget.
+
+replay_campaign_climb.py stages the player at the first authored L1S2 region
+center. Neutral ticks are followed by parent-Y input on ticks 8..52 and forward
+input from tick 53 to exit sideways. This is process-local test input, not a
+claim that controller buttons currently provide the same command. The timeline
+records frame/region/mode/position/velocity before motion in a 128x9 word ring
+(4608 bytes). The original horizontal-only fixture had entered/exited but did
+not climb; the stronger gate now requires more than one unit of vertical travel.
+
+xemu_replay_check.py --climb selects the same fixture using campaign-climb.flag,
+restores the prior flag/replay/spawn state and rebuilds the ordinary ISO afterward.
+Native run replay-20260910-003213 passes at 120 frames: 62 climbing ticks,
+4.371705532 units ascent, one entry and one sideways exit. All 1152 climb timeline
+words plus the prior body/input/spawn/stance/animation records match PC. The
+emulator reports stock 64 MiB; 9428 pages remain at final presentation, before
+post-scene cleanup. Referenced image payload is 10741764 bytes; GPU vertices
+use 2097152 bytes. This is sampled runtime residency, not a load-peak proof for
+all resources or all levels. Framebuffer comparison: 307200 pixels, maximum
+channel error 1, zero pixels above tolerance 3. No screenshot is published
+because the final wall view does not meaningfully illustrate the climb.
+
+The first Xbox attempt rendered all 120 frames then returned RF_RANGE in the
+unconditional post-run door fixture. That fixture explicitly requires two keys,
+no events and one attached mover, which L1S2 does not universally satisfy.
+It remains active for the L1S1 diagnostic and is not invoked for staged L1S2;
+this does not implement or validate L1S2 doors. Full group simulation is open.
+
+A separate vertical-input probe continued through the top boundary and repeatedly
+re-entered while falling back into it. Authored approach, look-directed/controller
+climbing, top-platform exit, sound playback and full player lifecycle still need
+reconstruction/validation. The staged ascent is not a complete ladder or campaign
+fidelity claim. Entity +148 remains correctly wired as vertical velocity.
+
+L1S1 64-tick campaign crouch regression replay-20260910-003315 also passes
+with the normal level restored, including the new climb timeline ring.

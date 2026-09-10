@@ -3,15 +3,16 @@ import argparse,datetime,hashlib,json,os,re,shutil,socket,subprocess,sys,time
 from pathlib import Path
 from xemu_smoke import Monitor
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');args=p.parse_args()
+if args.climb:args.campaign_spawn=True
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu');payload=args.input.read_bytes()
 if not payload or len(payload)%24 or len(payload)>60000*24:raise ValueError('Expected 1..60000 input records')
 frames=len(payload)//24;run=root/'artifacts/xemu'/('replay-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
 source=run/'inputs.bin';source.write_bytes(payload)
-pc=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay' if args.campaign_spawn else '--replay',str(root/'Installed_Game'),str(source),str(run/'pc-final.ppm')],capture_output=True,text=True,check=True)
+pc=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay' if args.campaign_spawn else '--replay',str(root/'Installed_Game'),str(source),str(run/'pc-final.ppm')],capture_output=True,text=True,check=True,env=dict(os.environ,**({'RF_REPLAY_LEVEL':'L1S2.rfl','RF_REPLAY_REGION_START':'1'} if args.climb else {})))
 (run/'pc-reference.txt').write_text(pc.stdout)
 def expected(label):return list(map(int,next(x for x in pc.stdout.splitlines() if x.startswith(label+' ')).split()[1:]))
-if args.campaign_spawn:
+if args.campaign_spawn and not args.climb:
  starts=json.loads((root/'artifacts/player-start-verification.json').read_text())
  look=json.loads((root/'artifacts/player-spawn-look.json').read_text())
  original='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
@@ -19,15 +20,18 @@ if args.campaign_spawn:
  start=next(c for c in starts['levels'] if c['file'].lower()=='l1s1.rfl')
  angles=next(c for c in look['cases'] if c['file'].lower()=='l1s1.rfl')
  assert expected('PLAYER_SPAWN')==[1]+start['transform_words']+angles['body_words']+angles['eye_words']
- assert expected('PC_PLAY_BODY')[68]&0x80, 'Campaign player physics flag missing'
+if args.campaign_spawn:assert expected('PC_PLAY_BODY')[68]&0x80, 'Campaign player physics flag missing'
 hdd=root/'local/xemu-harness/pacing-base.qcow2'
 if not hdd.exists():raise ValueError('Run the pacing harness once to prepare its separate HDD base')
 assert (root/'build/xbox/disc/player-control.flag').exists()
 replay=root/'build/xbox/disc/player-replay.bin';saved=replay.read_bytes() if replay.exists() else None
 spawn_flag=root/'build/xbox/disc/campaign-spawn.flag';saved_spawn=spawn_flag.read_bytes() if spawn_flag.exists() else None
-process=monitor=None;report={'result':'FAIL','frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; no framebuffer capture or PS2 parity claim.'}
+climb_flag=root/'build/xbox/disc/campaign-climb.flag';saved_climb=climb_flag.read_bytes() if climb_flag.exists() else None
+process=monitor=None;report={'result':'FAIL','frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True)
 try:
+ if args.climb:climb_flag.write_bytes(b'')
+ else:climb_flag.unlink(missing_ok=True)
  replay.write_bytes(payload)
  if args.campaign_spawn:spawn_flag.write_bytes(b'')
  elif spawn_flag.exists():spawn_flag.unlink()
@@ -79,8 +83,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
     if args.campaign_spawn:
      spawn=words(monitor,symbol('rf_scene_player_spawn_diagnostic'),19);assert spawn==expected('PLAYER_SPAWN');report['player_spawn']=spawn
-     for name,label,count in [('rf_scene_actor_initial_animation','PLAYER_INITIAL_ANIMATION',12),('rf_scene_actor_initial_eye_offsets','PLAYER_CLASS_EYE',6),('rf_scene_actor_stance_cache','PLAYER_CLASS_STANCE',50),('rf_scene_actor_selector_frames','PLAYER_STANCE_FRAMES',512),('rf_scene_actor_locomotion_frames','PLAYER_MOTION_FRAMES',768),('rf_scene_player_climb','PLAYER_CLIMB',8)]:
+     for name,label,count in [('rf_scene_actor_initial_animation','PLAYER_INITIAL_ANIMATION',12),('rf_scene_actor_initial_eye_offsets','PLAYER_CLASS_EYE',6),('rf_scene_actor_stance_cache','PLAYER_CLASS_STANCE',50),('rf_scene_actor_selector_frames','PLAYER_STANCE_FRAMES',512),('rf_scene_actor_locomotion_frames','PLAYER_MOTION_FRAMES',768),('rf_scene_player_climb','PLAYER_CLIMB',8),('rf_scene_player_climb_frames','PLAYER_CLIMB_FRAMES',1152)]:
       got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
+    if args.climb:
+     import struct
+     assert expected('PLAYER_CLIMB')[1]>0 and expected('PLAYER_CLIMB')[2]>0,'Climb transitions missing'
+     values=expected('PLAYER_CLIMB_FRAMES');climbing=[values[i:i+9] for i in range(0,len(values),9) if values[i] and values[i+2]==2]
+     heights=[struct.unpack('<f',struct.pack('<I',r[4]))[0] for r in climbing]
+     report['climbing_ticks']=len(climbing);report['climb_vertical_distance']=max(heights)-min(heights) if heights else 0
+     assert report['climb_vertical_distance']>1,'Climb ascent missing'
+    report['available_pages_at_completion']=d[44]
     replay_state=words(monitor,symbol('rf_player_replay_diagnostic'),4);assert replay_state==[0,frames,frames,0],replay_state
     assert d[37]==frames and d[46]==2097152
     peak=max(s[36]*56 for s in report['samples']);report['sampled_gpu_mesh_peak_bytes']=peak
@@ -110,6 +122,8 @@ finally:
   try:process.wait(timeout=10)
   except subprocess.TimeoutExpired:process.terminate();process.wait(timeout=10)
  try:
+  if saved_climb is None:climb_flag.unlink(missing_ok=True)
+  else:climb_flag.write_bytes(saved_climb)
   if saved is None:replay.unlink(missing_ok=True)
   else:replay.write_bytes(saved)
   if saved_spawn is None:spawn_flag.unlink(missing_ok=True)
