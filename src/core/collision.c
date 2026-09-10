@@ -947,6 +947,18 @@ int rf_collision_face_accept(const rf_collision_face_filter *filter,uint32_t *ac
     *accepted=value;return RF_OK;
 }
 
+int rf_collision_mover_contact(const rf_collision_ray_hit *local,const float origin[3],
+    const float matrix[3][3],const float velocity[3],uint32_t object_id,uint32_t texture,
+    uint32_t material,uint32_t face_flags,uint32_t face_token,rf_collision_body_hit *result)
+{
+    rf_collision_body_hit value={0};rf_collision_ray_hit world;uint32_t i;int status;
+    if(!velocity || !result)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(velocity[i]))return RF_FORMAT;
+    status=rf_collision_contact_world(local,origin,matrix,&world);if(status)return status;
+    memcpy(value.point,world.point,12);memcpy(value.normal,world.normal,12);value.fraction=world.fraction;
+    memcpy(value.velocity,velocity,12);value.object_id=object_id;value.texture=texture;value.material=material;
+    value.face_flag=(face_flags>>2)&1;value.face_token=face_token;*result=value;return RF_OK;
+}
 int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     const float displacement[3],float limit,rf_collision_ray_hit *result,uint32_t *matched)
 {

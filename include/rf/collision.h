@@ -108,6 +108,18 @@ typedef struct rf_collision_ray_hit {float fraction,point[3],normal[3];} rf_coll
  * Finite inputs required; errors preserve output. Input/output may alias. */
 int rf_collision_contact_world(const rf_collision_ray_hit *local,const float origin[3],
     const float matrix[3][3],rf_collision_ray_hit *world);
+typedef struct rf_collision_body_hit {
+    float point[3],normal[3],fraction;uint32_t material,reserved_20;
+    float velocity[3];uint32_t object_id,texture,face_flag,face_token,reserved_40;
+} rf_collision_body_hit;
+/* 49a118..49a1df mover hit output: matrix+48 and committed origin+e4,
+ * velocity+144, object handle+2c, face texture+30 and flag+28 bit4.
+ * Material is caller-resolved (original468700); face_token replaces a raw
+ * face pointer. No material loading or physical response. Errors preserve output. */
+int rf_collision_mover_contact(const rf_collision_ray_hit *local,const float origin[3],
+    const float matrix[3][3],const float velocity[3],uint32_t object_id,uint32_t texture,
+    uint32_t material,uint32_t face_flags,uint32_t face_token,rf_collision_body_hit *result);
+
 /* Thin, zero-radius geometric path of 4dec10. Includes filters, box, plane,
  * nearest-fraction gate and polygon containment. Accepted hits replace result;
  * misses/errors preserve it. matched is set only on success. Texture-check

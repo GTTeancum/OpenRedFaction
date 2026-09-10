@@ -505,6 +505,16 @@ int main(int argc,char **argv)
         }
         rf_group_mover_memberships_close(&members);rf_group_mover_memberships_close(&members);rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);free(objects);free(before);free(controllers);return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--mover-contact")) {
+        struct {rf_collision_ray_hit hit;float origin[3],matrix[3][3],velocity[3];uint32_t object,texture,material,flags,face;} input;
+        struct {int32_t status;rf_collision_body_hit hit;} output;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&output,0xa5,sizeof(output));
+            output.status=rf_collision_mover_contact(&input.hit,input.origin,input.matrix,input.velocity,input.object,input.texture,input.material,input.flags,input.face,&output.hit);
+            fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--mover-sphere-local")) {
         float input[30];struct {int32_t status;float values[6];} output;
         while(fread(input,sizeof(input),1,stdin)==1) {

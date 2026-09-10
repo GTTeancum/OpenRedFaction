@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Mover hit output and velocity/identity metadata match 2048 original/PC/NXDK
+cases; ordered selection, physical response and live sweep wiring remain open.
+
 Player sphere preparation in mover space matches 4096 original/PC/NXDK cases;
 contact selection/response, mover velocity and live sweep wiring remain open.
 

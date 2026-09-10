@@ -2757,3 +2757,24 @@ transform verification; the NXDK caller starts027f and the shared dot helper
 controls its precision explicitly. Both builds and six CTests pass. Broad
 phase, query flags, mover-first contact selection, velocity/support response
 and live player sweep wiring remain open. No new XEMU or visual claim.
+
+
+## Physics mover hit response record
+
+rf_collision_mover_contact reconstructs 49a118..49a1df. The68-byte body hit
+layout contains world point/normal, fraction, material, zero+20, velocity,
+object handle, texture, face-flag boolean, face token and zero+40. Conversion
+reuses the verified column-dot transform with mover matrix+48 and origin+e4;
+no normal normalization occurs. Velocity copies mover+144 unchanged. Object
+identity is the runtime handle+2c, texture is face+30, and face_flag is face+28
+bit4. A portable token replaces the original face pointer. Material is supplied
+by the caller instead of performing original468700's texture-cache lookup.
+
+verify_mover_contact.py executes the original output block and its real vector
+and face-flag callees with only468700 intercepted. 2048 cases match PC/NXDK
+across the entire response record;22 invalid floating-input guards preserve
+output. Original x87 precision is64-bit, NXDK caller53-bit with explicit shared
+dot precision. Both builds and six CTests pass. This provides the metadata
+needed for support motion but does not apply velocity response or connect live
+player collision. Ordered mover/world selection and material loading remain
+open. No new XEMU gameplay or visual capture is claimed.
