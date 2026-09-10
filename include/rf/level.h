@@ -229,6 +229,14 @@ typedef struct rf_group_translation_runtime {
     float speed,distance;int32_t deadline;uint32_t object_flags;
     float position[3],pending[3],velocity[3];
 } rf_group_translation_runtime;
+/* 46bae0 translation reversal after caller obstruction/activation gates.
+ * Complements and clamps distance, resets phase/speed/velocity, flips direction
+ * and exchanges key indices. Positions, deadline and other flags are retained.
+ * Either index -1 is an unchanged no-op. No sound/trigger/pose effects here.
+ * Finite keys/distance required on active paths; errors preserve runtime. */
+int rf_group_translation_reverse(rf_group_translation_runtime *runtime,
+    const rf_level_group_key *keys,uint32_t key_count);
+
 enum {RF_GROUP_TICK_IDLE,RF_GROUP_TICK_WAIT,RF_GROUP_TICK_GATES,
     RF_GROUP_TICK_ARRIVAL,RF_GROUP_TICK_DONE};
 typedef struct rf_group_translation_frame {

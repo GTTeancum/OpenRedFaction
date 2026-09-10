@@ -799,6 +799,31 @@ int rf_group_translation_position(const rf_group_translation_step *step,
     for(i=0;i<3;i++) {memcpy(&bits,out+i,4);if((bits&0x7f800000u)==0x7f800000u)return RF_FORMAT;}
     memcpy(pending,out,sizeof(out));*arrival=due;return RF_OK;
 }
+int rf_group_translation_reverse(rf_group_translation_runtime *runtime,
+    const rf_level_group_key *keys,uint32_t key_count)
+{
+    rf_group_translation_runtime next;const rf_level_group_key *from,*to;
+    float delta[3],length,timing;uint32_t i;int32_t swap;
+    if(!runtime)return RF_RANGE;
+    if(runtime->motion.current_key==-1 || runtime->motion.next_key==-1)return RF_OK;
+    if(!keys || (runtime->motion.flags&4) || runtime->motion.current_key<0 || runtime->motion.next_key<0 ||
+       (uint32_t)runtime->motion.current_key>=key_count || (uint32_t)runtime->motion.next_key>=key_count)return RF_RANGE;
+    next=*runtime;from=keys+next.motion.current_key;to=keys+next.motion.next_key;
+    timing=(next.motion.flags&0x2000)?from->timing[1]:to->timing[2];
+    if(!isfinite(timing) || !isfinite(next.distance))return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(from->position[i]) || !isfinite(to->position[i]))return RF_FORMAT;
+        delta[i]=from->position[i]-to->position[i];if(!isfinite(delta[i]))return RF_FORMAT;
+    }
+    length=(float)sqrt((double)delta[0]*delta[0]+(double)delta[1]*delta[1]+(double)delta[2]*delta[2]);
+    if(!isfinite(length))return RF_FORMAT;
+    next.distance=length-next.distance;next.motion.phase=0;
+    if(next.motion.phase>timing)next.motion.phase=timing;
+    if(next.distance<0)next.distance=0;else if(next.distance>length)next.distance=length;
+    next.motion.flags^=0x2000;swap=next.motion.current_key;
+    next.motion.current_key=next.motion.next_key;next.motion.next_key=swap;
+    next.speed=0;memset(next.velocity,0,sizeof(next.velocity));*runtime=next;return RF_OK;
+}
 int rf_group_translation_tick_begin(rf_group_translation_runtime *runtime,
     const rf_level_group_key *keys,uint32_t key_count,float dt,int32_t now_ms,
     rf_group_translation_frame *frame)

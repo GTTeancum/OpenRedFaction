@@ -125,6 +125,17 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--group-reverse")) {
+        struct {rf_group_translation_runtime runtime;float keys[2][8];} input;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_level_group_key keys[2]={{0}};uint32_t i;int status;
+            for(i=0;i<2;i++){memcpy(keys[i].position,input.keys[i],12);memcpy(keys[i].timing,input.keys[i]+3,20);}
+            status=rf_group_translation_reverse(&input.runtime,keys,2);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&input.runtime,sizeof(input.runtime),1,stdout)!=1)return 111;
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--trigger-occupancy")) {
         struct {rf_trigger_volume volume;rf_trigger_occupant actors[3],items[2];} input;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

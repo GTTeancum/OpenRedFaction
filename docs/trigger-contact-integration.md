@@ -93,3 +93,19 @@ original/PC/NXDK cases match (857 occupied;540 wake requests). Fixtures include
 flagged actors, early return, multiple items, box boundaries, signed sphere
 radii and unknown shapes. Both builds and six CTests pass. Live scene ownership
 and controller reversal are not claimed.
+
+## Translation reversal
+
+rf_group_translation_reverse reconstructs46bae0 for translation controllers.
+An idle current/target index is an unchanged no-op. Active reversal computes
+the stored segment length, complements/clamps traveled distance, resets phase
+with the original directional timing clamp, flips2000, exchanges key indices
+and clears speed/velocity. Position, pending pose and timer stay unchanged.
+This is the state transition after the external obstruction decision; it does
+not itself decide whether a door should reverse.
+
+verify_group_reverse.py:4096 original/PC/NXDK cases with actual key lookup,
+length, clamp and vector helpers. Full runtime and original object mutation
+match, including zero length, negative timing, idle indices and out-of-segment
+distance. Both builds and six CTests pass. Report is ignored local output
+at artifacts/group-reverse-verification.json.
