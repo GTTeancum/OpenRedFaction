@@ -165,6 +165,18 @@ typedef struct rf_group_activation_actor {
 int rf_group_activation_begin(rf_group_motion_state *state,uint32_t key_count,
     uint32_t controller_handle,rf_group_activation_actor *actor,uint32_t *started);
 
+typedef struct rf_group_sound_state {
+    int32_t samples[4],handles[4]; /* original +2d8..2e4 and +31c..328 */
+} rf_group_sound_state;
+typedef int32_t (*rf_group_sound_play)(void *context,int32_t sample,
+    const float position[3],float volume,uint32_t flags);
+/* Original 46a120: selects initial/reverse sample and optional moving sample,
+ * retaining returned handles including -1. Backend callback owns playback;
+ * it must not mutate these inputs. Original unused audio argument omitted.
+ * No allocation; no backend or sample loading is provided by this helper. */
+int rf_group_sound_start(rf_group_sound_state *sounds,uint32_t flags,int32_t next_key,
+    const float position[3],rf_group_sound_play play,void *context);
+
 enum {RF_GROUP_SOUND_START=1,RF_GROUP_SOUND_END=2};
 typedef struct rf_group_translation_step {
     float from[3],to[3],timing,acceleration_time,deceleration_time,dt;

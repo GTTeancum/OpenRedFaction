@@ -11,6 +11,13 @@
 #include <io.h>
 #include <string.h>
 #include <stdlib.h>
+static int32_t group_sound_probe(void *context,int32_t sample,const float position[3],float volume,uint32_t flags)
+{
+    uint32_t *trace=context,words[6],i;memcpy(words,&sample,4);memcpy(words+1,position,12);
+    memcpy(words+4,&volume,4);words[5]=flags;
+    ++trace[0];for(i=0;i<6;i++)trace[1]=(trace[1]^words[i])*16777619u;
+    return sample==-1?-1:(int32_t)((uint32_t)sample^0x12340000u);
+}
 int main(int argc,char **argv)
 {
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
@@ -486,6 +493,16 @@ int main(int argc,char **argv)
             if(fwrite(&m->count,4,1,stdout)!=1 || fwrite(&m->rotation_sign,4,1,stdout)!=1 || fwrite(m->handles,4,m->count,stdout)!=m->count)return 8;
         }
         rf_group_mover_memberships_close(&members);rf_group_mover_memberships_close(&members);rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);free(objects);free(before);free(controllers);return 0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--group-sound-start")) {
+        struct {rf_group_sound_state sounds;uint32_t flags;int32_t next_key;float position[3];} input;
+        struct {int32_t status;rf_group_sound_state sounds;uint32_t trace[2];} output;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            output.trace[0]=0;output.trace[1]=2166136261u;
+            output.status=rf_group_sound_start(&input.sounds,input.flags,input.next_key,input.position,group_sound_probe,output.trace);
+            output.sounds=input.sounds;fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
     }
     if(argc==2 && !strcmp(argv[1],"--group-activation-begin")) {
         struct {uint32_t count,handle;rf_group_motion_state state;rf_group_activation_actor actor;} input;

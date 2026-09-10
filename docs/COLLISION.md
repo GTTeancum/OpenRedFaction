@@ -2545,3 +2545,25 @@ mutations. 4096 cases match PC and NXDK: 907 starts, 303 backlink writes,
 including 196 active-mover writes; three invalid port cases preserve outputs.
 This is binary emulation of NXDK code, not a new XEMU gameplay replay. Both
 builds and six CTests pass; no new visual behavior or capture is claimed.
+
+
+## Controller activation sound requests
+
+rf_group_sound_start reconstructs 46a120 with caller-owned sample IDs and
+playback handles. Slots correspond to sample fields +2d8/+2dc/+2e0/+2e4 and
+handle fields +31c/+320/+324/+328. Flag4 without flag2000, or flag2 with
+next_key zero, selects slot3; otherwise slot0. This first request is always
+made, even for sample -1. Optional slot1 is requested only when its sample
+is not -1. Each return value replaces only the corresponding handle; other
+handles remain untouched. Playback calls use controller position, volume1,
+and flags0. Original 5056a0's unused fourth parameter is not exposed by the
+callback. Playback/sample loading is external, not supplied by this helper.
+
+verify_group_sound_start.py executes all original 46a120 instructions and its
+flag predicates with only the 5056a0 backend intercepted. It checks ordered
+sample/position/volume/flag calls, deterministic success/failure handle returns,
+and all original controller bytes for unexpected mutations. PC and NXDK match
+2048 cases, 3400 requests and 647 reverse-slot updates. Both builds and six
+CTests pass. This is NXDK instruction emulation, not an audible XEMU test.
+Stopping sounds, backend/sample ownership and the remaining activation tail
+must be integrated before claiming live door audio or complete activation.

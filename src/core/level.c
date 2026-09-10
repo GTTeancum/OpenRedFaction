@@ -631,6 +631,16 @@ int rf_group_activation_begin(rf_group_motion_state *state,uint32_t key_count,
     *started=state->next_key==-1;*state=next;actor->controller_handle=backlink;
     return RF_OK;
 }
+int rf_group_sound_start(rf_group_sound_state *sounds,uint32_t flags,int32_t next_key,
+    const float position[3],rf_group_sound_play play,void *context)
+{
+    uint32_t slot;
+    if(!sounds || !position || !play)return RF_RANGE;
+    slot=((flags&4) && !(flags&0x2000)) || ((flags&2) && next_key==0)?3:0;
+    sounds->handles[slot]=play(context,sounds->samples[slot],position,1.0f,0);
+    if(sounds->samples[1]!=-1)sounds->handles[1]=play(context,sounds->samples[1],position,1.0f,0);
+    return RF_OK;
+}
 int rf_group_translation_arrive(rf_group_motion_state *state,uint32_t key_count,
     uint32_t *sound_requests)
 {
