@@ -44,6 +44,12 @@ typedef struct rf_particle_definition {
  * This metadata reader is not the original general parser or resource loader.
  * Absent age is explicitly marked; no original runtime default is assumed. */
 int rf_particle_definition_read(const void *text,uint32_t bytes,rf_particle_definition *result);
+/* Prepare the authored direction through original 4faaf0 normalization.
+ * Copies all other metadata unchanged; supports in-place preparation.
+ * Zero/nonfinite vectors retain original IEEE NaN behavior, not a fallback
+ * direction. No bitmap resolution, allocation or emitter creation. */
+int rf_particle_definition_prepare(const rf_particle_definition *authored,
+    rf_particle_definition *result);
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */
     int32_t started; /* +154 deadline. */

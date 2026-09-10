@@ -1,4 +1,15 @@
 #include "rf/effect.h"
+#include <math.h>
+int rf_particle_definition_prepare(const rf_particle_definition *authored,
+    rf_particle_definition *result)
+{
+    rf_particle_definition value;double x,y,z,inverse;
+    if(!authored || !result)return RF_RANGE;
+    value=*authored;x=value.direction[0];y=value.direction[1];z=value.direction[2];
+    inverse=1.0/sqrt((x*x+y*y)+z*z);
+    value.direction[0]=(float)(x*inverse);value.direction[1]=(float)(y*inverse);value.direction[2]=(float)(z*inverse);
+    *result=value;return RF_OK;
+}
 static int particle_contains(const char *text,const char *needle)
 {
     for(;*text;++text) {

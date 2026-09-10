@@ -12,6 +12,14 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-prepare")) {
+        rf_particle_definition definition;
+        while(fread(&definition,sizeof(definition),1,stdin)==1) {
+            if(rf_particle_definition_prepare(&definition,&definition))return 3;
+            if(fwrite(&definition,sizeof(definition),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==5 && !strcmp(argv[1],"--emitter-load")) {
         rf_vpp archive;rf_particle_definition definition;
         memset(&definition,0xa5,sizeof(definition));status=rf_vpp_open(&archive,argv[2]);
