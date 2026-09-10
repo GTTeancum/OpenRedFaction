@@ -18,6 +18,7 @@ extern rf_physics_body scene_actor_body;
 extern uint32_t rf_scene_actor_initial_animation[12];
 extern float rf_scene_actor_initial_eye_offsets[6];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
+extern uint32_t rf_scene_actor_selector_frames[64][8],rf_scene_actor_locomotion_frames[64][12];
 
 typedef struct player {
     HWND window;
@@ -202,11 +203,11 @@ int main(int argc,char **argv)
     if(p.headless) {
         if(p.frames!=limit){status=RF_FORMAT;goto cleanup;}
         if(spawn_profile){
-            const void *records[3]={rf_scene_actor_initial_animation,rf_scene_actor_initial_eye_offsets,&rf_scene_actor_stance_cache};
-            const char *labels[3]={"PLAYER_INITIAL_ANIMATION","PLAYER_CLASS_EYE","PLAYER_CLASS_STANCE"};
-            const uint32_t sizes[3]={12,6,sizeof(rf_scene_actor_stance_cache)/4};uint32_t j;
+            const void *records[5]={rf_scene_actor_initial_animation,rf_scene_actor_initial_eye_offsets,&rf_scene_actor_stance_cache,rf_scene_actor_selector_frames,rf_scene_actor_locomotion_frames};
+            const char *labels[5]={"PLAYER_INITIAL_ANIMATION","PLAYER_CLASS_EYE","PLAYER_CLASS_STANCE","PLAYER_STANCE_FRAMES","PLAYER_MOTION_FRAMES"};
+            const uint32_t sizes[5]={12,6,sizeof(rf_scene_actor_stance_cache)/4,512,768};uint32_t j;
             printf("PLAYER_SPAWN");for(i=0;i<19;++i)printf(" %u",rf_scene_player_spawn_diagnostic[i]);puts("");
-            for(j=0;j<3;++j){printf("%s",labels[j]);for(i=0;i<sizes[j];++i){uint32_t word;memcpy(&word,(const char*)records[j]+i*4,4);printf(" %u",word);}puts("");}
+            for(j=0;j<5;++j){printf("%s",labels[j]);for(i=0;i<sizes[j];++i){uint32_t word;memcpy(&word,(const char*)records[j]+i*4,4);printf(" %u",word);}puts("");}
         }
         CHECK(rf_pc_raster_save(&p.raster,argv[4]));
         printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");

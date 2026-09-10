@@ -310,7 +310,9 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         if(authored) {
             static const int32_t sequence[4]={0,2,8,0};
             int handled=0;
-            if(placement && placement->stance_effect && placement->stance_flags && !(placement->campaign_player && !frame)) {
+            if(placement && placement->campaign_player && frame && placement->player_stance) {
+                status=placement->player_stance(placement->stance_context,frame,&controller,motions);if(status)goto done;
+            } else if(placement && !placement->campaign_player && placement->stance_effect && placement->stance_flags) {
                 rf_motion_stance_decision decision;
                 status=rf_motion_select_stance(&controller,motions,8,placement->crouch_request?*placement->crouch_request:(frame>=32 && frame<56),*placement->stance_flags,&decision);if(status)goto done;
                 status=placement->stance_effect(placement->stance_context,frame,&decision,&controller);if(status)goto done;

@@ -2,6 +2,7 @@
 #include "rf/scene_preview.h"
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
+#include "rf/player.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -10,6 +11,7 @@ static void *player_context;
 static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
+static uint32_t campaign_crouched;
 static float campaign_position[3],campaign_orientation[9];
 uint32_t rf_scene_player_spawn_diagnostic[19];
 int rf_scene_set_campaign_spawn(const rf_level *level)
@@ -329,8 +331,19 @@ static int actor_movement_select(void *context,uint32_t frame,rf_motion_controll
     /* 41f270 creation-field audit: miner1's default handgun and player flag
      * select armed candidates. Inventory/weapon view ownership remains open. */
     if(campaign_spawn){movement.idle_state=1;movement.move_state=3;movement.alternate_state=5;}
-    status=rf_motion_select_movement(controller,motions,&movement);if(status)return status;
-    record=rf_scene_actor_locomotion_frames[frame%64];record[0]=1;
+    if(campaign_spawn && frame) {
+        rf_player_motion_input input={0};int32_t selected;
+        memcpy(input.direction,movement.vector,12);input.entity_present=1;input.parent_kind=-1;
+        input.crouched=campaign_crouched;input.free_motion=movement.mode==3 || movement.mode==8;
+        input.swim_motion=movement.mode==4 || movement.mode==7;input.attachment_75c=-1;
+        input.primary_weapon=0; /* Present default handgun; inventory owner remains separate. */
+        status=rf_player_motion_choose(&input,&selected);if(status)return status;
+        if(selected>=0 && !rf_motion_has_state(controller,selected)) {
+            status=rf_motion_request_state(controller,motions,selected,.25f);if(status)return status;
+        }
+        movement.idle_state=selected;movement.move_state=movement.alternate_state=-1;
+    } else {status=rf_motion_select_movement(controller,motions,&movement);if(status)return status;}
+    record=rf_scene_actor_locomotion_frames[frame%64];record[0]=campaign_spawn && frame?2:1;
     record[1]=(uint32_t)movement.mode;record[2]=(uint32_t)movement.direction;
     memcpy(record+3,movement.vector,12);record[6]=movement.idle_state;record[7]=movement.move_state;record[8]=movement.alternate_state;
     record[9]=(uint32_t)controller->current;record[10]=(uint32_t)controller->next;
@@ -459,6 +472,21 @@ static int actor_selector_effect(void *context,uint32_t frame,const rf_motion_st
     }
     record[5]=rf_scene_actor_stance_flags;record[6]=(uint32_t)rf_scene_actor_stance_blocked;
     record[7]=(uint32_t)rf_scene_actor_movement_settings.mode;return RF_OK;
+}
+static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
+{
+    rf_motion_stance_decision decision={0,RF_MOTION_STANCE_NONE};
+    rf_player_crouch_input eligibility={1,-1,-1,-1,(int32_t)rf_scene_actor_landing[1]};
+    uint32_t request=player_poll?player_input.crouch:0;int status;
+    /* Ordinary unattached player fixture. 430c70 owns immediate collision
+     * effects before its state-9 request; input locks/vehicles remain separate. */
+    if(request && !campaign_crouched && rf_player_can_crouch(&eligibility))decision.effect=RF_MOTION_STANCE_CROUCH;
+    else if(!request && campaign_crouched)decision.effect=RF_MOTION_STANCE_STAND;
+    status=actor_selector_effect(context,frame,&decision,controller);if(status)return status;
+    campaign_crouched=(rf_scene_actor_stance_flags&0x400)!=0;
+    if(decision.effect==RF_MOTION_STANCE_CROUCH && campaign_crouched)
+        return rf_motion_request_state(controller,motions,9,.25f);
+    return RF_OK;
 }
 uint32_t rf_scene_actor_clearance_diagnostic[8];
 float rf_scene_actor_clearance_queries[2][12]; /* start, end, normal, fraction, sphere, blocked */
@@ -988,6 +1016,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         rf_physics_body_close(&scene_actor_body);memset(rf_scene_actor_physics_diagnostic,0,sizeof(rf_scene_actor_physics_diagnostic));
         placement.physics_config=&physics_config;placement.physics_body=&scene_actor_body;
         placement.campaign_player=campaign_spawn;
+        campaign_crouched=0;placement.player_stance=campaign_spawn?actor_player_stance:NULL;
         placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;
         placement.initial_animation=rf_scene_actor_initial_animation;placement.animation_timing=rf_scene_actor_animation_timing;
         memset(rf_scene_actor_initial_eye_offsets,0,sizeof(rf_scene_actor_initial_eye_offsets));

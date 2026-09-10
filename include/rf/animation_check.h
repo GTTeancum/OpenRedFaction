@@ -49,6 +49,7 @@ typedef struct rf_animation_placement {
     int (*stance_effect)(void *context,uint32_t frame,const rf_motion_stance_decision *decision,
         const rf_motion_controller *controller);
     void *stance_context;
+    int (*player_stance)(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23]);
     /* Optional movement selector after stance effects, when stance is unhandled. */
     int (*movement_select)(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23]);
     uint32_t (*animation_timing)[3]; /* Per-frame delta, resulting phase and generation; caller supplies capacity. */

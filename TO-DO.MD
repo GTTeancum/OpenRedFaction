@@ -11,13 +11,17 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Shared player crouch eligibility now matches the complete original routine in
-3,456 PC/NXDK cases. The original player changes collision stance immediately
-and requests animation state 9; replacing the diagnostic's delayed stance path
-and connecting outer input/ownership gates remain open. The separate owned-player
-animation selector is now shared C, matching 3,392 original cases on PC/NXDK,
-including parent/seat priorities, crouch 9/10 and falling state 14. Immediate
-stance effects and live selector integration remain open. See docs/CAMERA.md.
+User confirmed interactive movement on 2026-09-09. Crouch, controller reconnect
+and Back+Start exit still need user checks.
+
+Campaign stance now applies collision crouch immediately and uses the recovered
+owned-player animation selector after the verified first initialization frame.
+The 64-tick press/move/release replay passes on PC and stock-64-MiB XEMU
+(replay-20260909-231211), including exact stance and animation memory rings.
+The normal 664-tick diagnostic state and raster remain unchanged. Eligibility
+matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
+Blocked standing, full ownership/input locks, vehicles and inventory remain open.
+See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
 Original player contact response now executes in 768 fixtures covering normal
 retention/clearing, incoming correction, moving-contact boost, free tangential
@@ -27,7 +31,7 @@ guard cases preserving state/output. Original direction composition is verified
 in 512 action-reader fixtures, and the campaign profile now enables flag 0x80
 with the matching contact adapter. Its 480-tick movement/turn replay passes in
 stock-64-MiB XEMU with 64 retained contacts and PC-identical final state.
-Full input ownership/locking, crouch and damage remain open. See docs/COLLISION.md.
+Full input ownership/locking, blocked-standing integration and damage remain open. See docs/COLLISION.md.
 
 Original cache-gate and spawn-copy execution now confirms that a warm class
 cache bypasses pose sampling for both NPCs and players, and creation copies

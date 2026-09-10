@@ -2332,3 +2332,28 @@ switching only the movement selector would let the current delayed diagnostic
 stance path overwrite or lose crouch transitions. The new selector therefore
 remains separate until that owner transition is connected; no live XEMU stance
 equivalence is claimed yet.
+
+
+### Campaign immediate stance integration (2026-09-09)
+
+The opt-in campaign fixture now follows the ordinary unattached player branch
+of `430c70`: eligible crouch immediately applies sphere/ground/speed changes,
+then requests state 9. Release uses the existing standing clearance path.
+After the original first initialization frame, `rf_player_motion_choose`
+selects logical animation states through the recovered `4a5cd0` priorities.
+The fixture supplies an absent parent/attachment and a present default handgun;
+full entity ownership, inventory, input locks and vehicle gates are still open.
+
+`tools/verify_player_stance_live.py` checks all 64 recorded ticks, with crouch
+press at tick 8, movement at 24 and unobstructed release at 40. Physical crouch
+changes on tick 8, logical states are 9 then 10, and tick 40 clears crouch and
+selects armed idle 1. XEMU replay `20260909-231211` passes in stock 64 MiB with
+all 512 stance and 768 motion telemetry words exactly matching PC, plus final
+body, input, spawn and class cache checks. This does not verify blocked standing
+or physical controller crouch. The user has confirmed interactive movement.
+The normal 664-tick diagnostic replay retains identical output and raster.
+
+PC campaign replay now exports the existing stance and motion rings; no new
+resident telemetry arrays are allocated. Motion ring word 0 is 1 for the generic
+selector and 2 for the owned-player fixture. In the latter, word 6 is the selected
+logical state and words 7/8 are -1; remaining columns retain their previous meaning.
