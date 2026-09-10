@@ -67,6 +67,18 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--player-contact")) {
+        struct {float values[27];uint32_t mode,free_tangent;} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_physics_body_state state={0};float impact;
+            memcpy(state.velocity,input.values,12);memcpy(state.vector_c8,input.values+3,12);
+            memcpy(state.orientation,input.values+18,36);state.flags=0x80;
+            if(rf_physics_player_contact(&state,input.values+6,input.values+9,input.values+12,input.values+15,
+                input.mode,input.free_tangent,&impact))return 3;
+            if(fwrite(state.velocity,12,1,stdout)!=1 || fwrite(state.vector_c8,12,1,stdout)!=1 || fwrite(&impact,4,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--contact")) {
         float values[15];
         while(fread(values,sizeof(values),1,stdin)==1) {

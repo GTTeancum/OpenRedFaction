@@ -125,6 +125,14 @@ int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
  * select movement modes. Finite inputs required; errors preserve outputs. */
 int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3],
     const float support_velocity[3],const float contact_velocity[3],float *impact_speed);
+/* 49d94c..49db78: flag-80 response for prepared non-liquid, zero-inverse-mass
+ * contacts. free_tangent is the resolved 42a020 predicate; mode 1 additionally
+ * clamps grounded tangential Y. direction is entity +714 in body coordinates.
+ * Updates velocity and signed impact only; no damage, ownership or mode change.
+ * Requires flag 80 and finite inputs. Errors preserve state and impact. */
+int rf_physics_player_contact(rf_physics_body_state *state,const float normal[3],
+    const float support_velocity[3],const float contact_velocity[3],const float direction[3],
+    uint32_t mode,uint32_t free_tangent,float *impact_speed);
 /* Translation block 49ffd2..4a007c for hit fraction [0,1). Remaining time uses
  * the raw fraction; position uses the 0.05-unit separation margin unless flag
  * 0x400000 is set. Updates position and scalar_144 only; bounds, rotation and

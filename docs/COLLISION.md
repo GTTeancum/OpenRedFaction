@@ -2322,7 +2322,7 @@ Instruction map for reconstruction:
   is positive and support velocity is exactly zero; otherwise it retains only
   outgoing normal velocity or clears it.
 - `49da86..49dad7` adjusts incoming normal velocity using normalized original
-  velocity and the original binary32 .5 constant. Preserve the intermediate
+  velocity and the original binary32 1.5 constant at `5893c8`. Preserve the intermediate
   stores and operation order when translating this calculation.
 - `49dad7..49dafc` skips a zero tangent or uses `42a020` to select unrestricted
   tangent addition. The predicate is true for movement modes 3/8 and some
@@ -2337,3 +2337,26 @@ The existing `rf_physics_static_contact` implements the flag-clear response
 and correctly rejects flag 80. Do not remove that guard as a substitute for
 the distinct response above. Player creation flags remain disabled in the
 campaign diagnostic until this response and its call-site inputs are integrated.
+
+`rf_physics_player_contact` now implements that response in shared C. The caller
+supplies the original body-space `+714` direction, movement mode, and resolved
+`42a020` predicate. The helper uses body orientation to reproduce `4faa90`,
+preserves all body fields except velocity, and returns the signed impact for a
+future damage path. It requires flag 80 and commits only after finite-result
+checks. It allocates nothing. The original `5893c8` constant was checked in the
+executable and is **1.5**, correcting the earlier recovery note's .5.
+
+`python tools/verify_player_contact.py` regenerates the original fixtures and
+compares all 768 outputs bit-for-bit with PC and compiled NXDK execution.
+All pass, including preservation of NXDK's incoming 027f control word and
+complete body storage outside velocity. Another 52 compiled guard executions
+check NaN/infinity in supplied vectors/orientation, missing flag 80 and invalid
+predicate values, preserving both body and output. Report
+`artifacts/player-contact-verification.json` records all executable hashes.
+The existing flag-clear response still passes its 512 original/PC/NXDK cases;
+both full builds and five CTests pass.
+
+This helper is not yet called by the live scene. The next integration must
+verify the source and update ordering of entity direction `+714` and choose
+the correct predicate from live movement state. No live XEMU player-contact
+verification or full collision-loop equivalence is claimed by the CPU checks.

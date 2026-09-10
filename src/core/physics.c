@@ -98,6 +98,66 @@ int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3]
     }
     *impact_speed=impact;return RF_OK;
 }
+static long double player_contact_dot(const float a[3],const float b[3])
+{return ((long double)a[2]*b[2]+(long double)a[1]*b[1])+(long double)a[0]*b[0];}
+int rf_physics_player_contact(rf_physics_body_state *state,const float normal[3],
+    const float support_velocity[3],const float contact_velocity[3],const float direction[3],
+    uint32_t mode,uint32_t free_tangent,float *impact_speed)
+{
+    float combined[3],tangent[3],velocity[3],normalized[3],world_direction[3];
+    float original_dot,contact_dot,impact,scale;uint32_t i;
+    if(!state || !normal || !support_velocity || !contact_velocity || !direction || !impact_speed ||
+       !(state->flags&0x80) || free_tangent>1)return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(state->orientation[i]))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(state->velocity[i]) || !isfinite(normal[i]) || !isfinite(support_velocity[i]) ||
+           !isfinite(contact_velocity[i]) || !isfinite(direction[i]))return RF_RANGE;
+        combined[i]=(float)((long double)state->velocity[i]+support_velocity[i]);
+    }
+    original_dot=(float)player_contact_dot(state->velocity,normal);
+    contact_dot=(float)player_contact_dot(contact_velocity,normal);
+    impact=(float)((long double)contact_dot-player_contact_dot(combined,normal));
+    for(i=0;i<3;++i) {
+        float projection=(float)((long double)original_dot*normal[i]);
+        tangent[i]=(float)((long double)state->velocity[i]-projection);
+    }
+    if(contact_dot>0 && support_velocity[0]==0 && support_velocity[1]==0 && support_velocity[2]==0) {
+        scale=(float)(player_contact_dot(contact_velocity,normal)*1.100000023841858f);
+        for(i=0;i<3;++i)velocity[i]=(float)((long double)scale*normal[i]);
+    } else if(original_dot>0) {
+        for(i=0;i<3;++i)velocity[i]=(float)((long double)original_dot*normal[i]);
+    } else memset(velocity,0,sizeof(velocity));
+    if(original_dot<0) {
+        long double length=sqrtl(((long double)state->velocity[0]*state->velocity[0]+
+            (long double)state->velocity[1]*state->velocity[1])+(long double)state->velocity[2]*state->velocity[2]);
+        if(length<=0){normalized[0]=1;normalized[1]=normalized[2]=0;}
+        else for(i=0;i<3;++i)normalized[i]=(float)((1/length)*state->velocity[i]);
+        scale=(float)(((player_contact_dot(normalized,normal)+1)*1.5f)*original_dot);
+        for(i=0;i<3;++i) {
+            float correction=(float)((long double)scale*normal[i]);
+            velocity[i]=(float)((long double)velocity[i]-correction);
+        }
+    }
+    if(tangent[0]!=0 || tangent[1]!=0 || tangent[2]!=0) {
+        uint32_t add=free_tangent;
+        if(!add) {
+            float length=(float)sqrtl(((long double)tangent[0]*tangent[0]+
+                (long double)tangent[1]*tangent[1])+(long double)tangent[2]*tangent[2]);
+            if(!isfinite(length) || length<=0)return RF_RANGE;
+            for(i=0;i<3;++i) {
+                normalized[i]=(float)((long double)tangent[i]/length);
+                world_direction[i]=(float)(((long double)state->orientation[6+i]*direction[2]+
+                    (long double)state->orientation[3+i]*direction[1])+(long double)state->orientation[i]*direction[0]);
+            }
+            add=player_contact_dot(normalized,world_direction)>=0;
+            if(add && mode==1)tangent[1]=fmaxf(tangent[1],0);
+        }
+        if(add)for(i=0;i<3;++i)velocity[i]=(float)((long double)velocity[i]+tangent[i]);
+    }
+    if(!isfinite(impact))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(velocity[i]))return RF_RANGE;
+    memcpy(state->velocity,velocity,sizeof(velocity));*impact_speed=impact;return RF_OK;
+}
 int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,const float support_velocity[3])
 {
     float velocity[3],position[3];volatile float half_dt_squared;uint32_t i;

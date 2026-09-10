@@ -3,7 +3,7 @@
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
-- [ ] Reconstruct the original player-flag contact response before enabling player physics flag 0x80.
+- [ ] Connect the verified player contact response with its original direction input before enabling player physics flag 0x80.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
 - [ ] Capture and replay any further interactive exits; the historical tick-99 cause remains unproven.
 - [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
@@ -15,8 +15,9 @@ Immediate open items:
 Original player contact response now executes in 768 fixtures covering normal
 retention/clearing, incoming correction, moving-contact boost, free tangential
 motion and grounded direction filtering. All nine tracked branches are reached;
-the shared C implementation and live player-flag integration remain open.
-See tools/inspect_player_contact.py and docs/COLLISION.md.
+shared C now matches all 768 cases on PC and compiled NXDK, with 52 compiled
+guard cases preserving state/output. Live direction-input mapping and player-flag
+integration remain open. See tools/verify_player_contact.py and docs/COLLISION.md.
 
 Original cache-gate and spawn-copy execution now confirms that a warm class
 cache bypasses pose sampling for both NPCs and players, and creation copies
