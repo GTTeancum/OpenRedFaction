@@ -1,6 +1,36 @@
 #include "rf/material.h"
 #include <stdlib.h>
 #include <string.h>
+void rf_particle_bitmap_close(rf_particle_bitmap *bitmap)
+{
+    if(!bitmap)return;
+    rf_image_close(&bitmap->image);memset(bitmap,0,sizeof(*bitmap));
+}
+int rf_particle_bitmap_open(rf_particle_bitmap *bitmap,const rf_particle_definition *definition,
+    rf_vpp *archives,uint32_t archive_count,uint32_t frame,uint32_t budget)
+{
+    rf_particle_bitmap value={0};uint32_t i;int status;
+    if(!bitmap || !definition || (!archives && archive_count) || budget<sizeof(value))return RF_RANGE;
+    if(!definition->bitmap[0] || !memchr(definition->bitmap,0,sizeof(definition->bitmap)))return RF_RANGE;
+    for(i=0;i<archive_count;++i) {
+        rf_vpp_entry entry;unsigned char magic[4];
+        status=rf_vpp_find(archives+i,definition->bitmap,&entry);
+        if(status==RF_NOT_FOUND)continue;if(status)return status;
+        if(entry.size<4)return RF_FORMAT;
+        status=rf_vpp_read(archives+i,&entry,0,magic,4);if(status)return status;
+        if(!memcmp(magic,".vbm",4))status=rf_image_vbm_frame(&value.image,archives+i,&entry,
+            frame,budget-(uint32_t)sizeof(value),&value.frames,&value.rate);
+        else {
+            if(frame)return RF_RANGE;
+            status=rf_image_tga(&value.image,archives+i,&entry,budget-(uint32_t)sizeof(value));
+            value.frames=1;
+        }
+        if(status){rf_particle_bitmap_close(&value);return status;}
+        value.archive_index=i;value.resident_bytes=(uint32_t)sizeof(value)+value.image.bytes;
+        *bitmap=value;return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
 char rf_material_failure_name[61];
 uint32_t rf_material_failure[3]; /* status, archive index, entry size */
 void rf_materials_close(rf_materials *m)

@@ -16,11 +16,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Indexed VBM decoding now covers all 631 frames in 42 installed animations
-on PC, plus 24 compiled-NXDK frame/metadata cases. Static VBM checks still
-pass. One frame is allocated at a time; animated mip chains remain rejected.
-Particle resources, playback/residency scheduling, vclip/explosion binding and
-active simulation remain open; no new gameplay visual yet.
+Particle bitmap ownership now loads 31 present authored resources, including
+selected VBM frames; 131 PC binding/budget checks pass and NXDK builds.
+The authored bigboom.vbm reference is missing from the installed inventory.
+Native Xbox resource residency, playback scheduling, vclip/explosion binding
+and active simulation remain open; no new gameplay visual yet.
 
 Vclip fixed-field defaults now have 512 original-loader execution fixtures.
 Implement bounded definition loading, including embedded particle blocks and

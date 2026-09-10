@@ -4,6 +4,19 @@
 #include "rf/image.h"
 #include "rf/model.h"
 #include "rf/model_file.h"
+#include "rf/effect.h"
+typedef struct rf_particle_bitmap {
+    rf_image image;
+    uint32_t frames,rate,archive_index,resident_bytes;
+} rf_particle_bitmap;
+/* Port resource ownership: first matching archive wins, including failures.
+ * Loads one requested frame, with budget including this record and pixels.
+ * Fixed decoder stack and allocator metadata excluded. TGA has frame 0 only.
+ * Output preserved on failure. Zero-initialize; close before reuse. Archives
+ * and authored metadata may be released after success. No animation clock. */
+int rf_particle_bitmap_open(rf_particle_bitmap *bitmap,const rf_particle_definition *definition,
+    rf_vpp *archives,uint32_t archive_count,uint32_t frame,uint32_t budget);
+void rf_particle_bitmap_close(rf_particle_bitmap *bitmap);
 typedef struct rf_material {
     rf_image image;
     int status;

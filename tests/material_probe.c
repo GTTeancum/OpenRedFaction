@@ -13,6 +13,22 @@ int main(int argc, char **argv)
     rf_materials materials;
     uint32_t count, i;
     int result;
+    if(argc>=6 && argc<=21 && !strcmp(argv[1],"--particle")) {
+        rf_particle_definition definition={0};rf_particle_bitmap bitmap={0},empty={0};
+        uint32_t frame=(uint32_t)strtoul(argv[3],NULL,10),budget=(uint32_t)strtoul(argv[4],NULL,10),hash=2166136261u;
+        if(strlen(argv[2])>=sizeof(definition.bitmap))return 2;strcpy(definition.bitmap,argv[2]);
+        count=(uint32_t)argc-5;
+        for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+5]))return 1;
+        result=rf_particle_bitmap_open(&bitmap,&definition,archives,count,frame,budget);
+        for(i=0;i<count;++i)rf_vpp_close(archives+i);
+        memset(&definition,0xdd,sizeof(definition));
+        if(result) {if(memcmp(&bitmap,&empty,sizeof(bitmap)))return 3;printf("%d %u\n",result,(unsigned)sizeof(bitmap));return 0;}
+        for(i=0;i<bitmap.image.bytes;++i)hash=(hash^bitmap.image.rgba[i])*16777619u;
+        printf("0 %u %u %u %u %u %u %u %u\n",(unsigned)sizeof(bitmap),bitmap.frames,bitmap.rate,
+            bitmap.image.width,bitmap.image.height,bitmap.resident_bytes,bitmap.archive_index,hash);
+        rf_particle_bitmap_close(&bitmap);rf_particle_bitmap_close(&bitmap);
+        return memcmp(&bitmap,&empty,sizeof(bitmap))?3:0;
+    }
     if(argc>=5 && argc<=21 && (!strcmp(argv[1],"--geometry") || !strcmp(argv[1],"--residency") || !strcmp(argv[1],"--texture-names"))) {
         rf_geometry world={0};rf_geometry_movers movers={0};
         rf_geometry_materials bundle={0},check={0};const rf_geometry **sources;
