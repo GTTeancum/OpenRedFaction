@@ -16,6 +16,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Delay (48) now expires and propagates in native Xbox: L1S1 UID 9495 reaches
+Explode UID 9466 after five simulated seconds in 320-frame replay
+20260910-071141. Explode effects remain unsupported; no visual explosion yet.
+Original Delay execution passes 72 cases; 93 startup graphs still pass.
+
 Delayed Invert/Set_Gravity now tick after physics on the shared fixed-step
 clock. Three expiry-chain fixtures and native 64-MiB XEMU clock replay
 20260910-070755 pass; other scheduled event types retain pending deadlines.

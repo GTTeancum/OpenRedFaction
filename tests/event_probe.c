@@ -41,7 +41,7 @@ int main(int argc,char **argv)
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
     if(argc==2 && !strcmp(argv[1],"--event-ticks")) {
         uint32_t mode,i,pending;
-        for(mode=0;mode<3;++mode) {
+        for(mode=0;mode<4;++mode) {
             rf_runtime_event items[3]={0};rf_level_owned_event authored[3]={0};
             rf_runtime_events events={0};rf_runtime_triggers triggers={0};rf_object_registry registry;
             rf_level_link_target link={0};rf_physics_gravity gravity,expected;rf_startup_events_report report;
@@ -53,19 +53,20 @@ int main(int argc,char **argv)
             }
             authored[0].record.link_count=1;items[0].links=&link;link.kind=1;link.value=items[1].handle;
             items[0].state.source=7;items[0].state.actor=8;items[0].state.mode=mode;items[0].state.flags=1;
+            if(mode==3) {items[0].state.type=48;items[0].state.mode=1;}
             items[1].state.delay=.001f;
             rf_physics_gravity_set(&gravity,9.8f);
             if(rf_runtime_events_tick(&events,&triggers,&gravity,99,&report,&pending) || report.events || pending!=1)return 31;
             if(rf_runtime_events_tick(&events,&triggers,&gravity,100,&report,&pending) || report.events!=2 ||
-               report.gravity_actions!=(mode?1u:0u) || items[0].state.deadline!=-1 || items[1].state.deadline!=101)return 32;
-            if(items[1].state.source!=(mode==1?7u:8u) || items[1].state.actor!=8)return 33;
+               report.gravity_actions!=((mode==1 || mode==2)?1u:0u) || items[0].state.deadline!=-1 || items[1].state.deadline!=101)return 32;
+            if(items[1].state.source!=((mode==1 || mode==3)?7u:8u) || items[1].state.actor!=8)return 33;
             if(rf_runtime_events_tick(&events,&triggers,&gravity,101,&report,&pending) || report.events!=1 ||
-               report.gravity_actions!=(mode==1?1u:0u) || items[1].state.deadline!=-1 || items[2].state.deadline!=100)return 34;
-            rf_physics_gravity_set(&expected,mode==1?3.0f:mode==2?4.0f:9.8f);
+               report.gravity_actions!=((mode==1 || mode==3)?1u:0u) || items[1].state.deadline!=-1 || items[2].state.deadline!=100)return 34;
+            rf_physics_gravity_set(&expected,(mode==1 || mode==3)?3.0f:mode==2?4.0f:9.8f);
             if(memcmp(&gravity,&expected,sizeof(gravity)))return 35;
             if(rf_runtime_events_tick(&events,&triggers,&gravity,102,&report,&pending) || report.events || pending!=1)return 36;
         }
-        puts("PASS 3 delayed event fixtures");return 0;
+        puts("PASS 4 delayed event fixtures");return 0;
     }
     if(argc==2 && !strcmp(argv[1],"--startup-recursion")) {
         uint32_t scenario,i;

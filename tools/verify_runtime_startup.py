@@ -3,7 +3,7 @@ import hashlib,json,struct,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];probe=root/'build/pc/Release/rf_event_probe.exe'
 assert subprocess.check_output([str(probe),'--startup-recursion'],text=True).strip()=='PASS 5 startup recursion fixtures'
-assert subprocess.check_output([str(probe),'--event-ticks'],text=True).strip()=='PASS 3 delayed event fixtures'
+assert subprocess.check_output([str(probe),'--event-ticks'],text=True).strip()=='PASS 4 delayed event fixtures'
 events=json.loads((root/'artifacts/events.json').read_text())['results'];triggers=json.loads((root/'artifacts/triggers.json').read_text())['results'];results=[]
 for level in triggers:
  ev=next(e for e in events if e['file']==level['file'] and e['archive']==level['archive'])['records'];records=ev+level['records'];wanted=[0]*9;gravity=9.8
@@ -21,6 +21,7 @@ for level in triggers:
    return
   if e['type_index']==44:
    if on:gravity=e['values'][0];wanted[2]+=1
+  elif e['type_index']==48:pass
   else:wanted[3]+=1
   if e['type_index'] not in (2,3,32,36,66,69,89):
    for target in e['links']:dispatch(target,depth+1,on)

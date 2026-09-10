@@ -3568,3 +3568,38 @@ No currently reachable authored startup schedules a delayed Invert/Set_Gravity,
 so this native run proves clock/update integration, not an authored expiry.
 The focused fixtures supply expiry coverage. Remaining event types, their
 custom updates, full clock integration and native expiry fixtures remain open.
+
+
+Authored Delay event expiry (2026-09-10)
+--------------------------------------
+
+Delay type 48 maps to the generic constructor (4b75ca -> 4bee70), using base
+vtable 589c9c. Base on switch 4b9070 selects the return at 4b9099; base off
+switch 4b9f80 selects the return at 4ba008. Both actions are no-ops. Its complete
+4b8ce0 virtual tick executes the common timer/propagation prefix and no special
+tail (the tail starts at type 52). Startup now recognizes the no-op action and
+runtime ticking includes type 48 alongside types 3 and 44.
+
+verify_delay_event.py executes unchanged original common activation, actual
+virtual actions, complete tick and link propagation. Generic target effects
+are intercepted. All 72 cases pass for three delays, multiple link counts,
+raw modes and source handles, with before/exact/after expiry checks and no
+repeat dispatch. Shared delayed fixtures now include a Delay -> Set_Gravity
+chain; four delayed and five recursion fixtures pass, along with all 93
+startup graphs and five CTests. Both builds pass.
+
+L1S1 startup schedules Delay UID 9495 for five seconds. Its sole link is UID
+9466, type Explode, named Explode with charge_explode text and value 0.75.
+A 320-frame idle replay crosses that deadline. Native 64-MiB XEMU report
+artifacts/xemu/replay-20260910-071141/report.json is PASS and matches PC:
+CAMPAIGN_EVENT_TICKS = [319,5316,4,0,2,0,1,0,0,0,0,0]. Thus 319 physics/event
+updates reach 5316 ms, four unsupported deadlines remain, and the delayed
+chain activates two events (Delay plus Explode), with one unsupported action.
+The replay input is artifacts/delay-campaign-live/inputs.bin, consisting of
+320 RFI2 idle records. Run it with xemu_replay_check.py --campaign-spawn.
+
+This establishes native authored expiry and downstream activation with the
+owned fixed-step clock. The Explode effect remains unimplemented, so it does
+not establish an explosion, audio, damage, particles or Geo-Mod behavior. No
+new screenshot is warranted. Original whole-frame wall-clock parity remains
+separate from the existing verified timer and this replay integration.

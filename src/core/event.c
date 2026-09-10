@@ -40,6 +40,8 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,state->source,UINT32_MAX,action==0);
         return;
     }
+    /* Delay (48) uses no-op base actions; common scheduling/propagation own it. */
+    if(state->type==48)return;
     if(state->type!=44) {++c->report->unsupported_actions;return;}
     c->status=rf_event_gravity_action(c->gravity,c->event->authored->record.values[0],action);
     if(!c->status && action==1)++c->report->gravity_actions;
@@ -102,7 +104,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
     for(i=0;i<events->count;++i) {
         rf_runtime_event *event=events->items+i;
         if(event->state.deadline<0)continue;
-        if(event->state.type!=3 && event->state.type!=44) {++*unsupported_pending;continue;}
+        if(event->state.type!=3 && event->state.type!=44 && event->state.type!=48) {++*unsupported_pending;continue;}
         status=rf_timer_expired(event->state.deadline,now,&expired);if(status)return status;
         if(!expired)continue;
         context.event=event;++report->events;
