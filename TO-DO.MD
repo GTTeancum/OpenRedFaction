@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Original listener refresh505ec0/5058c0 traced; resolve pose timing and
+initial-versus-refresh sample gain before connecting campaign spatial updates.
+
 Production audio adapter and shared mixer now support logical-handle gain
 updates without restart; native adapter calibration passes, listener calls remain.
 

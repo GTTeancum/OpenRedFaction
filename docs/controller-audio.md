@@ -529,3 +529,28 @@ all five150ms settling intervals without restarting. An earlier short-sample
 attempt183920 failed gain ratios and was replaced. Both game builds and the
 PC bank check pass. Campaign listener calculations still need to call this new
 interface; normal gameplay audio is not yet spatialized.
+
+### Listener pass and positional voice refresh
+
+Listener writer505ec0 copies the supplied position into01754160 and the first
+orientation axis into01753c28, then traverses30 positional voice records. For
+registered positional entries it calls5058c0 with the stored source position,
+stored requested volume and generation/slot handle. This confirms that the
+listener pass refreshes existing voices; controller movement does not by itself
+replace a sound's copied source position. Calls to505ec0 occur at433624,480eef
+and50606f; the normal frame caller433624 supplies stack position/velocity/basis,
+with an alternate player-state adjustment immediately before it.
+
+5058c0 checks slot<30, generation equality and positional marking, copies the
+source and requested volume, computes505740, multiplies by the voice's volume
+group, then calls544390(volume) and544450(pan). Initial5056a0 instead passes
+attenuation multiplied by requested volume through505560. Thus initial and
+refresh paths must not be assumed identical for non-unity requested volume;
+544390 needs tracing to establish where sample default gain is applied.
+
+Current scene.c executes controller/audio ticks before the render callback
+calculates its first-person camera pose. Wiring a cached camera directly there
+would use the previous render's listener pose. Preserve/update pose ownership
+explicitly and verify the original frame ordering before connecting spatial
+refresh. Camera inspection overrides should not silently move the gameplay
+listener. No runtime audio behavior changed during this investigation.
