@@ -25,8 +25,10 @@ int rf_xbox_scene_stream_frame_sized(const rf_preview_mesh *mesh,const rf_materi
  * depth = bias + scale * reconstructed_depth explicitly adapts the target
  * buffer; this is not an assertion that the diagnostic world uses RF depth.
  * Sets its own shader/texture/depth/blend state; caller restores later passes.
- * Currently compiled scaffolding: native pixel validation/integration pending. */
+ * Native synthetic pixel probes pass; campaign integration remains pending. */
 int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count,
     const rf_image *image,uint32_t mode,float depth_scale,float depth_bias,
     uint32_t fog_enabled,uint32_t fog_rgb);
+void rf_xbox_particle_pixel_test(void);
+extern uint32_t rf_particle_pixel_diagnostic[20];
 #endif

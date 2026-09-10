@@ -231,7 +231,7 @@ other draw flags, texture binding/residency, native GPU batching and live scene
 effects are outside this helper. Function-level GPU-record agreement does not
 establish a rendered particle image.
 
-## Xbox particle backend scaffold (native pixels unverified)
+## Xbox particle backend (synthetic native pixels verified)
 
 `rf_xbox_particle_draw` and the new particle Cg shaders compile with NXDK. The
 pass uses immediate attributes and borrows the native image's contiguous,
@@ -247,8 +247,9 @@ Ordinary blending uses SRC_ALPHA / ONE_MINUS_SRC_ALPHA; glow uses SRC_ALPHA /
 ONE. Depth writes remain disabled. Fog is supplied through the particle shader;
 hardware fog is disabled to avoid applying it twice. The RGB fog parameter uses
 red in its low byte. Texture coordinates are prepared for projective sampling.
-Native sampling, interpolation, blending, fog and depth behavior still require
-framebuffer evidence; shader compilation does not prove those behaviors.
+Native constant-color blending, fog and depth probes are recorded below.
+Real textures, interpolation and campaign placement still require framebuffer
+evidence; shader compilation alone does not prove those behaviors.
 
 The reconstructed depth value and diagnostic world depth have different
 representations. The adapter therefore accepts an explicit affine conversion
@@ -261,3 +262,30 @@ Next: add isolated XEMU pixel probes for ordinary/additive blending, fog and
 world-depth occlusion, then connect the pass and its PC equivalent to bounded
 texture residency and campaign emitter execution. No screenshot or rendered
 particle validation is claimed by this scaffold.
+
+## Native particle pixel probes
+
+`tools/xemu_particle_pixels.py` stages only particle-render-test.flag, builds and
+boots an isolated XEMU process with exactly 64 MiB, snapshot HDD writes, a copied
+EEPROM, networking disabled and input auto-binding disabled. It reads guest
+telemetry via QMP, closes only its own emulator and restores the flag/normal ISO
+in finally. No desktop capture or host input is used. The optional guest path
+runs before the ordinary archive/scene diagnostics and stays isolated from them.
+
+Run `artifacts/xemu/particle-pixels-20260910-094914/report.json` passes twelve
+probes. All measured RGB values exactly equal the expected values (the harness
+allows two units per channel). The tests cover ordinary alpha blending,
+additive blending, complete and partial fog, texture-alpha times vertex-alpha,
+opaque occlusion, no-Z override, foreground depth acceptance, disabled particle
+depth writes, nonwhite texture channel order, zero alpha and full alpha. The
+native path renders a white/colored single-texel texture and samples the
+interiors of test quads after GPU completion. It is not a screenshot claim or a
+comparison against the PS2 version.
+
+The first native run exposed missing fog contribution despite shader compilation
+and seven passing probes. Explicit NV097_SET_SPECULAR_ENABLE=1 is required for
+the secondary vertex color used by the fog shader; that state fixes the fog
+probe. This is why the pass was kept out of campaign rendering until pixel
+checks existed. The pass still needs call-site integration, real animated image
+sampling tests, the corresponding PC backend and representative depth conversion
+against campaign geometry. Synthetic depth tests use explicit forward-Z values.

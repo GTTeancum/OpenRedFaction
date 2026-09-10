@@ -738,6 +738,9 @@ int main(void)
     record_fp_control(1);
     rf_diagnostic[2] = 1;
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
+    { FILE *test=fopen("D:\\particle-render-test.flag","rb");
+      if(test){fclose(test);rf_xbox_particle_pixel_test();for(;;)Sleep(1000);} }
+
     memory.Length = sizeof(memory);
     debugPrint("Red Faction reconstruction - archive diagnostic\n");
     debugPrint("Not a playable game. Stock 64 MiB target.\n");

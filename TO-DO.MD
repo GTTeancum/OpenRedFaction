@@ -17,9 +17,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Xbox particle backend and Cg shaders compile, using immediate vertices and
-borrowed native textures; the pass is not enabled in campaign rendering yet.
-Validate native blend/fog/depth pixels, then connect Xbox and PC particle passes.
+Xbox particle backend passes twelve stock-64-MiB XEMU pixel probes for blend,
+fog, alpha and depth; native testing fixed a missing secondary-color enable.
+Connect Xbox/PC campaign passes and validate animated texture sampling/depth mapping.
 
 Particle draw-vertex conversion now matches 4096 original/PC/NXDK cases,
 including ARGB, optional color transform, fog rounding and depth/UV scaling.

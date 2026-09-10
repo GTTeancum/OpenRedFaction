@@ -269,6 +269,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     }
     p=pb_begin();
 #include "particle_fragment.inl"
+    p=pb_push1(p,NV097_SET_SPECULAR_ENABLE,1);
     p=pb_push1(p,NV097_SET_CONTROL0,NV097_SET_CONTROL0_Z_FORMAT_FIXED|NV097_SET_CONTROL0_TEXTURE_PERSPECTIVE_ENABLE);
     p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,0);
     p=pb_push1(p,NV097_SET_FOG_ENABLE,0);
@@ -305,4 +306,65 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);
     while(pb_busy()) {}
     return RF_OK;
+}
+
+uint32_t rf_particle_pixel_diagnostic[20];
+void rf_xbox_particle_pixel_test(void)
+{
+    uint32_t *pixels,*p,i,j;rf_image image={1,1,4,0,NULL};
+    rf_particle_draw_vertex v[4];int status;
+    rf_particle_pixel_diagnostic[0]=0x52504658;rf_particle_pixel_diagnostic[1]=1;
+    if(pb_init()){rf_particle_pixel_diagnostic[1]=0x80000001u;return;}
+    pixels=MmAllocateContiguousMemoryEx(4,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+    if(!pixels){rf_particle_pixel_diagnostic[1]=0x80000002u;return;}
+    *pixels=0x80ffffff;image.rgba=(unsigned char *)pixels;
+    __asm__ volatile("sfence" ::: "memory");
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
+    pb_erase_depth_stencil_buffer(0,0,640,480);pb_fill(0,0,640,480,0xff204060);
+    while(pb_busy()) {}
+    for(i=0;i<12;i++) {
+        float left=32+(i%4)*140,top=48+(i/4)*180;
+        memset(v,0,sizeof(v));
+        for(j=0;j<4;j++) {
+            v[j].screen[0]=left+((j==1 || j==2)?80:0);v[j].screen[1]=top+(j>=2?80:0);
+            v[j].depth=1000;v[j].reciprocal_w=1;v[j].argb=0xffff0000;v[j].fog=0xff000000;
+            v[j].uv[0]=(j==1 || j==2)?1:0;v[j].uv[1]=j>=2?1:0;
+        }
+        if(i>=4 && i<8) {
+            status=rf_xbox_particle_draw(v,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0);
+            if(status)goto failed;
+            /* Same prepared attributes/shaders, opaque depth-writing occluder. */
+            p=pb_begin();p=pb_push1(p,NV097_SET_DEPTH_MASK,1);p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);
+            p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLE_FAN);
+            for(j=0;j<4;j++)p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M,v[j].screen[0],v[j].screen[1],1000,1);
+            p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);while(pb_busy()) {}
+            for(j=0;j<4;j++){v[j].argb=0xff000000;v[j].depth=i>=6?500:2000;}
+        }
+        if(i==2 || i==8)for(j=0;j<4;j++)v[j].fog=i==8?0x80000000:0;
+        if(i>=9) {
+            *pixels=i==9?0x80402010:i==10?0x00ffffff:0xffffffff;
+            __asm__ volatile("sfence" ::: "memory");
+            if(i==9)for(j=0;j<4;j++)v[j].argb=0xffffffff;
+        }
+        if(i==3)for(j=0;j<4;j++)v[j].argb=0x80ff0000;
+        status=rf_xbox_particle_draw(v,4,&image,i==1?RF_PARTICLE_GLOW_MODE:i==5?RF_PARTICLE_NORMAL_MODE&~(31u<<20):RF_PARTICLE_NORMAL_MODE,1,0,i==2 || i==8,0x0000ff00);
+        if(status)goto failed;
+        if(i==7) {
+            for(j=0;j<4;j++){v[j].argb=0xff00ff00;v[j].depth=750;}
+            status=rf_xbox_particle_draw(v,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0);
+            if(status)goto failed;
+        }
+        rf_particle_pixel_diagnostic[2]=i+1;
+        continue;
+failed:
+        rf_particle_pixel_diagnostic[1]=0x80000000u|(uint32_t)(-status);return;
+    }
+    while(pb_busy()) {}
+    for(i=0;i<12;i++) {
+        uint32_t x=72+(i%4)*140,y=88+(i/4)*180;
+        rf_particle_pixel_diagnostic[3+i]=*(volatile uint32_t *)((unsigned char *)pb_back_buffer()+y*pb_back_buffer_pitch()+x*4);
+    }
+    rf_particle_pixel_diagnostic[15]=(uint32_t)pb_back_buffer();rf_particle_pixel_diagnostic[16]=pb_back_buffer_width();
+    rf_particle_pixel_diagnostic[17]=pb_back_buffer_height();rf_particle_pixel_diagnostic[18]=pb_back_buffer_pitch();
+    MmFreeContiguousMemory(pixels);rf_particle_pixel_diagnostic[1]=2;
 }

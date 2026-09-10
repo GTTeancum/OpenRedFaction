@@ -1,0 +1,72 @@
+"""Isolated stock-64-MiB XEMU particle pixel tests; no host input or desktop capture."""
+import datetime,hashlib,json,os,re,shutil,socket,subprocess,time
+from pathlib import Path
+from xemu_smoke import Monitor
+from xemu_guest_snapshot import words
+root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu')
+run=root/'artifacts/xemu'/('particle-pixels-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
+flag=root/'build/xbox/disc/particle-render-test.flag';saved=flag.read_bytes() if flag.exists() else None
+process=monitor=None;report={'result':'FAIL','scope':'Native particle shader/blend/fog/depth pixel probes only; no campaign/PS2 parity claim.'}
+def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True,stdout=subprocess.DEVNULL)
+try:
+ flag.write_bytes(b'1');build();mapping=(root/'build/xbox/main.map').read_text()
+ address=int(re.search(r'_rf_particle_pixel_diagnostic\s+([0-9a-fA-F]+)',mapping)[1],16)
+ report['xbe_sha256']=hashlib.sha256((root/'build/xbox/disc/default.xbe').read_bytes()).hexdigest()
+ report['map_sha256']=hashlib.sha256(mapping.encode()).hexdigest()
+ with socket.socket() as reservation:reservation.bind(('127.0.0.1',0));port=reservation.getsockname()[1]
+ eeprom=run/'eeprom.bin';shutil.copyfile(emulator/'eeprom.bin',eeprom)
+ config=run/'xemu.toml';config.write_text(f'''[general]
+show_welcome = false
+skip_boot_anim = true
+[general.updates]
+check = false
+[input]
+auto_bind = false
+background_input_capture = false
+[net]
+enable = false
+[sys.files]
+bootrom_path = '{emulator.as_posix()}/MCPX/mcpx_1.0.bin'
+flashrom_path = '{emulator.as_posix()}/BIOS/xbox-4627_debug.bin'
+eeprom_path = '{eeprom.as_posix()}'
+hdd_path = '{root.as_posix()}/local/xemu-harness/pacing-base.qcow2'
+dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
+''')
+ startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
+ command=[str(emulator/'xemu.exe'),'-config_path',str(config),'-m','64','-snapshot','-display','xemu','-audio','none','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off']
+ with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
+  process=subprocess.Popen(command,cwd=run,stdout=out,stderr=err,startupinfo=startup,creationflags=subprocess.CREATE_NO_WINDOW)
+  deadline=time.monotonic()+120
+  while time.monotonic()<deadline:
+   if process.poll() is not None:raise RuntimeError(f'XEMU exited {process.returncode}')
+   if monitor is None:
+    try:monitor=Monitor(port)
+    except OSError:time.sleep(.5);continue
+    report['memory']=monitor.command('query-memory-size-summary');assert report['memory']['base-memory']==64*1024*1024
+   try:state=words(monitor,address,20)
+   except RuntimeError as exc:
+    if 'received 0' not in str(exc):raise
+    time.sleep(.5);continue
+   report['state']=state
+   if state[0]==0x52504658:
+    if state[1]&0x80000000:raise RuntimeError(f'Guest failure {state}')
+    if state[1]==2:break
+   time.sleep(.5)
+  else:raise TimeoutError(f'Particle test timeout: {report.get("state")}')
+  assert state[2]==12
+  expected=[(144,32,48),(160,64,96),(16,160,48),(88,48,72),(255,0,0),(127,0,0),(127,0,0),(63,128,0),(80,96,48),(24,48,80),(32,64,96),(255,0,0)]
+  actual=[((p>>16)&255,(p>>8)&255,p&255) for p in state[3:15]]
+  report.update(expected_rgb=expected,actual_rgb=actual)
+  assert all(abs(a-b)<=2 for rgb,ref in zip(actual,expected) for a,b in zip(rgb,ref)),actual
+  report['result']='PASS'
+finally:
+ if monitor:
+  try:monitor.command('quit')
+  except (OSError,RuntimeError):pass
+  monitor.close()
+ if process:
+  try:process.wait(timeout=10)
+  except subprocess.TimeoutExpired:process.kill();process.wait()
+ if saved is None:flag.unlink(missing_ok=True)
+ else:flag.write_bytes(saved)
+ build();(run/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(run/'report.json',report,flush=True)
