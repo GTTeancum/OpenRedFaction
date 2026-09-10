@@ -2357,3 +2357,25 @@ PC campaign replay now exports the existing stance and motion rings; no new
 resident telemetry arrays are allocated. Motion ring word 0 is 1 for the generic
 selector and 2 for the owned-player fixture. In the latter, word 6 is the selected
 logical state and words 7/8 are -1; remaining columns retain their previous meaning.
+
+
+### Original blocked-standing release evidence (2026-09-09)
+
+`tools/inspect_player_stand_release.py` executes `430df8..430e19`, including
+all of `428a60`, unchanged circular player lookup `4a3740`, sphere copying and
+speed setter `427450`. Its 162 fixtures combine 0–8 spheres, blocked/clear
+query outcomes, absent/matching/nonmatching player lists, and crouch bytes
+0, 1 and 255. It verifies complete actor/player/sphere storage and balanced
+stack state. A blocked query changes none of those records and invokes neither
+ground refresh nor the speed setter. A clear query copies just each sphere's
+12-byte center, clears entity flag 0x400 and the caller's crouch byte, then
+requests ground refresh before restoring normal speed. An uncrouched caller
+makes no query at all.
+
+Only the collision-query return at `499ed0` and ground-refresh boundary at
+`4a0840` are supplied/skipped. The query's start, endpoint and body argument
+are checked; ground refresh sees the cleared stance flag. This verifies the
+release control flow, including preservation on failure, rather than collision
+geometry or the complete outer input path. The live campaign still needs a
+recorded low-ceiling traversal; the existing copied-actor clearance diagnostic
+and this original-code check are narrower evidence.

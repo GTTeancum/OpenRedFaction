@@ -23,6 +23,12 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
+The original release handler now passes 162 execution fixtures covering blocked
+and clear query results, 0–8 spheres, absent/matching/nonmatching player lists,
+and zero/nonzero crouch bytes. A blocked result preserves the full actor, player
+and sphere records and skips ground/speed updates. The query result is supplied;
+this does not close the live low-ceiling campaign traversal check.
+
 Original player contact response now executes in 768 fixtures covering normal
 retention/clearing, incoming correction, moving-contact boost, free tangential
 motion and grounded direction filtering. All nine tracked branches are reached;
