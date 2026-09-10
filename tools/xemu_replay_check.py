@@ -113,6 +113,22 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       for value in raw.read_bytes():expected_resource_hash=((expected_resource_hash^value)*16777619)&0xffffffff
     assert resources[2]==expected_resource_hash,resources
     report['particle_resources']=resources
+    loading=words(monitor,symbol('rf_explosion_loading_diagnostic'),6)
+    assert loading[0:2]==[1,9],loading
+    definition_hash=2166136261
+    for recipe in ('generic','space','geomod','shoulder mounted geomod','rocket hit','flamethrower-alt','FGatE','FGatE_lilspark','FGatE_bigspark'):
+     data=subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--explosion-definition',str(root/'Installed_Game/tables.vpp'),recipe,'65536'])
+     assert data[:4]==bytes(4) and len(data)==2384
+     for value in data[4:]:definition_hash=((definition_hash^value)*16777619)&0xffffffff
+    vclip=subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--vclip-load',str(root/'Installed_Game/tables.vpp'),'charge_explode','65536'])
+    assert vclip[:4]==bytes(4) and len(vclip)==504
+    vclip_hash=2166136261
+    for value in vclip[4:]:vclip_hash=((vclip_hash^value)*16777619)&0xffffffff
+    rocket=subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--explosion-definition',str(root/'Installed_Game/tables.vpp'),'rocket hit','65536'])
+    assert rocket[:4]==bytes(4) and len(rocket)==2384
+    assert loading[2:]==[definition_hash,43990,vclip_hash,int.from_bytes(rocket[2372:2376],'little')],loading
+    report['explosion_loading']=loading
+
 
     for name,label,count in [('rf_scene_actor_follow_summary','ACTOR_FOLLOW_SUMMARY',5),('rf_scene_player_input_frames','ACTOR_PLAYER_INPUT',448),('scene_actor_body','PC_PLAY_BODY',77)]:
      got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got

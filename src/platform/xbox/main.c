@@ -631,6 +631,32 @@ void __attribute__((no_stack_protector)) rf_diagnostic_start(void)
     WinMainCRTStartup();
 }
 
+volatile uint32_t rf_explosion_loading_diagnostic[6]; /* status, recipes, hash, peak, vclip hash, resolved mask */
+static int explosion_loading_check(void)
+{
+    static const char *names[]={"generic","space","geomod","shoulder mounted geomod","rocket hit","flamethrower-alt","FGatE","FGatE_lilspark","FGatE_bigspark"};
+    rf_vclip_definition vclip;rf_explosion_definition definition;rf_vpp tables;
+    unsigned i;uint32_t hash=2166136261u;int status;
+    rf_explosion_loading_diagnostic[0]=2;
+    for(i=0;i<9;++i) {
+        status=rf_vpp_open(&tables,"D:\\tables.vpp");if(status)goto fail;
+        status=rf_explosion_definition_load(&tables,names[i],65536,&definition);rf_vpp_close(&tables);
+        if(status)goto fail;
+        hash=logic_hash_part(hash,&definition,sizeof(definition));
+        if(definition.peak_bytes>rf_explosion_loading_diagnostic[3])rf_explosion_loading_diagnostic[3]=definition.peak_bytes;
+        ++rf_explosion_loading_diagnostic[1];
+    }
+    status=rf_vpp_open(&tables,"D:\\tables.vpp");if(status)goto fail;
+    status=rf_vclip_definition_load(&tables,"charge_explode",65536,&vclip);
+    if(!status)status=rf_explosion_definition_load(&tables,vclip.explosion,65536,&definition);
+    rf_vpp_close(&tables);if(status)goto fail;
+    rf_explosion_loading_diagnostic[2]=hash;
+    rf_explosion_loading_diagnostic[4]=logic_hash_part(2166136261u,&vclip,sizeof(vclip));
+    rf_explosion_loading_diagnostic[5]=definition.resolved;
+    rf_explosion_loading_diagnostic[0]=1;return RF_OK;
+fail:
+    rf_explosion_loading_diagnostic[0]=(uint32_t)status;return status;
+}
 /* Replay-only resource lifetime check; no host input or rendering. */
 volatile uint32_t rf_particle_resource_diagnostic[7]; /* status, loads, hash, peak bytes, pages before/min/after */
 static void particle_resource_check(void)
@@ -638,6 +664,7 @@ static void particle_resource_check(void)
     FILE *flag=fopen("D:\\player-replay.bin","rb");rf_vpp maps;int status;unsigned round,i;
     MM_STATISTICS memory={0};uint32_t hash=2166136261u;
     if(!flag)return;fclose(flag);rf_particle_resource_diagnostic[0]=2;
+    status=explosion_loading_check();if(status){rf_particle_resource_diagnostic[0]=(uint32_t)status;return;}
     status=rf_vpp_open(&maps,"D:\\maps2.vpp");if(status){rf_particle_resource_diagnostic[0]=(uint32_t)status;return;}
     memory.Length=sizeof(memory);
     for(round=0;round<3;++round) {

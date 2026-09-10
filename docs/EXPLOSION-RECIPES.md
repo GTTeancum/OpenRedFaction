@@ -45,3 +45,11 @@ and tail 8. A bit mask identifies resolved slots. Archive loading reuses one
 scratch buffer and releases it before returning; no archive pointers remain.
 All nine installed recipes resolve successfully. Missing central names return
 an error; missing optional names remain unresolved, without creating particles.
+
+Native 64-MiB XEMU replay 20260910-081353 hashes all nine resolved definitions
+and the charge_explode vclip against PC. Original emitter lookup 497550, its
+string helper 5001d0 and CRT comparator pass 146 cases. The optional recipe
+reference explosion random bits 2 is absent from installed emitters.tbl and
+returns -1 in the original lookup. Rocket hit therefore resolves central slots
+0..5 only (mask 63), not its sparks slot. The initial harness expectation of
+mask 127 failed and was corrected after this original-code verification.

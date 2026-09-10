@@ -16,10 +16,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-All nine explosion recipes now resolve owned, direction-prepared emitter
-definitions: 12 NXDK resolution cases and 18 PC archive/budget cases pass.
-Each retains 2380 bytes, with 43990-byte loading peak including table scratch.
-Missing central names fail; optional unresolved names retain clear mask bits.
+Native 64-MiB XEMU replay 20260910-081353 verifies all nine loaded explosion
+definitions and charge_explode against PC hashes; campaign/resource checks
+pass. Original emitter lookup passes 146 cases and confirms the authored
+explosion random bits 2 sparks name is absent, leaving rocket hit mask 63.
 Connect bitmap residency, scheduling and live execution next.
 
 Owned vclip definition loading now passes 126 PC/NXDK named checks across
