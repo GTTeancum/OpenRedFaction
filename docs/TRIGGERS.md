@@ -910,3 +910,29 @@ prepared loader/constructor evidence, not full original factory execution.
 Both builds and the six regression CTests pass. Runtime contact polling can
 now consume correctly ordered authored volumes, but live snapshot/update
 ordering, dynamic trigger transforms and remaining activation gates are open.
+
+
+## Owned contact state and polling
+
+Runtime trigger items now retain the verified prepared volume and a separate
+contact timer. Initialization converts the authored volume and copies values[1]
+to contact seconds, clearing its deadline to -1. Loader local_24 is factory
+input +80, copied by 4bf970 to +2f8; it is distinct from values[0] / +2f0 and
+the activation cooldown at +29c/+298. Added storage is 76 bytes per trigger.
+The 93-level ownership/budget suite passes for 2367 triggers with peak owned
+allocation 67624 bytes. Startup graph checks remain unchanged and pass.
+
+`rf_runtime_trigger_contact` finds the registered type5 object, reads its
+current flags/count/limit/cooldown, and polls its retained volume/contact timer.
+The caller supplies resolved filter kind, attached handle, allowed handles and
+actor facts/pose. Those handles must use the same namespace; raw authored UIDs
+are not silently treated as runtime handles. The call does not dispatch or
+skip unresolved key/player activation gates. Retaining the runtime volume also
+allows future verified dynamic transforms without rebuilding from disk data.
+
+The runtime integration fixture enters at 100ms (deadline600), leaves at
+200ms (canceled), re-enters at 300ms (deadline800), remains waiting at 799ms,
+and becomes ready at 800ms with no count change. Explicit activation then
+checks blocked/accepted calls, self-disable, gravity, limit marking and cooldown
+850ms. The six CTests and PC/NXDK builds pass. Live scene snapshot wiring and
+native replay of the new owned-contact path remain open.

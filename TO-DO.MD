@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Owned triggers now retain authored volumes and contact timers; enter/leave/
+re-entry polling passes PC integration, with live scene wiring and native replay open.
+
 Authored volume preparation matches all 2367 original/PC/NXDK triggers,
 including matrix/dimension axis order; live contact integration remains open.
 

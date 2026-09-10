@@ -163,6 +163,7 @@ typedef struct rf_trigger_activation {
 typedef struct rf_runtime_trigger {
     uint32_t object_kind,handle;
     union {rf_auto_trigger_state state;rf_trigger_activation activation;};
+    rf_trigger_volume volume;rf_trigger_contact_timer contact_timer;
     const rf_level_owned_trigger *authored;
     rf_level_link_target *links;
 } rf_runtime_trigger;
@@ -219,6 +220,15 @@ typedef struct rf_startup_events_report {
     uint32_t triggers,events,gravity_actions,unsupported_actions,unresolved_targets;
     uint32_t other_targets,script_gates,pending_links,delayed_events;
 } rf_startup_events_report;
+typedef struct rf_trigger_contact_filter {
+    uint32_t kind;int32_t attached;uint32_t allowed_count;const uint32_t *allowed_handles;
+} rf_trigger_contact_filter;
+/* Poll an owned trigger's current volume, activation state and persistent
+ * contact timer. Filter handles and actor facts must describe one resolved
+ * snapshot in the same namespace. No automatic dispatch or key-gate bypass. */
+int rf_runtime_trigger_contact(rf_runtime_triggers *triggers,uint32_t handle,
+    const rf_trigger_actor_facts *actor,const float pose[3][3],
+    const rf_trigger_contact_filter *filter,int32_t now,uint32_t input,uint32_t *ready);
 /* Explicit runtime activation after caller-resolved contact/key/player gates.
  * Uses the shared registry/link dispatcher and SP bookkeeping on the owned
  * trigger. The same supported action families as startup are available;

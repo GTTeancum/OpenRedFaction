@@ -286,6 +286,20 @@ static void startup_trigger_dispatch(void *context,const rf_auto_trigger_state *
         startup_target(c,c->trigger->links+i,state->handle,actor,1);
     }
 }
+int rf_runtime_trigger_contact(rf_runtime_triggers *triggers,uint32_t handle,
+    const rf_trigger_actor_facts *actor,const float pose[3][3],
+    const rf_trigger_contact_filter *filter,int32_t now,uint32_t input,uint32_t *ready)
+{
+    rf_runtime_trigger *trigger;rf_trigger_gate gate;uint32_t kind;
+    if(!triggers || !triggers->registry || !filter)return RF_RANGE;
+    trigger=rf_object_registry_lookup(triggers->registry,handle);if(!trigger)return RF_NOT_FOUND;
+    memcpy(&kind,trigger,4);if(kind!=5)return RF_NOT_FOUND;
+    gate.flags=trigger->state.flags;gate.activations=(int32_t)trigger->state.count;
+    gate.limit=trigger->activation.limit;gate.deadline=trigger->state.deadline;
+    gate.filter=filter->kind;gate.attached=filter->attached;
+    gate.allowed_count=filter->allowed_count;gate.allowed_handles=filter->allowed_handles;
+    return rf_trigger_contact_poll(&gate,actor,&trigger->volume,pose,&trigger->contact_timer,now,input,ready);
+}
 static void runtime_trigger_dispatch(void *context,rf_trigger_activation *trigger,
     uint32_t actor,uint32_t suppress_movers)
 {
@@ -394,6 +408,9 @@ int rf_runtime_triggers_open(const rf_level *level,rf_object_registry *registry,
         status=rf_auto_trigger_init(&item->state,&item->authored->record,UINT32_MAX,now);
         if(status)goto failed;
         item->activation.limit=(int32_t)item->authored->record.unknown_word;
+        status=rf_trigger_volume_init(&item->authored->record,&item->volume);if(status)goto failed;
+        item->contact_timer.seconds=item->authored->record.values[1];
+        item->contact_timer.deadline=-1;
     }
     value.registry=registry;value.allocated_bytes=(uint32_t)bytes;
     for(i=0;i<value.decoded.count;++i) {

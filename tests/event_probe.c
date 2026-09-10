@@ -101,7 +101,9 @@ int main(int argc,char **argv)
         static rf_object_registry registry;rf_runtime_triggers owner={0};rf_runtime_trigger trigger={0};
         rf_runtime_event events[2]={{0}};rf_level_owned_trigger authored={0};rf_level_owned_event records[2]={{0}};
         rf_level_link_target targets[2]={{0}},self={0};rf_startup_events_report report;
-        rf_physics_gravity gravity={0};uint32_t fired,i;
+        rf_physics_gravity gravity={0};uint32_t fired,i,ready;
+        rf_trigger_actor_facts actor={0};rf_trigger_contact_filter filter={5,-1,0,NULL};
+        float pose[3][3]={{0}};
         rf_object_registry_init(&registry);owner.registry=&registry;owner.items=&trigger;owner.count=1;
         trigger.object_kind=5;trigger.authored=&authored;trigger.links=targets;authored.record.link_count=2;
         trigger.activation.limit=1;trigger.state.deadline=100;trigger.state.cooldown_ms=50;
@@ -114,11 +116,25 @@ int main(int argc,char **argv)
         }
         self.kind=1;self.value=trigger.handle;events[0].links=&self;records[0].record.link_count=1;
         records[1].record.values[0]=12.5f;
-        if(rf_runtime_trigger_fire(&owner,trigger.handle,123,100,0x42c80000,1,0,&gravity,NULL,&report,&fired) ||
+        trigger.volume.radius=2;trigger.contact_timer.seconds=.5f;trigger.contact_timer.deadline=-1;
+        actor.handle=123;
+        if(rf_runtime_trigger_contact(&owner,trigger.handle,&actor,pose,&filter,100,0,&ready) || ready ||
+            trigger.contact_timer.deadline!=600)return 75;
+        pose[0][0]=3;
+        if(rf_runtime_trigger_contact(&owner,trigger.handle,&actor,pose,&filter,200,0,&ready) || ready ||
+            trigger.contact_timer.deadline!=-1)return 76;
+        pose[0][0]=0;
+        if(rf_runtime_trigger_contact(&owner,trigger.handle,&actor,pose,&filter,300,0,&ready) || ready ||
+            trigger.contact_timer.deadline!=800)return 77;
+        if(rf_runtime_trigger_contact(&owner,trigger.handle,&actor,pose,&filter,799,0,&ready) || ready)return 78;
+        if(rf_runtime_trigger_contact(&owner,trigger.handle,&actor,pose,&filter,800,0,&ready) || !ready ||
+            trigger.contact_timer.deadline!=-1 || trigger.state.count)return 79;
+
+        if(rf_runtime_trigger_fire(&owner,trigger.handle,123,800,0x42c80000,1,0,&gravity,NULL,&report,&fired) ||
             fired || trigger.state.count || report.triggers)return 72;
-        if(rf_runtime_trigger_fire(&owner,trigger.handle,123,100,0x42c80000,0,0,&gravity,NULL,&report,&fired) ||
+        if(rf_runtime_trigger_fire(&owner,trigger.handle,123,800,0x42c80000,0,0,&gravity,NULL,&report,&fired) ||
             !fired || trigger.state.count!=1 || trigger.state.flags!=80 || trigger.activation.object_flags!=2 ||
-            trigger.state.deadline!=150 || trigger.state.activation_time_bits!=0x42c80000 ||
+            trigger.state.deadline!=850 || trigger.state.activation_time_bits!=0x42c80000 ||
             gravity.acceleration!=12.5f || report.triggers!=1 || report.events!=2 || report.gravity_actions!=1 ||
             events[1].state.actor!=123 || events[1].state.source!=trigger.handle)return 73;
         if(rf_runtime_trigger_fire(&owner,events[0].handle,123,100,0,0,0,&gravity,NULL,&report,&fired)!=RF_NOT_FOUND)return 74;
