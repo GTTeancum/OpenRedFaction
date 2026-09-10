@@ -62,6 +62,7 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
     check *c=context;uint32_t i,hash=2166136261u;const uint8_t *bytes;
+    {int status=rf_scene_draw_particles(NULL,NULL);if(status)return status;}
     if(frame!=c->next++ || (!follow_camera && world!=c->world.count) || mesh->count<world || mesh->count%3 ||
        mesh->bytes!=(uint64_t)mesh->count*sizeof(rf_preview_vertex) ||
        mesh->bytes>(follow_camera?RF_SCENE_FOLLOW_CAPACITY:c->world.bytes+1024*1024) || (!follow_camera && memcmp(mesh->vertices,c->world.vertices,c->world.bytes)))return RF_FORMAT;
@@ -321,7 +322,9 @@ int main(int argc,char **argv)
                 printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
                 printf("SCENE_VISIBILITY");for(i=0;i<6;++i)printf(" %u",rf_scene_visibility_summary[i]);puts("");
                 printf("SCENE_VISIBILITY_FRAMES");for(i=0;i<64*17;++i)printf(" %u",((uint32_t*)rf_scene_visibility_frames)[i]);puts("");
-                printf("SCENE_PARTICLES");for(i=0;i<8;++i)printf(" %u",rf_scene_particles_summary[i]);puts("");
+                printf("SCENE_PARTICLE_DRAW");for(i=0;i<7;++i)printf(" %u",rf_scene_particle_draw_summary[i]);puts("");
+        printf("SCENE_PARTICLE_DRAW_FRAMES");for(i=0;i<64*6;++i)printf(" %u",((uint32_t*)rf_scene_particle_draw_frames)[i]);puts("");
+        printf("SCENE_PARTICLES");for(i=0;i<8;++i)printf(" %u",rf_scene_particles_summary[i]);puts("");
                 printf("SCENE_PARTICLE_FRAMES");for(i=0;i<64*12;++i)printf(" %u",((uint32_t*)rf_scene_particles_frames)[i]);puts("");
             }
             printf("ACTOR_LIVE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_live_summary[i]);puts("");

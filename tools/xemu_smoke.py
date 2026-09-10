@@ -146,6 +146,9 @@ def main():
         if args.actor_look:look_frames_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_LOOK_FRAMES ')).split()[1:]))
         if args.actor_eye:eye_frames_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_EYE_FRAMES ')).split()[1:]))
         if args.actor_follow:
+            draw_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('SCENE_PARTICLE_DRAW_FRAMES ')).split()[1:]))
+            draw_summary_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('SCENE_PARTICLE_DRAW ')).split()[1:]))
+            if args.particle_view and not draw_summary_reference[3]:raise RuntimeError('Particle inspection did not submit polygons')
             particles_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('SCENE_PARTICLE_FRAMES ')).split()[1:]))
             particles_summary_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('SCENE_PARTICLES ')).split()[1:]))
             if args.particle_view and not (particles_summary_reference[3]>0 and particles_summary_reference[4]>0):raise RuntimeError('Particle inspection did not exercise creation and expiry')
@@ -386,6 +389,8 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             report['scene_visibility']=symbols['rf_scene_visibility_summary']['words']
                             if symbols['rf_scene_particles_frames']['words']!=particles_reference or symbols['rf_scene_particles_summary']['words']!=particles_summary_reference:raise RuntimeError('Particle frame state differs from PC')
                             report['scene_particles']=symbols['rf_scene_particles_summary']['words']
+                            if symbols['rf_scene_particle_draw_frames']['words']!=draw_reference or symbols['rf_scene_particle_draw_summary']['words']!=draw_summary_reference:raise RuntimeError('Particle draw packets differ from PC')
+                            report['scene_particle_draw']=symbols['rf_scene_particle_draw_summary']['words']
                             if follow_summary_reference[4]!=2*1024*1024:raise RuntimeError('Unexpected follow CPU capacity')
                             report['actor_follow']=dict(cpu_vertex_capacity=follow_summary_reference[4],frames=follow_summary_reference[0],world_hash=follow_summary_reference[1],peak_world_bytes=follow_summary_reference[2],camera_hash=follow_summary_reference[3],camera_ring_matches_pc=64,scope='Retained world reprojected each frame; eye_view describes first-person mode, otherwise a fixed-offset follow camera. No camera collision.')
                         for symbol,label in [('rf_scene_actor_room_frames','ACTOR_ROOMS'),('rf_scene_actor_room_summary','ACTOR_ROOM_SUMMARY')]:

@@ -25,6 +25,21 @@ extern uint32_t rf_scene_particles_summary[8],rf_scene_particles_frames[64][12];
 /* Inspection harness: camera at first authored emitter for ticks 0..399,
  * then normal camera, to exercise emission followed by expiry. Not player input. */
 extern uint32_t rf_scene_particle_view_enabled;
+/* Optional PC inspection: four units above/behind the source, looking down at it. */
+extern uint32_t rf_scene_particle_view_back;
+typedef int (*rf_scene_particle_sink)(void *context,const rf_particle_draw_vertex *vertices,
+    uint32_t count,const rf_image *image,uint32_t mode);
+/* Convert reciprocal world depth to the preview mesh's 24-bit Z convention. */
+#define RF_SCENE_PARTICLE_DEPTH_BIAS ((1000.0f/999.9f)*16777215.0f)
+#define RF_SCENE_PARTICLE_DEPTH_SCALE (-0.1f*RF_SCENE_PARTICLE_DEPTH_BIAS)
+/* Synchronous preview pass, valid only inside the scene frame sink. Uses the
+ * current camera and retained particle textures. NULL sink checks packets.
+ * World/actor mesh is presented first by this diagnostic composition; complete
+ * mixed-object/room-surface integration remains separate. No per-frame allocation. */
+int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context);
+/* Frames, queued entries, particles visited, polygons, vertices, cumulative packet
+ * hash, allocated workspace bytes. Ring rows: frame/queued/visited/polygons/vertices/hash. */
+extern uint32_t rf_scene_particle_draw_summary[7],rf_scene_particle_draw_frames[64][6];
 typedef struct rf_scene_world_geometry {
     const rf_geometry *world;
     rf_geometry_movers movers;

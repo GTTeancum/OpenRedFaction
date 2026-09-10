@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
-- [ ] Draw live level particles on PC and Xbox using the verified billboard rendering path.
+- [ ] Complete particle rendering for animated textures, stretched sprites and mixed room/object passes.
 - [ ] Connect dynamic particle ownership, event mutations and shared campaign random state.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
@@ -18,15 +18,19 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Live L1S1 mist now renders on PC and stock 64 MiB XEMU; the inspection replay
+submits 1308 polygons with matching cumulative draw-packet hashes.
+A new PC diagnostic capture shows the mist source; full visual parity is open.
+
 Particle/emitter room collection matches 128 original/PC/NXDK fixtures, including
-parent transforms and queue limits; live frame submission remains open.
+parent transforms and queue limits; initial live frame submission now passes.
 
 Queue append and sphere rejection match 256 original/PC/NXDK cases, including
-all 2048 slot bytes; live emitter/particle collection and submission remain open.
+all 2048 slot bytes; initial live emitter/particle collection and submission pass.
 
 Ordinary render queue distance keys and dispatch order match 44420 original/
 PC/NXDK entries. Plane grouping and room-height splits each match 22210
-entries; queue loading, culling, surface rendering and live drawing remain open.
+entries; mixed-object queue loading and room-surface integration remain open.
 
 World billboard transformation, center acceptance and clipped submission match
 the original executable in 1024 PC/NXDK cases. Live draw-queue integration
@@ -34,7 +38,7 @@ remains open, including emitter grouping and blending with scene objects.
 
 Static level particles now tick on PC and stock 64 MiB XEMU: the inspection
 replay creates 28, expires 18 and retains 10, with matching final 64 tick records.
-Particle drawing remains open; no new particle visual is available yet.
+Initial mist drawing passes PC/XEMU; broader particle rendering remains open.
 
 Native moving-camera visibility passes 664 frames on stock 64 MiB XEMU,
 with final camera/eligibility telemetry matching PC and 13084 owned bytes.

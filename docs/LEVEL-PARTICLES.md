@@ -617,3 +617,57 @@ and partially/full queues. Both builds and all six CTest checks pass.
 The shared collector is ready for frame integration; it is not yet called by
 the live scene sink. GPU dispatch, surface rendering and a meaningful new
 framebuffer capture remain unfinished. No screenshot was captured.
+
+### Live diagnostic particle rendering
+
+The actor-follow scene now retains a 155648-byte particle drawing workspace
+for its stream lifetime and releases it on every exit path. Within the frame
+sink, rf_scene_draw_particles collects each visible room's particle/emitter
+queue, applies ordinary queue ordering and traverses emitter particle lists.
+It selects the original bitmap frame and render mode, projects world billboards
+and encodes color/alpha/depth vertices through the verified shared helpers.
+The current retained bundle owns frame zero; a different selected frame or
+velocity-stretched sprite returns RF_NOT_FOUND, never a substitute image/path.
+
+PC and Xbox invoke that shared pass after the diagnostic world/actor mesh and
+before presentation. Textures remain resident and the pass allocates nothing
+per frame. Reciprocal world depth maps to the preview's near=.1/far=1000
+24-bit Z convention; normal/glow blending uses the existing verified backends.
+Xbox restores the preview shader's specular, alpha-test and fog state on the
+next frame. Complete mixed-object ordering and room-surface insertion are not
+yet integrated into this diagnostic mesh renderer, despite the shared queue
+helpers being recovered. Fog, animated bitmap residency and stretched sprites
+remain unfinished. This is initial L1S1 rendering, not full particle parity.
+
+Telemetry records each frame's queued entries, visited particles, polygons,
+vertices and packet hash. A cumulative hash covers all submitted frames; the
+final 64-frame ring alone is insufficient because the inspection returns to
+a view without emitters after frame 399. The 664-frame inspection produces
+summary [664,773,5496,1308,5912,821542861,155648]. The 663 simulation ticks
+retain the prior 28 created / 18 expired / 10 live result.
+
+Native report artifacts/xemu/20260910-132510-969923/report.json passes on
+67108864 base RAM with no added RAM. Summary and final draw ring match PC,
+including the cumulative packet hash; existing physics/camera/visibility checks
+also pass. Available physical memory after upload is 44072960 bytes for this
+diagnostic, not a full-game peak. No native framebuffer was captured in this run.
+
+The first attempt found a packaging defect: make -W default.xbe could compile
+a new EXE but suppress XBE regeneration, packaging old code while probing the
+new map. The stale XBE retained the previous final-frame-only hash assignment.
+build-xbox.sh --repack now removes only the generated ISO before normal make,
+allowing ordinary EXE-to-XBE dependencies to run and repacking changed flags.
+The corrected run passes. Use --repack instead of -W default.xbe for disc flags.
+
+A PC-native 240-frame capture with RF_PARTICLE_VIEW=1 and RF_PARTICLE_VIEW_BACK=1
+is artifacts/particle-draw-raised.png (converted losslessly from the renderer's
+PPM). The optional PC inspection camera sits four world units above and behind
+the first authored emitter and looks down at it. This shows a mist plume in
+the level; it is a diagnostic camera, not player movement or a PS2 comparison.
+Its 948 submitted polygons / 3792 vertices use the same particle simulation.
+The initial source-centered and low camera candidates were not suitable for
+a progress image. The existing README hero image is not replaced by this view.
+
+Final source build recheck artifacts/xemu/20260910-132926-739304/report.json
+also passes with the same cumulative draw summary. Temporary disc flags and
+the normal ISO were restored, and the harness-owned emulator was reaped.

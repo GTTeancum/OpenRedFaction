@@ -247,3 +247,8 @@ it does not reconstruct the unavailable input history of the original tick-99 ex
 After restoring the ISO without a replay file, normal controller/pacing run
 `pacing-20260909-213120` passes. No additional manual controller claim is made;
 this verifies the non-replay startup and continued runtime path.
+
+For changed diagnostic disc flags, use tools/build-xbox.sh --repack. Do not
+use make -W default.xbe: it can suppress XBE regeneration after an EXE rebuild
+and leave emulator code inconsistent with the current symbol map. --repack
+removes only the generated ISO and runs normal build dependencies.

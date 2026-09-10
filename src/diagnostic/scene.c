@@ -256,6 +256,10 @@ int rf_scene_preview_route_camera(rf_level *level,int32_t uid)
     level->player_orientation[0][0]=-1;level->player_orientation[1][1]=1;level->player_orientation[2][2]=-1;
     return RF_OK;
 }
+typedef struct scene_particle_workspace {
+    rf_render_queue_record records[2048];rf_render_sphere spheres[2048];
+    uint32_t order[2048];float distances[2048];
+} scene_particle_workspace;
 typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity;rf_scene_frame_sink sink;void *context;
@@ -263,10 +267,79 @@ typedef struct scene_stream {
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
     rf_level_visibility visibility;
     rf_level_particles particles;rf_level_particle_tick_result particle_first;
+    rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
+static scene_stream *particle_draw_stream;
+uint32_t rf_scene_particle_draw_summary[7],rf_scene_particle_draw_frames[64][6];
+static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_particle_sink sink,void *context,uint32_t row[6])
+{
+    rf_particle_screen_polygon polygon;rf_particle_draw_vertex vertices[12];rf_particle_vertex_environment environment={0};
+    rf_particle_render_environment render_environment={1,1,0,2};rf_particle_render_states states={0};
+    const rf_particle *p;const rf_particle_bitmap *bitmap;uint32_t frame,mode,i,j;int status;
+    if(index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
+    p=stream->particles.state->records+index;++row[2];
+    if(p->flags&0x4000u)return RF_NOT_FOUND;
+    if(p->bitmap>=stream->particles.materials.texture_count)return RF_RANGE;
+    bitmap=&stream->particles.materials.textures[p->bitmap].bitmap;
+    status=rf_particle_frame_index(p,&frame);if(status)return status;
+    /* The retained bundle currently owns frame zero, never substitute it for
+     * an animated frame selected by the original clock. */
+    if(frame)return RF_NOT_FOUND;
+    mode=rf_particle_render_mode(p->flags,RF_PARTICLE_NORMAL_MODE,RF_PARTICLE_GLOW_MODE);
+    status=rf_particle_world_billboard(&stream->particle_camera,p->position,p->orientation,p->radius,
+        bitmap->image.width,bitmap->image.height,&polygon);if(status)return status;
+    if(!polygon.count)return RF_OK;
+    status=rf_particle_render_decode(mode,&render_environment,&states);if(status)return status;
+    environment.rgba=p->color_current;environment.vertex_color=states.vertex_color;environment.vertex_alpha=states.vertex_alpha;
+    environment.depth_scale=environment.reciprocal_scale=stream->particle_camera.view.scale[2];
+    environment.uv_scale[0]=environment.uv_scale[1]=1;
+    for(i=0;i<polygon.count;i++) {
+        const unsigned char *bytes=(const unsigned char*)(vertices+i);
+        status=rf_particle_vertex_encode(&environment,polygon.vertices+i,vertices+i);if(status)return status;
+        for(j=0;j<sizeof(*vertices);j++)row[5]=(row[5]^bytes[j])*16777619u;
+    }
+    row[5]=(row[5]^mode)*16777619u;row[5]=(row[5]^p->bitmap)*16777619u;
+    if(sink){status=sink(context,vertices,polygon.count,&bitmap->image,mode);if(status)return status;}
+    ++row[3];row[4]+=polygon.count;return RF_OK;
+}
+int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
+{
+    scene_stream *stream=particle_draw_stream;scene_particle_workspace *workspace;
+    uint32_t row[6]={0,0,0,0,0,2166136261u},room,i,j;int status;
+    if(!stream || !stream->particle_workspace)return RF_OK;
+    workspace=stream->particle_workspace;row[0]=stream->particle_frame;
+    for(room=0;room<stream->visibility.state.visible_count;room++) {
+        uint32_t count=0;
+        status=rf_level_particles_queue_room(&stream->particles,stream->visibility.state.order[room]+1,
+            &stream->particle_camera.frustum,NULL,NULL,workspace->records,2048,&count);if(status)return status;
+        row[1]+=count;
+        for(i=0;i<count;i++) {
+            memcpy(workspace->spheres[i].position,workspace->records[i].position,12);
+            workspace->spheres[i].radius=workspace->records[i].radius;workspace->spheres[i].sorted=workspace->records[i].sorted;
+        }
+        status=rf_render_sphere_order(workspace->spheres,count,stream->particle_camera.view.origin,workspace->order,workspace->distances);if(status)return status;
+        for(i=0;i<count;i++) {
+            const rf_render_queue_record *entry=workspace->records+workspace->order[i];
+            if(entry->callback==RF_LEVEL_PARTICLE_DRAW_SINGLE) {
+                status=scene_particle_draw_one(stream,entry->object,sink,context,row);if(status)return status;
+            } else if(entry->callback==RF_LEVEL_PARTICLE_DRAW_EMITTER) {
+                uint32_t list=RF_PARTICLE_BASE_LISTS+entry->object,visited=0;
+                if(entry->object>=RF_PARTICLE_EMITTER_CAPACITY)return RF_RANGE;
+                for(j=stream->particles.state->lists[list].next;j!=RF_PARTICLE_CAPACITY+list;j=stream->particles.state->records[j].next) {
+                    if(j>=RF_PARTICLE_CAPACITY || ++visited>RF_PARTICLE_CAPACITY)return RF_RANGE;
+                    status=scene_particle_draw_one(stream,j,sink,context,row);if(status)return status;
+                }
+            } else return RF_RANGE;
+        }
+    }
+    memcpy(rf_scene_particle_draw_frames[row[0]%64],row,sizeof(row));
+    ++rf_scene_particle_draw_summary[0];for(i=1;i<5;i++)rf_scene_particle_draw_summary[i]+=row[i];
+    rf_scene_particle_draw_summary[5]=(rf_scene_particle_draw_summary[5]^row[5])*16777619u;return RF_OK;
+}
 uint32_t rf_scene_visibility_summary[6],rf_scene_visibility_frames[64][17];
 uint32_t rf_scene_particles_summary[8],rf_scene_particles_frames[64][12];
 uint32_t rf_scene_particle_view_enabled;
+uint32_t rf_scene_particle_view_back;
 static const rf_scene_world_geometry *actor_follow_world;
 void rf_scene_actor_follow(const rf_scene_world_geometry *world) {actor_follow_world=world;}
 uint32_t rf_scene_actor_follow_summary[5]; /* frames, world hash, peak world bytes, camera hash, CPU capacity */
@@ -970,8 +1043,13 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         memcpy(position,pose.position,12);memcpy(orientation,pose.eye_orientation,36);
         record[0]=frame;memcpy(record+1,&input,sizeof(input));memcpy(record+25,&pose,sizeof(pose));
     } else {position[1]+=.7f;position[2]+=2.4f;}
-    if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count)
+    if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
         memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);
+        if(rf_scene_particle_view_back) {
+            const float inspection_basis[3][3]={{1,0,0},{0,.7071067811865475f,.7071067811865475f},{0,-.7071067811865475f,.7071067811865475f}};
+            position[1]+=4;position[2]-=4;memcpy(orientation,inspection_basis,sizeof(inspection_basis));
+        }
+    }
     if(stream->visibility.storage) {
         rf_collision_room_location room;rf_visibility_camera camera={0};
         /* Match the preview's fixed 4:3, x/z projection and 1000-unit far
@@ -980,6 +1058,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         uint32_t i,cached=0,hash=2166136261u,*record=rf_scene_visibility_frames[frame%64];
         memcpy(parameters.origin,position,12);memcpy(parameters.basis,orientation,36);
         status=rf_visibility_camera_setup(&parameters,&camera);if(status)return status;
+        stream->particle_camera=camera;stream->particle_frame=frame;
         status=rf_geometry_collision_world_locate(stream->collision,position,&room);if(status)return status;
         status=rf_level_visibility_begin_render(&stream->visibility);if(status)return status;
         status=rf_level_visibility_view(&stream->visibility,&camera,640,480,room.room,UINT32_MAX,0,1);if(status)return status;
@@ -1122,7 +1201,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     stream->mesh->bytes=rf_scene_actor_eye_enabled?stream->world*sizeof(rf_preview_vertex):(uint32_t)bytes;
     {
         int status;profile_mark(5);
-        status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);if(status)return status;
+        particle_draw_stream=stream;
+        status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
+        particle_draw_stream=NULL;if(status)return status;
         profile_mark(6);
         if(stream->collision && frame+1<rf_scene_actor_frame_count) {
             uint64_t particle_elapsed=((uint64_t)frame+1)*1000/60;
@@ -1374,6 +1455,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(actor_follow_world) {
             status=rf_level_visibility_open(geometry,64*1024,&stream.visibility);if(status)goto done;
             status=rf_level_particles_open(&stream.particles,level,collision,maps,map_count,1,0,512*1024);if(status)goto done;
+            stream.particle_workspace=calloc(1,sizeof(*stream.particle_workspace));if(!stream.particle_workspace){status=RF_IO;goto done;}
+            memset(rf_scene_particle_draw_summary,0,sizeof(rf_scene_particle_draw_summary));
+            memset(rf_scene_particle_draw_frames,0,sizeof(rf_scene_particle_draw_frames));
+            rf_scene_particle_draw_summary[5]=2166136261u;
+            rf_scene_particle_draw_summary[6]=sizeof(*stream.particle_workspace);
             memset(rf_scene_visibility_summary,0,sizeof(rf_scene_visibility_summary));
             memset(rf_scene_visibility_frames,0,sizeof(rf_scene_visibility_frames));
             memset(rf_scene_particles_summary,0,sizeof(rf_scene_particles_summary));
@@ -1396,6 +1482,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
 done:
     rf_level_visibility_close(&stream.visibility);
     rf_level_particles_close(&stream.particles);
+    free(stream.particle_workspace);particle_draw_stream=NULL;
     rf_runtime_triggers_close(&campaign_triggers);
     rf_runtime_events_close(&campaign_events);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);

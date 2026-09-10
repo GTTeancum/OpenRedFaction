@@ -1,5 +1,6 @@
 #include "rf/resource_budget.h"
 #include "renderer.h"
+#include "rf/scene_preview.h"
 #include <pbkit/pbkit.h>
 #include <xboxkrnl/xboxkrnl.h>
 #include <string.h>
@@ -48,6 +49,11 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback)
         field(NV097_SET_TEXTURE_FORMAT_MIPMAP_LEVELS, 1) |
         field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_U, u) | field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_V, v);
     return RF_OK;
+}
+static int scene_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
+{
+    (void)context;
+    return rf_xbox_particle_draw(vertices,count,image,mode,RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);
 }
 static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices,uint32_t requested_capacity)
 {
@@ -140,6 +146,9 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     p = pb_push1(p, NV097_SET_TRANSFORM_CONSTANT_LOAD, 96);
     p = pb_push4f(p, NV097_SET_TRANSFORM_CONSTANT, 1.0f, 0.0f, 0.0f, 0.0f);
     p = pb_push1(p, NV097_SET_CULL_FACE_ENABLE, 0);
+    p = pb_push1(p, NV097_SET_SPECULAR_ENABLE, 0);
+    p = pb_push1(p, NV097_SET_ALPHA_TEST_ENABLE, 0);
+    p = pb_push1(p, NV097_SET_FOG_ENABLE, 0);
     p = pb_push1(p, NV097_SET_DEPTH_TEST_ENABLE, 1);
     p = pb_push1(p, NV097_SET_DEPTH_MASK, 1);
     p = pb_push1(p, NV097_SET_DEPTH_FUNC, NV097_SET_DEPTH_FUNC_V_LESS);
@@ -194,6 +203,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             pb_end(p); i += count;
         }
         while (pb_busy()) {}
+        if(streaming) {int status=rf_scene_draw_particles(scene_particle_present,NULL);if(status)return status;}
         renderer_mark(5,&profile_previous,profiling);
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();

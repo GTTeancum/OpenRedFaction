@@ -16,7 +16,7 @@ def snapshot(monitor,map_text):
         'consistency':'Non-atomic live reads; use stable completed telemetry for comparisons.',
         'memory':monitor.command('query-memory-size-summary'),
         'status':monitor.command('query-status'),'symbols':{}}
-    for name,count in [('rf_scene_particles_summary',8),('rf_scene_particles_frames',768),('rf_fp_control_diagnostic',5),('rf_scene_visibility_summary',6),('rf_scene_visibility_frames',1088)]:
+    for name,count in [('rf_scene_particle_draw_summary',7),('rf_scene_particle_draw_frames',384),('rf_scene_particles_summary',8),('rf_scene_particles_frames',768),('rf_fp_control_diagnostic',5),('rf_scene_visibility_summary',6),('rf_scene_visibility_frames',1088)]:
         match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',map_text)
         if match:
             address=int(match[1],16)

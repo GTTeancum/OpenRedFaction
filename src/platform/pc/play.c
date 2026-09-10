@@ -116,6 +116,12 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return RF_OK;
 }
 
+static int particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
+{
+    player *p=context;
+    return rf_pc_raster_particle(&p->raster,vertices,count,image,mode,
+        RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);
+}
 static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
@@ -126,6 +132,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     if(!p->headless && !rf_frame_clock_present(&p->clock,milliseconds(p))){++p->frames;return RF_OK;}
     status=rf_pc_raster_frame(&p->raster,mesh,materials,&p->lightmaps,world);
     if(status)return status;
+    status=rf_scene_draw_particles(particle_present,p);if(status)return status;
     ++p->frames;
     if(!p->headless) {
         for(i=0;i<p->raster.pixels;++i) {
@@ -207,7 +214,7 @@ int main(int argc,char **argv)
         ShowWindow(p.window,SW_SHOW);
         puts(spawn_profile?"WASD move | arrows look | Ctrl crouch | Space jump | Escape exit":"WASD move | arrows look | Ctrl crouch | Escape exit");
     }
-    rf_scene_particle_view_enabled=getenv("RF_PARTICLE_VIEW")!=NULL;
+    rf_scene_particle_view_enabled=getenv("RF_PARTICLE_VIEW")!=NULL;rf_scene_particle_view_back=getenv("RF_PARTICLE_VIEW_BACK")!=NULL;
     rf_scene_actor_live_enabled=1;rf_scene_actor_eye_enabled=1;
     rf_scene_actor_look_enabled=1;rf_scene_actor_turn_enabled=1;
     rf_scene_actor_drive(1);rf_scene_actor_follow(&retained);rf_scene_set_input(input,&p,limit);
@@ -234,6 +241,8 @@ int main(int argc,char **argv)
         printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
         printf("SCENE_VISIBILITY");for(i=0;i<6;++i)printf(" %u",rf_scene_visibility_summary[i]);puts("");
         printf("SCENE_VISIBILITY_FRAMES");for(i=0;i<64*17;++i)printf(" %u",((uint32_t*)rf_scene_visibility_frames)[i]);puts("");
+        printf("SCENE_PARTICLE_DRAW");for(i=0;i<7;++i)printf(" %u",rf_scene_particle_draw_summary[i]);puts("");
+        printf("SCENE_PARTICLE_DRAW_FRAMES");for(i=0;i<64*6;++i)printf(" %u",((uint32_t*)rf_scene_particle_draw_frames)[i]);puts("");
         printf("SCENE_PARTICLES");for(i=0;i<8;++i)printf(" %u",rf_scene_particles_summary[i]);puts("");
         printf("SCENE_PARTICLE_FRAMES");for(i=0;i<64*12;++i)printf(" %u",((uint32_t*)rf_scene_particles_frames)[i]);puts("");
         printf("PLAYER_JUMP");for(i=0;i<4;++i)printf(" %u",rf_scene_player_jump[i]);puts("");
