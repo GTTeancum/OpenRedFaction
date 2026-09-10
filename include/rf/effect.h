@@ -16,6 +16,14 @@ int rf_particle_flags_read(const char *emitter,const char *particle,rf_particle_
  * each low nibble is ORed into existing flags, without clamping or clearing.
  * NULL arguments return RF_RANGE without modifying flags. */
 int rf_particle_flags_pack(rf_particle_text_flags *flags,unsigned present,const int values[4]);
+typedef struct rf_particle_cycle {
+    float on_time,on_variance,off_time,off_variance;
+} rf_particle_cycle;
+/* 49771b..4977c3: boolean low bytes must equal one. ORs emitter bits;
+ * disabled alternation writes 1,0,1,0. Authored timing may alias output.
+ * All pointers required; NULL arguments preserve outputs. */
+int rf_particle_cycle_read(rf_particle_text_flags *flags,unsigned initially_on,
+    unsigned alternate,const rf_particle_cycle *authored,rf_particle_cycle *result);
 #include "rf/timer.h"
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */

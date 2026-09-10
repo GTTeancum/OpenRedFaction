@@ -39,6 +39,15 @@ int rf_particle_flags_pack(rf_particle_text_flags *flags,unsigned present,const 
     if(present&8u)flags->secondary|=((unsigned)values[3]&15u)<<12;
     return RF_OK;
 }
+int rf_particle_cycle_read(rf_particle_text_flags *flags,unsigned initially_on,
+    unsigned alternate,const rf_particle_cycle *authored,rf_particle_cycle *result)
+{
+    rf_particle_cycle value={1,0,1,0};
+    if(!flags || !authored || !result)return RF_RANGE;
+    if((initially_on&255u)==1u)flags->emitter|=0x10;
+    if((alternate&255u)==1u) {flags->emitter|=0x20;value=*authored;}
+    *result=value;return RF_OK;
+}
 int rf_vclip_name_lookup(const char *const names[64],const char *name)
 {
     unsigned i;if(!names || !name || !*name)return -1;
