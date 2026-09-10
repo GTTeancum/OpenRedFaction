@@ -16,6 +16,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Vclip fixed-field defaults now have 512 original-loader execution fixtures.
+Implement bounded definition loading, including embedded particle blocks and
+resource-name resolution; the verification currently supplies parser seams.
+
 Vclip name lookup matches 383 original cases on PC/NXDK. charge_explode is a
 vclip selecting rocket hit plus Medium Explosion sound; bounded vclip/particle
 definition loading and effect consumers remain open.

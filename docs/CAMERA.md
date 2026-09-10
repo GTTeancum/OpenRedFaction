@@ -3697,3 +3697,37 @@ sprite would not reproduce this authored effect. Vclip definition ownership,
 emitter/particle definitions, playback and sound consumers must be connected.
 This checkpoint adds lookup only; scene Explode remains unsupported and no
 new visual behavior or native rendered effect is claimed.
+
+
+Vclip loader fixed fields (2026-09-10)
+------------------------------------
+
+Ghidra exports identify table driver 4c1380 and per-definition loader 4c1460.
+The driver reads vclip.tbl, expects #Vclips and repeatedly invokes 4c1460.
+Per-record storage is e0 bytes at 858cb8 + count*e0, with count at 8568ac.
+The record loader increments count before reading the required name. The
+installed file has 63 names; a shared owner must enforce its 64-slot bound.
+
+verify_vclip_defaults.py executes original 4c1460 control flow and field writes
+with parser, string ownership and Foley resolution seams supplied. All 512
+cases pass (256 presence masks at slots 0 and 63), using initially zeroed
+record storage and no embedded particle block. Numeric/default offsets are:
++08 damage default 0; +30 flags default 0; +20 VBM glow default 0 when the
+VBM branch is taken; +bc VFX radius default 20; +2c Foley index default -1;
++34 particle count default 0; +c0 explosion-name first byte 0 when absent.
+The flag-name table at 5a2284 contains liquid_surface, radius_in_multiples,
+no_z_check and code_explode in that order. Parser flag-mask semantics are not
+executed by this harness; the mask value is supplied. A present VBM filename
+controls whether its optional glow field is read. Present Foley text invokes
+434cb0; this harness supplies index 17 rather than resolving a sound asset.
+
+Name, VBM filename and VFX filename use string objects. Explosion name uses a
+fixed 32-byte buffer. Optional particle count invokes 497590 to load an embedded
+particle/emitter record at +38; that path remains outside these fixtures. The
+installed file uses more particle labels than just the fixed vclip properties,
+so a complete reader must handle the nested block rather than ignore it.
+
+Report: artifacts/vclip-defaults-verification.json. This establishes fixed-field
+initialization evidence only: actual token parsing, strings/allocations, resource
+resolution, particle definitions and shared loader equivalence remain open.
+No runtime source behavior or new visual changes at this checkpoint.
