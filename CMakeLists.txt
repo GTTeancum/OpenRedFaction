@@ -170,3 +170,7 @@ target_include_directories(rf_particle_pixel_probe PRIVATE tools)
 target_link_libraries(rf_particle_pixel_probe PRIVATE rf_core)
 
 add_test(NAME particle_backend_pixels COMMAND rf_particle_pixel_probe)
+
+target_sources(rf_core PRIVATE src/core/audio.c)
+add_executable(rf_audio_probe tests/audio_probe.c)
+target_link_libraries(rf_audio_probe PRIVATE rf_core)

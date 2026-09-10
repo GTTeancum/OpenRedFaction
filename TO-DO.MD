@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Bounded PCM resource parsing passes81 PC/NXDK cases; door samples need
+93024 PCM bytes; missing loop-name resolution, mixing and audio output remain open.
+
 Corrected the staged approach axis; traversal and occupied closing reversal
 now pass on PC/stock64MiB XEMU; authored-spawn route and effects remain open.
 
