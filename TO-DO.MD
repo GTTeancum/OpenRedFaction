@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Complete startup event actions, propagation and delayed ticking beyond the connected gravity path.
-- [ ] Validate late-level startup and levels without movers in native Xbox.
+- [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
@@ -18,13 +18,16 @@ Immediate open items:
 
 L18S1 world loading is fixed: absent mover sections are valid and now produce
 an empty retained mover owner. The old -3 error was RF_NOT_FOUND, not RF_FORMAT.
-All four rendered PC gravity-level checks pass; late-level native Xbox checks
-remain open. Existing malformed mover data is still rejected.
+All four rendered PC and stock 64-MiB XEMU gravity-level checks pass for 16
+idle ticks. The Xbox preflight also accepts absent group/mover sections.
+Existing malformed mover data is still rejected. Native reports 20260910-064208,
+064231, 064257 and 064322 cover L18S1 and L17S1-3 respectively; these are startup
+checks, not campaign completion or visual-parity evidence.
 
 Startup auto dispatch now activates registered events and applies Set_Gravity
 in the scene, while counting unsupported actions/targets, scripts, propagation
 and delayed work. All 93 shared startup fixtures pass. Rendered PC L17S1-3
-apply 4/3/4 gravity; L18S1 fails earlier in world loading. Default 64-MiB
+apply 4/3/4 gravity; L18S1 applies 9.8 after the loading fix above. Default 64-MiB
 XEMU replay 20260910-062922 passes with matching startup diagnostics.
 
 Runtime trigger targets now resolve against registered events/triggers while

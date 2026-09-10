@@ -1441,3 +1441,37 @@ state matches the final rendered record. All existing live actor/body/camera
 checks pass; 664 queries, zero misses, two assignments including initialization,
 and room hash 3635044975. No framebuffer captured. Both builds, the 64-frame
 PC drive regression and four CTests pass.
+
+Late-level startup replay (2026-09-10)
+------------------------------------
+
+`tools/xemu_replay_check.py` now accepts `--level L18S1.rfl --archive levels3.vpp`
+alongside its input file. Selection implies authored campaign spawn. It stages
+the installed archive into ignored disc assets, verifies its SHA-256, and writes
+`campaign-level.bin`: two 64-byte NUL-padded fields for archive and member name.
+Xbox validates the fixed size, terminated fields and archive whitelist before
+opening it. Selection cannot be combined with climb staging. The harness restores
+the prior selection/replay flags and rebuilds the normal ISO in `finally`.
+
+The initial L18S1 guest failed with RF_IO because the disc lacked levels3.vpp.
+After archive staging it failed with RF_NOT_FOUND in diagnostic preflight:
+this authored level omits both mover and group sections. Preflight now creates
+empty owners for absence, matching the shared scene's optional mover handling;
+other parser errors continue to propagate.
+
+All four 16-tick idle replays pass with native memory matching the PC reference
+for startup counters/gravity, resolved links, player/body, input and animation:
+
+| Level | Native report under artifacts/xemu | Gravity | Available pages at completion |
+| --- | --- | --- | --- |
+| L18S1 | replay-20260910-064208 | 9.8 | 11448 |
+| L17S1 | replay-20260910-064231 | 4 | 9548 |
+| L17S2 | replay-20260910-064257 | 3 | 9603 |
+| L17S3 | replay-20260910-064322 | 4 | 9656 |
+
+Each run explicitly verifies 64 MiB guest RAM. Page counts are final observations,
+not peak campaign memory budgets. These checks establish startup integration only:
+unsupported event actions, outgoing propagation and delayed ticking remain open.
+No framebuffer capture or PS2 visual-parity claim accompanies this internal fix.
+The default L1S1 campaign path also passes its 16-tick regression in
+replay-20260910-064400. NXDK build and all five PC CTests pass.

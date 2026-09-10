@@ -181,6 +181,8 @@ static int group_storage_open(const rf_level *level)
 {
     uint32_t i;int status=logic_storage_open(level);if(status)return status;
     status=rf_level_owned_groups_open(level,256u*1024u,&resident_groups);
+    /* Authored levels may omit the optional group section entirely. */
+    if(status==RF_NOT_FOUND) {resident_groups.allocated_bytes=sizeof(resident_groups);status=RF_OK;}
     rf_group_storage_diagnostic[1]=status?(uint32_t)status:1;if(status)return status;
     rf_group_storage_diagnostic[2]=resident_groups.count;rf_group_storage_diagnostic[3]=resident_groups.allocated_bytes;
     for(i=0;i<resident_groups.count;i++) {
@@ -325,7 +327,9 @@ static int mover_check(const rf_level *level)
     rf_geometry_movers source={0};uint32_t *ids=NULL,i,j,k,v,group,hash=2166136261u;
     int status;MM_STATISTICS memory={0};
     status=group_storage_open(level);if(status)goto done;
-    status=rf_geometry_movers_open(level,1024u*1024u,&source);if(status)goto done;
+    status=rf_geometry_movers_open(level,1024u*1024u,&source);
+    if(status==RF_NOT_FOUND) {source.allocated_bytes=sizeof(source);status=RF_OK;}
+    if(status)goto done;
     ids=(uint32_t *)malloc(source.count?source.count*4:4);if(!ids) {status=RF_RANGE;goto done;}
     for(i=0;i<source.count;i++)ids[i]=UINT32_MAX; /* Replaced by registration before queries or attachments. */
     status=rf_geometry_collision_movers_open(&source,ids,1024u*1024u,&resident_movers);
@@ -665,15 +669,29 @@ int main(void)
         if (result!=RF_OK) rf_diagnostic[2]=0x80000200u | (uint32_t)(-result);
     }
     if (result == RF_OK) {
-        result = rf_vpp_open(&archive, "D:\\levels1.vpp");
+        char selection[128]={0},archive_path[80];int selected=0;
+        FILE *selection_file=fopen("D:\\campaign-level.bin","rb");
+        if(selection_file) {
+            selected=1;
+            if(fread(selection,1,sizeof(selection),selection_file)!=sizeof(selection) ||
+               fgetc(selection_file)!=EOF || !memchr(selection,0,64) || !memchr(selection+64,0,64) ||
+               !selection[64] || (strcmp(selection,"levels1.vpp") && strcmp(selection,"levels2.vpp") &&
+               strcmp(selection,"levels3.vpp") && strcmp(selection,"levelsm.vpp")))result=RF_FORMAT;
+            fclose(selection_file);
+        }
+        if(result==RF_OK) {
+            snprintf(archive_path,sizeof(archive_path),"D:\\%s",selected?selection:"levels1.vpp");
+            result = rf_vpp_open(&archive, archive_path);
+        }
         if (result == RF_OK) {
             rf_level level;
             FILE *climb_flag=fopen("D:\\campaign-climb.flag","rb");
             int staged_climb=climb_flag!=NULL;
-            live_mines_door_fixture=!staged_climb;
+            live_mines_door_fixture=!staged_climb && !selected;
             int climb_mode=climb_flag && fgetc(climb_flag)=='2'?2:1;
             if(climb_flag)fclose(climb_flag);
-            result = rf_level_open(&level, &archive, staged_climb?"L1S2.rfl":"L1S1.rfl");
+            result = selected && staged_climb?RF_FORMAT:
+                rf_level_open(&level, &archive, selected?selection+64:staged_climb?"L1S2.rfl":"L1S1.rfl");
             if(result==RF_OK && staged_climb) {
                 result=rf_scene_stage_climb(&level,(uint32_t)climb_mode);
             }

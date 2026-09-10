@@ -3,9 +3,18 @@ import argparse,datetime,hashlib,json,os,re,shutil,socket,subprocess,sys,time
 from pathlib import Path
 from xemu_smoke import Monitor
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);args=p.parse_args()
 if args.approach:args.climb=True
 if args.climb:args.campaign_spawn=True
+if args.level:
+ if args.climb or not re.fullmatch(r'[A-Za-z0-9_-]+\.rfl',args.level) or len(args.level)>63:p.error('Choose a plain level name, without climb staging')
+ args.campaign_spawn=True
+elif args.archive!='levels1.vpp':p.error('--archive requires --level')
+replay_env=dict(os.environ)
+for key in ('RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START'):replay_env.pop(key,None)
+replay_env.update(RF_REPLAY_LEVEL=args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),RF_REPLAY_ARCHIVE=args.archive)
+if args.climb:replay_env['RF_REPLAY_REGION_START']='2' if args.approach else '1'
+
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu');payload=args.input.read_bytes()
 record_size=28 if payload[:4]==b'RFI2' else 24
 offset=8 if record_size==28 else 0
@@ -13,7 +22,7 @@ if offset and payload[4:8]!=(28).to_bytes(4,'little'):raise ValueError('Invalid 
 if len(payload)<=offset or (len(payload)-offset)%record_size or (len(payload)-offset)>60000*record_size:raise ValueError('Expected 1..60000 input records')
 frames=(len(payload)-offset)//record_size;run=root/'artifacts/xemu'/('replay-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
 source=run/'inputs.bin';source.write_bytes(payload)
-pc=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay' if args.campaign_spawn else '--replay',str(root/'Installed_Game'),str(source),str(run/'pc-final.ppm')],capture_output=True,text=True,check=True,env=dict(os.environ,**({'RF_REPLAY_LEVEL':'L1S2.rfl','RF_REPLAY_REGION_START':'2' if args.approach else '1'} if args.climb else {})))
+pc=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay' if args.campaign_spawn else '--replay',str(root/'Installed_Game'),str(source),str(run/'pc-final.ppm')],capture_output=True,text=True,check=True,env=replay_env)
 (run/'pc-reference.txt').write_text(pc.stdout)
 def expected(label):return list(map(int,next(x for x in pc.stdout.splitlines() if x.startswith(label+' ')).split()[1:]))
 if args.campaign_spawn and not args.climb:
@@ -21,8 +30,8 @@ if args.campaign_spawn and not args.climb:
  look=json.loads((root/'artifacts/player-spawn-look.json').read_text())
  original='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
  assert starts['original_sha256']==look['original_sha256']==original
- start=next(c for c in starts['levels'] if c['file'].lower()=='l1s1.rfl')
- angles=next(c for c in look['cases'] if c['file'].lower()=='l1s1.rfl')
+ start=next(c for c in starts['levels'] if c['file'].lower()==(args.level or 'L1S1.rfl').lower())
+ angles=next(c for c in look['cases'] if c['file'].lower()==(args.level or 'L1S1.rfl').lower())
  assert expected('PLAYER_SPAWN')==[1]+start['transform_words']+angles['body_words']+angles['eye_words']
 if args.campaign_spawn:assert expected('PC_PLAY_BODY')[68]&0x80, 'Campaign player physics flag missing'
 hdd=root/'local/xemu-harness/pacing-base.qcow2'
@@ -31,9 +40,18 @@ assert (root/'build/xbox/disc/player-control.flag').exists()
 replay=root/'build/xbox/disc/player-replay.bin';saved=replay.read_bytes() if replay.exists() else None
 spawn_flag=root/'build/xbox/disc/campaign-spawn.flag';saved_spawn=spawn_flag.read_bytes() if spawn_flag.exists() else None
 climb_flag=root/'build/xbox/disc/campaign-climb.flag';saved_climb=climb_flag.read_bytes() if climb_flag.exists() else None
-process=monitor=None;report={'result':'FAIL','frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
+selection_file=root/'build/xbox/disc/campaign-level.bin';saved_selection=selection_file.read_bytes() if selection_file.exists() else None
+process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),'archive':args.archive,'frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True)
 try:
+ if args.level:
+  archive_source=root/'Installed_Game'/args.archive;archive_target=root/'build/xbox/disc'/args.archive
+  archive_sha=hashlib.sha256(archive_source.read_bytes()).hexdigest()
+  if not archive_target.exists():shutil.copyfile(archive_source,archive_target)
+  if hashlib.sha256(archive_target.read_bytes()).hexdigest()!=archive_sha:raise ValueError('Staged archive differs from installed source')
+  report['archive_sha256']=archive_sha
+ if args.level:selection_file.write_bytes(args.archive.encode().ljust(64,b'\0')+args.level.encode().ljust(64,b'\0'))
+ else:selection_file.unlink(missing_ok=True)
  if args.climb:climb_flag.write_bytes(b'2' if args.approach else b'')
  else:climb_flag.unlink(missing_ok=True)
  replay.write_bytes(payload)
@@ -145,6 +163,8 @@ finally:
   try:process.wait(timeout=10)
   except subprocess.TimeoutExpired:process.terminate();process.wait(timeout=10)
  try:
+  if saved_selection is None:selection_file.unlink(missing_ok=True)
+  else:selection_file.write_bytes(saved_selection)
   if saved_climb is None:climb_flag.unlink(missing_ok=True)
   else:climb_flag.write_bytes(saved_climb)
   if saved is None:replay.unlink(missing_ok=True)

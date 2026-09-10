@@ -3348,7 +3348,7 @@ RF_REPLAY_LEVEL for testing levels3.vpp maps. replay_gravity_campaign.py renders
 16 idle frames per gravity level: L17S1, L17S2 and L17S3 pass with gravity
 4, 3 and 4. The initial L18S1 run failed before startup at rf_scene_world_open_retained,
 RF_NOT_FOUND (-3), SCENE_STAGE 0 10; it was previously mislabeled RF_FORMAT.
-That initial report was INCOMPLETE; the missing-mover fix below supersedes it. Do not claim the full four-map rendered test passed. Assets
+That initial report was INCOMPLETE; the missing-mover fix below supersedes it. Assets
 were not changed. Captures are empty spawn areas, not selected showcase images.
 Reports: artifacts/runtime-startup-verification.json,
 artifacts/gravity-campaign-live/report.json and the native replay report.
@@ -3367,7 +3367,8 @@ errors still propagate; present malformed sections are not silently ignored.
 
 replay_gravity_campaign.py now passes all four 16-frame rendered PC checks,
 including L18S1 with gravity restored to 9.8 through its authored auto trigger.
-The three preceding maps remain 4/3/4. PC and NXDK builds pass. This specific
-absent-mover path has not yet run in native XEMU; late-level selection and
-validation remain open. The resulting L18S1 capture is an empty tunnel spawn,
+The three preceding maps remain 4/3/4. PC and NXDK builds pass. Subsequent native
+64-MiB XEMU checks pass for all four maps after accepting optional missing groups
+and movers in Xbox preflight; see XEMU-MEMORY.md for reports and scope.
+The resulting L18S1 capture is an empty tunnel spawn,
 so it is not a selected showcase screenshot.
