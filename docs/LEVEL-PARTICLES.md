@@ -556,3 +556,33 @@ bounds, negative radii, duplicate membership and 128 plane groups in a full
 2048-entry queue. Both builds and all six CTest checks pass. This verifies
 compiled ordering code; live scene/GPU integration and native framebuffer
 evidence remain open. No screenshot was captured.
+
+### Queue append and sphere rejection
+
+rf_visibility_sphere_reject implements 5186a0 against the resolved camera's
+world-space planes: any plane distance strictly greater than radius rejects
+the sphere. Tangency is accepted and signed radii are not clamped. Dot-product
+addition order and comparison precision follow the actual 4163a0/40a0b0 helpers.
+
+rf_render_queue_append reconstructs 4d3560 after the caller resolves the cull
+position's world/instance transform. It performs rejection before checking the
+callback or queue limit. A null callback accepts without consuming a slot,
+including when the queue is full. A non-null callback on a full queue rejects.
+Appending copies the supplied fields, clears drawn/grouped bytes, and preserves
+the destination's distance key and reserved bytes. The 48-byte record uses
+opaque integer IDs for object, callback, plane and bounds; it owns no pointers.
+Storage and the <=2048 capacity are supplied by the caller, with no allocation.
+
+verify_render_queue_append.py executes full unchanged original 4d3560 and
+its actual vector and sphere-rejection helpers with zero resolved world offset
+and no instance transform. All 256 fixtures match PC/NXDK in acceptance, count
+and every byte of all 2048 slots: 29 appends, 38 callback-free acceptances and
+189 rejections. The fixtures cover tangency, nearby plane offsets, signed
+radii, zero through six planes, null callbacks, the full queue and stale-slot
+preservation. Camera-plane construction and live collection are outside this
+replay. Both builds and all six CTest checks pass.
+
+Live collection must still reproduce 4967a0 (global/detached particles) and
+497c20 (active emitters), including room matching and resolved owner positions,
+before applying the verified ordering and GPU submission paths. No live
+particle drawing or new native framebuffer capture is claimed by this change.

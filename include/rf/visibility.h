@@ -60,6 +60,25 @@ typedef struct rf_visibility_frustum {
  * finite scales required. Unused plane slots retained; errors preserve output.
  * Input is resolved view state, not FOV/window-to-view setup. */
 int rf_visibility_frustum_build(const rf_visibility_view *view,rf_visibility_frustum *frustum);
+/* 5186a0 sphere rejection against the camera's unscaled world planes.
+ * Tangency is accepted; signed finite radius is preserved, not clamped.
+ * Up to six planes, finite coefficients/position. Errors preserve output. */
+int rf_visibility_sphere_reject(const rf_visibility_frustum *frustum,const float position[3],
+    float radius,uint32_t *rejected);
+typedef struct rf_render_queue_record {
+    uint32_t object;float position[3],radius;
+    uint8_t sorted,drawn,grouped,lighting,lighting_flag,reserved[3];
+    uint32_t plane,minimum,maximum;float distance;uint32_t callback;
+} rf_render_queue_record;
+/* 4d3560 after resolving the position used for culling (world/instance
+ * transforms are caller-owned). Identifiers are opaque uint32_t values.
+ * Cull first; a zero callback accepts without appending; full queue rejects.
+ * Append resets drawn/grouped, preserves destination distance/reserved bytes.
+ * Caller owns capacity records, count and accepted; capacity <=2048.
+ * No allocation. Errors preserve outputs; all inputs/outputs disjoint. */
+int rf_render_queue_append(const rf_visibility_frustum *frustum,const float cull_position[3],
+    const rf_render_queue_record *entry,rf_render_queue_record *records,uint32_t capacity,
+    uint32_t *count,uint32_t *accepted);
 typedef struct rf_visibility_viewport {
     int32_t width,height,x,y;float pixel_aspect,fov,far_distance;uint32_t perspective;
 } rf_visibility_viewport;

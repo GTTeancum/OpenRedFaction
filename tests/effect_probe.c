@@ -9,6 +9,19 @@
 #include <stdlib.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--render-queue-append")) {
+        struct {rf_visibility_frustum frustum;rf_render_queue_record entry;uint32_t count;} in;
+        rf_render_queue_record records[2048];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            int32_t status;uint32_t accepted=0;
+            memset(records,0xa5,sizeof(records));
+            status=rf_render_queue_append(&in.frustum,in.entry.position,&in.entry,records,2048,&in.count,&accepted);
+            fwrite(&status,4,1,stdout);fwrite(&accepted,4,1,stdout);fwrite(&in.count,4,1,stdout);
+            fwrite(records,sizeof(records),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--render-room-order")) {
         struct {uint32_t count;float camera[3];rf_render_room_split split;} in;
         rf_render_room_entry entries[2048];uint32_t order[2048],scratch[6144];float distances[2048];

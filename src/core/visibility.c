@@ -3,6 +3,40 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_visibility_sphere_reject(const rf_visibility_frustum *frustum,const float position[3],
+    float radius,uint32_t *rejected)
+{
+    uint32_t i,j;
+    if(!frustum || !position || !rejected || frustum->count>6 || !isfinite(radius))return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(position[j]))return RF_RANGE;
+    for(i=0;i<frustum->count;i++) {
+        if(!isfinite(frustum->planes[i].distance))return RF_RANGE;
+        for(j=0;j<3;j++)if(!isfinite(frustum->planes[i].normal[j]))return RF_RANGE;
+    }
+    for(i=0;i<frustum->count;i++) {
+        const rf_visibility_plane *p=frustum->planes+i;
+        double d=(((double)p->normal[2]*position[2]+(double)p->normal[1]*position[1])+
+            (double)p->normal[0]*position[0])+(double)p->distance;
+        if(d>radius){*rejected=1;return RF_OK;}
+    }
+    *rejected=0;return RF_OK;
+}
+int rf_render_queue_append(const rf_visibility_frustum *frustum,const float cull_position[3],
+    const rf_render_queue_record *entry,rf_render_queue_record *records,uint32_t capacity,
+    uint32_t *count,uint32_t *accepted)
+{
+    uint32_t rejected,j;rf_render_queue_record *out;int status;
+    if(!entry || !count || !accepted || capacity>2048 || *count>capacity || (capacity && !records))return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(entry->position[j]))return RF_RANGE;
+    status=rf_visibility_sphere_reject(frustum,cull_position,entry->radius,&rejected);if(status)return status;
+    if(rejected || (entry->callback && *count==capacity)){*accepted=0;return RF_OK;}
+    if(!entry->callback){*accepted=1;return RF_OK;}
+    out=records+*count;
+    out->object=entry->object;memcpy(out->position,entry->position,sizeof(out->position));out->radius=entry->radius;
+    out->sorted=entry->sorted;out->drawn=0;out->grouped=0;out->lighting=entry->lighting;out->lighting_flag=entry->lighting_flag;
+    out->plane=entry->plane;out->minimum=entry->minimum;out->maximum=entry->maximum;out->callback=entry->callback;
+    ++*count;*accepted=1;return RF_OK;
+}
 static double render_plane_distance(const float plane[4],const float point[3])
 {
     return (((double)plane[2]*point[2]+(double)plane[1]*point[1])+
