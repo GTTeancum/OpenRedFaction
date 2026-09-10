@@ -3229,3 +3229,35 @@ and suffixes, shortened names and invalid input. All 544 cases match PC and
 compiled NXDK. Both builds pass. Report: artifacts/event-type-verification.json.
 The scene still owns movement regions only; event/trigger ownership, registry
 insertion and startup dispatch are the next integration work.
+
+
+Campaign event ownership and registration (2026-09-10)
+--------------------------------------------------
+
+rf_runtime_events_open now retains decoded authored records/links and a
+separate array of common runtime objects. Each object has kind 6, a registry
+handle, original type ID, authored delay and inactive deadline. Generic event
+creation clears flags; actor/source/mode are deterministically zero here
+instead of retaining original uninitialized bytes. Type-specific construction
+and action payload ownership beyond the retained raw record remain open.
+
+The caller owns the registry. Common objects are registered in authored order;
+this is not a claim of original whole-world handle parity because other object
+families are not yet registered. Budget preflight and record validation precede
+insertions. Close removes handles before freeing objects and records, and is
+repeatable. Level source archives need not stay open after successful loading.
+
+Campaign scene setup now opens this owner with a 1-MiB cap and retains it for
+the scene stream. Cleanup closes it on normal and error paths. Decoded events
+and common objects share the cap; the registry adds 12,300 bytes on Xbox.
+rf_scene_campaign_events / PC CAMPAIGN_EVENTS report count and both byte costs.
+No trigger/event actions are dispatched by this integration yet.
+
+verify_runtime_events.py passes all 4,446 installed events across 93 levels,
+checking live handle lookup, removal, repeated close, exact-budget reopen,
+one-byte-short rejection, and record access after archive close. Peak owner
+cost is 219,436 bytes. The 128-frame jump replay passes on PC and native
+64-MiB XEMU (replay-20260910-061740), with exact existing state/timeline matching
+and 184 registered L1S1 events reported by guest memory. Both builds and five
+CTest checks pass. Reports are artifacts/runtime-events-verification.json and
+artifacts/xemu/replay-20260910-061740/report.json. No new visual behavior.

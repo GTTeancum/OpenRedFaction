@@ -25,6 +25,32 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==4 && !strcmp(argv[1],"--owned")) {
+        rf_vpp archive;rf_level level;rf_runtime_events events={0};
+        rf_object_registry registry;uint32_t i,bytes,handle;int status;
+        if(rf_vpp_open(&archive,argv[2]))return 3;
+        if(rf_level_open(&level,&archive,argv[3])) {rf_vpp_close(&archive);return 3;}
+        rf_object_registry_init(&registry);
+        status=rf_runtime_events_open(&level,&registry,1024*1024,&events);if(status)return 4;
+        bytes=events.allocated_bytes;
+        for(i=0;i<events.count;++i) {
+            rf_runtime_event *e=events.items+i;
+            if(rf_object_registry_lookup(&registry,e->handle)!=e || e->object_kind!=6 ||
+               e->state.type!=(uint32_t)rf_event_type_id(e->authored->record.type) ||
+               e->state.deadline!=-1 || e->state.flags)return 5;
+        }
+        printf("%u %u\n",events.count,bytes);
+        handle=events.count?events.items[0].handle:UINT32_MAX;
+        rf_runtime_events_close(&events);rf_runtime_events_close(&events);
+        if(registry.count!=RF_OBJECT_CAPACITY || rf_object_registry_lookup(&registry,handle))return 6;
+        if(rf_runtime_events_open(&level,&registry,bytes-1,&events)!=RF_RANGE ||
+           registry.count!=RF_OBJECT_CAPACITY || events.items)return 7;
+        if(rf_runtime_events_open(&level,&registry,bytes,&events))return 8;
+        rf_vpp_close(&archive);
+        /* Decoded records and links remain valid without their source archive. */
+        for(i=0;i<events.count;++i)if(rf_event_type_id(events.items[i].authored->record.type)<0)return 9;
+        rf_runtime_events_close(&events);return registry.count==RF_OBJECT_CAPACITY?0:10;
+    }
     if(argc==2 && !strcmp(argv[1],"--type-id")) {
         char name[256];int32_t type;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

@@ -2,6 +2,8 @@
 #define RF_EVENT_H
 #include "rf/timer.h"
 #include "rf/physics.h"
+#include "rf/level.h"
+#include "rf/object_registry.h"
 /* Original 4bd700: case-insensitive authored name to type 0..89; -1 for
  * unknown/NULL. Name must be NUL-terminated. Type recognition does not imply
  * that the corresponding runtime action has been reconstructed. */
@@ -10,6 +12,27 @@ typedef struct rf_event_state {
     uint32_t type;float delay;int32_t deadline;
     uint32_t actor,source,flags,mode;
 } rf_event_state;
+typedef struct rf_runtime_event {
+    uint32_t object_kind,handle;
+    rf_event_state state;
+    const rf_level_owned_event *authored;
+} rf_runtime_event;
+typedef struct rf_runtime_events {
+    rf_level_owned_events decoded;
+    rf_runtime_event *items;
+    rf_object_registry *registry;
+    uint32_t count,allocated_bytes;
+} rf_runtime_events;
+/* Own decoded records and runtime objects, registering in authored order into
+ * a caller-owned, initialized registry. Budget includes owners and payloads,
+ * excluding registry/allocator overhead. Destination must be empty. Registry
+ * must remain alive and registrations must stay owned here until close.
+ * Common state only: type-specific construction/actions remain separate.
+ * Source archive may close after success; close removes handles before freeing.
+ * Invalid inputs, insufficient budget/capacity preserve output and registry. */
+int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
+    uint32_t budget,rf_runtime_events *result);
+void rf_runtime_events_close(rf_runtime_events *events);
 /* action=0 off, 1 on, 2 propagate. Callbacks may mutate state, which must
  * remain alive throughout the call. No registration or event actions supplied.
  * Callback mode is the raw low byte; action selection follows original rules. */

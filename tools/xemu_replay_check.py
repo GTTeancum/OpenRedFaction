@@ -86,6 +86,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     for name,label,count in [('rf_scene_actor_follow_summary','ACTOR_FOLLOW_SUMMARY',5),('rf_scene_player_input_frames','ACTOR_PLAYER_INPUT',448),('scene_actor_body','PC_PLAY_BODY',77)]:
      got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
     if args.campaign_spawn:
+     owned=words(monitor,symbol('rf_scene_campaign_events'),3)
+     assert owned[0]==expected('CAMPAIGN_EVENTS')[0] and owned[1]<=1024*1024
+     report['campaign_events']=owned
      spawn=words(monitor,symbol('rf_scene_player_spawn_diagnostic'),19);assert spawn==expected('PLAYER_SPAWN');report['player_spawn']=spawn
      for name,label,count in [('rf_scene_actor_initial_animation','PLAYER_INITIAL_ANIMATION',12),('rf_scene_actor_initial_eye_offsets','PLAYER_CLASS_EYE',6),('rf_scene_actor_stance_cache','PLAYER_CLASS_STANCE',50),('rf_scene_actor_selector_frames','PLAYER_STANCE_FRAMES',512),('rf_scene_actor_locomotion_frames','PLAYER_MOTION_FRAMES',768),('rf_scene_player_jump','PLAYER_JUMP',4),('rf_scene_player_jump_frames','PLAYER_JUMP_FRAMES',1024),('rf_scene_player_climb','PLAYER_CLIMB',8),('rf_scene_player_climb_frames','PLAYER_CLIMB_FRAMES',1152)]:
       got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got

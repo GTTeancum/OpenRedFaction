@@ -3,6 +3,7 @@
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
 #include "rf/player.h"
+#include "rf/event.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -271,6 +272,9 @@ uint32_t rf_scene_actor_eye_enabled;
 uint32_t rf_scene_actor_turn_enabled,rf_scene_actor_look_enabled,rf_scene_actor_look_frames[64][33];
 static rf_look_pose actor_look;
 static rf_level_owned_regions campaign_regions;
+static rf_object_registry campaign_registry;
+static rf_runtime_events campaign_events;
+uint32_t rf_scene_campaign_events[3]; /* registered events, owner bytes, registry bytes */
 static rf_movement_descriptor campaign_modes[16];
 static float campaign_jump_strength;
 static rf_player_climb_state campaign_climb;
@@ -1156,6 +1160,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         }
         rf_vpp_close(&tables);if(status)goto done;
         if(campaign_spawn && collision) {
+            rf_object_registry_init(&campaign_registry);
+            status=rf_runtime_events_open(level,&campaign_registry,1024*1024,&campaign_events);
+            if(status)goto done;
+            rf_scene_campaign_events[0]=campaign_events.count;
+            rf_scene_campaign_events[1]=campaign_events.allocated_bytes;
+            rf_scene_campaign_events[2]=sizeof(campaign_registry);
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             memset(&campaign_climb,0,sizeof(campaign_climb));memset(rf_scene_player_climb,0,sizeof(rf_scene_player_climb));
@@ -1252,6 +1262,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
+    rf_runtime_events_close(&campaign_events);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
