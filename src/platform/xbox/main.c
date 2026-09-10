@@ -1,3 +1,4 @@
+#include "../../../tests/campaign_particle_fixture.h"
 #include "rf/resource_budget.h"
 #include "rf/vpp.h"
 #include "rf/object_registry.h"
@@ -729,6 +730,35 @@ static void particle_resource_check(void)
 done:
     rf_vpp_close(&maps);rf_particle_resource_diagnostic[0]=status?(uint32_t)status:1;
 }
+uint32_t rf_campaign_particle_diagnostic[16];
+static void campaign_particle_test(void)
+{
+    static const char *names[6]={"L4S1a.rfl","L4S1b.rfl","L5S2.rfl","L7S4.rfl","L9S3.rfl","L18S3.rfl"};
+    static const uint32_t packs[6]={1,1,1,2,2,3};uint32_t i,j;int status=0;MM_STATISTICS memory={0};
+    rf_campaign_particle_diagnostic[0]=0x52464350;rf_campaign_particle_diagnostic[1]=1;
+    memory.Length=sizeof(memory);if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_campaign_particle_diagnostic[4]=memory.AvailablePages;
+    for(i=0;i<6;i++) {
+        rf_vpp archive={0},maps[4]={{0}};rf_level level={0};rf_geometry geometry={0};rf_geometry_collision_world world={0};
+        rf_level_particles particles={0};char path[64];
+        snprintf(path,sizeof(path),"D:\\levels%u.vpp",packs[i]);status=rf_vpp_open(&archive,path);if(status)goto cleanup;
+        status=rf_level_open(&level,&archive,names[i]);if(status)goto cleanup;
+        status=rf_geometry_open(&geometry,&level,8*1024*1024);if(status)goto cleanup;
+        status=rf_geometry_collision_world_open(&geometry,8*1024*1024,&world);if(status)goto cleanup;
+        rf_geometry_close(&geometry);
+        for(j=0;j<4;j++){snprintf(path,sizeof(path),"D:\\maps%u.vpp",j+1);status=rf_vpp_open(maps+j,path);if(status)goto cleanup;}
+        status=rf_level_particles_open(&particles,&level,&world,maps,4,123,0,1024*1024);if(status)goto cleanup;
+        campaign_trace("LEVEL %s\n",names[i]);status=campaign_particle_events(&level,&particles);
+        if(rf_campaign_particle_text_size>=sizeof(rf_campaign_particle_text))status=RF_RANGE;
+cleanup:
+        rf_level_particles_close(&particles);rf_geometry_collision_world_close(&world);rf_geometry_close(&geometry);
+        for(j=0;j<4;j++)rf_vpp_close(maps+j);rf_vpp_close(&archive);
+        if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_campaign_particle_diagnostic[6+i]=memory.AvailablePages;
+        if(status)break;rf_campaign_particle_diagnostic[2]=i+1;
+    }
+    rf_campaign_particle_diagnostic[3]=rf_campaign_particle_text_size;
+    if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_campaign_particle_diagnostic[5]=memory.AvailablePages;
+    rf_campaign_particle_diagnostic[1]=status?0x80000000u|(uint32_t)(-status):2;
+}
 int main(void)
 {
     rf_vpp archive;
@@ -739,6 +769,7 @@ int main(void)
     rf_diagnostic[2] = 1;
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
     {FILE *test=fopen("D:\\particle-view.flag","rb");if(test){fclose(test);rf_scene_particle_view_enabled=1;}}
+    {FILE *test=fopen("D:\\campaign-particle-test.flag","rb");if(test){fclose(test);campaign_particle_test();for(;;)Sleep(1000);}}
     { FILE *test=fopen("D:\\particle-render-test.flag","rb");
       if(test){fclose(test);rf_xbox_particle_pixel_test();for(;;)Sleep(1000);} }
 

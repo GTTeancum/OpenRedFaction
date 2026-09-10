@@ -18,8 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-All 13 authored Particle_State events across six levels pass PC scheduling
-replays, enabling 15 targets; native authored replay remains open.
+All 13 authored Particle_State events across six levels pass PC and stock
+64 MiB XEMU replay, with exact timing/state traces and final memory recovery.
+Natural campaign trigger activation and visible effects remain open.
 
 Particle_State now runs through immediate and delayed event dispatch; PC
 integration fixtures and the stock 64 MiB XEMU regression replay pass.

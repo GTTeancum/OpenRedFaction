@@ -879,3 +879,29 @@ six CTests pass. Production code is unchanged in this checkpoint, so NXDK
 was not rebuilt. This proves owned-data scheduling/action integration, not
 natural campaign trigger eligibility, native execution or rendered effects.
 Native authored replay is the next verification gap; no new screenshot.
+
+Native authored event replay (2026-09-10)
+
+The shared tests/campaign_particle_fixture.h drives the same real owned event
+records on PC and Xbox. Its non-reentrant replay uses static registry storage,
+a bounded 8192-byte text trace and one temporary 222300-byte particle snapshot;
+these are diagnostic overhead, not campaign runtime requirements. Native
+campaign-particle-test.flag selects six sequential full level/geometry/emitter/
+material loads. Each level and archive is closed before proceeding.
+
+tools/xemu_campaign_particles.py stages levels2.vpp only if absent and restores
+the disc flag and staged asset afterward, rebuilding with --repack. It uses
+a private EEPROM, snapshot HDD, disabled input binding and a QMP memory reader;
+no desktop input or capture. Exact 1883-byte state/timing text matches PC for
+all 13 authored events across six levels. Report:
+artifacts/xemu/campaign-particles-20260910-141207/report.json. Base RAM is
+67108864 bytes with no added RAM. Available physical pages before the run are
+15509; after successive level cleanup they are
+[15510,15270,15510,15510,15110,15510], ending one page above the initial count.
+These snapshots demonstrate end-of-run recovery, not a measured peak budget.
+
+The actual on-events still use a controlled test root and disabled-emitter
+precondition; natural campaign trigger eligibility and rendered effects are
+not established. PC authored replay and six CTests pass; NXDK builds and native
+replay pass. The harness-owned emulator exits and normal disc contents are
+restored. No screenshot is warranted for state-only replay.

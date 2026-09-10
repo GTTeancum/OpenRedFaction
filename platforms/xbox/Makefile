@@ -42,3 +42,5 @@ include $(NXDK_DIR)/Makefile
 $(filter %.obj,$(SRCS:.c=.obj)): $(wildcard $(PROJECT_ROOT)/include/rf/*.h) $(PROJECT_ROOT)/src/platform/xbox/renderer.h
 $(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/platforms/xbox/Makefile
 $(PROJECT_ROOT)/src/platform/xbox/renderer.obj: $(SHADER_OBJS)
+
+$(PROJECT_ROOT)/src/platform/xbox/main.obj: $(PROJECT_ROOT)/tests/campaign_particle_fixture.h
