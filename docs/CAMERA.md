@@ -2072,3 +2072,34 @@ Campaign player creation can now request `miner1` directly instead of borrowing
 UID9858's class/skin resource binding. The live scene still uses that diagnostic
 record until factory state, spawn transform and local ownership are connected;
 no campaign-start rendering or input behavior changed in this refactor.
+
+## Spawn orientation initializes body and eye angles
+
+`tools/inspect_player_spawn_look.py` executes original `422e2c..422e82` and all
+callees without replacements for all 94 verified level-start matrices. The
+fixture supplies the parsed run descriptor (rotation references 1,3,0) and
+copies the spawn matrix into entity+48 and physics orientation entity+fc.
+The latter equality is an explicit fixture precondition, not execution of the
+complete generic factory. FPCW is 037f, consistent with earlier CPU probes.
+
+`4fc060` extracts pitch/yaw/roll into the local vector. `422e50..422e59`
+initializes entity+864 body angles to (0,yaw,0). `433cf0` then applies
+`4faa30` row dot products against entity+fc, and `433d30` preserves only axes
+whose movement rotation reference equals 1; `422e7d` stores that result at
+entity+87c. For run mode only pitch survives. This path precedes the regular
+look tick and is not equivalent to initializing all angles to zero.
+
+89 of 94 authored starts produce nonzero body yaw. L1S1 produces body words
+`[0,1074762629,0]` (yaw 2.2433788776397705 radians) and eye words
+`[595976323,0,0]` (pitch 1.451497330547018e-17). The tiny eye residual is retained
+by original arithmetic. Reports retain all inputs/results in
+`artifacts/player-spawn-look.json`; this report is original execution evidence,
+not yet a shared C comparison or a first-tick/live XEMU test.
+
+The extractor calls `504ea0`, which uses atan(y/x) and adds binary32 pi when
+x is negative, with explicit zero-axis branches. Its quadrant/range and
+rounding differ from replacing it with a plain atan2 call. The extractor also
+uses a selected sin(yaw)*forward.x or rounded-cos(yaw)*forward.z product when
+deriving pitch/roll; preserve the actual instruction math during reconstruction.
+The live diagnostic's frame-zero memset of `actor_look` remains appropriate
+only to its current zero-angle fixture, and must be replaced for campaign spawn.

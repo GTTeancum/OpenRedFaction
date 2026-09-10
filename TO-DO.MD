@@ -3,6 +3,7 @@
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
+- [ ] Seed body/eye look angles from the original spawn-matrix path before enabling campaign placement.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
 - [ ] Capture and replay any further interactive exits; the historical tick-99 cause remains unproven.
 - [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
@@ -10,6 +11,11 @@ Immediate open items:
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Original spawn-look initialization executes across all 94 level starts; 89 have
+nonzero body yaw (Live Mines: 2.2433788776 radians). The diagnostic zero-angle
+initialization cannot be retained for campaign placement. Matrix extraction and
+movement-descriptor eye filtering need shared C reconstruction; see docs/CAMERA.md.
 
 Class-based skeletal asset loading now works without a placed level entity:
 all 168 authored class/skin selections and the existing 78 Live Mines bindings
