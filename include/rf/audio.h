@@ -1,6 +1,9 @@
 #ifndef RF_AUDIO_H
 #define RF_AUDIO_H
 #include "rf/vpp.h"
+/* Original 544960 cutoff, after registration normalizes near distance.
+ * Finite near > 0, rolloff > 0, default_volume >= 0 are caller preconditions. */
+float rf_audio_far_distance(float near_distance,float rolloff,float default_volume);
 /* Original 505740 positional calculation. Caller supplies finite vectors,
  * near_distance > 0, far_distance >= near_distance, factor >= 0, volume >= 0.
  * Output order is pan, gain; listener_right is the listener orientation axis.

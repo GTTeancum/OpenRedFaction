@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared far-cutoff C matches4221 original PC/NXDK cases; registration ordering,
+category gain and live metadata loading remain open.
+
 Controller registration range/volume and derived far cutoff traced in original;
 verify category gain, first-registration ordering and filesystem playback metadata.
 

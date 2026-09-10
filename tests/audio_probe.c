@@ -5,6 +5,15 @@
 #include <io.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--range")) {
+        float input[3],output;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            output=rf_audio_far_distance(input[0],input[1],input[2]);
+            if(fwrite(&output,sizeof(output),1,stdout)!=1)return 32;
+        }
+        return ferror(stdin)?33:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--position")) {
         float input[13],output[2];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

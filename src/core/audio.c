@@ -151,3 +151,9 @@ void rf_audio_position(const float position[3],const float listener[3],
     for(i=0;i<3;i++)v[i]=(float)(reciprocal*v[i]);
     output[0]=(float)((double)right[2]*v[2]+(double)right[1]*v[1]+(double)right[0]*v[0]);
 }
+
+float rf_audio_far_distance(float near_distance,float rolloff,float default_volume)
+{
+    return (float)((1-1/(double)rolloff)*near_distance+
+        ((double)near_distance*default_volume)/((double)rolloff*(double)0.05f));
+}

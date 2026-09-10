@@ -389,3 +389,15 @@ Controller registration must not blindly replace its own parameters with table
 rows, especially given first-registration deduplication. Metadata lookup 56baa0
 returns a separate 180-byte filesystem record; its +0xa8 bit30 and +0xac bit29
 feed sample playback fields. Their source and loop semantics remain to be traced.
+
+### Shared far cutoff calculation
+
+`rf_audio_far_distance` reconstructs 544960 with the original binary32 threshold
+0.05. `python tools/verify_audio_range.py` executes the unchanged original and
+NXDK code, stores their x87 returns to binary32 as registration does, and compares
+the PC probe output. All4221 cases pass:125 parameter-grid cases plus4096 seeded
+random cases with positive near/rolloff and nonnegative volume. Output SHA256:
+99506b24e061c1bed56603e236901c21b36e8631c79e6cb43815d42019d194fc.
+The6688 positional cases still pass, as do both builds and six CTests.
+Registration normalization, deduplication ordering and category gain are excluded
+from this arithmetic check; the function is not yet used by live sound loading.
