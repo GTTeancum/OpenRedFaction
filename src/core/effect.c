@@ -234,6 +234,35 @@ int rf_particle_billboard_project(const rf_particle_projection *projection,
     result.count=clipped.count;*polygon=result;return RF_OK;
 }
 
+int rf_particle_vertex_encode(const rf_particle_vertex_environment *e,
+    const rf_particle_screen_vertex *v,rf_particle_draw_vertex *output)
+{
+    rf_particle_draw_vertex value;uint32_t rgb[3],alpha,i;float fog;
+    union {float f;uint32_t u;} rounded;
+    if(!e || !v || !output)return RF_RANGE;
+    if(!isfinite(e->depth_scale) || !isfinite(e->reciprocal_scale) || !isfinite(e->fog_scale) ||
+       !isfinite(v->camera[2]) || isnan(v->reciprocal_z))return RF_RANGE;
+    for(i=0;i<2;i++)if(!isfinite(e->uv_scale[i]) || !isfinite(v->uv[i]) || isnan(v->screen[i]))return RF_RANGE;
+    for(i=0;i<3;i++)rgb[i]=(e->vertex_color&255u)?(e->rgba>>(i*8))&255u:255u;
+    alpha=(e->vertex_alpha&255u)?e->rgba>>24:255u;
+    if(e->color_transform&255u) {
+        float sum=(float)(rgb[0]+rgb[1]+rgb[2]);
+        for(i=0;i<3;i++) {
+            double transformed=(double)e->color_scale[i]*sum;int32_t channel;
+            if(!isfinite(transformed) || transformed<INT32_MIN || transformed>=2147483648.0)return RF_RANGE;
+            channel=(int32_t)transformed;rgb[i]=channel<0?0u:channel>255?255u:(uint32_t)channel;
+        }
+    }
+    value.argb=(alpha<<24)|(rgb[0]<<16)|(rgb[1]<<8)|rgb[2];
+    fog=(float)(255.0-(double)e->fog_scale*v->camera[2]);
+    if(fog<0)fog=0;else if(fog>255)fog=255;
+    rounded.f=(float)((double)fog+12582912.0);value.fog=(rounded.u&255u)<<24;
+    value.depth=(float)((double)e->depth_scale*v->reciprocal_z);
+    value.reciprocal_w=(float)((double)e->reciprocal_scale*v->reciprocal_z);
+    for(i=0;i<2;i++){value.screen[i]=v->screen[i];value.uv[i]=(float)((double)e->uv_scale[i]*v->uv[i]);}
+    *output=value;return RF_OK;
+}
+
 int rf_particle_billboard_build(const float center[3],float angle,float radius,
     uint32_t width,uint32_t height,const float scale[2],rf_particle_billboard_vertex out[4])
 {

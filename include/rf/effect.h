@@ -212,6 +212,22 @@ int rf_particle_billboard_project(const rf_particle_projection *projection,
     const rf_particle_clip_environment *environment,const rf_particle_billboard_packet *packet,
     rf_particle_screen_polygon *polygon);
 
+typedef struct rf_particle_vertex_environment {
+    uint32_t rgba,vertex_color,vertex_alpha,color_transform;
+    float depth_scale,reciprocal_scale,uv_scale[2],fog_scale,color_scale[3];
+} rf_particle_vertex_environment;
+typedef struct rf_particle_draw_vertex {
+    float screen[2],depth,reciprocal_w;
+    uint32_t argb,fog;
+    float uv[2];
+} rf_particle_draw_vertex;
+/* 551900 UV-only draw flag 1: current color, optional 550780 transform,
+ * original 52fc70 fog rounding, reciprocal/depth and texture scales.
+ * Represents the first 32 written bytes of the original 40-byte GPU record;
+ * unused secondary UVs are excluded. No upload or renderer state changes. */
+int rf_particle_vertex_encode(const rf_particle_vertex_environment *environment,
+    const rf_particle_screen_vertex *vertex,rf_particle_draw_vertex *output);
+
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */
     int32_t started; /* +154 deadline. */

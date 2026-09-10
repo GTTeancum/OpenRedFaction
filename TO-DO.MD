@@ -17,6 +17,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Particle draw-vertex conversion now matches 4096 original/PC/NXDK cases,
+including ARGB, optional color transform, fog rounding and depth/UV scaling.
+Connect the separate 32-byte particle format to texture binding and GPU drawing.
+
 Particle geometry submission now matches 2048 full original/PC/NXDK cases,
 including clipping, projection and depth override (1178 submitted, 870 rejected).
 Connect texture residency, color/fog conversion and native backend drawing.

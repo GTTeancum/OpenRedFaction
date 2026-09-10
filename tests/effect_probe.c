@@ -40,6 +40,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--particle-vertex-encode")) {
+        struct {rf_particle_vertex_environment environment;rf_particle_screen_vertex vertex;} in;
+        struct {int32_t status;rf_particle_draw_vertex vertex;} out;
+        _Static_assert(sizeof(in)==80 && sizeof(out)==36,"Particle draw vertex fixture layout");
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=rf_particle_vertex_encode(&in.environment,&in.vertex,&out.vertex);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-billboard-project")) {
         struct {rf_particle_projection projection;rf_particle_clip_environment environment;rf_particle_billboard_packet packet;} in;
         struct {int32_t status;rf_particle_screen_polygon polygon;} out;

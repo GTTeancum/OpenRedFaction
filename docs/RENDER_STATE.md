@@ -200,3 +200,33 @@ reproduce original pointer identity or temporary flags in its public output.
 Backend conversion, texture residency/binding, color/fog conversion, batching,
 GPU rasterization and live campaign emitter execution remain open. This
 submission evidence does not claim that visible particles are integrated.
+
+## Particle draw-vertex conversion
+
+`rf_particle_vertex_encode` reconstructs the UV-only flag-1 path of 0x551900.
+It produces a separate 32-byte particle record: screen XY, depth, reciprocal W,
+ARGB, fog in the high byte and UV. The original record stride is 40 bytes, but
+this path leaves the last eight secondary-UV bytes untouched. The world vertex
+ABI is unchanged. Texture binding and batch index submission remain separate.
+
+`tools/verify_particle_vertex.py` executes original 0x551900 with state binding
+supplied and index submission suppressed. The original 0x550780 color transform,
+0x52fc70/0x52fcb0 fog conversion, integer clamp and depth helper execute unchanged.
+All first 32 output bytes match PC and compiled NXDK across 4096 cases; the
+original untouched eight-byte tail is checked too. Cases cover arbitrary current
+RGBA, low-byte color/alpha/transform switches, positive and negative transform
+scales, fog clamps and half-step rounding, and depth/reciprocal/UV scale factors.
+
+Current color bytes become ARGB with the original channel order. Disabled color
+or alpha selects 255 for the relevant channels. The optional transform sums RGB
+once, multiplies that sum by each channel's scale, truncates and clamps to 0..255.
+Fog first stores float(255 - fog_scale * camera_Z), clamps to 0..255, adds
+12582912 and takes the low byte of the rounded float representation. This retains
+the original rounding behavior under the verified 0x027f environment. It does
+not substitute truncation or an arbitrary modern fog formula.
+
+The helper rejects nonfinite environment values used by the path and invalid
+integer-conversion ranges, preserving output. Original per-vertex color lookup,
+other draw flags, texture binding/residency, native GPU batching and live scene
+effects are outside this helper. Function-level GPU-record agreement does not
+establish a rendered particle image.
