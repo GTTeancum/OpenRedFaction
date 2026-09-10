@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Complete startup event actions, propagation and delayed ticking beyond the connected gravity path.
+- [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
@@ -15,6 +15,11 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Recursive startup now follows event links and enables/disables trigger targets.
+All 93 authored graph checks and sibling/re-enable/cycle fixtures pass; native
+64-MiB XEMU L1S1/L17S1 replays 20260910-065717/065759 match PC. Unsupported
+actions, delayed ticking and other target families remain open.
 
 Owned event target resolution is connected to scene loading: all 4,901 links
 across 93 levels pass, with 1,964 resolved and 2,937 awaiting other families.

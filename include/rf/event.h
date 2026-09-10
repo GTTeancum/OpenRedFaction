@@ -112,7 +112,8 @@ typedef void (*rf_auto_trigger_callback)(void *context,const rf_auto_trigger_sta
  * order at level startup. Auto bit 8 required; disabled bit 16 rejects.
  * Existing cooldown, fired bit 64 and activation limit do not gate the sweep.
  * Dispatch sees old state; count/timer/time/flag updates follow it. Callback
- * must not mutate or release this state. No allocation or link effects here.
+ * may change flags (enable/disable), but must not change other fields or release
+ * this state. No allocation or link effects here.
  * Invalid input preserves state and does not dispatch. clock_bits is the raw
  * float game-clock representation, independent of timer milliseconds. */
 int rf_auto_trigger_fire(rf_auto_trigger_state *state,int32_t now,uint32_t clock_bits,
@@ -123,8 +124,11 @@ typedef struct rf_startup_events_report {
 } rf_startup_events_report;
 /* Partial single-player startup dispatcher: follows resolved trigger links,
  * activates common event state and implements Set_Gravity. Other actions,
- * event-link propagation, non-event targets and nonempty script eligibility
- * are reported as pending, not implemented. No full campaign completion claim.
+ * event targets recurse in order and trigger targets toggle disabled bit 16.
+ * Non-event/trigger targets and nonempty script eligibility remain unsupported.
+ * Other event actions and delayed ticking remain pending. Immediate recursion
+ * above 64 events fails RF_RANGE defensively; effects are not rolled back.
+ * No full campaign completion claim.
  * Owners share one registry and stay alive throughout; clocks are caller-owned.
  * Dispatch may mutate state before an error; effects are not rolled back. */
 int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *gravity,

@@ -3461,3 +3461,42 @@ registry, and 10,820 physical pages are available at replay completion. This
 is a short startup replay, not peak full-campaign memory evidence. The new
 resolved arrays are not yet dispatched recursively; pending startup counters
 remain unchanged. No new screenshot is warranted by ownership/resolution.
+
+
+Recursive startup dispatch integration (2026-09-10)
+-------------------------------------------------
+
+Startup now follows owned resolved event targets depth-first, preserving the
+source/actor passed into propagation. Generic event on keeps source; off uses
+actor for both fields, matching the verified original dispatcher. Kind-5 target
+on clears disabled bit 16 and off sets it. The auto sweep reads flags when each
+trigger is reached, so an earlier chain can enable a later auto trigger. Only
+flag mutation is permitted inside the auto-fire callback; its other bookkeeping
+fields and lifetime remain protected by the existing callback contract.
+
+Each recursive activation gets a separate context, so a child cannot replace
+its parent's event pointer or corrupt later sibling traversal. Callback failure
+is propagated independently of the common activation function's return value.
+Immediate recursion is capped at 64 event activations with RF_RANGE; this is
+an explicit defensive implementation limit, not recovered original behavior.
+Effects before failure remain applied. Acyclic deeper graphs and dynamic link
+mutation are not supported by this startup integration yet. The existing
+rf_event_links_propagate loop remains the separately verified mutable-list
+primitive; startup currently walks the owned fixed target arrays directly.
+
+The partial graph oracle passes all 93 authored levels. Dedicated PC fixtures
+verify sibling ordering (last gravity wins), enabling a later disabled auto
+trigger, and a cyclic graph returning RF_RANGE after 64 activations. Existing
+3922 PC/NXDK common activation cases and five CTests pass. Both builds pass.
+Native 64-MiB XEMU replay-20260910-065717 (L1S1) and -065759 (L17S1) pass with
+startup counters, gravity and player state matching PC. L17S1 activates 11
+events and applies gravity 4. L1S1 activates nine events and retains gravity 9.8.
+
+Other event actions still increment unsupported_actions; their effects are not
+implemented, so propagation after those placeholders is only partial behavior.
+Delayed events are scheduled but still not ticked. Missing targets are counted
+in unresolved_targets; non-event/trigger targets in other_targets. pending_links
+is now zero for completed traversal, including links reported unresolved through
+those counters. Auxiliary fallback and mover actions remain unconnected here.
+No full original campaign-chain equivalence, gameplay completion or visual
+change is claimed from these short startup replays.

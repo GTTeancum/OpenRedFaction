@@ -39,6 +39,41 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--startup-recursion")) {
+        uint32_t scenario,i;
+        for(scenario=0;scenario<3;++scenario) {
+            rf_runtime_event events[3]={0};rf_level_owned_event authored[3]={0};
+            rf_runtime_trigger triggers[2]={0};rf_level_owned_trigger raw[2]={0};
+            rf_level_link_target links[3]={0},roots[2]={0};rf_object_registry registry;
+            rf_runtime_triggers owner={0};rf_startup_events_report report;rf_physics_gravity gravity;int status;
+            rf_object_registry_init(&registry);owner.registry=&registry;owner.items=triggers;owner.count=2;
+            for(i=0;i<3;++i) {
+                events[i].object_kind=6;events[i].state.type=44;events[i].state.deadline=-1;
+                events[i].authored=authored+i;authored[i].record.values[0]=(float)(4-i);
+                if(rf_object_registry_insert(&registry,events+i,&events[i].handle))return 20;
+            }
+            for(i=0;i<2;++i) {
+                triggers[i].object_kind=5;triggers[i].authored=raw+i;raw[i].record.link_count=1;
+                triggers[i].links=roots+i;roots[i].kind=1;roots[i].value=events[0].handle;
+                if(rf_object_registry_insert(&registry,triggers+i,&triggers[i].handle))return 21;
+                triggers[i].state.handle=triggers[i].handle;triggers[i].state.flags=i?24:8;
+            }
+            authored[0].record.link_count=2;events[0].links=links;
+            links[0].kind=links[1].kind=links[2].kind=1;
+            links[0].value=events[1].handle;links[1].value=events[2].handle;
+            if(scenario) {authored[1].record.link_count=1;events[1].links=links+2;
+                links[2].value=scenario==1?triggers[1].handle:events[0].handle;}
+            rf_physics_gravity_set(&gravity,9.8f);
+            status=rf_runtime_startup_events(&owner,&gravity,12345,0x41400000,&report);
+            if(scenario==2) {if(status!=RF_RANGE || report.events!=64)return 22;continue;}
+            if(status || report.events!=(scenario?6u:3u) || report.gravity_actions!=report.events ||
+               report.triggers!=(scenario?2u:1u) || report.unsupported_actions || report.unresolved_targets)return 23;
+            if(memcmp(&gravity,&(rf_physics_gravity){2.0f,{0,-2.0f,0}},sizeof(gravity)))return 24;
+            for(i=0;i<3;++i)if(events[i].state.actor!=UINT32_MAX ||
+                events[i].state.source!=triggers[scenario?1:0].handle)return 25;
+        }
+        puts("PASS 3 startup recursion fixtures");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--propagation")) {
         uint32_t input[5],output[4],i;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

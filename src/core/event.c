@@ -18,30 +18,52 @@ int rf_event_links_propagate(rf_event_links *links,uint32_t source,uint32_t acto
 typedef struct startup_context {
     rf_runtime_triggers *triggers;rf_runtime_trigger *trigger;rf_runtime_event *event;
     rf_physics_gravity *gravity;rf_startup_events_report *report;int32_t now;int status;
+    uint32_t depth;
 } startup_context;
+static void startup_target(startup_context *c,const rf_level_link_target *target,
+    uint32_t source,uint32_t actor,uint32_t on);
 static void startup_event_action(void *context,rf_event_state *state,uint32_t action,
     uint32_t source,uint32_t actor,uint32_t mode)
 {
-    startup_context *c=context;(void)source;(void)actor;(void)mode;
-    if(action==2) {c->report->pending_links+=c->event->authored->record.link_count;return;}
+    startup_context *c=context;uint32_t i;
+    if(c->status)return;
+    if(action==2) {
+        for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
+            startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
+        return;
+    }
     if(state->type!=44) {++c->report->unsupported_actions;return;}
     c->status=rf_event_gravity_action(c->gravity,c->event->authored->record.values[0],action);
     if(!c->status && action==1)++c->report->gravity_actions;
+}
+static void startup_target(startup_context *c,const rf_level_link_target *target,
+    uint32_t source,uint32_t actor,uint32_t on)
+{
+    void *object;uint32_t kind;startup_context child;int status;
+    if(target->kind!=1) {++c->report->unresolved_targets;return;}
+    object=rf_object_registry_lookup(c->triggers->registry,target->value);
+    if(!object) {++c->report->unresolved_targets;return;}
+    memcpy(&kind,object,4);
+    if(kind==5) {
+        rf_runtime_trigger *trigger=object;
+        if(on)trigger->state.flags&=~16u;else trigger->state.flags|=16u;
+        return;
+    }
+    if(kind!=6) {++c->report->other_targets;return;}
+    /* Fail explicitly before exhausting the stock Xbox stack on an immediate
+     * cycle. This is a defensive limit, not an original event rule. */
+    if(c->depth>=64) {c->status=RF_RANGE;return;}
+    child=*c;child.event=object;++child.depth;++c->report->events;
+    status=rf_event_activate(&child.event->state,c->now,on?source:actor,actor,on,startup_event_action,&child);
+    c->status=status?status:child.status;
+    if(!c->status && child.event->state.deadline>=0)++c->report->delayed_events;
 }
 static void startup_trigger_dispatch(void *context,const rf_auto_trigger_state *state,
     uint32_t actor,uint32_t suppress_movers)
 {
     startup_context *c=context;uint32_t i;(void)suppress_movers;++c->report->triggers;
     for(i=0;i<c->trigger->authored->record.link_count && !c->status;++i) {
-        const rf_level_link_target *target=c->trigger->links+i;void *object;uint32_t kind;
-        if(!target->kind) {++c->report->unresolved_targets;continue;}
-        object=rf_object_registry_lookup(c->triggers->registry,target->value);
-        if(!object) {++c->report->unresolved_targets;continue;}
-        memcpy(&kind,object,4);
-        if(kind!=6) {++c->report->other_targets;continue;}
-        c->event=object;++c->report->events;
-        c->status=rf_event_activate(&c->event->state,c->now,state->handle,actor,1,startup_event_action,c);
-        if(!c->status && c->event->state.deadline>=0)++c->report->delayed_events;
+        startup_target(c,c->trigger->links+i,state->handle,actor,1);
     }
 }
 int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *gravity,
