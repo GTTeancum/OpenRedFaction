@@ -110,6 +110,12 @@ int rf_visibility_camera_setup(const rf_visibility_camera_parameters *parameters
  * particles use a different original path and must not use this helper. */
 int rf_particle_world_billboard(const rf_visibility_camera *camera,const float position[3],
     float angle,float radius,uint32_t width,uint32_t height,rf_particle_screen_polygon *polygon);
+/* Full 558e30/558d40 stretched particle, including zero-motion billboard
+ * fallback and 5587c0 clipping/projected submission. No forced common depth:
+ * stretched corners retain individual camera Z and reciprocal depth. */
+int rf_particle_world_stretch(const rf_visibility_camera *camera,const float position[3],
+    const float previous[3],float radius,uint32_t width,uint32_t height,rf_particle_screen_polygon *polygon);
+
 typedef struct rf_render_sphere {float position[3],radius;uint32_t sorted;} rf_render_sphere;
 /* Ordinary (no plane association / room split) 4d3c40 queue ordering.
  * Unsorted entries dispatch first in insertion order; sorted entries use

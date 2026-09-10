@@ -119,6 +119,52 @@ static uint32_t particle_clip_code(const rf_particle_clip_environment *clip,cons
     }
     return code;
 }
+int rf_particle_world_stretch(const rf_visibility_camera *camera,const float position[3],
+    const float previous[3],float radius,uint32_t width,uint32_t height,rf_particle_screen_polygon *out)
+{
+    rf_particle_billboard_vertex vertices[4];rf_particle_billboard_packet packet={0};
+    rf_particle_clipped_polygon clipped={0};rf_particle_screen_polygon value={0};
+    const rf_visibility_projection *view;uint32_t fallback,i,j;int status;
+    if(!camera || !out || !width || !height)return RF_RANGE;
+    view=&camera->projection;
+    if(!isfinite(view->flat_depth) || !isfinite(view->clip.far_distance))return RF_RANGE;
+    for(i=0;i<9;i++)if(!isfinite(view->matrix[i]))return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(view->origin[i]))return RF_RANGE;
+    status=rf_particle_stretch_build(position,previous,view->matrix+6,radius,vertices,&fallback);if(status)return status;
+    if(fallback)return rf_particle_world_billboard(camera,position,0,radius,width,height,out);
+    packet.clip_and=255;
+    for(i=0;i<4;i++) {
+        float delta[3];
+        for(j=0;j<3;j++)delta[j]=vertices[i].position[j]-view->origin[j];
+        packet.vertices[i].vertex=vertices[i];
+        for(j=0;j<3;j++) {
+            packet.vertices[i].vertex.position[j]=(float)(((double)view->matrix[j*3]*delta[0]+
+                (double)view->matrix[j*3+1]*delta[1])+(double)view->matrix[j*3+2]*delta[2]);
+            if(!isfinite(packet.vertices[i].vertex.position[j]))return RF_RANGE;
+        }
+        if(!(view->perspective&255u))packet.vertices[i].vertex.position[2]=view->flat_depth;
+        packet.vertices[i].clip=particle_clip_code(&view->clip,packet.vertices[i].vertex.position);
+        packet.clip_and&=packet.vertices[i].clip;packet.clip_or|=packet.vertices[i].clip;
+    }
+    if(packet.clip_and){*out=value;return RF_OK;}
+    if((view->projection.clamp&255u) && packet.clip_or) {
+        status=rf_particle_billboard_clip(&view->clip,&packet,&clipped);if(status)return status;
+        if(!clipped.count || clipped.clip_and){*out=value;return RF_OK;}
+    } else {
+        clipped.count=4;for(i=0;i<4;i++)clipped.vertices[i]=packet.vertices[i];
+    }
+    for(i=0;i<clipped.count;i++) {
+        rf_particle_projected_point point={0};
+        memcpy(point.camera,clipped.vertices[i].vertex.position,sizeof(point.camera));point.clip=(uint8_t)clipped.vertices[i].clip;
+        status=rf_particle_project(&view->projection,&point);if(status)return status;
+        if(point.flags&2u){*out=(rf_particle_screen_polygon){0};return RF_OK;}
+        memcpy(value.vertices[i].camera,point.camera,sizeof(point.camera));
+        memcpy(value.vertices[i].screen,point.screen,sizeof(point.screen));
+        memcpy(value.vertices[i].uv,clipped.vertices[i].vertex.uv,sizeof(value.vertices[i].uv));
+        value.vertices[i].reciprocal_z=point.reciprocal_z;
+    }
+    value.count=clipped.count;*out=value;return RF_OK;
+}
 int rf_visibility_box_project(const rf_visibility_projection *view,const float minimum[3],
     const float maximum[3],rf_visibility_screen_bounds *output)
 {

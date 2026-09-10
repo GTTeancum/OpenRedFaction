@@ -278,15 +278,17 @@ static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_
     const rf_particle *p;const rf_particle_animation *animation;const rf_image *image;uint32_t frame,mode,i,j;int status;
     if(index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
     p=stream->particles.state->records+index;++row[2];
-    if(p->flags&0x4000u)return RF_NOT_FOUND;
     if(p->bitmap>=stream->particles.materials.texture_count)return RF_RANGE;
     animation=&stream->particles.materials.textures[p->bitmap].animation;
     status=rf_particle_frame_index(p,&frame);if(status)return status;
     if(frame>=animation->count)return RF_RANGE;
     image=animation->images+frame;
     mode=rf_particle_render_mode(p->flags,RF_PARTICLE_NORMAL_MODE,RF_PARTICLE_GLOW_MODE);
-    status=rf_particle_world_billboard(&stream->particle_camera,p->position,p->orientation,p->radius,
-        image->width,image->height,&polygon);if(status)return status;
+    if(p->flags&0x4000u)status=rf_particle_world_stretch(&stream->particle_camera,p->position,p->previous_position,
+        p->radius,image->width,image->height,&polygon);
+    else status=rf_particle_world_billboard(&stream->particle_camera,p->position,p->orientation,p->radius,
+        image->width,image->height,&polygon);
+    if(status)return status;
     if(!polygon.count)return RF_OK;
     status=rf_particle_render_decode(mode,&render_environment,&states);if(status)return status;
     environment.rgba=p->color_current;environment.vertex_color=states.vertex_color;environment.vertex_alpha=states.vertex_alpha;

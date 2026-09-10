@@ -748,3 +748,29 @@ Fixtures include zero and parallel view vectors, varied directions and radii.
 Report: artifacts/particle-stretch-verification.json. PC/NXDK builds and six
 CTests pass. No XEMU or live stretched draw claim: 558d40 world transformation,
 5587c0 clipping and scene integration remain open. No new visual was captured.
+
+Stretched projection and scene dispatch (2026-09-10)
+
+rf_particle_world_stretch composes 558e30 geometry with 558d40 world transform
+and 5587c0 clipping/projected submission. It uses the resolved projection
+matrix third row for stretch orientation. Each corner retains its individual
+Z and reciprocal depth; unlike billboard submission, no common radius-biased
+depth is forced after projection. The short-displacement path calls the
+verified zero-angle billboard helper. No heap allocation is introduced.
+
+verify_particle_world_stretch.py executes the full original 558e30, including
+558d40, vector helpers, world transform, clipping, projection and fallback.
+Only bitmap dimensions and final 551900 submission are intercepted. All 1024
+PC/NXDK polygons match exactly: 496 rejected, 510 quads, 11 five-vertex polygons,
+and 7 triangles. Fixtures vary view basis, perspective/flat projection, clip
+and clamp settings, depth offset, bitmap aspect, radius and movement. Report:
+artifacts/particle-world-stretch-verification.json. The existing 1024 original
+world-billboard fixtures still pass, as do six CTests and PC/NXDK builds.
+
+scene_particle_draw_one now dispatches particle flag 0x4000 to this helper
+instead of returning RF_NOT_FOUND. It passes previous_position, current
+position, radius and the age-selected retained image dimensions. The existing
+vertex encoder and platform sinks receive the resulting polygon. This scene
+branch is compiled but visible stretched effects have not yet been verified
+through XEMU GPU pixels; campaign effect spawning and mixed passes remain open.
+No new screenshot was captured.
