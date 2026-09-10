@@ -536,3 +536,30 @@ and compiled NXDK. Both builds and six CTest checks pass. NXDK comparisons use
 Unicorn. The free-list setup at 0x4973ff..0x497460 and allocator 0x497ca0 still
 need shared lifecycle integration; allocator post-initialization work includes
 bounds setup and must not be omitted when campaign emitters are introduced.
+
+
+## Fixed emitter lifecycle reference
+
+`tools/verify_emitter_pool_trace.py` executes original fixed-list setup at
+0x4973ff..0x49745a after static construction, then unchanged allocator 0x497ca0
+and release 0x497d80. Template parsing and atexit registration are outside the
+replayed setup range. Allocation includes full initializer, immediate particle
+creation and original post-initialization bounds work. Release includes actual
+0x497230 particle detachment. The harness checks every emitter and detached
+particle list link and both live counts after every operation.
+
+The sequence performs 320 allocations, 192 releases and two exhausted-pool
+attempts. Exhaustion returns null without advancing RNG. Allocation removes
+the free head and appends the active tail; release does the reverse, appending
+the slot to the free tail. Live particles move to the detached list and clear
+only their emitter reference (alongside list links), retaining particle count
+and payload. Emission and phase fields not overwritten by initialization survive
+reuse. Nonzero callback, center and phase sentinels make that retention explicit.
+
+After initialization the allocator zeros maximum squared distance (+0xa0) and
+stores an estimated radius at +0x9c using template acceleration/gravity, maximum
+life, maximum speed and maximum radius. It leaves the center (+0xa4) intact.
+These observations and before/after allocation records are saved as ignored
+reference fixtures. Shared fixed emitter allocation/release, bounds estimate
+parity, room traversal and campaign integration remain open; this replay is
+original-executable evidence, not shared or native gameplay validation.
