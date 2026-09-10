@@ -106,6 +106,31 @@ assert xbox(header()+pixels,262143)==-4
 assert check(header(mips=1)+pixels+bytes(128*128*2)).returncode==0
 assert xbox(header(mips=1)+pixels+bytes(128*128*2))==0
 assert check(header(w=1,h=1,mips=1)+bytes(4)).stdout.strip()=='-2'
-report=dict(result='PASS',original_packer_words=6*65536,malformed_or_budget_cases=len(bad)+2,valid_mip_cases=1,scope='PC/NXDK decoders and original 55dd20 packing; static frames only')
+# Indexed animated frames: same native allocation/I/O seams, real decoder.
+frame_decode=symbol('rf_image_vbm_frame');animated_cases=0
+for version in (1,2):
+ for fmt in (0,1,2):
+  frame_words=[[(i*127+frame*997)&65535 for i in range(256)] for frame in range(3)]
+  data=header(fmt,w=16,h=16,frames=3,version=version)+b''.join(struct.pack('<256H',*v) for v in frame_words)
+  for frame in range(4):
+   x.mem_write(base,bytes(4096));x.mem_write(base+0x200+68,struct.pack('<I',len(data)))
+   x.mem_write(base+0x300,struct.pack('<2I',0xa5a5a5a5,0xa5a5a5a5))
+   x.mem_write(stack,struct.pack('<8I',stop,base,base+0x100,base+0x200,frame,1024,base+0x300,base+0x304));x.reg_write(UC_X86_REG_ESP,stack)
+   x.emu_start(frame_decode,stop,count=1000000);assert x.reg_read(UC_X86_REG_EIP)==stop
+   if frame==3:
+    assert x.reg_read(UC_X86_REG_EAX)==0xfffffffc
+    assert bytes(x.mem_read(base+0x300,8))==bytes([0xa5])*8
+   else:
+    assert x.reg_read(UC_X86_REG_EAX)==0
+    assert bytes(x.mem_read(base+0x300,8))==struct.pack('<2I',3,15)
+    actual=bytes(x.mem_read(base+0x50000,1024))
+    for i,v in enumerate(frame_words[frame]):
+     if fmt==0:v^=32768
+     if fmt==1:want=bytes(((v>>8&15)*17,(v>>4&15)*17,(v&15)*17,(v>>12)*17))
+     else:want=bytes(((v>>(11 if fmt==2 else 10)&31)*255//31,(v>>5&(63 if fmt==2 else 31))*255//(63 if fmt==2 else 31),(v&31)*255//31,255 if fmt==2 or v&32768 else 0))
+     xx=i%16;y=i//16;slot=sum(((xx>>bit)&1)<<(2*bit)|((y>>bit)&1)<<(2*bit+1) for bit in range(4))
+     assert actual[slot*4:slot*4+4]==want
+   animated_cases+=1
+report=dict(result='PASS',original_packer_words=6*65536,malformed_or_budget_cases=len(bad)+2,valid_mip_cases=1,nxdk_animated_cases=animated_cases,scope='PC/NXDK decoders and original 55dd20 packing; static plus indexed animated frame decoding (no playback)')
 (out/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
 

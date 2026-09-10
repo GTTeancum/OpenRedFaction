@@ -19,6 +19,12 @@ int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, ui
 /* Static version-1/2 VBM: 1555/4444/565, validated complete mip payload.
  * Only the base mip is retained; multiple frames are explicitly rejected. */
 int rf_image_vbm(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget);
+/* Decode one zero-based VBM frame with one image allocation. Animated mip
+ * chains are unsupported; all installed animated files have zero mip levels.
+ * Full payload size is validated. Optional count/rate outputs commit only on
+ * success. No playback scheduler or multi-frame residency. Close before reuse. */
+int rf_image_vbm_frame(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,
+    uint32_t frame,uint32_t budget,uint32_t *frame_count,uint32_t *frame_rate);
 /* Detect VBM by magic, otherwise use the existing TGA decoder. */
 int rf_image_open(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget);
 void rf_image_close(rf_image *image);

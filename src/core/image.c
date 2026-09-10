@@ -131,10 +131,11 @@ static uint32_t image_u32(const unsigned char *p)
 {
     return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;
 }
-int rf_image_vbm(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t budget)
+static int vbm_decode(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t budget,
+    uint32_t frame,int static_only,uint32_t *frame_count,uint32_t *frame_rate)
 {
     reader r; unsigned char h[32], pixel[2];
-    uint32_t width,height,format,mips,w,hg,i,total; uint64_t payload=0;
+    uint32_t width,height,format,mips,w,hg,i,total,frames; uint64_t payload=0;
     int status;
     if(!image)return RF_RANGE;
     memset(image,0,sizeof(*image));
@@ -142,9 +143,11 @@ int rf_image_vbm(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint3
     memset(&r,0,sizeof(r));r.archive=archive;r.entry=entry;
     status=read_bytes(&r,h,sizeof(h));if(status)return status;
     width=image_u32(h+8);height=image_u32(h+12);format=image_u32(h+16);mips=image_u32(h+28);
-    /* Original 50ebd0 header mapping. Animated playback is not implemented. */
+    frames=image_u32(h+24);
+    /* Original 50ebd0 header mapping; 511200 uses consecutive frame data. */
     if(memcmp(h,".vbm",4) || (image_u32(h+4)!=1 && image_u32(h+4)!=2) || format>2 ||
-       image_u32(h+24)!=1 || !width || !height || mips>12)return RF_FORMAT;
+       !frames || (static_only && frames!=1) || (frames>1 && mips) || !width || !height || mips>12)return RF_FORMAT;
+    if(frame>=frames)return RF_RANGE;
     if(width>4096 || height>4096 || (uint64_t)width*height*4>budget)return RF_RANGE;
     w=width;hg=height;
     for(i=0;i<=mips;++i) {
@@ -152,7 +155,8 @@ int rf_image_vbm(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint3
         if(i<mips && w==1 && hg==1)return RF_FORMAT;
         if(w>1)w/=2;if(hg>1)hg/=2;
     }
-    if(payload+32!=entry->size)return RF_FORMAT;
+    if(payload*frames+32!=entry->size)return RF_FORMAT;
+    r.offset=32+(uint32_t)(payload*frame);r.cursor=r.count=0;
     total=width*height;
     image->width=width;image->height=height;image->bytes=total*4;
     status=rf_image_allocate_pixels(image);if(status){rf_image_close(image);return status;}
@@ -164,7 +168,7 @@ int rf_image_vbm(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint3
         status=read_bytes(&r,pixel,2);if(status){rf_image_close(image);return status;}
         v=pixel[0]|(uint32_t)pixel[1]<<8;
         /* 511200 calls 511410 for static format 5 with version below 2. */
-        if(format==0 && image_u32(h+4)==1)v^=0x8000;
+        if(format==0 && (frames>1 || image_u32(h+4)==1))v^=0x8000;
         if(format==1) {
             blue=(v&15)*17;green=((v>>4)&15)*17;red=((v>>8)&15)*17;alpha=(v>>12)*17;
         } else {
@@ -177,8 +181,15 @@ int rf_image_vbm(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint3
         dst[0]=(unsigned char)red;dst[1]=(unsigned char)green;
         dst[2]=(unsigned char)blue;dst[3]=(unsigned char)alpha;
     }
+    if(frame_count)*frame_count=frames;
+    if(frame_rate)*frame_rate=image_u32(h+20);
     return RF_OK;
 }
+int rf_image_vbm(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t budget)
+{return vbm_decode(image,archive,entry,budget,0,1,NULL,NULL);}
+int rf_image_vbm_frame(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,
+    uint32_t frame,uint32_t budget,uint32_t *frame_count,uint32_t *frame_rate)
+{return vbm_decode(image,archive,entry,budget,frame,0,frame_count,frame_rate);}
 int rf_image_open(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t budget)
 {
     unsigned char magic[4];int status;
