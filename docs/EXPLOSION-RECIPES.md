@@ -70,3 +70,11 @@ emitters. Shared central-only timing matches 700 original update fixtures
 (164 expirations) with process/release callbacks intercepted without mutation.
 Trail updates, callback mutation, active-list ownership and scene phase remain
 outside this helper; callers must process selected slots before releasing them.
+
+Emitter creation 497ca0 calls 497020; the central update calls 4972f0.
+Alternating phase duration 496f60 chooses on/off timing by nonzero enabled
+byte, consumes one draw through 504db0/57312d, and computes
+(base - variance) + 2 * (draw / 32768) * variance before rounding to float
+and clamping to 0.1f. Duration and RNG state match in 1140 PC/NXDK cases
+against these unchanged original functions with only the CRT thread pointer
+supplied. This helper does not yet construct or process an emitter.

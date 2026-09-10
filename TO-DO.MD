@@ -16,6 +16,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Emitter phase duration and RNG advancement match 1140 original/PC/NXDK
+cases: one draw even at zero variance, draw/32768 and 0.1-second clamp.
+Emitter creation, alternating-state processing and live emission remain open.
+
 Central explosion timing now matches 700 original/PC/NXDK update cases,
 including 164 expirations and process-before-release ordering. Trail updates,
 emitter creation/processing and scene-clock integration remain open.

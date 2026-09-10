@@ -1,5 +1,20 @@
 #include "rf/effect.h"
 #include <math.h>
+int rf_particle_cycle_duration(const rf_particle_cycle *cycle,unsigned enabled,
+    rf_random_state *random,float *duration)
+{
+    float center,variance,value;double offset;uint32_t draw;rf_random_state next;
+    if(!cycle || !random || !duration)return RF_RANGE;
+    center=(enabled&255u)?cycle->on_time:cycle->off_time;
+    variance=(enabled&255u)?cycle->on_variance:cycle->off_variance;
+    if(!isfinite(center) || !isfinite(variance))return RF_RANGE;
+    next=*random;rf_random_next(&next,&draw);
+    offset=((double)draw/32768.0)*variance;
+    value=(float)(((double)center-variance)+(offset+offset));
+    if(!isfinite(value))return RF_RANGE;
+    if(value<0.1f)value=0.1f;
+    *random=next;*duration=value;return RF_OK;
+}
 int rf_particle_definition_prepare(const rf_particle_definition *authored,
     rf_particle_definition *result)
 {

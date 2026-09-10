@@ -1,5 +1,6 @@
 #ifndef RF_EFFECT_H
 #define RF_EFFECT_H
+#include "rf/random.h"
 /* Original 4c1d00 scans all 64 vclip name slots; for ASCII names, returns
  * the first match. Empty/unknown names return -1. Names are NUL-terminated;
  * null slots represent unused empty names. Caller owns definition storage. */
@@ -19,6 +20,11 @@ int rf_particle_flags_pack(rf_particle_text_flags *flags,unsigned present,const 
 typedef struct rf_particle_cycle {
     float on_time,on_variance,off_time,off_variance;
 } rf_particle_cycle;
+/* 496f60/504db0: consume one CRT draw, use draw/32768, select on/off
+ * timings by nonzero low byte, then clamp rounded duration to 0.1 seconds.
+ * Finite authored timing domain. Errors preserve RNG and output. */
+int rf_particle_cycle_duration(const rf_particle_cycle *cycle,unsigned enabled,
+    rf_random_state *random,float *duration);
 /* 49771b..4977c3: boolean low bytes must equal one. ORs emitter bits;
  * disabled alternation writes 1,0,1,0. Authored timing may alias output.
  * All pointers required; NULL arguments preserve outputs. */

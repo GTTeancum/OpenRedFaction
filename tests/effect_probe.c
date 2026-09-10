@@ -12,6 +12,16 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-duration")) {
+        struct {rf_particle_cycle cycle;unsigned enabled;rf_random_state random;} in;
+        struct {int32_t status;rf_random_state random;float duration;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.random=in.random;
+            out.status=rf_particle_cycle_duration(&in.cycle,in.enabled,&out.random,&out.duration);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--explosion-clock")) {
         struct {rf_explosion_recipe recipe;float dt;rf_explosion_clock clock;} in;
         struct {int32_t status;rf_explosion_clock clock;rf_explosion_clock_actions actions;} out;
