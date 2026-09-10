@@ -633,6 +633,35 @@ int rf_collision_segment_box(const float minimum[3],const float maximum[3],
     return RF_OK;
 }
 
+int rf_collision_segment_oriented_box(const float center[3],
+    const float matrix[3][3],const float size[3],const float start[3],
+    const float end[3],float point[3],uint32_t *hit)
+{
+    float a[3],b[3],first[3],last[3],lo[3],hi[3],local[3],world[3],column[3];
+    uint32_t i,j,accepted;int status;
+    if(!center || !matrix || !size || !start || !end || !point || !hit)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(center[i]) || !isfinite(size[i]) || size[i]<0 ||
+            !isfinite(start[i]) || !isfinite(end[i]) || !isfinite(point[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(matrix[i][j]))return RF_FORMAT;
+        a[i]=start[i]-center[i];b[i]=end[i]-center[i];
+        lo[i]=size[i]*-.5f;hi[i]=size[i]*.5f;
+        if(!isfinite(a[i]) || !isfinite(b[i]))return RF_FORMAT;
+    }
+    for(i=0;i<3;i++) {
+        first[i]=edge_dot(a,matrix[i],1,NULL);last[i]=edge_dot(b,matrix[i],1,NULL);
+        if(!isfinite(first[i]) || !isfinite(last[i]))return RF_FORMAT;
+    }
+    memcpy(local,point,sizeof(local));
+    status=rf_collision_segment_box(lo,hi,first,last,local,&accepted);if(status)return status;
+    for(i=0;i<3;i++) {
+        for(j=0;j<3;j++)column[j]=matrix[j][i];
+        {volatile float rotated=edge_dot(local,column,1,NULL);world[i]=rotated+center[i];}
+        if(!isfinite(world[i]))return RF_FORMAT;
+    }
+    memcpy(point,world,sizeof(world));*hit=accepted;return RF_OK;
+}
+
 int rf_collision_segment_plane(const float start[3],const float displacement[3],
     const float plane[4],float *fraction,uint32_t *hit)
 {

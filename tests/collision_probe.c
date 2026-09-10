@@ -16,6 +16,16 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--oriented-box")) {
+        float values[24];
+        while(fread(values,sizeof(values),1,stdin)==1) {
+            output.hit=0xa5a5a5a5;memcpy(output.point,values+21,12);
+            output.status=rf_collision_segment_oriented_box(values,(const float (*)[3])(values+3),
+                values+12,values+15,values+18,output.point,&output.hit);
+            fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--level-emitters")) {
         rf_vpp archive;rf_level level;rf_level_emitter_reader reader;rf_level_emitter emitter;int status;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 3;

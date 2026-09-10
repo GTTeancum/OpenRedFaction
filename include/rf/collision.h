@@ -31,6 +31,14 @@ int rf_collision_query_local(const float start[3],const float displacement[3],
  * data leaves point/hit untouched. No allocation or world traversal. */
 int rf_collision_segment_box(const float minimum[3],const float maximum[3],
     const float start[3],const float end[3],float point[3],uint32_t *hit);
+/* Complete 508660: oriented box / segment, full dimensions, matrix rows
+ * transform world offsets to local space. Transforms point back on hits AND
+ * misses; incoming point is read if the AABB test leaves it unchanged.
+ * Finite inputs, nonnegative dimensions and separate output required.
+ * Errors preserve point/hit; no allocation or static scratch. */
+int rf_collision_segment_oriented_box(const float center[3],
+    const float matrix[3][3],const float size[3],const float start[3],
+    const float end[3],float point[3],uint32_t *hit);
 /* Complete 506550: start plus displacement against plane (normal,d).
  * Rejects a start behind the plane or insufficient front-to-back travel.
  * Misses preserve fraction. Coplanar parallel input returns hit=1 and NaN,

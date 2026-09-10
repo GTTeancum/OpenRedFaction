@@ -2424,3 +2424,36 @@ NXDK, including three-axis input, force, support and repeated passes. The existi
 384 run cases also pass after the integration-body refactor, as do both builds
 and all five CTest checks. This is a motion proposal, not collision traversal or
 a live climbing demonstration; campaign region and movement wiring remain open.
+
+
+## Oriented segment/box contact (508660)
+
+`rf_collision_segment_oriented_box` reconstructs the helper used by 4c0a80
+when trigger flag 0x20 is clear. It subtracts the box center from both endpoints,
+stores float offsets, then computes matrix-row dots in ZYX order (4fac60).
+Full dimensions become bounds at +/- half size. The unchanged reconstructed
+508b70 segment/AABB routine supplies the hit and local point; 4facb0 then
+rotates the point by matrix columns and 40a350 adds the center.
+
+The final transform runs even after rejection. Therefore callers initialize
+point: a trivial local miss transforms its incoming value, while failed plane
+attempts transform their last written point. No nearest-hit sorting, matrix
+normalization or inverse-matrix substitution is added. The port uses local
+scratch and validates finite inputs/nonnegative dimensions, preserving outputs
+on errors, including intermediate overflow.
+
+`tools/verify_collision_oriented_box.py` passes 4016 original/PC/NXDK cases
+and 80 invalid-input guards. It executes the full original geometry path and
+callees with static initialization flags already set (omitting exit-handler
+registration only). All hit and output float bytes match: 1851 hits and 2165
+misses writing a point. Fixtures cover rotated and general matrices, degenerate
+boxes, zero-length segments, boundaries and scales 2^-15..2^15, under explicit
+64-bit nearest x87 arithmetic as used by the existing AABB verifier. This is
+compiled NXDK code in Unicorn, not an XEMU campaign contact test.
+
+4c0a80 passes actor +e4/+f0 as endpoints. Existing creation evidence in
+COLLISION.md shows 48a230 initializes both from the supplied position; mover
+evidence updates +f0 from +e4. The campaign actor update lifetime still needs
+connection. Flag 0x20 uses a separate directional face-crossing path and is
+not covered by this helper. Eligibility, dwell/key handling and natural event
+activation must be integrated before claiming playable campaign triggers.
