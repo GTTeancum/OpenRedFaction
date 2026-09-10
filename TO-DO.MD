@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Eye-matrix builder 4a0d70 is reconstructed: 1,200 compiled NXDK cases match
+original execution exactly; PC differs only in tiny vertical-pitch residuals.
+Bind look-angle state, yaw-only body and eye matrices into the live camera next.
+Original global FPU initialization and live XEMU integration remain open.
+
 README now uses a 1920x1440 PC render of the staged miner by the partly open
 Live Mines guard-station doorway, explicitly labeled PC. Add live Xbox
 showcase-profile validation before presenting this composition as Xbox output;

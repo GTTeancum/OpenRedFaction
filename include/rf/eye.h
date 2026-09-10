@@ -51,4 +51,8 @@ typedef struct rf_look_state {
     float body_angles[3],eye_angles[3],angular_velocity[3];
 } rf_look_state;
 int rf_look_update(rf_look_state *state,float angular_speed,float dt);
+/* Original 4a0d70 eye matrix, including 4fc500 orthogonalization.
+ * Pitch within +/-pi/2, yaw within +/-2pi; finite roll accepted but ignored.
+ * Errors preserve output; angles/output may alias. */
+int rf_look_orientation(const float angles[3],float orientation[9]);
 #endif

@@ -1823,3 +1823,36 @@ then bind separate look orientation into the shared scene and live XEMU
 telemetry. The current diagnostic still uses body orientation for the eyes.
 49cd30 physics commit and the 174/870/888 auxiliary clears are not owned by
 this scalar API. No screenshot was captured for this unbound change.
+
+
+## Reconstructed eye matrix (4a0d70)
+
+`rf_look_orientation` now executes the original eye-matrix construction in shared
+C with x87 precision helpers. The horizontal right vector is
+(cos(yaw), 0, -sin(yaw)); the forward vector uses sin(pitch) vertically and
+1-abs(sin(pitch)) horizontally. The initial up vector is forward cross right.
+The recovered 4fc500 path normalizes forward and up, then reconstructs right
+and up with two cross products. It does not perform another normalization
+following those cross products. Roll is ignored. The API deliberately accepts
+only the wrapped look domain: pitch +/-binary32 pi/2, yaw +/-binary32 2pi.
+
+`python tools/verify_look_orientation.py --nxdk` executes the whole original
+4a0d70, including all callees, with no intercepted math. It explicitly sets
+Unicorn's initial FPU control word to 037f; an uninitialized Unicorn instance
+reports zero, which is unsuitable as an implicit floating-point contract.
+Original CRT/game-wide FPU initialization is not proven by this harness.
+Port x87 helpers select extended precision and restore the caller's control.
+
+Results: 1,200 compiled NXDK cases byte-exact under Unicorn; 1,188 native PC
+cases byte-exact. Twelve native PC vertical-pitch cases differ from emulated
+original math by at most 4.3855977877038654e-17 in near-zero matrix terms.
+The absolute tolerance is 1e-16, not a pixel-sized or single-precision epsilon.
+The suite includes signed zero, +/-pi/2 pitch, +/-pi and +/-2pi yaw, ignored
+roll and deterministic random angles. PC and NXDK builds pass; four existing
+CTests pass. This evidence does not claim live XEMU integration.
+
+Next combine the angle updater with the original yaw-only body matrix and eye
+matrix, bind the distinct orientations to scene motion/camera telemetry, and
+verify the full 49de50 pose-writing path plus live XEMU output. Input acquisition,
+player identity and camera collision remain open. No new rendered screenshot
+was captured for this unbound function.

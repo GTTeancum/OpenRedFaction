@@ -287,3 +287,143 @@ int rf_look_update(rf_look_state *state,float angular_speed,float dt)
     memset(v.command,0,sizeof(v.command));v.pending_pitch=v.pending_yaw=0;
     *state=v;return RF_OK;
 }
+
+/* 4a0d70 keeps sin(pitch) extended while deriving horizontal weight. */
+static void look_basis_seed(const float angles[3],float basis[9])
+{
+#if (defined(_MSC_VER) && defined(_M_IX86)) || defined(__i386__)
+    unsigned short saved,control;
+#if defined(_MSC_VER)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,angles
+        mov edx,basis
+        fld dword ptr [ecx+4]
+        fcos
+        fstp dword ptr [edx]
+        fld dword ptr [ecx+4]
+        fsin
+        fchs
+        fstp dword ptr [edx+8]
+        fld dword ptr [ecx]
+        fsin
+        fst dword ptr [edx+28]
+        fabs
+        fld1
+        fsubrp st(1),st(0)
+        fld st(0)
+        fmul dword ptr [edx+8]
+        fchs
+        fstp dword ptr [edx+24]
+        fmul dword ptr [edx]
+        fstp dword ptr [edx+32]
+        fldcw saved
+    }
+#else
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "fld dword ptr [ecx+4]\n\t"
+        "fcos\n\t"
+        "fstp dword ptr [edx]\n\t"
+        "fld dword ptr [ecx+4]\n\t"
+        "fsin\n\t"
+        "fchs\n\t"
+        "fstp dword ptr [edx+8]\n\t"
+        "fld dword ptr [ecx]\n\t"
+        "fsin\n\t"
+        "fst dword ptr [edx+28]\n\t"
+        "fabs\n\t"
+        "fld1\n\t"
+        "fsubrp st(1),st(0)\n\t"
+        "fld st(0)\n\t"
+        "fmul dword ptr [edx+8]\n\t"
+        "fchs\n\t"
+        "fstp dword ptr [edx+24]\n\t"
+        "fmul dword ptr [edx]\n\t"
+        "fstp dword ptr [edx+32]\n\t"
+        ".att_syntax prefix"::"c"(angles),"d"(basis):"memory","st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#endif
+#else
+    long double sine=sinl(angles[0]),h=1-fabsl(sine);
+    basis[0]=(float)cosl(angles[1]);basis[2]=(float)-sinl(angles[1]);
+    basis[7]=(float)sine;basis[6]=(float)(-h*basis[2]);basis[8]=(float)(h*basis[0]);
+#endif
+}
+static void look_cross(const float *a,const float *b,float *result)
+{
+#if defined(_MSC_VER) && defined(_M_IX86)
+    unsigned short saved,control;
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,a
+        mov edx,b
+        mov eax,result
+        fld dword ptr [ecx+4]
+        fmul dword ptr [edx+8]
+        fld dword ptr [ecx+8]
+        fmul dword ptr [edx+4]
+        fsubp st(1),st(0)
+        fstp dword ptr [eax+0]
+        fld dword ptr [ecx+8]
+        fmul dword ptr [edx+0]
+        fld dword ptr [ecx+0]
+        fmul dword ptr [edx+8]
+        fsubp st(1),st(0)
+        fstp dword ptr [eax+4]
+        fld dword ptr [ecx+0]
+        fmul dword ptr [edx+4]
+        fld dword ptr [ecx+4]
+        fmul dword ptr [edx+0]
+        fsubp st(1),st(0)
+        fstp dword ptr [eax+8]
+        fldcw saved
+    }
+#elif defined(__i386__)
+    unsigned short saved,control;
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "fld dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [edx+8]\n\t"
+        "fld dword ptr [ecx+8]\n\t"
+        "fmul dword ptr [edx+4]\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "fstp dword ptr [eax+0]\n\t"
+        "fld dword ptr [ecx+8]\n\t"
+        "fmul dword ptr [edx+0]\n\t"
+        "fld dword ptr [ecx+0]\n\t"
+        "fmul dword ptr [edx+8]\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "fstp dword ptr [eax+4]\n\t"
+        "fld dword ptr [ecx+0]\n\t"
+        "fmul dword ptr [edx+4]\n\t"
+        "fld dword ptr [ecx+4]\n\t"
+        "fmul dword ptr [edx+0]\n\t"
+        "fsubp st(1),st(0)\n\t"
+        "fstp dword ptr [eax+8]\n\t"
+        ".att_syntax prefix"::"c"(a),"d"(b),"a"(result):"memory","st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#else
+    camera_cross(a,b,result);
+#endif
+}
+int rf_look_orientation(const float angles[3],float orientation[9])
+{
+    float basis[9]={0},out[9]={0};unsigned i;
+    if(!angles || !orientation)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(angles[i]))return RF_FORMAT;
+    /* Original wrapped look domain; roll is ignored by 4a0d70. */
+    if(fabsf(angles[0])>1.5707963705062866f || fabsf(angles[1])>6.2831854820251465f)return RF_RANGE;
+    look_basis_seed(angles,basis);
+    look_cross(basis+6,basis,basis+3);
+    memcpy(out+6,basis+6,12);camera_normalize(out+6);
+    memcpy(out+3,basis+3,12);camera_normalize(out+3);
+    look_cross(out+3,out+6,out);look_cross(out+6,out,out+3);
+    memcpy(orientation,out,sizeof(out));return RF_OK;
+}
