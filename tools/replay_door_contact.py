@@ -11,7 +11,8 @@ run=subprocess.run([str(exe),'--spawn-replay',str(root/'Installed_Game'),str(sou
 (folder/'pc.txt').write_text(run.stdout+run.stderr)
 def row(name):return list(map(int,next(l for l in run.stdout.splitlines() if l.startswith(name+' ')).split()[1:]))
 sweeps=row('BODY_SWEEPS');contact=row('BODY_CONTACT');assert sweeps[2]>0 and sweeps[3]==0 and contact[17] in (0,1)
-report=dict(result='PASS',frames=180,staged=True,body_sweeps=sweeps,contact=contact,
+triggers=row('TRIGGER_CONTACTS');assert triggers[3]>0 and triggers[5]==0,triggers
+report=dict(trigger_contacts=triggers,result='PASS',frames=180,staged=True,body_sweeps=sweeps,contact=contact,
  mover_uid=[8544,8543][contact[17]],pc_sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),
  input_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),scope='PC player collision with authored lower L1S1 door geometry from an explicit staged start. No route-from-spawn, door opening or moving-platform claim.')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(report,flush=True)

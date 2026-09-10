@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Live default-player trigger readiness now matches PC/XEMU at the lower door;
+179 ready ticks, no activation yet; remaining filters and controller effects stay open.
+
 Campaign player now shares a registered handle across object/entity view registries;
 XEMU door replay passes; class classification and trigger polling remain open.
 
