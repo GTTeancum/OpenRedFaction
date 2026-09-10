@@ -2,6 +2,10 @@
 #define RF_EVENT_H
 #include "rf/timer.h"
 #include "rf/physics.h"
+/* Original 4bd700: case-insensitive authored name to type 0..89; -1 for
+ * unknown/NULL. Name must be NUL-terminated. Type recognition does not imply
+ * that the corresponding runtime action has been reconstructed. */
+int32_t rf_event_type_id(const char *name);
 typedef struct rf_event_state {
     uint32_t type;float delay;int32_t deadline;
     uint32_t actor,source,flags,mode;

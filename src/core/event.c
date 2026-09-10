@@ -2,6 +2,114 @@
 #include "rf/level.h"
 #include <math.h>
 #include <string.h>
+/* Original type table 5a1a3c..5a1ba4, lookup 4bd700. */
+static const char *const event_names[90]={
+    "Play_Sound", /* 0 */
+    "Slay_Object", /* 1 */
+    "Remove_Object", /* 2 */
+    "Invert", /* 3 */
+    "Teleport", /* 4 */
+    "Goto", /* 5 */
+    "Goto_Player", /* 6 */
+    "Look_At", /* 7 */
+    "Shoot_At", /* 8 */
+    "Shoot_Once", /* 9 */
+    "Explode", /* 10 */
+    "Play_Animation", /* 11 */
+    "Play_Custom_Animation", /* 12 */
+    "Heal", /* 13 */
+    "Armor", /* 14 */
+    "Message", /* 15 */
+    "When_Dead", /* 16 */
+    "Continuous_Damage", /* 17 */
+    "Shake_Player", /* 18 */
+    "Give_Item_To_Player", /* 19 */
+    "Cyclic_Timer", /* 20 */
+    "Switch_Model", /* 21 */
+    "Load_Level", /* 22 */
+    "Spawn_Object", /* 23 */
+    "Make_Invulnerable", /* 24 */
+    "Make_Walk", /* 25 */
+    "Make_Fly", /* 26 */
+    "Drop_Point_Marker", /* 27 */
+    "Follow_Waypoints", /* 28 */
+    "Follow_Player", /* 29 */
+    "Set_Friendliness", /* 30 */
+    "Set_Light_State", /* 31 */
+    "Switch", /* 32 */
+    "Swap_Textures", /* 33 */
+    "Set_AI_Mode", /* 34 */
+    "Goal_Create", /* 35 */
+    "Goal_Check", /* 36 */
+    "Goal_Set", /* 37 */
+    "Attack", /* 38 */
+    "Particle_State", /* 39 */
+    "Set_Liquid_Depth", /* 40 */
+    "Music_Start", /* 41 */
+    "Music_Stop", /* 42 */
+    "Bolt_State", /* 43 */
+    "Set_Gravity", /* 44 */
+    "Alarm_Siren", /* 45 */
+    "Alarm", /* 46 */
+    "Go_Undercover", /* 47 */
+    "Delay", /* 48 */
+    "Monitor_State", /* 49 */
+    "UnHide", /* 50 */
+    "Push_Region_State", /* 51 */
+    "When_Hit", /* 52 */
+    "Headlamp_State", /* 53 */
+    "Item_Pickup_State", /* 54 */
+    "Cutscene", /* 55 */
+    "Strip_Player_Weapons", /* 56 */
+    "Fog_State", /* 57 */
+    "Detach", /* 58 */
+    "Skybox_State", /* 59 */
+    "Force_Monitor_Update", /* 60 */
+    "Black_Out_Player", /* 61 */
+    "Turn_Off_Physics", /* 62 */
+    "Teleport_Player", /* 63 */
+    "Holster_Weapon", /* 64 */
+    "Holster_Player_Weapon", /* 65 */
+    "Modify_Rotating_Mover", /* 66 */
+    "Clear_Endgame_If_Killed", /* 67 */
+    "Win_PS2_Demo", /* 68 */
+    "Enable_Navpoint", /* 69 */
+    "Play_Vclip", /* 70 */
+    "Endgame", /* 71 */
+    "Mover_Pause", /* 72 */
+    "Countdown_Begin", /* 73 */
+    "Countdown_End", /* 74 */
+    "When_Countdown_Over", /* 75 */
+    "Activate_Capek_Shield", /* 76 */
+    "When_Enter_Vehicle", /* 77 */
+    "When_Try_Exit_Vehicle", /* 78 */
+    "Fire_Weapon_No_Anim", /* 79 */
+    "Never_Leave_Vehicle", /* 80 */
+    "Drop_Weapon", /* 81 */
+    "Ignite_Entity", /* 82 */
+    "When_Cutscene_Over", /* 83 */
+    "When_Countdown_Reaches", /* 84 */
+    "Display_Fullscreen_Image", /* 85 */
+    "Defuse_Nuke", /* 86 */
+    "When_Life_Reaches", /* 87 */
+    "When_Armor_Reaches", /* 88 */
+    "Reverse_Mover", /* 89 */
+};
+int32_t rf_event_type_id(const char *name)
+{
+    uint32_t i,j;
+    if(!name)return -1;
+    for(i=0;i<90;++i) {
+        for(j=0;;++j) {
+            unsigned char a=(unsigned char)name[j],b=(unsigned char)event_names[i][j];
+            if(a>='A' && a<='Z')a+=32;
+            if(b>='A' && b<='Z')b+=32;
+            if(a!=b)break;
+            if(!a)return (int32_t)i;
+        }
+    }
+    return -1;
+}
 /* Exact binary32 seconds * 1000, truncated toward zero. Integer arithmetic
  * avoids dependence on an ambient x87 precision mode (0.01f is below 10 ms).
  * The original extended-precision product is exact before its ftol call. */

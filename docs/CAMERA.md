@@ -3212,3 +3212,20 @@ matches each under 24-, 53- and 64-bit x87 precision. Full original parser
 and object factory are not executed by this fixture. Report:
 artifacts/auto-trigger-init-verification.json. PC/NXDK builds, 360 activation
 cases and five CTest checks pass. Registry/startup scene wiring remains open.
+
+
+Shared event type lookup (2026-09-10)
+-----------------------------------
+
+rf_event_type_id implements original 4bd700 against the 90-name table at
+5a1a3c..5a1ba4. ASCII case variants match; unknown names return -1. NULL
+returns -1 defensively. Names must be NUL-terminated. Type recognition makes
+no claim about runtime action availability. The table is embedded in shared C
+so Xbox lookup needs no original executable at runtime.
+
+verify_event_types.py runs the original lookup and actual comparison helper
+without interception, checking canonical/lower/upper names, added whitespace
+and suffixes, shortened names and invalid input. All 544 cases match PC and
+compiled NXDK. Both builds pass. Report: artifacts/event-type-verification.json.
+The scene still owns movement regions only; event/trigger ownership, registry
+insertion and startup dispatch are the next integration work.

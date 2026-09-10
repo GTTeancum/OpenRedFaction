@@ -25,6 +25,16 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--type-id")) {
+        char name[256];int32_t type;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(name,sizeof(name),1,stdin)==1) {
+            if(!memchr(name,0,sizeof(name)))return 3;
+            type=rf_event_type_id(name);
+            if(fwrite(&type,sizeof(type),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--auto-init")) {
         struct {float timing;uint32_t shape,flags[5],box,disabled,handle;int32_t now;} input;
         struct {int32_t status;rf_auto_trigger_state state;} result;

@@ -14,6 +14,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared event-name lookup now recognizes all 90 original types and matches
+544 original cases on PC/NXDK. This supplies IDs for general registration;
+recognizing an event does not implement its action or startup dispatch.
+
 Authored trigger initialization now matches 2,367 installed records plus
 243 flag cases on PC/NXDK. Timing conversion remains exact across three
 x87 precision modes; 0.01f truncates to 9 ms as in the original. This supplies
