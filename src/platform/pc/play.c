@@ -189,6 +189,10 @@ int main(int argc,char **argv)
         if(getenv("RF_REPLAY_REGION_START"))CHECK(RF_RANGE);
         CHECK(rf_scene_stage_door(&level));
     }
+    if(spawn_profile && p.headless && getenv("RF_REPLAY_LIFT_START")) {
+        if(getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START"))CHECK(RF_RANGE);
+        CHECK(rf_scene_stage_lift(&level));
+    }
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));

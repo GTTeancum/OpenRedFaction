@@ -30,6 +30,22 @@ int rf_scene_stage_door(rf_level *level)
     memcpy(level->player_position,position,12);memcpy(level->player_orientation,matrix,36);
     rf_geometry_movers_close(&movers);return RF_OK;
 }
+int rf_scene_stage_lift(rf_level *level)
+{
+    rf_geometry_movers movers={0};uint32_t i;int status;
+    if(!level)return RF_RANGE;
+    status=rf_geometry_movers_open(level,1024*1024,&movers);if(status)return status;
+    status=RF_NOT_FOUND;
+    for(i=0;i<movers.count;i++)if(movers.items[i].uid==8670) {
+        memcpy(level->player_position,movers.items[i].position,12);
+        level->player_position[0]-=.5f;
+        level->player_position[1]+=.625f;
+        memset(level->player_orientation,0,36);
+        level->player_orientation[0][0]=level->player_orientation[1][1]=level->player_orientation[2][2]=1;
+        status=RF_OK;break;
+    }
+    rf_geometry_movers_close(&movers);return status;
+}
 int rf_scene_stage_climb(rf_level *level,uint32_t mode)
 {
     rf_level_entity_reader reader;rf_player_movement_region region;float position[3];uint32_t i;int status;
