@@ -2,6 +2,7 @@
 
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
+- [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
 - [ ] Capture and replay any further interactive exits; the historical tick-99 cause remains unproven.
 - [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
@@ -9,6 +10,11 @@ Immediate open items:
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Original player-start loader and single-player factory argument preparation now
+match shared C across all 94 installed levels. This verifies the transform source
+and matrix ordering, not complete player creation; the live diagnostic still uses
+its miner placement. See docs/CAMERA.md and tools/verify_player_start.py.
 
 Xbox file replay now compares recorded commands with PC without controller input.
 The 480-tick yaw sweep passes in 64 MiB with matching world/camera hashes, input
@@ -20,8 +26,8 @@ capacity-failure trajectories now pass on Xbox. See docs/INPUT.md.
 PC input replay reproduced turning exits at the 1 MiB staging boundary. First-person
 views now use the full existing 2 MiB buffer when necessary; both 480-tick failing
 sweeps pass with no allocation increase. The historical tick-99 input was not
-recorded, so its exact cause remains unproven. Explicit wide-view Xbox validation
-is next; failure snapshots now retain operation stages and input history.
+recorded, so its exact cause remains unproven. Both wide-view Xbox replays now
+pass; failure snapshots retain operation stages and input history.
 
 Presentation profiling found a redundant trailing VBlank wait. Removing it cut
 measured presentation/integrity time from 27.23 to 13.62 ms; overall throughput

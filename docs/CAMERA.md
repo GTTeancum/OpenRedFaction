@@ -1954,3 +1954,37 @@ python tools/xemu_smoke.py --actor-turn --no-capture --seconds 300
 
 The current disc contains actor-turn.flag (alongside look/eye/follow flags).
 Disable it before asking the smoke harness to expect a pitch-only profile.
+
+## Original campaign player-start provenance
+
+`tools/verify_player_start.py` executes the installed RF.exe instructions for
+all 94 level player-start payloads and compares them with the compiled shared C
+parser. Original executable SHA256:
+`b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836`.
+
+The section reader at `463d20` loads position into `6460fc` through `52ca00`
+and orientation into `646108` through `52cac0`. The matrix reader consumes
+three disk vectors into destination offsets +24, +0, +12, respectively
+(`52caef`, `52cb01`, `52cb0e`). Thus runtime rows are disk rows 1,2,0;
+the existing C expression assigns disk rows to runtime indices 2,0,1. These
+are the same ordering, with no additional transpose or coordinate conversion.
+
+The ordinary single-player startup span `45c798..45c807` copies these globals
+through the original vector/matrix assignment routines, then calls `4a4130`
+with the local player, class identity from player+18, copied position, copied
+orientation, and skin index -1. The verifier executes that span through the
+factory entry and checks the actual argument pointers and all 48 transform
+bytes. All 94 installed levels match the compiled C parser exactly.
+
+Scope: `523990` is a fixture returning field-present and `52cf60` is a fixture
+supplying sequential 12-byte reads from the real player-start payload. The
+original section reader, vector/matrix reader control flow, copy routines and
+SP argument preparation execute without replacement. The fixture supplies an
+opaque class identity and ordinary load mode; it stops before player creation.
+It does not validate complete file I/O, mode selection, multiplayer spawn,
+factory side effects, or subsequent camera initialization. Reports are local
+at `artifacts/player-start-verification.json`.
+
+The live diagnostic still binds serialized miner UID9858 and diagnostic camera
+offsets. This result establishes the campaign spawn source for upcoming player
+lifecycle integration; it does not make that diagnostic a campaign player.
