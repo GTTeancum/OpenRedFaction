@@ -91,7 +91,6 @@ typedef struct rf_particle {
     float age_to_finish_vbm;
     uint32_t copied_48,room,emitter;
     float previous_position[3];
-    uint32_t reserved_78;
 } rf_particle;
 /* 496840 record initialization after a free node has been obtained. Preserves
  * list links and untouched bytes. Pool 0/1 only; caller supplies resolved

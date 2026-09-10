@@ -16,8 +16,8 @@ int main(int argc,char **argv)
         struct {rf_particle_spawn spawn;uint32_t pool,owner,room,emitter;rf_random_state random;rf_particle particle;} in;
         struct {int32_t status;rf_random_state random;rf_particle particle;} out;
         _Static_assert(sizeof(rf_particle_spawn)==76,"Particle spawn layout");
-        _Static_assert(sizeof(rf_particle)==124,"Particle record layout");
-        _Static_assert(sizeof(in)==220,"Particle initialization fixture");
+        _Static_assert(sizeof(rf_particle)==120,"Particle record layout");
+        _Static_assert(sizeof(in)==216,"Particle initialization fixture");
         while(fread(&in,sizeof(in),1,stdin)==1) {
             out.random=in.random;out.particle=in.particle;
             out.status=rf_particle_initialize(&in.spawn,in.pool,in.owner,in.room,in.emitter,&out.random,&out.particle);

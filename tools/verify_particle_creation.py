@@ -42,12 +42,12 @@ for kind,attached,room,flags,empty,seed in itertools.product((0,1),(False,True),
   expected[0x54:0x58]=packf(angle);word(0x58,(flags|1) if room else (flags|1)&~0x10);word(0x64,room);word(0x68,owner if attached else 0)
   actual=bytes(u.mem_read(node,0x7c));assert actual==expected,[(hex(i),a,b) for i,(a,b) in enumerate(zip(actual,expected)) if a!=b]
   assert get(output)==node and get(count)==8 and get(thread+0x14)==nextseed
-  initial=struct.pack('<II',dest,dest)+before[8:]
+  initial=struct.pack('<II',dest,dest)+before[8:120]
   command=bytes(u.mem_read(params,76))+struct.pack('<5I',kind,0x99887766,room,owner if attached else 0,seed)+initial
-  commands.extend(command);result=bytes(4)+struct.pack('<I',nextseed)+actual;results.extend(result)
+  commands.extend(command);result=bytes(4)+struct.pack('<I',nextseed)+actual[:120];results.extend(result)
   x.mem_write(base,command);x.mem_write(stack,struct.pack('<8I',stop,base,kind,0x99887766,room,owner if attached else 0,base+92,base+96));x.reg_write(UC_X86_REG_ESP,stack);x.emu_start(entry,stop,count=10000)
   assert x.reg_read(UC_X86_REG_EIP)==stop and x.reg_read(UC_X86_REG_EAX)==0
-  assert bytes(4)+bytes(x.mem_read(base+92,128))==result,('NXDK',cases)
+  assert bytes(4)+bytes(x.mem_read(base+92,124))==result,('NXDK',cases)
 
  cases+=1
 # Rejected pool indices preserve caller-owned records and RNG on both targets.
@@ -56,7 +56,7 @@ for invalid_pool in (2,256,0xffffffff):
  commands.extend(command);result=struct.pack('<i',-4)+bytes(command[92:]);results.extend(result)
  x.mem_write(base,bytes(command));x.mem_write(stack,struct.pack('<8I',stop,base,invalid_pool,0x99887766,room,owner if attached else 0,base+92,base+96));x.reg_write(UC_X86_REG_ESP,stack);x.emu_start(entry,stop,count=10000)
  assert x.reg_read(UC_X86_REG_EIP)==stop and x.reg_read(UC_X86_REG_EAX)==0xfffffffc
- assert struct.pack('<i',-4)+bytes(x.mem_read(base+92,128))==result
+ assert struct.pack('<i',-4)+bytes(x.mem_read(base+92,124))==result
 assert subprocess.check_output([str(ctx['probe']),'--particle-initialize'],input=commands)==results
 report=dict(result='PASS',cases=cases,created=success,gravity_constant=gravity,original_sha256=ctx['sha'],scope='Original 496840 and callees execute; only CRT thread pointer supplied. Single-node and empty pools, emitter/global ownership, record fields, random orientation and room collision gating. PC/NXDK initialization matches all successful original records and RNG state. Pool integration and rendering excluded.')
 (root/'artifacts/particle-creation-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

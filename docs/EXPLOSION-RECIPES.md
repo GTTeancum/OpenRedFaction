@@ -101,7 +101,7 @@ Particle allocation 496840 has now been executed in 320 recovery fixtures:
 two pool indices, emitter/global ownership, room present/absent, five flag
 patterns, free/empty pools and four RNG seeds. Only the CRT thread pointer
 is supplied; vector copies and random-range callees execute unchanged.
-The full 0x7c-byte candidate record is checked, including untouched bytes.
+The 0x78-byte record and a four-byte adjacent guard are checked.
 This is original-code evidence, not a PC/NXDK particle implementation test.
 
 Each pool descriptor is 0xfc bytes apart. Its free sentinel is 7a3b08 +
@@ -120,7 +120,8 @@ frame count low word 4c, secondary flags low word 4e, pool byte 50,
 orientation 54, flags 58, finish-VBM age 5c, copied parameter 60,
 room 64, emitter pointer 68, previous-position copy 6c.
 Parameter +48, copied to record +60, still needs semantic identification.
-Record bytes 51..53 and 78..7b retain their prior contents in these fixtures.
+Record bytes 51..53 retain their prior contents; bytes 78..7b are an adjacent
+guard, not part of the record (confirmed by initialization stride).
 
 Creation ORs active flag 1 and clears collision flag 0x10 when room is null.
 Random-orientation flag 0x200 consumes exactly one draw and chooses angle
@@ -130,7 +131,7 @@ pointer. Runtime pool integration, release/update logic and rendering remain
 open; do not infer a complete live effects system from this recovery test.
 
 Shared C rf_particle_initialize now implements the record-initialization
-portion of 496840 using a 76-byte spawn packet and 124-byte particle record.
+portion of 496840 using a 76-byte spawn packet and 120-byte particle record.
 The verifier compares every output byte and RNG state against all 160
 successful original allocations on PC and compiled NXDK, with varying
 finite position, velocity and scalar fields. Caller-provided list links and
@@ -140,3 +141,27 @@ Handles are explicitly 32-bit caller-owned identifiers; they are not host
 pointers. No pool allocation/linking or resource resolution occurs inside
 this initializer. The caller must obtain a free node before initializing it;
 recycling, simulation and scene rendering remain open.
+
+Pool initialization 494e70 establishes a 0x78-byte record stride, correcting
+our earlier 0x7c-byte candidate extent. Both compiled record layouts and
+fixture sizes are corrected; the earlier extra word was an adjacent guard.
+Original capacities are 500 (pool 0) and 1100 (pool 1), totaling 192000 bytes
+of records. verify_particle_pools.py executes initialization unchanged and
+checks every node's links, cleared flags/secondary word and preserved data.
+Pool descriptors remain 0xfc bytes; they are not particle records.
+
+Emitter cleanup 497230 detaches its particles to global sentinel 7bd670,
+clears each emitter pointer, preserves source order and appends after existing
+particles. Fifteen unchanged-original fixtures cover 0/1/2/8/31 source
+particles and 0/1/3 existing destination particles. No particle flags, ages,
+other payload or pool counts change. Emitter release must not recycle these
+live records immediately.
+
+Update 495120 copies current to previous position, then (for the verified
+unowned path) advances age and radius before checking death. Age >= life or
+radius <= zero clears flags, unlinks the particle, appends it to its pool's
+free-list tail and decrements that pool's count. Thirty-six original fixtures
+verify both death reasons at equality, both pools and different source/free
+list lengths. Owner gating and non-expired simulation remain separate work.
+Shared pool integration remains open; these original tests establish its
+capacity, ordering and ownership contract before implementation.
