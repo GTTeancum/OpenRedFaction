@@ -22,6 +22,8 @@ including transforms, inherited velocity, packet, particle, RNG and timer.
 Connect resolved campaign parent views, scheduling, simulation and rendering.
 Combined emitter update matches 2048 full original/PC/NXDK cases, including
 393 phase changes, 489 emission attempts and post-emission parent-room refresh.
+Emitter-linked unowned simulation matches 2048 original/PC/NXDK cases, including
+1083 expirations and 455 bounds expansions; owned/world interactions remain open.
 
 Real boom01 frames 0/7/15 pass six PC/XEMU draws: 1536 samples differ by at
 most one RGB unit, and guest pages return to baseline after image release.

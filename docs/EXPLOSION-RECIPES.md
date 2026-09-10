@@ -436,3 +436,28 @@ missing parents and exhausted pools. PC and NXDK builds and all six CTest
 checks pass. This is still a callable shared update, not a campaign frame
 integration; emitter creation, stable campaign parent views, existing-particle
 simulation and rendering remain to be joined. NXDK comparisons use Unicorn.
+
+
+## Emitter-linked unowned particle simulation
+
+`rf_particle_pool_step_unowned` extends the verified free-flight path to retain
+an emitter association. Original 0x495120 calls 0x4973e0, which checks whether
+the emitter's owner handle at +4 is nonnegative. If so, surviving particles
+expand the emitter's +0xa0 value using squared distance from center +0xa4.
+This runs after movement but before acceleration/gravity. Vector subtraction
+rounds components to float, then the squared sum uses the original X/Y/Z
+order and is compared before the final float store. Expired particles do not
+expand bounds. Negative-owner emitters leave bounds unchanged.
+
+The caller supplies a 20-byte matching emitter bounds view. The existing
+step_free API remains a wrapper that rejects emitter-linked particles without
+that view. No allocation occurs. Nonnegative particle ownership and collision,
+swirl, wind or damage remain explicitly unsupported; those paths cannot be
+silently advanced as free-flight particles.
+
+`tools/verify_particle_unowned_step.py` executes full original 0x495120 and its
+real emitter predicate/vector helpers for 2048 cases. PC/NXDK particle records,
+counts and bounds agree exactly, including 1083 expirations and 455 bounds
+expansions. The 2048 detached cases and nine rejection guards still pass, as
+do all six CTest checks. Both builds pass. NXDK verification uses Unicorn;
+this is not a campaign simulation or visual validation.

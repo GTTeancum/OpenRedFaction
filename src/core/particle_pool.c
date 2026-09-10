@@ -188,13 +188,21 @@ int rf_particle_pool_recycle(rf_particle_pool *pool,uint32_t index)
     pool->live[p->pool]--;return RF_OK;
 }
 
-int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt)
+int rf_particle_pool_step_unowned(rf_particle_pool *pool,uint32_t index,float dt,
+    rf_particle_emitter_bounds *bounds)
 {
-    rf_particle value;unsigned i;double radius,length,inverse;float speed;volatile float ratio;
+    rf_particle value;unsigned i;double radius,length,inverse;float speed,bound=0;volatile float ratio;
+    int track;
     if(!pool_valid(pool) || index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
     value=pool->particles[index];
     if(!(value.flags&1u) || value.pool>1 || !pool->live[value.pool])return RF_RANGE;
-    if((int32_t)value.owner>=0 || value.emitter || (value.flags&0xff000010u) || (value.secondary&1u))return RF_NOT_FOUND;
+    if((int32_t)value.owner>=0 || (value.emitter && !bounds) || (value.flags&0xff000010u) || (value.secondary&1u))return RF_NOT_FOUND;
+    track=value.emitter && bounds && bounds->owner>=0;
+    if(track) {
+        bound=bounds->maximum_distance_squared;
+        if(!isfinite(bound))return RF_RANGE;
+        for(i=0;i<3;i++)if(!isfinite(bounds->center[i]))return RF_RANGE;
+    }
     if(!isfinite(dt) || dt<0 || !isfinite(value.age) || value.age<0 ||
        !isfinite(value.life) || value.life<=0 || !isfinite(value.radius) ||
        !isfinite(value.growth) || !isfinite(value.acceleration) || !isfinite(value.gravity))return RF_RANGE;
@@ -209,6 +217,13 @@ int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt)
     }
     value.flags&=~0x8000u;
     for(i=0;i<3;i++)value.position[i]+=(float)((double)value.velocity[i]*dt);
+    if(track) {
+        float delta[3];double distance;
+        for(i=0;i<3;i++)delta[i]=bounds->center[i]-value.position[i];
+        distance=((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2];
+        if(distance>bound)bound=(float)distance;
+        if(!isfinite(bound))return RF_RANGE;
+    }
     if(value.flags&0x40u) {
         double x=value.velocity[0],y=value.velocity[1],z=value.velocity[2];
         length=sqrt((x*x+y*y)+z*z);
@@ -231,5 +246,10 @@ int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt)
         value.color_current=color;
     }
     for(i=0;i<3;i++)if(!isfinite(value.position[i]) || !isfinite(value.velocity[i]))return RF_RANGE;
-    pool->particles[index]=value;return RF_OK;
+    pool->particles[index]=value;if(track)bounds->maximum_distance_squared=bound;return RF_OK;
+}
+
+int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt)
+{
+    return rf_particle_pool_step_unowned(pool,index,dt,NULL);
 }

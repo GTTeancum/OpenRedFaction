@@ -87,4 +87,15 @@ int rf_particle_pool_recycle(rf_particle_pool *pool,uint32_t index);
  * nonnegative age/dt and positive life required. These restrictions are explicit
  * pending world/owner integration, not silent substitutes for those behaviors. */
 int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt);
+typedef struct rf_particle_emitter_bounds {
+    int32_t owner;float center[3],maximum_distance_squared;
+} rf_particle_emitter_bounds;
+/* 495120 unowned particle path, allowing an emitter list. For nonzero emitter
+ * handles the caller supplies its matching bounds view (+4/+a4/+a0). A
+ * nonnegative emitter owner accumulates squared distance after movement;
+ * a negative owner leaves bounds unchanged. Collision/swirl/wind/damage and
+ * nonnegative particle owners remain unsupported. Other step_free contracts
+ * apply. Errors preserve bounds; expiry does not expand bounds. */
+int rf_particle_pool_step_unowned(rf_particle_pool *pool,uint32_t index,float dt,
+    rf_particle_emitter_bounds *bounds);
 #endif
