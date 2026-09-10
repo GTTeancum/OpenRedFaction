@@ -3731,3 +3731,34 @@ Report: artifacts/vclip-defaults-verification.json. This establishes fixed-field
 initialization evidence only: actual token parsing, strings/allocations, resource
 resolution, particle definitions and shared loader equivalence remain open.
 No runtime source behavior or new visual changes at this checkpoint.
+
+
+Embedded particle flag strings (2026-09-10)
+-----------------------------------------
+
+Original particle definition reader 497590 writes position/direction, velocity,
+spawn timing/radius, emitter flags, alternating timings, particle lifetime/size,
+acceleration/gravity, bitmap resource, colors and particle masks. Its vclip
+embedding begins at vclip +38. The recovered flag-string portions are now
+implemented by rf_particle_flags_read, returning emitter/particle/secondary
+masks without resource loading or allocation. The original searches are
+case-insensitive substrings, not independent flag tokens: collide_and_die also
+sets collide. An initial case-sensitive implementation was rejected by original
+execution on uppercase IMMEDIATE and corrected before commit.
+
+Emitter string masks are immediate=2, continuous=4, dirdepend=8,
+dont_move_with_parent=40h and accel_with_parent=80h. Boolean initially_on and
+alternate_states add separate bits and remain outside this helper. Particle
+strings map the recovered 16 labels into the two masks, including wind's
+f0000000h field. Optional bounciness/stickiness/swirliness/damage_factor nibble
+packing and scalar defaults remain separate loader work.
+
+verify_particle_flags.py executes original spans 4976a4..49771b and
+497946..497afe with the actual 4ff870 string search. Prepared register state
+matches entry conditions (EBX zero for emitter, 16 for particle flags). All
+598 cases match PC and compiled NXDK masks: each name, uppercase, truncation,
+prefix/suffix embedding, complete lists and 512 deterministic combinations.
+The caller supplies string storage; token parsing and other reader fields are
+not claimed. Probe/NXDK builds and five CTests pass. Report is
+artifacts/particle-flags-verification.json. Particle spawning/rendering is not
+implemented by this helper, so no new visual behavior is claimed.

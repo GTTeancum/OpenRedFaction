@@ -1,4 +1,36 @@
 #include "rf/effect.h"
+static int particle_contains(const char *text,const char *needle)
+{
+    for(;*text;++text) {
+        const unsigned char *a=(const unsigned char *)text,*b=(const unsigned char *)needle;
+        while(*a && *b) {
+            unsigned x=*a,y=*b;if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;
+            if(x!=y)break;++a;++b;
+        }
+        if(!*b)return 1;
+    }
+    return 0;
+}
+int rf_particle_flags_read(const char *emitter,const char *particle,rf_particle_text_flags *result)
+{
+    static const struct {const char *text;unsigned bits,secondary;} entries[]={
+        {"glow",2,0},{"clr_change",4,0},{"gravity",8,0},{"collide",16,0},
+        {"collide_liquid",0x400,0},{"collide_and_die",0x800,0},{"wind",0xf0000000u,0},
+        {"accelerate",0x40,0},{"loop",0x100,0},{"explode",0x80,0},{"random_orient",0x200,0},
+        {"vel_stretch",0x4000,0},{"no_z_check",0x2000,0},
+        {"damages",1,1},{"hold_last_frame",4,1},{"fire_damage",8,1}};
+    rf_particle_text_flags value={0};unsigned i;
+    if(!emitter || !particle || !result)return RF_RANGE;
+    if(particle_contains(emitter,"immediate"))value.emitter|=2;
+    if(particle_contains(emitter,"continuous"))value.emitter|=4;
+    if(particle_contains(emitter,"dirdepend"))value.emitter|=8;
+    if(particle_contains(emitter,"dont_move_with_parent"))value.emitter|=0x40;
+    if(particle_contains(emitter,"accel_with_parent"))value.emitter|=0x80;
+    for(i=0;i<sizeof(entries)/sizeof(entries[0]);++i)if(particle_contains(particle,entries[i].text)) {
+        if(entries[i].secondary)value.secondary|=entries[i].bits;else value.particle|=entries[i].bits;
+    }
+    *result=value;return RF_OK;
+}
 int rf_vclip_name_lookup(const char *const names[64],const char *name)
 {
     unsigned i;if(!names || !name || !*name)return -1;

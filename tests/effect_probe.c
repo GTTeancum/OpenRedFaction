@@ -10,6 +10,15 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-flags")) {
+        char strings[2][512];rf_particle_text_flags flags;
+        while(fread(strings,sizeof(strings),1,stdin)==1) {
+            if(!memchr(strings[0],0,512) || !memchr(strings[1],0,512))return 2;
+            if(rf_particle_flags_read(strings[0],strings[1],&flags))return 3;
+            if(fwrite(&flags,sizeof(flags),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vclip-lookup")) {
         char strings[65][128];const char *names[64];
         while(fread(strings,sizeof(strings),1,stdin)==1) {

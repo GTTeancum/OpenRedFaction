@@ -4,6 +4,13 @@
  * the first match. Empty/unknown names return -1. Names are NUL-terminated;
  * null slots represent unused empty names. Caller owns definition storage. */
 int rf_vclip_name_lookup(const char *const names[64],const char *name);
+typedef struct rf_particle_text_flags {
+    unsigned emitter,particle,secondary;
+} rf_particle_text_flags;
+/* Original 497590 flag-string spans: case-insensitive ASCII substring matching.
+ * Boolean and packed numeric fields are applied separately by the loader.
+ * Both strings must be NUL-terminated; NULL arguments preserve output. */
+int rf_particle_flags_read(const char *emitter,const char *particle,rf_particle_text_flags *result);
 #include "rf/timer.h"
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */
