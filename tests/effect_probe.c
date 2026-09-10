@@ -9,6 +9,16 @@
 #include <stdlib.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--particle-world-billboard")) {
+        struct {rf_visibility_camera camera;float position[3],angle,radius;uint32_t width,height;} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_particle_screen_polygon out={0};int32_t status=rf_particle_world_billboard(&in.camera,
+                in.position,in.angle,in.radius,in.width,in.height,&out);
+            fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--visibility-projected")) {
         struct {rf_visibility_camera_parameters camera;uint32_t start,special,flags;float rect[4];
             rf_visibility_room_links rooms[4];uint32_t links[10];rf_visibility_portal portals[5];

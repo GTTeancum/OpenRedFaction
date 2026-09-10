@@ -441,3 +441,31 @@ owner residency, not a complete campaign or physical allocator overhead.
 Particles are not submitted to either renderer yet. No screenshot was captured.
 The smoke tool's --particle-view option requires the corresponding disc flag;
 the test restored temporary flags and regenerated the normal ISO afterward.
+
+### World billboard submission and scene queue boundary
+
+rf_particle_world_billboard composes the original 555ac0 path from world
+position through 518bf0 transform, 5477a0 center projection acceptance, 555230
+quad preparation and 5587c0 clipping/submission. It borrows the resolved camera
+used for portal projection. The center acceptance step precedes corner clipping;
+calling only the existing corner helpers would miss that decision. Perspective
+and flat views, radius/aspect, rotation and projection bias retain their existing
+verified arithmetic. Errors preserve the output and no allocation occurs.
+
+verify_particle_world_billboard.py executes full original 555ac0 with only bitmap
+dimensions and the final 551900 GPU submission intercepted. All 1024 cases match
+PC and NXDK polygon bytes: 458 rejected, 543 quads, 13 triangles, nine five-vertex
+polygons and one six-vertex polygon. Cases vary translated/rotated cameras,
+perspective/flat mode, center clamping, clipping and far eligibility. Both builds
+and the six CTest checks pass. This is compiled-code emulation evidence, not
+a new native XEMU framebuffer test.
+
+Draw-queue tracing identifies a separate integration requirement: 4d3ab0 builds
+a room's mixed object queue, then calls 4967a0 for global/detached particles and
+497c20 for emitters. 4d3560 performs sphere rejection and records callbacks in
+a shared 2048-entry queue. Emitters are queued as groups; 497bf0 invokes 494b90
+for each particle in the emitter's linked-list order. Queue sorting/dispatch
+and composition with other transparent scene objects still require recovery
+and verification. Raw decompilation establishes investigation targets, not
+verified queue behavior. Velocity-stretched particles also use a separate path.
+No live particle draw has been added yet and no screenshot was captured.

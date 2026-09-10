@@ -6,6 +6,27 @@ static int valid(const rf_visibility *s)
 {
     return s && (!s->count || (s->rooms && s->order)) && s->visible_count<=s->count;
 }
+int rf_particle_world_billboard(const rf_visibility_camera *camera,const float position[3],
+    float angle,float radius,uint32_t width,uint32_t height,rf_particle_screen_polygon *out)
+{
+    rf_particle_projected_point center={0};rf_particle_billboard_packet packet;
+    const rf_visibility_projection *view;float delta[3];uint32_t i,j;int status;
+    if(!camera || !position || !out || !isfinite(angle) || !isfinite(radius) || radius<0 || !width || !height)return RF_RANGE;
+    view=&camera->projection;
+    for(i=0;i<3;i++) {
+        if(!isfinite(position[i]) || !isfinite(view->origin[i]) || !isfinite(camera->view.scale[i]))return RF_RANGE;
+        delta[i]=position[i]-view->origin[i];
+        for(j=0;j<3;j++)if(!isfinite(view->matrix[i*3+j]))return RF_RANGE;
+    }
+    for(i=0;i<3;i++)center.camera[i]=(float)(((double)view->matrix[i*3]*delta[0]+
+        (double)view->matrix[i*3+1]*delta[1])+(double)view->matrix[i*3+2]*delta[2]);
+    if(!(view->perspective&255u))center.camera[2]=view->flat_depth;
+    status=rf_particle_project(&view->projection,&center);if(status)return status;
+    if(!(center.flags&1u)){*out=(rf_particle_screen_polygon){0};return RF_OK;}
+    status=rf_particle_billboard_prepare(center.camera,angle,radius,width,height,camera->view.scale,&view->clip,&packet);
+    if(status)return status;
+    return rf_particle_billboard_project(&view->projection,&view->clip,&packet,out);
+}
 int rf_visibility_camera_setup(const rf_visibility_camera_parameters *p,rf_visibility_camera *out)
 {
     rf_visibility_camera value;rf_visibility_view_scale scales;uint32_t i,j;int status;

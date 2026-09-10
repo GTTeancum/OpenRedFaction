@@ -83,6 +83,14 @@ typedef struct rf_visibility_camera {
  * state not assigned by 547150. No rendering globals, allocation or graphics
  * calls. Initialize output before use; errors preserve it and unused planes. */
 int rf_visibility_camera_setup(const rf_visibility_camera_parameters *parameters,rf_visibility_camera *camera);
+/* 555ac0 world billboard: 518bf0 transform, center projection acceptance,
+ * 555230 preparation and 5587c0 clipped submission. Uses the same resolved
+ * camera as portal projection. No allocation or render-state mutation.
+ * Finite world position, angle and nonnegative radius; positive bitmap size.
+ * Rejection returns an empty polygon; errors preserve output. Velocity-stretch
+ * particles use a different original path and must not use this helper. */
+int rf_particle_world_billboard(const rf_visibility_camera *camera,const float position[3],
+    float angle,float radius,uint32_t width,uint32_t height,rf_particle_screen_polygon *polygon);
 
 typedef struct rf_visibility_portal_cache {
     float minimum[3],maximum[3];uint32_t valid;

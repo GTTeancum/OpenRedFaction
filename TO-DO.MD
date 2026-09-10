@@ -18,6 +18,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+World billboard transformation, center acceptance and clipped submission match
+the original executable in 1024 PC/NXDK cases. Live draw-queue integration
+remains open, including emitter grouping and blending with scene objects.
+
 Static level particles now tick on PC and stock 64 MiB XEMU: the inspection
 replay creates 28, expires 18 and retains 10, with matching final 64 tick records.
 Particle drawing remains open; no new particle visual is available yet.
