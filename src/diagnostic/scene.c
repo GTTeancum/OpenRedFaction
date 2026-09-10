@@ -444,7 +444,7 @@ static void campaign_spatial_update(campaign_spatial_voice *voice,int initial)
     if(pan)++rf_scene_spatial_audio[3];
     if(device_volume!=voice->last_volume || pan!=voice->last_pan) {
         ++rf_scene_spatial_audio[4];voice->last_volume=device_volume;voice->last_pan=pan;
-        if(campaign_audio_events.gain)campaign_audio_events.gain(campaign_audio_events_context,voice->handle,gains[0],gains[1]);
+        if(!initial && campaign_audio_events.gain)campaign_audio_events.gain(campaign_audio_events_context,voice->handle,gains[0],gains[1]);
     }
 }
 static void campaign_audio_listener(const float position[3],const float right[3])
@@ -498,11 +498,12 @@ static int32_t campaign_sound_play(void *context,int32_t sample,const float posi
         ++rf_scene_live_audio[5];return -1;
     }
     ++rf_scene_live_audio[4];
-    if(campaign_audio_events.play)campaign_audio_events.play(campaign_audio_events_context,handle,pcm);
     {campaign_spatial_voice *voice=campaign_spatial_voices+(handle&0xffff);
      voice->handle=handle;voice->sample=(uint32_t)sample;voice->volume=volume;
      memcpy(voice->position,position,12);voice->last_volume=INT32_MIN;voice->last_pan=INT32_MIN;
-     campaign_spatial_update(voice,1);}
+     float gains[2];campaign_spatial_update(voice,1);
+     if(!rf_audio_device_gains(voice->last_volume,voice->last_pan,gains) && campaign_audio_events.play)
+        campaign_audio_events.play(campaign_audio_events_context,handle,pcm,gains[0],gains[1]);}
     return (int32_t)handle;
 }
 static void campaign_sound_request(rf_group_runtime_entry *entry,campaign_controller_effects *request,uint32_t effects)

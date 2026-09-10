@@ -70,11 +70,12 @@ int rf_pc_audio_open(void)
 fail:
     rf_pc_audio_diagnostic[7]=1;rf_pc_audio_close();return RF_IO;
 }
-static void play(void *context,uint32_t handle,const rf_wave_pcm *pcm)
+static void play(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left,float right)
 {
     uint32_t internal;(void)context;if(!device)return;
+    if(!(left>=0 && left<=1 && right>=0 && right<=1)){++rf_pc_audio_diagnostic[5];return;}
     EnterCriticalSection(&lock);
-    if(rf_audio_voice_start(&mixer,pcm,32768,32768,0,&internal))++rf_pc_audio_diagnostic[5];
+    if(rf_audio_voice_start(&mixer,pcm,(uint32_t)(left*32768),(uint32_t)(right*32768),0,&internal))++rf_pc_audio_diagnostic[5];
     else {handles[internal&0xffff]=handle;++rf_pc_audio_diagnostic[4];}
     LeaveCriticalSection(&lock);
 }

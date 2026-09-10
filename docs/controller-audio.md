@@ -646,3 +646,24 @@ WaveOut calls, not loopback capture or listening fidelity. The full PC build,
 six device-independent CTests and headless180-frame door replay pass. The Xbox
 backend/source path was not changed by this PC-only addition. Real-time underrun
 measurement, complete campaign listening and wider failure-path testing remain.
+
+### Initial gain before device playback
+
+The platform play event now carries left/right amplitudes. The scene computes
+initial spatial settings before dispatch; Xbox sets channel gains before starting
+the APU voice, and PC installs the gains under the same lock as voice creation.
+This removes the previous unity-gain interval between separate play/gain calls.
+Listener refresh behavior and integer spatial telemetry are unchanged.
+
+Both targets build successfully. The PC device check passes two reopen cycles
+and a muted-start case with at least2400 generated frames, no nonzero samples
+and no device error. Stock64MiB APU run apu-20260910-185745 passes the production
+adapter muted-start snapshot and restored-page checks, alongside its existing
+voice lifecycle, overflow, allocation-failure and gain calibration checks. The
+Xbox snapshot observes silence after150ms; it is not a continuous recording of
+the startup interval. Ordering is established by the source change.
+
+Integrated stock64MiB XEMU replay-20260910-190219 passes the180-frame staged
+door traversal with APU output and cleanup checks. Spatial telemetry remains
+[2,214,3428625177,216,209,536], matching PC. This is not authored-spawn traversal,
+physical Xbox validation or a claim of complete campaign audio parity.

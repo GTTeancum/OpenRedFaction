@@ -56,10 +56,11 @@ int rf_xbox_audio_open(void)
     if(!nxAudioInit(&init)){rf_xbox_audio_diagnostic[0]=(uint32_t)RF_IO;return RF_IO;}
     initialized=1;rf_xbox_audio_diagnostic[0]=1;rf_xbox_audio_diagnostic[8]=available();return RF_OK;
 }
-static void play(void *context,uint32_t handle,const rf_wave_pcm *pcm)
+static void play(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left,float right)
 {
     uint32_t i;nxAudioFormat format={0};audio_slot *slot;(void)context;
     if(!initialized)return;
+    if(!(left>=0 && left<=1 && right>=0 && right<=1)){++rf_xbox_audio_diagnostic[3];return;}
     for(i=0;i<VOICES;i++)if(!slots[i].created || nxAudioVoiceGetState(&slots[i].voice)==NX_STOPPED)break;
     if(i==VOICES){++rf_xbox_audio_diagnostic[3];return;}
     slot=slots+i;
@@ -69,7 +70,8 @@ static void play(void *context,uint32_t handle,const rf_wave_pcm *pcm)
     if(!nxAudioVoiceCreate(&slot->voice,&format))goto fail;
     slot->created=1;slot->handle=handle;
     if(!nxAudioBufferInitialize(&slot->buffer,pcm->samples,pcm->bytes) ||
-       !nxAudioBufferSubmit(&slot->voice,&slot->buffer) || !nxAudioVoiceStart(&slot->voice))goto fail;
+       !nxAudioBufferSubmit(&slot->voice,&slot->buffer) ||
+       !nxAudioVoiceSetChannelGain(&slot->voice,left,right,0,0,0,0) || !nxAudioVoiceStart(&slot->voice))goto fail;
     ++rf_xbox_audio_diagnostic[1];return;
 fail:
     ++rf_xbox_audio_diagnostic[3];

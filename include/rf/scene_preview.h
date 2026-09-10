@@ -41,7 +41,7 @@ typedef void (*rf_scene_audio_sink)(void *context,const int16_t *stereo,uint32_t
 void rf_scene_set_audio(rf_scene_audio_sink sink,void *context);
 struct rf_wave_pcm;
 typedef struct rf_scene_audio_events {
-    void (*play)(void *context,uint32_t handle,const struct rf_wave_pcm *pcm);
+    void (*play)(void *context,uint32_t handle,const struct rf_wave_pcm *pcm,float left,float right);
     void (*stop)(void *context,uint32_t handle);
     void (*poll)(void *context);
     void (*reset)(void *context);

@@ -11,7 +11,7 @@ int main(void)
     for(pass=0;pass<2;pass++) {
         rf_wave_pcm sample={(const uint8_t *)pcm,sizeof(pcm),24000,48000,1,16};
         if(rf_pc_audio_open())return 1;
-        rf_pc_audio_events.play(NULL,123,&sample);
+        rf_pc_audio_events.play(NULL,123,&sample,1,1);
         rf_pc_audio_events.gain(NULL,123,.25f,.5f);
         Sleep(200);
         rf_pc_audio_events.stop(NULL,123);rf_pc_audio_events.reset(NULL);
@@ -19,5 +19,11 @@ int main(void)
            rf_pc_audio_diagnostic[4]!=1 || rf_pc_audio_diagnostic[5] || rf_pc_audio_diagnostic[7])return 2;
         printf("PASS open=%u frames=%u nonzero=%u bytes=%u\n",pass,rf_pc_audio_diagnostic[2],rf_pc_audio_diagnostic[3],rf_pc_audio_diagnostic[6]);
     }
+    {rf_wave_pcm sample={(const uint8_t *)pcm,sizeof(pcm),24000,48000,1,16};
+     if(rf_pc_audio_open())return 3;
+     rf_pc_audio_events.play(NULL,999,&sample,0,0);Sleep(100);rf_pc_audio_events.reset(NULL);
+     if(rf_pc_audio_diagnostic[0] || rf_pc_audio_diagnostic[2]<2400 || rf_pc_audio_diagnostic[3] ||
+        rf_pc_audio_diagnostic[4]!=1 || rf_pc_audio_diagnostic[5] || rf_pc_audio_diagnostic[7])return 4;
+     puts("PASS muted start");}
     return 0;
 }

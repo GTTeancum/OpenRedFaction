@@ -63,6 +63,8 @@ try:
                 lifecycle_address=int(re.search(r'_rf_apu_lifecycle\s+([0-9a-fA-F]+)',mapping)[1],16)
                 lifecycle=words(monitor,lifecycle_address,6);report['lifecycle']=lifecycle
                 assert 2400<=lifecycle[0]<=3200 and lifecycle[1:]==[8,8,1,state[3],0],lifecycle
+                muted_address=int(re.search(r'_rf_apu_muted_start\s+([0-9a-fA-F]+)',mapping)[1],16)
+                report['muted_start']=words(monitor,muted_address,1)[0];assert report['muted_start']==1
                 gain_address=int(re.search(r'_rf_apu_gain_sums\s+([0-9a-fA-F]+)',mapping)[1],16)
                 sums=words(monitor,gain_address,10);report['gain_sums']=sums
                 assert sums[0]>0 and sums[1]>0,sums

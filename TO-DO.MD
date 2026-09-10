@@ -23,6 +23,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Initial audio gains now precede playback on PC/Xbox; muted-start checks and
+stock64MiB integrated door replay pass with unchanged spatial telemetry.
+
 PC campaign audio now uses shared voices on a bounded device-clock backend;
 two refill/stop/reopen checks pass with9220 fixed bytes plus host overhead.
 
