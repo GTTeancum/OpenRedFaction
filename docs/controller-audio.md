@@ -707,3 +707,26 @@ whose direct caller is460f9e. Connecting those startup/level paths and checking
 registry resets remains necessary before claiming precedence during level loads.
 Do not preload all table PCM just to retain defaults: metadata precedence and
 resident sample ownership must remain separate under the64MiB budget.
+
+### Registered metadata versus resident sample release
+
+Original543930 releases a sample only when audio is enabled, the index is not-1,
+record byte+63 is zero and device handle+48 is nonnegative. Backend1 calls522270
+with that handle; then the routine stores handle-1 and clears byte+61. It leaves
+the name, spatial parameters, category and registration count intact. Bulk543980
+invokes this for all2600 slots when audio is enabled. Full reset543450 instead
+invokes543730 (release plus name clearing) and zeros the registration count; its
+identified direct caller543410 is the audio backend shutdown routine.
+
+`python tools/verify_audio_release.py` passes48 branch combinations against the
+unchanged original543930, intercepting only final device release522270. It checks
+all64 record bytes and count. A bulk543980 case additionally checks every byte of
+all2600 slots, including a live last slot beyond count88 and a retained slot88;
+only eligible handles are released and the registry count stays88. Actual device
+free, level-transition call scheduling and a C/NXDK ownership implementation are
+not covered. This supports separating metadata lifetime from PCM residency; it
+does not yet prove that metadata survives every campaign transition.
+
+The level reader460820 handles section0x3000 via463820, which constructs
+controllers through469250. Startup-to-level scheduling and bulk-release callers
+remain the next trace boundary before changing campaign registration behavior.
