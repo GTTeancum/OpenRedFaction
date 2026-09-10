@@ -19,6 +19,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Controller player-alert gating matches 2048 original/PC/NXDK cases; AI stimulus
+execution, live snapshots and combined activation remain open.
+
 Registered mover-bound collection matches 1024 original/PC/NXDK cases; live
 mover ownership, pose updates, player effects and activation integration remain open.
 

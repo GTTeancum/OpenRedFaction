@@ -97,6 +97,22 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--controller-alert")) {
+        struct {uint32_t actor,local,gate1,gate2;int32_t nodes[3][6];} input;
+        uint32_t output[2],i;static rf_entity_registry registry;rf_entity_view nodes[3];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&registry,0,sizeof(registry));memset(nodes,0,sizeof(nodes));
+            for(i=0;i<3;i++) {
+                nodes[i].handle=input.nodes[i][0];nodes[i].type=input.nodes[i][1];nodes[i].class_type=input.nodes[i][2];
+                nodes[i].flags_7c=(uint32_t)input.nodes[i][3];nodes[i].flags_810=(uint32_t)input.nodes[i][4];nodes[i].linked_handle=input.nodes[i][5];registry.slots[i]=nodes+i;
+            }
+            output[1]=0xa5a5a5a5;
+            output[0]=(uint32_t)rf_entity_controller_alert(&registry,(int32_t)input.actor,input.local<3?nodes+input.local:NULL,input.gate1,input.gate2,output+1);
+            fwrite(output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--runtime-trigger-fire")) {
         static rf_object_registry registry;rf_runtime_triggers owner={0};rf_runtime_trigger trigger={0};
         rf_runtime_event events[2]={{0}};rf_level_owned_trigger authored={0};rf_level_owned_event records[2]={{0}};

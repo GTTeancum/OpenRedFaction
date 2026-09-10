@@ -140,3 +140,18 @@ int rf_entity_room_refresh(rf_entity_room_state *state,const float position[3],
     state->flags&=~0x04000000u;
     return RF_OK;
 }
+
+int rf_entity_controller_alert(const rf_entity_registry *registry,int32_t actor,
+    const rf_entity_view *local,uint32_t gate_7cabd4,uint32_t gate_7cabb0,uint32_t *request)
+{
+    const rf_entity_view *object,*linked;uint32_t restricted=0;
+    if(!registry || !request)return RF_RANGE;
+    object=rf_object_lookup(registry,actor);
+    if(!object || !(object->flags_7c&8)) {*request=0;return RF_OK;}
+    if(local) {
+        linked=rf_entity_lookup(registry,local->linked_handle);
+        restricted=!(linked && linked->class_type==4) && (local->flags_810&0x800);
+    }
+    *request=!restricted || !(gate_7cabd4&255) || (gate_7cabb0&255)==1;
+    return RF_OK;
+}

@@ -2614,3 +2614,29 @@ zero helpers; the sole stop hook marks the end before candidate scanning.
 wrong-type slots. PC uses actual registry insertion; NXDK emulation prepares
 matching slots. The original lookup includes generation checks. Both builds
 and six CTests pass. This is binary-level evidence, not an XEMU scene replay.
+
+
+## Player-origin controller alert gate
+
+The player-specific call after activation sounds is 408280, an AI stimulus
+routine, not a camera effect. Its decompiled body iterates entities and updates
+AI targets/actions subject to distance and a shared throttle. Full behavior
+is not reconstructed here. The controller requests it with actor handle,
+controller position, radius10 and zero mode arguments.
+
+rf_entity_controller_alert reconstructs the 46acb8..46ad06 decision using the
+existing compact entity views. Actor object flag8 must be set. The local entity
+(global5cb054) suppresses the request only when it has flag810 bit800, is not
+linked to a class4 entity, byte7cabd4 is nonzero and byte7cabb0 is not exactly1.
+A missing local entity removes this restriction. The actor and local entity
+are deliberately separate inputs; global gates are read as low bytes.
+The output is only an AI request and does not execute 408280 or change views.
+
+verify_controller_alert.py executes the original block and all real lookup,
+player flag, linked-entity/class and global-byte helpers, intercepting only
+408280. It checks all downstream call arguments. 2048 cases match PC and NXDK,
+with 568 requests, including stale handles, nonentity actor objects, different
+local entities, linked turret states and nonboolean byte values. Both builds
+and six CTests pass. This is binary emulation, not XEMU AI gameplay. AI stimulus
+execution/throttling, live snapshots and combined controller activation remain
+open; no new camera or visual effect is claimed.

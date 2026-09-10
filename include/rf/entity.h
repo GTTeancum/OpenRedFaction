@@ -44,6 +44,13 @@ typedef struct rf_entity_registry {
 /* 0x40a0e0 / 0x426fc0: low 16 bits index, full handle comparison, then type 0. */
 const rf_entity_view *rf_object_lookup(const rf_entity_registry *registry, int32_t handle);
 const rf_entity_view *rf_entity_lookup(const rf_entity_registry *registry, int32_t handle);
+/* Controller activation 46acb8..46ad06 requests AI stimulus 408280 for a
+ * player actor, subject to local linked-turret/flag810 and global byte gates.
+ * Caller supplies the actual local entity (5cb054), not necessarily actor.
+ * Output is a request only: radius10 at controller position, source actor.
+ * No AI dispatch, allocation or mutation. Global inputs use their low bytes. */
+int rf_entity_controller_alert(const rf_entity_registry *registry,int32_t actor,
+    const rf_entity_view *local,uint32_t gate_7cabd4,uint32_t gate_7cabb0,uint32_t *request);
 /* 0x408dc0: local weapon or recursive first occupied seat of a zero-speed
  * owner. Input views must remain stable during the call. Cycles return
  * RF_FORMAT rather than reproducing unbounded original recursion. */
