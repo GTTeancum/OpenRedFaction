@@ -86,6 +86,16 @@ static void stop(void *context,uint32_t handle)
         rf_audio_voice_stop(&mixer,mixer.voices[i].handle);
     LeaveCriticalSection(&lock);
 }
+int rf_pc_audio_release_voice(unsigned int handle)
+{
+    unsigned i;int status=RF_NOT_FOUND;
+    if(!device)return status;
+    EnterCriticalSection(&lock);
+    for(i=0;i<RF_AUDIO_VOICES;i++)if(handles[i]==handle && mixer.voices[i].handle) {
+        memset(mixer.voices+i,0,sizeof(mixer.voices[i]));handles[i]=0;status=RF_OK;
+    }
+    LeaveCriticalSection(&lock);return status;
+}
 static void gain(void *context,uint32_t handle,float left,float right)
 {
     unsigned i;(void)context;if(!device)return;

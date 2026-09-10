@@ -25,5 +25,20 @@ int main(void)
      if(rf_pc_audio_diagnostic[0] || rf_pc_audio_diagnostic[2]<2400 || rf_pc_audio_diagnostic[3] ||
         rf_pc_audio_diagnostic[4]!=1 || rf_pc_audio_diagnostic[5] || rf_pc_audio_diagnostic[7])return 4;
      puts("PASS muted start");}
+    {uint8_t *borrowed=VirtualAlloc(NULL,48000,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);DWORD old;
+     rf_wave_pcm a={borrowed,48000,24000,48000,1,16};
+     rf_wave_pcm b={(const uint8_t *)pcm,sizeof(pcm),24000,48000,1,16};
+     if(!borrowed || rf_pc_audio_open())return 5;
+     /* Zero-filled releasable sample; only the other voice can generate nonzero output. */
+     rf_pc_audio_events.play(NULL,1001,&a,1,1);rf_pc_audio_events.play(NULL,1002,&b,0,0);Sleep(50);
+     if(rf_pc_audio_release_voice(1001) || rf_pc_audio_release_voice(1001)!=RF_NOT_FOUND ||
+        rf_pc_audio_release_voice(0xdeadbeef)!=RF_NOT_FOUND)return 6;
+     if(!VirtualProtect(borrowed,48000,PAGE_NOACCESS,&old))return 7;
+     rf_pc_audio_events.gain(NULL,1002,1,1);Sleep(100);
+     if(rf_pc_audio_release_voice(1002))return 8;
+     rf_pc_audio_close();VirtualFree(borrowed,0,MEM_RELEASE);
+     if(rf_pc_audio_diagnostic[0] || rf_pc_audio_diagnostic[2]<4800 || !rf_pc_audio_diagnostic[3] ||
+        rf_pc_audio_diagnostic[4]!=2 || rf_pc_audio_diagnostic[5] || rf_pc_audio_diagnostic[7])return 9;
+     puts("PASS selective release with protected source pages");}
     return 0;
 }

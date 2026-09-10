@@ -24,6 +24,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+PC selective voice release passes protected-source-page testing with independent
+playback continuing; shared campaign residency policy still needs integration.
+
 Xbox selective release and injected stopped-observation failure/retry pass three
 native cycles; actual hardware-stall coverage and campaign residency remain open.
 

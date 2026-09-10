@@ -841,3 +841,24 @@ This exercises the release error branch and recovery, not an actual one-second
 hardware stall, PIO starvation, or the separate backend-shutdown fallback.
 Native report release_failure_retries is3; existing selective release, reload,
 PCM hash, gain and backend lifecycle checks also pass.
+
+### PC selective borrower release
+
+The PC adapter now exposes rf_pc_audio_release_voice(handle), matching the
+Xbox operation's ownership purpose. It clears matching voice records and handle
+mappings under the same critical section used by the refill worker. Completed
+voice records can also be released; absent/stale handles return RF_NOT_FOUND.
+Other voices continue. Already queued WaveOut buffers own their copied PCM and
+may play after release, but they no longer depend on the original source pages.
+Calls remain serialized with play/close; every borrower must release before
+shared bank PCM is unloaded. No fixed backend storage was added.
+
+The PC build and device check pass. The new fixture plays a zero-filled allocated
+sample beside an initially muted independent sample, releases the first handle,
+checks repeated/stale handles and makes its source pages PAGE_NOACCESS. It then
+unmutes the other voice, runs the worker for100ms, releases/closes, and verifies
+nonzero output with two successful plays and no device errors. Protected pages
+remain inaccessible until after worker shutdown. This provides exercised-path
+use-after-release evidence, not exhaustive race analysis or loopback capture.
+Existing reopen and muted-start cases also pass. Campaign eviction remains
+unconnected; this addition changes only the PC adapter and its device check.
