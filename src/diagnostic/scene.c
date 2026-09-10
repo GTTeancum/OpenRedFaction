@@ -5,6 +5,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+static rf_scene_input_poll player_poll;
+static void *player_context;
+static uint32_t player_frame_limit;
+static rf_scene_input player_input;
+uint32_t rf_scene_player_input_frames[64][7];
+void rf_scene_set_input(rf_scene_input_poll poll,void *context,uint32_t frame_limit)
+{player_poll=poll;player_context=context;player_frame_limit=frame_limit;}
+static int player_begin_frame(void *context,uint32_t frame)
+{
+    rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
+    if(!frame)memset(rf_scene_player_input_frames,0,sizeof(rf_scene_player_input_frames));
+    status=player_poll(player_context,frame,&value);if(status)return status;
+    for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
+    for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
+    if(value.crouch>1)return RF_FORMAT;
+    player_input=value;r[0]=frame;memcpy(r+1,&value,sizeof(value));return RF_OK;
+}
 uint32_t rf_scene_showcase_enabled;
 int rf_scene_showcase_camera(rf_level *level)
 {
@@ -240,6 +257,7 @@ uint32_t rf_scene_actor_contacts[64][25]; /* frame, pass, mode, 15 input + 7 res
 void rf_scene_actor_drive(int profile) {rf_scene_actor_drive_enabled=(uint32_t)profile;}
 static void actor_command(uint32_t frame,float command[3])
 {
+    if(player_poll){memcpy(command,player_input.move,12);return;}
     memset(command,0,12);
     if(rf_scene_actor_drive_enabled==1 && frame>=24 && frame<48)command[0]=.25f;
     if(rf_scene_actor_drive_enabled==2 && frame>=24 && frame<63)command[0]=-1.0f;
@@ -638,8 +656,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
             uint32_t *look=rf_scene_actor_look_frames[frame%64];
             if(!frame){memset(&actor_look,0,sizeof(actor_look));memset(rf_scene_actor_look_frames,0,sizeof(rf_scene_actor_look_frames));}
             /* Process-local fixture starts upright at yaw zero. */
-            actor_look.state.command[0]=frame?((frame%180)<90?.25f:-.25f):0;
-            actor_look.state.command[1]=rf_scene_actor_turn_enabled && frame?((frame%240)<120?.2f:-.2f):0;
+            actor_look.state.command[0]=player_poll?player_input.look[0]:frame?((frame%180)<90?.25f:-.25f):0;
+            actor_look.state.command[1]=player_poll?player_input.look[1]:rf_scene_actor_turn_enabled && frame?((frame%240)<120?.2f:-.2f):0;
             status=rf_look_update_pose(&actor_look.state,1.0f,scene_step_seconds,&actor_look);if(status)return status;
             if(rf_scene_actor_turn_enabled) {
                 float tensor[9];
@@ -730,7 +748,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     if(stream->collision) {
         uint32_t hash=2166136261u;
         int status,blocked=rf_scene_actor_stance_blocked;
-        if(frame==47) {status=actor_clearance_check(stream->collision);if(status)return status;}
+        if(frame==47 && !player_poll) {status=actor_clearance_check(stream->collision);if(status)return status;}
         memcpy(rf_scene_actor_movement_frames[frame%64],&rf_scene_actor_movement_settings,12);
         rf_scene_actor_stance_frames[frame%64][0]=rf_scene_actor_stance_request;
         rf_scene_actor_stance_frames[frame%64][1]=rf_scene_actor_stance_flags;
@@ -872,7 +890,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             placement.stance_cache=&rf_scene_actor_stance_cache;placement.stance_flags=&rf_scene_actor_stance_flags;
             placement.stance_effect=actor_selector_effect;placement.stance_context=&stream;
             placement.movement_select=actor_movement_select;placement.step_seconds=scene_step_seconds;
-            rf_scene_actor_frame_count=rf_scene_actor_live_enabled?664:64;
+            rf_scene_actor_frame_count=player_poll?(player_frame_limit?player_frame_limit:UINT32_MAX):(rf_scene_actor_live_enabled?664:64);
+            if(player_poll){placement.begin_frame=player_begin_frame;placement.crouch_request=&player_input.crouch;}
             placement.frame_count=rf_scene_actor_frame_count;placement.animation_timing_wrap=rf_scene_actor_live_enabled;
 
             memset(rf_scene_actor_locomotion_frames,0,sizeof(rf_scene_actor_locomotion_frames));

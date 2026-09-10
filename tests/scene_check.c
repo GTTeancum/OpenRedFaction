@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+extern uint32_t rf_scene_player_input_frames[64][7];
 extern uint32_t rf_scene_actor_room_frames[64][9],rf_scene_actor_room_summary[8];
 extern uint32_t rf_scene_actor_physics_diagnostic[8];
 extern uint32_t rf_scene_actor_live_enabled,rf_scene_actor_frame_count,rf_scene_actor_live_summary[8],rf_scene_actor_ring_frames[64];
@@ -116,6 +117,15 @@ static int animation_span_frame(void *context,uint32_t frame,rf_preview_mesh *me
     if(frame==63)c->prefix=c->hash;
     return RF_OK;
 }
+static int replay_player(void *context,uint32_t frame,rf_scene_input *input)
+{
+    memset(input,0,sizeof(*input));if(context==(void*)2 && frame==3)return RF_NOT_FOUND;if(context)return RF_OK;
+    if(frame>=24 && frame<48)input->move[0]=.25f;
+    if(frame>=63)input->move[0]=1;
+    input->look[0]=frame?((frame%180)<90?.25f:-.25f):0;
+    input->look[1]=frame?((frame%240)<120?.2f:-.2f):0;
+    input->crouch=frame>=32 && frame<56;return RF_OK;
+}
 int main(int argc,char **argv)
 {
     if((argc==5 || argc==6) && !strcmp(argv[1],"--pose-world")) {
@@ -187,11 +197,13 @@ int main(int argc,char **argv)
     }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
-    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse") || !strcmp(argv[12],"--live") || !strcmp(argv[12],"--follow") || !strcmp(argv[12],"--eye") || !strcmp(argv[12],"--look") || !strcmp(argv[12],"--turn")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
+    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse") || !strcmp(argv[12],"--live") || !strcmp(argv[12],"--follow") || !strcmp(argv[12],"--eye") || !strcmp(argv[12],"--look") || !strcmp(argv[12],"--turn") || !strcmp(argv[12],"--input") || !strcmp(argv[12],"--neutral") || !strcmp(argv[12],"--input-stop")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
     if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && strcmp(argv[12],"--long-animation") && !body_mode)))return 2;
     c.authored=argc==13;
     c.body_mode=body_mode;
-    rf_scene_actor_turn_enabled=argc==13 && !strcmp(argv[12],"--turn");
+    rf_scene_actor_turn_enabled=argc==13 && (!strcmp(argv[12],"--turn") || !strcmp(argv[12],"--input") || !strcmp(argv[12],"--neutral") || !strcmp(argv[12],"--input-stop"));
+    if(argc==13 && (!strcmp(argv[12],"--input") || !strcmp(argv[12],"--neutral") || !strcmp(argv[12],"--input-stop")))
+        rf_scene_set_input(replay_player,!strcmp(argv[12],"--input-stop")?(void*)2:!strcmp(argv[12],"--neutral")?(void*)1:NULL,!strcmp(argv[12],"--input-stop")?0:664);
     rf_scene_actor_look_enabled=rf_scene_actor_turn_enabled || (argc==13 && !strcmp(argv[12],"--look"));
     rf_scene_actor_eye_enabled=rf_scene_actor_look_enabled || (argc==13 && !strcmp(argv[12],"--eye"));
     follow_camera=rf_scene_actor_eye_enabled || (argc==13 && !strcmp(argv[12],"--follow"));
@@ -248,6 +260,10 @@ int main(int argc,char **argv)
                !(rf_scene_actor_initial_eye_offsets[4]>0))return 3;
             printf("ACTOR_EYE_OFFSETS");for(i=0;i<6;++i) {uint32_t word;memcpy(&word,rf_scene_actor_initial_eye_offsets+i,4);printf(" %u",word);}puts("");
         }
+        if(mode==0 && argc==13 && !strcmp(argv[12],"--input-stop")) {
+            if(status || c.next!=3 || !mesh.vertices || !materials.items)return 3;
+            rf_preview_close(&mesh);rf_materials_close(&materials);puts("PASS: input provider clean stop after three frames in unbounded stream");break;
+        }
         if(mode==0 && rf_scene_actor_live_enabled) {
             if(status || c.next!=664 || !c.changed || rf_scene_actor_tick_stats[1]!=663 || rf_scene_actor_tick_stats[4] ||
                (!rf_scene_actor_turn_enabled && (!rf_scene_actor_landing[7] || rf_scene_actor_landing[1]!=1)) || !rf_scene_actor_landing[3] || rf_scene_actor_landing[3]!=rf_scene_actor_landing[7]+(rf_scene_actor_landing[1]==1?1u:0u))return 3;
@@ -261,6 +277,7 @@ int main(int argc,char **argv)
                 if(r[0]!=rf_scene_actor_ring_frames[i] || (r[2]&0x04000000u))return 3;
                 if(r[7] && r[6]!=UINT32_MAX && memcmp(r+3,rf_scene_actor_render_frames[i]+2,12))return 3;
             }
+            printf("ACTOR_PLAYER_INPUT");for(i=0;i<448;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");
             if(rf_scene_actor_look_enabled){printf("ACTOR_LOOK_FRAMES");for(i=0;i<64*33;++i)printf(" %u",((uint32_t*)rf_scene_actor_look_frames)[i]);puts("");}
             if(rf_scene_actor_eye_enabled) {printf("ACTOR_EYE_FRAMES");for(i=0;i<64*46;++i)printf(" %u",((uint32_t*)rf_scene_actor_eye_frames)[i]);puts("");}
             printf("ACTOR_ROOMS");for(i=0;i<576;++i)printf(" %u",((uint32_t*)rf_scene_actor_room_frames)[i]);puts("");
@@ -414,7 +431,8 @@ int main(int argc,char **argv)
     rf_geometry_collision_world_close(&body_world);
     rf_model_materials_close(&c.bundle);rf_preview_close(&c.world);rf_geometry_close(&geometry);
     for(i=0;i<5;++i)rf_vpp_close(maps+i);rf_vpp_close(&meshes);rf_vpp_close(&levels);
-    puts(rf_scene_actor_live_enabled?"PASS: 664 continuous animated body frames, support loss/recovery, fixed scene allocations":c.authored?"PASS: 64 authored-state scene frames, fixed world and allocations, sink cancellation, capacity guard":
+    if(argc==13 && !strcmp(argv[12],"--input-stop"))return 0;
+    puts(rf_scene_actor_live_enabled?"PASS: 664 continuous animated body frames, support bookkeeping, fixed scene allocations":c.authored?"PASS: 64 authored-state scene frames, fixed world and allocations, sink cancellation, capacity guard":
         "PASS: 64 scene frames, fixed world and allocations, four independent pose snapshots, sink cancellation, capacity guard");
     return 0;
 }

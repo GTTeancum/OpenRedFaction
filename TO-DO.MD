@@ -3,8 +3,15 @@
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
+- [ ] Add live PC input/presentation and real-time pacing for the interactive runtime.
+- [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Xbox controller polling now drives movement, look and crouch through a shared
+provider; user confirmed movement, and XEMU memory records real stick input.
+The bounded neutral test correctly failed its neutral expectation after user
+interaction. PC replay, clean-stop and compiled adapter checks pass. See docs/INPUT.md.
 
 Yaw now commits body orientation and world inertia; movement, collision sweeps
 and eye view use the turned body. All 664 complete original look/eye/camera

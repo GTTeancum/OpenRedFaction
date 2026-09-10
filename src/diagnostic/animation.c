@@ -243,13 +243,17 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     for (i=3;i<=6;++i) out[i]=2166136261u;
     for (frame=0;frame<frame_count;++frame) {
         float frame_seconds=frame && placement && placement->step_seconds>0?placement->step_seconds:1.0f/30.0f;
+        if(placement && placement->begin_frame) {
+            status=placement->begin_frame(placement->frame_context,frame);
+            if(status==RF_NOT_FOUND){status=RF_OK;goto done;}if(status)goto done;
+        }
         if(sink)preview->count=0;
         if(authored) {
             static const int32_t sequence[4]={0,2,8,0};
             int handled=0;
             if(placement && placement->stance_effect && placement->stance_flags) {
                 rf_motion_stance_decision decision;
-                status=rf_motion_select_stance(&controller,motions,8,frame>=32 && frame<56,*placement->stance_flags,&decision);if(status)goto done;
+                status=rf_motion_select_stance(&controller,motions,8,placement->crouch_request?*placement->crouch_request:(frame>=32 && frame<56),*placement->stance_flags,&decision);if(status)goto done;
                 status=placement->stance_effect(placement->stance_context,frame,&decision,&controller);if(status)goto done;
                 handled=decision.handled;
             }
