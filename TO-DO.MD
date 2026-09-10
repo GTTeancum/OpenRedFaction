@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Complete moving-platform carry/response and verify traversal through live doors.
+- [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
 - [ ] Complete controller sound/alert/wakeup effects, rotation and remaining key-target actions.
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Complete particle rendering for animated textures, stretched sprites and mixed room/object passes.
@@ -19,6 +19,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Corrected the staged approach axis; traversal and occupied closing reversal
+now pass on PC/stock64MiB XEMU; authored-spawn route and effects remain open.
 
 Live lower-door opening and occupied hold now pass on PC/stock64MiB XEMU;
 traversal, live reversal coverage, sound and broader controller effects remain open.

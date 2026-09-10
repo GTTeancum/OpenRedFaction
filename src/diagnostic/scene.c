@@ -21,10 +21,10 @@ int rf_scene_stage_door(rf_level *level)
         if(movers.items[i].uid==8543)b=movers.items+i;
     }
     if(!a || !b){rf_geometry_movers_close(&movers);return RF_NOT_FOUND;}
-    for(i=0;i<3;i++) {
-        position[i]=(a->position[i]+b->position[i])*.5f+a->orientation[2][i]*3;
-        matrix[2][i]=-a->orientation[2][i];
-    }
+    /* The local forward axis is the authored sliding direction, not the
+     * doorway normal. Rotate it about world up to approach from the hall. */
+    matrix[2][0]=a->orientation[2][2];matrix[2][2]=-a->orientation[2][0];
+    for(i=0;i<3;i++)position[i]=(a->position[i]+b->position[i])*.5f-matrix[2][i]*3;
     position[1]+=.625f;matrix[1][1]=1;matrix[0][0]=matrix[2][2];matrix[0][2]=-matrix[2][0];
     memcpy(level->player_position,position,12);memcpy(level->player_orientation,matrix,36);
     rf_geometry_movers_close(&movers);return RF_OK;

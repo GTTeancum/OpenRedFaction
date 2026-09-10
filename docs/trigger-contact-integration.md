@@ -177,3 +177,32 @@ The PC native render capture was inspected. Its close camera is obstructed and
 unsuitable for a meaningful README screenshot. Successful traversal, live
 closing reversal, usable demonstration camera and activation/audio/AI effects
 remain open. Do not claim a complete playable door interaction from these tests.
+
+## Corrected doorway approach and live reversal cycle
+
+The original staged fixture incorrectly treated the mover local forward axis
+as the doorway normal. It is parallel to the authored sliding direction, so
+that fixture approached along the door plane and produced side-on contact and
+an obstructed view. Its prior collision/activation/hold observations remain
+valid within that fixture, but did not prove traversal. The stage now rotates
+that axis around world up and approaches the opening from the hall side. This
+changes only explicit staged placement, not authored spawn or game geometry.
+
+door_fixture_metrics.py independently derives a plane from the two closed
+authored first-key centers and checks the initial/final player positions. The
+forward180-frame replay starts at depth-3.0000004 and ends at+9.3616458, in the
+corridor beyond the open door. The test correctly allows zero panel contacts
+when the opening clears before arrival, retaining exact PC/native collision
+record comparisons. Native report: artifacts/xemu/replay-20260910-171026/report.json.
+
+--cycle runs180 forward,30 idle,60 backward,150 idle frames. The player returns
+into the trigger while the doors close; both controllers reverse and reopen.
+PC/stock64MiB XEMU match: LIVE_MOTION=[419,419,2,2,6,6,1,0], both authored open
+positions, no errors. Native report: artifacts/xemu/replay-20260910-171127/report.json.
+The pending count1 is rotation binding; sound/wakeup/AI and unfinished event
+actions remain outstanding. Builds and six CTests pass.
+
+A new native PC renderer capture at80 idle frames shows the partly open panels
+and Guard Station signs: artifacts/door-contact/opening-view.png. This is a
+PC capture, not an Xbox framebuffer or a PS2-parity claim. README was not
+replaced because its requested miner composition has not been staged.

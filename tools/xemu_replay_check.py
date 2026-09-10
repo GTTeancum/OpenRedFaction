@@ -2,6 +2,7 @@
 import argparse,datetime,hashlib,json,os,re,shutil,socket,subprocess,sys,time
 from pathlib import Path
 from xemu_smoke import Monitor
+from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
 p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);args=p.parse_args()
 if args.door:
@@ -185,9 +186,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert body_sweeps==expected('BODY_SWEEPS') and body_sweeps[3]==0,body_sweeps
      report['body_sweeps']=body_sweeps
      if args.door:
-      assert body_sweeps[2]>0 or motion[2]>0,'Neither door contact nor occupied hold observed'
+      traversal=measure(expected('PLAYER_SPAWN'),expected('PC_PLAY_BODY'))
+      assert body_sweeps[2]>0 or motion[2]>0 or (motion[4]>=2 and traversal['crossed']),'Neither door contact, occupied hold nor traversal observed'
+      report['door_traversal']=traversal
       contact=words(monitor,symbol('rf_scene_actor_body_contact'),23)
-      assert contact==expected('BODY_CONTACT') and contact[17] in (0,1,0xffffffff),contact
+      assert contact==expected('BODY_CONTACT'),contact
       report['door_contact']=contact
      ground_queries=words(monitor,symbol('rf_scene_actor_ground_queries'),4)
      assert ground_queries==expected('GROUND_QUERIES') and ground_queries[3]==0,ground_queries
