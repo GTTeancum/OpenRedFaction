@@ -1,0 +1,5 @@
+float4 main(float4 color : COLOR0, float4 fog : COLOR1, float4 texture : TEXCOORD0,
+    uniform sampler2D image : TEXUNIT0) : COLOR {
+    float4 sampled = tex2Dproj(image, texture);
+    return float4(sampled.rgb * color.rgb + fog.rgb, sampled.a * color.a);
+}

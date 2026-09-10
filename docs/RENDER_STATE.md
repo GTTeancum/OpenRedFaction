@@ -230,3 +230,34 @@ integer-conversion ranges, preserving output. Original per-vertex color lookup,
 other draw flags, texture binding/residency, native GPU batching and live scene
 effects are outside this helper. Function-level GPU-record agreement does not
 establish a rendered particle image.
+
+## Xbox particle backend scaffold (native pixels unverified)
+
+`rf_xbox_particle_draw` and the new particle Cg shaders compile with NXDK. The
+pass uses immediate attributes and borrows the native image's contiguous,
+swizzled pixels; it allocates neither a vertex buffer nor a texture copy. It
+sets its own shaders, texture sampling, blend, alpha-test, fog and depth state,
+then waits for GPU completion before returning. The caller owns pbkit startup,
+the current render target and later state restoration. It must run after world
+submission and before presentation; it is not yet wired into that loop.
+
+The supported mode domain is the verified default ordinary/glow particle mode,
+with normal or disabled depth testing. Other modes return RF_NOT_FOUND.
+Ordinary blending uses SRC_ALPHA / ONE_MINUS_SRC_ALPHA; glow uses SRC_ALPHA /
+ONE. Depth writes remain disabled. Fog is supplied through the particle shader;
+hardware fog is disabled to avoid applying it twice. The RGB fog parameter uses
+red in its low byte. Texture coordinates are prepared for projective sampling.
+Native sampling, interpolation, blending, fog and depth behavior still require
+framebuffer evidence; shader compilation does not prove those behaviors.
+
+The reconstructed depth value and diagnostic world depth have different
+representations. The adapter therefore accepts an explicit affine conversion
+`target_depth = depth_bias + depth_scale * reconstructed_depth`, targeting the
+existing forward-Z buffer with LEQUAL. Choosing those parameters belongs to the
+camera/backend integration, not the reconstructed core. Nonfinite backend
+vertices are rejected even though the core preserves some original infinities.
+
+Next: add isolated XEMU pixel probes for ordinary/additive blending, fog and
+world-depth occlusion, then connect the pass and its PC equivalent to bounded
+texture residency and campaign emitter execution. No screenshot or rendered
+particle validation is claimed by this scaffold.

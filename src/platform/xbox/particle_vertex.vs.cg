@@ -1,0 +1,10 @@
+struct Input { float4 position : POSITION; float4 color : DIFFUSE; float4 fog : SPECULAR; float4 texture : TEXCOORD0; };
+struct Output { float4 position : POSITION; float4 color : COLOR0; float4 fog : COLOR1; float4 texture : TEXCOORD0; };
+Output main(Input input) {
+    Output output;
+    output.position = input.position;
+    output.color = input.color;
+    output.fog = input.fog;
+    output.texture = input.texture;
+    return output;
+}

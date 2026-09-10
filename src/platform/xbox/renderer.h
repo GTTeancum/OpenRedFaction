@@ -18,4 +18,15 @@ int rf_xbox_model_preview(const rf_preview_mesh *mesh,const rf_materials *materi
 int rf_xbox_model_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,volatile uint32_t capture[6],volatile uint32_t memory[3]);
 int rf_xbox_scene_stream_frame_sized(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
     uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3],uint32_t capacity);
+/* Backend adapter; call after world drawing and before presentation on an
+ * initialized pbkit back buffer. CPU vertices and native image remain owned
+ * by caller. Synchronous completion permits immediate resource release.
+ * Default ordinary/glow particle modes, optionally no-Z, are supported.
+ * depth = bias + scale * reconstructed_depth explicitly adapts the target
+ * buffer; this is not an assertion that the diagnostic world uses RF depth.
+ * Sets its own shader/texture/depth/blend state; caller restores later passes.
+ * Currently compiled scaffolding: native pixel validation/integration pending. */
+int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count,
+    const rf_image *image,uint32_t mode,float depth_scale,float depth_bias,
+    uint32_t fog_enabled,uint32_t fog_rgb);
 #endif
