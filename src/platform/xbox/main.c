@@ -517,10 +517,10 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         if(stream_flag)fclose(stream_flag);rf_diagnostic[31]=4;rf_diagnostic[56]=9858;
         stream_flag=fopen("D:\\audio-output.flag","rb");
         rf_scene_set_audio(NULL,NULL);
-        /* Explicit device probe until the XEMU AC97 callback failure is fixed. */
-        if(stream_flag) {
+        /* APU event backend; deterministic replays enable it explicitly. */
+        if(stream_flag || player_pacing) {
             if(stream_flag)fclose(stream_flag);
-            if(!status && !rf_xbox_audio_open())rf_scene_set_audio(rf_xbox_audio_submit,NULL);
+            if(!status && !rf_xbox_audio_open())rf_scene_set_audio_events(&rf_xbox_audio_events,NULL);
         }
         stream_flag=fopen("D:\\scene-states.flag","rb");
         if(stream_flag || player_controls) {
@@ -532,7 +532,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         } else if(!status)status=rf_scene_stream_miner(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
             maps,opened,mesh,&resident_materials,8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,scene_frame,NULL);
         while(opened)rf_vpp_close(maps+--opened);
-        rf_scene_set_audio(NULL,NULL);rf_xbox_audio_close();
+        rf_scene_set_audio(NULL,NULL);rf_xbox_audio_close();rf_scene_set_audio_events(NULL,NULL);
         if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}
         return status;
     }

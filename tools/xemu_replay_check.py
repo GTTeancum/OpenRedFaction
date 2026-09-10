@@ -4,7 +4,7 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable guest SDL output and capture emulator WAV');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');args=p.parse_args()
 if args.door:
  if args.climb or args.approach or args.level:p.error('--door cannot combine with level/climb staging')
  args.campaign_spawn=True
@@ -87,6 +87,8 @@ auto_bind = false
 background_input_capture = false
 [net]
 enable = false
+[audio]
+use_dsp = true
 [sys.files]
 bootrom_path = '{emulator.as_posix()}/MCPX/mcpx_1.0.bin'
 flashrom_path = '{emulator.as_posix()}/BIOS/xbox-4627_debug.bin'
@@ -94,11 +96,11 @@ eeprom_path = '{eeprom.as_posix()}'
 hdd_path = '{hdd.as_posix()}'
 dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
 ''')
- command=[str(emulator/'xemu.exe'),'-config_path',str(config),'-m','64','-snapshot','-display','xemu','-audio',f'wav,id=rf_capture,path={run.as_posix()}/device.wav,out.frequency=48000' if args.audio_capture else 'none','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off'];report['command']=command
+ command=[str(emulator/'xemu.exe'),'-config_path',str(config),'-m','64','-snapshot','-display','xemu','-audio','none','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off'];report['command']=command
  startup=None
  if os.name=='nt':startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
  with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
-  process=subprocess.Popen(command,cwd=run,stdout=out,stderr=err,startupinfo=startup,creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
+  process=subprocess.Popen(command,cwd=run,env=dict(os.environ,SDL_AUDIO_DRIVER='dummy'),stdout=out,stderr=err,startupinfo=startup,creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
   deadline=time.monotonic()+args.seconds;last=-1
   while time.monotonic()<deadline:
    if process.poll() is not None:raise RuntimeError(f'XEMU exited {process.returncode}')
@@ -113,7 +115,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
    if d[0]!=0x52464447:time.sleep(.5);continue
    report['samples'].append(d)
    if args.audio_capture:
-    report['device_audio']=words(monitor,symbol('rf_xbox_audio_diagnostic'),8)
+    report['device_audio']=words(monitor,symbol('rf_xbox_audio_diagnostic'),12)
     report['audio_close_phase']=words(monitor,symbol('rf_xbox_audio_close_phase'),1)
    if d[2]&0x80000000:raise RuntimeError(f'Guest error {d[2]:08x}')
    if d[37]//60!=last:last=d[37]//60;print('Submitted',d[37],'frames',flush=True)
@@ -250,11 +252,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      Image.frombytes('RGB',(d[33],d[34]),capture.read_bytes(),'raw','BGRX',d[35],1).save(run/'framebuffer.png')
      report['capture']='Native guest framebuffer for renderer validation'
     if args.audio_capture:
-     device_audio=words(monitor,symbol('rf_xbox_audio_diagnostic'),8)
+     device_audio=words(monitor,symbol('rf_xbox_audio_diagnostic'),12)
      report['device_audio']=device_audio
-     assert device_audio[0]==0 and device_audio[1]==device_audio[2] and device_audio[3]==0,device_audio
-     assert device_audio[2]==expected('LIVE_AUDIO')[6] and device_audio[6]==expected('LIVE_AUDIO')[7],device_audio
-     assert device_audio[5]>0,device_audio
+     assert device_audio[0]==0 and device_audio[3]==0 and device_audio[11]==0,device_audio
+     assert device_audio[1]==expected('LIVE_AUDIO')[4] and device_audio[4]==1 and device_audio[5]>0,device_audio
+     import struct
+     pcm_words=words(monitor,symbol('rf_xbox_audio_snapshot'),2048)
+     (run/'apu-dma-snapshot.bin').write_bytes(struct.pack('<2048I',*pcm_words))
     report['result']='PASS';break
    time.sleep(.5)
   else:raise RuntimeError('Replay did not complete before deadline')
@@ -274,14 +278,12 @@ finally:
   try:process.wait(timeout=10)
   except subprocess.TimeoutExpired:process.terminate();process.wait(timeout=10)
  try:
-  if args.audio_capture and (run/'device.wav').exists():
-   import wave,array
-   with wave.open(str(run/'device.wav')) as wav:
-    assert wav.getnchannels()==2 and wav.getsampwidth()==2 and wav.getframerate()==48000
-    pcm=wav.readframes(wav.getnframes())
+  if args.audio_capture and report['result']=='PASS':
+   import array
+   pcm=(run/'apu-dma-snapshot.bin').read_bytes();assert len(pcm)==8192
    values=array.array('h');values.frombytes(pcm)
-   report['device_wav']=dict(bytes=len(pcm),nonzero_samples=sum(v!=0 for v in values),sha256=hashlib.sha256(pcm).hexdigest())
-   if report['result']=='PASS':assert report['device_wav']['nonzero_samples']>0,'Device capture contains only silence'
+   report['device_dma']=dict(bytes=len(pcm),nonzero_samples=sum(v!=0 for v in values),sha256=hashlib.sha256(pcm).hexdigest(),scope='Guest DSP DMA ring snapshot, not a linear recording or host audibility proof')
+   assert report['device_dma']['nonzero_samples']>0,'DSP output contains only silence'
  except Exception as capture_error:
   report['result']='FAIL';report['capture_error']=repr(capture_error)
  try:

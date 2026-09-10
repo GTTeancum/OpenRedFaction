@@ -221,3 +221,41 @@ adaptations were needed for these cases. The harness requires the replay to
 last 2400-3200ms and every requested stop to finish within 1000ms; failures
 remain explicit. This covers the static voice lifetime needed for door effects,
 but not simultaneous voices, streaming, queue exhaustion or campaign integration.
+
+### Live campaign APU integration
+
+The campaign now links the adapted pinned backend described above. Prepare it
+with `python tools/build_apu_probe.py --backend-only` before the Xbox build;
+this writes ignored `build/nxaudio` sources, DSP data and provenance. Invoke
+NXDK builds through MSYS2 Bash, not the extensionless nxdk-cc script directly
+from PowerShell. Upstream license notices remain in the prepared source.
+
+Shared controller sound start/stop events carry the deterministic mixer's logical
+handles to sixteen Xbox static-voice slots. Hardware advances each sample with
+its own audio clock. The shared simulation mixer still generates the previous
+PCM hashes for regression checks. Reset synchronously stops/destroys voices and
+shuts down the backend before the campaign frees its owned sample bank. Stopped
+slots are reused. Normal interactive Xbox input enables this path automatically;
+bounded native replays enable it with `--audio-capture`.
+
+Stock64MiB XEMU replay-20260910-180755 passes the 180-frame door sequence with
+two successful device plays. Replay-20260910-180905 passes the 420-frame closing/
+reversal sequence with three plays. Both have zero rejected plays, one completed
+reset, no forced-shutdown fault, and identical PC/native gameplay and shared PCM
+results. All six CTests and PC/NXDK builds pass. The backend initialization costs
+44 pages; adapter slots plus retained diagnostic snapshot occupy 11712 bytes.
+Whole-scene after-close page counts cannot be compared with pre-init counts
+because other scene allocations occur between those measurements.
+
+Guest DSP ring snapshots contain 4094 and 4090 nonzero int16 samples respectively
+out of 4096. Their SHA256 values are
+`2cb1593b282bae94a666d038d14026da6bd186222c6717d357b14ad424086f95`
+and `546f9de34959bb0c88f780f59fdd5b0a68f9e7f4dad12bab4a69c47badf0ebf4`.
+These prove device-side output, not a linear recording, host audibility or Miles
+output equivalence. Each replay peaked at one active hardware voice.
+
+Remaining work includes spatial/gain/loop metadata, overlapping voices and pool
+exhaustion, PC device playback, full backend failure-path auditing, and listening
+on actual hardware. The timeout fallback stops hardware before unlocking retained
+PCM pages but has not been fault-injection tested. Missing authored sound names
+remain unavailable rather than being silently replaced.

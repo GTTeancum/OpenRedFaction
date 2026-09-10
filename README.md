@@ -72,11 +72,12 @@ Local prerequisites: NXDK at `C:/nxdk`, MSYS2 at `C:/msys64`, Clang64 compiler
 and MinGW64 runtime DLLs for the SDK's existing host tools.
 
 ```powershell
+python tools/build_apu_probe.py --backend-only
 $env:MSYSTEM = 'CLANG64'
 & 'C:\msys64\usr\bin\bash.exe' --noprofile --norc tools/build-xbox.sh
 Copy-Item -LiteralPath 'D:\Programming\GitHub\OpenRedFaction\Installed_Game\tables.vpp' -Destination build/xbox/disc/tables.vpp
 Copy-Item -LiteralPath 'D:\Programming\GitHub\OpenRedFaction\Installed_Game\levels1.vpp' -Destination build/xbox/disc/levels1.vpp
-foreach ($name in @('maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp','meshes.vpp','motions.vpp')) {
+foreach ($name in @('maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp','meshes.vpp','motions.vpp','audio.vpp')) {
     Copy-Item -LiteralPath (Join-Path 'Installed_Game' $name) -Destination (Join-Path 'build/xbox/disc' $name)
 }
 & 'C:\msys64\usr\bin\bash.exe' --noprofile --norc tools/build-xbox.sh
@@ -84,7 +85,7 @@ foreach ($name in @('maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp
 
 Outputs: `build/xbox/disc/default.xbe` and
 `build/xbox/redfaction-diagnostic.iso`. The disc contains a private copy of the
-original tables, first campaign-level archive, five map archives, meshes and motions,
+original tables, first campaign-level archive, five map archives, meshes, motions and audio,
 so keep that package local.
 The diagnostic reports memory, reads Live Mines' section directory and spawn
 transform, and loads its static geometry and base textures within explicit budgets.
@@ -133,3 +134,13 @@ and writes a function inventory and selected raw decompilations under
 `artifacts/analysis`. Defaults use Ghidra 11.3.2 and Java 21 from the installed
 local paths; script parameters override these paths. Community symbol addresses
 are candidates until checked against the original executable.
+
+## Campaign audio milestone
+
+Xbox interactive campaign diagnostics now dispatch available controller sounds to
+APU voices, which advance independently of rendering. The 180-frame door and
+420-frame closing/reversal replays pass on stock 64 MiB XEMU with nonzero guest
+DSP output and matching PC gameplay state. Use `--audio-capture` with
+`tools/xemu_replay_check.py` to enable this check for bounded replays.
+Spatial audio, PC device playback and real-hardware listening remain open.
+See [audio evidence and dependency provenance](docs/controller-audio.md).

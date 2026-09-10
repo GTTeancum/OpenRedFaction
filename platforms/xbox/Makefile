@@ -8,6 +8,12 @@ SRCS = $(PROJECT_ROOT)/src/core/audio.c $(PROJECT_ROOT)/src/core/vpp.c $(PROJECT
 SHADER_OBJS = $(PROJECT_ROOT)/src/platform/xbox/particle_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/particle_fragment.inl $(PROJECT_ROOT)/src/platform/xbox/preview_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/preview_fragment.inl
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/input.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/audio.c
+APU_BACKEND = $(PROJECT_ROOT)/build/nxaudio
+ifeq ($(wildcard $(APU_BACKEND)/audio_core.c),)
+$(error Run python tools/build_apu_probe.py --backend-only before the Xbox build)
+endif
+APU_SRCS = $(APU_BACKEND)/audio_core.c $(APU_BACKEND)/audio_buffer.c $(APU_BACKEND)/audio_voice.c
+SRCS += $(APU_SRCS)
 SRCS += $(PROJECT_ROOT)/src/core/event.c
 SRCS += $(PROJECT_ROOT)/src/core/frame_clock.c
 SRCS += $(PROJECT_ROOT)/src/core/object_registry.c
@@ -36,6 +42,8 @@ SRCS += $(PROJECT_ROOT)/src/diagnostic/scene.c
 CFLAGS += -DRF_IMAGE_XBOX_NATIVE -std=c11 -O2 -Wall -Wextra -Werror -fstack-usage -I$(PROJECT_ROOT)/include
 LDFLAGS += -map:main.map -entry:rf_diagnostic_start
 include $(NXDK_DIR)/Makefile
+$(APU_SRCS:.c=.obj): CFLAGS += -std=c23 -Wno-unused-function -I$(APU_BACKEND)/include
+$(PROJECT_ROOT)/src/platform/xbox/audio.obj: CFLAGS += -std=c23 -I$(APU_BACKEND)/include
 
 # Windows clang emits D:/ dependency targets while this make uses /d/ paths.
 # Explicit project-header prerequisites keep shared ABI edits from leaving stale

@@ -1,7 +1,8 @@
 """Prepare/build an isolated APU evaluation, keeping dependencies/assets ignored."""
-import hashlib,json,os,shutil,subprocess,tarfile,urllib.request
+import argparse,hashlib,json,os,shutil,subprocess,tarfile,urllib.request
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];local=root/'local';dependency=local/'nxdk-audio'
+parser=argparse.ArgumentParser();parser.add_argument('--backend-only',action='store_true');args=parser.parse_args()
 revision='fc2deca2cc1e434805ac03ca7c2f500b3b028f36'
 if not dependency.exists():
     subprocess.run(['git','clone','https://github.com/Ryzee119/nxdk-audio.git',str(dependency)],cwd=root,check=True)
@@ -19,7 +20,7 @@ if not assembler.exists():
     with tarfile.open(archive) as tar:tar.extractall(local,filter='data')
 subprocess.run([str(assembler),'-f','lod','-o',str(dependency/'passthrough.out'),str(dependency/'passthrough.a56')],cwd=root,check=True)
 build=root/'build/apu-probe';(build/'disc').mkdir(parents=True,exist_ok=True)
-backend=build/'backend'
+backend=root/'build/nxaudio' if args.backend_only else build/'backend'
 shutil.copytree(dependency,backend,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.git','*.obj','*.c.d','example'))
 core=backend/'audio_core.c';text=core.read_text()
 text=text.replace('static void *g_hw_ac97_buffer = NULL;', 'void *g_hw_ac97_buffer = NULL; /* Isolated probe visibility. */')
@@ -47,6 +48,10 @@ new='''                    /* OpenRedFaction: static buffers remain owned until 
                         MmLockUnlockBufferPages((PVOID)buffer->buffer, buffer->size_bytes, TRUE);'''
 assert old in text
 core.write_text(text.replace(old,new,1))
+if args.backend_only:
+    (backend/'provenance.json').write_text(json.dumps(dict(nxaudio_revision=revision,assembler_archive_sha256=digest,
+        adapted_core_sha256=hashlib.sha256(core.read_bytes()).hexdigest()),indent=2)+'\n')
+    raise SystemExit(0)
 for name,source in [('probe.c','tests/xbox_apu_probe.c'),('audio.c','src/core/audio.c'),('vpp.c','src/core/vpp.c')]:
     shutil.copyfile(root/source,build/name)
 inventory=json.loads((root/'artifacts/inventory.json').read_text())

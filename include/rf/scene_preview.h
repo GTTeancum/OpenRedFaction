@@ -39,6 +39,17 @@ typedef void (*rf_scene_audio_sink)(void *context,const int16_t *stereo,uint32_t
  * only; copy into bounded device storage. NULL keeps deterministic mixing only.
  * Configure before streaming; clear before destroying the sink context. */
 void rf_scene_set_audio(rf_scene_audio_sink sink,void *context);
+struct rf_wave_pcm;
+typedef struct rf_scene_audio_events {
+    void (*play)(void *context,uint32_t handle,const struct rf_wave_pcm *pcm);
+    void (*stop)(void *context,uint32_t handle);
+    void (*poll)(void *context);
+    void (*reset)(void *context);
+} rf_scene_audio_events;
+/* Device event adapter: PCM is borrowed until reset, which MUST synchronously
+ * release all device references before returning. Events use logical mixer
+ * handles; devices maintain their own playback clock. Configure before stream. */
+void rf_scene_set_audio_events(const rf_scene_audio_events *events,void *context);
 /* Synchronous preview pass, valid only inside the scene frame sink. Uses the
  * current camera and retained particle textures. NULL sink checks packets.
  * World/actor mesh is presented first by this diagnostic composition; complete
