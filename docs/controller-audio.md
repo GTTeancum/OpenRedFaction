@@ -901,3 +901,19 @@ rolloff, oversized names, decimal overflow, trailing input and2048/2049-row
 boundaries. Output sentinels verify failed calls and unwritten capacity. Both
 platform builds pass; XEMU table-file loading and campaign registration remain
 to connect. No original parser execution equivalence is claimed.
+
+### Bounded archive loading for sound declarations
+
+rf_sound_table_load reads sounds.tbl from a borrowed open VPP using an explicit
+scratch budget for the temporary text. It delegates validation to the shared
+reader, releases text before returning and leaves only caller-owned declaration
+rows. Caller row storage is separate from the scratch budget. Errors preserve
+rows/count; count-only queries use the same validation path.
+
+The expanded verify_sound_table.py passes20 cases. New PC archive checks cover
+exact/one-byte-short text budgets, insufficient row capacity, absent sounds.tbl,
+a malformed table in a generated VPP, and exact88-row data after archive close.
+Existing PC/NXDK reader tests still pass. Both builds pass; native archive I/O
+for this loader and campaign wiring remain unverified. Installed directory
+inspection also confirms every one of the88 declared names exists in audio.vpp.
+No original assets are added to tracked files.

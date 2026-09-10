@@ -34,6 +34,11 @@ typedef struct rf_audio_declaration {char name[61];float near_distance,volume,ro
  * Does not register sounds or implement original table-parser error handling. */
 int rf_sound_table_read(const void *text,uint32_t bytes,rf_audio_declaration *rows,
     uint32_t capacity,uint32_t *count);
+/* Loads sounds.tbl through a borrowed open archive. scratch_budget bounds the
+ * temporary text allocation; caller-owned rows are separate. Same output/query
+ * contract as read, with no retained archive/text pointers. */
+int rf_sound_table_load(rf_vpp *tables,uint32_t scratch_budget,
+    rf_audio_declaration *rows,uint32_t capacity,uint32_t *count);
 typedef struct rf_audio_sample { char name[61];void *storage;rf_wave_pcm pcm;uint32_t bytes;rf_audio_parameters parameters; } rf_audio_sample;
 typedef struct rf_audio_bank {
     rf_vpp *archive;rf_audio_sample *samples;uint32_t count,capacity,bytes,budget;

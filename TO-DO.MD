@@ -24,8 +24,8 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Shared sound-table reader matches all88 installed rows on PC/NXDK and passes
-15 bounded-input fixtures; archive loading and campaign registration remain.
+Sound-table reader/archive loader pass20 cases with all88 owned rows intact;
+native archive I/O and campaign registration remain to connect.
 
 Metadata-only bank registration passes PC and native136-byte-budget checks;
 connect global sound declarations and campaign residency policy next.

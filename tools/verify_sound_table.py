@@ -33,5 +33,17 @@ invalid=[b'',valid[:-1],valid.replace(b'"a.wav"',b'a.wav'),valid.replace(b'.5',b
 for text in invalid:check(text,1,False)
 check(b'#Sounds Start\n'+b'"a.wav" 1 .5 1\n'*2048+b'#Sounds End',2048,True)
 check(b'#Sounds Start\n'+b'"a.wav" 1 .5 1\n'*2049+b'#Sounds End',2048,False)
-report=dict(result='PASS',installed_rows=len(rows),cases=6+len(invalid),scope='PC and compiled NXDK reader exact records against independent installed inventory, capacity/count query, output preservation and malformed fixtures. NXDK function executed in Unicorn; not original parser equivalence, XEMU file loading or campaign registration.')
+def archive_check(path,capacity,budget,success):
+ raw=subprocess.check_output([str(root/'build/pc/Release/rf_audio_probe.exe'),'--sound-table-archive',str(path),str(capacity),str(budget)])
+ status,count=struct.unpack_from('<iI',raw);assert (status==0)==success
+ if success:assert count==len(rows) and raw[8:]==expected
+ else:assert count==123 and len(raw)==8
+archive_check(root/'Installed_Game/tables.vpp',len(rows),len(data),True)
+archive_check(root/'Installed_Game/tables.vpp',len(rows),len(data)-1,False)
+archive_check(root/'Installed_Game/tables.vpp',len(rows)-1,len(data),False)
+archive_check(root/'Installed_Game/audio.vpp',len(rows),len(data),False)
+fixture=bytearray(6144);struct.pack_into('<4I',fixture,0,0x51890ace,1,1,len(fixture))
+fixture[2048:2058]=b'sounds.tbl';struct.pack_into('<I',fixture,2108,3);fixture[4096:4099]=b'bad'
+malformed=run/'malformed.vpp';malformed.write_bytes(fixture);archive_check(malformed,len(rows),3,False)
+report=dict(result='PASS',installed_rows=len(rows),cases=11+len(invalid),scope='PC and compiled NXDK reader exact records against independent installed inventory, capacity/count query, output preservation and malformed fixtures. NXDK reader executed in Unicorn; PC archive loader verifies exact/short scratch budgets, row capacity, missing/malformed tables and owned rows after close. Not original parser equivalence, XEMU file loading or campaign registration.')
 (run/'report.json').write_text(json.dumps(report,indent=2));print(report)

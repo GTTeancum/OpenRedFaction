@@ -221,6 +221,18 @@ int rf_sound_table_read(const void *text,uint32_t bytes,rf_audio_declaration *ro
     if(rows){status=sound_table_pass(text,bytes,rows,&n);if(status)return status;}
     *count=n;return RF_OK;
 }
+int rf_sound_table_load(rf_vpp *tables,uint32_t scratch_budget,
+    rf_audio_declaration *rows,uint32_t capacity,uint32_t *count)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !count || (!rows && capacity))return RF_RANGE;
+    status=rf_vpp_find(tables,"sounds.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>scratch_budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_sound_table_read(text,entry.size,rows,capacity,count);
+    free(text);return status;
+}
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height)
 {
     static const char *words[]={"$Max","Entity","Jump","Height:"};

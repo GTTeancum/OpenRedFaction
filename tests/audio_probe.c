@@ -5,6 +5,21 @@
 #include <io.h>
 int main(int argc,char **argv)
 {
+    if(argc==5 && !strcmp(argv[1],"--sound-table-archive")) {
+        rf_vpp archive;uint32_t capacity=(uint32_t)strtoul(argv[3],NULL,10),budget=(uint32_t)strtoul(argv[4],NULL,10),count=123,query;
+        rf_audio_declaration *rows,*before;int status;
+        if(capacity>2048 || rf_vpp_open(&archive,argv[2]))return 64;
+        rows=malloc((capacity+1)*sizeof(*rows));before=malloc((capacity+1)*sizeof(*rows));if(!rows || !before)return 65;
+        memset(rows,0xa5,(capacity+1)*sizeof(*rows));memcpy(before,rows,(capacity+1)*sizeof(*rows));
+        status=rf_sound_table_load(&archive,budget,rows,capacity,&count);
+        if(status && (count!=123 || memcmp(rows,before,(capacity+1)*sizeof(*rows))))return 66;
+        if(!status && (rf_sound_table_load(&archive,budget,NULL,0,&query) || query!=count ||
+           memcmp(rows+count,before+count,(capacity+1-count)*sizeof(*rows))))return 67;
+        rf_vpp_close(&archive);
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);fwrite(&count,4,1,stdout);
+        if(!status)fwrite(rows,sizeof(*rows),count,stdout);
+        free(rows);free(before);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--sound-table")) {
         FILE *file=fopen(argv[2],"rb");uint32_t capacity=(uint32_t)strtoul(argv[3],NULL,10),count=123,query=0;
         long bytes;void *text;rf_audio_declaration *rows,*before;int status;
