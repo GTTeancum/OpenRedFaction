@@ -6,12 +6,31 @@
 #include <io.h>
 static rf_entity_room_result room_result;
 static uint32_t room_queries,room_notices,room_notice_kind;
+static void binding_select(void *context,rf_player_local_binding *local,int32_t weapon)
+{
+    uint32_t *out=context;
+    memcpy(out,local->entity,20);out[5]=(uint32_t)local->entity_handle;
+    out[6]=(uint32_t)weapon;out[7]=local->inventory==&local->entity->inventory;
+    ++out[8];
+}
 static int room_locate(void *context,const float position[3],rf_entity_room_result *result)
 {(void)context;(void)position;++room_queries;*result=room_result;return RF_OK;}
 static void room_notify(void *context,const char *name)
 {(void)context;++room_notices;room_notice_kind=!strcmp(name,"underwater")?2:1;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--player-bind")) {
+        rf_player_entity_binding entity;rf_player_local_binding local;
+        uint32_t out[9];
+        _Static_assert(sizeof(entity)==20,"Player binding wire input");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&entity,sizeof(entity),1,stdin)==1) {
+            memset(&local,0,sizeof(local));memset(out,0,sizeof(out));
+            if(rf_player_bind_local(&local,&entity,binding_select,out))return 3;
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 4;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--player-spawn")) {
         struct {rf_player_spawn_state player;int32_t local,count;
             rf_player_position_override override;rf_player_spawn_request request;} in;

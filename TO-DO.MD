@@ -11,6 +11,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared C local-player binding now matches 81 original cases on PC and compiled
+NXDK, including the state visible when weapon selection is invoked. Entity
+allocation, full weapon selection and live scene ownership remain open.
+
 Shared C now implements the verified player-start prefix (skin normalization,
 local reset and position override), with all 24 cases matching original execution
 on PC and compiled NXDK. It allocates nothing; entity creation and live ownership

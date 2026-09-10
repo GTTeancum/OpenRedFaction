@@ -2021,3 +2021,30 @@ at `artifacts/player-start-verification.json`.
 The live diagnostic still binds serialized miner UID9858 and diagnostic camera
 offsets. This result establishes the campaign spawn source for upcoming player
 lifecycle integration; it does not make that diagnostic a campaign player.
+
+## Local player binding after creation
+
+`rf_player_bind_local` in `src/core/player.c` reconstructs `4a40f0` and its
+`489f70`/`4895f0` callees using compact borrowed views. Original instruction
+order publishes entity at `5cb054` and its inventory at `5af45c` (entity+2a0),
+writes entity+1f8 to 2, clears entity+560 to -1 only for object type zero,
+copies entity+2c into local player+14, then invokes `4a4980` with the inventory's
+primary weapon (entity+2a4). The C binding publishes matching borrowed pointers
+and scalar state before invoking its required weapon-selection callback.
+It does not implement `4a4980`, whose animation/weapon/viewmodel effects remain
+separate. Null arguments return RF_RANGE before any mutation.
+
+`python tools/verify_player_binding.py --nxdk` executes the whole original
+binding and both mode/type callees. Only the weapon-selection boundary is
+observed and returned without executing its behavior. Across 81 combinations
+of type, handle, primary weapon and prior state, it checks the published
+original pointers, callback arguments and complete entity/player fixture
+storage for unintended writes. The PC probe and compiled NXDK routine match
+all compact state at callback entry, including inventory identity and one
+callback invocation. Reports and executable hashes are retained locally in
+`artifacts/player-binding-verification.json`. Both builds and five CTests pass.
+
+This is compiled CPU verification in Unicorn, not a live XEMU player-ownership
+test. The binding borrows an already-created entity; it performs no allocation,
+registry insertion, lifetime management or camera construction. Those steps
+must be connected before replacing the diagnostic miner in the live scene.
