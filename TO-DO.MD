@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Yaw now commits body orientation and world inertia; movement, collision sweeps
+and eye view use the turned body. All 664 complete original look/eye/camera
+replays and stock 64 MiB XEMU run 20260909-201342-341995 pass with PC-matching
+body and camera traces. Next connect actual player input and runtime ownership.
+
 Pitch control is now bound to the moving first-person diagnostic camera.
 All 664 original look/eye/camera replays and live 64 MiB XEMU run
 20260909-200813-666493 pass; look/eye rings match PC and body trace is unchanged.

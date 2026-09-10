@@ -435,6 +435,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     if(stream_flag){fclose(stream_flag);actor_follow_preview=1;rf_scene_actor_live_enabled=1;rf_scene_actor_drive(1);actor_body_preview=1;}
     stream_flag=fopen("D:\\actor-look.flag","rb");rf_scene_actor_look_enabled=stream_flag!=NULL;
     if(stream_flag){fclose(stream_flag);rf_scene_actor_eye_enabled=1;actor_follow_preview=1;rf_scene_actor_live_enabled=1;rf_scene_actor_drive(1);actor_body_preview=1;}
+    stream_flag=fopen("D:\\actor-turn.flag","rb");rf_scene_actor_turn_enabled=stream_flag!=NULL;
+    if(stream_flag){fclose(stream_flag);rf_scene_actor_look_enabled=1;rf_scene_actor_eye_enabled=1;actor_follow_preview=1;rf_scene_actor_live_enabled=1;rf_scene_actor_drive(1);actor_body_preview=1;}
     if(rf_scene_actor_live_enabled) {status=rf_scene_preview_route_camera(level,9858);if(status)return status;}
     stream_flag=fopen("D:\\door-view.flag","rb");
     if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status)return status;}

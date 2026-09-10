@@ -74,6 +74,7 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
             if(e[0]!=frame || memcmp(input.position,expected,12) || rf_eye_position(&input,calculated) ||
                memcmp(calculated,e+25,12) || memcmp(e+37,rf_scene_actor_look_enabled?(const void*)(rf_scene_actor_look_frames[frame%64]+24):(const void*)input.orientation,36))return RF_FORMAT;
             memcpy(expected,calculated,12);
+            if(rf_scene_actor_turn_enabled){printf("TURN_TENSOR %u",frame);for(i=0;i<9;++i){uint32_t w;memcpy(&w,scene_actor_body.state.local_tensor+i,4);printf(" %u",w);}for(i=0;i<9;++i){uint32_t w;memcpy(&w,scene_actor_body.state.world_tensor+i,4);printf(" %u",w);}puts("");}
             if(rf_scene_actor_look_enabled){printf("LOOK_FRAME");for(i=0;i<33;++i)printf(" %u",rf_scene_actor_look_frames[frame%64][i]);puts("");}
             printf("EYE_FRAME");for(i=0;i<46;++i)printf(" %u",e[i]);puts("");
             if(frame && memcmp(e+25,rf_scene_actor_eye_frames[(frame-1)%64]+25,12))++c->changed;
@@ -186,11 +187,12 @@ int main(int argc,char **argv)
     }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
     rf_level_actor_assets binding;rf_model_file model;const char *names[64];
-    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse") || !strcmp(argv[12],"--live") || !strcmp(argv[12],"--follow") || !strcmp(argv[12],"--eye") || !strcmp(argv[12],"--look")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
+    check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse") || !strcmp(argv[12],"--live") || !strcmp(argv[12],"--follow") || !strcmp(argv[12],"--eye") || !strcmp(argv[12],"--look") || !strcmp(argv[12],"--turn")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
     if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && strcmp(argv[12],"--long-animation") && !body_mode)))return 2;
     c.authored=argc==13;
     c.body_mode=body_mode;
-    rf_scene_actor_look_enabled=argc==13 && !strcmp(argv[12],"--look");
+    rf_scene_actor_turn_enabled=argc==13 && !strcmp(argv[12],"--turn");
+    rf_scene_actor_look_enabled=rf_scene_actor_turn_enabled || (argc==13 && !strcmp(argv[12],"--look"));
     rf_scene_actor_eye_enabled=rf_scene_actor_look_enabled || (argc==13 && !strcmp(argv[12],"--eye"));
     follow_camera=rf_scene_actor_eye_enabled || (argc==13 && !strcmp(argv[12],"--follow"));
     rf_scene_actor_live_enabled=follow_camera || (argc==13 && !strcmp(argv[12],"--live"));
@@ -248,7 +250,7 @@ int main(int argc,char **argv)
         }
         if(mode==0 && rf_scene_actor_live_enabled) {
             if(status || c.next!=664 || !c.changed || rf_scene_actor_tick_stats[1]!=663 || rf_scene_actor_tick_stats[4] ||
-               !rf_scene_actor_landing[7] || rf_scene_actor_landing[3]!=rf_scene_actor_landing[7]+1 || rf_scene_actor_landing[1]!=1)return 3;
+               (!rf_scene_actor_turn_enabled && (!rf_scene_actor_landing[7] || rf_scene_actor_landing[1]!=1)) || !rf_scene_actor_landing[3] || rf_scene_actor_landing[3]!=rf_scene_actor_landing[7]+(rf_scene_actor_landing[1]==1?1u:0u))return 3;
             for(i=0;i<64;++i) {
                 if(rf_scene_actor_ring_frames[i]<600 || rf_scene_actor_ring_frames[i]>=664 || rf_scene_actor_ring_frames[i]%64!=i ||
                    memcmp(rf_scene_actor_locomotion_frames[i]+3,rf_scene_actor_input_frames[i],12))return 3;

@@ -164,7 +164,7 @@ uint32_t rf_scene_actor_initial_animation[12];
 float rf_scene_actor_initial_eye_offsets[6];
 int32_t rf_scene_actor_initial_eye_tag;
 uint32_t rf_scene_actor_eye_enabled;
-uint32_t rf_scene_actor_look_enabled,rf_scene_actor_look_frames[64][33];
+uint32_t rf_scene_actor_turn_enabled,rf_scene_actor_look_enabled,rf_scene_actor_look_frames[64][33];
 static rf_look_pose actor_look;
 uint32_t rf_scene_actor_eye_frames[64][46]; /* frame, rf_eye_input, rf_first_person_pose */
 uint32_t rf_scene_actor_animation_timing[64][3];
@@ -637,10 +637,19 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         if(rf_scene_actor_look_enabled) {
             uint32_t *look=rf_scene_actor_look_frames[frame%64];
             if(!frame){memset(&actor_look,0,sizeof(actor_look));memset(rf_scene_actor_look_frames,0,sizeof(rf_scene_actor_look_frames));}
-            /* This fixture starts upright at yaw zero. Only pitch is scripted;
-             * yaw/body turning awaits physics-orientation integration. */
+            /* Process-local fixture starts upright at yaw zero. */
             actor_look.state.command[0]=frame?((frame%180)<90?.25f:-.25f):0;
+            actor_look.state.command[1]=rf_scene_actor_turn_enabled && frame?((frame%240)<120?.2f:-.2f):0;
             status=rf_look_update_pose(&actor_look.state,1.0f,scene_step_seconds,&actor_look);if(status)return status;
+            if(rf_scene_actor_turn_enabled) {
+                float tensor[9];
+                status=rf_physics_tensor_world(scene_actor_body.state.local_tensor,actor_look.body_orientation,tensor);if(status)return status;
+                memcpy(scene_actor_body.state.orientation,actor_look.body_orientation,36);
+                memcpy(scene_actor_body.state.next_orientation,actor_look.body_orientation,36);
+                memcpy(scene_actor_body.state.world_tensor,tensor,36);
+                memcpy(input.orientation,actor_look.body_orientation,36);
+                status=rf_eye_position(&input,eye_position);if(status)return status;
+            }
             look[0]=frame;memcpy(look+1,&actor_look,sizeof(actor_look));
             status=rf_first_person_pose_copy(eye_position,input.orientation,(const float(*)[3])actor_look.eye_orientation,&pose);
         } else status=rf_first_person_pose_copy(eye_position,input.orientation,input.orientation,&pose);

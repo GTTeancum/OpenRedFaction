@@ -1899,3 +1899,58 @@ The disc currently includes actor-look.flag as well as the prior eye/follow
 profile flags. Disable the look flag before running the older eye-only smoke
 expectation. Main campaign player identity/input, yaw/body physics, camera
 collision and view weapon remain open.
+
+
+## Yaw and physics orientation binding
+
+The `--turn` scene checker, `--scene-turn-last` PC preview and Xbox
+`actor-turn.flag` extend the pitch profile with alternating +/-0.2 yaw input
+on 120-frame intervals. Frame zero starts with zero input. The recovered look
+pose now commits current and pending physics orientation, and recalculates the
+world inertia tensor through the existing complete 49cd30 reconstruction.
+Body rendering and swept sphere centers already read the current orientation;
+movement command transformation does too. Eye height is recalculated using the
+new body matrix, while eye orientation retains the separate pitch.
+
+The original 49cd30 only rebuilds the world tensor; it does not rotate sphere
+records or rebuild position bounds. Static ground preparation explicitly uses
+identity query orientation. This fixture's selected lower sphere is on the
+vertical axis. Do not infer that sphere centers should be permanently rotated.
+
+`verify_scene_eye_view.py artifacts/scene-turn.txt` now replays all 664 complete
+49de50 calls, including its world tensor update, then original eye/camera
+instructions. It verifies the committed body matrix, eye matrix, all scalar
+look state and local/world tensor trace for every frame. All bytes match.
+Caller scheduling and controller acquisition are still diagnostic boundaries.
+
+On PC the changed route stays supported after its initial landing: one landing,
+zero support losses, 447 contact passes and no capped physics update. The old
+straight-route check required at least one ledge departure. Only the turn
+profile relaxes that route-specific condition, retaining the invariant that
+landings equal support losses plus one when finally grounded (zero when in air),
+plus all frame, ring, room, allocation and collision-pass checks. The pitch-only
+camera/body trace remains identical after this change. Four CTests pass.
+
+The next major step is player input and ongoing runtime ownership. Installed
+NXDK has an SDL controller example at samples/sdl_gamecontroller/main.c and
+an Xbox joystick backend using usbh_lib/xid_driver in
+lib/sdl/SDL2/src/joystick/xbox/SDL_xboxjoystick.c. These are local API references,
+not copied project code. Any testing must remain process-local; no host input.
+
+
+Live XEMU run `20260909-201342-341995` PASS: stock 67,108,864 bytes,
+zero plugged memory. All final look/eye/camera rings and ten actor rings match
+PC; the final 308-byte physics body matches exactly. Across 664 rendered frames
+and 663 physics updates: body hash 2897823093, actor geometry hash 934208692,
+world hash 1553922570, camera hash 2407323874. Peak world projection is 208320
+bytes within the unchanged two MiB vertex allocation. Available bytes after
+upload: 41029632; after CPU mesh release: 44187648. One landing, no support
+losses. This is a diagnostic working set, not a full campaign memory budget.
+No framebuffer capture was requested.
+
+```powershell
+python tools/xemu_smoke.py --actor-turn --no-capture --seconds 300
+```
+
+The current disc contains actor-turn.flag (alongside look/eye/follow flags).
+Disable it before asking the smoke harness to expect a pitch-only profile.

@@ -77,7 +77,9 @@ def main():
     parser.add_argument('--actor-follow',action='store_true',help='Expect actor-follow.flag moving camera and fixed 2 MiB GPU vertices')
     parser.add_argument('--actor-eye',action='store_true',help='Expect actor-eye.flag first-person diagnostic with cached eye offsets')
     parser.add_argument('--actor-look',action='store_true',help='Pitch-only original look update on the eye route')
+    parser.add_argument('--actor-turn',action='store_true',help='Scripted pitch/yaw with body orientation and world tensor commit')
     args = parser.parse_args()
+    if args.actor_turn:args.actor_look=True
     if args.actor_look:args.actor_eye=True
     if args.actor_eye:args.actor_follow=True
     if args.actor_follow:args.actor_live=True
@@ -107,7 +109,7 @@ def main():
         if not actor_physics_symbol:raise RuntimeError('Integrated actor physics symbol absent')
         scene_args=[str(root/'build/pc/Release/rf_scene_check.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','9858']
         scene_args += [str(root/'Installed_Game'/n) for n in ['meshes.vpp','motions.vpp','tables.vpp','maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp']]
-        output=subprocess.check_output(scene_args+['--look' if args.actor_look else '--eye' if args.actor_eye else '--follow' if args.actor_follow else '--live' if args.actor_live else '--traverse' if args.actor_routes else '--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
+        output=subprocess.check_output(scene_args+['--turn' if args.actor_turn else '--look' if args.actor_look else '--eye' if args.actor_eye else '--follow' if args.actor_follow else '--live' if args.actor_live else '--traverse' if args.actor_routes else '--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
         actor_final_vertices=int(re.search(r'Frame '+str(663 if args.actor_live else 63)+r' actor triangles (\d+)',output)[1])*3
         actor_frame_reference=[(int(n)*3,int(h,16)) for n,h in re.findall(r'Frame \d+ actor triangles (\d+) hash ([0-9a-f]+)',output)][:64]
         if args.actor_routes:actor_routes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_ROUTES ')).split()[1:]))
@@ -337,10 +339,12 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         live_snapshot=guest_snapshot(monitor,map_text)
                         (run/'guest-memory-complete.json').write_text(json.dumps(live_snapshot,indent=2))
                         symbols=live_snapshot['symbols']
+                        if symbols['rf_scene_actor_turn_enabled']['words']!=[int(args.actor_turn)]:raise RuntimeError('Turn mode mismatch')
+                        if args.actor_turn:report['turn_view']=dict(frames=664,scope='Scripted pitch/yaw, current and pending body orientation plus original world inertia update; no interactive input')
                         if symbols['rf_scene_actor_look_enabled']['words']!=[int(args.actor_look)]:raise RuntimeError('Look mode mismatch')
                         if args.actor_look:
                             if symbols['rf_scene_actor_look_frames']['words']!=look_frames_reference:raise RuntimeError('Look pose ring differs from PC')
-                            report['look_view']=dict(frames=664,ring_records=64,scope='Original look angle and matrix update; scripted pitch only, upright yaw-zero body, no interactive input or body-turn physics')
+                            report['look_view']=dict(frames=664,ring_records=64,scope='Original look angle and matrix update; scripted look; turn_view describes yaw/body commit when present, otherwise pitch only with upright yaw-zero body; no interactive input')
                         if symbols['rf_scene_actor_eye_enabled']['words']!=[int(args.actor_eye)]:raise RuntimeError('Eye view mode mismatch')
                         if args.actor_eye:
                             if symbols['rf_scene_actor_eye_frames']['words']!=eye_frames_reference:raise RuntimeError('Eye input/pose ring differs from PC')
