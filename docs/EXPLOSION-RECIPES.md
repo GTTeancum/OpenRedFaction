@@ -191,3 +191,29 @@ per-command statuses, returned indices, counts and RNG also match. The original
 initializer runs on zeroed storage to match the shared initialization contract.
 This verifies the pool in compiled code, not native scene simulation; emitter
 execution, live updates, rendering and native memory accounting remain open.
+
+Shared rf_particle_pool_step_free now advances unowned detached particles
+through the recovered 495120 free-flight path, recycling expired records.
+Previous position is copied first, then age and radius advance. Death occurs
+before motion. Survivors clear flag 0x8000 and move using the old velocity;
+acceleration changes normalized speed afterward, followed by Y gravity.
+Zero-velocity normalization 4fabd0 returns speed 1 and direction +X, which is
+preserved in this reconstruction. Color interpolation uses (age/life)^2 with
+a float ratio and integer truncation. Record +30 is the current color, so its
+shared name is corrected from color_initial to color_current.
+
+The free-flight verifier executes full original 495120 with actual arithmetic
+callees in 2048 fixtures, including 1083 expirations. All shared PC/NXDK record
+bytes and counts match. Nine rejection cases additionally preserve state for
+unsupported ownership/world features and malformed deltas. Collision, swirl,
+wind and damage are explicitly unsupported by this path; scene integration
+must dispatch them to their recovered implementations, not silently omit them.
+
+The initial PC discrepancy was a harness floating-point environment error:
+Unicorn's control word was zero, selecting 24-bit x87 precision. The comparison
+now explicitly sets 0x027f (53-bit precision, nearest rounding, masked exceptions)
+for original and NXDK machines; the related duration/creation/pool/tick checks
+were rerun and pass. The temporary numeric tolerance was removed: comparison
+is exact. This explicit test environment is not a measurement of the original
+game or NXDK native control state. Native FP state verification remains open,
+as does auditing other floating-point verifiers that initialize their own CPUs.

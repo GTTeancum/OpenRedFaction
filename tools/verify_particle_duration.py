@@ -4,11 +4,13 @@ from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_CODE
-from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_EAX,UC_X86_REG_ECX
+from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_EAX,UC_X86_REG_ECX,UC_X86_REG_FPCW
 base=0x30000000;stack=base+0xe000;stop=base+0xf000
 exe=root/'Installed_Game/RF.exe';sha=hashlib.sha256(exe.read_bytes()).hexdigest();assert sha=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
+# Explicit 53-bit, nearest, masked x87 environment. Unicorn defaults to a zero
+# control word (24-bit/unmasked); do not mistake that for a runtime measurement.
 def machine(path):
- p=pefile.PE(str(path));b=p.get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(p.OPTIONAL_HEADER.ImageBase,(len(b)+4095)//4096*4096);u.mem_write(p.OPTIONAL_HEADER.ImageBase,b);u.mem_map(base,65536);return u
+ p=pefile.PE(str(path));b=p.get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(p.OPTIONAL_HEADER.ImageBase,(len(b)+4095)//4096*4096);u.mem_write(p.OPTIONAL_HEADER.ImageBase,b);u.mem_map(base,65536);u.reg_write(UC_X86_REG_FPCW,0x27f);return u
 u=machine(exe);x=machine(root/'build/xbox/main.exe');entry=int(re.search(r'_rf_particle_cycle_duration\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
 thread=base+0x1000;draws=0
 def thread_data(m,a,s,d):

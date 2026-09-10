@@ -81,7 +81,7 @@ typedef struct rf_particle_spawn {
 typedef struct rf_particle {
     uint32_t next,previous,owner;
     float position[3],velocity[3],age;
-    uint32_t color,color_destination,color_initial;
+    uint32_t color,color_destination,color_current;
     float life,radius,growth,acceleration,gravity;
     uint32_t bitmap;
     uint16_t frame_count,secondary;

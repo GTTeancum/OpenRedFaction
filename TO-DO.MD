@@ -17,6 +17,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Unowned detached free-flight stepping now matches 2048 original/PC/NXDK
+cases including 1083 expirations; nine unsupported/invalid cases preserve
+state. Explicit 53-bit x87 precision fixes the harness mismatch. Verify native
+FP control state and integrate owner/collision/wind/damage paths next.
+
 Shared fixed particle pools now match 3679 original/PC/NXDK replay operations,
 including 1829 allocations/recycles, saturation and emitter detachment.
 Seven complete state snapshots agree. Storage uses 1600 120-byte records;

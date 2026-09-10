@@ -1,5 +1,6 @@
 #include "rf/particle_pool.h"
 #include <string.h>
+#include <math.h>
 static int pool_valid(const rf_particle_pool *pool)
 {
     return pool && pool->particles && pool->lists && pool->list_count>=5;
@@ -71,4 +72,50 @@ int rf_particle_pool_recycle(rf_particle_pool *pool,uint32_t index)
     if(!(p->flags&1u) || p->pool>1 || !pool->live[p->pool])return RF_RANGE;
     unlink_particle(pool,index);p->flags=0;append_particle(pool,p->pool,index);
     pool->live[p->pool]--;return RF_OK;
+}
+
+int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt)
+{
+    rf_particle value;unsigned i;double radius,length,inverse;float speed;volatile float ratio;
+    if(!pool_valid(pool) || index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
+    value=pool->particles[index];
+    if(!(value.flags&1u) || value.pool>1 || !pool->live[value.pool])return RF_RANGE;
+    if((int32_t)value.owner>=0 || value.emitter || (value.flags&0xff000010u) || (value.secondary&1u))return RF_NOT_FOUND;
+    if(!isfinite(dt) || dt<0 || !isfinite(value.age) || value.age<0 ||
+       !isfinite(value.life) || value.life<=0 || !isfinite(value.radius) ||
+       !isfinite(value.growth) || !isfinite(value.acceleration) || !isfinite(value.gravity))return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(value.position[i]) || !isfinite(value.velocity[i]))return RF_RANGE;
+        value.previous_position[i]=value.position[i];
+    }
+    value.age+=dt;radius=(double)dt*value.growth+value.radius;value.radius=(float)radius;
+    if(!isfinite(value.age) || !isfinite(value.radius))return RF_RANGE;
+    if(value.age>=value.life || radius<=0) {
+        pool->particles[index]=value;return rf_particle_pool_recycle(pool,index);
+    }
+    value.flags&=~0x8000u;
+    for(i=0;i<3;i++)value.position[i]+=(float)((double)value.velocity[i]*dt);
+    if(value.flags&0x40u) {
+        double x=value.velocity[0],y=value.velocity[1],z=value.velocity[2];
+        length=sqrt((x*x+y*y)+z*z);
+        if(length<=0) {length=1;value.velocity[0]=1;value.velocity[1]=value.velocity[2]=0;}
+        else {
+            inverse=1.0/length;
+            for(i=0;i<3;i++)value.velocity[i]=(float)(value.velocity[i]*inverse);
+        }
+        speed=(float)length;speed=(float)((double)dt*value.acceleration+speed);
+        for(i=0;i<3;i++)value.velocity[i]*=speed;
+    }
+    if(value.flags&8u)value.velocity[1]=(float)((double)value.velocity[1]-(double)dt*value.gravity);
+    if(value.flags&4u) {
+        uint32_t color=0;double fraction;
+        ratio=value.age/value.life;fraction=(double)ratio*ratio;
+        for(i=0;i<4;i++) {
+            int start=(value.color>>(i*8))&255,end=(value.color_destination>>(i*8))&255;
+            color|=(uint32_t)(int)(start+(end-start)*fraction)<<(i*8);
+        }
+        value.color_current=color;
+    }
+    for(i=0;i<3;i++)if(!isfinite(value.position[i]) || !isfinite(value.velocity[i]))return RF_RANGE;
+    pool->particles[index]=value;return RF_OK;
 }

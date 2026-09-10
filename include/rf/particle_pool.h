@@ -30,4 +30,11 @@ int rf_particle_pool_detach(rf_particle_pool *pool,uint32_t emitter);
  * to the originating free-list tail. Does not advance age/physics. An inactive
  * or out-of-range index is rejected without changing the pool. */
 int rf_particle_pool_recycle(rf_particle_pool *pool,uint32_t index);
+/* 495120 unowned, detached free-flight path: age/growth, position, acceleration,
+ * gravity and squared-age color interpolation; expired records are recycled.
+ * Requires active particle with negative owner and zero emitter. Collision,
+ * swirl, wind and damage return RF_NOT_FOUND without mutation. Finite values,
+ * nonnegative age/dt and positive life required. These restrictions are explicit
+ * pending world/owner integration, not silent substitutes for those behaviors. */
+int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt);
 #endif

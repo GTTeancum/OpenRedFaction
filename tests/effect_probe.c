@@ -13,6 +13,19 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-step-free")) {
+        struct {float dt;rf_particle particle;} in;
+        struct {int32_t status;uint32_t live;rf_particle particle;} out;
+        static rf_particle records[RF_PARTICLE_CAPACITY];rf_particle_list lists[5];rf_particle_pool pool;
+        rf_particle_pool_init(&pool,records,lists,5);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            records[0]=in.particle;pool.live[0]=1;pool.live[1]=0;
+            lists[0].next=lists[0].previous=1600;lists[2].next=lists[2].previous=0;
+            out.status=rf_particle_pool_step_free(&pool,0,in.dt);out.live=pool.live[0];out.particle=records[0];
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-pool")) {
         static rf_particle records[RF_PARTICLE_CAPACITY];rf_particle_list lists[8];rf_particle_pool pool;
         struct {uint32_t operation,kind,owner,room,emitter,index,seed;rf_particle_spawn spawn;} in;

@@ -12,7 +12,7 @@ int rf_particle_initialize(const rf_particle_spawn *spawn,uint32_t pool,
         value.position[i]=value.previous_position[i]=spawn->position[i];
         value.velocity[i]=spawn->velocity[i];
     }
-    value.age=0;value.color=value.color_initial=spawn->color;
+    value.age=0;value.color=value.color_current=spawn->color;
     value.color_destination=spawn->color_destination;value.life=spawn->life;
     value.radius=spawn->radius;value.growth=spawn->growth;
     value.acceleration=spawn->acceleration;value.gravity=spawn->gravity_scale*9.8f;
