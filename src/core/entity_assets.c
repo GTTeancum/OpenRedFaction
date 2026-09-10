@@ -882,3 +882,16 @@ int rf_explosion_definition_load(rf_vpp *tables,const char *name,uint32_t budget
     free(scratch);if(status)return status;
     v.peak_bytes=v.resident_bytes+scratch_size;*result=v;return RF_OK;
 }
+
+int rf_explosion_central_prepare(const rf_explosion_definition *definition,uint32_t slot,float size,
+    rf_particle_definition *particle,float *random_extent)
+{
+    rf_particle_definition value;
+    if(!definition || !particle || !random_extent || slot>=6 || definition->recipe.central_count>6 || slot>=definition->recipe.central_count)return RF_RANGE;
+    if(!(definition->resolved&(1u<<slot)) || !(size>=definition->recipe.central[slot].min_size))return RF_NOT_FOUND;
+    value=definition->emitters[slot];
+    value.min_velocity*=size;value.max_velocity*=size;
+    value.min_radius*=size;value.max_radius*=size;
+    value.min_life*=size;value.max_life*=size;
+    *particle=value;*random_extent=size*definition->recipe.central_random;return RF_OK;
+}

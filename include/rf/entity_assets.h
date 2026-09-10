@@ -56,6 +56,12 @@ typedef struct rf_explosion_definition {
 int rf_explosion_definition_resolve(const rf_explosion_recipe *recipe,const void *emitters,
     uint32_t bytes,rf_explosion_definition *result);
 int rf_explosion_definition_load(rf_vpp *tables,const char *name,uint32_t budget,rf_explosion_definition *result);
+/* 48e7c5..48e879 central size gate/scaling. Returns NOT_FOUND when below
+ * minimum (also unordered) or unresolved; preserves output on non-success.
+ * Copies velocity/radius/lifetime scaled by size, plus shared random extent.
+ * Position, direction, allocation, random sampling and creation remain separate. */
+int rf_explosion_central_prepare(const rf_explosion_definition *definition,uint32_t slot,float size,
+    rf_particle_definition *particle,float *random_extent);
 /* movemodes.tbl fields and name/reference tables from original 433670.
  * Bounded archive read, one scratch allocation; output preserved on failure. */
 int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf_movement_descriptor *result);

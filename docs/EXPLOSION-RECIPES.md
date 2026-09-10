@@ -53,3 +53,11 @@ reference explosion random bits 2 is absent from installed emitters.tbl and
 returns -1 in the original lookup. Rocket hit therefore resolves central slots
 0..5 only (mask 63), not its sparks slot. The initial harness expectation of
 mask 127 failed and was corrected after this original-code verification.
+
+Creation entry 48e640 is called from the code_explode path in 4c16e0.
+The span 48e7c5..48e879 skips central emitters below their minimum size
+(including unordered comparisons), and scales min/max velocity, min/max
+radius and min/max life by explosion size. It also multiplies the shared
+central random-position factor by size. All these outputs match the shared
+owned-copy helper in 600 original/PC/NXDK fixtures. This does not yet create
+emitters, sample positions or execute the explosion update loop.

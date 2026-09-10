@@ -12,6 +12,15 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--explosion-scale")) {
+        struct {rf_explosion_definition definition;uint32_t slot;float size;} in;
+        struct {int32_t status;rf_particle_definition particle;float extent;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=rf_explosion_central_prepare(&in.definition,in.slot,in.size,&out.particle,&out.extent);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==5 && !strcmp(argv[1],"--explosion-definition")) {
         rf_vpp archive;rf_explosion_definition definition;
         _Static_assert(sizeof(definition)==2380,"Explosion definition fixture layout");

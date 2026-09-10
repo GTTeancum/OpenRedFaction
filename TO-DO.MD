@@ -16,6 +16,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Central explosion size gating and velocity/radius/lifetime scaling match
+600 original/PC/NXDK cases. Shared preparation returns an owned copy and
+random-position extent without mutating definitions. Position sampling,
+emitter creation, scheduling and live rendering remain open.
+
 Native 64-MiB XEMU replay 20260910-081353 verifies all nine loaded explosion
 definitions and charge_explode against PC hashes; campaign/resource checks
 pass. Original emitter lookup passes 146 cases and confirms the authored
