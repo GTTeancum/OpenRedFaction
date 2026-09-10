@@ -15,8 +15,8 @@ Immediate open items:
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
 All four authored gravity links now pass the unchanged original auto-trigger
-to setter chain, including disabled-trigger cases. The sweep belongs late in
-level startup, after event post-load processing; 30 seconds is a subsequent
+to setter chain, now including original UID-to-handle conversion and disabled
+checks. The sweep belongs late in level startup; 30 seconds is a subsequent
 trigger cooldown, not a delay before gravity changes. Registrations remain
 synthetic in this harness; shared runtime startup wiring is still required.
 

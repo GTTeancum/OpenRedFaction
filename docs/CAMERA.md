@@ -3146,9 +3146,18 @@ artifacts/gravity-trigger-verification.json.
 
 Static call-site/decompiler evidence: 4316a0 calls auto sweep at 4316d3; its
 only direct CALL found in executable sections is 4360d7 inside 435df0. That
-function performs level startup, calls event post-load 4bd890 before 4316a0,
-and ends by running levelstart.vcs. Exports 4316d3.c.txt and 4360d7.c.txt
+function performs level startup, calls 4bd890 before 4316a0,
+and ends by running levelstart.vcs. Direct export confirms 4bd890 is an empty
+RET stub in this build, not an event post-load pass. Actual trigger/event link
+conversion occurs earlier within level loader 460820. Exports 4316d3.c.txt and 4360d7.c.txt
 include containing-function annotations. This establishes the intended startup
 placement by static inspection, not full startup execution. The shared runtime
 must register and resolve events before the sweep; do not apply gravity by
 level filename, event-header byte, proximity or an assumed 30-second delay.
+
+The gravity-trigger fixture now begins with authored UID links and executes
+4611a1..461231 unchanged to resolve them through the synthetic original object
+list before running the complete auto activation chain. All eight cases pass.
+This removes the prior pre-resolved-link assumption but still supplies object
+registration and trigger/event field initialization. No C/NXDK runtime wiring
+is established by this original-code fixture.

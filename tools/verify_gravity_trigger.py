@@ -13,7 +13,7 @@ import pefile
 root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root / 'local/python'))
 from unicorn import Uc, UC_ARCH_X86, UC_MODE_32
-from unicorn.x86_const import UC_X86_REG_ESP, UC_X86_REG_EIP, UC_X86_REG_FPCW
+from unicorn.x86_const import UC_X86_REG_ESP, UC_X86_REG_EIP, UC_X86_REG_EBX, UC_X86_REG_FPCW
 
 exe = root / 'Installed_Game/RF.exe'
 sha = hashlib.sha256(exe.read_bytes()).hexdigest()
@@ -61,12 +61,14 @@ for level in events:
             write(trigger + 0x2b0, 8 | (16 if disabled else 0))
             write(trigger + 0x2d4, 1, 1, array)
             handle = 0x12340000
-            write(array, handle)
+            write(array, record['uid'])
             # Event's object base is +4 relative to the derived event base.
             write(0x7394cc, event + 4)
             write(event, 0x589b3c)
             write(event + 0x24, record['uid'], 6)
             write(event + 0x30, handle)
+            write(0x73d890, event + 4)
+            write(event + 0x14, 0x73d880)
             write(event + 0x290, 44, 0, -1, 0, 0, 0)
             write(event + 0x2b8, value)
             u.mem_write(0x64ecb9, b'\0\0')
@@ -75,6 +77,13 @@ for level in events:
             write(0x5a00dc, 0x411ccccd)
             write(0x7c7058, 0, 0xc11ccccd, 0)
             write(0x62f2c8, 0x40a362be)
+            # Run the actual loader's trigger UID conversion before startup.
+            # These authored triggers have no entity backlink branch.
+            u.reg_write(UC_X86_REG_ESP, stack)
+            u.reg_write(UC_X86_REG_EBX, trigger)
+            u.emu_start(0x4611a1, 0x461231, count=100000)
+            assert u.reg_read(UC_X86_REG_EIP) == 0x461231
+            assert read(array) == handle
             write(stack, stop)
             u.reg_write(UC_X86_REG_ESP, stack)
             u.reg_write(UC_X86_REG_FPCW, 0x37f)
@@ -94,6 +103,6 @@ for level in events:
                                 event_uid=record['uid'], gravity=record['values'][0],
                                 disabled=disabled))
 report = dict(result='PASS', cases=len(results), original_sha256=sha, results=results,
-              scope='Unmodified 4c01b0 auto sweep, 4c0220 activation, 4c0320 links, 4b6760/4b6800 handle resolution, common event activation, virtual gravity on, empty-link propagation and trigger timer. Synthetic registrations/runtime initialization; loader, sweep call timing, full campaign and C/NXDK chain equivalence excluded.')
+              scope='Unmodified loader trigger UID conversion 4611a1..461231, 4c01b0 auto sweep, 4c0220 activation, 4c0320 links, 4b6760/4b6800 handle resolution, common event activation, virtual gravity on, empty-link propagation and trigger timer. Synthetic registrations/runtime initialization; full loader, sweep call timing, full campaign and C/NXDK chain equivalence excluded.')
 (root / 'artifacts/gravity-trigger-verification.json').write_text(json.dumps(report, indent=2) + '\n')
 print(json.dumps(report, indent=2))
