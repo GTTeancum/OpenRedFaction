@@ -3432,3 +3432,32 @@ and observed effect trace. This is original-code routing evidence, not shared
 C/NXDK or live campaign equivalence. It supersedes the previous static-only
 uncertainty about off arguments. Event links still need owned runtime target
 resolution and recursive dispatch integration; startup pending counters remain.
+
+
+Owned runtime event targets (2026-09-10)
+--------------------------------------
+
+rf_runtime_event now owns a target array beside the common state allocation,
+with one rf_level_link_target per authored link. Open initially retains raw UID,
+kind zero and index UINT32_MAX. The owner budget includes the arrays and pointer
+fields; close frees them with the event objects after removing handles.
+rf_runtime_events_resolve applies the existing ordered object/key resolver.
+Scene loading resolves both trigger and event links using its current event-
+then-trigger registry view. Other families and mover keys remain unregistered;
+this view does not claim original whole-world handle order. Original authored
+links remain available for later resolution when those families are registered.
+
+verify_runtime_event_links.py passes all 4,901 links across 93 levels: 1,964
+resolve and 2,937 remain unresolved. Event ownership tests pass for all 4,446
+records, including exact budget, one-byte-short rejection, repeated close and
+raw/runtime target access after archive close. Peak owner size is 222,560 bytes.
+Existing trigger-link checks and five CTests pass; PC and NXDK builds pass.
+
+CAMPAIGN_EVENT_LINKS and rf_scene_campaign_event_links expose total/resolved/
+unresolved plus ordered FNV hash over raw UID, value, kind and index. Native
+64-MiB XEMU replay-20260910-065321 passes, with L1S1 [199,47,152,1665296552]
+matching PC. Its 184 events occupy 222,560 owner bytes plus the 12,300-byte
+registry, and 10,820 physical pages are available at replay completion. This
+is a short startup replay, not peak full-campaign memory evidence. The new
+resolved arrays are not yet dispatched recursively; pending startup counters
+remain unchanged. No new screenshot is warranted by ownership/resolution.

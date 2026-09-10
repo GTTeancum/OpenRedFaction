@@ -113,6 +113,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      links=words(monitor,symbol('rf_scene_campaign_links'),4)
      assert links==expected('CAMPAIGN_LINKS')
      report['campaign_links']=links
+     event_links=words(monitor,symbol('rf_scene_campaign_event_links'),4)
+     assert event_links==expected('CAMPAIGN_EVENT_LINKS')
+     report['campaign_event_links']=event_links
      startup=words(monitor,symbol('rf_scene_startup_events'),9)+words(monitor,symbol('rf_scene_startup_gravity'),4)
      assert startup==expected('CAMPAIGN_STARTUP')
      report['campaign_startup']=startup

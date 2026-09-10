@@ -16,6 +16,7 @@ typedef struct rf_runtime_event {
     uint32_t object_kind,handle;
     rf_event_state state;
     const rf_level_owned_event *authored;
+    rf_level_link_target *links;
 } rf_runtime_event;
 typedef struct rf_runtime_events {
     rf_level_owned_events decoded;
@@ -33,6 +34,10 @@ typedef struct rf_runtime_events {
 int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
     uint32_t budget,rf_runtime_events *result);
 void rf_runtime_events_close(rf_runtime_events *events);
+/* Same ordered UID resolver contract as rf_runtime_triggers_resolve. */
+int rf_runtime_events_resolve(rf_runtime_events *events,
+    const rf_level_uid_object *objects,uint32_t object_count,
+    const rf_level_uid_key *keys,uint32_t key_count);
 /* action=0 off, 1 on, 2 propagate. Callbacks may mutate state, which must
  * remain alive throughout the call. No registration or event actions supplied.
  * Callback mode is the raw low byte; action selection follows original rules. */

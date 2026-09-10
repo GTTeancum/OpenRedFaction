@@ -22,6 +22,7 @@ extern rf_physics_body scene_actor_body;
 extern rf_startup_events_report rf_scene_startup_events;
 extern uint32_t rf_scene_startup_gravity[4];
 extern uint32_t rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
+extern uint32_t rf_scene_campaign_event_links[4];
 extern uint32_t rf_scene_actor_initial_animation[12],rf_scene_player_climb[8],rf_scene_player_climb_frames[128][9];
 extern float rf_scene_actor_initial_eye_offsets[6];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
@@ -217,6 +218,7 @@ int main(int argc,char **argv)
              memcpy(words+9,rf_scene_startup_gravity,16);printf("CAMPAIGN_STARTUP");
              for(k=0;k<13;++k)printf(" %u",words[k]);puts("");}
             printf("CAMPAIGN_LINKS %u %u %u %u\n",rf_scene_campaign_links[0],rf_scene_campaign_links[1],rf_scene_campaign_links[2],rf_scene_campaign_links[3]);
+            printf("CAMPAIGN_EVENT_LINKS %u %u %u %u\n",rf_scene_campaign_event_links[0],rf_scene_campaign_event_links[1],rf_scene_campaign_event_links[2],rf_scene_campaign_event_links[3]);
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
             printf("CAMPAIGN_EVENTS %u %u %u\n",rf_scene_campaign_events[0],rf_scene_campaign_events[1],rf_scene_campaign_events[2]);
             const void *records[7]={rf_scene_actor_initial_animation,rf_scene_actor_initial_eye_offsets,&rf_scene_actor_stance_cache,rf_scene_actor_selector_frames,rf_scene_actor_locomotion_frames,rf_scene_player_climb,rf_scene_player_climb_frames};

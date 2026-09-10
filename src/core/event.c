@@ -126,10 +126,24 @@ void rf_runtime_events_close(rf_runtime_events *events)
     for(i=0;i<events->count;++i)rf_object_registry_remove(events->registry,events->items[i].handle);
     free(events->items);rf_level_owned_events_close(&events->decoded);memset(events,0,sizeof(*events));
 }
+int rf_runtime_events_resolve(rf_runtime_events *events,
+    const rf_level_uid_object *objects,uint32_t object_count,
+    const rf_level_uid_key *keys,uint32_t key_count)
+{
+    uint32_t i,j;int status;
+    if(!events || (object_count && !objects) || (key_count && !keys))return RF_RANGE;
+    for(i=0;i<events->count;++i)for(j=0;j<events->items[i].authored->record.link_count;++j) {
+        status=rf_level_link_resolve(events->items[i].authored->links[j],objects,object_count,
+            keys,key_count,events->items[i].links+j);
+        if(status)return status;
+    }
+    return RF_OK;
+}
 int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
     uint32_t budget,rf_runtime_events *result)
 {
-    rf_runtime_events value={0};uint64_t bytes;uint32_t i;int status;
+    rf_runtime_events value={0};uint64_t bytes;uint32_t i,j;int status;
+    rf_level_link_target *cursor=NULL;
     if(!level || !registry || !result || result->items || result->decoded.storage ||
        result->count || result->registry || budget<sizeof(value))return RF_RANGE;
     status=rf_level_owned_events_open(level,budget-(uint32_t)sizeof(value),&value.decoded);
@@ -137,19 +151,25 @@ int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
     if(status)return status;
     bytes=sizeof(value)+(uint64_t)value.decoded.allocated_bytes+
         (uint64_t)value.decoded.count*sizeof(*value.items);
+    for(i=0;i<value.decoded.count;++i)bytes+=(uint64_t)value.decoded.items[i].record.link_count*sizeof(*cursor);
     if(bytes>budget || value.decoded.count>registry->count) {status=RF_RANGE;goto failed;}
     for(i=0;i<value.decoded.count;++i) {
         const rf_level_event *record=&value.decoded.items[i].record;
         if(rf_event_type_id(record->type)<0 || !isfinite(record->delay)) {status=RF_FORMAT;goto failed;}
     }
     if(value.decoded.count) {
-        value.items=calloc(value.decoded.count,sizeof(*value.items));
+        value.items=calloc(1,(size_t)(bytes-sizeof(value)-value.decoded.allocated_bytes));
         if(!value.items) {status=RF_RANGE;goto failed;}
+        cursor=(rf_level_link_target *)(value.items+value.decoded.count);
     }
     value.registry=registry;value.allocated_bytes=(uint32_t)bytes;
     for(i=0;i<value.decoded.count;++i) {
         rf_runtime_event *item=value.items+i;item->object_kind=6;
         item->authored=value.decoded.items+i;
+        item->links=cursor;
+        for(j=0;j<item->authored->record.link_count;++j) {
+            cursor->value=item->authored->links[j];cursor->kind=0;cursor->index=UINT32_MAX;++cursor;
+        }
         item->state.type=(uint32_t)rf_event_type_id(item->authored->record.type);
         item->state.delay=item->authored->record.delay;item->state.deadline=-1;
         /* Generic creator clears flags; actor/source/mode start deterministically

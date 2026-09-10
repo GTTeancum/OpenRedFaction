@@ -281,6 +281,7 @@ rf_startup_events_report rf_scene_startup_events;
 uint32_t rf_scene_startup_gravity[4];
 uint32_t rf_scene_campaign_triggers[2]; /* registered triggers, owner bytes */
 uint32_t rf_scene_campaign_links[4]; /* total, resolved, unresolved, ordered target hash */
+uint32_t rf_scene_campaign_event_links[4];
 static int campaign_resolve_trigger_links(void)
 {
     uint32_t i,j,n=campaign_events.count+campaign_triggers.count;
@@ -296,9 +297,19 @@ static int campaign_resolve_trigger_links(void)
     }
     /* Only these object families are registered so far. Mover keys/entities
      * remain unresolved; the retained authored links allow later resolution. */
-    status=rf_runtime_triggers_resolve(&campaign_triggers,objects,n,NULL,0);free(objects);
+    status=rf_runtime_triggers_resolve(&campaign_triggers,objects,n,NULL,0);
+    if(!status)status=rf_runtime_events_resolve(&campaign_events,objects,n,NULL,0);
+    free(objects);
     memset(rf_scene_campaign_links,0,sizeof(rf_scene_campaign_links));
     if(status)return status;
+    memset(rf_scene_campaign_event_links,0,sizeof(rf_scene_campaign_event_links));
+    rf_scene_campaign_event_links[3]=2166136261u;
+    for(i=0;i<campaign_events.count;++i)for(j=0;j<campaign_events.items[i].authored->record.link_count;++j) {
+        rf_level_link_target *target=campaign_events.items[i].links+j;
+        uint32_t k,words[4]={campaign_events.items[i].authored->links[j],target->value,target->kind,target->index};
+        for(k=0;k<4;++k)rf_scene_campaign_event_links[3]=(rf_scene_campaign_event_links[3]^words[k])*16777619u;
+        ++rf_scene_campaign_event_links[0];++rf_scene_campaign_event_links[target->kind?1:2];
+    }
     rf_scene_campaign_links[3]=2166136261u;
     for(i=0;i<campaign_triggers.count;++i)for(j=0;j<campaign_triggers.items[i].authored->record.link_count;++j) {
         rf_level_link_target *target=campaign_triggers.items[i].links+j;

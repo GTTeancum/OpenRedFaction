@@ -53,10 +53,10 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
-    if(argc==4 && (!strcmp(argv[1],"--owned-triggers") || !strcmp(argv[1],"--trigger-links") || !strcmp(argv[1],"--startup-events"))) {
+    if(argc==4 && (!strcmp(argv[1],"--owned-triggers") || !strcmp(argv[1],"--trigger-links") || !strcmp(argv[1],"--event-links") || !strcmp(argv[1],"--startup-events"))) {
         rf_vpp archive;rf_level level;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
         rf_object_registry registry;uint32_t i,j,bytes,handle,event_count,n;
-        rf_level_uid_object objects[RF_OBJECT_CAPACITY];int emit=!strcmp(argv[1],"--trigger-links");
+        rf_level_uid_object objects[RF_OBJECT_CAPACITY];int emit=!strcmp(argv[1],"--trigger-links"),emit_events=!strcmp(argv[1],"--event-links");
         if(rf_vpp_open(&archive,argv[2]))return 3;
         if(rf_level_open(&level,&archive,argv[3])) {rf_vpp_close(&archive);return 3;}
         rf_object_registry_init(&registry);
@@ -70,6 +70,13 @@ int main(int argc,char **argv)
             objects[i].flags=0;
         }
         if(rf_runtime_triggers_resolve(&triggers,objects,n,NULL,0))return 13;
+        if(rf_runtime_events_resolve(&events,objects,n,NULL,0))return 13;
+        for(i=0;i<events.count;++i)for(j=0;j<events.items[i].authored->record.link_count;++j) {
+            rf_level_link_target *target=events.items[i].links+j;
+            if(target->kind && !rf_object_registry_lookup(&registry,target->value))return 14;
+            if(emit_events)printf("%u %u %u %u %u\n",events.items[i].authored->record.uid,
+                events.items[i].authored->links[j],target->value,target->kind,target->index);
+        }
         for(i=0;i<triggers.count;++i)for(j=0;j<triggers.items[i].authored->record.link_count;++j) {
             rf_level_link_target *target=triggers.items[i].links+j;
             if(target->kind && !rf_object_registry_lookup(&registry,target->value))return 14;
@@ -83,7 +90,7 @@ int main(int argc,char **argv)
                memcmp(&initial,&t->state,sizeof(initial)) || t->object_kind!=5 ||
                rf_object_registry_lookup(&registry,t->handle)!=t)return 6;
         }
-        if(!emit)printf("%u %u\n",triggers.count,bytes);
+        if(!emit && !emit_events)printf("%u %u\n",triggers.count,bytes);
         if(!strcmp(argv[1],"--startup-events")) {
             rf_physics_gravity gravity;rf_startup_events_report report;uint32_t words[13];
             rf_physics_gravity_set(&gravity,9.8f);
@@ -125,8 +132,13 @@ int main(int argc,char **argv)
            registry.count!=RF_OBJECT_CAPACITY || events.items)return 7;
         if(rf_runtime_events_open(&level,&registry,bytes,&events))return 8;
         rf_vpp_close(&archive);
-        /* Decoded records and links remain valid without their source archive. */
-        for(i=0;i<events.count;++i)if(rf_event_type_id(events.items[i].authored->record.type)<0)return 9;
+        /* Both raw and unresolved runtime links survive source archive close. */
+        for(i=0;i<events.count;++i) {
+            uint32_t j;rf_runtime_event *e=events.items+i;
+            if(rf_event_type_id(e->authored->record.type)<0)return 9;
+            for(j=0;j<e->authored->record.link_count;++j)
+                if(e->links[j].value!=e->authored->links[j] || e->links[j].kind || e->links[j].index!=UINT32_MAX)return 9;
+        }
         rf_runtime_events_close(&events);return registry.count==RF_OBJECT_CAPACITY?0:10;
     }
     if(argc==2 && !strcmp(argv[1],"--type-id")) {

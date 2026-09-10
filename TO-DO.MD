@@ -16,6 +16,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Owned event target resolution is connected to scene loading: all 4,901 links
+across 93 levels pass, with 1,964 resolved and 2,937 awaiting other families.
+Native 64-MiB XEMU replay 20260910-065321 matches the PC ordered target hash.
+Recursive propagation and generic runtime dispatch remain open.
+
 Original generic target routing now passes 720 execution fixtures, including
 event off-source behavior, trigger enable/disable, stale handles and mover
 suppression with fallback. Shared dispatch and event-link resolution remain
