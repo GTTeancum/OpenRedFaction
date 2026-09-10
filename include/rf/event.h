@@ -175,6 +175,21 @@ typedef void (*rf_auto_trigger_callback)(void *context,const rf_auto_trigger_sta
  * float game-clock representation, independent of timer milliseconds. */
 int rf_auto_trigger_fire(rf_auto_trigger_state *state,int32_t now,uint32_t clock_bits,
     int eligible,rf_auto_trigger_callback callback,void *context);
+typedef struct rf_trigger_activation {
+    rf_auto_trigger_state state;int32_t limit;uint32_t object_flags;
+} rf_trigger_activation;
+typedef void (*rf_trigger_activation_callback)(void *context,rf_trigger_activation *trigger,
+    uint32_t actor,uint32_t suppress_movers);
+/* SP 4c0220 bookkeeping around linked dispatch. blocked is resolved global /
+ * player-field gating. Dispatch runs first, then count++, limit mark (+7c bit2),
+ * positive cooldown, clock bits and fired bit64. No eligibility/contact checks.
+ * Callback may mutate flags/count/limit/object_flags, but must preserve all
+ * other fields and object lifetime. Caller supplies stable clock values.
+ * Invalid inputs preserve state and do not dispatch; fired is boolean. */
+int rf_trigger_fire_sp(rf_trigger_activation *trigger,int32_t now,uint32_t clock_bits,
+    uint32_t blocked,uint32_t actor,uint32_t suppress_movers,
+    rf_trigger_activation_callback callback,void *context,uint32_t *fired);
+
 typedef struct rf_startup_events_report {
     uint32_t triggers,events,gravity_actions,unsupported_actions,unresolved_targets;
     uint32_t other_targets,script_gates,pending_links,delayed_events;

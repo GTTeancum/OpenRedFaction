@@ -532,6 +532,24 @@ int rf_auto_trigger_fire(rf_auto_trigger_state *s,int32_t now,uint32_t clock_bit
     ++s->count;s->deadline=deadline;s->activation_time_bits=clock_bits;s->flags|=64;
     return RF_OK;
 }
+int rf_trigger_fire_sp(rf_trigger_activation *trigger,int32_t now,uint32_t clock_bits,
+    uint32_t blocked,uint32_t actor,uint32_t suppress_movers,
+    rf_trigger_activation_callback callback,void *context,uint32_t *fired)
+{
+    int32_t deadline;int status;
+    if(!trigger || !callback || !fired || blocked>1 || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    if(blocked) {*fired=0;return RF_OK;}
+    deadline=trigger->state.deadline;
+    if(trigger->state.cooldown_ms>0) {
+        status=rf_timer_set(&deadline,now,trigger->state.cooldown_ms);if(status)return status;
+    }
+    callback(context,trigger,actor,suppress_movers);
+    ++trigger->state.count;
+    if(trigger->limit!=-1 && (int32_t)trigger->state.count>=trigger->limit && !(trigger->state.flags&8))
+        trigger->object_flags|=2;
+    trigger->state.deadline=deadline;trigger->state.activation_time_bits=clock_bits;
+    trigger->state.flags|=64;*fired=1;return RF_OK;
+}
 int rf_event_gravity_action(rf_physics_gravity *gravity,float value,uint32_t action)
 {
     if(!gravity || action>2)return RF_RANGE;

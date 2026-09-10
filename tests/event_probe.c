@@ -42,10 +42,34 @@ static void callback(void *context,rf_event_state *s,uint32_t action,uint32_t so
     if(action!=2) {s->type=s->type==2?30:2;s->source=111;s->actor=222;s->mode=2;s->deadline=999;}
     else s->deadline=888;
 }
+static uint32_t activation_trace,activation_mutation;
+static void activation_callback(void *context,rf_trigger_activation *trigger,uint32_t actor,uint32_t suppress)
+{
+    uint32_t words[8],i;(void)context;memcpy(words,trigger,sizeof(words));
+    activation_trace=2166136261u;
+    for(i=0;i<8;i++)activation_trace=(activation_trace^words[i])*16777619u;
+    activation_trace=(activation_trace^actor)*16777619u;activation_trace=(activation_trace^suppress)*16777619u;
+    if(activation_mutation) {
+        trigger->state.flags^=8;trigger->state.count=UINT32_MAX;
+        trigger->limit=0;trigger->object_flags|=0x80;
+    }
+}
 int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--trigger-fire")) {
+        struct {rf_trigger_activation trigger;uint32_t now,clock,blocked,actor,suppress,mutation;} input;
+        struct {rf_trigger_activation trigger;uint32_t status,fired,trace;} output;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            activation_mutation=input.mutation;activation_trace=0;output.fired=0xa5a5a5a5;
+            output.status=(uint32_t)rf_trigger_fire_sp(&input.trigger,(int32_t)input.now,input.clock,
+                input.blocked,input.actor,input.suppress,activation_callback,NULL,&output.fired);
+            output.trigger=input.trigger;output.trace=activation_trace;fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--trigger-contact-delay")) {
         struct {rf_trigger_contact_timer timer;int32_t now;uint32_t accepted;} input;
         struct {int32_t status,deadline;uint32_t ready;} output;

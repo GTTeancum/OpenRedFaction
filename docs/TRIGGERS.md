@@ -747,3 +747,37 @@ range, preserving outputs on errors. The seconds-to-ms rounding here is
 different from the existing cooldown initializer's trunc(seconds*1000).
 Key-related behavior after 4bfdb7 and general 4c0220 activation remain open;
 this helper does not connect a diagnostic actor to campaign triggers.
+
+
+## General SP activation bookkeeping (4c0220)
+
+`rf_trigger_fire_sp` adds the non-startup SP bookkeeping path. Its state
+embeds the existing six-word trigger state plus signed activation limit
+(+2a4) and object flags (+7c). Its blocked input represents the preceding
+resolved gate: global 856844 equals exactly 1, or a configured +2ac player
+field offset whose byte at player+50+offset is zero. A missing player does
+not reject. 4a3740 walks player list 7c75cc by actor handle at player+14;
+that lookup/field resolution is not implemented by this helper.
+
+On acceptance, linked dispatch sees old state. Count then increments with
+32-bit wrap; the resulting signed count >= signed limit marks object flag
+2 through 48ab40 unless limit == -1 or trigger flag8 is set. 48ab40 only
+ORs +7c with 2; it does not free the object immediately. Positive cooldown
+sets deadline, then raw game-clock bits are copied to +2a8 and flag64 is
+set. Existing disabled/fired flags do not themselves gate 4c0220; callers
+perform the separate eligibility/contact checks. Auto activation remains
+available through the existing startup interface.
+
+Callback mutation of flags/count/limit/object_flags is supported and observed
+by subsequent bookkeeping. Other fields, object lifetime and supplied clocks
+must remain stable across the callback; timer setup is validated beforehand.
+The helper does not perform linked effects, player lookup, deferred object
+removal or MP replication.
+
+`tools/verify_trigger_fire.py` passes 2048 original/PC/NXDK cases. It executes
+full original SP 4c0220 with no player-field gate and intercepts only linked
+dispatch; original timer and mark helpers run unchanged. Exact final state,
+fired result and callback-state hash agree. Half the fixtures mutate the
+permitted fields during dispatch. Cases include count wrap, signed limits,
+auto exemption, existing flags, global inhibit and cooldown clock wrapping.
+This validates compiled NXDK code in Unicorn, not live XEMU activation.
