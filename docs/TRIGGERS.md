@@ -887,3 +887,26 @@ The function does not yet run from live scene actor updates. Snapshot update
 ordering, authored runtime-volume preparation and remaining key/player gates
 must be connected before natural campaign activation is claimed. The six
 regression CTests and both builds pass.
+
+
+## Authored volume preparation
+
+`rf_trigger_volume_init` converts a retained v180 record to the contact
+volume. Sphere position/radius copy unchanged. For boxes, binary matrix
+reader 52d2d0 reads its first vector into matrix+18, second into +0, third
+into +c: disk forward/right/up becomes runtime right/up/forward. Dimension
+reads 4656e9..465722 place the first float at factory +60, second at +5c,
+third at +64, so runtime XYZ dimensions are disk[1], disk[0], disk[2].
+Constructor blocks 4bfb3b/4bfb71..4bfb85 copy these prepared fields without
+normalization. The port zeroes unused fields and rejects malformed active
+fields while preserving the destination; negative finite sphere radii retain
+the original squared-radius contact semantics.
+
+`tools/verify_trigger_volume.py` compares all 2367 installed authored triggers
+(247 spheres, 2120 boxes) against those original loader/factory blocks.
+Only binary-read boundaries supply bytes; matrix/vector copy callees run
+unchanged. All output bytes match compiled PC and NXDK volumes. This is
+prepared loader/constructor evidence, not full original factory execution.
+Both builds and the six regression CTests pass. Runtime contact polling can
+now consume correctly ordered authored volumes, but live snapshot/update
+ordering, dynamic trigger transforms and remaining activation gates are open.

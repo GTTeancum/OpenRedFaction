@@ -58,6 +58,17 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--trigger-volume")) {
+        rf_trigger_volume input;rf_level_trigger record={0};struct {uint32_t status;rf_trigger_volume volume;} output;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            record.shape=input.shape;memcpy(record.position,input.center,12);record.radius=input.radius;
+            memcpy(record.orientation_disk,input.matrix,36);memcpy(record.dimensions_disk,input.size,12);
+            memset(&output.volume,0xa5,sizeof(output.volume));output.status=(uint32_t)rf_trigger_volume_init(&record,&output.volume);
+            fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--trigger-poll")) {
         uint32_t input[54],output[3];rf_trigger_gate gate;rf_trigger_actor_facts actor;
         rf_trigger_volume volume;float pose[3][3];rf_trigger_contact_timer timer;

@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Authored volume preparation matches all 2367 original/PC/NXDK triggers,
+including matrix/dimension axis order; live contact integration remains open.
+
 Combined eligibility/contact/delay polling matches 4096 original/PC/NXDK
 cases; connect live snapshots and remaining key/player activation gates.
 

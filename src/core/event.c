@@ -151,6 +151,29 @@ int rf_trigger_eligible(const rf_trigger_gate *g,const rf_trigger_actor_facts *a
     if(g->attached!=-1 && !a->attached_present)return RF_OK;
     *eligible=1;return RF_OK;
 }
+int rf_trigger_volume_init(const rf_level_trigger *record,rf_trigger_volume *volume)
+{
+    rf_trigger_volume value={0};uint32_t i;
+    if(!record || !volume)return RF_RANGE;
+    if(record->shape>1)return RF_FORMAT;
+    value.shape=record->shape;
+    for(i=0;i<3;i++) {
+        if(!isfinite(record->position[i]))return RF_FORMAT;
+        value.center[i]=record->position[i];
+    }
+    if(!record->shape) {
+        if(!isfinite(record->radius))return RF_FORMAT;
+        value.radius=record->radius;
+    } else {
+        for(i=0;i<9;i++)if(!isfinite(record->orientation_disk[i]))return RF_FORMAT;
+        for(i=0;i<3;i++)if(!isfinite(record->dimensions_disk[i]) || record->dimensions_disk[i]<0)return RF_FORMAT;
+        memcpy(value.matrix[0],record->orientation_disk+3,12);
+        memcpy(value.matrix[1],record->orientation_disk+6,12);
+        memcpy(value.matrix[2],record->orientation_disk,12);
+        value.size[0]=record->dimensions_disk[1];value.size[1]=record->dimensions_disk[0];value.size[2]=record->dimensions_disk[2];
+    }
+    *volume=value;return RF_OK;
+}
 int rf_trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
     const rf_trigger_volume *volume,const float pose[3][3],rf_trigger_contact_timer *timer,
     int32_t now,uint32_t input,uint32_t *ready)

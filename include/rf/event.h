@@ -61,6 +61,11 @@ int rf_trigger_actor_resolve(const rf_entity_registry *registry,const rf_entity_
 typedef struct rf_trigger_volume {
     uint32_t shape;float center[3],radius,matrix[3][3],size[3];
 } rf_trigger_volume;
+/* v180 465510 / 4bf970 volume preparation: disk forward/right/up becomes
+ * runtime right/up/forward; disk dimensions 1/0/2 become runtime X/Y/Z.
+ * No normalization. Finite active fields and nonnegative box sizes required;
+ * signed sphere radius preserved. Unused fields zeroed; errors preserve output. */
+int rf_trigger_volume_init(const rf_level_trigger *record,rf_trigger_volume *volume);
 /* SP 4bfc60 eligibility/contact/delay stage, before key and activation gates.
  * Actor pose is +3c, +e4, +f0 in that order. Flag4 skips geometry; unknown
  * shape rejects contact otherwise. Timer/ready are unchanged on errors.
