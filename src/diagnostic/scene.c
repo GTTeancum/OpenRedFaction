@@ -40,12 +40,15 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 static uint32_t campaign_crouched,campaign_jump_held;
+static rf_physics_gravity scene_gravity={9.8f,{0,-9.8f,0}};
 uint32_t rf_scene_player_jump[4],rf_scene_player_jump_frames[128][8];
 static float campaign_position[3],campaign_orientation[9];
 uint32_t rf_scene_player_spawn_diagnostic[19];
 int rf_scene_set_campaign_spawn(const rf_level *level)
 {
     unsigned i,j;
+    /* Original level setup 435aeb resets gravity independently of jump strength. */
+    rf_physics_gravity_set(&scene_gravity,9.8f);
     if(!level){campaign_spawn=0;memset(rf_scene_player_spawn_diagnostic,0,sizeof(rf_scene_player_spawn_diagnostic));return RF_OK;}
     for(i=0;i<3;++i) {
         if(!isfinite(level->player_position[i]))return RF_FORMAT;
@@ -573,8 +576,8 @@ static int campaign_jump_update(uint32_t frame)
         if(rf_player_jump_enabled(&gate)) {
             rf_player_jump_state state={rf_scene_actor_stance_flags,scene_actor_body.state.flags,
                 scene_actor_body.state.velocity[1],campaign_modes+selected,campaign_identity,0};
-            /* Height is loaded from game.tbl; gravity still shares actor_tick's
-             * installed default. Class sound resolution remains open. */
+            /* Configured impulse uses the same initialized gravity state as falling.
+             * Runtime gravity events do not recompute it; audio remains open. */
             rf_player_jump_input input={campaign_modes,campaign_identity,
                 campaign_jump_strength,scene_step_seconds,0,0,-1,0};
             float now=(float)((double)frame*scene_step_seconds);uint32_t sounds=rf_scene_player_jump[2];
@@ -692,7 +695,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
     rf_scene_actor_initial_state=current;
     for(step=0;step<120;++step) {
         proposal=current;
-        {int status=rf_physics_fall_propose(&proposal,1.0f/60,9.8f,support);if(status)return status;}
+        {int status=rf_physics_fall_propose(&proposal,1.0f/60,scene_gravity.acceleration,support);if(status)return status;}
         {int status=actor_sweep(world,&proposal,normal,&fraction,&sphere,0x460);if(status)return status;}
         if(sphere!=UINT32_MAX) {
             /* Stationary non-liquid floor, no rotating actor predicate.
@@ -708,7 +711,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
                 current.flags|=0x1000000;
                 while(remaining>0) {
                     float hit_fraction,impact;uint32_t hit_sphere;
-                    status=rf_physics_fall_propose(&current,remaining,9.8f,support);if(status)return status;
+                    status=rf_physics_fall_propose(&current,remaining,scene_gravity.acceleration,support);if(status)return status;
                     status=actor_sweep(world,&current,normal,&hit_fraction,&hit_sphere,0x460);if(status)return status;
                     if(hit_sphere==UINT32_MAX) {
                         memcpy(current.position,current.next_position,sizeof(current.position));current.scalar_144=1;remaining=0;
@@ -755,7 +758,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
                 state->orientation,state->orientation,state->orientation,input);if(status)return status;
             status=rf_physics_run_propose(state,remaining,rf_scene_actor_movement_settings.speed,
                 rf_scene_actor_movement_values.acceleration,rf_scene_actor_run_traction,input,ground_normal,support);
-        } else status=rf_physics_fall_propose(state,remaining,9.8f,support);
+        } else status=rf_physics_fall_propose(state,remaining,scene_gravity.acceleration,support);
         if(status)return status;
         memset(state->vector_e0,0,sizeof(state->vector_e0)); /* full 49f3c0 clears force after proposal */
         state->flags|=0x1000000;
@@ -1148,7 +1151,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && campaign_spawn) {
             uint32_t mode;float height;
             status=rf_game_jump_height_load(&tables,65536,&height);
-            if(!status)campaign_jump_strength=(float)sqrt(2.0*(double)9.8f*(double)height);
+            if(!status)campaign_jump_strength=(float)sqrt(2.0*(double)scene_gravity.acceleration*(double)height);
             for(mode=0;mode<16 && !status;++mode)status=rf_movement_descriptor_load(&tables,mode,65536,campaign_modes+mode);
         }
         rf_vpp_close(&tables);if(status)goto done;

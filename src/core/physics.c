@@ -3,6 +3,12 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_gravity_set(rf_physics_gravity *state,float acceleration)
+{
+    if(!state || !isfinite(acceleration))return RF_RANGE;
+    state->acceleration=acceleration;state->vector[0]=state->vector[2]=0;
+    state->vector[1]=-acceleration;return RF_OK;
+}
 int rf_physics_ground_propose(rf_physics_body_state *state,float dt,float drag,
     const float steering_acceleration[3],const float support_velocity[3])
 {

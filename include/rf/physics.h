@@ -1,6 +1,12 @@
 #ifndef RF_PHYSICS_H
 #define RF_PHYSICS_H
 #include "rf/vpp.h"
+typedef struct rf_physics_gravity {float acceleration,vector[3];} rf_physics_gravity;
+/* Original 4a0e20: updates 5a00dc and vector 7c7058=(0,-gravity,0).
+ * Does not recompute the separately initialized jump impulse. Finite signed
+ * gravity is supported; invalid input preserves output. No allocation. */
+int rf_physics_gravity_set(rf_physics_gravity *state,float acceleration);
+
 typedef struct rf_physics_fallback {
     float mass;
     float center[3],radius,parameter_10;

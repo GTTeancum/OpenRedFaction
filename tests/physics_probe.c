@@ -8,6 +8,14 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--gravity")) {
+        float acceleration;struct {int32_t status;rf_physics_gravity state;} result;
+        while(fread(&acceleration,4,1,stdin)==1) {
+            memset(&result.state,0xa5,sizeof(result.state));result.status=rf_physics_gravity_set(&result.state,acceleration);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && (!strcmp(argv[1],"--run") || !strcmp(argv[1],"--climb"))) {
         struct {rf_physics_body_state state;float dt,speed,acceleration,traction,input[3],normal[3],support[3];} input;
         while(fread(&input,sizeof(input),1,stdin)==1) {

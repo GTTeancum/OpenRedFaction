@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Finish jump gravity/audio ownership and validate obstructed jumping and authored traversal.
+- [ ] Wire runtime gravity events and jump audio ownership, then validate obstructed jumping and authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -13,6 +13,11 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Gravity now has shared scalar/vector state used by falling and jump setup.
+The setter matches 1,024 finite original cases through both entry paths on
+PC/NXDK, including signed zero and negative gravity, without changing jump
+impulse. Level setup resets it to 9.8; runtime gravity event dispatch is open.
 
 Campaign jump height now loads from game.tbl with a bounded shared reader;
 24 PC/NXDK parsing cases pass. The normal jump replay passes in 64-MiB XEMU

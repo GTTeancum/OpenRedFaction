@@ -3063,3 +3063,35 @@ path consumes the changed value. Its report is artifacts/jump-height-override.
 The standard 1.33 jump replay still passes on PC and stock-64-MiB XEMU
 20260910-013412 with exact retained state/timeline matching. Altered-height
 native Xbox execution and original full-arc comparison remain untested.
+
+
+Shared gravity state and original runtime setter (2026-09-10)
+
+The original scalar 5a00dc starts at binary32 9.8. Level setup pushes that same
+value at 435aeb and calls 4a0e20 at 435af0. game.tbl only contains a comment
+about Entity Gravity in the installed copy; no active field was found there.
+4a0e20 writes the scalar and uses actual 42d840 to set vector 7c7058 to
+(0,-gravity,0). Getter 4a0e50 returns the scalar. Runtime trampoline 4bcc00
+reads object+2b8 and invokes the same setter. It is referenced from the table
+at 589b40; its full event construction/dispatch has not been reconstructed.
+Ghidra lacked a function at 4bcc07, so this path was inspected from raw x86
+and executed directly instead of treating the failed export as evidence.
+
+rf_physics_gravity_set now owns the scalar/vector update in shared C. It accepts
+finite signed gravity, preserves signed zero in the negated Y component, and
+rejects nonfinite input before mutation (a defensive API restriction). Scene
+campaign setup resets one shared gravity state to 9.8; falling proposals and
+initial jump-strength computation use that scalar instead of separate literals.
+The setter deliberately does not recompute the separately initialized jump
+impulse. Connecting runtime gravity events must preserve this distinction.
+
+verify_gravity.py executes both original 4a0e20 and 4bcc00 for 1,024 finite bit
+patterns, including +/-zero, subnormals, +/-9.8 and maximum finite values. It
+compares full scalar/vector output and verifies 62f2c8 stays unchanged. PC and
+compiled NXDK match all cases; three nonfinite rejection cases also preserve
+output. Both targets build and the ordinary PC jump replay remains unchanged.
+The fixture does not execute event registration, active-level event dispatch
+or altered-gravity campaign traversal. Report: artifacts/gravity-verification.json.
+
+Stock-64-MiB XEMU jump replay 20260910-013918 passes with exact PC state and
+jump timeline matching after the shared-gravity integration.
