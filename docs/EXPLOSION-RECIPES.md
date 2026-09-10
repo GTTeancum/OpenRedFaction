@@ -61,3 +61,12 @@ radius and min/max life by explosion size. It also multiplies the shared
 central random-position factor by size. All these outputs match the shared
 owned-copy helper in 600 original/PC/NXDK fixtures. This does not yet create
 emitters, sample positions or execute the explosion update loop.
+
+Update function 48e290 adds frame delta 5a4014 to elapsed +20 before work.
+Central slot processing requires a live pointer, process byte exactly 1, and
+elapsed strictly below play_factor * size. Recipe expiry uses elapsed strictly
+greater than play_time, after central processing, and releases all live central
+emitters. Shared central-only timing matches 700 original update fixtures
+(164 expirations) with process/release callbacks intercepted without mutation.
+Trail updates, callback mutation, active-list ownership and scene phase remain
+outside this helper; callers must process selected slots before releasing them.

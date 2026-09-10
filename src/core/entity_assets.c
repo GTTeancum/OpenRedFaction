@@ -895,3 +895,20 @@ int rf_explosion_central_prepare(const rf_explosion_definition *definition,uint3
     value.min_life*=size;value.max_life*=size;
     *particle=value;*random_extent=size*definition->recipe.central_random;return RF_OK;
 }
+
+int rf_explosion_clock_tick(const rf_explosion_recipe *recipe,float dt,
+    rf_explosion_clock *clock,rf_explosion_clock_actions *actions)
+{
+    rf_explosion_clock next;rf_explosion_clock_actions out={0};unsigned slot;
+    if(!recipe || !clock || !actions || recipe->central_count>6 || clock->active>1 ||
+       (clock->live&~((1u<<recipe->central_count)-1u)) || !isfinite(dt) || !isfinite(clock->elapsed) || !isfinite(clock->size))return RF_RANGE;
+    next=*clock;
+    if(next.active) {
+        next.elapsed+=dt;if(!isfinite(next.elapsed))return RF_RANGE;
+        for(slot=0;slot<recipe->central_count;++slot)
+            if((next.live&(1u<<slot)) && (recipe->central[slot].process_per_frame&255u)==1u &&
+               (double)next.elapsed<(double)recipe->central[slot].play_factor*next.size)out.process|=1u<<slot;
+        if(next.elapsed>recipe->play_time){out.release=next.live;next.live=0;next.active=0;}
+    }
+    *clock=next;*actions=out;return RF_OK;
+}

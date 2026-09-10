@@ -16,6 +16,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Central explosion timing now matches 700 original/PC/NXDK update cases,
+including 164 expirations and process-before-release ordering. Trail updates,
+emitter creation/processing and scene-clock integration remain open.
+
 Central explosion size gating and velocity/radius/lifetime scaling match
 600 original/PC/NXDK cases. Shared preparation returns an owned copy and
 random-position extent without mutating definitions. Position sampling,

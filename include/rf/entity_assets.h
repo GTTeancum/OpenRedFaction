@@ -62,6 +62,18 @@ int rf_explosion_definition_load(rf_vpp *tables,const char *name,uint32_t budget
  * Position, direction, allocation, random sampling and creation remain separate. */
 int rf_explosion_central_prepare(const rf_explosion_definition *definition,uint32_t slot,float size,
     rf_particle_definition *particle,float *random_extent);
+typedef struct rf_explosion_clock {
+    float elapsed,size;uint32_t live,active;
+} rf_explosion_clock;
+typedef struct rf_explosion_clock_actions {uint32_t process,release;} rf_explosion_clock_actions;
+/* Central-only timing from 48e290. Increment elapsed, select process slots,
+ * then release all live slots on strict recipe expiry. Caller executes process
+ * in slot order before release in slot order; callbacks may not mutate these
+ * inputs during selection. Inactive clocks produce no actions. Finite time/size
+ * domain; output/state preserved on error. Trail updates and list ownership
+ * remain separate. No animation clock or particle processing is implemented. */
+int rf_explosion_clock_tick(const rf_explosion_recipe *recipe,float dt,
+    rf_explosion_clock *clock,rf_explosion_clock_actions *actions);
 /* movemodes.tbl fields and name/reference tables from original 433670.
  * Bounded archive read, one scratch allocation; output preserved on failure. */
 int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf_movement_descriptor *result);
