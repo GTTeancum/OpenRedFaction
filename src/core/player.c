@@ -2,6 +2,17 @@
 #include "rf/collision.h"
 #include <string.h>
 #include <math.h>
+uint32_t rf_player_support_route(const rf_player_support_input *input)
+{
+    if(!input)return RF_PLAYER_SUPPORT_NONE;
+    if(input->actor_flags&2)return RF_PLAYER_SUPPORT_FALL;
+    if(input->movement_mode==3 || input->movement_mode==8 ||
+       (input->kind_one && input->attachment==-1))return RF_PLAYER_SUPPORT_QUERY;
+    if(input->movement_mode==1 && input->parent==-1 &&
+       (input->moved || (input->physics_flags&0x400000) || (input->object_flags&8)))
+        return RF_PLAYER_SUPPORT_QUERY;
+    return RF_PLAYER_SUPPORT_NONE;
+}
 uint32_t rf_player_jump_enabled(const rf_player_jump_gate *gate)
 {
     return gate && gate->entity_present &&

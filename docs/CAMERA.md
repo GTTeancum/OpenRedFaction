@@ -2898,3 +2898,33 @@ are disassembly/decompiler findings, not yet full update-order execution proof.
 Recover the ordering of this consumer, physics and input before connecting the
 shared jump function to the diagnostic scene. This is required to avoid both
 cancelled takeoff and a permanently suppressed support probe.
+
+
+Shared support selector and frame-order recovery (2026-09-10)
+
+rf_player_support_route now implements the resolved 487f73..487fc9 decision
+in shared C, returning none, fall transition or support query. Jump flag 2 has
+precedence; mode/kind/attachment, parent, movement and support/object flags
+otherwise select the query. It does not mutate state or perform the operation.
+verify_support_route.py matches all 2,048 original execution cases on PC and
+compiled NXDK, with input preservation and a null-input check. Both targets
+build; the 6,144 shared jump cases still pass. No live input is added yet.
+
+Call-chain recovery for the ordinary local-player path:
+- 433520 calls input update 4a6060 at 433633, then simulation 433260 at 43363b.
+- 4a6060 dispatches 430c70 at 4a61c1/4a61d8, which can invoke action 3.
+- 433260 calls the world/physics update 487a40 at 433326.
+- 487a40 calls post-update 487e00 at 487c33; that contains the support selector.
+- Later in 433260, 4a26d0 loops player updates through 4a2700 at 4a26e5.
+- 4a2700's local-player branch calls 4aa6d0 at 4a2780; the latter consumes
+  jump flag 2 at 4aadb5 after an optional 4a9380(player,9) request.
+
+This is static call-path evidence from the fingerprinted binary and selected
+Ghidra exports, corroborated by instruction inspection; the complete frame
+loop and its state-dependent branches have not been executed in a harness.
+It establishes the intended integration order for the ordinary local fixture:
+input, movement/physics, support selection while the jump flag remains set,
+then owned-player flag consumption. Other control modes, input locks, server
+branches and exceptional early returns require their own lifecycle handling.
+The port's diagnostic rendering/tick order still needs to be aligned and
+validated by takeoff/hold/landing replay; the selector alone does not prove it.

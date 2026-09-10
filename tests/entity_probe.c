@@ -30,6 +30,16 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--support-route")) {
+        rf_player_support_input input;uint32_t result;
+        _Static_assert(sizeof(input)==32,"Support route wire layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            result=rf_player_support_route(&input);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--jump-gate")) {
         rf_player_jump_gate input;uint32_t result;
         _Static_assert(sizeof(input)==28,"Jump gate wire layout");

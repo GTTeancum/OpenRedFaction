@@ -65,6 +65,17 @@ typedef int (*rf_player_try_stand)(void *context,uint32_t *stood);
 int rf_player_climb_exit(rf_player_climb_state *state,const rf_player_climb_exit_input *input,
     uint32_t *selected_descriptor,rf_player_try_stand stand,void *context);
 
+typedef struct rf_player_support_input {
+    uint32_t movement_mode,actor_flags,kind_one;
+    int32_t attachment,parent;
+    uint32_t moved,physics_flags,object_flags;
+} rf_player_support_input;
+enum {RF_PLAYER_SUPPORT_NONE=0,RF_PLAYER_SUPPORT_FALL=1,RF_PLAYER_SUPPORT_QUERY=2};
+/* 487f73..487fc9 after actor update, before owned-player jump-flag consumption.
+ * Selects the fall transition or support query; performs neither operation.
+ * kind_one is the resolved 429990 result, moved the preceding update flag. */
+uint32_t rf_player_support_route(const rf_player_support_input *input);
+
 typedef struct rf_player_jump_gate {
     uint32_t entity_present,override_enabled;
     int32_t game_state,control_kind,parent_kind; /* -1 for absent objects. */

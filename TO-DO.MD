@@ -14,6 +14,12 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+The shared support selector now matches all 2,048 original cases on PC/NXDK.
+Static call-chain recovery places ordinary local input before simulation,
+post-physics support before the owned-player update, and jump-flag consumption
+in that later update. Wire this sequence into campaign replay next; the full
+original frame loop has not been executed by the harness.
+
 Jump integration exposed a support-update dependency: the diagnostic landing
 loop can cancel takeoff while its probe still sees the floor. Original
 487f73..487fc9 passes 2,048 dispatch cases and bypasses support when actor
