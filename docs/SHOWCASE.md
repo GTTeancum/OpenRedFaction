@@ -25,7 +25,9 @@ RF_PREVIEW_SCALE accepts 1..4 (640x480 to 2560x1920), preserving 4:3 framing.
 Only the offline PC rasterizer's output grid changes. Geometry, UVs, material
 sampling and lightmaps are unchanged; the default remains 640x480 for Xbox
 pixel comparisons. High-resolution capture buffers are not Xbox allocations.
-This scene has 3,434 world triangles and 437 visible actor triangles.
+The stored capture used 3,434 world triangles and 437 visible actor triangles.
+Current static-world backface rejection reduces submitted geometry; reproducing
+the 1920x1440 image changes two pixels. The stored screenshot is retained.
 
 The optional Xbox `showcase.flag` camera binding builds but has not been tested
 in live XEMU. Other scene/actor streaming flags must be absent for a static

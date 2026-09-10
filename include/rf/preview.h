@@ -14,6 +14,9 @@ typedef struct rf_preview_mesh { rf_preview_vertex *vertices; uint32_t count, by
 /* Last world capacity error: valid, face, fan corner, used/capacity vertices,
  * geometry face count, writing pass, required vertices. Diagnostic only. */
 extern uint32_t rf_preview_failure[8];
+/* 55f82f..55f844, with 4163a0/40a0b0: strict positive plane distance.
+ * Plane and viewer share coordinates. NaN/zero distance is rejected. */
+uint32_t rf_preview_plane_visible(const float plane[4],const float viewer[3]);
 /* Initial geometry renderer input, not reconstructed original camera/materials.
  * 640x480, 90 degree horizontal FOV, +Z forward, 0.1..1000 depth range.
  * Temporary face shading keeps geometry inspectable until materials are restored. */

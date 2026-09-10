@@ -1,5 +1,50 @@
 # Projection profiling and optimization
 
+## Static world plane rejection
+
+The original cached static-solid renderer `55f5e0` calls `4163a0` at `55f82f`
+and compares its unrounded result with zero. `55f841` rejects nonpositive or
+unordered distance; `55f846` accepts strictly positive distance. The alternate
+cached path repeats the rule at `55fa40`. The viewer was copied from `1818690`
+at `55f637`; the cached face plane is at record+8. `4163a0/40a0b0` evaluate
+z product + y product + x product + plane constant in that order. This evidence
+is for RF.exe SHA256 b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836.
+The local Dash Faction legacy renderer hook at 5605f6 supplied the function
+address lead; no renderer source was copied from that project.
+
+`rf_preview_plane_visible` reconstructs this predicate. The shared preview
+applies it to static world faces before projection/clipping, after validating
+their material/lightmap references. Movers retain the previous behavior until
+their local-camera path is verified. This avoids allocating or uploading
+static backfaces; it adds no mesh allocation and preserves the 2 MiB CPU/GPU cap.
+The original cached-face construction and complete room/portal visibility are
+still outside this implementation.
+
+`tools/verify_world_facing.py --nxdk` checks 2,500 cases against the original
+branch and both callees, including exact plane boundaries and nonfinite values.
+PC and compiled NXDK match every decision. NXDK restores incoming FPCW027f after
+using extended precision. Both builds, five CTests, and the 32-view retained
+projection/allocation check pass.
+
+The campaign-start yaw overflow at tick 342 is resolved: all 480 ticks complete
+with a 1,161,048-byte CPU world peak. Stock-64-MiB XEMU replay-20260909-221358
+passes PC world/camera hashes, input ring, initial spawn words and final body;
+sampled completed GPU peak is 1,157,856 bytes. Normal diagnostic 664-tick replay
+replay-20260909-221735 also passes. Both harness runs restore the regular ISO.
+`tools/verify_player_replay.py` now exercises all four 480-tick commands at both
+the old diagnostic and campaign start. All eight pass, and the campaign yaw
+case still verifies the greater-than-1-MiB fallback.
+
+Image audit against the retained pre-culling PC renderer: neutral campaign and
+diagonal replay final images are exact. Across 94 untextured starts, 30 are
+exact and 64 differ by 1..221 pixels. The largest change was inspected and shows
+small edge differences. The 1920x1440 README reproduction differs by two pixels;
+the stored screenshot remains unchanged. These are measurements against the
+old double-sided port preview, not original-game or PS2 image validation.
+Strict `verify_projection_corpus.py` correctly fails on differing images;
+its explicit `--report-differences` mode records them as DIFFERENCES, not PASS,
+with hashes and retained differing images. See artifacts/projection-corpus-differences.json.
+
 The optional scene profiler measures seven sequential parts of each tick using
 an injected millisecond clock. Xbox pacing sessions enable it; deterministic
 fixtures leave it disabled. Tick 0 through 15 are excluded to avoid initialization

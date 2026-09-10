@@ -3,7 +3,6 @@
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
-- [ ] Resolve the campaign-start turning overflow at tick 342 before enabling the spawn profile interactively.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
 - [ ] Capture and replay any further interactive exits; the historical tick-99 cause remains unproven.
 - [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
@@ -12,11 +11,17 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Original static-solid plane rejection now prevents the campaign turn overflow:
+all 480 yaw ticks pass on PC and 64 MiB XEMU at a 1,161,048-byte world peak,
+with the same 2 MiB allocation. All eight PC input sweeps and the normal
+664-tick Xbox replay pass. Mover culling and room visibility remain open;
+see docs/PROJECTION-PERFORMANCE.md for the measured image differences.
+
 Opt-in campaign placement now loads miner1 by class, uses the authored start,
 and seeds verified body/eye angles. A 120-tick neutral replay matches PC in
 stock-64-MiB XEMU, including final body and world/camera hashes. PC diagonal
-movement passes 480 ticks, but stationary turning exceeds the 2 MiB projection
-buffer at tick 342. The regular interactive profile is restored; full player
+movement passes 480 ticks; the stationary-turn overflow previously found at
+tick 342 is now resolved by static backface rejection. The regular interactive profile is restored; full player
 factory, armed initial animation/class-cache ownership and binding are still open.
 
 Shared C spawn-look initialization now matches original instructions exactly in

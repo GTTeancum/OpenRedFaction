@@ -6,6 +6,44 @@ typedef struct point { float x, y, z, u, v, lu, lv; } point;
 /* Last world-projection capacity failure: valid, face, fan corner, used,
  * capacity (vertices), geometry face count, writing pass, required vertices. */
 uint32_t rf_preview_failure[8];
+uint32_t rf_preview_plane_visible(const float plane[4],const float viewer[3])
+{
+#if defined(_MSC_VER) && defined(_M_IX86)
+    unsigned short saved,control,comparison;
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        mov ecx,plane
+        mov edx,viewer
+        fld dword ptr [ecx+8]
+        fmul dword ptr [edx+8]
+        fld dword ptr [ecx+4]
+        fmul dword ptr [edx+4]
+        faddp st(1),st(0)
+        fld dword ptr [ecx]
+        fmul dword ptr [edx]
+        faddp st(1),st(0)
+        fadd dword ptr [ecx+12]
+        fldz
+        fxch st(1)
+        fcompp
+        fnstsw comparison
+        fldcw saved
+    }
+    return (comparison&0x4100u)==0;
+#elif defined(__i386__)
+    unsigned short saved,control,comparison;
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile("flds 8(%1); fmuls 8(%2); flds 4(%1); fmuls 4(%2); faddp; flds (%1); fmuls (%2); faddp; fadds 12(%1); fldz; fxch; fcompp; fnstsw %0"
+        :"=m"(comparison):"r"(plane),"r"(viewer):"st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));return (comparison&0x4100u)==0;
+#else
+    return (((long double)plane[2]*viewer[2]+(long double)plane[1]*viewer[1])+
+        (long double)plane[0]*viewer[0])+plane[3]>0;
+#endif
+}
 /* Keep clipping arithmetic at float precision on both SSE and x87 builds. */
 static float interpolate(float a,float b,float t)
 {
@@ -77,6 +115,9 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
         if(face.texture>=g->textures)return RF_FORMAT;
         if (face.lightmap_mapping != UINT32_MAX && rf_geometry_lightmap(g, face.lightmap_mapping, UINT32_MAX, &lightmap)) return RF_FORMAT;
         if(face.texture>=UINT32_MAX-material_base)return RF_RANGE;
+        /* Static cached-solid branch rejects nonpositive camera/plane distance.
+         * Mover-local camera preparation remains separate. */
+        if(!origin && !rf_preview_plane_visible(face.plane,level->player_position))continue;
         if(origin) {
             rf_collision_ray_hit local={0},world;memcpy(local.normal,face.plane,12);
             status=rf_collision_contact_world(&local,origin,matrix,&world);if(status)return status;memcpy(face.plane,world.normal,12);
