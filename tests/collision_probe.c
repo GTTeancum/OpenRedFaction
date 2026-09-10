@@ -12,6 +12,19 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==4 && !strcmp(argv[1],"--level-emitters")) {
+        rf_vpp archive;rf_level level;rf_level_emitter_reader reader;rf_level_emitter emitter;int status;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 3;
+        status=rf_level_emitters_begin(&level,&reader);if(status)return 4;
+        while((status=rf_level_emitter_next(&reader,&emitter))==RF_OK) {
+            rf_level_emitter_reader truncated=reader,saved;rf_level_emitter guard,original;
+            truncated.cursor=emitter.offset;truncated.index--;truncated.section.size=emitter.offset+emitter.bytes-1;saved=truncated;
+            memset(&guard,0xa5,sizeof(guard));original=guard;
+            if(rf_level_emitter_next(&truncated,&guard)!=RF_FORMAT || memcmp(&truncated,&saved,sizeof(saved)) || memcmp(&guard,&original,sizeof(guard)))return 5;
+            if(fwrite(&emitter,sizeof(emitter),1,stdout)!=1)return 6;
+        }
+        rf_vpp_close(&archive);return status==RF_NOT_FOUND?0:7;
+    }
     /* Process-local batch rays for inspecting authored static geometry. */
     if(argc==4 && (!strcmp(argv[1],"--world-rays") || !strcmp(argv[1],"--scene-rays"))) {
         rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};rf_geometry_collision_movers movers={0};float ray[6];

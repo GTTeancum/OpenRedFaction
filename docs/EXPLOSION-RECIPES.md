@@ -589,3 +589,34 @@ builds and six CTest checks pass. The 29184-byte slot figure excludes the
 192000-byte particle array, list headers and manager structs. Native campaign
 memory accounting, room traversal, frame integration and rendering remain open;
 NXDK lifecycle parity is measured through Unicorn.
+
+
+## Level-authored emitter records
+
+Original level loader 0x45fcf0 reads section A00 into per-record emitter
+settings; these are not simply named emitters.tbl references. The v180 sequence
+contains UID/name, position and disk orientation, script/header metadata, spawn
+radius and two currently unnamed floats, bitmap name, delay/speed/life/radius
+center-variance pairs, acceleration, growth, gravity, cone angle, two colors,
+emitter/particle flags, enabled byte, phase timings and finish age.
+
+`rf_level_emitters_begin` / `rf_level_emitter_next` now expose bounded,
+allocation-free raw metadata. They preserve serialized orientation, angles,
+center-variance pairs and unknown fields without inventing conversions.
+Version 180 is explicit; strings are bounded to 255 bytes, floats must be
+finite, and the section must be consumed exactly. Errors preserve reader/output.
+The caller retains the archive while iterating.
+
+`tools/inspect_level_emitters.py` independently inventories all installed A00
+sections from the original call sequence. `tools/verify_level_emitter_reader.py`
+compares every field of 87 records in 20 levels against the PC C reader; all
+agree. Every record truncated at its last byte is rejected with unchanged
+reader/output. Nine bitmap names occur, all TGA names, including bubble01_A.tga,
+smokedark2.tga and waterdrop02.tga. L1S1 contains two authored emitters. Both
+builds and six CTest checks pass. This is metadata validation, not original
+reader execution, NXDK runtime parity or visible campaign effects. Template
+conversion, bitmap resolution, room lookup and runtime registration remain open.
+
+Room lookup for a missing initial room delegates from original 0x4cd970 to
+0x4e1630; the latter already has a reconstructed geometry-world locator. Cached
+room/traversal behavior is separate and must not be replaced indiscriminately.

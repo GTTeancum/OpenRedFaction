@@ -417,6 +417,42 @@ static int group_key(rf_level_group_reader *r,rf_level_group_key *key)
     for(i=0;i<3;i++)if((status=group_number(r,key->links+i)))return status;
     status=group_floats(r,&key->rotation,1);key->bytes=r->cursor-key->offset;return status;
 }
+int rf_level_emitters_begin(const rf_level *level,rf_level_emitter_reader *reader)
+{
+    rf_level_emitter_reader value={0};const rf_level_section *section;int status;
+    if(!level || !reader)return RF_RANGE;
+    if(level->version!=180)return RF_FORMAT;
+    section=rf_level_find(level,0xa00);if(!section)return RF_NOT_FOUND;
+    value.level=level;value.section=*section;status=group_number(&value,&value.count);if(status)return status;
+    if((uint64_t)value.count*160>section->size-value.cursor)return RF_FORMAT;
+    if(!value.count && value.cursor!=section->size)return RF_FORMAT;
+    *reader=value;return RF_OK;
+}
+int rf_level_emitter_next(rf_level_emitter_reader *reader,rf_level_emitter *emitter)
+{
+    rf_level_emitter_reader r;rf_level_emitter e={0};int status;uint8_t byte;
+    if(!reader || !reader->level || !emitter)return RF_RANGE;
+    r=*reader;if(r.index>=r.count)return r.cursor==r.section.size?RF_NOT_FOUND:RF_FORMAT;
+    e.offset=r.cursor;
+#define EM_READ(call) do {status=(call);if(status)return status;} while(0)
+    EM_READ(group_number(&r,&e.uid));EM_READ(group_string(&r,e.name));
+    EM_READ(group_floats(&r,e.position,3));EM_READ(group_floats(&r,e.orientation_disk,9));
+    EM_READ(group_string(&r,e.script));EM_READ(group_read(&r,&byte,1));e.header_byte=byte;
+    EM_READ(group_number(&r,&e.header_word));EM_READ(group_floats(&r,&e.spawn_radius,1));
+    EM_READ(group_floats(&r,e.unknown_floats,2));EM_READ(group_string(&r,e.bitmap));
+    EM_READ(group_floats(&r,e.delay,2));EM_READ(group_floats(&r,e.speed,2));
+    EM_READ(group_floats(&r,&e.acceleration,1));EM_READ(group_floats(&r,e.life,2));EM_READ(group_floats(&r,e.radius,2));
+    EM_READ(group_floats(&r,&e.growth,1));EM_READ(group_floats(&r,&e.gravity_scale,1));EM_READ(group_floats(&r,&e.cone_angle,1));
+    EM_READ(group_read(&r,e.color,4));EM_READ(group_read(&r,e.color_destination,4));
+    EM_READ(group_number(&r,&e.emitter_flags));EM_READ(group_number(&r,&e.particle_flags));
+    EM_READ(group_read(&r,&byte,1));e.enabled=byte;
+    EM_READ(group_floats(&r,e.cycle,4));EM_READ(group_floats(&r,&e.finish_age,1));
+#undef EM_READ
+    e.bytes=r.cursor-e.offset;r.index++;
+    if(r.index==r.count && r.cursor!=r.section.size)return RF_FORMAT;
+    *emitter=e;*reader=r;return RF_OK;
+}
+
 int rf_level_groups_begin(const rf_level *level,rf_level_group_reader *reader)
 {
     rf_level_group_reader value={0};const rf_level_section *section;int status;

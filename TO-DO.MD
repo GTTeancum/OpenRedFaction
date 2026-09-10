@@ -3,7 +3,7 @@
 Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Connect the verified emitter update to campaign objects, particle simulation and rendering.
-- [ ] Resolve emitter rooms and connect the verified fixed pool to campaign loading and frame updates.
+- [ ] Convert decoded level emitters to runtime templates, resolve textures/rooms, and connect campaign frame updates.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
@@ -17,6 +17,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Level A00 reader decodes 87 emitters across 20 installed levels, matching an
+independent inventory; template conversion and runtime registration remain open.
 
 Shared fixed emitter pool matches 320 original/PC/NXDK allocations, 192 releases
 and two full-pool failures; 128 slots use 29184 bytes with FIFO reuse.

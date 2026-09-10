@@ -88,6 +88,23 @@ typedef struct rf_level_group_key {
 typedef struct rf_level_group_reader {
     const rf_level *level;rf_level_section section;uint32_t cursor,count,index;
 } rf_level_group_reader;
+typedef rf_level_group_reader rf_level_emitter_reader;
+typedef struct rf_level_emitter {
+    uint32_t offset,bytes,uid;
+    char name[256],script[256],bitmap[256];
+    float position[3],orientation_disk[9];
+    uint32_t header_byte,header_word;
+    float spawn_radius,unknown_floats[2],delay[2],speed[2],acceleration,life[2],radius[2];
+    float growth,gravity_scale,cone_angle;
+    uint8_t color[4],color_destination[4];
+    uint32_t emitter_flags,particle_flags,enabled;
+    float cycle[4],finish_age;
+} rf_level_emitter;
+/* v180 A00 fields in original 45fcf0 order. Bounded, allocation-free metadata;
+ * preserves raw center/variance pairs, angle and disk orientation without
+ * runtime conversion. Requires live level/archive. Errors preserve outputs. */
+int rf_level_emitters_begin(const rf_level *level,rf_level_emitter_reader *reader);
+int rf_level_emitter_next(rf_level_emitter_reader *reader,rf_level_emitter *emitter);
 /* v180 section 3000, original 463820 field sequence. No allocations; caller
  * retains level/archive. Raw flags and rotation are preserved (no gameplay
  * normalization or degree conversion). Spans are section-relative. next scans
