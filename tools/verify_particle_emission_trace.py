@@ -21,7 +21,7 @@ def observe(m,a,size,data):
         trace.append((a,get(thread+20),bytes(m.mem_read(sp+4,28)).hex()))
 u.hook_add(UC_HOOK_CODE,observe)
 rng=random.Random(0x496c50);fixtures=[]
-for case in range(512):
+for case in range(2048):
     empty=bool(case&1);orientation=bool(case&2);dependent=bool(case&4)
     cosine=(-2,-1,0,0.9999,1,2)[(case//8)%6]
     direction=((0,0,0),(0,1,0),(1,2,3),(0,-2,0))[(case//48)%4]
@@ -38,6 +38,11 @@ for case in range(512):
     for sentinel in (free,emitter+0xb0):put(sentinel,sentinel);put(sentinel+4,sentinel)
     if not empty:put(free,node);put(free+4,node);put(node,free);put(node+4,free)
     put(0x7a3cf4,0);put(thread+20,seed);put(0x5a3ed8,now)
+    if case>=512:
+        fput(emitter+8,*(rng.randint(-16384,16384)/128 for _ in range(6)))
+        fput(emitter+0x20,cosine,rng.randint(-4096,4096)/128,rng.randint(-4096,4096)/128,rng.randint(-256,256)/128)
+        fput(emitter+0x30,rng.randint(0,10000)/1024,rng.randint(0,10000)/1024)
+        fput(emitter+0x3c,*(rng.randint(1,10000)/1024 for _ in range(4)))
     before=bytes(u.mem_read(emitter,0x158));trace.clear()
     u.mem_write(stack,struct.pack('<I',stop));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_ECX,emitter)
     u.emu_start(0x496c50,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
@@ -51,7 +56,8 @@ for case in range(512):
     for _ in range(order.count(0x57312d)):next_seed=(next_seed*214013+2531011)&0xffffffff
     assert get(thread+20)==next_seed
     # Interval remains extended precision until milliseconds are truncated.
-    delay=int(((f32(0.3)-f32(0.1))*((next_seed>>16)&32767)/32768+f32(0.1))*1000)
+    low,high=struct.unpack_from('<2f',before,0x30)
+    delay=int(((high-low)*((next_seed>>16)&32767)/32768+low)*1000)
     deadline=now+delay
     if deadline>1072800000:deadline-=1072800000
     assert get(emitter+0x154)==deadline,(case,get(emitter+0x154),deadline)
@@ -66,5 +72,5 @@ for case in range(512):
     assert bytes(u.mem_read(emitter+0x20,4))==struct.pack('<f',max(-1,min(1,cosine)) if cosine<1 else cosine)
     fixtures.append(dict(case=case,empty=empty,seed=seed,now_ms=now,before=before.hex(),after=bytes(u.mem_read(emitter,0x158)).hex(),particle=bytes(u.mem_read(node,120)).hex(),rng=next_seed,trace=trace))
 out=root/'artifacts/particle-emission-trace.json'
-report=dict(result='PASS',cases=len(fixtures),created=256,exhausted=256,scope='Full unchanged original 496c50, parentless 496bc0, cone/vector/math/RNG helpers, 496840 allocation and 4fa360 timer. Proves branch and draw order, allocation arguments, pool exhaustion and timer wrapping. Shared C emitter integration and parent-owned emission remain open.')
+report=dict(result='PASS',cases=len(fixtures),created=1024,exhausted=1024,scope='Full unchanged original 496c50, parentless 496bc0, cone/vector/math/RNG helpers, 496840 allocation and 4fa360 timer. Proves branch and draw order, allocation arguments, pool exhaustion and timer wrapping. Shared C emitter integration and parent-owned emission remain open.')
 out.write_text(json.dumps(dict(report=report,fixtures=fixtures),indent=2)+'\n');print(report)

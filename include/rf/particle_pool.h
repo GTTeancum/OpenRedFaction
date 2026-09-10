@@ -23,6 +23,25 @@ int rf_particle_pool_init(rf_particle_pool *pool,rf_particle *storage,
 int rf_particle_pool_create(rf_particle_pool *pool,uint32_t kind,
     const rf_particle_spawn *spawn,uint32_t owner,uint32_t room,uint32_t emitter,
     rf_random_state *random,uint32_t *index);
+typedef struct rf_particle_emitter {
+    int32_t owner;
+    float position[3],direction[3];
+    float direction_random,min_velocity,max_velocity,spawn_radius;
+    float min_spawn_delay,max_spawn_delay;
+    uint32_t flags;
+    float min_life,max_life,min_radius,max_radius;
+    uint32_t room;
+    rf_particle_spawn spawn;
+    int32_t deadline;
+} rf_particle_emitter;
+/* 496c50 parentless path, including pool-1 allocation and timer reset.
+ * Emitter handle must name a caller-owned list (1+). Positive/nonnegative
+ * owners return RF_NOT_FOUND unchanged pending parent resolution.
+ * Exhaustion also returns RF_NOT_FOUND, but updates packet, RNG and deadline
+ * as the original does; index is preserved. Finite inputs and spawn delays
+ * in [0, TIMER_PERIOD/1000] required. No allocation. Arguments must not alias. */
+int rf_particle_emitter_emit(rf_particle_pool *pool,rf_particle_emitter *emitter,
+    uint32_t handle,int32_t now_ms,rf_random_state *random,uint32_t *index);
 /* 497230: append emitter-owned particles to detached list, preserving order
  * and live counts. Clears their emitter handle; particles remain alive. */
 int rf_particle_pool_detach(rf_particle_pool *pool,uint32_t emitter);

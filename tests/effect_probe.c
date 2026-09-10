@@ -13,6 +13,22 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-emission")) {
+        struct {rf_particle_emitter emitter;uint32_t seed,now,empty;} in;
+        struct {int32_t status;uint32_t seed,index;rf_particle_emitter emitter;rf_particle particle;} out;
+        static rf_particle particles[RF_PARTICLE_CAPACITY];rf_particle_list lists[6];rf_particle_pool pool;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_random_state rng={in.seed};rf_particle_pool_init(&pool,particles,lists,6);
+            if(in.empty)lists[1].next=lists[1].previous=RF_PARTICLE_CAPACITY+1;
+            memset(&particles[500],0xa5,sizeof(particles[500]));
+            particles[500].next=501;particles[500].previous=RF_PARTICLE_CAPACITY+1;
+            memset(&out,0xa5,sizeof(out));out.emitter=in.emitter;
+            out.status=rf_particle_emitter_emit(&pool,&out.emitter,1,(int32_t)in.now,&rng,&out.index);
+            out.seed=rng.value;out.particle=particles[500];
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-render-mode")) {
         uint32_t in[3],out;
         while(fread(in,sizeof(in),1,stdin)==1) {

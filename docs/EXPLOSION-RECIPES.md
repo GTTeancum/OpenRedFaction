@@ -353,3 +353,31 @@ mutation and timer wrap. Original before/after records are retained for the
 pending C integration; this is not a PC/NXDK emission parity claim. Parent
 resolution, inherited velocity and parent ownership rules remain unverified
 by this replay. No new campaign visual is implied.
+
+
+## Shared parentless emission
+
+`rf_particle_emitter_emit` now joins cone selection, spawn displacement,
+speed/radius/lifetime draws, the shared pool allocator and timer reset.
+The caller owns the 156-byte emitter state, existing fixed particle pool,
+RNG and emitter list handle; the function allocates no storage. Nonnegative
+owner handles are explicitly unsupported until parent resolution is recovered.
+Pool exhaustion preserves the output index but commits packet, cosine, RNG
+and timer updates, matching the original.
+
+The full replay exposed a mistaken interpretation of 0x40a0b0: it computes a
+dot product, not a vector length. For emitter flag 8, the rounded random speed
+is multiplied by the sampled direction dotted with the resolved emitter axis,
+adding products in Z/Y/X order. Negative projections are retained. Spawn
+radius displacement happens before this speed scaling, along the sampled
+cone direction. This matters for broad cones and nonunit directions.
+
+`tools/verify_particle_emission.py` regenerates and compares 2048 full original
+runs with PC and compiled NXDK code. All emitter fields, spawn packet, deadline,
+RNG and particle bytes agree after translating pointer links to shared indices.
+The suite includes 1024 successful and 1024 exhausted attempts; 1536 cases vary
+position, nonunit direction, speed ranges, signed spawn radius, radius/life
+ranges and delay ranges. It also checks live counts and the emitter list head.
+Six CTest tests pass. NXDK comparison uses Unicorn; no native live-emitter or
+campaign rendering claim follows from this result. Attached emitters and the
+campaign tick/render connection remain open.
