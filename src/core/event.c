@@ -1,5 +1,20 @@
 #include "rf/event.h"
 #include <math.h>
+int rf_auto_trigger_fire(rf_auto_trigger_state *s,int32_t now,uint32_t clock_bits,
+    int eligible,rf_auto_trigger_callback callback,void *context)
+{
+    int32_t deadline;int status;
+    if(!s || !callback)return RF_RANGE;
+    if(!eligible || !(s->flags&8) || (s->flags&16))return RF_OK;
+    if(now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    deadline=s->deadline;
+    if(s->cooldown_ms>0) {
+        status=rf_timer_set(&deadline,now,s->cooldown_ms);if(status)return status;
+    }
+    callback(context,s,UINT32_MAX,0);
+    ++s->count;s->deadline=deadline;s->activation_time_bits=clock_bits;s->flags|=64;
+    return RF_OK;
+}
 int rf_event_gravity_action(rf_physics_gravity *gravity,float value,uint32_t action)
 {
     if(!gravity || action>2)return RF_RANGE;

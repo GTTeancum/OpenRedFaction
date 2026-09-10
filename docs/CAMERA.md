@@ -3161,3 +3161,28 @@ list before running the complete auto activation chain. All eight cases pass.
 This removes the prior pre-resolved-link assumption but still supplies object
 registration and trigger/event field initialization. No C/NXDK runtime wiring
 is established by this original-code fixture.
+
+
+Shared auto-trigger activation (2026-09-10)
+----------------------------------------
+
+rf_auto_trigger_fire and rf_auto_trigger_state in rf/event.h now reconstruct
+the single-player auto sweep selection and activation bookkeeping. Auto flag
+8 is required and disabled flag 16 rejects. Existing fired flag 64, cooldown
+and activation limits do not prevent this startup sweep. Global/script
+eligibility is supplied by the caller, which must traverse trigger-list order.
+The callback receives actor UINT32_MAX and suppress-movers 0, sees old state
+and may use the trigger handle to dispatch ordered links. Callback mutation
+or releasing the state is outside this API contract. After dispatch, count
+wraps as a 32-bit word; a positive cooldown updates the timer; the raw game
+float-clock bits are recorded; flag 64 is set. Invalid timer inputs are
+rejected before dispatch as a defensive shared API restriction.
+
+verify_auto_trigger.py compares unchanged original 4c01b0/4c0220 and timer
+helpers to PC and compiled NXDK for 360 cases. Only 4c0320 link dispatch is
+intercepted, recording old state and actor/suppression arguments. Cases cover
+active/disabled/non-auto/already-fired flags, count wrap, negative/zero/positive
+cooldowns and timer wrap boundaries. Report: artifacts/auto-trigger-verification.json.
+PC and NXDK builds pass, as do existing event activation (3,922 cases), gravity
+action (2,048 original cases) and five CTest tests. This shared routine remains
+unconnected to the scene registry/startup path; no native XEMU run is claimed.

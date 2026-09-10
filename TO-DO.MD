@@ -14,6 +14,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared auto-trigger activation now matches 360 original cases on PC/NXDK,
+including dispatch-before-bookkeeping, timer wrap and activation-count wrap.
+It accepts externally resolved global/script eligibility and link dispatch;
+registration, callback effects and live level-start integration remain open.
+
 All four authored gravity links now pass the unchanged original auto-trigger
 to setter chain, now including original UID-to-handle conversion and disabled
 checks. The sweep belongs late in level startup; 30 seconds is a subsequent

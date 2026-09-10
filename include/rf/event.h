@@ -24,6 +24,24 @@ int rf_event_tick(rf_event_state *state,int32_t now,rf_event_callback callback,v
  * On applies 4bcc00, off preserves gravity. No event registration or links. */
 int rf_event_gravity_action(rf_physics_gravity *gravity,float value,uint32_t action);
 
+typedef struct rf_auto_trigger_state {
+    uint32_t flags,count;
+    int32_t deadline,cooldown_ms;
+    uint32_t activation_time_bits,handle;
+} rf_auto_trigger_state;
+typedef void (*rf_auto_trigger_callback)(void *context,const rf_auto_trigger_state *state,
+    uint32_t actor,uint32_t suppress_movers);
+/* Single-player 4c01b0/4c0220 auto activation. Caller supplies global/script
+ * eligibility, owns registration/ordered links, and invokes in trigger-list
+ * order at level startup. Auto bit 8 required; disabled bit 16 rejects.
+ * Existing cooldown, fired bit 64 and activation limit do not gate the sweep.
+ * Dispatch sees old state; count/timer/time/flag updates follow it. Callback
+ * must not mutate or release this state. No allocation or link effects here.
+ * Invalid input preserves state and does not dispatch. clock_bits is the raw
+ * float game-clock representation, independent of timer milliseconds. */
+int rf_auto_trigger_fire(rf_auto_trigger_state *state,int32_t now,uint32_t clock_bits,
+    int eligible,rf_auto_trigger_callback callback,void *context);
+
 typedef struct rf_unhide_state {
     int32_t deadline;
     uint8_t on,off;

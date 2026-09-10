@@ -4,6 +4,14 @@
 #include <io.h>
 #include <string.h>
 static uint32_t actions,mutation;
+static uint32_t auto_trace;
+static void auto_callback(void *context,const rf_auto_trigger_state *s,uint32_t actor,uint32_t suppress)
+{
+    (void)context;
+    auto_trace=s->flags^s->count^(uint32_t)s->deadline^(uint32_t)s->cooldown_ms^
+        s->activation_time_bits^s->handle^actor^suppress;
+    ++actions;
+}
 static void callback(void *context,rf_event_state *s,uint32_t action,uint32_t source,uint32_t actor,uint32_t mode)
 {
     uint32_t i,values[4]={action,source,actor,mode};(void)context;
@@ -16,6 +24,19 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--auto-trigger")) {
+        struct {rf_auto_trigger_state state;int32_t now;uint32_t clock_bits,eligible;} input;
+        struct {rf_auto_trigger_state state;int32_t status;uint32_t calls,trace;} result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            actions=auto_trace=0;result.state=input.state;
+            result.status=rf_auto_trigger_fire(&result.state,input.now,input.clock_bits,
+                (int)input.eligible,auto_callback,NULL);
+            result.calls=actions;result.trace=auto_trace;
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--gravity-action")) {
         struct {float value;uint32_t action;} input;
         struct {int32_t status;rf_physics_gravity gravity;} result;
