@@ -47,4 +47,16 @@ int rf_level_particles_emit_pass(rf_level_particles *particles,const rf_visibili
 int rf_level_particles_simulate(rf_level_particles *particles,const rf_visibility *visibility,
     uint32_t global_enabled,float dt,rf_level_particle_lookup lookup,void *context,
     rf_level_particle_tick_result *result);
+enum {RF_LEVEL_PARTICLE_DRAW_SINGLE=1,RF_LEVEL_PARTICLE_DRAW_EMITTER=2};
+/* 4967a0 then 497c20: global pool 0, detached particles, then active emitters,
+ * filtered by the supplied room handle (index+1, zero missing). Emitters queue
+ * as groups, including empty/disabled emitters. Queue object is the particle
+ * or emitter slot index, distinguished by the callback token above.
+ * Applies sphere rejection in world coordinates; no instance offset here.
+ * Owner positions use the same stable lookup contract as frame ticking.
+ * No allocation or source mutation. Append to count<=capacity<=2048 records.
+ * On failure earlier appends remain valid. Arrays must not alias source state. */
+int rf_level_particles_queue_room(const rf_level_particles *particles,uint32_t room,
+    const rf_visibility_frustum *frustum,rf_level_particle_lookup lookup,void *context,
+    rf_render_queue_record *records,uint32_t capacity,uint32_t *count);
 #endif

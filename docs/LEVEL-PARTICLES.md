@@ -586,3 +586,34 @@ Live collection must still reproduce 4967a0 (global/detached particles) and
 497c20 (active emitters), including room matching and resolved owner positions,
 before applying the verified ordering and GPU submission paths. No live
 particle drawing or new native framebuffer capture is claimed by this change.
+
+### Particle and emitter room collection
+
+rf_level_particles_queue_room follows 4967a0 then 497c20: global pool 0's
+active list, detached particles, then the active emitter list, each filtered
+by the requested room. Global pool 1 is not independently collected. An
+emitter is queued as a group even if empty or disabled. It uses estimated
+radius and the 496bc0 resolved-owner position; flag 0x40 retains world-space
+position. Negative owners bypass lookup; handle zero resolves missing.
+
+The collector feeds the verified append/cull helper without allocation or
+source mutation. The queue object's integer is a particle/emitter slot index;
+callback tokens 1 and 2 distinguish individual particles and emitter groups.
+These tokens replace host function pointers and are not registry handles.
+Caller storage may already contain other objects. Full-queue rejection does
+not stop collection, matching the original loops. Invalid chains or lookup
+failures return an error after any valid prior appends. This entry point uses
+world coordinates and does not add an instance/world rendering offset.
+
+verify_level_particle_queue.py executes full original 4967a0 and 497c20,
+actual 496bc0 parent transforms, 4d3560 append and sphere rejection. Only
+registry lookup supplies the resolved parent fixture. All 128 cases match
+PC/NXDK in complete normalized queue bytes and count, including 91 successful
+appends. Lookup sequence also matches, and all native source-state bytes are
+unchanged. Mixed-room fixtures cover reordered active lists, skipped global
+pool 1, empty/disabled emitters, negative/missing/present owners, flag 0x40,
+and partially/full queues. Both builds and all six CTest checks pass.
+
+The shared collector is ready for frame integration; it is not yet called by
+the live scene sink. GPU dispatch, surface rendering and a meaningful new
+framebuffer capture remain unfinished. No screenshot was captured.

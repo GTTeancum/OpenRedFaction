@@ -1,14 +1,42 @@
 #include "rf/effect.h"
 #include "rf/particle_pool.h"
 #include "rf/visibility.h"
+#include "rf/level_particles.h"
 #include "rf/entity_assets.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
 #include <string.h>
 #include <stdlib.h>
+static int queue_parent_lookup(void *context,uint32_t handle,rf_level_particle_object *out)
+{
+    memset(out,0,sizeof(*out));out->uid=-1;
+    if(handle)*out=*(const rf_level_particle_object*)context;
+    return RF_OK;
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--level-particle-queue")) {
+        struct {rf_visibility_frustum frustum;uint32_t room,count;rf_particle particles[8];
+            rf_emitter_slot emitters[4];rf_level_particle_object parent;} in;
+        static rf_level_particle_state state;static rf_render_queue_record records[2048];
+        const uint32_t next[4]={3,129,0,1};
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_level_particles particles={0};uint32_t i;int32_t status;
+            memset(&state,0,sizeof(state));particles.state=&state;
+            rf_particle_pool_init(&state.particles,state.records,state.lists,133);
+            rf_emitter_pool_init(&state.emitters,state.slots,&state.particles);
+            memcpy(state.records,in.particles,sizeof(in.particles));memcpy(state.slots,in.emitters,sizeof(in.emitters));
+            for(i=0;i<8;i++)state.records[i].next=i+3<8?i+3:1600+(i%3==0?2:i%3==1?4:3);
+            state.lists[2].next=0;state.lists[4].next=1;state.lists[3].next=2;
+            state.emitters.lists[1].next=2;for(i=0;i<4;i++)state.slots[i].next=next[i];
+            memset(records,0xa5,sizeof(records));
+            status=rf_level_particles_queue_room(&particles,in.room,&in.frustum,queue_parent_lookup,&in.parent,records,2048,&in.count);
+            fwrite(&status,4,1,stdout);fwrite(&in.count,4,1,stdout);fwrite(records,sizeof(records),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--render-queue-append")) {
         struct {rf_visibility_frustum frustum;rf_render_queue_record entry;uint32_t count;} in;
         rf_render_queue_record records[2048];

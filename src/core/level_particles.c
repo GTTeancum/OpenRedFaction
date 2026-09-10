@@ -20,6 +20,51 @@ static int level_object(int32_t handle,rf_level_particle_lookup lookup,void *con
     if(lookup)return lookup(context,(uint32_t)handle,object);
     return handle==0?RF_OK:RF_NOT_FOUND;
 }
+int rf_level_particles_queue_room(const rf_level_particles *p,uint32_t room,
+    const rf_visibility_frustum *frustum,rf_level_particle_lookup lookup,void *context,
+    rf_render_queue_record *records,uint32_t capacity,uint32_t *count)
+{
+    const rf_level_particle_state *s;uint32_t list,index,visited,accepted,i;int status;
+    const float zero[3]={0};
+    if(!p || !p->state || !count || capacity>2048 || *count>capacity || (capacity && !records))return RF_RANGE;
+    s=p->state;
+    if(s->particles.particles!=s->records || s->particles.lists!=s->lists ||
+       s->particles.list_count!=RF_PARTICLE_BASE_LISTS+RF_PARTICLE_EMITTER_CAPACITY || s->emitters.slots!=s->slots)return RF_RANGE;
+    status=rf_visibility_sphere_reject(frustum,zero,0,&accepted);if(status)return status;
+    for(list=2;list<=4;list+=2) {
+        visited=0;
+        for(index=s->lists[list].next;index!=RF_PARTICLE_CAPACITY+list;index=s->records[index].next) {
+            const rf_particle *particle;rf_render_queue_record entry={0};
+            if(index>=RF_PARTICLE_CAPACITY || ++visited>RF_PARTICLE_CAPACITY)return RF_RANGE;
+            particle=s->records+index;if(particle->room!=room)continue;
+            entry.object=index;memcpy(entry.position,particle->position,12);entry.radius=particle->radius;
+            entry.sorted=1;entry.lighting_flag=1;entry.callback=RF_LEVEL_PARTICLE_DRAW_SINGLE;
+            status=rf_render_queue_append(frustum,entry.position,&entry,records,capacity,count,&accepted);if(status)return status;
+        }
+    }
+    visited=0;
+    for(index=s->emitters.lists[1].next;index!=129;index=s->slots[index].next) {
+        const rf_emitter_slot *slot;const rf_particle_emitter *emitter;
+        rf_level_particle_object object;rf_render_queue_record entry={0};
+        if(index>=RF_PARTICLE_EMITTER_CAPACITY || ++visited>RF_PARTICLE_EMITTER_CAPACITY)return RF_RANGE;
+        slot=s->slots+index;emitter=&slot->runtime.emitter;if(emitter->room!=room)continue;
+        status=level_object(emitter->owner,lookup,context,&object);if(status)return status;
+        memcpy(entry.position,emitter->position,12);
+        if(object.found && !(emitter->flags&0x40u)) {
+            for(i=0;i<9;i++)if(!isfinite(object.parent.basis[i]))return RF_RANGE;
+            for(i=0;i<3;i++) {
+                if(!isfinite(object.parent.position[i]))return RF_RANGE;
+                entry.position[i]=(float)(((double)emitter->position[2]*object.parent.basis[6+i]+
+                    (double)emitter->position[1]*object.parent.basis[3+i])+(double)emitter->position[0]*object.parent.basis[i]);
+                entry.position[i]+=object.parent.position[i];
+            }
+        }
+        entry.object=index;entry.radius=slot->estimated_radius;
+        entry.sorted=1;entry.lighting_flag=1;entry.callback=RF_LEVEL_PARTICLE_DRAW_EMITTER;
+        status=rf_render_queue_append(frustum,entry.position,&entry,records,capacity,count,&accepted);if(status)return status;
+    }
+    return RF_OK;
+}
 int rf_level_particles_emit_pass(rf_level_particles *p,const rf_visibility *v,
     uint32_t enabled,float dt,int32_t now,rf_level_particle_lookup lookup,void *context,
     rf_level_particle_tick_result *out)
