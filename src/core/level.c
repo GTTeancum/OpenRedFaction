@@ -641,6 +641,36 @@ int rf_group_sound_start(rf_group_sound_state *sounds,uint32_t flags,int32_t nex
     if(sounds->samples[1]!=-1)sounds->handles[1]=play(context,sounds->samples[1],position,1.0f,0);
     return RF_OK;
 }
+int rf_group_wake_objects(rf_group_wake_object *objects,uint32_t object_count,
+    const rf_group_wake_bounds *bounds,uint32_t bounds_count,
+    const uint32_t *attached,uint32_t attached_count,
+    const uint32_t *parents,uint32_t parent_count)
+{
+    uint32_t i,j,k;
+    if((object_count && !objects) || (bounds_count && !bounds) ||
+        (attached_count && !attached) || (parent_count && !parents))return RF_RANGE;
+    for(i=0;i<object_count;i++)if(objects[i].family>1)return RF_RANGE;
+    if(bounds_count>32)bounds_count=32;
+    for(i=0;i<object_count;i++) {
+        rf_group_wake_object *o=objects+i;
+        if(!o->family) {
+            if((o->flags&0x4000) || (o->class_flags&0x400))continue;
+            for(k=0;k<attached_count;k++)if(attached[k]==o->handle)break;
+            if(k<attached_count)continue;
+            for(k=0;k<parent_count;k++)if(parents[k]==o->parent)break;
+            if(k<parent_count)continue;
+        }
+        for(j=0;j<bounds_count;j++) {
+            const rf_group_wake_bounds *b=bounds+j;
+            if(o->minimum[0]<b->maximum[0] && o->minimum[1]<b->maximum[1] &&
+                o->minimum[2]<b->maximum[2] && b->minimum[0]<o->maximum[0] &&
+                b->minimum[1]<o->maximum[1] && b->minimum[2]<o->maximum[2]) {
+                o->physics_flags|=0x80000000u;o->flags|=0x6000000u;
+            }
+        }
+    }
+    return RF_OK;
+}
 int rf_group_translation_arrive(rf_group_motion_state *state,uint32_t key_count,
     uint32_t *sound_requests)
 {

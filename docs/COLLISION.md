@@ -2567,3 +2567,27 @@ and all original controller bytes for unexpected mutations. PC and NXDK match
 CTests pass. This is NXDK instruction emulation, not an audible XEMU test.
 Stopping sounds, backend/sample ownership and the remaining activation tail
 must be integrated before claiming live door audio or complete activation.
+
+
+## Activation wake-up object lists
+
+rf_group_wake_objects reconstructs the flag changes in 46ae65..46af8d over
+prepared mover bounds and caller-owned object snapshots. It uses at most the
+first32 bounds in supplied order, matching the upstream 46ad2c clamp. Original
+46c340 uses six strict comparisons: touching faces alone do not overlap.
+For family0 (global list at 5cb2ec), it skips object flag4000, handles in
+controller +2c0, parents matching global list64e63c, and class +724 flag400.
+Family1 (global list8723b4) uses only overlap. Qualifying objects receive
+physics +1a8 bit80000000 and object +7c bits06000000, matching 40a420.
+Repeated overlaps retain idempotent flag changes. The helper allocates nothing.
+
+verify_group_wake.py executes both original list loops and all their real
+helpers with actual circular links, class records and controller exclusion
+array, without hooks. Prepared bounds include touching, zero-volume, empty
+and over32 cases. Full original object storage is checked for unexpected
+mutation. PC and NXDK match 2048 cases, with 690 entity-list and 2131 second-list
+object changes. One malformed-family guard preserves the full array. Both
+builds and six CTests pass. NXDK is instruction-emulated; no XEMU gameplay or
+new visuals are claimed. Bounds gathering from registered mover handles,
+zero bounds for missing movers, player effects and live snapshot commits
+remain required for complete activation.

@@ -19,6 +19,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Controller wake flags match 2048 original/PC/NXDK object-list cases; live mover
+bounds, player effects and combined scene activation remain open.
+
 Controller start-sound selection and handle retention match 2048 original/PC/
 NXDK cases; audio loading/backend, player/wakeup effects and live wiring remain open.
 

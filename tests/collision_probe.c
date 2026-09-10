@@ -494,6 +494,16 @@ int main(int argc,char **argv)
         }
         rf_group_mover_memberships_close(&members);rf_group_mover_memberships_close(&members);rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);free(objects);free(before);free(controllers);return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--group-wake")) {
+        struct {uint32_t count;rf_group_wake_object objects[8];rf_group_wake_bounds bounds[34];uint32_t attached[4],parents[4];} input;
+        struct {int32_t status;rf_group_wake_object objects[8];} output;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(input.count>34)return 3;
+            output.status=rf_group_wake_objects(input.objects,8,input.bounds,input.count,input.attached,4,input.parents,4);
+            memcpy(output.objects,input.objects,sizeof(output.objects));fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--group-sound-start")) {
         struct {rf_group_sound_state sounds;uint32_t flags;int32_t next_key;float position[3];} input;
         struct {int32_t status;rf_group_sound_state sounds;uint32_t trace[2];} output;

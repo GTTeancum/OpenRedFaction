@@ -177,6 +177,21 @@ typedef int32_t (*rf_group_sound_play)(void *context,int32_t sample,
 int rf_group_sound_start(rf_group_sound_state *sounds,uint32_t flags,int32_t next_key,
     const float position[3],rf_group_sound_play play,void *context);
 
+typedef struct rf_group_wake_object {
+    uint32_t handle,parent,flags,physics_flags,class_flags,family;
+    float minimum[3],maximum[3];
+} rf_group_wake_object;
+typedef struct rf_group_wake_bounds {float minimum[3],maximum[3];} rf_group_wake_bounds;
+/* 46ae65..46af8d: family0 is the entity list, family1 the second object list.
+ * Prepared mover bounds retain authored order, with only the first32 used.
+ * Entity exclusions are controller +2c0 handles and the global parent list.
+ * Mutates only wake flags; caller owns stable snapshots and commits them.
+ * Missing mover handles must have zero bounds as original 46ae44 does. */
+int rf_group_wake_objects(rf_group_wake_object *objects,uint32_t object_count,
+    const rf_group_wake_bounds *bounds,uint32_t bounds_count,
+    const uint32_t *attached,uint32_t attached_count,
+    const uint32_t *parents,uint32_t parent_count);
+
 enum {RF_GROUP_SOUND_START=1,RF_GROUP_SOUND_END=2};
 typedef struct rf_group_translation_step {
     float from[3],to[3],timing,acceleration_time,deceleration_time,dt;
