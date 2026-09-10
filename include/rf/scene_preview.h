@@ -14,6 +14,10 @@ void rf_scene_set_profile(uint32_t (*milliseconds)(void));
  * scene checks/support, platform presentation/checks, physics commit.
  * Each row: calls, elapsed low/high ms, maximum ms. */
 extern uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
+/* Render-derived eligibility telemetry: summary frames/bytes/rooms/portals/
+ * visible/start room; ring rows frame/start/visible/cached/eligibility hash,
+ * followed by camera position and unscaled basis. Available to native probes. */
+extern uint32_t rf_scene_visibility_summary[6],rf_scene_visibility_frames[64][17];
 typedef struct rf_scene_world_geometry {
     const rf_geometry *world;
     rf_geometry_movers movers;

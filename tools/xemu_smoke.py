@@ -140,6 +140,8 @@ def main():
         if args.actor_look:look_frames_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_LOOK_FRAMES ')).split()[1:]))
         if args.actor_eye:eye_frames_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_EYE_FRAMES ')).split()[1:]))
         if args.actor_follow:
+            visibility_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('SCENE_VISIBILITY_FRAMES ')).split()[1:]))
+            visibility_summary_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('SCENE_VISIBILITY ')).split()[1:]))
             follow_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FOLLOW ')).split()[1:]))
             follow_summary_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FOLLOW_SUMMARY ')).split()[1:]))
         if args.actor_live:
@@ -311,6 +313,10 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     memory_snapshot=guest_snapshot(monitor,map_text)
                     (run/'guest-memory-latest.json').write_text(json.dumps(memory_snapshot,indent=2))
                     report['guest_memory_latest']='guest-memory-latest.json'
+                    if len(words)>2 and words[0]==0x52464447 and words[2]==0 and '0xbadb0d00' in memory_snapshot.get('stack','').lower():
+                        report['boot_failure']='Guest kernel bugcheck before first game startup marker'
+                        report['boot_stack']=monitor.command('human-monitor-command',{'command-line':'x /512wx $esp'})
+                        raise RuntimeError(report['boot_failure'])
                     print('Guest memory:',memory_snapshot.get('authored'),flush=True)
                     next_snapshot=time.monotonic()+15
                 if len(words) == 58 and words[:3] == [0x52464447, 9, 5]:
@@ -367,6 +373,8 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                         if symbols['rf_scene_actor_live_enabled']['words']!=[1] or symbols['rf_scene_actor_frame_count']['words']!=[664]:raise RuntimeError('Live actor mode/length mismatch')
                         if args.actor_follow:
                             if symbols['rf_scene_actor_follow_frames']['words']!=follow_reference or symbols['rf_scene_actor_follow_summary']['words']!=follow_summary_reference:raise RuntimeError('Follow camera/world projection differs from PC')
+                            if symbols['rf_scene_visibility_frames']['words']!=visibility_reference or symbols['rf_scene_visibility_summary']['words']!=visibility_summary_reference:raise RuntimeError('Render-derived room visibility differs from PC')
+                            report['scene_visibility']=symbols['rf_scene_visibility_summary']['words']
                             if follow_summary_reference[4]!=2*1024*1024:raise RuntimeError('Unexpected follow CPU capacity')
                             report['actor_follow']=dict(cpu_vertex_capacity=follow_summary_reference[4],frames=follow_summary_reference[0],world_hash=follow_summary_reference[1],peak_world_bytes=follow_summary_reference[2],camera_hash=follow_summary_reference[3],camera_ring_matches_pc=64,scope='Retained world reprojected each frame; eye_view describes first-person mode, otherwise a fixed-offset follow camera. No camera collision.')
                         for symbol,label in [('rf_scene_actor_room_frames','ACTOR_ROOMS'),('rf_scene_actor_room_summary','ACTOR_ROOM_SUMMARY')]:

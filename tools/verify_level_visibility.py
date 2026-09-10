@@ -1,6 +1,15 @@
 """Owned authored visibility state and original per-view walk on installed levels."""
-import runpy,struct,re,json,subprocess
+import runpy,struct,re,json,subprocess,argparse
 from pathlib import Path
+parser=argparse.ArgumentParser();parser.add_argument('--scene-log',type=Path);args=parser.parse_args()
+scene_rows=[];follow_rows=[]
+if args.scene_log:
+    rows={line.split()[0]:list(map(int,line.split()[1:])) for line in args.scene_log.read_text().splitlines()
+        if line.startswith(('SCENE_VISIBILITY ', 'SCENE_VISIBILITY_FRAMES ', 'ACTOR_FOLLOW '))}
+    assert rows['SCENE_VISIBILITY'][:4]==[664,13084,54,29]
+    scene_rows=[rows['SCENE_VISIBILITY_FRAMES'][i:i+17] for i in range(0,64*17,17)]
+    follow_rows=[rows['ACTOR_FOLLOW'][i:i+14] for i in range(0,64*14,14)]
+    assert {r[0] for r in scene_rows}==set(range(600,664))
 c=runpy.run_path(str(Path(__file__).with_name('verify_visibility_view_scale.py')))
 u,x,base,stack,stop,root=(c[k] for k in ('u','x','base','stack','stop','root'))
 from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_EAX,UC_X86_REG_ECX
@@ -17,6 +26,7 @@ levels=json.loads((root/'artifacts/levels.json').read_text());results=[]
 def run(level,budget):
     return subprocess.check_output([str(root/'build/pc/Release/rf_geometry_probe.exe'),str(root/'Installed_Game'/level['archive']),level['file'],'--visibility',str(budget)],text=True)
 for level in levels:
+    if args.scene_log and level['file']!='L1S1.rfl':continue
     section=next(s for s in level['sections'] if s['type']=='0x100')
     archive=next(a for a in inventory['files'] if a['path']==level['archive'])
     entry=next(e for e in archive['vpp']['entries'] if e['name']==level['file'])
@@ -105,8 +115,22 @@ for level in levels:
             assert struct.unpack('<I',x.mem_read(xc+i*28+24,4))[0]==raw[0x24]
             assert bytes(x.mem_read(xp+i*28+8,20))==struct.pack('<I',raw[0x25])+raw[0x28:0x38]
     assert next(lines,None) is None
+    for row,follow in zip(scene_rows,follow_rows):
+        assert row[0]==follow[0] and row[5:]==follow[2:]
+        u.mem_write(base,struct.pack('<9I',*row[8:]));u.mem_write(base+64,struct.pack('<3I',*row[5:8]))
+        u.mem_write(0x1818b68,struct.pack('<f',1000.))
+        invoke(u,0x547150,(base,base+64,0x3f800000,0,1));invoke(u,0x4d2f80,this=world)
+        assert row[1]==0xffffffff or row[1]<count
+        invoke(u,0x4d4760,(world,room_base+row[1]*512 if row[1]!=0xffffffff else 0,0))
+        visible=struct.unpack('<I',u.mem_read(0x9bb57c,4))[0];cached=0;hash_value=2166136261
+        for i in range(count):hash_value=((hash_value^u.mem_read(room_base+i*512+0x160,1)[0])*16777619)&0xffffffff
+        for i in range(portals):cached+=bool(u.mem_read(portal_base+i*64+0x24,1)[0])
+        assert row[2:5]==[visible,cached,hash_value],(row[0],row[2:5],[visible,cached,hash_value])
     assert run(level,resident)==text and run(level,resident-1)=='-4\n'
     results.append(dict(level=level['file'],rooms=count,primary=len(primary),blocked=sum(any(f) for f in flags),resident_bytes=resident))
 report=dict(result='PASS',levels=len(results),views=3*len(results),rooms=sum(r['rooms'] for r in results),maximum_bytes=max(r['resident_bytes'] for r in results),
-    l1s1_bytes=next(r['resident_bytes'] for r in results if r['level']=='L1S1.rfl'),scope='Owned PC loading from all installed levels, independent room flag/portal reads, exact budgets and cleanup after input close. Actual original 547150/4d4760/4d2f80 versus PC and NXDK view wrappers: primary reset, portal projection, two-view eligibility accumulation and missing-start fallback. Original graphics-state call intercepted; coherent zero initial visibility fields supplied. NXDK view uses borrowed fixture arrays; native allocation/residency and live renderer integration excluded.')
-(root/'artifacts/level-visibility-verification.json').write_text(json.dumps(dict(report=report,results=results),indent=2)+'\n');print(report)
+    l1s1_bytes=next(r['resident_bytes'] for r in results if r['level']=='L1S1.rfl'),scope='Owned PC loading from selected installed levels, independent room flag/portal reads, exact budgets and cleanup after input close. Actual original 547150/4d4760/4d2f80 versus PC and NXDK view wrappers: primary reset, portal projection, two-view eligibility accumulation and missing-start fallback. Original graphics-state call intercepted; coherent zero initial visibility fields supplied. NXDK view uses borrowed fixture arrays; native allocation/residency and live renderer integration excluded.')
+if args.scene_log:
+    report['scene_frames']=len(scene_rows);report['scene_log']=str(args.scene_log)
+    report['scope']+=' Integrated PC final 64 moving-camera frames match original room count, cached portal count and eligibility hash; recorded camera equals rendered-camera telemetry.'
+(root/('artifacts/scene-visibility-verification.json' if args.scene_log else 'artifacts/level-visibility-verification.json')).write_text(json.dumps(dict(report=report,results=results),indent=2)+'\n');print(report)

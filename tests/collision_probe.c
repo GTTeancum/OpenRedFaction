@@ -889,6 +889,7 @@ int main(int argc,char **argv)
         rf_geometry_collision_world_close(&guard);
         for(i=0;i<world.room_count;i++) {
             const rf_collision_tree *tree=&world.rooms[i].tree;
+            if(world.views[i].skip!=geometry.data[geometry.room_offsets[i]+28])return 7;
             if(world.views[i].tree!=tree || memcmp(world.views[i].minimum,world.rooms[i].minimum,24))return 7;
             faces+=tree->face_count;
             for(j=0;j<tree->face_count;j++) {rf_geometry_face face;if(rf_geometry_get_face(&geometry,tree->source_indices[j],&face) || face.room!=i)return 8;}

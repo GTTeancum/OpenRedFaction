@@ -3,7 +3,7 @@
 Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Connect the verified emitter update to campaign objects, particle simulation and rendering.
-- [ ] Connect owned level visibility to the live renderer and particle frame updates.
+- [ ] Connect render-derived room eligibility to particle frame updates and emitter passes.
 - [ ] Apply the authored room skip flag to collision-world loading, replacing the constructor-only default.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
@@ -22,7 +22,8 @@ Immediate open items:
 Camera setup, lazy portal projection, cache reset and room traversal now run
 together and match original/PC/NXDK replays, including changed-camera reuse.
 Owned initial room predicates and primary-list mapping now match all 94 levels;
-live renderer wiring and runtime room mutations remain open.
+the moving-camera scene now updates visibility. Particle ticking and runtime
+room mutations remain open. Authored collision skip flags are also connected.
 Level visibility uses 13084 bytes in L1S1, max 37212, including traversal scratch.
 
 Owned portal graphs cover all 94 levels (2862 portals); L1S1 uses 1408 bytes,

@@ -359,3 +359,41 @@ fixtures supply coherent zero initial fields rather than claiming the original
 startup sequence has been proved. Live frame-loop integration remains open.
 This tracing also exposes a separate collision-loader follow-up: its constructor
 default `skip=0` must be replaced by the authored +28 flag (tracked in TO-DO.MD).
+
+### Moving-camera scene connection
+
+The shared PC/Xbox actor-follow scene now loads the owned visibility state under
+a 64 KiB cap, calculates camera-room membership and performs render reset/view
+traversal inside `actor_follow_view`. It uses the same position and unscaled basis
+as world projection. The preview's fixed 4:3 projection is represented by an exact
+unit FOV factor, 640x480 dimensions and 1000-unit far distance. These are diagnostic
+renderer settings, not a claim of final original gameplay camera policy.
+
+The state persists between views and is released on all streaming exit paths.
+The existing scene commits physics after presentation for the next iteration;
+visibility therefore describes the rendered camera for subsequent simulation.
+The original full frame schedule and two emitter passes still need connection.
+No face filtering or particle emission is enabled by this change.
+
+`rf_scene_visibility_summary` and the 64-row `rf_scene_visibility_frames` ring
+expose owner bytes, counts, camera room, projected-cache count, eligibility hash
+and the exact camera for PC logs and native QMP memory inspection. A 664-frame
+PC follow replay completes; its final 64 camera frames match original `547150`
+and `4d4760` room counts, cache counts and eligibility hashes. The recorded camera
+also matches the world-render camera telemetry. Reproduce with
+`verify_level_visibility.py --scene-log artifacts/scene-visibility-follow.txt`.
+
+The collision follow-up above is now implemented: loaded world skip flags use
+the authored +28 byte. All 94 collision-world ownership/budget/ray replays pass.
+
+Native validation is **not passing yet**. XEMU debug BIOS 4627 halted before the
+first game startup marker with both the default HDD and the dedicated pacing
+HDD. The guest remained at EIP `8001d1ea`, HLT=1, CR2=`fff0007b`; kernel stack
+contains `badb0d00` and an earlier breakpoint at `80030c1c`. An extended stack
+ends in the beginning of a "Possible deadlo..." message. The cause has not been
+isolated to this change or to the test environment. Evidence is retained in
+`artifacts/xemu/20260910-122251-740612/report.json` and its guest memory snapshot.
+The smoke harness now fails on this pre-marker kernel signature and records an
+extended stack instead of waiting through the full scene timeout. Only the
+owned test emulator was stopped; temporary disc flags and the ISO were restored.
+There is no native visibility or memory-residency success claim from these runs.

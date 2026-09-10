@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include "rf/visibility.h"
 /* Explicit replay setup, not an authored player-start reconstruction. */
 int rf_scene_stage_climb(rf_level *level,uint32_t mode)
 {
@@ -259,7 +260,9 @@ typedef struct scene_stream {
     uint32_t world,base,capacity;rf_scene_frame_sink sink;void *context;
     const rf_geometry_collision_world *collision;
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
+    rf_level_visibility visibility;
 } scene_stream;
+uint32_t rf_scene_visibility_summary[6],rf_scene_visibility_frames[64][17];
 static const rf_scene_world_geometry *actor_follow_world;
 void rf_scene_actor_follow(const rf_scene_world_geometry *world) {actor_follow_world=world;}
 uint32_t rf_scene_actor_follow_summary[5]; /* frames, world hash, peak world bytes, camera hash, CPU capacity */
@@ -963,6 +966,25 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         memcpy(position,pose.position,12);memcpy(orientation,pose.eye_orientation,36);
         record[0]=frame;memcpy(record+1,&input,sizeof(input));memcpy(record+25,&pose,sizeof(pose));
     } else {position[1]+=.7f;position[2]+=2.4f;}
+    if(stream->visibility.storage) {
+        rf_collision_room_location room;rf_visibility_camera camera={0};
+        /* Match the preview's fixed 4:3, x/z projection and 1000-unit far
+         * distance. FOV=1 supplies an exact unit projection factor. */
+        rf_visibility_camera_parameters parameters={{640,480,0,0,1,1,1000,1},{0},{0},.1f,1,1,1,0};
+        uint32_t i,cached=0,hash=2166136261u,*record=rf_scene_visibility_frames[frame%64];
+        memcpy(parameters.origin,position,12);memcpy(parameters.basis,orientation,36);
+        status=rf_visibility_camera_setup(&parameters,&camera);if(status)return status;
+        status=rf_geometry_collision_world_locate(stream->collision,position,&room);if(status)return status;
+        status=rf_level_visibility_begin_render(&stream->visibility);if(status)return status;
+        status=rf_level_visibility_view(&stream->visibility,&camera,640,480,room.room,UINT32_MAX,0,1);if(status)return status;
+        for(i=0;i<stream->visibility.state.count;i++)hash=(hash^stream->visibility.state.rooms[i].visible)*16777619u;
+        for(i=0;i<stream->visibility.graph.count;i++)cached+=stream->visibility.cache[i].valid!=0;
+        record[0]=frame;record[1]=room.room;record[2]=stream->visibility.state.visible_count;record[3]=cached;record[4]=hash;
+        memcpy(record+5,position,12);memcpy(record+8,orientation,36);
+        rf_scene_visibility_summary[0]=frame+1;rf_scene_visibility_summary[1]=stream->visibility.resident_bytes;
+        rf_scene_visibility_summary[2]=stream->visibility.state.count;rf_scene_visibility_summary[3]=stream->visibility.graph.count;
+        rf_scene_visibility_summary[4]=record[2];rf_scene_visibility_summary[5]=room.room;
+    }
     /* The actor portion is idle until animation emits this tick's model. Use
      * it for transactional world projection before the actor is appended. */
     {uint32_t world_capacity=(stream->capacity-1024*1024)/sizeof(rf_preview_vertex)*sizeof(rf_preview_vertex);
@@ -1319,7 +1341,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(sink) {
         rf_preview_close(&actor);
         stream.mesh=mesh;stream.materials=materials;stream.bundle=&bundle;
-        if(actor_follow_world) {placement.prepare_view=actor_follow_view;placement.view_context=&stream;}
+        if(actor_follow_world) {
+            status=rf_level_visibility_open(geometry,64*1024,&stream.visibility);if(status)goto done;
+            memset(rf_scene_visibility_summary,0,sizeof(rf_scene_visibility_summary));
+            memset(rf_scene_visibility_frames,0,sizeof(rf_scene_visibility_frames));
+            placement.prepare_view=actor_follow_view;placement.view_context=&stream;
+        }
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
@@ -1332,6 +1359,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
+    rf_level_visibility_close(&stream.visibility);
     rf_runtime_triggers_close(&campaign_triggers);
     rf_runtime_events_close(&campaign_events);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);

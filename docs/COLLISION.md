@@ -565,8 +565,10 @@ validation remain open.
 `rf_geometry_collision_world_open` assembles owned room trees, room query views,
 the verified initial primary list, and explicit child lists under one budget.
 Each room view points to its stable owned tree and expanded bounds. Its initial
-skip byte is zero, matching constructor `0x4cccc6`; later changes to that byte
-are not inferred. Geometry can be closed after construction. The world retains
+skip byte now comes from file room +28, which loader setter `0x4f0300` copies
+to runtime +1 after the constructor's zero default. The previous constructor-only
+default omitted this loader assignment; runtime mutations remain separate.
+Geometry can be closed after construction. The world retains
 all source-index mappings, so `rf_geometry_collision_world_ray` returns a level
 face index alongside the room, hit geometry and accepted-update count.
 

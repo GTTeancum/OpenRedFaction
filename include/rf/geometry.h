@@ -163,7 +163,7 @@ typedef struct rf_geometry_world_hit {
 } rf_geometry_world_hit;
 /* Own initial room geometry and ordered lists under one peak budget. Excludes
  * input geometry and allocator overhead; input may be closed after success.
- * Initial +1 skip bytes are zero as in the constructor. Generated-face finalization,
+ * Initial +1 skip bytes use file room +28 through loader setter 4f0300. Generated-face finalization,
  * later mutations, caches and transforms remain unrecovered. Failure preserves
  * output; close existing output before reuse. */
 int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget,

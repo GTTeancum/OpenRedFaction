@@ -576,7 +576,8 @@ int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget
         status=rf_geometry_collision_room_open(geometry,i,(uint32_t)(budget-retained+sizeof(*room)),room);if(status)goto fail;
         bytes=retained+room->peak_bytes-sizeof(*room);if(bytes>peak)peak=bytes;
         retained+=room->allocated_bytes-sizeof(*room);
-        memcpy(view->minimum,room->minimum,24);view->tree=&room->tree;view->skip=0;view->first_child=at;
+        memcpy(view->minimum,room->minimum,24);view->tree=&room->tree;
+        view->skip=geometry->data[geometry->room_offsets[i]+28];view->first_child=at;
         status=rf_geometry_room_children(geometry,i,value.children+at,value.child_count-at,&view->child_count);if(status)goto fail;
         at+=view->child_count;
     }
