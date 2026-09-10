@@ -2778,3 +2778,33 @@ dot precision. Both builds and six CTests pass. This provides the metadata
 needed for support motion but does not apply velocity response or connect live
 player collision. Ordered mover/world selection and material loading remain
 open. No new XEMU gameplay or visual capture is claimed.
+
+
+## Full body-sweep ordering evidence (499ed0)
+
+inspect_body_sweep_order.py executes complete499ed0 with original geometric,
+material and transform callees unchanged. Its only hook observes4df1c0 entry;
+no collision outcomes are supplied. Eleven analytic fixtures use one/two
+spheres, two ordered mover planes and a static zero-room plane, including
+near/far order, ties, disabled movers, static-only and all-miss cases. Exact
+winner handle/face, world point/normal/fraction and query sequence are asserted.
+Evidence is recorded in artifacts/body-sweep-order.json.
+
+Unlike498e80 ray composition, each subsequent sphere query keeps the original
+full displacement (0,0,-16 in these fixtures). The retained fraction limit
+shrinks: a plane at z0 yields0.46875 for radius0.5 from z8; a subsequent z4
+plane yields0.21875 and static z6 yields0.09375. Broad-phase bounds shrink
+after accepted mover hits, so a farther later mover can be skipped entirely.
+They do not shorten the actual per-sphere query endpoint. Static world checks
+still occur with the full displacement and retained limit. Equal-fraction
+face hits replace earlier results, including world replacing a mover. A mover
+with object flag40000 is skipped. Two-sphere traces prove mover-outer/sphere-
+inner order, followed by every static-world sphere, not sphere-outer traversal.
+
+These observations change the planned integration: existing ray_solids cannot
+stand in for body sweeps, and the scene's current sphere-outer static loop must
+be replaced at the composition level. Original4df1c0 resets hit count on each
+call while retaining the incoming fraction for this non-reset mode. Query
+flags are0x464 here, from body0x460 plus4; sphere radius0.5 is separate from the
+body broad radius. This is original-execution evidence only, not C/NXDK or live
+XEMU equivalence. No engine source changed and no new screenshot is warranted.
