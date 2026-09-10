@@ -990,6 +990,46 @@ int rf_group_mover_memberships_open(const rf_group_runtime_collection *runtime,
     free(scratch);rf_group_mover_memberships_close(&value);return status;
 }
 
+void rf_group_registration_close(rf_group_registration *registration)
+{
+    uint32_t i;if(!registration)return;
+    for(i=0;i<registration->count;i++)rf_object_registry_remove(registration->registry,registration->controllers[i].handle);
+    free(registration->storage);memset(registration,0,sizeof(*registration));
+}
+int rf_group_registration_open(rf_group_runtime_collection *runtime,rf_object_registry *registry,
+    uint32_t budget,rf_group_registration *result)
+{
+    rf_group_registration value={0};uint64_t bytes,keys=0;uint32_t i,j,count=0;int status;
+    if(!runtime || !registry || !result || result->storage || result->registry || result->count ||
+        result->key_count || (runtime->count && !runtime->items))return RF_RANGE;
+    for(i=0;i<runtime->count;i++) {
+        rf_group_runtime_entry *entry=runtime->items+i;
+        if(entry->kind==RF_GROUP_RUNTIME_EMPTY)continue;
+        if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION && entry->kind!=RF_GROUP_RUNTIME_ROTATION_PENDING)return RF_FORMAT;
+        if(!entry->source || !entry->source->keys || !entry->source->record.key_count)return RF_FORMAT;
+        ++count;keys+=entry->source->record.key_count;
+    }
+    bytes=sizeof(value)+(uint64_t)count*(sizeof(*value.controllers)+sizeof(*value.objects))+keys*sizeof(*value.keys);
+    if(bytes>budget || keys>UINT32_MAX || count>registry->count)return RF_RANGE;
+    if(count) {
+        value.storage=calloc(1,(size_t)(bytes-sizeof(value)));if(!value.storage)return RF_RANGE;
+        value.controllers=value.storage;value.objects=(rf_level_uid_object *)(value.controllers+count);
+        value.keys=(rf_level_uid_key *)(value.objects+count);
+    }
+    value.registry=registry;value.allocated_bytes=(uint32_t)bytes;
+    for(i=0;i<runtime->count;i++) {
+        rf_group_runtime_entry *entry=runtime->items+i;rf_group_registered_controller *controller;
+        if(entry->kind==RF_GROUP_RUNTIME_EMPTY)continue;
+        controller=value.controllers+value.count;controller->object_kind=8;controller->runtime=entry;
+        status=rf_object_registry_insert(registry,controller,&controller->handle);if(status){rf_group_registration_close(&value);return status;}
+        value.objects[value.count]=(rf_level_uid_object){entry->source->keys[0].uid,controller->handle,entry->pose.flags};
+        ++value.count;
+        for(j=0;j<entry->source->record.key_count;j++)value.keys[value.key_count++]=
+            (rf_level_uid_key){entry->source->keys[j].uid,controller->handle};
+    }
+    *result=value;return RF_OK;
+}
+
 int rf_level_link_resolve(uint32_t uid,const rf_level_uid_object *objects,uint32_t object_count,
     const rf_level_uid_key *keys,uint32_t key_count,rf_level_link_target *target)
 {

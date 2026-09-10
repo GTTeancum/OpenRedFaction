@@ -2457,3 +2457,29 @@ evidence updates +f0 from +e4. The campaign actor update lifetime still needs
 connection. Flag 0x20 uses a separate directional face-crossing path and is
 not covered by this helper. Eligibility, dwell/key handling and natural event
 activation must be integrated before claiming playable campaign triggers.
+
+
+## Registered controller and key-owner views
+
+`rf_group_registration_open` registers nonempty initialized group controllers
+as type8 wrappers, retaining a pointer to their runtime entry. It creates
+object UID rows from each first key and flattens all key UIDs to the owning
+controller handle in controller/key order. This follows the existing 469250
+first-key object UID evidence and the verified post-load link resolver's
+key-owner fallback; keys are not independent registered game objects.
+Empty entries are skipped; pending rotation controllers remain identifiable
+but this owner does not implement their motion. Runtime/source outlive it.
+
+One allocation includes wrappers and both UID tables; the budget includes the
+owner itself. Capacity is checked before registration. Close removes only
+owned controller handles, frees storage and is repeatable. Activation, member
+binding, dynamic flag refresh and whole-world registration order are separate.
+
+`tools/verify_group_registration.py` passes 68 levels, 1223 controllers and
+2441 key mappings. Peak additional owned storage is 2152 bytes. Fixtures
+retain an unrelated registered object, validate every handle/table row in
+order, test exact-budget success and one-byte-short failure without registry
+mutation, repeated close and stale-handle removal. PC integration and NXDK
+build pass; this is not original full-factory execution or a native XEMU test.
+Scene link resolution/dispatch still needs these views wired in before natural
+door/lift activation can be claimed.

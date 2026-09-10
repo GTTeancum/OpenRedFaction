@@ -487,6 +487,30 @@ int main(int argc,char **argv)
         }
         rf_group_mover_memberships_close(&members);rf_group_mover_memberships_close(&members);rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);free(objects);free(before);free(controllers);return 0;
     }
+    if(argc==4 && !strcmp(argv[1],"--registered-groups")) {
+        rf_vpp archive;rf_level level;rf_level_owned_groups source={0};rf_group_runtime_collection runtime={0};
+        rf_group_registration registration={0},exact={0};static rf_object_registry registry,saved;
+        uint32_t unrelated=6,handle,i,budget,last=UINT32_MAX;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) ||
+            rf_level_owned_groups_open(&level,1024*1024,&source))return 80;
+        rf_vpp_close(&archive);if(rf_group_runtime_open(&source,0,1024*1024,&runtime))return 81;
+        rf_object_registry_init(&registry);if(rf_object_registry_insert(&registry,&unrelated,&handle))return 82;
+        if(rf_group_registration_open(&runtime,&registry,1024*1024,&registration))return 83;
+        printf("%u %u %u\n",registration.count,registration.key_count,registration.allocated_bytes);
+        for(i=0;i<registration.count;i++) {
+            rf_group_registered_controller *c=registration.controllers+i;
+            if(c->object_kind!=8 || rf_object_registry_lookup(&registry,c->handle)!=c || !c->runtime)return 84;
+            printf("OBJECT %u %u %u\n",registration.objects[i].uid,registration.objects[i].handle,registration.objects[i].flags);last=c->handle;
+        }
+        for(i=0;i<registration.key_count;i++)printf("KEY %u %u\n",registration.keys[i].uid,registration.keys[i].handle);
+        budget=registration.allocated_bytes;rf_group_registration_close(&registration);rf_group_registration_close(&registration);
+        if(rf_object_registry_lookup(&registry,handle)!=&unrelated || rf_object_registry_lookup(&registry,last))return 85;
+        saved=registry;
+        if(rf_group_registration_open(&runtime,&registry,budget-1,&exact)!=RF_RANGE || exact.storage || memcmp(&registry,&saved,sizeof(saved)))return 86;
+        if(rf_group_registration_open(&runtime,&registry,budget,&exact))return 87;
+        rf_group_registration_close(&exact);if(registry.count!=RF_OBJECT_CAPACITY-1)return 88;
+        rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--runtime-groups")) {
         rf_vpp archive;rf_level level;rf_level_owned_groups source={0};rf_group_runtime_collection runtime={0},exact={0},guard;
         uint32_t i,translation=0,rotation=0;

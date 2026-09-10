@@ -1,5 +1,6 @@
 #ifndef RF_LEVEL_H
 #define RF_LEVEL_H
+#include "rf/object_registry.h"
 #include "rf/vpp.h"
 #include "rf/player.h"
 
@@ -352,6 +353,21 @@ void rf_level_owned_triggers_close(rf_level_owned_triggers *triggers);
  * Caller owns storage. No registration, allocation or entity backlink writes. */
 typedef struct rf_level_uid_object { uint32_t uid,handle,flags; } rf_level_uid_object;
 typedef struct rf_level_uid_key { uint32_t uid,handle; } rf_level_uid_key;
+typedef struct rf_group_registered_controller {
+    uint32_t object_kind,handle;rf_group_runtime_entry *runtime;
+} rf_group_registered_controller;
+typedef struct rf_group_registration {
+    void *storage;rf_object_registry *registry;
+    rf_group_registered_controller *controllers;rf_level_uid_object *objects;
+    rf_level_uid_key *keys;uint32_t count,key_count,allocated_bytes;
+} rf_group_registration;
+/* Register nonempty initialized controllers in collection order; flatten keys
+ * in controller/key order to their owner's handle. Borrows runtime/source.
+ * One budgeted allocation; preflight capacity, rollback inserted handles on
+ * error. No activation, member binding or complete world handle-order claim. */
+int rf_group_registration_open(rf_group_runtime_collection *runtime,rf_object_registry *registry,
+    uint32_t budget,rf_group_registration *result);
+void rf_group_registration_close(rf_group_registration *registration);
 typedef struct rf_level_link_target {
     uint32_t value,kind,index; /* kind: 0 unresolved, 1 object, 2 key owner */
 } rf_level_link_target;
