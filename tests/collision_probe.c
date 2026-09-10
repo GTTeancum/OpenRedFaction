@@ -3,6 +3,7 @@
 #include "rf/geometry.h"
 #include "rf/preview.h"
 #include "rf/material.h"
+#include "rf/level_particles.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
@@ -80,6 +81,35 @@ int main(int argc,char **argv)
         rf_level_particle_materials_close(&materials);rf_level_particle_materials_close(&materials);
         if(memcmp(&materials,&empty,sizeof(empty)))return 6;
         return ferror(stdout)?7:0;
+    }
+    if(argc==6 && !strcmp(argv[1],"--level-particles")) {
+        rf_vpp archive,maps[4];rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};
+        rf_level_particles particles={0},empty={0};uint32_t i,budget=(uint32_t)strtoul(argv[5],NULL,10);int status;char path[1024];
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) ||
+           rf_geometry_open(&geometry,&level,8u*1024u*1024u))return 3;
+        if(rf_geometry_collision_world_open(&geometry,8u*1024u*1024u,&world))return 4;
+        rf_geometry_close(&geometry);
+        for(i=0;i<4;i++) {
+            if(snprintf(path,sizeof(path),"%s/maps%u.vpp",argv[4],i+1)<0 || rf_vpp_open(&maps[i],path))return 5;
+        }
+        status=rf_level_particles_open(&particles,&level,&world,maps,4,123,0,budget);
+        for(i=0;i<4;i++)rf_vpp_close(&maps[i]);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);
+        fwrite(&status,4,1,stdout);
+        if(status){if(memcmp(&particles,&empty,sizeof(empty)))return 6;return 0;}
+        {
+            uint32_t header[6]={particles.state->emitters.live,particles.materials.texture_count,particles.resident_bytes,
+                particles.state->particles.live[1],particles.state->random.value,sizeof(*particles.state)};
+            if(particles.state->emitters.slots!=particles.state->slots || particles.state->emitters.particles!=&particles.state->particles ||
+               particles.state->particles.particles!=particles.state->records || particles.state->particles.lists!=particles.state->lists)return 7;
+            fwrite(header,sizeof(header),1,stdout);
+            for(i=0;i<particles.materials.count;i++) {
+                fwrite(&particles.materials.bindings[i],sizeof(particles.materials.bindings[i]),1,stdout);
+                fwrite(&particles.state->slots[i],sizeof(particles.state->slots[i]),1,stdout);
+                if(!rf_image_pixel(&particles.materials.textures[particles.materials.bindings[i].texture].bitmap.image,0,0))return 8;
+            }
+        }
+        rf_level_particles_close(&particles);rf_level_particles_close(&particles);
+        return memcmp(&particles,&empty,sizeof(empty))?9:(ferror(stdout)?10:0);
     }
     /* Process-local batch rays for inspecting authored static geometry. */
     if(argc==4 && (!strcmp(argv[1],"--world-rays") || !strcmp(argv[1],"--scene-rays"))) {

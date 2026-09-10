@@ -3,7 +3,7 @@
 Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Connect the verified emitter update to campaign objects, particle simulation and rendering.
-- [ ] Bind verified level-emitter templates to textures/rooms and connect campaign frame updates.
+- [ ] Recover level-particle owner eligibility and connect the loaded runtime to campaign frame updates.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
@@ -17,6 +17,10 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Shared level runtime loads all 87 emitters across 20 levels with verified
+room/texture bindings and exact budgets (L1S1 238932 bytes; max 484908 bytes).
+PC ownership/cleanup checks pass; native residency and campaign ticking remain open.
 
 All emitter positions resolve to rooms; persistent shared texture bundles pass
 20 levels with exact budgets (L1S1 16624 bytes; largest 262600 bytes).

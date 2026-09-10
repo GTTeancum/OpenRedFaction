@@ -25,6 +25,7 @@ SRCS += $(PROJECT_ROOT)/src/core/physics.c
 SRCS += $(PROJECT_ROOT)/src/core/weapon.c
 SRCS += $(PROJECT_ROOT)/src/core/effect.c
 SRCS += $(PROJECT_ROOT)/src/core/particle_pool.c
+SRCS += $(PROJECT_ROOT)/src/core/level_particles.c
 SRCS += $(PROJECT_ROOT)/src/core/motion_file.c
 SRCS += $(PROJECT_ROOT)/src/core/model_file.c
 SRCS += $(PROJECT_ROOT)/src/core/entity_assets.c
