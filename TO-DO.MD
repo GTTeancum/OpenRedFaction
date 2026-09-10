@@ -17,6 +17,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Camera-space particle billboard geometry now matches 1024 original/PC/NXDK
+cases, including aspect correction, rotation and submission-order UVs.
+Connect clipping, depth handling, blending and texture residency to drawing.
+
 Particle animation frame selection now matches 2880 original/PC/NXDK cases
 for lifetime, loop and hold-last modes, plus six invalid-input guards.
 Connect selected frames to bounded bitmap residency and particle drawing.

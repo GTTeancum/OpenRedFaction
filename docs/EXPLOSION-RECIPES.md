@@ -247,3 +247,24 @@ signed counts, time boundaries and mode precedence. Six invalid-input fixtures
 verify preserved outputs outside the supported finite/conversion domain.
 This determines the frame but does not bind textures, manage animated frame
 residency or draw billboards. Those renderer connections remain open.
+
+Normal particle drawing routes through 515b40 -> 555ac0 -> 555230. The first
+wrapper only dispatches for renderer 0x66. The second transforms/projects the
+center and checks visibility before the billboard routine. Velocity-stretched
+particles instead route through 515ba0 -> 558e30 and remain separate work.
+
+rf_particle_billboard_build recovers the camera-space construction span
+5552a0..555483. Sine/cosine are rounded to float. The supplied size is applied
+to both dimensions, then the longer bitmap dimension expands by its aspect
+ratio. Camera scales come from original globals 1818b48/1818b4c. The four
+corners retain center Z, and output order follows the original polygon's
+reversed local-vertex pointer array, with UVs (0,0),(1,0),(1,1),(0,1).
+Intermediate rounding matches the recovered instruction sequence, including
+the retained double height*cos term.
+
+1024 fixtures execute original trigonometry, aspect and corner arithmetic
+with only bitmap dimensions supplied at the resource-query seam. All PC/NXDK
+corner and UV bytes match under 0x027f x87 precision. This constructs the quad
+before projection, clipping, depth bias and blend state; it does not claim
+finished particle rendering. A positive bitmap size is required by the shared
+API; invalid dimensions and nonfinite inputs preserve output.

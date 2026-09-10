@@ -13,6 +13,15 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-billboard")) {
+        struct {float center[3],angle,radius;uint32_t width,height;float scale[2];} in;
+        struct {int32_t status;rf_particle_billboard_vertex vertices[4];} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=rf_particle_billboard_build(in.center,in.angle,in.radius,in.width,in.height,in.scale,out.vertices);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-frame")) {
         rf_particle in;struct {int32_t status;uint32_t frame;} out;
         while(fread(&in,sizeof(in),1,stdin)==1) {

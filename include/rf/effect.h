@@ -106,6 +106,14 @@ int rf_particle_initialize(const rf_particle_spawn *spawn,uint32_t pool,
  * Unsupported conversion range preserves output. No resource access. */
 int rf_particle_frame_index(const rf_particle *particle,uint32_t *frame);
 
+typedef struct rf_particle_billboard_vertex {float position[3],uv[2];} rf_particle_billboard_vertex;
+/* 5552a0..555483 camera-space quad before clipping/depth bias. Positive bitmap
+ * dimensions; finite center/angle/radius/scales and nonnegative radius. Output
+ * follows original polygon submission order. Caller supplies camera scale.
+ * No projection, clipping, blending or velocity-stretch path here. */
+int rf_particle_billboard_build(const float center[3],float angle,float radius,
+    uint32_t width,uint32_t height,const float scale[2],rf_particle_billboard_vertex out[4]);
+
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */
     int32_t started; /* +154 deadline. */

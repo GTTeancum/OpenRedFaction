@@ -1,5 +1,31 @@
 #include "rf/effect.h"
 #include <math.h>
+int rf_particle_billboard_build(const float center[3],float angle,float radius,
+    uint32_t width,uint32_t height,const float scale[2],rf_particle_billboard_vertex out[4])
+{
+    rf_particle_billboard_vertex value[4];double w=radius,h=radius,hc;float sn,cs,hs,wc,ws;unsigned i;
+    double dx[4],dy[4];
+    if(!center || !scale || !out || !width || !height || width>INT32_MAX || height>INT32_MAX ||
+       !isfinite(angle) || !isfinite(radius) || radius<0)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(center[i]))return RF_RANGE;
+    if(!isfinite(scale[0]) || !isfinite(scale[1]))return RF_RANGE;
+    sn=(float)sin((double)angle);cs=(float)cos((double)angle);
+    if(width<height)h=(double)height*radius/width;
+    else if(height<width)w=(double)width*radius/height;
+    hs=(float)(h*sn);wc=(float)(w*cs);ws=(float)(w*sn);hc=h*cs;
+    dx[0]=-(double)wc-hs;dy[0]=hc-ws;
+    dx[1]=(double)wc-hs;dy[1]=hc+ws;
+    dx[2]=(double)wc+hs;dy[2]=(double)ws-hc;
+    dx[3]=(double)hs-wc;dy[3]=-(double)ws-hc;
+    for(i=0;i<4;i++) {
+        value[i].position[0]=(float)(dx[i]*scale[0]+center[0]);
+        value[i].position[1]=(float)(dy[i]*scale[1]+center[1]);
+        value[i].position[2]=center[2];
+        value[i].uv[0]=(i==1 || i==2)?1.0f:0.0f;value[i].uv[1]=i>=2?1.0f:0.0f;
+        if(!isfinite(value[i].position[0]) || !isfinite(value[i].position[1]))return RF_RANGE;
+    }
+    for(i=0;i<4;i++)out[i]=value[i];return RF_OK;
+}
 int rf_particle_frame_index(const rf_particle *particle,uint32_t *frame)
 {
     int32_t count;double value,denominator;
