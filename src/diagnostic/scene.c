@@ -320,15 +320,19 @@ static int actor_movement_select(void *context,uint32_t frame,rf_motion_controll
     rf_motion_movement movement={0};uint32_t *record;int status;(void)context;
     if(frame>=rf_scene_actor_frame_count)return RF_RANGE;
     actor_command(frame,movement.vector);
-    movement.mode=frame?(int32_t)rf_scene_actor_landing[1]:3;
+    movement.mode=frame?(int32_t)rf_scene_actor_landing[1]:(campaign_spawn?1:3);
+    if(campaign_spawn && !frame)memset(movement.vector,0,sizeof(movement.vector));
     movement.direction=rf_scene_actor_movement_settings.mode;
     /* Ordinary unarmed candidates from 41f6ee..41f729. Priority/AI candidate
      * selection remains outside this miner fixture. */
     movement.idle_state=0;movement.move_state=2;movement.alternate_state=4;
+    /* 41f270 creation-field audit: miner1's default handgun and player flag
+     * select armed candidates. Inventory/weapon view ownership remains open. */
+    if(campaign_spawn){movement.idle_state=1;movement.move_state=3;movement.alternate_state=5;}
     status=rf_motion_select_movement(controller,motions,&movement);if(status)return status;
     record=rf_scene_actor_locomotion_frames[frame%64];record[0]=1;
     record[1]=(uint32_t)movement.mode;record[2]=(uint32_t)movement.direction;
-    memcpy(record+3,movement.vector,12);record[6]=0;record[7]=2;record[8]=4;
+    memcpy(record+3,movement.vector,12);record[6]=movement.idle_state;record[7]=movement.move_state;record[8]=movement.alternate_state;
     record[9]=(uint32_t)controller->current;record[10]=(uint32_t)controller->next;
     memcpy(record+11,&controller->duration,4);return RF_OK;
 }
@@ -973,6 +977,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         }
         rf_physics_body_close(&scene_actor_body);memset(rf_scene_actor_physics_diagnostic,0,sizeof(rf_scene_actor_physics_diagnostic));
         placement.physics_config=&physics_config;placement.physics_body=&scene_actor_body;
+        placement.campaign_player=campaign_spawn;
         placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;
         placement.initial_animation=rf_scene_actor_initial_animation;placement.animation_timing=rf_scene_actor_animation_timing;
         memset(rf_scene_actor_initial_eye_offsets,0,sizeof(rf_scene_actor_initial_eye_offsets));

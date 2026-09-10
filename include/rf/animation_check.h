@@ -30,6 +30,7 @@ typedef struct rf_animation_placement {
     rf_model_clip_projection clip_projection;
     const rf_entity_physics_config *physics_config;
     rf_physics_body *physics_body; /* Open body's pose drives rendering each frame. */
+    uint32_t campaign_player; /* Opt-in miner1 player fixture: retain the earlier NPC's neutral class pose independently of player playback. Not full class ownership. */
     rf_physics_stance_cache *stance_cache; /* Optional cache from diagnostic initial pose. */
     int32_t *initial_eye_tag; /* Actual model attachment index. */
     float *initial_eye_offsets; /* Optional six floats: standing/crouching model-space eye, with class axis flags. Requires stance_cache. */

@@ -20,6 +20,10 @@ raw=read('miner.v3c'); section=next(s for s in inspect(raw)['sections'] if s['ty
 count,=struct.unpack_from('<I',raw,start)
 lod=next(s for s in inspect(raw)['sections'] if s['type']=='0x5355424d')['lods'][0]
 attachments=raw[lod['attachment_offset']:lod['attachment_offset']+lod['props']*100]
+sphere_records=[raw[s['offset']+8:s['offset']+52] for s in inspect(raw)['sections'] if s['type']=='0x43535048']
+container,sphere_source,sphere_output=[order_address+i*4096 for i in (5,6,7)]
+u.mem_write(container+0x1a20,struct.pack('<II',len(sphere_records),sphere_source))
+u.mem_write(sphere_source,b''.join(sphere_records))
 eye_index=next(i for i in range(lod['props']) if attachments[i*100:i*100+68].split(b'\0')[0]==b'eye')
 a,b,c,tags=[order_address+i*4096 for i in (1,2,3,4)]
 u.mem_write(desc+0x1a50,struct.pack('<I',a)); u.mem_write(a+0x8c,struct.pack('<I',b)); u.mem_write(b+4,struct.pack('<I',c))
@@ -52,7 +56,7 @@ def call(address,fmt='',*args):
     put(stack+64000,'<I'+fmt,stop,*args);u.reg_write(UC_X86_REG_ESP,stack+64000);u.reg_write(UC_X86_REG_FPCW,0x37f)
     u.emu_start(address,stop,count=1000000);assert u.reg_read(UC_X86_REG_EIP)==stop
 for k,raw in enumerate(cases):
-    u.mem_write(obj,bytes(65536));put(wrapper,'<II',2,obj);put(obj+0x1d50,'<I',desc)
+    u.mem_write(obj,bytes(65536));put(wrapper,'<III',2,obj,container);put(obj+0x1d50,'<I',desc)
     put(obj+0x1cfc,'<ii',-1,-1);put(obj+0x1d48,'<i',-1);u.mem_write(obj+0x1d04,raw[248:252]);put(obj+0x1cf8,'<H',1)
     for i in range(2): u.mem_write(desc+0x120c+i,b'\x01');put(motion+i*256+0x74,'<I',0)
     elapsed=struct.unpack_from('<f',raw,264)[0]
@@ -68,6 +72,10 @@ for k,raw in enumerate(cases):
         u.reg_write(UC_X86_REG_ECX,obj);call(0x51b2e0,'2I',obj+0x3000,count+eye_index);expected+=rd(obj+0x3000,48)
         actual=run.stdout[(k*3+query)*stride:(k*3+query+1)*stride]
         if actual!=expected: failures.append(dict(case=k,query=query,fields=[i for i in range(0,stride,4) if actual[i:i+4]!=expected[i:i+4]]))
-        results.append(dict(case=k,query=['standing','crouching','restored-standing-query'][query],initial_phase=struct.unpack_from('<f',raw,248)[0],initial_elapsed=elapsed,phase=struct.unpack_from('<f',state,248)[0],tick=struct.unpack_from('<i',state,8)[0],eye=list(struct.unpack('<3f',expected[-12:]))))
+        spheres=[]
+        for index in range(len(sphere_records)):
+            call(0x503270,'4I',wrapper,index,sphere_output,sphere_output+12)
+            spheres.append(list(struct.unpack('<4f',rd(sphere_output,16))))
+        results.append(dict(case=k,query=['standing','crouching','restored-standing-query'][query],initial_phase=struct.unpack_from('<f',raw,248)[0],initial_elapsed=elapsed,phase=struct.unpack_from('<f',state,248)[0],tick=struct.unpack_from('<i',state,8)[0],eye=list(struct.unpack('<3f',expected[-12:])),spheres=spheres))
 report=dict(result='PASS' if not failures else 'FAIL',sequences=len(cases),bone_matrices=len(cases)*3*count,eye_transforms=len(results),failures=failures,results=results,scope='Loaded miner stand/crouch sequence through character control wrappers; initial controller selection and entity flags not emulated')
 (root/'artifacts/eye-setup-verification.json').write_text(json.dumps(report,indent=2));print(report);assert not failures

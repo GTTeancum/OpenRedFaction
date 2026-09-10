@@ -2201,3 +2201,50 @@ in `artifacts/class-cache-refactor/report.json`. PC/NXDK builds and five CTests 
 Stock-64-MiB XEMU campaign replay `replay-20260909-222821` also passes all
 120 inputs with the harness's PC/original spawn, body, input and mesh checks;
 the normal interactive disc profile is restored afterward.
+
+## Armed campaign initialization with independent class sampling
+
+The opt-in campaign profile now uses armed locomotion candidates 1/3/5 from
+the verified miner1 default-handgun/player-flag creation case. Frame zero
+uses the original neutral movement request and run mode before accepting
+subsequent movement/stance commands. Its controller starts from state zero
+and transitions toward attack_stand over .25 seconds. This selects skeletal
+animation only: no weapon inventory owner, firing or first-person gun is added.
+
+`campaign_class_build` constructs the separately verified earlier miner NPC's
+neutral first-controller state in its own playback/resource storage and samples
+class spheres, stance centers and eye offsets there. Player animation weights
+cannot alter that cache. This uses temporary bone matrices plus the existing
+stance workspace, freed during initialization; no new persistent allocation.
+The caller still emulates the known Live Mines first use, rather than owning
+a campaign-wide class registry.
+
+The independent sampling exposed a legacy rendering-fixture translation in
+standing body spheres: two centers were .25 units too low. The original
+`503270` queries, now included in `verify_eye_setup.py` after the loaded original
+stand/crouch sequence, confirm corrected standing Y values .4198943079 and
+.8807211518. The unattached sphere is unchanged. Standing/crouching height
+difference is now .6367877722; both eye offsets remain bit-identical. The
+normal miner diagnostic retains its historical fixture and trace for now.
+
+`tools/verify_campaign_initialization.py` verifies the integrated initial
+controller, active-slot count and first-slot weight, six eye words and all
+50 stance-cache words against the original selector/loaded-pose fixtures.
+It runs 120 neutral inputs; report `artifacts/campaign-initialization/report.json`.
+The normal 664-input trace and final image remain identical to the preceding
+build, and all eight 480-input PC capacity sweeps and five CTests pass.
+Both PC/NXDK builds pass. Stock-64-MiB XEMU `replay-20260909-223324` passes
+120 ticks with PC-matching initial animation, eye, stance, spawn, input, body
+and world/camera telemetry. The replay harness now retains these extra comparisons.
+The 480-tick campaign diagonal movement/turn replay `replay-20260909-223646`
+also passes on stock-64-MiB XEMU, including those initial-state comparisons.
+Normal interactive flags are restored after both runs; no new screenshot.
+
+Attempting the original creation flag 1 exposed a separate required integration:
+it sets physics flag 80, which the current `rf_physics_static_contact` explicitly
+rejects. The scene stopped in its frame-zero falling check with RF_RANGE.
+Original `49d7e0` has a distinct response for that flag, including tangential
+velocity handling and additional predicates. The campaign scene therefore still
+uses its existing diagnostic physics flags; enabling actual player flags requires
+reconstructing that branch, not removing the guard or routing players through
+the non-player response. The full player factory remains incomplete.

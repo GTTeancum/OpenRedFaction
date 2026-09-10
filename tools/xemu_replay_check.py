@@ -78,6 +78,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
     if args.campaign_spawn:
      spawn=words(monitor,symbol('rf_scene_player_spawn_diagnostic'),19);assert spawn==expected('PLAYER_SPAWN');report['player_spawn']=spawn
+     for name,label,count in [('rf_scene_actor_initial_animation','PLAYER_INITIAL_ANIMATION',12),('rf_scene_actor_initial_eye_offsets','PLAYER_CLASS_EYE',6),('rf_scene_actor_stance_cache','PLAYER_CLASS_STANCE',50)]:
+      got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
     replay_state=words(monitor,symbol('rf_player_replay_diagnostic'),4);assert replay_state==[0,frames,frames,0],replay_state
     assert d[37]==frames and d[46]==2097152
     peak=max(s[36]*56 for s in report['samples']);report['sampled_gpu_mesh_peak_bytes']=peak

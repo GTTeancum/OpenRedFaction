@@ -111,6 +111,33 @@ static int class_spheres_build(const rf_model_file *model,const float (*matrices
     }
     *sphere_count=n;return RF_OK;
 }
+/* Live Mines loads an unarmed miner1 NPC before player creation. Materialize
+ * that verified neutral first-controller pose on separate playback storage.
+ * A campaign-wide class registry must eventually own this first-use operation. */
+static int campaign_class_build(const rf_model_file *model,const rf_model_bone *bones,uint32_t bone_count,
+    const rf_motion_file *const *handles,const rf_motion_playback_resource *resources,uint32_t resource_count,
+    const int32_t motions[23],const rf_animation_placement *placement,const rf_model_attachment *eye,
+    const float eye_transform[12],rf_physics_sphere spheres[8],uint32_t *sphere_count)
+{
+    rf_motion_playback_state state={0};rf_motion_playback_resource copied[23];
+    rf_motion_controller controller={0,-1,0,0,0,0};uint16_t generations[256]={0};
+    float (*matrices)[12],displacement[3]={0};int status;
+    if(resource_count>23 || bone_count>256 || !placement->stance_cache)return RF_RANGE;
+    memcpy(copied,resources,resource_count*sizeof(*copied));
+    /* References belong to the new playback instance, not the armed player. */
+    {uint32_t i;for(i=0;i<resource_count;++i)copied[i].references=0;}
+    state.completion.active.freeze_slot=-1;
+    state.completion.active.primary_slot=state.completion.active.dominant_slot=-1;
+    state.generation=1;
+    matrices=malloc(bone_count*48);if(!matrices)return RF_IO;
+    status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,copied,resource_count);
+    if(!status)status=rf_motion_update(&state,copied,resource_count,1.0f/30.0f);
+    if(!status)status=rf_model_evaluate_playback(bones,bone_count,&state,handles,copied,resource_count,displacement,matrices,generations,bone_count);
+    if(!status)status=class_spheres_build(model,matrices,bone_count,placement->physics_config,spheres,sphere_count);
+    if(!status)status=stance_cache_build(model,bones,bone_count,&state,handles,copied,resource_count,motions[8],
+        placement->physics_config,spheres,*sphere_count,placement->stance_cache,eye,eye_transform,placement->initial_eye_offsets);
+    free(matrices);return status;
+}
 static int animation_run(const char *meshes_path,const char *motions_path,uint32_t out[8],rf_preview_mesh *preview,uint32_t preview_frame,uint32_t budget,rf_animation_frame_sink sink,void *sink_context,const rf_animation_placement *placement,const rf_entity_state_set *authored)
 {
     static const char *names[4]={"ult2_stand.rfa","ult2_crouch.rfa",
@@ -283,7 +310,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         if(authored) {
             static const int32_t sequence[4]={0,2,8,0};
             int handled=0;
-            if(placement && placement->stance_effect && placement->stance_flags) {
+            if(placement && placement->stance_effect && placement->stance_flags && !(placement->campaign_player && !frame)) {
                 rf_motion_stance_decision decision;
                 status=rf_motion_select_stance(&controller,motions,8,placement->crouch_request?*placement->crouch_request:(frame>=32 && frame<56),*placement->stance_flags,&decision);if(status)goto done;
                 status=placement->stance_effect(placement->stance_context,frame,&decision,&controller);if(status)goto done;
@@ -376,8 +403,11 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 const rf_entity_physics_config *config=placement->physics_config;
                 rf_physics_sphere spheres[8];
                 rf_physics_body_parameters parameters={0};uint32_t n=0;
-                status=class_spheres_build(&model,matrices,count,config,spheres,&n);if(status)goto done;
-                if(placement->stance_cache) {
+                if(placement->campaign_player) {
+                    status=campaign_class_build(&model,bones,count,handles,resources,resource_count,motions,placement,&eye,local,spheres,&n);
+                } else status=class_spheres_build(&model,matrices,count,config,spheres,&n);
+                if(status)goto done;
+                if(placement->stance_cache && !placement->campaign_player) {
                     status=stance_cache_build(&model,bones,count,&state,handles,resources,resource_count,motions[8],config,spheres,n,placement->stance_cache,
                         &eye,local,placement->initial_eye_offsets);
                     if(status)goto done;
@@ -390,6 +420,9 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                  * calls 4fce70 to install identity. The miner model has spheres. */
                 if(parameters.mass<=0) {status=RF_FORMAT;goto done;} /* Generated-mass creation remains separate. */
                 if(n==0)parameters.local_tensor[0]=parameters.local_tensor[4]=parameters.local_tensor[8]=1;
+                /* Player creation sets physics flag 80, whose distinct 49d7e0
+                 * contact response is not yet reconstructed. Keep this scene
+                 * on diagnostic physics until that branch can be connected. */
                 parameters.flags=rf_entity_creation_physics_flags(0,config->authored.flags,config->authored.flags2,config->authored.use_kind,0);
                 status=rf_physics_body_open(&parameters,NULL,0,4096,body);if(status)goto done;
                 status=rf_physics_body_replace_spheres(body,spheres,n,4096);if(status)goto done;

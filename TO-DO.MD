@@ -3,6 +3,7 @@
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
+- [ ] Reconstruct the original player-flag contact response before enabling player physics flag 0x80.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
 - [ ] Capture and replay any further interactive exits; the historical tick-99 cause remains unproven.
 - [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
@@ -15,8 +16,16 @@ Original cache-gate and spawn-copy execution now confirms that a warm class
 cache bypasses pose sampling for both NPCs and players, and creation copies
 cached sphere centers into the entity without changing its other sphere fields.
 Four gate cases and 180 copy cases pass. Sphere and stance sampling now runs
-before body allocation and has no body dependency; persistent first-user cache
-ownership and armed playback integration remain open. See docs/CAMERA.md.
+before body allocation and has no body dependency. Campaign playback now uses
+armed candidates with independently sampled NPC class data; persistent class
+ownership, weapon lifecycle and player contact response remain open. See docs/CAMERA.md.
+
+Campaign initial controller and class poses now match original execution.
+Separating the cache also removes a legacy -0.25 render-fixture translation
+from two standing sphere centers; original sphere queries confirm the correction.
+The normal 664-input replay remains identical and all eight PC sweeps pass.
+Stock-64-MiB XEMU neutral replay 20260909-223324 passes with initial animation,
+eye and stance comparisons added. This is still an opt-in diagnostic profile.
 
 Original static-solid plane rejection now prevents the campaign turn overflow:
 all 480 yaw ticks pass on PC and 64 MiB XEMU at a 1,161,048-byte world peak,
