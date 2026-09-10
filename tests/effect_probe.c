@@ -13,6 +13,15 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--level-emitter-template")) {
+        struct {rf_level_emitter level;rf_particle_emitter_template initial;} in;
+        struct {int32_t status;rf_particle_emitter_template result;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.result=in.initial;out.status=rf_level_emitter_template(&in.level,23,1,&out.result);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--emitter-pool")) {
         struct {uint32_t operation,index,now;rf_particle_emitter_template source;} in;
         struct {int32_t status;uint32_t index,seed,live;rf_emitter_slot slot;rf_particle particle;

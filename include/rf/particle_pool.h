@@ -89,6 +89,12 @@ typedef struct rf_particle_emitter_template {
     uint32_t bitmap,frame_count,color,color_destination,particle_flags,secondary;
     float age_to_finish_vbm;uint32_t copied_80;
 } rf_particle_emitter_template;
+struct rf_level_emitter;
+/* 45fcf0 v180 conversion with resolved bitmap/frame count. Preserves template
+ * age_to_finish_vbm and upper flag word; final raw float is copied_80. Input
+ * must be decoded by the bounded level reader. No resource lookup/allocation. */
+int rf_level_emitter_template(const struct rf_level_emitter *level,uint32_t bitmap,
+    uint32_t frame_count,rf_particle_emitter_template *result);
 typedef struct rf_particle_emitter_init_result {
     uint32_t created,index,source_id,copied_80;
 } rf_particle_emitter_init_result;

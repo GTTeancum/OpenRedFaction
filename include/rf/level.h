@@ -98,7 +98,7 @@ typedef struct rf_level_emitter {
     float growth,gravity_scale,cone_angle;
     uint8_t color[4],color_destination[4];
     uint32_t emitter_flags,particle_flags,enabled;
-    float cycle[4],finish_age;
+    float cycle[4],finish_age; /* Provisional disk label; copied to template +80, not +7c. */
 } rf_level_emitter;
 /* v180 A00 fields in original 45fcf0 order. Bounded, allocation-free metadata;
  * preserves raw center/variance pairs, angle and disk orientation without

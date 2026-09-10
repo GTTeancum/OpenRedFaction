@@ -620,3 +620,31 @@ conversion, bitmap resolution, room lookup and runtime registration remain open.
 Room lookup for a missing initial room delegates from original 0x4cd970 to
 0x4e1630; the latter already has a reconstructed geometry-world locator. Cached
 room/traversal behavior is separate and must not be replaced indiscriminately.
+
+
+## Level-emitter template conversion
+
+`rf_level_emitter_template` now follows the v180 0x45fcf0 conversion using a
+caller-resolved bitmap/frame count. Direction is the third serialized vector
+(disk orientation floats 6..8), selected through original 0x52cac0 matrix
+ordering. Delay, speed, life and radius pairs become max(0,center-variance)
+and center+variance with original float stores. Cone cosine uses the original
+float degrees-to-radians constant 0.01745329238474369. Any nonzero cycle value
+adds emitter bit 0x20. The low flags word is replaced while its upper half is
+preserved. Secondary flags become zero.
+
+The final serialized float, provisionally named finish_age in the raw reader,
+is copied as bits into template +0x80 (copied_80). Template +0x7c, currently
+named age_to_finish_vbm, is untouched by this loader. A blanket assignment to
+that field would change original behavior. Its incoming value must remain an
+explicit caller responsibility until enclosing loader defaults are resolved.
+
+`tools/verify_level_emitter_conversion_trace.py` executes original conversion
+arithmetic and actual orientation reader/vector copies, supplying decoded field
+services and resolved bitmap results and capturing the allocation template.
+All 87 installed records run with two initial stack fills. The shared PC/NXDK
+converter matches all 174 complete templates, including retained fields, via
+`tools/verify_level_emitter_template.py`. Both builds and six CTest checks pass.
+This verifies conversion separately from original byte-stream parsing, resource
+loading and campaign creation; NXDK code runs in Unicorn. Texture and room
+binding and campaign updates remain open.

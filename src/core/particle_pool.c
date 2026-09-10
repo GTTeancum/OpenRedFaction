@@ -1,4 +1,5 @@
 #include "rf/particle_pool.h"
+#include "rf/level.h"
 #include <string.h>
 #include <math.h>
 static int pool_valid(const rf_particle_pool *pool)
@@ -375,4 +376,33 @@ int rf_emitter_pool_release(rf_emitter_pool *pool,uint32_t index)
     if(!emitter_pool_valid(pool) || index>=128 || !pool->slots[index].active)return RF_RANGE;
     status=rf_particle_pool_detach(pool->particles,index+1);if(status)return status;
     emitter_unlink(pool,index);emitter_append(pool,0,index);pool->slots[index].active=0;pool->live--;return RF_OK;
+}
+
+static void level_emitter_range(const float pair[2],float *low,float *high)
+{
+    *low=(float)((double)pair[0]-pair[1]);if(*low<0)*low=0;
+    *high=(float)((double)pair[0]+pair[1]);
+}
+int rf_level_emitter_template(const rf_level_emitter *level,uint32_t bitmap,
+    uint32_t frame_count,rf_particle_emitter_template *result)
+{
+    rf_particle_emitter_template value;unsigned i;
+    if(!level || !result)return RF_RANGE;
+    value=*result;value.source_id=level->uid;
+    for(i=0;i<3;i++){value.position[i]=level->position[i];value.direction[i]=level->orientation_disk[6+i];}
+    value.direction_random=(float)cos((double)level->cone_angle*0.01745329238474369049072265625);
+    level_emitter_range(level->delay,&value.min_spawn_delay,&value.max_spawn_delay);
+    level_emitter_range(level->speed,&value.min_velocity,&value.max_velocity);
+    level_emitter_range(level->life,&value.min_life,&value.max_life);
+    level_emitter_range(level->radius,&value.min_radius,&value.max_radius);
+    value.spawn_radius=level->spawn_radius;value.acceleration=level->acceleration;
+    value.growth=level->growth;value.gravity_scale=level->gravity_scale;
+    value.flags=(value.flags&0xffff0000u)|(level->emitter_flags&0xffffu);
+    memcpy(&value.cycle,level->cycle,sizeof(value.cycle));
+    for(i=0;i<4;i++)if(level->cycle[i]!=0)value.flags|=0x20u;
+    value.bitmap=bitmap;value.frame_count=frame_count;
+    memcpy(&value.color,level->color,4);memcpy(&value.color_destination,level->color_destination,4);
+    value.particle_flags=level->particle_flags;value.secondary=0;
+    memcpy(&value.copied_80,&level->finish_age,4);
+    *result=value;return RF_OK;
 }
