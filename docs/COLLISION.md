@@ -2399,3 +2399,26 @@ are retained (frames 60..305). This proves the player response is exercised in
 the live diagnostic; it does not compare every live contact against original
 execution or prove full game collision-loop equivalence. The normal interactive
 disc profile is restored afterward. No new screenshot was captured.
+
+
+### Climb motion proposal (2026-09-09)
+
+Original `49f646` dispatch selects `49e400` for descriptor 2 as well as run.
+Predicate `42a0d0` is false for climb, so it skips surface projection and traction
+scaling. Unlike run, `49e49c..49e4ab` retains speed divided by class acceleration
+in x87 extended precision through the decay calculation. The run path stores
+that ratio to binary32 before dividing by traction. Reusing the run proposal
+with zero normal and traction 1 produced a one-ULP velocity mismatch in case 1.
+
+`rf_physics_climb_propose` now shares the integration body with run while using
+a separate blend calculation that preserves the original ratio. GCC/Clang x86
+uses the original x87 exponential sequence and restores the caller control word;
+the PC implementation passes the fixture comparison using its double calculation.
+The input must already be transformed by the selected movement descriptor.
+
+`tools/verify_run_motion.py --climb` executes original dispatch and unchanged
+callees for all 384 climb cases. Full body-state results match PC and compiled
+NXDK, including three-axis input, force, support and repeated passes. The existing
+384 run cases also pass after the integration-body refactor, as do both builds
+and all five CTest checks. This is a motion proposal, not collision traversal or
+a live climbing demonstration; campaign region and movement wiring remain open.

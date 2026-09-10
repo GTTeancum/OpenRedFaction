@@ -109,6 +109,11 @@ int rf_physics_stand_endpoint(const float position[3],float height_difference,fl
 /* Run (descriptor 1) path 49e400, with already transformed input and resolved
  * surface traction. Preserves caller flags/force; updates velocity and next
  * position. Repeated-pass flag 0x1000000 bypasses velocity convergence. */
+/* Descriptor 2 branch of 49e400: no surface projection/traction adjustment,
+ * with speed/acceleration retained through the exponential. Input is already
+ * transformed by the movement descriptor. No contact query or pose commit. */
+int rf_physics_climb_propose(rf_physics_body_state *state,float dt,float speed,float acceleration,
+    const float input[3],const float support[3]);
 int rf_physics_run_propose(rf_physics_body_state *state,float dt,float speed,float acceleration,
     float traction,const float input[3],const float normal[3],const float support[3]);
 /* Falling translation at 49e8b7..49e9e6, after steering/speed limiting.

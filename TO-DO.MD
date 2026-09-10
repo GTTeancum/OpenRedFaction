@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
+- [ ] Connect authored movement regions and recovered climb entry, motion and exit to the campaign player.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
@@ -22,6 +23,12 @@ The normal 664-tick diagnostic state and raster remain unchanged. Eligibility
 matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
+
+Shared climb motion now matches 384 original PC/NXDK cases, including vertical
+input, external force, support velocity and repeated passes. The initial reuse
+of run arithmetic exposed an x87 ratio-rounding difference; climb now preserves
+the original extended ratio and all 384 run cases remain exact. Live campaign
+region/transition/movement wiring remains open.
 
 Shared climb exit now matches 128 original cases on PC/NXDK, including blocked
 standing, walk capability, default movement/fallback, speed and step-offset reset.

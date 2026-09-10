@@ -543,8 +543,25 @@ static float run_blend(float ratio,float traction,float dt)
     return (float)(1.0-pow(.05,(double)dt/((double)ratio/traction)));
 #endif
 }
-int rf_physics_run_propose(rf_physics_body_state *state,float dt,float speed,float acceleration,
-    float traction,const float input[3],const float normal[3],const float support[3])
+/* 49e49c: climb keeps speed/acceleration in x87 through the exponential. */
+static float climb_blend(float speed,float acceleration,float dt)
+{
+#if (defined(__i386__) || defined(_M_IX86)) && (defined(__clang__) || defined(__GNUC__))
+    const double decay=.05;float result;unsigned short saved,extended=0x37f;
+    __asm__ volatile("fnstcw %0":"=m"(saved));
+    __asm__ volatile("fldcw %0"::"m"(extended));
+    __asm__ volatile(
+        "flds %1; fdivs %2; fldln2; fldl %3; fyl2x; fdivrp; fdivrs %4; "
+        "fldl2e; fmulp; fld %%st(0); frndint; fxch %%st(1); fsub %%st(1); "
+        "f2xm1; fld1; faddp; fscale; fstp %%st(1); fld1; fsubp; fstps %0"
+        :"=m"(result):"m"(speed),"m"(acceleration),"m"(decay),"m"(dt):"st","st(1)");
+    __asm__ volatile("fldcw %0"::"m"(saved));return result;
+#else
+    return (float)(1.0-pow(.05,(double)dt/((double)speed/acceleration)));
+#endif
+}
+static int driven_propose(rf_physics_body_state *state,float dt,float speed,float acceleration,
+    float traction,const float input[3],const float normal[3],const float support[3],int climb)
 {
     rf_physics_body_state value;volatile float delta[3]={0},desired[3],projected[3];uint32_t i;
     if(!state || !input || !normal || !support || !isfinite(dt) || dt<0 ||
@@ -555,7 +572,7 @@ int rf_physics_run_propose(rf_physics_body_state *state,float dt,float speed,flo
         !isfinite(value.velocity[i]) || !isfinite(value.position[i]) || !isfinite(value.vector_e0[i]))return RF_RANGE;
     if(!(value.flags&0x1000000)) {
         volatile float ratio=(float)((double)speed/acceleration);
-        volatile float blend=run_blend(ratio,traction,dt);
+        volatile float blend=climb?climb_blend(speed,acceleration,dt):run_blend(ratio,traction,dt);
         double length;for(i=0;i<3;++i)desired[i]=input[i];
         if(normal[1]!=0) {
             volatile float dot=(float)(((double)input[0]*normal[0]+(double)input[1]*normal[1])+(double)input[2]*normal[2]);
@@ -587,4 +604,14 @@ int rf_physics_run_propose(rf_physics_body_state *state,float dt,float speed,flo
         if(!isfinite(value.velocity[i]) || !isfinite(value.next_position[i]))return RF_RANGE;
     }
     *state=value;return RF_OK;
+}
+
+int rf_physics_run_propose(rf_physics_body_state *state,float dt,float speed,float acceleration,
+    float traction,const float input[3],const float normal[3],const float support[3])
+{return driven_propose(state,dt,speed,acceleration,traction,input,normal,support,0);}
+int rf_physics_climb_propose(rf_physics_body_state *state,float dt,float speed,float acceleration,
+    const float input[3],const float support[3])
+{
+    const float normal[3]={0};
+    return driven_propose(state,dt,speed,acceleration,1,input,normal,support,1);
 }
