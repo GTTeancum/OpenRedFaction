@@ -412,3 +412,26 @@ compares normalized RGBA, and repacks through original 55dd20 to recover every
 input word. NXDK archive I/O, allocation/free and stack probing are supplied by
 the harness; this is not an XEMU runtime check. Animated playback and use of
 lower mip levels remain unimplemented. Existing TGA verification still passes.
+
+
+VBM version correction (2026-09-10): 511200 reads static pixel payload at byte
+32 and invokes 511410 only for engine format 5 with version byte below 2.
+511410 XORs every pixel with 0x8000. The decoder now supports versions 1 and 2
+and applies this legacy alpha inversion; the earlier packing-only test did not
+prove this file-loading behavior. verify_vbm.py now covers 393216 words across
+both versions, with the original 511410 conversion as well as 55dd20 packing.
+Animated loading takes a separate original path and remains unsupported.
+
+Texture demand: tools/measure_level_textures.py uses native geometry/mover
+name enumeration, the actual archive precedence, and installed image headers.
+Its --verify-load mode checks those predictions against real material loading,
+including exact-budget success and one-byte-below rejection. L1S2: 33 geometry
+sources, 120 references, 61 unique slots (60 loaded, USERBMAP missing), 9357312
+base RGBA bytes, 2364 retained owner/mapping/slot bytes, 7800 temporary name
+bytes; peak 9367476. L1S1 control matches peak 2120108. Current Xbox upload
+allocates another RGBA-sized swizzled GPU copy, so L1S2 world base textures
+alone would consume 18714624 bytes of shared RAM before other resources.
+These measurements exclude lightmaps, actor textures, allocator metadata and
+other process allocations. No game budget was raised and no total-Xbox-memory
+fit or live climb success is claimed. Investigate packed texture residency and
+GPU duplication, then validate representative total residency in 64-MiB XEMU.

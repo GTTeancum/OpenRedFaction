@@ -40,6 +40,14 @@ and scratch allocations before changing budgets; stock 64 MiB remains mandatory.
 Animated VBM playback and retaining/rendering authored mip levels remain open.
 Run tools/verify_vbm.py; actual campaign climbing is still unverified.
 
+Static VBM versions 1/2 now supported, with original 511410 legacy alpha-bit
+inversion recovered for version-1 ARGB1555. Expanded PC/NXDK tests cover
+393216 words. L1S2 actual material peak is 9367476 bytes (8.93 MiB),
+including just 7800 bytes of temporary names; GPU copies would add 9357312
+bytes. tools/measure_level_textures.py L1S2.rfl --verify-load checks exact
+loading budgets. Reduce packed-pixel/GPU duplication and measure total XEMU
+residency; the game's 4 MiB material budget has not been raised.
+
 Owned movement-region storage now survives archive closure with a checked
 single allocation. All 147 records across 39 levels pass PC/NXDK ownership,
 exact-budget and repeatable-close checks. The live scene must retain this owner

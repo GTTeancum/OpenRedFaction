@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+extern char rf_material_failure_name[61];
+extern uint32_t rf_material_failure[3];
 int main(int argc, char **argv)
 {
     rf_vpp level_archive, archives[16];
@@ -11,7 +13,7 @@ int main(int argc, char **argv)
     rf_materials materials;
     uint32_t count, i;
     int result;
-    if(argc>=5 && argc<=21 && !strcmp(argv[1],"--geometry")) {
+    if(argc>=5 && argc<=21 && (!strcmp(argv[1],"--geometry") || !strcmp(argv[1],"--residency") || !strcmp(argv[1],"--texture-names"))) {
         rf_geometry world={0};rf_geometry_movers movers={0};
         rf_geometry_materials bundle={0},check={0};const rf_geometry **sources;
         uint32_t g,j,k,hash,peak;
@@ -22,10 +24,18 @@ int main(int argc, char **argv)
         rf_vpp_close(&level_archive);
         sources=malloc((movers.count+1)*sizeof(*sources));if(!sources)return 1;
         sources[0]=&world;for(g=0;g<movers.count;++g)sources[g+1]=&movers.items[g].geometry;
+        if(!strcmp(argv[1],"--texture-names")) {
+            printf("G %u\n",movers.count+1);
+            for(g=0;g<=movers.count;++g)for(j=0;j<sources[g]->textures;++j) {
+                char name[61];if(rf_geometry_texture_name(sources[g],j,name,sizeof(name)))return 3;
+                printf("N %u %u %s\n",g,j,name);
+            }
+            free(sources);rf_geometry_close(&world);rf_geometry_movers_close(&movers);return 0;
+        }
         count=(uint32_t)argc-5;
         for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+5]))return 1;
         result=rf_geometry_materials_open(&bundle,sources,movers.count+1,archives,count,
-            (uint32_t)strtoul(argv[4],NULL,10));if(result)return 1;
+            (uint32_t)strtoul(argv[4],NULL,10));if(result){fprintf(stderr,"material load %d: %s archive %u entry bytes %u\n",result,rf_material_failure_name,rf_material_failure[1],rf_material_failure[2]);return 1;}
         peak=bundle.peak_bytes;
         if(rf_geometry_materials_open(&check,sources,movers.count+1,archives,count,peak-1)!=RF_RANGE ||
             check.offsets || check.slots || check.textures.items || check.resident_bytes)return 3;
@@ -33,7 +43,7 @@ int main(int argc, char **argv)
             check.peak_bytes!=peak || check.textures.count!=bundle.textures.count ||
             memcmp(check.slots,bundle.slots,bundle.offsets[bundle.count]*sizeof(uint32_t)))return 3;
         rf_geometry_materials_close(&check);rf_geometry_materials_close(&check);
-        {
+        if(strcmp(argv[1],"--residency")) {
             rf_preview_mesh combined={0},part={0},short_mesh={0};uint32_t at=0;
             if(rf_preview_build_world(&combined,&world,&movers,NULL,&bundle,&level,8*1024*1024))return 3;
             if(combined.bytes && rf_preview_build_world(&short_mesh,&world,&movers,NULL,&bundle,&level,combined.bytes-1)!=RF_RANGE)return 3;
@@ -52,7 +62,7 @@ int main(int argc, char **argv)
             if(at!=combined.count)return 3;
             rf_preview_close(&combined);
         }
-        {
+        if(strcmp(argv[1],"--residency")) {
             rf_group_attached_pose *poses=malloc(movers.count*sizeof(*poses));
             rf_preview_mesh live={0},part={0};void *address;uint32_t frame,at;
             if(movers.count && !poses)return 3;

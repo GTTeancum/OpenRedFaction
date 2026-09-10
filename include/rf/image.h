@@ -11,7 +11,7 @@ typedef struct rf_image {
  * budget bounds output allocation; input uses a fixed 4096-byte buffer.
  * Close before reuse. Failure leaves image empty. */
 int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget);
-/* Static version-1 VBM: 1555/4444/565, validated complete mip payload.
+/* Static version-1/2 VBM: 1555/4444/565, validated complete mip payload.
  * Only the base mip is retained; multiple frames are explicitly rejected. */
 int rf_image_vbm(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget);
 /* Detect VBM by magic, otherwise use the existing TGA decoder. */

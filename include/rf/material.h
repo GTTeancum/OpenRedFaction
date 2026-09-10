@@ -15,7 +15,7 @@ typedef struct rf_materials {
 } rf_materials;
 /* Archives searched in caller-specified order; first exact case-insensitive
  * name wins. Missing entries are explicit slots, never substituted textures.
- * Unsupported/corrupt found images fail the whole load. Only TGA supported.
+ * Unsupported/corrupt found images fail the whole load. TGA and static VBM supported.
  * Budget includes slots and decoded images, excluding allocator metadata.
  * Close before reuse; any failure releases allocations and leaves empty state. */
 int rf_materials_open(rf_materials *materials, const rf_geometry *geometry,

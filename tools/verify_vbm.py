@@ -47,21 +47,26 @@ def xbox(payload,budget=262144):
  assert x.reg_read(UC_X86_REG_EIP)==stop
  result=x.reg_read(UC_X86_REG_EAX);return result if result<0x80000000 else result-0x100000000
 pixels=struct.pack('<65536H',*range(65536))
-for fmt,engine in [(0,5),(1,4),(2,3)]:
- r=check(header(fmt)+pixels);assert r.returncode==0,r.stdout
+for version,fmt,engine in [(v,f,e) for v in (1,2) for f,e in [(0,5),(1,4),(2,3)]]:
+ r=check(header(fmt,version=version)+pixels);assert r.returncode==0,r.stdout
  rgba=raw.read_bytes();assert len(rgba)==262144
- assert xbox(header(fmt)+pixels)==0
+ assert xbox(header(fmt,version=version)+pixels)==0
  assert bytes(x.mem_read(base+0x50000,262144))==rgba
  bgra=bytearray(rgba);bgra[0::4]=rgba[2::4];bgra[2::4]=rgba[0::4]
  u.mem_write(base,bytes(bgra));u.mem_write(stack,struct.pack('<6I',stop,base+0x50000,engine,base,7,65536))
  u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(0x55dd20,stop,count=10000000)
- assert bytes(u.mem_read(base+0x50000,len(pixels)))==pixels,fmt
+ wanted=pixels
+ if version==1 and fmt==0:
+  u.mem_write(base,pixels);u.mem_write(stack,struct.pack('<3I',stop,base,65536));u.reg_write(UC_X86_REG_ESP,stack)
+  u.emu_start(0x511410,stop,count=1000000);wanted=bytes(u.mem_read(base,len(pixels)))
+ assert bytes(u.mem_read(base+0x50000,len(pixels)))==wanted,(version,fmt)
  # Exact normalized-channel values (not just invertibility).
- for v in range(65536):
+ for index in range(65536):
+  v=index^(0x8000 if version==1 and fmt==0 else 0)
   if fmt==1:want=bytes(((v>>8&15)*17,(v>>4&15)*17,(v&15)*17,(v>>12)*17))
   else:want=bytes(((v>>(11 if fmt==2 else 10)&31)*255//31,(v>>5&(63 if fmt==2 else 31))*255//(63 if fmt==2 else 31),(v&31)*255//31,255 if fmt==2 or v&32768 else 0))
-  assert rgba[v*4:v*4+4]==want
-bad=[header()+pixels[:-1],header()+pixels+b'x',header(frames=2)+pixels,header(version=2)+pixels,header(fmt=3)+pixels,header(w=0)+pixels,header(mips=13)+pixels,header(mips=1)+pixels]
+  assert rgba[index*4:index*4+4]==want
+bad=[header()+pixels[:-1],header()+pixels+b'x',header(frames=2)+pixels,header(version=3)+pixels,header(fmt=3)+pixels,header(w=0)+pixels,header(mips=13)+pixels,header(mips=1)+pixels]
 for payload in bad:
  assert check(payload).stdout.strip()=='-2'
  assert xbox(payload)==-2
@@ -70,6 +75,6 @@ assert xbox(header()+pixels,262143)==-4
 assert check(header(mips=1)+pixels+bytes(128*128*2)).returncode==0
 assert xbox(header(mips=1)+pixels+bytes(128*128*2))==0
 assert check(header(w=1,h=1,mips=1)+bytes(4)).stdout.strip()=='-2'
-report=dict(result='PASS',original_packer_words=3*65536,malformed_or_budget_cases=len(bad)+2,valid_mip_cases=1,scope='PC/NXDK decoders and original 55dd20 packing; static frames only')
+report=dict(result='PASS',original_packer_words=6*65536,malformed_or_budget_cases=len(bad)+2,valid_mip_cases=1,scope='PC/NXDK decoders and original 55dd20 packing; static frames only')
 (out/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
 
