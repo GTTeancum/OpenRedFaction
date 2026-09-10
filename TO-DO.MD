@@ -18,8 +18,8 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-All 87 authored emitter positions resolve to rooms and all nine bitmaps decode;
-L1S1 emitters share room 49 and a 64x64 mist image. Persistent binding is open.
+All emitter positions resolve to rooms; persistent shared texture bundles pass
+20 levels with exact budgets (L1S1 16624 bytes; largest 262600 bytes).
 
 Level A00 reader decodes 87 emitters across 20 installed levels; template
 conversion matches 174 original/PC/NXDK replays with preserved-field checks.

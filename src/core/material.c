@@ -171,6 +171,49 @@ done:
     if(status)rf_geometry_materials_close(&next);else *m=next;
     return status;
 }
+void rf_level_particle_materials_close(rf_level_particle_materials *materials)
+{
+    uint32_t i;if(!materials)return;
+    for(i=0;i<materials->texture_count;i++)rf_particle_bitmap_close(&materials->textures[i].bitmap);
+    free(materials->storage);memset(materials,0,sizeof(*materials));
+}
+int rf_level_particle_materials_open(rf_level_particle_materials *materials,const rf_level *level,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{
+    rf_level_particle_materials value={0};rf_level_emitter_reader reader;rf_level_emitter record;
+    uint32_t i,slot;uint64_t bytes;int status;
+    if(!materials || !level || (!archives && archive_count) || budget<sizeof(value))return RF_RANGE;
+    status=rf_level_emitters_begin(level,&reader);
+    if(status==RF_NOT_FOUND){value.resident_bytes=(uint32_t)sizeof(value);*materials=value;return RF_OK;}
+    if(status)return status;if(reader.count>128)return RF_RANGE;
+    value.count=reader.count;
+    bytes=(uint64_t)value.count*(sizeof(*value.bindings)+sizeof(*value.textures));
+    if(bytes+sizeof(value)>budget)return RF_RANGE;
+    value.resident_bytes=(uint32_t)(bytes+sizeof(value));
+    if(bytes) {
+        value.storage=calloc(1,(size_t)bytes);if(!value.storage)return RF_RANGE;
+        value.bindings=value.storage;value.textures=(rf_level_particle_texture *)(value.bindings+value.count);
+    }
+    for(i=0;i<value.count;i++) {
+        rf_particle_definition definition={0};size_t length;
+        status=rf_level_emitter_next(&reader,&record);if(status)goto failed;
+        length=strlen(record.bitmap);if(!length || length>=sizeof(definition.bitmap)){status=RF_RANGE;goto failed;}
+        for(slot=0;slot<value.texture_count;slot++)if(equal_texture_name(record.bitmap,value.textures[slot].name))break;
+        if(slot==value.texture_count) {
+            memcpy(definition.bitmap,record.bitmap,length+1);
+            status=rf_particle_bitmap_open(&value.textures[slot].bitmap,&definition,archives,archive_count,0,
+                budget-value.resident_bytes+(uint32_t)sizeof(rf_particle_bitmap));
+            if(status)goto failed;
+            memcpy(value.textures[slot].name,record.bitmap,length+1);value.texture_count++;
+            value.resident_bytes+=value.textures[slot].bitmap.image.bytes;
+        }
+        value.bindings[i].uid=record.uid;value.bindings[i].texture=slot;
+    }
+    *materials=value;return RF_OK;
+ failed:
+    rf_level_particle_materials_close(&value);return status;
+}
+
 int rf_model_materials_open_skin(rf_model_materials *m,const rf_model_file *model,
     const char *const *primary_names,uint32_t primary_count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)

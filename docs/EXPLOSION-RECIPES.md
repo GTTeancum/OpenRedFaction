@@ -672,3 +672,29 @@ existing reconstructed locator/decoder code, not a new original-room replay,
 NXDK execution, simultaneous memory-budget proof or campaign visual. Persistent
 texture ownership, emitter registration, owner eligibility and frame/render
 integration remain open.
+
+
+## Persistent level particle textures
+
+`rf_level_particle_materials_open` now owns the first-frame particle images and
+UID-to-texture mappings for a level. Names deduplicate case-insensitively in
+first-use order; source archives may close after loading. It uses one allocation
+for bounded binding/texture slots plus each unique decoded image. The budget
+includes the owner, worst-case arrays for the level emitter count and pixels;
+fixed reader/decoder stack and allocator overhead are excluded. Up to 128
+emitters are supported, matching the runtime pool. A missing A00 section yields
+an empty bundle. Missing/corrupt images fail without committing partial output;
+close releases all images/storage and is repeatable. This is port-owned resource
+management, not a recovered original cache policy. Animation replacement is
+still separate; all currently inventoried level-emitter assets are static TGA.
+
+`tools/verify_level_particle_materials.py` checks all 20 emitter-bearing levels
+and 87 UID mappings against the independent inventory, reads texture pixels
+after closing archives, and verifies success at exactly the reported budget
+and failure one byte below with an unchanged empty output. L1S1 shares one
+64x64 mist image across its two emitters for a 16624-byte bundle. The largest
+installed level bundle is 262600 bytes. PC/NXDK builds and six CTest checks pass;
+ownership and boundary checks run on PC. These totals exclude particle/emitter
+pools, world assets, stack and allocator metadata, and do not prove native whole
+campaign memory use. Runtime emitter creation, owner eligibility and frame/
+renderer integration remain open.

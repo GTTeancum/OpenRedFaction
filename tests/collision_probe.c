@@ -55,6 +55,32 @@ int main(int argc,char **argv)
         for(i=0;i<4;i++)rf_vpp_close(&maps[i]);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);
         return status==RF_NOT_FOUND?0:9;
     }
+    if(argc==6 && !strcmp(argv[1],"--level-emitter-materials")) {
+        rf_vpp archive,maps[4];rf_level level;rf_level_particle_materials materials={0},empty={0};
+        uint32_t i,budget=(uint32_t)strtoul(argv[5],NULL,10);int status;char path[1024];
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 3;
+        for(i=0;i<4;i++) {
+            if(snprintf(path,sizeof(path),"%s/maps%u.vpp",argv[4],i+1)<0 || rf_vpp_open(&maps[i],path))return 4;
+        }
+        status=rf_level_particle_materials_open(&materials,&level,maps,4,budget);
+        for(i=0;i<4;i++)rf_vpp_close(&maps[i]);rf_vpp_close(&archive);
+        fwrite(&status,4,1,stdout);
+        if(status) {if(memcmp(&materials,&empty,sizeof(empty)))return 5;return 0;}
+        fwrite(&materials.count,4,1,stdout);fwrite(&materials.texture_count,4,1,stdout);fwrite(&materials.resident_bytes,4,1,stdout);
+        fwrite(materials.bindings,sizeof(*materials.bindings),materials.count,stdout);
+        for(i=0;i<materials.texture_count;i++) {
+            rf_level_particle_texture *texture=&materials.textures[i];rf_image *image=&texture->bitmap.image;
+            uint32_t data[5]={image->width,image->height,image->bytes,texture->bitmap.archive_index,2166136261u},x,y,k;
+            for(y=0;y<image->height;y++)for(x=0;x<image->width;x++) {
+                const unsigned char *pixel=rf_image_pixel(image,x,y);
+                for(k=0;k<4;k++){data[4]^=pixel[k];data[4]*=16777619u;}
+            }
+            fwrite(texture->name,64,1,stdout);fwrite(data,sizeof(data),1,stdout);
+        }
+        rf_level_particle_materials_close(&materials);rf_level_particle_materials_close(&materials);
+        if(memcmp(&materials,&empty,sizeof(empty)))return 6;
+        return ferror(stdout)?7:0;
+    }
     /* Process-local batch rays for inspecting authored static geometry. */
     if(argc==4 && (!strcmp(argv[1],"--world-rays") || !strcmp(argv[1],"--scene-rays"))) {
         rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};rf_geometry_collision_movers movers={0};float ray[6];
