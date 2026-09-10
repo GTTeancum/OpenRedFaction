@@ -1,6 +1,27 @@
 #include "rf/material.h"
 #include <stdlib.h>
 #include <string.h>
+int rf_geometry_body_surface(void *context,uint32_t solid,uint32_t face,
+    uint32_t *texture,uint32_t *material)
+{
+    const rf_geometry_body_surfaces *c=context;const rf_geometry *g;rf_geometry_face source;
+    uint32_t index,slot=UINT32_MAX,value=0,offset;char name[256];int status;
+    if(!c || !texture || !material || !c->mapping || !c->palette || !c->geometries)return RF_RANGE;
+    if(solid!=UINT32_MAX && solid>=c->count)return RF_RANGE;
+    index=solid==UINT32_MAX?0:solid+1;
+    if(index>=c->count || c->mapping->count!=c->count || !c->mapping->offsets)return RF_RANGE;
+    g=c->geometries[index];if(!g)return RF_RANGE;
+    status=rf_geometry_get_face(g,face,&source);if(status)return status;
+    if(source.texture!=UINT32_MAX) {
+        if(source.texture>=g->textures || !c->mapping->slots)return RF_FORMAT;
+        offset=c->mapping->offsets[index];
+        if(c->mapping->offsets[index+1]<offset || c->mapping->offsets[index+1]-offset!=g->textures)return RF_FORMAT;
+        slot=c->mapping->slots[offset+source.texture];if(slot>=c->mapping->textures.count)return RF_FORMAT;
+        status=rf_geometry_texture_name(g,source.texture,name,sizeof(name));if(status)return status;
+        value=rf_surface_material_lookup(c->palette,name);
+    }
+    *texture=slot;*material=value;return RF_OK;
+}
 void rf_particle_animation_close(rf_particle_animation *animation)
 {
     uint32_t i;if(!animation)return;

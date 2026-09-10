@@ -5,6 +5,7 @@
 #include "rf/model.h"
 #include "rf/model_file.h"
 #include "rf/effect.h"
+#include "rf/entity_assets.h"
 typedef struct rf_particle_bitmap {
     rf_image image;
     uint32_t frames,rate,archive_index,resident_bytes;
@@ -110,4 +111,15 @@ int rf_geometry_materials_open(rf_geometry_materials *materials,
     const rf_geometry *const *geometries,uint32_t count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_geometry_materials_close(rf_geometry_materials *materials);
+typedef struct rf_geometry_body_surfaces {
+    const rf_geometry *const *geometries;uint32_t count; /* World first, then movers. */
+    const rf_geometry_materials *mapping;const rf_surface_materials *palette;
+} rf_geometry_body_surfaces;
+/* Metadata callback for rf_geometry_collision_body_sweep. Resolves file texture
+ * names through the authored material prefixes (468740) and returns the shared
+ * port texture slot. Slot IDs are not original RF.exe handles. A -1 face texture
+ * returns -1/default material (468700). Borrowed loaded inputs, no allocation or
+ * texture loading; errors preserve both outputs. No runtime face mutations. */
+int rf_geometry_body_surface(void *context,uint32_t solid,uint32_t face,
+    uint32_t *texture,uint32_t *material);
 #endif

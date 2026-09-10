@@ -89,6 +89,24 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--body-surface")) {
+        struct {uint32_t solid,face,texture,slot;char name[64];} in;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            unsigned char data[160]={0};uint32_t texture_offset=64,face_offset=0,offsets[4]={0,1,2,3},slots[3]={4,2,7};
+            rf_geometry g={0};const rf_geometry *sources[3]={&g,&g,&g};rf_geometry_materials mapping={0};
+            rf_surface_materials palette={0};rf_geometry_body_surfaces c={sources,3,&mapping,&palette};
+            struct {int status;uint32_t texture,material;} out={0,0xa5a5a5a5,0xa5a5a5a5};
+            size_t len;in.name[63]=0;len=strlen(in.name);data[64]=(unsigned char)len;memcpy(data+66,in.name,len);
+            memcpy(data+16,&in.texture,4);g.data=data;g.faces=g.textures=1;g.face_offsets=&face_offset;g.texture_offsets=&texture_offset;
+            mapping.count=3;mapping.offsets=offsets;mapping.slots=slots;mapping.textures.count=8;
+            if(in.slot)slots[0]=slots[1]=slots[2]=in.slot;
+            palette.count=3;strcpy(palette.prefixes[0].name,"rock");palette.prefixes[0].material=1;
+            strcpy(palette.prefixes[1].name,"metal");palette.prefixes[1].material=2;
+            strcpy(palette.prefixes[2].name,"ice");palette.prefixes[2].material=8;
+            out.status=rf_geometry_body_surface(&c,in.solid,in.face,&out.texture,&out.material);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--geometry-body-sweep")) {
         body_fixture fixture;
         while(fread(&fixture,sizeof(fixture),1,stdin)==1) {

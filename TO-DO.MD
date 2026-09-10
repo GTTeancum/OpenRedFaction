@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Body-sweep surface callback resolves authored material prefixes and shared texture
+slots; 29 PC/NXDK checks pass; scene ownership and live sweep wiring remain open.
+
 Owned mover/world geometry now adapts to body sweeps with source identities;
 11 PC fixtures pass; real surface resolution and live scene integration remain open.
 
