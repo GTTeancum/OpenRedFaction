@@ -1,7 +1,7 @@
 """Isolated stock64MiB APU proof using a locally built build/apu-probe image.
 No host input, desktop capture, shared disc writes or emulator configuration edits.
 """
-import array,datetime,hashlib,json,os,re,shutil,socket,subprocess,time
+import array,datetime,hashlib,json,os,re,shutil,socket,subprocess,time,wave
 from pathlib import Path
 from xemu_smoke import Monitor
 from xemu_guest_snapshot import words
@@ -38,7 +38,7 @@ startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDO
 process=None;monitor=None;report=dict(result='FAIL',command=command,samples=[],
     xbe_sha256=hashlib.sha256((build/'disc/default.xbe').read_bytes()).hexdigest(),
     provenance=json.loads((build/'provenance.json').read_text()),
-    scope='Isolated original DoorOpen_07 sample through APU voice/DSP on stock64MiB XEMU. Checks natural completion, replay of the retained static buffer, eight stop/destroy/recreate cycles, reinitialization, running-voice left/right/mute DSP routing, synthetic periodic PCM intermediate gain calibration, ten injected initialization allocation failures with restored pages, production adapter sixteen overlapping voices, overflow rejection, slot reuse, stale stop protection, restored available pages and nonzero guest DMA output snapshot. Not a linear audio capture, host audibility, live campaign integration, spatial parity or full backend validation.')
+    scope='Isolated original DoorOpen_07 sample through APU voice/DSP on stock64MiB XEMU. Checks natural completion, replay of the retained static buffer, eight stop/destroy/recreate cycles, reinitialization, running-voice left/right/mute DSP routing, synthetic periodic PCM intermediate gain calibration, ten injected initialization allocation failures with restored pages, three bank PCM playback/unload cycles with two reloads, preserved metadata, budget rejection and matching PCM, production adapter sixteen overlapping voices, overflow rejection, slot reuse, stale stop protection, restored available pages and nonzero guest DMA output snapshot. Not a linear audio capture, host audibility, live campaign integration, spatial parity or full backend validation.')
 try:
     with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
         environment=dict(os.environ,SDL_AUDIO_DRIVER='dummy')
@@ -65,6 +65,13 @@ try:
                 assert 2400<=lifecycle[0]<=3200 and lifecycle[1:]==[8,8,1,state[3],0],lifecycle
                 muted_address=int(re.search(r'_rf_apu_muted_start\s+([0-9a-fA-F]+)',mapping)[1],16)
                 report['muted_start']=words(monitor,muted_address,1)[0];assert report['muted_start']==1
+                residency_address=int(re.search(r'_rf_apu_residency\s+([0-9a-fA-F]+)',mapping)[1],16)
+                residency=words(monitor,residency_address,5);report['residency']=residency
+                with wave.open(str(build/'disc/door.wav'),'rb') as source: pcm=source.readframes(source.getnframes())
+                pcm_hash=2166136261
+                for byte in pcm: pcm_hash=((pcm_hash^byte)*16777619)&0xffffffff
+                assert residency[3]==pcm_hash,residency
+                assert residency[0]==3 and residency[4]==3 and residency[1]-residency[2]==(build/'disc/door.wav').stat().st_size,residency
                 gain_address=int(re.search(r'_rf_apu_gain_sums\s+([0-9a-fA-F]+)',mapping)[1],16)
                 sums=words(monitor,gain_address,10);report['gain_sums']=sums
                 assert sums[0]>0 and sums[1]>0,sums

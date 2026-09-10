@@ -785,3 +785,23 @@ after reopening then closing the archive reproduces hash3154186473 over the firs
 with unchanged live-audio hash3527213817. Native runtime unload/reload is not yet
 validated. This is explicit resource management, not automatic campaign eviction
 or a claim that the unresolved counter policy is implemented.
+
+### Native bank residency with device ownership
+
+Stock64MiB XEMU apu-20260910-192456 passes the production bank/adapter residency
+fixture. A small generated VPP contains the original hash-verified DoorOpen_07
+sample; no full audio archive or original asset is tracked. Three playback cycles
+close the archive, produce nonzero APU output, synchronously reset the backend
+to release sample page locks, then unload PCM twice to check idempotence.
+Each unload reduces bank-accounted bytes from57150 to136 while retaining the
+index and spatial parameters. The two reloads first reject a one-byte-short
+budget, then restore exact-budget residency using a reopened archive.
+
+Full decoded PCM FNV hash3315163553 matches across all three cycles and an
+independent Python wave decode. Native telemetry is[3,57150,136,3315163553,3].
+Existing APU lifetime, allocation-failure, channel/gain and muted-start checks
+also pass. This validates explicit bank unload/reload with the production Xbox
+adapter, not automatic campaign residency, level transitions or real hardware.
+The136-byte figure is retained bank/slot accounting, not whole-process physical
+memory. Stop alone is asynchronous and does not release static buffer ownership;
+this fixture uses complete backend reset before freeing bank storage.

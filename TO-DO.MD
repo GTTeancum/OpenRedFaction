@@ -24,8 +24,8 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Shared bank now unloads/reloads PCM while retaining metadata and budget accounting;
-PC checks and NXDK build pass, native residency and campaign policy remain open.
+Native64MiB APU residency passes three playback/unload cycles and two reloads;
+bank accounting drops57150 to136 bytes, while automatic campaign policy remains open.
 
 Original counter-gated cleanup verified over55 voice slots; keep flag forwards
 unchanged and does not change voice selection, while counter balancing remains open.

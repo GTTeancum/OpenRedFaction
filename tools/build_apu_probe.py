@@ -1,5 +1,5 @@
 """Prepare/build an isolated APU evaluation, keeping dependencies/assets ignored."""
-import argparse,hashlib,json,os,shutil,subprocess,tarfile,urllib.request
+import argparse,hashlib,json,os,shutil,struct,subprocess,tarfile,urllib.request
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];local=root/'local';dependency=local/'nxdk-audio'
 parser=argparse.ArgumentParser();parser.add_argument('--backend-only',action='store_true');args=parser.parse_args()
@@ -69,6 +69,12 @@ with (root/'Installed_Game/audio.vpp').open('rb') as source:
     source.seek(entry['offset']);data=source.read(entry['size'])
 assert hashlib.sha256(data).hexdigest()=='1f78088850b4d256bbfd919efd82daa97f3866b3cd9ed06f7c830f463c321393'
 (build/'disc/door.wav').write_bytes(data)
+# Small isolated archive exercises production bank ownership without a full audio.vpp copy.
+fixture=bytearray(4096+((len(data)+2047)&~2047))
+struct.pack_into('<4I',fixture,0,0x51890ace,1,1,len(fixture))
+fixture[2048:2048+len(b'DoorOpen_07.wav')]=b'DoorOpen_07.wav'
+struct.pack_into('<I',fixture,2108,len(data));fixture[4096:4096+len(data)]=data
+(build/'disc/bank.vpp').write_bytes(fixture)
 prefix='/'+root.drive[0].lower()+root.as_posix()[2:]
 (build/'Makefile').write_text(f'''XBE_TITLE = RF-APU-Probe
 NXDK_DIR = /c/nxdk

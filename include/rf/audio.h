@@ -46,7 +46,8 @@ int rf_audio_bank_register(rf_audio_bank *bank,const char *name,float near_dista
     float volume,float rolloff,uint32_t *index);
 const rf_audio_parameters *rf_audio_bank_parameters(const rf_audio_bank *bank,uint32_t index);
 const rf_wave_pcm *rf_audio_bank_sample(const rf_audio_bank *bank,uint32_t index);
-/* Explicit residency control; caller must stop ALL device/mixer borrowers first.
+/* Explicit residency control; caller must release ALL device/mixer borrowers
+ * first. An asynchronous device stop alone does not release buffer ownership.
  * Unload preserves index/name/parameters and is idempotent. Sample returns NULL
  * while unloaded. Reload borrows an open archive only for this call, preserves
  * metadata, and leaves the bank unchanged on failure. No automatic eviction. */

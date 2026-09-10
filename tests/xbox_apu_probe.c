@@ -13,6 +13,7 @@ volatile uint32_t rf_apu_allocation_failures;
 volatile uint32_t rf_apu_channel_counts[6]; /* left-only, right-only, mute: interleaved L/R nonzero counts */
 static int16_t calibration_pcm[48000];
 volatile uint32_t rf_apu_gain_sums[10],rf_apu_muted_start;
+volatile uint32_t rf_apu_residency[5]; /* cycles, loaded bytes, unloaded bytes, PCM hash, DSP cycles */
 static uint8_t wav[65536];
 static nxAudioVoice voice;
 volatile uint32_t rf_apu_lifecycle[6]; /* replay ms, stopped voices, recreated, second init, restored pages, status */
@@ -163,6 +164,39 @@ int main(void)
     rf_xbox_audio_events.reset(NULL);
     if(rf_xbox_audio_diagnostic[1]!=1 || rf_xbox_audio_diagnostic[3] || rf_xbox_audio_diagnostic[11] || available()!=rf_apu_probe[3])goto fail;
     rf_apu_muted_start=1;
+    rf_apu_probe[1]=15;
+    {rf_vpp archive;rf_audio_bank bank={0};uint32_t index;
+     uint32_t budget=(uint32_t)(sizeof(bank)+sizeof(rf_audio_sample)+bytes);
+     if(rf_vpp_open(&archive,"D:\\bank.vpp") || rf_audio_bank_open(&archive,1,budget,&bank) ||
+        rf_audio_bank_register(&bank,"DoorOpen_07.wav",5,.5f,1,&index))goto fail;
+     rf_audio_parameters parameters=*rf_audio_bank_parameters(&bank,index);
+     rf_apu_residency[1]=bank.bytes;
+     for(uint32_t cycle=0;cycle<3;cycle++) {
+        const rf_wave_pcm *resident=rf_audio_bank_sample(&bank,index);uint32_t hash=2166136261u;
+        if(!resident)goto fail;
+        for(uint32_t n=0;n<resident->bytes;n++)hash=(hash^resident->samples[n])*16777619u;
+        if(cycle && hash!=rf_apu_residency[3])goto fail;
+        rf_apu_residency[3]=hash;rf_vpp_close(&archive);
+        if(rf_xbox_audio_open()!=RF_OK)goto fail;
+        rf_xbox_audio_events.play(NULL,0x70000u+cycle,resident,.5f,.5f);Sleep(150);
+        rf_xbox_audio_events.poll(NULL);
+        if(rf_xbox_audio_diagnostic[1]!=1 || !rf_xbox_audio_diagnostic[5] || rf_xbox_audio_diagnostic[3])goto fail;
+        ++rf_apu_residency[4];
+        /* Close synchronously releases device page locks before freeing bank PCM. */
+        rf_xbox_audio_events.reset(NULL);
+        if(rf_xbox_audio_diagnostic[11] || rf_audio_bank_unload(&bank,index) ||
+           rf_audio_bank_unload(&bank,index) || bank.bytes!=budget-bytes || rf_audio_bank_sample(&bank,index) ||
+           memcmp(&parameters,rf_audio_bank_parameters(&bank,index),sizeof(parameters)))goto fail;
+        rf_apu_residency[2]=bank.bytes;++rf_apu_residency[0];
+        if(cycle<2) {
+            if(rf_vpp_open(&archive,"D:\\bank.vpp"))goto fail;
+            bank.budget=budget-1;
+            if(rf_audio_bank_reload(&bank,&archive,index)!=RF_RANGE || bank.bytes!=budget-bytes)goto fail;
+            bank.budget=budget;
+            if(rf_audio_bank_reload(&bank,&archive,index) || bank.bytes!=budget)goto fail;
+        }
+     }
+     rf_audio_bank_close(&bank);}
     rf_apu_probe[1]=9;
     for(;;)Sleep(100);
 fail:
