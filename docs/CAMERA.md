@@ -3029,3 +3029,37 @@ intentional climb boost. Test the authored exit geometry and route separately.
 Final-code climb restriction replay 20260910-013030 also passes in stock-64-MiB
 XEMU: two rejected climbing presses and one accepted exit-frame press, with
 exact PC state and jump/climb timeline matching over 180 ticks.
+
+
+Authored jump-height loading (2026-09-10)
+
+rf_game_jump_height_read finds the unquoted $Max Entity Jump Height field in
+game.tbl using the existing bounded lexer/decimal reader. It skips comments
+and quoted labels, rejects duplicate/missing/negative/nonfinite/malformed values,
+and preserves output on failure. rf_game_jump_height_load uses one scratch
+allocation capped by the caller's budget; campaign setup allows 65536 bytes.
+The installed table is 2424 bytes. No table text or archive pointer is retained.
+This is a narrow reader for the recovered 433dd0/433e94 field, not a complete
+reconstruction of the original table grammar or every game configuration field.
+
+Campaign setup computes the jump impulse once from the loaded height and the
+same installed 9.8f gravity currently used by actor_tick. Jump requests reuse
+that impulse. The previous literal 1.33 in the live jump path is removed; gravity
+and sound/timestamp ownership still need their complete lifecycle integration.
+The decimal reader avoids NXDK's assertion-only strtod/strtof implementations.
+
+verify_jump_height.py passes 24 cases on PC and compiled NXDK, including the
+installed table, altered decimal/exponent values, comments/case, quoted labels,
+empty/missing/duplicate fields, malformed values and output preservation.
+The PC archive wrapper passes exact scratch budget and one-byte-short rejection.
+The shared reader is executed from compiled NXDK in Unicorn without substituting
+its parsing logic. Reports include the executable fingerprints.
+
+A separate ignored asset overlay at local/jump-height-override copied tables.vpp
+and changed only the four-byte authored value 1.33 to 2.50. Other VPPs are read
+through hard links; no installed original was modified. A 128-tick PC replay
+with one grounded press reached 2.499972224 units and landed, proving the live
+path consumes the changed value. Its report is artifacts/jump-height-override.
+The standard 1.33 jump replay still passes on PC and stock-64-MiB XEMU
+20260910-013412 with exact retained state/timeline matching. Altered-height
+native Xbox execution and original full-arc comparison remain untested.

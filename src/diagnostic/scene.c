@@ -269,6 +269,7 @@ uint32_t rf_scene_actor_turn_enabled,rf_scene_actor_look_enabled,rf_scene_actor_
 static rf_look_pose actor_look;
 static rf_level_owned_regions campaign_regions;
 static rf_movement_descriptor campaign_modes[16];
+static float campaign_jump_strength;
 static rf_player_climb_state campaign_climb;
 static const float campaign_identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
 uint32_t rf_scene_player_climb_frames[128][9]; /* frame, region, mode, position XYZ, velocity XYZ before motion */
@@ -572,10 +573,10 @@ static int campaign_jump_update(uint32_t frame)
         if(rf_player_jump_enabled(&gate)) {
             rf_player_jump_state state={rf_scene_actor_stance_flags,scene_actor_body.state.flags,
                 scene_actor_body.state.velocity[1],campaign_modes+selected,campaign_identity,0};
-            /* Installed game.tbl height, same fixture gravity as actor_tick.
-             * Full game configuration and class sound resolution remain open. */
+            /* Height is loaded from game.tbl; gravity still shares actor_tick's
+             * installed default. Class sound resolution remains open. */
             rf_player_jump_input input={campaign_modes,campaign_identity,
-                (float)sqrt(2.0*(double)9.8f*(double)1.33f),scene_step_seconds,0,0,-1,0};
+                campaign_jump_strength,scene_step_seconds,0,0,-1,0};
             float now=(float)((double)frame*scene_step_seconds);uint32_t sounds=rf_scene_player_jump[2];
             memcpy(&input.now,&now,4);
             status=rf_player_jump(&state,&input,&selected,campaign_jump_sound,NULL);if(status)return status;
@@ -1145,7 +1146,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision)status=rf_entity_movement_load(&tables,binding.entity.class_name,512*1024,&rf_scene_actor_movement_values);
         if(!status && collision)status=scene_surface_open(&tables,&stream);
         if(!status && collision && campaign_spawn) {
-            uint32_t mode;
+            uint32_t mode;float height;
+            status=rf_game_jump_height_load(&tables,65536,&height);
+            if(!status)campaign_jump_strength=(float)sqrt(2.0*(double)9.8f*(double)height);
             for(mode=0;mode<16 && !status;++mode)status=rf_movement_descriptor_load(&tables,mode,65536,campaign_modes+mode);
         }
         rf_vpp_close(&tables);if(status)goto done;

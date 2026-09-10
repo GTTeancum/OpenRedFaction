@@ -6,6 +6,22 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==3 && !strcmp(argv[1],"--jump-height")) {
+        float value=123;uint32_t budget;
+        if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"game.tbl",&entry))return 2;
+        budget=entry.size;
+        if(rf_game_jump_height_load(&archive,budget-1,&value)!=RF_RANGE || value!=123)return 4;
+        status=rf_game_jump_height_load(&archive,budget,&value);rf_vpp_close(&archive);
+        if(status)return 3;_setmode(_fileno(stdout),_O_BINARY);
+        return fwrite(&value,4,1,stdout)==1?0:1;
+    }
+    if(argc==2 && !strcmp(argv[1],"--jump-height-text")) {
+        char data[65536];float value=123;size_t size;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        size=fread(data,1,sizeof(data),stdin);status=rf_game_jump_height_read(data,(uint32_t)size,&value);
+        if(fwrite(&status,4,1,stdout)!=1 || fwrite(&value,4,1,stdout)!=1)return 1;
+        return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--physics-config")) {
         rf_entity_physics_config value,before;rf_vpp_entry material;uint32_t budget;
         memset(&value,0xa5,sizeof(value));before=value;

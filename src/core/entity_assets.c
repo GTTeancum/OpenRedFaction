@@ -191,6 +191,38 @@ static int sphere_number(lexer *l,float *result)
     if(!isfinite(value) || value>FLT_MAX)return RF_FORMAT;
     *result=(float)(negative?-value:value);return RF_OK;
 }
+int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height)
+{
+    static const char *words[]={"$Max","Entity","Jump","Height:"};
+    lexer l;char t[256];float value=0;uint32_t match=0;int found=0,status,quoted;
+    if(!text || !bytes || !height)return RF_RANGE;
+    l.text=text;l.size=bytes;l.at=0;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted){match=0;continue;}
+        if(same(t,words[match]))++match;
+        else match=same(t,words[0])?1:0;
+        if(match==4) {
+            if(found)return RF_FORMAT;
+            status=sphere_number(&l,&value);if(status)return status;
+            if(value<0)return RF_FORMAT;
+            found=1;match=0;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;
+    *height=value;return RF_OK;
+}
+int rf_game_jump_height_load(rf_vpp *tables,uint32_t budget,float *height)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !height)return RF_RANGE;
+    status=rf_vpp_find(tables,"game.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_game_jump_height_read(text,entry.size,height);
+    free(text);return status;
+}
 int rf_entity_movement_load(rf_vpp *tables,const char *name,uint32_t budget,rf_entity_movement_values *result)
 {
     rf_vpp_entry entry;rf_entity_movement_values value={0,1,1,0};void *text;lexer l;

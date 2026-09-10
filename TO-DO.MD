@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Finish jump configuration/audio ownership and validate obstructed jumping and authored traversal.
+- [ ] Finish jump gravity/audio ownership and validate obstructed jumping and authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -13,6 +13,11 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Campaign jump height now loads from game.tbl with a bounded shared reader;
+24 PC/NXDK parsing cases pass. The normal jump replay passes in 64-MiB XEMU
+(20260910-013412), and a separate PC asset copy configured to 2.50 reaches
+2.49997 units. Gravity still uses the installed default; audio remains open.
 
 Immediate crouch now precedes jump, matching 430c70. PC restriction replays
 cover crouched rejection, held-button release without auto-jump, same-tick
@@ -26,8 +31,8 @@ Campaign jump replay now passes on PC and stock-64-MiB XEMU
 (20260910-012451): initial airborne rejection, two accepted jumps, 1.32991
 units ascent, landing while held without auto-repeat, and release/repress.
 Space (PC --campaign) and A (Xbox campaign mode) are mapped; physical-device
-checks remain USER. Audio is recorded only; jump height/gravity still use the
-verified installed defaults until the configuration lifecycle is connected.
+checks remain USER. Audio is recorded only; jump height now comes from game.tbl, while gravity
+still uses the verified installed default pending its configuration lifecycle.
 
 Campaign support now runs after physics using a fresh probe and the recovered
 selector, then consumes jump flag 2. Both 64-MiB XEMU replays pass with exact

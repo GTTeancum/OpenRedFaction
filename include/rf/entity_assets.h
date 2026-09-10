@@ -8,6 +8,12 @@
 /* movemodes.tbl fields and name/reference tables from original 433670.
  * Bounded archive read, one scratch allocation; output preserved on failure. */
 int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf_movement_descriptor *result);
+/* game.tbl $Max Entity Jump Height from 433dd0/433e94. Decimal parser is
+ * shared with authored class numbers; no NXDK strtod stub. Output preserved
+ * on missing/duplicate/invalid height. Loader uses one bounded scratch block. */
+int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height);
+int rf_game_jump_height_load(rf_vpp *tables,uint32_t budget,float *height);
+
 typedef struct rf_entity_movement_values {
     float speed,slow_factor,fast_factor,acceleration;
 } rf_entity_movement_values;
