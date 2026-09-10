@@ -2276,3 +2276,37 @@ Report `artifacts/player-crouch-verification.json` includes executable hashes.
 Both builds and five CTests pass. Live campaign crouching still uses the prior
 diagnostic selector until immediate stance effects and the outer gates are
 connected; no live XEMU crouch equivalence is claimed by this predicate test.
+
+## Owned-player animation selection after initialization
+
+The generic `41f270` controller update chooses `4a5cd0` when `42a8e0` sees a
+player entity with a non-null owner at `+1430`. Before ownership is installed,
+the first creation call takes the existing entity-selector path. Thus the
+verified initial armed blend does not prove the subsequent player selector is
+already integrated. The campaign diagnostic still uses ordinary movement
+candidates and must switch its later-frame path when player ownership is built.
+
+`tools/inspect_player_motion.py` executes complete original `4a5cd0` and all
+callees without hooks in 3,328 ordinary non-rotating, parentless entity cases.
+It supplies identity logical-motion mappings and a fresh controller; actual
+animation sampling and unavailable-state fallback are separate tests. Inputs
+span all 16 movement modes, crouch, attachment, primary weapon, weapon-hidden
+flag and 13 direction/threshold cases. Only controller storage changes, and
+all selected states/durations match the recovered branch rules. Reference
+inputs/results are retained in `artifacts/player-motion-reference.json`.
+
+Within those preconditions, crouch takes precedence over falling/swimming:
+state 10 is selected when X or Z is strictly outside +/-binary32 .1, otherwise
+state 9. Y alone does not select crouch movement. Non-crouched modes 3/8 use
+state 14; modes 4/7 choose 18 for exact-zero direction or 19 otherwise.
+Other modes use the original `4fa7a0` magnitude estimate:
+largest absolute component plus 1.5 times (middle times .25 plus smallest
+times .125). Its unrounded comparison against binary32 .25 selects idle versus
+movement. An attachment selects 16/17; an available, unhidden primary weapon
+selects 1/5; otherwise selection is 0/4. Each new request uses duration .25.
+
+Earlier priorities in `4a5cd0` select state 15 for parent kind 4 and 20/21 for
+the two `42ac80`/`42acd0` seat predicates. Those branches remain outside this
+parentless fixture. The full player selector and immediate input-driven stance
+effects still need shared C/live integration; reusing the diagnostic's generic
+nonzero-command selector would lose the original thresholds and priorities.
