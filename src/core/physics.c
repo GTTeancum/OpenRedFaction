@@ -36,25 +36,31 @@ int rf_physics_ground_propose(rf_physics_body_state *state,float dt,float drag,
     }
     *state=value;return RF_OK;
 }
-int rf_physics_static_support(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction)
+int rf_physics_support_commit(rf_physics_body_state *state,const rf_physics_ground_probe *probe,
+    float fraction,uint32_t moving,float contact_y,uint32_t object_handle,uint32_t *support_handle)
 {
     rf_physics_body_state value;float candidate;uint32_t k;
-    if(!state || !probe || !isfinite(fraction) || fraction<0 || fraction>=1 ||
+    if(!state || !probe || !support_handle || !isfinite(contact_y) || !isfinite(fraction) || fraction<0 || fraction>=1 ||
        !isfinite(probe->start[1]) || !isfinite(probe->end[1]) ||
        !isfinite(state->bounds.radius) || state->bounds.radius<0)return RF_RANGE;
     value=*state;
     candidate=(float)(((double)probe->end[1]-probe->start[1])*fraction+probe->start[1]+.05f);
     if(!isfinite(candidate))return RF_RANGE;
     for(k=0;k<3;++k)if(!isfinite(value.next_position[k]) || !isfinite(value.velocity[k]))return RF_RANGE;
-    value.next_position[1]=fminf(value.next_position[1],candidate);
+    value.next_position[1]=moving && contact_y>0?candidate:fminf(value.next_position[1],candidate);
     memcpy(value.position,value.next_position,12);
     for(k=0;k<3;++k) {
         value.bounds.minimum[k]=(float)((double)value.position[k]-value.bounds.radius);
         value.bounds.maximum[k]=(float)((double)value.position[k]+value.bounds.radius);
         if(!isfinite(value.bounds.minimum[k]) || !isfinite(value.bounds.maximum[k]))return RF_RANGE;
     }
-    value.flags&=~0x400000u;
-    *state=value;return RF_OK;
+    if(moving)value.flags|=0x400000u;else value.flags&=~0x400000u;
+    *state=value;*support_handle=moving?object_handle:0;return RF_OK;
+}
+int rf_physics_static_support(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction)
+{
+    uint32_t handle;
+    return rf_physics_support_commit(state,probe,fraction,0,0,0,&handle);
 }
 int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction)
 {

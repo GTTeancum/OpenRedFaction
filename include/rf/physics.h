@@ -172,6 +172,13 @@ int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_
 /* Static support position/bounds commit at 4a0b31..4a0bfa, before landing.
  * Preserves velocity and airborne flag 0x200000; clears moving-support flag. */
 int rf_physics_static_support(rf_physics_body_state *state,const rf_physics_ground_probe *probe,float fraction);
+/* 4a0ae3..4a0bfa numeric support commit after caller accepts the contact and
+ * resolves its object. Rising mover contact velocity Y bypasses downward-only
+ * clamp. Updates moving-support flag and caller-owned entity support handle;
+ * static support clears both. No object lookup, special entity rejection,
+ * contact-record ownership or landing transition. Errors preserve outputs. */
+int rf_physics_support_commit(rf_physics_body_state *state,const rf_physics_ground_probe *probe,
+    float fraction,uint32_t moving,float contact_y,uint32_t object_handle,uint32_t *support_handle);
 /* Prepared linear translation 49f7c3..49f89f: steering acceleration has
  * already been transformed/clamped and drag resolved by movement mode. Drag
  * and force/mass are applied even on a repeated pass; caller supplies zero

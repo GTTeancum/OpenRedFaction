@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Static/mover support commit matches 2048 original/PC/NXDK cases, including
+rising-platform height correction; ground-query and support-state wiring remain open.
+
 Campaign player sweeps now query registered movers and static world with authored
 materials; L1S1/L2S1 XEMU replays pass; ground support and moving response remain open.
 
