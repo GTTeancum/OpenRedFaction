@@ -143,7 +143,13 @@ APU voices, which advance independently of rendering. The 180-frame door and
 DSP output and matching PC gameplay state. Use `--audio-capture` with
 `tools/xemu_replay_check.py` to enable this check for bounded replays.
 Xbox controller volume and pan now follow the gameplay listener; both replays
-match PC spatial-setting telemetry. PC device playback, sound groups/loop metadata
-and real-hardware listening remain open. The shared PCM hash still checks a
+match PC spatial-setting telemetry. PC campaign mode now uses a bounded Windows output backend with the shared
+mixer and spatial gain events. Sound groups/loop metadata and real-hardware
+listening remain open. The shared PCM hash still checks a
 separate unity-gain diagnostic stream, not the spatial device waveform.
 See [audio evidence and dependency provenance](docs/controller-audio.md).
+
+Run `./build/pc/Release/rf_pc_play.exe --campaign Installed_Game` for the PC
+campaign diagnostic with device audio. Headless replays remain device-free.
+The optional `rf_pc_audio_check.exe` validates device open/refill/stop/reopen
+using a quiet synthetic sample; it is not part of device-independent CTest.

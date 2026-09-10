@@ -623,3 +623,26 @@ still reports two closing reversals and six controller arrivals. Device plays,
 DSP output and shutdown checks pass. This broadens live integration evidence to
 voice reuse and changing listener position; it does not resolve the remaining
 independent-clock ownership, sound-group/loop or PC-device work noted above.
+
+### PC output backend
+
+The Windows campaign frontend now installs a WaveOut event backend for interactive
+--campaign mode. Four512-frame stereo48kHz buffers are refilled by a worker when
+the device returns them. Each PCM voice runs through the shared integer mixer on
+this audio clock, using the same sample bank and logical play/stop/gain events as
+Xbox. A critical section serializes voice updates and mixing. Reset wakes and
+joins the worker before releasing bank references, resets/unprepares the device
+buffers, closes handles and clears mixer state. Headless replays do not open audio.
+
+Fixed backend headers, samples, mixer and handle map occupy9220 bytes; Windows
+thread/device allocations are additional host-platform overhead. The nominal
+queued sample capacity is2048 frames (42.7ms). There is no allocation per refill.
+If no output device opens, the visual diagnostic remains available without audio.
+
+`rf_pc_audio_check` passes two open/play/gain/stop/reset cycles with a quiet
+synthetic PCM sample:10752 generated frames and21504 nonzero channel samples per
+cycle, no reported device API failure. This observes generated PCM and successful
+WaveOut calls, not loopback capture or listening fidelity. The full PC build,
+six device-independent CTests and headless180-frame door replay pass. The Xbox
+backend/source path was not changed by this PC-only addition. Real-time underrun
+measurement, complete campaign listening and wider failure-path testing remain.

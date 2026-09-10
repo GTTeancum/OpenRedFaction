@@ -8,6 +8,7 @@
 #include "rf/physics.h"
 #include "rf/frame_clock.h"
 #include "pc_raster.h"
+#include "audio.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -222,6 +223,7 @@ int main(int argc,char **argv)
     rf_scene_actor_live_enabled=1;rf_scene_actor_eye_enabled=1;
     rf_scene_actor_look_enabled=1;rf_scene_actor_turn_enabled=1;
     rf_scene_actor_drive(1);rf_scene_actor_follow(&retained);rf_scene_set_input(input,&p,limit);
+    if(!p.headless && spawn_profile && rf_pc_audio_open()==RF_OK)rf_scene_set_audio_events(&rf_pc_audio_events,NULL);
     CHECK(rf_scene_stream_miner_body(&level,9858,meshes,motions,tables,maps,opened,&mesh,&materials,
         8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,present,&p,&collision,&geometry));
     if(p.headless) {
@@ -280,6 +282,7 @@ int main(int argc,char **argv)
     }
     printf("Completed %u frames, 640x480 raster, %u byte mesh cap.\n",p.frames,RF_SCENE_FOLLOW_CAPACITY);
 cleanup:
+    rf_pc_audio_close();rf_scene_set_audio_events(NULL,NULL);
     if(status) {
         fprintf(stderr,"MATERIAL_FAILURE %s %u %u %u\n",rf_material_failure_name,rf_material_failure[0],rf_material_failure[1],rf_material_failure[2]);
         fprintf(stderr,"ANIMATION_PROGRESS");for(i=0;i<4;++i)fprintf(stderr," %u",rf_animation_progress[i]);

@@ -2,7 +2,8 @@
 
 Immediate open items:
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
-- [ ] Complete controller audio groups/loop metadata and PC playback after live Xbox spatial gain wiring.
+- [ ] Complete controller audio groups/loop metadata and validate interactive PC/Xbox playback.
+- [ ] USER: Listen to the PC --campaign diagnostic and report dropouts or unexpected volume/pan changes.
 - [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
 - [ ] Complete controller sound/alert/wakeup effects, rotation and remaining key-target actions.
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
@@ -21,6 +22,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+PC campaign audio now uses shared voices on a bounded device-clock backend;
+two refill/stop/reopen checks pass with9220 fixed bytes plus host overhead.
 
 Closing/reversal spatial replay also passes stock64MiB XEMU with694 listener
 refreshes and390 changed settings matching PC; PC device backend remains open.
