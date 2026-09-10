@@ -165,6 +165,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      movers=words(monitor,symbol('rf_scene_campaign_movers'),3)
      assert movers==expected('CAMPAIGN_MOVERS'),movers
      report['campaign_movers']=movers
+     player=words(monitor,symbol('rf_scene_campaign_player'),4)
+     assert player==expected('CAMPAIGN_PLAYER') and player[1:3]==[0,8],player
+     report['campaign_player']=player
      body_sweeps=words(monitor,symbol('rf_scene_actor_body_sweeps'),5)
      assert body_sweeps==expected('BODY_SWEEPS') and body_sweeps[3]==0,body_sweeps
      report['body_sweeps']=body_sweeps

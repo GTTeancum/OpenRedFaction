@@ -236,6 +236,8 @@ int main(int argc,char **argv)
             printf("BODY_SWEEPS %u %u %u %u %u\n",rf_scene_actor_body_sweeps[0],rf_scene_actor_body_sweeps[1],rf_scene_actor_body_sweeps[2],rf_scene_actor_body_sweeps[3],rf_scene_actor_body_sweeps[4]);}
             {extern uint32_t rf_scene_actor_ground_queries[4];
             printf("GROUND_QUERIES %u %u %u %u\n",rf_scene_actor_ground_queries[0],rf_scene_actor_ground_queries[1],rf_scene_actor_ground_queries[2],rf_scene_actor_ground_queries[3]);}
+            {extern uint32_t rf_scene_campaign_player[4];
+            printf("CAMPAIGN_PLAYER %u %u %u %u\n",rf_scene_campaign_player[0],rf_scene_campaign_player[1],rf_scene_campaign_player[2],rf_scene_campaign_player[3]);}
             {extern rf_geometry_body_hit rf_scene_actor_body_contact;uint32_t words[23],j;
             memcpy(words,&rf_scene_actor_body_contact,sizeof(words));printf("BODY_CONTACT");
             for(j=0;j<23;j++)printf(" %u",words[j]);printf("\n");}

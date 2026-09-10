@@ -95,6 +95,26 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--entity-registration")) {
+        rf_object_registry objects,before;rf_entity_registry entities={0};rf_entity_view views[1025]={{0}};
+        rf_registered_entity_view wrappers[1025]={{0}},duplicate={0};uint32_t i,handle;
+        rf_object_registry_init(&objects);
+        for(i=0;i<1024;i++) {
+            if(rf_entity_view_register(&objects,&entities,views+i,wrappers+i))return 3;
+            if(wrappers[i].handle!=((i+1)<<16|i) || rf_entity_lookup(&entities,views[i].handle)!=views+i ||
+               rf_object_registry_lookup(&objects,wrappers[i].handle)!=wrappers+i)return 4;
+        }
+        before=objects;
+        if(rf_entity_view_register(&objects,&entities,views+1024,wrappers+1024)!=RF_RANGE || memcmp(&objects,&before,sizeof(objects)))return 5;
+        for(i=0;i<1024;i++)if(rf_entity_view_unregister(&objects,&entities,wrappers+i) || views[i].handle!=-1)return 6;
+        if(rf_entity_view_register(&objects,&entities,views,wrappers))return 7;
+        before=objects;handle=wrappers[0].handle;
+        if(rf_entity_view_register(&objects,&entities,views,&duplicate)!=RF_RANGE || memcmp(&objects,&before,sizeof(objects)))return 8;
+        views[0].handle^=0x10000;
+        if(rf_entity_view_unregister(&objects,&entities,wrappers)!=RF_NOT_FOUND || rf_object_registry_lookup(&objects,handle)!=wrappers)return 9;
+        views[0].handle=(int32_t)handle;if(rf_entity_view_unregister(&objects,&entities,wrappers))return 10;
+        puts("PASS 1025 registrations, exhaustion, duplicate and stale guards");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--trigger-links")) {
         uint32_t input[5];
         while(fread(input,sizeof(input),1,stdin)==1) {

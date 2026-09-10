@@ -388,6 +388,10 @@ static rf_group_mover_memberships campaign_memberships;
 uint32_t rf_scene_campaign_memberships[5]; /* groups, links, retained/peak bytes, ordered binding hash */
 
 static uint32_t campaign_mover_count;
+static rf_entity_registry campaign_entities;
+static rf_entity_view campaign_player_view;
+static rf_registered_entity_view campaign_player_object;
+uint32_t rf_scene_campaign_player[4]; /* registered handle, kind, initial object flags, adapter bytes */
 static rf_collision_body_mover *campaign_sweep_scratch;
 static const rf_geometry **campaign_surface_sources;
 static rf_surface_materials *campaign_surface_palette;
@@ -396,6 +400,7 @@ uint32_t rf_scene_actor_body_sweeps[5]; /* queries, hits, mover hits, status, re
 uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, registration bytes */
 static void campaign_close_movers(void)
 {
+    if(campaign_player_object.view)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&campaign_player_object);
     uint32_t i;for(i=0;i<campaign_mover_count;i++)rf_object_registry_remove(&campaign_registry,campaign_mover_wrappers[i].handle);
     rf_group_mover_memberships_close(&campaign_memberships);
     free(campaign_mover_bindings);campaign_mover_bindings=NULL;
@@ -1572,6 +1577,15 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!campaign_sweep_scratch || !campaign_surface_sources){status=RF_RANGE;goto done;}
             campaign_surface_sources[0]=geometry;
             for(i=0;i<campaign_movers.count;i++)campaign_surface_sources[i+1]=&actor_follow_world->movers.items[i].geometry;
+            memset(&campaign_entities,0,sizeof(campaign_entities));memset(&campaign_player_view,0,sizeof(campaign_player_view));
+            campaign_player_view.handle=-1;campaign_player_view.type=0;campaign_player_view.class_type=-1;
+            campaign_player_view.flags_7c=8; /* Confirmed local-player object bit; full factory flags remain separate. */
+            campaign_player_view.linked_handle=-1;campaign_player_view.weapons[0]=campaign_player_view.weapons[1]=-1;
+            campaign_player_view.action_520=-1;campaign_player_view.base_speed=rf_scene_actor_movement_values.speed;
+            status=rf_entity_view_register(&campaign_registry,&campaign_entities,&campaign_player_view,&campaign_player_object);if(status)goto done;
+            rf_scene_campaign_player[0]=campaign_player_object.handle;rf_scene_campaign_player[1]=campaign_player_object.object_kind;
+            rf_scene_campaign_player[2]=campaign_player_view.flags_7c;
+            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object);
             memset(rf_scene_actor_body_sweeps,0,sizeof(rf_scene_actor_body_sweeps));
             memset(rf_scene_actor_ground_queries,0,sizeof(rf_scene_actor_ground_queries));
             memset(rf_scene_actor_ground_contacts,0,sizeof(rf_scene_actor_ground_contacts));

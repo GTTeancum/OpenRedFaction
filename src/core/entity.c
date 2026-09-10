@@ -47,6 +47,30 @@ uint32_t rf_entity_creation_object_flags(uint32_t creation_flags,uint32_t descri
     return flags;
 }
 
+int rf_entity_view_register(rf_object_registry *objects,rf_entity_registry *entities,
+    rf_entity_view *view,rf_registered_entity_view *wrapper)
+{
+    uint32_t slot,handle,i;int status;
+    if(!objects || !entities || !view || !wrapper || wrapper->view || view->type!=0 || !objects->count)return RF_RANGE;
+    if(objects->head>=RF_OBJECT_CAPACITY)return RF_RANGE;
+    for(i=0;i<RF_OBJECT_SLOTS;i++)if(entities->slots[i]==view)return RF_RANGE;
+    slot=objects->free_slots[objects->head];
+    if(slot>=RF_OBJECT_SLOTS || entities->slots[slot])return RF_RANGE;
+    status=rf_object_registry_insert(objects,wrapper,&handle);if(status)return status;
+    wrapper->object_kind=0;wrapper->handle=handle;wrapper->view=view;
+    view->handle=(int32_t)handle;entities->slots[handle&0xffffu]=view;return RF_OK;
+}
+int rf_entity_view_unregister(rf_object_registry *objects,rf_entity_registry *entities,
+    rf_registered_entity_view *wrapper)
+{
+    uint32_t slot;int status;
+    if(!objects || !entities || !wrapper || !wrapper->view)return RF_RANGE;
+    slot=wrapper->handle&0xffffu;
+    if(slot>=RF_OBJECT_SLOTS || rf_object_registry_lookup(objects,wrapper->handle)!=wrapper ||
+       entities->slots[slot]!=wrapper->view || (uint32_t)wrapper->view->handle!=wrapper->handle)return RF_NOT_FOUND;
+    status=rf_object_registry_remove(objects,wrapper->handle);if(status)return status;
+    entities->slots[slot]=NULL;wrapper->view->handle=-1;memset(wrapper,0,sizeof(*wrapper));return RF_OK;
+}
 const rf_entity_view *rf_object_lookup(const rf_entity_registry *registry, int32_t handle)
 {
     uint32_t index=(uint32_t)handle & 0xffffu;

@@ -2,6 +2,7 @@
 #define RF_ENTITY_H
 #include <stdint.h>
 #include "rf/vpp.h"
+#include "rf/object_registry.h"
 
 #define RF_OBJECT_SLOTS 1024
 /* Object flags assembled by 422360 before generic allocation. descriptor_kind
@@ -40,6 +41,20 @@ typedef struct rf_entity_view {
 typedef struct rf_entity_registry {
     const rf_entity_view *slots[RF_OBJECT_SLOTS];
 } rf_entity_registry;
+typedef struct rf_registered_entity_view {
+    uint32_t object_kind,handle;rf_entity_view *view;
+} rf_registered_entity_view;
+/* Port ownership adapter joining the typed object registry and compact entity
+ * predicate views. Does not reconstruct entity creation/class initialization.
+ * Caller supplies a type0 view and empty wrapper, both alive until close.
+ * Allocates no memory; failure preserves view/wrapper and both registries.
+ * Handle ordering follows the shared object registry. */
+int rf_entity_view_register(rf_object_registry *objects,rf_entity_registry *entities,
+    rf_entity_view *view,rf_registered_entity_view *wrapper);
+/* Removes only this exact registration, clearing the compact slot. A stale or
+ * replaced registration is an error and is never removed. */
+int rf_entity_view_unregister(rf_object_registry *objects,rf_entity_registry *entities,
+    rf_registered_entity_view *wrapper);
 
 /* 0x40a0e0 / 0x426fc0: low 16 bits index, full handle comparison, then type 0. */
 const rf_entity_view *rf_object_lookup(const rf_entity_registry *registry, int32_t handle);
