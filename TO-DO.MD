@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Production audio adapter and shared mixer now support logical-handle gain
+updates without restart; native adapter calibration passes, listener calls remain.
+
 Native APU intermediate gain/pan calibration passes at -6/-20dB volume and
 10dB side attenuation; live campaign listener wiring remains open.
 

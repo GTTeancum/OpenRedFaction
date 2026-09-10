@@ -510,3 +510,22 @@ failure checks still pass. After calibration, available pages equal the15820
 image baseline. This verifies the mathematical gain adapter through emulated
 APU output for the tested levels, not original DirectSound output, host speakers,
 real hardware, arbitrary waveforms or live campaign listener integration.
+
+### Logical-handle gain updates
+
+The scene device-event interface now supports gain updates addressed by logical
+voice handle. The Xbox adapter resolves the handle and updates the existing APU
+voice channels. Invalid gains are rejected; unknown handles do not affect another
+voice. Shared rf_audio_voice_gain similarly changes only Q15 left/right gains,
+rejecting stale handles and invalid ranges without changing mixer state.
+The PC bank probe verifies phase/frame preservation and subsequent muted-left,
+half-amplitude-right samples, including invalid-update state preservation.
+
+Native apu-20260910-184000 moves calibration through the production adapter's
+play/gain/reset path and passes all five gain settings with one successful play,
+no rejection or forced-shutdown fault, and restored15799-page image baseline.
+The synthetic probe sample is now one second (96000 bytes, probe only) to allow
+all five150ms settling intervals without restarting. An earlier short-sample
+attempt183920 failed gain ratios and was replaced. Both game builds and the
+PC bank check pass. Campaign listener calculations still need to call this new
+interface; normal gameplay audio is not yet spatialized.

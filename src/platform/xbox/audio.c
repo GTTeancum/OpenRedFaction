@@ -96,5 +96,14 @@ static void poll(void *context)
         }
     }
 }
+static void gain(void *context,uint32_t handle,float left,float right)
+{
+    uint32_t i;(void)context;if(!initialized)return;
+    if(!(left>=0 && left<=1 && right>=0 && right<=1)){++rf_xbox_audio_diagnostic[3];return;}
+    for(i=0;i<VOICES;i++)if(slots[i].created && slots[i].handle==handle) {
+        if(!nxAudioVoiceSetChannelGain(&slots[i].voice,left,right,0,0,0,0))++rf_xbox_audio_diagnostic[3];
+        break;
+    }
+}
 static void reset(void *context){(void)context;rf_xbox_audio_close();}
-const rf_scene_audio_events rf_xbox_audio_events={play,stop,poll,reset};
+const rf_scene_audio_events rf_xbox_audio_events={play,stop,poll,reset,gain};

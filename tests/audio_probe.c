@@ -60,6 +60,13 @@ int main(int argc,char **argv)
         if(!rf_audio_bank_sample(&bank,first) || rf_audio_bank_sample(&bank,2))return 26;
         if(rf_audio_voice_start(&mixer,rf_audio_bank_sample(&bank,first),32768,32768,0,&handle) || rf_audio_mix(&mixer,output,256))return 27;
         for(i=0;i<sizeof(output);i++)hash=(hash^((unsigned char *)output)[i])*16777619u;
+        {rf_audio_mixer reference=mixer,before;int16_t full[2],scaled[2];
+         if(rf_audio_voice_gain(&mixer,handle,0,16384) || mixer.voices[0].frame!=reference.voices[0].frame ||
+            mixer.voices[0].phase!=reference.voices[0].phase)return 40;
+         before=mixer;
+         if(rf_audio_voice_gain(&mixer,handle+0x10000,1,1)!=RF_NOT_FOUND || memcmp(&mixer,&before,sizeof(mixer)) ||
+            rf_audio_voice_gain(&mixer,handle,32769,0)!=RF_RANGE || memcmp(&mixer,&before,sizeof(mixer)))return 41;
+         if(rf_audio_mix(&reference,full,1) || rf_audio_mix(&mixer,scaled,1) || scaled[0]!=0 || scaled[1]!=full[1]/2)return 42;}
         if(rf_audio_voice_stop(&mixer,handle))return 28;
         rf_audio_bank_close(&bank);rf_audio_bank_close(&bank);
         if(bank.samples || bank.count || bank.bytes || bank.archive)return 29;

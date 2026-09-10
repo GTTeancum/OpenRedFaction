@@ -45,6 +45,7 @@ typedef struct rf_scene_audio_events {
     void (*stop)(void *context,uint32_t handle);
     void (*poll)(void *context);
     void (*reset)(void *context);
+    void (*gain)(void *context,uint32_t handle,float left,float right);
 } rf_scene_audio_events;
 /* Device event adapter: PCM is borrowed until reset, which MUST synchronously
  * release all device references before returning. Events use logical mixer

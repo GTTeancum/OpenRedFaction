@@ -11,7 +11,7 @@ volatile uint32_t rf_apu_adapter[5]; /* full peak, rejected, reused plays, resto
 uint32_t rf_apu_fail_allocation,rf_apu_allocation_index;
 volatile uint32_t rf_apu_allocation_failures;
 volatile uint32_t rf_apu_channel_counts[6]; /* left-only, right-only, mute: interleaved L/R nonzero counts */
-static int16_t calibration_pcm[4096];
+static int16_t calibration_pcm[48000];
 volatile uint32_t rf_apu_gain_sums[10];
 static uint8_t wav[65536];
 static nxAudioVoice voice;
@@ -135,29 +135,27 @@ int main(void)
        rf_xbox_audio_diagnostic[0] || rf_xbox_audio_diagnostic[4]!=1)goto fail;
     /* Periodic synthetic PCM makes equal-size DMA ring energies comparable. */
     rf_apu_probe[1]=14;
-    for(uint32_t n=0;n<4096;n++)calibration_pcm[n]=(n&32)?8192:-8192;
-    if(!nxAudioInit(&init))goto fail;
-    format.sample_rate=48000;
-    if(!nxAudioVoiceCreate(&voice,&format) ||
-       !nxAudioBufferInitialize(&buffer,calibration_pcm,sizeof(calibration_pcm)) ||
-       !nxAudioBufferSubmit(&voice,&buffer) || !nxAudioVoiceSetLooping(&voice,true) ||
-       !nxAudioVoiceStart(&voice))goto fail;
+    for(uint32_t n=0;n<48000;n++)calibration_pcm[n]=(n&32)?8192:-8192;
+    rf_wave_pcm calibration={(const uint8_t *)calibration_pcm,sizeof(calibration_pcm),48000,48000,1,16};
+    if(rf_xbox_audio_open()!=RF_OK)goto fail;
+    rf_xbox_audio_events.play(NULL,0x50000u,&calibration);
     for(uint32_t phase=0;phase<5;phase++) {
         static const int32_t settings[5][2]={{0,0},{-600,0},{0,1000},{0,-1000},{-2000,0}};
         float gains[2];
-        if(rf_audio_device_gains(settings[phase][0],settings[phase][1],gains) ||
-           !nxAudioVoiceSetChannelGain(&voice,gains[0],gains[1],0,0,0,0))goto fail;
+
+        if(rf_audio_device_gains(settings[phase][0],settings[phase][1],gains))goto fail;
+        rf_xbox_audio_events.gain(NULL,0x50000u,gains[0],gains[1]);
         Sleep(150);
         const volatile int16_t *output=g_hw_ac97_buffer;
         for(uint32_t n=0;n<4096;n++) {
             int32_t sample=output[n];
             rf_apu_gain_sums[phase*2+(n&1)]+=(uint32_t)(sample<0?-sample:sample);
         }
-        if(nxAudioVoiceGetState(&voice)==NX_STOPPED)goto fail;
+
     }
-    if(!nxAudioVoiceStop(&voice) || !wait_stopped(1000))goto fail;
-    nxAudioVoiceDestroy(&voice);nxAudioShutdown();
-    if(available()!=rf_apu_probe[3])goto fail;
+
+    rf_xbox_audio_events.reset(NULL);
+    if(rf_xbox_audio_diagnostic[1]!=1 || rf_xbox_audio_diagnostic[3] || rf_xbox_audio_diagnostic[11] || available()!=rf_apu_probe[3])goto fail;
     rf_apu_probe[1]=9;
     for(;;)Sleep(100);
 fail:

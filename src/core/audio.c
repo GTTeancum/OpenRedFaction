@@ -48,6 +48,13 @@ int rf_audio_voice_start(rf_audio_mixer *mixer,const rf_wave_pcm *pcm,
     voice.pcm=*pcm;voice.handle=(mixer->generation<<16)|i;voice.left=left;voice.right=right;
     voice.loop=loop;voice.active=1;mixer->voices[i]=voice;*handle=voice.handle;return RF_OK;
 }
+int rf_audio_voice_gain(rf_audio_mixer *mixer,uint32_t handle,uint32_t left,uint32_t right)
+{
+    uint32_t i=handle&0xffff;
+    if(!mixer || left>32768 || right>32768)return RF_RANGE;
+    if(i>=RF_AUDIO_VOICES || !mixer->voices[i].active || mixer->voices[i].handle!=handle)return RF_NOT_FOUND;
+    mixer->voices[i].left=left;mixer->voices[i].right=right;return RF_OK;
+}
 int rf_audio_voice_stop(rf_audio_mixer *mixer,uint32_t handle)
 {
     uint32_t i=handle&0xffff;
