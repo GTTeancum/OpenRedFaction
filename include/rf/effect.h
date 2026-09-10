@@ -114,6 +114,25 @@ typedef struct rf_particle_billboard_vertex {float position[3],uv[2];} rf_partic
 int rf_particle_billboard_build(const float center[3],float angle,float radius,
     uint32_t width,uint32_t height,const float scale[2],rf_particle_billboard_vertex out[4]);
 
+typedef struct rf_particle_clip_environment {
+    uint32_t enabled,depth_enabled,far_enabled;
+    float far_distance;
+} rf_particle_clip_environment;
+typedef struct rf_particle_billboard_packet {
+    struct {rf_particle_billboard_vertex vertex;uint32_t clip;} vertices[4];
+    float depth;
+    uint32_t clip_and,clip_or;
+} rf_particle_billboard_packet;
+/* 555230 through corner classification: original 5475d0 clip masks and
+ * 518660 radius-dependent submission depth. Center is already camera-space.
+ * Output retains unbiased corner Z for clipping/projection; depth is applied
+ * only afterward. clip_and != 0 rejects the whole quad; clip_or != 0 needs
+ * polygon clipping when enabled. No clipped vertices, projection or drawing.
+ * Finite inputs required; errors preserve output. */
+int rf_particle_billboard_prepare(const float center[3],float angle,float radius,
+    uint32_t width,uint32_t height,const float scale[3],
+    const rf_particle_clip_environment *clip,rf_particle_billboard_packet *packet);
+
 typedef struct rf_particle_projection {
     uint32_t clamp;
     float depth_offset,half_width,half_height;

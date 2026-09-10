@@ -17,6 +17,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Billboard preparation now matches 2048 original/PC/NXDK packets, including
+radius-dependent submission depth and clip masks (832 culled, 32 partial).
+Connect polygon clipping and projected/depth-adjusted backend submission.
+
 Particle blend/depth/fog state selection now matches 3780 original/PC/NXDK
 cases, including preserved state and capability fallbacks; 3780 original cached
 repeats issue no writes. Particle default selection matches 1031 cases; texture

@@ -107,3 +107,32 @@ fog; glowing particles select SRCALPHA / ONE and disable fog. Both normally
 test depth without writing it. The no-Z flag disables depth testing and writes.
 No texture binding, pixel shading, native GPU output or scene effect execution
 is established by these function-level checks.
+
+## Billboard classification and submission depth
+
+`rf_particle_billboard_prepare` joins the recovered corner geometry with
+original depth bias and clip masks in a caller-owned 108-byte packet. It does
+not allocate memory. `tools/verify_particle_billboard_prepare.py` executes
+0x555230 through 0x5554c9, including the original vertex constructors, geometry,
+0x518660 and 0x5475d0. Only bitmap dimension lookup is supplied, with the center
+marked already projected. All packet bytes match PC and compiled NXDK in 2048
+cases: 832 wholly rejected, 32 crossing clip planes and 1184 inside/no clipping.
+Eight invalid-input guards preserve output (API behavior, not original claims).
+
+Submission depth is center Z minus camera scale Z times radius, but only when
+that product is strictly less than center Z. The product remains at the verified
+53-bit x87 precision for the comparison and subtraction, then rounds to float.
+Corner Z stays at the original center Z. Original 0x5587c0 projects the corners
+before replacing Z and reciprocal Z for depth override; moving the corners
+closer before projection would incorrectly enlarge the billboard.
+
+Clip classification at 0x5475d0 uses strict side-plane inequalities: x > z is
+bit 8, y > z bit 32, x < -z bit 4 and y < -z bit 16. When depth classification
+is enabled, z <= 0 adds bit 128; the optional far plane adds bit 2 when z exceeds
+the far distance. Global switches are tested as bytes and nested: disabled
+clipping suppresses every bit; disabled depth classification also suppresses
+the far-plane check. The packet exposes AND/OR masks across all four corners.
+A nonzero AND rejects the quad; a nonzero OR may require polygon clipping.
+
+Actual polygon clipping (0x549e00), projected/depth-adjusted vertex submission,
+backend texture residency and visible scene effects still need integration.

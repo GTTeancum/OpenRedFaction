@@ -63,6 +63,38 @@ int rf_particle_render_decode(uint32_t mode,const rf_particle_render_environment
     return RF_OK;
 }
 
+int rf_particle_billboard_prepare(const float center[3],float angle,float radius,
+    uint32_t width,uint32_t height,const float scale[3],
+    const rf_particle_clip_environment *clip,rf_particle_billboard_packet *packet)
+{
+    rf_particle_billboard_vertex vertices[4];rf_particle_billboard_packet value;
+    double bias;unsigned i;int status;
+    if(!center || !scale || !clip || !packet)return RF_RANGE;
+    if(!isfinite(scale[2]) || !isfinite(clip->far_distance))return RF_RANGE;
+    status=rf_particle_billboard_build(center,angle,radius,width,height,scale,vertices);
+    if(status!=RF_OK)return status;
+    bias=(double)scale[2]*radius;
+    value.depth=bias<center[2]?(float)((double)center[2]-bias):center[2];
+    if(!isfinite(value.depth))return RF_RANGE;
+    value.clip_and=255;value.clip_or=0;
+    for(i=0;i<4;i++) {
+        uint32_t code=0;float x=vertices[i].position[0],y=vertices[i].position[1],z=vertices[i].position[2];
+        if(clip->enabled&255u) {
+            if(x>z)code|=8;
+            if(y>z)code|=32;
+            if(x<-z)code|=4;
+            if(y<-z)code|=16;
+            if(clip->depth_enabled&255u) {
+                if(z<=0)code|=128;
+                if((clip->far_enabled&255u) && z>clip->far_distance)code|=2;
+            }
+        }
+        value.vertices[i].vertex=vertices[i];value.vertices[i].clip=code;
+        value.clip_and&=code;value.clip_or|=code;
+    }
+    *packet=value;return RF_OK;
+}
+
 int rf_particle_project(const rf_particle_projection *projection,rf_particle_projected_point *point)
 {
     rf_particle_projected_point value;float inverse,x;double y;unsigned i;
