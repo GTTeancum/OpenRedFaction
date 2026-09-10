@@ -632,6 +632,60 @@ int rf_geometry_collision_world_sweep(const rf_geometry_collision_world *world,
     *matched=found;return RF_OK;
 }
 
+typedef struct geometry_body_context {
+    const rf_geometry_collision_world *world;const rf_geometry_collision_movers *movers;
+    rf_geometry_body_metadata metadata;void *context;rf_geometry_body_hit value;
+} geometry_body_context;
+static int geometry_body_query(void *context,const rf_collision_body_request *request,
+    rf_collision_body_candidate *candidate,uint32_t *matched)
+{
+    geometry_body_context *c=context;rf_collision_sweep_tree_hit hit;
+    const rf_collision_face *face;uint32_t found,source,room=UINT32_MAX;int status;
+    if(request->solid==UINT32_MAX) {
+        rf_collision_sweep_room_hit world_hit;const rf_collision_tree *tree;
+        status=rf_collision_sweep_rooms(c->world->views,c->world->room_count,
+            c->world->primary,c->world->primary_count,c->world->children,c->world->child_count,
+            request->flags,request->start,request->delta,request->radius,request->limit,&world_hit,&found);
+        if(status)return status;if(!found){*matched=0;return RF_OK;}
+        room=world_hit.room;if(room>=c->world->room_count)return RF_FORMAT;
+        tree=&c->world->rooms[room].tree;hit=world_hit.tree;
+        if(hit.face_index>=tree->face_count || !tree->source_indices || !tree->faces)return RF_FORMAT;
+        source=tree->source_indices[hit.face_index];face=tree->faces+hit.face_index;
+    } else {
+        const rf_geometry_collision_flat *flat;
+        if(request->solid>=c->movers->count)return RF_RANGE;
+        flat=c->movers->owned+request->solid;
+        status=rf_collision_flat_faces(flat->faces,flat->count,request->flags,request->start,
+            request->delta,NULL,NULL,request->radius,request->limit,&hit,&found);
+        if(status)return status;if(!found){*matched=0;return RF_OK;}
+        if(hit.face_index>=flat->count)return RF_FORMAT;
+        source=hit.face_index;face=flat->faces+source;
+    }
+    status=c->metadata(c->context,request->solid,source,&candidate->texture,&candidate->material);
+    if(status)return status;
+    candidate->hit=hit.hit;candidate->face_flags=face->filter.face_flags;candidate->face_token=source;
+    c->value.solid=request->solid;c->value.sphere=request->sphere;c->value.room=room;
+    c->value.face=source;c->value.hits=hit.hits;c->value.edge=hit.edge;*matched=1;return RF_OK;
+}
+int rf_geometry_collision_body_sweep(const rf_geometry_collision_world *world,
+    const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,
+    rf_collision_body_mover *scratch,uint32_t capacity,rf_geometry_body_metadata metadata,
+    void *context,rf_geometry_body_hit *result,uint32_t *matched)
+{
+    geometry_body_context c;uint32_t i,found;int status;
+    if(!world || !movers || !body || !metadata || !result || !matched ||
+       capacity<movers->count || (movers->count && (!scratch || !movers->poses || !movers->views || !movers->owned)) ||
+       (world->room_count && !world->rooms))return RF_RANGE;
+    for(i=0;i<movers->count;i++) {
+        const rf_group_attached_pose *pose=movers->poses+i;rf_collision_body_mover *m=scratch+i;
+        memcpy(m->minimum,pose->minimum,12);memcpy(m->maximum,pose->maximum,12);
+        memcpy(m->origin,pose->position,12);memcpy(m->matrix,pose->input_matrix,36);
+        memcpy(m->velocity,pose->velocity,12);m->flags=pose->flags;m->object_id=movers->views[i].object_id;
+    }
+    memset(&c,0,sizeof(c));c.world=world;c.movers=movers;c.metadata=metadata;c.context=context;
+    status=rf_collision_body_sweep(body,scratch,movers->count,geometry_body_query,&c,&c.value.contact,&found);
+    if(status)return status;if(found)*result=c.value;*matched=found;return RF_OK;
+}
 int rf_geometry_collision_ray(const rf_geometry_collision_world *world,
     const rf_geometry_collision_movers *movers,const float start[3],const float end[3],
     uint32_t flags,rf_collision_solid_hit *result,uint32_t *matched)

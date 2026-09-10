@@ -47,11 +47,58 @@ static int body_fixture_geometry(void *context,const rf_collision_body_request *
     if(!status && *matched) {out->hit=hit.hit;out->texture=UINT32_MAX;out->material=0;out->face_flags=0;out->face_token=i+1;}
     return status;
 }
+static int body_fixture_metadata(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material)
+{
+    uint32_t *calls=context;++*calls;
+    *texture=(solid==UINT32_MAX?2000:1000+solid)+face;*material=3000+face;return RF_OK;
+}
+static int geometry_body_fixture_run(const body_fixture *input,rf_geometry_body_hit *result,uint32_t *matched,uint32_t *calls)
+{
+    rf_geometry_collision_world world={0};rf_geometry_collision_room room={0};rf_collision_room_view room_view={0};
+    rf_geometry_collision_movers movers={0};rf_geometry_collision_flat flat[2]={{0}};
+    rf_collision_solid_view views[2]={{0}};rf_group_attached_pose poses[2]={{0}};
+    rf_collision_face faces[3]={{0}};float vertices[3][4][3];rf_collision_body_mover scratch[2];
+    rf_collision_body_query q={0};rf_collision_body_sphere spheres[2]={{{0,0,0},.5f},{{1,0,0},.5f}};
+    uint32_t i,j,primary=0;int status;
+    for(i=0;i<3;i++) {
+        float z=input->heights[i];float v[4][3]={{-3,-3,0},{3,-3,0},{3,3,0},{-3,3,0}};
+        memcpy(vertices[i],v,sizeof(v));for(j=0;j<4;j++)vertices[i][j][2]=z;
+        faces[i].plane[2]=1;faces[i].plane[3]=-z;faces[i].minimum[0]=faces[i].minimum[1]=-3;
+        faces[i].maximum[0]=faces[i].maximum[1]=3;faces[i].minimum[2]=z-.0001f;faces[i].maximum[2]=z+.0001f;
+        faces[i].vertices=vertices[i];faces[i].count=4;
+        if(i<2) {
+            flat[i].faces=faces+i;flat[i].count=input->enabled[i];views[i].object_id=100+i;
+            memcpy(poses[i].minimum,faces[i].minimum,12);memcpy(poses[i].maximum,faces[i].maximum,12);
+            poses[i].flags=i?0:input->flags;
+            /* Deliberately different ray poses: body collision must ignore them. */
+            for(j=0;j<3;j++){poses[i].input_matrix[j*4]=1;poses[i].public_position[j]=50;poses[i].velocity[j]=(float)(j+1+i);}
+        }
+    }
+    status=rf_collision_tree_open(faces+2,input->enabled[2],65536,&room.tree);if(status)return status;
+    if(input->enabled[2])room.tree.source_indices[0]=37;
+    room_view.tree=&room.tree;memcpy(room_view.minimum,faces[2].minimum,12);memcpy(room_view.maximum,faces[2].maximum,12);
+    world.rooms=&room;world.views=&room_view;world.room_count=1;world.primary=&primary;world.primary_count=1;
+    movers.count=2;movers.owned=flat;movers.views=views;movers.poses=poses;
+    q.start[2]=8;q.end[2]=-8;q.radius=.5f;q.limit=1;q.flags=0x460;q.spheres=spheres;q.count=input->spheres;
+    for(i=0;i<3;i++)q.matrix[i][i]=1;
+    status=rf_geometry_collision_body_sweep(&world,&movers,&q,scratch,2,body_fixture_metadata,calls,result,matched);
+    rf_collision_tree_close(&room.tree);return status;
+}
 int main(int argc,char **argv)
 {
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--geometry-body-sweep")) {
+        body_fixture fixture;
+        while(fread(&fixture,sizeof(fixture),1,stdin)==1) {
+            struct {int status;uint32_t matched;rf_geometry_body_hit hit;uint32_t calls;} out;
+            memset(&out,0xa5,sizeof(out));out.calls=0;
+            out.status=geometry_body_fixture_run(&fixture,&out.hit,&out.matched,&out.calls);
+            fwrite(&out,sizeof(out),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--body-sweep")) {
         body_fixture_context c;
         while(fread(&c.input,sizeof(c.input),1,stdin)==1) {

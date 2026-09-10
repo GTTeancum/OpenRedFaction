@@ -186,6 +186,25 @@ typedef struct rf_geometry_world_sweep_hit {
 int rf_geometry_collision_world_sweep(const rf_geometry_collision_world *world,
     uint32_t flags,const float start[3],const float delta[3],float radius,float limit,
     rf_geometry_world_sweep_hit *result,uint32_t *matched);
+typedef struct rf_geometry_body_hit {
+    rf_collision_body_hit contact;uint32_t solid,sphere,room,face,hits,edge;
+} rf_geometry_body_hit;
+/* Resolve runtime texture/material for a file face in the selected solid
+ * (UINT32_MAX means world). Called for each accepted geometry query, in order.
+ * Source geometry/texture ownership is external to collision storage. */
+typedef int (*rf_geometry_body_metadata)(void *context,uint32_t solid,uint32_t face,
+    uint32_t *texture,uint32_t *material);
+/* Body sweep over owned initial geometry and current committed mover poses.
+ * Caller supplies count mover scratch entries; no query-time allocation.
+ * Uses pose.position/+e4 and input_matrix/+48, deliberately unlike ray input
+ * public_position/+3c and ray output_matrix/+fc. Result includes source face
+ * identity; contact.face_token is that face index (qualified by solid).
+ * Serialize shared tree scratch. No static cache, generated faces or response.
+ * Errors preserve result/matched; scratch and metadata callbacks may change. */
+int rf_geometry_collision_body_sweep(const rf_geometry_collision_world *world,
+    const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,
+    rf_collision_body_mover *scratch,uint32_t capacity,rf_geometry_body_metadata metadata,
+    void *context,rf_geometry_body_hit *result,uint32_t *matched);
 /* Ordered initial movers then static world, using geometric 498e80 semantics.
  * Static hits map tree indices to file face IDs; mover indices remain file
  * creation order and their face indices remain file order. Runtime handles
