@@ -43,6 +43,19 @@ typedef struct rf_explosion_recipe {
  * names are owned but not resolved. Error preserves output. */
 int rf_explosion_recipe_read(const void *text,uint32_t bytes,const char *name,rf_explosion_recipe *result);
 int rf_explosion_recipe_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_explosion_recipe *result);
+typedef struct rf_explosion_definition {
+    rf_explosion_recipe recipe;
+    rf_particle_definition emitters[9]; /* central 0..5, sparks 6, head 7, tail 8 */
+    uint32_t resolved,resident_bytes,peak_bytes;
+} rf_explosion_definition;
+/* Port-owned resolved metadata, with prepared directions and no asset pointers.
+ * Missing central emitters fail; optional missing emitters leave mask bits clear.
+ * Resolve allocates nothing. Load reuses one scratch buffer for both tables;
+ * budget counts retained definition plus scratch, excluding stack and allocator
+ * metadata. Output preserved on error. No images, live particles or scheduling. */
+int rf_explosion_definition_resolve(const rf_explosion_recipe *recipe,const void *emitters,
+    uint32_t bytes,rf_explosion_definition *result);
+int rf_explosion_definition_load(rf_vpp *tables,const char *name,uint32_t budget,rf_explosion_definition *result);
 /* movemodes.tbl fields and name/reference tables from original 433670.
  * Bounded archive read, one scratch allocation; output preserved on failure. */
 int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf_movement_descriptor *result);

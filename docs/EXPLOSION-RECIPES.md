@@ -33,9 +33,15 @@ The authored charge_explode vclip selects rocket hit, whose central emitters
 are ordered: explosion main part 3, explosion boom, flamethrower fire_large,
 explosion flare, explosion main_smoke center, flamethrower_explode_large. Its
 sparks emitter is explosion random bits 2, with count 20. The bounded recipe reader now retains this metadata. Resolved emitter
-ownership and live execution remain unimplemented.
+ownership is implemented; live execution remains unimplemented.
 
 The shared recipe reader is verified against all nine authored recipes on PC
 and compiled NXDK. Optional absent fields are zeroed only in owned metadata
 and marked absent; they are not asserted to be original runtime defaults.
 The reader rejects a seventh central emitter and preserves output on errors.
+
+Resolved metadata owns nine fixed emitter slots: central 0..5, sparks 6, head 7,
+and tail 8. A bit mask identifies resolved slots. Archive loading reuses one
+scratch buffer and releases it before returning; no archive pointers remain.
+All nine installed recipes resolve successfully. Missing central names return
+an error; missing optional names remain unresolved, without creating particles.

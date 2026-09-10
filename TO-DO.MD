@@ -16,10 +16,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Owned explosion recipes now decode all nine authored entries on PC/NXDK:
-18 PC named loads, nine short-budget guards and 26 NXDK valid/invalid cases
-pass. Defaults follow 256 original-loader cases. Resolve emitter names and
-connect recipe resources, scheduling and live execution next.
+All nine explosion recipes now resolve owned, direction-prepared emitter
+definitions: 12 NXDK resolution cases and 18 PC archive/budget cases pass.
+Each retains 2380 bytes, with 43990-byte loading peak including table scratch.
+Missing central names fail; optional unresolved names retain clear mask bits.
+Connect bitmap residency, scheduling and live execution next.
 
 Owned vclip definition loading now passes 126 PC/NXDK named checks across
 63 declarations and 63 scratch-budget rejection checks, including embedded

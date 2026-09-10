@@ -846,3 +846,39 @@ int rf_explosion_recipe_load(rf_vpp *tables,const char *name,uint32_t scratch_bu
     if(!status)status=rf_explosion_recipe_read(text,entry.size,name,result);
     free(text);return status;
 }
+
+int rf_explosion_definition_resolve(const rf_explosion_recipe *recipe,const void *emitters,
+    uint32_t bytes,rf_explosion_definition *result)
+{
+    rf_explosion_definition v={0};uint32_t slot;int status;
+    if(!recipe || !emitters || !bytes || !result || recipe->central_count>6 || (recipe->present&~7u))return RF_RANGE;
+    v.recipe=*recipe;v.resident_bytes=v.peak_bytes=sizeof(v);
+    for(slot=0;slot<9;++slot) {
+        const char *name;
+        if(slot<6) {if(slot>=recipe->central_count)continue;name=recipe->central[slot].emitter;}
+        else {if(!(recipe->present&(1u<<(slot-6))))continue;name=slot==6?recipe->sparks:slot==7?recipe->head:recipe->tail;}
+        if(!memchr(name,0,64))return RF_RANGE;
+        status=*name?rf_emitter_definition_read(emitters,bytes,name,v.emitters+slot):RF_NOT_FOUND;
+        if(status==RF_NOT_FOUND && slot>=6)continue;if(status)return status;
+        status=rf_particle_definition_prepare(v.emitters+slot,v.emitters+slot);if(status)return status;
+        v.resolved|=1u<<slot;
+    }
+    *result=v;return RF_OK;
+}
+int rf_explosion_definition_load(rf_vpp *tables,const char *name,uint32_t budget,rf_explosion_definition *result)
+{
+    rf_vpp_entry recipes,emitters;rf_explosion_definition v={0};rf_explosion_recipe recipe={0};
+    uint32_t scratch_size;void *scratch;int status;
+    if(!tables || !name || !*name || !result || budget<sizeof(v))return RF_RANGE;
+    status=rf_vpp_find(tables,"explosion.tbl",&recipes);if(status)return status;
+    status=rf_vpp_find(tables,"emitters.tbl",&emitters);if(status)return status;
+    scratch_size=recipes.size>emitters.size?recipes.size:emitters.size;
+    if(!recipes.size || !emitters.size || scratch_size>budget-sizeof(v))return RF_RANGE;
+    scratch=malloc(scratch_size);if(!scratch)return RF_RANGE;
+    status=rf_vpp_read(tables,&recipes,0,scratch,recipes.size);
+    if(!status)status=rf_explosion_recipe_read(scratch,recipes.size,name,&recipe);
+    if(!status)status=rf_vpp_read(tables,&emitters,0,scratch,emitters.size);
+    if(!status)status=rf_explosion_definition_resolve(&recipe,scratch,emitters.size,&v);
+    free(scratch);if(status)return status;
+    v.peak_bytes=v.resident_bytes+scratch_size;*result=v;return RF_OK;
+}

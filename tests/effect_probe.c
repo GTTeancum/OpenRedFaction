@@ -12,6 +12,13 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==5 && !strcmp(argv[1],"--explosion-definition")) {
+        rf_vpp archive;rf_explosion_definition definition;
+        _Static_assert(sizeof(definition)==2380,"Explosion definition fixture layout");
+        memset(&definition,0xa5,sizeof(definition));status=rf_vpp_open(&archive,argv[2]);
+        if(!status) {status=rf_explosion_definition_load(&archive,argv[3],(uint32_t)strtoul(argv[4],NULL,10),&definition);rf_vpp_close(&archive);}
+        return fwrite(&status,4,1,stdout)==1 && fwrite(&definition,sizeof(definition),1,stdout)==1?0:1;
+    }
     if(argc==5 && !strcmp(argv[1],"--explosion-load")) {
         rf_vpp archive;rf_explosion_recipe recipe;
         _Static_assert(sizeof(recipe)==712,"Explosion recipe fixture layout");
