@@ -166,4 +166,9 @@ int rf_emitter_pool_create(rf_emitter_pool *pool,const rf_particle_emitter_templ
 /* 497d80: detach live particles and return slot to free tail, without clearing
  * its retained runtime fields. Duplicate/inactive releases return RF_RANGE. */
 int rf_emitter_pool_release(rf_emitter_pool *pool,uint32_t index);
+/* Original 497df0: active-list order, global low byte, nonnegative owner only.
+ * Commit sqrt(accumulated distance squared)+authored maximum particle radius,
+ * then reset the accumulator. No heap allocation; failure may follow updates
+ * to earlier slots. Requires initialized intact pool and finite bounds. */
+int rf_emitter_pool_finish_bounds(rf_emitter_pool *pool,uint32_t global_enabled);
 #endif

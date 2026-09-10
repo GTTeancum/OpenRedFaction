@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Emitter bounds finalization matches 2048 original/PC/NXDK cases; resolve the
+original pre/post-simulation emitter collections before campaign scheduling.
+
 Owner-gated particle simulation matches 2048 original/PC/NXDK cases, including
 768 frozen cases with previous-position updates; campaign lookup wiring remains open.
 

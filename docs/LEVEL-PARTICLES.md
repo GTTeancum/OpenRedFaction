@@ -58,3 +58,21 @@ particle fields, live counts and bounds; 768 freeze, 670 expire and 344 expand
 bounds. Cases include missing and stale handles, missing level entries/runtime,
 enable values 0/1/255/256 and negative-owner bypass with a disabled matched entry.
 This is function-level replay, not XEMU gameplay or completed caller integration.
+
+## Frame bounds finalization
+
+`rf_emitter_pool_finish_bounds` reconstructs `497df0`, called after `496480`
+simulation in the original `433260` frame loop. With a nonzero global enable
+byte it walks active emitters; nonnegative-owner emitters receive
+`sqrt(maximum_distance_squared) + max_radius` as their estimated radius and
+clear the accumulated distance. Negative-owner emitters retain both fields.
+This preserves the original double-precision square root/add before float
+storage. `497de0`, called immediately before simulation, is a no-op in this build.
+
+`verify_emitter_finish_bounds.py` passes 2048 original/PC/NXDK single-active-slot
+cases (680 updates), including low-byte global gating, signed owners, zero and
+negative-zero bounds. Full active-list and campaign integration remain open.
+The frame trace also shows level emitter update loops both before and after
+simulation; their separate collections must be resolved before claiming the
+campaign schedule is equivalent. Simply ticking every emitter once at the end
+of the current diagnostic frame is not established by this evidence.

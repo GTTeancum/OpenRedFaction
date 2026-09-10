@@ -243,6 +243,20 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--emitter-finish-bounds")) {
+        struct {uint32_t enabled;int32_t owner;float maximum,radius,previous;} in;
+        struct {int32_t status;float maximum,radius;} out;
+        rf_emitter_slot slots[1];rf_emitter_pool pool={0};pool.slots=slots;pool.lists[1].next=0;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(slots,0,sizeof(slots));slots[0].next=129;
+            slots[0].bounds.owner=in.owner;slots[0].bounds.maximum_distance_squared=in.maximum;
+            slots[0].runtime.emitter.max_radius=in.radius;slots[0].estimated_radius=in.previous;
+            out.status=rf_emitter_pool_finish_bounds(&pool,in.enabled);
+            out.maximum=slots[0].bounds.maximum_distance_squared;out.radius=slots[0].estimated_radius;
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-step-resolved")) {
         struct {float dt;rf_particle particle;rf_particle_emitter_bounds bounds;rf_particle_owner_gate gate;} in;
         struct {int32_t status;uint32_t live;rf_particle particle;rf_particle_emitter_bounds bounds;} out;

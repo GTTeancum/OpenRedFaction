@@ -337,6 +337,25 @@ int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt)
     return rf_particle_pool_step_unowned(pool,index,dt,NULL);
 }
 
+int rf_emitter_pool_finish_bounds(rf_emitter_pool *pool,uint32_t global_enabled)
+{
+    uint32_t index,visited=0;
+    if(!pool || !pool->slots)return RF_RANGE;
+    if(!(global_enabled&255u))return RF_OK;
+    for(index=pool->lists[1].next;index!=129;index=pool->slots[index].next) {
+        rf_emitter_slot *slot;double radius;
+        if(index>=128 || ++visited>128)return RF_RANGE;
+        slot=pool->slots+index;
+        if(slot->bounds.owner<0)continue;
+        if(!isfinite(slot->bounds.maximum_distance_squared) || slot->bounds.maximum_distance_squared<0 ||
+           !isfinite(slot->runtime.emitter.max_radius))return RF_RANGE;
+        radius=sqrt((double)slot->bounds.maximum_distance_squared)+slot->runtime.emitter.max_radius;
+        if(!isfinite((float)radius))return RF_RANGE;
+        slot->estimated_radius=(float)radius;slot->bounds.maximum_distance_squared=0;
+    }
+    return RF_OK;
+}
+
 static void emitter_next(rf_emitter_pool *pool,uint32_t index,uint32_t next)
 {
     if(index<128)pool->slots[index].next=next;else pool->lists[index-128].next=next;
