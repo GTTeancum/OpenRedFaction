@@ -3500,3 +3500,34 @@ is now zero for completed traversal, including links reported unresolved through
 those counters. Auxiliary fallback and mover actions remain unconnected here.
 No full original campaign-chain equivalence, gameplay completion or visual
 change is claimed from these short startup replays.
+
+
+Invert event action (2026-09-10)
+-------------------------------
+
+Type 3 maps through the generic constructor case 4b75ca -> 4bee70, using
+vtable 589c9c. Its base on/off dispatch entries 4b9070/4b9f80 select 4b9930
+and 4ba330 respectively. These functions walk links themselves; the common
+propagation predicate excludes type 3 to avoid duplicate traversal.
+On sends generic off(target, current event source, -1, suppress_movers=0).
+Off sends generic on(target, current event source, -1). The source field is
+reread on each link; the stored actor is ignored. Generic off event routing
+then changes both downstream source and actor to -1, as previously verified.
+This differs from ordinary propagation off, which suppresses mover dispatch.
+
+verify_invert_event.py executes unchanged common activation, real base virtual
+dispatch, both Invert actions and array helpers, intercepting generic target
+effects. All 192 cases pass, including disabled events, low-byte mode handling,
+empty/multiple links and source mutation after each callback. That report is
+original-code evidence, not a 192-case C/NXDK comparison.
+
+The shared startup action now implements the recovered event/trigger routing.
+Mover and auxiliary effects remain unsupported; the original suppression
+exception is documented in the action so future target support must preserve it.
+Five shared recursion fixtures pass, including single inversion preserving
+gravity and double inversion applying gravity with downstream source -1.
+All 93 authored startup graph checks and five CTests pass. PC/NXDK builds pass.
+Native 64-MiB XEMU replay-20260910-070306 passes L1S1; its authored Invert UID
+9956 is reached at startup, linking to UID 9957. Startup diagnostics and player
+state match PC. This is partial campaign integration, not complete event effects
+or full original recursive-chain equivalence. No new visual is claimed.

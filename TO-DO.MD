@@ -16,6 +16,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Invert (type 3) now dispatches opposite actions with the original actor/source
+semantics. Original 192 cases, five shared recursion fixtures and 93 authored
+graphs pass; L1S1 exercises it in 64-MiB XEMU replay 20260910-070306.
+Mover/auxiliary effects and delayed event ticking remain open.
+
 Recursive startup now follows event links and enables/disables trigger targets.
 All 93 authored graph checks and sibling/re-enable/cycle fixtures pass; native
 64-MiB XEMU L1S1/L17S1 replays 20260910-065717/065759 match PC. Unsupported

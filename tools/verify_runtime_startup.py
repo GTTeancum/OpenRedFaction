@@ -2,23 +2,27 @@
 import hashlib,json,struct,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];probe=root/'build/pc/Release/rf_event_probe.exe'
-assert subprocess.check_output([str(probe),'--startup-recursion'],text=True).strip()=='PASS 3 startup recursion fixtures'
+assert subprocess.check_output([str(probe),'--startup-recursion'],text=True).strip()=='PASS 5 startup recursion fixtures'
 events=json.loads((root/'artifacts/events.json').read_text())['results'];triggers=json.loads((root/'artifacts/triggers.json').read_text())['results'];results=[]
 for level in triggers:
  ev=next(e for e in events if e['file']==level['file'] and e['archive']==level['archive'])['records'];records=ev+level['records'];wanted=[0]*9;gravity=9.8
  flags=[bool(t['tail_flag']) for t in level['records']]
- def dispatch(uid,depth=0):
+ def dispatch(uid,depth=0,on=True):
   global gravity
   index=next((i for i,o in enumerate(records) if o['uid']==uid and uid!=0xffffffff),None)
   if index is None:wanted[4]+=1;return
-  if index>=len(ev):flags[index-len(ev)]=False;return
+  if index>=len(ev):flags[index-len(ev)]=not on;return
   assert depth<64, (level['file'],'immediate recursion limit')
   e=ev[index];wanted[1]+=1
   if e['delay']>0:wanted[8]+=1;return
-  if e['type_index']==44:gravity=e['values'][0];wanted[2]+=1
+  if e['type_index']==3:
+   for target in e['links']:dispatch(target,depth+1,not on)
+   return
+  if e['type_index']==44:
+   if on:gravity=e['values'][0];wanted[2]+=1
   else:wanted[3]+=1
   if e['type_index'] not in (2,3,32,36,66,69,89):
-   for target in e['links']:dispatch(target,depth+1)
+   for target in e['links']:dispatch(target,depth+1,on)
  for i,r in enumerate(level['records']):
   if r['flags'][3]!=1 or flags[i]:continue
   if r['script']:wanted[6]+=1;continue

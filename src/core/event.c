@@ -32,6 +32,14 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==3) {
+        /* 4b9930/4ba330: invert, discard actor, reread source per target.
+         * Unlike common propagation, off does not suppress movers; mover
+         * and auxiliary target effects remain unimplemented below. */
+        for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
+            startup_target(c,c->event->links+i,state->source,UINT32_MAX,action==0);
+        return;
+    }
     if(state->type!=44) {++c->report->unsupported_actions;return;}
     c->status=rf_event_gravity_action(c->gravity,c->event->authored->record.values[0],action);
     if(!c->status && action==1)++c->report->gravity_actions;
