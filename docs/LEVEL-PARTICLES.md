@@ -285,3 +285,38 @@ rotated inputs, two viewport sizes, multiple FOVs and flat/perspective/far modes
 All 256 selected boxes project successfully. Only graphics-state call `50ce40`
 is intercepted. This supplies a coherent camera input to the portal pipeline;
 native renderer wiring, portal cache lifecycle and live gameplay remain open.
+
+### Lazy portal projection connected to traversal
+
+`rf_visibility_traverse_projected` now connects camera classification and box
+projection to the existing bounded room walk. After the original signed-depth
+test, an invalid portal is classified by `507ba0` and `518750`, then projected
+by `515d00` when necessary. Repeated encounters reuse the cached rejection and
+rectangle. Unencountered portals remain untouched. `rf_visibility_portals_begin_view`
+reproduces `4d4c20`, clearing validity only; the original reset iterates the
+world's portal vector at +0xb4. Call this once per view, separately from room
+bookkeeping and from each root walk.
+
+The near-camera full-screen path uses render dimensions returned by `50c640`
+and `50c650` (globals `17c7bc4`/`17c7bc8`), independently of the viewport extent
+and offset used by projection. The harness initially left these render globals
+zero; tracing the discrepancy established the separate state. The final fixture
+deliberately uses 1920x1080 render dimensions with smaller, offset viewports.
+
+`tools/verify_visibility_projected.py` executes full original camera setup,
+recursive traversal, classification, clipped box projection and cache reset.
+Only the camera graphics-state call is intercepted. Across 128 cyclic graph
+fixtures and 384 walks, PC and NXDK match room eligibility, visited/depth fields,
+rectangle unions, order, portal validity, rejection and rectangle bytes. A second
+walk after camera movement but without cache reset invokes no original portal
+classification/projection calls and retains identical results. Resetting the
+cache changes results in 91 fixtures. There are 708 untouched portal observations;
+the original makes 781 expanded-box, 697 plane-test and 301 box-projection calls.
+
+The new path allocates nothing and retains the 7196-byte traversal scratch array.
+Its caller owns the portal results (28 bytes each) and bounds/validity records
+(28 bytes each). These are not yet included in a live level residency measurement.
+Malformed-input failures preserve the individual cache being calculated but may
+follow earlier room visits; the original has no equivalent validation contract.
+Authored room predicates and room-set mapping still need connection before the
+live renderer and preceding-frame particle eligibility can use this path.

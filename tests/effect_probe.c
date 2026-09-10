@@ -9,6 +9,29 @@
 #include <stdlib.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--visibility-projected")) {
+        struct {rf_visibility_camera_parameters camera;uint32_t start,special,flags;float rect[4];
+            rf_visibility_room_links rooms[4];uint32_t links[10];rf_visibility_portal portals[5];
+            rf_visibility_portal_cache cache[5];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_visibility_camera camera={0};rf_visibility_frame scratch[257];uint32_t stage,i;
+            rf_visibility_portal_view view={&camera,in.cache,in.portals,5,1920,1080};
+            for(stage=0;stage<3;stage++) {
+                rf_room_visibility rooms[4]={0};uint32_t order[4]={0};rf_visibility state={rooms,order,4,0};int32_t status;
+                if(stage==1)in.camera.origin[0]+=8;
+                status=rf_visibility_camera_setup(&in.camera,&camera);if(status)return 2;
+                rf_visibility_begin_view(&state);
+                if(stage!=1)rf_visibility_portals_begin_view(in.cache,5);
+                status=rf_visibility_traverse_projected(&state,in.rooms,in.links,10,&view,in.start,in.special,in.flags,in.rect,scratch);
+                fwrite(&status,4,1,stdout);fwrite(&state.visible_count,4,1,stdout);
+                fwrite(rooms,sizeof(rooms),1,stdout);fwrite(order,sizeof(order),1,stdout);
+                fwrite(in.portals,sizeof(in.portals),1,stdout);
+                for(i=0;i<5;i++)fwrite(&in.cache[i].valid,4,1,stdout);
+            }
+        }
+        return ferror(stdin)||ferror(stdout);
+    }
     if(argc==2 && !strcmp(argv[1],"--visibility-camera")) {
         rf_visibility_camera_parameters in;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

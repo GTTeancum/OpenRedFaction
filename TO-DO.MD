@@ -18,35 +18,12 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Combined camera setup and box projection match 256 original/PC/NXDK chains;
-portal cache lifecycle and native renderer wiring remain open.
+Camera setup, lazy portal projection, cache reset and room traversal now run
+together and match original/PC/NXDK replays, including changed-camera reuse.
+Authored room predicates, room-set mapping and live renderer wiring remain open.
 
-Viewport/FOV scales match 576 original/PC/NXDK cases, including original
-intermediate precision; camera matrix processing and live integration remain open.
-
-Complete frustum assembly matches 1024 full original/PC/NXDK cases;
-FOV/window-to-view derivation and portal cache wiring remain open.
-
-View-plane constructors and corner selection match 2048 original/PC/NXDK cases;
-complete frustum assembly from view settings remains open.
-
-Clipped box projection matches 1024 full original/PC/NXDK cases (371 accepted);
-view setup and portal cache/renderer integration remain open.
-
-Portal near-camera/plane classification matches 2048 original/PC/NXDK cases;
-view-plane setup and clipped box screen projection remain open.
-
-Persistent portal graphs match original constructor adjacency across all 94 levels;
-L1S1 uses 1408 bytes, max 6260, with exact-budget and ownership checks.
-
-Shared geometry exposes all 2862 authored portals across 94 levels; PC records
-match independent payload reads, with invalid endpoint/bounds guards.
-
-Resolved-portal traversal matches 256 original/PC/NXDK cyclic graph cases;
-portal projection/cache generation and authored graph loading remain open.
-
-Shared visibility bookkeeping matches 512 original/PC/NXDK commands; normal
-simulation precedes the render reset. Portal traversal and room-set mapping remain open.
+Owned portal graphs cover all 94 levels (2862 portals); L1S1 uses 1408 bytes,
+max 6260. Visibility traversal keeps its fixed 7196-byte scratch budget.
 
 Both original emitter passes use the same collection and room eligibility;
 12 loop replays confirm order and 189 calls, independent of emitter enable.

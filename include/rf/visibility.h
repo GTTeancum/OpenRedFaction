@@ -82,6 +82,19 @@ typedef struct rf_visibility_camera {
  * state not assigned by 547150. No rendering globals, allocation or graphics
  * calls. Initialize output before use; errors preserve it and unused planes. */
 int rf_visibility_camera_setup(const rf_visibility_camera_parameters *parameters,rf_visibility_camera *camera);
+
+typedef struct rf_visibility_portal_cache {
+    float minimum[3],maximum[3];uint32_t valid;
+} rf_visibility_portal_cache;
+typedef struct rf_visibility_portal_view {
+    const rf_visibility_camera *camera;
+    rf_visibility_portal_cache *cache;
+    rf_visibility_portal *portals;
+    uint32_t count;int32_t width,height; /* Full render dimensions (50c640/50c650), not viewport extents. */
+} rf_visibility_portal_view;
+/* 4d4c20 clears only validity, retaining previous rejection/rectangle values.
+ * Bounds, endpoints and initial rectangles are initialized by the owner. */
+int rf_visibility_portals_begin_view(rf_visibility_portal_cache *cache,uint32_t count);
 enum {RF_PORTAL_PROJECT=0,RF_PORTAL_FULL_VIEW=1,RF_PORTAL_REJECT=2};
 /* 4d4860 preprojection branch using 507ba0 (inclusive one-unit expanded box)
  * and 518750 (strict positive plane distance at supplied extreme corner).
@@ -101,4 +114,13 @@ int rf_visibility_traverse(rf_visibility *state,const rf_visibility_room_links *
     const uint32_t *links,uint32_t link_count,const rf_visibility_portal *portals,
     uint32_t portal_count,uint32_t start,uint32_t special,uint32_t flags,
     const float rectangle[4],rf_visibility_frame scratch[257]);
+/* Same walk, computing a portal's cache on first eligible encounter using
+ * 507ba0, 518750 and 515d00. Full-view rectangles are [0,0,width,height],
+ * independent of viewport offset. Reset caches once per view, not per walk.
+ * Unencountered caches stay untouched. Errors may follow earlier visits;
+ * a failed calculation leaves that portal unchanged. No allocation. */
+int rf_visibility_traverse_projected(rf_visibility *state,const rf_visibility_room_links *rooms,
+    const uint32_t *links,uint32_t link_count,rf_visibility_portal_view *view,
+    uint32_t start,uint32_t special,uint32_t flags,const float rectangle[4],
+    rf_visibility_frame scratch[257]);
 #endif

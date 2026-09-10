@@ -177,10 +177,37 @@ int rf_visibility_visit(rf_visibility *s,uint32_t index,const float rectangle[4]
     return RF_OK;
 }
 
-int rf_visibility_traverse(rf_visibility *s,const rf_visibility_room_links *rooms,
+int rf_visibility_portals_begin_view(rf_visibility_portal_cache *cache,uint32_t count)
+{
+    uint32_t i;if(count && !cache)return RF_RANGE;
+    for(i=0;i<count;i++)cache[i].valid=0;
+    return RF_OK;
+}
+static int portal_resolve(rf_visibility_portal_view *view,uint32_t index)
+{
+    rf_visibility_portal_cache *cache=view->cache+index;
+    rf_visibility_portal value=view->portals[index];uint32_t action;int status;
+    if(cache->valid)return RF_OK;
+    status=rf_visibility_portal_classify(view->camera->view.origin,cache->minimum,cache->maximum,
+        view->camera->frustum.planes,view->camera->frustum.count,&action);
+    if(status)return status;
+    if(action==RF_PORTAL_FULL_VIEW) {
+        value.rejected=0;value.rectangle[0]=0;value.rectangle[1]=0;
+        value.rectangle[2]=(float)view->width;value.rectangle[3]=(float)view->height;
+    } else if(action==RF_PORTAL_REJECT)value.rejected=1;
+    else {
+        rf_visibility_screen_bounds result;
+        result.visible=0;memcpy(result.rectangle,value.rectangle,sizeof(result.rectangle));
+        status=rf_visibility_box_project(&view->camera->projection,cache->minimum,cache->maximum,&result);
+        if(status)return status;
+        value.rejected=!result.visible;memcpy(value.rectangle,result.rectangle,sizeof(value.rectangle));
+    }
+    view->portals[index]=value;cache->valid=1;return RF_OK;
+}
+static int traverse(rf_visibility *s,const rf_visibility_room_links *rooms,
     const uint32_t *links,uint32_t link_count,const rf_visibility_portal *portals,
     uint32_t portal_count,uint32_t start,uint32_t special,uint32_t flags,
-    const float rectangle[4],rf_visibility_frame scratch[257])
+    const float rectangle[4],rf_visibility_frame scratch[257],rf_visibility_portal_view *view)
 {
     uint32_t i,j,top=0;
     if(!valid(s) || !rooms || !scratch || !rectangle || start>=s->count ||
@@ -215,9 +242,12 @@ int rf_visibility_traverse(rf_visibility *s,const rf_visibility_room_links *room
             s->rooms[f->room].depth=255;--top;continue;
         }
         {
-            const rf_visibility_portal *p=portals+links[r->first+f->cursor++];
+            uint32_t index=links[r->first+f->cursor++];
+            const rf_visibility_portal *p=portals+index;
             uint32_t next=p->rooms[p->rooms[0]==f->room?1:0];float clip[4];
-            if((int32_t)s->rooms[f->room].depth>(int32_t)s->rooms[next].depth || p->rejected)continue;
+            if((int32_t)s->rooms[f->room].depth>(int32_t)s->rooms[next].depth)continue;
+            if(view){int status=portal_resolve(view,index);if(status)return status;}
+            if(p->rejected)continue;
             for(i=0;i<4;i++)clip[i]=i<2?
                 (f->rectangle[i]>p->rectangle[i]?f->rectangle[i]:p->rectangle[i]):
                 (f->rectangle[i]<p->rectangle[i]?f->rectangle[i]:p->rectangle[i]);
@@ -227,4 +257,19 @@ int rf_visibility_traverse(rf_visibility *s,const rf_visibility_room_links *room
             memcpy(scratch[++top].rectangle,clip,16);
         }
     }
+}
+int rf_visibility_traverse(rf_visibility *s,const rf_visibility_room_links *rooms,
+    const uint32_t *links,uint32_t link_count,const rf_visibility_portal *portals,
+    uint32_t portal_count,uint32_t start,uint32_t special,uint32_t flags,
+    const float rectangle[4],rf_visibility_frame scratch[257])
+{
+    return traverse(s,rooms,links,link_count,portals,portal_count,start,special,flags,rectangle,scratch,NULL);
+}
+int rf_visibility_traverse_projected(rf_visibility *s,const rf_visibility_room_links *rooms,
+    const uint32_t *links,uint32_t link_count,rf_visibility_portal_view *view,
+    uint32_t start,uint32_t special,uint32_t flags,const float rectangle[4],rf_visibility_frame scratch[257])
+{
+    if(!view || !view->camera || (view->count && (!view->cache || !view->portals)) ||
+       view->width<=0 || view->height<=0 || view->camera->frustum.count>6)return RF_RANGE;
+    return traverse(s,rooms,links,link_count,view->portals,view->count,start,special,flags,rectangle,scratch,view);
 }
