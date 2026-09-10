@@ -26,6 +26,14 @@ typedef struct rf_visibility_portal {
     uint32_t rooms[2],rejected;
     float rectangle[4];
 } rf_visibility_portal;
+typedef struct rf_visibility_plane {float normal[3],distance;uint32_t corner;} rf_visibility_plane;
+enum {RF_PORTAL_PROJECT=0,RF_PORTAL_FULL_VIEW=1,RF_PORTAL_REJECT=2};
+/* 4d4860 preprojection branch using 507ba0 (inclusive one-unit expanded box)
+ * and 518750 (strict positive plane distance at supplied extreme corner).
+ * Planes/corner selectors come from the original view-plane setup; this does
+ * not derive them or calculate the projected rectangle. Errors preserve action. */
+int rf_visibility_portal_classify(const float camera[3],const float minimum[3],const float maximum[3],
+    const rf_visibility_plane *planes,uint32_t count,uint32_t *action);
 typedef struct rf_visibility_frame {
     uint32_t room,cursor,depth;float rectangle[4];
 } rf_visibility_frame;

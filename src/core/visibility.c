@@ -5,6 +5,32 @@ static int valid(const rf_visibility *s)
 {
     return s && (!s->count || (s->rooms && s->order)) && s->visible_count<=s->count;
 }
+int rf_visibility_portal_classify(const float camera[3],const float minimum[3],const float maximum[3],
+    const rf_visibility_plane *planes,uint32_t count,uint32_t *action)
+{
+    static const unsigned char high[8][3]={{1,1,0},{1,0,0},{0,0,0},{0,1,0},{1,1,1},{1,0,1},{0,0,1},{0,1,1}};
+    uint32_t i,j;int inside=1;
+    if(!camera || !minimum || !maximum || !action || (count && !planes))return RF_RANGE;
+    for(i=0;i<3;i++) {
+        float low,upper;
+        if(!isfinite(camera[i]) || !isfinite(minimum[i]) || !isfinite(maximum[i]) || minimum[i]>maximum[i])return RF_RANGE;
+        low=minimum[i]-1.0f;upper=maximum[i]+1.0f;
+        if(camera[i]<low || camera[i]>upper)inside=0;
+    }
+    if(inside){*action=RF_PORTAL_FULL_VIEW;return RF_OK;}
+    for(i=0;i<count;i++) {
+        float point[3];double distance;
+        if(planes[i].corner>=8 || !isfinite(planes[i].distance))return RF_RANGE;
+        for(j=0;j<3;j++) {
+            if(!isfinite(planes[i].normal[j]))return RF_RANGE;
+            point[j]=high[planes[i].corner][j]?maximum[j]:minimum[j];
+        }
+        distance=((double)point[2]*planes[i].normal[2]+(double)point[1]*planes[i].normal[1])+
+            (double)point[0]*planes[i].normal[0]+planes[i].distance;
+        if(distance>0){*action=RF_PORTAL_REJECT;return RF_OK;}
+    }
+    *action=RF_PORTAL_PROJECT;return RF_OK;
+}
 int rf_visibility_begin_render(rf_visibility *s)
 {
     uint32_t i;if(!valid(s))return RF_RANGE;

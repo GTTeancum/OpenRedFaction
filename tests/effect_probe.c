@@ -9,6 +9,17 @@
 #include <stdlib.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--portal-classify")) {
+        struct {float camera[3],minimum[3],maximum[3];uint32_t count;rf_visibility_plane planes[8];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            uint32_t action=0xa5a5a5a5;int32_t status;
+            if(in.count>8)return 2;
+            status=rf_visibility_portal_classify(in.camera,in.minimum,in.maximum,in.planes,in.count,&action);
+            fwrite(&status,4,1,stdout);fwrite(&action,4,1,stdout);
+        }
+        return ferror(stdin)||ferror(stdout);
+    }
     if(argc==2 && !strcmp(argv[1],"--visibility-traverse")) {
         struct {uint32_t start,special,flags;float rect[4];rf_visibility_room_links rooms[4];
             uint32_t links[10];rf_visibility_portal portals[5];} in;

@@ -178,3 +178,20 @@ residency is 1408 bytes in L1S1 and at most 6260 bytes across these levels; owne
 and arrays are included, allocator metadata and source geometry excluded.
 Both platform builds compile the graph; native Xbox residency, room flags,
 screen projection and traversal/renderer integration remain open.
+
+## Portal preprojection classification
+
+`rf_visibility_portal_classify` follows `4d4860`'s call order: `507ba0` first
+tests the camera against bounds expanded by exactly 1.0 on each axis, with
+inclusive boundaries and float-rounded expansion. Inside uses the full viewport
+and bypasses plane testing. Otherwise `518750` selects one of eight box corners
+for each supplied view plane and rejects on strictly positive signed distance.
+The plane calculation preserves the original Z/Y/X double accumulation order.
+
+`verify_portal_classify.py` executes both original functions and their actual
+callees against PC/NXDK code in 2048 cases: 1024 full-viewport, 759 rejected and
+265 requiring projection. It covers expanded boundaries, just-outside positions,
+zero through eight supplied planes, all corner selectors and zero distance.
+This does not reconstruct view-plane generation or infer corner selectors from
+normals. The remaining `515d00` path transforms eight box corners and clips six
+box faces before accumulating their screen bounds; that projection remains open.
