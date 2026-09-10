@@ -233,3 +233,19 @@ combinations. Full view setup `546a40` still needs reconstruction: it constructs
 the frustum corners, assembles different planes for perspective and flat modes,
 and updates scaled clipping distances. These plane constructors alone do not
 establish live camera/frustum equivalence.
+
+## Complete frustum assembly from resolved view state
+
+`rf_visibility_frustum_build` now reconstructs full `546a40`: the four corner
+positions, side planes, mode-dependent camera/far planes and scaled near/far
+distances. Perspective views produce five planes, or six with far clipping;
+flat views produce four. It preserves unused output slots, reads low-byte mode
+flags, and uses float rounding at the original intermediate vector operations.
+
+`verify_visibility_frustum.py` compares 1024 full original executions with
+PC/NXDK code, including the actual vector helpers and constructors. All plane
+normals/distances/corners, clip masks, counts, scaled distances and retained
+slots match: 512 four-plane, 256 five-plane and 256 six-plane cases. Inputs cover
+translated/rotated bases and varying scales/distances. This supersedes the open
+frustum-assembly item above; FOV/window-to-view derivation, portal cache wiring
+and native campaign rendering still remain open.

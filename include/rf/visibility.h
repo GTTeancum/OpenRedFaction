@@ -46,6 +46,19 @@ typedef struct rf_visibility_plane {float normal[3],distance;uint32_t corner;} r
  * required. No allocation; errors preserve output. */
 int rf_visibility_plane_normal(const float normal[3],const float point[3],rf_visibility_plane *plane);
 int rf_visibility_plane_points(const float a[3],const float b[3],const float c[3],rf_visibility_plane *plane);
+typedef struct rf_visibility_view {
+    float origin[3],basis[9],scale[3],far_distance,near_distance;
+    uint32_t perspective,far_enabled;
+} rf_visibility_view;
+typedef struct rf_visibility_frustum {
+    rf_visibility_plane planes[6];uint32_t masks[6],count;
+    float scaled_far,scaled_near;
+} rf_visibility_frustum;
+/* 546a40: four side planes, perspective near and optional far plane; flat
+ * views use four normal-point planes. Basis rows are right/up/forward. Positive
+ * finite scales required. Unused plane slots retained; errors preserve output.
+ * Input is resolved view state, not FOV/window-to-view setup. */
+int rf_visibility_frustum_build(const rf_visibility_view *view,rf_visibility_frustum *frustum);
 enum {RF_PORTAL_PROJECT=0,RF_PORTAL_FULL_VIEW=1,RF_PORTAL_REJECT=2};
 /* 4d4860 preprojection branch using 507ba0 (inclusive one-unit expanded box)
  * and 518750 (strict positive plane distance at supplied extreme corner).

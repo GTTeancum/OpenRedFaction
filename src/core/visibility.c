@@ -35,6 +35,44 @@ int rf_visibility_plane_points(const float a[3],const float b[3],const float c[3
     for(i=0;i<3;i++)normal[i]=(float)(normal[i]*inverse);
     return rf_visibility_plane_normal(normal,a,plane);
 }
+int rf_visibility_frustum_build(const rf_visibility_view *v,rf_visibility_frustum *out)
+{
+    rf_visibility_frustum value;float corners[4][3],normal[3],point[3],sx,sy;
+    static const int signs[4][2]={{1,1},{-1,1},{-1,-1},{1,-1}};
+    static const unsigned char edge[4][2]={{2,1},{0,3},{3,2},{1,0}};
+    uint32_t i,j;int status;
+    if(!v || !out || !isfinite(v->far_distance) || !isfinite(v->near_distance))return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(v->origin[i]) || !isfinite(v->scale[i]) || v->scale[i]<=0)return RF_RANGE;
+    for(i=0;i<9;i++)if(!isfinite(v->basis[i]))return RF_RANGE;
+    value=*out;value.scaled_far=v->far_distance*v->scale[2];value.scaled_near=v->near_distance*v->scale[2];
+    sx=v->scale[2]/v->scale[0];sy=v->scale[2]/v->scale[1];
+    if(!isfinite(sx) || !isfinite(sy) || !isfinite(value.scaled_far) || !isfinite(value.scaled_near))return RF_RANGE;
+    for(i=0;i<4;i++)for(j=0;j<3;j++) {
+        float y=v->basis[3+j]*(signs[i][1]>0?sy:-sy),x=v->basis[j]*(signs[i][0]>0?sx:-sx);
+        corners[i][j]=((v->origin[j]+v->basis[6+j])+y)+x;
+    }
+    for(i=0;i<4;i++) {
+        if(v->perspective&255u)status=rf_visibility_plane_points(v->origin,corners[edge[i][0]],corners[edge[i][1]],value.planes+i);
+        else {
+            uint32_t axis=i/2,corner=i==0||i==3?1:i==1?0:2;
+            for(j=0;j<3;j++)normal[j]=(i&1u)?v->basis[axis*3+j]:-v->basis[axis*3+j];
+            status=rf_visibility_plane_normal(normal,corners[corner],value.planes+i);
+        }
+        if(status)return status;value.masks[i]=4u<<i;
+    }
+    value.count=4;
+    if(v->perspective&255u) {
+        for(j=0;j<3;j++)normal[j]=-v->basis[6+j];
+        status=rf_visibility_plane_normal(normal,v->origin,value.planes+4);if(status)return status;
+        value.masks[4]=128;value.count=5;
+        if(v->far_enabled&255u) {
+            for(j=0;j<3;j++)point[j]=v->origin[j]+(float)(v->basis[6+j]*v->far_distance);
+            status=rf_visibility_plane_normal(v->basis+6,point,value.planes+5);if(status)return status;
+            value.masks[5]=2;value.count=6;
+        }
+    }
+    *out=value;return RF_OK;
+}
 int rf_visibility_portal_classify(const float camera[3],const float minimum[3],const float maximum[3],
     const rf_visibility_plane *planes,uint32_t count,uint32_t *action)
 {
