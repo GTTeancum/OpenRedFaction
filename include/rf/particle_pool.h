@@ -2,7 +2,7 @@
 #define RF_PARTICLE_POOL_H
 #include "rf/effect.h"
 enum { RF_PARTICLE_POOL0_CAPACITY=500, RF_PARTICLE_POOL1_CAPACITY=1100,
-       RF_PARTICLE_CAPACITY=1600, RF_PARTICLE_BASE_LISTS=5 };
+       RF_PARTICLE_CAPACITY=1600, RF_PARTICLE_BASE_LISTS=5, RF_PARTICLE_EMITTER_CAPACITY=128 };
 typedef struct rf_particle_list {uint32_t next,previous;} rf_particle_list;
 typedef struct rf_particle_pool {
     rf_particle *particles;
@@ -61,6 +61,10 @@ typedef struct rf_particle_emitter_runtime {
     rf_particle_cycle cycle;
     uint32_t enabled;float elapsed,duration;
 } rf_particle_emitter_runtime;
+/* First-use state from zero-initialized original static storage plus 496fd0:
+ * all compact fields zero except deadline=-1. This is not slot reuse/reset;
+ * never call on a live emitter. Pool/list ownership is initialized separately. */
+int rf_particle_emitter_fresh(rf_particle_emitter_runtime *runtime);
 typedef struct rf_particle_emitter_update_result {
     rf_particle_emitter_actions actions;
     uint32_t created,index;

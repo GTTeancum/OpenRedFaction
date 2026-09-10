@@ -513,3 +513,26 @@ parentless with a supplied room; caller-resolved parent support shares the
 separately verified emission path but is not claimed by these init fixtures.
 Fresh-object defaults, original room traversal and campaign loading remain
 open. NXDK comparison uses Unicorn, not a new native visual test.
+
+
+## Fresh emitter storage and construction
+
+Original 0x496a70 invokes the CRT array constructor 0x5736fb for 128 records
+of 344 bytes at 0x7b2a70 (44032 bytes). Their PE-backed static storage begins
+zero-filled. Constructor 0x496fd0 calls vector, color, spawn and sentinel-member
+constructors, but only timer constructor 0x4fa340 writes data: deadline +0x154
+becomes -1. The other member constructors leave the existing bytes intact.
+
+`rf_particle_emitter_fresh` creates the corresponding 184-byte compact runtime:
+zero fields and deadline -1. It is only for first-use storage, with separate
+pool/list initialization. Calling it on live or reused slots would lose state
+that original reuse retains and is outside its contract. The original capacity
+is now explicit as RF_PARTICLE_EMITTER_CAPACITY=128.
+
+`tools/verify_particle_emitter_fresh.py` proves constructor write coverage using
+four poisoned fills, then runs the actual array constructor against original
+zero-filled storage and checks all 128 entries. Every compact state matches PC
+and compiled NXDK. Both builds and six CTest checks pass. NXDK comparisons use
+Unicorn. The free-list setup at 0x4973ff..0x497460 and allocator 0x497ca0 still
+need shared lifecycle integration; allocator post-initialization work includes
+bounds setup and must not be omitted when campaign emitters are introduced.

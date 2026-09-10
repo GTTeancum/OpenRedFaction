@@ -167,6 +167,12 @@ int rf_particle_emitter_update(rf_particle_pool *pool,rf_particle_emitter_runtim
     *runtime=next;*random=rng;*result=out;return RF_OK;
 }
 
+int rf_particle_emitter_fresh(rf_particle_emitter_runtime *runtime)
+{
+    if(!runtime)return RF_RANGE;
+    memset(runtime,0,sizeof(*runtime));runtime->emitter.deadline=-1;return RF_OK;
+}
+
 int rf_particle_emitter_initialize(rf_particle_pool *pool,rf_particle_emitter_runtime *runtime,
     const rf_particle_emitter_template *source,int32_t owner,uint32_t room,uint32_t handle,
     uint32_t enabled,int32_t now_ms,const rf_particle_emitter_parent *parent,
