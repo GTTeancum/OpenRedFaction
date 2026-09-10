@@ -12,6 +12,12 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Original player contact response now executes in 768 fixtures covering normal
+retention/clearing, incoming correction, moving-contact boost, free tangential
+motion and grounded direction filtering. All nine tracked branches are reached;
+the shared C implementation and live player-flag integration remain open.
+See tools/inspect_player_contact.py and docs/COLLISION.md.
+
 Original cache-gate and spawn-copy execution now confirms that a warm class
 cache bypasses pose sampling for both NPCs and players, and creation copies
 cached sphere centers into the entity without changing its other sphere fields.

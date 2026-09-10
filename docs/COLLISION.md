@@ -2290,3 +2290,50 @@ and the four standard tests pass.
 The transformed builder is available to both backends, but mover texture
 residency/remapping, adding these meshes to the scene draw list, and frame-loop
 motion integration are still open. No new scene image has been captured yet.
+# Player-flag contact response reference
+
+`python tools/inspect_player_contact.py` now executes original `49d7e0` with
+physics flag 80, retaining every response callee. It stops at `49cd80` after
+checking the damage call's entity argument and recording its signed impact
+speed. This avoids inventing gameplay damage or ownership effects. The
+SHA-checked original produces 768 fixtures across movement modes 1, 3 and 8,
+varying normal, velocity, support/contact velocity, direction and yaw matrix.
+The contact has no object, liquid or inverse mass, and the actor is non-rotating.
+These preconditions match the targeted static-world integration, not all game
+collision types. Outputs are reference evidence, not a shared C comparison.
+
+The harness reaches all nine tracked response branches. Counts are 326 outgoing
+normal-retention cases, 308 normal-clearing cases, 134 contact-normal boosts,
+370 incoming-normal corrections, 480 free-tangent cases, and 240 direction
+tests, of which 144 take the grounded clamp/add path. Every fixture reaches
+the flag-80 branch and the damage boundary. Only entity velocity changes;
+the separate angular auxiliary and all other entity storage remain unchanged.
+The full fixture inputs, output words and branch sets are saved in
+`artifacts/player-contact-reference.json` for the upcoming C/NXDK comparison.
+
+Instruction map for reconstruction:
+
+- `49d93c` tests flag 80; `49d94c` enters the player response.
+- `49d94c..49d9c5` prepares velocity plus support, copies original velocity,
+  splits its normal/tangential components, and computes signed impact from
+  contact velocity versus combined velocity. The contact dot is stored as
+  binary32 before subtracting the extended combined dot.
+- `49d9c9..49da86` selects boosted contact-normal velocity when the contact dot
+  is positive and support velocity is exactly zero; otherwise it retains only
+  outgoing normal velocity or clears it.
+- `49da86..49dad7` adjusts incoming normal velocity using normalized original
+  velocity and the original binary32 .5 constant. Preserve the intermediate
+  stores and operation order when translating this calculation.
+- `49dad7..49dafc` skips a zero tangent or uses `42a020` to select unrestricted
+  tangent addition. The predicate is true for movement modes 3/8 and some
+  rotating-actor cases; this fixture only covers non-rotating actors.
+- `49db01..49db78` transforms entity direction `+714` through orientation `+fc`,
+  tests it against normalized tangential velocity, discards opposing tangential
+  motion, and clamps tangent Y to at least zero in mode 1 before adding it.
+- `49ddef` continues toward damage; the harness stops at the actual damage
+  entry without replacing the call or executing its gameplay effects.
+
+The existing `rf_physics_static_contact` implements the flag-clear response
+and correctly rejects flag 80. Do not remove that guard as a substitute for
+the distinct response above. Player creation flags remain disabled in the
+campaign diagnostic until this response and its call-site inputs are integrated.
