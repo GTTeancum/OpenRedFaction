@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Actor resolution/contact/delay/activation passes the 13-event stock 64 MiB
+XEMU replay with exact PC traces; live actor and mover-key registration remain open.
+
 Owned triggers now retain authored volumes and contact timers; enter/leave/
 re-entry polling passes PC integration, with live scene wiring and native replay open.
 

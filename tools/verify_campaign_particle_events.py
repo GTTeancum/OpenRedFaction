@@ -13,6 +13,7 @@ for level in events:
  assert lines[0]==f'EVENTS {len(records)} {len(owned)}',lines
  at=1
  for event in records:
+  assert lines[at]=="CONTACT 80 -1 100 100 -1",lines[at];at+=1
   assert lines[at]=="TRIGGER 1 64 2 150 123",lines[at];at+=1
   delay=math.floor(event['delay']*1000+.5);deadline=100+delay if event['delay']>0 else -1;fired=deadline if deadline>=0 else 100
   assert lines[at]==f"EVENT {event['uid']} {deadline} {fired}",(level['file'],lines[at],deadline);at+=1
@@ -26,5 +27,5 @@ for level in events:
   missing=[uid for uid in event['links'] if not any(e['uid']==uid for e in owned)]
   results.append(dict(level=level['file'],event=event['uid'],delay=event['delay'],fire_ms=fired,enabled_uids=changed,missing_uids=missing))
  assert at==len(lines)
-report=dict(result='PASS',levels=len({r['level'] for r in results}),events=len(results),enabled_targets=sum(len(r['enabled_uids']) for r in results),scope='Installed event and emitter loaders plus shared Particle_State runtime activation/tick integration. Controlled precondition disables all emitters; test root fires one actual authored event at 100 ms, checks delay-minus-one and expiry, verifies targets and preserved unrelated deadlines. Does not verify campaign trigger eligibility, original full loader/link conversion, rendering or native XEMU.',results=results)
+report=dict(result='PASS',levels=len({r['level'] for r in results}),events=len(results),enabled_targets=sum(len(r['enabled_uids']) for r in results),scope='Installed event and emitter loaders plus shared Particle_State runtime activation/tick integration. Controlled precondition disables all emitters; resolved test actor enters/leaves/re-enters a test sphere before its root fires one actual authored event at 100 ms, checks delay-minus-one and expiry, verifies targets and preserved unrelated deadlines. Does not verify campaign trigger eligibility, original full loader/link conversion, rendering or native XEMU.',results=results)
 (root/'artifacts/campaign-particle-events-verification.json').write_text(json.dumps(report,indent=2)+'\n');print({k:v for k,v in report.items() if k!='results'})

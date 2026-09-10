@@ -936,3 +936,30 @@ and becomes ready at 800ms with no count change. Explicit activation then
 checks blocked/accepted calls, self-disable, gravity, limit marking and cooldown
 850ms. The six CTests and PC/NXDK builds pass. Live scene snapshot wiring and
 native replay of the new owned-contact path remain open.
+
+
+## Native owned-contact integration replay
+
+The shared campaign particle fixture now resolves a compact class1 actor
+(handle123, object flag8) through the entity-view resolver, prepares a test
+sphere through volume initialization, and calls owned contact polling before
+each event activation. At 0ms it enters (deadline80), at 10ms it leaves
+(canceled), at 20ms it re-enters (deadline100), at 99ms it waits, and at 100ms
+it becomes ready (deadline cleared). Count and particle enabled state remain
+unchanged before activation. CONTACT trace values are 80,-1,100,100,-1.
+
+Final stock 64 MiB XEMU evidence:
+artifacts/xemu/campaign-particles-20260910-145634/report.json passes all six
+levels, 13 authored events and 15 emitter targets with exact 2507-byte PC
+trace equality. QMP reports base67108864 and plugged0. Available pages recover
+from 15505 before to 15506 after; intermediate cleanup samples are
+15506,15266,15506,15506,15106,15506. These are recovery samples, not peak usage.
+The harness-owned emulator is reaped and temporary flag/archive staging is
+restored. PC authored replay and six regression CTests pass.
+
+This remains a controlled actor/sphere/root, not a natural authored trigger
+walkthrough. Scene campaign_resolve_trigger_links currently registers only
+triggers/events; mover keys and entities remain unresolved. Scene physics
+commits actor pose before delayed-event ticking, but original actor snapshot
+ordering and full actor registration still need integration before installing
+natural trigger polling. No new visual screenshot accompanies this state test.

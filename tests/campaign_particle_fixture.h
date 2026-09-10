@@ -16,6 +16,27 @@ static void campaign_trace(const char *format,...)
     if(n<0 || (uint32_t)n>=left){rf_campaign_particle_text_size=sizeof(rf_campaign_particle_text);return;}
     rf_campaign_particle_text_size+=(uint32_t)n;
 }
+static int campaign_contact_ready(rf_runtime_triggers *triggers,rf_runtime_trigger *trigger)
+{
+    static rf_entity_registry entities;rf_entity_view entity={0};rf_trigger_actor_facts facts;
+    rf_trigger_contact_filter filter={0,-1,0,NULL};rf_level_trigger volume={0};
+    float pose[3][3]={{0}};uint32_t i,ready;int status;int32_t observed[5];
+    const int32_t times[5]={0,10,20,99,100},deadlines[5]={80,-1,100,100,-1};
+    memset(&entities,0,sizeof(entities));entity.handle=123;entity.type=0;entity.class_type=1;
+    entity.flags_7c=8;entity.linked_handle=-1;entities.slots[123]=&entity;
+    status=rf_trigger_actor_resolve(&entities,&entity,-1,-1,NULL,0,&facts);
+    entities.slots[123]=NULL;if(status)return status;
+    volume.radius=2;status=rf_trigger_volume_init(&volume,&trigger->volume);if(status)return status;
+    trigger->contact_timer.seconds=.08f;trigger->contact_timer.deadline=-1;
+    for(i=0;i<5;i++) {
+        pose[0][0]=i==1?3.0f:0.0f;
+        status=rf_runtime_trigger_contact(triggers,trigger->handle,&facts,pose,&filter,times[i],0,&ready);
+        if(status)return status;observed[i]=trigger->contact_timer.deadline;
+        if(ready!=(i==4) || observed[i]!=deadlines[i] || trigger->state.count)return RF_FORMAT;
+    }
+    campaign_trace("CONTACT %d %d %d %d %d\n",observed[0],observed[1],observed[2],observed[3],observed[4]);
+    return RF_OK;
+}
 static int campaign_particle_events(const rf_level *level,rf_level_particles *particles)
 {
     rf_runtime_events events={0};static rf_object_registry registry;rf_runtime_triggers triggers={0};
@@ -39,6 +60,9 @@ static int campaign_particle_events(const rf_level *level,rf_level_particles *pa
         for(j=0;j<particles->materials.count;j++)particles->state->slots[j].runtime.enabled&=~255u;
         trigger.activation=(rf_trigger_activation){0};trigger.state.handle=trigger.handle;
         trigger.state.cooldown_ms=50;trigger.activation.limit=1;target.value=event->handle;
+        status=campaign_contact_ready(&triggers,&trigger);if(status)goto done;
+        for(j=0;j<particles->materials.count;j++)if(particles->state->slots[j].runtime.enabled&255u){status=RF_FORMAT;goto done;}
+
         status=rf_runtime_trigger_fire(&triggers,trigger.handle,123,100,0x42c80000,1,0,&gravity,particles,&report,&fired);
         if(status)goto done;
         if(fired || trigger.state.count || report.triggers){status=RF_FORMAT;goto done;}
