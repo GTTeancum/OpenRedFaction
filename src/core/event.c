@@ -335,6 +335,37 @@ int rf_runtime_trigger_fire(rf_runtime_triggers *triggers,uint32_t handle,
         runtime_trigger_dispatch,&context,fired);
     return status?status:context.status;
 }
+typedef struct runtime_link_context {
+    rf_runtime_triggers *owner;rf_runtime_trigger *trigger;
+    rf_trigger_link_effect effect;void *context;int status;
+} runtime_link_context;
+static void runtime_link_dispatch(void *context,rf_trigger_activation *activation,
+    uint32_t actor,uint32_t suppress_movers)
+{
+    runtime_link_context *c=context;uint32_t i;
+    for(i=0;i<c->trigger->authored->record.link_count;++i) {
+        const rf_level_link_target *target=c->trigger->links+i;rf_event_links links;
+        if(target->kind!=1 && target->kind!=2)continue;
+        links.count=1;links.handles=&target->value;
+        c->status=rf_trigger_links_dispatch(c->owner->registry,&links,activation->state.handle,
+            actor,suppress_movers,c->effect,c->context);
+        if(c->status)return;
+    }
+}
+int rf_runtime_trigger_fire_links(rf_runtime_triggers *triggers,uint32_t handle,
+    uint32_t actor,int32_t now,uint32_t clock_bits,uint32_t blocked,uint32_t suppress_movers,
+    rf_trigger_link_effect effect,void *context,uint32_t *fired)
+{
+    runtime_link_context c={0};rf_runtime_trigger *trigger;uint32_t kind;int status;
+    if(!triggers || !triggers->registry || !effect || !fired)return RF_RANGE;
+    trigger=rf_object_registry_lookup(triggers->registry,handle);if(!trigger)return RF_NOT_FOUND;
+    memcpy(&kind,trigger,4);if(kind!=5)return RF_NOT_FOUND;
+    if(!trigger->authored || (trigger->authored->record.link_count && !trigger->links))return RF_RANGE;
+    c.owner=triggers;c.trigger=trigger;c.effect=effect;c.context=context;
+    status=rf_trigger_fire_sp(&trigger->activation,now,clock_bits,blocked,actor,suppress_movers,
+        runtime_link_dispatch,&c,fired);
+    return status?status:c.status;
+}
 int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *gravity,
     int32_t now,uint32_t clock_bits,rf_level_particles *particles,rf_startup_events_report *report)
 {

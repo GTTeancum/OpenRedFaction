@@ -33,3 +33,20 @@ Next: connect ready activation to the ordered controller/event links and live
 controller ticks, preserving key gates and effect ownership. Door opening and
 traversal are not yet demonstrated. Other filters need resolved entity/attachment
 ownership; this instrumentation must not become a silent replacement for them.
+
+## Owned activation dispatch
+
+rf_runtime_trigger_fire_links composes owned resolved targets, typed 4c0320
+routing and 4c0220 SP bookkeeping without allocation. The caller supplies the
+event/controller backend and resolved contact/key/player gates. It skips
+unresolved targets, stale handles and other types; suppression uses the low
+byte and applies only to controllers. Callback failures stop subsequent effects
+but do not undo prior effects or the trigger bookkeeping.
+
+PC --runtime-trigger-links checks 258 suppression values, blocked activation,
+two ordered controllers followed by an event, ignored type5/unresolved targets,
+pre-bookkeeping callback state, cooldown/count/limit/clock and backend failure.
+Existing runtime-trigger-fire and six CTests pass; both platforms build.
+verify_trigger_links.py retains 1024 original/PC/NXDK exact callback traces;
+verify_trigger_fire.py checks the original bookkeeping independently. The new
+owned wrapper is PC-tested, not yet exercised by live Xbox controller effects.

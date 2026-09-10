@@ -54,6 +54,15 @@ static void activation_callback(void *context,rf_trigger_activation *trigger,uin
         trigger->limit=0;trigger->object_flags|=0x80;
     }
 }
+static uint32_t live_link_calls,live_link_kinds[4],live_link_handles[4];
+static int live_link_error;
+static int live_link_effect(void *context,uint32_t kind,uint32_t handle,uint32_t source,uint32_t actor)
+{
+    rf_runtime_trigger *trigger=context;
+    if(source!=trigger->handle || actor!=123 || trigger->state.count || (trigger->state.flags&64))return RF_FORMAT;
+    live_link_kinds[live_link_calls]=kind;live_link_handles[live_link_calls++]=handle;
+    return live_link_error;
+}
 int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
@@ -112,6 +121,32 @@ int main(int argc,char **argv)
             fwrite(output,sizeof(output),1,stdout);
         }
         return ferror(stdin)?2:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--runtime-trigger-links")) {
+        rf_object_registry registry;rf_runtime_triggers owner={0};rf_runtime_trigger trigger={0};
+        rf_level_owned_trigger authored={0};rf_level_link_target targets[5]={{0}};
+        uint32_t kinds[4]={8,8,6,5},handles[4],i,suppress,fired;
+        rf_object_registry_init(&registry);owner.registry=&registry;
+        trigger.object_kind=5;trigger.authored=&authored;trigger.links=targets;authored.record.link_count=5;
+        if(rf_object_registry_insert(&registry,&trigger,&trigger.handle))return 100;
+        trigger.state.handle=trigger.handle;
+        for(i=0;i<4;++i) {
+            if(rf_object_registry_insert(&registry,kinds+i,handles+i))return 101;
+            targets[i].kind=1;targets[i].value=handles[i];
+        }
+        targets[4].kind=0;targets[4].value=handles[0]; /* unresolved UID must not become a handle */
+        for(suppress=0;suppress<258;++suppress) {
+            trigger.state.count=0;trigger.state.flags=0;trigger.state.cooldown_ms=100;
+            trigger.activation.limit=1;trigger.activation.object_flags=0;live_link_calls=0;
+            if(rf_runtime_trigger_fire_links(&owner,trigger.handle,123,100,0x3f800000,1,suppress,live_link_effect,&trigger,&fired) || fired || live_link_calls)return 102;
+            if(rf_runtime_trigger_fire_links(&owner,trigger.handle,123,100,0x3f800000,0,suppress,live_link_effect,&trigger,&fired) || !fired)return 103;
+            if(live_link_calls!=((suppress&255)?1u:3u) || live_link_kinds[live_link_calls-1]!=6 || live_link_handles[live_link_calls-1]!=handles[2])return 104;
+            if(!(suppress&255) && (live_link_handles[0]!=handles[0] || live_link_handles[1]!=handles[1]))return 105;
+            if(trigger.state.count!=1 || trigger.state.flags!=64 || trigger.state.deadline!=200 || trigger.state.activation_time_bits!=0x3f800000 || trigger.activation.object_flags!=2)return 106;
+        }
+        trigger.state.count=trigger.state.flags=0;live_link_calls=0;live_link_error=RF_FORMAT;
+        if(rf_runtime_trigger_fire_links(&owner,trigger.handle,123,100,0,0,0,live_link_effect,&trigger,&fired)!=RF_FORMAT || !fired || live_link_calls!=1 || trigger.state.count!=1)return 107;
+        puts("PASS runtime ordered controller/event activation, suppression, blocking, bookkeeping and backend error");return 0;
     }
     if(argc==2 && !strcmp(argv[1],"--runtime-trigger-fire")) {
         static rf_object_registry registry;rf_runtime_triggers owner={0};rf_runtime_trigger trigger={0};

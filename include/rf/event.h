@@ -248,6 +248,16 @@ int rf_runtime_trigger_fire(rf_runtime_triggers *triggers,uint32_t handle,
     uint32_t actor,int32_t now,uint32_t clock_bits,uint32_t blocked,uint32_t suppress_movers,
     rf_physics_gravity *gravity,rf_level_particles *particles,
     rf_startup_events_report *report,uint32_t *fired);
+/* Activation with caller-owned event/controller backends. Resolved links retain
+ * authored order; only registry types6 and8 dispatch (type8 respects low-byte
+ * suppress_movers). Unresolved/stale links and other types are skipped as in
+ * 4c0320. Contact/key/player gates remain caller-owned. No allocation.
+ * Owners remain stable through callbacks; state bookkeeping follows effects.
+ * A backend error stops subsequent effects but does not roll back bookkeeping
+ * or prior effects; fired may therefore be1 alongside an error. */
+int rf_runtime_trigger_fire_links(rf_runtime_triggers *triggers,uint32_t handle,
+    uint32_t actor,int32_t now,uint32_t clock_bits,uint32_t blocked,uint32_t suppress_movers,
+    rf_trigger_link_effect effect,void *context,uint32_t *fired);
 /* Partial single-player startup dispatcher: follows resolved trigger links,
  * activates common event state and implements Set_Gravity. Other actions,
  * event targets recurse in order and trigger targets toggle disabled bit 16.
