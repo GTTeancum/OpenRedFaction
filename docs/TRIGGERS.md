@@ -680,3 +680,42 @@ evidence updates +f0 from +e4. The campaign actor update lifetime still needs
 connection. Flag 0x20 uses a separate directional face-crossing path and is
 not covered by this helper. Eligibility, dwell/key handling and natural event
 activation must be integrated before claiming playable campaign triggers.
+
+
+## Directional box contact (complete 4c0a80)
+
+`rf_trigger_box_contact` now includes both ordinary and flag 0x20 branches.
+The directional displacement is actor +f0 minus +3c, with float component
+stores. Its length must exceed float 0.00001 and its dot with trigger forward
+(matrix row +60) must be negative. The plane query starts at actor +e4, not
++3c; substituting either of these positions changes results.
+
+The forward face has corners A=(center+right)-up+forward,
+B=(center-right)-up+forward, C=(center+right)+up+forward and
+D=(center-right)+up+forward, with basis vectors scaled by half dimensions
+and each vector operation stored as float. The plane normal is the original
+forward row, and its offset is minus dot(normal,A). 5065b0 calls 506550,
+stores scaled displacement before adding the start, then calls 506dd0.
+That helper selects the largest absolute normal axis (Z wins ties), uses
+sign-dependent projection axes, and tests barycentric coordinates with its
+original +/-0.0001 small-component branch and intermediate float store.
+
+The first triangle is A/B/C. On rejection, the original copies D over C and
+retries A/B/D: it does NOT switch to the complementary triangle. This leaves
+a gap near the upper center. For an identity box of dimensions (2,2,2), the
+segment (0,.75,2) to (0,.75,0) misses while neighboring x=+/-.75 cases hit.
+The port preserves this observed behavior. Four separate 12-byte allocations
+are established by 4bf6d0 at globals 85682c..856838; pointer aliasing does not
+explain the gap.
+
+`tools/probe_trigger_directional.py` records the unchanged original's query,
+plane and triangle inputs with a read-only hook; named fixtures assert the
+gap, second-triangle retry, movement gates and distinct query origin.
+`tools/verify_trigger_box.py` compares complete original 4c0a80 with PC and
+NXDK code: 8192 cases, including invalid guards, under 53-bit nearest x87.
+The corpus includes both branches, rotations around multiple axes, distinct
+actor positions, reverse/stationary movement, boundaries and scales 2^-8..2^8.
+All original geometry callees run unchanged; scratch storage is supplied.
+This verifies compiled routines in Unicorn, not native campaign activation.
+Live actor update ordering, eligibility predicates, dwell/key gates and firing
+remain open. No contact routine added here mutates trigger or actor state.

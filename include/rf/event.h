@@ -33,6 +33,14 @@ int rf_trigger_eligible(const rf_trigger_gate *gate,const rf_trigger_actor_facts
 int rf_trigger_sphere_contact(const float center[3],float radius,
     const float actor_center[3],uint32_t *contact);
 
+/* 4c0a80: ordinary box uses actor_start/end; flag 0x20 tests the forward
+ * face with displacement actor_end-actor_center and origin actor_start.
+ * Preserves original two-triangle coverage. Finite data/nonnegative sizes;
+ * errors preserve contact. No actor lookup, dwell timing or activation. */
+int rf_trigger_box_contact(const float center[3],const float matrix[3][3],
+    const float size[3],uint32_t flags,const float actor_center[3],
+    const float actor_start[3],const float actor_end[3],uint32_t *contact);
+
 typedef struct rf_event_state {
     uint32_t type;float delay;int32_t deadline;
     uint32_t actor,source,flags,mode;

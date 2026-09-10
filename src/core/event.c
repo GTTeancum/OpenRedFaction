@@ -1,4 +1,5 @@
 #include "rf/event.h"
+#include "rf/collision.h"
 #include "rf/level.h"
 #include <math.h>
 #include <string.h>
@@ -17,6 +18,64 @@ int rf_trigger_sphere_contact(const float center[3],float radius,
     distance=((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+
         (double)delta[2]*delta[2];
     *contact=distance<=(double)radius*radius;return RF_OK;
+}
+/* 506dd0 specialized to its three-vertex use in 5065b0. */
+static uint32_t trigger_triangle(const float point[3],const float vertices[3][3],
+    const float normal[3])
+{
+    static const uint32_t axes[3][2]={{2,1},{0,2},{1,0}};
+    uint32_t axis,x,y;float px,py,bx,by,cx,cy,stored;double v,t;
+    if(fabsf(normal[0])>fabsf(normal[1]))axis=fabsf(normal[2])<fabsf(normal[0])?0:2;
+    else axis=fabsf(normal[2])<fabsf(normal[1])?1:2;
+    x=axes[axis][normal[axis]>0?0:1];y=axes[axis][normal[axis]>0?1:0];
+    px=point[x]-vertices[0][x];py=point[y]-vertices[0][y];
+    bx=vertices[1][x]-vertices[0][x];by=vertices[1][y]-vertices[0][y];
+    cx=vertices[2][x]-vertices[0][x];cy=vertices[2][y]-vertices[0][y];
+    if(bx<=-.0001f || bx>=.0001f)v=((double)bx*py-(double)by*px)/((double)cy*bx-(double)cx*by);
+    else v=(double)px/cx;
+    stored=(float)v;
+    if(!(v>=0 && stored<=1))return 0;
+    if(bx<=-.0001f || bx>=.0001f)t=((double)px-(double)stored*cx)/bx;
+    else t=((double)py-(double)stored*cy)/by;
+    return t>=0 && (double)stored+t<=1;
+}
+int rf_trigger_box_contact(const float center[3],const float matrix[3][3],
+    const float size[3],uint32_t flags,const float actor_center[3],
+    const float actor_start[3],const float actor_end[3],uint32_t *contact)
+{
+    float delta[3],corners[4][3],triangle[3][3],point[3]={0},plane[4],fraction;
+    float half[3],right,up,forward;double length,dot;uint32_t i,j,hit;int status;
+    if(!center || !matrix || !size || !actor_center || !actor_start || !actor_end || !contact)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(center[i]) || !isfinite(size[i]) || size[i]<0 ||
+            !isfinite(actor_center[i]) || !isfinite(actor_start[i]) || !isfinite(actor_end[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(matrix[i][j]))return RF_FORMAT;
+    }
+    if(!(flags&32))return rf_collision_segment_oriented_box(center,matrix,size,actor_start,actor_end,point,contact);
+    for(i=0;i<3;i++) {
+        delta[i]=actor_end[i]-actor_center[i];half[i]=size[i]*.5f;
+        if(!isfinite(delta[i]))return RF_FORMAT;
+    }
+    length=sqrt(((double)delta[2]*delta[2]+(double)delta[1]*delta[1])+(double)delta[0]*delta[0]);
+    dot=((double)delta[2]*matrix[2][2]+(double)delta[1]*matrix[2][1])+(double)delta[0]*matrix[2][0];
+    if(length<=.00001f || dot>=0) {*contact=0;return RF_OK;}
+    for(i=0;i<3;i++) {
+        right=matrix[0][i]*half[0];up=matrix[1][i]*half[1];forward=matrix[2][i]*half[2];
+        for(j=0;j<4;j++) {
+            volatile float a=(j&1)?center[i]-right:center[i]+right;
+            volatile float b=(j&2)?a+up:a-up;
+            corners[j][i]=b+forward;
+            if(!isfinite(corners[j][i]))return RF_FORMAT;
+        }
+        plane[i]=matrix[2][i];
+    }
+    plane[3]=(float)-(((double)plane[2]*corners[0][2]+(double)plane[1]*corners[0][1])+(double)plane[0]*corners[0][0]);
+    status=rf_collision_segment_plane(actor_start,delta,plane,&fraction,&hit);if(status)return status;
+    if(!hit) {*contact=0;return RF_OK;}
+    for(i=0;i<3;i++) {volatile float offset=delta[i]*fraction;point[i]=actor_start[i]+offset;}
+    memcpy(triangle,corners,sizeof(triangle));hit=trigger_triangle(point,triangle,plane);
+    if(!hit) {memcpy(triangle[2],corners[3],12);hit=trigger_triangle(point,triangle,plane);}
+    *contact=hit;return RF_OK;
 }
 int rf_trigger_eligible(const rf_trigger_gate *g,const rf_trigger_actor_facts *a,
     int32_t now,uint32_t input,uint32_t *eligible)
