@@ -3,10 +3,17 @@
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
-- [ ] Add live PC input/presentation and real-time pacing for the interactive runtime.
+- [ ] Add real-time simulation/render scheduling to prevent slow frames slowing movement.
+- [ ] USER: Test PC keyboard movement/look, crouch, focus loss, resizing and Escape exit.
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+PC now has a Windows input/presentation frontend using the shared scene provider
+and software rasterizer. Its 664-frame headless replay matches body/input/camera
+evidence and the final reference image exactly; both showcase resolutions remain
+pixel-identical. Window interaction needs manual testing, and real-time catch-up
+remains open. See docs/INPUT.md for the launch command and limits.
 
 Xbox controller polling now drives movement, look and crouch through a shared
 provider; user confirmed movement, and XEMU memory records real stick input.

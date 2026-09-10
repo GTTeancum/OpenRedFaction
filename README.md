@@ -50,6 +50,12 @@ python -m pip install --target local/python unicorn==2.1.4
 python tools/verify_checksum.py 'D:\Programming\GitHub\OpenRedFaction\Installed_Game\RF.exe'
 ```
 
+The Windows movement/look prototype can be launched with
+`./build/pc/Release/rf_pc_play.exe Installed_Game`: WASD moves, arrows look,
+Ctrl crouches and Escape exits. It uses the shared Xbox-oriented runtime at
+640x480. This is a diagnostic scene; campaign play and real-time scheduling remain
+unfinished. See [input controls and verification](docs/INPUT.md).
+
 ## Xbox diagnostic
 
 Generate the current PC base-texture reference (Pillow is required by image checks):

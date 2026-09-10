@@ -10,7 +10,7 @@ the session. Sticks use an 18% radial deadzone with a unit-length diagonal cap;
 disconnect produces neutral input and polling can reconnect a controller.
 Look currently uses one radian/second at full input. Simulation remains fixed
 at 1/60 second per produced frame; real-time pacing needs further work. There
-is no weapon, jumping, combat, campaign scripting, or PC interactive window yet.
+is no weapon, jumping, combat, or campaign scripting yet.
 
 The shared provider polls once before stance and animation. Its validated
 movement/look/crouch state is reused by physics and camera; it replaces the
@@ -50,6 +50,46 @@ Verification:
   of input acquisition and user-confirmed movement, not a passing neutral replay.
 
 Physical crouch/reconnect/exit behavior remains to be checked by the user.
-The PC build maintains the shared provider and rasterizer; a live PC input and
-presentation frontend remains open. Original player spawning/identity, timer
-ownership, camera collision and full campaign entity scheduling also remain open.
+Original player spawning/identity, timer ownership, camera collision and full
+campaign entity scheduling also remain open.
+
+
+## Windows PC frontend
+
+From the repository root after a Release build:
+
+```powershell
+./build/pc/Release/rf_pc_play.exe Installed_Game
+```
+
+WASD moves, arrow keys look, Ctrl holds crouch, and Escape or closing the window
+ends the session. Movement diagonals are normalized. Only the frontend's own
+window messages supply keyboard state; losing focus clears held keys. No global
+input polling, cursor capture, host input generation, or desktop automation is used.
+This is port-owned input policy. It starts at the same diagnostic miner placement
+as the Xbox input prototype, rather than the original campaign player spawn.
+
+The shared software rasterizer renders at 640x480, with a 2 MiB combined mesh
+cap. Resizing the window scales and letterboxes that buffer. Depth/RGB buffers
+use 2,150,400 bytes; the Windows presentation buffer adds 1,228,800 bytes. Geometry,
+materials and physics use the existing shared budgets. These allocation figures
+are not a measurement of total process memory or full campaign residency.
+
+The frontend caps frame production at 60 Hz. It still advances simulation by
+1/60 second per rendered frame; software rendering below 60 FPS slows simulation.
+Real-time catch-up and render/simulation scheduling remain open for both platforms.
+
+Non-interactive verification uses the same executable without creating a window:
+
+```powershell
+./build/pc/Release/rf_pc_play.exe --headless Installed_Game 664 artifacts/pc-play-replay.ppm
+```
+
+This replays the `rf_scene_check --input` commands and rasterizes all 664 frames.
+The verified run matches the reference's 77-word final body state, 448-word input
+ring and five-word camera/world summary exactly. Its final 640x480 image matches
+`rf_pc_preview --scene-turn-last` byte-for-byte. Extracting the shared rasterizer
+also preserves both 640x480 and 1920x1440 showcase images byte-for-byte. The full
+PC build and all four CTest checks pass. Actual keyboard interaction, focus-loss
+behavior, resizing and window presentation remain for manual testing; headless
+verification does not exercise the Windows message or display path.

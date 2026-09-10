@@ -1,4 +1,5 @@
 #include "rf/preview.h"
+#include "pc_raster.h"
 #include "rf/material.h"
 #include "rf/lightmap.h"
 #include "rf/animation_check.h"
@@ -8,7 +9,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
-static float edge(const float *a, const float *b, float x, float y) { return (x-a[0])*(b[1]-a[1])-(y-a[1])*(b[0]-a[0]); }
 static int scene_last(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {(void)frame;(void)mesh;(void)materials;if(context)*(uint32_t*)context=world;return RF_OK;}
@@ -21,24 +21,6 @@ static int miner_skin(const char *path,const char *skin,rf_entity_assets *assets
     if(!result && strcmp(compiled,"miner.v3c"))result=RF_FORMAT;
     return result;
 }
-static int address(int value, int size, int clamp)
-{ return clamp ? (value < 0 ? 0 : value >= size ? size-1 : value) : (value % size + size) % size; }
-static void sample(const rf_image *image, float s, float t, int clamp, float color[4])
-{
-    float x, y, fx, fy;
-    int ix, iy, a, b;
-    unsigned c;
-    s = clamp ? fminf(1, fmaxf(0, s)) : s-floorf(s);
-    t = clamp ? fminf(1, fmaxf(0, t)) : t-floorf(t);
-    x = s*image->width-0.5f; y = t*image->height-0.5f;
-    ix = (int)floorf(x); iy = (int)floorf(y); fx = x-ix; fy = y-iy;
-    for (c = 0; c < 4; ++c) color[c] = 0;
-    for (b = 0; b < 2; ++b) for (a = 0; a < 2; ++a) {
-        float weight = (a ? fx : 1-fx)*(b ? fy : 1-fy);
-        unsigned pixel = (unsigned)(address(iy+b, (int)image->height, clamp)*(int)image->width + address(ix+a, (int)image->width, clamp));
-        for (c = 0; c < 4; ++c) color[c] += weight*image->rgba[pixel*4+c]/255.0f;
-    }
-}
 int main(int argc, char **argv)
 {
     rf_vpp archive;
@@ -47,10 +29,8 @@ int main(int argc, char **argv)
     rf_preview_mesh mesh={0};
     rf_materials materials = {0};
     rf_lightmaps lightmaps = {0};
-    float *depth;
-    unsigned char *rgb;
-    uint32_t i,scale=1,width,height,pixels;
-    FILE *output;
+    rf_pc_raster raster={0};
+    uint32_t i,scale=1;
     rf_entity_assets skin_assets={0};const char *skin_names[64];
     uint32_t world_vertices=0;
     int showcase=argc>1 && !strcmp(argv[1],"--scene-showcase");
@@ -155,60 +135,9 @@ int main(int argc, char **argv)
      * Re-rasterize projected triangles at the requested size, never upscale RGB. */
     {const char *setting=getenv("RF_PREVIEW_SCALE");
      if(setting){if(setting[0]<'1' || setting[0]>'4' || setting[1])return 2;scale=(uint32_t)(setting[0]-'0');}}
-    width=640*scale;height=480*scale;pixels=width*height;
-    if(scale!=1)for(i=0;i<mesh.count;++i){mesh.vertices[i].position[0]*=scale;mesh.vertices[i].position[1]*=scale;}
-    depth = malloc(pixels*sizeof(float)); rgb = malloc(pixels*3);
-    if (!depth || !rgb) return 1;
-    for (i = 0; i < pixels; ++i) { depth[i] = 16777216; rgb[i*3] = 16; rgb[i*3+1] = 16; rgb[i*3+2] = 24; }
-    for (i = 0; i + 2 < mesh.count; i += 3) {
-        int actor_triangle=model_mode || (scene_mode && i>=world_vertices);
-        const rf_preview_vertex *a = mesh.vertices+i, *b = a+1, *c = a+2;
-        float area = edge(a->position,b->position,c->position[0],c->position[1]);
-        int x, y, xmin, xmax, ymin, ymax;
-        if (fabsf(area) < 0.00001f) continue;
-        xmin = (int)floorf(fminf(a->position[0],fminf(b->position[0],c->position[0])));
-        xmax = (int)ceilf(fmaxf(a->position[0],fmaxf(b->position[0],c->position[0])));
-        ymin = (int)floorf(fminf(a->position[1],fminf(b->position[1],c->position[1])));
-        ymax = (int)ceilf(fmaxf(a->position[1],fmaxf(b->position[1],c->position[1])));
-        if (xmin < 0) xmin = 0; if (xmax >= (int)width) xmax = (int)width-1;
-        if (ymin < 0) ymin = 0; if (ymax >= (int)height) ymax = (int)height-1;
-        for (y = ymin; y <= ymax; ++y) for (x = xmin; x <= xmax; ++x) {
-            float u = edge(b->position,c->position,x+0.5f,y+0.5f)/area;
-            float v = edge(c->position,a->position,x+0.5f,y+0.5f)/area;
-            float w = 1-u-v, z;
-            uint32_t pixel = (uint32_t)(y*width+x), channel;
-            if (u < 0 || v < 0 || w < 0) continue;
-            z = u*a->position[2]+v*b->position[2]+w*c->position[2];
-            if (z >= depth[pixel]) continue;
-            if(!actor_triangle)depth[pixel] = z;
-            if(!actor_triangle || !materials.count)for (channel = 0; channel < 3; ++channel) rgb[pixel*3+channel] = (unsigned char)(a->color[channel]*255);
-            if (materials.count) {
-                const rf_image *image = a->material < materials.count && materials.items[a->material].status == RF_OK ? &materials.items[a->material].image : NULL;
-                float q = u*a->texture[2]+v*b->texture[2]+w*c->texture[2];
-                float s = (u*a->texture[0]+v*b->texture[0]+w*c->texture[0])/q;
-                float t = (u*a->texture[1]+v*b->texture[1]+w*c->texture[1])/q;
-                float base[4]={1,1,1,1}, light[4] = {0.5f, 0.5f, 0.5f,1};
-                if (image) sample(image, s, t, 0, base);
-                else for (channel = 0; channel < 3; ++channel) base[channel] = a->color[channel];
-                if (a->lightmap < lightmaps.count) {
-                    float ls = (u*a->lightmap_texture[0]+v*b->lightmap_texture[0]+w*c->lightmap_texture[0])/q;
-                    float lt = (u*a->lightmap_texture[1]+v*b->lightmap_texture[1]+w*c->lightmap_texture[1])/q;
-                    sample(lightmaps.images+a->lightmap, ls, lt, 1, light);
-                }
-                if(actor_triangle && base[3]>=1)depth[pixel]=z;
-                for (channel = 0; channel < 3; ++channel) {
-                    float color=fminf(1,base[channel]*light[channel]*2)*255;
-                    if(actor_triangle)color=color*base[3]+rgb[pixel*3+channel]*(1-base[3]);
-                    rgb[pixel*3+channel]=(unsigned char)floorf(color+0.5f);
-                }
-            }
-        }
-    }
-    output = fopen(output_path,"wb");
-    if (!output) return 1;
-    fprintf(output,"P6\n%u %u\n255\n",width,height);
-    if (fwrite(rgb,3,pixels,output) != pixels || fclose(output)) return 1;
+    if(rf_pc_raster_open(&raster,scale) || rf_pc_raster_frame(&raster,&mesh,&materials,&lightmaps,
+       model_mode?0:scene_mode?world_vertices:mesh.count) || rf_pc_raster_save(&raster,output_path))return 1;
     printf("Prepared %u triangles (%u bytes), %s\n",mesh.count/3,mesh.bytes,scene_close?"close level/actor inspection":model_mode?"posed miner inspection":"original spawn");
-    free(depth); free(rgb); rf_lightmaps_close(&lightmaps); rf_materials_close(&materials); rf_preview_close(&mesh); rf_geometry_close(&geometry); rf_vpp_close(&archive);
+    rf_pc_raster_close(&raster); rf_lightmaps_close(&lightmaps); rf_materials_close(&materials); rf_preview_close(&mesh); rf_geometry_close(&geometry); rf_vpp_close(&archive);
     return 0;
 }
