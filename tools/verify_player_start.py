@@ -1,6 +1,6 @@
 """Compare C level starts with original loader and SP startup instructions.
 
-The file gate and raw read are fixtures; entity creation is a stop boundary.
+The file gate and raw read are fixtures; generic entity creation is a stop boundary.
 This does not execute the full level loader or player factory.
 """
 import hashlib
@@ -40,10 +40,21 @@ def put(address, *values):
 raw = b''
 cursor = 0
 reads = []
+stop_at = STOP
+
+
+def run(begin, end):
+    global stop_at
+    stop_at = end
+    u.emu_start(begin, STOP, count=10000)
+    assert u.reg_read(UC_X86_REG_EIP) == end
 
 
 def hook(uc, address, size, context):
     global cursor
+    if address == stop_at:
+        uc.emu_stop()
+        return
     if address not in (0x523990, 0x52cf60):
         return
     sp = uc.reg_read(UC_X86_REG_ESP)
@@ -80,7 +91,7 @@ for level in levels:
     u.mem_write(0x6460fc, b'\xa5' * 48)
     put(STACK + 0x8000, STOP, 0x12345678)
     u.reg_write(UC_X86_REG_ESP, STACK + 0x8000)
-    u.emu_start(0x463d20, STOP, count=10000)
+    run(0x463d20, STOP)
     assert u.reg_read(UC_X86_REG_EIP) == STOP
     assert cursor == 48
     assert reads == [0x6460fc, 0x646120, 0x646108, 0x646114]
@@ -100,17 +111,59 @@ for level in levels:
     u.mem_write(0x64ecb9, b'\0')
     u.mem_write(0x6fc4d9, b'\0')
     u.reg_write(UC_X86_REG_ESP, sp)
-    u.emu_start(0x45c798, 0x4a4130, count=10000)
+    run(0x45c798, 0x4a4130)
     assert u.reg_read(UC_X86_REG_EIP) == 0x4a4130
     ret, player, cls, position, orientation, skin = words(u.reg_read(UC_X86_REG_ESP), 6)
     assert (ret, player, cls, skin) == (0x45c80c, PLAYER, 0x12345678, 0xffffffff)
     assert bytes(u.mem_read(position, 12)) + bytes(u.mem_read(orientation, 36)) == shared
+    put(PLAYER + 0xc, PLAYER + 0x2000)  # Player name string storage.
+    put(PLAYER + 0x10, 0xa5a5a5ad)
+    put(PLAYER + 0xf5c, 7)
+    put(0x6c9c60, 3)
+    u.mem_write(0x7c75c8, b'\0')
+    u.mem_write(0x7c73b4, b'\0')
+    run(0x4a4130, 0x422360)
+    assert u.reg_read(UC_X86_REG_EIP) == 0x422360
+    args = words(u.reg_read(UC_X86_REG_ESP), 8)
+    assert args == (0x4a41d8, cls, PLAYER + 0x2000, 0xffffffff, position, orientation, 1, 0)
+    assert words(PLAYER + 0x10, 1) == (0xa5a5a5a5,)
+    assert words(PLAYER + 0xf5c, 1) == (0,)
+    assert bytes(u.mem_read(position, 12)) + bytes(u.mem_read(orientation, 36)) == shared
     reports.append(dict(file=level['file'], payload_sha256=hashlib.sha256(raw).hexdigest(),
                         transform_words=list(struct.unpack('<12I', shared)), result='PASS'))
 
+prefix_cases = []
+for local in (False, True):
+    for skin in (-1, 0, 2, 3):
+        for override in (0, 1, 2):
+            sp = STACK + 0x7000
+            position, orientation = STACK + 0x9000, STACK + 0x9010
+            u.mem_write(position, shared[:12])
+            u.mem_write(orientation, shared[12:])
+            alternate = struct.pack('<3f', 12.5, -7.25, 100.0)
+            u.mem_write(0x7c7628, alternate)
+            u.mem_write(0x7c75c8, bytes([override]))
+            put(0x7c75d4, PLAYER if local else PLAYER + 0x4000)
+            put(PLAYER + 0x10, 0xa5a5a5ad)
+            put(PLAYER + 0xf5c, 7)
+            put(sp, STOP, PLAYER, 0x12345678, position, orientation, skin & 0xffffffff)
+            u.reg_write(UC_X86_REG_ESP, sp)
+            run(0x4a4130, 0x422360)
+            assert u.reg_read(UC_X86_REG_EIP) == 0x422360
+            actual = words(u.reg_read(UC_X86_REG_ESP), 8)
+            normalized = skin if 0 <= skin < 3 else 0
+            assert actual == (0x4a41d8, 0x12345678, PLAYER + 0x2000, 0xffffffff,
+                              position, orientation, 1, normalized)
+            assert words(PLAYER + 0x10, 1) == ((0xa5a5a5a5 if local else 0xa5a5a5ad),)
+            assert words(PLAYER + 0xf5c, 1) == ((0 if local and skin not in (0, 2) else 7),)
+            assert bytes(u.mem_read(position, 12)) == (alternate if override == 1 else shared[:12])
+            assert bytes(u.mem_read(orientation, 36)) == shared[12:]
+            assert bytes(u.mem_read(0x7c75c8, 1)) == bytes([0 if override == 1 else override])
+            prefix_cases.append(dict(local=local, skin=skin, position_override_flag=override, result='PASS'))
+
 report = dict(result='PASS', original_sha256=digest,
               shared_exe_sha256=hashlib.sha256((ROOT / 'build/pc/Release/rf_pc.exe').read_bytes()).hexdigest(),
-              scope='Original 463d20 loader with file gate/read fixtures; 45c798 SP startup span to 4a4130 entry; no entity creation',
-              levels=reports)
+              scope='Original 463d20 loader with file gate/read fixtures; 45c798 SP startup and 4a4130 prefix to 422360 entry; no generic entity creation or orientation override',
+              levels=reports, factory_prefix_cases=prefix_cases)
 (ROOT / 'artifacts/player-start-verification.json').write_text(json.dumps(report, indent=2) + '\n')
-print(f'PASS: {len(reports)} original player-start loads and SP factory argument transforms match shared C')
+print(f'PASS: {len(reports)} original player starts match shared C; {len(prefix_cases)} factory prefix branches verified')

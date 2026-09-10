@@ -1974,15 +1974,33 @@ through the original vector/matrix assignment routines, then calls `4a4130`
 with the local player, class identity from player+18, copied position, copied
 orientation, and skin index -1. The verifier executes that span through the
 factory entry and checks the actual argument pointers and all 48 transform
-bytes. All 94 installed levels match the compiled C parser exactly.
+bytes. All 94 installed levels match the compiled C parser exactly. The harness
+then executes the original player-factory prefix through generic entity factory
+`422360` entry, including `4a6200` and the player-name accessor `4ff480`.
+
+The generic factory receives class identity, player name, UID -1, position,
+orientation, creation flags 1, and normalized skin index 0. Original `4a415b`
+normalizes a negative/out-of-range skin index and clears local player+f5c only
+in that invalid-index branch. `4a6200` clears bit 8 of local player+10. Neither
+write applies to a nonlocal player. The creation prefix does not change the
+ordinary spawn transform when the two pending-override flags are clear.
+
+An additional 24 original-execution cases cover local/nonlocal player, skin
+indices -1/0/2/3 with a three-entry table, and position-override flag 0/1/2.
+Only exactly 1 consumes the position at `7c7628`, writes it into the caller's
+position buffer, and clears `7c75c8`. Flag 2 remains untouched. Orientation is
+unchanged in these cases; the separate `7c73b4` orientation-override branch
+through `4fcea0` is not covered. These branch assertions currently characterize
+the original; they are not a claim of a reconstructed C player factory.
 
 Scope: `523990` is a fixture returning field-present and `52cf60` is a fixture
 supplying sequential 12-byte reads from the real player-start payload. The
 original section reader, vector/matrix reader control flow, copy routines and
 SP argument preparation execute without replacement. The fixture supplies an
-opaque class identity and ordinary load mode; it stops before player creation.
+opaque class identity/name pointer and ordinary load mode; it stops before
+generic entity allocation at `422360`.
 It does not validate complete file I/O, mode selection, multiplayer spawn,
-factory side effects, or subsequent camera initialization. Reports are local
+later factory side effects, or subsequent camera initialization. Reports are local
 at `artifacts/player-start-verification.json`.
 
 The live diagnostic still binds serialized miner UID9858 and diagnostic camera

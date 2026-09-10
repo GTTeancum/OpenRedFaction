@@ -13,7 +13,9 @@ Immediate open items:
 
 Original player-start loader and single-player factory argument preparation now
 match shared C across all 94 installed levels. This verifies the transform source
-and matrix ordering, not complete player creation; the live diagnostic still uses
+and matrix ordering, plus the original factory prefix's local reset, skin
+normalization and one-shot position override (24 branch cases). Generic entity
+allocation and player ownership remain open; the live diagnostic still uses
 its miner placement. See docs/CAMERA.md and tools/verify_player_start.py.
 
 Xbox file replay now compares recorded commands with PC without controller input.
