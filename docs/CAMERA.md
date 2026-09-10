@@ -2726,3 +2726,43 @@ other sloped/intermediate faces. Near the center, rays from -2 hit the lower
 floor. This does not locate every upper surface, establish capsule clearance,
 or account for later mover motion. It narrows the next task to the intended
 upper route/action rather than proving an error in region-exit policy.
+
+
+Original jump and fall transition (2026-09-10)
+
+inspect_jump.py executes fingerprinted RF.exe 4288b0 and its 4281a0 fall
+transition in Unicorn. It also executes the original fsqrt initializer ending
+at 433eb4 using the installed game.tbl $Max Entity Jump Height value 1.33.
+The resulting float impulse is 5.105683326721191, sqrt(2*gravity*height).
+This is original behavior evidence; no shared jump implementation is claimed.
+
+The entry accepts mode 1, or mode 4 with actor flag 0x2000 clear. It rejects
+crouch flag 0x400, the supplied parent-kind predicate returning 1, and mode 2
+(climbing). Null entities return immediately. Mode 4 scales the impulse by
+1.25f - (0.1f - frame_dt) * -4.200000286102295f. Negative existing vertical
+velocity is then added; positive velocity is replaced. At 428935..428977,
+x87 retains the scaled impulse through that addition, with only the final
+binary32 store to entity+148. An intermediate float store produced a one-ULP
+mismatch in the shipped-strength, 1/60-second, downward-velocity fixture.
+The Python arithmetic oracle matches these tested inputs exactly; it is not
+a general proof of binary64 equivalence to x87 extended arithmetic.
+
+Accepted jumps set actor+810 bit 2 and physics+1a8 bit 1. Fall selects mode 3
+or alternate mode 8 through 4339d0, falling back to descriptor 0 when the
+requested descriptor is disabled. The orientation pointer becomes 73a858.
+The routine requests class+120's sound through 434d00 with arguments
+(sound,0,0,0,1.0f), passes its result to 505560, then stamps entity+7b4 with
+6460f0's current time. The harness supplies the parent predicate 4290d0,
+alternate-fall predicate 40a270, and sound lookup/playback boundaries; their
+implementations and audible playback are outside this evidence.
+
+All 6,144 cases pass exact whole-entity byte comparison, selected-descriptor
+state and sound request checks: 16 modes, crouch/water flags, parent blocking,
+alternate fall, three vertical velocities, two jump strengths, independent
+1/30 and 1/60 timesteps, and enabled/disabled fall descriptors. There are 144
+accepted cases. A separate null-entity check also passes. Generated evidence
+is artifacts/jump-original/report.json. No Xbox build or live jump is tested
+by this harness. Original action 3 in 4a6210 reaches this routine through
+4a5c00 and another action gate; those gates and the campaign input wiring
+still need reconstruction. The climb rejection rules out an assumed jump
+boost while mode 2 is active, without proving the intended upper exit route.
