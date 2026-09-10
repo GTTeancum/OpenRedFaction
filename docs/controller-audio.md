@@ -917,3 +917,35 @@ Existing PC/NXDK reader tests still pass. Both builds pass; native archive I/O
 for this loader and campaign wiring remain unverified. Installed directory
 inspection also confirms every one of the88 declared names exists in audio.vpp.
 No original assets are added to tracked files.
+
+### Campaign global declarations before controller PCM
+
+Campaign scene startup now loads the global sound table with a64KiB text
+scratch cap, declares its rows in order and requires each returned index to
+match its table row. It then releases the temporary declarations/table archive
+before registering controller sounds and loading only their PCM. Existing
+global entries preserve their table parameters; newly referenced controller
+sounds retain authored controller parameters. Persistent slot capacity includes
+the global rows within the existing1MiB bank budget.
+
+The ordering follows the successful original table-loader invariant4347f0:
+row indices must equal registration indices. Combined with verified first-wins
+deduplication, this requires table entries to precede other distinct controller
+registrations. This is a startup-order inference, not a full original campaign
+transition trace. The bank is still reconstructed per diagnostic scene; retaining
+metadata across actual level transitions and automatic PCM eviction remain open.
+
+PC and stock64MiB XEMU replay-20260910-194230 pass the180-frame door traversal,
+with matching spatial telemetry[2,214,3428625177,216,209,536] and unchanged
+unity PCM hash3527213817. New SOUND_BANK telemetry is[88,4,111904,12120]:
+global declaration count, resident sample count, retained PCM file bytes and
+metadata bytes. LIVE_AUDIO now reports92 registered records and124024 bytes;
+it previously reported4 records and114168 bytes. The9856-byte difference is
+88 additional112-byte slots, with no added resident waveform files.
+
+`rf_audio_probe --global-bank Installed_Game/tables.vpp Installed_Game/audio.vpp`
+checks all88 declarations without PCM, then the L14S3 Tram Door Right request
+for Switch_01.wav. It resolves index37 with table near6/volume0.9 despite the
+controller's near5/volume1 request; only that sample becomes resident. It does
+not validate L14S3 gameplay. The native door test covers actual table-file I/O
+and campaign wiring; it remains a staged L1S1 fixture.

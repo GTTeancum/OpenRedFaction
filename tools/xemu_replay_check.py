@@ -195,6 +195,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert audio[6]==motion[0]*800,audio
      if args.door:assert audio[4]>=2,audio
      report['live_audio']=audio
+     bank=words(monitor,symbol('rf_scene_sound_bank'),4)
+     assert bank==expected('SOUND_BANK') and bank[2]+bank[3]==audio[1],bank
+     if args.door:assert bank[0]==88 and bank[1]==4 and audio[0]==92,bank
+     report['sound_bank']=bank
      spatial=words(monitor,symbol('rf_scene_spatial_audio'),6)
      assert spatial==expected('SPATIAL_AUDIO'),spatial
      if args.door:assert spatial[0]>0 and spatial[1]>0 and spatial[3]>0 and spatial[4]>spatial[0],spatial

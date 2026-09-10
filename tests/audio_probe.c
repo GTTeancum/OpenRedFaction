@@ -5,6 +5,24 @@
 #include <io.h>
 int main(int argc,char **argv)
 {
+    if(argc==4 && !strcmp(argv[1],"--global-bank")) {
+        rf_vpp tables,archive;rf_audio_bank bank={0};rf_audio_declaration *rows;uint32_t count,i,index;
+        if(rf_vpp_open(&tables,argv[2]) || rf_sound_table_load(&tables,65536,NULL,0,&count) || count!=88)return 68;
+        rows=malloc(count*sizeof(*rows));if(!rows || rf_sound_table_load(&tables,65536,rows,count,&count))return 69;
+        rf_vpp_close(&tables);
+        if(rf_vpp_open(&archive,argv[3]) || rf_audio_bank_open(&archive,count+1,1024*1024,&bank))return 70;
+        for(i=0;i<count;i++)if(rf_audio_bank_declare(&bank,rows[i].name,rows[i].near_distance,rows[i].volume,rows[i].rolloff,&index) ||
+            index!=i || rf_audio_bank_sample(&bank,index))return 71;
+        free(rows);
+        /* L14S3 Tram Door Right asks for near5/volume1 after global row37. */
+        if(rf_audio_bank_register(&bank,"Switch_01.wav",5,1,1,&index) || index!=37 || bank.count!=88 ||
+            rf_audio_bank_parameters(&bank,index)->near_distance!=6 || rf_audio_bank_parameters(&bank,index)->volume!=.9f ||
+            rf_audio_bank_reload(&bank,&archive,index))return 72;
+        rf_vpp_close(&archive);
+        for(i=0;i<count;i++)if((rf_audio_bank_sample(&bank,i)!=NULL)!=(i==37))return 73;
+        printf("PASS global declarations=%u resident=1 switch_index=%u bytes=%u\n",count,index,bank.bytes);
+        rf_audio_bank_close(&bank);return 0;
+    }
     if(argc==5 && !strcmp(argv[1],"--sound-table-archive")) {
         rf_vpp archive;uint32_t capacity=(uint32_t)strtoul(argv[3],NULL,10),budget=(uint32_t)strtoul(argv[4],NULL,10),count=123,query;
         rf_audio_declaration *rows,*before;int status;

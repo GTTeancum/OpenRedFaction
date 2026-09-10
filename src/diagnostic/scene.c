@@ -416,6 +416,7 @@ void rf_scene_set_audio(rf_scene_audio_sink sink,void *context)
 /* loaded samples, retained bytes, missing names, rejected resources, played,
  * unavailable requests, rendered frames, PCM byte hash. No device output yet. */
 uint32_t rf_scene_live_audio[8];
+uint32_t rf_scene_sound_bank[4]; /* global declarations, resident samples, PCM file bytes, metadata bytes */
 typedef struct campaign_spatial_voice {
     uint32_t handle,sample;float position[3],volume;int32_t last_volume,last_pan;
 } campaign_spatial_voice;
@@ -455,13 +456,14 @@ static void campaign_audio_listener(const float position[3],const float right[3]
 static int campaign_audio_open(const char *tables_path,const char *level_name)
 {
     char path[1024];size_t prefix=0,n;uint32_t i,j,index,capacity;
-    rf_vpp archive={0};int status;
+    rf_vpp archive={0},tables={0};rf_audio_declaration *declarations=NULL;uint32_t declared=0;int status;
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     memset(campaign_listener_position,0,sizeof(campaign_listener_position));
     memset(campaign_listener_right,0,sizeof(campaign_listener_right));campaign_listener_right[0]=-1;
     memset(rf_scene_spatial_audio,0,sizeof(rf_scene_spatial_audio));rf_scene_spatial_audio[2]=2166136261u;
     rf_scene_spatial_audio[5]=sizeof(campaign_spatial_voices)+sizeof(campaign_listener_position)+sizeof(campaign_listener_right);
     memset(rf_scene_live_audio,0,sizeof(rf_scene_live_audio));rf_scene_live_audio[7]=2166136261u;
+    memset(rf_scene_sound_bank,0,sizeof(rf_scene_sound_bank));
     rf_audio_mixer_init(&campaign_audio_mixer);
     for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
         campaign_controller_requests[i].sounds.samples[j]=-1;
@@ -471,19 +473,42 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
     if(prefix+sizeof("audio.vpp")>sizeof(path))return RF_RANGE;
     memcpy(path,tables_path,prefix);memcpy(path+prefix,"audio.vpp",sizeof("audio.vpp"));
     status=rf_vpp_open(&archive,path);if(status)return status;
-    capacity=campaign_group_runtime.count*4;if(!capacity)capacity=1;if(capacity>2600)capacity=2600;
+    status=rf_vpp_open(&tables,tables_path);if(status)goto audio_done;
+    status=rf_sound_table_load(&tables,65536,NULL,0,&declared);if(status)goto audio_done;
+    if(declared) {
+        declarations=malloc((size_t)declared*sizeof(*declarations));if(!declarations){status=RF_RANGE;goto audio_done;}
+        status=rf_sound_table_load(&tables,65536,declarations,declared,&declared);if(status)goto audio_done;
+    }
+    capacity=declared+campaign_group_runtime.count*4;if(!capacity)capacity=1;if(capacity>2600)capacity=2600;
     status=rf_audio_bank_open(&archive,capacity,1024*1024,&campaign_audio_bank);
+    if(status)goto audio_done;
+    for(i=0;i<declared;i++) {
+        const rf_audio_declaration *row=declarations+i;
+        status=rf_audio_bank_declare(&campaign_audio_bank,row->name,row->near_distance,row->volume,row->rolloff,&index);
+        if(status)goto audio_done;
+        /* Original4347f0 requires the registered index to equal the table row. */
+        if(index!=i){status=RF_FORMAT;goto audio_done;}
+    }
+    rf_scene_sound_bank[0]=declared;
+    free(declarations);declarations=NULL;rf_vpp_close(&tables);
     if(!status)for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
         const char *name=campaign_group_runtime.items[i].source->record.sounds[j];
         if(!name[0])continue;
         int loaded=rf_audio_bank_register(&campaign_audio_bank,name,
             !strcmp(level_name,"L14S2.rfl")?10.0f:5.0f,
             campaign_group_runtime.items[i].source->record.sound_values[j],1.0f,&index);
+        if(!loaded)loaded=rf_audio_bank_reload(&campaign_audio_bank,&archive,index);
         if(!loaded)campaign_controller_requests[i].sounds.samples[j]=(int32_t)index;
         else if(loaded==RF_NOT_FOUND)++rf_scene_live_audio[2];
         else ++rf_scene_live_audio[3];
     }
     rf_scene_live_audio[0]=campaign_audio_bank.count;rf_scene_live_audio[1]=campaign_audio_bank.bytes;
+    for(i=0;i<campaign_audio_bank.count;i++)if(rf_audio_bank_sample(&campaign_audio_bank,i)) {
+        ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[i].bytes;
+    }
+    rf_scene_sound_bank[3]=campaign_audio_bank.bytes-rf_scene_sound_bank[2];
+audio_done:
+    free(declarations);rf_vpp_close(&tables);
     rf_vpp_close(&archive);campaign_audio_bank.archive=NULL; /* All loading is complete. */
     return status;
 }

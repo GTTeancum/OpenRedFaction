@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
-- [ ] Trace startup/level audio ordering and separate persistent sound metadata from resident PCM within the budget.
+- [ ] Implement sound metadata persistence across level transitions and recover automatic PCM residency policy.
 - [ ] Complete controller audio groups/loop metadata and validate interactive PC/Xbox playback.
 - [ ] USER: Listen to the PC --campaign diagnostic and report dropouts or unexpected volume/pan changes.
 - [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
@@ -24,8 +24,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Campaign now declares88 global sounds before controller PCM; native door replay
+retains only four waveforms and verifies124024 bank bytes with unchanged output.
+
 Sound-table reader/archive loader pass20 cases with all88 owned rows intact;
-native archive I/O and campaign registration remain to connect.
+native archive I/O and campaign registration now pass; level transitions remain.
 
 Metadata-only bank registration passes PC and native136-byte-budget checks;
 connect global sound declarations and campaign residency policy next.
