@@ -13,6 +13,7 @@
 extern uint32_t rf_scene_actor_live_enabled;
 extern uint32_t rf_scene_actor_follow_summary[5];
 extern uint32_t rf_scene_player_input_frames[64][7];
+extern uint32_t rf_preview_failure[8],rf_animation_progress[4];
 extern rf_physics_body scene_actor_body;
 
 typedef struct player {
@@ -25,6 +26,7 @@ typedef struct player {
     rf_frame_clock clock;
     LARGE_INTEGER frequency;
     uint32_t frames,headless;
+    rf_scene_input *replay;uint32_t replay_count;
     int quit;
 } player;
 
@@ -75,6 +77,7 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     player *p=context;MSG message;uint32_t wait;
     memset(out,0,sizeof(*out));
     if(p->headless) {
+        if(p->replay){if(frame>=p->replay_count)return RF_RANGE;*out=p->replay[frame];return RF_OK;}
         /* Same deterministic route as rf_scene_check --input. */
         if(frame>=24 && frame<48)out->move[0]=.25f;
         if(frame>=63)out->move[0]=1;
@@ -105,6 +108,8 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
 {
     player *p=context;uint32_t i;int status;
     if(frame!=p->frames || mesh->bytes>RF_SCENE_FOLLOW_CAPACITY)return RF_RANGE;
+    /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
+    if(p->replay && frame+1<p->replay_count){++p->frames;return RF_OK;}
     if(!p->headless && !rf_frame_clock_present(&p->clock,milliseconds(p))){++p->frames;return RF_OK;}
     status=rf_pc_raster_frame(&p->raster,mesh,materials,&p->lightmaps,world);
     if(status)return status;
@@ -138,8 +143,17 @@ int main(int argc,char **argv)
         char *end;unsigned long value=strtoul(argv[3],&end,10);
         if(!argv[3][0] || *end || value<1 || value>60000)return 2;
         p.headless=1;limit=(uint32_t)value;directory=argv[2];
+    } else if(argc==5 && !strcmp(argv[1],"--replay")) {
+        FILE *file=fopen(argv[3],"rb");long bytes;size_t got;
+        if(!file)return 2;
+        if(fseek(file,0,SEEK_END) || (bytes=ftell(file))<=0 || bytes>60000*(long)sizeof(rf_scene_input) ||
+            bytes%(long)sizeof(rf_scene_input) || fseek(file,0,SEEK_SET)){fclose(file);return 2;}
+        p.replay=malloc((size_t)bytes);if(!p.replay){fclose(file);return 1;}
+        got=fread(p.replay,1,(size_t)bytes,file);
+        if(fclose(file) || got!=(size_t)bytes){free(p.replay);return 2;}
+        p.headless=1;limit=p.replay_count=(uint32_t)bytes/sizeof(rf_scene_input);directory=argv[2];
     } else if(argc==2)directory=argv[1];
-    else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n");return 2;}
+    else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
     CHECK(path_join(path,sizeof(path),directory,"levels1.vpp"));
     CHECK(rf_vpp_open(&archive,path));CHECK(rf_level_open(&level,&archive,"L1S1.rfl"));
@@ -191,6 +205,12 @@ int main(int argc,char **argv)
     }
     printf("Completed %u frames, 640x480 raster, %u byte mesh cap.\n",p.frames,RF_SCENE_FOLLOW_CAPACITY);
 cleanup:
+    if(status) {
+        fprintf(stderr,"ANIMATION_PROGRESS");for(i=0;i<4;++i)fprintf(stderr," %u",rf_animation_progress[i]);
+        fprintf(stderr,"\nSCENE_STAGE %u %u\nPREVIEW_FAILURE",rf_scene_profile_stage[0],rf_scene_profile_stage[1]);
+        for(i=0;i<8;++i)fprintf(stderr," %u",rf_preview_failure[i]);fprintf(stderr,"\n");
+    }
+    free(p.replay);
     rf_scene_set_input(NULL,NULL,0);rf_scene_actor_follow(NULL);
     if(p.window)DestroyWindow(p.window);
     if(wc.lpszClassName)UnregisterClassW(wc.lpszClassName,wc.hInstance);

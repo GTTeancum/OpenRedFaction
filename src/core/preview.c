@@ -3,6 +3,9 @@
 #include <string.h>
 #include <math.h>
 typedef struct point { float x, y, z, u, v, lu, lv; } point;
+/* Last world-projection capacity failure: valid, face, fan corner, used,
+ * capacity (vertices), geometry face count, writing pass, required vertices. */
+uint32_t rf_preview_failure[8];
 /* Keep clipping arithmetic at float precision on both SSE and x87 builds. */
 static float interpolate(float a,float b,float t)
 {
@@ -110,7 +113,10 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
             }
             for (i = 1; i + 1 < count; ++i) {
                 unsigned indices[3] = {0, i, i+1};
-                if (used > capacity || capacity-used < 3) return RF_RANGE;
+                if (used > capacity || capacity-used < 3) {
+                    uint32_t failure[8]={1,f,corner,used,capacity,g->faces,mesh->vertices!=NULL,3};
+                    memcpy(rf_preview_failure,failure,sizeof(failure));return RF_RANGE;
+                }
                 for (j = 0; j < 3; ++j) {
                     point p = buffers[current][indices[j]];
                     if (mesh->vertices) {
@@ -174,6 +180,7 @@ static int world_mesh(rf_preview_mesh *mesh,const rf_geometry *world,
     const rf_geometry_materials *materials,const rf_level *level,uint32_t budget,int reuse,rf_preview_vertex *scratch)
 {
     rf_preview_mesh next={0};uint32_t pass,i,j,total=0,capacity=budget/sizeof(rf_preview_vertex);int status;
+    memset(rf_preview_failure,0,sizeof(rf_preview_failure));
     if(!mesh || (!reuse && (mesh->vertices || mesh->bytes)) ||
         (reuse && ((budget && !mesh->vertices) || mesh->bytes>budget ||
             (uint64_t)mesh->count*sizeof(rf_preview_vertex)!=mesh->bytes)) ||

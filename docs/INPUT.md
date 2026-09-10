@@ -139,3 +139,61 @@ and no error status over the 20-second observation. The observed rate was about
 Its report was corrected to FAIL after auditing the initially permissive progress
 check. That error did not recur in the next run; its cause remains unresolved.
 Future harness failures save the detailed guest-memory snapshot automatically.
+
+
+## Recorded input and capacity-failure diagnosis
+
+The pacing harness records the 64-slot input ring at each observation. Extract a
+contiguous observed prefix and replay it entirely inside the PC process:
+
+```powershell
+python tools/extract_player_replay.py artifacts/xemu/<run>/report.json artifacts/inputs.bin
+./build/pc/Release/rf_pc_play.exe --replay Installed_Game artifacts/inputs.bin artifacts/replay.ppm
+python tools/verify_player_replay.py
+```
+
+The binary contains one 24-byte little-endian record per tick: five floats
+(move X/Y/Z, look pitch/yaw), then a uint32 crouch value. Replay accepts 1..60000
+records, projects every tick, and rasterizes only the final tick. The existing
+`--headless` route still rasterizes every frame. Neither mode opens a window or
+injects host input. Extraction rejects gaps and conflicting observations, excludes
+the potentially in-flight tail, and can add a stable failure snapshot's final
+records. Live RAM reads remain non-atomic; this is an observed command history,
+not a raw controller-device trace. Wrap, conflict and gap checks were exercised.
+Run `pacing-20260909-211857` yielded 413 contiguous observed records, successfully
+replayed by PC. That proves the acquisition/replay plumbing, not pose parity with
+a simultaneously moving guest.
+
+New failure evidence:
+
+- `rf_animation_progress`: frame, operation stage, final signed status as uint32,
+  render batch. Stages: 0 setup, 1 input, 2 controller/motion, 3 skeleton/cache,
+  4 physics-body initialization, 5 view/projection, 6 vertex checks, 7 model draw,
+  8 scene/presentation/physics sink, 9 completed frame.
+- `rf_scene_profile_stage` now advances even when timing is disabled.
+- `rf_preview_failure`: valid flag, face, fan corner, vertices used, vertex
+  capacity, source face count, writing-pass flag, additional vertices required.
+  This records capacity exhaustion; a zero valid flag does not diagnose other
+  range-error causes. All three are included in failure snapshots and PC stderr.
+
+A stationary full-yaw command reproduced RF_RANGE at tick 60; a diagonal turn
+reproduced it at tick 250. Both were world-projection capacity failures at the
+1 MiB staging-half limit. The first failure needed three more vertices after
+18,723 of the 18,724 available slots. First-person mode has no visible actor, so
+it can use the full existing 2 MiB allocation. It now falls back to transactional
+two-pass projection when staging is too small, and omits the hidden actor copy
+that would otherwise overwrite the expanded world. Ordinary views retain the
+single-pass staging path. Neither CPU nor GPU allocation caps were increased.
+
+Both former failures now complete 480 PC ticks. Peak world sizes are 1,966,440
+bytes for yaw and 1,914,864 for the diagonal turn; upward-look and forward
+movement cases also pass. The original 664-tick reference trace and final image
+remain exact. Larger views can still fail at the genuine 2 MiB limit; visibility
+and resource budgeting remain open. The historical tick-99 failure had no input
+log, so it cannot be positively attributed to this reproduced cause. The wide
+view sweeps still need explicit compiled-Xbox/GPU validation.
+
+
+Ordinary 664-tick turn regression `20260909-212051-203770` passes in stock 64 MiB
+with PC-matching actor rings and final body state. It does not cover the newly
+expanded wide-view range. The ongoing controller ISO was restored afterward.

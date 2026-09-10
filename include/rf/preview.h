@@ -11,6 +11,9 @@ typedef struct rf_preview_vertex {
     uint32_t lightmap;
 } rf_preview_vertex;
 typedef struct rf_preview_mesh { rf_preview_vertex *vertices; uint32_t count, bytes; } rf_preview_mesh;
+/* Last world capacity error: valid, face, fan corner, used/capacity vertices,
+ * geometry face count, writing pass, required vertices. Diagnostic only. */
+extern uint32_t rf_preview_failure[8];
 /* Initial geometry renderer input, not reconstructed original camera/materials.
  * 640x480, 90 degree horizontal FOV, +Z forward, 0.1..1000 depth range.
  * Temporary face shading keeps geometry inspectable until materials are restored. */

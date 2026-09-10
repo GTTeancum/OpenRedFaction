@@ -55,7 +55,7 @@ try:
     if started is not None or 'received 0' not in str(exc):raise
     time.sleep(.5);continue
    if c[0]==1 and c[4]>0:
-    sample={'host_seconds':time.monotonic(),'clock':c,'renderer_profile':words(monitor,symbol('rf_renderer_profile'),32),'profile':words(monitor,symbol('rf_scene_profile'),32),'profile_stage':words(monitor,symbol('rf_scene_profile_stage'),2),'diagnostic':words(monitor,symbol('rf_diagnostic'),58)}
+    sample={'host_seconds':time.monotonic(),'clock':c,'input_ring':words(monitor,symbol('rf_scene_player_input_frames'),448),'animation_progress':words(monitor,symbol('rf_animation_progress'),4),'preview_failure':words(monitor,symbol('rf_preview_failure'),8),'renderer_profile':words(monitor,symbol('rf_renderer_profile'),32),'profile':words(monitor,symbol('rf_scene_profile'),32),'profile_stage':words(monitor,symbol('rf_scene_profile_stage'),2),'diagnostic':words(monitor,symbol('rf_diagnostic'),58)}
     report['samples'].append(sample);print('Pacing:',c,flush=True)
     if sample['diagnostic'][2]&0x80000000:raise RuntimeError(f"Guest diagnostic error {sample['diagnostic'][2]:08x}")
     if started is None:started=time.monotonic()

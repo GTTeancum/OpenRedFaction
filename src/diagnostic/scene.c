@@ -17,9 +17,9 @@ void rf_scene_set_profile(uint32_t (*milliseconds)(void))
 static void profile_mark(uint32_t stage)
 {
     uint32_t now,elapsed,*row;uint64_t total;
+    rf_scene_profile_stage[1]=stage;
     if(!profile_clock)return;
     now=profile_clock();elapsed=now-profile_last;profile_last=now;
-    rf_scene_profile_stage[1]=stage;
     if(!profile_active || !stage)return;
     row=rf_scene_profile[stage];total=((uint64_t)row[2]<<32)+row[1]+elapsed;
     ++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
@@ -714,9 +714,20 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     /* The actor portion is idle until animation emits this tick's model. Use
      * it for transactional world projection before the actor is appended. */
     {uint32_t world_capacity=(stream->capacity-1024*1024)/sizeof(rf_preview_vertex)*sizeof(rf_preview_vertex);
-     status=rf_scene_world_update_camera_staged(actor_follow_world,NULL,0,position,orientation,
+     rf_preview_failure[0]=0;
+     if(rf_scene_actor_eye_enabled && stream->mesh->bytes>world_capacity)
+        status=rf_scene_world_update_camera(actor_follow_world,NULL,0,position,orientation,stream->mesh,stream->capacity);
+     else {
+        status=rf_scene_world_update_camera_staged(actor_follow_world,NULL,0,position,orientation,
         stream->mesh,world_capacity,stream->mesh->vertices+world_capacity/sizeof(rf_preview_vertex),
-        stream->capacity-world_capacity);if(status)return status;}
+        stream->capacity-world_capacity);
+        /* First-person rendering has no visible actor prefix to reserve. A
+         * large world may use the whole allocation through the transactional
+         * two-pass path instead of terminating at the staging-half boundary. */
+        if(status==RF_RANGE && rf_scene_actor_eye_enabled && rf_preview_failure[0])
+            status=rf_scene_world_update_camera(actor_follow_world,NULL,0,position,orientation,stream->mesh,stream->capacity);
+     }
+     if(status)return status;}
     profile_mark(2);
     stream->world=stream->mesh->count;
     memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);
@@ -775,7 +786,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         memset(rf_scene_actor_landing,0,sizeof(rf_scene_actor_landing));
         rf_scene_actor_landing[0]=0x52464c44;rf_scene_actor_landing[1]=3;rf_scene_actor_landing[2]=UINT32_MAX;
     }
-    uint64_t bytes=(uint64_t)stream->world*sizeof(rf_preview_vertex)+actor->bytes;
+    uint64_t bytes=(uint64_t)stream->world*sizeof(rf_preview_vertex)+(rf_scene_actor_eye_enabled?0:actor->bytes);
     if(actor->count%3 || actor->bytes!=(uint64_t)actor->count*sizeof(rf_preview_vertex) ||
        bytes>stream->capacity)return RF_RANGE;
     for(i=0;i<actor->count;++i) {
@@ -787,7 +798,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         memcpy(&slot,stream->bundle->items[actor->vertices[i].material].record.bytes+0x10,4);
         actor->vertices[i].material=stream->base+slot;
     }
-    memcpy(stream->mesh->vertices+stream->world,actor->vertices,actor->bytes);
+    if(!rf_scene_actor_eye_enabled)memcpy(stream->mesh->vertices+stream->world,actor->vertices,actor->bytes);
     if(stream->collision) {
         uint32_t hash=2166136261u;
         int status,blocked=rf_scene_actor_stance_blocked;

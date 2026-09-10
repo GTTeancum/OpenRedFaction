@@ -145,3 +145,9 @@ Full turn run `20260909-211014-307540` passes after the presentation change:
 2 MiB GPU vertex storage on stock 64 MiB XEMU. The ongoing controller ISO was
 restored. No framebuffer comparison was performed in this run; GPU completion,
 submission metadata, scene/state parity and memory telemetry were checked.
+
+
+The later capacity fix described in `INPUT.md` allows first-person views that
+exceed the staging half to use the entire existing 2 MiB destination through the
+two-pass path. The single-pass figures above apply to views fitting the staging
+half; they are not performance claims for the larger fallback views.

@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+/* Frame, operation stage, final status, render batch. Stages are documented in
+ * docs/INPUT.md; retained after errors so QMP can identify a stopped stream. */
+uint32_t rf_animation_progress[4];
 
 static uint32_t hash_bytes(uint32_t hash, const void *bytes, size_t count)
 {
@@ -116,7 +119,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     struct pose_workspace {rf_model_bone bones[256];float matrices[256][12];} *workspace=NULL;
     rf_model_bone *bones;rf_model_attachment eye;
     float (*matrices)[12], local[12], tag[12], displacement[3]={.125f,-.25f,.5f};
-    uint16_t generations[256]={0}; uint32_t count=0,i,frame; int status,opened=0,found=0;
+    uint16_t generations[256]={0}; uint32_t count=0,i,frame=UINT32_MAX; int status,opened=0,found=0;
     void *payload=NULL;
     float (*stored)[12]=NULL,(*prepared)[12]=NULL;uint16_t prepared_generations[256]={0};
     rf_model_geometry geometry={0};rf_model_vertex *vertices=NULL;uint32_t vertex_count=0,vertex_index,selected_lod;
@@ -126,6 +129,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_model_render_buffers render_buffers={0};rf_model_projection render_view={0};rf_model_lighting render_lights={0};
     rf_model_render_output render_output={1,{255,255,255},255,1,1};
     uint32_t frame_count=sink && placement && placement->frame_count?placement->frame_count:64;
+    memset(rf_animation_progress,0,sizeof(rf_animation_progress));rf_animation_progress[0]=UINT32_MAX;
     if(placement && placement->animation_timing && !placement->animation_timing_wrap && frame_count>(placement->animation_timing_capacity?placement->animation_timing_capacity:64))return RF_RANGE;
     if (!out || (placement && (!isfinite(placement->step_seconds) || placement->step_seconds<0))) return RF_RANGE;
     memset(out,0,8*4); out[0]=1;
@@ -242,12 +246,14 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     actor.direction.orientation[0]=actor.direction.orientation[4]=actor.direction.orientation[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
     for (frame=0;frame<frame_count;++frame) {
+        rf_animation_progress[0]=frame;rf_animation_progress[1]=1;
         float frame_seconds=frame && placement && placement->step_seconds>0?placement->step_seconds:1.0f/30.0f;
         if(placement && placement->begin_frame) {
             status=placement->begin_frame(placement->frame_context,frame);
             if(status==RF_NOT_FOUND){status=RF_OK;goto done;}if(status)goto done;
         }
         if(sink)preview->count=0;
+        rf_animation_progress[1]=2;
         if(authored) {
             static const int32_t sequence[4]={0,2,8,0};
             int handled=0;
@@ -316,6 +322,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 memcpy(d+11,&state.completion.active.slots[0].weight,4);
             }
         }
+        rf_animation_progress[1]=3;
         status=rf_model_evaluate_playback(bones,count,&state,handles,resources,resource_count,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         status=rf_model_compose_transform(local,matrices[eye.parent],tag); if (status!=RF_OK) goto done;
         out[3]=hash_bytes(out[3],matrices,count*48); out[4]=hash_bytes(out[4],&state,sizeof(state)); out[6]=hash_bytes(out[6],tag,48);
@@ -337,6 +344,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         out[5]=hash_bytes(out[5],generations,count*2); displacement[0]=0;
         status=rf_model_prepare_skinning(stored,matrices,count,(uint16_t)state.generation,prepared,prepared_generations,count);if(status)goto done;
         if(placement && placement->physics_config && placement->physics_body) {
+            rf_animation_progress[1]=4;
             rf_physics_body *body=placement->physics_body;
             if(frame==0) {
                 const rf_entity_physics_config *config=placement->physics_config;
@@ -383,6 +391,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             }
         }
         if(placement) {
+            rf_animation_progress[1]=5;
             const rf_physics_body *body=placement->physics_body;
             const float *position=body && body->allocated_bytes?body->state.position:placement->position;
             const float *orientation=body && body->allocated_bytes?body->state.orientation:placement->orientation;
@@ -391,6 +400,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             status=rf_model_local_view(&view,position,orientation,&render_view);if(status)goto done;
             clip_projection=placement->clip_projection;clip_planes=placement->planes;
         }
+        rf_animation_progress[1]=6;
         out[5]=hash_bytes(out[5],prepared,count*48);out[5]=hash_bytes(out[5],prepared_generations,count*2);
         for(vertex_index=0;vertex_index<vertex_count;++vertex_index) {
             rf_model_vertex *v=vertices+vertex_index;float position[3];
@@ -398,6 +408,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             out[5]=hash_bytes(out[5],position,sizeof(position));
         }
         for(render_batch=0;render_batch<geometry.batch_count;++render_batch) {
+            rf_animation_progress[1]=7;rf_animation_progress[3]=render_batch;
             const rf_model_draw_batch *draw=geometry.batches+render_batch;uint32_t n;
             rf_model_triangle_output triangle_output={render_buffers.vertices,render_indices,draw->vertices,4096,0,24576};
             memset(render_memory,0xa5,render_bytes);
@@ -438,10 +449,13 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             }
         }
         out[2]=frame+1;
+        rf_animation_progress[1]=8;
         if(sink) {preview->bytes=preview->count*sizeof(rf_preview_vertex);status=sink(sink_context,frame,preview);if(status)goto done;}
+        rf_animation_progress[1]=9;
     }
     if(!emitted_indices && !placement)status=RF_FORMAT;
 done:
+    rf_animation_progress[2]=(uint32_t)status;
     free(motion_cache);
     free(workspace);
     free(clip_pool);free(render_indices);

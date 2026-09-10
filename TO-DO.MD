@@ -3,12 +3,18 @@
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
-- [ ] Diagnose intermittent interactive RF_RANGE termination observed at tick 99.
+- [ ] Validate wide first-person views on Xbox and investigate any remaining interactive exits.
 - [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
 - [ ] USER: Test PC keyboard movement/look, crouch, focus loss, resizing and Escape exit.
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+PC input replay reproduced turning exits at the 1 MiB staging boundary. First-person
+views now use the full existing 2 MiB buffer when necessary; both 480-tick failing
+sweeps pass with no allocation increase. The historical tick-99 input was not
+recorded, so its exact cause remains unproven. Explicit wide-view Xbox validation
+is next; failure snapshots now retain operation stages and input history.
 
 Presentation profiling found a redundant trailing VBlank wait. Removing it cut
 measured presentation/integrity time from 27.23 to 13.62 ms; overall throughput
