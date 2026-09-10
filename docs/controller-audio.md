@@ -748,3 +748,20 @@ counter is below2, then calls5439b0 with its argument. These latter branches
 are decompiler traces, not yet execution-verified. Their scheduling and counter
 balancing still need recovery before implementing a persistent residency policy.
 No runtime ownership change is justified solely by the verified increment.
+
+### Counter-gated voice cleanup verification
+
+`python tools/verify_audio_voice_cleanup.py` now executes5060b0 together with
+original reset callees505680/506140. Only hardware stop5442b0 and downstream
+bulk-policy5439b0 are intercepted. Four fixtures cover audio disabled/enabled
+and both forwarded keep arguments, with all30 positional and25 other voice
+slots populated, sentinel sample indices and sample counters below/at/above2.
+Exact voice-record bytes, stop ordering and unchanged sample metadata are
+checked. Enabled cases each stop27 eligible voices; disabled cases stop none.
+The keep argument does not alter this voice selection and is forwarded intact.
+
+The first fixture attempt reversed the two families' sample/handle fields and
+failed; correcting the fixture to the traced layout yields the results above.
+Counter balancing remains unresolved. Record getters544700/544650 examined
+during this trace do not establish where counters are incremented/decremented.
+No persistent runtime ownership implementation follows from this check alone.

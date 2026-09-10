@@ -24,6 +24,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Original counter-gated cleanup verified over55 voice slots; keep flag forwards
+unchanged and does not change voice selection, while counter balancing remains open.
+
 Original pre-level sound counter update verified across2600 slots; recover
 counter balancing and cleanup scheduling before persistent residency integration.
 
