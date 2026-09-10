@@ -471,3 +471,24 @@ against all17584 original lookups, including half-step boundaries and out-of-uni
 inputs within -1..2. All pass exactly. Both game builds and six CTests pass.
 The result remains an integer device attenuation value, not a linear PCM gain;
 this helper is not yet connected to the campaign's playback adapter.
+
+### Device attenuation to channel amplitude
+
+`rf_audio_device_gains` converts integer device volume/pan into linear L/R
+amplitude, adding pan attenuation only to the quieter side. Amplitude is
+10^(hundredths_dB/2000); no artificial zero cutoff is added. It accepts volume
+-10000..0 and pan-10000..10000, rejecting invalid values without changing output.
+This is a platform adapter based on documented DirectSound semantics, not a
+reconstructed RF function. The original pan multiplier1000 therefore produces
+at most10dB side attenuation for a normalized positional pan of magnitude1.
+
+Microsoft documentation confirms cumulative volume/pan attenuation and the
+hundredths-of-dB units:
+https://learn.microsoft.com/en-us/previous-versions/windows/desktop/mt708938(v=vs.85)
+https://learn.microsoft.com/en-us/previous-versions/windows/desktop/mt708939(v=vs.85)
+
+`python tools/verify_audio_device_gains.py` passes76 boundary/directional/error
+cases against independent amplitude expressions in PC and NXDK-compiled code,
+using2e-7 relative tolerance for math-library rounding. Both game builds pass.
+The adapter is not yet wired into playback; native intermediate-gain calibration
+and original-device listening equivalence remain unverified.

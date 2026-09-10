@@ -1,6 +1,9 @@
 #ifndef RF_AUDIO_H
 #define RF_AUDIO_H
 #include "rf/vpp.h"
+/* DirectSound hundredths-of-dB adapter to linear L/R amplitude.
+ * Volume -10000..0, pan -10000..10000; errors preserve output. */
+int rf_audio_device_gains(int32_t volume,int32_t pan,float output[2]);
 /* Original 521680/522420 device volume, finite input -1..2.
  * linear_mode selects the alternative table; result is device attenuation units.
  * This is not a linear PCM gain. No allocation or transcendental work per call. */

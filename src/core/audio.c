@@ -185,3 +185,11 @@ int32_t rf_audio_device_volume(float volume,uint32_t linear_mode)
     int32_t index=volume<=0?0:volume>=1?100:(int32_t)((double)volume*100+.5);
     return linear_mode?(int32_t)(.5-(1-(double)index*(double).01f)*10000):audio_log_volume[index];
 }
+
+int rf_audio_device_gains(int32_t volume,int32_t pan,float output[2])
+{
+    if(!output || volume < -10000 || volume>0 || pan < -10000 || pan>10000)return RF_RANGE;
+    output[0]=(float)pow(10.0,(double)(volume-(pan>0?pan:0))/2000.0);
+    output[1]=(float)pow(10.0,(double)(volume+(pan<0?pan:0))/2000.0);
+    return RF_OK;
+}

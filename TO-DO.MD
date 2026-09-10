@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Device attenuation-to-channel amplitude adapter passes76 PC/NXDK cases;
+native gain calibration and campaign listener wiring remain open.
+
 Shared C device volume matches17584 original PC/NXDK lookups using202 bytes
 of constants; Xbox gain conversion and live wiring remain open.
 
