@@ -109,3 +109,34 @@ length, clamp and vector helpers. Full runtime and original object mutation
 match, including zero length, negative timing, idle indices and out-of-segment
 distance. Both builds and six CTests pass. Report is ignored local output
 at artifacts/group-reverse-verification.json.
+
+## Live controller activation prefix
+
+Default player contacts now call owned trigger firing and dispatch into actual
+registered translation controllers. rf_group_activation_begin updates their
+motion state and the player controller backlink. Per-controller20-byte sidecars
+retain source, actor, pending activation effects, start count and frame. They
+are allocated once and freed with scene mover ownership (100 bytes for L1S1).
+This intentionally does not claim the sound/alert/wakeup tail has executed;
+those requests remain pending. Motion ticking is still unconnected.
+
+Event targets now enter rf_runtime_event_fire, sharing the supported startup
+action backend and delayed event state. Unsupported actions/targets contribute
+to telemetry, and unsupported delayed events stay pending. Lower-door event
+9826 is Set_Friendliness with a1-second delay, not a motion command; its entity
+action remains unsupported. This is not complete event-target coverage.
+
+The scene clears fired bit64 per frame as4bf740 does, before player polling,
+and excludes triggers marked for removal. The rest of4bf740 deferred key and
+attachment behavior remains open. Raw fields0/1/2 must all be absent on this
+path, with no script or unsupported actor filter. Global inhibit/player-script
+gates are absent in the current reconstructed player lifecycle.
+
+180-frame staged PC/XEMU replay: artifacts/xemu/replay-20260910-170030/report.json
+passes stock64MiB, full collision metadata, event ticks and activation telemetry.
+LIVE_ACTIVATION=[4,6,2,6,5,0,1,1]: four trigger fires, six controller calls, two
+starts, six event calls, five pending/unsupported effect observations, no
+errors, both lower controllers start at frame+1=1. Trigger readiness now
+respects activation cooldown: [8414,4,8542,3,2327,0]. Collision is unchanged.
+Both platform builds and six CTests pass; runtime event probe also verifies
+direct event source/actor, gravity dispatch and wrong-type rejection.

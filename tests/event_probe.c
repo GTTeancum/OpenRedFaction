@@ -219,6 +219,11 @@ int main(int argc,char **argv)
             report.other_targets!=1 || report.unresolved_targets!=1 ||
             events[1].state.actor!=123 || events[1].state.source!=trigger.handle)return 73;
         if(rf_runtime_trigger_fire(&owner,events[0].handle,123,100,0,0,0,&gravity,NULL,&report,&fired)!=RF_NOT_FOUND)return 74;
+        events[1].state.flags=0;events[1].state.deadline=-1;records[1].record.values[0]=15;
+        if(rf_runtime_event_fire(&owner,events[1].handle,77,88,900,&gravity,NULL,&report) ||
+            gravity.acceleration!=15 || report.events!=1 || report.gravity_actions!=1 ||
+            events[1].state.source!=77 || events[1].state.actor!=88)return 112;
+        if(rf_runtime_event_fire(&owner,trigger.handle,77,88,900,&gravity,NULL,&report)!=RF_NOT_FOUND)return 113;
         puts("PASS runtime trigger dispatch, self-disable, gravity and limit mark");return 0;
     }
     if(argc==2 && !strcmp(argv[1],"--trigger-fire")) {

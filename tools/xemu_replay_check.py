@@ -172,6 +172,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert trigger_contacts==expected('TRIGGER_CONTACTS') and trigger_contacts[5]==0,trigger_contacts
      if args.door:assert trigger_contacts[3]>0,trigger_contacts
      report['trigger_contacts']=trigger_contacts
+     activation=words(monitor,symbol('rf_scene_live_activation'),8)
+     assert activation==expected('LIVE_ACTIVATION') and activation[5]==0,activation
+     if args.door:assert activation[2]==2 and activation[6]>0 and activation[6]==activation[7],activation
+     report['live_activation']=activation
      body_sweeps=words(monitor,symbol('rf_scene_actor_body_sweeps'),5)
      assert body_sweeps==expected('BODY_SWEEPS') and body_sweeps[3]==0,body_sweeps
      report['body_sweeps']=body_sweeps

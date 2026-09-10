@@ -236,6 +236,8 @@ int main(int argc,char **argv)
             printf("BODY_SWEEPS %u %u %u %u %u\n",rf_scene_actor_body_sweeps[0],rf_scene_actor_body_sweeps[1],rf_scene_actor_body_sweeps[2],rf_scene_actor_body_sweeps[3],rf_scene_actor_body_sweeps[4]);}
             {extern uint32_t rf_scene_actor_ground_queries[4];
             printf("GROUND_QUERIES %u %u %u %u\n",rf_scene_actor_ground_queries[0],rf_scene_actor_ground_queries[1],rf_scene_actor_ground_queries[2],rf_scene_actor_ground_queries[3]);}
+            {extern uint32_t rf_scene_live_activation[8];
+            printf("LIVE_ACTIVATION %u %u %u %u %u %u %u %u\n",rf_scene_live_activation[0],rf_scene_live_activation[1],rf_scene_live_activation[2],rf_scene_live_activation[3],rf_scene_live_activation[4],rf_scene_live_activation[5],rf_scene_live_activation[6],rf_scene_live_activation[7]);}
             {extern uint32_t rf_scene_trigger_contacts[6];
             printf("TRIGGER_CONTACTS %u %u %u %u %u %u\n",rf_scene_trigger_contacts[0],rf_scene_trigger_contacts[1],rf_scene_trigger_contacts[2],rf_scene_trigger_contacts[3],rf_scene_trigger_contacts[4],rf_scene_trigger_contacts[5]);}
             {extern uint32_t rf_scene_campaign_player[4];

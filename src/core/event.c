@@ -327,6 +327,17 @@ static void startup_target(startup_context *c,const rf_level_link_target *target
     c->status=status?status:child.status;
     if(!c->status && child.event->state.deadline>=0)++c->report->delayed_events;
 }
+int rf_runtime_event_fire(rf_runtime_triggers *triggers,uint32_t handle,
+    uint32_t source,uint32_t actor,int32_t now,rf_physics_gravity *gravity,
+    rf_level_particles *particles,rf_startup_events_report *report)
+{
+    startup_context c={0};rf_level_link_target target={handle,1,0};void *object;uint32_t kind;
+    if(!triggers || !triggers->registry || !gravity || !report)return RF_RANGE;
+    object=rf_object_registry_lookup(triggers->registry,handle);if(!object)return RF_NOT_FOUND;
+    memcpy(&kind,object,4);if(kind!=6)return RF_NOT_FOUND;
+    memset(report,0,sizeof(*report));c.triggers=triggers;c.gravity=gravity;c.particles=particles;c.report=report;c.now=now;
+    startup_target(&c,&target,source,actor,1);return c.status;
+}
 static void startup_trigger_dispatch(void *context,const rf_auto_trigger_state *state,
     uint32_t actor,uint32_t suppress_movers)
 {

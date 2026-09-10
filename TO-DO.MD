@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Live player contact now starts both lower-door controllers on the same PC/XEMU
+tick; motion ticking and retained activation effects remain unconnected.
+
 Controller translation reversal matches4096 original/PC/NXDK cases;
 live occupancy-gated hold/reversal and controller effect wiring remain open.
 

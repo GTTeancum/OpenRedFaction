@@ -271,6 +271,11 @@ int rf_runtime_trigger_fire(rf_runtime_triggers *triggers,uint32_t handle,
 int rf_runtime_trigger_fire_links(rf_runtime_triggers *triggers,uint32_t handle,
     uint32_t actor,int32_t now,uint32_t clock_bits,uint32_t blocked,uint32_t suppress_movers,
     rf_trigger_link_effect effect,void *context,uint32_t *fired);
+/* Activate one registered event through the supported runtime action backend.
+ * Unsupported actions and delayed work remain visible in report/state. */
+int rf_runtime_event_fire(rf_runtime_triggers *triggers,uint32_t handle,
+    uint32_t source,uint32_t actor,int32_t now,rf_physics_gravity *gravity,
+    rf_level_particles *particles,rf_startup_events_report *report);
 /* Partial single-player startup dispatcher: follows resolved trigger links,
  * activates common event state and implements Set_Gravity. Other actions,
  * event targets recurse in order and trigger targets toggle disabled bit 16.
