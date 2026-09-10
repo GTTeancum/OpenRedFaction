@@ -31,7 +31,7 @@ approach and top-platform traversal remain unverified. Original 430c70/4280b0
 confirms immediate region exit with vertical-velocity reset, so avoid assuming
 the staged top-boundary re-entry alone proves the transition code is wrong.
 
-User confirmed interactive movement on 2026-09-09. Crouch, controller reconnect
+User confirmed interactive movement on 2026-09-09 and reconfirmed being able to move on 2026-09-10. Crouch, controller reconnect
 and Back+Start exit still need user checks.
 
 Campaign stance now applies collision crouch immediately and uses the recovered
@@ -104,7 +104,7 @@ values remain explicit fixture defaults pending their live lifecycle integration
 See tools/verify_player_stance_gate.py and docs/CAMERA.md.
 
 The original release handler now passes 162 execution fixtures covering blocked
-and clear query results, 0–8 spheres, absent/matching/nonmatching player lists,
+and clear query results, 0ï¿½8 spheres, absent/matching/nonmatching player lists,
 and zero/nonzero crouch bytes. A blocked result preserves the full actor, player
 and sphere records and skips ground/speed updates. The query result is supplied;
 this does not close the live low-ceiling campaign traversal check.
