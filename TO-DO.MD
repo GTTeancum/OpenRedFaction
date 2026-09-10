@@ -3,7 +3,7 @@
 Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Connect the verified emitter update to campaign objects, particle simulation and rendering.
-- [ ] Connect verified particle owner lookups and the loaded runtime to campaign frame updates.
+- [ ] Reconstruct render-derived room visibility and connect particle frame updates.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
@@ -17,6 +17,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Original room reset/visit replays confirm render-derived particle eligibility;
+portal traversal and simulation/render timing remain open.
 
 Both original emitter passes use the same collection and room eligibility;
 12 loop replays confirm order and 189 calls, independent of emitter enable.

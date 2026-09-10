@@ -79,3 +79,25 @@ Each rechecks the emitter room via 497390 before invoking 4972f0 on the same
 emitter pointer. The earlier suggestion of separate collections was incorrect.
 Do not substitute emitter enable for room eligibility: phase changes happen
 inside 4972f0, while the room check gates entry to that function.
+
+## Source of room eligibility
+
+Original `4d2f80` traverses the room vector at world +0x90 and clears only
+room byte +0x160. `431820` calls this reset using the world at 0x6460e8 before
+its player-view loop. The reset does not clear the adjacent +0x161 visit flag.
+
+Room traversal `4d4860` sets +0x160 and +0x161 to 1 on accepted visits. It
+rejects rooms with nonzero bytes at offsets 0 or 1, records traversal depth
+at +0x164 and screen bounds at +0x16c..+0x178. Repeat visits union their
+rectangles and retain one room entry in the ordered visible-room list.
+Flag 1 skips recursive portal traversal. Caller `4d4760` selects an all-room
+nonrecursive fallback or traversal from the supplied starting room.
+
+`verify_room_visibility_lifecycle.py` executes the original reset with 0, 1,
+17 and 128 rooms and eight original nonrecursive visits, without stubbing
+their callees. It verifies byte-preserving reset, eligibility predicates,
+visit flags, rectangle union and duplicate handling. This establishes that
+particle room eligibility is render-derived. It does not establish complete
+portal traversal or simulation-versus-render timing. The shared diagnostic
+renderer currently lacks this room visibility lifecycle; campaign wiring
+must recover it rather than substituting emitter enable or camera room alone.
