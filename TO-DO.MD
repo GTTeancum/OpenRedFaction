@@ -14,8 +14,9 @@ Immediate open items:
 Original cache-gate and spawn-copy execution now confirms that a warm class
 cache bypasses pose sampling for both NPCs and players, and creation copies
 cached sphere centers into the entity without changing its other sphere fields.
-Four gate cases and 180 copy cases pass. Separate class-cache ownership from
-the armed player animation before connecting that initial pose; see docs/CAMERA.md.
+Four gate cases and 180 copy cases pass. Sphere and stance sampling now runs
+before body allocation and has no body dependency; persistent first-user cache
+ownership and armed playback integration remain open. See docs/CAMERA.md.
 
 Original static-solid plane rejection now prevents the campaign turn overflow:
 all 480 yaw ticks pass on PC and 64 MiB XEMU at a 1,161,048-byte world peak,

@@ -2188,3 +2188,16 @@ must separate class cache initialization from per-entity playback; changing the
 selector alone would incorrectly make collision centers depend on the armed
 blend. Full cold-cache sampling, runtime class ownership, and the remaining
 player factory are still open.
+
+Class sampling is now separated from body construction in the shared diagnostic:
+`class_spheres_build` produces resolved sphere records, and `stance_cache_build`
+uses those records directly instead of reading an allocated entity body. Stance
+and eye sampling completes before body allocation. No persistent allocation is
+added. The pose source remains the existing unarmed fixture; this refactor does
+not yet implement first-user class ownership or enable armed player playback.
+The before/after PC 664-input normal replay and 120-input campaign-neutral replay
+have identical complete stdout traces and final PPM bytes; evidence is retained
+in `artifacts/class-cache-refactor/report.json`. PC/NXDK builds and five CTests pass.
+Stock-64-MiB XEMU campaign replay `replay-20260909-222821` also passes all
+120 inputs with the harness's PC/original spawn, body, input and mesh checks;
+the normal interactive disc profile is restored afterward.

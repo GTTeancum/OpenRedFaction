@@ -41,13 +41,13 @@ static int reset_loaded_weapon(void *user)
 static int stance_cache_build(const rf_model_file *model,const rf_model_bone *bones,uint32_t bone_count,
     const rf_motion_playback_state *initial,const rf_motion_file *const *handles,
     const rf_motion_playback_resource *resources,uint32_t resource_count,int32_t crouch,
-    const rf_entity_physics_config *config,const rf_physics_body *body,rf_physics_stance_cache *result,
+    const rf_entity_physics_config *config,const rf_physics_sphere *standing,uint32_t sphere_count,rf_physics_stance_cache *result,
     const rf_model_attachment *eye,const float eye_transform[12],float *eye_offsets)
 {
     rf_motion_playback_state state=*initial;rf_motion_playback_resource copied[23];
     rf_physics_stance_cache value={0};uint16_t generations[256]={0};float displacement[3]={0};
     float (*matrices)[12],offsets[6],crouch_eye[12];uint32_t i;int status;
-    if(resource_count>23 || bone_count>256 || body->spheres.count>8)return RF_RANGE;
+    if(resource_count>23 || bone_count>256 || sphere_count>8 || (sphere_count && !standing))return RF_RANGE;
     memcpy(copied,resources,resource_count*sizeof(*copied));
     matrices=malloc(bone_count*48);if(!matrices)return RF_IO;
     status=RF_OK;
@@ -72,18 +72,44 @@ static int stance_cache_build(const rf_model_file *model,const rf_model_bone *bo
             if(config->authored.flags&0x20000u)offsets[0]=offsets[2]=offsets[3]=offsets[5]=0;
         }
     }
-    value.count=body->spheres.count;
+    value.count=sphere_count;
     for(i=0;!status && i<value.count;++i) {
         rf_model_collision_sphere sphere;float posed[4],difference;
         status=rf_model_file_collision_sphere(model,i,&sphere);if(status)break;
         status=rf_model_collision_sphere_pose(&sphere,matrices,bone_count,posed);if(status)break;
-        memcpy(value.centers[0][i],body->spheres.items[i].center,12);
+        memcpy(value.centers[0][i],standing[i].center,12);
         memcpy(value.centers[1][i],posed,12);
         if(config->authored.flags&0x24000)value.centers[1][i][0]=value.centers[1][i][2]=0;
         difference=(float)((double)value.centers[0][i][1]-value.centers[1][i][1]);
         value.height_difference=fmaxf(value.height_difference,difference);
     }
     free(matrices);if(!status) {*result=value;if(eye_offsets)memcpy(eye_offsets,offsets,sizeof(offsets));}return status;
+}
+/* Class sampling has no dependency on an instantiated physics body. The
+ * caller supplies a pose and receives resolved records for body creation.
+ * First-user cache ownership is still supplied by the diagnostic fixture.
+ * 423bd0 model spheres and table overrides, with the existing eight-sphere
+ * diagnostic limit. This does not implement the original no-model fallback. */
+static int class_spheres_build(const rf_model_file *model,const float (*matrices)[12],uint32_t bone_count,
+    const rf_entity_physics_config *config,rf_physics_sphere spheres[8],uint32_t *sphere_count)
+{
+    rf_entity_class_sphere resolved[8]={0};uint32_t n=0,j;int status;
+    for(j=0;j<8;++j) {
+        rf_model_collision_sphere sphere;float posed[4];
+        status=rf_model_file_collision_sphere(model,j,&sphere);
+        if(status==RF_NOT_FOUND)break;if(status)return status;
+        status=rf_model_collision_sphere_pose(&sphere,matrices,bone_count,posed);if(status)return status;
+        if(strlen(sphere.name)>=24)return RF_RANGE;
+        strcpy(resolved[j].name,sphere.name);memcpy(resolved[j].center,posed,12);
+        if(config->authored.flags&0x24000)resolved[j].center[0]=resolved[j].center[2]=0;
+        resolved[j].radius=posed[3];resolved[j].selected_scalar=1;resolved[j].parameter_10=-1;resolved[j].model_index=j;++n;
+    }
+    status=rf_entity_sphere_overrides(resolved,n,config->spheres.items,config->spheres.count,0);if(status)return status;
+    for(j=0;j<n;++j) {
+        memcpy(spheres[j].center,resolved[j].center,12);spheres[j].radius=resolved[j].radius;
+        spheres[j].parameter_10=resolved[j].parameter_10;spheres[j].opaque_14=resolved[j].opaque_14;
+    }
+    *sphere_count=n;return RF_OK;
 }
 static int animation_run(const char *meshes_path,const char *motions_path,uint32_t out[8],rf_preview_mesh *preview,uint32_t preview_frame,uint32_t budget,rf_animation_frame_sink sink,void *sink_context,const rf_animation_placement *placement,const rf_entity_state_set *authored)
 {
@@ -348,22 +374,13 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             rf_physics_body *body=placement->physics_body;
             if(frame==0) {
                 const rf_entity_physics_config *config=placement->physics_config;
-                rf_entity_class_sphere resolved[8]={0};rf_physics_sphere spheres[8];
-                rf_physics_body_parameters parameters={0};uint32_t n=0,j;
-                for(j=0;j<8;++j) {
-                    rf_model_collision_sphere sphere;float posed[4];
-                    status=rf_model_file_collision_sphere(&model,j,&sphere);
-                    if(status==RF_NOT_FOUND) {status=RF_OK;break;}if(status)goto done;
-                    status=rf_model_collision_sphere_pose(&sphere,matrices,count,posed);if(status)goto done;
-                    if(strlen(sphere.name)>=24) {status=RF_RANGE;goto done;}
-                    strcpy(resolved[j].name,sphere.name);memcpy(resolved[j].center,posed,12);
-                    if(config->authored.flags&0x24000)resolved[j].center[0]=resolved[j].center[2]=0;
-                    resolved[j].radius=posed[3];resolved[j].selected_scalar=1;resolved[j].parameter_10=-1;resolved[j].model_index=j;++n;
-                }
-                status=rf_entity_sphere_overrides(resolved,n,config->spheres.items,config->spheres.count,0);if(status)goto done;
-                for(j=0;j<n;++j) {
-                    memcpy(spheres[j].center,resolved[j].center,12);spheres[j].radius=resolved[j].radius;
-                    spheres[j].parameter_10=resolved[j].parameter_10;spheres[j].opaque_14=resolved[j].opaque_14;
+                rf_physics_sphere spheres[8];
+                rf_physics_body_parameters parameters={0};uint32_t n=0;
+                status=class_spheres_build(&model,matrices,count,config,spheres,&n);if(status)goto done;
+                if(placement->stance_cache) {
+                    status=stance_cache_build(&model,bones,count,&state,handles,resources,resource_count,motions[8],config,spheres,n,placement->stance_cache,
+                        &eye,local,placement->initial_eye_offsets);
+                    if(status)goto done;
                 }
                 parameters.mass=config->authored.mass;parameters.coefficients[0]=config->material.elasticity;
                 parameters.coefficients[1]=10;parameters.coefficients[2]=config->material.friction;
@@ -376,11 +393,6 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 parameters.flags=rf_entity_creation_physics_flags(0,config->authored.flags,config->authored.flags2,config->authored.use_kind,0);
                 status=rf_physics_body_open(&parameters,NULL,0,4096,body);if(status)goto done;
                 status=rf_physics_body_replace_spheres(body,spheres,n,4096);if(status)goto done;
-                if(placement->stance_cache) {
-                    status=stance_cache_build(&model,bones,count,&state,handles,resources,resource_count,motions[8],config,body,placement->stance_cache,
-                        &eye,local,placement->initial_eye_offsets);
-                    if(status)goto done;
-                }
             }
             if(placement->physics_diagnostic) {
                 uint32_t *d=placement->physics_diagnostic;
