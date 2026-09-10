@@ -2103,3 +2103,22 @@ uses a selected sin(yaw)*forward.x or rounded-cos(yaw)*forward.z product when
 deriving pitch/roll; preserve the actual instruction math during reconstruction.
 The live diagnostic's frame-zero memset of `actor_look` remains appropriate
 only to its current zero-angle fixture, and must be replaced for campaign spawn.
+
+`rf_look_spawn_angles` now reconstructs that span in shared C. It accepts the
+body/physics matrices and three movement rotation references, and returns body
+and eye angles without mutating unrelated look state. It preserves the original
+atan quotient/quadrant rules, binary32 constants and stores, yaw-only body,
+and row-dot/filter sequence. NXDK uses x87 atan/sin/cos and extended arithmetic,
+temporarily selecting extended precision and restoring the caller's control
+word. Finite inputs are checked before computation and failures preserve output.
+This helper does not select the initial movement mode or create/attach a player.
+
+`python tools/verify_spawn_look.py --nxdk` compares the full original span and
+all callees against the PC probe and compiled NXDK helper. All 601 cases are
+bit-exact on both targets: 94 installed starts, seven axis/degenerate cases and
+500 additional matrices with varying rotation references. NXDK also preserves
+an incoming 027f control word while reproducing the 037f reference. Local report
+`artifacts/spawn-look-verification.json` includes executable hashes. Both full
+builds and five CTests pass. The diagnostic continues using its old initialization
+until the campaign player spawn/ownership path is connected; no live XEMU
+integration is claimed by these CPU checks.

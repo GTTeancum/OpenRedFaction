@@ -51,6 +51,13 @@ typedef struct rf_look_state {
     float body_angles[3],eye_angles[3],angular_velocity[3];
 } rf_look_state;
 int rf_look_update(rf_look_state *state,float angular_speed,float dt);
+typedef struct rf_spawn_look_angles {float body[3],eye[3];} rf_spawn_look_angles;
+/* 422e2c..422e82: original matrix angle extraction, yaw-only body, and
+ * physics-frame projection filtered by rotation reference == 1. No command
+ * clearing, pose construction or factory ownership. Finite inputs required;
+ * errors preserve result. Matrices are row-major right/up/forward. */
+int rf_look_spawn_angles(const float orientation[9],const float physics_orientation[9],
+    const uint32_t rotation[3],rf_spawn_look_angles *result);
 /* Original 4a0d70 eye matrix, including 4fc500 orthogonalization.
  * Pitch within +/-pi/2, yaw within +/-2pi; finite roll accepted but ignored.
  * Errors preserve output; angles/output may alias. */

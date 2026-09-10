@@ -4,6 +4,16 @@
 #include <string.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--spawn-angles")) {
+        struct {float orientation[9],physics[9];uint32_t rotation[3];} in;
+        struct {int32_t status;rf_spawn_look_angles angles;} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0,sizeof(out));out.status=rf_look_spawn_angles(in.orientation,in.physics,in.rotation,&out.angles);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
     rf_eye_input input;
     struct { int32_t status; float position[3]; } output;
     _Static_assert(sizeof(input) == 96, "Probe wire layout");

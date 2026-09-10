@@ -12,10 +12,14 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared C spawn-look initialization now matches original instructions exactly in
+601 cases on PC and compiled NXDK, including all 94 level starts. The helper
+still needs to seed the live player before campaign placement replaces the fixture.
+
 Original spawn-look initialization executes across all 94 level starts; 89 have
 nonzero body yaw (Live Mines: 2.2433788776 radians). The diagnostic zero-angle
 initialization cannot be retained for campaign placement. Matrix extraction and
-movement-descriptor eye filtering need shared C reconstruction; see docs/CAMERA.md.
+movement-descriptor eye filtering are now reconstructed; see docs/CAMERA.md.
 
 Class-based skeletal asset loading now works without a placed level entity:
 all 168 authored class/skin selections and the existing 78 Live Mines bindings

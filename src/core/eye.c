@@ -3,6 +3,62 @@
 #include <math.h>
 #include <string.h>
 static int crouched(int32_t state) { return state >= 8 && state <= 10; }
+static float spawn_atan(float y,float x)
+{
+    long double angle;
+    if(x==0)return y==0?0:y>0?1.5707963705062866211f:-1.5707963705062866211f;
+#if defined(__i386__) && !defined(_MSC_VER)
+    __asm__ volatile("flds %1; fdivs %2; fld1; fpatan; fstpt %0"
+        :"=m"(angle):"m"(y),"m"(x):"st","st(1)");
+#else
+    angle=atanl((long double)y/x);
+#endif
+    if(x<0)angle+=(long double)3.1415927410125732422f;
+    return (float)angle;
+}
+static long double spawn_trig(float angle,int cosine)
+{
+#if defined(__i386__) && !defined(_MSC_VER)
+    long double value;
+    if(cosine) __asm__ volatile("flds %1; fcos; fstpt %0":"=m"(value):"m"(angle):"st");
+    else __asm__ volatile("flds %1; fsin; fstpt %0":"=m"(value):"m"(angle):"st");
+    return value;
+#else
+    return cosine?cosl(angle):sinl(angle);
+#endif
+}
+int rf_look_spawn_angles(const float orientation[9],const float physics_orientation[9],
+    const uint32_t rotation[3],rf_spawn_look_angles *result)
+{
+    rf_spawn_look_angles value={{0},{0}};float angles[3],c,denominator,a,b;long double s;
+    unsigned i;
+#if defined(__i386__) && !defined(_MSC_VER)
+    unsigned short saved,control;
+#endif
+    if(!orientation || !physics_orientation || !rotation || !result)return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(orientation[i]) || !isfinite(physics_orientation[i]))return RF_FORMAT;
+#if defined(__i386__) && !defined(_MSC_VER)
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+#endif
+    angles[1]=spawn_atan(orientation[6],orientation[8]);
+    s=spawn_trig(angles[1],0);c=(float)spawn_trig(angles[1],1);
+    denominator=(float)(fabsl(s)>fabsf(c)?s*orientation[6]:(long double)c*orientation[8]);
+    angles[0]=spawn_atan(-orientation[7],denominator);
+    a=denominator?orientation[1]/denominator:0;
+    b=denominator?orientation[4]/denominator:0;
+    angles[2]=spawn_atan(a,b);
+    value.body[1]=angles[1];
+    for(i=0;i<3;++i)if(rotation[i]==1)value.eye[i]=(float)(
+        ((long double)physics_orientation[i*3+2]*angles[2]+
+         (long double)physics_orientation[i*3+1]*angles[1])+
+         (long double)physics_orientation[i*3]*angles[0]);
+#if defined(__i386__) && !defined(_MSC_VER)
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#endif
+    for(i=0;i<3;++i)if(!isfinite(value.body[i]) || !isfinite(value.eye[i]))return RF_RANGE;
+    *result=value;return RF_OK;
+}
 static void transform(const float offset[3], const float matrix[3][3], float out[3])
 {
     unsigned i;
