@@ -827,3 +827,32 @@ and all other 222300 bytes of shared native state remain unchanged. Fixtures
 cover empty/missing/repeated links, duplicate UID first match, noncanonical
 enabled bytes and timer endpoints. Report: artifacts/particle-state-verification.json.
 Both builds and all six CTests pass. No live campaign or XEMU event claim yet.
+
+Particle_State scheduler integration (2026-09-10)
+
+The partial startup and delayed event dispatchers now accept an optional
+rf_level_particles owner. Type 39 action callbacks use authored raw UID links
+with rf_level_particles_set_state. Generic propagation still uses the resolved
+link array, so emitter state lookup is not accidentally redirected through
+object handles. The scene passes its already-loaded particle owner at startup
+and on event ticks after physics and before particle simulation. No allocator
+or report-layout changes are introduced. Without a live particle owner,
+scheduled type 39 events remain pending; immediate actions are counted as
+unsupported instead of silently succeeding.
+
+rf_event_probe --particle-events verifies four deferred modes, pre-deadline
+waiting, missing-owner retention, missing/repeated raw IDs, unchanged unrelated
+emitters, and repeated on activation preserving the old spawn deadline. It
+also fires an immediate type 39 event from a startup trigger. These fixtures
+use deliberately unresolved generic emitter targets to verify the raw-ID
+action path. Existing common activation/tick semantics are retained: immediate
+mode exactly one enables; delayed nonzero mode enables, while propagation
+uses mode exactly one. Common scheduling and UID actions have separate original
+executable verifiers; these new fixtures test shared integration on PC.
+
+verify_runtime_startup.py runs these fixtures and the existing startup-graph
+checks. Both builds and all six CTests pass. Native report
+artifacts/xemu/20260910-140511-757392/report.json passes with stock 67108864
+base bytes, no extra RAM, and the same scene particle/draw summaries. It is
+a regression replay, not evidence of visible authored Particle_State firing.
+Native authored activation and broader campaign trigger eligibility remain open.

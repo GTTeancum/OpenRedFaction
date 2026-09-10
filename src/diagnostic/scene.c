@@ -1266,7 +1266,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
                 /* Owned 60-Hz replay clock. Original 4333ea calls event tick
                  * after physics; full wall-clock/whole-frame parity is open. */
-                status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&tick_report,&pending);
+                status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles,&tick_report,&pending);
                 if(status)return status;
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;
                 memcpy(words,&tick_report,sizeof(words));
@@ -1472,7 +1472,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
-            status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&rf_scene_startup_events);
+            status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles,&rf_scene_startup_events);
             if(status)goto done;
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
         }

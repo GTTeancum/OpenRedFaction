@@ -18,8 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Particle_State UID actions match 512 original/PC/NXDK cases; connecting the
-verified emitter enable/deadline updates to scheduled campaign events is open.
+Particle_State now runs through immediate and delayed event dispatch; PC
+integration fixtures and the stock 64 MiB XEMU regression replay pass.
+Visible authored Particle_State activation still needs native validation.
 
 Stretched geometry and clipped submission match original/PC/NXDK fixtures; six
 stock 64 MiB XEMU GPU fixtures match all 1536 PC pixel samples exactly.

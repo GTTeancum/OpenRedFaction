@@ -4,6 +4,7 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[1];probe=root/'build/pc/Release/rf_event_probe.exe'
 assert subprocess.check_output([str(probe),'--startup-recursion'],text=True).strip()=='PASS 5 startup recursion fixtures'
 assert subprocess.check_output([str(probe),'--event-ticks'],text=True).strip()=='PASS 4 delayed event fixtures'
+assert subprocess.check_output([str(probe),'--particle-events'],text=True).strip()=='PASS 4 scheduled Particle_State modes and immediate startup activation'
 events=json.loads((root/'artifacts/events.json').read_text())['results'];triggers=json.loads((root/'artifacts/triggers.json').read_text())['results'];results=[]
 for level in triggers:
  ev=next(e for e in events if e['file']==level['file'] and e['archive']==level['archive'])['records'];records=ev+level['records'];wanted=[0]*9;gravity=9.8

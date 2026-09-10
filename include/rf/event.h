@@ -4,6 +4,7 @@
 #include "rf/physics.h"
 #include "rf/level.h"
 #include "rf/object_registry.h"
+#include "rf/level_particles.h"
 /* Original 4bd700: case-insensitive authored name to type 0..89; -1 for
  * unknown/NULL. Name must be NUL-terminated. Type recognition does not imply
  * that the corresponding runtime action has been reconstructed. */
@@ -142,20 +143,22 @@ typedef struct rf_startup_events_report {
  * activates common event state and implements Set_Gravity. Other actions,
  * event targets recurse in order and trigger targets toggle disabled bit 16.
  * Non-event/trigger targets and nonempty script eligibility remain unsupported.
- * Other event actions remain pending; rf_runtime_events_tick updates the three
- * verified common-tick types. Immediate recursion
+ * Other event actions remain pending; rf_runtime_events_tick updates the
+ * verified common-tick types. An optional owned particle runtime enables
+ * Particle_State actions using authored UID links. Immediate recursion
  * above 64 events fails RF_RANGE defensively; effects are not rolled back.
  * No full campaign completion claim.
  * Owners share one registry and stay alive throughout; clocks are caller-owned.
  * Dispatch may mutate state before an error; effects are not rolled back. */
 int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *gravity,
-    int32_t now,uint32_t clock_bits,rf_startup_events_report *report);
-/* Ordered delayed update for verified common-tick types Invert/Set_Gravity/Delay.
+    int32_t now,uint32_t clock_bits,rf_level_particles *particles,rf_startup_events_report *report);
+/* Ordered delayed update for verified common-tick types Invert/Set_Gravity/Delay/Particle_State.
+ * A NULL particle runtime leaves scheduled Particle_State events pending.
  * Other scheduled types remain pending and are counted, not cleared. Reports
  * describe this call only. Owners share a live registry; no removal/reordering
  * during callbacks. Recursive dispatch has the same limit as startup. */
 int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *triggers,
-    rf_physics_gravity *gravity,int32_t now,rf_startup_events_report *report,
+    rf_physics_gravity *gravity,int32_t now,rf_level_particles *particles,rf_startup_events_report *report,
     uint32_t *unsupported_pending);
 
 typedef struct rf_unhide_state {
