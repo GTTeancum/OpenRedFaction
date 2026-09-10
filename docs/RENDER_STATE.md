@@ -312,3 +312,29 @@ unit per channel; the XEMU comparison allows two. This covers constant-texel
 cases, not full-image or subpixel edge equivalence. Real animated images,
 perspective-varying sampling, campaign depth conversion and call-site integration
 remain open. These tests do not establish full PC/Xbox rasterizer parity.
+
+## Real explosion texture probes
+
+The native pixel harness now loads `boom01.vbm` from maps2.vpp through
+`rf_particle_bitmap_open` and draws frames 0, 7 and 15 in ordinary and additive
+modes. Each frame is released only after the synchronous draw and readback.
+The PC probe decodes the corresponding frame from the installed archive and
+samples the same positions. A 16x16 interior grid per draw yields 1536 compared
+pixels across six quads. This exercises real decoded/swizzled image storage,
+bilinear sampling, frame selection by index, alpha and native texture binding.
+
+Run `artifacts/xemu/particle-pixels-20260910-095711/report.json` passes on stock
+64-MiB XEMU. Maximum RGB-channel error is 1; only 20 of 4608 compared channels
+differ. The twelve earlier constant-color probes still match exactly. Warmed
+available pages are 14197 before frame loading, minimum 14193 with an image
+resident and 14197 after cleanup. The loaded animation reports 16 frames and a
+16420-byte bitmap record-plus-pixel footprint, within the 65536-byte test budget.
+These page measurements concern this isolated diagnostic, not campaign peak RAM.
+
+Frame 0 is transparent at every sampled position, so it is retained as a baseline
+rather than cited as visible texture coverage. Frames 7 and 15 supply visible
+coverage; the harness also requires different frame results and distinct normal
+versus additive results for the late frame. Sampling uses constant reciprocal W
+as in the billboard depth override. This does not test a running animation clock,
+velocity-stretched particles, a residency cache or placement/depth in the campaign.
+No desktop screenshot or game-scene progress image is produced by this test.

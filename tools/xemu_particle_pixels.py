@@ -60,6 +60,17 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   assert len(pc)==12 and all(abs(a-b)<=2 for rgb,ref in zip(pc,actual) for a,b in zip(rgb,ref)),pc
   report.update(expected_rgb=expected,actual_rgb=actual,pc_rgb=pc)
   assert all(abs(a-b)<=2 for rgb,ref in zip(actual,expected) for a,b in zip(rgb,ref)),actual
+  texture_address=int(re.search(r'_rf_particle_texture_diagnostic\s+([0-9a-fA-F]+)',mapping)[1],16)
+  texture_state=words(monitor,texture_address,1544)
+  texture_pc=[tuple(map(int,line.split())) for line in subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe'),'--textures',str(root/'Installed_Game/maps2.vpp')],text=True).splitlines()]
+  texture_actual=[((p>>16)&255,(p>>8)&255,p&255) for p in texture_state[8:]]
+  differences=[abs(a-b) for pixel,ref in zip(texture_actual,texture_pc) for a,b in zip(pixel,ref)]
+  report['textures']=dict(state=texture_state[:8],actual_rgb=texture_actual,pc_rgb=texture_pc,max_channel_error=max(differences),differing_channels=sum(d!=0 for d in differences))
+  assert texture_state[1:3]==[2,6] and len(texture_pc)==1536
+  assert max(differences)<=2,report['textures']['max_channel_error']
+  assert texture_state[3]>0 and texture_state[6]<texture_state[3] and texture_state[7]>=texture_state[3],texture_state[:8]
+  assert texture_actual[:256]!=texture_actual[256:512], 'Distinct animation frames must differ'
+  assert texture_actual[512:768]!=texture_actual[1280:1536], 'Ordinary and additive blending must differ'
   report['result']='PASS'
 finally:
  if monitor:
@@ -71,4 +82,4 @@ finally:
   except subprocess.TimeoutExpired:process.kill();process.wait()
  if saved is None:flag.unlink(missing_ok=True)
  else:flag.write_bytes(saved)
- build();(run/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(run/'report.json',report,flush=True)
+ build();(run/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(run/'report.json',{'result':report['result'],'state':report.get('state'),'textures':{k:v for k,v in report.get('textures',{}).items() if k not in ('actual_rgb','pc_rgb')}},flush=True)

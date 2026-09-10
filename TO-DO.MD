@@ -17,6 +17,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Real boom01 frames 0/7/15 pass six PC/XEMU draws: 1536 samples differ by at
+most one RGB unit, and guest pages return to baseline after image release.
+Connect live emitter/frame scheduling and campaign depth/placement to both passes.
+
 PC particle rasterization now matches all twelve native XEMU probe colors;
 CTest checks quad interiors/shared edges and unchanged depth for those cases.
 Connect both particle passes to campaign effects and real animated textures.

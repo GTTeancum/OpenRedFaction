@@ -308,6 +308,43 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     return RF_OK;
 }
 
+uint32_t rf_particle_texture_diagnostic[1544];
+static int particle_texture_test(void)
+{
+    rf_vpp archive;rf_particle_definition definition={0};rf_particle_bitmap bitmap={0};
+    rf_particle_draw_vertex v[4];uint32_t i,j,x,y;int status;MM_STATISTICS statistics={0};
+    statistics.Length=sizeof(statistics);
+    rf_particle_texture_diagnostic[0]=0x52505458;
+    status=rf_vpp_open(&archive,"D:\\maps2.vpp");if(status)return status;
+    strcpy(definition.bitmap,"boom01.vbm");
+    status=rf_particle_bitmap_open(&bitmap,&definition,&archive,1,0,65536);
+    if(status){rf_vpp_close(&archive);return status;}
+    rf_particle_bitmap_close(&bitmap);
+    if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_particle_texture_diagnostic[3]=rf_particle_texture_diagnostic[6]=statistics.AvailablePages;
+    pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
+    for(i=0;i<6;i++) {
+        status=rf_particle_bitmap_open(&bitmap,&definition,&archive,1,i%3==0?0:i%3==1?7:15,65536);
+        if(status)break;
+        if(NT_SUCCESS(MmQueryStatistics(&statistics)) && statistics.AvailablePages<rf_particle_texture_diagnostic[6])rf_particle_texture_diagnostic[6]=statistics.AvailablePages;
+        rf_particle_texture_diagnostic[4]=bitmap.frames;rf_particle_texture_diagnostic[5]=bitmap.resident_bytes;
+        memset(v,0,sizeof(v));
+        for(j=0;j<4;j++) {
+            v[j].screen[0]=32+(i%3)*200+((j==1 || j==2)?128:0);v[j].screen[1]=32+(i/3)*200+(j>=2?128:0);
+            v[j].depth=1000;v[j].reciprocal_w=1;v[j].argb=0xffffffff;v[j].fog=0xff000000;
+            v[j].uv[0]=(j==1 || j==2)?1:0;v[j].uv[1]=j>=2?1:0;
+        }
+        status=rf_xbox_particle_draw(v,4,&bitmap.image,i<3?RF_PARTICLE_NORMAL_MODE:RF_PARTICLE_GLOW_MODE,1,0,0,0);
+        if(!status)for(y=0;y<16;y++)for(x=0;x<16;x++) {
+            uint32_t px=36+(i%3)*200+x*8,py=36+(i/3)*200+y*8;
+            rf_particle_texture_diagnostic[8+i*256+y*16+x]=*(volatile uint32_t *)((unsigned char *)pb_back_buffer()+py*pb_back_buffer_pitch()+px*4);
+        }
+        rf_particle_bitmap_close(&bitmap);if(status)break;
+        rf_particle_texture_diagnostic[2]=i+1;
+    }
+    rf_particle_bitmap_close(&bitmap);rf_vpp_close(&archive);
+    if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_particle_texture_diagnostic[7]=statistics.AvailablePages;
+    rf_particle_texture_diagnostic[1]=status?(uint32_t)status:2;return status;
+}
 uint32_t rf_particle_pixel_diagnostic[20];
 void rf_xbox_particle_pixel_test(void)
 {
@@ -366,5 +403,8 @@ failed:
     }
     rf_particle_pixel_diagnostic[15]=(uint32_t)pb_back_buffer();rf_particle_pixel_diagnostic[16]=pb_back_buffer_width();
     rf_particle_pixel_diagnostic[17]=pb_back_buffer_height();rf_particle_pixel_diagnostic[18]=pb_back_buffer_pitch();
-    MmFreeContiguousMemory(pixels);rf_particle_pixel_diagnostic[1]=2;
+    MmFreeContiguousMemory(pixels);
+    status=particle_texture_test();
+    rf_particle_pixel_diagnostic[1]=status?0x80000000u|(uint32_t)(-status):2;
+
 }

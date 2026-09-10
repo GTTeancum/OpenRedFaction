@@ -1,8 +1,30 @@
 #include "pc_raster.h"
 #include <stdio.h>
 #include <string.h>
-int main(void)
+static int texture_test(const char *path)
 {
+    rf_pc_raster r={0};rf_vpp archive;rf_particle_definition definition={0};rf_particle_bitmap bitmap={0};
+    rf_particle_draw_vertex v[4];unsigned i,j,x,y;int status;
+    if(rf_pc_raster_open(&r,1) || rf_vpp_open(&archive,path))return 1;
+    strcpy(definition.bitmap,"boom01.vbm");
+    for(i=0;i<6;i++) {
+        for(j=0;j<r.pixels;j++){r.rgb[j*3]=32;r.rgb[j*3+1]=64;r.rgb[j*3+2]=96;r.depth[j]=16777215;}
+        status=rf_particle_bitmap_open(&bitmap,&definition,&archive,1,i%3==0?0:i%3==1?7:15,65536);if(status)return 2;
+        memset(v,0,sizeof(v));
+        for(j=0;j<4;j++) {
+            v[j].screen[0]=32+((j==1 || j==2)?128:0);v[j].screen[1]=32+(j>=2?128:0);
+            v[j].depth=1000;v[j].reciprocal_w=1;v[j].argb=0xffffffff;v[j].fog=0xff000000;
+            v[j].uv[0]=(j==1 || j==2)?1:0;v[j].uv[1]=j>=2?1:0;
+        }
+        status=rf_pc_raster_particle(&r,v,4,&bitmap.image,i<3?RF_PARTICLE_NORMAL_MODE:RF_PARTICLE_GLOW_MODE,1,0,0,0);if(status)return 3;
+        for(y=0;y<16;y++)for(x=0;x<16;x++){j=((36+y*8)*r.width+36+x*8)*3;printf("%u %u %u\n",r.rgb[j],r.rgb[j+1],r.rgb[j+2]);}
+        rf_particle_bitmap_close(&bitmap);
+    }
+    rf_vpp_close(&archive);rf_pc_raster_close(&r);return 0;
+}
+int main(int argc,char **argv)
+{
+    if(argc==3 && !strcmp(argv[1],"--textures"))return texture_test(argv[2]);
     static const unsigned char expected[12][3]={{144,32,48},{160,64,96},{16,160,48},{88,48,72},{255,0,0},{127,0,0},{127,0,0},{63,128,0},{80,96,48},{24,48,80},{32,64,96},{255,0,0}};
     rf_pc_raster r={0};rf_particle_draw_vertex v[4];unsigned char texel[4];
     rf_image image={1,1,4,0,texel};uint32_t i,j,k;int status;

@@ -31,4 +31,5 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     uint32_t fog_enabled,uint32_t fog_rgb);
 void rf_xbox_particle_pixel_test(void);
 extern uint32_t rf_particle_pixel_diagnostic[20];
+extern uint32_t rf_particle_texture_diagnostic[1544];
 #endif
