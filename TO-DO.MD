@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
-- [ ] Complete spatial controller audio and PC device playback after verified Xbox APU dispatch.
+- [ ] Complete controller audio groups/loop metadata and PC playback after live Xbox spatial gain wiring.
 - [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
 - [ ] Complete controller sound/alert/wakeup effects, rotation and remaining key-target actions.
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
@@ -21,6 +21,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Live Xbox spatial gains now follow gameplay listener pose; stock64MiB door
+replay matches PC settings with APU output, while unity PCM remains diagnostic.
 
 Gameplay listener-pose calculation is separated from projection and diagnostic
 camera overrides; connect refresh at this once-per-frame pose boundary next.

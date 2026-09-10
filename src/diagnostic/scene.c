@@ -416,10 +416,51 @@ void rf_scene_set_audio(rf_scene_audio_sink sink,void *context)
 /* loaded samples, retained bytes, missing names, rejected resources, played,
  * unavailable requests, rendered frames, PCM byte hash. No device output yet. */
 uint32_t rf_scene_live_audio[8];
+typedef struct campaign_spatial_voice {
+    uint32_t handle,sample;float position[3],volume;int32_t last_volume,last_pan;
+} campaign_spatial_voice;
+static campaign_spatial_voice campaign_spatial_voices[RF_AUDIO_VOICES];
+static float campaign_listener_position[3],campaign_listener_right[3];
+/* Initial updates, refresh updates, integer gain/pan hash, noncenter updates,
+ * changed settings, fixed tracking bytes. Unity PCM diagnostic is separate. */
+uint32_t rf_scene_spatial_audio[6];
+static void campaign_spatial_update(campaign_spatial_voice *voice,int initial)
+{
+    const rf_audio_parameters *parameters=rf_audio_bank_parameters(&campaign_audio_bank,voice->sample);
+    float spatial[2],gains[2],volume;int32_t device_volume,pan;
+    if(!parameters || !voice->handle)return;
+    rf_audio_position(voice->position,campaign_listener_position,campaign_listener_right,
+        parameters->near_distance,parameters->far_distance,parameters->rolloff,voice->volume,spatial);
+    /* Controller group/category gains remain unity. Original initial and
+     * listener-refresh paths differ in default-volume application. */
+    volume=initial?spatial[1]*voice->volume*parameters->volume:spatial[1];
+    if(volume<0)volume=0;if(volume>1)volume=1;
+    if(spatial[0]<-1)spatial[0]=-1;if(spatial[0]>1)spatial[0]=1;
+    device_volume=rf_audio_device_volume(volume,0);pan=(int32_t)((double)spatial[0]*1000);
+    if(rf_audio_device_gains(device_volume,pan,gains))return;
+    ++rf_scene_spatial_audio[initial?0:1];
+    rf_scene_spatial_audio[2]=(rf_scene_spatial_audio[2]^(uint32_t)device_volume)*16777619u;
+    rf_scene_spatial_audio[2]=(rf_scene_spatial_audio[2]^(uint32_t)pan)*16777619u;
+    if(pan)++rf_scene_spatial_audio[3];
+    if(device_volume!=voice->last_volume || pan!=voice->last_pan) {
+        ++rf_scene_spatial_audio[4];voice->last_volume=device_volume;voice->last_pan=pan;
+        if(campaign_audio_events.gain)campaign_audio_events.gain(campaign_audio_events_context,voice->handle,gains[0],gains[1]);
+    }
+}
+static void campaign_audio_listener(const float position[3],const float right[3])
+{
+    uint32_t i;memcpy(campaign_listener_position,position,12);memcpy(campaign_listener_right,right,12);
+    for(i=0;i<RF_AUDIO_VOICES;i++)if(campaign_spatial_voices[i].handle)campaign_spatial_update(campaign_spatial_voices+i,0);
+}
 static int campaign_audio_open(const char *tables_path,const char *level_name)
 {
     char path[1024];size_t prefix=0,n;uint32_t i,j,index,capacity;
     rf_vpp archive={0};int status;
+    memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
+    memset(campaign_listener_position,0,sizeof(campaign_listener_position));
+    memset(campaign_listener_right,0,sizeof(campaign_listener_right));campaign_listener_right[0]=-1;
+    memset(rf_scene_spatial_audio,0,sizeof(rf_scene_spatial_audio));rf_scene_spatial_audio[2]=2166136261u;
+    rf_scene_spatial_audio[5]=sizeof(campaign_spatial_voices)+sizeof(campaign_listener_position)+sizeof(campaign_listener_right);
     memset(rf_scene_live_audio,0,sizeof(rf_scene_live_audio));rf_scene_live_audio[7]=2166136261u;
     rf_audio_mixer_init(&campaign_audio_mixer);
     for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
@@ -449,15 +490,19 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
 static int32_t campaign_sound_play(void *context,int32_t sample,const float position[3],float volume,uint32_t flags)
 {
     const rf_wave_pcm *pcm;uint32_t handle;
-    (void)context;(void)position;(void)volume;(void)flags;
-    /* Unity/nonspatial output is an explicit adapter pending original sample
-     * metadata, volume, range and attenuation recovery; do not invent a loop. */
+    (void)context;(void)flags;
+    /* The deterministic PCM diagnostic remains unity/nonspatial. Device
+     * output receives the separate listener-driven gain path below. */
     pcm=sample<0?NULL:rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
     if(!pcm || rf_audio_voice_start(&campaign_audio_mixer,pcm,32768,32768,0,&handle)) {
         ++rf_scene_live_audio[5];return -1;
     }
     ++rf_scene_live_audio[4];
     if(campaign_audio_events.play)campaign_audio_events.play(campaign_audio_events_context,handle,pcm);
+    {campaign_spatial_voice *voice=campaign_spatial_voices+(handle&0xffff);
+     voice->handle=handle;voice->sample=(uint32_t)sample;voice->volume=volume;
+     memcpy(voice->position,position,12);voice->last_volume=INT32_MIN;voice->last_pan=INT32_MIN;
+     campaign_spatial_update(voice,1);}
     return (int32_t)handle;
 }
 static void campaign_sound_request(rf_group_runtime_entry *entry,campaign_controller_effects *request,uint32_t effects)
@@ -622,6 +667,7 @@ uint32_t rf_scene_actor_body_sweeps[5]; /* queries, hits, mover hits, status, re
 uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, registration bytes */
 static void campaign_close_movers(void)
 {
+    memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
     rf_audio_mixer_init(&campaign_audio_mixer);rf_audio_bank_close(&campaign_audio_bank);
     if(campaign_player_object.view)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&campaign_player_object);
@@ -1492,6 +1538,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
     profile_mark(1);
     status=actor_listener_pose(stream,frame,controller,position,orientation);if(status)return status;
+    if(campaign_spawn)campaign_audio_listener(position,orientation[0]);
     if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
         memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);
         if(rf_scene_particle_view_back) {

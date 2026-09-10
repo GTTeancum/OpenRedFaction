@@ -585,3 +585,30 @@ change audio timing or apply spatial gains.
 
 Stock64MiB XEMU replay-20260910-184648 passes with APU enabled after the
 pose refactor, including the PC/native camera and gameplay comparisons.
+
+### Live Xbox listener-driven gains
+
+Campaign source positions/requested volumes are now retained per logical voice.
+After actor_listener_pose, before inspection-camera overrides, the scene refreshes
+spatial gains using the current gameplay eye position and right axis. Initial
+playback uses the previous listener and sample default volume; refresh follows
+the separately verified path without reapplying that default. Changed integer
+volume/pan settings are converted to channel amplitudes and sent to the Xbox
+adapter without restarting the voice. Fixed tracking costs536 bytes.
+
+Stock64MiB XEMU replay-20260910-184932 passes the180-frame door replay and
+matches PC spatial telemetry exactly:2 initial updates,214 refresh updates,
+integer settings hash3428625177,216 noncenter updates and209 changed settings.
+APU output is nonzero with no rejected voice requests or shutdown fault. Camera,
+physics and other replay state still match; six CTests pass. The PC compile error
+from an initially missing telemetry declaration was fixed before this replay.
+
+The deterministic shared PCM diagnostic deliberately remains unity/nonspatial;
+its unchanged independent reference does NOT validate spatial device samples.
+PC computes the same spatial settings but still lacks a device backend. Original
+volume-group/category controls currently remain unity, the default device-volume
+curve is selected, global registration precedence and loop flags remain unfinished.
+Natural device completion and logical mixer completion have independent clocks;
+tracking slots may continue to refresh a completed hardware voice until reused.
+Original whole-frame timing and an independent full spatial output recording
+remain unverified. This is live Xbox spatial gain wiring, not full audio parity.
