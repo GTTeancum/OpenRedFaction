@@ -1,6 +1,7 @@
 #ifndef RF_LEVEL_H
 #define RF_LEVEL_H
 #include "rf/object_registry.h"
+#include "rf/entity.h"
 #include "rf/vpp.h"
 #include "rf/player.h"
 
@@ -291,6 +292,23 @@ typedef struct rf_group_registered_mover {
  * No allocation; registry, handle list and pose storage must remain stable. */
 int rf_group_wake_bounds_collect(const rf_object_registry *registry,
     const uint32_t *handles,uint32_t handle_count,rf_group_wake_bounds output[32],uint32_t *count);
+
+typedef void (*rf_group_alert_emit)(void *context,uint32_t actor,const float position[3],float radius);
+typedef struct rf_group_activation_context {
+    rf_group_motion_state *motion;rf_group_attached_pose *pose;rf_group_sound_state *sounds;uint32_t *source;
+    const rf_entity_registry *entities;const rf_entity_view *local;
+    const rf_object_registry *registry;rf_group_wake_object *objects;uint32_t object_count;
+    const uint32_t *movers;uint32_t mover_count;const uint32_t *attached;uint32_t attached_count;
+    const uint32_t *parents;uint32_t parent_count;rf_group_sound_play play;rf_group_alert_emit alert;
+    void *context;uint32_t gate_7cabd4,gate_7cabb0;
+} rf_group_activation_context;
+/* Combined 46aba0 after valid type8 controller lookup. Actor backlink, motion,
+ * sound, optional AI alert, source assignment, mover bounds, then wake flags.
+ * Callback backends and borrowed views must remain stable/non-reentrant.
+ * Caller commits actor backlink and wake snapshots to live owners. Effects
+ * preceding a later malformed-input error are not rolled back. No allocation. */
+int rf_group_activation_run(rf_group_activation_context *context,uint32_t controller,
+    uint32_t key_count,uint32_t source,uint32_t actor,uint32_t *actor_controller,uint32_t *started);
 
 typedef struct rf_group_controller_view {
     const rf_group_translation_runtime *runtime;

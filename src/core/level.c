@@ -685,6 +685,25 @@ int rf_group_wake_bounds_collect(const rf_object_registry *registry,
     }
     if(n)memcpy(output,values,n*sizeof(*values));*count=n;return RF_OK;
 }
+int rf_group_activation_run(rf_group_activation_context *c,uint32_t controller,
+    uint32_t key_count,uint32_t source,uint32_t actor,uint32_t *actor_controller,uint32_t *started)
+{
+    rf_group_activation_actor facts;const rf_entity_view *object;
+    rf_group_wake_bounds bounds[32];uint32_t count,request;int status;
+    if(!c || !c->motion || !c->pose || !c->sounds || !c->source || !c->entities ||
+        !c->registry || !c->play || !c->alert || !actor_controller || !started)return RF_RANGE;
+    object=rf_object_lookup(c->entities,(int32_t)actor);
+    facts.present=object!=NULL;facts.flags=object?object->flags_7c:0;
+    facts.entity_present=rf_entity_lookup(c->entities,(int32_t)actor)!=NULL;facts.controller_handle=*actor_controller;
+    status=rf_group_activation_begin(c->motion,key_count,controller,&facts,started);if(status)return status;
+    *actor_controller=facts.controller_handle;if(!*started)return RF_OK;
+    status=rf_group_sound_start(c->sounds,c->motion->flags,c->motion->next_key,c->pose->public_position,c->play,c->context);if(status)return status;
+    status=rf_entity_controller_alert(c->entities,(int32_t)actor,c->local,c->gate_7cabd4,c->gate_7cabb0,&request);if(status)return status;
+    if(request)c->alert(c->context,actor,c->pose->public_position,10.0f);
+    *c->source=source;
+    status=rf_group_wake_bounds_collect(c->registry,c->movers,c->mover_count,bounds,&count);if(status)return status;
+    return rf_group_wake_objects(c->objects,c->object_count,bounds,count,c->attached,c->attached_count,c->parents,c->parent_count);
+}
 int rf_group_translation_arrive(rf_group_motion_state *state,uint32_t key_count,
     uint32_t *sound_requests)
 {

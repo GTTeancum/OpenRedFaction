@@ -18,6 +18,17 @@ static int32_t group_sound_probe(void *context,int32_t sample,const float positi
     ++trace[0];for(i=0;i<6;i++)trace[1]=(trace[1]^words[i])*16777619u;
     return sample==-1?-1:(int32_t)((uint32_t)sample^0x12340000u);
 }
+typedef struct activation_trace {uint32_t *source,count,hash;} activation_trace;
+static void activation_record(void *context,uint32_t kind,uint32_t value,const float position[3],float scalar)
+{
+    activation_trace *t=context;uint32_t words[7]={kind,value,*t->source},i;
+    memcpy(words+3,position,12);memcpy(words+6,&scalar,4);++t->count;
+    for(i=0;i<7;i++)t->hash=(t->hash^words[i])*16777619u;
+}
+static int32_t activation_play(void *context,int32_t sample,const float position[3],float volume,uint32_t flags)
+{ if(flags)abort();activation_record(context,1,(uint32_t)sample,position,volume);return sample+100; }
+static void activation_alert(void *context,uint32_t actor,const float position[3],float radius)
+{activation_record(context,2,actor,position,radius);}
 int main(int argc,char **argv)
 {
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
@@ -493,6 +504,29 @@ int main(int argc,char **argv)
             if(fwrite(&m->count,4,1,stdout)!=1 || fwrite(&m->rotation_sign,4,1,stdout)!=1 || fwrite(m->handles,4,m->count,stdout)!=m->count)return 8;
         }
         rf_group_mover_memberships_close(&members);rf_group_mover_memberships_close(&members);rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);free(objects);free(before);free(controllers);return 0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--group-activation-run")) {
+        uint32_t input[10],output[18];static rf_object_registry registry;static rf_entity_registry entities;
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            rf_group_motion_state motion;rf_group_attached_pose pose={0},mover_pose={0};
+            rf_group_sound_state sounds={{11,12,13,14},{21,22,23,24}};
+            rf_entity_view actor={0};rf_group_registered_mover mover={9,0,&mover_pose};
+            rf_group_wake_object prop={0};rf_group_activation_context c={0};
+            uint32_t source=77,backlink=55,started=0xa5a5a5a5,handle,dummy[2]={8,0},i;
+            activation_trace trace={&source,0,2166136261u};
+            memcpy(&motion,input,24);rf_object_registry_init(&registry);memset(&entities,0,sizeof(entities));
+            for(i=0;i<2;i++)if(rf_object_registry_insert(&registry,dummy+i,&handle))return 4;
+            if(rf_object_registry_insert(&registry,&mover,&mover.handle))return 4;
+            actor.handle=0x20001;actor.type=0;actor.flags_7c=input[6];actor.flags_810=input[7];actor.linked_handle=-1;entities.slots[1]=&actor;
+            for(i=0;i<3;i++) {pose.public_position[i]=(float)i+1;mover_pose.minimum[i]=-1;mover_pose.maximum[i]=1;prop.minimum[i]=-.5f;prop.maximum[i]=.5f;}
+            prop.family=1;c.motion=&motion;c.pose=&pose;c.sounds=&sounds;c.source=&source;c.entities=&entities;c.local=&actor;c.registry=&registry;
+            c.objects=&prop;c.object_count=1;c.movers=&mover.handle;c.mover_count=1;c.play=activation_play;c.alert=activation_alert;c.context=&trace;c.gate_7cabd4=input[8];c.gate_7cabb0=input[9];
+            output[0]=(uint32_t)rf_group_activation_run(&c,0x10000,2,99,0x20001,&backlink,&started);
+            memcpy(output+1,&motion,24);output[7]=backlink;output[8]=source;memcpy(output+9,sounds.handles,16);
+            output[13]=prop.flags;output[14]=prop.physics_flags;output[15]=started;output[16]=trace.count;output[17]=trace.hash;
+            fwrite(output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
     }
     if(argc==2 && !strcmp(argv[1],"--group-wake-bounds")) {
         struct {uint32_t count,handles[34];struct {uint32_t kind;rf_group_wake_bounds bounds;} movers[4];} input;

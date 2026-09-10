@@ -2640,3 +2640,32 @@ local entities, linked turret states and nonboolean byte values. Both builds
 and six CTests pass. This is binary emulation, not XEMU AI gameplay. AI stimulus
 execution/throttling, live snapshots and combined controller activation remain
 open; no new camera or visual effect is claimed.
+
+
+## Combined controller activation orchestration
+
+rf_group_activation_run composes the verified 46aba0 pieces after a valid
+controller lookup. It resolves the actor through shared entity views, updates
+the actor backlink and motion prefix, and returns for an already-active or
+ineligible controller. Accepted starts dispatch controller sounds, evaluate
+and emit the optional player-origin AI stimulus, assign source +314, gather
+ordered mover bounds, and apply wake flags. Sound/alert callbacks observe the
+old source, as in the original. Controller public_position supplies +3c.
+
+The activation context borrows motion, pose, sound state, source storage,
+entity/registry views, candidate objects and controller memberships. Audio and
+AI callbacks remain real integration boundaries, not implemented backends.
+Callers must commit backlink/wake snapshots to live objects and maintain stable,
+non-reentrant inputs. No heap allocation occurs; late malformed-input errors
+do not roll back preceding effects. Scene mover registration and motion ticks
+are still required before this path can drive campaign doors/lifts.
+
+verify_group_activation_run.py executes the entire original 46aba0 and all
+lookup/predicate/motion/gather/wake callees. Only audio5056a0 and AI408280 are
+intercepted. 1024 cases match PC and NXDK, with 255 accepted starts, checking
+motion, backlink, source, sound handles, secondary-object wake flags and the
+ordered effect trace (including source value during callbacks). Fixtures have
+one valid controller, two keys, one mover and one secondary wake object;
+separate prefix/gather/wake verifiers retain broader edge-case coverage. Both
+builds and six CTests pass. NXDK is instruction-emulated; this is not a live
+XEMU campaign activation or new visual result.
