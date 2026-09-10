@@ -40,6 +40,14 @@ typedef struct rf_level_entity_reader {
  * Errors preserve reader/output; exhaustion requires exact section length. */
 int rf_level_regions_begin(const rf_level *level,rf_level_entity_reader *reader);
 int rf_level_region_next(rf_level_entity_reader *reader,rf_player_movement_region *region);
+typedef struct rf_level_owned_regions {
+    rf_player_movement_region *items;uint32_t count,allocated_bytes;
+} rf_level_owned_regions;
+/* One allocation for stable runtime regions. Budget includes owner+records,
+ * excluding allocator overhead. Empty destination required; errors preserve it.
+ * Source may close after success. Empty section allocates no heap storage. */
+int rf_level_owned_regions_open(const rf_level *level,uint32_t budget,rf_level_owned_regions *result);
+void rf_level_owned_regions_close(rf_level_owned_regions *regions);
 int rf_level_entities_begin(const rf_level *level,rf_level_entity_reader *reader);
 int rf_level_entity_next(rf_level_entity_reader *reader,rf_level_entity *entity);
 /* Full validated scan for one UID; duplicates are FORMAT, absent UID is

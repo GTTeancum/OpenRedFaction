@@ -28,6 +28,17 @@ static int climb_stand(void *context,uint32_t *stood)
 {uint32_t *v=context;++v[1];*stood=!v[0];return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==4 && !strcmp(argv[1],"--owned-level-regions")) {
+        rf_vpp archive;rf_level level;rf_level_owned_regions regions={0};int status;
+        _setmode(_fileno(stdout),_O_BINARY);
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 3;
+        status=rf_level_owned_regions_open(&level,64*1024,&regions);rf_vpp_close(&archive);
+        if(status==RF_NOT_FOUND)return 0;if(status)return 4;
+        memset(&level,0xa5,sizeof(level)); /* Owned data must outlive the loader. */
+        if(fwrite(regions.items,sizeof(*regions.items),regions.count,stdout)!=regions.count)return 5;
+        rf_level_owned_regions_close(&regions);rf_level_owned_regions_close(&regions);
+        return regions.items || regions.count || regions.allocated_bytes?6:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--climb-exit")) {
         int32_t v[6];uint32_t out[10];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

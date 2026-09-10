@@ -24,6 +24,11 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
+Owned movement-region storage now survives archive closure with a checked
+single allocation. All 147 records across 39 levels pass PC/NXDK ownership,
+exact-budget and repeatable-close checks. The live scene must retain this owner
+until all player region/orientation pointers are released.
+
 Shared climb motion now matches 384 original PC/NXDK cases, including vertical
 input, external force, support velocity and repeated passes. The initial reuse
 of run arithmetic exposed an x87 ratio-rounding difference; climb now preserves

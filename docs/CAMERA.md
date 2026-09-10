@@ -2562,3 +2562,22 @@ cases on PC and compiled NXDK, including callback timing, full compact state and
 selection output. The 768 entry cases still pass, as do both builds and CTest.
 Live region ownership, movement while climbing, name resolution wiring and
 campaign transitions remain open; these tests do not demonstrate live climbing.
+
+
+### Retained movement-region lifetime (2026-09-09)
+
+`rf_level_owned_regions_open` now validates the complete section, checks the
+owner-plus-record byte budget, and allocates a single contiguous region array.
+The source archive may close afterward. Empty sections allocate no heap storage;
+failed opens preserve the destination. `rf_level_owned_regions_close` frees and
+zeros the owner and is repeatable. Callers must release all player pointers
+before closing it; this API does not relocate regions or reference-count them.
+
+The expanded `tools/verify_level_regions.py` compares owned PC and compiled
+NXDK results for all 147 records in 39 installed levels. The PC probe closes
+the archive and overwrites the level record before accessing the regions. The
+NXDK fixture overwrites loader storage, verifies each retained byte, checks
+rejection at one byte below the required budget, accepts the exact budget,
+observes one allocation for nonempty sections, and verifies one free across
+two closes. Allocation/free and archive reads are fixture boundaries. Both
+builds and CTest pass. Live scene ownership and climb wiring are still open.

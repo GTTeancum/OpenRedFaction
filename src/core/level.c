@@ -74,6 +74,33 @@ int rf_level_region_next(rf_level_entity_reader *reader,rf_player_movement_regio
     *reader=r;*region=value;return RF_OK;
 }
 
+void rf_level_owned_regions_close(rf_level_owned_regions *regions)
+{
+    if(regions){free(regions->items);memset(regions,0,sizeof(*regions));}
+}
+int rf_level_owned_regions_open(const rf_level *level,uint32_t budget,rf_level_owned_regions *result)
+{
+    rf_level_entity_reader reader;rf_player_movement_region record;
+    rf_level_owned_regions value={0};uint64_t bytes;uint32_t i;int status;
+    if(!level || !result || result->items || result->count || result->allocated_bytes)return RF_RANGE;
+    status=rf_level_regions_begin(level,&reader);if(status)return status;
+    value.count=reader.count;bytes=sizeof(value)+(uint64_t)value.count*sizeof(*value.items);
+    if(bytes>budget)return RF_RANGE;
+    while((status=rf_level_region_next(&reader,&record))==RF_OK){}
+    if(status!=RF_NOT_FOUND)return status;
+    value.allocated_bytes=(uint32_t)bytes;
+    if(!value.count){*result=value;return RF_OK;}
+    value.items=malloc((size_t)value.count*sizeof(*value.items));if(!value.items)return RF_RANGE;
+    status=rf_level_regions_begin(level,&reader);if(status)goto failed;
+    if(reader.count!=value.count){status=RF_FORMAT;goto failed;}
+    for(i=0;i<value.count;++i) {
+        status=rf_level_region_next(&reader,value.items+i);if(status)goto failed;
+    }
+    *result=value;return RF_OK;
+failed:
+    rf_level_owned_regions_close(&value);return status;
+}
+
 int rf_level_entities_begin(const rf_level *level,rf_level_entity_reader *reader)
 {
     const rf_level_section *section;rf_level_entity_reader next;uint8_t raw[4];int status;
