@@ -671,3 +671,19 @@ a progress image. The existing README hero image is not replaced by this view.
 Final source build recheck artifacts/xemu/20260910-132926-739304/report.json
 also passes with the same cumulative draw summary. Temporary disc flags and
 the normal ISO were restored, and the harness-owned emulator was reaped.
+
+All-frame particle resource ownership (2026-09-10)
+
+rf_particle_animation retains all base-mip frames with explicit owner, image
+descriptor and pixel budgets. Frame zero transfers without duplicate pixels;
+failed partial loads reclaim allocations. This is port resource management,
+not a reconstruction of the original bitmap cache. Level rendering still uses
+the prior single-frame owner; live animation integration remains open.
+
+verify_particle_bitmaps.py checks all 58 frames across 31 available authored
+name entries against the individual frame loader after closing archives and
+poisoning authored metadata. Exact and one-byte-short budgets and repeated
+close pass. The pre-existing bigboom.vbm reference is absent from the installed
+archives. Largest sequence: MissileSmoke01.vbm, 26 frames, 426524 owned bytes
+on 32-bit PC. These are per-resource budgets, not a campaign memory peak.
+PC build, six CTests and NXDK build pass; this new owner has not run in XEMU.

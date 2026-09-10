@@ -13,6 +13,26 @@ int main(int argc, char **argv)
     rf_materials materials;
     uint32_t count, i;
     int result;
+    if(argc>=5 && argc<=20 && !strcmp(argv[1],"--particle-animation")) {
+        rf_particle_definition definition={0};rf_particle_animation animation={0},empty={0};
+        uint32_t budget=(uint32_t)strtoul(argv[3],NULL,10),f;
+        if(strlen(argv[2])>=sizeof(definition.bitmap))return 2;strcpy(definition.bitmap,argv[2]);
+        count=(uint32_t)argc-4;
+        for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+4]))return 1;
+        result=rf_particle_animation_open(&animation,&definition,archives,count,budget);
+        for(i=0;i<count;++i)rf_vpp_close(archives+i);
+        memset(&definition,0xdd,sizeof(definition));
+        if(result) {if(memcmp(&animation,&empty,sizeof(animation)))return 3;printf("%d %u\n",result,(unsigned)sizeof(animation));return 0;}
+        printf("0 %u %u %u %u %u %u",(unsigned)sizeof(animation),(unsigned)sizeof(rf_image),animation.count,
+            animation.rate,animation.resident_bytes,animation.archive_index);
+        for(f=0;f<animation.count;++f) {
+            uint32_t hash=2166136261u;rf_image *image=animation.images+f;
+            for(i=0;i<image->bytes;++i)hash=(hash^image->rgba[i])*16777619u;
+            printf(" %u %u %u",image->width,image->height,hash);
+        }
+        printf("\n");rf_particle_animation_close(&animation);rf_particle_animation_close(&animation);
+        return memcmp(&animation,&empty,sizeof(animation))?3:0;
+    }
     if(argc>=6 && argc<=21 && !strcmp(argv[1],"--particle")) {
         rf_particle_definition definition={0};rf_particle_bitmap bitmap={0},empty={0};
         uint32_t frame=(uint32_t)strtoul(argv[3],NULL,10),budget=(uint32_t)strtoul(argv[4],NULL,10),hash=2166136261u;

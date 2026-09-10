@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+All-frame particle resource ownership passes 58 frame checks and exact budgets
+on PC; NXDK compiles. Live animated selection and XEMU residency remain open.
+
 Live L1S1 mist now renders on PC and stock 64 MiB XEMU; the inspection replay
 submits 1308 polygons with matching cumulative draw-packet hashes.
 A new PC diagnostic capture shows the mist source; full visual parity is open.

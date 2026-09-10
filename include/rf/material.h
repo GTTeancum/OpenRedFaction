@@ -17,6 +17,20 @@ typedef struct rf_particle_bitmap {
 int rf_particle_bitmap_open(rf_particle_bitmap *bitmap,const rf_particle_definition *definition,
     rf_vpp *archives,uint32_t archive_count,uint32_t frame,uint32_t budget);
 void rf_particle_bitmap_close(rf_particle_bitmap *bitmap);
+typedef struct rf_particle_animation {
+    rf_image *images;
+    uint32_t count,rate,archive_index,resident_bytes;
+} rf_particle_animation;
+/* Retain every base-mip frame for allocation-free particle frame selection.
+ * First matching archive wins. Budget includes owner, image descriptors and
+ * all decoded pixels; decoder stack/allocator metadata excluded. Frame zero
+ * transfers into the final array without a duplicate pixel allocation.
+ * TGA yields one frame. Animated mip chains remain unsupported by the decoder.
+ * Zero-initialize; close before reuse. Failure preserves output and frees all
+ * partial state. Archives and definition may be released after success. */
+int rf_particle_animation_open(rf_particle_animation *animation,const rf_particle_definition *definition,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget);
+void rf_particle_animation_close(rf_particle_animation *animation);
 typedef struct rf_level_particle_texture {
     char name[64];rf_particle_bitmap bitmap;
 } rf_level_particle_texture;

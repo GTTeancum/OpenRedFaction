@@ -1,6 +1,40 @@
 #include "rf/material.h"
 #include <stdlib.h>
 #include <string.h>
+void rf_particle_animation_close(rf_particle_animation *animation)
+{
+    uint32_t i;if(!animation)return;
+    for(i=0;i<animation->count;i++)rf_image_close(animation->images+i);
+    free(animation->images);memset(animation,0,sizeof(*animation));
+}
+int rf_particle_animation_open(rf_particle_animation *animation,const rf_particle_definition *definition,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{
+    rf_particle_animation value={0};rf_particle_bitmap first={0};rf_vpp_entry entry;
+    uint64_t bytes;uint32_t i;int status;
+    if(!animation || animation->images || animation->count || budget<sizeof(value))return RF_RANGE;
+    status=rf_particle_bitmap_open(&first,definition,archives,archive_count,0,budget);if(status)return status;
+    bytes=sizeof(value)+(uint64_t)first.frames*(sizeof(rf_image)+(uint64_t)first.image.bytes);
+    if(!first.frames || bytes>budget){status=RF_RANGE;goto failed;}
+    value.images=calloc(first.frames,sizeof(*value.images));if(!value.images){status=RF_IO;goto failed;}
+    value.count=first.frames;value.rate=first.rate;value.archive_index=first.archive_index;value.resident_bytes=(uint32_t)bytes;
+    value.images[0]=first.image;memset(&first.image,0,sizeof(first.image));
+    if(value.count>1) {
+        status=rf_vpp_find(archives+value.archive_index,definition->bitmap,&entry);if(status)goto failed;
+        for(i=1;i<value.count;i++) {
+            uint32_t count,rate;
+            status=rf_image_vbm_frame(value.images+i,archives+value.archive_index,&entry,i,
+                value.images[0].bytes,&count,&rate);if(status)goto failed;
+            if(count!=value.count || rate!=value.rate || value.images[i].bytes!=value.images[0].bytes ||
+               value.images[i].width!=value.images[0].width || value.images[i].height!=value.images[0].height) {
+                status=RF_FORMAT;goto failed;
+            }
+        }
+    }
+    rf_particle_bitmap_close(&first);*animation=value;return RF_OK;
+failed:
+    rf_particle_bitmap_close(&first);rf_particle_animation_close(&value);return status;
+}
 void rf_particle_bitmap_close(rf_particle_bitmap *bitmap)
 {
     if(!bitmap)return;
