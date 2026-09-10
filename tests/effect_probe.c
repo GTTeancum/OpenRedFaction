@@ -9,6 +9,16 @@
 #include <stdlib.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--visibility-view-scale")) {
+        rf_visibility_viewport in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_visibility_view_scale out;int32_t status;memset(&out,0xa5,sizeof(out));
+            status=rf_visibility_view_scale_build(&in,&out);
+            fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)||ferror(stdout);
+    }
     if(argc==2 && !strcmp(argv[1],"--visibility-frustum")) {
         rf_visibility_view in;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

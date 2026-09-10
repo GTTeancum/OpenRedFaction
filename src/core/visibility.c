@@ -5,6 +5,26 @@ static int valid(const rf_visibility *s)
 {
     return s && (!s->count || (s->rooms && s->order)) && s->visible_count<=s->count;
 }
+int rf_visibility_view_scale_build(const rf_visibility_viewport *v,rf_visibility_view_scale *out)
+{
+    rf_visibility_view_scale value;float aspect,factor,far;double depth;uint32_t i;
+    if(!v || !out || v->width<=0 || v->height<=0 || !isfinite(v->pixel_aspect) || v->pixel_aspect<=0 ||
+       !isfinite(v->fov) || v->fov<=0 || !isfinite(v->far_distance) || ((v->perspective&255u) && v->fov>=180))return RF_RANGE;
+    aspect=(float)(((double)v->height*v->pixel_aspect)/v->width);
+    value.half[0]=(float)((double)v->width*0.5);value.half[1]=(float)((double)v->height*0.5);
+    value.center[0]=(float)((double)v->x+value.half[0]);value.center[1]=(float)((double)v->y+value.half[1]);
+    if(!(v->perspective&255u))factor=(float)((double)v->fov*0.5);
+    else factor=v->fov<2?v->fov:(float)tan((double)v->fov*0.01745329238474369049*0.5);
+    far=v->far_distance<31.25f?31.25f:v->far_distance>=1000.0f?1000.0f:v->far_distance;
+    value.flat_depth=0.9800000190734863f;
+    depth=(v->perspective&255u)?(double)value.flat_depth/far:value.flat_depth;
+    value.scale[2]=(float)depth;value.scale[0]=(float)(depth/factor);
+    value.scale[1]=(float)(depth/((double)factor*aspect));
+    value.inverse_depth_scale=(float)(1.0/depth);
+    for(i=0;i<3;i++)if(!isfinite(value.scale[i]) || value.scale[i]<=0)return RF_RANGE;
+    if(!isfinite(value.inverse_depth_scale))return RF_RANGE;
+    *out=value;return RF_OK;
+}
 int rf_visibility_plane_normal(const float normal[3],const float point[3],rf_visibility_plane *plane)
 {
     static const uint32_t corners[8]={4,0,5,1,7,3,6,2};

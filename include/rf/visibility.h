@@ -59,6 +59,17 @@ typedef struct rf_visibility_frustum {
  * finite scales required. Unused plane slots retained; errors preserve output.
  * Input is resolved view state, not FOV/window-to-view setup. */
 int rf_visibility_frustum_build(const rf_visibility_view *view,rf_visibility_frustum *frustum);
+typedef struct rf_visibility_viewport {
+    int32_t width,height,x,y;float pixel_aspect,fov,far_distance;uint32_t perspective;
+} rf_visibility_viewport;
+typedef struct rf_visibility_view_scale {
+    float scale[3],half[2],center[2],flat_depth,inverse_depth_scale;
+} rf_visibility_view_scale;
+/* 547150 viewport/FOV/far arithmetic. Perspective FOV <2 is already scaled;
+ * otherwise degrees are converted with the original float constant. Flat FOV
+ * is halved. Positive dimensions/aspect/FOV, FOV<180 in perspective required.
+ * No view matrix mutation or graphics-state setup; errors preserve output. */
+int rf_visibility_view_scale_build(const rf_visibility_viewport *viewport,rf_visibility_view_scale *scale);
 enum {RF_PORTAL_PROJECT=0,RF_PORTAL_FULL_VIEW=1,RF_PORTAL_REJECT=2};
 /* 4d4860 preprojection branch using 507ba0 (inclusive one-unit expanded box)
  * and 518750 (strict positive plane distance at supplied extreme corner).

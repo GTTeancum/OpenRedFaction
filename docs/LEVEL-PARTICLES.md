@@ -249,3 +249,21 @@ slots match: 512 four-plane, 256 five-plane and 256 six-plane cases. Inputs cove
 translated/rotated bases and varying scales/distances. This supersedes the open
 frustum-assembly item above; FOV/window-to-view derivation, portal cache wiring
 and native campaign rendering still remain open.
+
+## Viewport and FOV scale derivation
+
+`rf_visibility_view_scale_build` reconstructs the selected arithmetic in
+`547150`: viewport half sizes/centers, X/Y/Z view scales, flat depth and inverse
+depth scale. Perspective values below 2 are already-scaled inputs; other
+perspective values use tan(FOV * float-degrees-to-radians / 2). Flat mode halves
+the supplied value. Far distance is clamped to 31.25..1000 for perspective Z
+scaling. Aspect uses height * pixel-aspect / width, rounded before use.
+
+`verify_visibility_view_scale.py` runs original `547150`, including actual
+matrix/frustum callees, while intercepting only graphics-state call `50ce40`.
+576 PC/NXDK cases match the selected output bits across modes, viewport/aspect,
+FOV threshold and far clamp boundaries. It caught premature depth-scale rounding:
+the original retains the unrounded division when deriving X/Y and reciprocal.
+The shared routine now does the same. This does not implement every side effect
+of `547150`; camera matrix processing, graphics state and live integration still
+need their own evidence. Ordinary perspective input requires 0<FOV<180.
