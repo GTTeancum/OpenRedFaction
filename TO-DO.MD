@@ -11,6 +11,12 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Original cache-gate and spawn-copy execution now confirms that a warm class
+cache bypasses pose sampling for both NPCs and players, and creation copies
+cached sphere centers into the entity without changing its other sphere fields.
+Four gate cases and 180 copy cases pass. Separate class-cache ownership from
+the armed player animation before connecting that initial pose; see docs/CAMERA.md.
+
 Original static-solid plane rejection now prevents the campaign turn overflow:
 all 480 yaw ticks pass on PC and 64 MiB XEMU at a 1,161,048-byte world peak,
 with the same 2 MiB allocation. All eight PC input sweeps and the normal

@@ -2156,3 +2156,35 @@ Logs are retained as `artifacts/input-replay/spawn-*.txt`. The old 664-input
 diagnostic trace and final image remain exact after these changes. Both builds
 and five CTests pass. No new screenshot is published: the neutral starting view
 is another bare tunnel, not the meaningful scene requested for the README.
+
+## Class cache versus player animation at creation
+
+`python tools/inspect_player_class_cache.py` executes original `423b90` and
+the factory span `42326c..4232b4`, including their unmodified copy callees.
+The SHA-checked original passes four cached/uncached, player/non-player gate
+cases and 180 sphere-copy fixtures (counts zero through eight). The report is
+`artifacts/player-class-cache.json`. These are original-execution fixtures,
+not a PC/NXDK implementation comparison or a complete spawn test.
+
+The gate reads bit `40000000` from class `entity+29c`, flags `+724`.
+A warm cache returns without entering `423bd0`, regardless of object player
+flag 8. Cold cases stop at the actual builder entry and verify its entity
+argument; this harness does not replace or execute the cold builder.
+
+After initial motion selection and the cache gate, the factory copies each
+standing center from the class's inline array at `+cec` (four-byte header,
+40-byte records, center at record `+18`) to the entity array at `+184`
+(storage pointer at array `+8`, 24-byte records, center at record `+0`).
+The executed span copies exactly 12 bytes per sphere, preserves the remaining
+sphere bytes and both source class and entity storage, and balances the stack.
+The loop bounds come from the entity array count; the original assumes matching
+class storage. The fixture supplies that valid precondition.
+
+Together with the separately recovered Live Mines entity order and first
+selector, this means the player can start with the armed blend while retaining
+centers cached by the earlier miner1 NPC. The current diagnostic instead derives
+its body spheres and class offsets from one initial unarmed pose. Integration
+must separate class cache initialization from per-entity playback; changing the
+selector alone would incorrectly make collision centers depend on the armed
+blend. Full cold-cache sampling, runtime class ownership, and the remaining
+player factory are still open.
