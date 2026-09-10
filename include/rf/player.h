@@ -30,7 +30,7 @@ typedef struct rf_player_climb_state {
     const float (*orientation)[3];
     int32_t contact_handle;
     rf_movement_settings speed;
-    float step_offset; /* Entity +148. */
+    float vertical_velocity; /* Entity +148. */
 } rf_player_climb_state;
 typedef struct rf_player_climb_input {
     const rf_player_movement_region *region;

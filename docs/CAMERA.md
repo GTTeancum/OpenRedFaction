@@ -2557,7 +2557,7 @@ and forced action pass, with full actor storage and global selection checked.
 `rf_player_climb_exit` implements this using a resolved default index, borrowed
 descriptor/identity storage and a standing callback. The callback owns clearance
 and stance effects; a blocked result preserves the compact climb state. The state
-now includes +148 as `step_offset`. `tools/verify_climb_exit.py` matches the 128
+now includes +148 as `vertical_velocity`. `tools/verify_climb_exit.py` matches the 128
 cases on PC and compiled NXDK, including callback timing, full compact state and
 selection output. The 768 entry cases still pass, as do both builds and CTest.
 Live region ownership, movement while climbing, name resolution wiring and
@@ -2581,3 +2581,36 @@ rejection at one byte below the required budget, accepts the exact budget,
 observes one allocation for nonempty sections, and verifies one free across
 two closes. Allocation/free and archive reads are fixture boundaries. Both
 builds and CTest pass. Live scene ownership and climb wiring are still open.
+
+
+### Campaign climb wiring and pending replay (2026-09-09)
+
+The opt-in campaign scene now owns movement regions until scene cleanup,
+loads the movement descriptor table, queries the player position before stance
+selection, and invokes the recovered entry/exit helpers. Mode 2 movement uses
+its descriptor's eye/body/region axes and `rf_physics_climb_propose`; ordinary
+run/fall paths remain available. Sound requests are counted with their IDs;
+there is still no audio backend. Region and transition pointers are cleared
+before the region owner is freed. The class default remains the campaign
+miner's validated run descriptor, with unattached owner/camera fixture values.
+
+A field-mapping correction was necessary: original entity +144 is velocity,
+so +148 is its Y component, not a step offset. `rf_player_climb_state` now calls
+this `vertical_velocity`, and exit clears the actual body Y velocity. Prior
+compact-state fixture values were correct; their semantic name was wrong.
+
+`RF_REPLAY_LEVEL` and `RF_REPLAY_REGION_START` are process-local, headless
+campaign test options in the PC frontend. The latter stages the start at the
+first authored region center and must not be described as an ordinary spawn.
+`tools/replay_campaign_climb.py` reproduces the L1S2 test and records failure
+or incomplete transitions explicitly. Currently it fails before simulation in
+`rf_scene_world_open_retained`, material stage 11 (RF_FORMAT); stages 10/11/12
+now distinguish movers, materials and initial projection in failure diagnostics.
+No successful live climb traversal or image is claimed.
+
+The existing L1S1 64-tick crouch replay passes in stock-64-MiB XEMU
+`20260909-235522`, comparing PC body, input, stance, animation and the new eight
+climb telemetry words. L1S1 has no regions, so this is regression evidence only.
+The 768 entry and 128 exit PC/NXDK fixtures and CTest still pass. Next work is
+the L1S2 material failure, followed by actual entry/motion/exit replay and XEMU
+coverage of a region-containing level.

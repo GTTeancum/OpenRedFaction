@@ -24,6 +24,13 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
+Campaign code now wires owned region queries, climb entry/exit and movement.
+The L1S1 64-tick replay passes in stock-64-MiB XEMU (20260909-235522), including
+new query telemetry, but contains no climb region. The staged L1S2 replay fails
+at material-loading stage 11 before simulation; fix that and demonstrate actual
+entry/motion/exit. Entity +148 was corrected from "step offset" to vertical velocity.
+Run tools/replay_campaign_climb.py to reproduce the current failure.
+
 Owned movement-region storage now survives archive closure with a checked
 single allocation. All 147 records across 39 levels pass PC/NXDK ownership,
 exact-budget and repeatable-close checks. The live scene must retain this owner

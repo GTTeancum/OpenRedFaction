@@ -48,13 +48,13 @@ int main(int argc,char **argv)
             float identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};uint32_t selected=77,standing[2]={(uint32_t)v[2],0};
             config.flags=v[0];config.base_speed=3.5f;config.slow_factor=.5f;
             if(v[3]>=0)table[v[3]].enabled=v[4];
-            state.previous_region=state.region=&region;state.movement=table+2;state.contact_handle=123;state.step_offset=7;
+            state.previous_region=state.region=&region;state.movement=table+2;state.contact_handle=123;state.vertical_velocity=7;
             input.config=&config;input.descriptors=table;input.identity=identity;input.default_index=v[3];
             input.forced_action=v[5];input.entity_scale=1;input.crouched=v[1];
             if(rf_player_climb_exit(&state,&input,&selected,climb_stand,standing))return 3;
             out[0]=state.previous_region==NULL;out[1]=state.region==&region;
             out[2]=state.movement?(uint32_t)(state.movement-table):UINT32_MAX;out[3]=state.orientation==identity;
-            out[4]=state.contact_handle;out[5]=state.speed.mode;out[6]=selected;memcpy(out+7,&state.step_offset,4);
+            out[4]=state.contact_handle;out[5]=state.speed.mode;out[6]=selected;memcpy(out+7,&state.vertical_velocity,4);
             out[8]=standing[1];memcpy(out+9,&state.speed.speed,4);
             if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
         }

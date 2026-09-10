@@ -44,5 +44,5 @@ for data,record in zip(commands,expected):
  result=struct.unpack('<10I',record);movement=0 if result[2]==0xffffffff else table+result[2]*32
  want=w(0 if result[0] else region,region,movement,identity if result[3] else 0,123,0,result[9],result[5],result[7])
  assert bytes(x.mem_read(state,36))==want and bytes(x.mem_read(selected,4))==w(result[6]) and calls==result[8]
-report=dict(result='PASS',cases=len(cases),pc_sha256=hashlib.sha256(probe.read_bytes()).hexdigest(),nxdk_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),scope='Shared exit matches original resolved branch/state fixtures, including blocked preservation, callback timing, speed, default movement/fallback, identity and step offset. Name resolution and standing world effects supplied; no live campaign climbing.')
+report=dict(result='PASS',cases=len(cases),pc_sha256=hashlib.sha256(probe.read_bytes()).hexdigest(),nxdk_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),scope='Shared exit matches original resolved branch/state fixtures, including blocked preservation, callback timing, speed, default movement/fallback, identity and vertical velocity. Name resolution and standing world effects supplied; no live campaign climbing.')
 (root/'artifacts/climb-exit-verification.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS',len(cases),'shared PC/NXDK climb exits')

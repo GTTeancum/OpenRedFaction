@@ -15,7 +15,7 @@ extern uint32_t rf_scene_actor_follow_summary[5];
 extern uint32_t rf_scene_player_input_frames[64][7];
 extern uint32_t rf_preview_failure[8],rf_animation_progress[4];
 extern rf_physics_body scene_actor_body;
-extern uint32_t rf_scene_actor_initial_animation[12];
+extern uint32_t rf_scene_actor_initial_animation[12],rf_scene_player_climb[8];
 extern float rf_scene_actor_initial_eye_offsets[6];
 extern rf_physics_stance_cache rf_scene_actor_stance_cache;
 extern uint32_t rf_scene_actor_selector_frames[64][8],rf_scene_actor_locomotion_frames[64][12];
@@ -161,10 +161,15 @@ int main(int argc,char **argv)
     else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
     CHECK(path_join(path,sizeof(path),directory,"levels1.vpp"));
-    CHECK(rf_vpp_open(&archive,path));CHECK(rf_level_open(&level,&archive,"L1S1.rfl"));
+    CHECK(rf_vpp_open(&archive,path));CHECK(rf_level_open(&level,&archive,spawn_profile && p.headless && getenv("RF_REPLAY_LEVEL")?getenv("RF_REPLAY_LEVEL"):"L1S1.rfl"));
     CHECK(path_join(meshes,sizeof(meshes),directory,"meshes.vpp"));
     CHECK(path_join(motions,sizeof(motions),directory,"motions.vpp"));
     CHECK(path_join(tables,sizeof(tables),directory,"tables.vpp"));
+    if(spawn_profile && p.headless && getenv("RF_REPLAY_REGION_START")) {
+        rf_level_entity_reader reader;rf_player_movement_region region;
+        CHECK(rf_level_regions_begin(&level,&reader));CHECK(rf_level_region_next(&reader,&region));
+        memcpy(level.player_position,region.center,12); /* Explicit staged process-local climb fixture. */
+    }
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -203,11 +208,11 @@ int main(int argc,char **argv)
     if(p.headless) {
         if(p.frames!=limit){status=RF_FORMAT;goto cleanup;}
         if(spawn_profile){
-            const void *records[5]={rf_scene_actor_initial_animation,rf_scene_actor_initial_eye_offsets,&rf_scene_actor_stance_cache,rf_scene_actor_selector_frames,rf_scene_actor_locomotion_frames};
-            const char *labels[5]={"PLAYER_INITIAL_ANIMATION","PLAYER_CLASS_EYE","PLAYER_CLASS_STANCE","PLAYER_STANCE_FRAMES","PLAYER_MOTION_FRAMES"};
-            const uint32_t sizes[5]={12,6,sizeof(rf_scene_actor_stance_cache)/4,512,768};uint32_t j;
+            const void *records[6]={rf_scene_actor_initial_animation,rf_scene_actor_initial_eye_offsets,&rf_scene_actor_stance_cache,rf_scene_actor_selector_frames,rf_scene_actor_locomotion_frames,rf_scene_player_climb};
+            const char *labels[6]={"PLAYER_INITIAL_ANIMATION","PLAYER_CLASS_EYE","PLAYER_CLASS_STANCE","PLAYER_STANCE_FRAMES","PLAYER_MOTION_FRAMES","PLAYER_CLIMB"};
+            const uint32_t sizes[6]={12,6,sizeof(rf_scene_actor_stance_cache)/4,512,768,8};uint32_t j;
             printf("PLAYER_SPAWN");for(i=0;i<19;++i)printf(" %u",rf_scene_player_spawn_diagnostic[i]);puts("");
-            for(j=0;j<5;++j){printf("%s",labels[j]);for(i=0;i<sizes[j];++i){uint32_t word;memcpy(&word,(const char*)records[j]+i*4,4);printf(" %u",word);}puts("");}
+            for(j=0;j<6;++j){printf("%s",labels[j]);for(i=0;i<sizes[j];++i){uint32_t word;memcpy(&word,(const char*)records[j]+i*4,4);printf(" %u",word);}puts("");}
         }
         CHECK(rf_pc_raster_save(&p.raster,argv[4]));
         printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");

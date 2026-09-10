@@ -24,7 +24,7 @@ int rf_player_climb_exit(rf_player_climb_state *state,const rf_player_climb_exit
         selected=(input->descriptors[input->default_index].enabled&255)?(uint32_t)input->default_index:0;
         *selected_descriptor=selected;state->movement=input->descriptors+selected;
     } else state->movement=NULL;
-    state->orientation=input->identity;state->step_offset=0;return RF_OK;
+    state->orientation=input->identity;state->vertical_velocity=0;return RF_OK;
 }
 int rf_player_climb_enter(rf_player_climb_state *state,const rf_player_climb_input *input,
     uint32_t *selected_descriptor,rf_player_climb_sound sound,void *context)

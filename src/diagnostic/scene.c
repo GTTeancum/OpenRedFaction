@@ -117,6 +117,7 @@ int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
     const rf_geometry **sources=NULL;uint32_t i;int status;
     if(!geometry || geometry->world || geometry->movers.data || geometry->offsets || geometry->slots ||
         !mesh || mesh->vertices || mesh->bytes || !materials || materials->items || materials->count)return RF_RANGE;
+    rf_scene_profile_stage[1]=10;
     status=rf_geometry_movers_open(level,1024*1024,&movers);if(status)goto done;
     if(rf_scene_showcase_enabled) {
         /* Half the authored endpoint displacement for both pairs of exit panels.
@@ -131,8 +132,9 @@ int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
     }
     sources=malloc(((size_t)movers.count+1)*sizeof(*sources));if(!sources){status=RF_RANGE;goto done;}
     sources[0]=world;for(i=0;i<movers.count;++i)sources[i+1]=&movers.items[i].geometry;
+    rf_scene_profile_stage[1]=11;
     status=rf_geometry_materials_open(&bundle,sources,movers.count+1,maps,map_count,material_budget);
-    if(!status)status=rf_preview_build_world(mesh,world,&movers,NULL,&bundle,level,mesh_budget);
+    if(!status){rf_scene_profile_stage[1]=12;status=rf_preview_build_world(mesh,world,&movers,NULL,&bundle,level,mesh_budget);}
     if(!status) {
         rf_scene_world_geometry next={0};next.world=world;next.movers=movers;
         next.offsets=bundle.offsets;next.slots=bundle.slots;next.geometry_count=bundle.count;next.material_count=bundle.textures.count;
@@ -236,6 +238,12 @@ int32_t rf_scene_actor_initial_eye_tag;
 uint32_t rf_scene_actor_eye_enabled;
 uint32_t rf_scene_actor_turn_enabled,rf_scene_actor_look_enabled,rf_scene_actor_look_frames[64][33];
 static rf_look_pose actor_look;
+static rf_level_owned_regions campaign_regions;
+static rf_movement_descriptor campaign_modes[16];
+static rf_player_climb_state campaign_climb;
+static const float campaign_identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
+uint32_t rf_scene_player_climb[8]; /* queries, enters, exits, region, mode, bytes, sounds, sound ID */
+
 uint32_t rf_scene_actor_eye_frames[64][46]; /* frame, rf_eye_input, rf_first_person_pose */
 uint32_t rf_scene_actor_animation_timing[64][3];
 typedef struct actor_sweep_record {
@@ -473,13 +481,56 @@ static int actor_selector_effect(void *context,uint32_t frame,const rf_motion_st
     record[5]=rf_scene_actor_stance_flags;record[6]=(uint32_t)rf_scene_actor_stance_blocked;
     record[7]=(uint32_t)rf_scene_actor_movement_settings.mode;return RF_OK;
 }
+typedef struct actor_stand_context {const rf_geometry_collision_world *world;uint32_t frame;} actor_stand_context;
+static int campaign_try_stand(void *context,uint32_t *stood)
+{
+    actor_stand_context *c=context;int blocked,status;
+    status=actor_stance_update(c->world,0,&blocked,(int)c->frame);if(status)return status;
+    *stood=!blocked;campaign_crouched=(rf_scene_actor_stance_flags&0x400)!=0;return RF_OK;
+}
+static void campaign_climb_sound(void *context,const rf_player_climb_state *state,const rf_player_sound_request *request)
+{
+    (void)context;(void)state; /* Audio backend remains open; retain the request ID. */
+    ++rf_scene_player_climb[6];rf_scene_player_climb[7]=(uint32_t)request->sound_id;
+}
+static int campaign_climb_update(scene_stream *stream,uint32_t frame)
+{
+    uint32_t index,mode=rf_scene_actor_landing[1],selected=mode;int status;
+    const rf_player_movement_region *region;
+    status=rf_player_movement_region_find(campaign_regions.items,campaign_regions.count,scene_actor_body.state.position,&index);
+    if(status)return status;region=index==UINT32_MAX?NULL:campaign_regions.items+index;
+    ++rf_scene_player_climb[0];rf_scene_player_climb[3]=index;
+    campaign_climb.speed=rf_scene_actor_movement_settings;
+    campaign_climb.movement=campaign_modes+mode;
+    campaign_climb.vertical_velocity=scene_actor_body.state.velocity[1];
+    if(region && mode!=2 && (mode==1 || region!=campaign_climb.previous_region)) {
+        rf_player_climb_input input={0};
+        input.region=region;input.descriptors=campaign_modes;input.config=&rf_scene_actor_movement_config;
+        input.forced_action=-1;input.entity_scale=scene_actor_body.state.mass;
+        input.free_motion=mode==3 || mode==8;input.sound.owner_present=1;
+        memcpy(input.sound.position,scene_actor_body.state.position,12);
+        status=rf_player_climb_enter(&campaign_climb,&input,&selected,campaign_climb_sound,NULL);if(status)return status;
+        if(rf_scene_actor_movement_config.flags&4){mode=selected;++rf_scene_player_climb[1];}
+    } else if(!region && mode==2) {
+        rf_player_climb_exit_input input={0};actor_stand_context context={stream->collision,frame};
+        input.config=&rf_scene_actor_movement_config;input.descriptors=campaign_modes;input.identity=campaign_identity;
+        input.default_index=1;input.forced_action=-1;input.entity_scale=scene_actor_body.state.mass;
+        input.crouched=campaign_crouched;
+        status=rf_player_climb_exit(&campaign_climb,&input,&selected,campaign_try_stand,&context);if(status)return status;
+        if(selected!=2){mode=selected;++rf_scene_player_climb[2];}
+    }
+    rf_scene_actor_movement_settings=campaign_climb.speed;
+    rf_scene_actor_landing[1]=mode;scene_actor_body.state.velocity[1]=campaign_climb.vertical_velocity;
+    rf_scene_player_climb[4]=mode;return RF_OK;
+}
 static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
 {
+    int update_status=campaign_climb_update((scene_stream*)context,frame);if(update_status)return update_status;
     rf_motion_stance_decision decision={0,RF_MOTION_STANCE_NONE};
     rf_player_crouch_input eligibility={1,-1,-1,-1,(int32_t)rf_scene_actor_landing[1]};
     /* Ownership/environment/locks are fixture defaults until the player
      * registry and environment lifecycle supply their resolved values. */
-    rf_player_stance_gate gate={1,0,(int32_t)rf_scene_actor_landing[1],
+    rf_player_stance_gate gate={1,rf_scene_player_climb[3]!=UINT32_MAX,(int32_t)rf_scene_actor_landing[1],
         (int32_t)rf_scene_actor_movement_settings.mode,0,-1,0,0};
     uint32_t request=player_poll?player_input.crouch:0;int status;
     /* Ordinary unattached player fixture. 430c70 owns immediate collision
@@ -623,7 +674,13 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
     state->flags&=~0x1000000u;
     do {
         float fraction,impact;uint32_t sphere;
-        if(grounded) {
+        if(campaign_spawn && rf_scene_actor_landing[1]==2) {
+            float input[3];
+            status=rf_movement_transform(campaign_modes[2].translation,command,
+                actor_look.eye_orientation,state->orientation,(const float*)campaign_climb.orientation,input);if(status)return status;
+            status=rf_physics_climb_propose(state,remaining,rf_scene_actor_movement_settings.speed,
+                rf_scene_actor_movement_values.acceleration,input,support);
+        } else if(grounded) {
             float input[3];
             status=rf_movement_transform(rf_scene_actor_movement[0].translation,command,
                 state->orientation,state->orientation,state->orientation,input);if(status)return status;
@@ -998,7 +1055,17 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision)status=rf_movement_descriptor_load(&tables,3,65536,rf_scene_actor_movement+1);
         if(!status && collision)status=rf_entity_movement_load(&tables,binding.entity.class_name,512*1024,&rf_scene_actor_movement_values);
         if(!status && collision)status=scene_surface_open(&tables,&stream);
+        if(!status && collision && campaign_spawn) {
+            uint32_t mode;
+            for(mode=0;mode<16 && !status;++mode)status=rf_movement_descriptor_load(&tables,mode,65536,campaign_modes+mode);
+        }
         rf_vpp_close(&tables);if(status)goto done;
+        if(campaign_spawn && collision) {
+            status=rf_level_owned_regions_open(level,65536,&campaign_regions);
+            if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
+            memset(&campaign_climb,0,sizeof(campaign_climb));memset(rf_scene_player_climb,0,sizeof(rf_scene_player_climb));
+            rf_scene_player_climb[3]=UINT32_MAX;rf_scene_player_climb[5]=campaign_regions.allocated_bytes;
+        }
         stream.eye_flags=physics_config.authored.flags2;
         /* Live landing currently implements the ordinary class-run branch.
          * Reject other descriptors/special landing classes rather than silently
@@ -1089,6 +1156,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
+    memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;
