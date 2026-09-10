@@ -373,14 +373,14 @@ static int actor_movement_select(void *context,uint32_t frame,rf_motion_controll
     record[9]=(uint32_t)controller->current;record[10]=(uint32_t)controller->next;
     memcpy(record+11,&controller->duration,4);return RF_OK;
 }
-static int actor_ground_query(const rf_geometry_collision_world *world,actor_ground_record *r)
+static int actor_ground_query_state(const rf_geometry_collision_world *world,const rf_physics_body_state *state,actor_ground_record *r)
 {
     float start[3],delta[3];uint32_t k;int status;
     memset(r,0,sizeof(*r));
     /* Original falling/grounded depths, stationary support velocity. Queries
      * are retained every frame; commits obey the grounded movement gate. */
     status=rf_physics_ground_prepare(scene_actor_body.spheres.items,scene_actor_body.spheres.count,
-        scene_actor_body.state.position,scene_actor_body.state.state_124,rf_scene_actor_landing[1]==3,
+        state->position,state->state_124,rf_scene_actor_landing[1]==3,
         scene_step_seconds,rf_scene_actor_movement_values.speed,0,&r->probe);if(status)return status;
     for(k=0;k<3;++k) {
         start[k]=(float)((double)r->probe.start[k]+r->probe.sphere.center[k]);
@@ -390,6 +390,8 @@ static int actor_ground_query(const rf_geometry_collision_world *world,actor_gro
     if(status)return status;
     return RF_OK;
 }
+static int actor_ground_query(const rf_geometry_collision_world *world,actor_ground_record *r)
+{return actor_ground_query_state(world,&scene_actor_body.state,r);}
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
     actor_ground_record *r=rf_scene_actor_ground_records+(frame%64);uint32_t k;int status;
@@ -996,25 +998,46 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             rf_physics_body_state next=scene_actor_body.state;
             const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
             int walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
+            actor_ground_record post_ground;uint32_t route=RF_PLAYER_SUPPORT_QUERY;
             int moved=0;uint32_t axis;
-            if(frame)for(axis=0;axis<3;++axis) {
+            if(campaign_spawn) {
+                /* 433520 -> 433260: input, physics, then 487e00 support.
+                 * The owned local-player fixture has object bit 8 and no parent. */
+                status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
+                moved=memcmp(next.position,scene_actor_body.state.position,12)!=0;
+                {rf_player_support_input input={rf_scene_actor_landing[1],rf_scene_actor_stance_flags,
+                    0,-1,-1,(uint32_t)moved,next.flags,8};route=rf_player_support_route(&input);}
+                if(route==RF_PLAYER_SUPPORT_QUERY) {
+                    status=actor_ground_query_state(stream->collision,&next,&post_ground);if(status)return status;
+                    ground=&post_ground;walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
+                }
+            } else if(frame)for(axis=0;axis<3;++axis) {
                 float previous;memcpy(&previous,rf_scene_actor_render_frames[(frame-1)%64]+2+axis,4);
                 if(previous!=next.position[axis])moved=1;
             }
-            if(rf_scene_actor_landing[1]==3 && walkable) {
-                status=rf_physics_static_land(&next,&ground->probe,ground->hit.hit.fraction);if(status)return status;
-                rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;
-                ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
-            } else if(rf_scene_actor_landing[1]==1 && moved) {
-                if(walkable) {
-                    status=rf_physics_static_support(&next,&ground->probe,ground->hit.hit.fraction);if(status)return status;
-                    ++rf_scene_actor_landing[6];
-                } else {
-                    /* Ordinary actor 4281a0: set falling flag and mode 3. */
-                    next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
+            if(route==RF_PLAYER_SUPPORT_FALL) {
+                next.flags|=1;rf_scene_actor_landing[1]=3;
+            } else if(route==RF_PLAYER_SUPPORT_QUERY) {
+                if(rf_scene_actor_landing[1]==3 && walkable) {
+                    status=rf_physics_static_land(&next,&ground->probe,ground->hit.hit.fraction);if(status)return status;
+                    rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;
+                    ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
+                } else if(rf_scene_actor_landing[1]==1 && (campaign_spawn || moved)) {
+                    if(walkable) {
+                        status=rf_physics_static_support(&next,&ground->probe,ground->hit.hit.fraction);if(status)return status;
+                        ++rf_scene_actor_landing[6];
+                    } else {
+                        next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
+                    }
                 }
             }
-            status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
+            if(campaign_spawn) {
+                /* 4aa6d0 consumes this after support; its optional first-person
+                 * motion request remains part of the unfinished weapon lifecycle. */
+                rf_scene_actor_stance_flags&=~2u;
+            } else {
+                status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
+            }
             status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return status;
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);

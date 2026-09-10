@@ -2928,3 +2928,29 @@ then owned-player flag consumption. Other control modes, input locks, server
 branches and exceptional early returns require their own lifecycle handling.
 The port's diagnostic rendering/tick order still needs to be aligned and
 validated by takeoff/hold/landing replay; the selector alone does not prove it.
+
+
+Campaign support ordering integrated (2026-09-10)
+
+The campaign path now advances actor_tick before selecting support handling.
+actor_ground_query_state accepts an explicit body state, allowing a fresh query
+at the updated position. The recovered selector receives current mode, actor
+flags, physics flags and movement, with explicit fixture values kind-one=false,
+attachment/parent=-1 and owned-player object bit 8. Support results commit to
+the advanced body. A jump-flag route selects falling and skips support; flag 2
+is consumed afterward, at the local-player phase. The optional first-person
+motion request and full ownership/weapon lifecycle remain unimplemented.
+
+The historical noncampaign diagnostic order is retained. Pre-tick ground rings
+still describe their original diagnostic query; the new post-tick query is a
+local temporary record used for campaign commits, not silently substituted
+into the earlier trace. No input ABI or existing replay files change here.
+
+Both PC climb scenarios pass: center ascent 5.204667568, approach ascent
+6.431220531, each one entry/one exit. Stock-64-MiB XEMU approach replay
+20260910-012038 matches PC's complete retained state and timeline checks across
+220 ticks, with 9444 available pages at completion. Outside walking distance
+is now 0.808611395. The 64-tick campaign crouch/move/stand replay also passes
+on PC and XEMU 20260910-012117. All five registered CTests pass; both targets
+build. These checks validate the reordered walking/climbing fixtures, not a
+jump: jump input still needs connection and takeoff/hold/landing coverage.
