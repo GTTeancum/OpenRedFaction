@@ -1,5 +1,25 @@
 #include "rf/effect.h"
 #include <math.h>
+int rf_particle_frame_index(const rf_particle *particle,uint32_t *frame)
+{
+    int32_t count;double value,denominator;
+    if(!particle || !frame)return RF_RANGE;
+    count=(int16_t)particle->frame_count;
+    if(count<=1){*frame=0;return RF_OK;}
+    if(!isfinite(particle->age) || particle->age<0)return RF_RANGE;
+    if(particle->flags&0x100u) {
+        if(particle->age>=2147483648.0)return RF_RANGE;
+        value=((double)particle->age-floor(particle->age))*15.0/count+0.5;
+    } else {
+        denominator=particle->life;
+        if(particle->secondary&4u)denominator*=particle->age_to_finish_vbm;
+        if(!isfinite(denominator) || denominator<=0)return RF_RANGE;
+        value=(double)particle->age/denominator*count+0.5;
+    }
+    if(!isfinite(value) || value>=2147483648.0)return RF_RANGE;
+    value=floor(value);if(value<0)value=0;if(value>=count)value=count-1;
+    *frame=(uint32_t)value;return RF_OK;
+}
 int rf_particle_initialize(const rf_particle_spawn *spawn,uint32_t pool,
     uint32_t owner,uint32_t room,uint32_t emitter,rf_random_state *random,
     rf_particle *particle)

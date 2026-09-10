@@ -13,6 +13,14 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-frame")) {
+        rf_particle in;struct {int32_t status;uint32_t frame;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.frame=0xa5a5a5a5;out.status=rf_particle_frame_index(&in,&out.frame);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-step-free")) {
         struct {float dt;rf_particle particle;} in;
         struct {int32_t status;uint32_t live;rf_particle particle;} out;

@@ -100,6 +100,12 @@ int rf_particle_initialize(const rf_particle_spawn *spawn,uint32_t pool,
     uint32_t owner,uint32_t room,uint32_t emitter,rf_random_state *random,
     rf_particle *particle);
 
+/* 494baf..494c8f frame selection, before bitmap binding/drawing. Returns a
+ * zero-based frame; original signed frame counts <=1 select zero. Finite,
+ * nonnegative age and valid positive denominators required for animation.
+ * Unsupported conversion range preserves output. No resource access. */
+int rf_particle_frame_index(const rf_particle *particle,uint32_t *frame);
+
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */
     int32_t started; /* +154 deadline. */

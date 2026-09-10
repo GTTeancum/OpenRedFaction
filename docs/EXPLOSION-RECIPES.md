@@ -232,3 +232,18 @@ The output hash matches the PC/original-verified reference. Record storage is
 and recycling in XEMU; it does not render live particles. Existing resource
 lifetime and campaign replay checks also pass. The optional fixture file is
 staged/restored by xemu_replay_check.py and absent from the normal disc.
+
+Particle render entry 494b90 selects its frame in span 494baf..494c8f before
+binding bitmap base+frame. rf_particle_frame_index recovers that zero-based
+selection. The frame-count word is signed: counts <=1 select frame zero.
+Otherwise normal mode floors age/life*count+0.5; hold-last flag (secondary 4)
+uses age/(finish_age*life)*count+0.5. Loop flag 0x100 takes precedence and
+uses floor((age-floor(age))*15/count+0.5), including the original division by
+count. All modes clamp to [0,count-1]. Constant 589854 is float 15.
+
+2880 fixtures execute the original span with unchanged floor/conversion and
+clamp callees against PC/NXDK at explicit 0x027f x87 precision. They cover
+signed counts, time boundaries and mode precedence. Six invalid-input fixtures
+verify preserved outputs outside the supported finite/conversion domain.
+This determines the frame but does not bind textures, manage animated frame
+residency or draw billboards. Those renderer connections remain open.
