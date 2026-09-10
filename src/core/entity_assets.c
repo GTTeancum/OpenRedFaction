@@ -559,22 +559,31 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
     *assets=value;return RF_OK;
 }
 
-int rf_emitter_definition_read(const void *text,uint32_t bytes,const char *name,
-    rf_particle_definition *result)
+static int named_effect_block(const void *text,uint32_t bytes,const char *name,
+    uint32_t *start,uint32_t *length,char authored_name[64])
 {
     lexer l;char t[256];uint32_t body=0;int selected=0,status,quoted;
-    if(!text || !bytes || !name || !*name || !result)return RF_RANGE;
+    if(!text || !bytes || !name || !*name || !start || !length || !authored_name)return RF_RANGE;
     l.text=text;l.size=bytes;l.at=0;
     for(;;) {
         uint32_t boundary=l.at;
         status=token(&l,t,&quoted);
         if(status==RF_NOT_FOUND || (!status && !quoted && (same(t,"$Name:") || same(t,"#End")))) {
-            if(selected)return rf_particle_definition_read(l.text+body,boundary-body,result);
+            if(selected){*start=body;*length=boundary-body;return RF_OK;}
             if(status==RF_NOT_FOUND || same(t,"#End"))return RF_NOT_FOUND;
             status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
             selected=same(t,name);body=l.at;
+            if(selected){if(strlen(t)>=64)return RF_RANGE;strcpy(authored_name,t);}
         } else if(status)return status;
     }
+}
+int rf_emitter_definition_read(const void *text,uint32_t bytes,const char *name,
+    rf_particle_definition *result)
+{
+    uint32_t start,length;char authored[64];int status;
+    if(!result)return RF_RANGE;
+    status=named_effect_block(text,bytes,name,&start,&length,authored);if(status)return status;
+    return rf_particle_definition_read((const unsigned char *)text+start,length,result);
 }
 int rf_emitter_definition_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,
     rf_particle_definition *result)
@@ -684,4 +693,73 @@ int rf_particle_definition_read(const void *text,uint32_t bytes,rf_particle_defi
     rf_particle_flags_pack(&v.flags,present,packed);
     rf_particle_cycle_read(&v.flags,initial,alternate,&v.cycle,&v.cycle);
     *result=v;return RF_OK;
+}
+
+int rf_vclip_definition_read(const void *text,uint32_t bytes,const char *name,rf_vclip_definition *result)
+{
+    rf_vclip_definition v={0};uint32_t start,length,seen=0;lexer l;char t[256];int status,q;
+    static const char *labels[]={"$flags:","$damage:","$vbmfilename:","$vbmglow:","$explosionname:","$vfxfilename:","$vfxradius:","$foleysound:","$particlecount:"};
+    if(!result)return RF_RANGE;
+    status=named_effect_block(text,bytes,name,&start,&length,v.name);if(status)return status;
+    v.vfx_radius=20;l.text=(const unsigned char *)text+start;l.size=length;l.at=0;
+    while((status=token(&l,t,&q))==RF_OK) {
+        char label[64]={0};uint32_t n=0,field;
+        if(q || t[0]!='$')return RF_FORMAT;
+        for(;;) {
+            unsigned i;
+            for(i=0;t[i];++i) {unsigned c=(unsigned char)t[i];if(c=='_')continue;if(c>='A' && c<='Z')c+=32;
+                if(n==63)return RF_RANGE;label[n++]=(char)c;}
+            if(n && label[n-1]==':')break;
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+        }
+        for(field=0;field<9 && strcmp(label,labels[field]);++field){}
+        if(field==9 || (seen&(1u<<field)))return RF_FORMAT;seen|=1u<<field;
+        if(field==0) {
+            static const char *flags[]={"liquid_surface","radius_in_multiples","no_z_check","code_explode"};
+            if(token(&l,t,&q) || q || strcmp(t,"("))return RF_FORMAT;
+            for(;;) {
+                unsigned bit;if(token(&l,t,&q))return RF_FORMAT;
+                if(!q && !strcmp(t,")"))break;
+                if(!q && !strcmp(t,","))continue;
+                if(!q)return RF_FORMAT;
+                for(bit=0;bit<4 && !same(t,flags[bit]);++bit){}
+                if(bit==4)return RF_FORMAT;v.flags|=1u<<bit;
+            }
+        } else if(field==1 || field==6) {
+            if(sphere_number(&l,field==1?&v.damage:&v.vfx_radius))return RF_FORMAT;
+        } else if(field==3) {
+            if(!(seen&(1u<<2)) || token(&l,t,&q) || q)return RF_FORMAT;
+            if(same(t,"yes") || same(t,"true") || !strcmp(t,"1"))v.glow=1;
+            else if(!same(t,"no") && !same(t,"false") && strcmp(t,"0"))return RF_FORMAT;
+        } else if(field==8) {
+            unsigned at=0,negative=0;uint32_t mag=0,limit;
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(t[at]=='+' || t[at]=='-')negative=t[at++]=='-';
+            if(!t[at])return RF_FORMAT;limit=negative?0x80000000u:0x7fffffffu;
+            for(;t[at];++at) {unsigned digit=(unsigned char)t[at]-'0';
+                if(digit>9 || mag>(limit-digit)/10)return RF_FORMAT;mag=mag*10+digit;}
+            v.particle_count=negative?(mag==0x80000000u?(-2147483647-1):-(int32_t)mag):(int32_t)mag;
+            v.has_particle=1;
+            status=rf_particle_definition_read(l.text+l.at,l.size-l.at,&v.particle);if(status)return status;
+            l.at=l.size;
+        } else {
+            char *dest=field==2?v.vbm:field==4?v.explosion:field==5?v.vfx:v.foley;
+            unsigned capacity=field==4?32:64;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            if(strlen(t)>=capacity)return RF_RANGE;strcpy(dest,t);if(field==7)v.has_foley=1;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    *result=v;return RF_OK;
+}
+int rf_vclip_definition_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_vclip_definition *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"vclip.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>scratch_budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_vclip_definition_read(text,entry.size,name,result);
+    free(text);return status;
 }

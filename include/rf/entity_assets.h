@@ -14,6 +14,19 @@ int rf_emitter_definition_read(const void *text,uint32_t bytes,const char *name,
     rf_particle_definition *result);
 int rf_emitter_definition_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,
     rf_particle_definition *result);
+typedef struct rf_vclip_definition {
+    char name[64],vbm[64],vfx[64],explosion[32],foley[64];
+    uint32_t flags,glow;float damage,vfx_radius;
+    int32_t particle_count;uint32_t has_particle,has_foley;
+    rf_particle_definition particle;
+} rf_vclip_definition;
+/* Owned named vclip metadata, with defaults from 4c1460 and the shared
+ * particle reader. First ASCII-insensitive name match. Selected block only;
+ * names/resources are retained, not resolved into original runtime handles.
+ * No allocation in read; load uses one budgeted scratch block. Output is
+ * preserved on failure. This is a bounded port parser, not the full original. */
+int rf_vclip_definition_read(const void *text,uint32_t bytes,const char *name,rf_vclip_definition *result);
+int rf_vclip_definition_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_vclip_definition *result);
 /* movemodes.tbl fields and name/reference tables from original 433670.
  * Bounded archive read, one scratch allocation; output preserved on failure. */
 int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf_movement_descriptor *result);
