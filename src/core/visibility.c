@@ -3,10 +3,59 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+static double render_plane_distance(const float plane[4],const float point[3])
+{
+    return (((double)plane[2]*point[2]+(double)plane[1]*point[1])+
+        (double)plane[0]*point[0])+(double)plane[3];
+}
+static void render_sort(uint32_t *order,uint32_t count,const float *distances)
+{
+    uint32_t gap,i,j;
+    for(gap=count/2;gap;gap/=2)for(i=gap;i<count;i++) {
+        j=i;
+        while(j>=gap && distances[order[j-gap]]<distances[order[j]]) {
+            uint32_t swap=order[j-gap];order[j-gap]=order[j];order[j]=swap;j-=gap;
+        }
+    }
+}
+int rf_render_group_order(const rf_render_group_entry *entries,uint32_t count,const float camera[3],
+    uint32_t *order,float *distances,uint32_t *scratch)
+{
+    uint32_t i,j,groups=0,written=0,ordinary,*drawn;int status;
+    if(!camera || count>2048 || (count && (!entries || !order || !distances || !scratch)))return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(camera[j]))return RF_RANGE;
+    /* Validate before writing caller storage, using the ordinary key contract. */
+    for(i=0;i<count;i++) {
+        uint32_t index;float distance;
+        status=rf_render_sphere_order(&entries[i].sphere,1,camera,&index,&distance);if(status)return status;
+        if(entries[i].has_plane)for(j=0;j<4;j++)if(!isfinite(entries[i].plane[j]))return RF_RANGE;
+    }
+    if(!count)return RF_OK;
+    drawn=scratch+count;memset(drawn,0,count*sizeof(*drawn));
+    for(i=0;i<count;i++) {
+        uint32_t index;
+        rf_render_sphere_order(&entries[i].sphere,1,camera,&index,distances+i);
+        if(!(entries[i].sphere.sorted&255u)){order[written++]=i;drawn[i]=1;}
+        else if(entries[i].has_plane)scratch[groups++]=i;
+    }
+    render_sort(scratch,groups,distances);
+    for(i=0;i<groups;i++) {
+        uint32_t group=scratch[i];float side=(float)render_plane_distance(entries[group].plane,camera);
+        for(j=0;j<count;j++)if(!drawn[j] && !entries[j].has_plane &&
+            ((side<0)!=(render_plane_distance(entries[group].plane,entries[j].sphere.position)<0))) {
+            order[written++]=j;drawn[j]=1;
+        }
+        order[written++]=group;drawn[group]=1;
+    }
+    ordinary=written;
+    for(i=0;i<count;i++)if(!drawn[i])order[written++]=i;
+    render_sort(order+ordinary,written-ordinary,distances);
+    return RF_OK;
+}
 int rf_render_sphere_order(const rf_render_sphere *entries,uint32_t count,const float camera[3],
     uint32_t *order,float *distances)
 {
-    uint32_t i,j,first=0,n=0,gap;
+    uint32_t i,j,first=0,n=0;
     if(!camera || count>2048 || (count && (!entries || !order || !distances)))return RF_RANGE;
     for(j=0;j<3;j++)if(!isfinite(camera[j]))return RF_RANGE;
     for(i=0;i<count;i++) {
@@ -30,12 +79,7 @@ int rf_render_sphere_order(const rf_render_sphere *entries,uint32_t count,const 
             (double)delta[1]*delta[1])+(double)delta[2]*delta[2]);
         order[first+n++]=i;
     }
-    for(gap=n/2;gap;gap/=2)for(i=gap;i<n;i++) {
-        j=i;
-        while(j>=gap && distances[order[first+j-gap]]<distances[order[first+j]]) {
-            uint32_t swap=order[first+j-gap];order[first+j-gap]=order[first+j];order[first+j]=swap;j-=gap;
-        }
-    }
+    if(n)render_sort(order+first,n,distances);
     return RF_OK;
 }
 static int valid(const rf_visibility *s)

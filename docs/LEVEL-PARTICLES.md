@@ -492,3 +492,34 @@ regression pass. This is compiled-code emulation, not native framebuffer evidenc
 can divide both groups and ordinary objects across a room plane before
 dispatch. Those paths remain unimplemented and must not be flattened into
 the ordinary helper. The shared scene has not yet submitted live particles.
+
+### Plane-associated queue groups
+
+rf_render_group_order extends ordering through 4d43e0 and the no-room-split
+dispatch path in 4d3c40. Each sorted plane entry collects sorted ordinary
+entries on the opposite side from the camera. Group roots use the original
+distance sort; their children retain insertion order. A child claimed by
+several groups dispatches only once, with the first sorted group that claims
+it. Ordinary entries outside every group sort and dispatch afterward.
+Unsorted entries still dispatch first, even when they have a plane association.
+
+The 4d4570 predicate retains the original Z/Y/X dot-product addition order
+and the camera distance's float rounding before its side comparison; object
+distance stays double precision. A point on the plane belongs to the
+nonnegative side. The helper recomputes group membership during traversal
+instead of storing dense per-group membership arrays. Its caller storage is
+16 bytes per queue entry: order, distance and two scratch words, at most
+32768 bytes for 2048 entries, excluding input entries and fixed stack locals.
+No allocation or graphics state change occurs. Room-plane splitting and the
+intervening room-geometry pass remain separate, unfinished work.
+
+verify_render_group_order.py compares full original 4d3c40, 4d43e0 and their
+actual plane-distance helpers with shared PC/NXDK code. Only resolved camera
+lookup and final draw callbacks are intercepted. Fixtures include overlapping
+groups, insertion-order children, equal keys, unsorted plane entries, oblique
+and subnormal plane coefficients, and 128 groups within a 2048-entry queue.
+Live scene submission and native framebuffer validation remain open.
+
+The expanded run passes all 80 fixtures (22210 entries), with exact distance
+keys and callback order on PC/NXDK. The ordinary-queue regression and all six
+CTest checks also pass; both builds succeed. No new XEMU image was captured.

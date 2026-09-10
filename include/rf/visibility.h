@@ -102,6 +102,19 @@ typedef struct rf_render_sphere {float position[3],radius;uint32_t sorted;} rf_r
  * must be handled separately, not flattened into this ordinary queue. */
 int rf_render_sphere_order(const rf_render_sphere *entries,uint32_t count,const float camera[3],
     uint32_t *order,float *distances);
+typedef struct rf_render_group_entry {
+    rf_render_sphere sphere;uint32_t has_plane;float plane[4];
+} rf_render_group_entry;
+/* 4d43e0 grouping and 4d3c40 dispatch without a room-plane split. Sorted
+ * plane entries collect ordinary entries on the opposite side from camera.
+ * Groups sort by distance; children keep insertion order and dispatch once,
+ * even if associated with several groups. Remaining ordinary entries sort
+ * afterward. Unsorted entries still dispatch first. Plane is normal XYZ + D.
+ * Scratch is 2*count uint32_t words; order/distances have count elements.
+ * No allocation; all arrays disjoint and inputs stable. Errors preserve outputs.
+ * This does not replace the separate room-plane partition/geometry pass. */
+int rf_render_group_order(const rf_render_group_entry *entries,uint32_t count,const float camera[3],
+    uint32_t *order,float *distances,uint32_t *scratch);
 
 typedef struct rf_visibility_portal_cache {
     float minimum[3],maximum[3];uint32_t valid;
