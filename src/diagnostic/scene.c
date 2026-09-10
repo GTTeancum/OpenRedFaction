@@ -364,11 +364,17 @@ static rf_group_registration campaign_group_registration;
 static rf_geometry_collision_movers campaign_movers;
 static rf_group_registered_mover *campaign_mover_wrappers;
 static rf_level_uid_object *campaign_mover_objects;
+static rf_group_object *campaign_mover_bindings;
+static rf_group_mover_memberships campaign_memberships;
+uint32_t rf_scene_campaign_memberships[5]; /* groups, links, retained/peak bytes, ordered binding hash */
+
 static uint32_t campaign_mover_count;
 uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, registration bytes */
 static void campaign_close_movers(void)
 {
     uint32_t i;for(i=0;i<campaign_mover_count;i++)rf_object_registry_remove(&campaign_registry,campaign_mover_wrappers[i].handle);
+    rf_group_mover_memberships_close(&campaign_memberships);
+    free(campaign_mover_bindings);campaign_mover_bindings=NULL;
     free(campaign_mover_wrappers);free(campaign_mover_objects);
     campaign_mover_wrappers=NULL;campaign_mover_objects=NULL;campaign_mover_count=0;
     rf_geometry_collision_movers_close(&campaign_movers);
@@ -380,8 +386,9 @@ static int campaign_open_movers(const rf_geometry_movers *source)
     if(!source->count) {memset(rf_scene_campaign_movers,0,sizeof(rf_scene_campaign_movers));return RF_OK;}
     campaign_mover_wrappers=calloc(source->count,sizeof(*campaign_mover_wrappers));
     campaign_mover_objects=calloc(source->count,sizeof(*campaign_mover_objects));
+    campaign_mover_bindings=calloc(source->count,sizeof(*campaign_mover_bindings));
     handles=malloc(source->count*sizeof(*handles));
-    if(!campaign_mover_wrappers || !campaign_mover_objects || !handles)goto failed;
+    if(!campaign_mover_wrappers || !campaign_mover_objects || !campaign_mover_bindings || !handles)goto failed;
     for(i=0;i<source->count;i++) {
         rf_group_registered_mover *m=campaign_mover_wrappers+i;m->object_kind=9;
         status=rf_object_registry_insert(&campaign_registry,m,&m->handle);if(status)goto failed;
@@ -392,14 +399,42 @@ static int campaign_open_movers(const rf_geometry_movers *source)
         campaign_mover_wrappers[i].pose=campaign_movers.poses+i;
         campaign_mover_objects[i].uid=(uint32_t)campaign_movers.uids[i];
         campaign_mover_objects[i].handle=handles[i];campaign_mover_objects[i].flags=campaign_movers.poses[i].flags;
+        campaign_mover_bindings[i]=(rf_group_object){campaign_movers.uids[i],9,handles[i],UINT32_MAX,campaign_movers.poses[i].flags};
     }
     rf_scene_campaign_movers[0]=campaign_mover_count;rf_scene_campaign_movers[1]=campaign_movers.allocated_bytes;
-    rf_scene_campaign_movers[2]=campaign_mover_count*(sizeof(*campaign_mover_wrappers)+sizeof(*campaign_mover_objects));
+    rf_scene_campaign_movers[2]=campaign_mover_count*(sizeof(*campaign_mover_wrappers)+sizeof(*campaign_mover_objects)+sizeof(*campaign_mover_bindings));
     free(handles);return RF_OK;
  failed:
     free(handles);campaign_close_movers();return status;
 }
 
+static int campaign_bind_movers(void)
+{
+    uint32_t i,j,*handles=NULL,hash=2166136261u,links=0;int status;
+    if(campaign_group_runtime.count) {
+        handles=malloc(campaign_group_runtime.count*4);if(!handles)return RF_RANGE;
+        for(i=0;i<campaign_group_runtime.count;i++)handles[i]=UINT32_MAX;
+    }
+    for(i=0;i<campaign_group_registration.count;i++) {
+        const rf_group_registered_controller *c=campaign_group_registration.controllers+i;
+        handles[c->runtime-campaign_group_runtime.items]=c->handle;
+    }
+    status=rf_group_mover_memberships_open(&campaign_group_runtime,campaign_mover_bindings,campaign_mover_count,
+        handles,0,256*1024,&campaign_memberships);free(handles);if(status)return status;
+    for(i=0;i<campaign_mover_count;i++) {
+        rf_group_object *o=campaign_mover_bindings+i;uint32_t words[5]={(uint32_t)o->uid,o->type,o->handle,o->parent,o->flags};
+        campaign_movers.poses[i].flags=o->flags;campaign_mover_objects[i].flags=o->flags;
+        for(j=0;j<5;j++)hash=(hash^words[j])*16777619u;
+    }
+    for(i=0;i<campaign_memberships.count;i++) {
+        const rf_group_mover_membership *m=campaign_memberships.items+i;uint32_t sign;
+        memcpy(&sign,&m->rotation_sign,4);hash=(hash^m->count)*16777619u;hash=(hash^sign)*16777619u;
+        for(j=0;j<m->count;j++)hash=(hash^m->handles[j])*16777619u;links+=m->count;
+    }
+    rf_scene_campaign_memberships[0]=campaign_memberships.count;rf_scene_campaign_memberships[1]=links;
+    rf_scene_campaign_memberships[2]=campaign_memberships.allocated_bytes;rf_scene_campaign_memberships[3]=campaign_memberships.peak_bytes;
+    rf_scene_campaign_memberships[4]=hash;return RF_OK;
+}
 uint32_t rf_scene_campaign_groups[5]; /* controllers, keys, source/runtime/registration bytes */
 rf_startup_events_report rf_scene_startup_events;
 uint32_t rf_scene_startup_gravity[4];
@@ -1424,6 +1459,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_groups[4]=campaign_group_registration.allocated_bytes;
             if(!actor_follow_world) {status=RF_RANGE;goto done;}
             status=campaign_open_movers(&actor_follow_world->movers);if(status)goto done;
+            status=campaign_bind_movers();if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;

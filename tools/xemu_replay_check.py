@@ -151,6 +151,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      triggers=words(monitor,symbol('rf_scene_campaign_triggers'),2)
      assert triggers[0]==expected('CAMPAIGN_TRIGGERS')[0] and triggers[1]<=1024*1024
      report['campaign_triggers']=triggers
+     memberships=words(monitor,symbol('rf_scene_campaign_memberships'),5)
+     assert memberships==expected('CAMPAIGN_MEMBERSHIPS'),memberships
+     report['campaign_memberships']=memberships
      movers=words(monitor,symbol('rf_scene_campaign_movers'),3)
      assert movers==expected('CAMPAIGN_MOVERS'),movers
      report['campaign_movers']=movers

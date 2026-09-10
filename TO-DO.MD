@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Scene controller membership now binds registered movers and pose flags; L1S1/
+L2S1 XEMU replays pass, with motion dispatch and mover collision still open.
+
 Scene movers now register owned poses used by rendering; L1S1/L2S1 stock64MiB
 XEMU replays pass, with controller membership and mover collision still open.
 

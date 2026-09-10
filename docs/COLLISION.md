@@ -2698,3 +2698,34 @@ The authored inventory verifier independently confirms mover counts and link
 hashes, including L2S1's two key-owner links. Both builds and six CTests pass.
 The harnesses reaped their processes and restored disc flags. No new visual
 capture: initial poses are being connected, not a new animated-door result.
+
+
+## Scene controller/mover membership
+
+The campaign scene now retains rf_group_object binding records for its typed
+mover wrappers and opens rf_group_mover_memberships using the registered
+controller handles. Controller slots follow runtime entries, preserving empty
+entries without inventing registrations. The existing transactional membership
+helper resolves authored UIDs, retains duplicate handles and rotation-sign
+parity, and updates mover parent/flags. Flags are copied into the shared poses
+and UID rows before link resolution. Membership ownership closes before the
+movers/controllers; temporary controller-handle storage is freed after binding.
+
+Scene mover registration/binding storage is44 bytes per mover. Membership
+budget is256KiB including its scratch, with actual allocation content-sized.
+L1S1 retains100 membership bytes (204 peak) for5 links; L2S1 retains196 bytes
+(420 peak) for11 links. Those totals exclude existing mover/controller owners
+and the temporary4-byte-per-runtime-entry handle array.
+
+Stock64MiB replays pass with exact PC membership hashes, actor/render/event
+state and link resolution:
+- artifacts/xemu/replay-20260910-153708/report.json: L1S1.
+- artifacts/xemu/replay-20260910-153734/report.json: L2S1.
+verify_scene_group_links.py additionally rebases the existing registered-member
+probe from its fixture handle order into scene handle order and checks every
+ordered object parent/flag and membership handle through the hash. Authored
+link inventories still match. The 68-level registered-membership regression
+passes1406 movers/1421 links; both builds and six CTests pass. Harness processes
+were reaped and disc flags restored. General-object membership, rotation motion,
+controller dispatch/ticks and player mover collision remain open. No new visual
+capture is warranted by this ownership-only change.
