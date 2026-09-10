@@ -46,6 +46,17 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--trigger-contact-delay")) {
+        struct {rf_trigger_contact_timer timer;int32_t now;uint32_t accepted;} input;
+        struct {int32_t status,deadline;uint32_t ready;} output;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            output.ready=0xa5a5a5a5;
+            output.status=rf_trigger_contact_delay(&input.timer,input.now,input.accepted,&output.ready);
+            output.deadline=input.timer.deadline;fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--trigger-box")) {
         struct {float center[3],matrix[3][3],size[3];uint32_t flags;float current[3],start[3],end[3];} input;
         uint32_t output[2];

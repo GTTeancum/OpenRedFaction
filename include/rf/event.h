@@ -41,6 +41,14 @@ int rf_trigger_box_contact(const float center[3],const float matrix[3][3],
     const float size[3],uint32_t flags,const float actor_center[3],
     const float actor_start[3],const float actor_end[3],uint32_t *contact);
 
+typedef struct rf_trigger_contact_timer { float seconds;int32_t deadline; } rf_trigger_contact_timer;
+/* 4bfc60 contact-delay stage after resolved eligibility/contact. Accepted is
+ * boolean. A positive delay arms then returns waiting even if rounded to 0ms;
+ * rejection clears only positive delays. Ready means proceed to key/activation
+ * handling, not that an event fired. Errors preserve timer/ready. */
+int rf_trigger_contact_delay(rf_trigger_contact_timer *timer,int32_t now,
+    uint32_t accepted,uint32_t *ready);
+
 typedef struct rf_event_state {
     uint32_t type;float delay;int32_t deadline;
     uint32_t actor,source,flags,mode;

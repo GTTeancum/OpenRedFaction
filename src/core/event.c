@@ -77,6 +77,28 @@ int rf_trigger_box_contact(const float center[3],const float matrix[3][3],
     if(!hit) {memcpy(triangle[2],corners[3],12);hit=trigger_triangle(point,triangle,plane);}
     *contact=hit;return RF_OK;
 }
+int rf_trigger_contact_delay(rf_trigger_contact_timer *timer,int32_t now,
+    uint32_t accepted,uint32_t *ready)
+{
+    double milliseconds;int expired,status;int32_t deadline;
+    if(!timer || !ready || accepted>1 || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    if(!isfinite(timer->seconds))return RF_FORMAT;
+    deadline=timer->deadline;
+    if(timer->seconds>0) {
+        if(!accepted)rf_timer_clear(&deadline);
+        else if(deadline<0) {
+            milliseconds=(double)timer->seconds*1000.0+0.5;
+            if(milliseconds>RF_TIMER_PERIOD)return RF_RANGE;
+            status=rf_timer_set(&deadline,now,(int32_t)milliseconds);if(status)return status;
+            accepted=0;
+        } else {
+            status=rf_timer_expired(deadline,now,&expired);if(status)return status;
+            if(expired)rf_timer_clear(&deadline);
+            else accepted=0;
+        }
+    }
+    timer->deadline=deadline;*ready=accepted;return RF_OK;
+}
 int rf_trigger_eligible(const rf_trigger_gate *g,const rf_trigger_actor_facts *a,
     int32_t now,uint32_t input,uint32_t *eligible)
 {

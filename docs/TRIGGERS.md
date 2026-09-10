@@ -719,3 +719,31 @@ All original geometry callees run unchanged; scratch storage is supplied.
 This verifies compiled routines in Unicorn, not native campaign activation.
 Live actor update ordering, eligibility predicates, dwell/key gates and firing
 remain open. No contact routine added here mutates trigger or actor state.
+
+
+## Contact delay before activation (4bfc60)
+
+`rf_trigger_contact_delay` reconstructs the +2f8 seconds / +2fc deadline
+stage. Its accepted input is the resolved eligibility-and-contact result;
+its ready output means continue to the key gate and activation, not event
+success. Rejection clears the timer only when seconds > 0. Nonpositive
+seconds bypass waiting and preserve the deadline. For positive seconds,
+40a0d0 considers every negative deadline inactive. An inactive timer arms
+with trunc(seconds*1000+0.5) through original 4fa360 and returns waiting,
+even when the offset rounds to zero. An active timer waits for 4fa3f0,
+then clears to -1 and proceeds. Failed contact after arming cancels it.
+
+`tools/verify_trigger_contact_delay.py` runs full original 4bfc60 along the
+SP no-key path with eligibility/contact supplied and 4c0220 activation
+captured. Both eligibility rejection and contact rejection are exercised.
+The CRT float conversion, armed query, timer set/expire/clear helpers run
+unchanged. All 1504 fixtures match compiled PC/NXDK deadline and proceed
+result, and original trigger/actor storage outside the deadline stays
+unchanged. Cases include signed/zero/positive delays, submillisecond values,
+inactive deadlines, cancellation, boundary clocks and period wrapping.
+
+The port validates finite seconds, boolean acceptance and the timer clock
+range, preserving outputs on errors. The seconds-to-ms rounding here is
+different from the existing cooldown initializer's trunc(seconds*1000).
+Key-related behavior after 4bfdb7 and general 4c0220 activation remain open;
+this helper does not connect a diagnostic actor to campaign triggers.

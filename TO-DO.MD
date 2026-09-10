@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Contact-delay cancellation, arming and expiry match 1504 original/PC/NXDK
+cases; key gates, live actor state and final trigger activation remain open.
+
 Both box-trigger contact branches match original/PC/NXDK execution, including
 directional face coverage; live actor inputs, dwell/key gates and firing remain open.
 
