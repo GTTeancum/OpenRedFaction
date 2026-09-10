@@ -93,3 +93,64 @@ fail:
     rf_image_close(image);
     return result;
 }
+
+static uint32_t image_u32(const unsigned char *p)
+{
+    return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;
+}
+int rf_image_vbm(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t budget)
+{
+    reader r; unsigned char h[32], pixel[2];
+    uint32_t width,height,format,mips,w,hg,i,total; uint64_t payload=0;
+    int status;
+    if(!image)return RF_RANGE;
+    memset(image,0,sizeof(*image));
+    if(!archive || !entry)return RF_RANGE;
+    memset(&r,0,sizeof(r));r.archive=archive;r.entry=entry;
+    status=read_bytes(&r,h,sizeof(h));if(status)return status;
+    width=image_u32(h+8);height=image_u32(h+12);format=image_u32(h+16);mips=image_u32(h+28);
+    /* Original 50ebd0 header mapping. Animated playback is not implemented. */
+    if(memcmp(h,".vbm",4) || image_u32(h+4)!=1 || format>2 ||
+       image_u32(h+24)!=1 || !width || !height || mips>12)return RF_FORMAT;
+    if(width>4096 || height>4096 || (uint64_t)width*height*4>budget)return RF_RANGE;
+    w=width;hg=height;
+    for(i=0;i<=mips;++i) {
+        payload+=(uint64_t)w*hg*2;
+        if(i<mips && w==1 && hg==1)return RF_FORMAT;
+        if(w>1)w/=2;if(hg>1)hg/=2;
+    }
+    if(payload+32!=entry->size)return RF_FORMAT;
+    total=width*height;
+    image->rgba=malloc(total*4);if(!image->rgba)return RF_RANGE;
+    image->width=width;image->height=height;image->bytes=total*4;
+    image->source_format=format==0?5:format==1?4:3;
+    /* 55dd20 encodes BGR(A) into 565, 4444 and 1555. Expand normalized
+       channels to RGBA8; retain only the base mip in the current renderer. */
+    for(i=0;i<total;++i) {
+        uint32_t v,red,green,blue,alpha=255;
+        status=read_bytes(&r,pixel,2);if(status){rf_image_close(image);return status;}
+        v=pixel[0]|(uint32_t)pixel[1]<<8;
+        if(format==1) {
+            blue=(v&15)*17;green=((v>>4)&15)*17;red=((v>>8)&15)*17;alpha=(v>>12)*17;
+        } else {
+            blue=(v&31)*255/31;
+            green=((v>>5)&(format==2?63:31))*255/(format==2?63:31);
+            red=((v>>(format==2?11:10))&31)*255/31;
+            if(format==0)alpha=(v&32768)?255:0;
+        }
+        image->rgba[i*4]=(unsigned char)red;image->rgba[i*4+1]=(unsigned char)green;
+        image->rgba[i*4+2]=(unsigned char)blue;image->rgba[i*4+3]=(unsigned char)alpha;
+    }
+    return RF_OK;
+}
+int rf_image_open(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t budget)
+{
+    unsigned char magic[4];int status;
+    if(!image)return RF_RANGE;
+    memset(image,0,sizeof(*image));
+    if(!archive || !entry)return RF_RANGE;
+    if(entry->size<4)return RF_FORMAT;
+    status=rf_vpp_read(archive,entry,0,magic,4);if(status)return status;
+    return !memcmp(magic,".vbm",4)?rf_image_vbm(image,archive,entry,budget):
+        rf_image_tga(image,archive,entry,budget);
+}

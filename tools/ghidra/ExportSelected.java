@@ -21,12 +21,14 @@ public class ExportSelected extends GhidraScript {
             for (int i = 1; i < args.length; ++i) {
                 long address = Long.parseUnsignedLong(args[i].replaceFirst("^0[xX]", ""), 16);
                 Function function = getFunctionAt(toAddr(address));
+                if (function == null) function = getFunctionContaining(toAddr(address));
                 if (function == null) throw new IllegalArgumentException("No function at " + args[i]);
                 DecompileResults result = decomp.decompileFunction(function, 90, monitor);
                 if (!result.decompileCompleted()) throw new IOException(result.getErrorMessage());
                 try (PrintWriter out = new PrintWriter(new File(dir, Long.toHexString(address) + ".c.txt"), StandardCharsets.UTF_8)) {
                     out.println("/* Raw Ghidra output; candidate semantics require verification. */");
                     out.println("/* Program SHA256: " + currentProgram.getExecutableSHA256() + " */");
+                    out.println("/* Containing function entry: " + function.getEntryPoint() + " */");
                     out.print(result.getDecompiledFunction().getC());
                 }
                 println("Exported " + Long.toHexString(address));

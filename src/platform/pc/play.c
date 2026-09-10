@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern char rf_material_failure_name[61];
+extern uint32_t rf_material_failure[3];
 extern uint32_t rf_scene_actor_live_enabled;
 extern uint32_t rf_scene_actor_follow_summary[5];
 extern uint32_t rf_scene_player_input_frames[64][7];
@@ -224,6 +226,7 @@ int main(int argc,char **argv)
     printf("Completed %u frames, 640x480 raster, %u byte mesh cap.\n",p.frames,RF_SCENE_FOLLOW_CAPACITY);
 cleanup:
     if(status) {
+        fprintf(stderr,"MATERIAL_FAILURE %s %u %u %u\n",rf_material_failure_name,rf_material_failure[0],rf_material_failure[1],rf_material_failure[2]);
         fprintf(stderr,"ANIMATION_PROGRESS");for(i=0;i<4;++i)fprintf(stderr," %u",rf_animation_progress[i]);
         fprintf(stderr,"\nSCENE_STAGE %u %u\nPREVIEW_FAILURE",rf_scene_profile_stage[0],rf_scene_profile_stage[1]);
         for(i=0;i<8;++i)fprintf(stderr," %u",rf_preview_failure[i]);fprintf(stderr,"\n");

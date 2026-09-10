@@ -398,3 +398,17 @@ not invent missing functions or rerun the baseline export inventory. It writes
 checks its binary fingerprint and addresses. This catches Ghidra script errors
 that still return process exit code zero. Both a successful five-function
 export and an intentionally missing address were exercised.
+
+
+Static VBM decoding (2026-09-10): original 50ebd0 reads the 32-byte header;
+format 0/1/2 maps to engine 5/4/3 and stored mip count has one added.
+Original 55dd20 packs BGR(A) into ARGB1555, ARGB4444 and RGB565 respectively.
+The new decoder validates version 1, single-frame data, dimensions, full mip
+payload size and output budget, then expands base-mip channels to normalized
+RGBA8. It is a bounded new implementation, not a claim that the original
+loader's malformed-input behavior or RGBA rounding has been duplicated.
+verify_vbm.py exhausts all 65536 words per format on PC and linked NXDK code,
+compares normalized RGBA, and repacks through original 55dd20 to recover every
+input word. NXDK archive I/O, allocation/free and stack probing are supplied by
+the harness; this is not an XEMU runtime check. Animated playback and use of
+lower mip levels remain unimplemented. Existing TGA verification still passes.

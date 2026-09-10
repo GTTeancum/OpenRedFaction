@@ -1,6 +1,8 @@
 #include "rf/material.h"
 #include <stdlib.h>
 #include <string.h>
+char rf_material_failure_name[61];
+uint32_t rf_material_failure[3]; /* status, archive index, entry size */
 void rf_materials_close(rf_materials *m)
 {
     uint32_t i;
@@ -14,6 +16,8 @@ static int open_materials(rf_materials *m,const rf_geometry *g,const char *const
     uint32_t i;
     uint64_t slots;
     int result;
+    memset(rf_material_failure_name,0,sizeof(rf_material_failure_name));
+    memset(rf_material_failure,0,sizeof(rf_material_failure));
     if (!m) return RF_RANGE;
     memset(m, 0, sizeof(*m));
     if ((g && !g->data) || (!g && !names && count) || (!archives && archive_count)) return RF_RANGE;
@@ -42,8 +46,12 @@ static int open_materials(rf_materials *m,const rf_geometry *g,const char *const
             result = rf_vpp_find(archives + a, name, &entry);
             if (result == RF_NOT_FOUND) continue;
             if (result) goto fail;
-            result = rf_image_tga(&item->image, archives + a, &entry, budget - m->allocated_bytes);
-            if (result) goto fail;
+            result = rf_image_open(&item->image, archives + a, &entry, budget - m->allocated_bytes);
+            if (result) {
+                memcpy(rf_material_failure_name,name,strlen(name)+1);
+                rf_material_failure[0]=(uint32_t)result;rf_material_failure[1]=a;rf_material_failure[2]=entry.size;
+                goto fail;
+            }
             item->archive_index = a; item->status = RF_OK;
             m->allocated_bytes += item->image.bytes; ++m->loaded;
             break;

@@ -16,7 +16,7 @@ int main(int argc, char **argv)
     result = rf_vpp_open(&archive, argv[1]);
     if (result) return 1;
     result = rf_vpp_find(&archive, argv[2], &entry);
-    if (!result) result = rf_image_tga(&image, &archive, &entry, (uint32_t)strtoul(argv[4], NULL, 10));
+    if (!result) result = rf_image_open(&image, &archive, &entry, (uint32_t)strtoul(argv[4], NULL, 10));
     rf_vpp_close(&archive);
     if (result) { printf("%d\n", result); return 1; }
     output = fopen(argv[3], "wb");

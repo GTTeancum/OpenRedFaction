@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
+- [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Connect authored movement regions and recovered climb entry, motion and exit to the campaign player.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
@@ -30,6 +31,14 @@ new query telemetry, but contains no climb region. The staged L1S2 replay fails
 at material-loading stage 11 before simulation; fix that and demonstrate actual
 entry/motion/exit. Entity +148 was corrected from "step offset" to vertical velocity.
 Run tools/replay_campaign_climb.py to reproduce the current failure.
+
+Static VBM decoding now supports version 1 RGB565, ARGB4444 and ARGB1555.
+All 196608 format/pixel combinations match on PC/NXDK and round-trip through
+original 55dd20 packing. The L1S2 replay gets past its VBM texture but now
+fails the material budget at mtl_contrl_panel00.tga. Measure retained texture
+and scratch allocations before changing budgets; stock 64 MiB remains mandatory.
+Animated VBM playback and retaining/rendering authored mip levels remain open.
+Run tools/verify_vbm.py; actual campaign climbing is still unverified.
 
 Owned movement-region storage now survives archive closure with a checked
 single allocation. All 147 records across 39 levels pass PC/NXDK ownership,
