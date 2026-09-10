@@ -492,3 +492,21 @@ cases against independent amplitude expressions in PC and NXDK-compiled code,
 using2e-7 relative tolerance for math-library rounding. Both game builds pass.
 The adapter is not yet wired into playback; native intermediate-gain calibration
 and original-device listening equivalence remain unverified.
+
+### Native intermediate-gain calibration
+
+Stock64MiB XEMU apu-20260910-183743 passes the added gain-calibration phase.
+A4096-sample synthetic periodic square wave (PCM16 mono48kHz, amplitude8192,
+period64 samples) loops through a static APU voice. Shared rf_audio_device_gains
+sets unity, -6dB centered, +10dB pan, -10dB pan, and -20dB centered, each followed
+by150ms settling. Absolute sample sums over the4096-int16 interleaved DSP ring
+are normalized against each channel's unity sum. All measured ratios are within
+3% of the requested amplitudes. The periodic waveform and full-period ring span
+avoid comparing different parts of an authored sound. No voice restart occurs
+between changes. Sample storage is probe-only, not added to the game.
+
+The previous original-sample, channel-mute, lifecycle, overlap and allocation
+failure checks still pass. After calibration, available pages equal the15820
+image baseline. This verifies the mathematical gain adapter through emulated
+APU output for the tested levels, not original DirectSound output, host speakers,
+real hardware, arbitrary waveforms or live campaign listener integration.

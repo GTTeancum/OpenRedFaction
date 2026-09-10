@@ -38,7 +38,7 @@ startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDO
 process=None;monitor=None;report=dict(result='FAIL',command=command,samples=[],
     xbe_sha256=hashlib.sha256((build/'disc/default.xbe').read_bytes()).hexdigest(),
     provenance=json.loads((build/'provenance.json').read_text()),
-    scope='Isolated original DoorOpen_07 sample through APU voice/DSP on stock64MiB XEMU. Checks natural completion, replay of the retained static buffer, eight stop/destroy/recreate cycles, reinitialization, running-voice left/right/mute DSP routing, ten injected initialization allocation failures with restored pages, production adapter sixteen overlapping voices, overflow rejection, slot reuse, stale stop protection, restored available pages and nonzero guest DMA output snapshot. Not a linear audio capture, host audibility, live campaign integration, spatial parity or full backend validation.')
+    scope='Isolated original DoorOpen_07 sample through APU voice/DSP on stock64MiB XEMU. Checks natural completion, replay of the retained static buffer, eight stop/destroy/recreate cycles, reinitialization, running-voice left/right/mute DSP routing, synthetic periodic PCM intermediate gain calibration, ten injected initialization allocation failures with restored pages, production adapter sixteen overlapping voices, overflow rejection, slot reuse, stale stop protection, restored available pages and nonzero guest DMA output snapshot. Not a linear audio capture, host audibility, live campaign integration, spatial parity or full backend validation.')
 try:
     with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
         environment=dict(os.environ,SDL_AUDIO_DRIVER='dummy')
@@ -63,6 +63,12 @@ try:
                 lifecycle_address=int(re.search(r'_rf_apu_lifecycle\s+([0-9a-fA-F]+)',mapping)[1],16)
                 lifecycle=words(monitor,lifecycle_address,6);report['lifecycle']=lifecycle
                 assert 2400<=lifecycle[0]<=3200 and lifecycle[1:]==[8,8,1,state[3],0],lifecycle
+                gain_address=int(re.search(r'_rf_apu_gain_sums\s+([0-9a-fA-F]+)',mapping)[1],16)
+                sums=words(monitor,gain_address,10);report['gain_sums']=sums
+                assert sums[0]>0 and sums[1]>0,sums
+                expected_gains=[1,1,10**(-600/2000),10**(-600/2000),10**(-1000/2000),1,1,10**(-1000/2000),.1,.1]
+                ratios=[value/sums[i%2] for i,value in enumerate(sums)];report['gain_ratios']=ratios
+                assert all(abs(a-b)<=.03*b for a,b in zip(ratios,expected_gains)),ratios
                 channels_address=int(re.search(r'_rf_apu_channel_counts\s+([0-9a-fA-F]+)',mapping)[1],16)
                 channels=words(monitor,channels_address,6);report['channel_counts']=channels
                 assert channels[0]>0 and channels[3]>0 and all(channels[i]==0 for i in [1,2,4,5]),channels
