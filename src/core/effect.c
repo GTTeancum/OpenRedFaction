@@ -1,6 +1,18 @@
 #include "rf/effect.h"
 #include <math.h>
 #include <float.h>
+int rf_particle_cone_sample(float cosine_min,rf_random_state *random,float direction[3])
+{
+    rf_random_state next;uint32_t draw;float z,radial,value[3];double angle;
+    if(!random || !direction || !isfinite(cosine_min) || cosine_min < -1 || cosine_min > 1)return RF_RANGE;
+    next=*random;rf_random_next(&next,&draw);
+    z=(float)((1.0-(double)cosine_min)*((double)draw/32768.0)+cosine_min);
+    rf_random_next(&next,&draw);angle=((double)draw/32768.0)*(double)6.2831853071795864769f;
+    radial=(float)sqrt(1.0-(double)z*z);
+    value[0]=(float)(cos(angle)*radial);value[1]=(float)(sin(angle)*radial);value[2]=z;
+    direction[0]=value[0];direction[1]=value[1];direction[2]=value[2];*random=next;return RF_OK;
+}
+
 uint32_t rf_particle_render_mode(uint32_t flags,uint32_t normal_mode,uint32_t glow_mode)
 {
     uint32_t mode=(flags&2u)?glow_mode:normal_mode;

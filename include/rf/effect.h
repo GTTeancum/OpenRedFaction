@@ -72,6 +72,11 @@ int rf_particle_definition_prepare(const rf_particle_definition *authored,
 /* Runtime spawn packet recovered from 496840. Resource/room/emitter values
  * are caller-owned 32-bit handles, never host pointers. copied_48 semantics
  * remain unknown and are deliberately preserved without interpretation. */
+/* Original 4fadb0 local +Z cone sampler. cosine_min must be in [-1,1].
+ * Two CRT draws even for a zero-angle cone; caller rotates to world direction.
+ * Errors preserve both output and RNG. This is not emitter execution. */
+int rf_particle_cone_sample(float cosine_min,rf_random_state *random,float direction[3]);
+
 typedef struct rf_particle_spawn {
     float position[3],velocity[3],radius,growth,acceleration,gravity_scale,life;
     uint32_t bitmap,frame_count,color,color_destination,flags,secondary;

@@ -289,3 +289,25 @@ Backend inspection confirms the current shared mesh still carries only RGB
 vertex color, while particles require current-color alpha and their render
 modes. Those interfaces must be extended alongside the recovered render-state
 behavior before inserting particle triangles into the existing scene stream.
+
+## Emitter cone sampling
+
+`rf_particle_cone_sample` reconstructs original 0x4fadb0 in local +Z space.
+The first CRT draw selects Z uniformly from the supplied cosine minimum toward
+1, storing a float. A second draw selects an azimuth using the original float
+2-pi constant at 0x5894ac. The radial square root rounds to float before the
+sine/cosine products. There are exactly two draws even at cosine minimum 1;
+the emitter's separate branch may bypass this function for that value.
+
+`tools/verify_particle_cone.py` executes the unchanged sampler and actual random
+helpers, comparing local XYZ and RNG state to PC and compiled NXDK in 4096
+cases. All bytes agree, including full-sphere and narrow-cone boundaries. Four
+out-of-range/nonfinite API guards preserve output and RNG. No allocation occurs.
+The comparison uses the verified 53-bit x87 environment.
+
+Original 0x4fae00 wraps this sampler with a basis built by 0x4fcfa0 and a transform
+at 0x4facb0. That world-direction conversion is not yet integrated. The current
+trace of 0x496c50 also identifies spawn displacement along the selected
+direction, speed/radius/lifetime random draws, optional parent velocity and a
+spawn-timer reset after particle allocation. Those steps still need a combined
+original-executable emission replay before live campaign emitters are claimed.
