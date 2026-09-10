@@ -2489,3 +2489,27 @@ falls back to descriptor 0 and updates global selected descriptor `630050`.
 The verifier checks complete actor bytes, balanced stack, effect arguments,
 intermediate state, and effect/speed/descriptor call order. It skips only the
 `48a9c0` body. No shared-C climb transition or live climbing is claimed yet.
+
+
+### Climb effect resolved as sound routing (2026-09-09)
+
+`48a9c0` dispatches to non-positional `505560` or positional `5056a0` playback.
+`48acf0` requires ordinary entity type 0 and a non-null owner at +1430;
+`40d740` reads owner camera (+c4) mode +8. Only an owned ordinary entity with
+camera mode zero takes non-positional playback. This names the branch from
+its actual fields without assuming every nonzero mode is third-person.
+
+Shared `rf_player_sound_route` produces a borrowed-data-free request. The
+non-positional branch forwards sound ID, caller pan and volume, with group 0.
+The positional branch forwards ID and position, uses volume 1 and group 0,
+and leaves pan for backend computation. Original `5056a0` ignores its fourth
+argument; the dispatch fixture checks that `48a9c0` supplies `173c378` there.
+The climb call's ID is 18; its specific sound asset has not been identified.
+
+`tools/verify_player_sound.py` executes original routing with unchanged owner
+and camera predicates and captures playback-boundary arguments. All 648
+combinations of entity type, owner presence, camera mode, sound ID, volume
+and pan match PC and compiled NXDK requests. Both builds and CTest pass.
+This does not execute the audio backend, load sound assets, or complete live
+climb entry. The earlier term "effect 18" can now be read as sound ID 18;
+no damage or visual effect is implied.

@@ -23,6 +23,11 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
+The conditional climb effect is identified as sound dispatch through 48a9c0.
+Shared C now routes player-owned/camera-zero sounds non-positionally and other
+sounds positionally, matching 648 PC/NXDK original-code cases. Audio playback,
+sound-ID asset resolution and shared climb transition integration remain open.
+
 Original climb entry now passes 768 execution fixtures, confirming class flag 4,
 region ownership fields, effect-18 ordering, speed restoration and descriptor
 fallback. Shared climb transition/effect implementation and live entry/exit remain

@@ -2,6 +2,18 @@
 #define RF_PLAYER_H
 #include "rf/vpp.h"
 
+typedef struct rf_player_sound_input {
+    int32_t entity_type;uint32_t owner_present;int32_t camera_mode;
+    float position[3];int32_t sound_id;float volume;int32_t pan;
+} rf_player_sound_input;
+typedef struct rf_player_sound_request {
+    uint32_t spatial;int32_t sound_id;float position[3],volume;int32_t pan,group;
+} rf_player_sound_request;
+/* 48a9c0 routing to 505560/5056a0 with resolved owner/camera. Positional
+ * branch uses fixed volume 1 and group 0; pan is computed by the audio backend.
+ * Does not load sounds or play audio. Invalid input preserves output. */
+int rf_player_sound_route(const rf_player_sound_input *input,rf_player_sound_request *request);
+
 typedef struct rf_player_movement_region {
     int32_t kind;
     float center[3],matrix[3][3],size[3];

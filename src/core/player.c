@@ -2,6 +2,18 @@
 #include "rf/collision.h"
 #include <string.h>
 #include <math.h>
+int rf_player_sound_route(const rf_player_sound_input *input,rf_player_sound_request *request)
+{
+    rf_player_sound_request value={0};uint32_t i;
+    if(!input || !request || input->owner_present>1)return RF_RANGE;
+    if(!isfinite(input->volume))return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(input->position[i]))return RF_FORMAT;
+    value.sound_id=input->sound_id;
+    value.spatial=!(input->entity_type==0 && input->owner_present && input->camera_mode==0);
+    if(value.spatial){memcpy(value.position,input->position,12);value.volume=1;}
+    else {value.volume=input->volume;value.pan=input->pan;}
+    *request=value;return RF_OK;
+}
 int rf_player_movement_region_find(const rf_player_movement_region *regions,
     uint32_t count,const float point[3],uint32_t *index)
 {
