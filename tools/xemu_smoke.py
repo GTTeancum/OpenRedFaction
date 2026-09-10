@@ -57,6 +57,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--xemu-root', type=Path, default=Path('C:/Games/Emulators/Xemu'))
     parser.add_argument('--port', type=int, default=46271)
+    parser.add_argument('--hdd',type=Path,help='Optional separate HDD image; writes still use a temporary snapshot')
     parser.add_argument('--seconds', type=int, default=60)
     parser.add_argument('--bios', default='xbox-4627_debug.bin')
     parser.add_argument('--display', choices=['none', 'xemu'], default='xemu')
@@ -260,7 +261,7 @@ enable = false
 bootrom_path = '{(args.xemu_root / 'MCPX/mcpx_1.0.bin').as_posix()}'
 flashrom_path = '{(args.xemu_root / 'BIOS' / args.bios).as_posix()}'
 eeprom_path = '{eeprom.as_posix()}'
-hdd_path = '{(args.xemu_root / 'HDD/xbox_hdd.qcow2').as_posix()}'
+hdd_path = '{(args.hdd or args.xemu_root / 'HDD/xbox_hdd.qcow2').resolve().as_posix()}'
 dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
 """, encoding='utf-8')
     command = [str(args.xemu_root / 'xemu.exe'), '-config_path', str(config), '-m', '64',

@@ -3,6 +3,19 @@
 #include <xboxkrnl/xboxkrnl.h>
 #include <string.h>
 #include <stdlib.h>
+#include <windows.h>
+
+/* Millisecond presentation phases after the first 16 stream submissions.
+ * Each row contains calls, elapsed low/high, maximum. Read-only QMP evidence. */
+uint32_t rf_renderer_profile[8][4];
+static void renderer_mark(uint32_t phase,uint32_t *previous,int enabled)
+{
+    uint32_t now,elapsed,*row;uint64_t total;
+    if(!enabled)return;
+    now=GetTickCount();elapsed=now-*previous;*previous=now;row=rf_renderer_profile[phase];
+    total=((uint64_t)row[2]<<32)+row[1]+elapsed;++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
+    if(elapsed>row[3])row[3]=elapsed;
+}
 
 static uint32_t field(uint32_t mask, uint32_t value)
 {
@@ -56,6 +69,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     static const rf_lightmaps *stream_lightmaps;
     static int stream_mode;static uint32_t stream_capacity;
     int streaming=model==2 || model==4;
+    int profiling=streaming && capture[5]>=16;uint32_t profile_previous=profiling?GetTickCount():0;
     uint32_t vertex_bytes=streaming?1024*1024+(model==4?world_vertices*sizeof(rf_preview_vertex):0):mesh?mesh->bytes:0;
     if(requested_capacity) {
         if(!streaming || requested_capacity>8*1024*1024 || (stream_gpu && stream_capacity!=requested_capacity))return RF_RANGE;
@@ -71,6 +85,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if (upload_bytes > 8u*1024u*1024u || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
     for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
     if(mesh->bytes>vertex_bytes)return RF_RANGE;
+    renderer_mark(0,&profile_previous,profiling);
     if(streaming && stream_gpu) {
         if(stream_materials!=materials || stream_mode!=model ||
            (model==4 && stream_lightmaps!=lightmaps))return RF_RANGE;
@@ -95,6 +110,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if(streaming) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;
         stream_mode=model;stream_capacity=vertex_bytes;stream_lightmaps=lightmaps;}
     }
+    renderer_mark(1,&profile_previous,profiling);
     memcpy(gpu,mesh->vertices,mesh->bytes);
     for (i = 0; i < mesh->count; ++i) if (gpu[i].material < materials->count && textures[gpu[i].material].pixels) {
         gpu[i].color[0] = gpu[i].color[1] = gpu[i].color[2] = 1.0f;
@@ -109,6 +125,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if (NT_SUCCESS(MmQueryStatistics(&statistics))) memory[0] = statistics.AvailablePages;
         memory[1] = (uint32_t)upload_bytes; memory[2] = vertex_bytes;
     }
+    renderer_mark(2,&profile_previous,profiling);
     p = pb_begin();
     p = pb_push1(p, NV097_SET_TRANSFORM_PROGRAM_START, 0);
     p = pb_push1(p, NV097_SET_TRANSFORM_EXECUTION_MODE,
@@ -132,11 +149,13 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     p = pb_push1(p, NV097_SET_DEPTH_FUNC, NV097_SET_DEPTH_FUNC_V_LESS);
     pb_end(p);
     pb_show_front_screen();
+    renderer_mark(3,&profile_previous,profiling);
     for (frame = 0; frame < (streaming?1u:3u); ++frame) {
         pb_wait_for_vbl(); pb_reset(); pb_target_back_buffer();
         pb_erase_depth_stencil_buffer(0, 0, 640, 480);
         pb_fill(0, 0, 640, 480, 0xff101018);
         while (pb_busy()) {}
+        renderer_mark(4,&profile_previous,profiling);
         p = pb_begin();
         /* pb_target_back_buffer restores W buffering each frame. Our projected
          * vertices carry screen-space Z and a constant W, so restore Z here. */
@@ -179,13 +198,20 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             pb_end(p); i += count;
         }
         while (pb_busy()) {}
+        renderer_mark(5,&profile_previous,profiling);
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();
         capture[4] = mesh->count; capture[5] = streaming?capture[5]+1:frame+1;
         while (pb_finished()) {}
+        renderer_mark(6,&profile_previous,profiling);
     }
     /* GPU and framebuffer remain alive for native capture; application lifetime. */
-    if(streaming)pb_wait_for_vbl();else free(textures);
+    /* pb_finished queues the swap and advances the triple-buffer index. The
+     * next frame already waits for VBlank before reset/target/clear, matching
+     * nxdk samples/triangle. Waiting again here stalls simulation unnecessarily.
+     * The draw itself is complete before capture[] is published above. */
+    if(!streaming)free(textures);
+    renderer_mark(7,&profile_previous,profiling);
     return RF_OK;
 }
 int rf_xbox_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,volatile uint32_t capture[6],volatile uint32_t memory[3])

@@ -99,3 +99,49 @@ Full Xbox turn verification `20260909-210345-153679` also passes in stock 64 MiB
 match PC. World hash remains 1553922570 and body hash 2897823093. This exercises
 the staged path on the compiled Xbox target with its adjacent scratch region.
 The ongoing controller ISO was restored afterward; no new screenshot was taken.
+
+
+## Presentation waits
+
+Xbox renderer profiling now exports `rf_renderer_profile[8][4]` using the same
+calls/elapsed-low/elapsed-high/maximum layout as the scene profiler. It excludes
+the first 16 stream submissions. The rows separate validation, the pre-upload
+GPU wait, vertex upload/color adjustment, shader/state setup, the initial VBlank
+and clear, draw submission/completion, swap queuing, and the final wait.
+
+Run `pacing-20260909-210637` measured 9.26 ms in initial VBlank/clear and 15.14 ms
+in the trailing VBlank wait. Actual draw submission/completion was 0.46 ms; upload
+and color adjustment took 1.13 ms. The presentation/integrity category totaled
+27.23 ms. This identifies a synchronization delay, not heavy GPU drawing, in this
+particular static scene.
+
+The renderer now omits the trailing wait. It retains the next frame's initial
+VBlank wait, GPU completion before publishing framebuffer metadata, and
+`pb_finished()` queue back-pressure. The installed NXDK implementation queues the
+swap and advances its triple-buffer index in `pb_finished`; its triangle sample
+uses one initial VBlank wait and no trailing wait. Source evidence:
+`C:/nxdk/lib/pbkit/pbkit.c` (`pb_wait_for_vbl`, `pb_finished`) and
+`C:/nxdk/samples/triangle/main.c`. Installed NXDK HEAD:
+`fb5a9a7a58a431e8d70a9e7da87898059df376c0`; pbkit.c SHA256:
+`2f57944124b9250d6ffdc071b2b60c2ec2f105edd3771b52282f67bbfd4bac91`.
+This is port-owned scheduling, not a recovered Red Faction rendering policy.
+
+Run `pacing-20260909-210919` passes the live pacing check: trailing phase 0.01 ms,
+initial VBlank/clear 10.35 ms, and presentation/integrity 13.62 ms. Observed overall
+throughput changed from 14.47 to 15.25 ticks/guest second. CPU projection varied
+from 30.70 to 36.82 ms between these runs, so they are not a controlled whole-game
+speed benchmark. The 60 Hz simulation target remains unmet.
+
+The pacing harness now owns `local/xemu-harness/pacing-base.qcow2`, copied once
+from the installed emulator image and subsequently used with temporary snapshots.
+This avoids the shared HDD lock encountered in failed launch
+`pacing-20260909-210753`; no other emulator was closed. The general smoke harness
+also accepts `--hdd <path>` for a separate base image. Source HDD writes remain
+isolated by `-snapshot`. No image or desktop capture was used.
+
+
+Full turn run `20260909-211014-307540` passes after the presentation change:
+664 ticks, ten PC-matching actor rings, the 308-byte final body, and unchanged
+2 MiB GPU vertex storage on stock 64 MiB XEMU. The ongoing controller ISO was
+restored. No framebuffer comparison was performed in this run; GPU completion,
+submission metadata, scene/state parity and memory telemetry were checked.

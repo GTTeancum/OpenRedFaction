@@ -7,6 +7,10 @@ root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu'
 with socket.socket() as reservation:
  reservation.bind(('127.0.0.1',0));port=reservation.getsockname()[1]
 run=root/'artifacts/xemu'/('pacing-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+hdd=root/'local/xemu-harness/pacing-base.qcow2'
+if not hdd.exists():
+ hdd.parent.mkdir(parents=True,exist_ok=True);temporary=hdd.with_suffix('.copying')
+ shutil.copyfile(emulator/'HDD/xbox_hdd.qcow2',temporary);temporary.replace(hdd)
 run.mkdir(parents=True);mapping=(root/'build/xbox/main.map').read_text()
 def symbol(name):return int(re.search('_'+name+r'\s+([0-9a-fA-F]+)',mapping)[1],16)
 assert (root/'build/xbox/disc/player-control.flag').exists()
@@ -27,7 +31,7 @@ enable = false
 bootrom_path = '{emulator.as_posix()}/MCPX/mcpx_1.0.bin'
 flashrom_path = '{emulator.as_posix()}/BIOS/xbox-4627_debug.bin'
 eeprom_path = '{eeprom.as_posix()}'
-hdd_path = '{emulator.as_posix()}/HDD/xbox_hdd.qcow2'
+hdd_path = '{hdd.as_posix()}'
 dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
 ''')
 command=[str(emulator/'xemu.exe'),'-config_path',str(config),'-m','64','-snapshot','-display','xemu','-audio','none','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off']
@@ -51,7 +55,7 @@ try:
     if started is not None or 'received 0' not in str(exc):raise
     time.sleep(.5);continue
    if c[0]==1 and c[4]>0:
-    sample={'host_seconds':time.monotonic(),'clock':c,'profile':words(monitor,symbol('rf_scene_profile'),32),'profile_stage':words(monitor,symbol('rf_scene_profile_stage'),2),'diagnostic':words(monitor,symbol('rf_diagnostic'),58)}
+    sample={'host_seconds':time.monotonic(),'clock':c,'renderer_profile':words(monitor,symbol('rf_renderer_profile'),32),'profile':words(monitor,symbol('rf_scene_profile'),32),'profile_stage':words(monitor,symbol('rf_scene_profile_stage'),2),'diagnostic':words(monitor,symbol('rf_diagnostic'),58)}
     report['samples'].append(sample);print('Pacing:',c,flush=True)
     if sample['diagnostic'][2]&0x80000000:raise RuntimeError(f"Guest diagnostic error {sample['diagnostic'][2]:08x}")
     if started is None:started=time.monotonic()
