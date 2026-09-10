@@ -23,6 +23,11 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
+Original climb entry now passes 768 execution fixtures, confirming class flag 4,
+region ownership fields, effect-18 ordering, speed restoration and descriptor
+fallback. Shared climb transition/effect implementation and live entry/exit remain
+open; see tools/inspect_climb_entry.py and docs/CAMERA.md.
+
 The v180 movement-region reader now loads all 147 authored records in the 39
 installed levels containing section 0xD00, with PC/NXDK byte-identical decoding.
 It allocates nothing and preserves reader/output on malformed data. Connecting

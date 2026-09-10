@@ -2464,3 +2464,28 @@ preserve cursor and output. Full PC/NXDK builds and CTest pass. This evidence
 checks the recovered layout against installed data; it does not execute the
 original loader or establish live climb behavior. Retained region ownership
 and climb entry/exit integration are still required.
+
+
+### Original climb-entry state and ordering (2026-09-09)
+
+`tools/inspect_climb_entry.py` executes complete `4281e0` with unchanged
+`427fd0`, `42a020`, `427450` and `4339d0`. All 768 combinations of capability,
+16 movement modes, class kinds 0/1, attachment +1380 -1/0, region kinds 0/1/2
+and descriptor enabled/disabled pass. The fixture uses ordinary entity type 0;
+`486c90` does not resolve arbitrary entity types as ordinary class kinds.
+
+Without class flag +724 bit 4, the entire actor remains unchanged and no
+callbacks run. Otherwise entry clears entity +13ec, sets +13f0 to the selected
+region, and optionally calls `48a9c0` if `42a020` succeeds and region kind is 2.
+Its arguments are entity, the three position floats by value, ID 18, scale 1,
+and zero. At this boundary the region fields are already committed, while the
+old movement descriptor and speed mode remain installed. The effect's concrete
+semantics and implementation remain unrecovered; it is not assumed to be damage.
+
+After that call, the original sets speed mode 1 through `427450`, resolves
+movement descriptor 2 through `4339d0`, installs it at +858, installs the region
+orientation (+10) at +85c, and sets +8ac to -1. An unavailable descriptor 2
+falls back to descriptor 0 and updates global selected descriptor `630050`.
+The verifier checks complete actor bytes, balanced stack, effect arguments,
+intermediate state, and effect/speed/descriptor call order. It skips only the
+`48a9c0` body. No shared-C climb transition or live climbing is claimed yet.
