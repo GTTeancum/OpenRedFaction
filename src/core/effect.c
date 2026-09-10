@@ -1,5 +1,24 @@
 #include "rf/effect.h"
 #include <math.h>
+#include <float.h>
+int rf_particle_project(const rf_particle_projection *projection,rf_particle_projected_point *point)
+{
+    rf_particle_projected_point value;float inverse,x;double y;unsigned i;
+    if(!projection || !point)return RF_RANGE;
+    if(point->flags&3u)return RF_OK;
+    for(i=0;i<3;i++)if(!isfinite(point->camera[i]))return RF_RANGE;
+    if(!isfinite(projection->depth_offset) || !isfinite(projection->half_width) || !isfinite(projection->half_height))return RF_RANGE;
+    value=*point;
+    if((projection->clamp&255u) && value.camera[2]<=0) {value.flags|=2;*point=value;return RF_OK;}
+    value.flags|=1;inverse=value.camera[2]==0?FLT_MAX:(float)(1.0/value.camera[2]);value.reciprocal_z=inverse;
+    if(projection->depth_offset!=0 && (double)projection->depth_offset*20.0<value.camera[2])
+        value.reciprocal_z=(float)(1.0/((double)value.camera[2]-projection->depth_offset));
+    x=(float)((double)inverse*value.camera[0]+1.0);y=1.0-(double)inverse*value.camera[1];
+    if(projection->clamp&255u) {if(x<=0)x=0;else if(x>=2)x=2;if(y<=0)y=0;else if(y>=2)y=2;}
+    value.screen[0]=(float)((double)projection->half_width*x+projection->origin_x);
+    value.screen[1]=(float)((double)projection->half_height*y+projection->origin_y);
+    *point=value;return RF_OK;
+}
 int rf_particle_billboard_build(const float center[3],float angle,float radius,
     uint32_t width,uint32_t height,const float scale[2],rf_particle_billboard_vertex out[4])
 {

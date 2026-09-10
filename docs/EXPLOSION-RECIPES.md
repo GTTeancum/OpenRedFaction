@@ -268,3 +268,24 @@ corner and UV bytes match under 0x027f x87 precision. This constructs the quad
 before projection, clipping, depth bias and blend state; it does not claim
 finished particle rendering. A positive bitmap size is required by the shared
 API; invalid dimensions and nonfinite inputs preserve output.
+
+Point projection 5477a0 is now reconstructed as rf_particle_project. Existing
+projected/rejected bits (flags &3) short-circuit without touching coordinates.
+With clamping enabled, Z<=0 sets rejected bit 2. Otherwise projected bit 1 is
+set, reciprocal Z is stored (FLT_MAX for zero Z), and normalized coordinates
+are computed before viewport scaling/offset. The clamp control uses its low
+byte; when enabled normalized X/Y are bounded to [0,2].
+
+Depth offset global 1e652e8 replaces reciprocal Z with 1/(Z-offset) only when
+offset is nonzero and 20*offset < Z. Screen X/Y still use the original 1/Z.
+The X normalized intermediate is rounded to float; Y stays in double precision
+until final screen conversion, matching the original instruction sequence.
+648 fixtures execute the full unchanged original function and compare every
+point byte against PC/NXDK at 0x027f precision, including signed/zero depths,
+threshold-adjacent values and cached flags. This does not implement polygon
+clipping, billboard depth bias, blend state or raster-depth conversion.
+
+Backend inspection confirms the current shared mesh still carries only RGB
+vertex color, while particles require current-color alpha and their render
+modes. Those interfaces must be extended alongside the recovered render-state
+behavior before inserting particle triangles into the existing scene stream.

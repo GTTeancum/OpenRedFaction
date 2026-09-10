@@ -17,6 +17,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Particle point projection matches 648 original/PC/NXDK cases, including
+cached flags, clamp behavior and reciprocal-only depth adjustment. Polygon
+clipping, render-state recovery and backend integration remain open.
+
 Camera-space particle billboard geometry now matches 1024 original/PC/NXDK
 cases, including aspect correction, rotation and submission-order UVs.
 Connect clipping, depth handling, blending and texture residency to drawing.

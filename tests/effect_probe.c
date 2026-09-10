@@ -13,6 +13,16 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-project")) {
+        struct {rf_particle_projection projection;rf_particle_projected_point point;} in;
+        struct {int32_t status;rf_particle_projected_point point;} out;
+        _Static_assert(sizeof(in)==52,"Particle projection input");
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.point=in.point;out.status=rf_particle_project(&in.projection,&out.point);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-billboard")) {
         struct {float center[3],angle,radius;uint32_t width,height;float scale[2];} in;
         struct {int32_t status;rf_particle_billboard_vertex vertices[4];} out;

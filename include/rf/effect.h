@@ -114,6 +114,22 @@ typedef struct rf_particle_billboard_vertex {float position[3],uv[2];} rf_partic
 int rf_particle_billboard_build(const float center[3],float angle,float radius,
     uint32_t width,uint32_t height,const float scale[2],rf_particle_billboard_vertex out[4]);
 
+typedef struct rf_particle_projection {
+    uint32_t clamp;
+    float depth_offset,half_width,half_height;
+    int32_t origin_x,origin_y;
+} rf_particle_projection;
+typedef struct rf_particle_projected_point {
+    float camera[3],screen[2],reciprocal_z;
+    uint8_t clip,flags,reserved[2];
+} rf_particle_projected_point;
+/* 5477a0 center/corner projection. Flags 1/2 cache projected/rejected state.
+ * Clamping rejects z<=0 and bounds normalized XY to [0,2]. Depth offset
+ * affects reciprocal Z only above its original 20*offset threshold; screen
+ * coordinates retain the unbiased reciprocal. Finite input domain, no clip
+ * polygon construction or raster depth conversion. Errors preserve point. */
+int rf_particle_project(const rf_particle_projection *projection,rf_particle_projected_point *point);
+
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */
     int32_t started; /* +154 deadline. */
