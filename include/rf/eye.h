@@ -55,4 +55,12 @@ int rf_look_update(rf_look_state *state,float angular_speed,float dt);
  * Pitch within +/-pi/2, yaw within +/-2pi; finite roll accepted but ignored.
  * Errors preserve output; angles/output may alias. */
 int rf_look_orientation(const float angles[3],float orientation[9]);
+typedef struct rf_look_pose {
+    rf_look_state state;
+    float body_orientation[9],eye_orientation[9];
+} rf_look_pose;
+/* 49de50 through 49e02c: angle update and distinct body/eye orientation.
+ * Does not commit physics or auxiliary entity vectors. Error preserves result;
+ * state may point into result. */
+int rf_look_update_pose(const rf_look_state *state,float angular_speed,float dt,rf_look_pose *result);
 #endif

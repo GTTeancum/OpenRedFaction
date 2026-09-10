@@ -427,3 +427,22 @@ int rf_look_orientation(const float angles[3],float orientation[9])
     look_cross(out+3,out+6,out);look_cross(out+6,out,out+3);
     memcpy(orientation,out,sizeof(out));return RF_OK;
 }
+
+int rf_look_update_pose(const rf_look_state *state,float angular_speed,float dt,rf_look_pose *result)
+{
+    rf_look_pose value;float seed[9]={0},angles[3],s,c,z;unsigned i;int status;
+    if(!state || !result)return RF_RANGE;
+    value.state=*state;status=rf_look_update(&value.state,angular_speed,dt);if(status)return status;
+    /* 4fbee0/4fbe40 with the body's zero pitch and roll after 49de50.
+     * Keep the zero products to retain the original signed-zero results. */
+    look_basis_seed(value.state.body_angles,seed);s=-seed[2];c=seed[0];z=value.state.body_angles[0];
+    value.body_orientation[0]=(float)((double)z*s*z+c);
+    value.body_orientation[5]=(float)((double)c*z+(double)z*s);
+    value.body_orientation[3]=(float)((double)s*z-(double)z*c);
+    value.body_orientation[2]=(float)((double)z*c*z-s);
+    value.body_orientation[6]=s;value.body_orientation[1]=z;value.body_orientation[4]=1;
+    value.body_orientation[8]=c;value.body_orientation[7]=-z;
+    for(i=0;i<3;++i)angles[i]=value.state.body_angles[i]+value.state.eye_angles[i];
+    status=rf_look_orientation(angles,value.eye_orientation);if(status)return status;
+    *result=value;return RF_OK;
+}

@@ -164,6 +164,8 @@ uint32_t rf_scene_actor_initial_animation[12];
 float rf_scene_actor_initial_eye_offsets[6];
 int32_t rf_scene_actor_initial_eye_tag;
 uint32_t rf_scene_actor_eye_enabled;
+uint32_t rf_scene_actor_look_enabled,rf_scene_actor_look_frames[64][33];
+static rf_look_pose actor_look;
 uint32_t rf_scene_actor_eye_frames[64][46]; /* frame, rf_eye_input, rf_first_person_pose */
 uint32_t rf_scene_actor_animation_timing[64][3];
 typedef struct actor_sweep_record {
@@ -632,7 +634,17 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         input.current_state=controller->current;input.previous_state=controller->next;
         input.transition_duration=controller->duration;input.transition_elapsed=controller->elapsed;
         status=rf_eye_position(&input,eye_position);if(status)return status;
-        status=rf_first_person_pose_copy(eye_position,input.orientation,input.orientation,&pose);if(status)return status;
+        if(rf_scene_actor_look_enabled) {
+            uint32_t *look=rf_scene_actor_look_frames[frame%64];
+            if(!frame){memset(&actor_look,0,sizeof(actor_look));memset(rf_scene_actor_look_frames,0,sizeof(rf_scene_actor_look_frames));}
+            /* This fixture starts upright at yaw zero. Only pitch is scripted;
+             * yaw/body turning awaits physics-orientation integration. */
+            actor_look.state.command[0]=frame?((frame%180)<90?.25f:-.25f):0;
+            status=rf_look_update_pose(&actor_look.state,1.0f,scene_step_seconds,&actor_look);if(status)return status;
+            look[0]=frame;memcpy(look+1,&actor_look,sizeof(actor_look));
+            status=rf_first_person_pose_copy(eye_position,input.orientation,(const float(*)[3])actor_look.eye_orientation,&pose);
+        } else status=rf_first_person_pose_copy(eye_position,input.orientation,input.orientation,&pose);
+        if(status)return status;
         memcpy(position,pose.position,12);memcpy(orientation,pose.eye_orientation,36);
         record[0]=frame;memcpy(record+1,&input,sizeof(input));memcpy(record+25,&pose,sizeof(pose));
     } else {position[1]+=.7f;position[2]+=2.4f;}

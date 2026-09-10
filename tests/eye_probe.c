@@ -8,6 +8,15 @@ int main(int argc,char **argv)
     struct { int32_t status; float position[3]; } output;
     _Static_assert(sizeof(input) == 96, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--look-pose")) {
+        struct {rf_look_state state;float speed,dt;} in;
+        struct {int32_t status;rf_look_pose pose;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0,sizeof(out));out.status=rf_look_update_pose(&in.state,in.speed,in.dt,&out.pose);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--look-matrix")) {
         float angles[3];struct {int32_t status;float matrix[9];} out;
         while(fread(angles,sizeof(angles),1,stdin)==1) {

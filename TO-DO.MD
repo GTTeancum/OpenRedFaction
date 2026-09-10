@@ -6,6 +6,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Pitch control is now bound to the moving first-person diagnostic camera.
+All 664 original look/eye/camera replays and live 64 MiB XEMU run
+20260909-200813-666493 pass; look/eye rings match PC and body trace is unchanged.
+Next integrate yaw/body orientation physics and actual player input. No capture.
+
 Eye-matrix builder 4a0d70 is reconstructed: 1,200 compiled NXDK cases match
 original execution exactly; PC differs only in tiny vertical-pitch residuals.
 Bind look-angle state, yaw-only body and eye matrices into the live camera next.

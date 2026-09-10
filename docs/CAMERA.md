@@ -1856,3 +1856,46 @@ matrix, bind the distinct orientations to scene motion/camera telemetry, and
 verify the full 49de50 pose-writing path plus live XEMU output. Input acquisition,
 player identity and camera collision remain open. No new rendered screenshot
 was captured for this unbound function.
+
+
+## Live pitch-control binding
+
+`rf_look_update_pose` combines the scalar update, original yaw-only body matrix
+(4fbee0/4fbe40), and eye matrix. `verify_look_update.py --pose --nxdk` now runs
+49de50 through 49e02c with all callees intact: 1,200 compiled NXDK cases match
+all scalar/body/eye words. PC scalar fields match exactly; matrix differences
+are bounded by 4.5102810375396984e-17 at vertical pitch. Physics commit and
+auxiliary entity vectors remain outside the adapter.
+
+The `--look` scene check, `--scene-look-last` PC preview and Xbox
+`actor-look.flag` select a process-local pitch-only profile on the retained
+664-frame route. The input alternates +/-0.25 over 90-frame intervals, with
+speed 1 and timestep 1/60. Frame zero starts upright at yaw zero and consumes
+zero input. This is explicit diagnostic input, not the original controller
+mapping. The physics body's orientation remains unchanged; yaw/body turning
+requires orientation/physics integration. The first-person camera now uses
+the recovered eye matrix rather than the body's matrix.
+
+`python tools/verify_scene_eye_view.py artifacts/scene-look.txt` replays all
+664 original angle/pose updates sequentially, then original 4194e0 and camera
+copy. All bytes match, including 30 eye-height transition frames. It also
+checks the assumption that every fixture body orientation is identity. A
+64-record ring stores frame plus rf_look_pose (33 words per record), alongside
+the existing eye and camera rings. The standard eye profile's PC camera/ring
+trace is unchanged.
+
+Live run `20260909-200813-666493` passes in XEMU: exactly 67,108,864 base bytes,
+zero plugged memory, final look/eye/camera rings match PC, all 664-frame world
+and camera hashes agree. World hash 586925489, camera hash 1016562889,
+peak projected world bytes 162624, two MiB CPU/GPU vertex capacity. Body hash
+533762320 remains unchanged (663 updates, three support losses, four landings).
+No framebuffer was captured for this memory validation.
+
+```powershell
+python tools/xemu_smoke.py --actor-look --no-capture --seconds 300
+```
+
+The disc currently includes actor-look.flag as well as the prior eye/follow
+profile flags. Disable the look flag before running the older eye-only smoke
+expectation. Main campaign player identity/input, yaw/body physics, camera
+collision and view weapon remain open.
