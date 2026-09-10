@@ -1,3 +1,4 @@
+#include "particle_stretch_fixture.h"
 #include "pc_raster.h"
 #include <stdio.h>
 #include <string.h>
@@ -25,8 +26,24 @@ static int texture_test(const char *path)
     }
     rf_particle_animation_close(&animation);rf_pc_raster_close(&r);return 0;
 }
+static int stretch_test(void)
+{
+    rf_pc_raster raster={0};unsigned char pixel[4]={255,255,255,255};rf_image image={1,1,4,0,pixel};
+    uint32_t i,j,x,y,count;rf_particle_draw_vertex vertices[12];int status;
+    if(rf_pc_raster_open(&raster,1))return 1;
+    for(i=0;i<6;i++) {
+        for(j=0;j<raster.pixels;j++){raster.rgb[j*3]=32;raster.rgb[j*3+1]=64;raster.rgb[j*3+2]=96;raster.depth[j]=16777215;}
+        status=particle_stretch_fixture(i,vertices,&count);if(status)return 2;
+        if(count){status=rf_pc_raster_particle(&raster,vertices,count,&image,RF_PARTICLE_NORMAL_MODE,
+            RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);if(status)return 3;}
+        printf("%u\n",count);
+        for(y=0;y<16;y++)for(x=0;x<16;x++){j=((15+y*30)*raster.width+20+x*40)*3;printf("%u %u %u\n",raster.rgb[j],raster.rgb[j+1],raster.rgb[j+2]);}
+    }
+    rf_pc_raster_close(&raster);return 0;
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--stretch"))return stretch_test();
     if(argc==3 && !strcmp(argv[1],"--textures"))return texture_test(argv[2]);
     static const unsigned char expected[12][3]={{144,32,48},{160,64,96},{16,160,48},{88,48,72},{255,0,0},{127,0,0},{127,0,0},{63,128,0},{80,96,48},{24,48,80},{32,64,96},{255,0,0}};
     rf_pc_raster r={0};rf_particle_draw_vertex v[4];unsigned char texel[4];

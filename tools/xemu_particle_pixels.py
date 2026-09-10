@@ -6,7 +6,7 @@ from xemu_guest_snapshot import words
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu')
 run=root/'artifacts/xemu'/('particle-pixels-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
 flag=root/'build/xbox/disc/particle-render-test.flag';saved=flag.read_bytes() if flag.exists() else None
-process=monitor=None;report={'result':'FAIL','scope':'Native particle shader/blend/fog/depth probes and retained 16-frame texture ownership, age-selected frames 0/7/15 after archive close, and physical page recovery; no campaign/PS2 parity claim.'}
+process=monitor=None;report={'result':'FAIL','scope':'Native particle shader/blend/fog/depth probes and retained 16-frame texture ownership, age-selected frames 0/7/15 after archive close, physical page recovery, and six stretched-geometry GPU fixtures; no campaign/PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh','--repack'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True,stdout=subprocess.DEVNULL)
 try:
  flag.write_bytes(b'1');build();mapping=(root/'build/xbox/main.map').read_text()
@@ -72,6 +72,19 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   assert texture_state[3]>0 and texture_state[6]<texture_state[3] and texture_state[7]>=texture_state[3],texture_state[:8]
   assert texture_actual[:256]!=texture_actual[256:512], 'Distinct animation frames must differ'
   assert texture_actual[512:768]!=texture_actual[1280:1536], 'Ordinary and additive blending must differ'
+  stretch_address=int(re.search(r'_rf_particle_stretch_diagnostic\s+([0-9a-fA-F]+)',mapping)[1],16)
+  stretch=words(monitor,stretch_address,1544)
+  lines=subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe'),'--stretch'],text=True).splitlines()
+  counts=[int(lines[i*257]) for i in range(6)]
+  reference=[tuple(map(int,lines[i*257+1+j].split())) for i in range(6) for j in range(256)]
+  actual=[((p>>16)&255,(p>>8)&255,p&255) for p in stretch[8:]]
+  errors=[abs(a-b) for rgb,ref in zip(actual,reference) for a,b in zip(rgb,ref)]
+  report['stretch']=dict(state=stretch[:8],pc_counts=counts,max_channel_error=max(errors),actual_rgb=actual,pc_rgb=reference)
+  assert stretch[1]==2 and stretch[2:8]==counts and len(actual)==len(reference)==1536
+  assert counts[3]==0 and all(counts[i]>=3 for i in (0,1,2,4,5)),counts
+  assert max(errors)<=2,report['stretch']['max_channel_error']
+  assert all(rgb==(32,64,96) for rgb in actual[768:1024])
+  assert all(any(rgb!=(32,64,96) for rgb in actual[i*256:(i+1)*256]) for i in (0,1,2,4,5))
   report['result']='PASS'
 finally:
  if monitor:

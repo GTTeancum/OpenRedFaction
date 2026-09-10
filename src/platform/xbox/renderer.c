@@ -1,3 +1,4 @@
+#include "../../../tests/particle_stretch_fixture.h"
 #include "rf/resource_budget.h"
 #include "renderer.h"
 #include "rf/scene_preview.h"
@@ -358,6 +359,24 @@ static int particle_texture_test(void)
     if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_particle_texture_diagnostic[7]=statistics.AvailablePages;
     rf_particle_texture_diagnostic[1]=status?(uint32_t)status:2;return status;
 }
+uint32_t rf_particle_stretch_diagnostic[1544];
+static int particle_stretch_test(void)
+{
+    rf_image image={1,1,4,0,NULL};rf_particle_draw_vertex vertices[12];uint32_t i,x,y,count;int status;
+    status=rf_image_allocate_pixels(&image);if(status)return status;
+    memset(image.rgba,255,4);rf_particle_stretch_diagnostic[0]=0x52505358;
+    for(i=0;i<6;i++) {
+        pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
+        status=particle_stretch_fixture(i,vertices,&count);if(status)break;
+        rf_particle_stretch_diagnostic[2+i]=count;
+        if(count)status=rf_xbox_particle_draw(vertices,count,&image,RF_PARTICLE_NORMAL_MODE,
+            RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);
+        if(status)break;
+        for(y=0;y<16;y++)for(x=0;x<16;x++)rf_particle_stretch_diagnostic[8+i*256+y*16+x]=
+            *(volatile uint32_t *)((unsigned char *)pb_back_buffer()+(15+y*30)*pb_back_buffer_pitch()+(20+x*40)*4);
+    }
+    rf_image_close(&image);rf_particle_stretch_diagnostic[1]=status?(uint32_t)status:2;return status;
+}
 uint32_t rf_particle_pixel_diagnostic[20];
 void rf_xbox_particle_pixel_test(void)
 {
@@ -418,6 +437,7 @@ failed:
     rf_particle_pixel_diagnostic[17]=pb_back_buffer_height();rf_particle_pixel_diagnostic[18]=pb_back_buffer_pitch();
     MmFreeContiguousMemory(pixels);
     status=particle_texture_test();
+    if(!status)status=particle_stretch_test();
     rf_particle_pixel_diagnostic[1]=status?0x80000000u|(uint32_t)(-status):2;
 
 }

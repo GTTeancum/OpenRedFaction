@@ -774,3 +774,29 @@ vertex encoder and platform sinks receive the resulting polygon. This scene
 branch is compiled but visible stretched effects have not yet been verified
 through XEMU GPU pixels; campaign effect spawning and mixed passes remain open.
 No new screenshot was captured.
+
+Stretched GPU fixtures (2026-09-10)
+
+The isolated native particle harness now runs six shared process-local
+fixtures through rf_particle_world_stretch, rf_particle_vertex_encode and
+the real PC/Xbox particle raster backends. A constant white texture and
+translucent vertex color isolate polygon coverage and blending. Cases cover
+ordinary movement, zero-movement billboard fallback, right-edge clipping,
+behind-camera rejection, movement with a depth component, and view-parallel
+movement. Each case clears color/depth and reads a fixed 16x16 sample grid.
+These are fixtures, not authored campaign events.
+
+artifacts/xemu/particle-pixels-20260910-135438/report.json passes with
+67108864 base bytes and zero added memory. Polygon counts [4,4,5,0,4,4]
+match PC; all 1536 RGB samples match exactly. The rejected case stays clear,
+and every accepted case changes sampled pixels. Existing shader and retained
+16-frame boom01.vbm tests also pass (texture maximum channel error 1;
+available pages 14181 -> 14117 -> 14181). Both builds and six CTests pass.
+
+The world stretch retains each transformed corner depth in the submission
+format, but its constructed diamond lies in the view plane: motion along
+view depth does not directly create a trail extending through depth. This
+fixture is not a test of arbitrary unequal-depth polygons. Existing separate
+depth-mode pixel fixtures remain in the same harness. Campaign spawning,
+textured stretched trails in mixed scene passes and PS2 parity remain open.
+No progress screenshot: this is an isolated coverage grid, not new gameplay.
