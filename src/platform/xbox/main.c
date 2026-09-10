@@ -30,6 +30,7 @@ static uint32_t door_capacity;
 rf_frame_clock rf_player_frame_clock;
 static uint32_t player_pacing,scene_simulation_frames;
 static FILE *player_replay;
+static uint32_t player_replay_size;
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
 static void player_input_close(void)
 {
@@ -40,8 +41,9 @@ static uint32_t profile_milliseconds(void){return GetTickCount();}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
     if(player_replay) {
+        memset(input,0,sizeof(*input));
         int status=frame!=rf_player_replay_diagnostic[2]?RF_FORMAT:
-            fread(input,sizeof(*input),1,player_replay)!=1?RF_IO:RF_OK;
+            fread(input,player_replay_size,1,player_replay)!=1?RF_IO:RF_OK;
         rf_player_replay_diagnostic[3]=(uint32_t)status;
         if(!status)++rf_player_replay_diagnostic[2];return status;
     }
@@ -479,11 +481,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         player_replay=fopen("D:\\player-replay.bin","rb");
         memset(rf_player_replay_diagnostic,0,sizeof(rf_player_replay_diagnostic));
         if(player_replay) {
-            long bytes;
-            if(fseek(player_replay,0,SEEK_END) || (bytes=ftell(player_replay))<=0 ||
-                bytes>60000*(long)sizeof(rf_scene_input) || bytes%(long)sizeof(rf_scene_input) ||
-                fseek(player_replay,0,SEEK_SET)){player_input_close();return RF_FORMAT;}
-            limit=(uint32_t)bytes/sizeof(rf_scene_input);
+            if(rf_scene_replay_header(player_replay,&limit,&player_replay_size)){player_input_close();return RF_FORMAT;}
             rf_player_replay_diagnostic[0]=1;rf_player_replay_diagnostic[1]=limit;
         } else {status=rf_xbox_input_open();if(status)return status;}
         player_controls=1;player_pacing=!player_replay && limit==0;

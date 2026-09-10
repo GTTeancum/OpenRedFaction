@@ -107,7 +107,7 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     if(out->move[0] && out->move[2]) {out->move[0]*=.7071067811865475f;out->move[2]*=.7071067811865475f;}
     out->look[0]=(float)p->keys[VK_UP]-(float)p->keys[VK_DOWN];
     out->look[1]=(float)p->keys[VK_RIGHT]-(float)p->keys[VK_LEFT];
-    out->crouch=p->keys[VK_CONTROL];return RF_OK;
+    out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return RF_OK;
 }
 
 static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
@@ -152,16 +152,16 @@ int main(int argc,char **argv)
         p.headless=1;limit=(uint32_t)value;directory=argv[2];
     } else if(argc==5 && (!strcmp(argv[1],"--replay") || !strcmp(argv[1],"--spawn-replay"))) {
         spawn_profile=!strcmp(argv[1],"--spawn-replay");
-        FILE *file=fopen(argv[3],"rb");long bytes;size_t got;
+        FILE *file=fopen(argv[3],"rb");uint32_t count,size;int read_failed=0;
         if(!file)return 2;
-        if(fseek(file,0,SEEK_END) || (bytes=ftell(file))<=0 || bytes>60000*(long)sizeof(rf_scene_input) ||
-            bytes%(long)sizeof(rf_scene_input) || fseek(file,0,SEEK_SET)){fclose(file);return 2;}
-        p.replay=malloc((size_t)bytes);if(!p.replay){fclose(file);return 1;}
-        got=fread(p.replay,1,(size_t)bytes,file);
-        if(fclose(file) || got!=(size_t)bytes){free(p.replay);return 2;}
-        p.headless=1;limit=p.replay_count=(uint32_t)bytes/sizeof(rf_scene_input);directory=argv[2];
-    } else if(argc==2)directory=argv[1];
-    else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
+        if(rf_scene_replay_header(file,&count,&size)){fclose(file);return 2;}
+        p.replay=calloc(count,sizeof(*p.replay));if(!p.replay){fclose(file);return 1;}
+        for(i=0;i<count;++i)if(fread(p.replay+i,size,1,file)!=1){read_failed=1;break;}
+        if(fclose(file) || read_failed){free(p.replay);return 2;}
+        p.headless=1;limit=p.replay_count=count;directory=argv[2];
+    } else if(argc==3 && !strcmp(argv[1],"--campaign")){spawn_profile=1;directory=argv[2];}
+    else if(argc==2)directory=argv[1];
+    else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --campaign <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
     CHECK(path_join(path,sizeof(path),directory,"levels1.vpp"));
     CHECK(rf_vpp_open(&archive,path));CHECK(rf_level_open(&level,&archive,spawn_profile && p.headless && getenv("RF_REPLAY_LEVEL")?getenv("RF_REPLAY_LEVEL"):"L1S1.rfl"));
@@ -199,7 +199,7 @@ int main(int argc,char **argv)
             NULL,NULL,wc.hInstance,&p);
         if(!p.window){status=RF_IO;goto cleanup;}
         ShowWindow(p.window,SW_SHOW);
-        puts("WASD move | arrows look | Ctrl crouch | Escape exit");
+        puts(spawn_profile?"WASD move | arrows look | Ctrl crouch | Space jump | Escape exit":"WASD move | arrows look | Ctrl crouch | Escape exit");
     }
     rf_scene_actor_live_enabled=1;rf_scene_actor_eye_enabled=1;
     rf_scene_actor_look_enabled=1;rf_scene_actor_turn_enabled=1;
@@ -217,6 +217,8 @@ int main(int argc,char **argv)
         }
         CHECK(rf_pc_raster_save(&p.raster,argv[4]));
         printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
+        printf("PLAYER_JUMP");for(i=0;i<4;++i)printf(" %u",rf_scene_player_jump[i]);puts("");
+        printf("PLAYER_JUMP_FRAMES");for(i=0;i<1024;++i)printf(" %u",((uint32_t*)rf_scene_player_jump_frames)[i]);puts("");
         printf("ACTOR_PLAYER_INPUT");for(i=0;i<64*7;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");
         printf("PC_PLAY_BODY");for(i=0;i<sizeof(scene_actor_body.state)/4;++i) {
             uint32_t word;memcpy(&word,(const unsigned char*)&scene_actor_body.state+i*4,4);printf(" %u",word);

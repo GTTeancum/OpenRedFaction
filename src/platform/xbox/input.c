@@ -48,6 +48,7 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     stick(SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_RIGHTX),
           SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_RIGHTY),&horizontal,&vertical);
     input->look[0]=-vertical;input->look[1]=horizontal;
+    input->jump=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_A)!=0;
     input->crouch=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_B)!=0;
     rf_player_input_diagnostic[5]=input->crouch;return RF_OK;
 }

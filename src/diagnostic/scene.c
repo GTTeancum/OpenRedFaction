@@ -21,12 +21,26 @@ int rf_scene_stage_climb(rf_level *level,uint32_t mode)
     }
     memcpy(level->player_position,position,12);return RF_OK;
 }
+int rf_scene_replay_header(FILE *file,uint32_t *count,uint32_t *record_size)
+{
+    long bytes,offset=0;uint32_t header[2],size=24;
+    if(!file || !count || !record_size)return RF_RANGE;
+    if(fseek(file,0,SEEK_END) || (bytes=ftell(file))<=0 || fseek(file,0,SEEK_SET))return RF_FORMAT;
+    if(fread(header,4,1,file)!=1)return RF_FORMAT;
+    if(header[0]==0x32494652u) {
+        if(fread(header+1,4,1,file)!=1 || header[1]!=28)return RF_FORMAT;
+        offset=8;size=28;
+    }
+    if(bytes<=offset || (bytes-offset)%size || (bytes-offset)/size>60000 || fseek(file,offset,SEEK_SET))return RF_FORMAT;
+    *count=(uint32_t)(bytes-offset)/size;*record_size=size;return RF_OK;
+}
 static rf_scene_input_poll player_poll;
 static void *player_context;
 static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
-static uint32_t campaign_crouched;
+static uint32_t campaign_crouched,campaign_jump_held;
+uint32_t rf_scene_player_jump[4],rf_scene_player_jump_frames[128][8];
 static float campaign_position[3],campaign_orientation[9];
 uint32_t rf_scene_player_spawn_diagnostic[19];
 int rf_scene_set_campaign_spawn(const rf_level *level)
@@ -68,8 +82,8 @@ static int player_begin_frame(void *context,uint32_t frame)
     status=player_poll(player_context,frame,&value);if(status)return status;
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
-    if(value.crouch>1)return RF_FORMAT;
-    player_input=value;r[0]=frame;memcpy(r+1,&value,sizeof(value));
+    if(value.crouch>1 || value.jump>1)return RF_FORMAT;
+    player_input=value;r[0]=frame;memcpy(r+1,&value,24); /* Preserve the legacy movement/stance ring. */
     profile_active=frame>=16;rf_scene_profile_stage[0]=frame;profile_mark(0);return RF_OK;
 }
 uint32_t rf_scene_showcase_enabled;
@@ -544,9 +558,41 @@ static int campaign_climb_update(scene_stream *stream,uint32_t frame)
      memcpy(record+3,scene_actor_body.state.position,12);memcpy(record+6,scene_actor_body.state.velocity,12);}
     return RF_OK;
 }
+static void campaign_jump_sound(void *context,const rf_player_jump_state *state,int32_t sound)
+{(void)context;(void)state;(void)sound;++rf_scene_player_jump[2]; /* Asset resolution/playback pending. */}
+static int campaign_jump_update(uint32_t frame)
+{
+    uint32_t held=player_poll?player_input.jump:0,pressed,selected=rf_scene_actor_landing[1],accepted=0;
+    uint32_t *record=rf_scene_player_jump_frames[frame%128];int status;
+    if(!frame){campaign_jump_held=0;memset(rf_scene_player_jump,0,sizeof(rf_scene_player_jump));memset(rf_scene_player_jump_frames,0,sizeof(rf_scene_player_jump_frames));}
+    pressed=held && !campaign_jump_held;campaign_jump_held=held;
+    if(pressed) {
+        rf_player_jump_gate gate={1,0,0,-1,-1,rf_scene_actor_stance_flags,0};
+        ++rf_scene_player_jump[0];
+        if(rf_player_jump_enabled(&gate)) {
+            rf_player_jump_state state={rf_scene_actor_stance_flags,scene_actor_body.state.flags,
+                scene_actor_body.state.velocity[1],campaign_modes+selected,campaign_identity,0};
+            /* Installed game.tbl height, same fixture gravity as actor_tick.
+             * Full game configuration and class sound resolution remain open. */
+            rf_player_jump_input input={campaign_modes,campaign_identity,
+                (float)sqrt(2.0*(double)9.8f*(double)1.33f),scene_step_seconds,0,0,-1,0};
+            float now=(float)((double)frame*scene_step_seconds);uint32_t sounds=rf_scene_player_jump[2];
+            memcpy(&input.now,&now,4);
+            status=rf_player_jump(&state,&input,&selected,campaign_jump_sound,NULL);if(status)return status;
+            accepted=rf_scene_player_jump[2]!=sounds;
+            rf_scene_actor_stance_flags=state.actor_flags;scene_actor_body.state.flags=state.physics_flags;
+            scene_actor_body.state.velocity[1]=state.vertical_velocity;rf_scene_actor_landing[1]=selected;
+            if(accepted){++rf_scene_player_jump[1];rf_scene_player_jump[3]=frame;}
+        }
+    }
+    record[0]=frame;record[1]=held;record[2]=pressed;record[3]=accepted;record[4]=rf_scene_actor_landing[1];
+    memcpy(record+5,scene_actor_body.state.position+1,4);memcpy(record+6,scene_actor_body.state.velocity+1,4);record[7]=rf_scene_actor_stance_flags;
+    return RF_OK;
+}
 static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
 {
     int update_status=campaign_climb_update((scene_stream*)context,frame);if(update_status)return update_status;
+    update_status=campaign_jump_update(frame);if(update_status)return update_status;
     rf_motion_stance_decision decision={0,RF_MOTION_STANCE_NONE};
     rf_player_crouch_input eligibility={1,-1,-1,-1,(int32_t)rf_scene_actor_landing[1]};
     /* Ownership/environment/locks are fixture defaults until the player

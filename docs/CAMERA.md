@@ -2954,3 +2954,45 @@ is now 0.808611395. The 64-tick campaign crouch/move/stand replay also passes
 on PC and XEMU 20260910-012117. All five registered CTests pass; both targets
 build. These checks validate the reordered walking/climbing fixtures, not a
 jump: jump input still needs connection and takeoff/hold/landing coverage.
+
+
+Campaign jump connected (2026-09-10)
+
+rf_scene_input now has a held jump word after crouch. PC maps Space; Xbox maps
+A as a platform policy. The campaign update detects rising edges after region
+transitions and before crouch action, then applies rf_player_jump_enabled and
+rf_player_jump to the body velocity/physics flags, actor flags and movement
+mode. Existing post-physics support consumes jump flag 2. Resolved ownership,
+parent/input-lock and alternate-fall values remain ordinary-player fixture
+values. Strength uses the verified installed height 1.33 and existing gravity
+9.8; full game.tbl configuration, retained timestamp ownership and class sound
+resolution/playback are still open. The sound callback counts pending requests
+without claiming to resolve or play them.
+
+PC interactive campaign mode is available through rf_pc_play --campaign
+Installed_Game. The legacy interactive route remains selectable without that
+option. Xbox jump applies when campaign-spawn.flag selects campaign mode;
+harness cleanup restores prior flags and does not change the normal disc mode.
+The physical input paths have not been operated by the harness. As currently
+polled, a very short PC press/release wholly between ticks may be missed; the
+original keyboard press-count queue remains a fidelity item.
+
+Replays accept legacy raw 24-byte records (jump zero) or an RFI2 header followed
+by uint32 record size 28 and 28-byte records. The common header reader rejects
+empty, partial, wrong-size and over-60000-record files; eight malformed PC
+fixtures were rejected. PC zero-initializes expanded records; Xbox streams them
+into a cleared input object. The legacy 448-word input ring retains its exact
+layout. New jump diagnostics add four counters and a 128x8-word ring: frame,
+held, edge, accepted, mode, position Y, velocity Y, actor flags. XEMU compares
+all 1024 timeline words and counters with PC for every campaign replay.
+
+replay_player_jump.py covers 128 ticks. A press at 8 while initially airborne
+is rejected. A grounded press at 24 reaches 1.329908729 units above takeoff,
+lands by 90, and does not repeat while held through 95. Release at 96 and
+repress at 100 produces a second accepted jump. XEMU replay-20260910-012451
+passes in 64 MiB with exact PC state/timeline comparison and 10889 available
+pages. Legacy 64-tick stance replay also passes natively at 20260910-012603;
+legacy PC approach/stance and five CTests pass. The later PC --campaign CLI
+addition was rebuilt and the jump replay rerun successfully; its interactive
+window was not launched. No complete original-game jump-arc comparison is
+claimed by matching the two reconstructed platforms.

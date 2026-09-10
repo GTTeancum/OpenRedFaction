@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Connect edge-triggered jump input to the integrated campaign support order and validate takeoff/landing.
+- [ ] Finish jump configuration/audio ownership and test crouched, obstructed and climbing jump scenarios.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -10,9 +10,16 @@ Immediate open items:
 - [ ] Capture and replay any further interactive exits; the historical tick-99 cause remains unproven.
 - [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
 - [ ] USER: Test PC keyboard movement/look, crouch, focus loss, resizing and Escape exit.
-- [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
+- [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Campaign jump replay now passes on PC and stock-64-MiB XEMU
+(20260910-012451): initial airborne rejection, two accepted jumps, 1.32991
+units ascent, landing while held without auto-repeat, and release/repress.
+Space (PC --campaign) and A (Xbox campaign mode) are mapped; physical-device
+checks remain USER. Audio is recorded only; jump height/gravity still use the
+verified installed defaults until the configuration lifecycle is connected.
 
 Campaign support now runs after physics using a fresh probe and the recovered
 selector, then consumes jump flag 2. Both 64-MiB XEMU replays pass with exact

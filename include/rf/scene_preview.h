@@ -127,10 +127,13 @@ extern uint32_t rf_scene_actor_look_enabled,rf_scene_actor_turn_enabled;
  * Diagnostic placement only; no campaign trigger or NPC behavior claim. */
 extern uint32_t rf_scene_showcase_enabled;
 int rf_scene_showcase_camera(rf_level *level);
-typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch;} rf_scene_input;
+typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump;} rf_scene_input;
 /* Poll once before stance/animation/physics. RF_NOT_FOUND ends the stream cleanly.
- * Finite axes in [-1,1], crouch 0/1. Caller owns context until stream ends.
+ * Finite axes in [-1,1], crouch/jump held states 0/1. Caller owns context until stream ends.
  * Zero frame_limit permits a UINT32_MAX-frame session with bounded rings. */
+/* RFI2 + uint32 size 28, or legacy raw 24-byte records with jump=0. */
+int rf_scene_replay_header(FILE *file,uint32_t *count,uint32_t *record_size);
+extern uint32_t rf_scene_player_jump[4],rf_scene_player_jump_frames[128][8];
 typedef int (*rf_scene_input_poll)(void *context,uint32_t frame,rf_scene_input *input);
 void rf_scene_set_input(rf_scene_input_poll poll,void *context,uint32_t frame_limit);
 /* Campaign-start diagnostic: copy the level start and load miner1 by class.
