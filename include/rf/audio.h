@@ -44,6 +44,11 @@ int rf_audio_bank_load(rf_audio_bank *bank,const char *name,uint32_t *index);
  * the existing index even if explicitly unloaded; use reload to restore PCM. */
 int rf_audio_bank_register(rf_audio_bank *bank,const char *name,float near_distance,
     float volume,float rolloff,uint32_t *index);
+/* Reserve a stable name/parameter entry after archive-directory lookup, without
+ * reading or allocating PCM. First registration wins. Uses preallocated slots;
+ * reload validates/loads the waveform later. Errors preserve bank and index. */
+int rf_audio_bank_declare(rf_audio_bank *bank,const char *name,float near_distance,
+    float volume,float rolloff,uint32_t *index);
 const rf_audio_parameters *rf_audio_bank_parameters(const rf_audio_bank *bank,uint32_t index);
 const rf_wave_pcm *rf_audio_bank_sample(const rf_audio_bank *bank,uint32_t index);
 /* Explicit residency control; caller must release ALL device/mixer borrowers

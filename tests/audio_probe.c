@@ -46,6 +46,20 @@ int main(int argc,char **argv)
         rf_audio_mixer mixer;int16_t output[512];uint32_t handle,hash=2166136261u,i;
         if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"DoorOpen_07.wav",&a) || rf_vpp_find(&archive,"DoorEnd_07.wav",&b))return 20;
         bytes=(uint32_t)sizeof(bank)+2*(uint32_t)sizeof(rf_audio_sample)+a.size+b.size;
+        {uint32_t metadata=bytes-a.size-b.size;
+         if(rf_audio_bank_open(&archive,2,metadata,&bank) ||
+            rf_audio_bank_declare(&bank,a.name,5,.5f,1,&first) ||
+            rf_audio_bank_declare(&bank,b.name,0,1,1,&index) || bank.count!=2 || bank.bytes!=metadata ||
+            rf_audio_bank_sample(&bank,first) || rf_audio_bank_sample(&bank,index))return 50;
+         if(rf_audio_bank_declare(&bank,"dooropen_07.WAV",10,.9f,2,&index) || index!=first ||
+            rf_audio_bank_parameters(&bank,first)->volume!=.5f || rf_audio_bank_parameters(&bank,1)->near_distance!=1)return 51;
+         index=123;
+         if(rf_audio_bank_declare(&bank,"missing.wav",1,1,1,&index)!=RF_NOT_FOUND || index!=123 ||
+            bank.bytes!=metadata || bank.count!=2 || rf_audio_bank_reload(&bank,&archive,first)!=RF_RANGE)return 52;
+         bank.budget=metadata+a.size;
+         if(rf_audio_bank_reload(&bank,&archive,first) || bank.bytes!=metadata+a.size ||
+            !rf_audio_bank_sample(&bank,first) || rf_audio_bank_sample(&bank,1))return 53;
+         rf_audio_bank_close(&bank);index=123;}
         if(rf_audio_bank_open(&archive,2,bytes-1,&bank) || rf_audio_bank_register(&bank,a.name,5,.5f,1,&first))return 21;
         if(rf_audio_bank_load(&bank,b.name,&index)!=RF_RANGE || index!=123 || bank.count!=1)return 22;
         if(rf_audio_bank_load(&bank,"dooropen_07.WAV",&index) || index!=first || bank.count!=1)return 23;

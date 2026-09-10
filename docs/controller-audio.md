@@ -862,3 +862,22 @@ remain inaccessible until after worker shutdown. This provides exercised-path
 use-after-release evidence, not exhaustive race analysis or loopback capture.
 Existing reopen and muted-start cases also pass. Campaign eviction remains
 unconnected; this addition changes only the PC adapter and its device check.
+
+### Register metadata before PCM residency
+
+Shared rf_audio_bank_declare now reserves an existing archive name and spatial
+parameters in a preallocated slot without reading or allocating its waveform.
+The first declaration/registration wins on case-insensitive duplicates. It
+checks directory presence and parameters; PCM validity is deferred until reload.
+Registration count/index is independent of residency, and bank bytes do not
+grow beyond already-budgeted slot storage. The existing eager register path
+keeps its behavior; both share the parameter normalization helper.
+
+The PC bank check passes two declarations in a metadata-only budget, duplicate
+precedence, near normalization, missing-name preservation, refused PCM load
+under that budget and selective loading after budget expansion. Native stock64MiB
+XEMU apu-20260910-193306 starts its residency fixture with a136-byte bank,
+declares the sample without PCM, rejects load under that budget, then expands
+to57150 bytes and passes playback, release failure/retry, selective unload and
+reload. PC and full Xbox builds pass. Global sounds.tbl parsing/registration
+order and campaign residency policy are not yet integrated.

@@ -170,8 +170,12 @@ int main(void)
     rf_apu_probe[1]=15;
     {rf_vpp archive;rf_audio_bank bank={0};uint32_t index;
      uint32_t budget=(uint32_t)(sizeof(bank)+sizeof(rf_audio_sample)+bytes);
-     if(rf_vpp_open(&archive,"D:\\bank.vpp") || rf_audio_bank_open(&archive,1,budget,&bank) ||
-        rf_audio_bank_register(&bank,"DoorOpen_07.wav",5,.5f,1,&index))goto fail;
+     if(rf_vpp_open(&archive,"D:\\bank.vpp") || rf_audio_bank_open(&archive,1,budget-(uint32_t)bytes,&bank) ||
+        rf_audio_bank_declare(&bank,"DoorOpen_07.wav",5,.5f,1,&index) ||
+        rf_audio_bank_sample(&bank,index) || bank.bytes!=budget-bytes ||
+        rf_audio_bank_reload(&bank,&archive,index)!=RF_RANGE)goto fail;
+     bank.budget=budget;
+     if(rf_audio_bank_reload(&bank,&archive,index))goto fail;
      rf_audio_parameters parameters=*rf_audio_bank_parameters(&bank,index);
      rf_apu_residency[1]=bank.bytes;
      for(uint32_t cycle=0;cycle<3;cycle++) {

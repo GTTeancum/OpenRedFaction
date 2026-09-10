@@ -117,16 +117,32 @@ int rf_audio_bank_open(rf_vpp *archive,uint32_t capacity,uint32_t budget,rf_audi
 }
 int rf_audio_bank_load(rf_audio_bank *bank,const char *name,uint32_t *index)
 {return rf_audio_bank_register(bank,name,1,1,1,index);}
+static int audio_parameters(float near_distance,float volume,float rolloff,rf_audio_parameters *parameters)
+{
+    if(!isfinite(near_distance) || !isfinite(volume) || !isfinite(rolloff) || volume<0 || rolloff<=0)return RF_RANGE;
+    if(near_distance<=0)near_distance=1;
+    *parameters=(rf_audio_parameters){near_distance,rf_audio_far_distance(near_distance,rolloff,volume),volume,rolloff};
+    return isfinite(parameters->far_distance)?RF_OK:RF_RANGE;
+}
+int rf_audio_bank_declare(rf_audio_bank *bank,const char *name,float near_distance,
+    float volume,float rolloff,uint32_t *index)
+{
+    uint32_t i;rf_vpp_entry entry;rf_audio_sample sample={0};int status;
+    if(!bank || !bank->samples || !bank->archive || !name || !index)return RF_RANGE;
+    for(i=0;i<bank->count;i++)if(audio_name_equal(name,bank->samples[i].name)){*index=i;return RF_OK;}
+    status=audio_parameters(near_distance,volume,rolloff,&sample.parameters);if(status)return status;
+    status=rf_vpp_find(bank->archive,name,&entry);if(status)return status;
+    if(bank->count>=bank->capacity)return RF_RANGE;
+    memcpy(sample.name,entry.name,sizeof(sample.name));
+    bank->samples[bank->count]=sample;*index=bank->count++;return RF_OK;
+}
 int rf_audio_bank_register(rf_audio_bank *bank,const char *name,float near_distance,
     float volume,float rolloff,uint32_t *index)
 {
     uint32_t i;rf_vpp_entry entry;rf_audio_sample sample={0};int status;
     if(!bank || !bank->samples || !bank->archive || !name || !index)return RF_RANGE;
     for(i=0;i<bank->count;i++)if(audio_name_equal(name,bank->samples[i].name)){*index=i;return RF_OK;}
-    if(!isfinite(near_distance) || !isfinite(volume) || !isfinite(rolloff) || volume<0 || rolloff<=0)return RF_RANGE;
-    if(near_distance<=0)near_distance=1;
-    sample.parameters=(rf_audio_parameters){near_distance,rf_audio_far_distance(near_distance,rolloff,volume),volume,rolloff};
-    if(!isfinite(sample.parameters.far_distance))return RF_RANGE;
+    status=audio_parameters(near_distance,volume,rolloff,&sample.parameters);if(status)return status;
     status=rf_vpp_find(bank->archive,name,&entry);if(status)return status;
     if(bank->count>=bank->capacity || (uint64_t)bank->bytes+entry.size>bank->budget)return RF_RANGE;
     if(!entry.size)return RF_FORMAT;
