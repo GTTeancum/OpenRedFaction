@@ -1,4 +1,4 @@
-// Export only explicitly requested existing functions for bounded follow-up work.
+// Export explicitly requested functions for bounded follow-up work.
 // @category RedFaction
 import ghidra.app.script.GhidraScript;
 import ghidra.app.decompiler.DecompInterface;
@@ -22,6 +22,14 @@ public class ExportSelected extends GhidraScript {
                 long address = Long.parseUnsignedLong(args[i].replaceFirst("^0[xX]", ""), 16);
                 Function function = getFunctionAt(toAddr(address));
                 if (function == null) function = getFunctionContaining(toAddr(address));
+                boolean created = false;
+                if (function == null) {
+                    // Virtual table targets can be absent from automatic analysis.
+                    // The caller supplies the entry point; never scan or guess one.
+                    disassemble(toAddr(address));
+                    function = createFunction(toAddr(address), "FUN_" + Long.toHexString(address));
+                    created = function != null;
+                }
                 if (function == null) throw new IllegalArgumentException("No function at " + args[i]);
                 DecompileResults result = decomp.decompileFunction(function, 90, monitor);
                 if (!result.decompileCompleted()) throw new IOException(result.getErrorMessage());
@@ -29,6 +37,7 @@ public class ExportSelected extends GhidraScript {
                     out.println("/* Raw Ghidra output; candidate semantics require verification. */");
                     out.println("/* Program SHA256: " + currentProgram.getExecutableSHA256() + " */");
                     out.println("/* Containing function entry: " + function.getEntryPoint() + " */");
+                    out.println("/* Created at explicit requested entry: " + created + " */");
                     out.print(result.getDecompiledFunction().getC());
                 }
                 println("Exported " + Long.toHexString(address));

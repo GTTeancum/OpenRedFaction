@@ -16,6 +16,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Explode request routing is recovered: 288 original-action cases verify geometry
+request gating followed by general explosion arguments. Shared effect lookup,
+request execution, geometry changes, rendering/audio and damage remain open.
+
 Delay (48) now expires and propagates in native Xbox: L1S1 UID 9495 reaches
 Explode UID 9466 after five simulated seconds in 320-frame replay
 20260910-071141. Explode effects remain unsupported; no visual explosion yet.

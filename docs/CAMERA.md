@@ -3603,3 +3603,42 @@ owned fixed-step clock. The Explode effect remains unimplemented, so it does
 not establish an explosion, audio, damage, particles or Geo-Mod behavior. No
 new screenshot is warranted. Original whole-frame wall-clock parity remains
 separate from the existing verified timer and this replay integration.
+
+
+Explode event request boundary (2026-09-10)
+-----------------------------------------
+
+Type 10 factory branch 4b6b4b allocates 0x2d0 and calls constructor 4be570.
+That constructor installs vtable 58998c; on is 4bae20, off is base 4b9f80,
+and tick is the common 4b8ce0. Original execution verifies off is a no-op.
+On optionally calls 467020 when byte +2b8 equals exactly 1 and room word +4
+is nonzero, then always calls 436490. Request arguments in stack order are:
+
+467020(+2cc, -1, room, position_pointer, unit_x_pointer, 0, 1)
+436490(+2c4, room, 0, position_pointer, +2cc, +2c8, 0)
+
+Position lives at event +40; temporary unit_x is (1,0,0). Negative effect
+index, zero room and zero parameter values still reach 436490. Names of the
+numeric request fields are not inferred solely from decompiler float types.
+verify_explode_event.py passes 288 cases over flags, rooms, effect indices,
+parameter words and on/off, checking request order, raw arguments and unchanged
+event storage. Complete original action/vector/room helpers execute; the two
+request consumers are intercepted. This proves the event boundary, not their
+effects or shared C/NXDK equivalence.
+
+Static loader/factory trace: 46242c..46244a invokes 4b7db0 with position,
+first flag, first float, second float and first text. Float reader stores at
+4622ad/+14 and 4622bc/+1c identify the two floats. Wrapper 4b7db0 calls the
+generic type-10 factory, writes flag to +2b8, first float to +2cc and second
+float to +2c8, copies the text to +2bc and calls 4c1d00 to resolve +2c4.
+For L1S1 UID 9466 those authored values are flag 1, 0.75, 0 and charge_explode.
+Wrapper/lookup execution equivalence remains open; this mapping is static
+instruction evidence, distinct from the 288 executed action fixtures.
+
+Ghidra initially had no function defined at the virtual on target. ExportSelected
+now disassembles/creates only an explicitly requested entry when neither an
+existing function nor containing function exists, and records whether it did so.
+The fresh successful manifest exports 4bae20, 436490 and 467020. The latter
+consumers are larger effect/geometry paths requiring further reconstruction;
+raw Ghidra output remains generated and untracked. No live scene behavior,
+explosion image, sound or damage is claimed at this checkpoint.
