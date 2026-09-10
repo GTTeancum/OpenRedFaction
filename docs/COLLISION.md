@@ -2831,8 +2831,20 @@ and mode guards. The verifier supplies original lookup results to the shared
 helper and compares all336 updates against original velocity and both flag
 words on PC and compiled NXDK. Both builds and six CTests pass. The helper
 allocates nothing; caller owns lookup, cached velocity and flag storage. It is
-not yet connected to scene movement. The diagnostic currently combines
-controller propagation and position commit after actor movement; this must be
-separated to place support refresh after propagation and before body movement.
-No playable lift traversal or new native XEMU run is claimed. Generated report:
+now connected to campaign movement after controller propagation. Controller
+positions commit after body movement, before post-movement ground queries.
+The original487a40 calls46bbe0 then41e370 then487770;487e00 begins by committing
+controllers through46a8f0 before actor support. These recovered call sites
+guide the diagnostic scheduling; complete original frame equivalence remains
+unproven. The scene resolves generation-checked mover handles to owned poses,
+passes cached support to movement, and uses the actual swept contact velocity
+separately in collision response. Only registered type9 mover support is
+connected; support from other dynamic object types remains open.
+
+PC180-frame traversal and420-frame closing/reversal replays pass. Stock64MiB
+XEMU replay-20260910-195533 passes180 frames with PC-equivalent state and audio.
+Both builds and six CTests pass. Controller activation now takes effect on the
+next physics tick after post-physics events; audio timing changes accordingly
+(unity PCM hash773011109 for180 frames). These door fixtures do not establish
+sustained lift carry: an authored platform replay is still required. Generated report:
 artifacts/support-refresh-verification.json.

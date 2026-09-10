@@ -667,6 +667,13 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
     }
     status=rf_geometry_collision_movers_propagate(&campaign_movers,campaign_controller_views,campaign_group_runtime.count,1.0f/60,0);if(status)return status;
     ++rf_scene_live_motion[1];
+    return RF_OK;
+}
+/* 487e00 commits controllers through 46a8f0 before querying actor support.
+ * Keep propagated velocity available during physics with old committed origins. */
+static int campaign_controller_commit(void)
+{
+    uint32_t i;int status;
     for(i=0;i<campaign_group_runtime.count;++i) {
         rf_group_runtime_entry *entry=campaign_group_runtime.items+i;
         if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION)continue;
@@ -1314,12 +1321,13 @@ done:
 static int actor_contact(rf_physics_body_state *state,const float normal[3],const float support[3],
     const float direction[3],uint32_t mode,float *impact)
 {
+    const float *contact=campaign_spawn?rf_scene_actor_body_contact.contact.velocity:support;
     /* 4a6060 -> 4307a0 writes the resolved command to entity +714. Contact
      * applies the body transform itself. This fixture has no rotating actor;
      * 42a020 is true only for falling/free modes 3 and 8. */
-    if(state->flags&0x80)return rf_physics_player_contact(state,normal,support,support,direction,
+    if(state->flags&0x80)return rf_physics_player_contact(state,normal,support,contact,direction,
         mode,mode==3 || mode==8,impact);
-    return rf_physics_static_contact(state,normal,support,support,impact);
+    return rf_physics_static_contact(state,normal,support,contact,impact);
 }
 int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t out[8])
 {
@@ -1378,6 +1386,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
 {
     float remaining=scene_step_seconds,support[3]={0},normal[3];uint32_t pass=0,contacts=0;int status;
     int grounded=rf_scene_actor_landing[1]==1;
+    if(campaign_spawn)memcpy(support,campaign_support_velocity,12);
     if(grounded)++rf_scene_actor_landing[4];
     state->flags&=~0x1000000u;
     do {
@@ -1409,7 +1418,8 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
             }
             record[0]=rf_scene_actor_tick_stats[1];record[1]=pass;record[2]=rf_scene_actor_landing[1];
             memcpy(record+3,state->velocity,24);memcpy(record+9,normal,12);
-            memcpy(record+12,support,12);memcpy(record+15,support,12);
+            memcpy(record+12,support,12);
+            memcpy(record+15,campaign_spawn?rf_scene_actor_body_contact.contact.velocity:support,12);
             ++contacts;
             status=rf_physics_contact_advance(state,remaining,fraction,&remaining);if(status)return status;
             status=actor_contact(state,normal,support,command,rf_scene_actor_landing[1],&impact);if(status)return status;
@@ -1746,7 +1756,16 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(campaign_spawn) {
                 /* 433520 -> 433260: input, physics, then 487e00 support.
                  * The owned local-player fixture has object bit 8 and no parent. */
+                rf_group_registered_mover *support;
+                status=campaign_controller_tick(particle_now,&stream->particles,next.position);
+                rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
+                support=rf_object_registry_lookup(&campaign_registry,campaign_support_handle);
+                rf_physics_support_refresh(rf_scene_actor_landing[1],
+                    support && support->object_kind==9?support->pose->velocity:NULL,
+                    campaign_support_velocity,&next.flags,&rf_scene_actor_pose.flags);
                 status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
+                status=campaign_controller_commit();
+                rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
                 moved=memcmp(next.position,scene_actor_body.state.position,12)!=0;
                 {rf_player_support_input input={rf_scene_actor_landing[1],rf_scene_actor_stance_flags,
                     0,-1,-1,(uint32_t)moved,next.flags,8};route=rf_player_support_route(&input);}
@@ -1797,8 +1816,6 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;
                 memcpy(words,&tick_report,sizeof(words));
                 for(j=0;j<9;++j)rf_scene_event_ticks[3+j]+=words[j];
-                status=campaign_controller_tick(now,&stream->particles,next.position);
-                rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
             }
             if(stream->particles.state) {
                 rf_level_particle_tick_result step,last;uint32_t particle_index,byte_index,hash=2166136261u;

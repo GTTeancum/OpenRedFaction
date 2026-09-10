@@ -24,8 +24,8 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Shared support refresh matches336 original actor updates on PC/NXDK; separate
-controller propagation from position commit before connecting platform carry.
+Controller propagation, support refresh and position commit now bracket physics;
+PC/XEMU door replay passes, while an authored lift carry replay remains open.
 
 Campaign now declares88 global sounds before controller PCM; native door replay
 retains only four waveforms and verifies124024 bank bytes with unchanged output.
