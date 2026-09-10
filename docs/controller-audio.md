@@ -259,3 +259,21 @@ exhaustion, PC device playback, full backend failure-path auditing, and listenin
 on actual hardware. The timeout fallback stops hardware before unlocking retained
 PCM pages but has not been fault-injection tested. Missing authored sound names
 remain unavailable rather than being silently replaced.
+
+### Production adapter capacity and shared-page ownership
+
+Stock64MiB XEMU run apu-20260910-181512 links the actual Xbox adapter into
+the isolated probe. Sixteen simultaneous static voices borrow the same original
+DoorOpen_07 PCM storage. After 50ms all sixteen remain active and guest DSP output
+is nonzero. A seventeenth request increments the rejection counter without an
+additional successful play. Stopping the first logical handle allows a replacement
+request (seventeenth successful play); stopping that old handle again does not
+increment the stop counter or address the replacement slot.
+
+Reset while the voices remain active completes without the forced-shutdown path,
+and available pages return exactly to the 15825 pre-initialization baseline.
+The probe includes the previous natural completion, replay, eight recreation and
+reinitialization checks. Its new adapter telemetry is [16,1,17,15825,0]. The extra
+adapter storage explains the lower image baseline versus earlier isolated tests.
+This checks shared-page lock balancing and capacity behavior, not individual
+contributions to the mixed DSP waveform, spatial fidelity or failure injection.

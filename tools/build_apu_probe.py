@@ -52,7 +52,7 @@ if args.backend_only:
     (backend/'provenance.json').write_text(json.dumps(dict(nxaudio_revision=revision,assembler_archive_sha256=digest,
         adapted_core_sha256=hashlib.sha256(core.read_bytes()).hexdigest()),indent=2)+'\n')
     raise SystemExit(0)
-for name,source in [('probe.c','tests/xbox_apu_probe.c'),('audio.c','src/core/audio.c'),('vpp.c','src/core/vpp.c')]:
+for name,source in [('probe.c','tests/xbox_apu_probe.c'),('audio.c','src/core/audio.c'),('vpp.c','src/core/vpp.c'),('xbox_audio.c','src/platform/xbox/audio.c'),('audio.h','src/platform/xbox/audio.h')]:
     shutil.copyfile(root/source,build/name)
 inventory=json.loads((root/'artifacts/inventory.json').read_text())
 entry=next(e for a in inventory['files'] if a['path']=='audio.vpp' for e in a['vpp']['entries'] if e['name']=='DoorOpen_07.wav')
@@ -65,7 +65,7 @@ prefix='/'+root.drive[0].lower()+root.as_posix()[2:]
 NXDK_DIR = /c/nxdk
 OUTPUT_DIR = {prefix}/build/apu-probe/disc
 GEN_XISO = apu-probe.iso
-SRCS = {prefix}/build/apu-probe/probe.c {prefix}/build/apu-probe/audio.c {prefix}/build/apu-probe/vpp.c {prefix}/build/apu-probe/backend/audio_core.c {prefix}/build/apu-probe/backend/audio_buffer.c {prefix}/build/apu-probe/backend/audio_voice.c
+SRCS = {prefix}/build/apu-probe/xbox_audio.c {prefix}/build/apu-probe/probe.c {prefix}/build/apu-probe/audio.c {prefix}/build/apu-probe/vpp.c {prefix}/build/apu-probe/backend/audio_core.c {prefix}/build/apu-probe/backend/audio_buffer.c {prefix}/build/apu-probe/backend/audio_voice.c
 CFLAGS = -std=c23 -O2 -I{prefix}/include -I{prefix}/build/apu-probe/backend/include -I{prefix}/build/apu-probe/backend
 LDFLAGS = -map:main.map
 include $(NXDK_DIR)/Makefile

@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Extend campaign APU validation to overlapping voices, failure cleanup and real hardware.
+- [ ] Complete APU failure cleanup auditing and real-hardware validation.
 - [ ] Complete spatial controller audio and PC device playback after verified Xbox APU dispatch.
 - [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
 - [ ] Complete controller sound/alert/wakeup effects, rotation and remaining key-target actions.
@@ -21,6 +21,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Production APU adapter passes sixteen overlapping voices with DSP output,
+overflow rejection, slot reuse and stale-stop protection; shutdown restores pages.
 
 Live campaign APU output passes stock64MiB XEMU door and closing/reversal
 replays; hardware playback uses its own clock and reset releases PCM references.
