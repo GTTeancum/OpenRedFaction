@@ -671,6 +671,20 @@ int rf_group_wake_objects(rf_group_wake_object *objects,uint32_t object_count,
     }
     return RF_OK;
 }
+int rf_group_wake_bounds_collect(const rf_object_registry *registry,
+    const uint32_t *handles,uint32_t handle_count,rf_group_wake_bounds output[32],uint32_t *count)
+{
+    rf_group_wake_bounds values[32];uint32_t i,n=handle_count>32?32:handle_count;
+    if(!registry || !output || !count || (n && !handles))return RF_RANGE;
+    memset(values,0,sizeof(values));
+    for(i=0;i<n;i++) {
+        rf_group_registered_mover *m=rf_object_registry_lookup(registry,handles[i]);uint32_t kind;
+        if(!m)continue;memcpy(&kind,m,4);if(kind!=9)continue;
+        if(!m->pose)return RF_RANGE;
+        memcpy(values[i].minimum,m->pose->minimum,12);memcpy(values[i].maximum,m->pose->maximum,12);
+    }
+    if(n)memcpy(output,values,n*sizeof(*values));*count=n;return RF_OK;
+}
 int rf_group_translation_arrive(rf_group_motion_state *state,uint32_t key_count,
     uint32_t *sound_requests)
 {

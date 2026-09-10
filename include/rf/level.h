@@ -281,6 +281,17 @@ int rf_group_controller_pose(const rf_level_group_key *first,rf_group_attached_p
 int rf_group_translation_initialize(rf_group_translation_runtime *runtime,
     rf_group_attached_pose *pose,uint32_t flags,uint32_t mode,
     const rf_level_group_key *selected,uint32_t index,uint32_t key_count,int32_t now_ms);
+typedef struct rf_group_registered_mover {
+    uint32_t object_kind,handle;rf_group_attached_pose *pose;
+} rf_group_registered_mover;
+/* Original 46ad19..46ae65: first32 handles, stable ordered slots (including
+ * duplicates), type9 lookup, missing/wrong-type handles become zero bounds.
+ * Type9 registry entries must use rf_group_registered_mover with a live pose.
+ * Output capacity is32; unused entries stay unchanged. Errors preserve output.
+ * No allocation; registry, handle list and pose storage must remain stable. */
+int rf_group_wake_bounds_collect(const rf_object_registry *registry,
+    const uint32_t *handles,uint32_t handle_count,rf_group_wake_bounds output[32],uint32_t *count);
+
 typedef struct rf_group_controller_view {
     const rf_group_translation_runtime *runtime;
     const rf_level_group_key *first_key;

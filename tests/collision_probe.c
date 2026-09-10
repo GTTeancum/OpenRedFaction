@@ -494,6 +494,24 @@ int main(int argc,char **argv)
         }
         rf_group_mover_memberships_close(&members);rf_group_mover_memberships_close(&members);rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);free(objects);free(before);free(controllers);return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--group-wake-bounds")) {
+        struct {uint32_t count,handles[34];struct {uint32_t kind;rf_group_wake_bounds bounds;} movers[4];} input;
+        struct {int32_t status;uint32_t count;rf_group_wake_bounds bounds[32];} output;
+        static rf_object_registry registry;rf_group_registered_mover movers[4];rf_group_attached_pose poses[4];uint32_t i;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(input.count>34)return 3;
+            rf_object_registry_init(&registry);memset(movers,0,sizeof(movers));memset(poses,0,sizeof(poses));
+            for(i=0;i<4;i++) {
+                movers[i].object_kind=input.movers[i].kind;movers[i].pose=poses+i;
+                memcpy(poses[i].minimum,input.movers[i].bounds.minimum,12);memcpy(poses[i].maximum,input.movers[i].bounds.maximum,12);
+                if(rf_object_registry_insert(&registry,movers+i,&movers[i].handle))return 4;
+            }
+            memset(&output,0xa5,sizeof(output));
+            output.status=rf_group_wake_bounds_collect(&registry,input.handles,input.count,output.bounds,&output.count);
+            fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--group-wake")) {
         struct {uint32_t count;rf_group_wake_object objects[8];rf_group_wake_bounds bounds[34];uint32_t attached[4],parents[4];} input;
         struct {int32_t status;rf_group_wake_object objects[8];} output;

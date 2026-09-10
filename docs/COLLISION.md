@@ -2591,3 +2591,26 @@ builds and six CTests pass. NXDK is instruction-emulated; no XEMU gameplay or
 new visuals are claimed. Bounds gathering from registered mover handles,
 zero bounds for missing movers, player effects and live snapshot commits
 remain required for complete activation.
+
+
+## Registered mover bounds for activation wake-up
+
+rf_group_wake_bounds_collect reconstructs 46ad19..46ae65, using typed type9
+registry wrappers that borrow an attached pose. It gathers at most the first32
+ordered handles, retaining duplicate and failed-lookup slots. Original 46b1d0
+requires type9 after full-handle lookup. Missing, stale or wrong-kind handles
+produce zero minimum/maximum bounds, matching 46ae44; valid movers copy pose
+bounds (+190/+19c in the original). Unused output slots remain unchanged.
+The wrapper layout is a new shared-runtime contract, not the older standalone
+native membership diagnostic's rf_group_object layout. Callers must register
+the documented wrapper and keep its pose alive. Live scene mover registration
+and pose refresh are still separate work; no live activation claim is made.
+
+The helper uses 768 bytes of temporary bounds, no heap allocation, and preserves
+output on malformed type9 wrappers with no pose. verify_group_wake_bounds.py
+executes the original gather block with its real array/constructor/lookup/copy/
+zero helpers; the sole stop hook marks the end before candidate scanning.
+1024 cases match PC and NXDK, including zero/over32 counts and 12129 missing or
+wrong-type slots. PC uses actual registry insertion; NXDK emulation prepares
+matching slots. The original lookup includes generation checks. Both builds
+and six CTests pass. This is binary-level evidence, not an XEMU scene replay.
