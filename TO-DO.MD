@@ -4,7 +4,6 @@ Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Connect the verified emitter update to campaign objects, particle simulation and rendering.
 - [ ] Connect render-derived room eligibility to particle frame updates and emitter passes.
-- [ ] Apply the authored room skip flag to collision-world loading, replacing the constructor-only default.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
@@ -18,6 +17,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Native moving-camera visibility passes 664 frames on stock 64 MiB XEMU,
+with final camera/eligibility telemetry matching PC and 13084 owned bytes.
 
 Camera setup, lazy portal projection, cache reset and room traversal now run
 together and match original/PC/NXDK replays, including changed-camera reuse.

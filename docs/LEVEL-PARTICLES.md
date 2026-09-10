@@ -386,14 +386,23 @@ also matches the world-render camera telemetry. Reproduce with
 The collision follow-up above is now implemented: loaded world skip flags use
 the authored +28 byte. All 94 collision-world ownership/budget/ray replays pass.
 
-Native validation is **not passing yet**. XEMU debug BIOS 4627 halted before the
-first game startup marker with both the default HDD and the dedicated pacing
-HDD. The guest remained at EIP `8001d1ea`, HLT=1, CR2=`fff0007b`; kernel stack
-contains `badb0d00` and an earlier breakpoint at `80030c1c`. An extended stack
-ends in the beginning of a "Possible deadlo..." message. The cause has not been
-isolated to this change or to the test environment. Evidence is retained in
-`artifacts/xemu/20260910-122251-740612/report.json` and its guest memory snapshot.
-The smoke harness now fails on this pre-marker kernel signature and records an
-extended stack instead of waiting through the full scene timeout. Only the
-owned test emulator was stopped; temporary disc flags and the ISO were restored.
-There is no native visibility or memory-residency success claim from these runs.
+Native moving-camera visibility now passes on stock 64 MiB XEMU. The initial
+`-display none` runs halted before the game entry marker, with EIP `8001d1ea`,
+HLT=1 and CR2=`fff0007b`. The extended kernel stack contains "Possible deadlock,
+blocked for more than 2 seconds." and all five entry/FPU markers remain zero.
+Changing only the display backend to `xemu`, still requesting a hidden window,
+allows the same XBE to boot and finish. This is consistent with the preexisting
+no-display limitation recorded in INPUT.md; swapping the HDD did not resolve it.
+The smoke tool now excludes `none` and retains early kernel-failure detection
+and stack collection. `--no-capture` controls screenshots independently.
+
+`artifacts/xemu/20260910-122743-109871/report.json` reports PASS with 67108864
+bytes base RAM and zero added RAM. The 664-frame scripted first-person turn
+fixture matches PC, including the final 64 camera/visibility records and
+summary `[664,13084,54,29,2,53]`: frame count, owned visibility bytes, rooms,
+portals, final visible count and camera room. All five native FPU markers are
+`0x027f`. This proves native owner construction and moving-view execution;
+13084 remains requested allocation accounting, not isolated physical-page
+overhead measurement. It does not prove particle emission or a full campaign.
+No screenshots were captured. The owned emulator was reaped and temporary
+disc flags and the ISO were restored after the test.

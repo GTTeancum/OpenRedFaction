@@ -60,7 +60,8 @@ def main():
     parser.add_argument('--hdd',type=Path,help='Optional separate HDD image; writes still use a temporary snapshot')
     parser.add_argument('--seconds', type=int, default=60)
     parser.add_argument('--bios', default='xbox-4627_debug.bin')
-    parser.add_argument('--display', choices=['none', 'xemu'], default='xemu')
+    parser.add_argument('--display', choices=['xemu'], default='xemu',
+                        help='Graphics backend required for this Xbox boot path; startup window is hidden. Use --no-capture to omit screenshots.')
     parser.add_argument('--reference', type=Path, help='Require framebuffer comparison against this PC reference image')
     parser.add_argument('--no-capture', action='store_true', help='Validate runtime telemetry without capturing a framebuffer')
     parser.add_argument('--skin',help='Expected miner1 skin selected by the guest model-skin.txt file')
