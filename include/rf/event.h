@@ -1,6 +1,7 @@
 #ifndef RF_EVENT_H
 #define RF_EVENT_H
 #include "rf/timer.h"
+#include "rf/physics.h"
 typedef struct rf_event_state {
     uint32_t type;float delay;int32_t deadline;
     uint32_t actor,source,flags,mode;
@@ -18,6 +19,11 @@ int rf_event_activate(rf_event_state *state,int32_t now,uint32_t source,uint32_t
     uint32_t mode,rf_event_callback callback,void *context);
 /* Common timer prefix only; type-specific per-frame updates remain external. */
 int rf_event_tick(rf_event_state *state,int32_t now,rf_event_callback callback,void *context);
+/* Set_Gravity (type 44), authored values[0] -> runtime +2b8. Invoke for
+ * common callback action 0/1; propagation action 2 is handled by the caller.
+ * On applies 4bcc00, off preserves gravity. No event registration or links. */
+int rf_event_gravity_action(rf_physics_gravity *gravity,float value,uint32_t action);
+
 typedef struct rf_unhide_state {
     int32_t deadline;
     uint8_t on,off;

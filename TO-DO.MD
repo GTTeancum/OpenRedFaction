@@ -14,6 +14,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Set_Gravity (type 44) now has a shared action handler: 2,048 original on/off
+cases match PC/NXDK, with six additional shared API checks. Original construction
+and the existing 3,922 scheduling cases also pass. Live event registration and
+trigger dispatch remain open; this does not yet enable campaign gravity events.
+
 Gravity now has shared scalar/vector state used by falling and jump setup.
 The setter matches 1,024 finite original cases through both entry paths on
 PC/NXDK, including signed zero and negative gravity, without changing jump

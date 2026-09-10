@@ -1,5 +1,10 @@
 #include "rf/event.h"
 #include <math.h>
+int rf_event_gravity_action(rf_physics_gravity *gravity,float value,uint32_t action)
+{
+    if(!gravity || action>2)return RF_RANGE;
+    return action==1?rf_physics_gravity_set(gravity,value):RF_OK;
+}
 static int propagates(uint32_t type)
 {
     return type!=2 && type!=3 && type!=32 && type!=36 && type!=66 && type!=69 && type!=89;

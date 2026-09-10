@@ -3095,3 +3095,27 @@ or altered-gravity campaign traversal. Report: artifacts/gravity-verification.js
 
 Stock-64-MiB XEMU jump replay 20260910-013918 passes with exact PC state and
 jump timeline matching after the shared-gravity integration.
+
+
+Set_Gravity action recovery (2026-09-10)
+--------------------------------------
+
+Type 44 uses constructor 4beb20, 700-byte storage and vtable 589b3c.
+The constructor leaves payload +2b8 untouched; loader initialization remains
+required. Its virtual on handler 4bcc00 applies that payload using 4a0e20.
+Actual common off handler 4b9f80 returns without altering gravity for this type.
+Neither action changes event storage or the existing jump impulse.
+
+rf_event_gravity_action provides these effects for the shared callback layer.
+Action 2 leaves gravity alone so the caller can handle link propagation; invalid
+actions and nonfinite on values are defensive errors. This API does not own
+event registration, scheduling, links or the scene gravity state.
+
+verify_gravity_event.py executes the actual original virtual actions for 1,024
+finite payload bit patterns each, including campaign values 3, 4 and 9.8,
+signed zero and negative values. All 2,048 effects match PC and compiled NXDK;
+six extra shared API checks pass. verify_event_construction.py now covers
+type 44 on zero/A5 storage (eight total constructor cases). Existing common
+activation/timer regression remains green at 3,922 PC/NXDK cases. Reports:
+artifacts/gravity-event-verification.json and event-construction-verification.json.
+No new native XEMU or authored campaign event traversal is claimed here.

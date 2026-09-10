@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
+#include <string.h>
 static uint32_t actions,mutation;
 static void callback(void *context,rf_event_state *s,uint32_t action,uint32_t source,uint32_t actor,uint32_t mode)
 {
@@ -11,10 +12,21 @@ static void callback(void *context,rf_event_state *s,uint32_t action,uint32_t so
     if(action!=2) {s->type=s->type==2?30:2;s->source=111;s->actor=222;s->mode=2;s->deadline=999;}
     else s->deadline=888;
 }
-int main(void)
+int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--gravity-action")) {
+        struct {float value;uint32_t action;} input;
+        struct {int32_t status;rf_physics_gravity gravity;} result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_physics_gravity_set(&result.gravity,9.8f);
+            result.status=rf_event_gravity_action(&result.gravity,input.value,input.action);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
     while(fread(&in,sizeof(in),1,stdin)==1) {
         mutation=in.tick&2;actions=mutation?2166136261u:0;out.state=in.state;
