@@ -15,8 +15,9 @@ Shared player crouch eligibility now matches the complete original routine in
 3,456 PC/NXDK cases. The original player changes collision stance immediately
 and requests animation state 9; replacing the diagnostic's delayed stance path
 and connecting outer input/ownership gates remain open. The separate owned-player
-animation selector now executes in 3,328 original cases, including crouch 9/10,
-falling state 14 and its standing movement threshold. See docs/CAMERA.md.
+animation selector is now shared C, matching 3,392 original cases on PC/NXDK,
+including parent/seat priorities, crouch 9/10 and falling state 14. Immediate
+stance effects and live selector integration remain open. See docs/CAMERA.md.
 
 Original player contact response now executes in 768 fixtures covering normal
 retention/clearing, incoming correction, moving-contact boost, free tangential

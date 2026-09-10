@@ -19,6 +19,16 @@ static void room_notify(void *context,const char *name)
 {(void)context;++room_notices;room_notice_kind=!strcmp(name,"underwater")?2:1;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--player-motion")) {
+        rf_player_motion_input input;int32_t state;
+        _Static_assert(sizeof(input)==52,"Player motion wire input");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(rf_player_motion_choose(&input,&state))return 3;
+            if(fwrite(&state,sizeof(state),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--player-crouch")) {
         rf_player_crouch_input input;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

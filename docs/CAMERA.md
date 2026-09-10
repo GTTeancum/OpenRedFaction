@@ -2310,3 +2310,25 @@ the two `42ac80`/`42acd0` seat predicates. Those branches remain outside this
 parentless fixture. The full player selector and immediate input-driven stance
 effects still need shared C/live integration; reusing the diagnostic's generic
 nonzero-command selector would lose the original thresholds and priorities.
+
+`rf_player_motion_choose` now implements the complete selection priority in
+shared C with explicit resolved predicate inputs. It returns the logical state
+or -1 when no entity is present; the caller still owns the current/next check,
+missing-motion fallback and .25-second controller request. Finite directions
+and canonical predicate values are required, and invalid input preserves output.
+No allocation or gameplay side effects are introduced.
+
+The original fixture now adds 64 registered-parent/seat or missing-entity cases.
+All original callees remain unchanged: parent class flag 400000 and actual seat
+records drive `42ac80`/`42acd0`, including both seats matching to verify first-seat
+priority. This expands coverage to all selected-state branches (15,20,21 included)
+and 3,392 total cases. `tools/verify_player_motion.py` compares all selected states
+exactly on PC and compiled NXDK; 13 compiled invalid-input cases preserve input
+and output. Report `artifacts/player-motion-verification.json` retains executable
+hashes. Both builds and five CTests pass.
+
+Live campaign integration remains coupled to the immediate crouch effects:
+switching only the movement selector would let the current delayed diagnostic
+stance path overwrite or lose crouch transitions. The new selector therefore
+remains separate until that owner transition is connected; no live XEMU stance
+equivalence is claimed yet.

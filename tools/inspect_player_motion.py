@@ -48,7 +48,25 @@ for crouched,movement,attached,primary,hidden,direction in itertools.product((0,
     counts[selected]=counts.get(selected,0)+1
     records.append(dict(crouched=crouched,mode=movement,attachment=attached,primary=primary,hidden=hidden,
                         direction=direction,selected=selected,controller=[current,next_state,duration,elapsed]))
+parent,parent_info,seats,first,second=[base+n for n in (0x8000,0xa000,0xc000,0xc100,0xc120)]
+put(0x7394cc+4,parent);put(parent+0x24,0);put(parent+0x2c,0x10001);put(parent+0x294,parent_info)
+put(parent_info+0x724,0x400000);put(parent+0x8cc,2,2,seats);put(seats,first,second)
+for present,parent_kind,first_seat,second_seat,crouched,movement in itertools.product((0,1),(0,4),(0,1),(0,1),(0,1),(1,3)):
+    put(player+0x14,0x10000 if present else -1);put(entity+0x200,0x10001)
+    put(parent_info+0x1b4,parent_kind);put(first+4,0x10000 if first_seat else -1);put(second+4,0x10000 if second_seat else -1)
+    u.mem_write(player+0xb1,bytes([crouched]));put(mode+4,movement);put(entity+0x75c,-1);put(entity+0x2a4,5);put(entity+0x810,0)
+    u.mem_write(entity+0x714,bytes(12));u.mem_write(entity+0x138c,struct.pack('<iiff',0,-1,0,0))
+    before=bytes(u.mem_read(base,0xd000));put(stack,stop,player);u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x37f)
+    u.emu_start(0x4a5cd0,stop,count=10000);assert u.reg_read(UC_X86_REG_EIP)==stop
+    after=bytes(u.mem_read(base,0xd000));a,b=entity-base+0x138c,entity-base+0x139c
+    assert before[:a]==after[:a] and before[b:]==after[b:]
+    controller=struct.unpack('<iiff',after[a:b])
+    selected=-1 if not present else 15 if parent_kind==4 else 20 if first_seat else 21 if second_seat else 9 if crouched else 14 if movement==3 else 1
+    assert controller==(0,selected if selected>0 else -1,.25 if selected>0 else 0,0)
+    counts[selected]=counts.get(selected,0)+1
+    records.append(dict(present=present,parent_kind=parent_kind,first_seat=first_seat,second_seat=second_seat,
+                        crouched=crouched,mode=movement,attachment=-1,primary=5,hidden=0,direction=[0,0,0],selected=selected,controller=controller))
 report=dict(result='PASS',original_sha256=sha,cases=len(records),selected_counts=counts,
- scope='Complete original 4a5cd0 and all callees, no hooks; ordinary non-rotating entity without parent, mapped logical motions 0..22, fresh controller. Crouch, movement modes, attachment handle, primary/hidden weapon and threshold cases. Vehicle-seat priorities, actual assets, outer stance effects and C selector integration remain separate.',records=records)
+ scope='Complete original 4a5cd0 and all callees, no hooks; ordinary cases plus registered parent/seat and missing-entity fixtures, mapped logical motions 0..22, fresh controller. Tests all selected-state branches and parent/seat precedence. Actual assets, outer stance effects and C selector integration remain separate.',records=records)
 (root/'artifacts/player-motion-reference.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps({k:v for k,v in report.items() if k!='records'},indent=2))

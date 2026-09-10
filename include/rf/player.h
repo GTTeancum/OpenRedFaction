@@ -10,6 +10,19 @@ typedef struct rf_player_crouch_input {
  * Use kind -1 for a missing object. This is eligibility, not stance mutation,
  * input ownership, the outer 430c70 gates or a clearance test. */
 uint32_t rf_player_can_crouch(const rf_player_crouch_input *input);
+typedef struct rf_player_motion_input {
+    float direction[3];
+    uint32_t entity_present;
+    int32_t parent_kind;
+    uint32_t first_seat,second_seat,crouched,free_motion,swim_motion;
+    int32_t attachment_75c,primary_weapon;
+    uint32_t weapon_hidden;
+} rf_player_motion_input;
+/* 4a5cd0 selection with pre-resolved lookup/predicate results. Result -1 means
+ * no entity/no request. Caller checks current/next and requests the selected
+ * logical motion with .25 duration through the existing controller. Does not
+ * resolve objects, sample poses, or mutate stance. Invalid inputs preserve output. */
+int rf_player_motion_choose(const rf_player_motion_input *input,int32_t *state);
 
 typedef struct rf_player_spawn_state {
     uint32_t flags_10;

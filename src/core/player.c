@@ -1,5 +1,34 @@
 #include "rf/player.h"
 #include <string.h>
+#include <math.h>
+int rf_player_motion_choose(const rf_player_motion_input *input,int32_t *state)
+{
+    int32_t selected;float a,b,c,swap;long double partial,magnitude;uint32_t moving;
+    if(!input || !state)return RF_RANGE;
+    if(input->entity_present>1 || input->first_seat>1 || input->second_seat>1 ||
+       input->crouched>1 || input->free_motion>1 || input->swim_motion>1 || input->weapon_hidden>1)return RF_RANGE;
+    if(!isfinite(input->direction[0]) || !isfinite(input->direction[1]) || !isfinite(input->direction[2]))return RF_RANGE;
+    if(!input->entity_present)selected=-1;
+    else if(input->parent_kind==4)selected=15;
+    else if(input->first_seat)selected=20;
+    else if(input->second_seat)selected=21;
+    else if(input->crouched)selected=(input->direction[0]>.1f || input->direction[0]<-.1f ||
+        input->direction[2]>.1f || input->direction[2]<-.1f)?10:9;
+    else if(input->free_motion)selected=14;
+    else if(input->swim_motion)selected=(input->direction[0]!=0 || input->direction[1]!=0 || input->direction[2]!=0)?19:18;
+    else {
+        a=fabsf(input->direction[0]);b=fabsf(input->direction[1]);c=fabsf(input->direction[2]);
+        if(a<b){swap=a;a=b;b=swap;}if(b<c){swap=b;b=c;c=swap;}if(a<b){swap=a;a=b;b=swap;}
+        /* 4fa7a0 returns an extended approximate magnitude, without a float
+         * store before the .25 comparison. a >= b >= c. */
+        partial=(long double)c*.125f+(long double)b*.25f;
+        magnitude=(partial*.5f+partial)+a;moving=magnitude>=.25f;
+        if(input->attachment_75c!=-1)selected=moving?17:16;
+        else if(!input->weapon_hidden && input->primary_weapon!=-1)selected=moving?5:1;
+        else selected=moving?4:0;
+    }
+    *state=selected;return RF_OK;
+}
 uint32_t rf_player_can_crouch(const rf_player_crouch_input *input)
 {
     return input && input->entity_present && input->control_kind!=5 &&
