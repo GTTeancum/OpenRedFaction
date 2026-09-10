@@ -17,10 +17,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Unowned detached free-flight stepping now matches 2048 original/PC/NXDK
-cases including 1083 expirations; nine unsupported/invalid cases preserve
-state. Explicit 53-bit x87 precision fixes the harness mismatch. Verify native
-FP control state and integrate owner/collision/wind/damage paths next.
+Native 64-MiB XEMU replay 20260910-085856 matches all 2057 particle-step
+fixtures against PC, including rejection cases. Five native x87 checkpoints
+report 0x027f, confirming the 53-bit harness setting for this Xbox build.
+Integrate owner/collision/wind/damage paths and visible scene effects next.
 
 Shared fixed particle pools now match 3679 original/PC/NXDK replay operations,
 including 1829 allocations/recycles, saturation and emitter detachment.

@@ -217,3 +217,18 @@ were rerun and pass. The temporary numeric tolerance was removed: comparison
 is exact. This explicit test environment is not a measurement of the original
 game or NXDK native control state. Native FP state verification remains open,
 as does auditing other floating-point verifiers that initialize their own CPUs.
+
+Native FP measurement is now available through rf_fp_control_diagnostic:
+entry before CRT, main entry, before/after effect diagnostics and after scene
+completion. XEMU replay 20260910-085724 measured 0x027f at all five checkpoints
+without changing the control word. This confirms the explicit harness setting
+for this NXDK build under the tested debug BIOS, not the original PC game's
+full startup state or untested hardware configurations.
+
+Replay 20260910-085856 additionally executes all 2057 free-flight fixtures in
+the native 64-MiB guest, including nine rejection cases, using the shared pool.
+The output hash matches the PC/original-verified reference. Record storage is
+192000 bytes, allocated once and freed after the diagnostic. This tests stepping
+and recycling in XEMU; it does not render live particles. Existing resource
+lifetime and campaign replay checks also pass. The optional fixture file is
+staged/restored by xemu_replay_check.py and absent from the normal disc.

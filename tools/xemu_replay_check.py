@@ -41,9 +41,12 @@ replay=root/'build/xbox/disc/player-replay.bin';saved=replay.read_bytes() if rep
 spawn_flag=root/'build/xbox/disc/campaign-spawn.flag';saved_spawn=spawn_flag.read_bytes() if spawn_flag.exists() else None
 climb_flag=root/'build/xbox/disc/campaign-climb.flag';saved_climb=climb_flag.read_bytes() if climb_flag.exists() else None
 selection_file=root/'build/xbox/disc/campaign-level.bin';saved_selection=selection_file.read_bytes() if selection_file.exists() else None
+step_file=root/'build/xbox/disc/particle-step-fixtures.bin';saved_steps=step_file.read_bytes() if step_file.exists() else None
 process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),'archive':args.archive,'frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True)
 try:
+ subprocess.run([sys.executable,'tools/verify_particle_free_step.py'],cwd=root,check=True)
+ step_file.write_bytes((root/'artifacts/particle-free-step-input.bin').read_bytes())
  if args.level:
   archive_source=root/'Installed_Game'/args.archive;archive_target=root/'build/xbox/disc'/args.archive
   archive_sha=hashlib.sha256(archive_source.read_bytes()).hexdigest()
@@ -101,6 +104,15 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
    if d[37]//60!=last:last=d[37]//60;print('Submitted',d[37],'frames',flush=True)
    if d[2]==5:
     final=snapshot(monitor,mapping);(run/'guest-memory-final.json').write_text(json.dumps(final,indent=2))
+    fp_control=words(monitor,symbol('rf_fp_control_diagnostic'),5)
+    report['x87_control_words']=fp_control
+    assert fp_control==[0x27f]*5,fp_control
+    step_state=words(monitor,symbol('rf_particle_step_diagnostic'),4)
+    step_expected=(root/'artifacts/particle-free-step-output.bin').read_bytes();step_hash=2166136261
+    for value in step_expected:step_hash=((step_hash^value)*16777619)&0xffffffff
+    assert step_state==[1,len(step_expected)//128,step_hash,192000],step_state
+    report['particle_steps']=step_state
+    print('Native x87 control:',[hex(v) for v in fp_control],flush=True)
     resources=words(monitor,symbol('rf_particle_resource_diagnostic'),7)
     assert resources[0:2]==[1,6] and resources[4]>0 and resources[5]<resources[4] and resources[6]>=resources[4],resources
     expected_resource_hash=2166136261
@@ -198,6 +210,8 @@ finally:
   try:process.wait(timeout=10)
   except subprocess.TimeoutExpired:process.terminate();process.wait(timeout=10)
  try:
+  if saved_steps is None:step_file.unlink(missing_ok=True)
+  else:step_file.write_bytes(saved_steps)
   if saved_selection is None:selection_file.unlink(missing_ok=True)
   else:selection_file.write_bytes(saved_selection)
   if saved_climb is None:climb_flag.unlink(missing_ok=True)

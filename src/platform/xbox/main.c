@@ -10,6 +10,7 @@
 #include "rf/entity_assets.h"
 #include "rf/scene_preview.h"
 #include "rf/frame_clock.h"
+#include "rf/particle_pool.h"
 #include "renderer.h"
 #include "input.h"
 #include <string.h>
@@ -624,9 +625,18 @@ static int load_materials(void)
     return RF_OK;
 }
 
+/* Observe native x87 state without changing its precision or exception masks. */
+volatile uint32_t rf_fp_control_diagnostic[5]; /* entry, main, pre-effects, post-effects, post-scene */
+static void record_fp_control(unsigned slot)
+{
+    uint16_t control;
+    __asm__ volatile("fnstcw %0" : "=m"(control));
+    rf_fp_control_diagnostic[slot]=control;
+}
 void WinMainCRTStartup(void);
 void __attribute__((no_stack_protector)) rf_diagnostic_start(void)
 {
+    record_fp_control(0);
     rf_diagnostic[2] = 10;
     WinMainCRTStartup();
 }
@@ -657,6 +667,33 @@ static int explosion_loading_check(void)
 fail:
     rf_explosion_loading_diagnostic[0]=(uint32_t)status;return status;
 }
+/* Replay fixture evaluation in the native guest, using the shared pool step. */
+volatile uint32_t rf_particle_step_diagnostic[4]; /* status, cases, hash, record storage bytes */
+static int particle_step_check(void)
+{
+    FILE *file=fopen("D:\\particle-step-fixtures.bin","rb");
+    rf_particle *records;rf_particle_list lists[5];rf_particle_pool pool;
+    struct {float dt;rf_particle particle;} in;
+    struct {int32_t status;uint32_t live;rf_particle particle;} out;
+    uint32_t hash=2166136261u;size_t got;int status=RF_OK;
+    _Static_assert(sizeof(in)==124 && sizeof(out)==128,"Native particle fixture layout");
+    if(!file)return RF_OK; /* Optional diagnostic payload; replay harness requires it. */
+    rf_particle_step_diagnostic[0]=2;
+    records=malloc(RF_PARTICLE_CAPACITY*sizeof(*records));
+    if(!records){fclose(file);return RF_RANGE;}
+    rf_particle_step_diagnostic[3]=RF_PARTICLE_CAPACITY*sizeof(*records);
+    rf_particle_pool_init(&pool,records,lists,5);
+    while((got=fread(&in,1,sizeof(in),file))!=0) {
+        if(got!=sizeof(in)){status=RF_FORMAT;break;}
+        records[0]=in.particle;pool.live[0]=1;pool.live[1]=0;
+        lists[0].next=lists[0].previous=1600;lists[2].next=lists[2].previous=0;
+        out.status=rf_particle_pool_step_free(&pool,0,in.dt);out.live=pool.live[0];out.particle=records[0];
+        hash=logic_hash_part(hash,&out,sizeof(out));++rf_particle_step_diagnostic[1];
+    }
+    if(ferror(file))status=RF_IO;
+    free(records);fclose(file);rf_particle_step_diagnostic[2]=hash;
+    rf_particle_step_diagnostic[0]=status?(uint32_t)status:1;return status;
+}
 /* Replay-only resource lifetime check; no host input or rendering. */
 volatile uint32_t rf_particle_resource_diagnostic[7]; /* status, loads, hash, peak bytes, pages before/min/after */
 static void particle_resource_check(void)
@@ -664,6 +701,7 @@ static void particle_resource_check(void)
     FILE *flag=fopen("D:\\player-replay.bin","rb");rf_vpp maps;int status;unsigned round,i;
     MM_STATISTICS memory={0};uint32_t hash=2166136261u;
     if(!flag)return;fclose(flag);rf_particle_resource_diagnostic[0]=2;
+    status=particle_step_check();if(status){rf_particle_resource_diagnostic[0]=(uint32_t)status;return;}
     status=explosion_loading_check();if(status){rf_particle_resource_diagnostic[0]=(uint32_t)status;return;}
     status=rf_vpp_open(&maps,"D:\\maps2.vpp");if(status){rf_particle_resource_diagnostic[0]=(uint32_t)status;return;}
     memory.Length=sizeof(memory);
@@ -697,6 +735,7 @@ int main(void)
     MM_STATISTICS memory = {0};
     int live_mines_door_fixture=1;
     int result;
+    record_fp_control(1);
     rf_diagnostic[2] = 1;
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
     memory.Length = sizeof(memory);
@@ -708,7 +747,9 @@ int main(void)
         debugPrint("Physical pages: %lu; available: %lu\n", memory.TotalPhysicalPages, memory.AvailablePages);
     }
     OutputDebugStringA("RF_DIAGNOSTIC_BOOT\n");
+    record_fp_control(2);
     particle_resource_check();
+    record_fp_control(3);
     result = rf_vpp_open(&archive, "D:\\tables.vpp");
     if (result == RF_OK) {
         rf_diagnostic[5] = archive.count;
@@ -820,6 +861,7 @@ int main(void)
         }
         if(result==RF_OK)result=group_storage_check(); /* Level archive is closed; owned data remains resident. */
         if(result==RF_OK && live_mines_door_fixture)result=door_motion_check(); /* Two-key L1S1 fixture, not campaign simulation. */
+        record_fp_control(4);
         rf_diagnostic[2] = result == RF_OK ? 5u : 0x80000100u | (uint32_t)(-result);
     }
     for (;;) Sleep(1000);

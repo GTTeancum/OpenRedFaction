@@ -43,4 +43,6 @@ actual_pc=subprocess.check_output([str(c['ctx']['probe']),'--particle-step-free'
 assert len(actual_pc)==len(expected)
 assert actual_pc==expected
 report=dict(result='PASS',cases=2048,expired=expired,rejections=rejections,x87_control_word="0x027f",scope='Full original 495120 and actual arithmetic/vector callees versus shared PC/NXDK free-flight step and recycling. Unowned detached particles, no collision/swirl/wind/damage. All record fields and live counts exact under explicit 53-bit x87 precision; scene integration excluded.')
+(root/'artifacts/particle-free-step-input.bin').write_bytes(commands)
+(root/'artifacts/particle-free-step-output.bin').write_bytes(expected)
 (root/'artifacts/particle-free-step-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
