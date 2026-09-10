@@ -16,7 +16,7 @@ def snapshot(monitor,map_text):
         'consistency':'Non-atomic live reads; use stable completed telemetry for comparisons.',
         'memory':monitor.command('query-memory-size-summary'),
         'status':monitor.command('query-status'),'symbols':{}}
-    for name,count in [('rf_preview_failure',8),('rf_animation_progress',4),('rf_renderer_profile',32),('rf_scene_profile',32),('rf_scene_profile_stage',2),('rf_player_frame_clock',8),('rf_diagnostic',58),('rf_actor_creation_diagnostic',6),('rf_scene_actor_physics_diagnostic',8),('rf_actor_world_diagnostic',8),('rf_actor_fall_diagnostic',8),('rf_scene_actor_fall_state',77),('rf_scene_actor_initial_state',77),('rf_scene_actor_tick_stats',8),('rf_scene_actor_contact',7),('rf_scene_actor_contact_time',4),('rf_scene_actor_pose',59),('rf_scene_actor_render_frames',320),('resident_miner_config',117),('scene_actor_body',81)]:
+    for name,count in [('rf_player_replay_diagnostic',4),('rf_preview_failure',8),('rf_animation_progress',4),('rf_renderer_profile',32),('rf_scene_profile',32),('rf_scene_profile_stage',2),('rf_player_frame_clock',8),('rf_diagnostic',58),('rf_actor_creation_diagnostic',6),('rf_scene_actor_physics_diagnostic',8),('rf_actor_world_diagnostic',8),('rf_actor_fall_diagnostic',8),('rf_scene_actor_fall_state',77),('rf_scene_actor_initial_state',77),('rf_scene_actor_tick_stats',8),('rf_scene_actor_contact',7),('rf_scene_actor_contact_time',4),('rf_scene_actor_pose',59),('rf_scene_actor_render_frames',320),('resident_miner_config',117),('scene_actor_body',81)]:
         match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',map_text)
         if not match:continue
         address=int(match[1],16);data=words(monitor,address,count)

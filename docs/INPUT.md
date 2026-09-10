@@ -191,9 +191,59 @@ movement cases also pass. The original 664-tick reference trace and final image
 remain exact. Larger views can still fail at the genuine 2 MiB limit; visibility
 and resource budgeting remain open. The historical tick-99 failure had no input
 log, so it cannot be positively attributed to this reproduced cause. The wide
-view sweeps still need explicit compiled-Xbox/GPU validation.
+view sweeps were initially validated on PC; subsequent Xbox coverage is below.
 
 
 Ordinary 664-tick turn regression `20260909-212051-203770` passes in stock 64 MiB
 with PC-matching actor rings and final body state. It does not cover the newly
 expanded wide-view range. The ongoing controller ISO was restored afterward.
+
+
+## Xbox recorded-input replay
+
+When `player-control.flag` is present, an optional `player-replay.bin` selects
+recorded input instead of SDL controller polling. It uses the same 24-byte record
+format as PC. File length must be a nonzero multiple of 24, at most 60,000 records.
+The record count sets the finite run length; replay is unpaced and submits every
+frame. Records stream from the file through stdio rather than allocating the
+whole recording in Xbox RAM. Shared validation still checks each command.
+Cleanup closes the file; absence of the file restores normal controller mode.
+
+`rf_player_replay_diagnostic` records active, total records, consumed records, and
+file-read status. Status describes the reader, not the complete game pipeline.
+The QMP snapshot includes this alongside scene, animation and capacity failures.
+
+Run the automated comparison from the project root:
+
+```powershell
+python tools/xemu_replay_check.py artifacts/input-replay/yaw-sweep.bin --require-wide
+python tools/xemu_replay_check.py artifacts/input-replay/diagonal-turn.bin --require-wide
+```
+
+`tools/verify_player_replay.py` generates these fixtures. The Xbox check runs a PC
+reference, temporarily packages the replay file, starts an isolated stock-64-MiB
+XEMU, and compares the completed world/camera summary, 64-slot input history and
+all 308 final body-state bytes. It also checks every frame was submitted and GPU
+vertex capacity stayed at 2 MiB. `--require-wide` requires an observed completed
+GPU submission above 1 MiB, as well as a world-summary peak above that threshold.
+No OS input or framebuffer capture is used. The test restores the previous replay
+file (or removes its temporary file) and rebuilds the normal ISO even on failure.
+It uses the separate HDD base prepared by the pacing harness.
+
+Yaw run `replay-20260909-212700` passes all 480 ticks with matching PC state and
+hashes. World peak is 1,966,440 bytes; the largest sampled completed GPU submission
+is 1,963,920 bytes. These observations explicitly exercise the expanded path on
+Xbox, without claiming framebuffer/PS2 visual parity or hardware performance.
+
+
+Diagonal-turn run `replay-20260909-212849` also passes all 480 ticks. World and
+sampled completed GPU peaks both reach 1,914,864 bytes, with exact PC world/camera
+summary, input ring and final body matches. Both formerly failing trajectories
+therefore complete on the compiled Xbox target within stock 64 MiB and the same
+2 MiB vertex allocation. This addresses the reproduced staging-capacity exits;
+it does not reconstruct the unavailable input history of the original tick-99 exit.
+
+
+After restoring the ISO without a replay file, normal controller/pacing run
+`pacing-20260909-213120` passes. No additional manual controller claim is made;
+this verifies the non-replay startup and continued runtime path.

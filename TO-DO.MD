@@ -3,12 +3,19 @@
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
-- [ ] Validate wide first-person views on Xbox and investigate any remaining interactive exits.
+- [ ] Capture and replay any further interactive exits; the historical tick-99 cause remains unproven.
 - [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
 - [ ] USER: Test PC keyboard movement/look, crouch, focus loss, resizing and Escape exit.
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Xbox file replay now compares recorded commands with PC without controller input.
+The 480-tick yaw sweep passes in 64 MiB with matching world/camera hashes, input
+history and final body; a completed GPU submission exceeds 1.96 MB within the
+existing 2 MiB allocation. The diagonal-turn replay also passes all 480 ticks,
+including a 1.91 MB completed GPU mesh and exact PC state. Both reproduced
+capacity-failure trajectories now pass on Xbox. See docs/INPUT.md.
 
 PC input replay reproduced turning exits at the 1 MiB staging boundary. First-person
 views now use the full existing 2 MiB buffer when necessary; both 480-tick failing

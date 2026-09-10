@@ -28,9 +28,22 @@ static rf_preview_mesh door_mesh;
 static uint32_t door_capacity;
 rf_frame_clock rf_player_frame_clock;
 static uint32_t player_pacing,scene_simulation_frames;
+static FILE *player_replay;
+uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
+static void player_input_close(void)
+{
+    if(player_replay){fclose(player_replay);player_replay=NULL;}
+    rf_player_replay_diagnostic[0]=0;rf_xbox_input_close();
+}
 static uint32_t profile_milliseconds(void){return GetTickCount();}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
+    if(player_replay) {
+        int status=frame!=rf_player_replay_diagnostic[2]?RF_FORMAT:
+            fread(input,sizeof(*input),1,player_replay)!=1?RF_IO:RF_OK;
+        rf_player_replay_diagnostic[3]=(uint32_t)status;
+        if(!status)++rf_player_replay_diagnostic[2];return status;
+    }
     if(player_pacing) {
         uint32_t wait;
         while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0)Sleep(wait);
@@ -459,18 +472,27 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         uint32_t limit=0;FILE *frames;fclose(stream_flag);
         frames=fopen("D:\\player-control-frames.txt","rb");
         if(frames){int scanned=fscanf(frames,"%u",&limit);fclose(frames);if(scanned!=1 || limit>60000)return RF_FORMAT;}
-        status=rf_xbox_input_open();if(status)return status;
-        player_controls=1;player_pacing=limit==0;
+        player_replay=fopen("D:\\player-replay.bin","rb");
+        memset(rf_player_replay_diagnostic,0,sizeof(rf_player_replay_diagnostic));
+        if(player_replay) {
+            long bytes;
+            if(fseek(player_replay,0,SEEK_END) || (bytes=ftell(player_replay))<=0 ||
+                bytes>60000*(long)sizeof(rf_scene_input) || bytes%(long)sizeof(rf_scene_input) ||
+                fseek(player_replay,0,SEEK_SET)){player_input_close();return RF_FORMAT;}
+            limit=(uint32_t)bytes/sizeof(rf_scene_input);
+            rf_player_replay_diagnostic[0]=1;rf_player_replay_diagnostic[1]=limit;
+        } else {status=rf_xbox_input_open();if(status)return status;}
+        player_controls=1;player_pacing=!player_replay && limit==0;
         if(player_pacing)rf_scene_set_profile(profile_milliseconds);
         rf_scene_set_input(player_poll_paced,NULL,limit);
         rf_scene_actor_turn_enabled=rf_scene_actor_look_enabled=rf_scene_actor_eye_enabled=1;
         actor_follow_preview=rf_scene_actor_live_enabled=actor_body_preview=1;rf_scene_actor_drive(1);
     }
-    if(rf_scene_actor_live_enabled) {status=rf_scene_preview_route_camera(level,9858);if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);rf_xbox_input_close();}return status;}}
+    if(rf_scene_actor_live_enabled) {status=rf_scene_preview_route_camera(level,9858);if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}return status;}}
     stream_flag=fopen("D:\\door-view.flag","rb");
-    if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);rf_xbox_input_close();}return status;}}
+    if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}return status;}}
     stream_flag=fopen("D:\\showcase.flag","rb");rf_scene_showcase_enabled=stream_flag!=NULL;
-    if(stream_flag){fclose(stream_flag);status=rf_scene_showcase_camera(level);if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);rf_xbox_input_close();}return status;}}
+    if(stream_flag){fclose(stream_flag);status=rf_scene_showcase_camera(level);if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}return status;}}
     rf_preview_close(mesh);rf_materials_close(&resident_materials);
     while(!status && opened<5) {status=rf_vpp_open(maps+opened,paths[opened]);if(!status)++opened;}
     if(!status)status=rf_scene_world_open_retained(level,&resident_geometry,maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,&resident_render_geometry);
@@ -489,7 +511,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         } else if(!status)status=rf_scene_stream_miner(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
             maps,opened,mesh,&resident_materials,8*1024*1024,4*1024*1024,scene_frame,NULL);
         while(opened)rf_vpp_close(maps+--opened);
-        if(player_controls){rf_scene_set_input(NULL,NULL,0);rf_xbox_input_close();}
+        if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}
         return status;
     }
     if(!status)status=rf_scene_preview_miner(level,9858,"D:\\meshes.vpp","D:\\motions.vpp","D:\\tables.vpp",
