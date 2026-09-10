@@ -230,6 +230,8 @@ int main(int argc,char **argv)
             printf("CAMPAIGN_MOVERS %u %u %u\n",rf_scene_campaign_movers[0],rf_scene_campaign_movers[1],rf_scene_campaign_movers[2]);
             {extern uint32_t rf_scene_actor_body_sweeps[5];
             printf("BODY_SWEEPS %u %u %u %u %u\n",rf_scene_actor_body_sweeps[0],rf_scene_actor_body_sweeps[1],rf_scene_actor_body_sweeps[2],rf_scene_actor_body_sweeps[3],rf_scene_actor_body_sweeps[4]);}
+            {extern uint32_t rf_scene_actor_ground_queries[4];
+            printf("GROUND_QUERIES %u %u %u %u\n",rf_scene_actor_ground_queries[0],rf_scene_actor_ground_queries[1],rf_scene_actor_ground_queries[2],rf_scene_actor_ground_queries[3]);}
             printf("CAMPAIGN_GROUPS %u %u %u %u %u\n",rf_scene_campaign_groups[0],rf_scene_campaign_groups[1],rf_scene_campaign_groups[2],rf_scene_campaign_groups[3],rf_scene_campaign_groups[4]);
             printf("CAMPAIGN_LINKS %u %u %u %u\n",rf_scene_campaign_links[0],rf_scene_campaign_links[1],rf_scene_campaign_links[2],rf_scene_campaign_links[3]);
             printf("CAMPAIGN_EVENT_LINKS %u %u %u %u\n",rf_scene_campaign_event_links[0],rf_scene_campaign_event_links[1],rf_scene_campaign_event_links[2],rf_scene_campaign_event_links[3]);
