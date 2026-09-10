@@ -1433,11 +1433,13 @@ int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t
     out[0]=0x52464157;out[1]=1;out[2]=n;out[3]=hits;memcpy(out+4,&fraction,4);
     out[5]=hash;out[6]=sizeof(*rf_scene_actor_sweep_records);out[7]=scene_actor_body.allocated_bytes;return RF_OK;
 }
-static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
+/* Compute the gameplay eye pose before rendering or diagnostic view overrides.
+ * This advances look state, so call exactly once per frame. */
+static int actor_listener_pose(scene_stream *stream,uint32_t frame,
+    const rf_motion_controller *controller,float position[3],float orientation[3][3])
 {
-    scene_stream *stream=context;float position[3],orientation[3][3]={{-1,0,0},{0,1,0},{0,0,-1}};
-    uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
-    profile_mark(1);
+    static const float default_orientation[3][3]={{-1,0,0},{0,1,0},{0,0,-1}};
+    int status;memcpy(orientation,default_orientation,sizeof(default_orientation));
     if(scene_actor_body.allocated_bytes)memcpy(position,scene_actor_body.state.position,12);
     else memcpy(position,stream->actor_spawn,12);
     if(rf_scene_actor_eye_enabled) {
@@ -1482,6 +1484,14 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         memcpy(position,pose.position,12);memcpy(orientation,pose.eye_orientation,36);
         record[0]=frame;memcpy(record+1,&input,sizeof(input));memcpy(record+25,&pose,sizeof(pose));
     } else {position[1]+=.7f;position[2]+=2.4f;}
+    return RF_OK;
+}
+static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
+{
+    scene_stream *stream=context;float position[3],orientation[3][3];
+    uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
+    profile_mark(1);
+    status=actor_listener_pose(stream,frame,controller,position,orientation);if(status)return status;
     if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
         memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);
         if(rf_scene_particle_view_back) {

@@ -571,3 +571,17 @@ That differs from initial playback, which does apply sample/category gain.
 This behavior must be preserved rather than normalized to one common gain formula.
 The hardware handle resolver is stubbed, so this check does not validate device
 handle lifetime or the still-unconnected campaign listener pass.
+
+### Listener pose separated from projection
+
+scene.c now factors gameplay eye/look calculation into actor_listener_pose.
+It contains the existing eye offsets, stance transition, look update and body
+orientation/tensor update and is invoked once at the same frame point as before.
+World projection, visibility and particle-inspection camera overrides remain in
+the following view preparation. This exposes the current gameplay pose for an
+audio refresh before diagnostic camera changes, without computing look twice.
+Both builds and the PC180-frame door replay pass; this refactor does not yet
+change audio timing or apply spatial gains.
+
+Stock64MiB XEMU replay-20260910-184648 passes with APU enabled after the
+pose refactor, including the PC/native camera and gameplay comparisons.

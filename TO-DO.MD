@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Gameplay listener-pose calculation is separated from projection and diagnostic
+camera overrides; connect refresh at this once-per-frame pose boundary next.
+
 Original refresh path passes80 end-to-end setter cases and confirms no
 default-sample gain reapplication; listener pose scheduling remains to connect.
 
