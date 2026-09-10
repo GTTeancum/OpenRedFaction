@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Replace the failing XEMU/SDL AC97 device path and decouple playback from the simulation clock.
+- [ ] Integrate the isolated APU backend proof into the campaign and decouple playback from the simulation clock.
 - [ ] Complete spatial controller audio and Xbox/PC device playback after verified live PCM dispatch.
 - [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
 - [ ] Complete controller sound/alert/wakeup effects, rotation and remaining key-target actions.
@@ -21,6 +21,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Isolated APU voice/DSP output and clean shutdown pass stock64MiB XEMU;
+44 allocated pages return; campaign integration and PC device output remain open.
 
 Live controller PCM now matches PC/stock64MiB XEMU; independent full-stream
 reference passes; spatial parameters and audible device output remain open.

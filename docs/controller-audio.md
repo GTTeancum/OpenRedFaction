@@ -154,3 +154,58 @@ CC BY 4.0 material. No code from it has been incorporated. Evaluate bounded
 memory, build dependencies, callback lifetime and provenance before integration.
 Device playback must also use an independent audio clock: consuming 800 frames
 per simulation tick alone would leave gaps when rendering cannot sustain 60Hz.
+
+## APU evaluation: first stock64MiB DSP output and clean shutdown
+
+Run `python tools/build_apu_probe.py`, then `python tools/run_apu_probe.py`.
+These build and boot an isolated image, leaving the campaign image and emulator
+configuration untouched. Original DoorOpen_07.wav is extracted into the ignored
+probe disc with its SHA256 checked. Dependencies, generated DSP code, binaries,
+sample data and captures remain ignored. The game does not yet link this backend.
+
+The builder pins nxdk-audio to fc2deca2cc1e434805ac03ca7c2f500b3b028f36 and
+checks its tracked tree for modifications. DSP assembler v0.1.3 is downloaded
+from mborgerson/dsp56300 and checked against SHA256
+ff031c6daf89f4c2c78a5943920bf483b044e8ec805feaf1efe32c80f991b09c.
+NXDK Clang 21.1.8 compiles the backend with C23; its DSP source assembles with
+two interrupt-vector warnings, retained in the build output. No Rust install
+or SDK modification is necessary. Build provenance includes the adapted source
+and generated DSP hashes.
+
+Two local adaptations are applied to a build-directory copy, preserving upstream
+source/license notices and leaving the cloned source unchanged:
+
+- Pin the ordinary image-data AC97 descriptor pages before physical-address
+  lookup/DMA, then unpin after hardware shutdown. Unmodified initialization
+  stopped in the debug kernel; pinning allowed voice creation and playback.
+- Keep static sample pages locked until destruction/replacement. The upstream
+  completion DPC unlocked them while retaining the buffer pointer, and destruction
+  unlocked them again. Moving completion unlock inside the streaming branch
+  allowed static voice destruction and complete backend shutdown.
+
+An extra probe-only change exposes the DMA buffer for read-only observation.
+Neither adaptation is yet a comprehensive audit of upstream streaming, replay,
+thread safety or error cleanup. The static sample probe covers one mono PCM16
+11025Hz voice and natural completion only.
+
+Native run apu-20260910-175947 passes on stock64MiB XEMU: 28485 input frames,
+2563ms to completion, 176160 requested hardware-buffer bytes and a measured
+44-page (180224-byte) allocation. Available pages return exactly from 15784
+to the 15828 baseline after shutdown. A retained 8192-byte snapshot of the
+guest DSP output ring contains nonzero PCM; no output equality with Miles or
+host-speaker audibility is claimed. Run 175846 also passed this scope.
+
+Capture correction: in this XEMU version, the APU monitor feeds SDL directly,
+so QEMU's AC97 WAV backend can stay silent while APU voices run. The SDL disk
+driver is not compiled into the installed emulator. The probe therefore uses
+the SDL dummy output and explicitly enables `audio.use_dsp=true`, then verifies
+guest DSP DMA output. Without DSP emulation enabled, that output ring stays
+zero even when the voice reaches its end. This follows inspection of the exact
+[XEMU gp_ep.c](https://github.com/xemu-project/xemu/blob/fc24584ce88f0915ad7f04775bb7712c2e3f49ee/hw/xbox/mcpx/apu/dsp/gp_ep.c)
+and [monitor.c](https://github.com/xemu-project/xemu/blob/fc24584ce88f0915ad7f04775bb7712c2e3f49ee/hw/xbox/mcpx/apu/monitor.c).
+The snapshot is an unordered ring observation, not a full sound recording.
+
+Next: audit repeated/static voice lifecycle, connect campaign start/stop/reset
+with sample ownership, validate DSP output in the full memory-constrained scene,
+and provide PC device playback using an independent audio clock. Real hardware
+and a linear recording of final device output remain unverified.
