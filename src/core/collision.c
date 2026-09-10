@@ -488,6 +488,29 @@ int rf_collision_query_local(const float start[3],const float displacement[3],
     memcpy(local_start,first,12);memcpy(local_displacement,last,12);*active=1;return RF_OK;
 }
 
+int rf_collision_mover_sphere_local(const float center[3],const float body_matrix[3][3],
+    const float start[3],const float end[3],const float origin[3],const float mover_matrix[3][3],
+    float local_start[3],float local_delta[3])
+{
+    float rotated[3],first[3],last[3],a[3],b[3];uint32_t i,j;
+    if(!center || !body_matrix || !start || !end || !origin || !mover_matrix || !local_start || !local_delta)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(center[i]) || !isfinite(start[i]) || !isfinite(end[i]) || !isfinite(origin[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(body_matrix[i][j]) || !isfinite(mover_matrix[i][j]))return RF_FORMAT;
+    }
+    for(i=0;i<3;i++) {
+        float column[3]={body_matrix[0][i],body_matrix[1][i],body_matrix[2][i]};
+        volatile float offset=start[i]-origin[i],endpoint=end[i]-origin[i];
+        rotated[i]=edge_dot(center,column,1,NULL);
+        first[i]=rotated[i]+offset;last[i]=rotated[i]+endpoint;
+        if(!isfinite(first[i]) || !isfinite(last[i]))return RF_FORMAT;
+    }
+    for(i=0;i<3;i++) {
+        a[i]=edge_dot(first,mover_matrix[i],1,NULL);b[i]=edge_dot(last,mover_matrix[i],1,NULL);
+        b[i]=b[i]-a[i];if(!isfinite(a[i]) || !isfinite(b[i]))return RF_FORMAT;
+    }
+    memcpy(local_start,a,12);memcpy(local_delta,b,12);return RF_OK;
+}
 int rf_collision_point_oriented_box(const float point[3],const float center[3],
     const float matrix[3][3],const float size[3],uint32_t *inside)
 {

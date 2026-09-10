@@ -505,6 +505,15 @@ int main(int argc,char **argv)
         }
         rf_group_mover_memberships_close(&members);rf_group_mover_memberships_close(&members);rf_group_runtime_close(&runtime);rf_level_owned_groups_close(&source);free(objects);free(before);free(controllers);return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--mover-sphere-local")) {
+        float input[30];struct {int32_t status;float values[6];} output;
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            memset(&output,0xa5,sizeof(output));
+            output.status=rf_collision_mover_sphere_local(input,(const float (*)[3])(input+3),input+12,input+15,input+18,(const float (*)[3])(input+21),output.values,output.values+3);
+            fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--group-activation-run")) {
         uint32_t input[10],output[18];static rf_object_registry registry;static rf_entity_registry entities;
         while(fread(input,sizeof(input),1,stdin)==1) {

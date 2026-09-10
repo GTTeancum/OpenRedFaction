@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Player sphere preparation in mover space matches 4096 original/PC/NXDK cases;
+contact selection/response, mover velocity and live sweep wiring remain open.
+
 Scene controller membership now binds registered movers and pose flags; L1S1/
 L2S1 XEMU replays pass, with motion dispatch and mover collision still open.
 

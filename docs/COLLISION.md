@@ -2729,3 +2729,31 @@ passes1406 movers/1421 links; both builds and six CTests pass. Harness processes
 were reaped and disc flags restored. General-object membership, rotation motion,
 controller dispatch/ticks and player mover collision remain open. No new visual
 capture is warranted by this ownership-only change.
+
+
+## Physics sphere endpoints in mover space
+
+rf_collision_mover_sphere_local reconstructs 499fef..49a0c9 inside499ed0.
+It rotates the sphere's body-local center by body matrix+74, preserving the
+stored float result. For each endpoint it first subtracts mover committed
+origin+e4, adds the rotated center, then applies mover matrix+48. Local delta
+is the difference of the two stored local endpoints. This is not equivalent
+at float precision to forming world sphere centers before origin subtraction.
+The subsequent original collision query uses bit4 because these inputs are
+already local; supplying a world displacement for edge handling would differ.
+Original contact output later uses the same matrix+48 and origin+e4, and
+carries mover velocity+144 and handle+2c into the response.
+
+The helper preserves explicit Z/Y/X dot evaluation with the established
+64-bit x87 dot routine, followed by float stores. No query, contact selection,
+response or mutation is performed. All inputs/results must be finite and
+invalid input leaves both output vectors unchanged. No heap allocation.
+
+verify_mover_sphere_local.py executes the original block and real sphere-array
+and vector/matrix callees without hooks. 4096 cases match PC and NXDK, including
+large coordinates and zero displacement;30 NaN-input guards preserve outputs.
+Original arithmetic uses x87 control037f, consistent with existing collision
+transform verification; the NXDK caller starts027f and the shared dot helper
+controls its precision explicitly. Both builds and six CTests pass. Broad
+phase, query flags, mover-first contact selection, velocity/support response
+and live player sweep wiring remain open. No new XEMU or visual claim.
