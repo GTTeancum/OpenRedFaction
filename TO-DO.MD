@@ -1,7 +1,9 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Wire level-start auto triggers through registered gravity events, recover jump audio ownership, and validate authored traversal.
+- [ ] Complete startup event actions, propagation and delayed ticking beyond the connected gravity path.
+- [ ] Diagnose L18S1 world-load RF_FORMAT failure and validate late-level startup in native Xbox.
+- [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -13,6 +15,12 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Startup auto dispatch now activates registered events and applies Set_Gravity
+in the scene, while counting unsupported actions/targets, scripts, propagation
+and delayed work. All 93 shared startup fixtures pass. Rendered PC L17S1-3
+apply 4/3/4 gravity; L18S1 fails earlier in world loading. Default 64-MiB
+XEMU replay 20260910-062922 passes with matching startup diagnostics.
 
 Runtime trigger targets now resolve against registered events/triggers while
 retaining raw UIDs: 2,809 of 4,471 links resolve, including all four gravity

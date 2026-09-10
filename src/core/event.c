@@ -3,6 +3,51 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+typedef struct startup_context {
+    rf_runtime_triggers *triggers;rf_runtime_trigger *trigger;rf_runtime_event *event;
+    rf_physics_gravity *gravity;rf_startup_events_report *report;int32_t now;int status;
+} startup_context;
+static void startup_event_action(void *context,rf_event_state *state,uint32_t action,
+    uint32_t source,uint32_t actor,uint32_t mode)
+{
+    startup_context *c=context;(void)source;(void)actor;(void)mode;
+    if(action==2) {c->report->pending_links+=c->event->authored->record.link_count;return;}
+    if(state->type!=44) {++c->report->unsupported_actions;return;}
+    c->status=rf_event_gravity_action(c->gravity,c->event->authored->record.values[0],action);
+    if(!c->status && action==1)++c->report->gravity_actions;
+}
+static void startup_trigger_dispatch(void *context,const rf_auto_trigger_state *state,
+    uint32_t actor,uint32_t suppress_movers)
+{
+    startup_context *c=context;uint32_t i;(void)suppress_movers;++c->report->triggers;
+    for(i=0;i<c->trigger->authored->record.link_count && !c->status;++i) {
+        const rf_level_link_target *target=c->trigger->links+i;void *object;uint32_t kind;
+        if(!target->kind) {++c->report->unresolved_targets;continue;}
+        object=rf_object_registry_lookup(c->triggers->registry,target->value);
+        if(!object) {++c->report->unresolved_targets;continue;}
+        memcpy(&kind,object,4);
+        if(kind!=6) {++c->report->other_targets;continue;}
+        c->event=object;++c->report->events;
+        c->status=rf_event_activate(&c->event->state,c->now,state->handle,actor,1,startup_event_action,c);
+        if(!c->status && c->event->state.deadline>=0)++c->report->delayed_events;
+    }
+}
+int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *gravity,
+    int32_t now,uint32_t clock_bits,rf_startup_events_report *report)
+{
+    startup_context context={0};uint32_t i;int status;
+    if(!triggers || !gravity || !report || !triggers->registry || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    memset(report,0,sizeof(*report));context.triggers=triggers;context.gravity=gravity;context.report=report;context.now=now;
+    for(i=0;i<triggers->count;++i) {
+        rf_runtime_trigger *trigger=triggers->items+i;context.trigger=trigger;
+        if(!(trigger->state.flags&8) || (trigger->state.flags&16))continue;
+        /* Script-backed eligibility is unresolved; don't invent its result. */
+        if(trigger->authored->record.script[0]) {++report->script_gates;continue;}
+        status=rf_auto_trigger_fire(&trigger->state,now,clock_bits,1,startup_trigger_dispatch,&context);
+        if(status)return status;if(context.status)return context.status;
+    }
+    return RF_OK;
+}
 int rf_runtime_triggers_resolve(rf_runtime_triggers *triggers,
     const rf_level_uid_object *objects,uint32_t object_count,
     const rf_level_uid_key *keys,uint32_t key_count)

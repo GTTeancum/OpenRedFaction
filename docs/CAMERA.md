@@ -3315,3 +3315,40 @@ over each raw UID and resulting value/kind/index. Stock-64-MiB XEMU jump replay
 20260910-062500 matches these diagnostics and all existing PC state. Both builds
 and five CTest checks pass. No new visual behavior or action execution claimed.
 Reports: artifacts/runtime-trigger-links-verification.json and native replay.
+
+
+Connected partial startup dispatch (2026-09-10)
+--------------------------------------------
+
+rf_runtime_startup_events now traverses active auto triggers in owned order,
+looks up resolved targets in the registry, activates common event state, and
+applies type-44 gravity through the recovered shared handler. Scene startup
+calls it after player/jump setup and before animation streaming; jump impulse
+is retained when gravity changes. Timer and float-clock inputs are currently
+relative scene startup zero. Global mode remains the single-player fixture.
+
+Unsupported effects are explicit report fields: triggers fired, events reached,
+gravity actions, unsupported actions, unresolved targets, non-event targets,
+nonempty script gates, undispatched outgoing event links and delayed events.
+The report is not a success count for those pending effects. Nonempty script
+eligibility is not guessed. Propagation and delayed ticking remain open; event
+records preserve their scheduled state for future integration. Successful
+known actions are not rolled back if a later action errors.
+
+CAMPAIGN_STARTUP / rf_scene_startup_events plus rf_scene_startup_gravity expose
+nine counters and the four gravity words. verify_runtime_startup.py checks the
+partial dispatcher against all 93 authored graphs, including all four gravity
+events. This is integration coverage of documented partial behavior, not full
+original campaign parity. Native 64-MiB XEMU replay-20260910-062922 matches PC
+startup diagnostics and existing jump state. Both builds and five CTest tests
+pass. Native late-level gravity validation remains open.
+
+PC headless spawn replay now accepts RF_REPLAY_ARCHIVE alongside existing
+RF_REPLAY_LEVEL for testing levels3.vpp maps. replay_gravity_campaign.py renders
+16 idle frames per gravity level: L17S1, L17S2 and L17S3 pass with gravity
+4, 3 and 4. L18S1 fails before startup at rf_scene_world_open_retained, RF_FORMAT
+(-3), SCENE_STAGE 0 10. Its report correctly remains INCOMPLETE and the tool
+exits nonzero. Do not claim the full four-map rendered test passed. Assets
+were not changed. Captures are empty spawn areas, not selected showcase images.
+Reports: artifacts/runtime-startup-verification.json,
+artifacts/gravity-campaign-live/report.json and the native replay report.

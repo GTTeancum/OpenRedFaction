@@ -98,6 +98,18 @@ typedef void (*rf_auto_trigger_callback)(void *context,const rf_auto_trigger_sta
  * float game-clock representation, independent of timer milliseconds. */
 int rf_auto_trigger_fire(rf_auto_trigger_state *state,int32_t now,uint32_t clock_bits,
     int eligible,rf_auto_trigger_callback callback,void *context);
+typedef struct rf_startup_events_report {
+    uint32_t triggers,events,gravity_actions,unsupported_actions,unresolved_targets;
+    uint32_t other_targets,script_gates,pending_links,delayed_events;
+} rf_startup_events_report;
+/* Partial single-player startup dispatcher: follows resolved trigger links,
+ * activates common event state and implements Set_Gravity. Other actions,
+ * event-link propagation, non-event targets and nonempty script eligibility
+ * are reported as pending, not implemented. No full campaign completion claim.
+ * Owners share one registry and stay alive throughout; clocks are caller-owned.
+ * Dispatch may mutate state before an error; effects are not rolled back. */
+int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *gravity,
+    int32_t now,uint32_t clock_bits,rf_startup_events_report *report);
 
 typedef struct rf_unhide_state {
     int32_t deadline;

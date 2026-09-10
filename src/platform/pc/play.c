@@ -1,3 +1,4 @@
+#include "rf/event.h"
 #include "rf/resource_budget.h"
 /* Port-owned Windows frontend. Reads only messages addressed to its window.
  * The headless replay calls the shared provider directly; no OS input injection. */
@@ -18,6 +19,8 @@ extern uint32_t rf_scene_actor_follow_summary[5];
 extern uint32_t rf_scene_player_input_frames[64][7];
 extern uint32_t rf_preview_failure[8],rf_animation_progress[4];
 extern rf_physics_body scene_actor_body;
+extern rf_startup_events_report rf_scene_startup_events;
+extern uint32_t rf_scene_startup_gravity[4];
 extern uint32_t rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
 extern uint32_t rf_scene_actor_initial_animation[12],rf_scene_player_climb[8],rf_scene_player_climb_frames[128][9];
 extern float rf_scene_actor_initial_eye_offsets[6];
@@ -164,7 +167,7 @@ int main(int argc,char **argv)
     else if(argc==2)directory=argv[1];
     else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --campaign <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
-    CHECK(path_join(path,sizeof(path),directory,"levels1.vpp"));
+    CHECK(path_join(path,sizeof(path),directory,spawn_profile && p.headless && getenv("RF_REPLAY_ARCHIVE")?getenv("RF_REPLAY_ARCHIVE"):"levels1.vpp"));
     CHECK(rf_vpp_open(&archive,path));CHECK(rf_level_open(&level,&archive,spawn_profile && p.headless && getenv("RF_REPLAY_LEVEL")?getenv("RF_REPLAY_LEVEL"):"L1S1.rfl"));
     CHECK(path_join(meshes,sizeof(meshes),directory,"meshes.vpp"));
     CHECK(path_join(motions,sizeof(motions),directory,"motions.vpp"));
@@ -210,6 +213,9 @@ int main(int argc,char **argv)
     if(p.headless) {
         if(p.frames!=limit){status=RF_FORMAT;goto cleanup;}
         if(spawn_profile){
+            {uint32_t words[13],k;memcpy(words,&rf_scene_startup_events,sizeof(rf_scene_startup_events));
+             memcpy(words+9,rf_scene_startup_gravity,16);printf("CAMPAIGN_STARTUP");
+             for(k=0;k<13;++k)printf(" %u",words[k]);puts("");}
             printf("CAMPAIGN_LINKS %u %u %u %u\n",rf_scene_campaign_links[0],rf_scene_campaign_links[1],rf_scene_campaign_links[2],rf_scene_campaign_links[3]);
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
             printf("CAMPAIGN_EVENTS %u %u %u\n",rf_scene_campaign_events[0],rf_scene_campaign_events[1],rf_scene_campaign_events[2]);

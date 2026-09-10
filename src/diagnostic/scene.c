@@ -275,6 +275,8 @@ static rf_level_owned_regions campaign_regions;
 static rf_object_registry campaign_registry;
 static rf_runtime_events campaign_events;
 static rf_runtime_triggers campaign_triggers;
+rf_startup_events_report rf_scene_startup_events;
+uint32_t rf_scene_startup_gravity[4];
 uint32_t rf_scene_campaign_triggers[2]; /* registered triggers, owner bytes */
 uint32_t rf_scene_campaign_links[4]; /* total, resolved, unresolved, ordered target hash */
 static int campaign_resolve_trigger_links(void)
@@ -1293,6 +1295,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         stream.mesh=mesh;stream.materials=materials;stream.bundle=&bundle;
         if(actor_follow_world) {placement.prepare_view=actor_follow_view;placement.view_context=&stream;}
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
+        if(campaign_spawn && collision) {
+            status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&rf_scene_startup_events);
+            if(status)goto done;
+            memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
+        }
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,&stream);
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,&stream);
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);

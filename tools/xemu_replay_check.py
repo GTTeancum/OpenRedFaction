@@ -95,6 +95,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      links=words(monitor,symbol('rf_scene_campaign_links'),4)
      assert links==expected('CAMPAIGN_LINKS')
      report['campaign_links']=links
+     startup=words(monitor,symbol('rf_scene_startup_events'),9)+words(monitor,symbol('rf_scene_startup_gravity'),4)
+     assert startup==expected('CAMPAIGN_STARTUP')
+     report['campaign_startup']=startup
      spawn=words(monitor,symbol('rf_scene_player_spawn_diagnostic'),19);assert spawn==expected('PLAYER_SPAWN');report['player_spawn']=spawn
      for name,label,count in [('rf_scene_actor_initial_animation','PLAYER_INITIAL_ANIMATION',12),('rf_scene_actor_initial_eye_offsets','PLAYER_CLASS_EYE',6),('rf_scene_actor_stance_cache','PLAYER_CLASS_STANCE',50),('rf_scene_actor_selector_frames','PLAYER_STANCE_FRAMES',512),('rf_scene_actor_locomotion_frames','PLAYER_MOTION_FRAMES',768),('rf_scene_player_jump','PLAYER_JUMP',4),('rf_scene_player_jump_frames','PLAYER_JUMP_FRAMES',1024),('rf_scene_player_climb','PLAYER_CLIMB',8),('rf_scene_player_climb_frames','PLAYER_CLIMB_FRAMES',1152)]:
       got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got

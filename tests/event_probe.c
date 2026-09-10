@@ -25,7 +25,7 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
-    if(argc==4 && (!strcmp(argv[1],"--owned-triggers") || !strcmp(argv[1],"--trigger-links"))) {
+    if(argc==4 && (!strcmp(argv[1],"--owned-triggers") || !strcmp(argv[1],"--trigger-links") || !strcmp(argv[1],"--startup-events"))) {
         rf_vpp archive;rf_level level;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
         rf_object_registry registry;uint32_t i,j,bytes,handle,event_count,n;
         rf_level_uid_object objects[RF_OBJECT_CAPACITY];int emit=!strcmp(argv[1],"--trigger-links");
@@ -56,6 +56,13 @@ int main(int argc,char **argv)
                rf_object_registry_lookup(&registry,t->handle)!=t)return 6;
         }
         if(!emit)printf("%u %u\n",triggers.count,bytes);
+        if(!strcmp(argv[1],"--startup-events")) {
+            rf_physics_gravity gravity;rf_startup_events_report report;uint32_t words[13];
+            rf_physics_gravity_set(&gravity,9.8f);
+            if(rf_runtime_startup_events(&triggers,&gravity,12345,0x41400000,&report))return 15;
+            memcpy(words,&report,sizeof(report));memcpy(words+9,&gravity,sizeof(gravity));
+            printf("STARTUP");for(i=0;i<13;++i)printf(" %u",words[i]);puts("");
+        }
         handle=triggers.count?triggers.items[0].handle:UINT32_MAX;
         rf_runtime_triggers_close(&triggers);rf_runtime_triggers_close(&triggers);
         if(registry.count!=RF_OBJECT_CAPACITY-event_count || rf_object_registry_lookup(&registry,handle))return 7;
