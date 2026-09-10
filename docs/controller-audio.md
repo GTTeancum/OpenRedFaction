@@ -63,3 +63,22 @@ not replace the requested filename before544680.543760 also reports a missing
 file and returns-1 when its later open fails. No alternate DoorLoop file is
 selected in these paths. This is code inspection, not full original filesystem
 execution. Live sample registry/loading and output remain the next integration.
+
+## Bounded sample ownership
+
+rf_audio_bank owns a caller-sized slot array and loaded file buffers under
+one explicit budget. It is scoped to one borrowed archive and one level,
+deduplicates names case-insensitively, keeps stable PCM pointers, and performs
+no eviction. Missing, malformed or over-budget loads preserve index/count
+and existing storage. Capacity is bounded by the original2600 registration
+ceiling; callers should size it for actual level references. Whole retained
+WAV files are charged, including metadata and slot/bank bytes, excluding
+allocator overhead. Stop all borrowing voices before closing the bank.
+
+verify_audio_bank.py verifies PC ownership with the two authored door files:
+93402 retained bytes, exact-budget success, one-byte-short rejection, duplicate
+lookup, missing loop rejection, sample access after archive closure and repeat
+close. First256 mixed stereo frames after archive close match an independent
+Python wave/integer-resampling hash3154186473. Both platforms build; existing
+144 PC/NXDK mixer cases and six CTests pass. Ownership has not yet run in live
+XEMU; scene loading, controller start/stop and device output remain open.

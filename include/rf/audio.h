@@ -9,6 +9,19 @@ typedef struct rf_wave_pcm {
  * stereo, skips bounded metadata chunks and rejects ambiguous fmt/data chunks.
  * RIFF extent must equal supplied size. Errors preserve output. */
 int rf_wave_pcm_parse(const void *data,uint32_t size,rf_wave_pcm *result);
+typedef struct rf_audio_sample { char name[61];void *storage;rf_wave_pcm pcm;uint32_t bytes; } rf_audio_sample;
+typedef struct rf_audio_bank {
+    rf_vpp *archive;rf_audio_sample *samples;uint32_t count,capacity,bytes,budget;
+} rf_audio_bank;
+/* One-archive, level-lifetime PCM owner. Budget includes bank/slot storage and
+ * whole retained files, excluding allocator overhead. Archive is borrowed for
+ * loading; it may close after loading. Loaded PCM outlives the archive. Names
+ * deduplicate case-insensitively. Missing/invalid/over-budget loads preserve
+ * bank and index. Stop all borrowing voices before close. No eviction. */
+int rf_audio_bank_open(rf_vpp *archive,uint32_t capacity,uint32_t budget,rf_audio_bank *bank);
+int rf_audio_bank_load(rf_audio_bank *bank,const char *name,uint32_t *index);
+const rf_wave_pcm *rf_audio_bank_sample(const rf_audio_bank *bank,uint32_t index);
+void rf_audio_bank_close(rf_audio_bank *bank);
 #define RF_AUDIO_VOICES 16u
 #define RF_AUDIO_RATE 48000u
 typedef struct rf_audio_voice {

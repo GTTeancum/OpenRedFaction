@@ -1,5 +1,6 @@
 #include "rf/audio.h"
 #include <string.h>
+#include <stdlib.h>
 static uint32_t wave_u16(const uint8_t *p){return (uint32_t)p[0]|((uint32_t)p[1]<<8);}
 static uint32_t wave_u32(const uint8_t *p){return wave_u16(p)|(wave_u16(p+2)<<16);}
 int rf_wave_pcm_parse(const void *data,uint32_t size,rf_wave_pcm *result)
@@ -86,4 +87,46 @@ int rf_audio_mix(rf_audio_mixer *mixer,int16_t *stereo,uint32_t frames)
         for(c=0;c<2;c++)stereo[f*2+c]=(int16_t)(sum[c]<-32768?-32768:sum[c]>32767?32767:sum[c]);
     }
     return RF_OK;
+}
+
+static int audio_name_equal(const char *a,const char *b)
+{
+    uint32_t i;for(i=0;i<61;i++) {
+        unsigned char x=(unsigned char)a[i],y=(unsigned char)b[i];
+        if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;
+        if(x!=y)return 0;if(!x)return 1;
+    }
+    return 0;
+}
+int rf_audio_bank_open(rf_vpp *archive,uint32_t capacity,uint32_t budget,rf_audio_bank *bank)
+{
+    rf_audio_bank value={0};uint64_t bytes=sizeof(value)+(uint64_t)capacity*sizeof(rf_audio_sample);
+    if(!archive || !archive->stream || !bank || bank->samples || bank->archive || bank->count ||
+       !capacity || capacity>2600 || bytes>budget)return RF_RANGE;
+    value.samples=calloc(capacity,sizeof(*value.samples));if(!value.samples)return RF_RANGE;
+    value.archive=archive;value.capacity=capacity;value.bytes=(uint32_t)bytes;value.budget=budget;
+    *bank=value;return RF_OK;
+}
+int rf_audio_bank_load(rf_audio_bank *bank,const char *name,uint32_t *index)
+{
+    uint32_t i;rf_vpp_entry entry;rf_audio_sample sample={0};int status;
+    if(!bank || !bank->samples || !bank->archive || !name || !index)return RF_RANGE;
+    for(i=0;i<bank->count;i++)if(audio_name_equal(name,bank->samples[i].name)){*index=i;return RF_OK;}
+    status=rf_vpp_find(bank->archive,name,&entry);if(status)return status;
+    if(bank->count>=bank->capacity || (uint64_t)bank->bytes+entry.size>bank->budget)return RF_RANGE;
+    if(!entry.size)return RF_FORMAT;
+    sample.storage=malloc(entry.size);if(!sample.storage)return RF_RANGE;
+    status=rf_vpp_read(bank->archive,&entry,0,sample.storage,entry.size);
+    if(!status)status=rf_wave_pcm_parse(sample.storage,entry.size,&sample.pcm);
+    if(status){free(sample.storage);return status;}
+    memcpy(sample.name,entry.name,sizeof(sample.name));sample.bytes=entry.size;
+    bank->samples[bank->count]=sample;*index=bank->count++;bank->bytes+=entry.size;return RF_OK;
+}
+const rf_wave_pcm *rf_audio_bank_sample(const rf_audio_bank *bank,uint32_t index)
+{return bank && bank->samples && index<bank->count?&bank->samples[index].pcm:NULL;}
+void rf_audio_bank_close(rf_audio_bank *bank)
+{
+    uint32_t i;if(!bank)return;
+    for(i=0;i<bank->count;i++)free(bank->samples[i].storage);
+    free(bank->samples);memset(bank,0,sizeof(*bank));
 }

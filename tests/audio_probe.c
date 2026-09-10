@@ -5,6 +5,26 @@
 #include <io.h>
 int main(int argc,char **argv)
 {
+    if(argc==3 && !strcmp(argv[1],"--bank")) {
+        rf_vpp archive;rf_audio_bank bank={0};rf_vpp_entry a,b;uint32_t index=123,first,bytes;
+        rf_audio_mixer mixer;int16_t output[512];uint32_t handle,hash=2166136261u,i;
+        if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"DoorOpen_07.wav",&a) || rf_vpp_find(&archive,"DoorEnd_07.wav",&b))return 20;
+        bytes=(uint32_t)sizeof(bank)+2*(uint32_t)sizeof(rf_audio_sample)+a.size+b.size;
+        if(rf_audio_bank_open(&archive,2,bytes-1,&bank) || rf_audio_bank_load(&bank,a.name,&first))return 21;
+        if(rf_audio_bank_load(&bank,b.name,&index)!=RF_RANGE || index!=123 || bank.count!=1)return 22;
+        if(rf_audio_bank_load(&bank,"dooropen_07.WAV",&index) || index!=first || bank.count!=1)return 23;
+        index=123;if(rf_audio_bank_load(&bank,"DoorLoop_2.5.wav",&index)!=RF_NOT_FOUND || index!=123 || bank.count!=1)return 24;
+        rf_audio_bank_close(&bank);
+        if(rf_audio_bank_open(&archive,2,bytes,&bank) || rf_audio_bank_load(&bank,a.name,&first) || rf_audio_bank_load(&bank,b.name,&index) || bank.bytes!=bytes)return 25;
+        rf_vpp_close(&archive);rf_audio_mixer_init(&mixer);
+        if(!rf_audio_bank_sample(&bank,first) || rf_audio_bank_sample(&bank,2))return 26;
+        if(rf_audio_voice_start(&mixer,rf_audio_bank_sample(&bank,first),32768,32768,0,&handle) || rf_audio_mix(&mixer,output,256))return 27;
+        for(i=0;i<sizeof(output);i++)hash=(hash^((unsigned char *)output)[i])*16777619u;
+        if(rf_audio_voice_stop(&mixer,handle))return 28;
+        rf_audio_bank_close(&bank);rf_audio_bank_close(&bank);
+        if(bank.samples || bank.count || bank.bytes || bank.archive)return 29;
+        printf("PASS audio bank bytes=%u pcm_after_archive_close_hash=%u\n",bytes,hash);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--mix")) {
         uint32_t n,header[9];rf_audio_mixer mixer;rf_wave_pcm pcm;uint8_t samples[4096];int16_t out[2048];uint32_t handle,other;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
