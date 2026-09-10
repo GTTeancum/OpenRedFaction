@@ -1,5 +1,6 @@
 #include "rf/effect.h"
 #include "rf/particle_pool.h"
+#include "rf/visibility.h"
 #include "rf/entity_assets.h"
 #include <stdio.h>
 #include <fcntl.h>
@@ -8,6 +9,18 @@
 #include <stdlib.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--visibility")) {
+        struct {uint32_t op,index,depth;float rectangle[4];} in;
+        rf_room_visibility rooms[8]={0};uint32_t order[8]={0};rf_visibility state={rooms,order,8,0};
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            int32_t status=in.op==0?rf_visibility_begin_render(&state):in.op==1?rf_visibility_begin_view(&state):
+                rf_visibility_visit(&state,in.index,in.rectangle,in.depth);
+            fwrite(&status,4,1,stdout);fwrite(&state.visible_count,4,1,stdout);
+            fwrite(rooms,sizeof(rooms),1,stdout);fwrite(order,sizeof(order),1,stdout);
+        }
+        return ferror(stdin)||ferror(stdout);
+    }
     struct { int32_t index; uint32_t override_mode; int32_t enabled,now;
         rf_effect_switch objects[4]; int32_t slots[4]; } input;
     rf_effect_pair pair; unsigned i; int32_t status;

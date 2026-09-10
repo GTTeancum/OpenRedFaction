@@ -18,8 +18,8 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Original room reset/visit replays confirm render-derived particle eligibility;
-portal traversal and simulation/render timing remain open.
+Shared visibility bookkeeping matches 512 original/PC/NXDK commands; normal
+simulation precedes the render reset. Portal traversal and room-set mapping remain open.
 
 Both original emitter passes use the same collection and room eligibility;
 12 loop replays confirm order and 189 calls, independent of emitter enable.

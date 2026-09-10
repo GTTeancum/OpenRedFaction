@@ -101,3 +101,25 @@ particle room eligibility is render-derived. It does not establish complete
 portal traversal or simulation-versus-render timing. The shared diagnostic
 renderer currently lacks this room visibility lifecycle; campaign wiring
 must recover it rather than substituting emitter enable or camera room alone.
+
+## Shared visibility bookkeeping and timing
+
+`visibility.h`/`visibility.c` provide caller-owned, allocation-free room state
+and an ordered visit list. Begin-render clears eligibility; begin-view clears
+visited flags, sets depth to 255 and empties the list without clearing render
+eligibility. Accepted visits union rectangles and move revisited rooms to the
+tail. Portal clipping and room predicates remain the caller's responsibility.
+
+`verify_visibility.py` compares 512 reset/view/visit commands with actual original
+functions, native PC and NXDK code under Unicorn. All room fields and list slots
+match across eight rooms. Original begin-render uses world vector +0x90 while
+begin-view uses +0x9c; this test supplies the same room set to both, and their
+membership distinction remains to be reconstructed for scene integration.
+
+The normal `433520` path calls simulation at `43363b`, then rendering at
+`433645`; `431820` resets room eligibility before its player-view loop. Thus
+that simulation path consumes visibility retained from the preceding render.
+Its alternate branch at `433558` simulates and returns without rendering. This
+is call-order evidence, not proof of every exceptional game-loop path or startup
+visibility initialization. The shared bookkeeping has not yet been wired into
+the campaign renderer, and does not on its own implement portal traversal.
