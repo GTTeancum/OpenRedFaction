@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Recover jump binding press/hold policy and connect verified jump gates to campaign input and audio.
+- [ ] Connect verified edge-triggered jump input and jump gates to campaign state and audio.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -14,10 +14,16 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Original default jump binding is now verified as edge-triggered: type 0,
+key 0x39, with no secondary keyboard or mouse binding. All 48 original-query
+cases pass; press/hold/hold/release/repress dispatches only on the two presses.
+The actual press counter is consumed by 51f140. Live PC/Xbox binding and body
+state wiring remain open; see tools/inspect_jump_binding.py.
+
 Shared jump-request gating now matches 864 original dispatcher cases on PC
 and compiled NXDK. Control kind 5, parent kind 4, actor bit 0, override state
-34 and keyboard state 0x29 can reject the request. Binding type and the outer
-input lock still need recovery before connecting live press/hold behavior.
+34 and keyboard state 0x29 can reject the request. The default binding type is now verified below; the outer input-lock byte
+637086 is identified, but its lifecycle remains to be integrated.
 
 Original jump/fall execution now passes 6,144 fixtures plus a null-entity check.
 The shipped maximum jump height is 1.33, giving impulse 5.105683327. Mode 2

@@ -2829,3 +2829,38 @@ also consults 444ac0,43d470 and 50b520. These are disassembly/decompiler finding
 not yet an executed input-query reconstruction. Recover jump's actual binding
 record/type and those locks before choosing press/hold semantics for the port.
 No live input, XEMU jumping or audio playback is added by this gate change.
+
+
+Default jump binding and press consumption (2026-09-10)
+
+inspect_jump_binding.py executes the original 43d060 initializer through the
+fourth 43cfd0 registration, stopping at 43d0c5. The fourth record is action 3:
+type 0, keyboard key 0x39, secondary key -1, mouse binding -1. The nearby JUMP
+label path at 4386db reads the same 7cbe40 label global used by this registration.
+The initializer's string assignment is supplied; actual record registration
+and indexing execute. No original string or asset data is copied into source.
+
+The harness then executes 43d4f0 and actual 51f140/51f220 keyboard helpers.
+51f140 reads and clears the key's count at 18860e8+key*4 when 1886a1c enables
+the keyboard backend; held bytes are separate at 18868f4+key. Only critical
+section calls are replaced with process-local RET 4 stubs. No host input or
+keyboard API is invoked. Menu (444ac0), reserved-key (43d470) and text-entry
+(50b520) results are supplied as explicit case inputs.
+
+All 48 combinations of those gates, pending counts 0/1/3 and held state pass.
+An allowed pending count produces active=true and edge=true, then clears the
+whole count. Holding alone produces no action for this type-0 binding. The
+menu-plus-reserved branch drains the count without dispatch. Text-entry alone
+suppresses the query without consuming a pending count; this fixture does not
+establish whether the full backend later clears that count elsewhere.
+Sequential press, hold, hold, release, repress yields true,false,false,false,true
+without manually clearing the count between frames. The binding record remains
+byte-identical. Report: artifacts/jump-binding.json. This proves the installed
+default keyboard jump policy, not arbitrary rebound mouse/wheel behavior.
+
+Raw 436320 consists of reading byte 637086 and returning it. 430c70 invokes
+its action loop only when this byte is zero. The byte's lifecycle and the
+menu/text-entry predicates are not reconstructed by this harness. Next connect
+rising-edge PC/controller jump input, preserve the recovered jump-request gates,
+and synchronize velocity/fall flags with the campaign body before live replays.
+Neither holding jump to auto-repeat nor a climbing boost follows this evidence.
