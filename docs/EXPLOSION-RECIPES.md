@@ -461,3 +461,32 @@ counts and bounds agree exactly, including 1083 expirations and 455 bounds
 expansions. The 2048 detached cases and nine rejection guards still pass, as
 do all six CTest checks. Both builds pass. NXDK verification uses Unicorn;
 this is not a campaign simulation or visual validation.
+
+
+## Emitter initialization reference
+
+`tools/verify_particle_emitter_init_trace.py` executes full original 0x497020
+with a supplied nonzero room and no traversal start point, using a parentless
+owner. All normalization, immediate emission/allocation, random, timer and
+phase-duration callees run unchanged. The replay records 1024 cases, including
+256 immediate emission attempts, 128 allocations and 512 phase initializations.
+Before/after emitter and particle records are saved under ignored artifacts.
+
+The initializer copies only the low 16 bits of emitter flags, preserving the
+upper half. It copies/normalizes authored direction, establishes the empty
+emitter list and assigns the resolved room. If initially-on bit 0x10 is set,
+it either emits immediately (bit 2) or draws an initial delay in milliseconds.
+Only afterward does it assign the caller enabled value's low byte, preserving
+upper bytes. Thus a disabled caller value does not suppress immediate emission.
+Alternate bit 0x20 then clears phase elapsed time and draws phase duration using
+the new enabled low byte. Without it, prior duration/elapsed remain untouched.
+Without initially-on, the existing spawn deadline is retained. The replay
+checks exact random advancement across these branches and pool exhaustion.
+
+The original also leaves packet velocity/radius/lifetime untouched until an
+emission occurs, preserves opaque packet +0x48 and adjacent +0x9c, and copies
+template +0x80 to runtime +0x144 outside the compact update state. Shared
+initialization must make these retained fields explicit rather than assume a
+blanket memset is equivalent. Fresh-object defaults and room traversal still
+need separate evidence. This replay does not claim shared C initializer parity
+or any campaign/visual progress.
