@@ -320,3 +320,42 @@ Malformed-input failures preserve the individual cache being calculated but may
 follow earlier room visits; the original has no equivalent validation contract.
 Authored room predicates and room-set mapping still need connection before the
 live renderer and preceding-frame particle eligibility can use this path.
+
+### Owned initial level visibility
+
+`rf_level_visibility_open` now owns room eligibility, traversal state, initial
+primary ordering, portal adjacency, caches and fixed traversal scratch. No source
+geometry pointers escape. The level geometry can close before view processing.
+Exact requested allocation budgets include the owner and scratch: L1S1 is 13084
+bytes, and the largest installed level is 37212 bytes. Allocator overhead and
+other live level systems remain outside those figures.
+
+The file's room byte +28 is passed through `4f0300` into runtime room byte +1.
+The file's byte +34 is passed through `4ce110` into runtime byte +0, removing
+nonzero/detail rooms from the primary list. Traversal rejects either nonzero
+runtime byte. **The separate recursion-stop byte at runtime +0x40 is not the
+file detail flag**: the constructor sets it to zero. The compact traversal field
+named `detail` represents that separate stop and is initialized to zero here.
+All-room reset uses world +0x90; per-view reset and fallback iteration use the
+ordered primary vector at +0x9c. The new owner resets only those primary rooms'
+visited/depth fields per view and retains eligibility across views until the
+next render reset. Missing start room, <=1 primary room or disabled portal mode
+uses the original all-primary fallback. Runtime changes to room lists/flags
+are not reconstructed by rereading initial file data.
+
+`tools/verify_level_visibility.py` independently reads flags and portal records
+from all 94 installed payloads, then compares 282 views against full original
+`547150`, `4d4760` and `4d2f80` executions. The original skip setter also runs.
+Only the camera graphics-state call is intercepted. Owned PC results and NXDK
+view-wrapper results match room state, visible order and portal cache bytes,
+including two views accumulating eligibility and a subsequent missing-start
+fallback. PC exact-budget/one-byte-short checks, post-input-close use and repeated
+cleanup pass. NXDK uses borrowed fixture storage for these replays; native owner
+allocation and residency still need XEMU validation.
+
+The owner deliberately initializes visibility fields to zero before the first
+render. The original room constructor does not assign those fields, so these
+fixtures supply coherent zero initial fields rather than claiming the original
+startup sequence has been proved. Live frame-loop integration remains open.
+This tracing also exposes a separate collision-loader follow-up: its constructor
+default `skip=0` must be replaced by the authored +28 flag (tracked in TO-DO.MD).

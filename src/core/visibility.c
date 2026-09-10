@@ -1,6 +1,7 @@
 #include "rf/visibility.h"
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
 static int valid(const rf_visibility *s)
 {
     return s && (!s->count || (s->rooms && s->order)) && s->visible_count<=s->count;
@@ -272,4 +273,73 @@ int rf_visibility_traverse_projected(rf_visibility *s,const rf_visibility_room_l
     if(!view || !view->camera || (view->count && (!view->cache || !view->portals)) ||
        view->width<=0 || view->height<=0 || view->camera->frustum.count>6)return RF_RANGE;
     return traverse(s,rooms,links,link_count,view->portals,view->count,start,special,flags,rectangle,scratch,view);
+}
+void rf_level_visibility_close(rf_level_visibility *state)
+{
+    if(!state)return;
+    rf_geometry_portal_graph_close(&state->graph);free(state->storage);memset(state,0,sizeof(*state));
+}
+int rf_level_visibility_open(const rf_geometry *g,uint32_t budget,rf_level_visibility *out)
+{
+    rf_level_visibility value={0};uint64_t bytes,total;uint32_t i;int status;
+    if(!g || !g->data || !out || budget<sizeof(value))return RF_RANGE;
+    status=rf_geometry_portal_graph_open(g,budget-(uint32_t)sizeof(value)+(uint32_t)sizeof(value.graph),&value.graph);
+    if(status)return status;
+    bytes=(uint64_t)g->rooms*(sizeof(rf_room_visibility)+sizeof(rf_visibility_room_links)+8)+
+        (uint64_t)value.graph.count*(sizeof(rf_visibility_portal_cache)+sizeof(rf_visibility_portal))+257*sizeof(rf_visibility_frame);
+    total=sizeof(value)+value.graph.resident_bytes-sizeof(value.graph)+bytes;
+    if(total>budget){status=RF_RANGE;goto fail;}
+    value.storage=calloc(1,(size_t)bytes);if(!value.storage){status=RF_RANGE;goto fail;}
+    value.state.rooms=(rf_room_visibility*)value.storage;value.state.count=g->rooms;
+    value.state.order=(uint32_t*)(value.state.rooms+g->rooms);
+    value.rooms=(rf_visibility_room_links*)(value.state.order+g->rooms);
+    value.primary=(uint32_t*)(value.rooms+g->rooms);
+    value.cache=(rf_visibility_portal_cache*)(value.primary+g->rooms);
+    value.portals=(rf_visibility_portal*)(value.cache+value.graph.count);
+    value.scratch=(rf_visibility_frame*)(value.portals+value.graph.count);
+    status=rf_geometry_primary_rooms(g,value.primary,g->rooms,&value.primary_count);if(status)goto fail;
+    for(i=0;i<g->rooms;i++) {
+        const unsigned char *room=g->data+g->room_offsets[i];
+        value.rooms[i].first=value.graph.offsets[i];value.rooms[i].count=value.graph.offsets[i+1]-value.graph.offsets[i];
+        /* Loader: file +28 -> room +1 (4f0300); +34 -> room +0 (4ce110).
+         * Constructor leaves the separate recursion stop at +40 zero. */
+        value.rooms[i].blocked=room[28]!=0 || room[34]!=0;value.rooms[i].detail=0;
+    }
+    for(i=0;i<value.graph.count;i++) {
+        memcpy(value.portals[i].rooms,value.graph.portals[i].rooms,8);
+        memcpy(value.cache[i].minimum,value.graph.portals[i].minimum,24);
+    }
+    value.resident_bytes=(uint32_t)total;*out=value;return RF_OK;
+fail:
+    rf_level_visibility_close(&value);return status;
+}
+int rf_level_visibility_begin_render(rf_level_visibility *state)
+{
+    if(!state || !state->storage)return RF_RANGE;
+    return rf_visibility_begin_render(&state->state);
+}
+int rf_level_visibility_view(rf_level_visibility *state,const rf_visibility_camera *camera,
+    int32_t width,int32_t height,uint32_t start,uint32_t special,uint32_t flags,uint32_t enabled)
+{
+    rf_visibility_portal_view view;float rect[4];uint32_t i;int status;
+    if(!state || !state->storage || !camera || width<=0 || height<=0 ||
+       (start!=UINT32_MAX && start>=state->state.count) ||
+       (special!=UINT32_MAX && special>=state->state.count))return RF_RANGE;
+    for(i=0;i<state->primary_count;i++) {
+        rf_room_visibility *room=state->state.rooms+state->primary[i];room->visited=0;room->depth=255;
+    }
+    state->state.visible_count=0;rf_visibility_portals_begin_view(state->cache,state->graph.count);
+    view.camera=camera;view.cache=state->cache;view.portals=state->portals;view.count=state->graph.count;view.width=width;view.height=height;
+    rect[0]=0;rect[1]=0;rect[2]=(float)width;rect[3]=(float)height;
+    if(!enabled || state->primary_count<=1 || start==UINT32_MAX) {
+        for(i=0;i<state->primary_count;i++) {
+            uint32_t room=state->primary[i];
+            if(state->rooms[room].blocked)continue;
+            status=rf_visibility_visit(&state->state,room,rect,0);
+            if(status)return status;
+        }
+        return RF_OK;
+    }
+    return rf_visibility_traverse_projected(&state->state,state->rooms,state->graph.links,state->graph.count*2,
+        &view,start,special,flags,rect,state->scratch);
 }

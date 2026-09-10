@@ -2,6 +2,7 @@
 #define RF_VISIBILITY_H
 #include "rf/vpp.h"
 #include "rf/effect.h"
+#include "rf/geometry.h"
 typedef struct rf_visibility_projection {
     float origin[3],matrix[9],flat_depth;uint32_t perspective;
     rf_particle_clip_environment clip;
@@ -123,4 +124,27 @@ int rf_visibility_traverse_projected(rf_visibility *state,const rf_visibility_ro
     const uint32_t *links,uint32_t link_count,rf_visibility_portal_view *view,
     uint32_t start,uint32_t special,uint32_t flags,const float rectangle[4],
     rf_visibility_frame scratch[257]);
+
+typedef struct rf_level_visibility {
+    void *storage;rf_geometry_portal_graph graph;rf_visibility state;
+    rf_visibility_room_links *rooms;uint32_t *primary,primary_count;
+    rf_visibility_portal_cache *cache;rf_visibility_portal *portals;
+    rf_visibility_frame *scratch;uint32_t resident_bytes;
+} rf_level_visibility;
+/* Own initial authored room flags, ordered primary list, portals and fixed
+ * traversal scratch. Geometry may close after success. Budget includes owner
+ * and all requested storage, excluding allocator overhead and input geometry.
+ * Zero-initialize output; close before reuse. Failure preserves output.
+ * Initial detail routing only: runtime list/flag mutations remain caller work. */
+int rf_level_visibility_open(const rf_geometry *geometry,uint32_t budget,rf_level_visibility *output);
+void rf_level_visibility_close(rf_level_visibility *state);
+/* Clear all-room eligibility once at render start (4d2f80), after simulation. */
+int rf_level_visibility_begin_render(rf_level_visibility *state);
+/* Reset primary traversal state and portal caches per view, retaining render
+ * eligibility across views. UINT32_MAX denotes missing start/special room.
+ * Missing start, <=1 primary room or disabled portals visits all primary rooms
+ * with traversal disabled (4d4760). Other room/visibility globals are excluded.
+ * Errors can follow partial visits. No allocation. */
+int rf_level_visibility_view(rf_level_visibility *state,const rf_visibility_camera *camera,
+    int32_t width,int32_t height,uint32_t start,uint32_t special,uint32_t flags,uint32_t portals_enabled);
 #endif

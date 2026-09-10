@@ -1,4 +1,5 @@
 #include "rf/geometry.h"
+#include "rf/visibility.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,13 +10,44 @@ int main(int argc, char **argv)
     rf_geometry geometry;
     uint32_t budget = 8u * 1024u * 1024u;
     int result,flags_mode=argc==4 && !strcmp(argv[3],"--flags"),links_mode=argc==4 && !strcmp(argv[3],"--links"),primary_mode=argc==4 && !strcmp(argv[3],"--primary");
-    if (argc != 3 && argc != 4 && !(argc==5 && !strcmp(argv[3],"--portal-graph"))) return 2;
+    if (argc != 3 && argc != 4 && !(argc==5 && (!strcmp(argv[3],"--portal-graph") || !strcmp(argv[3],"--visibility")))) return 2;
     if (argc == 4 && !flags_mode && !links_mode && !primary_mode && strcmp(argv[3],"--portals")) budget = (uint32_t)strtoul(argv[3], NULL, 10);
     result = rf_vpp_open(&archive, argv[1]);
     if (result != RF_OK) return 3;
     result = rf_level_open(&level, &archive, argv[2]);
     if (result == RF_OK) result = rf_geometry_open(&geometry, &level, budget);
     if (result == RF_OK) {
+        if(argc==5 && !strcmp(argv[3],"--visibility")) {
+            rf_level_visibility state={0},empty={0};rf_visibility_camera camera={0};uint32_t i,j,stage;
+            rf_visibility_camera_parameters parameters={{640,480,0,0,1,90,100,1},{0,0,0},{1,0,0,0,1,0,0,0,1},.1f,1,1,1,0};
+            int status=rf_level_visibility_open(&geometry,(uint32_t)strtoul(argv[4],NULL,10),&state);
+            rf_geometry_close(&geometry);rf_vpp_close(&archive);printf("%d\n",status);
+            if(status)return memcmp(&state,&empty,sizeof(state))?6:0;
+            printf("%u %u %u %u\n",state.state.count,state.graph.count,state.primary_count,state.resident_bytes);
+            for(i=0;i<state.state.count;i++)printf("%u %u %u %u\n",state.rooms[i].first,state.rooms[i].count,state.rooms[i].blocked,state.rooms[i].detail);
+            for(i=0;i<state.primary_count;i++)printf("%u ",state.primary[i]);printf("\n");
+            for(stage=0;stage<3;stage++) {
+                uint32_t start=state.primary_count?state.primary[stage?state.primary_count-1:0]:UINT32_MAX;
+                parameters.origin[0]=stage?8:0;
+                if(rf_visibility_camera_setup(&parameters,&camera))return 7;
+                if(stage!=1 && rf_level_visibility_begin_render(&state))return 8;
+                if(stage==2)start=UINT32_MAX;
+                status=rf_level_visibility_view(&state,&camera,640,480,start,UINT32_MAX,0,1);
+                printf("%d %u\n",status,state.state.visible_count);
+                for(i=0;i<state.state.visible_count;i++)printf("%u ",state.state.order[i]);printf("\n");
+                for(i=0;i<state.state.count;i++) {
+                    uint32_t words[7];memcpy(words,state.state.rooms+i,sizeof(words));
+                    for(j=0;j<7;j++)printf("%08x%s",words[j],j==6?"\n":" ");
+                }
+                for(i=0;i<state.graph.count;i++) {
+                    uint32_t words[4];memcpy(words,state.portals[i].rectangle,sizeof(words));
+                    printf("%u %u",state.cache[i].valid,state.portals[i].rejected);
+                    for(j=0;j<4;j++)printf(" %08x",words[j]);printf("\n");
+                }
+            }
+            rf_level_visibility_close(&state);rf_level_visibility_close(&state);
+            return memcmp(&state,&empty,sizeof(state))?9:0;
+        }
         if(argc==5 && !strcmp(argv[3],"--portal-graph")) {
             rf_geometry_portal_graph graph={0},empty={0};uint32_t i,j;
             int status=rf_geometry_portal_graph_open(&geometry,(uint32_t)strtoul(argv[4],NULL,10),&graph);
