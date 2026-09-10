@@ -9,6 +9,22 @@ static rf_scene_input_poll player_poll;
 static void *player_context;
 static uint32_t player_frame_limit;
 static rf_scene_input player_input;
+static uint32_t campaign_spawn;
+static float campaign_position[3],campaign_orientation[9];
+uint32_t rf_scene_player_spawn_diagnostic[19];
+int rf_scene_set_campaign_spawn(const rf_level *level)
+{
+    unsigned i,j;
+    if(!level){campaign_spawn=0;memset(rf_scene_player_spawn_diagnostic,0,sizeof(rf_scene_player_spawn_diagnostic));return RF_OK;}
+    for(i=0;i<3;++i) {
+        if(!isfinite(level->player_position[i]))return RF_FORMAT;
+        for(j=0;j<3;++j)if(!isfinite(level->player_orientation[i][j]))return RF_FORMAT;
+    }
+    memcpy(campaign_position,level->player_position,12);memcpy(campaign_orientation,level->player_orientation,36);
+    memset(rf_scene_player_spawn_diagnostic,0,sizeof(rf_scene_player_spawn_diagnostic));
+    rf_scene_player_spawn_diagnostic[0]=1;memcpy(rf_scene_player_spawn_diagnostic+1,campaign_position,12);
+    memcpy(rf_scene_player_spawn_diagnostic+4,campaign_orientation,36);campaign_spawn=1;return RF_OK;
+}
 static uint32_t (*profile_clock)(void);
 static uint32_t profile_last,profile_active;
 uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
@@ -690,8 +706,16 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=rf_eye_position(&input,eye_position);if(status)return status;
         if(rf_scene_actor_look_enabled) {
             uint32_t *look=rf_scene_actor_look_frames[frame%64];
-            if(!frame){memset(&actor_look,0,sizeof(actor_look));memset(rf_scene_actor_look_frames,0,sizeof(rf_scene_actor_look_frames));}
-            /* Process-local fixture starts upright at yaw zero. */
+            if(!frame){
+                memset(&actor_look,0,sizeof(actor_look));memset(rf_scene_actor_look_frames,0,sizeof(rf_scene_actor_look_frames));
+                if(campaign_spawn) {
+                    rf_spawn_look_angles angles;
+                    status=rf_look_spawn_angles(campaign_orientation,scene_actor_body.state.orientation,
+                        rf_scene_actor_movement[0].rotation,&angles);if(status)return status;
+                    memcpy(actor_look.state.body_angles,angles.body,12);memcpy(actor_look.state.eye_angles,angles.eye,12);
+                    memcpy(rf_scene_player_spawn_diagnostic+13,&angles,24);
+                }
+            }
             actor_look.state.command[0]=player_poll?player_input.look[0]:frame?((frame%180)<90?.25f:-.25f):0;
             actor_look.state.command[1]=player_poll?player_input.look[1]:rf_scene_actor_turn_enabled && frame?((frame%240)<120?.2f:-.2f):0;
             status=rf_look_update_pose(&actor_look.state,1.0f,scene_step_seconds,&actor_look);if(status)return status;
@@ -881,7 +905,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
     rf_scene_frame_sink sink,void *context,int state_mode,const rf_geometry_collision_world *collision,const rf_geometry *geometry)
 {
-    rf_vpp archive,motions;rf_model_file model;rf_level_actor_assets binding;rf_entity_physics_config physics_config;
+    rf_vpp archive,motions;rf_model_file model;rf_level_actor_assets binding={0};rf_entity_physics_config physics_config;
     rf_entity_state_set *states=NULL;int motions_opened=0;
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
@@ -890,12 +914,24 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||
        materials->allocated_bytes>=material_budget)return RF_RANGE;
     if(rf_scene_actor_eye_enabled && !actor_follow_world)return RF_RANGE;
+    if(campaign_spawn && (rf_scene_showcase_enabled || !rf_scene_actor_eye_enabled ||
+       !rf_scene_actor_look_enabled || !rf_scene_actor_turn_enabled || !collision || !sink))return RF_RANGE;
     if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
     stream.world=mesh->count;stream.base=materials->count;stream.geometry=geometry;
     if(sink && (uint64_t)mesh->bytes+1024*1024>mesh_budget)return RF_RANGE;
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
-    status=rf_level_actor_assets_load(level,uid,tables_path,&archive,512*1024,&binding);if(status)goto done;
+    if(campaign_spawn) {
+        rf_entity_skeletal_assets *assets=malloc(sizeof(*assets));
+        if(!assets){status=RF_IO;goto done;}
+        status=rf_entity_skeletal_assets_load(tables_path,"miner1","",&archive,512*1024,assets);
+        if(!status) {
+            memset(&binding,0,sizeof(binding));binding.entity.uid=-999;strcpy(binding.entity.class_name,"miner1");
+            memcpy(binding.entity.position,campaign_position,12);memcpy(binding.entity.orientation,campaign_orientation,36);
+            binding.assets=assets->assets;binding.mesh=assets->mesh;
+        }
+        free(assets);if(status)goto done;
+    } else {status=rf_level_actor_assets_load(level,uid,tables_path,&archive,512*1024,&binding);if(status)goto done;}
     if(rf_scene_showcase_enabled) {
         uint32_t i,j;
         for(i=0;i<3;++i) {

@@ -138,12 +138,13 @@ int main(int argc,char **argv)
     player p={0};rf_vpp archive={0},maps[5]={{0}};rf_level level;
     rf_geometry geometry={0};rf_geometry_collision_world collision={0};
     rf_scene_world_geometry retained={0};rf_preview_mesh mesh={0};rf_materials materials={0};
-    uint32_t opened=0,i,limit=0;int status=RF_OK;WNDCLASSW wc={0};
+    uint32_t opened=0,i,limit=0;int status=RF_OK,spawn_profile=0;WNDCLASSW wc={0};
     if(argc==5 && !strcmp(argv[1],"--headless")) {
         char *end;unsigned long value=strtoul(argv[3],&end,10);
         if(!argv[3][0] || *end || value<1 || value>60000)return 2;
         p.headless=1;limit=(uint32_t)value;directory=argv[2];
-    } else if(argc==5 && !strcmp(argv[1],"--replay")) {
+    } else if(argc==5 && (!strcmp(argv[1],"--replay") || !strcmp(argv[1],"--spawn-replay"))) {
+        spawn_profile=!strcmp(argv[1],"--spawn-replay");
         FILE *file=fopen(argv[3],"rb");long bytes;size_t got;
         if(!file)return 2;
         if(fseek(file,0,SEEK_END) || (bytes=ftell(file))<=0 || bytes>60000*(long)sizeof(rf_scene_input) ||
@@ -153,14 +154,15 @@ int main(int argc,char **argv)
         if(fclose(file) || got!=(size_t)bytes){free(p.replay);return 2;}
         p.headless=1;limit=p.replay_count=(uint32_t)bytes/sizeof(rf_scene_input);directory=argv[2];
     } else if(argc==2)directory=argv[1];
-    else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
+    else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
     CHECK(path_join(path,sizeof(path),directory,"levels1.vpp"));
     CHECK(rf_vpp_open(&archive,path));CHECK(rf_level_open(&level,&archive,"L1S1.rfl"));
     CHECK(path_join(meshes,sizeof(meshes),directory,"meshes.vpp"));
     CHECK(path_join(motions,sizeof(motions),directory,"motions.vpp"));
     CHECK(path_join(tables,sizeof(tables),directory,"tables.vpp"));
-    CHECK(rf_scene_preview_route_camera(&level,9858));
+    if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
+    else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
     CHECK(rf_geometry_collision_world_open(&geometry,8*1024*1024,&collision));
     for(i=0;i<5;++i) {
@@ -196,6 +198,7 @@ int main(int argc,char **argv)
         8*1024*1024,4*1024*1024,present,&p,&collision,&geometry));
     if(p.headless) {
         if(p.frames!=limit){status=RF_FORMAT;goto cleanup;}
+        if(spawn_profile){printf("PLAYER_SPAWN");for(i=0;i<19;++i)printf(" %u",rf_scene_player_spawn_diagnostic[i]);puts("");}
         CHECK(rf_pc_raster_save(&p.raster,argv[4]));
         printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
         printf("ACTOR_PLAYER_INPUT");for(i=0;i<64*7;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");

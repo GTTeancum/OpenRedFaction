@@ -446,7 +446,10 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     rf_vpp maps[5];uint32_t opened=0,world;int status,player_controls=0;FILE *stream_flag;
     player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
     rf_scene_set_profile(NULL);
-    status=rf_scene_preview_camera(level,9858);if(status)return status;
+    stream_flag=fopen("D:\\campaign-spawn.flag","rb");
+    if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}
+    else status=rf_scene_preview_camera(level,9858);
+    if(status)return status;
     actor_body_preview=0;stream_flag=fopen("D:\\actor-body.flag","rb");
     if(stream_flag){fclose(stream_flag);actor_body_preview=1;}
     stream_flag=fopen("D:\\actor-drive.flag","rb");rf_scene_actor_drive(stream_flag!=NULL);
@@ -488,7 +491,12 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         rf_scene_actor_turn_enabled=rf_scene_actor_look_enabled=rf_scene_actor_eye_enabled=1;
         actor_follow_preview=rf_scene_actor_live_enabled=actor_body_preview=1;rf_scene_actor_drive(1);
     }
-    if(rf_scene_actor_live_enabled) {status=rf_scene_preview_route_camera(level,9858);if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}return status;}}
+    if(rf_scene_actor_live_enabled) {
+        stream_flag=fopen("D:\\campaign-spawn.flag","rb");
+        if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}
+        else {rf_scene_set_campaign_spawn(NULL);status=rf_scene_preview_route_camera(level,9858);}
+        if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}return status;}
+    }
     stream_flag=fopen("D:\\door-view.flag","rb");
     if(stream_flag){fclose(stream_flag);status=rf_scene_preview_mover_camera(level,8544,6.0f);if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}return status;}}
     stream_flag=fopen("D:\\showcase.flag","rb");rf_scene_showcase_enabled=stream_flag!=NULL;

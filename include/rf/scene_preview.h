@@ -130,4 +130,9 @@ typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch;} rf_scene_
  * Zero frame_limit permits a UINT32_MAX-frame session with bounded rings. */
 typedef int (*rf_scene_input_poll)(void *context,uint32_t frame,rf_scene_input *input);
 void rf_scene_set_input(rf_scene_input_poll poll,void *context,uint32_t frame_limit);
+/* Campaign-start diagnostic: copy the level start and load miner1 by class.
+ * NULL disables. This connects placement/look only; complete player factory,
+ * weapon selection, class cache ownership and campaign events remain separate. */
+int rf_scene_set_campaign_spawn(const rf_level *level);
+extern uint32_t rf_scene_player_spawn_diagnostic[19];
 #endif

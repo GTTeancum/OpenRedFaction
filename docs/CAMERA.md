@@ -2122,3 +2122,37 @@ an incoming 027f control word while reproducing the 037f reference. Local report
 builds and five CTests pass. The diagnostic continues using its old initialization
 until the campaign player spawn/ownership path is connected; no live XEMU
 integration is claimed by these CPU checks.
+
+## Campaign-start scene integration (opt-in)
+
+`rf_scene_set_campaign_spawn` retains the authored start before diagnostic
+camera mutation. In this profile the scene loads miner1's base assets by class,
+uses the retained position/matrix for initial physics placement, and seeds body
+and eye angles through `rf_look_spawn_angles` before the first regular look tick.
+The temporary entity-shaped placement record carries local UID -999 but is not
+a registered gameplay entity. It has no serialized level record or UID lookup.
+The existing fixture still supplies unarmed locomotion/initial poses; armed
+player initialization and class-cache ownership must be integrated separately.
+
+PC: `rf_pc_play --spawn-replay Installed_Game <inputs.bin> <output.ppm>`.
+Xbox: `campaign-spawn.flag` alongside the existing input/scene flags. The replay
+harness accepts `--campaign-spawn`, compares the 19-word spawn telemetry with
+the original start/look reports and PC, and preserves/restores the flag and
+command file. Normal interactive startup remains on the previous profile.
+
+Stock-64-MiB XEMU `replay-20260909-220550` passes all 120 neutral ticks, exact
+input ring, spawn telemetry, final 308-byte body and world/camera hashes.
+CPU and sampled completed GPU world mesh peak at 2,077,320 bytes within the
+unchanged 2,097,152-byte allocation. The earlier `replay-20260909-220423` correctly
+remains FAIL: Xbox's earlier preview-camera call replaced the spawn before it
+was retained. Capture now precedes that mutation and the rerun passes.
+
+PC's 480-tick diagonal replay also completes (2,065,896-byte world peak).
+The stationary yaw replay fails at tick 342, stage 5, RF_RANGE: the full world
+allocation is exhausted while emitting another mover triangle. This is a new
+reproduced capacity case, not a passing test or a reason to increase the stock
+memory target. Projection/visibility or bounded submission work remains open.
+Logs are retained as `artifacts/input-replay/spawn-*.txt`. The old 664-input
+diagnostic trace and final image remain exact after these changes. Both builds
+and five CTests pass. No new screenshot is published: the neutral starting view
+is another bare tunnel, not the meaningful scene requested for the README.
