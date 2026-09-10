@@ -1,6 +1,19 @@
 #include "rf/player.h"
+#include "rf/collision.h"
 #include <string.h>
 #include <math.h>
+int rf_player_movement_region_find(const rf_player_movement_region *regions,
+    uint32_t count,const float point[3],uint32_t *index)
+{
+    uint32_t i,inside;int status;
+    if((count && !regions) || !point || !index)return RF_RANGE;
+    for(i=0;i<count;++i) {
+        status=rf_collision_point_oriented_box(point,regions[i].center,
+            regions[i].matrix,regions[i].size,&inside);if(status)return status;
+        if(inside){*index=i;return RF_OK;}
+    }
+    *index=UINT32_MAX;return RF_OK;
+}
 uint32_t rf_player_stance_enabled(const rf_player_stance_gate *gate)
 {
     if(!gate || !gate->owns_entity || gate->environment_present ||

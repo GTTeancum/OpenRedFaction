@@ -488,6 +488,25 @@ int rf_collision_query_local(const float start[3],const float displacement[3],
     memcpy(local_start,first,12);memcpy(local_displacement,last,12);*active=1;return RF_OK;
 }
 
+int rf_collision_point_oriented_box(const float point[3],const float center[3],
+    const float matrix[3][3],const float size[3],uint32_t *inside)
+{
+    float offset[3],local[3],half[3];uint32_t i,j,result=1;
+    if(!point || !center || !matrix || !size || !inside)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(point[i]) || !isfinite(center[i]) || !isfinite(size[i]) || size[i]<0)return RF_FORMAT;
+        for(j=0;j<3;++j)if(!isfinite(matrix[i][j]))return RF_FORMAT;
+        offset[i]=point[i]-center[i];half[i]=size[i]*.5f;
+        if(!isfinite(offset[i]))return RF_FORMAT;
+    }
+    for(i=0;i<3;++i) {
+        local[i]=edge_dot(offset,matrix[i],1,NULL);
+        if(!isfinite(local[i]))return RF_FORMAT;
+        if(local[i]<-half[i] || local[i]>half[i])result=0;
+    }
+    *inside=result;return RF_OK;
+}
+
 /* 498fb4..499011: output pose uses moving solid +e4/+fc, not +3c/+48. */
 int rf_collision_contact_world(const rf_collision_ray_hit *local,const float origin[3],
     const float matrix[3][3],rf_collision_ray_hit *world)

@@ -2409,3 +2409,31 @@ registry or lock checks yet. The existing 64-tick press/move/release test passes
 Stock-64-MiB XEMU replay `20260909-231939` also passes, with exact PC stance,
 animation, input and final-body memory comparisons. PC/NXDK builds and all five
 CTest checks pass.
+
+
+### Movement-region query (2026-09-09)
+
+The previously unnamed `45cca0` query traverses the pointer list at `6460b0`
+and returns the first region whose oriented box contains the player position.
+Region center is +4, orientation matrix +10 and full dimensions +34. The
+`507a50` predicate subtracts the center with float stores, applies matrix rows
+in original Z/Y/X accumulation order, and tests inclusive half-size bounds.
+The region kind at +0 does not filter this query. Its caller `4281e0` connects
+the selected region to movement mode 2, named `climb` by the authored movement
+table. This is distinct from the room-water predicate `4ce080`.
+
+Shared `rf_collision_point_oriented_box` and `rf_player_movement_region_find`
+now implement those operations without allocation. The latter returns the
+first matching index or UINT32_MAX and borrows the input array. It stops on
+an earlier match, preserving the original priority for overlapping regions.
+`tools/verify_player_regions.py` executes complete original `45cca0` and all
+unchanged callees, with static vector constructors already initialized. All
+1,521 PC/NXDK cases match, including empty lists, 1–3 boxes, overlapping regions,
+translated/yaw-rotated boxes, exact faces/edges/corners and neighboring float
+values. Three compiled invalid-input checks preserve the output sentinel;
+compiled calls preserve the caller's x87 control word. Builds and CTest pass.
+
+This does not yet load authored region records or implement climb entry/exit.
+The campaign's empty-region assumption remains until those are connected;
+replacing it solely with box detection would suppress stance without providing
+the corresponding climb behavior.

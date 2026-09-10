@@ -23,6 +23,11 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
+The stance environment query is now identified as an ordered oriented-box
+movement-region scan leading to climb mode 2, rather than room-water detection.
+Shared C matches the complete original scan in 1,521 PC/NXDK cases; level region
+loading and climb entry/exit must be connected before replacing the empty query.
+
 Shared C now implements the outer stance gate, matching 4,608 original-code
 cases on PC and compiled NXDK. Campaign stance now respects live movement/speed
 modes for both press and release. Ownership, environment lookup and blocking

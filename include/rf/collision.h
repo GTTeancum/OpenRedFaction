@@ -1,6 +1,11 @@
 #ifndef RF_COLLISION_H
 #define RF_COLLISION_H
 #include "rf/vpp.h"
+/* 507a50: point in an oriented box, inclusive boundary, full box dimensions.
+ * Invalid/nonfinite inputs preserve inside. No normalization or allocation. */
+int rf_collision_point_oriented_box(const float point[3],const float center[3],
+    const float matrix[3][3],const float size[3],uint32_t *inside);
+
 typedef struct rf_collision_bounds {
     float minimum[3],maximum[3],radius,center[3],origin_radius;
 } rf_collision_bounds;

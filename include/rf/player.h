@@ -2,6 +2,15 @@
 #define RF_PLAYER_H
 #include "rf/vpp.h"
 
+typedef struct rf_player_movement_region {
+    int32_t kind;
+    float center[3],matrix[3][3],size[3];
+} rf_player_movement_region;
+/* 45cca0 ordered region scan, using 507a50. First containing region wins;
+ * UINT32_MAX means none. Borrowed region storage; no world loading/mutation. */
+int rf_player_movement_region_find(const rf_player_movement_region *regions,
+    uint32_t count,const float point[3],uint32_t *index);
+
 typedef struct rf_player_stance_gate {
     uint32_t owns_entity,environment_present;
     int32_t movement_mode,speed_mode,entity_kind,attachment_1380;
