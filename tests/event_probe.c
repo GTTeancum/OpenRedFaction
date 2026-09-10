@@ -63,6 +63,9 @@ static int live_link_effect(void *context,uint32_t kind,uint32_t handle,uint32_t
     live_link_kinds[live_link_calls]=kind;live_link_handles[live_link_calls++]=handle;
     return live_link_error;
 }
+static uint32_t occupancy_wakes,occupancy_hash;
+static void occupancy_wake(void *context,uint32_t handle)
+{ (void)context;++occupancy_wakes;occupancy_hash=occupancy_hash*31+handle; }
 int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
@@ -121,6 +124,16 @@ int main(int argc,char **argv)
             fwrite(output,sizeof(output),1,stdout);
         }
         return ferror(stdin)?2:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--trigger-occupancy")) {
+        struct {rf_trigger_volume volume;rf_trigger_occupant actors[3],items[2];} input;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            uint32_t out[4]={0,0xa5a5a5a5,0,0};occupancy_wakes=occupancy_hash=0;
+            out[0]=(uint32_t)rf_trigger_occupancy(&input.volume,input.actors,3,input.items,2,occupancy_wake,NULL,out+1);
+            out[2]=occupancy_wakes;out[3]=occupancy_hash;if(fwrite(out,sizeof(out),1,stdout)!=1)return 110;
+        }
+        return 0;
     }
     if(argc==2 && !strcmp(argv[1],"--runtime-trigger-links")) {
         rf_object_registry registry;rf_runtime_triggers owner={0};rf_runtime_trigger trigger={0};

@@ -151,6 +151,40 @@ int rf_trigger_eligible(const rf_trigger_gate *g,const rf_trigger_actor_facts *a
     if(g->attached!=-1 && !a->attached_present)return RF_OK;
     *eligible=1;return RF_OK;
 }
+static int trigger_occupant_inside(const rf_trigger_volume *v,const float position[3],uint32_t *inside)
+{
+    float a,b,c,t,delta[3];long double partial;uint32_t i;
+    if(v->shape==1)return rf_collision_point_oriented_box(position,v->center,v->matrix,v->size,inside);
+    if(!isfinite(v->radius))return RF_FORMAT;
+    for(i=0;i<3;++i) {
+        if(!isfinite(position[i]) || !isfinite(v->center[i]))return RF_FORMAT;
+        delta[i]=position[i]-v->center[i];if(!isfinite(delta[i]))return RF_FORMAT;
+    }
+    a=fabsf(delta[0]);b=fabsf(delta[1]);c=fabsf(delta[2]);
+    if(a<b){t=a;a=b;b=t;}if(b<c){t=b;b=c;c=t;}if(a<b){t=a;a=b;b=t;}
+    /* 4faf30 / 4fa7a0: stored differences, then extended approximate length. */
+    partial=(long double)c*.125f+(long double)b*.25f;
+    *inside=(partial*.5f+partial)+a<(long double)v->radius;return RF_OK;
+}
+int rf_trigger_occupancy(const rf_trigger_volume *volume,
+    const rf_trigger_occupant *actors,uint32_t actor_count,
+    const rf_trigger_occupant *items,uint32_t item_count,
+    rf_trigger_occupant_wake wake,void *context,uint32_t *occupied)
+{
+    uint32_t i,inside,result=0;int status;
+    if(!occupied || (actor_count && !actors) || (item_count && (!items || !wake)))return RF_RANGE;
+    if(!volume){*occupied=0;return RF_OK;}
+    for(i=0;i<actor_count;++i) {
+        if(actors[i].flags&0x4000)continue;
+        status=trigger_occupant_inside(volume,actors[i].position,&inside);if(status)return status;
+        if(inside){*occupied=1;return RF_OK;}
+    }
+    for(i=0;i<item_count;++i) {
+        status=trigger_occupant_inside(volume,items[i].position,&inside);if(status)return status;
+        if(inside){result=1;wake(context,items[i].handle);}
+    }
+    *occupied=result;return RF_OK;
+}
 int rf_trigger_volume_init(const rf_level_trigger *record,rf_trigger_volume *volume)
 {
     rf_trigger_volume value={0};uint32_t i;

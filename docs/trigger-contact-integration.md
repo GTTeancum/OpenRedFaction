@@ -71,3 +71,25 @@ The remaining original gates are46a280 (hold open while occupied, guarded
 by bits1/2/2000 and mode!=1) and46a1e0/46bae0 (closing obstruction reversal).
 Live motion integration still needs these, arrival effects, sound ownership
 and attached-object commits. Report: artifacts/authored-door-motion.json.
+
+## Occupancy scan
+
+rf_trigger_occupancy reconstructs the actor/item scan used by46a280 and the
+actor-only portion of46a1e0. Source lookup and controller mode gates remain
+external. Actors with flag4000 are ignored; an overlapping actor returns
+immediately, without scanning items. Otherwise all overlapping items request
+wake in list order. Snapshot inputs are borrowed and no memory is allocated.
+
+Box containment uses507a50 inclusive boundaries. Non-box shapes follow the
+original sphere branch: stored position differences, absolute components sorted
+a>=b>=c, partial=c/8+b/4, magnitude=a+partial+partial/2, strict magnitude<radius.
+This intentionally differs from the ordinary trigger sphere-contact helper.
+Negative and zero radii do not admit an occupant. NULL volume means a missing
+source trigger. Callers must not reuse this scan as actor eligibility.
+
+verify_trigger_occupancy.py executes original46a280 with real geometry and
+flag helpers, supplied source lookup and captured item wake effects.2048
+original/PC/NXDK cases match (857 occupied;540 wake requests). Fixtures include
+flagged actors, early return, multiple items, box boundaries, signed sphere
+radii and unknown shapes. Both builds and six CTests pass. Live scene ownership
+and controller reversal are not claimed.

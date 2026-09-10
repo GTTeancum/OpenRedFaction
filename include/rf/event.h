@@ -61,6 +61,19 @@ int rf_trigger_actor_resolve(const rf_entity_registry *registry,const rf_entity_
 typedef struct rf_trigger_volume {
     uint32_t shape;float center[3],radius,matrix[3][3],size[3];
 } rf_trigger_volume;
+typedef struct rf_trigger_occupant { uint32_t handle,flags;float position[3]; } rf_trigger_occupant;
+typedef void (*rf_trigger_occupant_wake)(void *context,uint32_t handle);
+/* 46a1e0 actor scan / 46a280 actor-then-item scan, after source-trigger lookup
+ * and hold-open mode/flag gates. NULL volume means missing trigger. Actors
+ * with flag4000 are skipped; first overlapping actor returns immediately.
+ * Otherwise every overlapping item requests wake in list order. Sphere uses
+ * original approximate magnitude and strict radius; box boundaries inclusive.
+ * Other shapes follow the original sphere branch. No allocation or mutation
+ * of snapshots. Wake effects before a later malformed record are not undone. */
+int rf_trigger_occupancy(const rf_trigger_volume *volume,
+    const rf_trigger_occupant *actors,uint32_t actor_count,
+    const rf_trigger_occupant *items,uint32_t item_count,
+    rf_trigger_occupant_wake wake,void *context,uint32_t *occupied);
 /* v180 465510 / 4bf970 volume preparation: disk forward/right/up becomes
  * runtime right/up/forward; disk dimensions 1/0/2 become runtime X/Y/Z.
  * No normalization. Finite active fields and nonnegative box sizes required;
