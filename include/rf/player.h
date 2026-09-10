@@ -30,6 +30,7 @@ typedef struct rf_player_climb_state {
     const float (*orientation)[3];
     int32_t contact_handle;
     rf_movement_settings speed;
+    float step_offset; /* Entity +148. */
 } rf_player_climb_state;
 typedef struct rf_player_climb_input {
     const rf_player_movement_region *region;
@@ -48,6 +49,21 @@ typedef void (*rf_player_climb_sound)(void *context,const rf_player_climb_state 
  * alive; no allocation, audio backend, region query or climb exit is included. */
 int rf_player_climb_enter(rf_player_climb_state *state,const rf_player_climb_input *input,
     uint32_t *selected_descriptor,rf_player_climb_sound sound,void *context);
+
+typedef struct rf_player_climb_exit_input {
+    const rf_movement_config *config;
+    const rf_movement_descriptor *descriptors;
+    const float (*identity)[3];
+    int32_t default_index,forced_action; /* -1 for unmatched movement name. */
+    float entity_scale;uint32_t crouched;uint8_t override_enabled;
+} rf_player_climb_exit_input;
+typedef int (*rf_player_try_stand)(void *context,uint32_t *stood);
+/* 4280b0 after resolving the class's named movement. Standing callback performs
+ * clearance/stance effects and returns a boolean; blocked exit preserves state.
+ * Walk-disabled classes only restore speed. Keeps current region/contact handle.
+ * No world query or name lookup here; borrowed descriptors/identity stay alive. */
+int rf_player_climb_exit(rf_player_climb_state *state,const rf_player_climb_exit_input *input,
+    uint32_t *selected_descriptor,rf_player_try_stand stand,void *context);
 
 typedef struct rf_player_stance_gate {
     uint32_t owns_entity,environment_present;

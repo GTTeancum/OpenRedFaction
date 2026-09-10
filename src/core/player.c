@@ -2,6 +2,30 @@
 #include "rf/collision.h"
 #include <string.h>
 #include <math.h>
+int rf_player_climb_exit(rf_player_climb_state *state,const rf_player_climb_exit_input *input,
+    uint32_t *selected_descriptor,rf_player_try_stand stand,void *context)
+{
+    rf_movement_settings speed;uint32_t stood,selected=0,walk;int status;
+    if(!state || !input || !input->config)return RF_RANGE;
+    walk=(input->config->flags&1)!=0;
+    if(walk && (!input->descriptors || !input->identity || !selected_descriptor ||
+        input->default_index < -1 || input->default_index>=16 || input->crouched>1 ||
+        (input->crouched && !stand)))return RF_RANGE;
+    speed=state->speed;
+    status=rf_movement_set_mode(&speed,input->config,1,input->forced_action,input->entity_scale,input->override_enabled);
+    if(status)return status;
+    if(walk && input->crouched) {
+        stood=0;status=stand(context,&stood);if(status)return status;
+        if(stood>1)return RF_FORMAT;if(!stood)return RF_OK;
+    }
+    if(!walk){state->speed=speed;return RF_OK;}
+    state->previous_region=NULL;state->speed=speed;
+    if(input->default_index>=0) {
+        selected=(input->descriptors[input->default_index].enabled&255)?(uint32_t)input->default_index:0;
+        *selected_descriptor=selected;state->movement=input->descriptors+selected;
+    } else state->movement=NULL;
+    state->orientation=input->identity;state->step_offset=0;return RF_OK;
+}
 int rf_player_climb_enter(rf_player_climb_state *state,const rf_player_climb_input *input,
     uint32_t *selected_descriptor,rf_player_climb_sound sound,void *context)
 {

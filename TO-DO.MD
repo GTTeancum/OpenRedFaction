@@ -23,6 +23,11 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
+Shared climb exit now matches 128 original cases on PC/NXDK, including blocked
+standing, walk capability, default movement/fallback, speed and step-offset reset.
+Entry still passes all 768 cases. Retained live regions, climbing movement and
+campaign entry/exit wiring remain open; see tools/verify_climb_exit.py.
+
 Shared climb entry now matches 768 original cases on PC and compiled NXDK,
 including sound callback state, speed restoration and descriptor fallback.
 It allocates nothing and borrows region/descriptor storage; climb exit and

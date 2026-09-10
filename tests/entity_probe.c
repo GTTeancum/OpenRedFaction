@@ -24,8 +24,31 @@ static void climb_sound(void *context,const rf_player_climb_state *state,const r
     out[0]++;out[1]=state->previous_region==NULL;out[2]=state->region!=NULL;
     out[3]=state->speed.mode;out[4]=sound->sound_id;out[5]=sound->spatial;
 }
+static int climb_stand(void *context,uint32_t *stood)
+{uint32_t *v=context;++v[1];*stood=!v[0];return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--climb-exit")) {
+        int32_t v[6];uint32_t out[10];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(v,sizeof(v),1,stdin)==1) {
+            rf_player_movement_region region={0};rf_movement_descriptor table[16]={{0}};
+            rf_movement_config config={0};rf_player_climb_state state={0};rf_player_climb_exit_input input={0};
+            float identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};uint32_t selected=77,standing[2]={(uint32_t)v[2],0};
+            config.flags=v[0];config.base_speed=3.5f;config.slow_factor=.5f;
+            if(v[3]>=0)table[v[3]].enabled=v[4];
+            state.previous_region=state.region=&region;state.movement=table+2;state.contact_handle=123;state.step_offset=7;
+            input.config=&config;input.descriptors=table;input.identity=identity;input.default_index=v[3];
+            input.forced_action=v[5];input.entity_scale=1;input.crouched=v[1];
+            if(rf_player_climb_exit(&state,&input,&selected,climb_stand,standing))return 3;
+            out[0]=state.previous_region==NULL;out[1]=state.region==&region;
+            out[2]=state.movement?(uint32_t)(state.movement-table):UINT32_MAX;out[3]=state.orientation==identity;
+            out[4]=state.contact_handle;out[5]=state.speed.mode;out[6]=selected;memcpy(out+7,&state.step_offset,4);
+            out[8]=standing[1];memcpy(out+9,&state.speed.speed,4);
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--climb-enter")) {
         uint32_t values[4],out[12];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

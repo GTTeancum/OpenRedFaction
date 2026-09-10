@@ -2534,3 +2534,31 @@ callbacks and malformed speed configuration preserve all outputs and emit
 nothing. PC/NXDK builds and all five CTest checks pass. Climb exit, retained
 region lifetime in the live scene, movement integration and audible playback
 remain separate work; the campaign has not yet switched to this transition.
+
+
+### Shared climb exit (2026-09-09)
+
+`4280b0` tests class walk flag bit 1 through `427fb0`. Without it, only normal
+speed is requested. Otherwise entity crouch flag 0x400 requires successful
+`428a60` standing; a blocked query returns without changing climb state or speed.
+On success it clears +13ec, restores speed, resolves the class movement name
+(+30 string object, pointer +34) through `433a00`, installs the selected descriptor
+at +858, installs global identity orientation `73a858` at +85c and clears +148.
+It leaves current region +13f0 and contact handle +8ac unchanged. An unmatched
+name produces a null descriptor without changing global selection; a disabled
+matched descriptor falls back to index 0.
+
+`tools/inspect_climb_exit.py` executes the complete original routine and its
+unchanged predicates, standing helper, speed setter and named-descriptor lookup.
+It supplies collision query results and skips ground refresh. All 128 combinations
+of walk flag, crouch, blocked result, matched/unmatched names, enabled descriptor
+and forced action pass, with full actor storage and global selection checked.
+
+`rf_player_climb_exit` implements this using a resolved default index, borrowed
+descriptor/identity storage and a standing callback. The callback owns clearance
+and stance effects; a blocked result preserves the compact climb state. The state
+now includes +148 as `step_offset`. `tools/verify_climb_exit.py` matches the 128
+cases on PC and compiled NXDK, including callback timing, full compact state and
+selection output. The 768 entry cases still pass, as do both builds and CTest.
+Live region ownership, movement while climbing, name resolution wiring and
+campaign transitions remain open; these tests do not demonstrate live climbing.
