@@ -63,6 +63,13 @@ probe_core=probe_core.replace(allocation,
 core.write_text(probe_core)
 for name,source in [('probe.c','tests/xbox_apu_probe.c'),('audio.c','src/core/audio.c'),('vpp.c','src/core/vpp.c'),('xbox_audio.c','src/platform/xbox/audio.c'),('audio.h','src/platform/xbox/audio.h')]:
     shutil.copyfile(root/source,build/name)
+# Force a failed stopped-state observation only in the isolated adapter copy.
+adapter=build/'xbox_audio.c';adapter_text=adapter.read_text()
+marker='static int stopped(audio_slot *slot,uint32_t timeout)\n{'
+assert adapter_text.count(marker)==1
+adapter.write_text(adapter_text.replace(marker,
+    'extern unsigned int rf_apu_fail_stopped;\n'+marker+
+    '\n    if(rf_apu_fail_stopped)return 0;',1))
 inventory=json.loads((root/'artifacts/inventory.json').read_text())
 entry=next(e for a in inventory['files'] if a['path']=='audio.vpp' for e in a['vpp']['entries'] if e['name']=='DoorOpen_07.wav')
 with (root/'Installed_Game/audio.vpp').open('rb') as source:
@@ -90,4 +97,6 @@ subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','-c',command
 (build/'provenance.json').write_text(json.dumps(dict(nxaudio_revision=revision,assembler_url=url,assembler_archive_sha256=digest,
     dsp_sha256=hashlib.sha256((dependency/'passthrough.out').read_bytes()).hexdigest(),sample_sha256=hashlib.sha256(data).hexdigest(),
     adapted_core_sha256=hashlib.sha256(core.read_bytes()).hexdigest(),
+    isolated_adapter_sha256=hashlib.sha256(adapter.read_bytes()).hexdigest(),
+    isolated_adapter_injection='Force stopped-state observation failure under probe flag',
     adaptations=['Pin/unpin AC97 descriptor image pages for DMA lifetime','Retain static sample page locks until destroy/replacement','Expose DMA buffer for isolated observation']),indent=2)+'\n')

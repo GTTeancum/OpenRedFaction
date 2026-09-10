@@ -15,6 +15,8 @@ static int16_t calibration_pcm[48000];
 volatile uint32_t rf_apu_gain_sums[10],rf_apu_muted_start;
 volatile uint32_t rf_apu_residency[5]; /* cycles, loaded bytes, unloaded bytes, PCM hash, DSP cycles */
 volatile uint32_t rf_apu_single_release;
+uint32_t rf_apu_fail_stopped;
+volatile uint32_t rf_apu_release_retry;
 static uint8_t wav[65536];
 static nxAudioVoice voice;
 volatile uint32_t rf_apu_lifecycle[6]; /* replay ms, stopped voices, recreated, second init, restored pages, status */
@@ -185,9 +187,15 @@ int main(void)
         if(rf_xbox_audio_diagnostic[1]!=2 || !rf_xbox_audio_diagnostic[5] || rf_xbox_audio_diagnostic[3])goto fail;
         ++rf_apu_residency[4];
         /* Only release the bank borrower; the independent right-channel voice continues. */
+        rf_apu_fail_stopped=1;
+        if(rf_xbox_audio_release_voice(0x70000u+cycle)!=RF_IO ||
+           rf_audio_bank_sample(&bank,index)!=resident || bank.bytes!=budget)goto fail;
+        rf_apu_fail_stopped=0;
+        /* A successful retry requires the failed call to retain the logical slot. */
         if(rf_xbox_audio_release_voice(0x70000u+cycle) ||
            rf_xbox_audio_release_voice(0x70000u+cycle)!=RF_NOT_FOUND ||
            rf_xbox_audio_release_voice(0xdeadbeefu)!=RF_NOT_FOUND)goto fail;
+        ++rf_apu_release_retry;
         if(rf_audio_bank_unload(&bank,index) ||
            rf_audio_bank_unload(&bank,index) || bank.bytes!=budget-bytes || rf_audio_bank_sample(&bank,index) ||
            memcmp(&parameters,rf_audio_bank_parameters(&bank,index),sizeof(parameters)))goto fail;

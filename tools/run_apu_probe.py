@@ -38,7 +38,7 @@ startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDO
 process=None;monitor=None;report=dict(result='FAIL',command=command,samples=[],
     xbe_sha256=hashlib.sha256((build/'disc/default.xbe').read_bytes()).hexdigest(),
     provenance=json.loads((build/'provenance.json').read_text()),
-    scope='Isolated original DoorOpen_07 sample through APU voice/DSP on stock64MiB XEMU. Checks natural completion, replay of the retained static buffer, eight stop/destroy/recreate cycles, reinitialization, running-voice left/right/mute DSP routing, synthetic periodic PCM intermediate gain calibration, ten injected initialization allocation failures with restored pages, three bank PCM playback/unload cycles with selective voice release while independent right-channel output continues and two reloads, preserved metadata, budget rejection and matching PCM, production adapter sixteen overlapping voices, overflow rejection, slot reuse, stale stop protection, restored available pages and nonzero guest DMA output snapshot. Not a linear audio capture, host audibility, live campaign integration, spatial parity or full backend validation.')
+    scope='Isolated original DoorOpen_07 sample through APU voice/DSP on stock64MiB XEMU. Checks natural completion, replay of the retained static buffer, eight stop/destroy/recreate cycles, reinitialization, running-voice left/right/mute DSP routing, synthetic periodic PCM intermediate gain calibration, ten injected initialization allocation failures with restored pages, three bank PCM playback/unload cycles with injected failed stopped-state observation/retry and selective voice release while independent right-channel output continues and two reloads, preserved metadata, budget rejection and matching PCM, production adapter sixteen overlapping voices, overflow rejection, slot reuse, stale stop protection, restored available pages and nonzero guest DMA output snapshot. Not a linear audio capture, host audibility, live campaign integration, spatial parity or full backend validation.')
 try:
     with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
         environment=dict(os.environ,SDL_AUDIO_DRIVER='dummy')
@@ -70,6 +70,9 @@ try:
                 release_address=int(re.search(r'_rf_apu_single_release\s+([0-9a-fA-F]+)',mapping)[1],16)
                 report['single_voice_release']=words(monitor,release_address,1)[0]
                 assert report['single_voice_release']==3
+                retry_address=int(re.search(r'_rf_apu_release_retry\s+([0-9a-fA-F]+)',mapping)[1],16)
+                report['release_failure_retries']=words(monitor,retry_address,1)[0]
+                assert report['release_failure_retries']==3
                 with wave.open(str(build/'disc/door.wav'),'rb') as source: pcm=source.readframes(source.getnframes())
                 pcm_hash=2166136261
                 for byte in pcm: pcm_hash=((pcm_hash^byte)*16777619)&0xffffffff

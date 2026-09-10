@@ -826,3 +826,18 @@ a continuous dropout recording. Timeout failure injection, automatic campaign
 eviction and physical hardware validation remain open. The previous complete
 backend-reset residency test remains historical evidence; this test now covers
 individual release while another voice remains active.
+
+### Selective-release failed-observation recovery
+
+Stock64MiB XEMU apu-20260910-192909 passes three injected failed stopped-state
+observations followed by release retries. The isolated build modifies only its
+copy of the adapter stopped helper to return failure under a test flag. The
+production adapter and dependency checkout are unchanged. Each release returns
+RF_IO with bank PCM still resident; disabling injection lets the same logical
+handle release successfully, proving the slot was retained on failure. Only then
+does the test unload PCM and confirm independent right-channel APU output.
+
+This exercises the release error branch and recovery, not an actual one-second
+hardware stall, PIO starvation, or the separate backend-shutdown fallback.
+Native report release_failure_retries is3; existing selective release, reload,
+PCM hash, gain and backend lifecycle checks also pass.
