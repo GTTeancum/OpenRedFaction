@@ -27,6 +27,12 @@ typedef struct rf_trigger_actor_facts {
 int rf_trigger_eligible(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
     int32_t now,uint32_t input,uint32_t *eligible);
 
+/* 4bf620: actor center versus trigger sphere, inclusive boundary. No actor
+ * radius or swept contact. Finite coordinates/radius required; signed radius
+ * is squared as in the original. Errors preserve contact. */
+int rf_trigger_sphere_contact(const float center[3],float radius,
+    const float actor_center[3],uint32_t *contact);
+
 typedef struct rf_event_state {
     uint32_t type;float delay;int32_t deadline;
     uint32_t actor,source,flags,mode;

@@ -3,6 +3,21 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+int rf_trigger_sphere_contact(const float center[3],float radius,
+    const float actor_center[3],uint32_t *contact)
+{
+    float delta[3];double distance;uint32_t i;
+    if(!center || !actor_center || !contact)return RF_RANGE;
+    if(!isfinite(radius))return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(center[i]) || !isfinite(actor_center[i]))return RF_FORMAT;
+        delta[i]=(float)((double)center[i]-actor_center[i]);
+        if(!isfinite(delta[i]))return RF_FORMAT;
+    }
+    distance=((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+
+        (double)delta[2]*delta[2];
+    *contact=distance<=(double)radius*radius;return RF_OK;
+}
 int rf_trigger_eligible(const rf_trigger_gate *g,const rf_trigger_actor_facts *a,
     int32_t now,uint32_t input,uint32_t *eligible)
 {

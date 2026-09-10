@@ -620,3 +620,30 @@ artifacts/trigger-eligibility-verification.json. Both builds and six CTests
 pass. This supersedes the earlier unverified eligibility lead, but not the
 remaining contact geometry, live actor predicate resolution, trigger firing
 or per-frame reset/lifecycle work. No XEMU gameplay or new visual claim.
+
+
+## Sphere contact (4bf620)
+
+`rf_trigger_sphere_contact` reconstructs the complete sphere predicate. The
+original subtracts actor position (+3c) from trigger position (+3c), stores
+three float components through 409fa0, then sums their squared values in XYZ
+order through 40a180/4faf00. It accepts distance squared <= trigger radius
+(+78) squared. It does not add actor radius, test a swept path, or reject a
+negative radius before squaring. The port rejects nonfinite coordinates,
+radius and overflowing stored differences while preserving the output.
+
+`tools/verify_trigger_sphere.py` executes unchanged original code and all
+callees, then compares compiled PC and NXDK decisions: 4016 finite cases and
+80 port guards pass. Fixtures cover signed/zero radius, exact and adjacent
+float boundaries on all axes, and scales 2^-30 through 2^30, under explicit
+53-bit nearest x87 arithmetic. Original trigger/actor storage is unchanged.
+This is linked NXDK code execution in Unicorn, not a native XEMU gameplay test.
+
+Next contact evidence: ordinary box branch of 4c0a80 (flag 0x20 clear) calls
+508660 with trigger center +3c, matrix +48, dimensions +2c8 and actor vectors
++e4/+f0. 508660 transforms endpoints into local coordinates, creates bounds
+at +/- half dimensions, calls verified 508b70, and transforms its output
+back even after a miss. Actor vector lifetime/meaning, exact transform
+arithmetic and the directional flag 0x20 branch remain to be reconstructed.
+Do not replace these paths with center-in-box or generic sphere overlap.
+Live actor predicates, dwell/key handling and activation remain open.
