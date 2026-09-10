@@ -2,6 +2,9 @@
 #define RF_SCENE_PREVIEW_H
 #include "rf/material.h"
 #include "rf/preview.h"
+/* Replay-only first movement-region fixture: 1=center, 2=outside near base.
+ * Does not establish ground clearance or replace the authored spawn. */
+int rf_scene_stage_climb(rf_level *level,uint32_t mode);
 /* Follow fixture: 1 MiB world projection plus 1 MiB actor output. */
 #define RF_SCENE_FOLLOW_CAPACITY (2u*1024u*1024u)
 /* Optional port-owned profiling clock in milliseconds; NULL disables. Counts

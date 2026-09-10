@@ -2688,3 +2688,41 @@ not proof that no other player/collision behavior assists climbing elsewhere.
 A look-held-at-the-top probe also re-enters repeatedly, as the parent-Y probe did.
 Test the authored approach, geometry, view and any jump action before deciding
 whether that observation represents missing traversal behavior or fixture setup.
+
+
+Near-base climb approach (2026-09-10)
+
+rf_scene_stage_climb centralizes replay-only setup on both targets. Mode 1 is
+the previous center start; mode 2 offsets along negative region row 2 by
+half-depth+1 and along row 1 by 1-half-height. This is an explicit staged
+starting point, not reconstructed spawning or a guarantee of clearance.
+L1S2's region is centered at (89.144348,-9.387844,-17.428513), size (1,11,1).
+The approach begins on its positive-Z side near the lower floor. Existing
+collision/gravity settles it; no position correction or motion bypass is added.
+
+replay_climb_controls.py --approach uses 220 ticks: look up through 79,
+quarter-strength strafe on 80..129, forward from 130, lower view from 175.
+Move-Y stays zero. The corresponding Xbox --approach mode writes '2' to the
+owned campaign-climb fixture flag and restores its prior contents afterward.
+Native replay-20260910-004650 passes in 64 MiB XEMU: 73 retained climbing
+ticks, 6.431220531 units ascent, one entry/one exit. The retained timeline
+includes 36 prior walking ticks outside the region, covering 0.808611543 units
+(computed from the native ring and matching PC). There are 9444 available pages
+at the final presented frame. All existing native player records match PC.
+The center-start 180-tick PC control case still passes unchanged. Neither
+scenario proves an approach from the authored level player start or upper exit.
+
+The full-speed first side approach crossed the narrow region before enough
+forward/up motion developed; quarter-stick approach avoids that overshoot.
+This changes test inputs only. A separate attempt from the negative-X side was
+blocked before entry; do not infer universal walkability from the passing side.
+
+inspect_climb_ground.py casts 196 downward static rays at four heights over
+an X/Z grid; --movers repeats them with initial mover geometry. The batch probe
+owns and closes geometry/archives before querying the retained collision world.
+Both runs find the same sampled surfaces: lower floor -14.875 (face 3854),
+upper surfaces -4.875 at offset positions (including faces 61,5884,5885), and
+other sloped/intermediate faces. Near the center, rays from -2 hit the lower
+floor. This does not locate every upper surface, establish capsule clearance,
+or account for later mover motion. It narrows the next task to the intended
+upper route/action rather than proving an error in region-exit policy.

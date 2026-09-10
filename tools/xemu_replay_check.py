@@ -3,13 +3,14 @@ import argparse,datetime,hashlib,json,os,re,shutil,socket,subprocess,sys,time
 from pathlib import Path
 from xemu_smoke import Monitor
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');args=p.parse_args()
+if args.approach:args.climb=True
 if args.climb:args.campaign_spawn=True
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu');payload=args.input.read_bytes()
 if not payload or len(payload)%24 or len(payload)>60000*24:raise ValueError('Expected 1..60000 input records')
 frames=len(payload)//24;run=root/'artifacts/xemu'/('replay-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
 source=run/'inputs.bin';source.write_bytes(payload)
-pc=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay' if args.campaign_spawn else '--replay',str(root/'Installed_Game'),str(source),str(run/'pc-final.ppm')],capture_output=True,text=True,check=True,env=dict(os.environ,**({'RF_REPLAY_LEVEL':'L1S2.rfl','RF_REPLAY_REGION_START':'1'} if args.climb else {})))
+pc=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay' if args.campaign_spawn else '--replay',str(root/'Installed_Game'),str(source),str(run/'pc-final.ppm')],capture_output=True,text=True,check=True,env=dict(os.environ,**({'RF_REPLAY_LEVEL':'L1S2.rfl','RF_REPLAY_REGION_START':'2' if args.approach else '1'} if args.climb else {})))
 (run/'pc-reference.txt').write_text(pc.stdout)
 def expected(label):return list(map(int,next(x for x in pc.stdout.splitlines() if x.startswith(label+' ')).split()[1:]))
 if args.campaign_spawn and not args.climb:
@@ -30,7 +31,7 @@ climb_flag=root/'build/xbox/disc/campaign-climb.flag';saved_climb=climb_flag.rea
 process=monitor=None;report={'result':'FAIL','frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True)
 try:
- if args.climb:climb_flag.write_bytes(b'')
+ if args.climb:climb_flag.write_bytes(b'2' if args.approach else b'')
  else:climb_flag.unlink(missing_ok=True)
  replay.write_bytes(payload)
  if args.campaign_spawn:spawn_flag.write_bytes(b'')
@@ -92,6 +93,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      heights=[struct.unpack('<f',struct.pack('<I',r[4]))[0] for r in climbing]
      report['climbing_ticks']=len(climbing);report['climb_vertical_distance']=max(heights)-min(heights) if heights else 0
      assert report['climb_vertical_distance']>1,'Climb ascent missing'
+     if args.approach:
+      timeline=sorted([values[i:i+9] for i in range(0,len(values),9) if values[i]])
+      entry=min(r[0] for r in timeline if r[2]==2)
+      report['retained_outside_ticks']=sum(r[0]<entry and r[1]==0xffffffff and r[2]==1 for r in timeline)
+      positions=[struct.unpack('<3f',struct.pack('<3I',*r[3:6])) for r in timeline if r[0]<entry and r[1]==0xffffffff and r[2]==1]
+      report['outside_distance']=sum((positions[-1][i]-positions[0][i])**2 for i in range(3))**.5 if len(positions)>1 else 0
+      assert report['outside_distance']>.25,'Walking approach missing'
     report['available_pages_at_completion']=d[44]
     replay_state=words(monitor,symbol('rf_player_replay_diagnostic'),4);assert replay_state==[0,frames,frames,0],replay_state
     assert d[37]==frames and d[46]==2097152

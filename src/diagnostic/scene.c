@@ -6,6 +6,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+/* Explicit replay setup, not an authored player-start reconstruction. */
+int rf_scene_stage_climb(rf_level *level,uint32_t mode)
+{
+    rf_level_entity_reader reader;rf_player_movement_region region;float position[3];uint32_t i;int status;
+    if(!level || (mode!=1 && mode!=2))return RF_RANGE;
+    status=rf_level_regions_begin(level,&reader);if(status)return status;
+    status=rf_level_region_next(&reader,&region);if(status)return status;
+    memcpy(position,region.center,12);
+    if(mode==2)for(i=0;i<3;++i) {
+        float side=(float)(-region.matrix[2][i]*(region.size[2]*.5f+1.0f));
+        float up=(float)(region.matrix[1][i]*(1.0f-region.size[1]*.5f));
+        position[i]=(float)((double)position[i]+side+up);
+    }
+    memcpy(level->player_position,position,12);return RF_OK;
+}
 static rf_scene_input_poll player_poll;
 static void *player_context;
 static uint32_t player_frame_limit;

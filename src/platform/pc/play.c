@@ -169,9 +169,7 @@ int main(int argc,char **argv)
     CHECK(path_join(motions,sizeof(motions),directory,"motions.vpp"));
     CHECK(path_join(tables,sizeof(tables),directory,"tables.vpp"));
     if(spawn_profile && p.headless && getenv("RF_REPLAY_REGION_START")) {
-        rf_level_entity_reader reader;rf_player_movement_region region;
-        CHECK(rf_level_regions_begin(&level,&reader));CHECK(rf_level_region_next(&reader,&region));
-        memcpy(level.player_position,region.center,12); /* Explicit staged process-local climb fixture. */
+        CHECK(rf_scene_stage_climb(&level,!strcmp(getenv("RF_REPLAY_REGION_START"),"2")?2:1));
     }
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));

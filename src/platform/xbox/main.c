@@ -673,13 +673,11 @@ int main(void)
             FILE *climb_flag=fopen("D:\\campaign-climb.flag","rb");
             int staged_climb=climb_flag!=NULL;
             live_mines_door_fixture=!staged_climb;
+            int climb_mode=climb_flag && fgetc(climb_flag)=='2'?2:1;
             if(climb_flag)fclose(climb_flag);
             result = rf_level_open(&level, &archive, staged_climb?"L1S2.rfl":"L1S1.rfl");
             if(result==RF_OK && staged_climb) {
-                rf_level_entity_reader reader;rf_player_movement_region region;
-                result=rf_level_regions_begin(&level,&reader);
-                if(!result)result=rf_level_region_next(&reader,&region);
-                if(!result)memcpy(level.player_position,region.center,12);
+                result=rf_scene_stage_climb(&level,(uint32_t)climb_mode);
             }
             if (result == RF_OK) {
                 const rf_level_section *geometry = rf_level_find(&level, 0x100);

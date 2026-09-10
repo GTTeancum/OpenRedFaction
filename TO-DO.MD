@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Verify the authored ladder approach and top-platform traversal after stick-reachable XEMU climbing.
+- [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
@@ -12,6 +12,15 @@ Immediate open items:
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+A near-base approach now passes 220 ticks in stock-64-MiB XEMU
+(20260910-004650), with exact PC timeline/body matching: 0.80861 units of
+retained walking outside the region, then 6.43122 units of climbing and exit.
+Use replay_climb_controls.py --approach and xemu_replay_check.py --approach.
+The start is staged outside the authored region, not the level's player spawn.
+Ground-ray inspection found the lower floor at -14.875 and upper surfaces at
+-4.875 offset from the region; static and initial-mover samples agree. Upper
+traversal still needs its intended route/action identified, not an assumed snap.
 
 Look-directed climbing now passes a 180-tick PC/XEMU replay using only
 commands reachable from the existing controller sticks (no move-Y injection).

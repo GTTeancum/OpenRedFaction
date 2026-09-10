@@ -12,6 +12,35 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    /* Process-local batch rays for inspecting authored static geometry. */
+    if(argc==4 && (!strcmp(argv[1],"--world-rays") || !strcmp(argv[1],"--scene-rays"))) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};rf_geometry_collision_movers movers={0};float ray[6];
+        int combined=!strcmp(argv[1],"--scene-rays");
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) ||
+           rf_geometry_open(&geometry,&level,8u*1024u*1024u))return 3;
+        if(rf_geometry_collision_world_open(&geometry,8u*1024u*1024u,&world))return 4;
+        if(combined) {
+            rf_geometry_movers source={0};uint32_t *ids,i;
+            if(rf_geometry_movers_open(&level,8u*1024u*1024u,&source))return 4;
+            ids=malloc((source.count?source.count:1)*4);if(!ids)return 4;
+            for(i=0;i<source.count;++i)ids[i]=i;
+            i=rf_geometry_collision_movers_open(&source,ids,8u*1024u*1024u,&movers);
+            free(ids);rf_geometry_movers_close(&source);if(i)return 4;
+        }
+        rf_geometry_close(&geometry);rf_vpp_close(&archive);
+        while(fread(ray,sizeof(ray),1,stdin)==1) {
+            struct {int32_t status;uint32_t matched;rf_geometry_world_hit hit;} result={0};
+            if(combined) {
+                rf_collision_solid_hit hit={0};float end[3];uint32_t i;
+                for(i=0;i<3;++i)end[i]=ray[i]+ray[i+3];
+                result.status=rf_geometry_collision_ray(&world,&movers,ray,end,0x26,&hit,&result.matched);
+                result.hit.hit=hit.hit;result.hit.face=hit.face_index;result.hit.room=hit.room;
+                result.hit.hits=hit.object_id; /* Synthetic mover index; UINT32_MAX for static. */
+            } else result.status=rf_geometry_collision_world_ray(&world,0x460,ray,ray+3,1,&result.hit,&result.matched);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 5;
+        }
+        rf_geometry_collision_movers_close(&movers);rf_geometry_collision_world_close(&world);return ferror(stdin)?6:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--world-locate-dump")) {
         rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};
         uint32_t i,j,k,p,n,bytes;void *poison;
