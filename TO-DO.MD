@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Complete startup event actions, propagation and delayed ticking beyond the connected gravity path.
-- [ ] Diagnose L18S1 world-load RF_FORMAT failure and validate late-level startup in native Xbox.
+- [ ] Validate late-level startup and levels without movers in native Xbox.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
@@ -15,6 +15,11 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+L18S1 world loading is fixed: absent mover sections are valid and now produce
+an empty retained mover owner. The old -3 error was RF_NOT_FOUND, not RF_FORMAT.
+All four rendered PC gravity-level checks pass; late-level native Xbox checks
+remain open. Existing malformed mover data is still rejected.
 
 Startup auto dispatch now activates registered events and applies Set_Gravity
 in the scene, while counting unsupported actions/targets, scripts, propagation

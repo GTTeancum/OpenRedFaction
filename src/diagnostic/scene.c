@@ -151,7 +151,9 @@ int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
     if(!geometry || geometry->world || geometry->movers.data || geometry->offsets || geometry->slots ||
         !mesh || mesh->vertices || mesh->bytes || !materials || materials->items || materials->count)return RF_RANGE;
     rf_scene_profile_stage[1]=10;
-    status=rf_geometry_movers_open(level,1024*1024,&movers);if(status)goto done;
+    status=rf_geometry_movers_open(level,1024*1024,&movers);
+    if(status==RF_NOT_FOUND) {movers.allocated_bytes=sizeof(movers);status=RF_OK;}
+    if(status)goto done;
     if(rf_scene_showcase_enabled) {
         /* Half the authored endpoint displacement for both pairs of exit panels.
          * Values originate in L1S1 section 3000, keys 8591..8594 and 8603..8606. */
