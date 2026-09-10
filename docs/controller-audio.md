@@ -687,3 +687,23 @@ nonpositive near distance becomes1, wrapper category is0, and a differently
 cased duplicate with changed parameters/category preserves all64 record bytes
 and the registry count. This verifies original precedence, not table parsing,
 initialization order, metadata flag semantics or a new runtime implementation.
+
+### Table scope and startup gate
+
+`python tools/inspect_sound_table.py` inventories all88 installed sound rows and
+compares names against controller records across68 levels. Exactly one overlaps:
+L14S3.rfl, Tram Door Right, slot0, Switch_01.wav. Its controller volume is1; table
+row37 specifies near6, volume0.9, rolloff1. L1S1 controller sounds have no overlap.
+The extracted table SHA256 is
+9e42163f04e24aaf65ce41d8fc3879253882cf425b715706c0643214adc33d5a.
+The tool reads archived data without checking original assets into Git; its
+strict inventory parser is not claimed to reproduce the original parser.
+
+Additional original-code trace:506270 returns byte017543d8, which506170 sets
+to1 after successful543310 audio initialization.434880 loads foley.tbl;505480
+is empty. The sound-table initializer4346f0 is called at4b22f4 in the case1
+path of4b1e70. Controller construction469250 is called at463bf3 in463820,
+whose direct caller is460f9e. Connecting those startup/level paths and checking
+registry resets remains necessary before claiming precedence during level loads.
+Do not preload all table PCM just to retain defaults: metadata precedence and
+resident sample ownership must remain separate under the64MiB budget.

@@ -24,6 +24,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Sound-table inventory finds one controller overlap across68 levels (L14S3
+Switch_01.wav); startup/level ordering still needs verification before integration.
+
 Initial audio gains now precede playback on PC/Xbox; muted-start checks and
 stock64MiB integrated door replay pass with unchanged spatial telemetry.
 
