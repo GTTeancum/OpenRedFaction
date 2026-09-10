@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Connect verified edge-triggered jump input and jump gates to campaign state and audio.
+- [ ] Integrate original jump-flag/support-update ordering before enabling live jump input and audio.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -13,6 +13,12 @@ Immediate open items:
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Jump integration exposed a support-update dependency: the diagnostic landing
+loop can cancel takeoff while its probe still sees the floor. Original
+487f73..487fc9 passes 2,048 dispatch cases and bypasses support when actor
+flag 2 is set. The owned-player update clears that flag; its ordering with
+physics must be matched before live input is enabled. No landing delay added.
 
 Original default jump binding is now verified as edge-triggered: type 0,
 key 0x39, with no secondary keyboard or mouse binding. All 48 original-query

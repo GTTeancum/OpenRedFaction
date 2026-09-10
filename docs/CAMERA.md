@@ -2864,3 +2864,37 @@ menu/text-entry predicates are not reconstructed by this harness. Next connect
 rising-edge PC/controller jump input, preserve the recovered jump-request gates,
 and synchronize velocity/fall flags with the campaign body before live replays.
 Neither holding jump to auto-repeat nor a climbing boost follows this evidence.
+
+
+Jump support-update dependency (2026-09-10)
+
+Live wiring review found the diagnostic landing block in scene.c immediately
+calls rf_physics_static_land for mode 3 plus a nearby walkable ground hit.
+Simply setting jump velocity/mode before this block could immediately clear
+that velocity. The input binding is therefore still unconnected while the
+original ordering is recovered; no invented grace period or velocity-only
+landing rule has been added.
+
+inspect_jump_support.py executes prepared 487f73..487fc9, immediately after
+the actor's 41e4b0 update. Actor+810 bit 2 takes precedence: invoke 4281a0 and
+skip 4a0840 support handling. Without that bit, actual 42a020 selects support
+for modes 3/8 or kind-one actors with attachment+1380 equal to -1. Otherwise
+mode 1 requires parent+200 == -1 and at least one of the preceding moved flag,
+physics+1a8 bit 0x400000, or object+7c bit 8 (actual 4895d0). Other cases skip
+both. The harness supplies kind-one and fall/support call boundaries; it does
+not run world collision or the preceding actor update.
+
+All 2,048 combinations of 16 movement modes and the seven binary conditions
+pass exact branch/call checks, stack balance and seeded entity preservation.
+Generated report: artifacts/jump-support-dispatch.json. Contrary to an early
+working inference, airborne modes still use 4a0840 once actor flag 2 is clear;
+this evidence does not justify replacing support with contact-only landing.
+
+Raw 42a8e0 returns true only for object+7c bit 8 and nonnull owner+1430. In
+41e4b0, the flag is cleared when that predicate is false (41ebb5 vicinity).
+A separate owned-player update, containing entry 4aa6d0, consumes actor bit 2
+at 4aadb5: it conditionally calls 4a9380(player,9), then clears the bit. These
+are disassembly/decompiler findings, not yet full update-order execution proof.
+Recover the ordering of this consumer, physics and input before connecting the
+shared jump function to the diagnostic scene. This is required to avoid both
+cancelled takeoff and a permanently suppressed support probe.
