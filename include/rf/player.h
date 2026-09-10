@@ -65,6 +65,16 @@ typedef int (*rf_player_try_stand)(void *context,uint32_t *stood);
 int rf_player_climb_exit(rf_player_climb_state *state,const rf_player_climb_exit_input *input,
     uint32_t *selected_descriptor,rf_player_try_stand stand,void *context);
 
+typedef struct rf_player_jump_gate {
+    uint32_t entity_present,override_enabled;
+    int32_t game_state,control_kind,parent_kind; /* -1 for absent objects. */
+    uint32_t actor_flags,key_29_held;
+} rf_player_jump_gate;
+/* 4a6210 action 3 plus 4a5c00, after action-query/global dispatch gates.
+ * This selects a jump request; the jump routine may still reject it.
+ * No edge parameter: the original action-3 branch ignores that argument. */
+uint32_t rf_player_jump_enabled(const rf_player_jump_gate *gate);
+
 /* 4288b0 / 4281a0 fields retained by the jump transition. */
 typedef struct rf_player_jump_state {
     uint32_t actor_flags,physics_flags;

@@ -2797,3 +2797,35 @@ live input binding or XEMU gameplay evidence. Recover action gates, wire the
 configured jump strength and body flags into campaign ownership, then validate
 press/hold/release and landing through process-local PC/XEMU replays. The upper
 climb exit and route from the authored spawn remain separate open questions.
+
+
+Jump request gating (2026-09-10)
+
+inspect_jump_dispatch.py executes 4a6210 with action 3, including 4a5c00,
+4a5b30, 429f90, 427020 and the actual 51f220 keyboard-state read. Only object
+lookup/type (426fc0,40a0e0,486c90), game-state query 434200 and the final jump
+boundary are supplied. The branch rejects missing entities, nonzero 64ecb9
+with game state 34, control kind 5 from player+b4, parent kind 4 from entity+200,
+actor+810 bit 0, and nonzero keyboard-state byte 18868f4+0x29. Types are resolved
+values, not object category codes. This does not name key 0x29 or recreate the
+keyboard backend. The original branch ignores the third (edge) argument.
+
+rf_player_jump_enabled mirrors those resolved conditions. All 864 combinations
+of entity presence, override 0/1/2, game states 0/34, absent/nonblocking/blocking
+control and parent kinds, actor bit, keyboard state, and edge argument pass.
+Original dispatcher execution preserves the seeded player/entity bytes and
+calls jump zero or one times. verify_jump_gate.py compares PC and compiled
+NXDK results exactly, with input preservation and an NXDK null-gate check.
+Both builds succeed; the 6,144 shared jump-transition cases still pass.
+Generated reports: artifacts/jump-dispatch.json and jump-gate-verification.json.
+
+The direct caller found at 430e3e is the action loop in 430c70. Its 436320
+outer lock must allow dispatch, and 43d4f0 must return an active action. Review
+of 43d4f0 shows 28-byte binding records at controls+c+action*28, a type field
+at record+8, two keyboard bindings at +14/+16, and a mouse binding at +18.
+Type 1 permits held-state queries as well as edge queries; other types omit
+the held keyboard/mouse checks. Wheel direction has its own path. The query
+also consults 444ac0,43d470 and 50b520. These are disassembly/decompiler findings,
+not yet an executed input-query reconstruction. Recover jump's actual binding
+record/type and those locks before choosing press/hold semantics for the port.
+No live input, XEMU jumping or audio playback is added by this gate change.

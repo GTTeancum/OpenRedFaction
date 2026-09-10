@@ -2,6 +2,13 @@
 #include "rf/collision.h"
 #include <string.h>
 #include <math.h>
+uint32_t rf_player_jump_enabled(const rf_player_jump_gate *gate)
+{
+    return gate && gate->entity_present &&
+        !(gate->override_enabled && gate->game_state==34) &&
+        gate->control_kind!=5 && gate->parent_kind!=4 &&
+        !(gate->actor_flags&1) && !gate->key_29_held;
+}
 int rf_player_jump(rf_player_jump_state *state,const rf_player_jump_input *input,
     uint32_t *selected_descriptor,rf_player_jump_sound sound,void *context)
 {

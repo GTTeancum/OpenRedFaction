@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Connect recovered jump handling to original action gates, campaign input and audio.
+- [ ] Recover jump binding press/hold policy and connect verified jump gates to campaign input and audio.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -13,6 +13,11 @@ Immediate open items:
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Shared jump-request gating now matches 864 original dispatcher cases on PC
+and compiled NXDK. Control kind 5, parent kind 4, actor bit 0, override state
+34 and keyboard state 0x29 can reject the request. Binding type and the outer
+input lock still need recovery before connecting live press/hold behavior.
 
 Original jump/fall execution now passes 6,144 fixtures plus a null-entity check.
 The shipped maximum jump height is 1.33, giving impulse 5.105683327. Mode 2
