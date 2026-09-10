@@ -58,15 +58,16 @@ static double emission_range(rf_random_state *random,float low,float high)
     uint32_t draw;rf_random_next(random,&draw);
     return ((double)high-low)*((double)draw/32768.0)+low;
 }
-int rf_particle_emitter_emit(rf_particle_pool *pool,rf_particle_emitter *emitter,
-    uint32_t handle,int32_t now_ms,rf_random_state *random,uint32_t *index)
+int rf_particle_emitter_emit_parent(rf_particle_pool *pool,rf_particle_emitter *emitter,
+    uint32_t handle,int32_t now_ms,const rf_particle_emitter_parent *parent,
+    rf_random_state *random,uint32_t *index)
 {
     rf_particle_emitter value;rf_random_state rng;float speed;double projection,delay;
-    unsigned i;int status;
+    unsigned i;int status;uint32_t owner;float direction[3];double inverse;
     if(!pool_valid(pool) || !emitter || !random || !index || !handle ||
        handle>pool->list_count-5 || now_ms<0 || now_ms>RF_TIMER_PERIOD)return RF_RANGE;
-    if(emitter->owner>=0)return RF_NOT_FOUND;
-    value=*emitter;rng=*random;
+    value=*emitter;rng=*random;owner=(uint32_t)value.owner;
+    if(value.owner<0)parent=NULL;
     if(!isfinite(value.direction_random) || !isfinite(value.min_velocity) ||
        !isfinite(value.max_velocity) || !isfinite(value.spawn_radius) ||
        !isfinite(value.min_spawn_delay) || !isfinite(value.max_spawn_delay) ||
@@ -76,18 +77,36 @@ int rf_particle_emitter_emit(rf_particle_pool *pool,rf_particle_emitter *emitter
        !isfinite(value.min_radius) || !isfinite(value.max_radius))return RF_RANGE;
     for(i=0;i<3;i++) {
         if(!isfinite(value.position[i]) || !isfinite(value.direction[i]))return RF_RANGE;
-        value.spawn.position[i]=value.position[i];value.spawn.velocity[i]=value.direction[i];
+        value.spawn.position[i]=value.position[i];direction[i]=value.direction[i];
     }
+    if(parent && !(value.flags&0x40u)) {
+        for(i=0;i<9;i++)if(!isfinite(parent->basis[i]))return RF_RANGE;
+        for(i=0;i<3;i++) {
+            if(!isfinite(parent->position[i]))return RF_RANGE;
+            value.spawn.position[i]=(float)(((double)value.position[2]*parent->basis[6+i]+
+                (double)value.position[1]*parent->basis[3+i])+(double)value.position[0]*parent->basis[i]);
+            value.spawn.position[i]+=parent->position[i];
+            direction[i]=(float)(((double)value.direction[2]*parent->basis[6+i]+
+                (double)value.direction[1]*parent->basis[3+i])+(double)value.direction[0]*parent->basis[i]);
+        }
+        inverse=1.0/sqrt(((double)direction[0]*direction[0]+(double)direction[1]*direction[1])+
+                        (double)direction[2]*direction[2]);
+        for(i=0;i<3;i++) {
+            direction[i]=(float)((double)direction[i]*inverse);
+            if(!isfinite(direction[i]))return RF_RANGE;
+        }
+    }
+    for(i=0;i<3;i++)value.spawn.velocity[i]=direction[i];
     if(value.direction_random<1) {
         if(value.direction_random<-1)value.direction_random=-1;
-        status=rf_particle_cone_oriented(value.direction,value.direction_random,&rng,value.spawn.velocity);
+        status=rf_particle_cone_oriented(direction,value.direction_random,&rng,value.spawn.velocity);
         if(status)return status;
     }
     for(i=0;i<3;i++)value.spawn.position[i]+=(float)((double)value.spawn.velocity[i]*value.spawn_radius);
     speed=(float)emission_range(&rng,value.min_velocity,value.max_velocity);
     if(value.flags&8u) {
-        projection=((double)value.spawn.velocity[2]*value.direction[2]+(double)value.spawn.velocity[1]*value.direction[1])+
-                    (double)value.spawn.velocity[0]*value.direction[0];
+        projection=((double)value.spawn.velocity[2]*direction[2]+(double)value.spawn.velocity[1]*direction[1])+
+                    (double)value.spawn.velocity[0]*direction[0];
         speed=(float)(projection*speed);
     }
     for(i=0;i<3;i++) {
@@ -96,11 +115,28 @@ int rf_particle_emitter_emit(rf_particle_pool *pool,rf_particle_emitter *emitter
     }
     value.spawn.radius=(float)emission_range(&rng,value.min_radius,value.max_radius);
     value.spawn.life=(float)emission_range(&rng,value.min_life,value.max_life);
-    status=rf_particle_pool_create(pool,1,&value.spawn,(uint32_t)value.owner,value.room,handle,&rng,index);
+    if(parent) {
+        if(value.flags&0x80u) {
+            owner=parent->handle;
+            for(i=0;i<3;i++) {
+                value.spawn.velocity[i]+=parent->velocity[i];
+                if(!isfinite(value.spawn.velocity[i]))return RF_RANGE;
+            }
+        }
+        if(parent->remaining_life>0 && (parent->class_flags&0x40u))owner=parent->handle;
+    }
+    status=rf_particle_pool_create(pool,1,&value.spawn,owner,value.room,handle,&rng,index);
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     delay=emission_range(&rng,value.min_spawn_delay,value.max_spawn_delay)*1000.0;
     rf_timer_set(&value.deadline,now_ms,(int32_t)delay);
     *emitter=value;*random=rng;return status;
+}
+
+int rf_particle_emitter_emit(rf_particle_pool *pool,rf_particle_emitter *emitter,
+    uint32_t handle,int32_t now_ms,rf_random_state *random,uint32_t *index)
+{
+    if(emitter && emitter->owner>=0)return RF_NOT_FOUND;
+    return rf_particle_emitter_emit_parent(pool,emitter,handle,now_ms,NULL,random,index);
 }
 
 int rf_particle_pool_detach(rf_particle_pool *pool,uint32_t emitter)

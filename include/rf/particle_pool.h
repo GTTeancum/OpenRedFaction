@@ -42,6 +42,20 @@ typedef struct rf_particle_emitter {
  * in [0, TIMER_PERIOD/1000] required. No allocation. Arguments must not alias. */
 int rf_particle_emitter_emit(rf_particle_pool *pool,rf_particle_emitter *emitter,
     uint32_t handle,int32_t now_ms,rf_random_state *random,uint32_t *index);
+/* Resolved original object fields at 3c/48/144/2c/34 and class flags from
+ * 4c90f0 (flag bit 0x40). Invalid class indices supply class_flags=0.
+ * Registry lookup and object lifetime remain caller responsibilities. */
+typedef struct rf_particle_emitter_parent {
+    float position[3],basis[9],velocity[3];
+    uint32_t handle;float remaining_life;uint32_t class_flags;
+} rf_particle_emitter_parent;
+/* 496bc0 + 496c50 with an explicit resolved parent; NULL represents a failed
+ * lookup. A negative emitter owner ignores parent. Preserves authored position,
+ * direction and owner, while particle ownership follows inheritance rules.
+ * Other contracts match emit(). Degenerate transformed direction is RF_RANGE. */
+int rf_particle_emitter_emit_parent(rf_particle_pool *pool,rf_particle_emitter *emitter,
+    uint32_t handle,int32_t now_ms,const rf_particle_emitter_parent *parent,
+    rf_random_state *random,uint32_t *index);
 /* 497230: append emitter-owned particles to detached list, preserving order
  * and live counts. Clears their emitter handle; particles remain alive. */
 int rf_particle_pool_detach(rf_particle_pool *pool,uint32_t emitter);

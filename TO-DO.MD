@@ -17,9 +17,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Parentless emitter emission now matches 2048 full original/PC/NXDK cases,
-including packet, particle, RNG and timer reset on successful/exhausted pools.
-Recover parent-owned emission and connect campaign scheduling and rendering.
+Parentless and attached emission each match 2048 original/PC/NXDK cases,
+including transforms, inherited velocity, packet, particle, RNG and timer.
+Connect resolved campaign parent views, scheduling, simulation and rendering.
 
 Real boom01 frames 0/7/15 pass six PC/XEMU draws: 1536 samples differ by at
 most one RGB unit, and guest pages return to baseline after image release.

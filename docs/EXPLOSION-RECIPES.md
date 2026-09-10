@@ -381,3 +381,33 @@ ranges and delay ranges. It also checks live counts and the emitter list head.
 Six CTest tests pass. NXDK comparison uses Unicorn; no native live-emitter or
 campaign rendering claim follows from this result. Attached emitters and the
 campaign tick/render connection remain open.
+
+
+## Attached emitter emission
+
+`rf_particle_emitter_emit_parent` extends the shared path with a caller-owned
+72-byte resolved parent view. Original 0x496bc0 transforms authored position
+and direction by the parent's basis, adds parent position, and normalizes the
+transformed direction unless emitter flag 0x40 is set. The position and direction
+stored in the emitter remain authored values. A missing parent leaves those
+values untransformed; a negative owner skips lookup and ignores a supplied view.
+
+Original 0x496c50 adds parent velocity when emitter flag 0x80 is set, even when
+flag 0x40 bypasses the transform. Particle ownership selects the parent handle
+for velocity inheritance, or when parent +0x34 is positive and class flag 0x40
+is set. Original 0x4c90f0 bounds-checks class index and reads that flag from
+0x85cf70 + index*1360; invalid class indices contribute zero flags. The caller
+must supply the matching resolved object and class view, with valid lifetime.
+The existing parentless API retains its explicit nonnegative-owner rejection.
+
+`tools/verify_particle_emission_parent.py` executes 2048 full original emissions
+with actual 0x40a0e0 object lookup and 0x4c90f0 class predicate, in addition to
+unchanged transform, random, allocation and timer routines. Emitter state,
+particle payload, RNG and deadline match PC/NXDK exactly after translating
+links/handles. Coverage includes absent/ignored parents, translation, rotation,
+nonunit basis, movement/velocity flag combinations, class index bounds, positive
+and nonpositive lifetime fields, and pool exhaustion. All 2048 parentless cases
+still agree, both builds succeed and six CTest checks pass. Degenerate transformed
+directions are explicitly rejected by the finite C API. This has not connected
+campaign parent lifecycles, simulation or rendering and is not a native visual
+validation; compiled NXDK routines are compared through Unicorn.
