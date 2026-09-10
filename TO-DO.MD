@@ -17,6 +17,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Particle geometry submission now matches 2048 full original/PC/NXDK cases,
+including clipping, projection and depth override (1178 submitted, 870 rejected).
+Connect texture residency, color/fog conversion and native backend drawing.
+
 UV-only particle polygon clipping now matches 2048 original/PC/NXDK cases,
 including temporary-vertex reuse, duplicate intersections and six input guards.
 Connect clipped vertices to projection, depth override and native drawing.

@@ -193,6 +193,47 @@ int rf_particle_project(const rf_particle_projection *projection,rf_particle_pro
     value.screen[1]=(float)((double)projection->half_height*y+projection->origin_y);
     *point=value;return RF_OK;
 }
+int rf_particle_billboard_project(const rf_particle_projection *projection,
+    const rf_particle_clip_environment *environment,const rf_particle_billboard_packet *packet,
+    rf_particle_screen_polygon *polygon)
+{
+    rf_particle_clipped_polygon clipped;rf_particle_screen_polygon result={0};
+    uint32_t and_code=255,or_code=0,i,j;int status;
+    if(!projection || !environment || !packet || !polygon)return RF_RANGE;
+    if(!isfinite(packet->depth) || !isfinite(projection->depth_offset) ||
+       !isfinite(projection->half_width) || !isfinite(projection->half_height))return RF_RANGE;
+    for(i=0;i<4;i++) {
+        and_code&=packet->vertices[i].clip;or_code|=packet->vertices[i].clip;
+        for(j=0;j<3;j++)if(!isfinite(packet->vertices[i].vertex.position[j]))return RF_RANGE;
+        for(j=0;j<2;j++)if(!isfinite(packet->vertices[i].vertex.uv[j]))return RF_RANGE;
+    }
+    if(and_code){*polygon=result;return RF_OK;}
+    if((projection->clamp&255u) && or_code) {
+        status=rf_particle_billboard_clip(environment,packet,&clipped);
+        if(status!=RF_OK)return status;
+        if(!clipped.count || clipped.clip_and){*polygon=result;return RF_OK;}
+    } else {
+        clipped.count=4;
+        for(i=0;i<4;i++)clipped.vertices[i]=packet->vertices[i];
+    }
+    for(i=0;i<clipped.count;i++) {
+        rf_particle_projected_point point={0};
+        for(j=0;j<3;j++)point.camera[j]=clipped.vertices[i].vertex.position[j];
+        point.clip=(uint8_t)clipped.vertices[i].clip;
+        status=rf_particle_project(projection,&point);if(status!=RF_OK)return status;
+        if(point.flags&2u){*polygon=(rf_particle_screen_polygon){0};return RF_OK;}
+        /* Screen coordinates were computed using the original corner depth. */
+        point.camera[2]=packet->depth;point.reciprocal_z=(float)(1.0/(double)packet->depth);
+        for(j=0;j<3;j++)result.vertices[i].camera[j]=point.camera[j];
+        for(j=0;j<2;j++) {
+            result.vertices[i].screen[j]=point.screen[j];
+            result.vertices[i].uv[j]=clipped.vertices[i].vertex.uv[j];
+        }
+        result.vertices[i].reciprocal_z=point.reciprocal_z;
+    }
+    result.count=clipped.count;*polygon=result;return RF_OK;
+}
+
 int rf_particle_billboard_build(const float center[3],float angle,float radius,
     uint32_t width,uint32_t height,const float scale[2],rf_particle_billboard_vertex out[4])
 {

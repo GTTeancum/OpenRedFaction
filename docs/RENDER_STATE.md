@@ -171,3 +171,32 @@ This coverage is the UV-only particle pass (original draw flag 1), not clipping
 of arbitrary world geometry with per-vertex color, lightmaps or custom planes.
 Connecting clipped vertices to projection, depth override, native backends and
 live campaign effects remains open. No new GPU output is claimed by these tests.
+
+## Projected particle submission
+
+`rf_particle_billboard_project` joins trivial rejection, optional polygon
+clipping, point projection and the final billboard depth override in the order
+of original 0x5587c0. Its caller-owned output is 388 bytes, holding up to twelve
+32-byte vertices (camera XYZ, screen XY, reciprocal Z and UV). Rejected
+polygons return an empty result. Invalid input preserves the output.
+
+`tools/verify_particle_submission.py` executes the full unchanged 0x5587c0,
+including original polygon clipping, projection and temporary-vertex cleanup.
+The 0x551900 call records its submitted vertices instead of drawing. All
+submission fields and draw/reject decisions match PC and compiled NXDK C in
+2048 cases: 1178 submitted and 870 rejected. Counts among submissions are
+3:7, 4:1079, 5:82 and 6:10. Cases vary projection clamp low-byte behavior,
+projection depth offset, clipping enable, far plane, position and orientation.
+No scene camera or renderer is assumed by this fixture-driven test.
+
+Clipping is gated by the projection clamp byte and the original OR mask;
+trivial AND-mask rejection occurs regardless of that gate. Each surviving
+point is projected using its unbiased position, then camera Z and reciprocal
+Z are replaced with the billboard override. The screen coordinates and UVs
+remain unchanged. Zero override depth retains the original infinity behavior
+under the verified masked floating-point environment. The helper does not
+reproduce original pointer identity or temporary flags in its public output.
+
+Backend conversion, texture residency/binding, color/fog conversion, batching,
+GPU rasterization and live campaign emitter execution remain open. This
+submission evidence does not claim that visible particles are integrated.

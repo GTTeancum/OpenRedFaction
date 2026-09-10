@@ -196,6 +196,22 @@ typedef struct rf_particle_render_states {
 int rf_particle_render_decode(uint32_t mode,const rf_particle_render_environment *environment,
     rf_particle_render_states *states);
 
+typedef struct rf_particle_screen_vertex {
+    float camera[3],screen[2],reciprocal_z,uv[2];
+} rf_particle_screen_vertex;
+typedef struct rf_particle_screen_polygon {
+    uint32_t count;
+    rf_particle_screen_vertex vertices[12];
+} rf_particle_screen_polygon;
+/* 5587c0 UV-only billboard path through 551900 submission: trivial rejection,
+ * optional polygon clipping, point projection, then billboard depth override.
+ * A rejected polygon returns RF_OK with count zero. Invalid inputs preserve
+ * output. Zero override depth retains original IEEE infinity behavior.
+ * No GPU call, texture binding, color conversion or batching occurs here. */
+int rf_particle_billboard_project(const rf_particle_projection *projection,
+    const rf_particle_clip_environment *environment,const rf_particle_billboard_packet *packet,
+    rf_particle_screen_polygon *polygon);
+
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */
     int32_t started; /* +154 deadline. */
