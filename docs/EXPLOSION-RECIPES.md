@@ -648,3 +648,27 @@ converter matches all 174 complete templates, including retained fields, via
 This verifies conversion separately from original byte-stream parsing, resource
 loading and campaign creation; NXDK code runs in Unicorn. Texture and room
 binding and campaign updates remain open.
+
+
+## Installed emitter resource and room checks
+
+The collision probe's --level-emitter-bind mode now reads each installed emitter,
+locates its authored position through rf_geometry_collision_world_locate, and
+loads frame zero through rf_particle_bitmap_open using maps1..maps4 in order.
+It closes each image before continuing. Geometry and collision-world builders
+use their existing 8 MiB budgets; image decode has a separate 1 MiB budget.
+This diagnostic does not retain all particle textures or create runtime emitters.
+
+`tools/verify_level_emitter_binding.py` checks all 87 emitters across 20 levels.
+Every position resolves to a room and every image decodes. Nine unique TGA names
+are used; decoded dimensions match archive TGA headers, all have one frame, and
+resident accounting matches the 36-byte record plus RGBA pixels. L1S1 UIDs 9576
+and 9907 both resolve to room index 49 and use maps3.vpp/watermist_noalpha.tga,
+a 64x64 format-6 image requiring 16420 bytes per independently loaded resource.
+They can share one image in a future cache; that sharing is not yet implemented.
+
+The PC build and six CTest checks pass. This is a PC integration check using
+existing reconstructed locator/decoder code, not a new original-room replay,
+NXDK execution, simultaneous memory-budget proof or campaign visual. Persistent
+texture ownership, emitter registration, owner eligibility and frame/render
+integration remain open.

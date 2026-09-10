@@ -2,6 +2,7 @@
 #include "rf/collision.h"
 #include "rf/geometry.h"
 #include "rf/preview.h"
+#include "rf/material.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
@@ -24,6 +25,35 @@ int main(int argc,char **argv)
             if(fwrite(&emitter,sizeof(emitter),1,stdout)!=1)return 6;
         }
         rf_vpp_close(&archive);return status==RF_NOT_FOUND?0:7;
+    }
+    if(argc==5 && !strcmp(argv[1],"--level-emitter-bind")) {
+        rf_vpp archive,maps[4];rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};
+        rf_level_emitter_reader reader;rf_level_emitter emitter;uint32_t i;int status;char path[1024];
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) ||
+           rf_geometry_open(&geometry,&level,8u*1024u*1024u))return 3;
+        if(rf_geometry_collision_world_open(&geometry,8u*1024u*1024u,&world))return 4;
+        rf_geometry_close(&geometry);
+        for(i=0;i<4;i++) {
+            if(snprintf(path,sizeof(path),"%s/maps%u.vpp",argv[4],i+1)<0 || rf_vpp_open(&maps[i],path))return 5;
+        }
+        status=rf_level_emitters_begin(&level,&reader);if(status)return 6;
+        while((status=rf_level_emitter_next(&reader,&emitter))==RF_OK) {
+            struct {uint32_t uid;int32_t room_status,image_status;rf_collision_room_location location;
+                uint32_t width,height,resident,format,frames,archive;} out={0};
+            rf_particle_definition definition={0};rf_particle_bitmap bitmap={0};
+            if(strlen(emitter.bitmap)>=sizeof(definition.bitmap))return 7;
+            strcpy(definition.bitmap,emitter.bitmap);out.uid=emitter.uid;
+            out.room_status=rf_geometry_collision_world_locate(&world,emitter.position,&out.location);
+            out.image_status=rf_particle_bitmap_open(&bitmap,&definition,maps,4,0,1024u*1024u);
+            if(!out.image_status) {
+                out.width=bitmap.image.width;out.height=bitmap.image.height;out.resident=bitmap.resident_bytes;
+                out.format=bitmap.image.source_format;out.frames=bitmap.frames;out.archive=bitmap.archive_index;
+            }
+            rf_particle_bitmap_close(&bitmap);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 8;
+        }
+        for(i=0;i<4;i++)rf_vpp_close(&maps[i]);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);
+        return status==RF_NOT_FOUND?0:9;
     }
     /* Process-local batch rays for inspecting authored static geometry. */
     if(argc==4 && (!strcmp(argv[1],"--world-rays") || !strcmp(argv[1],"--scene-rays"))) {
