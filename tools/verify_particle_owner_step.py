@@ -23,14 +23,14 @@ for case in range(2048):
  # Actual handle registry, level entry vector and enable accessor; no lookup stubs.
  mode=case%8;owner=(-1,0,0x10000,0x10000,0x10000,0x10000,0x10000,0x10000)[mode]
  struct.pack_into('<I',p,8,owner&0xffffffff)
- obj=base+0x8000;entries=base+0x9000;level_entry=base+0xa000;runtime=base+0xb000
+ obj=base+0x8000;entries=base+0x9000;level_entry=base+0xa000;room=base+0xb000
  put(0x7394cc,obj if mode>=2 else 0);put(obj+0x2c,0x10000 if mode!=7 else 0x20000);put(obj+0x20,77)
  found=mode>=3 or mode==0;present=mode>=4;enabled=(0,1,255,256)[case//8%4]
  lookup_uid=-1 if mode in (0,1,7) else 77
  put(0x646080,2 if found else 0);put(0x646088,entries)
  put(entries,level_entry+0x100);put(level_entry+0x100,88)
- put(entries+4,level_entry);put(level_entry,lookup_uid&0xffffffff);put(level_entry+0x4c,runtime if present else 0)
- put(runtime+0x160,enabled)
+ put(entries+4,level_entry);put(level_entry,lookup_uid&0xffffffff);put(level_entry+0x4c,room if present else 0)
+ put(room+0x160,enabled)
  gate=struct.pack('<3I',found,present,enabled)
  frozen+=owner>=0 and found and (not present or not (enabled&255))
 
@@ -50,5 +50,5 @@ for case in range(2048):
 actual_pc=subprocess.check_output([str(c['ctx']['probe']),'--particle-step-resolved'],input=commands)
 assert len(actual_pc)==len(expected)
 assert actual_pc==expected,[(i//148,i%148,a,b) for i,(a,b) in enumerate(zip(actual_pc,expected)) if a!=b][:20]
-report=dict(result='PASS',cases=2048,expired=expired,frozen=frozen,bounds_expanded=expanded,scope='Full original 495120 with actual handle lookup 40a0e0, first-match level entry lookup 45d630, runtime enable accessor 497390 and simulation callees versus PC/NXDK resolved owner gate. Missing/stale handles, missing entries/runtimes, low-byte enable and negative-owner bypass; exact particle/count/bounds including frozen previous-position copy. Caller lookup integration and collision/swirl/wind/damage remain excluded.')
+report=dict(result='PASS',cases=2048,expired=expired,frozen=frozen,bounds_expanded=expanded,scope='Full original 495120 with actual handle lookup 40a0e0, first-match level entry lookup 45d630, room-byte accessor 497390 and simulation callees versus PC/NXDK resolved owner gate. Missing/stale handles, missing entries/rooms, low-byte visibility and negative-owner bypass; exact particle/count/bounds including frozen previous-position copy. Caller lookup integration and collision/swirl/wind/damage remain excluded.')
 (root/'artifacts/particle-owner-step-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

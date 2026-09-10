@@ -41,22 +41,23 @@ Original `495120` copies current position to previous position before checking
 ownership. Negative handles bypass lookup. Other handles use `40a0e0` (including
 generation validation), then take object UID at +0x20, or -1 for a missing object.
 `45d630` searches the vector at 0x646080 for the first level entry with that UID.
-No matching entry allows simulation. A match calls `497390`: a null runtime at
-entry +0x4c freezes simulation, otherwise its enable byte at +0x160 decides.
+No matching entry allows simulation. A match calls `497390`: a null room pointer at
+emitter +0x4c freezes simulation, otherwise the room byte at +0x160 decides.
+This is a room eligibility check, independent of emitter enable at +0x140.
 Freezing still commits the previous-position copy, without aging or expiry.
 
-The shared gate contains resolved entry presence, runtime presence and enable
-value. Only the low enable byte matters. Nonnegative owners require a supplied
+The shared gate contains resolved entry presence, room presence and room visibility
+value. Only the low visibility byte matters. Nonnegative owners require a supplied
 gate; missing caller information is not treated as a failed original lookup.
 The existing unowned API retains its rejection of nonnegative owners. Collision,
 swirl, wind and damage remain unsupported for advancing particles.
 
 `verify_particle_owner_step.py` executes full original `495120`, actual handle
-and level-vector lookups, enable accessor and simulation helpers against the
+and level-vector lookups, room accessor and simulation helpers against the
 native PC probe and NXDK machine code under Unicorn. All 2048 cases match exact
 particle fields, live counts and bounds; 768 freeze, 670 expire and 344 expand
-bounds. Cases include missing and stale handles, missing level entries/runtime,
-enable values 0/1/255/256 and negative-owner bypass with a disabled matched entry.
+bounds. Cases include missing and stale handles, missing level entries/rooms,
+visibility values 0/1/255/256 and negative-owner bypass with an ineligible matched room.
 This is function-level replay, not XEMU gameplay or completed caller integration.
 
 ## Frame bounds finalization
@@ -72,7 +73,9 @@ storage. `497de0`, called immediately before simulation, is a no-op in this buil
 `verify_emitter_finish_bounds.py` passes 2048 original/PC/NXDK single-active-slot
 cases (680 updates), including low-byte global gating, signed owners, zero and
 negative-zero bounds. Full active-list and campaign integration remain open.
-The frame trace also shows level emitter update loops both before and after
-simulation; their separate collections must be resolved before claiming the
-campaign schedule is equivalent. Simply ticking every emitter once at the end
-of the current diagnostic frame is not established by this evidence.
+Both original frame-loop passes use vector 0x646080 in authored order:
+433374..4333bb before simulation, 433455..433493 after bounds finalization.
+Each rechecks the emitter room via 497390 before invoking 4972f0 on the same
+emitter pointer. The earlier suggestion of separate collections was incorrect.
+Do not substitute emitter enable for room eligibility: phase changes happen
+inside 4972f0, while the room check gates entry to that function.

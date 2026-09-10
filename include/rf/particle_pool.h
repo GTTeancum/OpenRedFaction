@@ -131,11 +131,11 @@ typedef struct rf_particle_emitter_bounds {
  * nonnegative particle owners remain unsupported. Other step_free contracts
  * apply. Errors preserve bounds; expiry does not expand bounds. */
 /* Resolved 495120 owner lookup: 40a0e0 handle -> object UID (or -1),
- * then first matching 45d630 level entry; 497390 reads its runtime enable byte.
+ * then first matching 45d630 level entry; 497390 reads its room +0x160 byte.
  * Nonnegative owners require an explicit resolved gate. Negative owners ignore it.
  * A frozen particle still copies position to previous_position. */
 typedef struct rf_particle_owner_gate {
-    uint32_t entry_found,runtime_present,enabled;
+    uint32_t entry_found,room_present,room_visible;
 } rf_particle_owner_gate;
 int rf_particle_pool_step_resolved(rf_particle_pool *pool,uint32_t index,float dt,
     rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate);

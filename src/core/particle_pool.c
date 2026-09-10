@@ -262,7 +262,7 @@ static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
     if(!(value.flags&1u) || value.pool>1 || !pool->live[value.pool])return RF_RANGE;
     if((int32_t)value.owner>=0) {
         if(!gate)return RF_NOT_FOUND;
-        if(gate->entry_found && (!gate->runtime_present || !(gate->enabled&255u))) {
+        if(gate->entry_found && (!gate->room_present || !(gate->room_visible&255u))) {
             memcpy(pool->particles[index].previous_position,value.position,sizeof(value.position));
             return RF_OK;
         }
