@@ -135,6 +135,20 @@ int rf_particle_project(const rf_particle_projection *projection,rf_particle_pro
  * No allocation. Unknown modes preserve selector values and emit no writes
  * for that category. Caller retains GPU state for omitted writes. This does
  * not implement texture stages, mode caching, batching or GPU submission. */
+/* Original startup 50be10/50be40, and selection 494c8f..494cbc. Callers
+ * may supply runtime mode replacements; flag 0x2000 clears only depth mode. */
+#define RF_PARTICLE_NORMAL_MODE 0x00118c42u
+#define RF_PARTICLE_GLOW_MODE 0x06110c42u
+uint32_t rf_particle_render_mode(uint32_t flags,uint32_t normal_mode,uint32_t glow_mode);
+typedef struct rf_particle_texture_states {
+    uint32_t count;
+    struct {uint32_t stage,state,value;} writes[12];
+} rf_particle_texture_states;
+/* Original texture-source case 2, used by both particle defaults. lod_bias
+ * is the raw float bit pattern passed as D3D8 MIPMAPLODBIAS. Other texture
+ * sources return RF_NOT_FOUND preserving output. No GPU or cache mutation. */
+int rf_particle_texture_decode(uint32_t mode,uint32_t lod_bias,rf_particle_texture_states *states);
+
 typedef struct rf_particle_render_environment {
     uint32_t blend_caps,depth_kind,fog_enabled,fog_kind;
 } rf_particle_render_environment;

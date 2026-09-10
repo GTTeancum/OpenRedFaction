@@ -19,8 +19,9 @@ Immediate open items:
 
 Particle blend/depth/fog state selection now matches 3780 original/PC/NXDK
 cases, including preserved state and capability fallbacks; 3780 original cached
-repeats issue no writes. Recover particle default modes and connect texture
-stages, clipping, residency and backend submission before claiming rendering.
+repeats issue no writes. Particle default selection matches 1031 cases; texture
+source 2 matches 4096 cases plus 31 unsupported-source guards. Connect clipping,
+residency and backend submission before claiming rendering.
 
 Particle point projection matches 648 original/PC/NXDK cases, including
 cached flags, clamp behavior and reciprocal-only depth adjustment. Polygon

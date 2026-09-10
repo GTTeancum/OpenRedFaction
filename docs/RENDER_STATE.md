@@ -74,7 +74,36 @@ at 0x017c7c4c chooses enable values 1/2/0 for kind 0/1/other, and comparison
 Fog modes 0..2 follow the low byte of 0x017c7c20; mode 3 disables fog. Vertex
 fog is enabled only when fog is enabled and the kind at 0x005a7df8 equals 2.
 
-This is not a native GPU render test. Particle default packed modes at
-0x017c7c58 and 0x01775b30, polygon clipping, billboard depth bias, texture-stage
-semantics for particle passes, residency and scene/backend integration remain
-open. The existing world/actor renderer has not been switched to this helper.
+This is not a native GPU render test. Polygon clipping, billboard depth bias, residency and scene/backend integration
+remain open. Particle defaults and texture-source 2 are covered below. The existing world/actor renderer has not been switched to this helper.
+
+## Default particle passes
+
+`tools/verify_particle_modes.py` executes startup initializers 0x50be10 and
+0x50be40 with the original constructor 0x411e00. Their resulting words are
+0x00118c42 at 0x017c7c58 (ordinary) and 0x06110c42 at 0x01775b30 (glow).
+In [texture, color, alpha, blend, depth, fog] order these are [2,2,3,3,1,0]
+and [2,2,3,2,1,3]. The original selection span 0x494c8f..0x494cbc chooses glow
+when particle flag 2 is present. Flag 0x2000 calls 0x496a30 to clear only the
+five-bit depth field. Selection matches C on PC and compiled NXDK for 1031
+cases, including arbitrary caller-supplied replacement modes and unrelated bits.
+The public defaults describe startup values, not a claim that globals can never
+change later.
+
+Both defaults use texture-source case 2 in 0x54f160. Its twelve ordered
+texture-stage calls match PC/NXDK across all 32 color-source values, all 32
+alpha-source values and four raw LOD-bias patterns (4096 cases). The first
+write passes original global 0x005aa7f0 to stage 0 MIPMAPLODBIAS (state 19).
+U/V addressing is CLAMP (3); min/mag filtering is LINEAR (2). Default color and
+alpha operations each MODULATE (4) texture (2) with diffuse (0), and stage 1
+color operation is DISABLE (1). State names/constants were checked in local
+MinGW d3d8types.h. The helper passes LOD bias as raw bits without conversion.
+Thirty-one unsupported texture sources preserve output and return RF_NOT_FOUND;
+these are API guards, not original behavior claims.
+
+Combined with the recovered render states, ordinary particles select SRCALPHA /
+INVSRCALPHA (or the original capability fallback) and environment-controlled
+fog; glowing particles select SRCALPHA / ONE and disable fog. Both normally
+test depth without writing it. The no-Z flag disables depth testing and writes.
+No texture binding, pixel shading, native GPU output or scene effect execution
+is established by these function-level checks.

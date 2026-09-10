@@ -13,6 +13,23 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-render-mode")) {
+        uint32_t in[3],out;
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            out=rf_particle_render_mode(in[0],in[1],in[2]);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--particle-texture-states")) {
+        uint32_t in[2];struct {int32_t status;rf_particle_texture_states states;} out;
+        _Static_assert(sizeof(out)==152,"Particle texture-state output");
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=rf_particle_texture_decode(in[0],in[1],&out.states);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-render-states")) {
         struct {uint32_t mode;rf_particle_render_environment environment;rf_particle_render_states states;} in;
         struct {int32_t status;rf_particle_render_states states;} out;

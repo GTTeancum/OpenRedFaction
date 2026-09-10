@@ -1,6 +1,25 @@
 #include "rf/effect.h"
 #include <math.h>
 #include <float.h>
+uint32_t rf_particle_render_mode(uint32_t flags,uint32_t normal_mode,uint32_t glow_mode)
+{
+    uint32_t mode=(flags&2u)?glow_mode:normal_mode;
+    return (flags&0x2000u)?mode&~(31u<<20):mode;
+}
+int rf_particle_texture_decode(uint32_t mode,uint32_t lod_bias,rf_particle_texture_states *s)
+{
+    uint32_t color=(mode>>5)&31u,alpha=(mode>>10)&31u;
+    rf_particle_texture_states value={12,{
+        {0,19,0},{0,13,3},{0,14,3},{0,17,2},{0,16,2},
+        {0,1,0},{0,2,2},{0,3,0},{0,4,0},{0,5,2},{0,6,0},{1,1,1}}};
+    if(!s)return RF_RANGE;
+    if((mode&31u)!=2)return RF_NOT_FOUND;
+    value.writes[0].value=lod_bias;
+    value.writes[5].value=color==3?7u:color==4?5u:color==2?4u:2u;
+    value.writes[8].value=alpha==3?4u:2u;
+    *s=value;return RF_OK;
+}
+
 static void particle_render_write(rf_particle_render_states *s,uint32_t state,uint32_t value)
 {
     s->writes[s->count].state=state;s->writes[s->count].value=value;s->count++;
