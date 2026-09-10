@@ -130,6 +130,22 @@ typedef struct rf_particle_projected_point {
  * polygon construction or raster depth conversion. Errors preserve point. */
 int rf_particle_project(const rf_particle_projection *projection,rf_particle_projected_point *point);
 
+/* 54f160 render-state tail, after cache/texture-stage handling. State/value
+ * numbers retain original D3D8 encoding; backends must translate explicitly.
+ * No allocation. Unknown modes preserve selector values and emit no writes
+ * for that category. Caller retains GPU state for omitted writes. This does
+ * not implement texture stages, mode caching, batching or GPU submission. */
+typedef struct rf_particle_render_environment {
+    uint32_t blend_caps,depth_kind,fog_enabled,fog_kind;
+} rf_particle_render_environment;
+typedef struct rf_particle_render_states {
+    uint32_t count;
+    struct {uint32_t state,value;} writes[10];
+    uint32_t vertex_color,vertex_alpha,vertex_fog;
+} rf_particle_render_states;
+int rf_particle_render_decode(uint32_t mode,const rf_particle_render_environment *environment,
+    rf_particle_render_states *states);
+
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */
     int32_t started; /* +154 deadline. */

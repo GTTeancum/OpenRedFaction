@@ -13,6 +13,16 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-render-states")) {
+        struct {uint32_t mode;rf_particle_render_environment environment;rf_particle_render_states states;} in;
+        struct {int32_t status;rf_particle_render_states states;} out;
+        _Static_assert(sizeof(in)==116,"Particle render-state input");
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.states=in.states;out.status=rf_particle_render_decode(in.mode,&in.environment,&out.states);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-project")) {
         struct {rf_particle_projection projection;rf_particle_projected_point point;} in;
         struct {int32_t status;rf_particle_projected_point point;} out;

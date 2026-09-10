@@ -17,9 +17,14 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Particle blend/depth/fog state selection now matches 3780 original/PC/NXDK
+cases, including preserved state and capability fallbacks; 3780 original cached
+repeats issue no writes. Recover particle default modes and connect texture
+stages, clipping, residency and backend submission before claiming rendering.
+
 Particle point projection matches 648 original/PC/NXDK cases, including
 cached flags, clamp behavior and reciprocal-only depth adjustment. Polygon
-clipping, render-state recovery and backend integration remain open.
+clipping, remaining texture-state recovery and backend integration remain open.
 
 Camera-space particle billboard geometry now matches 1024 original/PC/NXDK
 cases, including aspect correction, rotation and submission-order UVs.

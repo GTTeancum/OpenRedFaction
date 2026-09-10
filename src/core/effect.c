@@ -1,6 +1,49 @@
 #include "rf/effect.h"
 #include <math.h>
 #include <float.h>
+static void particle_render_write(rf_particle_render_states *s,uint32_t state,uint32_t value)
+{
+    s->writes[s->count].state=state;s->writes[s->count].value=value;s->count++;
+}
+int rf_particle_render_decode(uint32_t mode,const rf_particle_render_environment *e,
+    rf_particle_render_states *s)
+{
+    uint32_t color=(mode>>5)&31u,alpha=(mode>>10)&31u,blend=(mode>>15)&31u;
+    uint32_t depth=(mode>>20)&31u,fog=(mode>>25)&31u,z,compare;
+    static const uint32_t factors[8][2]={{0,0},{2,2},{5,2},{5,6},{5,2},{9,1},{10,1},{9,3}};
+    if(!e || !s)return RF_RANGE;
+    s->count=0;
+    if(color<=4)s->vertex_color=color!=1;
+    if(alpha<=3)s->vertex_alpha=alpha!=2;
+    if(blend==0)particle_render_write(s,27,0);
+    else if(blend<=7 && (blend!=5 || (e->blend_caps&256u))) {
+        particle_render_write(s,27,1);
+        if(blend==3 && !(e->blend_caps&16u))particle_render_write(s,19,12);
+        else {
+            particle_render_write(s,19,factors[blend][0]);
+            particle_render_write(s,20,factors[blend][1]);
+        }
+    }
+    z=e->depth_kind==0?1u:e->depth_kind==1?2u:0u;
+    compare=e->depth_kind==0?7u:4u;
+    if(depth<=4) {
+        particle_render_write(s,15,0);
+        particle_render_write(s,7,(depth==0 || depth==3)?0:z);
+        particle_render_write(s,14,depth>=3);
+        if(depth==1 || depth==2 || depth==4)particle_render_write(s,23,depth==2?3:compare);
+    } else if(depth==5) {
+        particle_render_write(s,7,z);particle_render_write(s,14,1);
+        particle_render_write(s,23,compare);particle_render_write(s,15,1);
+        particle_render_write(s,24,16);particle_render_write(s,25,7);
+    }
+    if(fog<=3) {
+        uint32_t enabled=fog<3 && (e->fog_enabled&255u)!=0;
+        s->vertex_fog=enabled && e->fog_kind==2;
+        particle_render_write(s,28,enabled);
+    }
+    return RF_OK;
+}
+
 int rf_particle_project(const rf_particle_projection *projection,rf_particle_projected_point *point)
 {
     rf_particle_projected_point value;float inverse,x;double y;unsigned i;
