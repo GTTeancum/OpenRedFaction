@@ -27,6 +27,13 @@ typedef struct rf_wave_pcm {
  * RIFF extent must equal supplied size. Errors preserve output. */
 int rf_wave_pcm_parse(const void *data,uint32_t size,rf_wave_pcm *result);
 typedef struct rf_audio_parameters {float near_distance,far_distance,volume,rolloff;} rf_audio_parameters;
+typedef struct rf_audio_declaration {char name[61];float near_distance,volume,rolloff;} rf_audio_declaration;
+/* Port table adapter: bounded #Sounds Start/End, quoted archive names and three
+ * finite decimal values per row. No allocation; max2048 rows. Errors preserve
+ * rows/count. NULL rows with capacity0 queries count. Input/output must not overlap.
+ * Does not register sounds or implement original table-parser error handling. */
+int rf_sound_table_read(const void *text,uint32_t bytes,rf_audio_declaration *rows,
+    uint32_t capacity,uint32_t *count);
 typedef struct rf_audio_sample { char name[61];void *storage;rf_wave_pcm pcm;uint32_t bytes;rf_audio_parameters parameters; } rf_audio_sample;
 typedef struct rf_audio_bank {
     rf_vpp *archive;rf_audio_sample *samples;uint32_t count,capacity,bytes,budget;

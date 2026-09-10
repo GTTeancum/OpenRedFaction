@@ -1,6 +1,7 @@
 #include "rf/entity_assets.h"
 #include "rf/model.h"
 #include "rf/effect.h"
+#include "rf/audio.h"
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -191,6 +192,34 @@ static int sphere_number(lexer *l,float *result)
     }
     if(!isfinite(value) || value>FLT_MAX)return RF_FORMAT;
     *result=(float)(negative?-value:value);return RF_OK;
+}
+static int sound_table_pass(const void *text,uint32_t bytes,rf_audio_declaration *rows,uint32_t *count)
+{
+    lexer l={text,bytes,0};char t[256];int quoted;uint32_t n=0;
+    if(token(&l,t,&quoted) || quoted || !same(t,"#Sounds") ||
+       token(&l,t,&quoted) || quoted || !same(t,"Start"))return RF_FORMAT;
+    for(;;) {
+        rf_audio_declaration row={0};size_t length;
+        if(token(&l,t,&quoted))return RF_FORMAT;
+        if(!quoted && same(t,"#Sounds")) {
+            if(token(&l,t,&quoted) || quoted || !same(t,"End") || token(&l,t,&quoted)!=RF_NOT_FOUND)return RF_FORMAT;
+            *count=n;return RF_OK;
+        }
+        length=strlen(t);if(!quoted || !length || length>60 || n==2048)return RF_FORMAT;
+        memcpy(row.name,t,length+1);
+        if(sphere_number(&l,&row.near_distance) || sphere_number(&l,&row.volume) ||
+           sphere_number(&l,&row.rolloff) || row.volume<0 || row.rolloff<=0)return RF_FORMAT;
+        if(rows)rows[n]=row;++n;
+    }
+}
+int rf_sound_table_read(const void *text,uint32_t bytes,rf_audio_declaration *rows,uint32_t capacity,uint32_t *count)
+{
+    uint32_t n;int status;
+    if(!text || !bytes || !count || (!rows && capacity))return RF_RANGE;
+    status=sound_table_pass(text,bytes,NULL,&n);if(status)return status;
+    if(rows && n>capacity)return RF_RANGE;
+    if(rows){status=sound_table_pass(text,bytes,rows,&n);if(status)return status;}
+    *count=n;return RF_OK;
 }
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height)
 {

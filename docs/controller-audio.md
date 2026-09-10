@@ -881,3 +881,23 @@ declares the sample without PCM, rejects load under that budget, then expands
 to57150 bytes and passes playback, release failure/retry, selective unload and
 reload. PC and full Xbox builds pass. Global sounds.tbl parsing/registration
 order and campaign residency policy are not yet integrated.
+
+### Bounded shared sound-table reader
+
+rf_sound_table_read reuses the existing table lexer and NXDK-compatible decimal
+reader in entity_assets.c. It reads Sounds Start/End markers, quoted archive
+names and three finite decimal fields, with nonnegative volume and positive
+rolloff. It performs a validation/count pass before writing caller-owned rows,
+allocates no memory, limits names to60 bytes and rows to2048, and preserves
+rows/count on failure. A NULL row array with zero capacity queries required
+count. Input/output must not overlap. This port adapter intentionally returns
+errors instead of emulating original parser assertion behavior.
+
+`python tools/verify_sound_table.py` passes15 fixtures on PC and compiled NXDK
+code executed in Unicorn. All88 installed records match independent inventory
+exactly, including binary32 values. Coverage includes one-row-short capacity,
+count query, comments, malformed/truncated syntax, negative volume, invalid
+rolloff, oversized names, decimal overflow, trailing input and2048/2049-row
+boundaries. Output sentinels verify failed calls and unwritten capacity. Both
+platform builds pass; XEMU table-file loading and campaign registration remain
+to connect. No original parser execution equivalence is claimed.
