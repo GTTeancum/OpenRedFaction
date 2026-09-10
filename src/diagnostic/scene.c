@@ -10,6 +10,25 @@
 #include "rf/visibility.h"
 #include "rf/level_particles.h"
 /* Explicit replay setup, not an authored player-start reconstruction. */
+int rf_scene_stage_door(rf_level *level)
+{
+    rf_geometry_movers movers={0};const rf_geometry_mover *a=NULL,*b=NULL;
+    float position[3],matrix[3][3]={{0}};uint32_t i;int status;
+    if(!level)return RF_RANGE;
+    status=rf_geometry_movers_open(level,1024*1024,&movers);if(status)return status;
+    for(i=0;i<movers.count;i++) {
+        if(movers.items[i].uid==8544)a=movers.items+i;
+        if(movers.items[i].uid==8543)b=movers.items+i;
+    }
+    if(!a || !b){rf_geometry_movers_close(&movers);return RF_NOT_FOUND;}
+    for(i=0;i<3;i++) {
+        position[i]=(a->position[i]+b->position[i])*.5f+a->orientation[2][i]*3;
+        matrix[2][i]=-a->orientation[2][i];
+    }
+    position[1]+=.625f;matrix[1][1]=1;matrix[0][0]=matrix[2][2];matrix[0][2]=-matrix[2][0];
+    memcpy(level->player_position,position,12);memcpy(level->player_orientation,matrix,36);
+    rf_geometry_movers_close(&movers);return RF_OK;
+}
 int rf_scene_stage_climb(rf_level *level,uint32_t mode)
 {
     rf_level_entity_reader reader;rf_player_movement_region region;float position[3];uint32_t i;int status;

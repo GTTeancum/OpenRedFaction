@@ -824,6 +824,8 @@ int main(void)
             rf_level level;
             FILE *climb_flag=fopen("D:\\campaign-climb.flag","rb");
             int staged_climb=climb_flag!=NULL;
+            FILE *door_flag=fopen("D:\\campaign-door.flag","rb");
+            int staged_door=door_flag!=NULL;if(door_flag)fclose(door_flag);
             live_mines_door_fixture=!staged_climb && !selected;
             int climb_mode=climb_flag && fgetc(climb_flag)=='2'?2:1;
             if(climb_flag)fclose(climb_flag);
@@ -832,6 +834,7 @@ int main(void)
             if(result==RF_OK && staged_climb) {
                 result=rf_scene_stage_climb(&level,(uint32_t)climb_mode);
             }
+            if(result==RF_OK && staged_door)result=selected || staged_climb?RF_FORMAT:rf_scene_stage_door(&level);
             if (result == RF_OK) {
                 const rf_level_section *geometry = rf_level_find(&level, 0x100);
                 const rf_level_section *lightmaps = rf_level_find(&level, 0x1200);

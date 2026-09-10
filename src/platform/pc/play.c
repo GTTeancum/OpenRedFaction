@@ -184,6 +184,10 @@ int main(int argc,char **argv)
     if(spawn_profile && p.headless && getenv("RF_REPLAY_REGION_START")) {
         CHECK(rf_scene_stage_climb(&level,!strcmp(getenv("RF_REPLAY_REGION_START"),"2")?2:1));
     }
+    if(spawn_profile && p.headless && getenv("RF_REPLAY_DOOR_START")) {
+        if(getenv("RF_REPLAY_REGION_START"))CHECK(RF_RANGE);
+        CHECK(rf_scene_stage_door(&level));
+    }
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -232,6 +236,9 @@ int main(int argc,char **argv)
             printf("BODY_SWEEPS %u %u %u %u %u\n",rf_scene_actor_body_sweeps[0],rf_scene_actor_body_sweeps[1],rf_scene_actor_body_sweeps[2],rf_scene_actor_body_sweeps[3],rf_scene_actor_body_sweeps[4]);}
             {extern uint32_t rf_scene_actor_ground_queries[4];
             printf("GROUND_QUERIES %u %u %u %u\n",rf_scene_actor_ground_queries[0],rf_scene_actor_ground_queries[1],rf_scene_actor_ground_queries[2],rf_scene_actor_ground_queries[3]);}
+            {extern rf_geometry_body_hit rf_scene_actor_body_contact;uint32_t words[23],j;
+            memcpy(words,&rf_scene_actor_body_contact,sizeof(words));printf("BODY_CONTACT");
+            for(j=0;j<23;j++)printf(" %u",words[j]);printf("\n");}
             printf("CAMPAIGN_GROUPS %u %u %u %u %u\n",rf_scene_campaign_groups[0],rf_scene_campaign_groups[1],rf_scene_campaign_groups[2],rf_scene_campaign_groups[3],rf_scene_campaign_groups[4]);
             printf("CAMPAIGN_LINKS %u %u %u %u\n",rf_scene_campaign_links[0],rf_scene_campaign_links[1],rf_scene_campaign_links[2],rf_scene_campaign_links[3]);
             printf("CAMPAIGN_EVENT_LINKS %u %u %u %u\n",rf_scene_campaign_event_links[0],rf_scene_campaign_event_links[1],rf_scene_campaign_event_links[2],rf_scene_campaign_event_links[3]);

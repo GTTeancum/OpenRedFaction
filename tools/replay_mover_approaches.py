@@ -10,7 +10,7 @@ p=argparse.ArgumentParser();p.add_argument('--case',choices=routes,default='door
 folder=root/'artifacts/mover-approach';folder.mkdir(exist_ok=True)
 source=folder/(args.case+'.bin');payload=b''.join(struct.pack('<5fI',side,0,front,0,0,0)*frames for frames,side,front in routes[args.case]);source.write_bytes(payload)
 env=dict(os.environ)
-for key in ('RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START'):env.pop(key,None)
+for key in ('RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_REPLAY_DOOR_START'):env.pop(key,None)
 exe=root/'build/pc/Release/rf_pc_play.exe'
 run=subprocess.run([str(exe),'--spawn-replay',str(root/'Installed_Game'),str(source),str(folder/(args.case+'.ppm'))],cwd=root,env=env,capture_output=True,text=True)
 (folder/(args.case+'.txt')).write_text(run.stdout+run.stderr)

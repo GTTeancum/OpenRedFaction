@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Verify targeted live mover contacts and complete moving-platform carry/response.
+- [ ] Complete moving-platform carry/response and verify door activation/opening traversal.
 - [ ] Connect combined controller activation to live mover ownership, effect backends and scene motion ticks.
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Complete particle rendering for animated textures, stretched sprites and mixed room/object passes.
@@ -19,6 +19,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Staged lower-door replay now records111 mover contacts on PC and stock64MiB
+XEMU with exact final contact metadata; opening and authored traversal remain open.
 
 Eight authored-spawn PC approaches reached only static contacts; the2250-frame
 door-direct route stops near Z10, short of lower movers near Z-19; inspect route/stage next.
