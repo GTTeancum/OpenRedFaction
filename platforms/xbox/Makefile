@@ -8,6 +8,7 @@ SRCS = $(PROJECT_ROOT)/src/core/vpp.c $(PROJECT_ROOT)/src/core/checksum.c $(PROJ
 SHADER_OBJS = $(PROJECT_ROOT)/src/platform/xbox/preview_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/preview_fragment.inl
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/input.c
 SRCS += $(PROJECT_ROOT)/src/core/event.c
+SRCS += $(PROJECT_ROOT)/src/core/frame_clock.c
 SRCS += $(PROJECT_ROOT)/src/core/object_registry.c
 SRCS += $(PROJECT_ROOT)/src/core/lightmap.c
 SRCS += $(PROJECT_ROOT)/src/core/eye.c

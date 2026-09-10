@@ -53,7 +53,7 @@ python tools/verify_checksum.py 'D:\Programming\GitHub\OpenRedFaction\Installed_
 The Windows movement/look prototype can be launched with
 `./build/pc/Release/rf_pc_play.exe Installed_Game`: WASD moves, arrows look,
 Ctrl crouches and Escape exits. It uses the shared Xbox-oriented runtime at
-640x480. This is a diagnostic scene; campaign play and real-time scheduling remain
+640x480. This is a diagnostic scene; campaign play and performance tuning remain
 unfinished. See [input controls and verification](docs/INPUT.md).
 
 ## Xbox diagnostic

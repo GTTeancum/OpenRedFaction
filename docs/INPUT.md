@@ -9,7 +9,7 @@ Controls: left stick moves, right stick looks, B holds crouch, Back+Start ends
 the session. Sticks use an 18% radial deadzone with a unit-length diagonal cap;
 disconnect produces neutral input and polling can reconnect a controller.
 Look currently uses one radian/second at full input. Simulation remains fixed
-at 1/60 second per produced frame; real-time pacing needs further work. There
+at 1/60 second per simulation tick; interactive sessions now use shared pacing. There
 is no weapon, jumping, combat, or campaign scripting yet.
 
 The shared provider polls once before stance and animation. Its validated
@@ -75,9 +75,26 @@ use 2,150,400 bytes; the Windows presentation buffer adds 1,228,800 bytes. Geome
 materials and physics use the existing shared budgets. These allocation figures
 are not a measurement of total process memory or full campaign residency.
 
-The frontend caps frame production at 60 Hz. It still advances simulation by
-1/60 second per rendered frame; software rendering below 60 FPS slows simulation.
-Real-time catch-up and render/simulation scheduling remain open for both platforms.
+Interactive PC and unbounded Xbox controller sessions use the same integer
+60 Hz scheduler. Each simulation tick still advances by 1/60 second. When behind,
+the runtime skips presentation while retaining physics, animation and scene
+projection; subsequent ticks catch up using the current input state. It retains
+at most eight ticks of elapsed-time debt and forces a presentation after eight
+consecutive skips. If the current simulation/scene tick itself takes at least
+17 ms, it presents immediately instead of making an overloaded runtime less
+responsive. Excess time after long stalls is deliberately discarded.
+This avoids unbounded catch-up but does not promise full speed if simulation itself
+cannot sustain 60 ticks/second. Input is not historically replayed during catch-up.
+This is new port scheduling policy, not the original game's recovered main loop.
+
+Finite Xbox controller fixtures and PC headless replay remain unpaced so existing
+frame-by-frame reference checks still exercise every image. On paced Xbox sessions,
+`rf_diagnostic[37]` counts actual GPU submissions, not simulation ticks. The exported
+32-byte `rf_player_frame_clock` records initialized, last milliseconds, tick credit,
+consecutive skips, simulation ticks, presentation decisions, and a 64-bit discarded
+unit count. PC obtains milliseconds from QPC; Xbox uses GetTickCount.
+There are 60 units per millisecond and 1,000 per simulation tick.
+QMP snapshots now include this structure. Reads during execution are non-atomic.
 
 Non-interactive verification uses the same executable without creating a window:
 
@@ -93,3 +110,32 @@ also preserves both 640x480 and 1920x1440 showcase images byte-for-byte. The ful
 PC build and all four CTest checks pass. Actual keyboard interaction, focus-loss
 behavior, resizing and window presentation remain for manual testing; headless
 verification does not exercise the Windows message or display path.
+
+
+Pacing checks: `frame_clock_pacing` in CTest covers exact 60 Hz accumulation,
+32-bit millisecond wrap, a 100 ms render stall, a long-pause debt cap and forced
+presentation under overload. `python tools/verify_frame_clock.py` checks 8,000
+irregular clock samples against the compiled NXDK functions, including the whole
+clock state. `python tools/xemu_pacing_check.py` starts an isolated 64 MiB emulator
+with unbounded controller mode, observes guest pacing counters and closes only
+its own process. It neither captures a screen nor generates input. This live
+check tests pacing progress, not original-game fidelity or campaign performance.
+
+
+Initial live pacing run `pacing-20260909-204509` demonstrated only about nine
+simulation ticks per guest second and persistent discarded debt. Skipping draws
+was insufficient, so the scheduler was amended to present when simulation/scene
+work itself exceeds 17 ms. This is evidence of a performance deficit, not a
+60 Hz gameplay result. Removing unnecessary per-tick work remains required.
+The harness uses XEMU's normal display backend with a hidden startup request;
+no-display runs did not reach game telemetry on this machine.
+
+
+With the overload rule, `pacing-20260909-204812` passed the stricter live check:
+167 simulation steps, 166 presentation decisions, continued progress at the end,
+and no error status over the 20-second observation. The observed rate was about
+8.2 ticks per guest second, still far below target. Earlier run
+`pacing-20260909-204643` stopped at tick 99 with status `0x80000104` (RF_RANGE).
+Its report was corrected to FAIL after auditing the initially permissive progress
+check. That error did not recur in the next run; its cause remains unresolved.
+Future harness failures save the detailed guest-memory snapshot automatically.

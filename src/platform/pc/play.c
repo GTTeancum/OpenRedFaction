@@ -4,6 +4,7 @@
 #include <windows.h>
 #include "rf/scene_preview.h"
 #include "rf/physics.h"
+#include "rf/frame_clock.h"
 #include "pc_raster.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,10 +22,18 @@ typedef struct player {
     BITMAPINFO bitmap;
     rf_pc_raster raster;
     rf_lightmaps lightmaps;
-    LARGE_INTEGER frequency,deadline;
+    rf_frame_clock clock;
+    LARGE_INTEGER frequency;
     uint32_t frames,headless;
     int quit;
 } player;
+
+static uint32_t milliseconds(const player *p)
+{
+    LARGE_INTEGER now;uint64_t ticks,hz;
+    QueryPerformanceCounter(&now);ticks=(uint64_t)now.QuadPart;hz=(uint64_t)p->frequency.QuadPart;
+    return (uint32_t)((ticks/hz)*1000+(ticks%hz)*1000/hz);
+}
 
 static void paint(player *p,HDC dc)
 {
@@ -63,7 +72,7 @@ static LRESULT CALLBACK window_proc(HWND window,UINT message,WPARAM key,LPARAM d
 
 static int input(void *context,uint32_t frame,rf_scene_input *out)
 {
-    player *p=context;MSG message;LARGE_INTEGER now;
+    player *p=context;MSG message;uint32_t wait;
     memset(out,0,sizeof(*out));
     if(p->headless) {
         /* Same deterministic route as rf_scene_check --input. */
@@ -73,18 +82,16 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
         out->look[1]=frame?((frame%240)<120?.2f:-.2f):0;
         out->crouch=frame>=32 && frame<56;return RF_OK;
     }
-    /* Cap production at 60 Hz; do not create a backlog after a slow frame.
-     * Simulation remains 1/60 per produced frame, without catch-up yet. */
+    /* Continue pumping our own messages while waiting for a simulation tick. */
     for(;;) {
         while(PeekMessageW(&message,p->window,0,0,PM_REMOVE)) {
             TranslateMessage(&message);DispatchMessageW(&message);
         }
         if(p->quit)return RF_NOT_FOUND;
-        QueryPerformanceCounter(&now);
-        if(now.QuadPart>=p->deadline.QuadPart)break;
-        Sleep(1);
+        wait=rf_frame_clock_step(&p->clock,milliseconds(p));
+        if(!wait)break;
+        Sleep(wait>2?2:wait);
     }
-    p->deadline.QuadPart=now.QuadPart+p->frequency.QuadPart/60;
     out->move[0]=(float)p->keys['D']-(float)p->keys['A'];
     out->move[2]=(float)p->keys['W']-(float)p->keys['S'];
     if(out->move[0] && out->move[2]) {out->move[0]*=.7071067811865475f;out->move[2]*=.7071067811865475f;}
@@ -98,6 +105,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
 {
     player *p=context;uint32_t i;int status;
     if(frame!=p->frames || mesh->bytes>RF_SCENE_FOLLOW_CAPACITY)return RF_RANGE;
+    if(!p->headless && !rf_frame_clock_present(&p->clock,milliseconds(p))){++p->frames;return RF_OK;}
     status=rf_pc_raster_frame(&p->raster,mesh,materials,&p->lightmaps,world);
     if(status)return status;
     ++p->frames;

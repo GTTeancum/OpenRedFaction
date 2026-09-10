@@ -8,6 +8,7 @@
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
 #include "rf/scene_preview.h"
+#include "rf/frame_clock.h"
 #include "renderer.h"
 #include "input.h"
 #include <string.h>
@@ -25,6 +26,16 @@ static rf_scene_world_geometry resident_render_geometry;
 static int door_render_frame(void);
 static rf_preview_mesh door_mesh;
 static uint32_t door_capacity;
+rf_frame_clock rf_player_frame_clock;
+static uint32_t player_pacing,scene_simulation_frames;
+static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
+{
+    if(player_pacing) {
+        uint32_t wait;
+        while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0)Sleep(wait);
+    }
+    return rf_xbox_input_poll(context,frame,input);
+}
 volatile uint32_t rf_door_render_diagnostic[10]={0x52464452u};
 static rf_geometry_collision_world resident_collision;
 volatile uint32_t rf_collision_diagnostic[9]={0x52464357u};
@@ -402,7 +413,8 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
     (void)context;
-    if(rf_diagnostic[37]!=frame)return RF_FORMAT;
+    if(scene_simulation_frames!=frame)return RF_FORMAT;
+    ++scene_simulation_frames;
     if(frame==(rf_scene_actor_live_enabled?663u:63u) && actor_body_preview) {
         memcpy(rf_actor_world_diagnostic,rf_scene_actor_initial_world,sizeof(rf_actor_world_diagnostic));
         memcpy(rf_actor_fall_diagnostic,rf_scene_actor_initial_fall,sizeof(rf_actor_fall_diagnostic));
@@ -411,12 +423,14 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
         status=rf_scene_actor_fall_check(&resident_collision,rf_actor_fall_diagnostic);if(status)return status;
     }
     rf_diagnostic[57]=world;
+    if(player_pacing && !rf_frame_clock_present(&rf_player_frame_clock,GetTickCount()))return group_storage_check();
     {int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],RF_SCENE_FOLLOW_CAPACITY):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:group_storage_check();}
 }
 static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
 {
     static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
     rf_vpp maps[5];uint32_t opened=0,world;int status,player_controls=0;FILE *stream_flag;
+    player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
     status=rf_scene_preview_camera(level,9858);if(status)return status;
     actor_body_preview=0;stream_flag=fopen("D:\\actor-body.flag","rb");
     if(stream_flag){fclose(stream_flag);actor_body_preview=1;}
@@ -444,7 +458,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         frames=fopen("D:\\player-control-frames.txt","rb");
         if(frames){int scanned=fscanf(frames,"%u",&limit);fclose(frames);if(scanned!=1 || limit>60000)return RF_FORMAT;}
         status=rf_xbox_input_open();if(status)return status;
-        player_controls=1;rf_scene_set_input(rf_xbox_input_poll,NULL,limit);
+        player_controls=1;player_pacing=limit==0;
+        rf_scene_set_input(player_poll_paced,NULL,limit);
         rf_scene_actor_turn_enabled=rf_scene_actor_look_enabled=rf_scene_actor_eye_enabled=1;
         actor_follow_preview=rf_scene_actor_live_enabled=actor_body_preview=1;rf_scene_actor_drive(1);
     }

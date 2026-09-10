@@ -3,11 +3,19 @@
 Immediate open items:
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
-- [ ] Add real-time simulation/render scheduling to prevent slow frames slowing movement.
+- [ ] Diagnose intermittent interactive RF_RANGE termination observed at tick 99.
+- [ ] Profile paced simulation and move unnecessary projection work out of catch-up ticks.
 - [ ] USER: Test PC keyboard movement/look, crouch, focus loss, resizing and Escape exit.
 - [ ] USER: Check crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Shared 60 Hz pacing now bounds catch-up and skips presentation on PC and ongoing
+Xbox sessions; deterministic fixtures remain unpaced. Unit checks and 8,000 compiled
+NXDK clock samples pass. Live RAM shows only about nine ticks per guest second,
+so per-tick work must be reduced; pacing alone has not fixed movement speed.
+The overload rule preserves presentation. A 20-second rerun passes, but an earlier
+RF_RANGE termination remains unresolved; its report is correctly retained as FAIL. See docs/INPUT.md for timing policy and telemetry.
 
 PC now has a Windows input/presentation frontend using the shared scene provider
 and software rasterizer. Its 664-frame headless replay matches body/input/camera
