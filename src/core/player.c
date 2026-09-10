@@ -2,6 +2,30 @@
 #include "rf/collision.h"
 #include <string.h>
 #include <math.h>
+int rf_player_climb_enter(rf_player_climb_state *state,const rf_player_climb_input *input,
+    uint32_t *selected_descriptor,rf_player_climb_sound sound,void *context)
+{
+    rf_movement_settings speed;rf_player_sound_request request;uint32_t selected,emit;int status;
+    if(!state || !input || !input->config)return RF_RANGE;
+    if(!(input->config->flags&4))return RF_OK;
+    if(!input->region || !input->descriptors || !selected_descriptor || input->free_motion>1)return RF_RANGE;
+    speed=state->speed;
+    status=rf_movement_set_mode(&speed,input->config,1,input->forced_action,input->entity_scale,input->override_enabled);
+    if(status)return status;
+    emit=input->free_motion && input->region->kind==2;
+    if(emit) {
+        rf_player_sound_input routing=input->sound;
+        if(!sound)return RF_RANGE;
+        routing.sound_id=18;routing.volume=1;routing.pan=0;
+        status=rf_player_sound_route(&routing,&request);if(status)return status;
+    }
+    selected=(input->descriptors[2].enabled&255)?2:0;
+    state->previous_region=NULL;state->region=input->region;
+    if(emit)sound(context,state,&request);
+    state->speed=speed;*selected_descriptor=selected;
+    state->movement=input->descriptors+selected;state->orientation=input->region->matrix;
+    state->contact_handle=-1;return RF_OK;
+}
 int rf_player_sound_route(const rf_player_sound_input *input,rf_player_sound_request *request)
 {
     rf_player_sound_request value={0};uint32_t i;

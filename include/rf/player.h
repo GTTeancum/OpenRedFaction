@@ -1,6 +1,7 @@
 #ifndef RF_PLAYER_H
 #define RF_PLAYER_H
 #include "rf/vpp.h"
+#include "rf/movement.h"
 
 typedef struct rf_player_sound_input {
     int32_t entity_type;uint32_t owner_present;int32_t camera_mode;
@@ -22,6 +23,31 @@ typedef struct rf_player_movement_region {
  * UINT32_MAX means none. Borrowed region storage; no world loading/mutation. */
 int rf_player_movement_region_find(const rf_player_movement_region *regions,
     uint32_t count,const float point[3],uint32_t *index);
+
+typedef struct rf_player_climb_state {
+    const rf_player_movement_region *previous_region,*region;
+    const rf_movement_descriptor *movement;
+    const float (*orientation)[3];
+    int32_t contact_handle;
+    rf_movement_settings speed;
+} rf_player_climb_state;
+typedef struct rf_player_climb_input {
+    const rf_player_movement_region *region;
+    const rf_movement_descriptor *descriptors; /* Stable table of 16. */
+    const rf_movement_config *config;
+    int32_t forced_action;float entity_scale;
+    uint32_t free_motion;uint8_t override_enabled;
+    rf_player_sound_input sound; /* Entity ownership/camera/position; ID overridden. */
+} rf_player_climb_input;
+typedef void (*rf_player_climb_sound)(void *context,const rf_player_climb_state *state,
+    const rf_player_sound_request *request);
+/* 4281e0 with resolved free-motion and sound ownership. Callback observes the
+ * committed region fields and old speed/movement; it must not mutate inputs.
+ * Selected descriptor mirrors 630050. No capability leaves all state untouched.
+ * Invalid input preserves outputs and emits nothing. Borrowed storage must stay
+ * alive; no allocation, audio backend, region query or climb exit is included. */
+int rf_player_climb_enter(rf_player_climb_state *state,const rf_player_climb_input *input,
+    uint32_t *selected_descriptor,rf_player_climb_sound sound,void *context);
 
 typedef struct rf_player_stance_gate {
     uint32_t owns_entity,environment_present;

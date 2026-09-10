@@ -2513,3 +2513,24 @@ and pan match PC and compiled NXDK requests. Both builds and CTest pass.
 This does not execute the audio backend, load sound assets, or complete live
 climb entry. The earlier term "effect 18" can now be read as sound ID 18;
 no damage or visual effect is implied.
+
+
+### Shared climb entry (2026-09-09)
+
+`rf_player_climb_enter` now performs the recovered `4281e0` transition using
+borrowed region and movement-descriptor storage. Class capability bit 4 gates
+all writes. It prevalidates speed and sound routing, commits previous-region
+clear/current-region assignment, emits the optional sound request, restores
+speed through `rf_movement_set_mode`, selects descriptor 2 with descriptor-0
+fallback, installs the region matrix and resets the contact handle to -1.
+The caller supplies the resolved free-motion predicate and sound ownership.
+The sound callback sees the new region and old movement/speed; it must not
+mutate the input or state. No allocation or audio backend is introduced.
+
+`tools/verify_climb_entry.py` regenerates original entry evidence and compares
+768 cases against PC and compiled NXDK, including final state and intermediate
+sound callback state. Compiled checks also verify that missing required sound
+callbacks and malformed speed configuration preserve all outputs and emit
+nothing. PC/NXDK builds and all five CTest checks pass. Climb exit, retained
+region lifetime in the live scene, movement integration and audible playback
+remain separate work; the campaign has not yet switched to this transition.

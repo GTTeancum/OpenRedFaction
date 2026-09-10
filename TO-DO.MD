@@ -23,6 +23,11 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
+Shared climb entry now matches 768 original cases on PC and compiled NXDK,
+including sound callback state, speed restoration and descriptor fallback.
+It allocates nothing and borrows region/descriptor storage; climb exit and
+live campaign integration remain open. See tools/verify_climb_entry.py.
+
 The conditional climb effect is identified as sound dispatch through 48a9c0.
 Shared C now routes player-owned/camera-zero sounds non-positionally and other
 sounds positionally, matching 648 PC/NXDK original-code cases. Audio playback,

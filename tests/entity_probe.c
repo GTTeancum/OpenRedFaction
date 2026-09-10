@@ -18,8 +18,33 @@ static int room_locate(void *context,const float position[3],rf_entity_room_resu
 {(void)context;(void)position;++room_queries;*result=room_result;return RF_OK;}
 static void room_notify(void *context,const char *name)
 {(void)context;++room_notices;room_notice_kind=!strcmp(name,"underwater")?2:1;}
+static void climb_sound(void *context,const rf_player_climb_state *state,const rf_player_sound_request *sound)
+{
+    uint32_t *out=context;
+    out[0]++;out[1]=state->previous_region==NULL;out[2]=state->region!=NULL;
+    out[3]=state->speed.mode;out[4]=sound->sound_id;out[5]=sound->spatial;
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--climb-enter")) {
+        uint32_t values[4],out[12];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(values,sizeof(values),1,stdin)==1) {
+            rf_player_movement_region region={0};rf_movement_descriptor descriptors[16]={{0}};
+            rf_movement_config config={0};rf_player_climb_input input={0};rf_player_climb_state state={0};
+            uint32_t selected=77;memset(out,0,sizeof(out));region.kind=values[2];descriptors[2].enabled=values[3];
+            config.flags=values[0]*4;config.base_speed=3.5f;
+            state.previous_region=&region;state.movement=descriptors+1;state.contact_handle=123;
+            input.region=&region;input.descriptors=descriptors;input.config=&config;input.forced_action=-1;
+            input.entity_scale=1;input.free_motion=values[1];input.sound.owner_present=1;
+            if(rf_player_climb_enter(&state,&input,&selected,climb_sound,out))return 3;
+            out[6]=state.previous_region==NULL;out[7]=state.region==&region;
+            out[8]=state.movement-descriptors;out[9]=state.orientation==region.matrix;
+            out[10]=state.speed.mode;out[11]=selected;
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--player-sound")) {
         rf_player_sound_input input;rf_player_sound_request result;
         _Static_assert(sizeof(input)==36 && sizeof(result)==32,"Player sound wire layout");
