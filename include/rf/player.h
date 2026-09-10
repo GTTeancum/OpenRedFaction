@@ -65,6 +65,31 @@ typedef int (*rf_player_try_stand)(void *context,uint32_t *stood);
 int rf_player_climb_exit(rf_player_climb_state *state,const rf_player_climb_exit_input *input,
     uint32_t *selected_descriptor,rf_player_try_stand stand,void *context);
 
+/* 4288b0 / 4281a0 fields retained by the jump transition. */
+typedef struct rf_player_jump_state {
+    uint32_t actor_flags,physics_flags;
+    float vertical_velocity;
+    const rf_movement_descriptor *movement;
+    const float (*orientation)[3];
+    uint32_t jump_time;
+} rf_player_jump_state;
+typedef struct rf_player_jump_input {
+    const rf_movement_descriptor *descriptors; /* Stable table of 16. */
+    const float (*identity)[3];
+    float strength,frame_dt;
+    uint32_t parent_blocked,alternate_fall;
+    int32_t class_sound;
+    uint32_t now;
+} rf_player_jump_input;
+/* Callback resolves class_sound through 434d00(sound,0,0,0,1), then plays
+ * its handle through 505560. It observes committed fall state and OLD time.
+ * No allocation or input dispatch; descriptor/orientation storage is borrowed.
+ * Null entity and rejected jumps are no-ops. Invalid accepted inputs preserve
+ * state. Predicates are resolved by the caller; audio must not mutate state. */
+typedef void (*rf_player_jump_sound)(void *context,const rf_player_jump_state *state,int32_t class_sound);
+int rf_player_jump(rf_player_jump_state *state,const rf_player_jump_input *input,
+    uint32_t *selected_descriptor,rf_player_jump_sound sound,void *context);
+
 typedef struct rf_player_stance_gate {
     uint32_t owns_entity,environment_present;
     int32_t movement_mode,speed_mode,entity_kind,attachment_1380;

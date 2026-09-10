@@ -26,8 +26,29 @@ static void climb_sound(void *context,const rf_player_climb_state *state,const r
 }
 static int climb_stand(void *context,uint32_t *stood)
 {uint32_t *v=context;++v[1];*stood=!v[0];return RF_OK;}
+static void jump_sound(void *context,const rf_player_jump_state *state,int32_t sound)
+{uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--jump")) {
+        uint32_t v[12],out[10];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(v,sizeof(v),1,stdin)==1) {
+            rf_movement_descriptor table[16]={{0}},old={0};float identity[3][3]={{0}};
+            rf_player_jump_state state={0};rf_player_jump_input input={0};uint32_t selected=77;
+            memset(out,0,sizeof(out));old.index=v[0];table[3].enabled=table[8].enabled=v[8];
+            state.actor_flags=v[1];state.physics_flags=v[2];memcpy(&state.vertical_velocity,v+3,4);
+            state.movement=&old;state.jump_time=v[9];input.descriptors=table;input.identity=identity;
+            memcpy(&input.strength,v+4,4);memcpy(&input.frame_dt,v+5,4);
+            input.parent_blocked=v[6];input.alternate_fall=v[7];input.class_sound=(int32_t)v[10];input.now=v[11];
+            if(rf_player_jump(&state,&input,&selected,jump_sound,out))return 3;
+            out[0]=state.actor_flags;out[1]=state.physics_flags;memcpy(out+2,&state.vertical_velocity,4);
+            out[3]=state.movement==&old?UINT32_MAX:(uint32_t)(state.movement-table);
+            out[4]=state.orientation==identity;out[5]=state.jump_time;out[6]=selected;
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--owned-level-regions")) {
         rf_vpp archive;rf_level level;rf_level_owned_regions regions={0};int status;
         _setmode(_fileno(stdout),_O_BINARY);

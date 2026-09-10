@@ -2,6 +2,31 @@
 #include "rf/collision.h"
 #include <string.h>
 #include <math.h>
+int rf_player_jump(rf_player_jump_state *state,const rf_player_jump_input *input,
+    uint32_t *selected_descriptor,rf_player_jump_sound sound,void *context)
+{
+    int32_t mode;uint32_t selected;long double impulse;
+    if(!state)return RF_OK;
+    if(!input || !state->movement)return RF_RANGE;
+    mode=state->movement->index;
+    if((mode!=1 && (mode!=4 || (state->actor_flags&0x2000))) ||
+       (state->actor_flags&0x400) || input->parent_blocked==1)return RF_OK;
+    if(input->parent_blocked>1 || input->alternate_fall>1 || !input->descriptors ||
+       !input->identity || !selected_descriptor || !sound)return RF_RANGE;
+    if(!isfinite(input->strength) || !isfinite(input->frame_dt) ||
+       !isfinite(state->vertical_velocity))return RF_FORMAT;
+    impulse=input->strength;
+    /* 428935..428977: no binary32 spill before adding downward velocity. */
+    if(mode==4)impulse=((long double)1.25f-
+        ((long double)0.1f-input->frame_dt)*(long double)-4.200000286102295f)*impulse;
+    if(state->vertical_velocity<0)impulse+=state->vertical_velocity;
+    selected=input->alternate_fall?8:3;
+    if(!(input->descriptors[selected].enabled&255))selected=0;
+    state->vertical_velocity=(float)impulse;state->actor_flags|=2;state->physics_flags|=1;
+    state->movement=input->descriptors+selected;*selected_descriptor=selected;
+    state->orientation=input->identity;
+    sound(context,state,input->class_sound);state->jump_time=input->now;return RF_OK;
+}
 int rf_player_climb_exit(rf_player_climb_state *state,const rf_player_climb_exit_input *input,
     uint32_t *selected_descriptor,rf_player_try_stand stand,void *context)
 {

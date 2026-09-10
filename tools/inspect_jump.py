@@ -51,7 +51,7 @@ for mode,crouch,waterflag,vehicle,sub,velocity,strength,dt,enabled in itertools.
  else:assert events==[]
  actual=bytes(u.mem_read(base,len(seed)));assert actual==wanted,(mode,crouch,waterflag,vehicle,sub,velocity,[(i,actual[i],wanted[i]) for i in range(len(seed)) if actual[i]!=wanted[i]])
  assert read(0x630050)==(selected if accepted else 77)
- results.append(dict(mode=mode,crouch=crouch,waterflag=waterflag,parent_block=vehicle,alternate_fall=sub,frame_dt=real(0x5a4014),descriptor_enabled=enabled,velocity=velocity,accepted=accepted,jump_strength=strength,output_velocity=real(base+0x148),events=list(events)))
+ results.append(dict(mode=mode,crouch=crouch,waterflag=waterflag,parent_block=vehicle,alternate_fall=sub,frame_dt=real(0x5a4014),descriptor_enabled=enabled,velocity=velocity,accepted=accepted,jump_strength=strength,output_velocity=real(base+0x148),actor_flags=flags,physics_flags=struct.unpack_from("<I",seed,0x1a8)[0],old_time=struct.unpack_from("<I",seed,0x7b4)[0],final_actor_flags=read(base+0x810),final_physics_flags=read(base+0x1a8),final_time=read(base+0x7b4),events=list(events)))
 # A null entity must return without querying parent/fall/audio or touching selection.
 u.mem_write(0x630050,w(77));u.mem_write(stack,w(stop,0));u.reg_write(UC_X86_REG_ESP,stack);events.clear()
 u.emu_start(0x4288b0,stop,count=100)

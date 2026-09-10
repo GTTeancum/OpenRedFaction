@@ -2766,3 +2766,34 @@ by this harness. Original action 3 in 4a6210 reaches this routine through
 4a5c00 and another action gate; those gates and the campaign input wiring
 still need reconstruction. The climb rejection rules out an assumed jump
 boost while mode 2 is active, without proving the intended upper exit route.
+
+
+Shared jump transition (2026-09-10)
+
+rf_player_jump now reconstructs the resolved 4288b0/4281a0 transition in shared
+C. Its state carries actor/physics flags, vertical velocity, movement/orientation
+pointers and jump timestamp. Its input supplies the stable descriptor table,
+identity matrix, configured impulse, frame dt, resolved parent/fall predicates,
+class sound and current time. No allocation is performed. A sound callback runs
+after the fall state is committed but before the jump timestamp is written;
+the caller must implement the recovered lookup/playback boundary. Rejected
+jumps preserve state, descriptor selection and callback silence. Null state is
+a no-op. Missing accepted-path dependencies and nonfinite numeric inputs are
+reported before mutations; these defensive checks are not original behavior.
+
+verify_jump.py reruns the original fixtures and compares PC probe output plus
+compiled NXDK function execution in Unicorn. All 6,144 cases match flags,
+velocity bits, descriptor/fallback, orientation selection and timestamp.
+NXDK callback checks cover the entire 24-byte committed state with the old
+timestamp still present. Original execution reports now retain randomized
+input/output flag words and timestamps for direct comparison. NXDK null-state
+execution also passes. Output: artifacts/jump-verification.json. Long double
+keeps the arithmetic unrounded until the final float store; MSVC uses binary64
+for this type, and agreement is limited to the tested cases, not every float.
+
+Both targets build. The five registered PC CTests pass, and the existing 128
+climb-exit / 768 climb-entry PC/NXDK fixtures still pass. This change adds no
+live input binding or XEMU gameplay evidence. Recover action gates, wire the
+configured jump strength and body flags into campaign ownership, then validate
+press/hold/release and landing through process-local PC/XEMU replays. The upper
+climb exit and route from the authored spawn remain separate open questions.

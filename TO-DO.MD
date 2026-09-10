@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Reconstruct shared jump handling and connect action dispatch using the original jump/fall fixtures.
+- [ ] Connect recovered jump handling to original action gates, campaign input and audio.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -17,7 +17,8 @@ Immediate open items:
 Original jump/fall execution now passes 6,144 fixtures plus a null-entity check.
 The shipped maximum jump height is 1.33, giving impulse 5.105683327. Mode 2
 (climbing) rejects jump; do not add an assumed climb boost to solve the upper
-exit. Shared C, action dispatch, audio playback and live jumping remain open.
+exit. Shared C now matches all cases on PC and compiled NXDK; action dispatch,
+audio playback and live jumping remain open.
 See tools/inspect_jump.py and docs/CAMERA.md.
 
 A near-base approach now passes 220 ticks in stock-64-MiB XEMU
