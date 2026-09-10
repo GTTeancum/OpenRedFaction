@@ -963,3 +963,11 @@ triggers/events; mover keys and entities remain unresolved. Scene physics
 commits actor pose before delayed-event ticking, but original actor snapshot
 ordering and full actor registration still need integration before installing
 natural trigger polling. No new visual screenshot accompanies this state test.
+
+## Shared SP link routing
+
+rf_trigger_links_dispatch implements4c0320 SP typed-handle routing over an ordered mutable link view. Kind8 requests controller activation unless suppress_movers low byte is nonzero; kind6 requests event activation. Effect callbacks own actual actions. Registry/list must survive callbacks; count/list are reread. Multiplayer and actor backlinks are excluded.
+
+python tools/verify_trigger_links.py passes1024 original/PC/NXDK comparisons with real original handle/array callees, recording only downstream46aba0/4b6760 calls. Tests compare ordered kind/handle/source/actor arguments for four-target kind combinations and suppression0/1/256/257. Both builds and six CTests pass.
+
+Authored lower L1S1 trigger8542 links8593,8591,9826 in that order. Controllers8593 (Door Out01b) and8591 (Door Out01a) own movers8543 and8544 respectively. The scene currently does not poll player contacts through rf_runtime_trigger_contact, and startup_target counts kind8 as other_targets. This new helper is not yet wired to combined controller activation or scene motion ticks; no opening claim.

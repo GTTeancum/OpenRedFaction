@@ -131,6 +131,16 @@ typedef void (*rf_event_link_callback)(void *context,uint32_t handle,uint32_t so
     uint32_t actor,uint32_t on,uint32_t suppress_movers);
 int rf_event_links_propagate(rf_event_links *links,uint32_t source,uint32_t actor,
     uint32_t mode,rf_event_link_callback callback,void *context);
+/* Single-player 4c0320 resolved-link routing. Kind8 requests controller
+ * activation unless suppress_movers low byte is nonzero; kind6 requests event
+ * activation. Missing/stale/other objects are ignored. Effects are supplied by
+ * caller; no activation implementation, multiplayer or entity backlink here.
+ * Callback receives kind6/8 and registered handle, preserving authored order.
+ * Registry and list ownership must survive callbacks; list/count are reread. */
+typedef int (*rf_trigger_link_effect)(void *context,uint32_t kind,uint32_t handle,
+    uint32_t source,uint32_t actor);
+int rf_trigger_links_dispatch(const rf_object_registry *registry,rf_event_links *links,
+    uint32_t source,uint32_t actor,uint32_t suppress_movers,rf_trigger_link_effect effect,void *context);
 /* Set_Gravity (type 44), authored values[0] -> runtime +2b8. Invoke for
  * common callback action 0/1; propagation action 2 is handled by the caller.
  * On applies 4bcc00, off preserves gravity. No event registration or links. */

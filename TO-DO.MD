@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+SP trigger-link routing matches1024 original/PC/NXDK cases; lower trigger8542
+links controllers8593 then8591; player polling and live activation remain open.
+
 Staged lower-door replay now records111 mover contacts on PC and stock64MiB
 XEMU with exact final contact metadata; opening and authored traversal remain open.
 

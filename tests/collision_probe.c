@@ -32,6 +32,12 @@ static void activation_alert(void *context,uint32_t actor,const float position[3
 typedef struct body_fixture {
     float heights[3];uint32_t enabled[3],flags,spheres;
 } body_fixture;
+typedef struct trigger_link_trace {uint32_t count,words[16];} trigger_link_trace;
+static int trigger_link_record(void *context,uint32_t kind,uint32_t handle,uint32_t source,uint32_t actor)
+{
+    trigger_link_trace *t=context;uint32_t *p;
+    if(t->count==4)return RF_RANGE;p=t->words+4*t->count++;p[0]=kind;p[1]=handle;p[2]=source;p[3]=actor;return RF_OK;
+}
 typedef struct body_fixture_context {body_fixture input;uint32_t count;rf_collision_body_request trace[6];} body_fixture_context;
 static int body_fixture_geometry(void *context,const rf_collision_body_request *q,rf_collision_body_candidate *out,uint32_t *matched)
 {
@@ -89,6 +95,18 @@ int main(int argc,char **argv)
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--trigger-links")) {
+        uint32_t input[5];
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            rf_object_registry registry;rf_event_links links;uint32_t handles[4],i;
+            struct {int status;trigger_link_trace trace;} output={0};rf_object_registry_init(&registry);
+            for(i=0;i<4;i++){if(rf_object_registry_insert(&registry,input+i,handles+i))return 3;}
+            links.count=4;links.handles=handles;
+            output.status=rf_trigger_links_dispatch(&registry,&links,0x23450020,0x34560021,input[4],trigger_link_record,&output.trace);
+            fwrite(&output,sizeof(output),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--body-surface")) {
         struct {uint32_t solid,face,texture,slot;char name[64];} in;
         while(fread(&in,sizeof(in),1,stdin)==1) {

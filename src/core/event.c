@@ -219,6 +219,21 @@ int rf_event_links_propagate(rf_event_links *links,uint32_t source,uint32_t acto
         ++i;
     }
 }
+int rf_trigger_links_dispatch(const rf_object_registry *registry,rf_event_links *links,
+    uint32_t source,uint32_t actor,uint32_t suppress_movers,rf_trigger_link_effect effect,void *context)
+{
+    uint32_t i=0;
+    if(!registry || !links || !effect)return RF_RANGE;
+    while(i<links->count) {
+        void *object;uint32_t handle,kind;int status;
+        if(!links->handles)return RF_RANGE;
+        handle=links->handles[i++];object=rf_object_registry_lookup(registry,handle);
+        if(!object)continue;memcpy(&kind,object,4);
+        if(kind!=6 && (kind!=8 || (suppress_movers&255)))continue;
+        status=effect(context,kind,handle,source,actor);if(status)return status;
+    }
+    return RF_OK;
+}
 typedef struct startup_context {
     rf_runtime_triggers *triggers;rf_runtime_trigger *trigger;rf_runtime_event *event;
     rf_physics_gravity *gravity;rf_startup_events_report *report;int32_t now;int status;
