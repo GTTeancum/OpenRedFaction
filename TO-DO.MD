@@ -17,6 +17,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+PC particle rasterization now matches all twelve native XEMU probe colors;
+CTest checks quad interiors/shared edges and unchanged depth for those cases.
+Connect both particle passes to campaign effects and real animated textures.
+
 Xbox particle backend passes twelve stock-64-MiB XEMU pixel probes for blend,
 fog, alpha and depth; native testing fixed a missing secondary-color enable.
 Connect Xbox/PC campaign passes and validate animated texture sampling/depth mapping.

@@ -164,3 +164,9 @@ add_executable(rf_event_probe tests/event_probe.c)
 target_link_libraries(rf_event_probe PRIVATE rf_core)
 add_executable(rf_unhide_probe tests/unhide_probe.c)
 target_link_libraries(rf_unhide_probe PRIVATE rf_core)
+
+add_executable(rf_particle_pixel_probe tests/particle_pixel_probe.c tools/pc_raster.c)
+target_include_directories(rf_particle_pixel_probe PRIVATE tools)
+target_link_libraries(rf_particle_pixel_probe PRIVATE rf_core)
+
+add_test(NAME particle_backend_pixels COMMAND rf_particle_pixel_probe)

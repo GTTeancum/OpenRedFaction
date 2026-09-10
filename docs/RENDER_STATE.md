@@ -289,3 +289,26 @@ probe. This is why the pass was kept out of campaign rendering until pixel
 checks existed. The pass still needs call-site integration, real animated image
 sampling tests, the corresponding PC backend and representative depth conversion
 against campaign geometry. Synthetic depth tests use explicit forward-Z values.
+
+## PC particle backend
+
+`rf_pc_raster_particle` consumes the same 32-byte draw vertices and explicit
+depth conversion as the Xbox pass. It supports the same ordinary/glow/no-Z mode
+domain, clamps bilinear texture sampling, performs projective UV interpolation,
+applies color/fog and alpha blending, and never writes depth. It reuses the
+existing PC color/depth targets and allocates no per-draw heap storage. The
+fixed local vertex arrays support the same twelve-vertex bound.
+
+The convex fan covers each pixel once; internal shared triangle edges are not
+blended twice. `rf_particle_pixel_probe` checks a 64x64 interior region for each
+of the twelve native scenarios, including the shared diagonal, and asserts that
+depth values remain unchanged. CTest includes this test as
+`particle_backend_pixels`. All six registered tests pass.
+
+Native run `artifacts/xemu/particle-pixels-20260910-095259/report.json` includes
+PC comparison results. All twelve sampled RGB triples agree exactly between
+PC, 64-MiB XEMU and the expected values. The broader PC interior test allows one
+unit per channel; the XEMU comparison allows two. This covers constant-texel
+cases, not full-image or subpixel edge equivalence. Real animated images,
+perspective-varying sampling, campaign depth conversion and call-site integration
+remain open. These tests do not establish full PC/Xbox rasterizer parity.

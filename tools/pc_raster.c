@@ -99,3 +99,67 @@ int rf_pc_raster_save(const rf_pc_raster *r,const char *path)
     if(fwrite(r->rgb,3,r->pixels,output)!=r->pixels)failed=1;
     if(fclose(output))failed=1;return failed?RF_IO:RF_OK;
 }
+
+static double particle_edge(const float *a,const float *b,double x,double y)
+{return (x-a[0])*((double)b[1]-a[1])-(y-a[1])*((double)b[0]-a[0]);}
+int rf_pc_raster_particle(rf_pc_raster *r,const rf_particle_draw_vertex *vertices,
+    uint32_t count,const rf_image *image,uint32_t mode,float depth_scale,float depth_bias,
+    uint32_t fog_enabled,uint32_t fog_rgb)
+{
+    float positions[12][2],colors[12][4],fog[12],xmin=INFINITY,xmax=-INFINITY,ymin=INFINITY,ymax=-INFINITY;
+    uint32_t i,j,base_mode=mode&~(31u<<20),depth_mode=(mode>>20)&31u,glow;
+    int x,y,x0,x1,y0,y1;
+    if(!r || !r->rgb || !r->depth || !r->width || !r->height || !vertices || count<3 || count>12 ||
+       !image || !image->rgba || !image->width || !image->height ||
+       !isfinite(depth_scale) || !isfinite(depth_bias))return RF_RANGE;
+    if((base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) && base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20))) || depth_mode>1)return RF_NOT_FOUND;
+    if((image->width&(image->width-1)) || (image->height&(image->height-1)) ||
+       (uint64_t)image->width*image->height*4>image->bytes)return RF_FORMAT;
+    glow=base_mode==(RF_PARTICLE_GLOW_MODE&~(31u<<20));
+    for(i=0;i<count;i++) {
+        if(!isfinite(vertices[i].depth) || !isfinite(vertices[i].reciprocal_w) || !isfinite(depth_bias+depth_scale*vertices[i].depth))return RF_RANGE;
+        fog[i]=(!glow && (fog_enabled&255u))?(float)(vertices[i].fog>>24)/255.0f:1;
+        for(j=0;j<2;j++) {
+            positions[i][j]=vertices[i].screen[j]*r->scale;
+            if(!isfinite(positions[i][j]) || !isfinite(vertices[i].uv[j]) || !isfinite(vertices[i].uv[j]*vertices[i].reciprocal_w))return RF_RANGE;
+        }
+        for(j=0;j<3;j++)colors[i][j]=(float)((vertices[i].argb>>(16-j*8))&255u)/255.0f*fog[i];
+        colors[i][3]=(float)(vertices[i].argb>>24)/255.0f;
+        xmin=fminf(xmin,positions[i][0]);xmax=fmaxf(xmax,positions[i][0]);
+        ymin=fminf(ymin,positions[i][1]);ymax=fmaxf(ymax,positions[i][1]);
+    }
+    if(xmax<0 || ymax<0 || xmin>=r->width || ymin>=r->height)return RF_OK;
+    x0=(int)fmaxf(0,floorf(xmin));x1=(int)fminf((float)r->width-1,ceilf(xmax));
+    y0=(int)fmaxf(0,floorf(ymin));y1=(int)fminf((float)r->height-1,ceilf(ymax));
+    for(y=y0;y<=y1;y++)for(x=x0;x<=x1;x++) {
+        /* Cover a convex fan once, including shared internal edges. Applying
+         * blending separately to both triangles would produce a dark seam. */
+        for(i=1;i+1<count;i++) {
+            double area=particle_edge(positions[0],positions[i],positions[i+1][0],positions[i+1][1]);
+            float weights[3],q=0,z=0,uv[2]={0},color[4]={0},f=0,texel[4];uint32_t ids[3]={0,i,i+1},k,pixel;
+            if(fabs(area)<1e-10)continue;
+            weights[0]=(float)(particle_edge(positions[i],positions[i+1],x+0.5,y+0.5)/area);
+            weights[1]=(float)(particle_edge(positions[i+1],positions[0],x+0.5,y+0.5)/area);
+            weights[2]=1-weights[0]-weights[1];
+            if(weights[0]<0 || weights[1]<0 || weights[2]<0)continue;
+            for(j=0;j<3;j++) {
+                const rf_particle_draw_vertex *v=vertices+ids[j];float w=weights[j];
+                q+=w*v->reciprocal_w;z+=w*v->depth;f+=w*fog[ids[j]];
+                for(k=0;k<2;k++)uv[k]+=w*v->uv[k]*v->reciprocal_w;
+                for(k=0;k<4;k++)color[k]+=w*colors[ids[j]][k];
+            }
+            pixel=(uint32_t)y*r->width+(uint32_t)x;
+            if(depth_mode && depth_bias+depth_scale*z>r->depth[pixel])break;
+            if(q==0 || !isfinite(q))break;
+            sample(image,uv[0]/q,uv[1]/q,1,texel);
+            for(k=0;k<3;k++) {
+                float alpha=texel[3]*color[3];
+                float source=fminf(1,fmaxf(0,texel[k]*color[k]+(float)((fog_rgb>>(k*8))&255u)/255.0f*(1-f)));
+                float value=source*255*alpha+r->rgb[pixel*3+k]*(glow?1:1-alpha);
+                r->rgb[pixel*3+k]=(unsigned char)floorf(fminf(255,fmaxf(0,value))+0.5f);
+            }
+            break;
+        }
+    }
+    return RF_OK;
+}

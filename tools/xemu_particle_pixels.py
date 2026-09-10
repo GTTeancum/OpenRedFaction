@@ -56,7 +56,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   assert state[2]==12
   expected=[(144,32,48),(160,64,96),(16,160,48),(88,48,72),(255,0,0),(127,0,0),(127,0,0),(63,128,0),(80,96,48),(24,48,80),(32,64,96),(255,0,0)]
   actual=[((p>>16)&255,(p>>8)&255,p&255) for p in state[3:15]]
-  report.update(expected_rgb=expected,actual_rgb=actual)
+  pc=[tuple(map(int,line.split())) for line in subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe')],text=True).splitlines()]
+  assert len(pc)==12 and all(abs(a-b)<=2 for rgb,ref in zip(pc,actual) for a,b in zip(rgb,ref)),pc
+  report.update(expected_rgb=expected,actual_rgb=actual,pc_rgb=pc)
   assert all(abs(a-b)<=2 for rgb,ref in zip(actual,expected) for a,b in zip(rgb,ref)),actual
   report['result']='PASS'
 finally:

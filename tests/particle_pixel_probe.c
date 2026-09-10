@@ -1,0 +1,38 @@
+#include "pc_raster.h"
+#include <stdio.h>
+#include <string.h>
+int main(void)
+{
+    static const unsigned char expected[12][3]={{144,32,48},{160,64,96},{16,160,48},{88,48,72},{255,0,0},{127,0,0},{127,0,0},{63,128,0},{80,96,48},{24,48,80},{32,64,96},{255,0,0}};
+    rf_pc_raster r={0};rf_particle_draw_vertex v[4];unsigned char texel[4];
+    rf_image image={1,1,4,0,texel};uint32_t i,j,k;int status;
+    if(rf_pc_raster_open(&r,1))return 1;
+    for(i=0;i<12;i++) {
+        for(j=0;j<r.pixels;j++){r.rgb[j*3]=32;r.rgb[j*3+1]=64;r.rgb[j*3+2]=96;r.depth[j]=16777215;}
+        memset(v,0,sizeof(v));memset(texel,255,4);texel[3]=128;
+        for(j=0;j<4;j++) {
+            v[j].screen[0]=32+((j==1 || j==2)?80:0);v[j].screen[1]=48+(j>=2?80:0);
+            v[j].depth=1000;v[j].reciprocal_w=1;v[j].argb=0xffff0000;v[j].fog=0xff000000;
+            v[j].uv[0]=(j==1 || j==2)?1:0;v[j].uv[1]=j>=2?1:0;
+        }
+        if(i>=4 && i<8) {
+            for(j=48;j<128;j++)for(k=32;k<112;k++){unsigned p=j*r.width+k;r.depth[p]=1000;r.rgb[p*3]=255;r.rgb[p*3+1]=r.rgb[p*3+2]=0;}
+            for(j=0;j<4;j++){v[j].argb=0xff000000;v[j].depth=i>=6?500:2000;}
+        }
+        if(i==2 || i==8)for(j=0;j<4;j++)v[j].fog=i==8?0x80000000:0;
+        if(i==3)for(j=0;j<4;j++)v[j].argb=0x80ff0000;
+        if(i>=9){texel[3]=i==10?0:i==11?255:128;if(i==9){texel[0]=16;texel[1]=32;texel[2]=64;for(j=0;j<4;j++)v[j].argb=0xffffffff;}}
+        status=rf_pc_raster_particle(&r,v,4,&image,i==1?RF_PARTICLE_GLOW_MODE:i==5?RF_PARTICLE_NORMAL_MODE&~(31u<<20):RF_PARTICLE_NORMAL_MODE,1,0,i==2 || i==8,0xff00);
+        if(status)return 2;
+        if(i==7){for(j=0;j<4;j++){v[j].argb=0xff00ff00;v[j].depth=750;}if(rf_pc_raster_particle(&r,v,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0))return 3;}
+        for(j=56;j<120;j++)for(k=40;k<104;k++) {
+            unsigned channel;for(channel=0;channel<3;channel++) {
+                int delta=(int)r.rgb[(j*r.width+k)*3+channel]-expected[i][channel];
+                if(delta < -1 || delta > 1){fprintf(stderr,"Particle %u pixel %u,%u mismatch\n",i,k,j);return 4;}
+            }
+            if(r.depth[j*r.width+k]!=(i>=4 && i<8?1000:16777215))return 5;
+        }
+        j=(88*r.width+72)*3;printf("%u %u %u\n",r.rgb[j],r.rgb[j+1],r.rgb[j+2]);
+    }
+    rf_pc_raster_close(&r);return 0;
+}
