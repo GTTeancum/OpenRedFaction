@@ -2483,3 +2483,37 @@ mutation, repeated close and stale-handle removal. PC integration and NXDK
 build pass; this is not original full-factory execution or a native XEMU test.
 Scene link resolution/dispatch still needs these views wired in before natural
 door/lift activation can be claimed.
+
+
+## Scene controller link integration (2026-09-10)
+
+The campaign scene now owns group source records, initialized runtime entries,
+and registered type8 controller wrappers alongside events/triggers. Resolution
+uses event, trigger, then controller object rows, followed by ordered key-owner
+fallback. Cleanup unregisters wrappers before closing runtime/source storage.
+Budgets are 1 MiB source, 256 KiB runtime and 64 KiB registration; allocations
+use actual content sizes. This fixture order is not original whole-world order.
+The separate native archive diagnostic still retains its own group runtime;
+consolidating that diagnostic ownership remains future memory work.
+
+The partial dispatcher accepts resolved key-owner handles for registry lookup.
+Type8 targets remain counted as other_targets: activation 46aba0, actor/player
+side effects, mover member binding and scene motion ticks are not implemented
+by this change. A missing key-owner handle remains unresolved. The runtime
+trigger fixture checks both classifications while preserving event dispatch.
+
+Stock 64 MiB native replays pass with exact PC controller telemetry, link hashes,
+startup/event state and actor state:
+- artifacts/xemu/replay-20260910-150750/report.json: L1S1, 5 controllers,
+  9 keys, source/runtime/registration bytes 10340/1632/224; trigger links
+  173 resolved of 188 and event links 47 of 199.
+- artifacts/xemu/replay-20260910-150855/report.json: L2S1, 11 controllers,
+  21 keys, bytes 23156/3576/464; trigger links 31 of 37 and events 13 of 35.
+  Two trigger links exercise the non-first-key owner fallback.
+
+Run tools/verify_scene_group_links.py with either report path to independently
+recompute ordered link hashes from authored event, trigger and moving-group
+inventories. Both pass. These are bounded 16-frame registration replays, not
+natural door activation or whole-campaign memory/visual validation. Harness
+processes were reaped and normal disc flags restored. PC/NXDK builds, six
+CTests and the 93-level partial startup regression pass. No new visual capture.

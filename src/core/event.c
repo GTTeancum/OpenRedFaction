@@ -260,7 +260,7 @@ static void startup_target(startup_context *c,const rf_level_link_target *target
     uint32_t source,uint32_t actor,uint32_t on)
 {
     void *object;uint32_t kind;startup_context child;int status;
-    if(target->kind!=1) {++c->report->unresolved_targets;return;}
+    if(target->kind!=1 && target->kind!=2) {++c->report->unresolved_targets;return;}
     object=rf_object_registry_lookup(c->triggers->registry,target->value);
     if(!object) {++c->report->unresolved_targets;return;}
     memcpy(&kind,object,4);

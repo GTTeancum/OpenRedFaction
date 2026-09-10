@@ -18,8 +18,8 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Controller registration and 2441 key-owner mappings pass all 68 moving-group
-levels; scene link wiring, activation and native registration replay remain open.
+Scene controller/key links pass stock 64 MiB XEMU replays in L1S1 and L2S1,
+including two key-owner fallback links; activation and mover binding remain open.
 
 Actor resolution/contact/delay/activation passes the 13-event stock 64 MiB
 XEMU replay with exact PC traces; live actor and mover-key registration remain open.

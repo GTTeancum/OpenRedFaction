@@ -358,6 +358,10 @@ static rf_level_owned_regions campaign_regions;
 static rf_object_registry campaign_registry;
 static rf_runtime_events campaign_events;
 static rf_runtime_triggers campaign_triggers;
+static rf_level_owned_groups campaign_groups;
+static rf_group_runtime_collection campaign_group_runtime;
+static rf_group_registration campaign_group_registration;
+uint32_t rf_scene_campaign_groups[5]; /* controllers, keys, source/runtime/registration bytes */
 rf_startup_events_report rf_scene_startup_events;
 uint32_t rf_scene_startup_gravity[4];
 uint32_t rf_scene_campaign_triggers[2]; /* registered triggers, owner bytes */
@@ -366,7 +370,7 @@ uint32_t rf_scene_campaign_event_links[4];
 uint32_t rf_scene_event_ticks[12]; /* ticks, clock ms, pending other types, cumulative action report */
 static int campaign_resolve_trigger_links(void)
 {
-    uint32_t i,j,n=campaign_events.count+campaign_triggers.count;
+    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count;
     rf_level_uid_object *objects=n?malloc((size_t)n*sizeof(*objects)):NULL;int status;
     if(n && !objects)return RF_RANGE;
     for(i=0;i<campaign_events.count;++i) {
@@ -377,10 +381,14 @@ static int campaign_resolve_trigger_links(void)
         objects[i].uid=campaign_triggers.items[j].authored->record.uid;
         objects[i].handle=campaign_triggers.items[j].handle;objects[i].flags=0;
     }
-    /* Only these object families are registered so far. Mover keys/entities
-     * remain unresolved; the retained authored links allow later resolution. */
-    status=rf_runtime_triggers_resolve(&campaign_triggers,objects,n,NULL,0);
-    if(!status)status=rf_runtime_events_resolve(&campaign_events,objects,n,NULL,0);
+    for(j=0;j<campaign_group_registration.count;++j,++i)
+        objects[i]=campaign_group_registration.objects[j];
+    /* Fixture order: events, triggers, then controllers. Entity registration
+     * and original whole-world handle order remain incomplete. */
+    status=rf_runtime_triggers_resolve(&campaign_triggers,objects,n,
+        campaign_group_registration.keys,campaign_group_registration.key_count);
+    if(!status)status=rf_runtime_events_resolve(&campaign_events,objects,n,
+        campaign_group_registration.keys,campaign_group_registration.key_count);
     free(objects);
     memset(rf_scene_campaign_links,0,sizeof(rf_scene_campaign_links));
     if(status)return status;
@@ -1363,6 +1371,17 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
             rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;
+            status=rf_level_owned_groups_open(level,1024*1024,&campaign_groups);
+            if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
+            status=rf_group_runtime_open(&campaign_groups,0,256*1024,&campaign_group_runtime);
+            if(status)goto done;
+            status=rf_group_registration_open(&campaign_group_runtime,&campaign_registry,65536,&campaign_group_registration);
+            if(status)goto done;
+            rf_scene_campaign_groups[0]=campaign_group_registration.count;
+            rf_scene_campaign_groups[1]=campaign_group_registration.key_count;
+            rf_scene_campaign_groups[2]=campaign_groups.allocated_bytes;
+            rf_scene_campaign_groups[3]=campaign_group_runtime.allocated_bytes;
+            rf_scene_campaign_groups[4]=campaign_group_registration.allocated_bytes;
             status=campaign_resolve_trigger_links();if(status)goto done;
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
@@ -1484,6 +1503,9 @@ done:
     rf_level_visibility_close(&stream.visibility);
     rf_level_particles_close(&stream.particles);
     free(stream.particle_workspace);particle_draw_stream=NULL;
+    rf_group_registration_close(&campaign_group_registration);
+    rf_group_runtime_close(&campaign_group_runtime);
+    rf_level_owned_groups_close(&campaign_groups);
     rf_runtime_triggers_close(&campaign_triggers);
     rf_runtime_events_close(&campaign_events);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);

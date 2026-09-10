@@ -100,12 +100,13 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--runtime-trigger-fire")) {
         static rf_object_registry registry;rf_runtime_triggers owner={0};rf_runtime_trigger trigger={0};
         rf_runtime_event events[2]={{0}};rf_level_owned_trigger authored={0};rf_level_owned_event records[2]={{0}};
-        rf_level_link_target targets[2]={{0}},self={0};rf_startup_events_report report;
+        rf_level_link_target targets[4]={{0}},self={0};rf_startup_events_report report;
+        rf_group_registered_controller controller={0};
         rf_physics_gravity gravity={0};uint32_t fired,i,ready;
         rf_trigger_actor_facts actor={0};rf_trigger_contact_filter filter={5,-1,0,NULL};
         float pose[3][3]={{0}};
         rf_object_registry_init(&registry);owner.registry=&registry;owner.items=&trigger;owner.count=1;
-        trigger.object_kind=5;trigger.authored=&authored;trigger.links=targets;authored.record.link_count=2;
+        trigger.object_kind=5;trigger.authored=&authored;trigger.links=targets;authored.record.link_count=4;
         trigger.activation.limit=1;trigger.state.deadline=100;trigger.state.cooldown_ms=50;
         if(rf_object_registry_insert(&registry,&trigger,&trigger.handle))return 70;
         trigger.state.handle=trigger.handle;
@@ -114,6 +115,10 @@ int main(int argc,char **argv)
             if(rf_object_registry_insert(&registry,events+i,&events[i].handle))return 71;
             targets[i].kind=1;targets[i].value=events[i].handle;
         }
+        controller.object_kind=8;
+        if(rf_object_registry_insert(&registry,&controller,&controller.handle))return 80;
+        targets[2].kind=2;targets[2].value=controller.handle;
+        targets[3].kind=2;targets[3].value=UINT32_MAX;
         self.kind=1;self.value=trigger.handle;events[0].links=&self;records[0].record.link_count=1;
         records[1].record.values[0]=12.5f;
         trigger.volume.radius=2;trigger.contact_timer.seconds=.5f;trigger.contact_timer.deadline=-1;
@@ -136,6 +141,7 @@ int main(int argc,char **argv)
             !fired || trigger.state.count!=1 || trigger.state.flags!=80 || trigger.activation.object_flags!=2 ||
             trigger.state.deadline!=850 || trigger.state.activation_time_bits!=0x42c80000 ||
             gravity.acceleration!=12.5f || report.triggers!=1 || report.events!=2 || report.gravity_actions!=1 ||
+            report.other_targets!=1 || report.unresolved_targets!=1 ||
             events[1].state.actor!=123 || events[1].state.source!=trigger.handle)return 73;
         if(rf_runtime_trigger_fire(&owner,events[0].handle,123,100,0,0,0,&gravity,NULL,&report,&fired)!=RF_NOT_FOUND)return 74;
         puts("PASS runtime trigger dispatch, self-disable, gravity and limit mark");return 0;
