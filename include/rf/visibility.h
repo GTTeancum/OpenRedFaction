@@ -70,6 +70,18 @@ typedef struct rf_visibility_view_scale {
  * is halved. Positive dimensions/aspect/FOV, FOV<180 in perspective required.
  * No view matrix mutation or graphics-state setup; errors preserve output. */
 int rf_visibility_view_scale_build(const rf_visibility_viewport *viewport,rf_visibility_view_scale *scale);
+typedef struct rf_visibility_camera_parameters {
+    rf_visibility_viewport viewport;float origin[3],basis[9],near_distance;
+    uint32_t clip_enabled,far_enabled,projection_clamp;float depth_offset;
+} rf_visibility_camera_parameters;
+typedef struct rf_visibility_camera {
+    rf_visibility_view view;rf_visibility_frustum frustum;rf_visibility_projection projection;
+} rf_visibility_camera;
+/* Shared composition of verified 547150/546a40 math. Keeps an unscaled camera
+ * basis and scales a copy's rows for 518bf0. Caller supplies clip/clamp/depth
+ * state not assigned by 547150. No rendering globals, allocation or graphics
+ * calls. Initialize output before use; errors preserve it and unused planes. */
+int rf_visibility_camera_setup(const rf_visibility_camera_parameters *parameters,rf_visibility_camera *camera);
 enum {RF_PORTAL_PROJECT=0,RF_PORTAL_FULL_VIEW=1,RF_PORTAL_REJECT=2};
 /* 4d4860 preprojection branch using 507ba0 (inclusive one-unit expanded box)
  * and 518750 (strict positive plane distance at supplied extreme corner).

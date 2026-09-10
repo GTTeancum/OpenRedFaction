@@ -267,3 +267,21 @@ the original retains the unrounded division when deriving X/Y and reciprocal.
 The shared routine now does the same. This does not implement every side effect
 of `547150`; camera matrix processing, graphics state and live integration still
 need their own evidence. Ordinary perspective input requires 0<FOV<180.
+
+## Combined visibility camera
+
+`rf_visibility_camera_setup` composes viewport/FOV scaling, frustum construction
+and box-projection state. Original `547150` preserves the input camera basis and
+copies it before scaling each row by X/Y/Z view scale. `4fce70` and `4fad00` in
+that routine reset separate transform state to identity/zero; they do not
+normalize or otherwise alter the camera basis. The shared builder retains the
+unscaled basis for frustum planes and the scaled matrix for box projection.
+Clip enable, projection clamp and depth offset are explicit caller inputs.
+
+`verify_visibility_camera.py` runs original `547150` followed by full `515d00`
+against the composed PC/NXDK camera and projection path in 256 cases. All camera
+fields, planes, retained slots and screen rectangles match for translated and
+rotated inputs, two viewport sizes, multiple FOVs and flat/perspective/far modes.
+All 256 selected boxes project successfully. Only graphics-state call `50ce40`
+is intercepted. This supplies a coherent camera input to the portal pipeline;
+native renderer wiring, portal cache lifecycle and live gameplay remain open.

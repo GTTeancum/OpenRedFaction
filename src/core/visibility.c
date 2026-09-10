@@ -5,6 +5,30 @@ static int valid(const rf_visibility *s)
 {
     return s && (!s->count || (s->rooms && s->order)) && s->visible_count<=s->count;
 }
+int rf_visibility_camera_setup(const rf_visibility_camera_parameters *p,rf_visibility_camera *out)
+{
+    rf_visibility_camera value;rf_visibility_view_scale scales;uint32_t i,j;int status;
+    if(!p || !out || !isfinite(p->depth_offset))return RF_RANGE;
+    status=rf_visibility_view_scale_build(&p->viewport,&scales);if(status)return status;
+    value=*out;
+    memcpy(value.view.origin,p->origin,sizeof(p->origin));memcpy(value.view.basis,p->basis,sizeof(p->basis));
+    memcpy(value.view.scale,scales.scale,sizeof(scales.scale));
+    value.view.near_distance=p->near_distance;value.view.far_distance=p->viewport.far_distance;
+    value.view.perspective=p->viewport.perspective;value.view.far_enabled=p->far_enabled;
+    status=rf_visibility_frustum_build(&value.view,&value.frustum);if(status)return status;
+    memcpy(value.projection.origin,p->origin,sizeof(p->origin));
+    for(i=0;i<3;i++)for(j=0;j<3;j++) {
+        value.projection.matrix[i*3+j]=p->basis[i*3+j]*scales.scale[i];
+        if(!isfinite(value.projection.matrix[i*3+j]))return RF_RANGE;
+    }
+    value.projection.flat_depth=scales.flat_depth;value.projection.perspective=p->viewport.perspective;
+    value.projection.clip.enabled=p->clip_enabled;value.projection.clip.depth_enabled=p->viewport.perspective;
+    value.projection.clip.far_enabled=p->far_enabled;value.projection.clip.far_distance=value.frustum.scaled_far;
+    value.projection.projection.clamp=p->projection_clamp;value.projection.projection.depth_offset=p->depth_offset;
+    value.projection.projection.half_width=scales.half[0];value.projection.projection.half_height=scales.half[1];
+    value.projection.projection.origin_x=p->viewport.x;value.projection.projection.origin_y=p->viewport.y;
+    *out=value;return RF_OK;
+}
 int rf_visibility_view_scale_build(const rf_visibility_viewport *v,rf_visibility_view_scale *out)
 {
     rf_visibility_view_scale value;float aspect,factor,far;double depth;uint32_t i;
