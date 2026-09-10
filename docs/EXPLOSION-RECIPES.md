@@ -326,3 +326,30 @@ trace of 0x496c50 also identifies spawn displacement along the selected
 direction, speed/radius/lifetime random draws, optional parent velocity and a
 spawn-timer reset after particle allocation. Those steps still need a combined
 original-executable emission replay before live campaign emitters are claimed.
+
+
+## Full emitter emission reference replay
+
+`tools/verify_particle_emission_trace.py` now executes unchanged 0x496c50
+through parentless 0x496bc0, all vector/cone/RNG helpers, actual 0x496840
+allocation and 0x4fa360 timer reset. Only the CRT thread-storage pointer is
+supplied by the existing harness. It records 512 reference fixtures under
+ignored artifacts, with 256 successful and 256 exhausted pool attempts.
+
+The verified order is optional two-draw cone selection, speed, radius, life,
+allocation (one orientation draw only if allocation succeeds and flag 0x200
+is set), then delay. Direction cosine >=1 bypasses the cone entirely; values
+below -1 are clamped in the emitter itself. The delay is multiplied by 1000
+before truncation to integer milliseconds, without an intermediate float
+store, and the timer wraps at 1072800000 with a strict greater-than check.
+Exhaustion still changes the spawn packet and deadline and consumes all other
+draws. Allocation arguments are pool 1, packet, room, authored-position
+pointer, owner handle, null output pointer and emitter pointer. The authored
+position argument is opaque here; it must not be confused with the owner.
+
+The harness asserts call order, RNG advancement, exact allocation arguments,
+record position/velocity copying, owner/emitter linkage, pool count, cosine
+mutation and timer wrap. Original before/after records are retained for the
+pending C integration; this is not a PC/NXDK emission parity claim. Parent
+resolution, inherited velocity and parent ownership rules remain unverified
+by this replay. No new campaign visual is implied.

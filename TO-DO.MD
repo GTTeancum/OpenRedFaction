@@ -20,6 +20,8 @@ Immediate open items:
 Emitter oriented cone sampling now matches 4096 original/PC/NXDK XYZ and RNG
 cases, including vertical threshold neighbors; full emission remains open.
 Connect authored emitters to spawn packets, pool allocation and timer reset.
+Full original parentless emission now passes 512 traces, including 256 exhausted
+pool attempts; use these fixtures to implement shared emission and timer reset.
 
 Real boom01 frames 0/7/15 pass six PC/XEMU draws: 1536 samples differ by at
 most one RGB unit, and guest pages return to baseline after image release.
