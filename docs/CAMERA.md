@@ -2437,3 +2437,30 @@ This does not yet load authored region records or implement climb entry/exit.
 The campaign's empty-region assumption remains until those are connected;
 replacing it solely with box detection would suppress stance without providing
 the corresponding climb behavior.
+
+
+### Authored movement-region reader (2026-09-09)
+
+The level dispatch at `460e51..460e7a` maps section 0xD00 to `462e40`.
+That loader allocates a 64-byte runtime region per record and appends it to
+`6460b0` in file order. For installed v180 records it reads a discarded UID,
+a length-prefixed name, position and orientation, another length-prefixed name,
+one editor byte, a 32-bit kind and three full box dimensions. Versions below
+67 have an extra string; the shared reader deliberately supports v180 only.
+The original default constructor is `465f40`.
+
+`rf_level_regions_begin` / `rf_level_region_next` now decode these records
+without allocating. They reuse the bounded section-reader cursor, discard the
+editor-only fields, reorder orientation rows consistently with the existing
+level transform reader, and produce `rf_player_movement_region`. Errors preserve
+both cursor and output; the final record must exhaust the section exactly.
+Nonfinite transforms and negative/nonfinite dimensions are rejected.
+
+`tools/verify_level_regions.py` independently decodes every installed section
+and compares 147 records across 39 levels with both the PC file reader and the
+compiled NXDK next-record reader. The NXDK fixture supplies archive reads while
+retaining the compiled level bounds checks. All 80 truncated/malformed fixtures
+preserve cursor and output. Full PC/NXDK builds and CTest pass. This evidence
+checks the recovered layout against installed data; it does not execute the
+original loader or establish live climb behavior. Retained region ownership
+and climb entry/exit integration are still required.

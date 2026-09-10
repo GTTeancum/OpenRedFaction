@@ -23,6 +23,11 @@ matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
 Blocked standing, full ownership/input locks, vehicles and inventory remain open.
 See docs/CAMERA.md and tools/verify_player_stance_live.py.
 
+The v180 movement-region reader now loads all 147 authored records in the 39
+installed levels containing section 0xD00, with PC/NXDK byte-identical decoding.
+It allocates nothing and preserves reader/output on malformed data. Connecting
+the retained regions to climb entry/exit remains open; see docs/CAMERA.md.
+
 The stance environment query is now identified as an ordered oriented-box
 movement-region scan leading to climb mode 2, rather than room-water detection.
 Shared C matches the complete original scan in 1,521 PC/NXDK cases; level region

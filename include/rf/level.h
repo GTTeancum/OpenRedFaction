@@ -1,6 +1,7 @@
 #ifndef RF_LEVEL_H
 #define RF_LEVEL_H
 #include "rf/vpp.h"
+#include "rf/player.h"
 
 #define RF_LEVEL_MAX_SECTIONS 128
 #define RF_LEVEL_NAME_CAPACITY 256
@@ -34,6 +35,11 @@ typedef struct rf_level_entity_reader {
 /* v180 section 0x30000 format reader; no gameplay entity creation. Caller keeps
  * level/archive alive. Sequential bounded reads, no heap allocation. next returns
  * NOT_FOUND after exact section exhaustion; errors preserve reader and output. */
+/* v180 movement regions, section 0xD00. Reuses the bounded reader cursor;
+ * no allocation. Runtime output is the 64-byte region used by 45cca0.
+ * Errors preserve reader/output; exhaustion requires exact section length. */
+int rf_level_regions_begin(const rf_level *level,rf_level_entity_reader *reader);
+int rf_level_region_next(rf_level_entity_reader *reader,rf_player_movement_region *region);
 int rf_level_entities_begin(const rf_level *level,rf_level_entity_reader *reader);
 int rf_level_entity_next(rf_level_entity_reader *reader,rf_level_entity *entity);
 /* Full validated scan for one UID; duplicates are FORMAT, absent UID is

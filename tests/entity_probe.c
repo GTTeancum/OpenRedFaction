@@ -1,5 +1,6 @@
 #include "rf/entity.h"
 #include "rf/player.h"
+#include "rf/level.h"
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -19,6 +20,16 @@ static void room_notify(void *context,const char *name)
 {(void)context;++room_notices;room_notice_kind=!strcmp(name,"underwater")?2:1;}
 int main(int argc,char **argv)
 {
+    if(argc==4 && !strcmp(argv[1],"--level-regions")) {
+        rf_vpp archive;rf_level level;rf_level_entity_reader reader;rf_player_movement_region region;int status;
+        _setmode(_fileno(stdout),_O_BINARY);
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 3;
+        status=rf_level_regions_begin(&level,&reader);
+        if(status==RF_NOT_FOUND){rf_vpp_close(&archive);return 0;}if(status)return 4;
+        while((status=rf_level_region_next(&reader,&region))==RF_OK)
+            if(fwrite(&region,sizeof(region),1,stdout)!=1)return 5;
+        rf_vpp_close(&archive);return status==RF_NOT_FOUND?0:6;
+    }
     if(argc==2 && !strcmp(argv[1],"--player-regions")) {
         struct {uint32_t count;float point[3];rf_player_movement_region regions[3];} input;
         _Static_assert(sizeof(input)==208,"Movement region wire input");

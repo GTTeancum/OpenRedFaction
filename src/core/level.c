@@ -40,6 +40,40 @@ static int entity_string(rf_level_entity_reader *r,char *out)
     status=entity_read(r,out,length);if(status)return status;
     if(memchr(out,0,length))return RF_FORMAT;out[length]=0;return RF_OK;
 }
+int rf_level_regions_begin(const rf_level *level,rf_level_entity_reader *reader)
+{
+    const rf_level_section *section;rf_level_entity_reader next;uint8_t raw[4];int status;
+    if(!level || !reader || level->version!=180)return RF_RANGE;
+    section=rf_level_find(level,0xd00);if(!section)return RF_NOT_FOUND;
+    memset(&next,0,sizeof(next));next.level=level;next.section=*section;
+    status=entity_read(&next,raw,4);if(status)return status;next.count=le32(raw);
+    if(section->size<4 || next.count>(section->size-4)/73)return RF_FORMAT;
+    *reader=next;return RF_OK;
+}
+int rf_level_region_next(rf_level_entity_reader *reader,rf_player_movement_region *region)
+{
+    rf_level_entity_reader r;rf_player_movement_region value;uint8_t raw[48];uint32_t i,bits;int status;
+    if(!reader || !region || !reader->level)return RF_RANGE;
+    if(reader->index>=reader->count)return reader->index==reader->count && reader->cursor==reader->section.size?RF_NOT_FOUND:RF_FORMAT;
+    r=*reader;memset(&value,0,sizeof(value));
+    status=entity_skip(&r,4);if(status)return status;
+    status=entity_string(&r,NULL);if(status)return status;
+    status=entity_read(&r,raw,48);if(status)return status;
+    for(i=0;i<12;++i) {
+        float v;bits=le32(raw+i*4);memcpy(&v,&bits,4);if(!isfinite(v))return RF_FORMAT;
+        if(i<3)value.center[i]=v;else value.matrix[((i-3)/3+2)%3][(i-3)%3]=v;
+    }
+    status=entity_string(&r,NULL);if(status)return status;
+    status=entity_skip(&r,1);if(status)return status;
+    status=entity_read(&r,raw,16);if(status)return status;value.kind=(int32_t)le32(raw);
+    for(i=0;i<3;++i) {
+        bits=le32(raw+4+i*4);memcpy(value.size+i,&bits,4);
+        if(!isfinite(value.size[i]) || value.size[i]<0)return RF_FORMAT;
+    }
+    ++r.index;if(r.index==r.count && r.cursor!=r.section.size)return RF_FORMAT;
+    *reader=r;*region=value;return RF_OK;
+}
+
 int rf_level_entities_begin(const rf_level *level,rf_level_entity_reader *reader)
 {
     const rf_level_section *section;rf_level_entity_reader next;uint8_t raw[4];int status;
