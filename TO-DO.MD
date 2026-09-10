@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Original device volume tables and quantization pass202 entries/17584 lookups;
+mode-flag meaning and conversion to Xbox gains remain open.
+
 Native APU running-voice left/right/mute routing passes DSP checks without
 restarting playback; original gain conversion and listener wiring remain open.
 

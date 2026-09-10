@@ -436,3 +436,24 @@ This verifies channel routing and mute on native emulated APU output. It does no
 establish intermediate gain calibration, original DirectSound pan conversion,
 host audibility or real hardware. The production scene still needs listener-driven
 updates wired through its event adapter after those semantics are settled.
+
+### Device volume quantization and tables
+
+`python tools/verify_audio_device_volume.py` executes original521680 table
+initialization and522420 lookup, including original ftol, without intercepting
+arithmetic or calling a sound device. All202 entries and17584 lookups pass
+independent formulas at x87 control0x027f. Inputs include each half-step boundary
+and4096 seeded values spanning -1 to2; all four selection-flag combinations run.
+
+The volume index is trunc(volume*100+0.5), clamped0..100. The default table has
+entry0=-10000; remaining entries are trunc(1000*log2(i*q)+0.5), with q equal to
+the original binary32 0.01. Only when both bytes01aed340 and01aed360 are nonzero
+does lookup select trunc(0.5-(1-i*q)*10000). This is not the usual log10 amplitude
+formula. The meanings of those mode flags still need recovery. Generated tables
+and the report remain ignored under artifacts/audio-device-volume.json.
+
+Disassembly52261c..522641 also confirms pan is multiplied by1000 then converted
+by ftol before the device vtable+0x40 call. Volume goes to vtable+0x3c. This
+establishes the original integer conversion; the device interpretation and mapping
+to Xbox gains remain separate work. No host audibility or native gain-equivalence
+claim follows from this executable arithmetic check.
