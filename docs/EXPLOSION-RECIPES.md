@@ -78,3 +78,21 @@ byte, consumes one draw through 504db0/57312d, and computes
 and clamping to 0.1f. Duration and RNG state match in 1140 PC/NXDK cases
 against these unchanged original functions with only the CRT thread pointer
 supplied. This helper does not yet construct or process an emitter.
+
+Emitter update 4972f0 first checks the low byte of global enable at 59fd1c.
+With alternation flag 0x20, it adds frame delta, toggles when elapsed reaches
+or exceeds duration, discards all overshoot and calculates one new duration.
+Only the enabled low byte is changed; a single update never toggles twice.
+Enabled continuous emitters (flag 4) bypass the timer query. Other enabled
+emitters request emission only when the timer query returns a nonzero low
+byte. Disabled emitters neither query the timer nor request emission.
+
+The shared clock/actions helper matches 2560 original/PC/NXDK cases with
+592 toggles and 609 emission requests. Fixtures cross global enable, flags,
+enabled byte, delta and timer result independently, with varying clock bounds.
+The original phase-duration and RNG routines execute unchanged. The timer
+result is supplied, emission is intercepted without mutation, and parent
+lookup returns null. Phase calculation precedes timer query and emission;
+the original parent lookup follows them. This verifies decisions, state and
+RNG advancement, not live particle execution. Parent attachment, emission
+callback effects and spawn-timer reset must be integrated separately.

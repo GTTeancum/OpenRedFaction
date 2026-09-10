@@ -2,6 +2,7 @@
 
 Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
+- [ ] Connect reconstructed emitter timing to particle creation, simulation and rendering.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
@@ -18,7 +19,9 @@ Immediate open items:
 
 Emitter phase duration and RNG advancement match 1140 original/PC/NXDK
 cases: one draw even at zero variance, draw/32768 and 0.1-second clamp.
-Emitter creation, alternating-state processing and live emission remain open.
+Emitter update decisions now match 2560 original/PC/NXDK cases, including
+592 phase toggles and 609 emission requests. Creation, actual emission,
+parent attachment and spawn-timer reset remain open.
 
 Central explosion timing now matches 700 original/PC/NXDK update cases,
 including 164 expirations and process-before-release ordering. Trail updates,

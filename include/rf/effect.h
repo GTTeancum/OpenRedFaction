@@ -25,6 +25,19 @@ typedef struct rf_particle_cycle {
  * Finite authored timing domain. Errors preserve RNG and output. */
 int rf_particle_cycle_duration(const rf_particle_cycle *cycle,unsigned enabled,
     rf_random_state *random,float *duration);
+typedef struct rf_particle_emitter_clock {
+    uint32_t flags,enabled;float elapsed,duration;
+} rf_particle_emitter_clock;
+typedef struct rf_particle_emitter_actions {uint32_t toggled,timer_checked,emit;} rf_particle_emitter_actions;
+/* 4972f0 timing/emission decision, before parent attachment update. Supplied
+ * timer_due is the result of the original timer query; continuous emitters
+ * bypass it. Finite clock domain. Global enable and enabled use low bytes.
+ * One toggle at most per update, discarding excess elapsed time. No emission
+ * callback runs here; RNG advances only for a new phase. Errors preserve all
+ * outputs/state. Parent motion, spawn timer reset and particles are separate. */
+int rf_particle_emitter_tick(const rf_particle_cycle *cycle,uint32_t global_enabled,float dt,
+    uint32_t timer_due,rf_random_state *random,rf_particle_emitter_clock *clock,
+    rf_particle_emitter_actions *actions);
 /* 49771b..4977c3: boolean low bytes must equal one. ORs emitter bits;
  * disabled alternation writes 1,0,1,0. Authored timing may alias output.
  * All pointers required; NULL arguments preserve outputs. */

@@ -1,5 +1,29 @@
 #include "rf/effect.h"
 #include <math.h>
+int rf_particle_emitter_tick(const rf_particle_cycle *cycle,uint32_t global_enabled,float dt,
+    uint32_t timer_due,rf_random_state *random,rf_particle_emitter_clock *clock,
+    rf_particle_emitter_actions *actions)
+{
+    rf_particle_emitter_clock next;rf_particle_emitter_actions out={0};rf_random_state rng;int status;
+    if(!cycle || !random || !clock || !actions)return RF_RANGE;
+    next=*clock;rng=*random;
+    if(global_enabled&255u) {
+        if(!isfinite(dt) || !isfinite(next.elapsed) || !isfinite(next.duration))return RF_RANGE;
+        if(next.flags&0x20u) {
+            next.elapsed+=dt;if(!isfinite(next.elapsed))return RF_RANGE;
+            if(next.elapsed>=next.duration) {
+                next.elapsed=0;next.enabled=(next.enabled&~255u)|((next.enabled&255u)==0);
+                status=rf_particle_cycle_duration(cycle,next.enabled,&rng,&next.duration);if(status)return status;
+                out.toggled=1;
+            }
+        }
+        if(next.enabled&255u) {
+            out.timer_checked=(next.flags&4u)==0;
+            out.emit=!out.timer_checked || (timer_due&255u)!=0;
+        }
+    }
+    *clock=next;*random=rng;*actions=out;return RF_OK;
+}
 int rf_particle_cycle_duration(const rf_particle_cycle *cycle,unsigned enabled,
     rf_random_state *random,float *duration)
 {
