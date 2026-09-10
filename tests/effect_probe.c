@@ -16,6 +16,23 @@ static int queue_parent_lookup(void *context,uint32_t handle,rf_level_particle_o
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--particle-state")) {
+        struct {uint32_t action;int32_t now;uint32_t count,uids[8],objects[4][3];} in;
+        static rf_level_particle_state state;rf_level_particle_binding bindings[4];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_level_particles p={0};uint32_t i,out[9];int status;
+            if(in.count>8)return 2;memset(&state,0,sizeof(state));p.state=&state;p.materials.bindings=bindings;p.materials.count=4;
+            for(i=0;i<4;i++) {
+                bindings[i].uid=state.slots[i].source_id=in.objects[i][0];state.slots[i].active=1;
+                state.slots[i].runtime.enabled=in.objects[i][1];state.slots[i].runtime.emitter.deadline=(int32_t)in.objects[i][2];
+            }
+            status=rf_level_particles_set_state(&p,in.uids,in.count,in.action,in.now);out[0]=(uint32_t)status;
+            for(i=0;i<4;i++){out[1+i*2]=state.slots[i].runtime.enabled;out[2+i*2]=(uint32_t)state.slots[i].runtime.emitter.deadline;}
+            fwrite(out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-world-stretch")) {
         struct {rf_visibility_camera camera;float position[3],previous[3],radius;uint32_t width,height;} in;
         struct {int32_t status;rf_particle_screen_polygon polygon;} out;

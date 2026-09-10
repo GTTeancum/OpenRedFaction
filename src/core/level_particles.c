@@ -120,6 +120,25 @@ int rf_level_particles_simulate(rf_level_particles *p,const rf_visibility *v,
     status=level_step_list(p,v,4,dt,lookup,context,out);if(status)return status;
     return rf_emitter_pool_finish_bounds(&p->state->emitters,enabled);
 }
+int rf_level_particles_set_state(rf_level_particles *p,const uint32_t *uids,
+    uint32_t count,uint32_t action,int32_t now)
+{
+    uint32_t i,j;int32_t stamp;int status;
+    if(!p || !p->state || action>1 || (count && !uids) || count>INT32_MAX ||
+       p->materials.count>128 || (p->materials.count && !p->materials.bindings))return RF_RANGE;
+    status=rf_timer_set(&stamp,now,0);if(status)return status;
+    for(j=0;j<p->materials.count;j++)if(!p->state->slots[j].active ||
+        p->state->slots[j].source_id!=p->materials.bindings[j].uid)return RF_RANGE;
+    for(i=0;i<count;i++)for(j=0;j<p->materials.count;j++)if(p->materials.bindings[j].uid==uids[i]) {
+        rf_particle_emitter_runtime *runtime=&p->state->slots[j].runtime;
+        if(!action)runtime->enabled&=~255u;
+        else if((runtime->enabled&255u)!=1) {
+            runtime->enabled=(runtime->enabled&~255u)|1u;runtime->emitter.deadline=stamp;
+        }
+        break;
+    }
+    return RF_OK;
+}
 void rf_level_particles_close(rf_level_particles *particles)
 {
     if(!particles)return;

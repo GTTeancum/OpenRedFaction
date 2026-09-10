@@ -800,3 +800,30 @@ fixture is not a test of arbitrary unequal-depth polygons. Existing separate
 depth-mode pixel fixtures remain in the same harness. Campaign spawning,
 textured stretched trails in mixed scene passes and PS2 parity remain open.
 No progress screenshot: this is an isolated coverage grid, not new gameplay.
+
+Particle_State actions (2026-09-10)
+
+Do not route emitters through generic 4b65c0/4b6640 activation: those resolve
+events, triggers, movers, then the 45afe0 sound-source list. Particle_State is
+type 39. Factory 4b69d0 uses common constructor 4bee70 and vtable 589c9c;
+common on/off methods 4b9070/4b9f80 dispatch type 39 to 4b94f0/4ba270.
+These walk the event link array and resolve each value with 45d630, which
+searches collection 646080 by raw emitter UID, taking the first match.
+Missing IDs are ignored; repeated links are visited in order.
+
+4973b0 writes byte +140 to one only if it was not exactly one and then sets
+spawn deadline +154 with 4fa360(0). 4973d0 writes the byte to zero without
+changing the deadline. Neither resets alternation elapsed/duration, deletes
+existing particles, immediately emits, nor consumes RNG. Upper enabled bytes
+are preserved. The shared rf_level_particles_set_state helper implements
+these actions over the owned authored bindings and emitter slots. It validates
+clock/action/bindings before mutation. Scheduler dispatch is not connected yet;
+the eventual caller must supply raw authored IDs, not resolved object handles.
+
+verify_particle_state.py executes complete original action, lookup, array,
+switch and timer functions without intercepted callees. All 512 cases match
+PC/NXDK enabled/deadline bytes. It also verifies surrounding original storage
+and all other 222300 bytes of shared native state remain unchanged. Fixtures
+cover empty/missing/repeated links, duplicate UID first match, noncanonical
+enabled bytes and timer endpoints. Report: artifacts/particle-state-verification.json.
+Both builds and all six CTests pass. No live campaign or XEMU event claim yet.

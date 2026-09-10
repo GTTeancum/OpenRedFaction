@@ -24,6 +24,13 @@ typedef struct rf_level_particles {
 int rf_level_particles_open(rf_level_particles *particles,const rf_level *level,
     const rf_geometry_collision_world *world,rf_vpp *archives,uint32_t archive_count,
     uint32_t seed,int32_t now_ms,uint32_t budget);
+/* Particle_State actions 4b94f0/4ba270: ordered raw UID links, first authored
+ * emitter match (45d630), missing IDs ignored. Enable stamps spawn deadline
+ * only when low enabled byte !=1; disable preserves deadline and phase.
+ * No particle deletion/emission or RNG consumption. action=0/1; valid clock.
+ * Runtime and bindings must remain owned and stable throughout the call. */
+int rf_level_particles_set_state(rf_level_particles *particles,const uint32_t *uids,
+    uint32_t count,uint32_t action,int32_t now_ms);
 void rf_level_particles_close(rf_level_particles *particles);
 typedef struct rf_level_particle_object {
     rf_particle_emitter_parent parent;int32_t uid;uint32_t room,found;
