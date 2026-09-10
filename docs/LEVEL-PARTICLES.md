@@ -123,3 +123,22 @@ Its alternate branch at `433558` simulates and returns without rendering. This
 is call-order evidence, not proof of every exceptional game-loop path or startup
 visibility initialization. The shared bookkeeping has not yet been wired into
 the campaign renderer, and does not on its own implement portal traversal.
+
+## Traversal with resolved portal rectangles
+
+`rf_visibility_traverse` now implements the control flow of `4d4860` using
+caller-resolved portal rectangles/rejection flags. It follows authored adjacency
+order, intersects the incoming rectangle with each portal rectangle, rejects
+zero-area intersections, and uses signed room depth comparisons to avoid walking
+back into ancestors. Child depth returns to 255 after each call, including a
+blocked child. Detail rooms stop traversal unless they are the supplied special
+room. Flag 1 disables traversal while retaining the starting-room visit.
+
+The shared implementation uses 257 caller-owned frames (7196 bytes), avoiding
+native recursion and heap allocation. `verify_visibility_traverse.py` compares
+256 cyclic four-room/five-portal cases against full original recursion and
+PC/NXDK code. All room fields, depth markers, rectangles and ordered list slots
+match, including blocked/detail/special rooms and rejected/nonoverlapping portals.
+Original portal caches are supplied as already resolved in these fixtures;
+projection, cache generation, authored graph loading and native renderer wiring
+remain unfinished. This advances the traversal layer, not visual gameplay.

@@ -19,4 +19,23 @@ typedef struct rf_visibility {
 int rf_visibility_begin_render(rf_visibility *state);
 int rf_visibility_begin_view(rf_visibility *state);
 int rf_visibility_visit(rf_visibility *state,uint32_t room,const float rectangle[4],uint32_t depth);
+typedef struct rf_visibility_room_links {
+    uint32_t first,count,blocked,detail;
+} rf_visibility_room_links;
+typedef struct rf_visibility_portal {
+    uint32_t rooms[2],rejected;
+    float rectangle[4];
+} rf_visibility_portal;
+typedef struct rf_visibility_frame {
+    uint32_t room,cursor,depth;float rectangle[4];
+} rf_visibility_frame;
+/* 4d4860 traversal using caller-resolved portal screen rectangles. Begin-view
+ * first. Scratch has 257 frames (7196 bytes); no recursion or allocation.
+ * Room links and adjacency list preserve authored order. This does not compute
+ * portal projection/cache results. Flags bit 1 disables traversal. The special
+ * room bypasses the detail-room stop. Errors may follow earlier visits. */
+int rf_visibility_traverse(rf_visibility *state,const rf_visibility_room_links *rooms,
+    const uint32_t *links,uint32_t link_count,const rf_visibility_portal *portals,
+    uint32_t portal_count,uint32_t start,uint32_t special,uint32_t flags,
+    const float rectangle[4],rf_visibility_frame scratch[257]);
 #endif

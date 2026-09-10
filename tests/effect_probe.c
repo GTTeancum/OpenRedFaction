@@ -9,6 +9,20 @@
 #include <stdlib.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--visibility-traverse")) {
+        struct {uint32_t start,special,flags;float rect[4];rf_visibility_room_links rooms[4];
+            uint32_t links[10];rf_visibility_portal portals[5];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_room_visibility rooms[4]={0};uint32_t order[4]={0};rf_visibility state={rooms,order,4,0};
+            rf_visibility_frame scratch[257];int32_t status;
+            rf_visibility_begin_view(&state);
+            status=rf_visibility_traverse(&state,in.rooms,in.links,10,in.portals,5,in.start,in.special,in.flags,in.rect,scratch);
+            fwrite(&status,4,1,stdout);fwrite(&state.visible_count,4,1,stdout);
+            fwrite(rooms,sizeof(rooms),1,stdout);fwrite(order,sizeof(order),1,stdout);
+        }
+        return ferror(stdin)||ferror(stdout);
+    }
     if(argc==2 && !strcmp(argv[1],"--visibility")) {
         struct {uint32_t op,index,depth;float rectangle[4];} in;
         rf_room_visibility rooms[8]={0};uint32_t order[8]={0};rf_visibility state={rooms,order,8,0};
