@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Closing/reversal spatial replay also passes stock64MiB XEMU with694 listener
+refreshes and390 changed settings matching PC; PC device backend remains open.
+
 Live Xbox spatial gains now follow gameplay listener pose; stock64MiB door
 replay matches PC settings with APU output, while unity PCM remains diagnostic.
 

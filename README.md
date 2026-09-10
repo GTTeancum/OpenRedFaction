@@ -142,5 +142,8 @@ APU voices, which advance independently of rendering. The 180-frame door and
 420-frame closing/reversal replays pass on stock 64 MiB XEMU with nonzero guest
 DSP output and matching PC gameplay state. Use `--audio-capture` with
 `tools/xemu_replay_check.py` to enable this check for bounded replays.
-Spatial audio, PC device playback and real-hardware listening remain open.
+Xbox controller volume and pan now follow the gameplay listener; both replays
+match PC spatial-setting telemetry. PC device playback, sound groups/loop metadata
+and real-hardware listening remain open. The shared PCM hash still checks a
+separate unity-gain diagnostic stream, not the spatial device waveform.
 See [audio evidence and dependency provenance](docs/controller-audio.md).

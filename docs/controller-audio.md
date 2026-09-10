@@ -612,3 +612,14 @@ Natural device completion and logical mixer completion have independent clocks;
 tracking slots may continue to refresh a completed hardware voice until reused.
 Original whole-frame timing and an independent full spatial output recording
 remain unverified. This is live Xbox spatial gain wiring, not full audio parity.
+
+### Closing/reversal spatial replay
+
+Stock64MiB XEMU replay-20260910-185100 passes the420-frame closing/reversal
+sequence with spatial APU output enabled. PC/native spatial telemetry matches:
+3 initial updates,694 refresh updates, integer gain/pan hash2739072757,
+697 noncenter updates,390 changed settings,536 fixed tracking bytes. Gameplay
+still reports two closing reversals and six controller arrivals. Device plays,
+DSP output and shutdown checks pass. This broadens live integration evidence to
+voice reuse and changing listener position; it does not resolve the remaining
+independent-clock ownership, sound-group/loop or PC-device work noted above.
