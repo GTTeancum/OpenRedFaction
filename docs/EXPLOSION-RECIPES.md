@@ -490,3 +490,26 @@ initialization must make these retained fields explicit rather than assume a
 blanket memset is equivalent. Fresh-object defaults and room traversal still
 need separate evidence. This replay does not claim shared C initializer parity
 or any campaign/visual progress.
+
+
+## Shared emitter initializer
+
+`rf_particle_emitter_initialize` now consumes a typed 132-byte resolved template
+and caller-owned runtime/list. It follows the verified copy, normalization,
+initial-emission/delay, enabled-byte and phase sequence. Unwritten runtime fields
+remain intact; opaque source_id and copied_80 are returned separately for the
+future enclosing object. Bitmap and room handles are supplied externally.
+The emitter list must already be empty, avoiding orphaned particles when a
+caller attempts to reinitialize a live list. No heap storage is allocated.
+The finite API rejects degenerate directions, unrepresentable phase ranges
+and delays outside the supported timer period.
+
+`tools/verify_particle_emitter_init.py` regenerates all 1024 full original
+fixtures and compares compact runtime, opaque outputs, particle bytes, RNG,
+allocation count and list head with PC and compiled NXDK. All agree, including
+256 immediate attempts, 128 successful allocations and 512 phase setups.
+Both builds and six CTest checks pass. The verified initialization scope is
+parentless with a supplied room; caller-resolved parent support shares the
+separately verified emission path but is not claimed by these init fixtures.
+Fresh-object defaults, original room traversal and campaign loading remain
+open. NXDK comparison uses Unicorn, not a new native visual test.

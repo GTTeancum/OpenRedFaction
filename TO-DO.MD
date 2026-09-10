@@ -3,7 +3,7 @@
 Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Connect the verified emitter update to campaign objects, particle simulation and rendering.
-- [ ] Implement emitter initialization from the full original reference replay before campaign hookup.
+- [ ] Recover fresh-emitter defaults and room resolution, then connect shared initialization to campaign loading.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
@@ -18,8 +18,8 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Original emitter initialization passes 1024 complete traces, including immediate
-emission before caller enable assignment; shared initialization remains open.
+Shared emitter initialization matches 1024 original/PC/NXDK cases, including
+immediate emission before caller enable assignment and retained runtime fields.
 
 Parentless and attached emission each match 2048 original/PC/NXDK cases,
 including transforms, inherited velocity, packet, particle, RNG and timer.

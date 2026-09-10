@@ -73,6 +73,30 @@ int rf_particle_emitter_update(rf_particle_pool *pool,rf_particle_emitter_runtim
     uint32_t handle,uint32_t global_enabled,float dt,int32_t now_ms,
     const rf_particle_emitter_parent *parent,uint32_t parent_room,
     rf_random_state *random,rf_particle_emitter_update_result *result);
+/* Resolved 132-byte template consumed by 497020. Bitmap handles and room
+ * traversal are supplied externally; source_id/copied_80 remain opaque. */
+typedef struct rf_particle_emitter_template {
+    uint32_t source_id;
+    float position[3],direction[3],direction_random,min_velocity,max_velocity;
+    float min_spawn_delay,max_spawn_delay,spawn_radius;
+    uint32_t flags;
+    float min_life,max_life,min_radius,max_radius,growth,acceleration,gravity_scale;
+    rf_particle_cycle cycle;
+    uint32_t bitmap,frame_count,color,color_destination,particle_flags,secondary;
+    float age_to_finish_vbm;uint32_t copied_80;
+} rf_particle_emitter_template;
+typedef struct rf_particle_emitter_init_result {
+    uint32_t created,index,source_id,copied_80;
+} rf_particle_emitter_init_result;
+/* 497020 with a resolved room and optional stable parent. Requires an empty
+ * emitter list; retains untouched caller runtime fields. Initial emission
+ * precedes enabled-byte assignment and phase initialization. Exhaustion is OK.
+ * Finite nondegenerate direction, representable phase range, and bounded
+ * nonnegative delays are required. No heap allocation. */
+int rf_particle_emitter_initialize(rf_particle_pool *pool,rf_particle_emitter_runtime *runtime,
+    const rf_particle_emitter_template *source,int32_t owner,uint32_t room,uint32_t handle,
+    uint32_t enabled,int32_t now_ms,const rf_particle_emitter_parent *parent,
+    rf_random_state *random,rf_particle_emitter_init_result *result);
 /* 497230: append emitter-owned particles to detached list, preserving order
  * and live counts. Clears their emitter handle; particles remain alive. */
 int rf_particle_pool_detach(rf_particle_pool *pool,uint32_t emitter);

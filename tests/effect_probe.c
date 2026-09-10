@@ -13,6 +13,25 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-emitter-init")) {
+        struct {rf_particle_emitter_runtime runtime;rf_particle_emitter_template source;uint32_t seed,now,empty,enabled;} in;
+        struct {int32_t status;uint32_t seed;rf_particle_emitter_runtime runtime;
+            rf_particle_emitter_init_result result;rf_particle particle;} out;
+        static rf_particle particles[RF_PARTICLE_CAPACITY];rf_particle_list lists[6];rf_particle_pool pool;
+        _Static_assert(sizeof(rf_particle_emitter_template)==132,"Emitter template layout");
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_random_state rng={in.seed};rf_particle_pool_init(&pool,particles,lists,6);
+            if(in.empty)lists[1].next=lists[1].previous=RF_PARTICLE_CAPACITY+1;
+            memset(&particles[500],0xa5,sizeof(particles[500]));
+            particles[500].next=501;particles[500].previous=RF_PARTICLE_CAPACITY+1;
+            memset(&out,0xa5,sizeof(out));out.runtime=in.runtime;
+            out.status=rf_particle_emitter_initialize(&pool,&out.runtime,&in.source,-1,0x2468,1,in.enabled,
+                (int32_t)in.now,NULL,&rng,&out.result);
+            out.seed=rng.value;out.particle=particles[500];
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-update")) {
         struct {rf_particle_emitter_runtime runtime;uint32_t seed,now,empty;
             rf_particle_emitter_parent parent;uint32_t present,global_enabled;float dt;uint32_t room;} in;
