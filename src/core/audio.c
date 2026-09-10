@@ -137,7 +137,7 @@ void rf_audio_position(const float position[3],const float listener[3],
     const float right[3],float near_distance,float far_distance,
     float factor,float volume,float output[2])
 {
-    float v[3],distance,gain,reciprocal;double magnitude,denominator;uint32_t i;
+    float v[3],distance,gain;double magnitude,denominator,reciprocal;uint32_t i;
     for(i=0;i<3;i++)v[i]=position[i]-listener[i];
     magnitude=sqrt((double)v[2]*v[2]+(double)v[1]*v[1]+(double)v[0]*v[0]);
     distance=(float)magnitude;
@@ -147,7 +147,7 @@ void rf_audio_position(const float position[3],const float listener[3],
     if(gain<0)gain=0;if(gain>volume)gain=volume;
     output[1]=gain;
     if(distance==0){output[0]=0;return;}
-    reciprocal=(float)(1/sqrt((double)v[0]*v[0]+(double)v[1]*v[1]+(double)v[2]*v[2]));
-    for(i=0;i<3;i++)v[i]=reciprocal*v[i];
-    output[0]=(float)((double)right[0]*v[0]+(double)right[1]*v[1]+(double)right[2]*v[2]);
+    reciprocal=1/sqrt((double)v[0]*v[0]+(double)v[1]*v[1]+(double)v[2]*v[2]);
+    for(i=0;i<3;i++)v[i]=(float)(reciprocal*v[i]);
+    output[0]=(float)((double)right[2]*v[2]+(double)right[1]*v[1]+(double)right[0]*v[0]);
 }

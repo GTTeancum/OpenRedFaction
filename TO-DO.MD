@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared positional audio now matches6688 original PC/NXDK cases, including
+general directions after correcting normalization precision and dot-product order.
+
 Shared positional C matches original PC/NXDK outputs for2592 axis-aligned
 cases; general directions, metadata and live listener integration remain open.
 

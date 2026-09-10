@@ -1,5 +1,5 @@
 """Execute original positional sound math with original vector helpers intact."""
-import hashlib,itertools,json,struct,sys,subprocess,re
+import hashlib,itertools,json,struct,sys,subprocess,re,random,math
 from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
@@ -37,9 +37,26 @@ for near,far,factor,volume,axis,sign in itertools.product([1.,4.,16.],[32.,64.],
   x.emu_start(entry,stop,count=10000);assert x.reg_read(UC_X86_REG_EIP)==stop
   assert bytes(x.mem_read(base+64,8))==f(*got),('NXDK',pos,got,bytes(x.mem_read(base+64,8)))
   cases.append([near,far,factor,volume,*pos,*got])
+rng=random.Random(0x505740)
+for n in range(4096):
+ listener=[f32(rng.uniform(-1000,1000)) for _ in range(3)]
+ pos=[f32(a+rng.uniform(-60,60)) for a in listener]
+ right=[rng.uniform(-1,1) for _ in range(3)];length=math.sqrt(sum(a*a for a in right));right=[f32(a/length) for a in right]
+ near=f32(rng.uniform(.1,32));far=f32(rng.uniform(32,128));factor=f32(rng.uniform(0,4));volume=f32(rng.uniform(0,1))
+ m.mem_write(0x1754160,f(*listener));m.mem_write(0x1753c28,f(*right))
+ m.mem_write(0x1cd3ba8+0x24,f(near,far,factor));m.mem_write(base,f(*pos));m.mem_write(base+32,b'\xa5'*8)
+ m.mem_write(stack,u(stop,0,base,base+32,base+36)+f(volume));m.reg_write(UC_X86_REG_ESP,stack);m.reg_write(UC_X86_REG_FPCW,0x27f)
+ m.emu_start(0x505740,stop,count=1000);assert m.reg_read(UC_X86_REG_EIP)==stop
+ got=bytes(m.mem_read(base+32,8));wire=f(*pos,*listener,*right,near,far,factor,volume)
+ commands.extend(wire);expected.extend(got)
+ x.mem_write(base,wire);x.mem_write(stack,u(stop,base,base+12,base+24)+f(near,far,factor,volume)+u(base+64))
+ x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x27f)
+ x.emu_start(entry,stop,count=10000);assert x.reg_read(UC_X86_REG_EIP)==stop
+ assert bytes(x.mem_read(base+64,8))==got,('NXDK random',n,wire.hex(),got.hex(),bytes(x.mem_read(base+64,8)).hex())
+ cases.append([*struct.unpack('<13f',wire),*struct.unpack('<2f',got)])
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_audio_probe.exe'),'--position'],input=commands)
-assert actual==expected,'PC positional output differs'
+assert actual==expected,('PC positional output differs',next((i//8 for i,(a,b) in enumerate(zip(actual,expected)) if a!=b),None))
 report=dict(result='PASS' ,cases=len(cases),original_sha256=digest,x87_control='0x27f',
- scope='Original 505740 and all vector/clamp helpers execute unchanged; axis-aligned distances with fixed listener/right vector, near/far boundaries, gain and pan. Exact shared C PC/NXDK comparison; no general-vector rounding claim.',
+ scope='Original 505740 and all vector/clamp helpers execute unchanged; axis-aligned distances with fixed listener/right vector, near/far boundaries, gain and pan. Exact shared C PC/NXDK comparison; 4096 deterministic general-direction cases with translated listeners and normalized right axes.',
  output_sha256=hashlib.sha256(json.dumps(cases).encode()).hexdigest())
 (root/'artifacts/positional-audio-original.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

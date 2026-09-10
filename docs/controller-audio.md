@@ -345,3 +345,20 @@ both pass with the same original output digest. PC and Xbox game builds and
 all six CTests pass. This is compiled-Xbox arithmetic evidence, not a new native
 XEMU playback check. The function is not yet connected to live controller audio.
 General-vector rounding, sample metadata and listener updates remain open.
+
+### General directions and normalization precision
+
+The positional harness now adds 4096 deterministic random cases (seed 0x505740)
+with translated listeners, arbitrary source directions, normalized listener right
+axes, and varied near/far/factor/gain values. The first run found a pan mismatch
+at random case 5, despite the earlier axis tests passing. Disassembly of 4faaf0
+shows its reciprocal remains in x87 precision until each normalized component
+is stored; 40a0b0 sums z, then y, then x. The shared C now retains a double
+reciprocal and follows that dot-product order.
+
+All 6688 cases match original returned bytes exactly in PC and NXDK-compiled
+code with x87 control 0x027f. Output digest:
+6c84804d4f1a30bda0e2dd0de1a5de32d9a6bac64eb1bfc6639ba44e2743c150.
+Both game builds and six CTests pass. This establishes the tested finite input
+range, not exhaustive floating-point equivalence. Sample metadata, playback gain
+conversion and live listener updates remain separate integration work.
