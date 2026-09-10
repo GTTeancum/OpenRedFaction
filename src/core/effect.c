@@ -63,6 +63,96 @@ int rf_particle_render_decode(uint32_t mode,const rf_particle_render_environment
     return RF_OK;
 }
 
+static uint32_t particle_clip_code(const rf_particle_clip_environment *clip,const float p[3])
+{
+    uint32_t code=0;float x=p[0],y=p[1],z=p[2];
+    if(clip->enabled&255u) {
+        if(x>z)code|=8;
+        if(y>z)code|=32;
+        if(x<-z)code|=4;
+        if(y<-z)code|=16;
+        if(clip->depth_enabled&255u) {
+            if(z<=0)code|=128;
+            if((clip->far_enabled&255u) && z>clip->far_distance)code|=2;
+        }
+    }
+    return code;
+}
+static int particle_clip_intersection(uint32_t plane,const rf_particle_clipped_vertex *a,
+    const rf_particle_clipped_vertex *b,const rf_particle_clip_environment *e,rf_particle_clipped_vertex *v)
+{
+    double t,denominator,numerator;unsigned i;
+    if(plane==2) {
+        denominator=(double)b->vertex.position[2]-a->vertex.position[2];
+        t=denominator==0?1:((double)e->far_distance-a->vertex.position[2])/denominator;
+    } else {
+        unsigned axis=(plane&12u)?0:1;
+        double av=a->vertex.position[axis],bv=b->vertex.position[axis];
+        if(plane&20u){av=-av;bv=-bv;}
+        numerator=av-a->vertex.position[2];
+        denominator=(numerator-bv)+b->vertex.position[2];
+        if(denominator==0)return RF_RANGE;
+        t=numerator/denominator;
+    }
+    for(i=0;i<2;i++)v->vertex.position[i]=(float)(((double)b->vertex.position[i]-a->vertex.position[i])*t+a->vertex.position[i]);
+    v->vertex.position[2]=plane==2?e->far_distance:v->vertex.position[(plane&48u)?1:0];
+    if(plane&20u)v->vertex.position[2]=-v->vertex.position[2];
+    for(i=0;i<2;i++)v->vertex.uv[i]=(float)(((double)b->vertex.uv[i]-a->vertex.uv[i])*t+a->vertex.uv[i]);
+    for(i=0;i<3;i++)if(!isfinite(v->vertex.position[i]))return RF_RANGE;
+    for(i=0;i<2;i++)if(!isfinite(v->vertex.uv[i]))return RF_RANGE;
+    v->clip=particle_clip_code(e,v->vertex.position);return RF_OK;
+}
+int rf_particle_billboard_clip(const rf_particle_clip_environment *e,
+    const rf_particle_billboard_packet *packet,rf_particle_clipped_polygon *polygon)
+{
+    rf_particle_clipped_vertex vertices[52];uint32_t arrays[2][14],free_ids[48],used=0;
+    rf_particle_clipped_polygon result={0};
+    uint32_t count=4,source=0,or_code=0,and_code=255,plane,i,j;
+    if(!e || !packet || !polygon || !isfinite(e->far_distance) || !isfinite(packet->depth))return RF_RANGE;
+    for(i=0;i<48;i++)free_ids[i]=i+4;
+    for(i=0;i<4;i++) {
+        vertices[i]=packet->vertices[i];arrays[0][i]=i;
+        if(vertices[i].clip&~190u)return RF_NOT_FOUND;
+        for(j=0;j<3;j++)if(!isfinite(vertices[i].vertex.position[j]))return RF_RANGE;
+        for(j=0;j<2;j++)if(!isfinite(vertices[i].vertex.uv[j]))return RF_RANGE;
+        or_code|=vertices[i].clip;and_code&=vertices[i].clip;
+    }
+    for(plane=2;plane<=32;plane*=2)if(or_code&plane) {
+        uint32_t output=0;or_code=0;and_code=255;
+        arrays[source][count]=arrays[source][0];arrays[source][count+1]=arrays[source][1];
+        /* Preserve original temporary-pool reuse: earlier freed records may
+         * still be referenced by neighbors in this pass. Value copies would
+         * silently remove duplicate intersections produced by that ordering. */
+        for(i=1;i<=count;i++) {
+            uint32_t id=arrays[source][i];
+            if(!(vertices[id].clip&plane)) {
+                if(output==12)return RF_RANGE;
+                arrays[source^1u][output++]=id;
+                or_code|=vertices[id].clip;and_code&=vertices[id].clip;
+            } else {
+                for(j=0;j<2;j++) {
+                    uint32_t neighbor=arrays[source][j?i+1:i-1];
+                    if(!(vertices[neighbor].clip&plane)) {
+                        uint32_t created;int status;
+                        if(output==12 || used>=47)return RF_RANGE;
+                        created=free_ids[used++];
+                        status=particle_clip_intersection(plane,&vertices[neighbor],&vertices[id],e,&vertices[created]);
+                        if(status!=RF_OK)return status;
+                        arrays[source^1u][output++]=created;
+                        or_code|=vertices[created].clip;and_code&=vertices[created].clip;
+                    }
+                }
+                if(id>=4){if(!used)return RF_RANGE;free_ids[--used]=id;}
+            }
+        }
+        source^=1u;count=output;
+        if(and_code)break;
+    }
+    result.count=count;result.depth=packet->depth;result.clip_and=and_code;result.clip_or=or_code;
+    for(i=0;i<count;i++)result.vertices[i]=vertices[arrays[source][i]];
+    *polygon=result;return RF_OK;
+}
+
 int rf_particle_billboard_prepare(const float center[3],float angle,float radius,
     uint32_t width,uint32_t height,const float scale[3],
     const rf_particle_clip_environment *clip,rf_particle_billboard_packet *packet)
@@ -78,17 +168,7 @@ int rf_particle_billboard_prepare(const float center[3],float angle,float radius
     if(!isfinite(value.depth))return RF_RANGE;
     value.clip_and=255;value.clip_or=0;
     for(i=0;i<4;i++) {
-        uint32_t code=0;float x=vertices[i].position[0],y=vertices[i].position[1],z=vertices[i].position[2];
-        if(clip->enabled&255u) {
-            if(x>z)code|=8;
-            if(y>z)code|=32;
-            if(x<-z)code|=4;
-            if(y<-z)code|=16;
-            if(clip->depth_enabled&255u) {
-                if(z<=0)code|=128;
-                if((clip->far_enabled&255u) && z>clip->far_distance)code|=2;
-            }
-        }
+        uint32_t code=particle_clip_code(clip,vertices[i].position);
         value.vertices[i].vertex=vertices[i];value.vertices[i].clip=code;
         value.clip_and&=code;value.clip_or|=code;
     }

@@ -40,6 +40,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--particle-billboard-clip")) {
+        struct {rf_particle_clip_environment environment;rf_particle_billboard_packet packet;} in;
+        struct {int32_t status;rf_particle_clipped_polygon polygon;} out;
+        _Static_assert(sizeof(in)==124 && sizeof(out)==308,"Clipped particle fixture layout");
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=rf_particle_billboard_clip(&in.environment,&in.packet,&out.polygon);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-billboard-prepare")) {
         struct {float center[3],angle,radius;uint32_t width,height;float scale[3];rf_particle_clip_environment clip;} in;
         struct {int32_t status;rf_particle_billboard_packet packet;} out;

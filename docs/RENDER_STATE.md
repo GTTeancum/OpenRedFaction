@@ -136,3 +136,38 @@ A nonzero AND rejects the quad; a nonzero OR may require polygon clipping.
 
 Actual polygon clipping (0x549e00), projected/depth-adjusted vertex submission,
 backend texture residency and visible scene effects still need integration.
+
+## UV-only billboard polygon clipping
+
+`rf_particle_billboard_clip` reconstructs 0x549e00/0x549bd0 and the relevant
+0x549310 intersections for packets from billboard preparation. It processes
+planes 2, 4, 8, 16 and 32 in ascending order. Classification never emits plane
+1 or 64 for these billboards; the helper rejects those unsupported masks.
+Bit 128 is retained, not converted into an invented near-plane intersection.
+The result retains an AND mask: a nonzero value means the polygon is rejected.
+The caller still performs the original trivial rejection before invoking the
+clipper and controls whether polygon clipping is enabled.
+
+Each pass starts at vertex 1, wraps through vertex 0, and computes crossings
+from the inside endpoint toward the outside endpoint. Interpolation retains
+double precision until position/UV stores. Side-plane intersections derive Z
+from the rounded matching X or Y coordinate with the appropriate sign. A fixed
+48-slot temporary pool and index references preserve original 0x549270,
+0x5496e0 and 0x5492d0 reuse order. This matters: a previously freed record can
+still be referenced by a neighbor in the current pass. Replacing references
+with value copies removed duplicate intersections and disagreed with RF.exe.
+
+`tools/verify_particle_clip.py` executes the unchanged original clipper and
+allocator on 2048 prepared billboards, matching all ordered position, UV, mask
+and count bytes against PC and compiled NXDK C. Output counts are 0:734,
+3:210, 4:690, 5:370, 6:41 and 7:3. Six unsupported/nonfinite input guards preserve
+output. The output record is 304 bytes with room for twelve vertices. Local
+arrays use 52 compact vertex records, 28 indices and 48 free indices (1552
+bytes), plus the 304-byte result and scalar/compiler stack overhead. Allocation
+is bounded and uses no heap. Capacity overflow returns RF_RANGE preserving
+output rather than writing outside those arrays.
+
+This coverage is the UV-only particle pass (original draw flag 1), not clipping
+of arbitrary world geometry with per-vertex color, lightmaps or custom planes.
+Connecting clipped vertices to projection, depth override, native backends and
+live campaign effects remains open. No new GPU output is claimed by these tests.
