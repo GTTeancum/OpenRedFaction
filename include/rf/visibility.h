@@ -115,6 +115,21 @@ typedef struct rf_render_group_entry {
  * This does not replace the separate room-plane partition/geometry pass. */
 int rf_render_group_order(const rf_render_group_entry *entries,uint32_t count,const float camera[3],
     uint32_t *order,float *distances,uint32_t *scratch);
+typedef struct rf_render_room_entry {
+    rf_render_group_entry group;
+    uint32_t bounds;float minimum_y,maximum_y; /* Bits 1/2 replace sphere edges. */
+} rf_render_room_entry;
+typedef struct rf_render_room_split {uint32_t enabled;float base_y,height;} rf_render_room_split;
+/* Complete non-debug 4d3c40 queue order around the room surface pass, with
+ * resolved queue inputs. before_surface is the number of callbacks preceding
+ * that pass; caller decides whether surface geometry exists. Groups retain
+ * their children across the split, with global duplicate suppression.
+ * Scratch is 3*count words; order/distances each count, max 2048. No allocation.
+ * Disjoint arrays, stable inputs; input errors preserve outputs. No culling,
+ * graphics dispatch or room-data loading. NULL split disables partitioning. */
+int rf_render_room_order(const rf_render_room_entry *entries,uint32_t count,const float camera[3],
+    const rf_render_room_split *split,uint32_t *order,float *distances,uint32_t *scratch,
+    uint32_t *before_surface);
 
 typedef struct rf_visibility_portal_cache {
     float minimum[3],maximum[3];uint32_t valid;

@@ -18,6 +18,72 @@ static void render_sort(uint32_t *order,uint32_t count,const float *distances)
         }
     }
 }
+static int render_before(const rf_render_room_entry *entry,const float camera[3],const rf_render_room_split *split)
+{
+    double threshold;float edge;
+    if(!split || !(split->enabled&255u))return 1;
+    threshold=(double)split->base_y+split->height;
+    if(threshold>=camera[1]) {
+        edge=(entry->bounds&2u)?entry->maximum_y:entry->group.sphere.position[1]+entry->group.sphere.radius;
+        return threshold<edge;
+    }
+    edge=(entry->bounds&1u)?entry->minimum_y:entry->group.sphere.position[1]-entry->group.sphere.radius;
+    return threshold>=edge;
+}
+int rf_render_room_order(const rf_render_room_entry *entries,uint32_t count,const float camera[3],
+    const rf_render_room_split *split,uint32_t *order,float *distances,uint32_t *scratch,uint32_t *before)
+{
+    uint32_t i,j,groups=0,ordinary=0,written=0,pass,*plain,*flags;int status;
+    if(!camera || !before || count>2048 || (count && (!entries || !order || !distances || !scratch)))return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(camera[j]))return RF_RANGE;
+    if(split && (!isfinite(split->base_y) || !isfinite(split->height)))return RF_RANGE;
+    for(i=0;i<count;i++) {
+        uint32_t index;float distance;
+        const rf_render_group_entry *entry=&entries[i].group;
+        status=rf_render_sphere_order(&entry->sphere,1,camera,&index,&distance);if(status)return status;
+        if(entry->has_plane)for(j=0;j<4;j++)if(!isfinite(entry->plane[j]))return RF_RANGE;
+        if(entries[i].bounds&~3u)return RF_RANGE;
+        if((entries[i].bounds&1u) && !isfinite(entries[i].minimum_y))return RF_RANGE;
+        if((entries[i].bounds&2u) && !isfinite(entries[i].maximum_y))return RF_RANGE;
+        if(split && (split->enabled&255u) &&
+           ((! (entries[i].bounds&1u) && !isfinite(entry->sphere.position[1]-entry->sphere.radius)) ||
+            (! (entries[i].bounds&2u) && !isfinite(entry->sphere.position[1]+entry->sphere.radius))))return RF_RANGE;
+    }
+    if(!count){*before=0;return RF_OK;}
+    plain=scratch+count;flags=plain+count;memset(flags,0,count*sizeof(*flags));
+    for(i=0;i<count;i++) {
+        uint32_t index;const rf_render_group_entry *entry=&entries[i].group;
+        rf_render_sphere_order(&entry->sphere,1,camera,&index,distances+i);
+        if(!(entry->sphere.sorted&255u)){order[written++]=i;flags[i]=1;}
+        else if(entry->has_plane)scratch[groups++]=i;
+    }
+    render_sort(scratch,groups,distances);
+    /* Membership must be known before either partition dispatches. A child
+     * of an after-surface group must not enter the before-surface plain list. */
+    for(i=0;i<groups;i++) {
+        const rf_render_group_entry *group=&entries[scratch[i]].group;
+        float side=(float)render_plane_distance(group->plane,camera);
+        for(j=0;j<count;j++)if(!(flags[j]&1u) && !entries[j].group.has_plane &&
+            ((side<0)!=(render_plane_distance(group->plane,entries[j].group.sphere.position)<0)))flags[j]|=2u;
+    }
+    for(i=0;i<count;i++)if(!flags[i] && !entries[i].group.has_plane)plain[ordinary++]=i;
+    render_sort(plain,ordinary,distances);
+    for(pass=0;pass<2;pass++) {
+        for(i=0;i<groups;i++) {
+            uint32_t group=scratch[i];float side;
+            if(render_before(entries+group,camera,split)!=(pass==0))continue;
+            side=(float)render_plane_distance(entries[group].group.plane,camera);
+            for(j=0;j<count;j++)if(!(flags[j]&1u) && !entries[j].group.has_plane &&
+                ((side<0)!=(render_plane_distance(entries[group].group.plane,entries[j].group.sphere.position)<0))) {
+                order[written++]=j;flags[j]|=1u;
+            }
+            order[written++]=group;flags[group]|=1u;
+        }
+        for(i=0;i<ordinary;i++)if(render_before(entries+plain[i],camera,split)==(pass==0))order[written++]=plain[i];
+        if(!pass)*before=written;
+    }
+    return RF_OK;
+}
 int rf_render_group_order(const rf_render_group_entry *entries,uint32_t count,const float camera[3],
     uint32_t *order,float *distances,uint32_t *scratch)
 {

@@ -523,3 +523,36 @@ Live scene submission and native framebuffer validation remain open.
 The expanded run passes all 80 fixtures (22210 entries), with exact distance
 keys and callback order on PC/NXDK. The ordinary-queue regression and all six
 CTest checks also pass; both builds succeed. No new XEMU image was captured.
+
+### Room-height partition and surface boundary
+
+rf_render_room_order adds the room-height partition from 4d3c40 and 4ce080
+to the reconstructed grouped queue. The resolved room threshold is base Y
+plus height, compared in double precision as in the original x87 instructions.
+When the camera is below/on that threshold, an object's upper edge decides
+its partition; from above, the lower edge does. Explicit bounds replace
+position Y plus/minus radius when present. Sphere edges retain float rounding.
+
+All memberships are established before either partition dispatches. Children
+stay with their group root, and a child claimed by groups on both sides draws
+only with the first dispatched claimant. Remaining ordinary entries are sorted
+once and then partitioned; separately sorting the partitions would change
+equal-key ordering. The returned before_surface count identifies where the
+caller inserts the room geometry pass, if geometry is present. Unsorted draws
+remain ahead of the grouped/ordinary partitions.
+
+The helper allocates nothing. Caller storage is 20 bytes per entry (order,
+distance and three scratch words), at most 40960 bytes for 2048 entries,
+excluding input records and fixed stack locals. Queue population, culling,
+room-data loading, callback execution and GPU surface rendering remain separate.
+
+verify_render_room_order.py executes full unchanged original 4d3c40 with
+actual grouping and 4ce080 classification. It supplies the resolved camera,
+omits graphics-state reset and records callbacks plus the surface boundary.
+All 80 fixtures / 22210 entries match PC and NXDK exactly in distance keys,
+complete callback order and surface insertion index. Tests include disabled
+and enabled low-byte split flags, both camera sides, sphere and explicit
+bounds, negative radii, duplicate membership and 128 plane groups in a full
+2048-entry queue. Both builds and all six CTest checks pass. This verifies
+compiled ordering code; live scene/GPU integration and native framebuffer
+evidence remain open. No screenshot was captured.

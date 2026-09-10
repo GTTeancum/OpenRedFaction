@@ -19,8 +19,8 @@ Immediate open items:
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
 Ordinary render queue distance keys and dispatch order match 44420 original/
-PC/NXDK entries. Plane grouping also matches 22210 entries; room splits
-and live drawing remain open.
+PC/NXDK entries. Plane grouping and room-height splits each match 22210
+entries; queue loading, culling, surface rendering and live drawing remain open.
 
 World billboard transformation, center acceptance and clipped submission match
 the original executable in 1024 PC/NXDK cases. Live draw-queue integration
