@@ -179,6 +179,12 @@ int rf_physics_static_support(rf_physics_body_state *state,const rf_physics_grou
  * contact-record ownership or landing transition. Errors preserve outputs. */
 int rf_physics_support_commit(rf_physics_body_state *state,const rf_physics_ground_probe *probe,
     float fraction,uint32_t moving,float contact_y,uint32_t object_handle,uint32_t *support_handle);
+/* 419901..41993a landing velocity before movement-class dispatch: stored
+ * (velocity + previous support) - new contact velocity, componentwise.
+ * No normal projection, vertical reset, movement transition or support commit.
+ * Finite inputs/results; output may alias an input and is preserved on error. */
+int rf_physics_landing_velocity(const float velocity[3],const float previous_support[3],
+    const float contact_velocity[3],float result[3]);
 /* Prepared linear translation 49f7c3..49f89f: steering acceleration has
  * already been transformed/clamped and drag resolved by movement mode. Drag
  * and force/mass are applied even on a repeated pass; caller supplies zero

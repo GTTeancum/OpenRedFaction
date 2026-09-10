@@ -752,3 +752,9 @@ Stock64MiB XEMU L1S1 replay artifacts/xemu/replay-20260910-161005/report.json pa
 rf_physics_support_commit reconstructs numeric4a0ae3/4a0b31 through4a0bfa after object resolution and contact acceptance. Positive mover contact Y velocity bypasses the downward-only position clamp; stationary/downward movers and static contacts keep the minimum. It commits position/bounds, sets or clears400000 and writes the external support handle (static clears to0), preserving velocity and airborne state. Existing static_support delegates to this helper. Object lookup, special entity rejection, contact-record copy, landing and live ground queries remain separate.
 
 python tools/verify_support_commit.py passes2048 exact original/PC/NXDK state-and-handle comparisons, including270 upward corrections. Original vector/bounds/min callees are unchanged. NXDK runs under Unicorn with caller53-bit x87 control. Both builds and six CTests pass. This does not demonstrate live moving-platform gameplay.
+
+## Landing support velocity rebasing
+
+rf_physics_landing_velocity implements419901..41993a: store velocity plus previous support velocity, then subtract the new contact velocity. This occurs before movement-class dispatch; it is not normal projection or the later vertical reset. Outputs may alias an input. No scene support ownership or transition is implied.
+
+python tools/verify_landing_velocity.py passes4096 exact original/PC/NXDK cases using unchanged original vector callees, with large magnitudes, cancellation and aliasing, plus9 NaN guards. The2048 support-commit comparisons and six CTests still pass. Both builds pass. Ground-record metadata and live mover support integration remain open.

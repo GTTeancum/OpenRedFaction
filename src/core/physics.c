@@ -67,6 +67,19 @@ int rf_physics_static_land(rf_physics_body_state *state,const rf_physics_ground_
     int status=rf_physics_static_support(state,probe,fraction);if(status)return status;
     state->velocity[1]=0;state->flags&=~0x200000u;return RF_OK;
 }
+int rf_physics_landing_velocity(const float velocity[3],const float previous_support[3],
+    const float contact_velocity[3],float result[3])
+{
+    float value[3];uint32_t i;
+    if(!velocity || !previous_support || !contact_velocity || !result)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        volatile float sum;
+        if(!isfinite(velocity[i]) || !isfinite(previous_support[i]) || !isfinite(contact_velocity[i]))return RF_FORMAT;
+        sum=velocity[i]+previous_support[i];value[i]=sum-contact_velocity[i];
+        if(!isfinite(sum) || !isfinite(value[i]))return RF_FORMAT;
+    }
+    memcpy(result,value,12);return RF_OK;
+}
 int rf_physics_contact_advance(rf_physics_body_state *state,float dt,float fraction,float *remaining)
 {
     float delta[3],position[3],adjusted=fraction,left;double length;uint32_t i;
