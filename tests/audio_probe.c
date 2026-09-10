@@ -5,6 +5,15 @@
 #include <io.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--position")) {
+        float input[13],output[2];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            rf_audio_position(input,input+3,input+6,input[9],input[10],input[11],input[12],output);
+            if(fwrite(output,sizeof(output),1,stdout)!=1)return 30;
+        }
+        return ferror(stdin)?31:0;
+    }
     if(argc==3 && !strcmp(argv[1],"--bank")) {
         rf_vpp archive;rf_audio_bank bank={0};rf_vpp_entry a,b;uint32_t index=123,first,bytes;
         rf_audio_mixer mixer;int16_t output[512];uint32_t handle,hash=2166136261u,i;

@@ -1,6 +1,7 @@
 #include "rf/audio.h"
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 static uint32_t wave_u16(const uint8_t *p){return (uint32_t)p[0]|((uint32_t)p[1]<<8);}
 static uint32_t wave_u32(const uint8_t *p){return wave_u16(p)|(wave_u16(p+2)<<16);}
 int rf_wave_pcm_parse(const void *data,uint32_t size,rf_wave_pcm *result)
@@ -129,4 +130,24 @@ void rf_audio_bank_close(rf_audio_bank *bank)
     uint32_t i;if(!bank)return;
     for(i=0;i<bank->count;i++)free(bank->samples[i].storage);
     free(bank->samples);memset(bank,0,sizeof(*bank));
+}
+
+/* 505740, with binary32 stores preserved around original x87 arithmetic. */
+void rf_audio_position(const float position[3],const float listener[3],
+    const float right[3],float near_distance,float far_distance,
+    float factor,float volume,float output[2])
+{
+    float v[3],distance,gain,reciprocal;double magnitude,denominator;uint32_t i;
+    for(i=0;i<3;i++)v[i]=position[i]-listener[i];
+    magnitude=sqrt((double)v[2]*v[2]+(double)v[1]*v[1]+(double)v[0]*v[0]);
+    distance=(float)magnitude;
+    if(magnitude>far_distance){output[0]=0;output[1]=0;return;}
+    denominator=((double)distance/near_distance-1)*factor+1;
+    gain=distance<near_distance || denominator==0?volume:(float)((double)volume/denominator);
+    if(gain<0)gain=0;if(gain>volume)gain=volume;
+    output[1]=gain;
+    if(distance==0){output[0]=0;return;}
+    reciprocal=(float)(1/sqrt((double)v[0]*v[0]+(double)v[1]*v[1]+(double)v[2]*v[2]));
+    for(i=0;i<3;i++)v[i]=reciprocal*v[i];
+    output[0]=(float)((double)right[0]*v[0]+(double)right[1]*v[1]+(double)right[2]*v[2]);
 }

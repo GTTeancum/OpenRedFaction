@@ -1,6 +1,13 @@
 #ifndef RF_AUDIO_H
 #define RF_AUDIO_H
 #include "rf/vpp.h"
+/* Original 505740 positional calculation. Caller supplies finite vectors,
+ * near_distance > 0, far_distance >= near_distance, factor >= 0, volume >= 0.
+ * Output order is pan, gain; listener_right is the listener orientation axis.
+ * Does not apply the later volume-group/sample gain or device conversion. */
+void rf_audio_position(const float position[3],const float listener[3],
+    const float listener_right[3],float near_distance,float far_distance,
+    float factor,float volume,float output[2]);
 typedef struct rf_wave_pcm {
     const uint8_t *samples;uint32_t bytes,frames,rate,channels,bits;
 } rf_wave_pcm;

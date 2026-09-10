@@ -333,3 +333,15 @@ separation returns centered pan. The pan is the normalized source-minus-listener
 vector dotted with the vector at 01753c28. This is an original-code arithmetic
 check, not yet a shared C/NXDK comparison; general directions and listener motion
 remain necessary before spatial integration.
+
+### Shared positional C implementation
+
+`rf_audio_position` in src/core/audio.c now implements the recovered position,
+distance, attenuation and pan calculation. It accepts listener position/right
+axis and sample near/far/factor values explicitly, preserving binary32 stores
+around double arithmetic. The existing executable harness compares all 2592
+cases byte-for-byte with PC output and NXDK-compiled code executed in Unicorn;
+both pass with the same original output digest. PC and Xbox game builds and
+all six CTests pass. This is compiled-Xbox arithmetic evidence, not a new native
+XEMU playback check. The function is not yet connected to live controller audio.
+General-vector rounding, sample metadata and listener updates remain open.
