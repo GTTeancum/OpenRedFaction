@@ -16,11 +16,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Particle emitter cycle flags and timing defaults now match 392 original/PC/
-NXDK cases with supplied parser returns. Numeric packing (992 cases) and
-flag strings (598 cases) still pass. Remaining scalar fields, bounded table
-loading, resource ownership and particle simulation remain open; no new
-rendered effect yet.
+Bounded particle metadata reading now decodes all 77 authored blocks (25
+vclip, 52 emitter) identically on PC/NXDK against an independent field oracle;
+25 invalid-block checks preserve output. The recovered flag/cycle fixtures
+still pass. Named table ownership, runtime direction normalization, resource
+loading and particle simulation remain open; no new rendered effect yet.
 
 Vclip fixed-field defaults now have 512 original-loader execution fixtures.
 Implement bounded definition loading, including embedded particle blocks and

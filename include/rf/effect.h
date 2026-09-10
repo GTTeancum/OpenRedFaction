@@ -25,6 +25,25 @@ typedef struct rf_particle_cycle {
 int rf_particle_cycle_read(rf_particle_text_flags *flags,unsigned initially_on,
     unsigned alternate,const rf_particle_cycle *authored,rf_particle_cycle *result);
 #include "rf/timer.h"
+typedef struct rf_particle_definition {
+    float position[3],direction[3]; /* Authored direction, before normalization. */
+    float direction_random,min_velocity,max_velocity,spawn_radius;
+    float min_spawn_delay,max_spawn_delay,min_life,max_life,min_radius,max_radius;
+    float growth,acceleration,gravity_scale;
+    rf_particle_cycle cycle;
+    rf_particle_text_flags flags;
+    char bitmap[64]; /* Owned filename; resource loading is separate. */
+    uint8_t color[4],color_destination[4]; /* Authored RGBA components. */
+    float age_to_finish_vbm;
+    uint32_t has_age_to_finish_vbm;
+} rf_particle_definition;
+/* Bounded authored particle block ($pos through its last particle field).
+ * No allocation; rejects unknown/duplicate fields, malformed or nonfinite
+ * values and missing required fields. Output preserved on failure.
+ * Accepts installed table labels with spaces/underscores, // comments.
+ * This metadata reader is not the original general parser or resource loader.
+ * Absent age is explicitly marked; no original runtime default is assumed. */
+int rf_particle_definition_read(const void *text,uint32_t bytes,rf_particle_definition *result);
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */
     int32_t started; /* +154 deadline. */

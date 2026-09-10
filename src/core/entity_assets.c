@@ -1,5 +1,6 @@
 #include "rf/entity_assets.h"
 #include "rf/model.h"
+#include "rf/effect.h"
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -556,4 +557,101 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found || !skin_found)return RF_NOT_FOUND;
     *assets=value;return RF_OK;
+}
+
+/* Bounded particle metadata; runtime resources and direction normalization are
+ * deliberately separate from authored storage. Fields follow 497590. */
+int rf_particle_definition_read(const void *text,uint32_t bytes,rf_particle_definition *result)
+{
+    static const char *names[]={"pos","dir","dirrand","minvel","maxvel","spawnradius",
+        "minspawndelay","maxspawndelay","emitterflags","initiallyon","alternatestates",
+        "ontime","ontimevariance","offtime","offtimevariance","minlifesecs","maxlifesecs",
+        "minpradius","maxpradius","growthrate","acceleration","gravityscale","bitmap",
+        "particlecolor","particlecolordest","particleflags","bounciness","stickiness",
+        "swirliness","damagefactor","agepcttofinishvbm"};
+    rf_particle_definition v={0};const unsigned char *s=text;
+    float *numbers[31]={v.position,v.direction,&v.direction_random,&v.min_velocity,&v.max_velocity,
+        &v.spawn_radius,&v.min_spawn_delay,&v.max_spawn_delay,NULL,NULL,NULL,
+        &v.cycle.on_time,&v.cycle.on_variance,&v.cycle.off_time,&v.cycle.off_variance,
+        &v.min_life,&v.max_life,&v.min_radius,&v.max_radius,&v.growth,&v.acceleration,&v.gravity_scale,
+        NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,&v.age_to_finish_vbm};
+    char emitter[256]={0},particle[256]={0};unsigned seen=0,present=0,initial=0,alternate=0;
+    int packed[4]={0};uint32_t at=0;
+    if(!text || !bytes || !result)return RF_RANGE;
+    while(at<bytes) {
+        char label[64],value[256],t[256];uint32_t n=0,k=0;unsigned field,i;int quote=0,q,status;
+        lexer l;
+        while(at<bytes && s[at]<=32) {if(!s[at])return RF_FORMAT;++at;}
+        if(at==bytes)break;
+        if(at+1<bytes && s[at]=='/' && s[at+1]=='/') {
+            while(at<bytes && s[at]!='\n')++at;continue;
+        }
+        if(s[at++]!='$')return RF_FORMAT;
+        while(at<bytes && s[at]!=':') {
+            unsigned c=s[at++];if(!c || c=='\r' || c=='\n')return RF_FORMAT;
+            if(c<=32 || c=='_')continue;if(c>='A' && c<='Z')c+=32;
+            if(n>=sizeof(label)-1)return RF_RANGE;label[n++]=(char)c;
+        }
+        if(at==bytes)return RF_FORMAT;++at;label[n]=0;
+        for(field=0;field<31 && strcmp(label,names[field]);++field){}
+        if(field==31 || (seen&(1u<<field)))return RF_FORMAT;
+        seen|=1u<<field;
+        while(at<bytes && s[at]!='\r' && s[at]!='\n') {
+            unsigned c=s[at++];if(!c)return RF_FORMAT;
+            if(!quote && c=='/' && at<bytes && s[at]=='/') {
+                while(at<bytes && s[at]!='\n')++at;break;
+            }
+            if(c=='"')quote=!quote;
+            if(!quote && strchr("<>{},",c))c=' ';
+            if(k==255)return RF_RANGE;value[k++]=(char)c;
+        }
+        if(quote)return RF_FORMAT;value[k]=0;l.text=(const unsigned char *)value;l.size=k;l.at=0;
+        if(numbers[field]) {
+            unsigned count=field<2?3:1;
+            for(i=0;i<count;++i)if(sphere_number(&l,numbers[field]+i))return RF_FORMAT;
+        } else if(field==8 || field==22 || field==25) {
+            status=token(&l,t,&q);if(status || !q)return RF_FORMAT;
+            if(field==22) {if(strlen(t)>=sizeof(v.bitmap))return RF_RANGE;strcpy(v.bitmap,t);}
+            else strcpy(field==8?emitter:particle,t);
+        } else if(field==9 || field==10) {
+            unsigned b;status=token(&l,t,&q);if(status || q)return RF_FORMAT;
+            if(same(t,"yes") || same(t,"true") || same(t,"1"))b=1;
+            else if(same(t,"no") || same(t,"false") || same(t,"0"))b=0;
+            else return RF_FORMAT;
+            if(field==9)initial=b;else alternate=b;
+        } else {
+            unsigned count=field==23 || field==24?4:1;
+            for(i=0;i<count;++i) {
+                uint32_t mag=0,j=0,limit;int negative=0,integer;
+                status=token(&l,t,&q);if(status || q)return RF_FORMAT;
+                if(t[j]=='+' || t[j]=='-')negative=t[j++]=='-';
+                if(!t[j])return RF_FORMAT;limit=negative?0x80000000u:0x7fffffffu;
+                for(;t[j];++j) {
+                    unsigned digit=(unsigned char)t[j]-'0';
+                    if(digit>9 || mag>(limit-digit)/10)return RF_FORMAT;mag=mag*10+digit;
+                }
+                integer=negative?(mag==0x80000000u?(-2147483647-1):-(int)mag):(int)mag;
+                if(count==4) {if(integer<0 || integer>255)return RF_FORMAT;
+                    (field==23?v.color:v.color_destination)[i]=(uint8_t)integer;}
+                else {packed[field-26]=integer;present|=1u<<(field-26);}
+            }
+        }
+        if(token(&l,t,&q)!=RF_NOT_FOUND)return RF_FORMAT;
+    }
+    /* Required fields: all except spawn delays, cycle times, destination,
+     * numeric nibble options and the optional animation completion fraction. */
+    {
+        const unsigned optional=(3u<<6)|(15u<<11)|(1u<<24)|(31u<<26);
+        const unsigned required=0x7fffffffu & ~optional;
+        if((seen&required)!=required)return RF_FORMAT;
+    }
+    if(((seen>>6)&3u)!=0 && ((seen>>6)&3u)!=3)return RF_FORMAT;
+    if(alternate && (seen&(15u<<11))!=(15u<<11))return RF_FORMAT;
+    if(!alternate && (seen&(15u<<11)))return RF_FORMAT;
+    if(!(seen&(1u<<24)))memcpy(v.color_destination,v.color,4);
+    v.has_age_to_finish_vbm=(seen>>30)&1u;
+    rf_particle_flags_read(emitter,particle,&v.flags);
+    rf_particle_flags_pack(&v.flags,present,packed);
+    rf_particle_cycle_read(&v.flags,initial,alternate,&v.cycle,&v.cycle);
+    *result=v;return RF_OK;
 }

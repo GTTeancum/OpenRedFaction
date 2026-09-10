@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include <string.h>
+#include <stdlib.h>
 int main(int argc,char **argv)
 {
     struct { int32_t index; uint32_t override_mode; int32_t enabled,now;
@@ -10,6 +11,18 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-definition")) {
+        uint32_t bytes;rf_particle_definition definition;
+        _Static_assert(sizeof(definition)==184,"Particle definition fixture layout");
+        while(fread(&bytes,4,1,stdin)==1) {
+            void *text;if(bytes>65536)return 2;text=malloc(bytes?bytes:1);if(!text)return 2;
+            if(fread(text,1,bytes,stdin)!=bytes){free(text);return 2;}
+            memset(&definition,0xa5,sizeof(definition));
+            status=rf_particle_definition_read(text,bytes,&definition);free(text);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&definition,sizeof(definition),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-cycle")) {
         struct {rf_particle_text_flags flags;unsigned initially_on,alternate;rf_particle_cycle cycle;} c;
         _Static_assert(sizeof(c)==36,"Particle cycle fixture layout");
