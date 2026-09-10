@@ -124,6 +124,16 @@ typedef struct rf_level_actor_assets {
     rf_entity_assets assets;
     rf_vpp_entry mesh;
 } rf_level_actor_assets;
+typedef struct rf_entity_skeletal_assets {
+    rf_entity_assets assets;
+    rf_vpp_entry mesh;
+} rf_entity_skeletal_assets;
+/* Class/skin resource binding without a serialized level entity. Resolves only
+ * authored .vcm models; no spawn, skin-index policy, mesh decoding or ownership
+ * registration. Table budget caps scratch allocation. Output unchanged on
+ * failure; caller retains meshes archive. Shares the level-actor resolver. */
+int rf_entity_skeletal_assets_load(const char *tables_path,const char *class_name,
+    const char *skin,rf_vpp *meshes,uint32_t table_budget,rf_entity_skeletal_assets *result);
 /* Port-owned binding: select a validated UID, load its class/skin metadata,
  * resolve a .vcm declaration and find the compiled mesh. Only skeletal authored
  * models are supported; empty/other extensions return FORMAT. No aliasing,

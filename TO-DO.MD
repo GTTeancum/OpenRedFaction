@@ -11,6 +11,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Class-based skeletal asset loading now works without a placed level entity:
+all 168 authored class/skin selections and the existing 78 Live Mines bindings
+pass. This removes the resource loader's UID dependency for player creation;
+the live scene still needs the new class/spawn/ownership path connected.
+
 Shared C local-player binding now matches 81 original cases on PC and compiled
 NXDK, including the state visible when weapon selection is invoked. Entity
 allocation, full weapon selection and live scene ownership remain open.

@@ -152,6 +152,18 @@ int main(int argc,char **argv)
         if(rf_entity_state_motion_load("Installed_Game/tables.vpp","miner1","","stand",motion,1)!=RF_RANGE || memcmp(motion,before,64))return 3;
         puts("PASS: base/weapon isolation, empty motion, absent keys, duplicate/malformed rejection, table budget, output preservation");return 0;
     }
+    if(argc==6 && !strcmp(argv[1],"--class")) {
+        rf_vpp meshes;rf_entity_skeletal_assets value,before;
+        if(rf_vpp_open(&meshes,argv[3]))return 2;
+        memset(&value,0xa5,sizeof(value));before=value;
+        status=rf_entity_skeletal_assets_load(argv[2],argv[4],argv[5],&meshes,512*1024,&value);
+        if(!status) {
+            printf("%s %u %u\n",value.mesh.name,value.mesh.offset,value.mesh.size);
+            puts(value.assets.model);
+            for(i=0;i<value.assets.texture_count;++i)puts(value.assets.textures[i]);
+        } else {if(memcmp(&value,&before,sizeof(value)))return 4;printf("%d\n",status);}
+        rf_vpp_close(&meshes);return status?3:0;
+    }
     if(argc==7 && !strcmp(argv[1],"--level")) {
         rf_vpp meshes;rf_level level;rf_level_actor_assets actor,before;
         char *end;long uid=strtol(argv[6],&end,10);if(!*argv[6] || *end)return 2;

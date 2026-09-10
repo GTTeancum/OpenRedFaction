@@ -68,18 +68,35 @@ static int same(const char *a,const char *b)
         if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;if(x!=y)return 0;}
     return *a==*b;
 }
+/* Writes only caller-local working records; public wrappers commit together. */
+static int skeletal_assets_load(const char *tables_path,const char *class_name,const char *skin,
+    rf_vpp *meshes,uint32_t table_budget,rf_entity_assets *assets,rf_vpp_entry *mesh)
+{
+    char compiled[64];const char *extension;int status;
+    status=rf_entity_assets_load(tables_path,class_name,skin,assets,table_budget);
+    if(status)return status;
+    extension=strrchr(assets->model,'.');
+    if(!extension || !same(extension,".vcm"))return RF_FORMAT;
+    status=rf_entity_skeletal_filename(assets->model,compiled);if(status)return status;
+    return rf_vpp_find(meshes,compiled,mesh);
+}
+int rf_entity_skeletal_assets_load(const char *tables_path,const char *class_name,const char *skin,
+    rf_vpp *meshes,uint32_t table_budget,rf_entity_skeletal_assets *result)
+{
+    rf_entity_skeletal_assets value;int status;
+    if(!tables_path || !class_name || !skin || !meshes || !result)return RF_RANGE;
+    status=skeletal_assets_load(tables_path,class_name,skin,meshes,table_budget,&value.assets,&value.mesh);
+    if(status)return status;
+    *result=value;return RF_OK;
+}
 int rf_level_actor_assets_load(const rf_level *level,int32_t uid,const char *tables_path,
     rf_vpp *meshes,uint32_t table_budget,rf_level_actor_assets *result)
 {
-    rf_level_actor_assets value;char compiled[64];const char *extension;int status;
+    rf_level_actor_assets value;int status;
     if(!level || !tables_path || !meshes || !result)return RF_RANGE;
     status=rf_level_entity_find(level,uid,&value.entity);if(status)return status;
-    status=rf_entity_assets_load(tables_path,value.entity.class_name,value.entity.skin,&value.assets,table_budget);
-    if(status)return status;
-    extension=strrchr(value.assets.model,'.');
-    if(!extension || !same(extension,".vcm"))return RF_FORMAT;
-    status=rf_entity_skeletal_filename(value.assets.model,compiled);if(status)return status;
-    status=rf_vpp_find(meshes,compiled,&value.mesh);if(status)return status;
+    status=skeletal_assets_load(tables_path,value.entity.class_name,value.entity.skin,
+        meshes,table_budget,&value.assets,&value.mesh);if(status)return status;
     *result=value;return RF_OK;
 }
 static int token(lexer *l,char out[256],int *quoted)

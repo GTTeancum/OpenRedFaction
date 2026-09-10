@@ -2048,3 +2048,27 @@ This is compiled CPU verification in Unicorn, not a live XEMU player-ownership
 test. The binding borrows an already-created entity; it performs no allocation,
 registry insertion, lifetime management or camera construction. Those steps
 must be connected before replacing the diagnostic miner in the live scene.
+
+## Class-based assets for player creation
+
+`rf_entity_skeletal_assets_load` loads class/skin metadata and resolves the
+compiled skeletal mesh without a `rf_level_entity` or UID scan. It shares the
+same internal resolver with `rf_level_actor_assets_load`; the level wrapper
+still validates the authored entity and retains its exact transform/skin.
+Each public wrapper has one local working result and commits only on success.
+The internal resolver uses those working fields directly, avoiding a second
+large nested asset record on the Xbox stack. No persistent allocation or
+ownership is introduced; temporary table storage remains budgeted and released.
+
+`tools/verify_class_actor_assets.py` checks all 168 authored class/skin selections
+against separately verified table metadata and archive entries, including mesh
+offsets/sizes and ordered replacements. Four absent/unsupported/missing-mesh
+cases verify unchanged output. `tools/verify_level_actor_assets.py` still passes
+all 78 Live Mines bindings and its five failure guards after the refactor.
+Both PC and NXDK builds and five CTests pass. This is port-owned resource
+composition, not evidence that the original complete class loader is recovered.
+
+Campaign player creation can now request `miner1` directly instead of borrowing
+UID9858's class/skin resource binding. The live scene still uses that diagnostic
+record until factory state, spawn transform and local ownership are connected;
+no campaign-start rendering or input behavior changed in this refactor.
