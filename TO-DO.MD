@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared C device volume matches17584 original PC/NXDK lookups using202 bytes
+of constants; Xbox gain conversion and live wiring remain open.
+
 Original device volume tables and quantization pass202 entries/17584 lookups;
 mode-flag meaning and conversion to Xbox gains remain open.
 

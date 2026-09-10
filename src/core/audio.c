@@ -166,3 +166,22 @@ float rf_audio_far_distance(float near_distance,float rolloff,float default_volu
     return (float)((1-1/(double)rolloff)*near_distance+
         ((double)near_distance*default_volume)/((double)rolloff*(double)0.05f));
 }
+
+/* Original 521680 table formula: trunc(1000*log2(i*binary32(.01))+.5).
+ * Generated from that expression and verified against executed original code. */
+static const int16_t audio_log_volume[101]={
+-10000,-6643,-5643,-5058,-4643,-4321,-4058,-3836,-3643,-3473,-3321,-3183,
+-3058,-2942,-2836,-2736,-2643,-2555,-2473,-2395,-2321,-2251,-2183,-2119,
+-2058,-1999,-1942,-1888,-1836,-1785,-1736,-1689,-1643,-1598,-1555,-1514,
+-1473,-1433,-1395,-1357,-1321,-1285,-1251,-1217,-1183,-1151,-1119,-1088,
+-1058,-1028,-999,-970,-942,-915,-888,-861,-836,-810,-785,-760,
+-736,-712,-689,-666,-643,-620,-598,-577,-555,-534,-514,-493,
+-473,-453,-433,-414,-395,-376,-357,-339,-321,-303,-285,-268,
+-251,-233,-217,-200,-183,-167,-151,-135,-119,-104,-88,-73,
+-58,-43,-28,-13,0
+};
+int32_t rf_audio_device_volume(float volume,uint32_t linear_mode)
+{
+    int32_t index=volume<=0?0:volume>=1?100:(int32_t)((double)volume*100+.5);
+    return linear_mode?(int32_t)(.5-(1-(double)index*(double).01f)*10000):audio_log_volume[index];
+}

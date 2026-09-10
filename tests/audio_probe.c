@@ -5,6 +5,15 @@
 #include <io.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--device-volume")) {
+        struct {float volume;uint32_t linear_mode;} input;int32_t output;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            output=rf_audio_device_volume(input.volume,input.linear_mode);
+            if(fwrite(&output,sizeof(output),1,stdout)!=1)return 36;
+        }
+        return ferror(stdin)?37:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--range")) {
         float input[3],output;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

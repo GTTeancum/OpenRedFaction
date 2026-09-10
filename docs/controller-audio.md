@@ -457,3 +457,17 @@ by ftol before the device vtable+0x40 call. Volume goes to vtable+0x3c. This
 establishes the original integer conversion; the device interpretation and mapping
 to Xbox gains remain separate work. No host audibility or native gain-equivalence
 claim follows from this executable arithmetic check.
+
+### Shared device-volume conversion
+
+`rf_audio_device_volume` now reproduces522420 in shared C. Its default curve
+uses a101-entry int16 table (202 bytes) generated from the verified521680
+expression; the alternative linear curve is computed directly. Neither path
+allocates or evaluates logarithms per call. The caller explicitly selects the
+mode; interpretation of the original two global flags remains open.
+
+The updated executable harness compares the compiled PC probe and NXDK code
+against all17584 original lookups, including half-step boundaries and out-of-unit
+inputs within -1..2. All pass exactly. Both game builds and six CTests pass.
+The result remains an integer device attenuation value, not a linear PCM gain;
+this helper is not yet connected to the campaign's playback adapter.

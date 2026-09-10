@@ -1,6 +1,10 @@
 #ifndef RF_AUDIO_H
 #define RF_AUDIO_H
 #include "rf/vpp.h"
+/* Original 521680/522420 device volume, finite input -1..2.
+ * linear_mode selects the alternative table; result is device attenuation units.
+ * This is not a linear PCM gain. No allocation or transcendental work per call. */
+int32_t rf_audio_device_volume(float volume,uint32_t linear_mode);
 /* Original 544960 cutoff, after registration normalizes near distance.
  * Finite near > 0, rolloff > 0, default_volume >= 0 are caller preconditions. */
 float rf_audio_far_distance(float near_distance,float rolloff,float default_volume);

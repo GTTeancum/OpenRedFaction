@@ -1,5 +1,5 @@
 """Original device-volume initialization/lookup, without sound-device calls."""
-import hashlib,json,struct,sys,math,random
+import hashlib,json,struct,sys,math,random,re,subprocess
 from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
@@ -24,11 +24,21 @@ linear=[math.trunc(.5-(1-i*constants['0x5897b0'])*constants['0x589e30']) for i i
 logarithmic=[-10000]+[math.trunc(math.log(i*constants['0x5897b0'])/math.log(constants['0x589e28'])*constants['0x589e20']+constants['0x5894b8']) for i in range(1,101)]
 assert tables==[logarithmic,linear]
 rng=random.Random(0x522420);values=[f32((i+.5)/100+d) for i in range(100) for d in [-1e-7,0,1e-7]]+[f32(rng.uniform(-1,2)) for _ in range(4096)]
+xp=pefile.PE(str(root/'build/xbox/main.exe'));xd=xp.get_memory_mapped_image();x=Uc(UC_ARCH_X86,UC_MODE_32)
+x.mem_map(xp.OPTIONAL_HEADER.ImageBase,(len(xd)+4095)//4096*4096);x.mem_write(xp.OPTIONAL_HEADER.ImageBase,xd);x.mem_map(base,65536)
+entry=int(re.search(r'_rf_audio_device_volume\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+commands=bytearray();expected=bytearray()
 for first,second in [(0,0),(0,1),(1,0),(1,1)]:
  m.mem_write(0x1aed340,bytes([first]));m.mem_write(0x1aed360,bytes([second]))
  for v in values:
   index=max(0,min(100,math.trunc(v*100+.5)));want=tables[first and second][index]&0xffffffff
   assert call(0x522420,f(v))==want,(first,second,v,index)
+  wire=f(v)+u(first and second);commands.extend(wire);expected.extend(u(want))
+  x.mem_write(stack,u(stop)+wire);x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x27f)
+  x.emu_start(entry,stop,count=1000);assert x.reg_read(UC_X86_REG_EIP)==stop
+  assert x.reg_read(UC_X86_REG_EAX)==want,('NXDK',v,first,second)
+actual=subprocess.check_output([str(root/'build/pc/Release/rf_audio_probe.exe'),'--device-volume'],input=commands)
+assert actual==expected,'PC device volume differs'
 report=dict(result='PASS',original_sha256=digest,table_entries=202,lookup_cases=len(values)*4,constants=constants,
- scope='Original 521680 and 522420 plus original ftol execute unchanged under x87 0x027f; exact independent table formulas and both selection flags. No device/host output.',tables=tables)
+ scope='Original 521680 and 522420 plus original ftol execute unchanged under x87 0x027f; exact independent table formulas and both selection flags. Exact shared C PC/NXDK comparison. No device/host output.',tables=tables)
 (root/'artifacts/audio-device-volume.json').write_text(json.dumps(report,indent=2)+'\n');print({k:v for k,v in report.items() if k!='tables'})
