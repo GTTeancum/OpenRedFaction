@@ -316,3 +316,20 @@ The current unity/nonspatial adapter remains explicitly provisional.
 Next verification should execute original 505740 against bounded distance/range/
 factor cases, retaining original vector helpers and x87 rounding, then compare
 shared C output before connecting listener updates and per-sample metadata.
+
+### Original positional arithmetic executable check
+
+`python tools/verify_positional_audio_original.py` executes original 505740 and
+its vector subtraction, magnitude, normalization, dot-product and clamp helpers
+unchanged in Unicorn, with x87 control 0x027f and the checked RF.exe fingerprint.
+2592 cases pass: three near radii, two far cutoffs, four attenuation factors,
+three input gains, each signed coordinate axis, and zero/inside/at-near/beyond-near/
+at-far/outside-far distances. Listener position is zero and its right vector is
+(1,0,0). Exact returned binary32 gain and pan match the independent expression.
+Output digest: 954a17afa0d7536584ed8d8b968ce2aa449478a00bb1e0fd93bf8eb89d2c63a1.
+
+The far boundary remains audible; only strictly greater distances mute. Zero
+separation returns centered pan. The pan is the normalized source-minus-listener
+vector dotted with the vector at 01753c28. This is an original-code arithmetic
+check, not yet a shared C/NXDK comparison; general directions and listener motion
+remain necessary before spatial integration.
