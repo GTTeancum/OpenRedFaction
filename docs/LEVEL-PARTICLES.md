@@ -406,3 +406,38 @@ portals, final visible count and camera room. All five native FPU markers are
 overhead measurement. It does not prove particle emission or a full campaign.
 No screenshots were captured. The owned emulator was reaped and temporary
 disc flags and the ISO were restored after the test.
+
+### Static level particle frame connection
+
+The shared actor-follow scene now retains the level particle owner under a
+512 KiB requested-allocation cap and consumes the preceding rendered view's
+room eligibility. Each simulation interval runs the first file-order emitter
+pass, existing physics/events, particle list simulation and bounds finalization,
+then the second emitter pass. The list order follows 496480; global pool 1 is
+not independently stepped. The wrappers allocate nothing per tick and reject
+unsupported particle physics rather than silently omitting it.
+
+This fixture uses an explicit random seed of 1 and a diagnostic 60 Hz clock.
+Initial emitters use owner handle zero, which the reconstructed registry never
+allocates. A resolved-object callback is available for nonnegative handles, but
+live campaign ownership, event-driven emitter changes and interleaving with
+the campaign's shared random state remain unconnected. The render-then-physics
+preview schedule is not proof of the complete original gameplay frame loop.
+
+The ordinary turn replay sees no emitter room and creates zero particles.
+RF_PARTICLE_VIEW on PC, or particle-view.flag on the Xbox disc, places the
+inspection camera at the first authored emitter for the first 400 frames, then
+returns to the normal camera. This exercises real camera-derived eligibility,
+creation, movement and recycling without forcing room visibility flags.
+
+Native report artifacts/xemu/20260910-123902-640828/report.json passes on stock
+64 MiB XEMU. Its summary [663,2,238932,28,18,0,10,1595837771] records simulation
+ticks, emitter count, requested resident bytes, created, expired, two live pool
+counts and final random state. The summary and final 64 tick records, including
+active particle record hashes, match PC exactly. Existing camera/visibility
+and scene checks also pass. This verifies static-level simulation and requested
+owner residency, not a complete campaign or physical allocator overhead.
+
+Particles are not submitted to either renderer yet. No screenshot was captured.
+The smoke tool's --particle-view option requires the corresponding disc flag;
+the test restored temporary flags and regenerated the normal ISO afterward.

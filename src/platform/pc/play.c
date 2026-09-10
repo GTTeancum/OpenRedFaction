@@ -207,6 +207,7 @@ int main(int argc,char **argv)
         ShowWindow(p.window,SW_SHOW);
         puts(spawn_profile?"WASD move | arrows look | Ctrl crouch | Space jump | Escape exit":"WASD move | arrows look | Ctrl crouch | Escape exit");
     }
+    rf_scene_particle_view_enabled=getenv("RF_PARTICLE_VIEW")!=NULL;
     rf_scene_actor_live_enabled=1;rf_scene_actor_eye_enabled=1;
     rf_scene_actor_look_enabled=1;rf_scene_actor_turn_enabled=1;
     rf_scene_actor_drive(1);rf_scene_actor_follow(&retained);rf_scene_set_input(input,&p,limit);
@@ -233,6 +234,8 @@ int main(int argc,char **argv)
         printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
         printf("SCENE_VISIBILITY");for(i=0;i<6;++i)printf(" %u",rf_scene_visibility_summary[i]);puts("");
         printf("SCENE_VISIBILITY_FRAMES");for(i=0;i<64*17;++i)printf(" %u",((uint32_t*)rf_scene_visibility_frames)[i]);puts("");
+        printf("SCENE_PARTICLES");for(i=0;i<8;++i)printf(" %u",rf_scene_particles_summary[i]);puts("");
+        printf("SCENE_PARTICLE_FRAMES");for(i=0;i<64*12;++i)printf(" %u",((uint32_t*)rf_scene_particles_frames)[i]);puts("");
         printf("PLAYER_JUMP");for(i=0;i<4;++i)printf(" %u",rf_scene_player_jump[i]);puts("");
         printf("PLAYER_JUMP_FRAMES");for(i=0;i<1024;++i)printf(" %u",((uint32_t*)rf_scene_player_jump_frames)[i]);puts("");
         printf("ACTOR_PLAYER_INPUT");for(i=0;i<64*7;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");

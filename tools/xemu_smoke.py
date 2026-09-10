@@ -80,8 +80,10 @@ def main():
     parser.add_argument('--actor-eye',action='store_true',help='Expect actor-eye.flag first-person diagnostic with cached eye offsets')
     parser.add_argument('--actor-look',action='store_true',help='Pitch-only original look update on the eye route')
     parser.add_argument('--actor-turn',action='store_true',help='Scripted pitch/yaw with body orientation and world tensor commit')
+    parser.add_argument('--particle-view',action='store_true',help='Expect particle-view.flag inspection camera; exercises emission and expiry')
     parser.add_argument('--player-neutral',action='store_true',help='664 controller-poll frames with neutral device input; player-control.flag and frame limit required')
     args = parser.parse_args()
+    if args.particle_view:args.actor_turn=True
     if args.player_neutral:args.actor_turn=True
     if args.actor_turn:args.actor_look=True
     if args.actor_look:args.actor_eye=True
@@ -113,7 +115,10 @@ def main():
         if not actor_physics_symbol:raise RuntimeError('Integrated actor physics symbol absent')
         scene_args=[str(root/'build/pc/Release/rf_scene_check.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','9858']
         scene_args += [str(root/'Installed_Game'/n) for n in ['meshes.vpp','motions.vpp','tables.vpp','maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp']]
-        output=subprocess.check_output(scene_args+['--neutral' if args.player_neutral else '--turn' if args.actor_turn else '--look' if args.actor_look else '--eye' if args.actor_eye else '--follow' if args.actor_follow else '--live' if args.actor_live else '--traverse' if args.actor_routes else '--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True)
+        scene_environment=dict(os.environ)
+        scene_environment.pop('RF_PARTICLE_VIEW',None)
+        if args.particle_view:scene_environment['RF_PARTICLE_VIEW']='1'
+        output=subprocess.check_output(scene_args+['--neutral' if args.player_neutral else '--turn' if args.actor_turn else '--look' if args.actor_look else '--eye' if args.actor_eye else '--follow' if args.actor_follow else '--live' if args.actor_live else '--traverse' if args.actor_routes else '--contact' if args.actor_contact else '--drive' if args.actor_drive else '--body' if args.actor_body else '--states'],text=True,env=scene_environment)
         actor_final_vertices=int(re.search(r'Frame '+str(663 if args.actor_live else 63)+r' actor triangles (\d+)',output)[1])*3
         actor_frame_reference=[(int(n)*3,int(h,16)) for n,h in re.findall(r'Frame \d+ actor triangles (\d+) hash ([0-9a-f]+)',output)][:64]
         if args.actor_routes:actor_routes_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_ROUTES ')).split()[1:]))
@@ -141,6 +146,9 @@ def main():
         if args.actor_look:look_frames_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_LOOK_FRAMES ')).split()[1:]))
         if args.actor_eye:eye_frames_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_EYE_FRAMES ')).split()[1:]))
         if args.actor_follow:
+            particles_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('SCENE_PARTICLE_FRAMES ')).split()[1:]))
+            particles_summary_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('SCENE_PARTICLES ')).split()[1:]))
+            if args.particle_view and not (particles_summary_reference[3]>0 and particles_summary_reference[4]>0):raise RuntimeError('Particle inspection did not exercise creation and expiry')
             visibility_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('SCENE_VISIBILITY_FRAMES ')).split()[1:]))
             visibility_summary_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('SCENE_VISIBILITY ')).split()[1:]))
             follow_reference=list(map(int,next(line for line in output.splitlines() if line.startswith('ACTOR_FOLLOW ')).split()[1:]))
@@ -376,6 +384,8 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             if symbols['rf_scene_actor_follow_frames']['words']!=follow_reference or symbols['rf_scene_actor_follow_summary']['words']!=follow_summary_reference:raise RuntimeError('Follow camera/world projection differs from PC')
                             if symbols['rf_scene_visibility_frames']['words']!=visibility_reference or symbols['rf_scene_visibility_summary']['words']!=visibility_summary_reference:raise RuntimeError('Render-derived room visibility differs from PC')
                             report['scene_visibility']=symbols['rf_scene_visibility_summary']['words']
+                            if symbols['rf_scene_particles_frames']['words']!=particles_reference or symbols['rf_scene_particles_summary']['words']!=particles_summary_reference:raise RuntimeError('Particle frame state differs from PC')
+                            report['scene_particles']=symbols['rf_scene_particles_summary']['words']
                             if follow_summary_reference[4]!=2*1024*1024:raise RuntimeError('Unexpected follow CPU capacity')
                             report['actor_follow']=dict(cpu_vertex_capacity=follow_summary_reference[4],frames=follow_summary_reference[0],world_hash=follow_summary_reference[1],peak_world_bytes=follow_summary_reference[2],camera_hash=follow_summary_reference[3],camera_ring_matches_pc=64,scope='Retained world reprojected each frame; eye_view describes first-person mode, otherwise a fixed-offset follow camera. No camera collision.')
                         for symbol,label in [('rf_scene_actor_room_frames','ACTOR_ROOMS'),('rf_scene_actor_room_summary','ACTOR_ROOM_SUMMARY')]:

@@ -56,6 +56,7 @@ typedef struct check {
     const char *meshes,*motions;rf_animation_placement placement;
     rf_preview_mesh world;rf_model_materials bundle;uint32_t base,next,changed,last,stop,authored,body_mode;
     const void *address,*material_address;
+    float particle_camera[3];
 } check;
 static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
@@ -80,6 +81,7 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
             printf("EYE_FRAME");for(i=0;i<46;++i)printf(" %u",e[i]);puts("");
             if(frame && memcmp(e+25,rf_scene_actor_eye_frames[(frame-1)%64]+25,12))++c->changed;
         } else {expected[1]+=.7f;expected[2]+=2.4f;}
+        if(rf_scene_particle_view_enabled && frame<400)memcpy(expected,c->particle_camera,12);
         if(r[0]!=frame || r[1]!=world || memcmp(camera,expected,12) || (!rf_scene_actor_eye_enabled && mesh->count==world) || (rf_scene_actor_eye_enabled && mesh->count!=world))return RF_FORMAT;
         for(i=0;i<world;++i)if(mesh->vertices[i].material>=c->base)return RF_FORMAT;
     }
@@ -225,6 +227,7 @@ int main(int argc,char **argv)
     check c={0};uint32_t i,mode;int status,drive=argc==13 && !strcmp(argv[12],"--contact")?2:argc==13 && (!strcmp(argv[12],"--drive") || !strcmp(argv[12],"--traverse") || !strcmp(argv[12],"--live") || !strcmp(argv[12],"--follow") || !strcmp(argv[12],"--eye") || !strcmp(argv[12],"--look") || !strcmp(argv[12],"--turn") || !strcmp(argv[12],"--input") || !strcmp(argv[12],"--neutral") || !strcmp(argv[12],"--input-stop")),body_mode=argc==13 && (!strcmp(argv[12],"--body") || drive);rf_geometry_collision_world body_world={0};
     if(argc!=12 && (argc!=13 || (strcmp(argv[12],"--states") && strcmp(argv[12],"--long-animation") && !body_mode)))return 2;
     c.authored=argc==13;
+    rf_scene_particle_view_enabled=getenv("RF_PARTICLE_VIEW")!=NULL;
     c.body_mode=body_mode;
     rf_scene_actor_turn_enabled=argc==13 && (!strcmp(argv[12],"--turn") || !strcmp(argv[12],"--input") || !strcmp(argv[12],"--neutral") || !strcmp(argv[12],"--input-stop"));
     if(argc==13 && (!strcmp(argv[12],"--input") || !strcmp(argv[12],"--neutral") || !strcmp(argv[12],"--input-stop")))
@@ -240,6 +243,11 @@ int main(int argc,char **argv)
        rf_geometry_open(&geometry,&level,8*1024*1024) ||
        rf_preview_build(&c.world,&geometry,&level,8*1024*1024) || rf_vpp_open(&meshes,argv[4]))return 3;
     for(i=0;i<5;++i)if(rf_vpp_open(maps+i,argv[7+i]))return 3;
+    if(rf_scene_particle_view_enabled) {
+        rf_level_emitter_reader reader;rf_level_emitter emitter;
+        if(rf_level_emitters_begin(&level,&reader) || rf_level_emitter_next(&reader,&emitter))return 3;
+        memcpy(c.particle_camera,emitter.position,12);
+    }
     if(rf_scene_actor_live_enabled) {
         rf_materials images={0};rf_preview_close(&c.world);
         if(build_check_world(&level,&geometry,maps,&c.world,&images))return 3;
@@ -313,6 +321,8 @@ int main(int argc,char **argv)
                 printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
                 printf("SCENE_VISIBILITY");for(i=0;i<6;++i)printf(" %u",rf_scene_visibility_summary[i]);puts("");
                 printf("SCENE_VISIBILITY_FRAMES");for(i=0;i<64*17;++i)printf(" %u",((uint32_t*)rf_scene_visibility_frames)[i]);puts("");
+                printf("SCENE_PARTICLES");for(i=0;i<8;++i)printf(" %u",rf_scene_particles_summary[i]);puts("");
+                printf("SCENE_PARTICLE_FRAMES");for(i=0;i<64*12;++i)printf(" %u",((uint32_t*)rf_scene_particles_frames)[i]);puts("");
             }
             printf("ACTOR_LIVE");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_live_summary[i]);puts("");
             printf("ACTOR_LIVE_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_actor_tick_stats[i]);puts("");

@@ -2,6 +2,7 @@
 #define RF_LEVEL_PARTICLES_H
 #include "rf/material.h"
 #include "rf/particle_pool.h"
+#include "rf/visibility.h"
 typedef struct rf_level_particle_state {
     rf_particle records[RF_PARTICLE_CAPACITY];
     rf_emitter_slot slots[RF_PARTICLE_EMITTER_CAPACITY];
@@ -24,4 +25,26 @@ int rf_level_particles_open(rf_level_particles *particles,const rf_level *level,
     const rf_geometry_collision_world *world,rf_vpp *archives,uint32_t archive_count,
     uint32_t seed,int32_t now_ms,uint32_t budget);
 void rf_level_particles_close(rf_level_particles *particles);
+typedef struct rf_level_particle_object {
+    rf_particle_emitter_parent parent;int32_t uid;uint32_t room,found;
+} rf_level_particle_object;
+typedef int (*rf_level_particle_lookup)(void *context,uint32_t handle,rf_level_particle_object *object);
+typedef struct rf_level_particle_tick_result {
+    uint32_t emitter_updates,created,stepped,expired;
+} rf_level_particle_tick_result;
+/* One file-order 433260 emitter pass, gated by room eligibility, then 4972f0.
+ * Call separately at both original frame positions; this is not a once-per-frame
+ * replacement. Simulation uses 496480 list order and finishes with 497df0.
+ * No allocation. Source bindings must still name their original active slots.
+ * NULL lookup supports negative/no owner and handle zero (never allocated by
+ * the registry); other nonnegative handles require a stable resolved lookup.
+ * Room handles are indices+1, zero missing. Unsupported particle physics returns
+ * RF_NOT_FOUND, never silently skipped. Failures can follow partial updates;
+ * result counts describe completed operations. Output must not alias state. */
+int rf_level_particles_emit_pass(rf_level_particles *particles,const rf_visibility *visibility,
+    uint32_t global_enabled,float dt,int32_t now_ms,rf_level_particle_lookup lookup,void *context,
+    rf_level_particle_tick_result *result);
+int rf_level_particles_simulate(rf_level_particles *particles,const rf_visibility *visibility,
+    uint32_t global_enabled,float dt,rf_level_particle_lookup lookup,void *context,
+    rf_level_particle_tick_result *result);
 #endif

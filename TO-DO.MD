@@ -2,8 +2,8 @@
 
 Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
-- [ ] Connect the verified emitter update to campaign objects, particle simulation and rendering.
-- [ ] Connect render-derived room eligibility to particle frame updates and emitter passes.
+- [ ] Draw live level particles on PC and Xbox using the verified billboard rendering path.
+- [ ] Connect dynamic particle ownership, event mutations and shared campaign random state.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
@@ -18,14 +18,18 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Static level particles now tick on PC and stock 64 MiB XEMU: the inspection
+replay creates 28, expires 18 and retains 10, with matching final 64 tick records.
+Particle drawing remains open; no new particle visual is available yet.
+
 Native moving-camera visibility passes 664 frames on stock 64 MiB XEMU,
 with final camera/eligibility telemetry matching PC and 13084 owned bytes.
 
 Camera setup, lazy portal projection, cache reset and room traversal now run
 together and match original/PC/NXDK replays, including changed-camera reuse.
 Owned initial room predicates and primary-list mapping now match all 94 levels;
-the moving-camera scene now updates visibility. Particle ticking and runtime
-room mutations remain open. Authored collision skip flags are also connected.
+the moving-camera scene now updates visibility. Static level particle ticking
+passes PC/XEMU; runtime room mutations remain open. Authored collision skip flags are connected.
 Level visibility uses 13084 bytes in L1S1, max 37212, including traversal scratch.
 
 Owned portal graphs cover all 94 levels (2862 portals); L1S1 uses 1408 bytes,
@@ -40,7 +44,7 @@ Owner-gated particle simulation matches 2048 original/PC/NXDK cases, including
 
 Shared level runtime loads all 87 emitters across 20 levels with verified
 room/texture bindings and exact budgets (L1S1 238932 bytes; max 484908 bytes).
-PC ownership/cleanup checks pass; native residency and campaign ticking remain open.
+PC ownership/cleanup and native static-level ticking pass; dynamic campaign wiring remains open.
 
 All emitter positions resolve to rooms; persistent shared texture bundles pass
 20 levels with exact budgets (L1S1 16624 bytes; largest 262600 bytes).

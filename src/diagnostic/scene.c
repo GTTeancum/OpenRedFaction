@@ -8,6 +8,7 @@
 #include <string.h>
 #include <math.h>
 #include "rf/visibility.h"
+#include "rf/level_particles.h"
 /* Explicit replay setup, not an authored player-start reconstruction. */
 int rf_scene_stage_climb(rf_level *level,uint32_t mode)
 {
@@ -261,8 +262,11 @@ typedef struct scene_stream {
     const rf_geometry_collision_world *collision;
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
     rf_level_visibility visibility;
+    rf_level_particles particles;rf_level_particle_tick_result particle_first;
 } scene_stream;
 uint32_t rf_scene_visibility_summary[6],rf_scene_visibility_frames[64][17];
+uint32_t rf_scene_particles_summary[8],rf_scene_particles_frames[64][12];
+uint32_t rf_scene_particle_view_enabled;
 static const rf_scene_world_geometry *actor_follow_world;
 void rf_scene_actor_follow(const rf_scene_world_geometry *world) {actor_follow_world=world;}
 uint32_t rf_scene_actor_follow_summary[5]; /* frames, world hash, peak world bytes, camera hash, CPU capacity */
@@ -966,6 +970,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         memcpy(position,pose.position,12);memcpy(orientation,pose.eye_orientation,36);
         record[0]=frame;memcpy(record+1,&input,sizeof(input));memcpy(record+25,&pose,sizeof(pose));
     } else {position[1]+=.7f;position[2]+=2.4f;}
+    if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count)
+        memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);
     if(stream->visibility.storage) {
         rf_collision_room_location room;rf_visibility_camera camera={0};
         /* Match the preview's fixed 4:3, x/z projection and 1000-unit far
@@ -1119,11 +1125,17 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);if(status)return status;
         profile_mark(6);
         if(stream->collision && frame+1<rf_scene_actor_frame_count) {
+            uint64_t particle_elapsed=((uint64_t)frame+1)*1000/60;
+            int32_t particle_now=(int32_t)(particle_elapsed?((particle_elapsed-1)%RF_TIMER_PERIOD)+1:0);
             rf_physics_body_state next=scene_actor_body.state;
             const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
             int walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
             actor_ground_record post_ground;uint32_t route=RF_PLAYER_SUPPORT_QUERY;
             int moved=0;uint32_t axis;
+            if(stream->particles.state) {
+                status=rf_level_particles_emit_pass(&stream->particles,&stream->visibility.state,1,scene_step_seconds,
+                    particle_now,NULL,NULL,&stream->particle_first);if(status)return status;
+            }
             if(campaign_spawn) {
                 /* 433520 -> 433260: input, physics, then 487e00 support.
                  * The owned local-player fixture has object bit 8 and no parent. */
@@ -1177,6 +1189,24 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;
                 memcpy(words,&tick_report,sizeof(words));
                 for(j=0;j<9;++j)rf_scene_event_ticks[3+j]+=words[j];
+            }
+            if(stream->particles.state) {
+                rf_level_particle_tick_result step,last;uint32_t particle_index,byte_index,hash=2166136261u;
+                uint32_t *record=rf_scene_particles_frames[(frame+1)%64],*summary=rf_scene_particles_summary;
+                status=rf_level_particles_simulate(&stream->particles,&stream->visibility.state,1,scene_step_seconds,NULL,NULL,&step);
+                if(status)return status;
+                status=rf_level_particles_emit_pass(&stream->particles,&stream->visibility.state,1,scene_step_seconds,
+                    particle_now,NULL,NULL,&last);if(status)return status;
+                for(particle_index=0;particle_index<RF_PARTICLE_CAPACITY;particle_index++)if(stream->particles.state->records[particle_index].flags&1u) {
+                    const unsigned char *payload=(const unsigned char*)(stream->particles.state->records+particle_index);
+                    for(byte_index=0;byte_index<sizeof(rf_particle);byte_index++)hash=(hash^payload[byte_index])*16777619u;
+                }
+                record[0]=frame+1;record[1]=stream->particle_first.created;record[2]=step.stepped;record[3]=step.expired;
+                record[4]=last.created;record[5]=stream->particle_first.emitter_updates;record[6]=last.emitter_updates;
+                record[7]=stream->particles.state->particles.live[0];record[8]=stream->particles.state->particles.live[1];
+                record[9]=stream->particles.state->random.value;record[10]=hash;record[11]=0;
+                ++summary[0];summary[3]+=record[1]+record[4];summary[4]+=record[3];
+                summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
         }
         profile_mark(7);
@@ -1343,8 +1373,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         stream.mesh=mesh;stream.materials=materials;stream.bundle=&bundle;
         if(actor_follow_world) {
             status=rf_level_visibility_open(geometry,64*1024,&stream.visibility);if(status)goto done;
+            status=rf_level_particles_open(&stream.particles,level,collision,maps,map_count,1,0,512*1024);if(status)goto done;
             memset(rf_scene_visibility_summary,0,sizeof(rf_scene_visibility_summary));
             memset(rf_scene_visibility_frames,0,sizeof(rf_scene_visibility_frames));
+            memset(rf_scene_particles_summary,0,sizeof(rf_scene_particles_summary));
+            memset(rf_scene_particles_frames,0,sizeof(rf_scene_particles_frames));
+            rf_scene_particles_summary[1]=stream.particles.materials.count;
+            rf_scene_particles_summary[2]=stream.particles.resident_bytes;
             placement.prepare_view=actor_follow_view;placement.view_context=&stream;
         }
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
@@ -1360,6 +1395,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     }
 done:
     rf_level_visibility_close(&stream.visibility);
+    rf_level_particles_close(&stream.particles);
     rf_runtime_triggers_close(&campaign_triggers);
     rf_runtime_events_close(&campaign_events);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);

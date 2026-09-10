@@ -18,6 +18,13 @@ extern uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
  * visible/start room; ring rows frame/start/visible/cached/eligibility hash,
  * followed by camera position and unscaled basis. Available to native probes. */
 extern uint32_t rf_scene_visibility_summary[6],rf_scene_visibility_frames[64][17];
+/* Particle summary: ticks, emitters, bytes, created, expired, live0, live1, RNG.
+ * Ring: tick, first-created, stepped, expired, second-created, first/second
+ * emitter calls, live0/live1, RNG, active-record hash, status. No draw calls yet. */
+extern uint32_t rf_scene_particles_summary[8],rf_scene_particles_frames[64][12];
+/* Inspection harness: camera at first authored emitter for ticks 0..399,
+ * then normal camera, to exercise emission followed by expiry. Not player input. */
+extern uint32_t rf_scene_particle_view_enabled;
 typedef struct rf_scene_world_geometry {
     const rf_geometry *world;
     rf_geometry_movers movers;
