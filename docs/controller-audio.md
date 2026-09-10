@@ -36,3 +36,30 @@ about FPU use in DPC callbacks. The project already links NXDK SDL. Next work:
 resolve sample-name semantics, retain bounded source PCM, mix/resample with
 shared state, connect controller start/stop requests, then add platform output
 and native audio capture verification. No generated replacement sound assets.
+
+## Shared output mixer
+
+rf_audio_mixer is an Xbox/PC platform adapter rather than original Miles
+mixer recovery. It retains16 borrowed PCM voices in836 bytes on x86. Caller
+serialization and PCM lifetime are explicit. Input remains at its source rate;
+integer linear interpolation produces48kHz signed16 stereo without pre-expanded
+resources, heap allocation or floating-point work. Per-channel gain uses
+0..32768; summation saturates after all voices. Loop/one-shot progression uses
+an exact integer rate remainder. Handles retain generation/slot identity and
+stale stops cannot stop a replacement voice (generation wraps after65534).
+
+verify_audio_mixer.py passes144 cases and37008 stereo frames against an
+independent integer reference, comparing PC17-frame chunks to single-call
+NXDK output. Covers PCM8/16, mono/stereo, six source rates,1/2/16 voices,
+negative interpolation, clipping, gain, loop endpoints and completion. PC
+also checks full-pool rejection and stale stop handles. Both builds, the81
+PCM-parser cases and six CTests pass. This does not prove audible hardware
+output, spatial attenuation or concurrent producer/callback ownership.
+
+Further lookup evidence:544680 calls523ce0 with the requested filename.
+543580 registers only when that existence/open gate succeeds; otherwise it
+returns-1.56baa0 looks up metadata by name; its fallback metadata pointer does
+not replace the requested filename before544680.543760 also reports a missing
+file and returns-1 when its later open fails. No alternate DoorLoop file is
+selected in these paths. This is code inspection, not full original filesystem
+execution. Live sample registry/loading and output remain the next integration.

@@ -9,4 +9,19 @@ typedef struct rf_wave_pcm {
  * stereo, skips bounded metadata chunks and rejects ambiguous fmt/data chunks.
  * RIFF extent must equal supplied size. Errors preserve output. */
 int rf_wave_pcm_parse(const void *data,uint32_t size,rf_wave_pcm *result);
+#define RF_AUDIO_VOICES 16u
+#define RF_AUDIO_RATE 48000u
+typedef struct rf_audio_voice {
+    rf_wave_pcm pcm;uint32_t handle,frame,phase,left,right,loop,active;
+} rf_audio_voice;
+typedef struct rf_audio_mixer { rf_audio_voice voices[RF_AUDIO_VOICES];uint32_t generation; } rf_audio_mixer;
+/* Xbox/PC output adapter, not original Miles mixer reconstruction. Caller
+ * serializes access and retains PCM until the voice ends/stops. No heap, FPU,
+ * callbacks or OS input. PCM rates1..192000, gain0..32768 (unity), stereo48kHz
+ * signed16 output, integer linear interpolation and saturating summation. */
+void rf_audio_mixer_init(rf_audio_mixer *mixer);
+int rf_audio_voice_start(rf_audio_mixer *mixer,const rf_wave_pcm *pcm,
+    uint32_t left,uint32_t right,uint32_t loop,uint32_t *handle);
+int rf_audio_voice_stop(rf_audio_mixer *mixer,uint32_t handle);
+int rf_audio_mix(rf_audio_mixer *mixer,int16_t *stereo,uint32_t frames);
 #endif

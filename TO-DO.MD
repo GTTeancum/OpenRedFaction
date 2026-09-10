@@ -20,6 +20,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared836-byte audio mixer passes144 PC/NXDK cases; live controller audio
+ownership, spatial parameters and platform playback remain open.
+
 Bounded PCM resource parsing passes81 PC/NXDK cases; door samples need
 93024 PCM bytes; missing loop-name resolution, mixing and audio output remain open.
 
