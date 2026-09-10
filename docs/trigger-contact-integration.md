@@ -140,3 +140,40 @@ errors, both lower controllers start at frame+1=1. Trigger readiness now
 respects activation cooldown: [8414,4,8542,3,2327,0]. Collision is unchanged.
 Both platform builds and six CTests pass; runtime event probe also verifies
 direct event source/actor, gravity dispatch and wrong-type rejection.
+
+## Live motion and mover pose integration
+
+The scene now advances registered translation controllers after player trigger
+contacts/event ticks, polls occupancy against the current registered player,
+re-arms the target-key dwell timer for occupied holds, and invokes reversal
+on the recovered closing branch. Arrival calls the first key event target when
+resolved; remaining key targets and sound requests remain explicitly pending.
+Only the player exists in the live occupancy snapshot; future actor/item
+ownership must extend this snapshot and item wake handling.
+
+Controller views feed the owned mover propagation and commit helpers; collision
+views sync afterward. The renderer already consumes these same owned poses.
+General-object attachments and rotation contributions remain counted pending;
+rotation entries must not supply invalid translation contributions. Retained
+view storage is24 bytes/controller on Xbox plus8192 bytes of pose slots; the
+existing20-byte/controller effect sidecars remain. There is no per-tick heap
+allocation. Physics/controller/render scheduling is still reconstruction scene
+integration, not a claim of original whole-frame equivalence or platform carry.
+
+Evidence:
+-180-frame forward staged replay, PC/stock64MiB XEMU, native report
+ artifacts/xemu/replay-20260910-170532/report.json: both doors reach authored
+ open positions,179 ticks,2 arrivals,40 mover contacts, exact PC/native full
+ contact and position words.
+-420-frame idle staged replay, final code, native report
+ artifacts/xemu/replay-20260910-170632/report.json:419 ticks,8 occupied holds,
+2 arrivals, no reversal/errors; both doors remain at their authored open keys.
+ Motion words [419,419,8,0,2,2,1,0] include one pending rotation binding.
+- Authored-spawn PC180-frame idle control activates zero controllers.
+- Both builds and six CTests pass. The harness now asserts authored open-key
+ positions for180-frame/default or long idle fixtures, not only PC/Xbox equality.
+
+The PC native render capture was inspected. Its close camera is obstructed and
+unsuitable for a meaningful README screenshot. Successful traversal, live
+closing reversal, usable demonstration camera and activation/audio/AI effects
+remain open. Do not claim a complete playable door interaction from these tests.

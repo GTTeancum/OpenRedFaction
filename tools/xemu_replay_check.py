@@ -176,13 +176,18 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert activation==expected('LIVE_ACTIVATION') and activation[5]==0,activation
      if args.door:assert activation[2]==2 and activation[6]>0 and activation[6]==activation[7],activation
      report['live_activation']=activation
+     motion=words(monitor,symbol('rf_scene_live_motion'),8)
+     assert motion==expected('LIVE_MOTION') and motion[7]==0,motion
+     door_positions=words(monitor,symbol('rf_scene_live_door_positions'),6)
+     assert door_positions==expected('DOOR_POSITIONS'),door_positions
+     report['live_motion']=motion;report['door_positions']=door_positions
      body_sweeps=words(monitor,symbol('rf_scene_actor_body_sweeps'),5)
      assert body_sweeps==expected('BODY_SWEEPS') and body_sweeps[3]==0,body_sweeps
      report['body_sweeps']=body_sweeps
      if args.door:
-      assert body_sweeps[2]>0,'Staged door was not contacted'
+      assert body_sweeps[2]>0 or motion[2]>0,'Neither door contact nor occupied hold observed'
       contact=words(monitor,symbol('rf_scene_actor_body_contact'),23)
-      assert contact==expected('BODY_CONTACT') and contact[17] in (0,1),contact
+      assert contact==expected('BODY_CONTACT') and contact[17] in (0,1,0xffffffff),contact
       report['door_contact']=contact
      ground_queries=words(monitor,symbol('rf_scene_actor_ground_queries'),4)
      assert ground_queries==expected('GROUND_QUERIES') and ground_queries[3]==0,ground_queries

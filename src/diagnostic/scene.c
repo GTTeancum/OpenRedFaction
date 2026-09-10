@@ -397,6 +397,10 @@ typedef struct campaign_controller_effects {
     uint32_t source,actor,pending,starts,start_frame;
 } campaign_controller_effects;
 static campaign_controller_effects *campaign_controller_requests;
+static rf_group_controller_view *campaign_controller_views;
+static rf_group_pose_slot campaign_pose_slots[RF_OBJECT_CAPACITY];
+uint32_t rf_scene_live_motion[8]; /* ticks, propagated frames, holds, reversals, arrivals, sound requests, unresolved key effects, status */
+float rf_scene_live_door_positions[6];
 static uint32_t campaign_actor_controller;
 uint32_t rf_scene_live_activation[8]; /* fired, controller calls/starts, event calls, pending effects, status, door8593/8591 start frame+1 */
 typedef struct campaign_activation_context {int32_t now;uint32_t frame;rf_level_particles *particles;} campaign_activation_context;
@@ -460,6 +464,73 @@ static int campaign_trigger_contacts(const rf_group_attached_pose *pose,int32_t 
     }
     return RF_OK;
 }
+static int campaign_controller_tick(int32_t now,rf_level_particles *particles,const float player_position[3])
+{
+    uint32_t i,j;int status;rf_trigger_occupant actor;
+    actor.handle=(uint32_t)campaign_player_view.handle;actor.flags=campaign_player_view.flags_7c;
+    memcpy(actor.position,player_position,12);
+    for(i=0;i<campaign_group_runtime.count;++i) {
+        rf_group_runtime_entry *entry=campaign_group_runtime.items+i;
+        rf_group_translation_runtime *runtime=&entry->translation;rf_group_translation_frame tick;
+        campaign_controller_effects *request=campaign_controller_requests+i;uint32_t occupied=0,sounds=0;
+        rf_runtime_trigger *trigger=NULL;
+        if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION)continue;
+        status=rf_group_translation_tick_begin(runtime,entry->source->keys,entry->source->record.key_count,1.0f/60,now,&tick);if(status)return status;
+        if(tick.stage==RF_GROUP_TICK_GATES) {
+            if(request->starts) {
+                trigger=rf_object_registry_lookup(&campaign_registry,request->source);
+                if(trigger && trigger->object_kind!=5)trigger=NULL;
+            }
+            if((runtime->motion.flags&2) && runtime->motion.mode!=1) {
+                status=rf_trigger_occupancy(trigger?&trigger->volume:NULL,&actor,1,NULL,0,NULL,NULL,&occupied);if(status)return status;
+            }
+            if(occupied && (runtime->motion.flags&0x2001)==0x2001) {
+                double delay=(double)tick.dwell*1000.+.5;
+                if(delay<0 || delay>RF_TIMER_PERIOD)return RF_RANGE;
+                status=rf_timer_set(&runtime->deadline,now,(int32_t)delay);if(status)return status;
+                ++rf_scene_live_motion[2];
+            } else if(occupied && tick.step.timing!=0 && !(runtime->motion.flags&1) &&
+                      tick.step.distance<tick.progress.length && runtime->motion.next_key==0) {
+                status=rf_group_translation_reverse(runtime,entry->source->keys,entry->source->record.key_count);if(status)return status;
+                ++rf_scene_live_motion[3];
+            } else {
+                status=rf_group_translation_tick_move(runtime,&tick);if(status)return status;
+                if(tick.stage==RF_GROUP_TICK_ARRIVAL) {
+                    const rf_level_group_key *key=entry->source->keys+runtime->motion.current_key;
+                    ++rf_scene_live_motion[4];
+                    if(key->links[0]!=UINT32_MAX) {
+                        for(j=0;j<campaign_events.count;++j)if(campaign_events.items[j].authored->record.uid==key->links[0]) {
+                            rf_startup_events_report report={0};uint32_t handle=UINT32_MAX,k;
+                            for(k=0;k<campaign_group_registration.count;++k)if(campaign_group_registration.controllers[k].runtime==entry)handle=campaign_group_registration.controllers[k].handle;
+                            status=rf_runtime_event_fire(&campaign_triggers,campaign_events.items[j].handle,handle,UINT32_MAX,now,&scene_gravity,particles,&report);if(status)return status;
+                            rf_scene_live_motion[6]+=report.unsupported_actions+report.unresolved_targets+report.other_targets;break;
+                        }
+                        if(j==campaign_events.count)++rf_scene_live_motion[6];
+                    }
+                    /* 46a060 remaining key-link effects have no live backend yet. */
+                    for(j=1;j<3;++j)if(key->links[j]!=UINT32_MAX)++rf_scene_live_motion[6];
+                    status=rf_group_translation_tick_finish(runtime,&tick,entry->source->record.key_count,&sounds);if(status)return status;
+                    if(sounds){request->pending|=sounds<<1;++rf_scene_live_motion[5];}
+                }
+            }
+        }
+        memcpy(entry->pose.pending,runtime->pending,12);entry->pose.flags=runtime->object_flags;
+    }
+    status=rf_geometry_collision_movers_propagate(&campaign_movers,campaign_controller_views,campaign_group_runtime.count,1.0f/60,0);if(status)return status;
+    ++rf_scene_live_motion[1];
+    for(i=0;i<campaign_group_runtime.count;++i) {
+        rf_group_runtime_entry *entry=campaign_group_runtime.items+i;
+        if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION)continue;
+        status=rf_group_commit_positions(&entry->translation.motion.flags,&entry->pose,campaign_controller_views+i,campaign_pose_slots,RF_OBJECT_CAPACITY);if(status)return status;
+        memcpy(entry->translation.position,entry->pose.position,12);memcpy(entry->translation.pending,entry->pose.pending,12);
+    }
+    status=rf_geometry_collision_movers_sync(&campaign_movers);if(status)return status;
+    for(i=0;i<campaign_movers.count;++i) {
+        if(campaign_movers.uids[i]==8543)memcpy(rf_scene_live_door_positions,campaign_movers.poses[i].position,12);
+        if(campaign_movers.uids[i]==8544)memcpy(rf_scene_live_door_positions+3,campaign_movers.poses[i].position,12);
+    }
+    ++rf_scene_live_motion[0];return RF_OK;
+}
 static rf_collision_body_mover *campaign_sweep_scratch;
 static const rf_geometry **campaign_surface_sources;
 static rf_surface_materials *campaign_surface_palette;
@@ -472,6 +543,7 @@ static void campaign_close_movers(void)
     uint32_t i;for(i=0;i<campaign_mover_count;i++)rf_object_registry_remove(&campaign_registry,campaign_mover_wrappers[i].handle);
     rf_group_mover_memberships_close(&campaign_memberships);
     free(campaign_controller_requests);campaign_controller_requests=NULL;
+    free(campaign_controller_views);campaign_controller_views=NULL;
     free(campaign_mover_bindings);campaign_mover_bindings=NULL;
     free(campaign_mover_wrappers);free(campaign_mover_objects);
     campaign_mover_wrappers=NULL;campaign_mover_objects=NULL;campaign_mover_count=0;
@@ -534,7 +606,27 @@ static int campaign_bind_movers(void)
     }
     rf_scene_campaign_memberships[0]=campaign_memberships.count;rf_scene_campaign_memberships[1]=links;
     rf_scene_campaign_memberships[2]=campaign_memberships.allocated_bytes;rf_scene_campaign_memberships[3]=campaign_memberships.peak_bytes;
-    rf_scene_campaign_memberships[4]=hash;return RF_OK;
+    rf_scene_campaign_memberships[4]=hash;
+    campaign_controller_views=calloc(campaign_group_runtime.count?campaign_group_runtime.count:1,sizeof(*campaign_controller_views));
+    if(!campaign_controller_views)return RF_RANGE;
+    memset(campaign_pose_slots,0,sizeof(campaign_pose_slots));memset(rf_scene_live_motion,0,sizeof(rf_scene_live_motion));
+    memset(rf_scene_live_door_positions,0,sizeof(rf_scene_live_door_positions));
+    for(i=0;i<campaign_group_runtime.count;++i) {
+        campaign_controller_views[i].runtime=&campaign_group_runtime.items[i].translation;
+        campaign_controller_views[i].first_key=campaign_group_runtime.items[i].source->keys;
+        campaign_controller_views[i].mover_handles=campaign_memberships.items[i].handles;
+        campaign_controller_views[i].mover_count=campaign_memberships.items[i].count;
+        if(campaign_group_runtime.items[i].kind!=RF_GROUP_RUNTIME_TRANSLATION) {
+            if(campaign_controller_views[i].mover_count)++rf_scene_live_motion[6];
+            campaign_controller_views[i].mover_count=0; /* Rotation has no valid translation contribution. */
+        }
+        if(campaign_group_runtime.items[i].source->record.ids_count[0])++rf_scene_live_motion[6];
+    }
+    for(i=0;i<campaign_mover_count;++i) {
+        uint32_t handle=campaign_mover_wrappers[i].handle;
+        campaign_pose_slots[handle&0xffffu].handle=handle;campaign_pose_slots[handle&0xffffu].pose=campaign_movers.poses+i;
+    }
+    return RF_OK;
 }
 uint32_t rf_scene_campaign_groups[5]; /* controllers, keys, source/runtime/registration bytes */
 rf_startup_events_report rf_scene_startup_events;
@@ -1537,6 +1629,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;
                 memcpy(words,&tick_report,sizeof(words));
                 for(j=0;j<9;++j)rf_scene_event_ticks[3+j]+=words[j];
+                status=campaign_controller_tick(now,&stream->particles,next.position);
+                rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
             }
             if(stream->particles.state) {
                 rf_level_particle_tick_result step,last;uint32_t particle_index,byte_index,hash=2166136261u;

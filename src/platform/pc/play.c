@@ -236,6 +236,9 @@ int main(int argc,char **argv)
             printf("BODY_SWEEPS %u %u %u %u %u\n",rf_scene_actor_body_sweeps[0],rf_scene_actor_body_sweeps[1],rf_scene_actor_body_sweeps[2],rf_scene_actor_body_sweeps[3],rf_scene_actor_body_sweeps[4]);}
             {extern uint32_t rf_scene_actor_ground_queries[4];
             printf("GROUND_QUERIES %u %u %u %u\n",rf_scene_actor_ground_queries[0],rf_scene_actor_ground_queries[1],rf_scene_actor_ground_queries[2],rf_scene_actor_ground_queries[3]);}
+            {extern uint32_t rf_scene_live_motion[8];extern float rf_scene_live_door_positions[6];uint32_t k;
+            printf("LIVE_MOTION");for(k=0;k<8;k++)printf(" %u",rf_scene_live_motion[k]);printf("\nDOOR_POSITIONS");
+            for(k=0;k<6;k++){uint32_t bits;memcpy(&bits,rf_scene_live_door_positions+k,4);printf(" %u",bits);}printf("\n");}
             {extern uint32_t rf_scene_live_activation[8];
             printf("LIVE_ACTIVATION %u %u %u %u %u %u %u %u\n",rf_scene_live_activation[0],rf_scene_live_activation[1],rf_scene_live_activation[2],rf_scene_live_activation[3],rf_scene_live_activation[4],rf_scene_live_activation[5],rf_scene_live_activation[6],rf_scene_live_activation[7]);}
             {extern uint32_t rf_scene_trigger_contacts[6];

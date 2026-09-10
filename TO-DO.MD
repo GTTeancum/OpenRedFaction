@@ -1,8 +1,8 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Complete moving-platform carry/response and verify door activation/opening traversal.
-- [ ] Connect combined controller activation to live mover ownership, effect backends and scene motion ticks.
+- [ ] Complete moving-platform carry/response and verify traversal through live doors.
+- [ ] Complete controller sound/alert/wakeup effects, rotation and remaining key-target actions.
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
 - [ ] Complete particle rendering for animated textures, stretched sprites and mixed room/object passes.
 - [ ] Connect dynamic particle ownership, event mutations and shared campaign random state.
@@ -19,6 +19,9 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Live lower-door opening and occupied hold now pass on PC/stock64MiB XEMU;
+traversal, live reversal coverage, sound and broader controller effects remain open.
 
 Live player contact now starts both lower-door controllers on the same PC/XEMU
 tick; motion ticking and retained activation effects remain unconnected.
