@@ -209,3 +209,15 @@ Next: audit repeated/static voice lifecycle, connect campaign start/stop/reset
 with sample ownership, validate DSP output in the full memory-constrained scene,
 and provide PC device playback using an independent audio clock. Real hardware
 and a linear recording of final device output remain unverified.
+
+### Static voice lifecycle follow-up
+
+Run apu-20260910-180147 extends the same stock64MiB probe: replay the retained
+buffer after natural completion, stop/destroy/recreate eight times, shut down,
+initialize the backend again, create/play/stop/destroy once more, then shut down.
+All checks pass with available pages restored to 15828 after both shutdowns.
+The original first-play DSP snapshot remains nonzero. No additional backend
+adaptations were needed for these cases. The harness requires the replay to
+last 2400-3200ms and every requested stop to finish within 1000ms; failures
+remain explicit. This covers the static voice lifetime needed for door effects,
+but not simultaneous voices, streaming, queue exhaustion or campaign integration.

@@ -22,6 +22,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+APU static replay, eight stop/recreate cycles and backend reinitialization
+pass stock64MiB XEMU with restored pages; campaign wiring remains next.
+
 Isolated APU voice/DSP output and clean shutdown pass stock64MiB XEMU;
 44 allocated pages return; campaign integration and PC device output remain open.
 

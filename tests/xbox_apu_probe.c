@@ -8,6 +8,16 @@ extern void *g_hw_ac97_buffer; /* Exposed only by the isolated build adapter. */
 uint16_t rf_apu_dma_snapshot[4096];
 static uint8_t wav[65536];
 static nxAudioVoice voice;
+volatile uint32_t rf_apu_lifecycle[6]; /* replay ms, stopped voices, recreated, second init, restored pages, status */
+static int wait_stopped(uint32_t timeout)
+{
+    uint32_t begin=GetTickCount();
+    while(nxAudioVoiceGetState(&voice)!=NX_STOPPED) {
+        if(GetTickCount()-begin>=timeout)return 0;
+        Sleep(1);
+    }
+    return 1;
+}
 static uint32_t available(void)
 {
     MM_STATISTICS s={0};s.Length=sizeof(s);MmQueryStatistics(&s);return s.AvailablePages;
@@ -49,9 +59,34 @@ int main(void)
     } while(GetTickCount()-begin<6000);
     rf_apu_probe[11]=GetTickCount();rf_apu_probe[1]=5;
     if(rf_apu_probe[8]!=NX_STOPPED)goto fail;
+    /* Reuse the same retained static buffer after natural completion. */
+    rf_apu_probe[1]=10;begin=GetTickCount();
+    if(!nxAudioVoiceStart(&voice) || !wait_stopped(6000))goto fail;
+    rf_apu_lifecycle[0]=GetTickCount()-begin;
+    if(rf_apu_lifecycle[0]<2400 || rf_apu_lifecycle[0]>3200)goto fail;
+    for(uint32_t n=0;n<8;n++) {
+        if(!nxAudioVoiceStart(&voice))goto fail;
+        Sleep(50);
+        if(!nxAudioVoiceStop(&voice) || !wait_stopped(1000))goto fail;
+        ++rf_apu_lifecycle[1];
+        nxAudioVoiceDestroy(&voice);
+        if(!nxAudioVoiceCreate(&voice,&format) || !nxAudioBufferSubmit(&voice,&buffer))goto fail;
+        ++rf_apu_lifecycle[2];
+    }
     nxAudioVoiceDestroy(&voice);rf_apu_probe[1]=6;
-    nxAudioShutdown();rf_apu_probe[5]=available();rf_apu_probe[1]=9;
+    nxAudioShutdown();rf_apu_probe[5]=available();
+    if(rf_apu_probe[5]!=rf_apu_probe[3])goto fail;
+    rf_apu_probe[1]=11;
+    if(!nxAudioInit(&init))goto fail;
+    rf_apu_lifecycle[3]=1;
+    if(!nxAudioVoiceCreate(&voice,&format) || !nxAudioBufferSubmit(&voice,&buffer) || !nxAudioVoiceStart(&voice))goto fail;
+    Sleep(50);
+    if(!nxAudioVoiceStop(&voice) || !wait_stopped(1000))goto fail;
+    nxAudioVoiceDestroy(&voice);nxAudioShutdown();
+    rf_apu_lifecycle[4]=available();
+    if(rf_apu_lifecycle[4]!=rf_apu_probe[3])goto fail;
+    rf_apu_probe[1]=9;
     for(;;)Sleep(100);
 fail:
-    rf_apu_probe[2]=1;for(;;)Sleep(100);
+    rf_apu_probe[2]=1;rf_apu_lifecycle[5]=1;for(;;)Sleep(100);
 }
