@@ -69,6 +69,38 @@ int rf_particle_definition_read(const void *text,uint32_t bytes,rf_particle_defi
  * direction. No bitmap resolution, allocation or emitter creation. */
 int rf_particle_definition_prepare(const rf_particle_definition *authored,
     rf_particle_definition *result);
+/* Runtime spawn packet recovered from 496840. Resource/room/emitter values
+ * are caller-owned 32-bit handles, never host pointers. copied_48 semantics
+ * remain unknown and are deliberately preserved without interpretation. */
+typedef struct rf_particle_spawn {
+    float position[3],velocity[3],radius,growth,acceleration,gravity_scale,life;
+    uint32_t bitmap,frame_count,color,color_destination,flags,secondary;
+    float age_to_finish_vbm;
+    uint32_t copied_48;
+} rf_particle_spawn;
+typedef struct rf_particle {
+    uint32_t next,previous,owner;
+    float position[3],velocity[3],age;
+    uint32_t color,color_destination,color_initial;
+    float life,radius,growth,acceleration,gravity;
+    uint32_t bitmap;
+    uint16_t frame_count,secondary;
+    uint8_t pool,reserved_51[3];
+    float orientation;
+    uint32_t flags;
+    float age_to_finish_vbm;
+    uint32_t copied_48,room,emitter;
+    float previous_position[3];
+    uint32_t reserved_78;
+} rf_particle;
+/* 496840 record initialization after a free node has been obtained. Preserves
+ * list links and untouched bytes. Pool 0/1 only; caller supplies resolved
+ * handles. No allocation, linking or count mutation. Null/invalid arguments
+ * preserve output/RNG. Source and output must not overlap. */
+int rf_particle_initialize(const rf_particle_spawn *spawn,uint32_t pool,
+    uint32_t owner,uint32_t room,uint32_t emitter,rf_random_state *random,
+    rf_particle *particle);
+
 typedef struct rf_effect_switch {
     uint8_t enabled,reserved[3]; /* Original +140; reserved bytes preserved. */
     int32_t started; /* +154 deadline. */

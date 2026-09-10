@@ -128,3 +128,15 @@ in [0, float(2*pi)); otherwise angle is zero without a draw. Successful
 creation increments the selected pool count and writes an optional output
 pointer. Runtime pool integration, release/update logic and rendering remain
 open; do not infer a complete live effects system from this recovery test.
+
+Shared C rf_particle_initialize now implements the record-initialization
+portion of 496840 using a 76-byte spawn packet and 124-byte particle record.
+The verifier compares every output byte and RNG state against all 160
+successful original allocations on PC and compiled NXDK, with varying
+finite position, velocity and scalar fields. Caller-provided list links and
+untouched record bytes are preserved. Three invalid pool indices additionally
+verify rejection without changing the particle or RNG on both targets.
+Handles are explicitly 32-bit caller-owned identifiers; they are not host
+pointers. No pool allocation/linking or resource resolution occurs inside
+this initializer. The caller must obtain a free node before initializing it;
+recycling, simulation and scene rendering remain open.

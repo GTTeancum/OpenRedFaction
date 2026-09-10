@@ -17,10 +17,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Original particle creation 496840 now passes 320 recovery fixtures covering
-160 allocations and 160 empty-pool attempts, record initialization, list
-ownership and RNG behavior. Implement the bounded shared particle pool next;
-this evidence does not yet create particles in the reconstructed game.
+Original particle creation 496840 passes 320 recovery fixtures; shared C
+initialization matches all 160 successful records and RNG states on PC/NXDK.
+Three invalid pool indices preserve output and RNG. Bounded pool linking,
+release/update and scene rendering remain open.
 
 Emitter phase duration and RNG advancement match 1140 original/PC/NXDK
 cases: one draw even at zero variance, draw/32768 and 0.1-second clamp.

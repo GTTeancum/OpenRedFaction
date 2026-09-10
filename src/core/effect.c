@@ -1,5 +1,33 @@
 #include "rf/effect.h"
 #include <math.h>
+int rf_particle_initialize(const rf_particle_spawn *spawn,uint32_t pool,
+    uint32_t owner,uint32_t room,uint32_t emitter,rf_random_state *random,
+    rf_particle *particle)
+{
+    rf_particle value;rf_random_state rng;uint32_t draw;unsigned i;
+    if(!spawn || !random || !particle || pool>1)return RF_RANGE;
+    value=*particle;rng=*random;
+    value.owner=owner;
+    for(i=0;i<3;i++) {
+        value.position[i]=value.previous_position[i]=spawn->position[i];
+        value.velocity[i]=spawn->velocity[i];
+    }
+    value.age=0;value.color=value.color_initial=spawn->color;
+    value.color_destination=spawn->color_destination;value.life=spawn->life;
+    value.radius=spawn->radius;value.growth=spawn->growth;
+    value.acceleration=spawn->acceleration;value.gravity=spawn->gravity_scale*9.8f;
+    value.bitmap=spawn->bitmap;value.frame_count=(uint16_t)spawn->frame_count;
+    value.secondary=(uint16_t)spawn->secondary;value.pool=(uint8_t)pool;
+    value.orientation=0;
+    if(spawn->flags&0x200u) {
+        rf_random_next(&rng,&draw);
+        value.orientation=(float)((double)6.283185482025146484375f*((double)draw/32768.0));
+    }
+    value.flags=spawn->flags|1u;if(!room)value.flags&=~0x10u;
+    value.age_to_finish_vbm=spawn->age_to_finish_vbm;value.copied_48=spawn->copied_48;
+    value.room=room;value.emitter=emitter;
+    *particle=value;*random=rng;return RF_OK;
+}
 int rf_particle_emitter_tick(const rf_particle_cycle *cycle,uint32_t global_enabled,float dt,
     uint32_t timer_due,rf_random_state *random,rf_particle_emitter_clock *clock,
     rf_particle_emitter_actions *actions)
