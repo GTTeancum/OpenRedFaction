@@ -195,3 +195,22 @@ zero through eight supplied planes, all corner selectors and zero distance.
 This does not reconstruct view-plane generation or infer corner selectors from
 normals. The remaining `515d00` path transforms eight box corners and clips six
 box faces before accumulating their screen bounds; that projection remains open.
+
+## Clipped box screen projection
+
+`rf_visibility_box_project` now reconstructs `515d00` and the `518bf0` view
+transform, reusing verified clipping/projection arithmetic in `effect.c`.
+It creates eight corners in original order, classifies them, processes six
+faces in original order and accumulates screen extrema from accepted faces.
+Rejected boxes leave the caller's rectangle unchanged while clearing visible.
+The caller supplies the original view matrix, origin, flat/perspective mode,
+clip settings and projection values; renderer dispatch mode 0x66 is supported.
+
+`verify_box_projection.py` executes full original `515d00` with actual transform,
+clipping, projection and temporary-pool callees, comparing 1024 PC/NXDK cases.
+All flags and rectangle bits match (371 accepted), including rotated views,
+flat depth, far clipping, offscreen/behind-camera and degenerate bounds.
+Case 103 caught a missing post-clip common-plane rejection in the new box
+caller; skipping that face fixed the discrepancy. The particle helper itself
+did not need changed arithmetic. This is function replay; view setup, portal
+cache integration and native campaign rendering remain unfinished.

@@ -9,6 +9,16 @@
 #include <stdlib.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--box-project")) {
+        struct {rf_visibility_projection view;float minimum[3],maximum[3];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_visibility_screen_bounds out={0,{11,22,33,44}};int32_t status;
+            status=rf_visibility_box_project(&in.view,in.minimum,in.maximum,&out);
+            fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)||ferror(stdout);
+    }
     if(argc==2 && !strcmp(argv[1],"--portal-classify")) {
         struct {float camera[3],minimum[3],maximum[3];uint32_t count;rf_visibility_plane planes[8];} in;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

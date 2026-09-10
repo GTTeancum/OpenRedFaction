@@ -145,7 +145,9 @@ int rf_particle_billboard_prepare(const float center[3],float angle,float radius
     const rf_particle_clip_environment *clip,rf_particle_billboard_packet *packet);
 
 /* Convex billboard clipping, original 549e00/549bd0 with UV-only draw flags.
- * Input must come from billboard_prepare with the same clip environment.
+ * Input is a convex quad classified with the same clip environment, from
+ * billboard_prepare or the verified box projector. Caller rejects nonzero
+ * output clip_and before projection, even when output count is nonzero.
  * Fixed index arrays and a 48-slot temporary pool bound scratch storage;
  * no heap or host pointers. The original reuse order is retained.
  * Output follows original vertex order. Nonzero clip_and rejects the result.

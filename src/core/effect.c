@@ -1,4 +1,5 @@
 #include "rf/effect.h"
+#include "rf/visibility.h"
 #include <math.h>
 #include <float.h>
 int rf_particle_cone_sample(float cosine_min,rf_random_state *random,float direction[3])
@@ -117,6 +118,64 @@ static uint32_t particle_clip_code(const rf_particle_clip_environment *clip,cons
     }
     return code;
 }
+int rf_visibility_box_project(const rf_visibility_projection *view,const float minimum[3],
+    const float maximum[3],rf_visibility_screen_bounds *output)
+{
+    static const unsigned char high[8][3]={{0,0,0},{1,0,0},{1,1,0},{0,1,0},{0,0,1},{1,0,1},{1,1,1},{0,1,1}};
+    static const unsigned char faces[6][4]={{3,2,1,0},{4,5,6,7},{7,6,2,3},{0,1,5,4},{1,2,6,5},{4,7,3,0}};
+    rf_particle_clipped_vertex corners[8]={0};rf_visibility_screen_bounds result;
+    uint32_t i,j,k,mask=255;
+    if(!view || !minimum || !maximum || !output)return RF_RANGE;
+    if(!isfinite(view->flat_depth) || !isfinite(view->clip.far_distance))return RF_RANGE;
+    for(i=0;i<9;i++)if(!isfinite(view->matrix[i]))return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(view->origin[i]) || !isfinite(minimum[i]) ||
+        !isfinite(maximum[i]) || minimum[i]>maximum[i])return RF_RANGE;
+    result=*output;result.visible=0;
+    for(i=0;i<8;i++) {
+        float delta[3];
+        for(j=0;j<3;j++)delta[j]=(high[i][j]?maximum[j]:minimum[j])-view->origin[j];
+        for(j=0;j<3;j++) {
+            corners[i].vertex.position[j]=(float)(((double)view->matrix[j*3]*delta[0]+
+                (double)view->matrix[j*3+1]*delta[1])+(double)view->matrix[j*3+2]*delta[2]);
+            if(!isfinite(corners[i].vertex.position[j]))return RF_RANGE;
+        }
+        if(!(view->perspective&255u))corners[i].vertex.position[2]=view->flat_depth;
+        corners[i].clip=particle_clip_code(&view->clip,corners[i].vertex.position);mask&=corners[i].clip;
+    }
+    if(mask){*output=result;return RF_OK;}
+    for(i=0;i<6;i++) {
+        rf_particle_billboard_packet packet={0};rf_particle_clipped_polygon polygon={0};float points[12][2];int rejected=0,status;
+        packet.clip_and=255;
+        for(j=0;j<4;j++) {
+            packet.vertices[j]=corners[faces[i][j]];
+            packet.clip_and&=packet.vertices[j].clip;packet.clip_or|=packet.vertices[j].clip;
+        }
+        if(packet.clip_and)continue;
+        status=rf_particle_billboard_clip(&view->clip,&packet,&polygon);if(status)return status;
+        if(polygon.clip_and)continue;
+        for(j=0;j<polygon.count;j++) {
+            rf_particle_projected_point point={0};
+            for(k=0;k<3;k++)point.camera[k]=polygon.vertices[j].vertex.position[k];
+            point.clip=(uint8_t)polygon.vertices[j].clip;
+            status=rf_particle_project(&view->projection,&point);if(status)return status;
+            if(point.flags&2u){rejected=1;break;}
+            points[j][0]=point.screen[0];points[j][1]=point.screen[1];
+        }
+        if(rejected)continue;
+        for(j=0;j<polygon.count;j++) {
+            if(!result.visible) {
+                result.rectangle[0]=result.rectangle[2]=points[j][0];
+                result.rectangle[1]=result.rectangle[3]=points[j][1];result.visible=1;
+            }
+            for(k=0;k<2;k++) {
+                if(points[j][k]<=result.rectangle[k])result.rectangle[k]=points[j][k];
+                if(result.rectangle[k+2]<=points[j][k])result.rectangle[k+2]=points[j][k];
+            }
+        }
+    }
+    *output=result;return RF_OK;
+}
+
 static int particle_clip_intersection(uint32_t plane,const rf_particle_clipped_vertex *a,
     const rf_particle_clipped_vertex *b,const rf_particle_clip_environment *e,rf_particle_clipped_vertex *v)
 {

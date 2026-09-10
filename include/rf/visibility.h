@@ -1,6 +1,19 @@
 #ifndef RF_VISIBILITY_H
 #define RF_VISIBILITY_H
 #include "rf/vpp.h"
+#include "rf/effect.h"
+typedef struct rf_visibility_projection {
+    float origin[3],matrix[9],flat_depth;uint32_t perspective;
+    rf_particle_clip_environment clip;
+    rf_particle_projection projection;
+} rf_visibility_projection;
+typedef struct rf_visibility_screen_bounds {uint32_t visible;float rectangle[4];} rf_visibility_screen_bounds;
+/* 515d00/518bf0 box corners, six clipped faces and screen extrema. Original
+ * view matrix/clip/projection values must be supplied. Reuses shared clipping
+ * arithmetic; no allocation. Rejected boxes retain caller rectangle values.
+ * Supported renderer path is original mode 0x66. Errors preserve output. */
+int rf_visibility_box_project(const rf_visibility_projection *view,const float minimum[3],
+    const float maximum[3],rf_visibility_screen_bounds *output);
 typedef struct rf_room_visibility {
     uint32_t visible,visited,depth;
     float rectangle[4];
