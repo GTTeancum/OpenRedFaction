@@ -667,3 +667,23 @@ Integrated stock64MiB XEMU replay-20260910-190219 passes the180-frame staged
 door traversal with APU output and cleanup checks. Spatial telemetry remains
 [2,214,3428625177,216,209,536], matching PC. This is not authored-spawn traversal,
 physical Xbox validation or a claim of complete campaign audio parity.
+
+### Sound table registration trace
+
+Ghidra identifies434720 as the sounds.tbl loader: after successful open it
+requires the Sounds Start marker and reads entries until Sounds End or2048 rows.
+The per-row function4347f0 reads one quoted filename and three floating values,
+then calls5054b0 and asserts that the returned sound index equals the row index.
+The5054b0 wrapper forwards the values to543580 with category0. Its caller4346f0
+conditionally invokes the loader after506270, then calls434880 and505480.
+The meaning of506270 and ordering relative to campaign controller construction
+remain unverified; do not yet replace controller parameters with table rows.
+
+`python tools/verify_audio_registration.py` executes original5054b0/543580,
+including original case-insensitive comparison and far-distance arithmetic.
+Filesystem presence and metadata are supplied at56baa0/544680. Three ordered
+pairs confirm that reversed registration order changes the retained parameters,
+nonpositive near distance becomes1, wrapper category is0, and a differently
+cased duplicate with changed parameters/category preserves all64 record bytes
+and the registry count. This verifies original precedence, not table parsing,
+initialization order, metadata flag semantics or a new runtime implementation.

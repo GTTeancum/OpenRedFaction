@@ -2,6 +2,7 @@
 
 Immediate open items:
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
+- [ ] Trace sound-table initialization order and integrate first-registration metadata within the audio budget.
 - [ ] Complete controller audio groups/loop metadata and validate interactive PC/Xbox playback.
 - [ ] USER: Listen to the PC --campaign diagnostic and report dropouts or unexpected volume/pan changes.
 - [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
