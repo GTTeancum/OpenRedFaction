@@ -1,4 +1,5 @@
 #include "rf/effect.h"
+#include "rf/entity_assets.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
@@ -11,14 +12,22 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
-    if(argc==2 && !strcmp(argv[1],"--particle-definition")) {
+    if(argc==5 && !strcmp(argv[1],"--emitter-load")) {
+        rf_vpp archive;rf_particle_definition definition;
+        memset(&definition,0xa5,sizeof(definition));status=rf_vpp_open(&archive,argv[2]);
+        if(!status) {status=rf_emitter_definition_load(&archive,argv[3],(uint32_t)strtoul(argv[4],NULL,10),&definition);rf_vpp_close(&archive);}
+        return fwrite(&status,4,1,stdout)==1 && fwrite(&definition,sizeof(definition),1,stdout)==1?0:1;
+    }
+    if(argc==2 && (!strcmp(argv[1],"--particle-definition") || !strcmp(argv[1],"--emitter-definition"))) {
         uint32_t bytes;rf_particle_definition definition;
+        int named=!strcmp(argv[1],"--emitter-definition");char name[128];
         _Static_assert(sizeof(definition)==184,"Particle definition fixture layout");
         while(fread(&bytes,4,1,stdin)==1) {
+            if(named && (fread(name,1,128,stdin)!=128 || !memchr(name,0,128)))return 2;
             void *text;if(bytes>65536)return 2;text=malloc(bytes?bytes:1);if(!text)return 2;
             if(fread(text,1,bytes,stdin)!=bytes){free(text);return 2;}
             memset(&definition,0xa5,sizeof(definition));
-            status=rf_particle_definition_read(text,bytes,&definition);free(text);
+            status=named?rf_emitter_definition_read(text,bytes,name,&definition):rf_particle_definition_read(text,bytes,&definition);free(text);
             if(fwrite(&status,4,1,stdout)!=1 || fwrite(&definition,sizeof(definition),1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;

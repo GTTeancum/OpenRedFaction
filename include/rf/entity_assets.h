@@ -5,6 +5,15 @@
 #include "rf/motion_file.h"
 #include "rf/entity.h"
 #include "rf/movement.h"
+#include "rf/effect.h"
+/* Port-owned emitters.tbl binding: first ASCII case-insensitive name match,
+ * copied metadata with no retained table pointers. Only the selected block is
+ * validated. Read allocates nothing; load caps temporary archive storage by
+ * scratch_budget. Both preserve output on failure; no resource creation. */
+int rf_emitter_definition_read(const void *text,uint32_t bytes,const char *name,
+    rf_particle_definition *result);
+int rf_emitter_definition_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,
+    rf_particle_definition *result);
 /* movemodes.tbl fields and name/reference tables from original 433670.
  * Bounded archive read, one scratch allocation; output preserved on failure. */
 int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf_movement_descriptor *result);

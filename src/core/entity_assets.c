@@ -559,6 +559,36 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
     *assets=value;return RF_OK;
 }
 
+int rf_emitter_definition_read(const void *text,uint32_t bytes,const char *name,
+    rf_particle_definition *result)
+{
+    lexer l;char t[256];uint32_t body=0;int selected=0,status,quoted;
+    if(!text || !bytes || !name || !*name || !result)return RF_RANGE;
+    l.text=text;l.size=bytes;l.at=0;
+    for(;;) {
+        uint32_t boundary=l.at;
+        status=token(&l,t,&quoted);
+        if(status==RF_NOT_FOUND || (!status && !quoted && (same(t,"$Name:") || same(t,"#End")))) {
+            if(selected)return rf_particle_definition_read(l.text+body,boundary-body,result);
+            if(status==RF_NOT_FOUND || same(t,"#End"))return RF_NOT_FOUND;
+            status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
+            selected=same(t,name);body=l.at;
+        } else if(status)return status;
+    }
+}
+int rf_emitter_definition_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,
+    rf_particle_definition *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"emitters.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>scratch_budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_emitter_definition_read(text,entry.size,name,result);
+    free(text);return status;
+}
+
 /* Bounded particle metadata; runtime resources and direction normalization are
  * deliberately separate from authored storage. Fields follow 497590. */
 int rf_particle_definition_read(const void *text,uint32_t bytes,rf_particle_definition *result)
