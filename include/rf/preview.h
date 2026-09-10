@@ -40,4 +40,12 @@ int rf_preview_update_world(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geometry *world,const rf_geometry_movers *movers,
     const rf_group_attached_pose *poses,const rf_geometry_materials *materials,
     const rf_level *level);
+/* Single generation pass using caller-owned staging storage. Scratch must be
+ * disjoint from the destination capacity range and at least capacity_bytes long.
+ * Failure may alter scratch, but preserves mesh and destination vertex bytes.
+ * Inputs cannot alias either output range. No allocation. */
+int rf_preview_update_world_staged(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    rf_preview_vertex *scratch,uint32_t scratch_bytes,const rf_geometry *world,
+    const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
+    const rf_geometry_materials *materials,const rf_level *level);
 #endif

@@ -10,6 +10,13 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Single-pass retained projection now stages into the idle actor half of the existing
+2 MiB buffer. Measured world projection fell from 60.32 to 31.50 ms/tick and total
+throughput rose from 9.81 to 14.62 ticks/guest second. PC traces remain exact and
+staging failure/overlap checks pass. Full 664-tick stock-64-MiB XEMU run
+20260909-210345-153679 matches PC hashes, rings and final body. Projection and
+presentation still dominate.
+
 Xbox profiling identified world projection as the largest tick cost. Reusing fan
 corners and classifying unclipped triangles reduced measured projection from
 94.31 to 60.32 ms, with throughput rising from 7.37 to 9.81 ticks/guest second.

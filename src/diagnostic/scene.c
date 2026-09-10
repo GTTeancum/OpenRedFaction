@@ -159,6 +159,24 @@ int rf_scene_world_update_camera(const rf_scene_world_geometry *geometry,
     view=*geometry;memcpy(view.camera_position,position,12);memcpy(view.camera_orientation,orientation,36);
     return rf_scene_world_update(&view,poses,pose_count,mesh,capacity_bytes);
 }
+int rf_scene_world_update_camera_staged(const rf_scene_world_geometry *geometry,
+    const rf_group_attached_pose *poses,uint32_t pose_count,const float position[3],
+    const float orientation[3][3],rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    rf_preview_vertex *scratch,uint32_t scratch_bytes)
+{
+    rf_geometry_materials mapping={0};rf_level camera={0};uint32_t i,j;
+    if(!geometry || !geometry->world || !position || !orientation ||
+       (poses?pose_count!=geometry->movers.count:pose_count!=0))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(position[i]))return RF_RANGE;
+        for(j=0;j<3;++j)if(!isfinite(orientation[i][j]))return RF_RANGE;
+    }
+    mapping.offsets=geometry->offsets;mapping.slots=geometry->slots;
+    mapping.count=geometry->geometry_count;mapping.textures.count=geometry->material_count;
+    memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
+    return rf_preview_update_world_staged(mesh,capacity_bytes,scratch,scratch_bytes,
+        geometry->world,&geometry->movers,poses,&mapping,&camera);
+}
 int rf_scene_preview_camera(rf_level *level,int32_t uid)
 {
     rf_level_entity entity;uint32_t i,j;int status;
@@ -693,7 +711,12 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         memcpy(position,pose.position,12);memcpy(orientation,pose.eye_orientation,36);
         record[0]=frame;memcpy(record+1,&input,sizeof(input));memcpy(record+25,&pose,sizeof(pose));
     } else {position[1]+=.7f;position[2]+=2.4f;}
-    status=rf_scene_world_update_camera(actor_follow_world,NULL,0,position,orientation,stream->mesh,stream->capacity-1024*1024);if(status)return status;
+    /* The actor portion is idle until animation emits this tick's model. Use
+     * it for transactional world projection before the actor is appended. */
+    {uint32_t world_capacity=(stream->capacity-1024*1024)/sizeof(rf_preview_vertex)*sizeof(rf_preview_vertex);
+     status=rf_scene_world_update_camera_staged(actor_follow_world,NULL,0,position,orientation,
+        stream->mesh,world_capacity,stream->mesh->vertices+world_capacity/sizeof(rf_preview_vertex),
+        stream->capacity-world_capacity);if(status)return status;}
     profile_mark(2);
     stream->world=stream->mesh->count;
     memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);

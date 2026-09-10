@@ -25,9 +25,9 @@ Run directories are `pacing-20260909-205058`, `pacing-20260909-205254`, and
 `pacing-20260909-205455` under `artifacts/xemu`. These are measurements on this
 emulator/host, not original-hardware benchmarks or a claim of playable speed.
 Per-stage call counts can differ by one because the reads occur during a tick.
-Projection remains the largest measured cost. The two-pass projection and full
-level traversal remain; moving work out of catch-up ticks and visibility work
-still need attention. The profiler's presentation category includes platform
+Projection remained the largest measured cost in these three runs. Full level
+traversal, visibility and moving work out of catch-up ticks still need attention;
+the subsequent single-pass change is described below. The profiler's presentation category includes platform
 integrity checks and GPU waits, so it is not a pure GPU execution measurement.
 
 The shared C projection loop now transforms a polygon fan's anchor and previous
@@ -60,3 +60,42 @@ These fixtures cover many views but do not establish original-game/PS2 visual
 parity or full campaign correctness. No screenshot was posted because the visual
 output is unchanged. The earlier intermittent interactive RF_RANGE error remains
 open and is not claimed fixed by this optimization.
+
+
+## Single-pass retained projection
+
+The actor-follow path now generates the world into the idle actor half of its
+existing 2 MiB CPU vertex allocation. Only a successful projection is copied to
+the world half; the actor is generated and appended afterward. This removes the
+sizing traversal without adding any allocation or changing the effective world
+vertex capacity. The split is rounded down to a whole 56-byte vertex, leaving
+1,048,544 world bytes and 1,048,608 scratch bytes. The previous 1 MiB world budget
+also held only 18,724 whole vertices, so the representable output is unchanged.
+
+`rf_preview_update_world_staged` exposes this path for callers that own scratch
+storage. Scratch can change on failure, but destination bytes and mesh metadata
+are preserved. Overlapping ranges and undersized scratch are rejected before
+generation. The existing two-pass API remains available to callers without
+scratch space. Inputs must remain stable and disjoint from both output ranges.
+This is port-owned rendering work, not recovered original game code.
+
+Live run `pacing-20260909-210227` passes the pacing check in stock 64 MiB:
+world projection averaged 31.50 ms/tick, presentation/integrity 24.82 ms,
+animation/stance 3.88 ms, and model rendering 6.06 ms. Throughput measured
+14.62 ticks per guest second, versus 9.81 in the previous run. GPU vertex
+storage remains 2,097,152 bytes. These host/emulator observations still fall
+well short of the simulation target and do not establish hardware performance.
+
+The 32-camera retained-world test now compares staged output with independently
+allocated two-pass output on every view. It also checks undersized scratch,
+overlapping ranges, output-capacity exhaustion after partial staging, and an
+invalid late mover pose: all failures preserve the entire destination allocation
+and descriptor. Both the original 32-view transcript and complete 664-tick PC
+input transcript remain byte-identical. All five CTest checks and both builds pass.
+
+
+Full Xbox turn verification `20260909-210345-153679` also passes in stock 64 MiB:
+664 world/camera ticks, all ten actor rings, and the final 308-byte body state
+match PC. World hash remains 1553922570 and body hash 2897823093. This exercises
+the staged path on the compiled Xbox target with its adjacent scratch region.
+The ongoing controller ISO was restored afterward; no new screenshot was taken.

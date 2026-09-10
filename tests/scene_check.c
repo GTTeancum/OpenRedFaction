@@ -151,7 +151,8 @@ int main(int argc,char **argv)
     if(argc==4 && (!strcmp(argv[1],"--retained-world") || !strcmp(argv[1],"--moving-camera"))) {
         int moving_camera=!strcmp(argv[1],"--moving-camera");
         rf_vpp archive;rf_level source,camera;rf_geometry world={0};rf_scene_world_geometry owned={0};
-        rf_materials images={0};rf_preview_mesh mesh={0},expected={0};rf_geometry_materials mapping={0};
+        rf_materials images={0};rf_preview_mesh mesh={0},expected={0},staged={0};rf_geometry_materials mapping={0};
+        rf_preview_vertex *scratch,*staged_address;
         rf_group_attached_pose *poses;uint32_t i,j,frame,capacity,hash=2166136261u;void *address;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&source,&archive,argv[3]) ||
             rf_geometry_open(&world,&source,8*1024*1024))return 1;
@@ -159,6 +160,8 @@ int main(int argc,char **argv)
         if(rf_scene_world_open_retained(&source,&world,NULL,0,&mesh,&images,8*1024*1024,4*1024*1024,&owned))return 1;
         rf_vpp_close(&archive);memset(&source,0xa5,sizeof(source));rf_materials_close(&images);
         capacity=mesh.bytes+1024*1024;address=realloc(mesh.vertices,capacity);if(!address)return 1;mesh.vertices=address;
+        staged_address=malloc(capacity);scratch=malloc(capacity);if(!staged_address || !scratch)return 1;
+        staged.vertices=staged_address;
         poses=malloc(owned.movers.count*sizeof(*poses));if(owned.movers.count && !poses)return 1;
         mapping.offsets=owned.offsets;mapping.slots=owned.slots;mapping.count=owned.geometry_count;mapping.textures.count=owned.material_count;
         for(frame=0;frame<(moving_camera?32u:3u);++frame) {
@@ -180,8 +183,30 @@ int main(int argc,char **argv)
                 rf_scene_world_update(&owned,poses,owned.movers.count,&mesh,capacity)) || mesh.vertices!=address ||
                 rf_preview_build_world(&expected,&world,&owned.movers,poses,&mapping,&camera,capacity) ||
                 mesh.bytes!=expected.bytes || (mesh.bytes && memcmp(mesh.vertices,expected.vertices,mesh.bytes)))return 3;
+            if(rf_scene_world_update_camera_staged(&owned,poses,owned.movers.count,
+                camera.player_position,camera.player_orientation,&staged,capacity,scratch,capacity) ||
+                staged.vertices!=staged_address || staged.bytes!=expected.bytes ||
+                staged.count!=expected.count || memcmp(staged.vertices,expected.vertices,expected.bytes))return 3;
             for(i=0;i<mesh.bytes;++i)hash=(hash^((const unsigned char *)mesh.vertices)[i])*16777619u;
             rf_preview_close(&expected);
+        }
+        /* Staging failures must preserve every destination byte, including
+         * capacity failures after part of the scratch output has been written. */
+        {
+            rf_preview_mesh before;uint32_t original=staged.bytes;
+            memset(staged.vertices,0xa5,capacity);staged.count=staged.bytes=0;before=staged;
+            if(rf_preview_update_world_staged(&staged,capacity,scratch,capacity-1,&world,&owned.movers,poses,&mapping,&camera)!=RF_RANGE ||
+               rf_preview_update_world_staged(&staged,capacity,staged.vertices,capacity,&world,&owned.movers,poses,&mapping,&camera)!=RF_RANGE ||
+               original<sizeof(rf_preview_vertex) ||
+               rf_preview_update_world_staged(&staged,original-sizeof(rf_preview_vertex),scratch,capacity,&world,&owned.movers,poses,&mapping,&camera)!=RF_RANGE)return 3;
+            if(owned.movers.count) {
+                float saved=poses[owned.movers.count-1].output_matrix[0];
+                poses[owned.movers.count-1].output_matrix[0]=NAN;
+                if(rf_preview_update_world_staged(&staged,capacity,scratch,capacity,&world,&owned.movers,poses,&mapping,&camera)==RF_OK)return 3;
+                poses[owned.movers.count-1].output_matrix[0]=saved;
+            }
+            if(memcmp(&before,&staged,sizeof(before)))return 3;
+            for(i=0;i<capacity;++i)if(((unsigned char*)staged.vertices)[i]!=0xa5)return 3;
         }
         if(moving_camera) {
             rf_preview_mesh before=mesh;float bad[3]={NAN,0,0};uint32_t before_hash=2166136261u,after_hash=2166136261u;
@@ -192,7 +217,7 @@ int main(int argc,char **argv)
             puts("PASS: 32 moving-camera projections match fresh builds after archive closure; fixed mesh allocation and invalid-camera guard");
         }
         printf("%u %u %u %u\n",owned.movers.count,owned.allocated_bytes,capacity,hash);
-        free(poses);rf_preview_close(&mesh);rf_scene_world_geometry_close(&owned);rf_scene_world_geometry_close(&owned);
+        free(scratch);rf_preview_close(&staged);free(poses);rf_preview_close(&mesh);rf_scene_world_geometry_close(&owned);rf_scene_world_geometry_close(&owned);
         rf_geometry_close(&world);return 0;
     }
     rf_vpp levels,meshes,maps[5];rf_level level;rf_geometry geometry={0};
