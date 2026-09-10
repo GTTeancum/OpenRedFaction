@@ -139,6 +139,34 @@ int rf_particle_emitter_emit(rf_particle_pool *pool,rf_particle_emitter *emitter
     return rf_particle_emitter_emit_parent(pool,emitter,handle,now_ms,NULL,random,index);
 }
 
+int rf_particle_emitter_update(rf_particle_pool *pool,rf_particle_emitter_runtime *runtime,
+    uint32_t handle,uint32_t global_enabled,float dt,int32_t now_ms,
+    const rf_particle_emitter_parent *parent,uint32_t parent_room,
+    rf_random_state *random,rf_particle_emitter_update_result *result)
+{
+    rf_particle_emitter_runtime next;rf_particle_emitter_clock clock;rf_random_state rng;
+    rf_particle_emitter_update_result out={{0,0,0},0,UINT32_MAX};int due=0,status;
+    if(!pool_valid(pool) || !runtime || !random || !result || !handle ||
+       handle>pool->list_count-5)return RF_RANGE;
+    next=*runtime;rng=*random;
+    clock.flags=next.emitter.flags;clock.enabled=next.enabled;
+    clock.elapsed=next.elapsed;clock.duration=next.duration;
+    if(global_enabled&255u) {
+        status=rf_timer_expired(next.emitter.deadline,now_ms,&due);if(status)return status;
+    }
+    status=rf_particle_emitter_tick(&next.cycle,global_enabled,dt,(uint32_t)due,&rng,&clock,&out.actions);
+    if(status)return status;
+    next.enabled=clock.enabled;next.elapsed=clock.elapsed;next.duration=clock.duration;
+    if(out.actions.emit) {
+        status=rf_particle_emitter_emit_parent(pool,&next.emitter,handle,now_ms,parent,&rng,&out.index);
+        if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+        out.created=status==RF_OK;
+    }
+    if((global_enabled&255u) && next.emitter.owner>=0 && parent && !(next.emitter.flags&0x40u))
+        next.emitter.room=parent_room;
+    *runtime=next;*random=rng;*result=out;return RF_OK;
+}
+
 int rf_particle_pool_detach(rf_particle_pool *pool,uint32_t emitter)
 {
     uint32_t list,index,next;

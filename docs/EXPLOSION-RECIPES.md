@@ -411,3 +411,28 @@ still agree, both builds succeed and six CTest checks pass. Degenerate transform
 directions are explicitly rejected by the finite C API. This has not connected
 campaign parent lifecycles, simulation or rendering and is not a native visual
 validation; compiled NXDK routines are compared through Unicorn.
+
+
+## Combined emitter update
+
+`rf_particle_emitter_update` joins the recovered 0x4972f0 sequence using a
+184-byte caller-owned runtime: emission state, phase definition and phase
+clock. It advances/toggles the phase, queries the spawn deadline, emits at
+most once, then refreshes the emitter room from a resolved parent unless
+flag 0x40 is set. The newly created particle keeps the pre-refresh room.
+Global enable uses its low byte; disabling it leaves runtime/RNG unchanged.
+Continuous emitters bypass the deadline decision. Exhaustion is a successful
+update with an emission attempt but no created particle. The result reports
+phase/timer/emission actions and the created index, or UINT32_MAX.
+
+`tools/verify_particle_update.py` executes unchanged original 0x4972f0 with
+actual phase-duration randomness, timer query, complete emission/allocation,
+object lookup, class predicate and parent room helper. It compares full
+runtime, particle payload, RNG and actions against PC/NXDK in 2048 cases:
+393 phase changes, 489 emission attempts and 177 successful allocations.
+Coverage combines low-byte enable values, alternating/continuous flags,
+expired/future/disabled deadlines, parent inheritance and room refresh,
+missing parents and exhausted pools. PC and NXDK builds and all six CTest
+checks pass. This is still a callable shared update, not a campaign frame
+integration; emitter creation, stable campaign parent views, existing-particle
+simulation and rendering remain to be joined. NXDK comparisons use Unicorn.

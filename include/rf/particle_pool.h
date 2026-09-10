@@ -56,6 +56,23 @@ typedef struct rf_particle_emitter_parent {
 int rf_particle_emitter_emit_parent(rf_particle_pool *pool,rf_particle_emitter *emitter,
     uint32_t handle,int32_t now_ms,const rf_particle_emitter_parent *parent,
     rf_random_state *random,uint32_t *index);
+typedef struct rf_particle_emitter_runtime {
+    rf_particle_emitter emitter;
+    rf_particle_cycle cycle;
+    uint32_t enabled;float elapsed,duration;
+} rf_particle_emitter_runtime;
+typedef struct rf_particle_emitter_update_result {
+    rf_particle_emitter_actions actions;
+    uint32_t created,index;
+} rf_particle_emitter_update_result;
+/* Full 4972f0 order: phase update, timer decision, emission, then parent room.
+ * Pool exhaustion is a successful update with created=0. index=UINT32_MAX
+ * when nothing is allocated. Parent/room view must come from one stable lookup.
+ * Caller owns fixed storage and RNG; no allocation or simulation here. */
+int rf_particle_emitter_update(rf_particle_pool *pool,rf_particle_emitter_runtime *runtime,
+    uint32_t handle,uint32_t global_enabled,float dt,int32_t now_ms,
+    const rf_particle_emitter_parent *parent,uint32_t parent_room,
+    rf_random_state *random,rf_particle_emitter_update_result *result);
 /* 497230: append emitter-owned particles to detached list, preserving order
  * and live counts. Clears their emitter handle; particles remain alive. */
 int rf_particle_pool_detach(rf_particle_pool *pool,uint32_t emitter);

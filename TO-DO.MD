@@ -2,7 +2,7 @@
 
 Immediate open items:
 - [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
-- [ ] Connect reconstructed emitter timing to particle creation, simulation and rendering.
+- [ ] Connect the verified emitter update to campaign objects, particle simulation and rendering.
 - [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
 - [ ] Recover jump audio ownership and validate authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
@@ -20,6 +20,8 @@ Immediate open items:
 Parentless and attached emission each match 2048 original/PC/NXDK cases,
 including transforms, inherited velocity, packet, particle, RNG and timer.
 Connect resolved campaign parent views, scheduling, simulation and rendering.
+Combined emitter update matches 2048 full original/PC/NXDK cases, including
+393 phase changes, 489 emission attempts and post-emission parent-room refresh.
 
 Real boom01 frames 0/7/15 pass six PC/XEMU draws: 1536 samples differ by at
 most one RGB unit, and guest pages return to baseline after image release.
