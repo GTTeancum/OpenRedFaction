@@ -19,6 +19,15 @@ typedef struct rf_geometry_corner {
     uint32_t vertex;
     float uv[2], lightmap_uv[2];
 } rf_geometry_corner;
+typedef struct rf_geometry_portal {
+    uint32_t rooms[2];float minimum[3],maximum[3];
+} rf_geometry_portal;
+/* v180 records read after room-child lists by 4ed520; endpoints resolve in
+ * the room array and 4f9890 appends portals in file order to both rooms.
+ * Count query accepts NULL/zero capacity; insufficient capacity preserves
+ * output and count. Requires a successfully opened, unmodified geometry. */
+int rf_geometry_portals(const rf_geometry *geometry,rf_geometry_portal *portals,
+    uint32_t capacity,uint32_t *count);
 /* New file-format implementation. Retains unknown bytes for later reconstruction.
  * budget covers requested payload/index allocations, excluding allocator metadata.
  * Close before reusing an already-open object; failures leave it empty. */

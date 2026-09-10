@@ -84,7 +84,13 @@ static int parse(cursor *c)
         if(parent>=g->rooms)c->error=RF_FORMAT;
         if(p)for(j=0;j<links;j++)if(u32(p+j*4)>=g->rooms) {c->error=RF_FORMAT;break;}
     }
-    count = number(c); take(c, (uint64_t)count * 32);
+    count = number(c); p=take(c, (uint64_t)count * 32);
+    if(p)for(i=0;i<count;i++) {
+        const unsigned char *portal=p+i*32;
+        if(u32(portal)>=g->rooms || u32(portal+4)>=g->rooms || !finite_words(portal+8,6)) {
+            c->error=RF_FORMAT;break;
+        }
+    }
     g->vertices = number(c); g->vertices_offset = c->at;
     p = take(c, (uint64_t)g->vertices * 12);
     if (p && !finite_words(p, g->vertices * 3)) c->error = RF_FORMAT;
@@ -139,6 +145,18 @@ int rf_geometry_open(rf_geometry *g, const rf_level *level, uint32_t budget)
     if (result == RF_OK) { c.g = g; c.at = 0; c.budget = budget; c.error = RF_OK; c.allow_unowned = 0; result = parse(&c); }
     if (result != RF_OK) rf_geometry_close(g);
     return result;
+}
+int rf_geometry_portals(const rf_geometry *g,rf_geometry_portal *out,uint32_t capacity,uint32_t *count)
+{
+    uint32_t at,i,n;
+    if(!g || !g->data || !count || (!out && capacity))return RF_RANGE;
+    at=g->room_links_offset;
+    for(i=0;i<g->room_link_records;i++)at+=8+u32(g->data+at+4)*4;
+    n=u32(g->data+at);at+=4;
+    if(!out){*count=n;return RF_OK;}
+    if(capacity<n)return RF_RANGE;
+    for(i=0;i<n;i++)memcpy(out+i,g->data+at+i*32,32);
+    *count=n;return RF_OK;
 }
 void rf_geometry_close(rf_geometry *g)
 {

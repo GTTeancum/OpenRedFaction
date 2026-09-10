@@ -23,7 +23,14 @@ fixture[4096:4096+len(payload)] = payload
 base = 4096 + section['offset'] + 8
 faces_count = base + geometry['vertices_offset'] + geometry['vertices'] * 12
 first_face = faces_count + 4
+portals = next(r for r in json.loads((root/'artifacts/geometry-portals-verification.json').read_text())['results'] if r['level']=='L1S1.rfl')['portals']
+assert portals > 0
+first_portal = base + geometry['vertices_offset'] - 4 - portals * 32
 cases = [
+    ('huge_portal_count', first_portal - 4, 0xffffffff),
+    ('invalid_portal_first_room', first_portal, geometry['rooms']),
+    ('invalid_portal_second_room', first_portal + 4, geometry['rooms']),
+    ('nonfinite_portal_bounds', first_portal + 8, 0x7fc00000),
     ('huge_texture_count', base + 6, 0xffffffff),
     ('huge_face_count', faces_count, 0xffffffff),
     ('invalid_texture', first_face + 16, geometry['textures']),

@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Shared geometry exposes all 2862 authored portals across 94 levels; PC records
+match independent payload reads, with invalid endpoint/bounds guards.
+
 Resolved-portal traversal matches 256 original/PC/NXDK cyclic graph cases;
 portal projection/cache generation and authored graph loading remain open.
 

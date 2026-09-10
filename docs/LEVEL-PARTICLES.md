@@ -142,3 +142,21 @@ match, including blocked/detail/special rooms and rejected/nonoverlapping portal
 Original portal caches are supplied as already resolved in these fixtures;
 projection, cache generation, authored graph loading and native renderer wiring
 remain unfinished. This advances the traversal layer, not visual gameplay.
+
+## Authored portal records
+
+`rf_geometry_portals` exposes the v180 records immediately after room-child
+lists without extra resident allocations. Each 32-byte record holds two room
+indices followed by minimum/maximum vectors. The original loader `4ed520`
+reads the indices, resolves both room pointers, calls `4f9890`, then reads the
+vectors into portal +8 and +0x14. Constructor `4f9890` appends the new portal
+to world and endpoint-room lists. File order therefore supplies adjacency order.
+
+The parser now rejects out-of-range endpoint indices and nonfinite bounds.
+`verify_geometry_portals.py` independently walks all 94 installed geometry
+payloads and compares 2862 complete records with the PC accessor. Every installed
+bound is ordered and finite. The probe checks insufficient-capacity preservation;
+`test_geometry_corruption.py` additionally rejects oversized counts, either bad
+endpoint and nonfinite bounds in private VPP fixtures. This is file-format and
+PC accessor verification; original constructor execution, NXDK runtime binding
+and portal screen projection are still open. No installed game input is edited.
