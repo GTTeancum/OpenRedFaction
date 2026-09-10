@@ -96,3 +96,35 @@ lookup returns null. Phase calculation precedes timer query and emission;
 the original parent lookup follows them. This verifies decisions, state and
 RNG advancement, not live particle execution. Parent attachment, emission
 callback effects and spawn-timer reset must be integrated separately.
+
+Particle allocation 496840 has now been executed in 320 recovery fixtures:
+two pool indices, emitter/global ownership, room present/absent, five flag
+patterns, free/empty pools and four RNG seeds. Only the CRT thread pointer
+is supplied; vector copies and random-range callees execute unchanged.
+The full 0x7c-byte candidate record is checked, including untouched bytes.
+This is original-code evidence, not a PC/NXDK particle implementation test.
+
+Each pool descriptor is 0xfc bytes apart. Its free sentinel is 7a3b08 +
+index*0xfc; global active sentinel is 7a3b80 + index*0xfc; allocated count
+is 7a3bf8 + index*0xfc. A successful creation removes the first free node
+and appends it to either the global active list or emitter +b0/+b4 list.
+An empty pool leaves the output pointer, count and RNG unchanged; it does
+not evict a particle or allocate heap storage in this function. Pool capacity
+and recycling remain to be recovered separately.
+
+Recovered record offsets (hex): links 00/04, supplied owner handle 08,
+position 0c, velocity 18, age 24 (zero), color 28, destination color 2c,
+second initial-color copy 30, lifetime 34, radius 38, growth 3c,
+acceleration 40, gravity 44 (authored scale times float 9.8), bitmap 48,
+frame count low word 4c, secondary flags low word 4e, pool byte 50,
+orientation 54, flags 58, finish-VBM age 5c, copied parameter 60,
+room 64, emitter pointer 68, previous-position copy 6c.
+Parameter +48, copied to record +60, still needs semantic identification.
+Record bytes 51..53 and 78..7b retain their prior contents in these fixtures.
+
+Creation ORs active flag 1 and clears collision flag 0x10 when room is null.
+Random-orientation flag 0x200 consumes exactly one draw and chooses angle
+in [0, float(2*pi)); otherwise angle is zero without a draw. Successful
+creation increments the selected pool count and writes an optional output
+pointer. Runtime pool integration, release/update logic and rendering remain
+open; do not infer a complete live effects system from this recovery test.
