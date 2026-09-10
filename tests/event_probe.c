@@ -1,4 +1,5 @@
 #include "rf/event.h"
+#include "rf/level.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
@@ -24,6 +25,21 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--auto-init")) {
+        struct {float timing;uint32_t shape,flags[5],box,disabled,handle;int32_t now;} input;
+        struct {int32_t status;rf_auto_trigger_state state;} result;
+        rf_level_trigger record;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&record,0,sizeof(record));memset(&result,0xa5,sizeof(result));
+            record.timing=input.timing;record.shape=input.shape;
+            memcpy(record.flags,input.flags,sizeof(input.flags));
+            record.box_flag=input.box;record.tail_flag=input.disabled;
+            result.status=rf_auto_trigger_init(&result.state,&record,input.handle,input.now);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--auto-trigger")) {
         struct {rf_auto_trigger_state state;int32_t now;uint32_t clock_bits,eligible;} input;
         struct {rf_auto_trigger_state state;int32_t status;uint32_t calls,trace;} result;

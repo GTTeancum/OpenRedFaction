@@ -14,6 +14,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Authored trigger initialization now matches 2,367 installed records plus
+243 flag cases on PC/NXDK. Timing conversion remains exact across three
+x87 precision modes; 0.01f truncates to 9 ms as in the original. This supplies
+startup state from level records, but registry/dispatch integration is open.
+
 Shared auto-trigger activation now matches 360 original cases on PC/NXDK,
 including dispatch-before-bookkeeping, timer wrap and activation-count wrap.
 It accepts externally resolved global/script eligibility and link dispatch;

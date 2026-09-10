@@ -29,6 +29,12 @@ typedef struct rf_auto_trigger_state {
     int32_t deadline,cooldown_ms;
     uint32_t activation_time_bits,handle;
 } rf_auto_trigger_state;
+struct rf_level_trigger;
+/* v180 loader flags/timing and 4bf970 initial bookkeeping. Borrowed authored
+ * record; handle comes from registration. No registration or shape creation.
+ * Positive cooldowns above one timer period are defensively rejected. */
+int rf_auto_trigger_init(rf_auto_trigger_state *state,const struct rf_level_trigger *record,
+    uint32_t handle,int32_t now);
 typedef void (*rf_auto_trigger_callback)(void *context,const rf_auto_trigger_state *state,
     uint32_t actor,uint32_t suppress_movers);
 /* Single-player 4c01b0/4c0220 auto activation. Caller supplies global/script

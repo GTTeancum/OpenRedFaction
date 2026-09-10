@@ -1,5 +1,39 @@
 #include "rf/event.h"
+#include "rf/level.h"
 #include <math.h>
+#include <string.h>
+/* Exact binary32 seconds * 1000, truncated toward zero. Integer arithmetic
+ * avoids dependence on an ambient x87 precision mode (0.01f is below 10 ms).
+ * The original extended-precision product is exact before its ftol call. */
+static int trigger_milliseconds(float seconds,int32_t *result)
+{
+    uint32_t raw,exponent,shift;uint64_t magnitude;
+    memcpy(&raw,&seconds,4);exponent=(raw>>23)&255;
+    if(exponent==255)return RF_RANGE;
+    magnitude=((raw&0x7fffff)|(exponent?0x800000:0))*UINT64_C(1000);
+    if(!exponent)exponent=1;
+    if(exponent>150) {
+        shift=exponent-150;if(shift>=31)return RF_RANGE;
+        magnitude<<=shift;
+    } else {shift=150-exponent;magnitude=shift>=64?0:magnitude>>shift;}
+    if(magnitude>((raw>>31)?UINT64_C(2147483648):(uint64_t)RF_TIMER_PERIOD))return RF_RANGE;
+    *result=(raw>>31)?(int32_t)(-(int64_t)magnitude):(int32_t)magnitude;
+    return RF_OK;
+}
+int rf_auto_trigger_init(rf_auto_trigger_state *s,const rf_level_trigger *record,
+    uint32_t handle,int32_t now)
+{
+    static const uint32_t bits[5]={1,2,4,8,128};
+    rf_auto_trigger_state value={0};uint32_t i;int status;
+    if(!s || !record || record->shape>1 || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    status=trigger_milliseconds(record->timing,&value.cooldown_ms);if(status)return status;
+    for(i=0;i<5;++i)if(record->flags[i]==1)value.flags|=bits[i];
+    if(record->shape==1 && record->box_flag==1)value.flags|=32;
+    if(record->tail_flag)value.flags|=16;
+    value.deadline=now;
+    value.activation_time_bits=UINT32_C(0xbf800000);value.handle=handle;
+    *s=value;return RF_OK;
+}
 int rf_auto_trigger_fire(rf_auto_trigger_state *s,int32_t now,uint32_t clock_bits,
     int eligible,rf_auto_trigger_callback callback,void *context)
 {

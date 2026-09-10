@@ -3186,3 +3186,29 @@ cooldowns and timer wrap boundaries. Report: artifacts/auto-trigger-verification
 PC and NXDK builds pass, as do existing event activation (3,922 cases), gravity
 action (2,048 original cases) and five CTest tests. This shared routine remains
 unconnected to the scene registry/startup path; no native XEMU run is claimed.
+
+
+Authored auto-trigger initialization (2026-09-10)
+----------------------------------------------
+
+rf_auto_trigger_init accepts the decoded rf_level_trigger, a registered handle
+and current timer clock. It maps the five exact-equals-one flag bytes to
+1/2/4/8/128, the box-only flag to 32, and nonzero tail_flag to disabled bit 16.
+It initializes count to zero, deadline to now, and activation time to the raw
+float -1 bits, following 4bf970. Header_byte is not a disabled flag. Shape
+creation, activation limits and script ownership remain outside this compact
+auto-trigger state.
+
+The v180 loader multiplies binary32 timing by 1000 then truncates (46561a).
+An integer significand/exponent conversion now reproduces that exact product
+without ambient x87 precision dependence: authored 0.01f gives 9 ms, not 10.
+Nonfinite/out-of-range timing is rejected before output mutation. Positive
+cooldowns are limited to RF_TIMER_PERIOD by the shared timer contract.
+
+verify_auto_trigger_init.py executes prepared original timing, flag packing,
+constructor bookkeeping and disable blocks for all 2,367 installed triggers
+and 243 ternary flag combinations. PC matches all 2,610 cases; compiled NXDK
+matches each under 24-, 53- and 64-bit x87 precision. Full original parser
+and object factory are not executed by this fixture. Report:
+artifacts/auto-trigger-init-verification.json. PC/NXDK builds, 360 activation
+cases and five CTest checks pass. Registry/startup scene wiring remains open.
