@@ -7,7 +7,7 @@ root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu'
 run=root/'artifacts/xemu'/('campaign-particles-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
 flag=root/'build/xbox/disc/campaign-particle-test.flag';saved=flag.read_bytes() if flag.exists() else None
 extra=root/'build/xbox/disc/levels2.vpp';extra_created=not extra.exists()
-process=monitor=None;report={'result':'FAIL','scope':'Six installed levels and 13 authored Particle_State events through native owned loading and scheduling. Controlled trigger/preconditions; no natural campaign trigger or rendering claim.'}
+process=monitor=None;report={'result':'FAIL','scope':'Six installed levels and 13 authored Particle_State events through native owned loading, registered trigger activation and scheduling. Controlled trigger/preconditions; no natural campaign trigger or rendering claim.'}
 
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh','--repack'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True,stdout=subprocess.DEVNULL)
 try:
@@ -67,6 +67,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   report['actual']=actual;report['expected']=expected;report['pages_after_levels']=state[6:12]
   assert actual==expected,(actual,expected)
   assert sum(line.startswith('EVENT ') for line in actual.splitlines())==13
+  assert actual.splitlines().count('TRIGGER 1 64 2 150 123')==13
   assert all(p>0 for p in state[4:12]) and state[5]>=state[4],state
   report['result']='PASS'
 finally:

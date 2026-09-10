@@ -809,3 +809,28 @@ handle as a trigger. It is part of verify_runtime_startup.py. The 93-level
 ownership/budget and partial startup graph suites pass, as do PC/NXDK builds
 and the 2048-case original activation verifier. The integrated runtime path
 has been exercised on PC; a native XEMU replay remains open.
+
+
+## Native registered-trigger activation replay
+
+The shared six-level Particle_State fixture now registers its controlled
+trigger root and uses rf_runtime_trigger_fire rather than the startup sweep.
+Each authored event first receives a blocked attempt, then an accepted call
+at 100ms with actor 123. The fixture requires count1, flag64, object flag2,
+cooldown deadline150, clock bits and correct event source/actor propagation.
+It then checks authored event delay/expiry and all emitter targets as before.
+The extra trace line is `TRIGGER 1 64 2 150 123` for each of 13 events.
+
+Stock 64 MiB XEMU passes with an exact 2182-byte PC trace match across six
+levels and 15 emitter targets. Final evidence is local report
+artifacts/xemu/campaign-particles-20260910-144243/report.json. QMP confirms
+67108864 base bytes and zero plugged memory. Available pages are 15507 before
+and 15508 after the run; per-level cleanup samples are
+15508,15268,15508,15508,15108,15508. This shows end-of-run recovery, not peak
+memory demand. The harness reaped its emulator and restored normal disc flags
+and staged archives. PC corpus validation and six CTests also pass.
+
+This controlled root/precondition is an integration fixture, not an authored
+campaign trigger or natural actor contact. Contact/eligibility/key inputs and
+visual effect activation during gameplay remain to be connected. No screenshot
+was taken because this replay adds state evidence rather than new visuals.
