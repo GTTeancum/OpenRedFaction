@@ -17,15 +17,10 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
-Original pool initialization proves 500/1100 capacities and a 120-byte record
-stride (192000 bytes total); shared layout is corrected from 124 bytes.
-Fifteen emitter-detachment and 36 expiry-recycling cases verify live particle
-preservation and free-list tail ordering. Implement shared pool ownership next.
-
-Original particle creation 496840 passes 320 recovery fixtures; shared C
-initialization matches all 160 successful records and RNG states on PC/NXDK.
-Three invalid pool indices preserve output and RNG. Bounded pool linking,
-release/update and scene rendering remain open.
+Shared fixed particle pools now match 3679 original/PC/NXDK replay operations,
+including 1829 allocations/recycles, saturation and emitter detachment.
+Seven complete state snapshots agree. Storage uses 1600 120-byte records;
+connect emitter execution, particle simulation and scene rendering next.
 
 Emitter phase duration and RNG advancement match 1140 original/PC/NXDK
 cases: one draw even at zero variance, draw/32768 and 0.1-second clamp.

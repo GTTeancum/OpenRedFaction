@@ -165,3 +165,29 @@ verify both death reasons at equality, both pools and different source/free
 list lengths. Owner gating and non-expired simulation remain separate work.
 Shared pool integration remains open; these original tests establish its
 capacity, ordering and ownership contract before implementation.
+
+The shared fixed pool is now implemented in particle_pool.c. Caller-owned
+storage holds the original 500/1100 record capacities; no operation allocates
+heap memory. List headers use 32-bit record/sentinel indices, so links do not
+depend on host pointer width. Five base lists represent both free lists, both
+global active lists and the detached list; caller-supplied additional headers
+represent emitter ownership. This is storage representation, not an altered
+particle capacity or order. Initialization deliberately zeros stale payload.
+
+Creation removes a free head, runs the verified record initializer and appends
+to the selected active list. Exhaustion preserves RNG/output and returns
+RF_NOT_FOUND. Detachment appends live records to the detached list and clears
+emitter ownership. Recycling clears flags, appends to the originating free
+list and decrements its live count. Age/physics updates and the decision to
+recycle remain the caller's responsibility. Invalid indices, emitter handles
+and recycling an inactive record return RF_RANGE without mutation.
+
+verify_particle_pool_runtime.py passes 3679 commands on PC and compiled NXDK
+against original 496840, 497230 and recycling span 495615..495697. It exercises
+1829 allocations/recycles, four saturation rejections, mixed emitter/global
+ownership, repeated detach and invalid operations. Seven snapshots compare
+all 192000 record bytes and all list headers after pointer-to-index conversion;
+per-command statuses, returned indices, counts and RNG also match. The original
+initializer runs on zeroed storage to match the shared initialization contract.
+This verifies the pool in compiled code, not native scene simulation; emitter
+execution, live updates, rendering and native memory accounting remain open.

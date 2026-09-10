@@ -1,4 +1,5 @@
 #include "rf/effect.h"
+#include "rf/particle_pool.h"
 #include "rf/entity_assets.h"
 #include <stdio.h>
 #include <fcntl.h>
@@ -12,6 +13,24 @@ int main(int argc,char **argv)
     rf_effect_pair pair; unsigned i; int32_t status;
     _Static_assert(sizeof(input)==64,"Effect fixture layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--particle-pool")) {
+        static rf_particle records[RF_PARTICLE_CAPACITY];rf_particle_list lists[8];rf_particle_pool pool;
+        struct {uint32_t operation,kind,owner,room,emitter,index,seed;rf_particle_spawn spawn;} in;
+        struct {int32_t status;uint32_t index,seed,live[2];} out;
+        _Static_assert(sizeof(in)==104,"Pool command layout");
+        rf_particle_pool_init(&pool,records,lists,8);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_random_state rng={in.seed};out.index=in.index;
+            if(in.operation==0)out.status=rf_particle_pool_create(&pool,in.kind,&in.spawn,in.owner,in.room,in.emitter,&rng,&out.index);
+            else if(in.operation==1)out.status=rf_particle_pool_detach(&pool,in.emitter);
+            else if(in.operation==2)out.status=rf_particle_pool_recycle(&pool,in.index);
+            else out.status=in.operation==3?RF_OK:RF_RANGE;
+            out.seed=rng.value;out.live[0]=pool.live[0];out.live[1]=pool.live[1];
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+            if(in.operation==3 && (fwrite(records,sizeof(records),1,stdout)!=1 || fwrite(lists,sizeof(lists),1,stdout)!=1))return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-initialize")) {
         struct {rf_particle_spawn spawn;uint32_t pool,owner,room,emitter;rf_random_state random;rf_particle particle;} in;
         struct {int32_t status;rf_random_state random;rf_particle particle;} out;
