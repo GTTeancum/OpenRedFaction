@@ -18,6 +18,9 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Ordinary render queue distance keys and dispatch order match 44420 original/
+PC/NXDK entries; plane grouping, room splits and live drawing remain open.
+
 World billboard transformation, center acceptance and clipped submission match
 the original executable in 1024 PC/NXDK cases. Live draw-queue integration
 remains open, including emitter grouping and blending with scene objects.

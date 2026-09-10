@@ -469,3 +469,26 @@ and composition with other transparent scene objects still require recovery
 and verification. Raw decompilation establishes investigation targets, not
 verified queue behavior. Velocity-stretched particles also use a separate path.
 No live particle draw has been added yet and no screenshot was captured.
+
+### Ordinary render queue ordering
+
+rf_render_sphere_order reconstructs the no-plane-association, no-room-split
+branch of 4d3c40. Unsorted entries dispatch first in insertion order; sorted
+entries receive camera-distance keys (negative radius uses -FLT_MAX), then
+the original descending Shell sort with halved gaps. Equal-distance inputs
+are not guaranteed stable order; substituting a stable sort changes behavior.
+The caller supplies order and distance arrays, eight bytes per entry, with the
+original maximum of 2048 entries. No allocation, culling or callback occurs.
+
+verify_render_sphere_order.py executes full original 4d3c40, including actual
+4d43e0 ordinary partitioning. Only the resolved camera and final callback
+dispatch are intercepted. All distance-key bytes and complete callback orders
+match PC/NXDK across 160 fixtures and 44420 entries, including 8960 deliberately
+equal-distance inputs, low-byte sorted flags, negative radii, empty queues and
+2048-entry queues. Both builds, six CTest checks and the complete world billboard
+regression pass. This is compiled-code emulation, not native framebuffer evidence.
+
+4d43e0 also groups ordinary objects behind plane-associated entries; 4d3c40
+can divide both groups and ordinary objects across a room plane before
+dispatch. Those paths remain unimplemented and must not be flattened into
+the ordinary helper. The shared scene has not yet submitted live particles.

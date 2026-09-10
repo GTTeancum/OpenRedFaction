@@ -91,6 +91,17 @@ int rf_visibility_camera_setup(const rf_visibility_camera_parameters *parameters
  * particles use a different original path and must not use this helper. */
 int rf_particle_world_billboard(const rf_visibility_camera *camera,const float position[3],
     float angle,float radius,uint32_t width,uint32_t height,rf_particle_screen_polygon *polygon);
+typedef struct rf_render_sphere {float position[3],radius;uint32_t sorted;} rf_render_sphere;
+/* Ordinary (no plane association / room split) 4d3c40 queue ordering.
+ * Unsorted entries dispatch first in insertion order; sorted entries use
+ * distance, negative-radius sentinel and the original descending Shell sort.
+ * Equal keys are not promised stable ordering. At most 2048 entries.
+ * Caller provides disjoint count-element order and distance scratch arrays;
+ * distances for unsorted entries are zero. No allocation, callbacks or culling.
+ * Input errors preserve outputs. Plane-associated groups and room-plane splits
+ * must be handled separately, not flattened into this ordinary queue. */
+int rf_render_sphere_order(const rf_render_sphere *entries,uint32_t count,const float camera[3],
+    uint32_t *order,float *distances);
 
 typedef struct rf_visibility_portal_cache {
     float minimum[3],maximum[3];uint32_t valid;

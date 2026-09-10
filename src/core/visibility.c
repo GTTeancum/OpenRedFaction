@@ -2,6 +2,42 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#include <float.h>
+int rf_render_sphere_order(const rf_render_sphere *entries,uint32_t count,const float camera[3],
+    uint32_t *order,float *distances)
+{
+    uint32_t i,j,first=0,n=0,gap;
+    if(!camera || count>2048 || (count && (!entries || !order || !distances)))return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(camera[j]))return RF_RANGE;
+    for(i=0;i<count;i++) {
+        double length=0;
+        if(!isfinite(entries[i].radius))return RF_RANGE;
+        for(j=0;j<3;j++) {
+            float delta=entries[i].position[j]-camera[j];
+            if(!isfinite(entries[i].position[j]) || !isfinite(delta))return RF_RANGE;
+            length+=(double)delta*delta;
+        }
+        if(length>(double)FLT_MAX*FLT_MAX)return RF_RANGE;
+    }
+    for(i=0;i<count;i++) {
+        distances[i]=0;
+        if(!(entries[i].sorted&255u))order[first++]=i;
+    }
+    for(i=0;i<count;i++)if(entries[i].sorted&255u) {
+        float delta[3];
+        for(j=0;j<3;j++)delta[j]=entries[i].position[j]-camera[j];
+        distances[i]=entries[i].radius<0?-FLT_MAX:(float)sqrt(((double)delta[0]*delta[0]+
+            (double)delta[1]*delta[1])+(double)delta[2]*delta[2]);
+        order[first+n++]=i;
+    }
+    for(gap=n/2;gap;gap/=2)for(i=gap;i<n;i++) {
+        j=i;
+        while(j>=gap && distances[order[first+j-gap]]<distances[order[first+j]]) {
+            uint32_t swap=order[first+j-gap];order[first+j-gap]=order[first+j];order[first+j]=swap;j-=gap;
+        }
+    }
+    return RF_OK;
+}
 static int valid(const rf_visibility *s)
 {
     return s && (!s->count || (s->rooms && s->order)) && s->visible_count<=s->count;

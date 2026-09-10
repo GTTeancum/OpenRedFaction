@@ -9,6 +9,19 @@
 #include <stdlib.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--render-sphere-order")) {
+        struct {uint32_t count;float camera[3];} in;
+        rf_render_sphere entries[2048];uint32_t order[2048];float distances[2048];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            int32_t status;
+            if(in.count>2048 || fread(entries,sizeof(*entries),in.count,stdin)!=in.count)return 2;
+            status=rf_render_sphere_order(entries,in.count,in.camera,order,distances);
+            fwrite(&status,4,1,stdout);if(status)continue;
+            fwrite(order,4,in.count,stdout);fwrite(distances,4,in.count,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-world-billboard")) {
         struct {rf_visibility_camera camera;float position[3],angle,radius;uint32_t width,height;} in;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
