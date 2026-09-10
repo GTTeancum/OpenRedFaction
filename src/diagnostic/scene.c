@@ -592,7 +592,6 @@ static int campaign_jump_update(uint32_t frame)
 static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
 {
     int update_status=campaign_climb_update((scene_stream*)context,frame);if(update_status)return update_status;
-    update_status=campaign_jump_update(frame);if(update_status)return update_status;
     rf_motion_stance_decision decision={0,RF_MOTION_STANCE_NONE};
     rf_player_crouch_input eligibility={1,-1,-1,-1,(int32_t)rf_scene_actor_landing[1]};
     /* Ownership/environment/locks are fixture defaults until the player
@@ -608,9 +607,11 @@ static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller
     }
     status=actor_selector_effect(context,frame,&decision,controller);if(status)return status;
     campaign_crouched=(rf_scene_actor_stance_flags&0x400)!=0;
-    if(decision.effect==RF_MOTION_STANCE_CROUCH && campaign_crouched)
-        return rf_motion_request_state(controller,motions,9,.25f);
-    return RF_OK;
+    if(decision.effect==RF_MOTION_STANCE_CROUCH && campaign_crouched) {
+        status=rf_motion_request_state(controller,motions,9,.25f);if(status)return status;
+    }
+    /* 430c70 resolves immediate stance before its action loop reaches jump. */
+    return campaign_jump_update(frame);
 }
 uint32_t rf_scene_actor_clearance_diagnostic[8];
 float rf_scene_actor_clearance_queries[2][12]; /* start, end, normal, fraction, sphere, blocked */

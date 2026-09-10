@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Finish jump configuration/audio ownership and test crouched, obstructed and climbing jump scenarios.
+- [ ] Finish jump configuration/audio ownership and validate obstructed jumping and authored traversal.
 - [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
 - [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
 - [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
@@ -13,6 +13,14 @@ Immediate open items:
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Immediate crouch now precedes jump, matching 430c70. PC restriction replays
+cover crouched rejection, held-button release without auto-jump, same-tick
+crouch/jump rejection, and same-tick stand/jump acceptance. The simultaneous
+case passes 64-MiB XEMU (20260910-013000); the climb case passes at
+20260910-013030. Climb-mode requests are rejected;
+a new press on the staged exit frame is accepted in restored mode 1, which
+does not establish grounded upper-platform traversal.
 
 Campaign jump replay now passes on PC and stock-64-MiB XEMU
 (20260910-012451): initial airborne rejection, two accepted jumps, 1.32991

@@ -2960,7 +2960,7 @@ Campaign jump connected (2026-09-10)
 
 rf_scene_input now has a held jump word after crouch. PC maps Space; Xbox maps
 A as a platform policy. The campaign update detects rising edges after region
-transitions and before crouch action, then applies rf_player_jump_enabled and
+transitions and immediate crouch action (ordering corrected below), then applies rf_player_jump_enabled and
 rf_player_jump to the body velocity/physics flags, actor flags and movement
 mode. Existing post-physics support consumes jump flag 2. Resolved ownership,
 parent/input-lock and alternate-fall values remain ordinary-player fixture
@@ -2996,3 +2996,36 @@ legacy PC approach/stance and five CTests pass. The later PC --campaign CLI
 addition was rebuilt and the jump replay rerun successfully; its interactive
 window was not launched. No complete original-game jump-arc comparison is
 claimed by matching the two reconstructed platforms.
+
+
+Jump restrictions and immediate stance order (2026-09-10)
+
+Review of 430c70 shows the eligible ordinary-player stance query/transition
+before LAB_430e19 and the action loop. The first jump integration placed its
+request before actor_player_stance's immediate crouch effect. This is corrected:
+resolve stance, request crouch motion if needed, then process the jump edge.
+Thus simultaneous crouch press+jump is rejected, while a clear stand release
+plus a fresh jump edge on the same tick succeeds. This is the ordinary stance
+path; full toggle/lock/ownership policies remain explicit fixture assumptions.
+
+replay_jump_restrictions.py covers three variants:
+- Default: crouch at 8, reject jump at 24, stand at 40 while jump remains held
+  without dispatching, release at 48 and accept a new press at 52, then land.
+- --simultaneous: crouch and jump together at 24 are rejected; release crouch
+  and freshly press jump at 40 succeeds, with landing by 110.
+- --climb: staged L1S2 center/look-directed route; reject mode-2 jump edges at
+  90 and 120, then accept a fresh edge at 139 after region exit restores mode 1.
+  The region timeline records exit before jump changes the movement to mode 3.
+
+All PC variants pass after the ordering correction, as do existing basic jump
+and immediate stance replays. The 128-tick simultaneous scenario passes in
+stock-64-MiB XEMU 20260910-013000 with exact PC state and jump-ring matching.
+The first native climb run 20260910-012851 passed before this correction and
+is kept as earlier evidence rather than claimed as validation of the final code.
+Climb exit acceptance is a consequence of restored mode 1 before support, not
+proof of a grounded upper-platform jump, original full-route parity or an
+intentional climb boost. Test the authored exit geometry and route separately.
+
+Final-code climb restriction replay 20260910-013030 also passes in stock-64-MiB
+XEMU: two rejected climbing presses and one accepted exit-frame press, with
+exact PC state and jump/climb timeline matching over 180 ticks.
