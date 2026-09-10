@@ -9,7 +9,7 @@ Immediate open items:
 - [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
 - [ ] Capture and replay any further interactive exits; the historical tick-99 cause remains unproven.
 - [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
-- [ ] USER: Test PC keyboard movement/look, crouch, focus loss, resizing and Escape exit.
+- [ ] USER: Verify PC look, crouch, focus loss, resizing and Escape exit; basic movement is user-confirmed.
 - [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
@@ -94,8 +94,9 @@ confirms immediate region exit with vertical-velocity reset, so avoid assuming
 the staged top-boundary re-entry alone proves the transition code is wrong.
 
 User confirmed interactive movement on 2026-09-09 and reconfirmed being able
-to move on 2026-09-10. Crouch, controller reconnect and Back+Start exit still
-need user checks.
+to move on 2026-09-10. This confirms basic movement input only; the latest
+confirmation does not identify the platform. Campaign jump, look, crouch,
+controller reconnect and exit behavior still need user checks.
 
 Campaign stance now applies collision crouch immediately and uses the recovered
 owned-player animation selector after the verified first initialization frame.
