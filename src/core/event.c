@@ -3,6 +3,18 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+int rf_event_links_propagate(rf_event_links *links,uint32_t source,uint32_t actor,
+    uint32_t mode,rf_event_link_callback callback,void *context)
+{
+    uint32_t i=0,on=(mode&255u)==1;
+    if(!links || !callback)return RF_RANGE;
+    for(;;) {
+        if(links->count>INT32_MAX || (links->count && !links->handles))return RF_RANGE;
+        if(i>=links->count)return RF_OK;
+        callback(context,links->handles[i],source,actor,on,!on);
+        ++i;
+    }
+}
 typedef struct startup_context {
     rf_runtime_triggers *triggers;rf_runtime_trigger *trigger;rf_runtime_event *event;
     rf_physics_gravity *gravity;rf_startup_events_report *report;int32_t now;int status;

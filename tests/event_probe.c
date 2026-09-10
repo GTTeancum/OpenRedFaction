@@ -6,6 +6,20 @@
 #include <string.h>
 static uint32_t actions,mutation;
 static uint32_t auto_trace;
+static rf_event_links propagation_links;
+static uint32_t propagation_handles[8],propagation_alternate[8],propagation_calls,propagation_hash;
+static void propagation_callback(void *context,uint32_t handle,uint32_t source,
+    uint32_t actor,uint32_t on,uint32_t suppress)
+{
+    uint32_t i,values[5]={handle,source,actor,on,suppress};(void)context;
+    for(i=0;i<5;++i)propagation_hash=(propagation_hash^values[i])*16777619u;
+    if(!propagation_calls++) {
+        if(mutation==1)propagation_links.count=0;
+        if(mutation==2)propagation_links.count=8;
+        if(mutation==3)propagation_links.handles=propagation_alternate;
+        if(mutation==4)propagation_handles[1]=0xffffffff;
+    }
+}
 static void auto_callback(void *context,const rf_auto_trigger_state *s,uint32_t actor,uint32_t suppress)
 {
     (void)context;
@@ -25,6 +39,20 @@ int main(int argc,char **argv)
 {
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
+    if(argc==2 && !strcmp(argv[1],"--propagation")) {
+        uint32_t input[5],output[4],i;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            if(input[0]>8)return 2;
+            for(i=0;i<8;++i) {propagation_handles[i]=100+i;propagation_alternate[i]=200+i;}
+            propagation_links.count=input[0];propagation_links.handles=propagation_handles;
+            mutation=input[4];propagation_calls=0;propagation_hash=2166136261u;
+            output[0]=(uint32_t)rf_event_links_propagate(&propagation_links,input[1],input[2],input[3],propagation_callback,NULL);
+            output[1]=propagation_calls;output[2]=propagation_hash;output[3]=propagation_links.count;
+            if(fwrite(output,sizeof(output),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==4 && (!strcmp(argv[1],"--owned-triggers") || !strcmp(argv[1],"--trigger-links") || !strcmp(argv[1],"--startup-events"))) {
         rf_vpp archive;rf_level level;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
         rf_object_registry registry;uint32_t i,j,bytes,handle,event_count,n;

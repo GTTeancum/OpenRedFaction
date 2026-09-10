@@ -46,6 +46,20 @@ int rf_event_activate(rf_event_state *state,int32_t now,uint32_t source,uint32_t
     uint32_t mode,rf_event_callback callback,void *context);
 /* Common timer prefix only; type-specific per-frame updates remain external. */
 int rf_event_tick(rf_event_state *state,int32_t now,rf_event_callback callback,void *context);
+typedef struct rf_event_links {
+    uint32_t count;
+    const uint32_t *handles;
+} rf_event_links;
+/* Original 4b8b00 ordered propagation. Dispatch receives on=1 only when the
+ * incoming mode low byte equals 1; otherwise off with suppress_movers=1.
+ * Source/actor are passed unchanged to generic dispatch (which owns target-
+ * specific routing). Callback may replace the list/count; both are reread on
+ * each iteration. List storage must cover count entries and stay valid while
+ * read; the owner must survive callbacks. No target lookup or recursion here. */
+typedef void (*rf_event_link_callback)(void *context,uint32_t handle,uint32_t source,
+    uint32_t actor,uint32_t on,uint32_t suppress_movers);
+int rf_event_links_propagate(rf_event_links *links,uint32_t source,uint32_t actor,
+    uint32_t mode,rf_event_link_callback callback,void *context);
 /* Set_Gravity (type 44), authored values[0] -> runtime +2b8. Invoke for
  * common callback action 0/1; propagation action 2 is handled by the caller.
  * On applies 4bcc00, off preserves gravity. No event registration or links. */

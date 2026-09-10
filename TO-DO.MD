@@ -16,6 +16,11 @@ Immediate open items:
 - [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
 - [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
 
+Ordered event-link walking now matches original 4b8b00 in 700 PC/NXDK cases,
+including callback list mutation and mode handling. Event target resolution,
+generic target dispatch and recursive scene propagation remain open; startup
+still reports outgoing event links as pending. No new visual behavior claimed.
+
 L18S1 world loading is fixed: absent mover sections are valid and now produce
 an empty retained mover owner. The old -3 error was RF_NOT_FOUND, not RF_FORMAT.
 All four rendered PC and stock 64-MiB XEMU gravity-level checks pass for 16

@@ -3372,3 +3372,35 @@ The three preceding maps remain 4/3/4. PC and NXDK builds pass. Subsequent nativ
 and movers in Xbox preflight; see XEMU-MEMORY.md for reports and scope.
 The resulting L18S1 capture is an empty tunnel spawn,
 so it is not a selected showcase screenshot.
+
+
+Ordered event propagation loop (2026-09-10)
+-----------------------------------------
+
+rf_event_links_propagate reconstructs original 4b8b00 with ordered generic
+on/off callbacks. The unchanged original 40a480/40a490 array helpers show that
+both count and backing pointer are reread after each callback. Mode low byte
+must equal exactly 1 for on (4b65c0); other values select off (4b6640), passing
+suppress_movers=1. Source/actor arguments remain unchanged at this boundary.
+The shared callback may replace count/backing storage or modify later handles.
+Storage validity/lifetime is caller-owned. Counts above INT32_MAX and missing
+nonempty backing storage are defensively rejected; invalid signed original
+array lengths are outside the equivalence domain.
+
+verify_event_propagation.py executes unchanged original loop/array access and
+intercepts only generic target dispatch. All 700 cases match both PC probe and
+compiled NXDK code: empty/single/multiple links, low-byte mode behavior, shrink,
+growth, backing replacement and modification of the next handle. Target lookup,
+recursive callbacks and scene wiring are excluded. Existing 3922 common event
+activation cases and all five CTests pass; both builds pass. Report is at
+artifacts/event-propagation-verification.json. No native XEMU run is needed to
+claim this isolated compiled-code check; it is not a live campaign claim.
+
+Next dispatch evidence from static original disassembly: 4b65c0 first resolves
+an event via 4b6800, then trigger (4c08e0), mover (46afa0), and another object
+family (45afe0). 4b6640 uses the same priority, skips the mover branch when
+suppressed, and its event branch at 4b6652..4b665c pushes actor twice: both
+source and actor become the input actor on off activation. This behavior still
+needs execution verification before connecting generic target dispatch. Do not
+replace it with assumed symmetric on/off argument handling. The new loop is
+not yet called by startup; outgoing event links remain explicitly pending.
