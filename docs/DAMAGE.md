@@ -701,3 +701,33 @@ not a compiled shared composition or live campaign test. Next join the shared
 attachment, timer/world-transform, spread and owner phases under this same
 mutation-aware oracle, then verify traversal with actual fade release and
 connect persistent model/particle/audio/entity adapters.
+
+## Composed shared burn body
+
+rf_burn_body joins the shared attachment, spread and owner phases in the
+original42ef3e..42f2a2 order. After attachment updates, eligible age checks
+the current shared deadline. An expired deadline transforms the local spine
+through the current owner basis, stores the rotated float components, then
+adds owner position with another float store. It reads the live spread-list
+head and runs spread before owner positional audio and damage/fade dispatch.
+The body never rearms the deadline; outer pool traversal owns that action.
+
+rf_burn_body_context holds references to persistent owner/list/deadline/basis
+state. Damage mutations must synchronize those views immediately so later
+targets and owner decisions see them. Stable frame/UID/global inputs and the
+existing phase storage contracts apply. Errors preserve prior side effects;
+there is no transaction rollback. The final fade callback may release the
+record. No heap allocation or per-frame pool copies are introduced.
+
+verify_burn_body.py compares the entire shared body against the54 original
+scenarios on PC and actual NXDK-linked code. Complete record and owner bytes,
+target flags, unchanged deadline and every normalized callback match exactly,
+including attachment/update order, all spread filters, full damage arguments,
+audio vectors and reaction/fade calls. Both damage mutation modes pass.
+Both builds and eight CTests pass. Evidence is artifacts/burn-body.json.
+
+This verifies composition through supplied model/particle/audio/damage/fade
+callbacks, not native gameplay. The next integration boundary is pool traversal
+with real shared fade/release, followed by persistent campaign adapters. The
+standalone phases remain reusable; they are now joined by a concrete shared
+body rather than requiring each platform to reproduce the ordering.

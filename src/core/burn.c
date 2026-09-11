@@ -246,3 +246,26 @@ int rf_burn_spread(rf_burn_spread_target *head,const rf_burn_spread_target *owne
     }
     return RF_OK;
 }
+
+int rf_burn_body(rf_burn_record *r,uint32_t token,const rf_burn_body_context *ctx,const rf_burn_body_backend *be)
+{
+    rf_burn_attachment_result attachment;float world[3];int status,expired;unsigned i;
+    if(!r || token<1 || token>RF_BURN_SLOTS || !ctx || !be || !ctx->owner || !ctx->basis ||
+       !ctx->spread_owner || !ctx->spread_head || !ctx->spread_deadline)return RF_RANGE;
+    status=rf_burn_attachments(r,&be->attachment,&attachment);if(status!=RF_OK)return status;
+    if(attachment.spread_age_eligible) {
+        status=rf_timer_expired(*ctx->spread_deadline,ctx->now_ms,&expired);if(status!=RF_OK)return status;
+        if(expired) {
+            for(i=0;i<9;++i)if(!isfinite(ctx->basis[i]))return RF_FORMAT;
+            for(i=0;i<3;++i) {
+                if(!isfinite(ctx->owner->position[i]))return RF_FORMAT;
+                world[i]=(float)(((double)attachment.spine[2]*ctx->basis[6+i]+
+                    (double)attachment.spine[1]*ctx->basis[3+i])+(double)attachment.spine[0]*ctx->basis[i]);
+                world[i]+=ctx->owner->position[i];
+            }
+            status=rf_burn_spread(*ctx->spread_head,ctx->spread_owner,world,r,ctx->owner_uid,
+                ctx->global_value,ctx->visit_limit,&be->spread);if(status!=RF_OK)return status;
+        }
+    }
+    return rf_burn_owner_tick(r,ctx->owner,token,ctx->frame_seconds,&be->owner);
+}

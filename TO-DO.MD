@@ -2385,3 +2385,7 @@ ordering; world transform, timer gating and persistent live adapters remain.
 Complete original burn body passes54 ordering/mutation scenarios; spread
 damage can reject a later target or switch the owner tail to fading.
 Compose shared phases against this oracle before persistent live integration.
+
+Composed shared burn body passes54 complete original scenarios on PC/NXDK,
+including timer/world transform and mutation-visible spread/owner ordering.
+Pool fade/release composition and persistent campaign adapters remain open.

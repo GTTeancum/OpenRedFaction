@@ -33,7 +33,11 @@ def hook(m,address,size,context):
     else:g['trace'].append((address,a[1]))
     m.reg_write(UC_X86_REG_EAX,result);m.reg_write(UC_X86_REG_ESP,sp+4);m.reg_write(UC_X86_REG_EIP,a[0])
 u.hook_add(UC_HOOK_CODE,hook)
-cases=spread_hits=fade_calls=0
+cases=spread_hits=fade_calls=0;wire_cases=[];wire_expected=[]
+def record_bytes():
+    data=bytearray(u.mem_read(b,64));data[:16]=w(1,2,3,4);return bytes(data)
+def owner_bytes():
+    return bytes(u.mem_read(cls+0x44,4))+bytes(u.mem_read(owner+0x810,4))+bytes(u.mem_read(owner+0x824,4))+bytes(u.mem_read(owner+0x2c,4))+bytes(u.mem_read(owner+0x3c,12))+bytes(u.mem_read(owner+0x144,12))
 for elapsed,deadline,mode,rotation in itertools.product((0.,12.,12.000001),(-1,1000,1001),(0,1,2),(0,1)):
     g['attachments']=[(-1.,0.,0.),(1.,0.,0.),(3.,4.,5.),(0.,1.,2.)]
     basis=(1.,0.,0.,0.,1.,0.,0.,0.,1.) if rotation==0 else (0.,1.,0.,-1.,0.,0.,0.,0.,1.)
@@ -44,6 +48,7 @@ for elapsed,deadline,mode,rotation in itertools.product((0.,12.,12.000001),(-1,1
         u.mem_write(target+0x2c,w((j+1)*0x1111));u.mem_write(target+0x3c,v((world[0]+j*2,world[1],world[2])));u.mem_write(target+0x7c,w(0));u.mem_write(target+0x810,w(0,0));u.mem_write(target+0x294,w(cls));u.mem_write(target+0x28c,w(targets[1] if j==0 else 0x5cb060))
     u.mem_write(0x5cb2ec,w(owner));u.mem_write(0x87243c,w(0xabcdef01));u.mem_write(0x62f768,w(deadline));u.mem_write(0x5a3ed8,w(1000));u.mem_write(0x5a4014,f(.125))
     for reg,value in ((UC_X86_REG_ESP,stack),(UC_X86_REG_ESI,b),(UC_X86_REG_EBX,owner),(UC_X86_REG_FPCW,0x27f)):u.reg_write(reg,value)
+    wire_cases.append(record_bytes()+owner_bytes()+struct.pack('<9f',*basis)+w(deadline,mode)+b''.join(bytes(u.mem_read(t+0x3c,12)) for t in targets)+b''.join(v(xyz) for xyz in g['attachments']))
     g['trace']=[];g['positions']={};u.emu_start(0x42ef3e,0x42f2a2,count=100000);assert u.reg_read(UC_X86_REG_EIP)==0x42f2a2
     want=[('attachment',2),('position',3),('update',3)]
     active=elapsed<=12;spread=active and deadline==1000
@@ -66,6 +71,19 @@ for elapsed,deadline,mode,rotation in itertools.product((0.,12.,12.000001),(-1,1
     assert bytes(u.mem_read(owner+0x824,4))==w(action)
     assert bytes(u.mem_read(0x62f768,4))==w(deadline) # rearm belongs to outer traversal
     for j,target in enumerate(targets):assert bytes(u.mem_read(target+0x814,4))==w(0x2000 if spread and not(j==1 and mode==1) else 0)
+    rows=[]
+    for row in g['trace']:
+        kind=row[0]
+        if kind=='world' or (kind==0x427020 and row[1]==owner):continue
+        if kind=='attachment':data=w(0x503230,row[1])
+        elif kind=='position':data=w(0x4972a0,row[1]+1)+v(g['positions'][row[1]])
+        elif kind=='update':data=w(0x4972f0,row[1]+1)
+        elif kind in (0x429990,0x427020,0x40a110,0x4290d0):data=w(kind,targets.index(row[1])+1)
+        elif kind==0x5058c0:data=w(kind,row[1])+row[2]+row[3]+w(row[4])
+        elif kind==0x42f2f0:data=w(kind,1)
+        else:data=w(*row)
+        rows.append(data.ljust(36,b'\0'))
+    wire_expected.append(w(0)+record_bytes()+owner_bytes()+b''.join(bytes(u.mem_read(t+0x814,4)) for t in targets)+w(deadline,len(rows))+b''.join(rows)+bytes((32-len(rows))*36))
     cases+=1
 report=dict(result='PASS',cases=cases,spread_damage_calls=spread_hits,fade_calls=fade_calls,original_sha256=ev['digest'],scope='Complete original live-owner42ef3e..42f2a2; actual vector/world-transform/timer/flag predicates, two spread targets. Damage callback can kill next target or start owner fading before tail. Model/room/emission/audio/random/damage/fade implementations supplied. No pool iteration, fade release or campaign integration.')
 (root/'artifacts/burn-body-trace.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

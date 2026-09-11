@@ -142,4 +142,25 @@ typedef struct rf_burn_spread_backend {
 int rf_burn_spread(rf_burn_spread_target *head,const rf_burn_spread_target *owner,
     const float world_spine[3],const rf_burn_record *record,uint32_t owner_uid,
     uint32_t global_value,uint32_t visit_limit,const rf_burn_spread_backend *backend);
+typedef struct rf_burn_body_context {
+    rf_burn_owner_view *owner;
+    const float *basis;
+    rf_burn_spread_target *spread_owner;
+    rf_burn_spread_target **spread_head;
+    const int32_t *spread_deadline;
+    int32_t now_ms;float frame_seconds;
+    uint32_t owner_uid,global_value,visit_limit;
+} rf_burn_body_context;
+typedef struct rf_burn_body_backend {
+    rf_burn_attachment_backend attachment;
+    rf_burn_spread_backend spread;
+    rf_burn_owner_backend owner;
+} rf_burn_body_backend;
+/* Complete live-owner42ef3e..42f2a2. Caller retains context and referenced live
+ * views across callbacks; spread changes must be visible to the owner tail.
+ * Reads deadline/head/basis after attachment updates. UID/global/frame stay
+ * stable for this call. Inherits phase guards and no-rollback semantics;
+ * fade may release record at the end. Outer traversal owns timer rearming. */
+int rf_burn_body(rf_burn_record *record,uint32_t token,
+    const rf_burn_body_context *context,const rf_burn_body_backend *backend);
 #endif
