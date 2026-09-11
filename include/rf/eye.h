@@ -26,6 +26,9 @@ typedef struct rf_camera_effect_state {float strength,duration;int32_t deadline;
  * full alpha word at +10d4. 4a7520 supplies (255,0,0,128) for damage.
  * This sets state only; flash decay, compositing and player lifetime are separate. */
 typedef struct rf_screen_flash {uint8_t rgba[4];uint32_t alpha;} rf_screen_flash;
+/* 4a34e5..4a3523 player construction: black RGBA with byte alpha255,
+ * independent full alpha0 (inactive). This is not the setter with alpha0. */
+int rf_screen_flash_reset(rf_screen_flash *state);
 int rf_screen_flash_set(rf_screen_flash *state,uint32_t red,uint32_t green,uint32_t blue,uint32_t alpha);
 /* 4163c0 state/draw decision: positive signed alpha draws BEFORE decay.
  * draw is a color snapshot (its alpha byte comes from the current full word),

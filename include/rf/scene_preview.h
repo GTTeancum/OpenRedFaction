@@ -5,6 +5,7 @@
 #include "rf/entity.h"
 #include "rf/random.h"
 #include "rf/event.h"
+#include "rf/eye.h"
 
 /* Borrowed services for runtime damage events targeting registered NPCs.
  * Caller updates clock/difficulty and supplies complete synchronous reactions.
@@ -44,6 +45,13 @@ int rf_scene_npc_damage_ai(uint32_t handle,uint32_t source);
  * Strength/duration replace the previous effect. A stale/nonlocal entity
  * returns NOT_FOUND without changing it. No health or HUD damage here. */
 int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float duration,int32_t now);
+/* Separate retained local-player flash owner. Damage replaces color/alpha
+ * with original4a7520 red128. Draw/decay is called by the HUD/render owner,
+ * not by camera shake or simulation ticks. No compositor is attached yet.
+ * Stale/nonlocal handles preserve outputs and return NOT_FOUND. */
+int rf_scene_player_damage_flash(uint32_t player_entity_handle);
+int rf_scene_player_flash_step(uint32_t player_entity_handle,float seconds,uint32_t freeze,
+    rf_screen_flash *draw,uint32_t *active);
 /* Registered skeletal NPC damage adapter. Effects must be synchronous and keep
  * owners alive; callbacks mutate the retained damage state, not stale copies.
  * Does not supply gameplay effects. Unknown/stale target is successful zero.

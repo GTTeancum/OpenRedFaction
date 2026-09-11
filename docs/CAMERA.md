@@ -3832,3 +3832,35 @@ gates, byte/full-word disagreement, freeze values0/1/255/256/257, zero
 and sub-unit decrements, clamping, unchanged owner bytes and exact
 rectangle arguments. It also reruns the4096 setter cases. Both builds
 and all11 CTest checks pass. GPU blending and pixels remain unverified.
+
+
+## Retained player flash ownership and initialization
+
+Player setup4a2420 calls4a3310(1) and stores the returned owner at7c75d4.
+The constructor initializes the flash in4a34e5..4a3523:50cc40 writes
+RGBA(0,0,0,255) at10d0, then the full alpha at10d4 is zeroed.
+rf_screen_flash_reset preserves that distinction. The scene retains a
+separate eight-byte player flash, initialized with campaign setup; its
+bytes are included in CAMPAIGN_PLAYER owner accounting. Generation-checked
+rf_scene_player_damage_flash and rf_scene_player_flash_step resolve only
+the local registered entity. Damage resets to red128, replacing the
+previous fade. Camera shake does not trigger or update this state.
+
+The original HUD invokes4163c0 at432c7c after485200 and before an optional
+overlay and later HUD work; the exact full HUD pipeline remains open.
+Flash draw mode17756c0 is initialized by50bcc0, not the middle instruction
+50bccc. Executing50bcc0 and its constructor411e00 produces0x18000, fields
+[texture0,color0,alpha0,blend3,depth0,fog0]. Existing render-state evidence
+identifies blend3 as source-alpha/inverse-source-alpha when supported.
+Texture/color setup and native viewport compositing still need binding.
+
+verify_screen_flash_reset.py passes512 randomized-owner bounded constructor
+checks against linked NXDK reset, accounting for every neighboring write;
+it also executes the complete mode initializer and reruns4096 setter cases.
+CTest covers PC initialization, real registry ownership, stale/nonlocal
+rejection, pre-decay output, freeze and repeated damage replacement.
+All11 tests and both builds pass. Stock64MiB XEMU replay-20260911-154645
+passes180 frames with existing NPC damage/door state; CAMPAIGN_PLAYER is
+[16777471,0,8,4172]. The inactive flash owner is constructed, but no
+compositor or real player-health caller is attached; this replay does not
+prove visible flash behavior. No screenshot was captured.

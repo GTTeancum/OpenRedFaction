@@ -53,12 +53,27 @@ static int event_damage_binding_check(void)
 }
 static int player_feedback_check(void)
 {
+    rf_screen_flash flash,snapshot;uint32_t active=0;
     rf_registered_entity_view registration={0},other_registration={0};rf_entity_view other={0};rf_camera_effect_state saved;
     rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
     memset(&campaign_player_view,0,sizeof(campaign_player_view));
     CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&campaign_player_view,&registration)==RF_OK);
     CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&other,&other_registration)==RF_OK);
     CHECK(rf_camera_effect_reset(&campaign_camera_effect,0)==RF_OK);
+    CHECK(rf_screen_flash_reset(&campaign_player_flash)==RF_OK);
+    CHECK(campaign_player_flash.alpha==0 && campaign_player_flash.rgba[3]==255);
+    CHECK(rf_scene_player_damage_flash(registration.handle)==RF_OK);
+    CHECK(rf_scene_player_flash_step(registration.handle,1.f/60,0,&flash,&active)==RF_OK);
+    CHECK(active==1 && flash.alpha==128 && flash.rgba[0]==255 && flash.rgba[1]==0 && flash.rgba[2]==0);
+    CHECK(campaign_player_flash.alpha==126 && campaign_player_flash.rgba[3]==128);
+    snapshot=campaign_player_flash;
+    CHECK(rf_scene_player_damage_flash(other_registration.handle)==RF_NOT_FOUND);
+    CHECK(rf_scene_player_damage_flash(registration.handle^0x10000u)==RF_NOT_FOUND);
+    CHECK(rf_scene_player_flash_step(other_registration.handle,1,0,&flash,&active)==RF_NOT_FOUND);
+    CHECK(flash.alpha==128 && !memcmp(&snapshot,&campaign_player_flash,sizeof(snapshot)));
+    CHECK(rf_scene_player_flash_step(registration.handle,.5f,1,&flash,&active)==RF_OK && flash.alpha==126);
+    CHECK(campaign_player_flash.alpha==126);
+    CHECK(rf_scene_player_damage_flash(registration.handle)==RF_OK && campaign_player_flash.alpha==128);
     CHECK(rf_scene_player_feedback(registration.handle,2,.05f,1000)==RF_OK);
     CHECK(campaign_camera_effect.strength==2 && campaign_camera_effect.deadline==1050);
     CHECK(rf_scene_player_feedback(registration.handle,.01f,.5f,1000)==RF_OK);
@@ -70,6 +85,7 @@ static int player_feedback_check(void)
     CHECK(!memcmp(&saved,&campaign_camera_effect,sizeof(saved)));
     CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&registration)==RF_OK);
     CHECK(rf_scene_player_feedback(registration.handle,3,1,1000)==RF_NOT_FOUND);
+    CHECK(rf_scene_player_damage_flash(registration.handle)==RF_NOT_FOUND);
     CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&other_registration)==RF_OK);
     return 0;
 }

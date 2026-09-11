@@ -494,6 +494,12 @@ int rf_look_orientation(const float angles[3],float orientation[9])
     memcpy(orientation,out,sizeof(out));return RF_OK;
 }
 
+int rf_screen_flash_reset(rf_screen_flash *state)
+{
+    if(!state)return RF_RANGE;
+    memset(state,0,sizeof(*state));state->rgba[3]=255;return RF_OK;
+}
+
 int rf_screen_flash_step(rf_screen_flash *state,float frame_seconds,uint32_t freeze,
     rf_screen_flash *draw,uint32_t *active)
 {
