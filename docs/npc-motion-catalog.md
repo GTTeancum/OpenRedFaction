@@ -279,3 +279,28 @@ The PC build and nine CTest checks pass. NXDK code is unchanged and its existing
 compiled update executes in the oracle; no new native XEMU run was necessary
 for this harness-only change. Full actor construction, subsequent live selector
 scheduling, shared cache lifetime ownership and pose evaluation remain open.
+
+## Opening NPC first bone poses
+
+`python tools/inspect_npc_initial_selection.py --pose` extends the first-advance
+check through complete original51b500 and its unchanged sampling/blending
+callees. The original fixture receives each class model's actual bone parent
+tree and complete archive bytes for active motions. The shared PC evaluator
+receives the same advanced playback through `RF_PROBE_POSE_ONLY=1` on the
+skeleton probe. This mode evaluates without an extra advance or an eye attachment
+requirement, which permits creature skeletons as well as miners.
+
+All99 cases across L1S1/L1S2/L1S3 match exactly:1764 bone matrices and their
+per-bone generation stamps. The ignored report is
+`artifacts/npc-initial-pose.json`, including per-case model, delta, bone count
+and output hash. Active C resource IDs are densely remapped for the existing
+16-file probe; slot ordering, weights, cursor ticks and selected slot indices
+are retained. Original execution keeps the full catalog IDs. Empty fish
+playback at delta0 also evaluates, without substituting a standing clip.
+
+This verifies first-pose math under the documented startup field fixture.
+It does not execute NXDK archive-based pose sampling, complete actor construction,
+live ownership, rendering or subsequent per-frame scheduling. Controller and
+advance stages still execute and match NXDK in this combined run. Production
+code is unchanged. PC build, nine CTest checks and the existing320-case cached
+miner playback oracle pass (32000 matrices,1280 eye transforms,960 cache queries).

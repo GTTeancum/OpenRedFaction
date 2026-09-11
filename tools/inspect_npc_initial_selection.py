@@ -1,7 +1,8 @@
 """Opening-level NPC selector fixture with actual class modes and mappings.
 Not complete actor construction: fixture field assumptions are recorded explicitly.
 """
-import hashlib,json,struct,subprocess,sys,re
+import hashlib,json,struct,subprocess,sys,re,os
+from inspect_models import inspect
 from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
@@ -22,7 +23,8 @@ u.hook_add(UC_HOOK_MEM_READ,lambda uc,access,address,size,value,data:reads.appen
 assets=str(root/'build/pc/Release/rf_entity_assets_probe.exe');motion=str(root/'build/pc/Release/rf_motion_probe.exe')
 entity_probe=str(root/'build/pc/Release/rf_entity_probe.exe');game=root/'Installed_Game'
 defaults={r['entity_class'].lower():r for r in json.loads((root/'artifacts/entity-default-weapons.json').read_text())['rows']}
-advance_mode='--advance' in sys.argv
+pose_mode='--pose' in sys.argv
+advance_mode='--advance' in sys.argv or pose_mode
 controller_mode='--controller' in sys.argv or advance_mode
 if controller_mode:
  xp=pefile.PE(str(root/'build/xbox/main.exe'));xim=xp.get_memory_mapped_image();xb=xp.OPTIONAL_HEADER.ImageBase
@@ -33,10 +35,22 @@ if controller_mode:
 
 obj=0x30100000;desc=0x30200000;motion_mem=0x30300000;data_mem=0x30400000
 for address in (obj,desc,motion_mem,data_mem):u.mem_map(address,0x10000)
-controller_results=[];advance_results=[]
+controller_results=[];advance_results=[];pose_results=[]
+if pose_mode:
+ entries={e['name'].lower():(a['path'],e) for a in json.loads((root/'artifacts/inventory.json').read_text())['files'] for e in a.get('vpp',{}).get('entries',[])}
+ def asset_bytes(name):
+  archive,e=entries[name.lower()]
+  with (game/archive).open('rb') as f:f.seek(e['offset']);return f.read(e['size'])
+ pose_data=0x31000000;u.mem_map(pose_data,0x1000000)
+ pose_env=dict(os.environ);pose_env['RF_PROBE_POSE_ONLY']='1'
+ pose_env.pop('RF_PROBE_CACHE',None);pose_env.pop('RF_PROBE_EYE_SETUP',None)
+
 initial=struct.pack('<iiffiI',0,-1,0,0,0,0);results=[]
 for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  out=subprocess.check_output([assets,'--catalog',str(game/'levels1.vpp'),str(game/'tables.vpp'),str(game/'motions.vpp'),str(game/'meshes.vpp'),level],text=True)
+ if pose_mode:
+  skeleton_output=subprocess.check_output([assets,'--skeletons',str(game/'levels1.vpp'),str(game/'tables.vpp'),str(game/'meshes.vpp'),level],text=True)
+  models={f[1]:f[2] for row in skeleton_output.splitlines() if (f:=row.split('\t'))[0]=='SKELETON_CLASS'}
  resource_rows={};envelopes={};markers={}
  for row in out.splitlines():
   f=row.split('\t')
@@ -140,6 +154,29 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
       advance_results.append(dict(level=level,entity_class=cls,delta=delta,prior_action=prior,
        slots=[list(struct.unpack_from('<iif',advanced,4+i*12)) for i in range(active)],
        phase=struct.unpack_from('<f',advanced,248)[0],generation=struct.unpack_from('<I',advanced,252)[0],events=struct.unpack_from('<I',advanced,256)[0]))
+      if pose_mode:
+       model_name=models[cls];raw_model=asset_bytes(model_name)
+       section=next(q for q in inspect(raw_model)['sections'] if q['type']=='0x424f4e45');begin=section['offset']+8
+       bone_count=struct.unpack_from('<I',raw_model,begin)[0];assert 0<bone_count<=50
+       parents=[struct.unpack_from('<i',raw_model,begin+4+i*56+52)[0] for i in range(bone_count)]
+       def depth(i):return 0 if parents[i]<0 else 1+depth(parents[i])
+       order=bytes(sorted(range(bone_count),key=depth));put(desc+0x48,'<I',bone_count)
+       for i,parent in enumerate(parents):put(desc+0x94+i*0x4c,'<i',parent)
+       u.mem_write(desc+0x8000,order)
+       compact=bytearray(advanced);motion_names=[];loop_mask=0;cursor=pose_data
+       for slot in range(active):
+        index=struct.unpack_from('<i',advanced,4+slot*12)[0]
+        loop,name,filename=resource_rows[skeleton,index];data=asset_bytes(filename)
+        assert cursor+len(data)<=pose_data+0x1000000
+        u.mem_write(cursor,data);put(motion_mem+cache_ids[index]*256+0x78,'<I',cursor);cursor+=(len(data)+4095)//4096*4096
+        struct.pack_into('<i',compact,4+slot*12,slot);motion_names.append(filename);loop_mask|=loop<<slot
+       if not motion_names:motion_names=[resource_rows[skeleton,0][2]]
+       pose_c=subprocess.check_output([str(root/'build/pc/Release/rf_skeleton_probe.exe'),str(game/'meshes.vpp'),str(game/'motions.vpp'),model_name,*motion_names],input=bytes(compact)+struct.pack('<I',loop_mask),env=pose_env)
+       assert struct.unpack_from('<I',pose_c)[0]==bone_count
+       put(stack,'<4I',stop,bone_count,desc+0x8000,obj);u.reg_write(UC_X86_REG_ESP,stack);call(0x51b500)
+       original_pose=bytes(u.mem_read(obj,bone_count*48))+b''.join(bytes(u.mem_read(obj+0x1394+i*48,2)) for i in range(bone_count))
+       assert pose_c[4:]==original_pose,(level,cls,prior,delta,'pose',[(i,pose_c[4+i:8+i].hex(),original_pose[i:i+4].hex()) for i in range(0,bone_count*48,4) if pose_c[4+i:8+i]!=original_pose[i:i+4]])
+       pose_results.append(dict(level=level,entity_class=cls,model=model_name,delta=delta,prior_action=prior,bones=bone_count,pose_sha256=hashlib.sha256(original_pose).hexdigest()))
    results.append(dict(level=level,entity_class=cls,mode=mode_id,primary=primary,secondary=secondary,prior_action=prior,
     prior_action_reads=sum(a<=0x1380<a+n for a,n in reads),controller=list(struct.unpack('<iiff',actual[:16])),read_fields=sorted({hex(a) for a,n in reads})))
 report=dict(result='PASS',cases=len(results),original_sha256=digest,scope='Full original41f400 selector versus PC priority/movement composition using installed base maps, class flags/movement modes and default weapon IDs. Original402d68 scalar span executes. Fixture zeroes unspecified actor state, uses kind0/no links/nonplayer, zero velocity and no external events; not full factory or first pose/weight update. Field1380 sensitivity is tested, not assumed.',results=results)
@@ -152,3 +189,7 @@ if controller_mode:
 if advance_mode:
  report=dict(result='PASS',cases=len(advance_results),original_sha256=digest,scope='Complete original503360/501ab0/51ba80 after41f270 versus PC and NXDK rf_motion_update; loaded catalog envelopes and markers with shared cache aliases. Full compact playback state and aggregated references match. Zero/60Hz/30Hz first advances only; actor construction is a fixture, no pose sampling or live NPC animation.',results=advance_results)
  (root/'artifacts/npc-initial-advance.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
+
+if pose_mode:
+ report=dict(result='PASS',cases=len(pose_results),bone_matrices=sum(r['bones'] for r in pose_results),original_sha256=digest,scope='Complete original51b500 and callees after verified first startup advance versus PC archive-based evaluator. Real model parent trees and complete active motion bytes; matrices and cache generations match exactly. C fixture remaps active resource IDs densely without changing slot order. No live actor ownership, rendering or NXDK pose execution.',results=pose_results)
+ (root/'artifacts/npc-initial-pose.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})

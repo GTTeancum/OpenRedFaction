@@ -257,6 +257,8 @@ int main(int argc,char **argv)
             at+=p->bone_count;
         }
         if(at!=poses.bone_count)return 15;}
+        for(i=0;i<s.class_count;++i)if(s.class_indices[i]!=UINT32_MAX)
+            printf("SKELETON_CLASS\t%s\t%s\n",seeds.records.items[seeds.classes[i].record_index].record.class_name,s.items[s.class_indices[i]].model);
         printf("POSES %u %u %u\n",poses.count,poses.bone_count,poses.resident_bytes);
         rf_entity_poses_close(&poses);
         rf_entity_seeds_close(&seeds);rf_vpp_close(&levels);rf_vpp_close(&tables);rf_vpp_close(&meshes);

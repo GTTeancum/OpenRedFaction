@@ -12,6 +12,7 @@ int main(int argc,char **argv)
     _Static_assert(sizeof(input)==284,"Playback skeleton wire layout");
     rf_model_bone bones[256]; float matrices[256][12]; uint32_t count=0,i; int32_t tick;
     rf_model_attachment eye; int found=0;
+    int pose_only=getenv("RF_PROBE_POSE_ONLY")!=NULL;
     int cache_mode=getenv("RF_PROBE_CACHE")!=NULL;
     int setup_mode=getenv("RF_PROBE_EYE_SETUP")!=NULL;
     uint16_t generations[256];
@@ -36,6 +37,18 @@ int main(int argc,char **argv)
     for (i=0;i<model.lods[0].attachment_count;++i) {
         if (rf_model_file_attachment(&model,0,i,&eye)!=RF_OK) return 6;
         if (!strcmp(eye.name,"eye")) { found=1; break; }
+    }
+    if(pose_only) {
+        rf_motion_playback_state state;float displacement[3]={0};
+        while(fread(&state,sizeof(state),1,stdin)==1) {
+            uint32_t looping;
+            if(fread(&looping,4,1,stdin)!=1)return 9;
+            for(i=0;i<(uint32_t)argc-4;++i)resources[i].looping=(looping>>i)&1;
+            memset(generations,0,sizeof(generations));memset(matrices,0,sizeof(matrices));
+            if(rf_model_evaluate_playback(bones,count,&state,handles,resources,(uint32_t)argc-4,displacement,matrices,generations,256))return 7;
+            if(fwrite(&count,4,1,stdout)!=1 || fwrite(matrices,48,count,stdout)!=count || fwrite(generations,2,count,stdout)!=count)return 8;
+        }
+        rf_vpp_close(&meshes);rf_vpp_close(&motions);return ferror(stdin)?9:0;
     }
     if (!found || eye.parent<0 || (uint32_t)eye.parent>=count) return 6;
     while (argc==5 ? fread(&tick,4,1,stdin)==1 : fread(&input,sizeof(input),1,stdin)==1) {
