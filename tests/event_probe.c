@@ -5,6 +5,24 @@
 #include <io.h>
 #include <string.h>
 static uint32_t actions,mutation;
+typedef struct switch_runtime_fixture {rf_object_registry *registry;uint32_t sounds,last_count;int error;} switch_runtime_fixture;
+static int switch_runtime_lookup(void *context,uint32_t family,uint32_t link,rf_switch_target *target)
+{
+    switch_runtime_fixture *c=context;void *object;uint32_t kind;
+    if(family!=RF_SWITCH_TRIGGER && family!=RF_SWITCH_EVENT)return RF_NOT_FOUND;
+    object=rf_object_registry_lookup(c->registry,link);if(!object)return RF_NOT_FOUND;memcpy(&kind,object,4);
+    if(kind!=(family==RF_SWITCH_TRIGGER?5u:6u))return RF_NOT_FOUND;
+    target->token=link;target->renderable=0;
+    target->event_type=kind==6?((rf_runtime_event *)object)->state.type:0;return RF_OK;
+}
+static int switch_runtime_external(void *context,const rf_switch_request *request)
+{(void)context;(void)request;return RF_FORMAT;}
+static int switch_runtime_sound(void *context,const rf_runtime_event *event,uint32_t effect,int32_t now)
+{
+    switch_runtime_fixture *c=context;(void)now;
+    if(effect!=1)return RF_FORMAT;
+    c->last_count=event->switch_state->activations;++c->sounds;return c->error;
+}
 typedef struct switch_route_fixture {uint32_t mask,damage,renderable,hash;} switch_route_fixture;
 static void switch_route_word(switch_route_fixture *c,uint32_t word) {c->hash=(c->hash^word)*16777619u;}
 static int switch_route_lookup(void *context,uint32_t family,uint32_t link,rf_switch_target *target)
@@ -92,6 +110,38 @@ static void occupancy_wake(void *context,uint32_t handle)
 { (void)context;++occupancy_wakes;occupancy_hash=occupancy_hash*31+handle; }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--runtime-switch")) {
+        rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
+        rf_runtime_event items[3]={{0}};rf_level_owned_event authored[3]={{0}};rf_runtime_trigger target={0};
+        rf_switch_state state={0};rf_physics_force_region region={0};rf_physics_force_collection forces={&region,1,0};
+        rf_level_link_target links[3],force_link={91,0,0};uint32_t uid=91,i,pending;
+        rf_physics_gravity gravity={0};rf_startup_events_report report;switch_runtime_fixture context={0};
+        rf_runtime_switch_backend backend={switch_runtime_lookup,switch_runtime_external,switch_runtime_sound,&context};
+        rf_object_registry_init(&registry);context.registry=&registry;events.registry=triggers.registry=&registry;
+        events.items=items;events.count=3;
+        for(i=0;i<3;++i) {items[i].object_kind=6;items[i].authored=authored+i;items[i].state.deadline=-1;
+            if(rf_object_registry_insert(&registry,items+i,&items[i].handle))return 143;}
+        target.object_kind=5;if(rf_object_registry_insert(&registry,&target,&target.handle))return 144;
+        items[0].state.type=32;items[0].state.delay=.1f;items[0].switch_state=&state;state.limit=2;
+        items[0].links=links;authored[0].record.link_count=3;
+        links[0]=(rf_level_link_target){items[1].handle,1,0};links[1]=(rf_level_link_target){target.handle,1,0};
+        links[2]=(rf_level_link_target){items[2].handle,1,0};
+        items[1].state.type=51;items[1].links=&force_link;authored[1].links=&uid;authored[1].record.link_count=1;
+        items[2].state.type=17;region.uid=91;region.active=1;
+        if(rf_runtime_event_fire(&triggers,items[0].handle,77,88,100,&gravity,NULL,&forces,&report) || items[0].state.deadline!=200)return 145;
+        if(rf_runtime_events_tick(&events,&triggers,&gravity,200,NULL,&forces,&report,&pending) || pending!=1 || region.active!=1)return 146;
+        triggers.switch_backend=&backend;
+        if(rf_runtime_events_tick(&events,&triggers,&gravity,200,NULL,&forces,&report,&pending) || pending || report.unsupported_actions ||
+            region.active || !(target.state.flags&16) || !(items[2].state.flags&1) || context.sounds!=1 || context.last_count || state.activations!=1 ||
+            items[1].state.source!=77 || items[1].state.actor!=88)return 147;
+        items[0].state.delay=0;
+        if(rf_runtime_event_fire(&triggers,items[0].handle,77,88,300,&gravity,NULL,&forces,&report) || region.active!=1 ||
+            target.state.flags&16 || items[2].state.flags&1 || context.sounds!=2 || context.last_count!=1 || state.activations!=2)return 148;
+        if(rf_runtime_event_fire(&triggers,items[0].handle,77,88,400,&gravity,NULL,&forces,&report) || region.active!=1 || context.sounds!=2)return 149;
+        state.unlimited=1;context.error=RF_IO;
+        if(rf_runtime_event_fire(&triggers,items[0].handle,77,88,500,&gravity,NULL,&forces,&report)!=RF_IO || region.active || state.activations!=3)return 150;
+        puts("PASS runtime Switch delay, off/on forces, trigger and damage flags, limits, callback order and error propagation");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--switch-links")) {
         uint32_t input[5],ids[2]={100,200};rf_event_links links={2,ids};rf_event_state event={0};
         event.source=77;event.actor=88;

@@ -322,6 +322,58 @@ typedef struct startup_context {
 static void startup_target(startup_context *c,const rf_level_link_target *target,
     uint32_t source,uint32_t actor,uint32_t on);
 static void startup_event_action(void *context,rf_event_state *state,uint32_t action,
+    uint32_t source,uint32_t actor,uint32_t mode);
+static int startup_switch_ready(const rf_runtime_triggers *triggers)
+{
+    const rf_runtime_switch_backend *b=triggers->switch_backend;
+    return b && b->lookup && b->dispatch && b->sound;
+}
+static int startup_switch_lookup(void *context,uint32_t family,uint32_t link,rf_switch_target *target)
+{
+    startup_context *c=context;const rf_runtime_switch_backend *b=c->triggers->switch_backend;
+    return b->lookup(b->context,family,link,target);
+}
+static int startup_switch_dispatch(void *context,const rf_switch_request *request)
+{
+    startup_context *c=context;const rf_runtime_switch_backend *b=c->triggers->switch_backend;
+    void *object;uint32_t kind;startup_context child;int status;
+    if(request->family!=RF_SWITCH_TRIGGER && request->family!=RF_SWITCH_EVENT)
+        return b->dispatch(b->context,request);
+    object=rf_object_registry_lookup(c->triggers->registry,request->token);
+    if(!object)return RF_NOT_FOUND;
+    memcpy(&kind,object,4);
+    if(request->family==RF_SWITCH_TRIGGER) {
+        rf_runtime_trigger *trigger=object;if(kind!=5)return RF_NOT_FOUND;
+        if(request->enabled)trigger->state.flags&=~16u;else trigger->state.flags|=16u;
+        return RF_OK;
+    }
+    if(kind!=6)return RF_NOT_FOUND;
+    child=*c;child.event=object;
+    if(request->flags_only) {
+        if(child.event->state.type!=17)return RF_FORMAT;
+        if(request->enabled)child.event->state.flags&=~1u;else child.event->state.flags|=1u;
+        return RF_OK;
+    }
+    if(c->depth>=64)return RF_RANGE;
+    ++child.depth;++c->report->events;
+    status=rf_event_activate(&child.event->state,c->now,request->source,request->actor,
+        request->enabled,startup_event_action,&child);
+    if(!status)status=child.status;
+    if(!status && child.event->state.deadline>=0)++c->report->delayed_events;
+    return status;
+}
+static void startup_switch_effect(void *context,const rf_switch_state *state,uint32_t effect)
+{
+    startup_context *c=context;uint32_t i;const rf_runtime_switch_backend *b=c->triggers->switch_backend;
+    if(c->status)return;
+    if(effect) {c->status=b->sound(b->context,c->event,effect,c->now);return;}
+    for(i=0;i<c->event->authored->record.link_count && !c->status;++i) {
+        uint32_t value=c->event->links[i].value;rf_event_links link={1,&value};
+        c->status=rf_event_switch_links(state,&c->event->state,&link,0,
+            startup_switch_lookup,startup_switch_dispatch,c);
+    }
+}
+static void startup_event_action(void *context,rf_event_state *state,uint32_t action,
     uint32_t source,uint32_t actor,uint32_t mode)
 {
     startup_context *c=context;uint32_t i;
@@ -329,6 +381,15 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
     if(action==2) {
         for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
+        return;
+    }
+    if(state->type==32) {
+        if(!action)return; /* Original off-action has no effect. */
+        if(!c->event->switch_state || !startup_switch_ready(c->triggers)) {++c->report->unsupported_actions;return;}
+        {
+            int status=rf_event_switch_on(c->event->switch_state,startup_switch_effect,c);
+            if(status)c->status=status;
+        }
         return;
     }
     if(state->type==3) {
@@ -493,7 +554,8 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
         if(event->state.deadline<0)continue;
         if(event->state.type!=3 && event->state.type!=44 && event->state.type!=48 &&
            !(event->state.type==39 && particles && particles->state) &&
-           !(event->state.type==51 && forces)) {++*unsupported_pending;continue;}
+           !(event->state.type==51 && forces) &&
+           !(event->state.type==32 && event->switch_state && startup_switch_ready(triggers))) {++*unsupported_pending;continue;}
         status=rf_timer_expired(event->state.deadline,now,&expired);if(status)return status;
         if(!expired)continue;
         context.event=event;++report->events;

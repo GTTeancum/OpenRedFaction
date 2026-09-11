@@ -478,3 +478,29 @@ The returned float factor must not be treated as proof of complete angle
 integration; that larger arithmetic path requires its own reconstruction.
 Rotating-controller ownership/pose updates and Switch campaign integration
 remain open; this is not a new native visual milestone.
+
+
+### Runtime Switch action composition
+
+The trigger owner now accepts a borrowed complete Switch backend (lookup,
+external dispatch, sound and context), attached after owner creation. The
+runtime uses initialized type32 state for on-actions; off remains a no-op.
+Delayed type32 events remain pending unless their state and backend exist.
+Trigger and event effects use the shared live registry internally; ordinary
+events recurse with the original source/actor arguments, Continuous_Damage
+updates flag1, and other resource families remain caller-owned.
+
+`rf_event_probe --runtime-switch` exercises a delayed Switch through force
+off/on actions, trigger disable/enable and type17 flags. It checks absent
+backend pending behavior, exact scheduling, activation limit exhaustion,
+source/actor preservation, pre-increment sound observation and a propagated
+backend failure. Earlier effects and the activation increment remain after
+that failure; the wrapper preserves the error instead of overwriting it
+with the state helper's success result. This test is registered in CTest.
+
+Full PC/NXDK builds, all eight CTests, and all93 authored startup graph
+checks pass. The live scene has not attached a Switch backend yet: ambient
+sounds/lights/renderable objects, controller action ownership, sound
+loading/playback and linked initialization still need their real resource
+connections. These are shared runtime fixtures, not native authored Switch
+reactivation or complete campaign proof.

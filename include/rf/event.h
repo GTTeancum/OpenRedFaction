@@ -228,11 +228,23 @@ typedef struct rf_runtime_trigger {
     const rf_level_owned_trigger *authored;
     rf_level_link_target *links;
 } rf_runtime_trigger;
+/* Borrowed Switch resources. Lookup consumes resolved link values, including
+ * retained auxiliary UIDs. Trigger/event tokens must be registry handles;
+ * those effects run internally. Other effects and sound remain caller-owned.
+ * sound effect1=activation,2=rejection and observes pre-increment state.
+ * Attach after opening the trigger owner. All callbacks and context must
+ * survive dispatch; no owner destruction. Link initialization is separate. */
+typedef struct rf_runtime_switch_backend {
+    rf_switch_lookup lookup;rf_switch_dispatch dispatch;
+    int (*sound)(void *context,const rf_runtime_event *event,uint32_t effect,int32_t now);
+    void *context;
+} rf_runtime_switch_backend;
 typedef struct rf_runtime_triggers {
     rf_level_owned_triggers decoded;
     rf_runtime_trigger *items;
     rf_object_registry *registry;
     uint32_t count,allocated_bytes;
+    const rf_runtime_switch_backend *switch_backend;
 } rf_runtime_triggers;
 /* Same ownership/budget/registry contract as rf_runtime_events_open. Retains
  * raw ordered UID links plus initially unresolved runtime targets. */
@@ -330,6 +342,7 @@ int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *
     int32_t now,uint32_t clock_bits,rf_level_particles *particles, rf_physics_force_collection *forces,rf_startup_events_report *report);
 /* Ordered delayed update for verified common-tick types Invert/Set_Gravity/Delay/Particle_State/Push_Region_State.
  * A NULL particle/force owner leaves its corresponding state events pending.
+ * A complete attached Switch backend enables delayed type32 actions.
  * Other scheduled types remain pending and are counted, not cleared. Reports
  * describe this call only. Owners share a live registry; no removal/reordering
  * during callbacks. Recursive dispatch has the same limit as startup. */
