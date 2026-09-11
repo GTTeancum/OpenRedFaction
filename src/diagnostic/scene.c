@@ -416,6 +416,7 @@ typedef struct campaign_player_damage_owner {
     float factors[11];uint32_t class_flags,object_flags;
 } campaign_player_damage_owner;
 static campaign_player_damage_owner campaign_player_damage;
+static struct {rf_entity_eye_limits eye_limits;float model_radius;} campaign_player_geometry;
 static struct {int32_t groups[3],deadline,voice;} campaign_player_pain_sound;
 uint32_t rf_scene_player_pain_audio[9]; /* same fields as NPC pain audio */
 uint32_t rf_scene_player_vitals[6]; /* health/armor/class health/class armor bits, owner bytes, factor hash */
@@ -429,6 +430,7 @@ static int campaign_player_damage_open(rf_vpp *tables,const char *name,const rf_
     status=rf_vpp_read(tables,&entry,0,text,entry.size);
     if(!status)status=rf_entity_vitals_config_read(text,entry.size,name,&cls);
     if(!status)status=rf_entity_damage_factors_read(text,entry.size,name,owner.factors);
+    if(!status)status=rf_entity_eye_limits_read(text,entry.size,name,&campaign_player_geometry.eye_limits);
     free(text);if(status)return status;
     vitals.object_flags=8;rf_entity_creation_vitals(&vitals,&cls,0);owner.object_flags=vitals.object_flags;
     owner.state.effects.health=vitals.health;owner.state.effects.armor=vitals.armor;
@@ -2399,6 +2401,37 @@ rf_physics_body_state rf_scene_actor_fall_state;
 rf_physics_body_state rf_scene_actor_initial_state;
 uint32_t rf_scene_actor_tick_stats[8]; /* magic, frames, passes, contacts, capped frames, max passes, last remaining bits, status */
 rf_group_attached_pose rf_scene_actor_pose;
+int rf_scene_death_clearance(const rf_geometry_collision_world *world,uint32_t handle,uint32_t direction,
+    rf_entity_death_obstacle *scratch,uint32_t capacity,uint32_t *allowed)
+{
+    rf_entity_death_clearance_state target={0};uint32_t slot,count=0,found=0;
+    if(!world || !allowed || (!scratch && capacity))return RF_RANGE;
+    if(!campaign_spawn || !rf_entity_lookup(&campaign_entities,(int32_t)handle))return RF_NOT_FOUND;
+    for(slot=0;slot<RF_OBJECT_SLOTS;slot++)if(campaign_entities.slots[slot]) {
+        const rf_entity_view *view=campaign_entities.slots[slot];
+        rf_entity_death_clearance_state state={0};uint32_t word,actor;
+        if(rf_entity_lookup(&campaign_entities,view->handle)!=view)return RF_FORMAT;
+        if(count==capacity)return RF_RANGE;
+        if(view==&campaign_player_view) {
+            memcpy(state.position,rf_scene_actor_pose.public_position,12);memcpy(state.matrix,rf_scene_actor_pose.input_matrix,36);
+            state.model_radius_78=campaign_player_geometry.model_radius;state.extent_180=scene_actor_body.state.bounds.radius;
+            memcpy(&word,&campaign_player_geometry.eye_limits.minimum[2],4);
+        } else {
+            for(actor=0;actor<campaign_npc_body_count;actor++)if(view==&campaign_npc_bodies[actor].view)break;
+            if(actor==campaign_npc_body_count || actor>=campaign_seeds.records.count)return RF_NOT_FOUND;
+            if(campaign_seeds.items[actor].class_index>=campaign_seeds.class_count)return RF_FORMAT;
+            memcpy(state.position,campaign_npc_bodies[actor].published,12);
+            memcpy(state.matrix,campaign_seeds.records.items[actor].record.orientation,36);
+            state.model_radius_78=campaign_npc_bodies[actor].model_radius_78;state.extent_180=campaign_npc_bodies[actor].body.state.bounds.radius;
+            memcpy(&word,&campaign_seeds.classes[campaign_seeds.items[actor].class_index].eye_limits.minimum[2],4);
+        }
+        memcpy(scratch[count].position,state.position,12);scratch[count].extent_180=state.extent_180;scratch[count].class_word_74=word;++count;
+        if((uint32_t)view->handle==handle){target=state;found=1;}
+    }
+    if(!found)return RF_NOT_FOUND;
+    return rf_geometry_death_clearance(world,&campaign_movers,&target,direction,scratch,count,allowed);
+}
+
 uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
 uint32_t rf_scene_actor_render_frames[64][5]; /* vertices, hash, body position bits */
 typedef struct actor_ground_record {
@@ -3803,7 +3836,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_player_damage.state.effects.handle=campaign_player_object.handle;
             rf_scene_campaign_player[0]=campaign_player_object.handle;rf_scene_campaign_player[1]=campaign_player_object.object_kind;
             rf_scene_campaign_player[2]=campaign_player_view.flags_7c;
-            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object)+sizeof(campaign_player_flash)+sizeof(campaign_player_damage)+sizeof(campaign_player_pain_sound);
+            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object)+sizeof(campaign_player_flash)+sizeof(campaign_player_damage)+sizeof(campaign_player_pain_sound)+sizeof(campaign_player_geometry);
             memset(rf_scene_actor_body_sweeps,0,sizeof(rf_scene_actor_body_sweeps));
             memset(rf_scene_actor_ground_queries,0,sizeof(rf_scene_actor_ground_queries));
             memset(rf_scene_actor_ground_contacts,0,sizeof(rf_scene_actor_ground_contacts));
@@ -3908,6 +3941,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         status=rf_animation_preview_placed(meshes_path,motions_path,&placement,0,&actor,1024*1024);if(status)goto done;
     }
     status=rf_model_file_open(&model,&archive,binding.mesh.name);if(status)goto done;
+    if(campaign_spawn) {float sphere[4];status=rf_model_file_bound_sphere(&model,sphere);
+        if(!status)status=rf_model_origin_radius(sphere,&campaign_player_geometry.model_radius);if(status)goto done;}
     for(i=0;i<binding.assets.texture_count;++i)names[i]=binding.assets.textures[i];
     status=rf_model_materials_open_skin(&bundle,&model,names,binding.assets.texture_count,maps,map_count,
         material_budget-materials->allocated_bytes);if(status)goto done;

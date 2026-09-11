@@ -427,6 +427,31 @@ static int death_geometry_check(void)
     CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)==RF_OK && allowed==0);
     door.input_origin[0]=20;door.minimum[0]+=20;door.maximum[0]+=20;
     CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)==RF_OK && allowed==1);
+    {
+        campaign_npc_body npc={0};rf_entity_seed seed={0};rf_entity_seed_class cls={0};rf_level_owned_entity record={0};
+        rf_entity_death_obstacle scratch[3];rf_entity_view unknown={0};uint32_t bank=4;
+        campaign_spawn=1;campaign_npc_bodies=&npc;campaign_npc_body_count=1;
+        campaign_seeds.items=&seed;campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
+        campaign_seeds.records.items=&record;campaign_seeds.records.count=1;
+        npc.view.handle=5;npc.view.type=0;campaign_entities.slots[5]=&npc.view;
+        npc.model_radius_78=2;npc.body.state.bounds.radius=1;memcpy(npc.published,state.position,12);
+        memcpy(record.record.orientation,state.matrix,36);
+        campaign_player_view.handle=7;campaign_player_view.type=0;campaign_entities.slots[7]=&campaign_player_view;
+        memcpy(rf_scene_actor_pose.public_position,actor.position,12);memcpy(rf_scene_actor_pose.input_matrix,state.matrix,36);
+        campaign_player_geometry.model_radius=2;memcpy(&campaign_player_geometry.eye_limits.minimum[2],&bank,4);
+        scene_actor_body.state.bounds.radius=.5f;
+        CHECK(rf_scene_death_clearance(&world,5,1,scratch,3,&allowed)==RF_OK && allowed==0);
+        CHECK(scratch[0].extent_180==1 && scratch[1].extent_180==.5f && scratch[1].class_word_74==4);
+        CHECK(rf_scene_death_clearance(&world,5,0,scratch,3,&allowed)==RF_OK && allowed==1);
+        allowed=99;CHECK(rf_scene_death_clearance(&world,5,1,scratch,1,&allowed)==RF_RANGE && allowed==99);
+        CHECK(rf_scene_death_clearance(&world,0x10005,1,scratch,3,&allowed)==RF_NOT_FOUND && allowed==99);
+        unknown.handle=9;unknown.type=0;campaign_entities.slots[9]=&unknown;
+        CHECK(rf_scene_death_clearance(&world,5,1,scratch,3,&allowed)==RF_NOT_FOUND && allowed==99);
+        memset(&campaign_entities,0,sizeof(campaign_entities));memset(&campaign_seeds,0,sizeof(campaign_seeds));
+        memset(&campaign_player_view,0,sizeof(campaign_player_view));memset(&campaign_player_geometry,0,sizeof(campaign_player_geometry));
+        memset(&scene_actor_body,0,sizeof(scene_actor_body));memset(&rf_scene_actor_pose,0,sizeof(rf_scene_actor_pose));
+        campaign_npc_bodies=NULL;campaign_npc_body_count=0;campaign_spawn=0;
+    }
     world.primary_count=0;
     CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)==RF_OK && allowed==0);
     allowed=99;movers.views=NULL;

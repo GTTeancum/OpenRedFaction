@@ -307,3 +307,39 @@ Native stock64MiB replay-20260911-175724 passes180 frames. NPC_BODIES is
 in the hash. Base memory is67108864 with no expansion;8544 pages are available
 at completion. This exercises native file reading and retention during NPC
 construction, not live death-clearance or animation playback.
+
+## Registered scene clearance query
+
+`rf_scene_death_clearance` now resolves registered NPC/player records and
+calls the geometry adapter. It requires a fully initialized campaign scene.
+The caller provides scratch capacity for every registered entity; scratch
+may be partially written on failure, but allowed remains unchanged. Stale
+target handles, inconsistent slots and unknown registered owner families
+fail explicitly. No actor is silently dropped and the target is not excluded
+from the candidate list, matching the original absence of a self check.
+
+NPC target data uses retained published position, model78 radius, body180
+radius and authored orientation. That orientation is valid for the current
+stationary NPC scope; moving NPC publication remains open. Player data uses
+the published attached pose and current body radius. Player eye limits and
+model radius are now retained separately in28 bytes, accounted in
+CAMPAIGN_PLAYER. They come from the same verified readers used for NPCs.
+The query must not run during partial startup before the model is loaded.
+
+Candidates are collected in registry-slot order. This is not original
+factory-list reconstruction: order cannot affect this read-only any-blocker
+decision with stable candidates, and there are no per-candidate callbacks.
+The API does not mutate motion, damage, RNG, actor owners or geometry poses.
+It does not invoke death-start or enable game-over behavior.
+
+PC fixture coverage includes a registered player blocking an NPC in the
+forward direction, backward clearance, exact copied candidate radius/raw
+class word, stale generations, unknown owner families and insufficient scratch
+capacity. These cases use the actual collision-tree floor. Both builds and
+all12 CTests pass. Native query invocation remains a separate verification
+step; the startup replay checks added player metadata loading and retention.
+
+Native replay-20260911-180240 passes180 frames on67108864 bytes with no
+expansion. CAMPAIGN_PLAYER is[16777471, 0, 8, 4328], including the added28
+bytes; NPC body hash remains matched. This is startup/regression evidence;
+the new scene query is not yet invoked by this native replay.
