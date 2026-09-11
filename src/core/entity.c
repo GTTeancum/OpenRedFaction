@@ -513,3 +513,32 @@ uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t fa
     state->flags_1a8&=~0x8000u;
     return 1;
 }
+
+int rf_entity_death_select(const rf_entity_death_selection *state,
+    uint32_t (*clearance)(void *context,uint32_t direction),void *context,
+    rf_random_state *random,int32_t *result)
+{
+    int32_t action;uint32_t draw;
+    if(!state || !clearance || !random || !result ||
+       state->action_824 < -1 || state->action_824>=45)return RF_RANGE;
+    action=state->action_824;
+    if((state->flags_810&0x400u) || state->damage_138c==13 || state->damage_1390==13)action=16;
+    else {
+        if(action==6 || action==8 || action==11) {
+            if(!(clearance(context,1)&255u))action=-1;
+        } else if(action==7 || action==9 || action==12) {
+            if(!(clearance(context,0)&255u))action=-1;
+        }
+        if(action==12) {
+            rf_random_next(random,&draw);
+            if(!(draw%2u))action=-1;
+        }
+        if(action==-1) {
+            static const int32_t choices[3]={5,14,15};
+            rf_random_next(random,&draw);action=choices[draw%3u];
+        }
+    }
+    if(state->motions[action]==-1)action=state->motions[5]!=-1?5:-1;
+    *result=action;
+    return RF_OK;
+}

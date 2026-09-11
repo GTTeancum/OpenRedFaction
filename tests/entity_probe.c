@@ -12,6 +12,8 @@
 #include "burn_body_probe.h"
 #include "burn_retirement_probe.h"
 #include "burn_resource_probe.h"
+static uint32_t death_clearance(void *context,uint32_t direction)
+{uint32_t *v=context;++v[2];v[3]=direction;return v[direction];}
 static rf_damage_object dispatch_object;
 static uint32_t dispatch_facts[3],dispatch_present,dispatch_trace[8],dispatch_count,dispatch_effect[6];
 static float dispatch_after;
@@ -345,6 +347,18 @@ int main(int argc,char **argv)
             words[2]=available.head?(uint32_t)(available.head-nodes):UINT32_MAX;words[3]=available.count;
             for(i=0;i<32;i++)words[5+i*3]=nodes[i].next?(uint32_t)(nodes[i].next-nodes):UINT32_MAX;
             if(fwrite(words,sizeof(words),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--death-select")) {
+        uint32_t words[52],facts[4],out[5];rf_entity_death_selection state;rf_random_state random;int32_t selected;
+        _Static_assert(sizeof(state)==196,"Death selection wire layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(words,sizeof(words),1,stdin)==1) {
+            memcpy(&state,words,sizeof(state));random.value=words[49];facts[0]=words[50];facts[1]=words[51];facts[2]=0;facts[3]=UINT32_MAX;
+            selected=12345;out[0]=(uint32_t)rf_entity_death_select(&state,death_clearance,facts,&random,&selected);
+            out[1]=(uint32_t)selected;out[2]=random.value;out[3]=facts[2];out[4]=facts[3];
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;
     }

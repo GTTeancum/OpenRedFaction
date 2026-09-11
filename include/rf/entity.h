@@ -4,6 +4,7 @@
 #include "rf/vpp.h"
 #include "rf/object_registry.h"
 #include "rf/motion.h"
+#include "rf/random.h"
 
 /* Original487b11..487b2f: snapshot published object+3c into previous+6c
  * and clear object flag01000000 before model/physics updates. Does not read
@@ -336,5 +337,17 @@ typedef struct rf_entity_death_entry_state {
  * This is not the complete death-start owner and must not independently
  * activate live dying updates before the remaining death effects exist. */
 uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t falling);
+
+typedef struct rf_entity_death_selection {
+    uint32_t flags_810;
+    int32_t damage_138c,damage_1390,action_824,motions[45];
+} rf_entity_death_selection;
+/*420c00. Clearance supplies420d00(entity,direction), using its low byte.
+ * Input and callback remain stable; callback must not mutate state/RNG.
+ * Action must be-1 or0..44. Selection does not write the actor's action.
+ * Shared RNG advances only on original random branches. */
+int rf_entity_death_select(const rf_entity_death_selection *state,
+    uint32_t (*clearance)(void *context,uint32_t direction),void *context,
+    rf_random_state *random,int32_t *result);
 
 #endif
