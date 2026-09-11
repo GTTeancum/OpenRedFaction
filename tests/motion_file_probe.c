@@ -1,4 +1,5 @@
 #include "rf/motion_file.h"
+#include "rf/entity.h"
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -78,6 +79,16 @@ static int visit(const rf_vpp_entry *entry, void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--footsteps")) {
+        struct {rf_entity_footstep_input input;rf_motion_playback_state playback;rf_motion_marker_names markers[4];rf_entity_footstep_group groups[3];} input;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_entity_footstep_plan plan;int status;memset(&plan,0xa5,sizeof(plan));
+            status=rf_entity_plan_footsteps(&input.input,&input.playback,input.markers,4,input.groups,3,&plan);
+            fwrite(&status,4,1,stdout);fwrite(&input.playback,260,1,stdout);fwrite(&plan,sizeof(plan),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--consume-marker")) {
         struct {rf_motion_playback_state state;rf_motion_marker_names names[4];char request[16];} input;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

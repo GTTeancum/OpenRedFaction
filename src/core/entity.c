@@ -367,3 +367,30 @@ int rf_entity_damage_sound(rf_entity_damage_sound_state *state,float fraction,
         backend->play(backend->context,state->position,sample);
     return RF_OK;
 }
+
+int rf_entity_plan_footsteps(const rf_entity_footstep_input *input,rf_motion_playback_state *playback,
+    const rf_motion_marker_names *markers,uint32_t marker_count,
+    const rf_entity_footstep_group *groups,uint32_t group_count,rf_entity_footstep_plan *plan)
+{
+    rf_entity_footstep_plan next={0};uint32_t side,fired;int status;
+    static const char *names[2]={"footstep_left","footstep_right"};
+    if(!input || !playback || !plan)return RF_RANGE;
+    if(input->linked_handle!=-1){*plan=next;return RF_OK;}
+    if((input->object_flags&8) && input->player_present && !input->view_mode){next.alternate=1;*plan=next;return RF_OK;}
+    if(input->surface>=10 || (!groups && group_count))return RF_RANGE;
+    for(side=0;side<2;++side) {
+        int32_t group;const rf_entity_footstep_group *source;rf_entity_footstep_request *request;
+        status=rf_motion_consume_marker(playback,markers,marker_count,names[side],&fired);if(status)return status;
+        if(!fired)continue;
+        group=input->groups[input->surface];if(group<0)group=input->groups[0];
+        if(group<0){*plan=next;return RF_OK;}
+        if((uint32_t)group>=group_count || groups[group].count<0)return RF_RANGE;
+        source=groups+group;request=next.requests+next.count++;
+        request->group=group;request->count=source->count/2;
+        if((uint64_t)source->first+(side?(uint32_t)request->count:0)>UINT32_MAX)return RF_RANGE;
+        request->first=source->first+(side?(uint32_t)request->count:0);
+        memcpy(request->position,input->position,12);request->position[1]=input->position[1]-input->vertical_offset;
+        request->parameters[0]=1;request->parameters[1]=input->side_value;
+    }
+    *plan=next;return RF_OK;
+}

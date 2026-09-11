@@ -9,6 +9,9 @@ Stock 64 MiB XEMU matches all 179 playback ticks in the 180-frame L1S1 replay;
 L1S2 now passes the 600-frame native lift replay with NPC playback/drawing;
 original named-marker consumption matches PC/NXDK, with sound dispatch still open.
 
+Entity footstep request routing now matches640 original PC/NXDK cases;
+recover sound-group ownership, dispatch and the entity-update call schedule.
+
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.

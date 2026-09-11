@@ -3,6 +3,26 @@
 #include <stdint.h>
 #include "rf/vpp.h"
 #include "rf/object_registry.h"
+#include "rf/motion.h"
+
+typedef struct rf_entity_footstep_input {
+    int32_t linked_handle;uint32_t object_flags,player_present;int32_t view_mode;
+    uint32_t surface;float position[3],vertical_offset,side_value;int32_t groups[10];
+} rf_entity_footstep_input;
+typedef struct rf_entity_footstep_group {int32_t count;uint32_t first;} rf_entity_footstep_group;
+typedef struct rf_entity_footstep_request {int32_t group;uint32_t first;int32_t count;float position[3],parameters[2];} rf_entity_footstep_request;
+typedef struct rf_entity_footstep_plan {uint32_t alternate,count;rf_entity_footstep_request requests[2];} rf_entity_footstep_plan;
+/*42f940 through the48a930 dispatch boundary: attachment gate, alternate player
+ * route, left/right marker polling, surface/default group and half-list choice.
+ * first is a caller-defined sample-array index, not an original pointer. The
+ * alternate route requires42fb20; this function does not execute it or choose a
+ * random sound. Audio parameters retain original order without new semantics.
+ * Model wrappers501d30/503420 must already have resolved a skeletal playback.
+ * Structural errors preserve plan; marker bits can be consumed before a later
+ * invalid resource is detected. Valid missing sound groups are early returns. */
+int rf_entity_plan_footsteps(const rf_entity_footstep_input *input,rf_motion_playback_state *playback,
+    const rf_motion_marker_names *markers,uint32_t marker_count,
+    const rf_entity_footstep_group *groups,uint32_t group_count,rf_entity_footstep_plan *plan);
 
 #define RF_OBJECT_SLOTS 1024
 typedef struct rf_entity_creation_vitals_state {

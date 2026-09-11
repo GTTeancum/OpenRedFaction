@@ -27,3 +27,38 @@ with 47 true events: selected slots/resource IDs, exact-case and mismatched name
 empty/missing/duplicate names and all two-bit event combinations. Four invalid
 port input cases preserve state/output. Result: PASS in
 `artifacts/motion-marker-consume.json`. Both builds and all nine CTest checks pass.
+
+## Entity footstep request routing
+
+The only direct call to51c420 is501d3d inside the kind-two model wrapper501d30;
+503420 forwards to that wrapper. Its two entity call sites,42f999 and42fa4e,
+belong to42f940. `rf_entity_plan_footsteps` reconstructs that routine through
+the48a930 sound-dispatch boundary:
+
+- Entity+200 must equal -1; otherwise markers remain untouched.
+- Flag8 at+7c, a nonzero+1430 player record and view mode zero (player+c4,
+  then view+8) route to42fb20, bypassing model markers. This alternate route
+  is reported, not executed by the planner.
+- Poll left then right. Resolve the class group at+294/+178 indexed by entity
+  +1380, falling back to index zero for a negative group. The table's declared
+  footstep material groups support naming this selector `surface`; runtime
+  assignment/ground-query integration remains to recover.
+- If both selected/default groups are negative, return immediately. A consumed
+  left marker can therefore leave the right marker pending.
+-434d40 returns the sound-group count;434df0 returns its sample-list pointer.
+  Left selects the first half, right the second half, using signed division by
+  two. For valid nonnegative counts, odd trailing samples are outside both halves.
+- Requests copy entity+3c and subtract+180 from Y. Their final scalar arguments
+  are 1.0 followed by global62f980. Their deeper audio meaning is not assumed.
+
+The port returns sample-array indices instead of process pointers, and validates
+resource bounds. It does not choose the random sample or run the audio backend.
+48a930 performs selection and 2D/3D dispatch; those paths, sound-group loading,
+marker-name retention and the calling entity-update schedule remain open.
+
+`python tools/verify_entity_footsteps.py` executes the complete original42f940,
+including its real marker wrappers, group getters and vector-copy calls. Only
+42fb20 and48a930 are intercepted to observe the two dispatch boundaries. PC and
+NXDK machine code match640 cases, including85 alternate routes,213 sound
+requests and4 left-failure/right-pending cases. Report:
+`artifacts/entity-footsteps.json`. Both builds and all nine CTest checks pass.
