@@ -114,7 +114,7 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     if(out->move[0] && out->move[2]) {out->move[0]*=.7071067811865475f;out->move[2]*=.7071067811865475f;}
     out->look[0]=(float)p->keys[VK_UP]-(float)p->keys[VK_DOWN];
     out->look[1]=(float)p->keys[VK_RIGHT]-(float)p->keys[VK_LEFT];
-    out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return RF_OK;
+    out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return RF_OK;
 }
 
 static int particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
@@ -221,7 +221,7 @@ int main(int argc,char **argv)
             NULL,NULL,wc.hInstance,&p);
         if(!p.window){status=RF_IO;goto cleanup;}
         ShowWindow(p.window,SW_SHOW);
-        puts(spawn_profile?"WASD move | arrows look | Ctrl crouch | Space jump | Escape exit":"WASD move | arrows look | Ctrl crouch | Escape exit");
+        puts(spawn_profile?"WASD move | arrows look | Ctrl crouch | Space jump | E use | Escape exit":"WASD move | arrows look | Ctrl crouch | Escape exit");
     }
     rf_scene_particle_view_enabled=getenv("RF_PARTICLE_VIEW")!=NULL;rf_scene_particle_view_back=getenv("RF_PARTICLE_VIEW_BACK")!=NULL;
     rf_scene_actor_live_enabled=1;rf_scene_actor_eye_enabled=1;

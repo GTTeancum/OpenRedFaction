@@ -66,9 +66,10 @@ int rf_scene_replay_header(FILE *file,uint32_t *count,uint32_t *record_size)
     if(!file || !count || !record_size)return RF_RANGE;
     if(fseek(file,0,SEEK_END) || (bytes=ftell(file))<=0 || fseek(file,0,SEEK_SET))return RF_FORMAT;
     if(fread(header,4,1,file)!=1)return RF_FORMAT;
-    if(header[0]==0x32494652u) {
-        if(fread(header+1,4,1,file)!=1 || header[1]!=28)return RF_FORMAT;
-        offset=8;size=28;
+    if(header[0]==0x32494652u || header[0]==0x33494652u) {
+        size=header[0]==0x32494652u?28:32;
+        if(fread(header+1,4,1,file)!=1 || header[1]!=size)return RF_FORMAT;
+        offset=8;
     }
     if(bytes<=offset || (bytes-offset)%size || (bytes-offset)/size>60000 || fseek(file,offset,SEEK_SET))return RF_FORMAT;
     *count=(uint32_t)(bytes-offset)/size;*record_size=size;return RF_OK;
@@ -124,7 +125,7 @@ static int player_begin_frame(void *context,uint32_t frame)
     status=player_poll(player_context,frame,&value);if(status)return status;
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
-    if(value.crouch>1 || value.jump>1)return RF_FORMAT;
+    if(value.crouch>1 || value.jump>1 || value.use>1)return RF_FORMAT;
     player_input=value;r[0]=frame;memcpy(r+1,&value,24); /* Preserve the legacy movement/stance ring. */
     profile_active=frame>=16;rf_scene_profile_stage[0]=frame;profile_mark(0);return RF_OK;
 }
@@ -602,7 +603,7 @@ static int campaign_link_effect(void *context,uint32_t kind,uint32_t handle,uint
     }
 }
 /* Default player contact path; special ownership/key/script gates stay explicit. */
-static int campaign_trigger_contacts(const rf_group_attached_pose *pose,int32_t now,uint32_t frame,rf_level_particles *particles)
+static int campaign_trigger_contacts(const rf_group_attached_pose *pose,int32_t now,uint32_t frame,rf_level_particles *particles,uint32_t use)
 {
     uint32_t i,clock_bits;float positions[3][3],seconds=(float)now*.001f;int32_t player=campaign_player_view.handle;
     campaign_activation_context context={now,frame,particles};memcpy(&clock_bits,&seconds,4);
@@ -618,7 +619,7 @@ static int campaign_trigger_contacts(const rf_group_attached_pose *pose,int32_t 
         if(record->value_byte || record->fields[2]!=UINT32_MAX || record->fields[0]!=UINT32_MAX ||
            record->fields[1]!=UINT32_MAX || record->script[0] ||
            (trigger->state.flags&(2u|128u))) {++rf_scene_trigger_contacts[4];continue;}
-        status=rf_runtime_trigger_contact(&campaign_triggers,trigger->handle,&facts,positions,&filter,now,0,&ready);
+        status=rf_runtime_trigger_contact(&campaign_triggers,trigger->handle,&facts,positions,&filter,now,use,&ready);
         ++rf_scene_trigger_contacts[0];rf_scene_trigger_contacts[5]=(uint32_t)status;if(status)return status;
         if(ready) {++rf_scene_trigger_contacts[1];rf_scene_trigger_contacts[2]=record->uid;
             if(record->uid==8542)++rf_scene_trigger_contacts[3];
@@ -1826,7 +1827,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
                 /* Owned 60-Hz replay clock. Original 4333ea calls event tick
                  * after physics; full wall-clock/whole-frame parity is open. */
-                status=campaign_trigger_contacts(&rf_scene_actor_pose,now,frame,&stream->particles);if(status)return status;
+                status=campaign_trigger_contacts(&rf_scene_actor_pose,now,frame,&stream->particles,player_poll?player_input.use:0);if(status)return status;
                 status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles,&tick_report,&pending);
                 if(status)return status;
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;

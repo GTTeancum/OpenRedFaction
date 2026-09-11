@@ -4,7 +4,10 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');args=p.parse_args()
+if args.lift:
+ if args.door or args.climb or args.approach or args.level:p.error('--lift requires its own L1S2 fixture')
+ args.level='L1S2.rfl';args.campaign_spawn=True
 if args.door:
  if args.climb or args.approach or args.level:p.error('--door cannot combine with level/climb staging')
  args.campaign_spawn=True
@@ -15,22 +18,23 @@ if args.level:
  args.campaign_spawn=True
 elif args.archive!='levels1.vpp':p.error('--archive requires --level')
 replay_env=dict(os.environ)
-for key in ('RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_REPLAY_DOOR_START'):replay_env.pop(key,None)
+for key in ('RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_REPLAY_DOOR_START','RF_REPLAY_LIFT_START'):replay_env.pop(key,None)
 replay_env.update(RF_REPLAY_LEVEL=args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),RF_REPLAY_ARCHIVE=args.archive)
+if args.lift:replay_env['RF_REPLAY_LIFT_START']='1'
 if args.door:replay_env['RF_REPLAY_DOOR_START']='1'
 if args.climb:replay_env['RF_REPLAY_REGION_START']='2' if args.approach else '1'
 
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu');payload=args.input.read_bytes()
-record_size=28 if payload[:4]==b'RFI2' else 24
-offset=8 if record_size==28 else 0
-if offset and payload[4:8]!=(28).to_bytes(4,'little'):raise ValueError('Invalid RFI2 record size')
+record_size={b'RFI2':28,b'RFI3':32}.get(payload[:4],24)
+offset=8 if record_size!=24 else 0
+if offset and payload[4:8]!=record_size.to_bytes(4,'little'):raise ValueError('Invalid replay record size')
 if len(payload)<=offset or (len(payload)-offset)%record_size or (len(payload)-offset)>60000*record_size:raise ValueError('Expected 1..60000 input records')
 frames=(len(payload)-offset)//record_size;run=root/'artifacts/xemu'/('replay-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
 source=run/'inputs.bin';source.write_bytes(payload)
 pc=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay' if args.campaign_spawn else '--replay',str(root/'Installed_Game'),str(source),str(run/'pc-final.ppm')],capture_output=True,text=True,check=True,env=replay_env)
 (run/'pc-reference.txt').write_text(pc.stdout)
 def expected(label):return list(map(int,next(x for x in pc.stdout.splitlines() if x.startswith(label+' ')).split()[1:]))
-if args.campaign_spawn and not args.climb and not args.door:
+if args.campaign_spawn and not args.climb and not args.door and not args.lift:
  starts=json.loads((root/'artifacts/player-start-verification.json').read_text())
  look=json.loads((root/'artifacts/player-spawn-look.json').read_text())
  original='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
@@ -45,6 +49,7 @@ assert (root/'build/xbox/disc/player-control.flag').exists()
 replay=root/'build/xbox/disc/player-replay.bin';saved=replay.read_bytes() if replay.exists() else None
 spawn_flag=root/'build/xbox/disc/campaign-spawn.flag';saved_spawn=spawn_flag.read_bytes() if spawn_flag.exists() else None
 audio_flag=root/'build/xbox/disc/audio-output.flag';saved_audio=audio_flag.read_bytes() if audio_flag.exists() else None
+lift_flag=root/'build/xbox/disc/campaign-lift.flag';saved_lift=lift_flag.read_bytes() if lift_flag.exists() else None
 door_flag=root/'build/xbox/disc/campaign-door.flag';saved_door=door_flag.read_bytes() if door_flag.exists() else None
 climb_flag=root/'build/xbox/disc/campaign-climb.flag';saved_climb=climb_flag.read_bytes() if climb_flag.exists() else None
 selection_file=root/'build/xbox/disc/campaign-level.bin';saved_selection=selection_file.read_bytes() if selection_file.exists() else None
@@ -64,6 +69,8 @@ try:
  else:selection_file.unlink(missing_ok=True)
  if args.climb:climb_flag.write_bytes(b'2' if args.approach else b'')
  else:climb_flag.unlink(missing_ok=True)
+ if args.lift:lift_flag.write_bytes(b'1')
+ else:lift_flag.unlink(missing_ok=True)
  if args.door:door_flag.write_bytes(b'1')
  else:door_flag.unlink(missing_ok=True)
  if args.audio_capture:audio_flag.write_bytes(b'1')
@@ -305,6 +312,8 @@ finally:
   else:climb_flag.write_bytes(saved_climb)
   if saved is None:replay.unlink(missing_ok=True)
   else:replay.write_bytes(saved)
+  if saved_lift is None:lift_flag.unlink(missing_ok=True)
+  else:lift_flag.write_bytes(saved_lift)
   if saved_door is None:door_flag.unlink(missing_ok=True)
   else:door_flag.write_bytes(saved_door)
   if saved_spawn is None:spawn_flag.unlink(missing_ok=True)

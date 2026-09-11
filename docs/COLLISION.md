@@ -2864,3 +2864,29 @@ rf_scene_input lacks use input. Connect that original input path before
 claiming carry; do not bypass the trigger or manufacture activation in a test.
 The report explicitly says CONTACT_VERIFIED_CARRY_UNVERIFIED. Both PC and NXDK
 builds pass; this fixture currently runs only through the PC headless adapter.
+
+
+## Use-trigger connection and rising lift replay
+
+The preceding missing-input finding is resolved for ordinary volume triggers.
+Original4c0100 scans every trigger, excludes flag4 through4c0910 and forwards
+its supplied input to4bfc60; action calls4a1b01/4a1b39 supply1. The scene now
+forwards the platform use signal into its verified eligibility/contact path.
+This remains part of post-physics trigger processing; original action timing,
+linked-object fallback4c04e0 and input repeat policy are not fully reconstructed.
+E on PC and X on Xbox are port bindings, not recovered original mappings.
+
+RFI3 records are32 bytes: five floats, crouch, jump, use (all buttons0/1).
+RFI2 remains28 bytes and legacy raw records24; omitted fields are zeroed.
+The lift replay sends a single use pulse at frame30, with no movement. It
+activates controller8687 through authored trigger8689 and contacts mover8670.
+Six independently replayed PC checkpoints show Y progressing from-6.055979
+at30 frames to-5.472641,-4.847636,-4.222631,-3.597627 and-3.555979 at180.
+X/Z remain fixed; final360-frame height is2.5 above the settled baseline.
+This establishes sampled rising carry on this staged lift, not every-frame
+contact continuity, descending travel, jumping off, or the route from spawn.
+
+Stock64MiB XEMU replay-20260910-200250 passes360 frames with PC-equivalent
+body/controller state using `tools/xemu_replay_check.py <inputs> --lift`.
+PC door and RFI2 jump replays plus six CTests pass. No new audio fidelity or
+PS2 visual-parity claim; linked general objects and key effects remain open.
