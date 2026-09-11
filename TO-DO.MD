@@ -4,6 +4,7 @@ Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
 grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
+- [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
 - [ ] Complete NPC actor/link registration, the damage backend and upstream repeated activation; Continuous_Damage itself does not automatically repeat.
 - [ ] Resolve the L1S3 pressure-test route after fixing its 14 static ray errors, complete audio category settings, and recover light ownership.
@@ -2434,3 +2435,9 @@ Shared cached-room tracking and emitter room-token adapter now match complete
 original4cd970 across6,480 retained L1S1/L1S2/L1S3 scenarios on PC and NXDK;
 both builds and eight CTests pass. Connect live emitter ownership next.
 Evidence: tools/verify_loaded_room_tracking.py and docs/DAMAGE.md.
+
+Concrete burn attachments now connect evaluated bones, cached-room movement and
+full emitter update with no allocation. Original/PC/NXDK match72 scenarios each
+on L1S1 and L1S3, including40 created particles per suite; both builds and eight
+CTests pass. Persistent NPC/resource ownership and live scheduling remain open.
+Evidence: tools/verify_burn_resolved.py and docs/DAMAGE.md.

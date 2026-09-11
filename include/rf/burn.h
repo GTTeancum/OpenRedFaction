@@ -2,6 +2,8 @@
 #define RF_BURN_H
 #include "rf/vpp.h"
 #include "rf/model.h"
+#include "rf/geometry.h"
+#include "rf/particle_pool.h"
 #define RF_BURN_SLOTS 8
 /* Original64-byte payload; links use1..8 slot tokens,0 means no head. */
 typedef struct rf_burn_record {
@@ -169,4 +171,24 @@ int rf_burn_body(rf_burn_record *record,uint32_t token,
  * Malformed names can fail after earlier outputs; no allocation/model lookup.
  * Caller42e910 resets all indices if any required bone is missing. */
 int rf_burn_resolve_bones(const rf_model_name *bones,uint32_t count,int32_t indices[4]);
+typedef struct rf_burn_attachment_runtime {
+    const float (*pose)[12];uint32_t bone_count;
+    rf_emitter_pool *emitters;
+    const rf_geometry_collision_world *world;
+    const rf_particle_emitter_parent *parent;
+    rf_random_state *random;
+    int32_t owner,now_ms;uint32_t parent_room,global_enabled;float frame_seconds;
+} rf_burn_attachment_runtime;
+/* Concrete attachment backend for42ef3e..42f0bd: evaluated bone query,4972a0
+ * cached-room movement, then4972f0 update. Burn emitter tokens are slot+1.
+ * All four slots must be active and belong to owner. Parent is the stable
+ * resolved owner view (NULL represents failed resolution); pose is evaluated
+ * already. Local bone coordinates are passed unchanged to original movement;
+ * emission applies its own parent transform and subsequent room inheritance.
+ * Room tokens are world index+1. World/pose/pools/parent/RNG stay alive and
+ * cannot alias output. No allocation; serialize shared world scratch.
+ * Errors after placement starts may leave earlier moves/emissions committed.
+ * This does not create owners, evaluate animation, or schedule a burn pass. */
+int rf_burn_attachments_resolved(rf_burn_record *record,
+    const rf_burn_attachment_runtime *runtime,rf_burn_attachment_result *result);
 #endif

@@ -292,3 +292,40 @@ int rf_burn_resolve_bones(const rf_model_name *bones,uint32_t count,int32_t indi
     }
     return missing?RF_NOT_FOUND:RF_OK;
 }
+
+static int burn_pose_attachment(void *context,int32_t index,float position[3])
+{
+    const rf_burn_attachment_runtime *runtime=context;rf_model_bone_query query;int status;
+    status=rf_model_query_bone(runtime->pose,runtime->bone_count,index,&query);if(status)return status;
+    memcpy(position,query.position,sizeof(query.position));return RF_OK;
+}
+static int burn_particle_move_update(void *context,uint32_t token,const float position[3])
+{
+    const rf_burn_attachment_runtime *runtime=context;
+    rf_particle_emitter_runtime *emitter=&runtime->emitters->slots[token-1].runtime;
+    rf_particle_emitter_update_result update;int status;
+    status=rf_particle_emitter_move(&emitter->emitter,position,emitter->emitter.direction,
+        rf_geometry_collision_world_track_emitter,(void *)runtime->world);if(status)return status;
+    return rf_particle_emitter_update(runtime->emitters->particles,emitter,token,
+        runtime->global_enabled,runtime->frame_seconds,runtime->now_ms,runtime->parent,
+        runtime->parent_room,runtime->random,&update);
+}
+int rf_burn_attachments_resolved(rf_burn_record *record,
+    const rf_burn_attachment_runtime *runtime,rf_burn_attachment_result *result)
+{
+    rf_burn_attachment_backend backend;uint32_t i,j;
+    if(!record || !runtime || !result || !runtime->emitters || !runtime->emitters->slots ||
+       !runtime->emitters->particles || !runtime->world || !runtime->random ||
+       runtime->parent_room>runtime->world->room_count || !isfinite(runtime->frame_seconds) ||
+       runtime->frame_seconds<0 || runtime->now_ms<0 || runtime->now_ms>RF_TIMER_PERIOD)return RF_RANGE;
+    for(i=0;i<4;++i) {
+        const rf_emitter_slot *slot;
+        if(!record->emitters[i] || record->emitters[i]>RF_PARTICLE_EMITTER_CAPACITY)return RF_RANGE;
+        for(j=0;j<i;++j)if(record->emitters[i]==record->emitters[j])return RF_RANGE;
+        slot=&runtime->emitters->slots[record->emitters[i]-1];
+        if(!slot->active || slot->runtime.emitter.owner!=runtime->owner)return RF_RANGE;
+    }
+    backend.attachment=burn_pose_attachment;backend.move_update=burn_particle_move_update;
+    backend.context=(void *)runtime;
+    return rf_burn_attachments(record,&backend,result);
+}

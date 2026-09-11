@@ -1016,3 +1016,34 @@ are included. Reports: artifacts/loaded-room-tracking-L1S1.rfl.json and peers.
 PC and NXDK builds and all eight CTests pass. The original loader remains outside
 this comparison. The adapter is available for emitter movement, but persistent
 live effect ownership and native XEMU execution of this path remain open.
+
+
+## Concrete burn attachment backend
+
+rf_burn_attachments_resolved connects the recovered attachment sequence to
+rf_model_query_bone, rf_particle_emitter_move with cached world tracking, and
+rf_particle_emitter_update. It borrows an already evaluated pose, a fixed emitter
+pool, retained world, stable parent view and shared RNG. Four distinct active
+slot+1 tokens must have the supplied owner. It preserves emitter direction;
+local bone coordinates reach movement unchanged, and emission performs its own
+parent transform before the update's final parent-room assignment. No allocation
+or animation advancement occurs here. Earlier moves/emissions survive a later
+failure. This backend does not create/register persistent entity owners.
+
+verify_burn_resolved.py executes original42ef3e..42f0bd (or its older-age skip),
+including cached503230 model extraction,4972a0/4cd970 room traversal and complete
+4972f0 phase/emission/parent-room update. Allocation and random routines execute;
+only CRT thread-storage lookup is supplied. Fixtures use eight advanced miner
+standing poses and four available particle nodes, varying age, owner, global
+low-byte enable, timer deadlines, phase flag and room inheritance flag.
+The first sampler output is an unevaluated zero cache, so live comparisons use
+advanced samples; coincident-leg rejection remains the documented port guard.
+
+PC and actual NXDK agree exactly on placement, all four compact emitter states,
+four particle payloads and RNG across72 scenarios each on retained L1S1 and
+L1S3 geometry. Each suite creates40 particles; the harness requires nonzero
+emission. Three NXDK invalid-token/duplicate-token/owner-mismatch guards preserve
+state. Reports: artifacts/burn-resolved-L1S1.rfl.json and L1S3.rfl.json.
+Both builds and all eight CTests pass. This is CPU integration evidence, not
+native XEMU gameplay: entity registration, burn resource creation/fade ownership,
+live scheduling and simulation/rendering of these particles remain open.

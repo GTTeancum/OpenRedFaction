@@ -11,6 +11,7 @@
 #include <io.h>
 #include <string.h>
 #include <stdlib.h>
+#include "burn_resolved_probe.h"
 static int32_t group_sound_probe(void *context,int32_t sample,const float position[3],float volume,uint32_t flags)
 {
     uint32_t *trace=context,words[6],i;memcpy(words,&sample,4);memcpy(words+1,position,12);
@@ -346,6 +347,13 @@ int main(int argc,char **argv)
             if(fwrite(&result,sizeof(result),1,stdout)!=1)return 5;
         }
         rf_geometry_collision_movers_close(&movers);rf_geometry_collision_world_close(&world);return ferror(stdin)?6:0;
+    }
+    if(argc==4 && !strcmp(argv[1],"--burn-resolved")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};int status;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,8u*1024u*1024u))return 3;
+        if(rf_geometry_collision_world_open(&geometry,8u*1024u*1024u,&world))return 4;
+        rf_geometry_close(&geometry);status=burn_resolved_probe(&world);
+        rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return status;
     }
     if(argc==4 && !strcmp(argv[1],"--world-track")) {
         rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};
