@@ -1475,3 +1475,27 @@ unsupported event actions, outgoing propagation and delayed ticking remain open.
 No framebuffer capture or PS2 visual-parity claim accompanies this internal fix.
 The default L1S1 campaign path also passes its 16-tick regression in
 replay-20260910-064400. NXDK build and all five PC CTests pass.
+
+
+Current-build native regression (2026-09-11)
+------------------------------------------
+
+Source commit06d8038 passes the930-frame L1S3 replay with audio enabled:
+`artifacts/xemu/replay-20260911-053608/report.json`. The harness verifies
+67108864 bytes of base RAM and zero plugged RAM, compares its checked guest
+body/controller/camera and campaign state with the current PC executable,
+and observes9530 available pages at completion (not a peak memory budget).
+The guest DSP ring contains4060 nonzero samples in8192 bytes; the checked
+native audio error counters are zero. This is DSP output evidence, not a
+host listening test. All eight PC CTests pass.
+
+Reproduce with:
+`python tools/xemu_replay_check.py artifacts/xemu/replay-20260911-022235/inputs.bin --level L1S3.rfl --audio-capture --seconds 240`
+
+Test XBE SHA256:9fc02b656f2297a1133a94645404818ad0f20e3a107208127e9098046998c7b1.
+PC SHA256:04057475e117915be108b6c0a18ebe38d9117c999056b33eff79553335e58f26.
+The harness restored the normal disc flags and rebuilt the normal ISO after
+completion. No framebuffer was requested because this checkpoint adds no new
+visual behavior. This verifies the existing live diagnostic path after recent
+shared-code changes; it does not exercise the newly recovered burn ownership
+or sample-control helpers through persistent NPCs or the native device adapter.

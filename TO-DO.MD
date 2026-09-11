@@ -2477,3 +2477,11 @@ and looping bypass rules;6,000 original/PC/NXDK cases pass. Actual543760 loading
 and522530 device adapters, signed-device/mixer handle mapping and native status
 ownership remain. Both builds and eight CTests pass.
 Evidence: tools/verify_audio_sample_start.py and docs/controller-audio.md.
+
+
+Current build06d8038 native regression: replay20260911-053608 passes930 L1S3
+frames with PC state parity, QMP-verified64MiB and nonzero DSP output;
+9530 available pages at completion. Eight PC CTests pass. Normal disc flags
+restored and ISO rebuilt. See docs/XEMU-MEMORY.md. This confirms the existing
+live path only; burn NPC ownership and sample-control device integration remain
+open. No new visuals or hardware listening claim.
