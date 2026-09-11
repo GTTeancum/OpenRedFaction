@@ -1,4 +1,5 @@
 #include "rf/physics.h"
+#include "rf/collision.h"
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
@@ -189,6 +190,39 @@ int rf_physics_player_contact(rf_physics_body_state *state,const float normal[3]
     if(!isfinite(impact))return RF_RANGE;
     for(i=0;i<3;++i)if(!isfinite(velocity[i]))return RF_RANGE;
     memcpy(state->velocity,velocity,sizeof(velocity));*impact_speed=impact;return RF_OK;
+}
+int rf_physics_force_region_select(const rf_physics_force_region *regions,uint32_t count,
+    const float position[3],uint32_t *index)
+{
+    uint32_t i,k,inside;int status;
+    if((count && !regions) || !position || !index)return RF_RANGE;
+    for(k=0;k<3;k++)if(!isfinite(position[k]))return RF_RANGE;
+    for(i=0;i<count;i++) {
+        const rf_physics_force_region *r=regions+i;
+        if(!(r->active&255u))continue;
+        inside=0;
+        if(r->shape==1) {
+            float delta[3],distance;
+            if(!isfinite(r->radius_squared))return RF_RANGE;
+            for(k=0;k<3;k++) {
+                if(!isfinite(r->center[k]))return RF_RANGE;
+                delta[k]=(float)((double)position[k]-r->center[k]);
+            }
+            distance=(float)(((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2]);
+            inside=distance<r->radius_squared;
+        } else if(r->shape==2) {
+            inside=1;
+            for(k=0;k<3;k++) {
+                if(!isfinite(r->minimum[k]) || !isfinite(r->maximum[k]))return RF_RANGE;
+                if(position[k]<r->minimum[k] || position[k]>r->maximum[k])inside=0;
+            }
+        } else if(r->shape==3) {
+            status=rf_collision_point_oriented_box(position,r->center,(const float (*)[3])r->matrix,r->size,&inside);
+            if(status)return status;
+        }
+        if(inside){*index=i;return RF_OK;}
+    }
+    *index=UINT32_MAX;return RF_OK;
 }
 int rf_physics_air_steer(rf_physics_body_state *state,float dt,float air_control,
     float acceleration_limit,float speed_limit,const float world_acceleration[3])

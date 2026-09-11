@@ -136,6 +136,17 @@ int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
  * gravity or position integration. Finite nonnegative scalars required. */
 int rf_physics_air_steer(rf_physics_body_state *state,float dt,float air_control,
     float acceleration_limit,float speed_limit,const float world_acceleration[3]);
+/* Runtime force-volume fields consumed by45cd20/4868c0, not a disk record. */
+typedef struct rf_physics_force_region {
+    uint32_t shape,uid,flags;
+    float center[3],matrix[9],radius_squared,minimum[3],maximum[3],size[3],strength;
+    uint32_t active; /* Original activation byte is the low eight bits. */
+} rf_physics_force_region;
+/* First enabled containing region in supplied creation order. Sphere boundary
+ * is strict; boxes inclusive. Unknown shapes are skipped. UINT32_MAX means
+ * no match. No allocation or force application; errors preserve index. */
+int rf_physics_force_region_select(const rf_physics_force_region *regions,uint32_t count,
+    const float position[3],uint32_t *index);
 /* 49dc1d..49dcf1 velocity response: stationary non-liquid contact, flags&0x80
  * clear, non-rotating actor predicate. Normal is used as supplied. Returns
  * signed impact speed for the later damage path; does not apply damage or

@@ -8,6 +8,17 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--force-region")) {
+        struct {rf_physics_force_region regions[3];float position[3];uint32_t count;} input;
+        _Static_assert(sizeof(rf_physics_force_region)==108,"Force region layout");
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            uint32_t index=0xa5a5a5a5;int status;
+            if(input.count>3)return 3;
+            status=rf_physics_force_region_select(input.regions,input.count,input.position,&index);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&index,4,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--air-steer")) {
         struct {float dt,control,acceleration,speed,desired[3],velocity[3];uint32_t flags;} input;
         while(fread(&input,sizeof(input),1,stdin)==1) {

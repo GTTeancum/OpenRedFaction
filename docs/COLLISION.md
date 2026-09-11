@@ -2991,3 +2991,25 @@ body/controller/jump state. Both builds, ordinary jump, lift ascent/descent
 jumps, door traversal and six CTests pass. Full original airborne-step
 composition, force regions, all dismount directions and per-frame support
 identity remain open. No new visual-parity claim.
+
+
+## Force-region selection (45cd20)
+
+The shared runtime force-region record retains the108-byte field layout used
+by45cd20/4868c0, but is explicitly not a disk record. Selection walks creation
+order and returns the first enabled containing region; overlapping fields do
+not add together at this selection stage. Only the low activation byte counts.
+Unknown shapes are skipped. Shape1 uses stored binary32 squared distance
+strictly below+3c; shape2 uses inclusive minimum/maximum bounds; shape3 uses
+inclusive oriented-box containment with full dimensions. No allocation.
+
+verify_force_region_select.py executes complete45cd20 and unchanged collection,
+squared-distance and box callees for768 cases against PC and compiled NXDK.
+It includes analytic center/exact-boundary/next-float-outside cases for each
+shape, empty lists, overlapping regions, rotated matrices and activation
+values0/1/255/256/257. OBB static-scratch initialization flags are supplied to
+exclude CRT exit registration; no geometric outcome or callee is intercepted.
+Both selectors preserve region records and agree on every index/no-match.
+Both builds and six CTests pass. The authored reader, force application and
+scene ownership are not yet connected; no new XEMU behavior is claimed.
+Generated report: artifacts/force-region-select.json.
