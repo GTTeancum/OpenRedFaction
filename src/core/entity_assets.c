@@ -177,6 +177,74 @@ done:
 }
 static int asset(char destination[64],const char *source)
 {size_t n=strlen(source);if(!n || n>=64)return RF_RANGE;memcpy(destination,source,n+1);return RF_OK;}
+int32_t rf_weapon_name_find(const rf_weapon_names *table,const char *name)
+{
+    uint32_t i;if(!name)name="";
+    for(i=0;i<table->count;++i)if(same(table->names[i],name))return (int32_t)i;
+    return -1;
+}
+int rf_weapon_names_read(const void *text,uint32_t bytes,rf_weapon_names *result)
+{
+    rf_weapon_names v={0};lexer l={(const unsigned char*)text,bytes,0};char t[256];int q,status,section=0;
+    if(!text || !result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"#Primary") || same(t,"#Secondary")) {
+            int next=same(t,"#Primary")?1:3;
+            if((next==1 && section!=0) || (next==3 && section!=2))return RF_FORMAT;
+            if(token(&l,t,&q) || q || !same(t,"Weapons"))return RF_FORMAT;
+            section=next;
+        } else if(same(t,"#End")) {
+            if(section!=1 && section!=3)return RF_FORMAT;
+            if(section==1)v.primary_count=v.count;
+            ++section;
+        } else if(same(t,"$Name:")) {
+            if(section!=1 && section!=3)return RF_FORMAT;
+            if(v.count==64)return RF_RANGE;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            if(*t){status=asset(v.names[v.count],t);if(status)return status;}
+            ++v.count;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(section!=4)return RF_FORMAT;
+    *result=v;return RF_OK;
+}
+int rf_weapon_names_load(rf_vpp *tables,uint32_t budget,rf_weapon_names *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_names_read(text,entry.size,result);
+    free(text);return status;
+}
+int rf_entity_weapon_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_weapon_names *weapons,uint32_t groups[2])
+{
+    lexer l={(const unsigned char*)text,bytes,0};char t[256];uint32_t masks[2]={0};int status,q,selected=0,found=0;
+    if(!text || !class_name || !*class_name || !weapons || weapons->count>64 || !groups)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            selected=same(t,class_name);found=selected;
+        } else if(selected && same(t,"+Weapon")) {
+            int32_t id;uint32_t bit;
+            if(token(&l,t,&q) || q || !same(t,"Specific:"))return RF_FORMAT;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            id=rf_weapon_name_find(weapons,t);if(id<0)return RF_NOT_FOUND;
+            bit=1u<<((uint32_t)id&31u);if(masks[(uint32_t)id>>5]&bit)return RF_FORMAT;
+            masks[(uint32_t)id>>5]|=bit;
+        }
+    }
+    if(status!=RF_NOT_FOUND && status!=RF_OK)return status;
+    if(!found)return RF_NOT_FOUND;
+    memcpy(groups,masks,sizeof(masks));return RF_OK;
+}
 static int sphere_number(lexer *l,float *result)
 {
     char t[256];uint32_t at=0,digits=0;int quoted,status,negative=0,fraction=0,exponent=0,exp_negative=0;double value=0;
@@ -688,17 +756,21 @@ void rf_entity_base_motions_close(rf_entity_base_motions *m)
 int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_vpp *motions,
     uint32_t budget,rf_entity_base_motions *result)
 {
-    rf_entity_base_motions v={0};rf_vpp_entry entry;void *text=NULL;
+    rf_entity_base_motions v={0};rf_vpp_entry entry,weapon_entry;void *text=NULL;
     uint64_t bytes;uint32_t i,j;int status;
     if(!seeds || !tables || !motions || !result || result->classes || result->class_count ||
-       result->resident_bytes || result->peak_bytes || (seeds->class_count && !seeds->classes))return RF_RANGE;
+       result->resident_bytes || result->peak_bytes || result->weapons.count || result->weapons.primary_count ||
+       (seeds->class_count && !seeds->classes))return RF_RANGE;
     v.class_count=seeds->class_count;bytes=sizeof(v)+(uint64_t)v.class_count*sizeof(*v.classes);
     if(bytes>budget)return RF_RANGE;
     v.resident_bytes=v.peak_bytes=(uint32_t)bytes;
     if(!v.class_count){*result=v;return RF_OK;}
+    status=rf_vpp_find(tables,"weapons.tbl",&weapon_entry);if(status)return status;
+    if(!weapon_entry.size || bytes+weapon_entry.size>budget)return RF_RANGE;
+    status=rf_weapon_names_load(tables,budget-(uint32_t)bytes,&v.weapons);if(status)return status;
     status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)return status;
     if(!entry.size || bytes+entry.size>budget)return RF_RANGE;
-    v.peak_bytes+=(uint32_t)entry.size;
+    v.peak_bytes+=entry.size>weapon_entry.size?entry.size:weapon_entry.size;
     v.classes=calloc(v.class_count,sizeof(*v.classes));text=malloc(entry.size);
     if(!v.classes || !text){status=RF_RANGE;goto done;}
     status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto done;
@@ -706,8 +778,10 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
         const rf_entity_seed_class *c=seeds->classes+i;
         for(j=0;j<23;++j)v.classes[i].states[j]=-1;
         for(j=0;j<45;++j)v.classes[i].actions[j]=-1;
-        if(c->model_kind!=2)continue;
         if(c->record_index>=seeds->records.count || !seeds->records.items){status=RF_RANGE;goto done;}
+        status=rf_entity_weapon_groups_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,&v.weapons,v.classes[i].weapon_groups);
+        if(status)goto done;
+        if(c->model_kind!=2)continue;
         status=state_set_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,"",motions,v.classes+i);
         if(status)goto done;
         status=action_set_extend(text,entry.size,seeds->records.items[c->record_index].record.class_name,motions,v.classes+i);

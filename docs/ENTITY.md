@@ -279,3 +279,34 @@ no active NPC playback or new visual result is claimed.
 Native stock64MiB replay-20260911-065339 passes180 door/audio frames after
 base action integration, with PC state parity and nonzero DSP output. This is
 loading/regression evidence, not live NPC action playback verification.
+
+
+Weapon IDs for NPC animation groups
+Original4c6570 clears the loaded weapon count before4c67a0. The latter processes
+primary records in order, saves their count at87211c, then appends secondary
+records.4c81f0 scans names at85cd08,stride550,up to872448, returning the first
+ASCII-insensitive match through500190/57c130, or-1. Entity table weapon-specific
+groups use that lookup at41cfad; group IDs must not be guessed from group order.
+
+rf_weapon_names_read/load retain up to64 names of63 bytes, requiring primary
+and secondary section delimiters. This is a selected-field port parser, not the
+weapon statistics loader. It preserves output on error and uses bounded table
+scratch. rf_weapon_name_find reproduces first-match lookup, including empty and
+duplicate names. Installed names resolve44 entries:40 primary,4 secondary.
+verify_weapon_names.py compares PC/NXDK names/order and140 lookups against
+actual original4c81f0/string callees. It executes4c6843..4c68d9 sequencing with
+record parsing/end tokens supplied. NXDK stack probing is supplied on a mapped
+fixture stack; native kernel stack handling is outside that CPU-only verifier.
+
+The campaign motion owner now retains this weapon-name catalogue. Each class
+also owns a two-word mask of declared +Weapon Specific IDs, resolved from the
+loaded table. Unknown names and duplicate groups fail without publishing output.
+The independent three-level check compares masks with raw table group names and
+loaded weapon order, alongside495 base action slots. Both builds/nine CTests
+pass. Updated PC motion-owner resident/peak bytes: L1S1 115480/490120,
+L1S2 70936/445576, L1S3 137752/512392. Scratch lifetimes do not overlap.
+Weapon-group state/action resources are still not registered; this establishes
+their IDs and ownership before that next step. No live NPC animation is claimed.
+Native stock64MiB replay-20260911-070422 passes180 door/audio frames after
+weapon catalogue/group-ID integration, with PC parity and nonzero guest DSP.
+This verifies loading/regression behavior, not weapon-group animation playback.

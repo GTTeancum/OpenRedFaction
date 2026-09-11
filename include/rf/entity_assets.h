@@ -7,6 +7,21 @@
 #include "rf/model.h"
 #include "rf/movement.h"
 #include "rf/effect.h"
+typedef struct rf_weapon_names {
+    char names[64][64];uint32_t count,primary_count;
+} rf_weapon_names;
+/* Selected weapons.tbl name/order reader: primary then secondary declarations,
+ * matching4c67a0 sequencing. Requires both delimited sections. No weapon stats.
+ * Port name limit63, capacity64; output unchanged on errors. */
+int rf_weapon_names_read(const void *text,uint32_t bytes,rf_weapon_names *result);
+int rf_weapon_names_load(rf_vpp *tables,uint32_t scratch_budget,rf_weapon_names *result);
+/* 4c81f0 lookup over stable loaded names: first ASCII-insensitive match or-1.
+ * NULL query behaves as empty. Table must be valid; no allocation. */
+int32_t rf_weapon_name_find(const rf_weapon_names *table,const char *name);
+/* Resolve selected class +Weapon Specific names to a64-bit ID mask. No fallback;
+ * unknown names/duplicate groups fail and preserve output. Port metadata only. */
+int rf_entity_weapon_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_weapon_names *weapons,uint32_t groups[2]);
 /* Port-owned emitters.tbl binding: first ASCII case-insensitive name match,
  * copied metadata with no retained table pointers. Only the selected block is
  * validated. Read allocates nothing; load caps temporary archive storage by
@@ -251,9 +266,11 @@ typedef struct rf_entity_state_set {
     int32_t states[23];uint32_t count;
     rf_motion_cache_record cache[68];rf_motion_file files[68];
     uint8_t looping[68];int32_t actions[45];char action_sounds[45][64];
+    uint32_t weapon_groups[2];
 } rf_entity_state_set;
 typedef struct rf_entity_base_motions {
     rf_entity_state_set *classes;uint32_t class_count,resident_bytes,peak_bytes;
+    rf_weapon_names weapons;
 } rf_entity_base_motions;
 /* Retain canonical base state and action mappings per skeletal class, reading the
  * table once. Motion files borrow the caller's open immutable motions archive.

@@ -1,5 +1,5 @@
 """Independent canonical state/action registration order for installed levels."""
-import json,subprocess
+import json,subprocess,re
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 actions=json.loads((root/'artifacts/entity-actions.json').read_text())['rows']
@@ -9,10 +9,22 @@ state_names=[x['name'] for x in names['states']['names']];action_names=[x['name'
 state_rows={(r['entity_class'].lower(),r['state'].lower()):r['motion'] for r in states if not r['weapon']}
 action_rows={(r['entity_class'].lower(),r['action'].lower()):r for r in actions if not r['weapon']}
 reports=[]
+weapons=json.loads((root/'artifacts/weapon-names.json').read_text())['names']
+inventory=json.loads((root/'artifacts/inventory.json').read_text())
+entry=next(e for a in inventory['files'] if a['path']=='tables.vpp' for e in a['vpp']['entries'] if e['name']=='entity.tbl')
+with (root/'Installed_Game/tables.vpp').open('rb') as f:f.seek(entry['offset']);raw=f.read(entry['size'])
+text='\n'.join(line.split('//',1)[0] for line in raw.decode('cp1252').splitlines())
+parts=re.split(r'\$Name:\s*"([^"\r\n]+)"',text)
+groups={name.lower():re.findall(r'\+Weapon\s+Specific:\s*"([^"\r\n]*)"',body) for name,body in zip(parts[1::2],parts[2::2])}
 for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  out=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--base-motions',str(root/'Installed_Game/levels1.vpp'),str(root/'Installed_Game/tables.vpp'),str(root/'Installed_Game/motions.vpp'),level],text=True)
  registries={};checked=0
  for line in out.splitlines():
+  if line.startswith('WEAPON_GROUPS\t'):
+   _,cls,low,high=line.split('\t');mask=0
+   for weapon in groups[cls.lower()]:mask|=1<<[w.lower() for w in weapons].index(weapon.lower())
+   assert int(low)|(int(high)<<32)==mask,(level,cls,low,high,mask)
+   continue
   if not line.startswith('ACTION\t'):continue
   _,cls,number,index,file,sound=line.split('\t');cls=cls.lower();number=int(number);index=int(index)
   if cls not in registries:

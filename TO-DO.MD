@@ -2578,3 +2578,8 @@ Base45 action mappings and sound labels now persist with class state bindings;
 1168 action declarations and495 installed action slots verify. Weapon-specific
 mappings, numeric sound IDs, alternate clips and live initial selection remain.
 Native64MiB replay-20260911-065339 passes with retained base action bindings.
+
+Weapon ID order/name lookup is original-verified (44 weapons,140 lookups), and
+class weapon-group masks now persist. Bind each declared group to motion
+resources next; live initial selector and playback remain open.
+Native64MiB replay-20260911-070422 passes after weapon group-ID integration.

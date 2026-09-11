@@ -6,6 +6,18 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==3 && !strcmp(argv[1],"--weapon-names")) {
+        rf_weapon_names value,before;memset(&value,0xa5,sizeof(value));before=value;
+        if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"weapons.tbl",&entry))return 2;
+        if(rf_weapon_names_load(&archive,entry.size-1,&value)!=RF_RANGE || memcmp(&value,&before,sizeof(value)))return 3;
+        status=rf_weapon_names_load(&archive,entry.size,&value);rf_vpp_close(&archive);
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);fwrite(&value,sizeof(value),1,stdout);return 0;
+    }
+    if(argc==3 && !strcmp(argv[1],"--weapon-find")) {
+        rf_weapon_names value;int32_t index;_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        if(fread(&value,sizeof(value),1,stdin)!=1 || value.count>64)return 2;
+        index=rf_weapon_name_find(&value,argv[2]);fwrite(&index,4,1,stdout);return 0;
+    }
     if(argc==5 && !strcmp(argv[1],"--action-text")) {
         char raw[8192];size_t size;rf_entity_action_declaration result;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
@@ -32,6 +44,8 @@ int main(int argc,char **argv)
         if(rf_entity_base_motions_open(&seeds,&tables,&motions,m.peak_bytes-1,&guard)!=RF_RANGE || memcmp(&guard,&(rf_entity_base_motions){0},sizeof(guard)))return 5;
         if(rf_entity_base_motions_open(&seeds,&tables,&motions,m.peak_bytes,&guard))return 6;
         rf_entity_base_motions_close(&guard);rf_entity_base_motions_close(&guard);
+        for(i=0;i<m.class_count;++i)printf("WEAPON_GROUPS\t%s\t%u\t%u\n",
+            seeds.records.items[seeds.classes[i].record_index].record.class_name,m.classes[i].weapon_groups[0],m.classes[i].weapon_groups[1]);
         for(i=0;i<m.class_count;++i)if(seeds.classes[i].model_kind==2) {
             if(rf_entity_state_set_open(argv[3],seeds.records.items[seeds.classes[i].record_index].record.class_name,"",&motions,512*1024,expected) ||
                memcmp(expected->states,m.classes[i].states,sizeof(expected->states)) ||
