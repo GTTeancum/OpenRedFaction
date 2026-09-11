@@ -564,7 +564,7 @@ uint32_t rf_entity_death_clearance(const rf_entity_death_clearance_state *s,
     if(!(ray(context,start,end)&255u))return 0;
     for(i=0;i<count;i++) {
         const rf_entity_death_obstacle *a=actors+i;
-        if(!(a->class_flags_74&4u))continue;
+        if(!(a->class_word_74&4u))continue;
         reach=(float)(fabs((double)length)+(double)a->extent_180);
         for(j=0;j<3;j++)delta[j]=(float)((double)a->position[j]-s->position[j]);
         distance=((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2];

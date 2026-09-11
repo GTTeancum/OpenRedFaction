@@ -121,7 +121,7 @@ Each rejection returns immediately without remaining queries or actor scans.
 This distinction matters even though the normal498e80 return is boolean.
 
 After the rays, the original traverses the entity list at5c95ec until the
-5c9360 sentinel, following28c. It considers class294->74 bit4. The candidate
+5c9360 sentinel, following28c. It considers raw class294->74 bit4. The candidate
 must lie within a3D squared distance of (abs(length)+candidate180)^2. It
 transforms candidate position minus dying actor position into the actor's
 local orientation48. For direction byte1, local Z must be>=0; for byte0,
@@ -130,7 +130,7 @@ when abs(local X)<abs(local Z). Equal magnitudes do not reject. There is no
 explicit self-identity exclusion in this loop. Candidate payload is unchanged.
 
 The independent oracle uses finite dyadic coordinates and four exact yaw
-orientations. It covers noncanonical direction/result upper bytes, class
+orientations. It covers noncanonical direction/result upper bytes, class-word
 filtering, early exits, existing nearby actors and both direction branches.
 It does not establish arbitrary floating-point edge behavior. The C port
 must retain intermediate float rounding and original transform operation
@@ -188,3 +188,29 @@ run on PC; the NXDK build alone does not establish native emulator behavior
 for this new adapter. Prior16384-case original/PC/NXDK clearance comparisons
 remain component evidence. Live registered actor-list construction, retained
 extent/class fields and scene death-start/playback still require integration.
+
+## Class74 provenance correction
+
+The obstacle field is now named `class_word_74`, replacing the misleading
+`class_flags_74`. This is a naming correction; its raw bit test is unchanged.
+The original clearance instruction420ec9 tests byte[class294+74] with4.
+The class parser41b910, however, writes a floating-point eye angle there:
+41bd7c references595100, the string "$Min Relative Eye PHB:";5129d0 parses
+three numbers into6c/70/74;41bd9b..41bdc1 multiply each by the binary32
+radians factor at589428 (0.01745329238474369). Offset74 is the bank component.
+Actual physics flags are at724/728 and must not be substituted here.
+
+`python tools/verify_death_class_word.py` passes4096 supplied parsed-vector
+fixtures through the original conversion instructions, comparing exact
+float stores and untouched class bytes.317 resulting bank words have bit4
+set. The initial harness lacked a mapped stack for an intervening push;
+that setup issue was corrected before these results. This is conversion
+block evidence, not a complete parser execution. PC/NXDK builds and all12
+CTests pass after the field rename.
+
+This appears to be an original offset/bit-test quirk; its intent is unknown.
+Preserve the observed executable behavior. Campaign candidate construction
+must retain the actual authored/default minimum eye bank bits. Existing
+collision fixture words deliberately exercise the bit test and are not
+claims about ordinary miner class values. Live integration remains open
+until this metadata is read and retained faithfully.

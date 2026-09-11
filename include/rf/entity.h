@@ -354,7 +354,8 @@ typedef struct rf_entity_death_clearance_state {
     float position[3],matrix[3][3],height_78,extent_180;
 } rf_entity_death_clearance_state;
 typedef struct rf_entity_death_obstacle {
-    float position[3],extent_180;uint32_t class_flags_74;
+    float position[3],extent_180;
+    uint32_t class_word_74; /* Raw minimum relative eye bank radians, NOT physics flags. */
 } rf_entity_death_obstacle;
 /* Full420d00 with ordered borrowed actor candidates and498e80 ray boundary.
  * Ray callback represents flags1/null optional hit output. Inputs must remain
