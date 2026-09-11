@@ -492,7 +492,7 @@ int rf_entity_pain_react(rf_entity_pain_state *s,const rf_entity_pain_backend *b
     if(action==-1)action=(b->query(b->context,RF_PAIN_COMBAT)&255)==1?23:22;
     if(action<0 || action>=45)return RF_RANGE;
     if(s->motions[action]==-1)return RF_OK;
-    b->effect(b->context,RF_PAIN_BEGIN,s->handle,s->ai_value);
+    b->effect(b->context,RF_PAIN_RESET_WEAPON,s->handle,(uint32_t)s->primary_weapon);
     s->selected_action=action;
     b->effect(b->context,RF_PAIN_START,(uint32_t)action,0);
     b->effect(b->context,RF_PAIN_RESET_COOLDOWN,1000,2000);

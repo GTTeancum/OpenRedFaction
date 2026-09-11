@@ -1247,11 +1247,11 @@ fire-motion field. The C state reads motions[28] directly. AI-enabled query408e9
 reads entity+7d0 bit0; blocked query408ef0 reads its bit100. Other owner queries
 remain supplied, including408ec0's timer path and428d10's playback lookup.
 
-Accepted order is41ae70(handle,AI value), store chosen action828,
+Accepted order is41ae70(handle,primary weapon index), store chosen action828,
 428c90(entity,action,1,0,1), cooldown4fa3b0(1000,2000) at830, current mapped motion
 duration5033e0, then4fa360(trunc(duration*1000+0.5)+250) at744. The duration query
 rereads model and chosen mapping after the earlier callbacks; changing828 during
-start does not change the local chosen index. The backend owns actual AI reset,
+start does not change the local chosen index. The backend owns actual weapon reset,
 action/sound start, timer/RNG and duration lookup. The wrapper allocates nothing.
 
 verify_pain_reaction.py executes complete original428740 and real573528 integer
@@ -1295,3 +1295,14 @@ Report: artifacts/pain-timers.json. Both builds and all nine CTests pass.
 These are prerequisites for the live pain backend, not evidence of a campaign
 flinch or established shared RNG call ordering. No additional XEMU run or visual
 capture is claimed for these currently unconnected routines.
+
+Pain integration ownership correction: entity+2a4 is the primary weapon index,
+not an AI value. The first effect is now named RF_PAIN_RESET_WEAPON and carries
+the signed primary_weapon field as callback argument bits. Its41ae70 callee is
+already reconstructed as rf_weapon_reset (see WEAPON.md): it can stop weapon
+audio, release effects and nonlooping animation, then clears the active weapon
+byte and7d0 bit2000. Do not replace it with an AI reset or unconditional no-op.
+The existing unarmed startup view has index-1, for which original41ae70 returns
+before entity lookup; that does not establish the armed campaign path. The pain
+oracle now varies indices-1,0,1,63,64,INT32_MIN and an arbitrary positive word,
+checking exact forwarding while still supplying the weapon-reset boundary.

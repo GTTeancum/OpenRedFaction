@@ -52,7 +52,7 @@ for case in range(2048):
  action=rng.choice([-1,-1,22,23,24]);fire=rng.choice([-1,3]);motions=[i+100 for i in range(45)]
  if case%5==0:motions[22]=motions[23]=motions[24]=-1
  motions[28]=fire
- state=[0x12340001,0x76540001,42,action]+motions
+ state=[0x12340001,[-1,0,1,63,64,-2147483648,0x76540001][case%7],42,action]+motions
  seconds=rng.choice([0,.0005,.0015,.333333333333,1,1.2345,2.9994999999999,-.1]);mutation=case%5
  wire=w(*state,*facts)+struct.pack('<d',seconds)+w(mutation);inputs.append(wire)
  u.mem_write(b,bytes(0x1500));u.mem_write(b+0x2c,w(state[0]));u.mem_write(b+0x2a4,w(state[1]));u.mem_write(b+0x80,w(state[2]));u.mem_write(b+0x828,w(action));u.mem_write(b+0xc14,w(fire));u.mem_write(b+0x1430,w(b+0x6000))
