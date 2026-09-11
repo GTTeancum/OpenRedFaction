@@ -150,6 +150,18 @@ int main(int argc, char **argv)
         }
         return ferror(stdin) ? 1 : 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--update-count")) {
+        rf_motion_playback_state state;rf_motion_playback_resource *resources;
+        uint32_t count,i;float elapsed;int32_t status;
+        if(fread(&count,4,1,stdin)!=1 || !count || count>800)return 2;
+        resources=calloc(count,sizeof(*resources));if(!resources)return 3;
+        if(fread(&state,sizeof(state),1,stdin)!=1 || fread(resources,sizeof(*resources),count,stdin)!=count ||
+           fread(&elapsed,4,1,stdin)!=1){free(resources);return 4;}
+        status=rf_motion_update(&state,resources,count,elapsed);
+        fwrite(&status,4,1,stdout);fwrite(&state,sizeof(state),1,stdout);
+        for(i=0;i<count;++i)fwrite(&resources[i].references,4,1,stdout);
+        free(resources);return ferror(stdout)?1:0;
+    }
     if (argc == 2 && strcmp(argv[1], "--update") == 0) {
         rf_motion_playback_state state;
         rf_motion_playback_resource resources[32];

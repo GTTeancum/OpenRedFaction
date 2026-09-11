@@ -22,15 +22,18 @@ u.hook_add(UC_HOOK_MEM_READ,lambda uc,access,address,size,value,data:reads.appen
 assets=str(root/'build/pc/Release/rf_entity_assets_probe.exe');motion=str(root/'build/pc/Release/rf_motion_probe.exe')
 entity_probe=str(root/'build/pc/Release/rf_entity_probe.exe');game=root/'Installed_Game'
 defaults={r['entity_class'].lower():r for r in json.loads((root/'artifacts/entity-default-weapons.json').read_text())['rows']}
-controller_mode='--controller' in sys.argv
+advance_mode='--advance' in sys.argv
+controller_mode='--controller' in sys.argv or advance_mode
 if controller_mode:
  xp=pefile.PE(str(root/'build/xbox/main.exe'));xim=xp.get_memory_mapped_image();xb=xp.OPTIONAL_HEADER.ImageBase
  x=Uc(UC_ARCH_X86,UC_MODE_32);x.mem_map(xb,(len(xim)+4095)//4096*4096);x.mem_write(xb,xim);x.mem_map(entity,0x10000)
  xentry=int(re.search(r'_rf_motion_apply_controller\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
 
+ if advance_mode:xupdate=int(re.search(r'_rf_motion_update\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+
 obj=0x30100000;desc=0x30200000;motion_mem=0x30300000;data_mem=0x30400000
 for address in (obj,desc,motion_mem,data_mem):u.mem_map(address,0x10000)
-controller_results=[]
+controller_results=[];advance_results=[]
 initial=struct.pack('<iiffiI',0,-1,0,0,0,0);results=[]
 for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  out=subprocess.check_output([assets,'--catalog',str(game/'levels1.vpp'),str(game/'tables.vpp'),str(game/'motions.vpp'),str(game/'meshes.vpp'),level],text=True)
@@ -90,6 +93,8 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
      for i,r in enumerate(resources):
       m=motion_mem+cache_ids[i]*256;d=data_mem+cache_ids[i]*256
       put(desc+0xf5c+i*4,'<I',m);put(m+0x78,'<I',d);u.mem_write(d+16,r[4:12]);u.mem_write(desc+0x120c+i,r[20:21])
+      u.mem_write(m+0x50,r[24:28]);u.mem_write(m+0x64,r[28:32])
+      u.mem_write(d+36,r[12:20]);put(d+80,'<I',84);u.mem_write(d+84,r[:4])
      wrapper=obj+0x4000;put(wrapper,'<II',2,obj);put(entity+0x80,'<I',wrapper)
      u.mem_write(entity+0x138c,initial[:16]);put(0x5a4014,'<f',delta)
      put(stack,'<II',stop,entity);u.reg_write(UC_X86_REG_ESP,stack);call(0x41f270)
@@ -104,7 +109,8 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
      assert xresult==actual_c,(level,cls,prior,delta,'NXDK controller')
 
      read=lambda offset,size:bytes(u.mem_read(obj+offset,size))
-     state=read(0x12d0,196)+read(0x1cfc,8)+read(0x1d48,4)+struct.pack('<II',read(0x1d4c,1)[0],read(0x1d14,1)[0])+read(0x1d18,32)+read(0x1d04,4)+struct.pack('<II',struct.unpack('<H',read(0x1cf8,2))[0],read(0x1d44,1)[0]|read(0x1d45,1)[0]<<1)
+     project=lambda:read(0x12d0,196)+read(0x1cfc,8)+read(0x1d48,4)+struct.pack('<II',read(0x1d4c,1)[0],read(0x1d14,1)[0])+read(0x1d18,32)+read(0x1d04,4)+struct.pack('<II',struct.unpack('<H',read(0x1cf8,2))[0],read(0x1d44,1)[0]|read(0x1d45,1)[0]<<1)
+     state=project()
      control=bytes(u.mem_read(entity+0x138c,16))+initial[16:]
      assert actual_c[:288]==bytes(4)+state+control,(level,cls,prior,delta,'state/controller')
      refs=struct.unpack('<'+'i'*count,actual_c[288:])
@@ -114,6 +120,26 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
      active=struct.unpack_from('<I',state)[0]
      controller_results.append(dict(level=level,entity_class=cls,delta=delta,prior_action=prior,resources=count,
       controller=list(struct.unpack('<iiff',control[:16])),slots=[list(struct.unpack_from('<iif',state,4+i*12)) for i in range(active)]))
+     if advance_mode:
+      # Factory calls the full wrapper after selector/weighting, with these trailing arguments.
+      put(stack,'<IIf4I',stop,wrapper,delta,0,0,0,1);u.reg_write(UC_X86_REG_ESP,stack);call(0x503360)
+      updated_resources=[r[:32]+struct.pack('<i',refs[i]) for i,r in enumerate(resources)]
+      update_c=subprocess.check_output([motion,'--update-count'],input=struct.pack('<I',count)+state+b''.join(updated_resources)+struct.pack('<f',delta))
+      x.mem_write(stack,struct.pack('<IIIIf',stop,entity,entity+0x2000,count,delta))
+      x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x37f);x.emu_start(xupdate,stop,count=100000)
+      assert x.reg_read(UC_X86_REG_EIP)==stop and x.reg_read(UC_X86_REG_EAX)==0
+      update_x=bytes(4)+bytes(x.mem_read(entity,260))+b''.join(bytes(x.mem_read(entity+0x2000+i*36+32,4)) for i in range(count))
+      assert update_x==update_c,(level,cls,prior,delta,'NXDK advance')
+      advanced=project()
+      assert update_c[:264]==bytes(4)+advanced,(level,cls,prior,delta,'original advance',[(i,update_c[4+i:8+i].hex(),advanced[i:i+4].hex()) for i in range(0,260,4) if update_c[4+i:8+i]!=advanced[i:i+4]])
+      advanced_refs=struct.unpack('<'+'i'*count,update_c[264:])
+      for identity in range(len(cache_names)):
+       original_refs=struct.unpack('<i',u.mem_read(motion_mem+identity*256+0x74,4))[0]
+       assert sum(advanced_refs[i] for i in range(count) if cache_ids[i]==identity)==original_refs
+      active=struct.unpack_from('<I',advanced)[0]
+      advance_results.append(dict(level=level,entity_class=cls,delta=delta,prior_action=prior,
+       slots=[list(struct.unpack_from('<iif',advanced,4+i*12)) for i in range(active)],
+       phase=struct.unpack_from('<f',advanced,248)[0],generation=struct.unpack_from('<I',advanced,252)[0],events=struct.unpack_from('<I',advanced,256)[0]))
    results.append(dict(level=level,entity_class=cls,mode=mode_id,primary=primary,secondary=secondary,prior_action=prior,
     prior_action_reads=sum(a<=0x1380<a+n for a,n in reads),controller=list(struct.unpack('<iiff',actual[:16])),read_fields=sorted({hex(a) for a,n in reads})))
 report=dict(result='PASS',cases=len(results),original_sha256=digest,scope='Full original41f400 selector versus PC priority/movement composition using installed base maps, class flags/movement modes and default weapon IDs. Original402d68 scalar span executes. Fixture zeroes unspecified actor state, uses kind0/no links/nonplayer, zero velocity and no external events; not full factory or first pose/weight update. Field1380 sensitivity is tested, not assumed.',results=results)
@@ -122,3 +148,7 @@ report=dict(result='PASS',cases=len(results),original_sha256=digest,scope='Full 
 if controller_mode:
  report=dict(result='PASS',cases=len(controller_results),original_sha256=digest,scope='Original complete41f270 and actual loaded-motion callees versus PC priority/movement/controller composition. NXDK controller also matches all99 cases. Real catalog envelopes/loop flags, cache aliases and aggregated references; zero/60Hz/30Hz deltas. Actor construction remains an explicit fixture; no503360 playback advance or pose sampling.',results=controller_results)
  (root/'artifacts/npc-initial-controller.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
+
+if advance_mode:
+ report=dict(result='PASS',cases=len(advance_results),original_sha256=digest,scope='Complete original503360/501ab0/51ba80 after41f270 versus PC and NXDK rf_motion_update; loaded catalog envelopes and markers with shared cache aliases. Full compact playback state and aggregated references match. Zero/60Hz/30Hz first advances only; actor construction is a fixture, no pose sampling or live NPC animation.',results=advance_results)
+ (root/'artifacts/npc-initial-advance.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})

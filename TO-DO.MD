@@ -24,6 +24,10 @@ First selector/weighting now matches99 original/PC cases with real envelopes;
 NXDK controller outputs also match. Connect first playback advance and pose
 evaluation, with shared cache lifetime counts across aliased registrations.
 
+First playback advance now matches99 original/PC/NXDK startup cases, including
+cursor, phase and reference totals; all first-frame marker flags are zero.
+Connect pose evaluation and verify subsequent live scheduling and crossings.
+
 Immediate open items:
 - [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.

@@ -251,3 +251,31 @@ must not be reported as animated NPCs or a complete initial pose. Existing nativ
 replay only checks successful catalog loading and its established door/audio path.
 
 Both builds and nine CTest checks pass. Stock64MiB XEMU replay `artifacts/xemu/replay-20260911-080246/report.json` passes180 frames after envelope retention; its coverage remains loading and existing door/audio behavior.
+
+## First loaded playback advance
+
+`python tools/inspect_npc_initial_selection.py --advance` extends the same99
+startup cases through the complete original503360 wrapper,501ab0 and51ba80.
+Factory instructions4231f0..42320d establish the ordering after41f270 and the
+arguments `(wrapper, delta, 0, 0, 0, 1)`. Loaded descriptors now contain the
+catalog marker ticks, fade fields and first-track comparison weight as well as
+start/end ticks. Their minimal track directory is a fixture, not the original
+complete asset loader.
+
+All99 PC and compiled NXDK updates match the original compact260-byte playback
+state and shared-cache reference totals. This includes stale slots, selected
+indices, auxiliaries, phase, generation and event flags. The report is local at
+`artifacts/npc-initial-advance.json`; the variable-count PC probe is
+`rf_motion_probe --update-count`. Original and NXDK instruction execution use
+x87 control word0x37f, consistent with the earlier playback oracle.
+
+For example, L1S1 miner1 starts at tick160 with delta0 and reaches240/320 with
+1/60 and1/30 second deltas; generation becomes2 in all three. Fish at delta0
+loses its zero-weight slot during completion, while positive deltas retain the
+weighted slot. Every covered first advance has event mask0: matching marker
+flags here does not prove actual footstep crossing or sound consumption.
+
+The PC build and nine CTest checks pass. NXDK code is unchanged and its existing
+compiled update executes in the oracle; no new native XEMU run was necessary
+for this harness-only change. Full actor construction, subsequent live selector
+scheduling, shared cache lifetime ownership and pose evaluation remain open.
