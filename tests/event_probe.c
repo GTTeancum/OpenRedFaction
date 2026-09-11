@@ -128,6 +128,17 @@ int main(int argc,char **argv)
         links[2]=(rf_level_link_target){items[2].handle,1,0};
         items[1].state.type=51;items[1].links=&force_link;authored[1].links=&uid;authored[1].record.link_count=1;
         items[2].state.type=17;region.uid=91;region.active=1;
+        /* Initialization changes trigger/type17 state but does not activate
+         * the linked force event, schedule work, toggle, count or play audio. */
+        triggers.switch_backend=&backend;backend.sound=NULL;state.disabled=1;
+        if(rf_runtime_switch_initialize(&triggers,items[0].handle) || region.active!=1 ||
+            !(target.state.flags&16) || !(items[2].state.flags&1) || context.sounds || state.activations ||
+            state.disabled!=1 || items[0].state.deadline!=-1 || items[1].state.deadline!=-1)return 151;
+        state.disabled=0;
+        if(rf_runtime_switch_initialize(&triggers,items[0].handle) || region.active!=1 ||
+            target.state.flags&16 || items[2].state.flags&1 || context.sounds || state.activations)return 152;
+        if(rf_runtime_switch_initialize(&triggers,target.handle)!=RF_NOT_FOUND)return 153;
+        backend.sound=switch_runtime_sound;triggers.switch_backend=NULL;
         if(rf_runtime_event_fire(&triggers,items[0].handle,77,88,100,&gravity,NULL,&forces,&report) || items[0].state.deadline!=200)return 145;
         if(rf_runtime_events_tick(&events,&triggers,&gravity,200,NULL,&forces,&report,&pending) || pending!=1 || region.active!=1)return 146;
         triggers.switch_backend=&backend;

@@ -504,3 +504,22 @@ sounds/lights/renderable objects, controller action ownership, sound
 loading/playback and linked initialization still need their real resource
 connections. These are shared runtime fixtures, not native authored Switch
 reactivation or complete campaign proof.
+
+
+### Runtime linked initialization entry
+
+`rf_runtime_switch_initialize` applies one live registered Switch's
+starting state through the resolved-link backend. It calls the same
+routing path with initial1, matching original4bc330 ->4bc340. It does
+not toggle the Switch, increment its activation count, schedule it or
+request activation audio. Lookup/dispatch callbacks are required; an
+audio callback is deliberately unnecessary for this step. Caller owns
+placement/order in the larger level initialization lifecycle.
+
+The runtime fixture applies disabled and enabled starting states, checking
+trigger/type17 flags while the linked force event remains untouched. It
+then exercises the existing delayed/live toggles and backend failure path.
+The original routing verifier now enters4bc330 for initialization1 cases,
+and all3,072 original/PC/NXDK traces still match. All eight CTests and the
+Xbox build pass. This is a runtime initialization entry, not a claim that
+live campaign resources or full original initialization ordering are wired.

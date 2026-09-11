@@ -66,7 +66,7 @@ for disabled,initial,mask,damage,renderable in itertools.product((0,1,2),(0,1,25
    if family==4:u.mem_write(target+0x290,w(17 if damage else 51))
    if family==5:u.mem_write(target+0x80,w(renderable))
  trace=[];u.mem_write(stack,w(stop,initial));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_ECX,base)
- u.emu_start(0x4bc340,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
+ u.emu_start(0x4bc330 if initial==1 else 0x4bc340,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
  expected=[]
  for i,link in enumerate((100,200)):
   early=False
@@ -95,5 +95,5 @@ for disabled,initial,mask,damage,renderable in itertools.product((0,1,2),(0,1,25
  cases+=1
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_event_probe.exe'),'--switch-links'],input=commands)
 assert actual==results,'PC lookup/effect trace differs'
-report=dict(result='PASS',cases=cases,effect_counts=effect_counts,original_sha256=digest,scope='Original4bc340 ordered linked routing and actual list callees. Six resolver boundaries supply independent synthetic target availability; downstream effects observed, not executed. Exact lookup/effect order, arguments, priority, dual event/object path, type17 special flag updates, initial low-byte suppression, renderable gating and disabled0/1/other. Shared PC/NXDK ordered traces and source/actor arguments match; campaign owner integration remains separate.')
+report=dict(result='PASS',cases=cases,effect_counts=effect_counts,original_sha256=digest,scope='Original4bc340 ordered linked routing, including4bc330 initialization entry for initial1, and actual list callees. Six resolver boundaries supply independent synthetic target availability; downstream effects observed, not executed. Exact lookup/effect order, arguments, priority, dual event/object path, type17 special flag updates, initial low-byte suppression, renderable gating and disabled0/1/other. Shared PC/NXDK ordered traces and source/actor arguments match; campaign owner integration remains separate.')
 (root/'artifacts/switch-link-routing.json').write_text(json.dumps(report,indent=2));print(report)

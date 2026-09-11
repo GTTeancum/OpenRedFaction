@@ -362,16 +362,34 @@ static int startup_switch_dispatch(void *context,const rf_switch_request *reques
     if(!status && child.event->state.deadline>=0)++c->report->delayed_events;
     return status;
 }
-static void startup_switch_effect(void *context,const rf_switch_state *state,uint32_t effect)
+static int startup_switch_links(startup_context *c,const rf_switch_state *state,uint32_t initial)
 {
-    startup_context *c=context;uint32_t i;const rf_runtime_switch_backend *b=c->triggers->switch_backend;
-    if(c->status)return;
-    if(effect) {c->status=b->sound(b->context,c->event,effect,c->now);return;}
+    uint32_t i;
+    if(!c->event->authored || (c->event->authored->record.link_count && !c->event->links))return RF_RANGE;
     for(i=0;i<c->event->authored->record.link_count && !c->status;++i) {
         uint32_t value=c->event->links[i].value;rf_event_links link={1,&value};
-        c->status=rf_event_switch_links(state,&c->event->state,&link,0,
+        c->status=rf_event_switch_links(state,&c->event->state,&link,initial,
             startup_switch_lookup,startup_switch_dispatch,c);
     }
+    return c->status;
+}
+int rf_runtime_switch_initialize(rf_runtime_triggers *triggers,uint32_t handle)
+{
+    startup_context c={0};rf_runtime_event *event;const rf_runtime_switch_backend *b;
+    if(!triggers || !triggers->registry)return RF_RANGE;
+    b=triggers->switch_backend;if(!b || !b->lookup || !b->dispatch)return RF_RANGE;
+    event=rf_object_registry_lookup(triggers->registry,handle);
+    if(!event || event->object_kind!=6 || event->state.type!=32)return RF_NOT_FOUND;
+    if(!event->switch_state)return RF_RANGE;
+    c.triggers=triggers;c.event=event;
+    return startup_switch_links(&c,event->switch_state,1);
+}
+static void startup_switch_effect(void *context,const rf_switch_state *state,uint32_t effect)
+{
+    startup_context *c=context;const rf_runtime_switch_backend *b=c->triggers->switch_backend;
+    if(c->status)return;
+    if(effect)c->status=b->sound(b->context,c->event,effect,c->now);
+    else c->status=startup_switch_links(c,state,0);
 }
 static void startup_event_action(void *context,rf_event_state *state,uint32_t action,
     uint32_t source,uint32_t actor,uint32_t mode)

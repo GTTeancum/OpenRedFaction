@@ -251,6 +251,12 @@ typedef struct rf_runtime_triggers {
 int rf_runtime_triggers_open(const rf_level *level,rf_object_registry *registry,
     uint32_t budget,int32_t now,rf_runtime_triggers *result);
 void rf_runtime_triggers_close(rf_runtime_triggers *triggers);
+/* Apply one registered Switch's initial linked state (original4bc330 ->
+ * 4bc340(initial=1)). Requires live resolved links and lookup/dispatch backend;
+ * no sound callback required. Does not toggle/count/schedule this Switch or
+ * activate ordinary linked events. Caller owns ordering in the larger level
+ * initialization lifecycle; repeated calls reapply effects. No rollback. */
+int rf_runtime_switch_initialize(rf_runtime_triggers *triggers,uint32_t handle);
 /* Rebuild targets from retained UIDs using original object-first/key-fallback
  * resolution. Views must follow original lookup order and stay stable during
  * the call. Missing targets retain the UID with kind 0. No dispatch, entity
