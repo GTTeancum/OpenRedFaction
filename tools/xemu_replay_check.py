@@ -186,6 +186,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      owned=words(monitor,symbol('rf_scene_campaign_events'),3)
      assert owned[0]==expected('CAMPAIGN_EVENTS')[0] and owned[1]<=1024*1024
      report['campaign_events']=owned
+     switches=words(monitor,symbol('rf_scene_switch_state'),3)
+     assert switches==expected('SWITCH_STATE'),switches
+     report['switch_state']=switches
      triggers=words(monitor,symbol('rf_scene_campaign_triggers'),2)
      assert triggers[0]==expected('CAMPAIGN_TRIGGERS')[0] and triggers[1]<=1024*1024
      report['campaign_triggers']=triggers

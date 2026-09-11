@@ -588,7 +588,8 @@ int rf_runtime_events_resolve(rf_runtime_events *events,
 int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
     uint32_t budget,rf_runtime_events *result)
 {
-    rf_runtime_events value={0};uint64_t bytes;uint32_t i,j;int status;
+    rf_runtime_events value={0};uint64_t bytes,link_bytes=0;uint32_t i,j,switch_count=0;int status;
+    rf_switch_state *switch_cursor=NULL;
     rf_level_link_target *cursor=NULL;
     if(!level || !registry || !result || result->items || result->decoded.storage ||
        result->count || result->registry || budget<sizeof(value))return RF_RANGE;
@@ -597,16 +598,24 @@ int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
     if(status)return status;
     bytes=sizeof(value)+(uint64_t)value.decoded.allocated_bytes+
         (uint64_t)value.decoded.count*sizeof(*value.items);
-    for(i=0;i<value.decoded.count;++i)bytes+=(uint64_t)value.decoded.items[i].record.link_count*sizeof(*cursor);
-    if(bytes>budget || value.decoded.count>registry->count) {status=RF_RANGE;goto failed;}
     for(i=0;i<value.decoded.count;++i) {
         const rf_level_event *record=&value.decoded.items[i].record;
-        if(rf_event_type_id(record->type)<0 || !isfinite(record->delay)) {status=RF_FORMAT;goto failed;}
+        int32_t type=rf_event_type_id(record->type);
+        if(type<0 || !isfinite(record->delay)) {status=RF_FORMAT;goto failed;}
+        link_bytes+=(uint64_t)record->link_count*sizeof(*cursor);
+        if(type==32) {
+            rf_switch_state checked;
+            status=rf_event_switch_init(&checked,record->words[0],(int32_t)record->words[1],record->values[0],record->flags[0]);
+            if(status)goto failed;++switch_count;
+        }
     }
+    bytes+=link_bytes+(uint64_t)switch_count*sizeof(*switch_cursor);
+    if(bytes>budget || value.decoded.count>registry->count) {status=RF_RANGE;goto failed;}
     if(value.decoded.count) {
         value.items=calloc(1,(size_t)(bytes-sizeof(value)-value.decoded.allocated_bytes));
         if(!value.items) {status=RF_RANGE;goto failed;}
         cursor=(rf_level_link_target *)(value.items+value.decoded.count);
+        switch_cursor=(rf_switch_state *)((unsigned char *)cursor+(size_t)link_bytes);
     }
     value.registry=registry;value.allocated_bytes=(uint32_t)bytes;
     for(i=0;i<value.decoded.count;++i) {
@@ -618,6 +627,12 @@ int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
         }
         item->state.type=(uint32_t)rf_event_type_id(item->authored->record.type);
         item->state.delay=item->authored->record.delay;item->state.deadline=-1;
+        if(item->state.type==32) {
+            const rf_level_event *record=&item->authored->record;
+            item->switch_state=switch_cursor++;
+            status=rf_event_switch_init(item->switch_state,record->words[0],(int32_t)record->words[1],record->values[0],record->flags[0]);
+            if(status)goto failed;
+        }
         /* Generic creator clears flags; actor/source/mode start deterministically
          * at zero here, instead of preserving original uninitialized storage. */
         status=rf_object_registry_insert(registry,item,&item->handle);

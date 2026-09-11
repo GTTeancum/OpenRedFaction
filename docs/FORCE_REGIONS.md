@@ -408,3 +408,26 @@ fixtures; recursive callback mutations are not yet a separate proof.
 Existing force-event and particle-event integration probes pass, and the
 Xbox build succeeds. Campaign resource resolvers, Switch lifecycle and
 sound ownership remain to be connected before native reactivation tests.
+
+
+### Persistent Switch ownership
+
+Runtime events now hold a nullable Switch-state pointer. The existing event
+owner allocates one compact20-byte state block per type32 event at the end
+of its single runtime/link allocation. Other types have no extra state
+block; every event gains one pointer. Budgets include both changes.
+Initial fields are validated before registry insertion and initialized
+through the verified mapping. Closing the owner frees all state together.
+
+`verify_runtime_events.py` passes all4,446 events across93 levels, including
+all83 Switches. It checks independent state storage and authored values
+after archive close, exact-budget success, one-byte-short rejection,
+registry cleanup and repeated close. PC peak owner size is223,356 bytes.
+All seven CTests pass; PC and Xbox builds succeed.
+
+`SWITCH_STATE` / `rf_scene_switch_state` expose Switch count, enabled count
+and ordered full-state hash after startup and event ticks. Native64MiB
+XEMU replay-20260910-214358 passes the existing120-frame L1S2 force fixture
+with this telemetry matching PC. This validates initialized ownership
+in the running Xbox build, not Switch-driven activation: resource
+backends, linked initialization lifecycle and audio are still open.

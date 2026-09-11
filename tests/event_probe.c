@@ -596,6 +596,15 @@ int main(int argc,char **argv)
         for(i=0;i<events.count;++i) {
             uint32_t j;rf_runtime_event *e=events.items+i;
             if(rf_event_type_id(e->authored->record.type)<0)return 9;
+            if(e->state.type==32) {
+                const rf_level_event *record=&e->authored->record;
+                rf_switch_state *s=e->switch_state;
+                if(!s || s->disabled!=record->words[0] || (uint32_t)s->limit!=record->words[1] ||
+                   s->mode!=(int32_t)record->values[0] || s->unlimited!=(record->flags[0]&255u) || s->activations)return 137;
+                /* Distinct persistent storage: mutating prior switches must not
+                 * corrupt this switch's initialization or any authored links. */
+                s->activations=0x12345678;s->disabled^=1u;
+            } else if(e->switch_state)return 138;
             for(j=0;j<e->authored->record.link_count;++j)
                 if(e->links[j].value!=e->authored->links[j] || e->links[j].kind || e->links[j].index!=UINT32_MAX)return 9;
         }

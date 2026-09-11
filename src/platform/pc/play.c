@@ -22,7 +22,7 @@ extern uint32_t rf_preview_failure[8],rf_animation_progress[4];
 extern rf_physics_body scene_actor_body;
 extern rf_startup_events_report rf_scene_startup_events;
 extern uint32_t rf_scene_startup_gravity[4];
-extern uint32_t rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
+extern uint32_t rf_scene_switch_state[3],rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
 extern uint32_t rf_scene_campaign_event_links[4],rf_scene_campaign_groups[5],rf_scene_campaign_movers[3],rf_scene_campaign_memberships[5];
 extern uint32_t rf_scene_campaign_forces[3],rf_scene_force_state[3];
 extern uint32_t rf_scene_force_ticks[12];
@@ -273,6 +273,7 @@ int main(int argc,char **argv)
             printf("CAMPAIGN_EVENT_LINKS %u %u %u %u\n",rf_scene_campaign_event_links[0],rf_scene_campaign_event_links[1],rf_scene_campaign_event_links[2],rf_scene_campaign_event_links[3]);
             printf("CAMPAIGN_EVENT_TICKS");for(uint32_t tick_word=0;tick_word<12;++tick_word)printf(" %u",rf_scene_event_ticks[tick_word]);puts("");
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
+            printf("SWITCH_STATE %u %u %u\n",rf_scene_switch_state[0],rf_scene_switch_state[1],rf_scene_switch_state[2]);
             printf("CAMPAIGN_EVENTS %u %u %u\n",rf_scene_campaign_events[0],rf_scene_campaign_events[1],rf_scene_campaign_events[2]);
             const void *records[7]={rf_scene_actor_initial_animation,rf_scene_actor_initial_eye_offsets,&rf_scene_actor_stance_cache,rf_scene_actor_selector_frames,rf_scene_actor_locomotion_frames,rf_scene_player_climb,rf_scene_player_climb_frames};
             const char *labels[7]={"PLAYER_INITIAL_ANIMATION","PLAYER_CLASS_EYE","PLAYER_CLASS_STANCE","PLAYER_STANCE_FRAMES","PLAYER_MOTION_FRAMES","PLAYER_CLIMB","PLAYER_CLIMB_FRAMES"};

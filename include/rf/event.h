@@ -113,6 +113,7 @@ typedef struct rf_runtime_event {
     rf_event_state state;
     const rf_level_owned_event *authored;
     rf_level_link_target *links;
+    rf_switch_state *switch_state; /* type32 only; shares the owner's allocation */
 } rf_runtime_event;
 typedef struct rf_runtime_events {
     rf_level_owned_events decoded;
@@ -124,7 +125,8 @@ typedef struct rf_runtime_events {
  * a caller-owned, initialized registry. Budget includes owners and payloads,
  * excluding registry/allocator overhead. Destination must be empty. Registry
  * must remain alive and registrations must stay owned here until close.
- * Common state only: type-specific construction/actions remain separate.
+ * Includes initialized persistent Switch state for type32, with no link/audio
+ * side effects at allocation time. Other type-specific state remains separate.
  * Source archive may close after success; close removes handles before freeing.
  * Invalid inputs, insufficient budget/capacity preserve output and registry. */
 int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
