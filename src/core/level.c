@@ -666,12 +666,29 @@ int rf_group_motion_activate(rf_group_motion_state *state,uint32_t key_count)
     state->flags|=8;if(state->mode==1)state->flags&=~1u;
     return RF_OK;
 }
-int rf_group_motion_stop(rf_group_motion_state *state,float *speed,uint32_t *control_308)
+int rf_group_motion_stop(rf_group_motion_state *state,float *speed,float *ramp_elapsed)
 {
-    if(!state || !speed || !control_308)return RF_RANGE;
-    if(state->flags&0x40u) {*control_308=0;state->flags|=0x20u;}
+    if(!state || !speed || !ramp_elapsed)return RF_RANGE;
+    if(state->flags&0x40u) {*ramp_elapsed=0;state->flags|=0x20u;}
     else state->next_key=-1;
     *speed=0;return RF_OK;
+}
+int rf_group_rotation_ramp(rf_group_motion_state *state,float *ramp_elapsed,
+    float acceleration,float deceleration,float dt,float *scale)
+{
+    rf_group_motion_state value;float elapsed,result;double factor=1;
+    if(!state || !ramp_elapsed || !scale || !isfinite(*ramp_elapsed) ||
+       !isfinite(acceleration) || !isfinite(deceleration) || !isfinite(dt))return RF_RANGE;
+    value=*state;elapsed=(float)((double)*ramp_elapsed+dt);if(!isfinite(elapsed))return RF_RANGE;
+    if(value.flags&0x10u) {
+        factor=(double)elapsed/acceleration;
+        if(factor>=1) {factor=1;value.flags&=~0x10u;}
+    } else if(value.flags&0x20u) {
+        factor=1-(double)elapsed/deceleration;
+        if(!(factor>0)) {factor=0;value.next_key=-1;value.flags&=~0x20u;elapsed=0;}
+    }
+    result=(float)factor;if(!isfinite(result))return RF_RANGE;
+    *state=value;*ramp_elapsed=elapsed;*scale=result;return RF_OK;
 }
 int rf_group_activation_begin(rf_group_motion_state *state,uint32_t key_count,
     uint32_t controller_handle,rf_group_activation_actor *actor,uint32_t *started)

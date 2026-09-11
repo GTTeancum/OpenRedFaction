@@ -453,3 +453,28 @@ no-op helper, without hooked callees. The verifier checks all1,024 original
 object bytes for unintended writes and adds three lookup rejection cases.
 The Xbox build succeeds. This resolves the off-action prerequisite but
 does not yet connect Switch to campaign controllers or complete+308 ownership.
+
+
+### Identified controller+308 and rotation ramp
+
+Controller+308 is floating-point rotation ramp elapsed time, initialized
+to zero by469250 and advanced by dt in46a3d0. Acceleration flag10 uses
+elapsed/key+40; deceleration flag20 uses1-elapsed/key+44. Flag10 takes
+precedence if both are present. Finishing acceleration clears10; finishing
+deceleration clears20, sets next_key=-1, and resets elapsed. Arrival/leg
+transitions also reset this elapsed field. The stop API now names it
+`ramp_elapsed` and accepts a float pointer instead of provisional raw bits.
+
+`rf_group_rotation_ramp` reconstructs46a4d3..46a55f. The verifier passes
+1,025 PC/NXDK/original cases at explicit53-bit x87 precision, comparing
+all motion fields, elapsed and the stored float view of the scale. This
+includes zero-duration boundaries and the original unordered comparison:
+zero elapsed / zero deceleration duration clamps the factor to0 and
+completes the stop. The existing1,024-case controller-stop proof still
+passes after the pointer type/name correction. Xbox builds successfully.
+
+The original keeps the factor in an x87 register for later angle math.
+The returned float factor must not be treated as proof of complete angle
+integration; that larger arithmetic path requires its own reconstruction.
+Rotating-controller ownership/pose updates and Switch campaign integration
+remain open; this is not a new native visual milestone.

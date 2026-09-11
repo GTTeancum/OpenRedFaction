@@ -92,8 +92,17 @@ static int geometry_body_fixture_run(const body_fixture *input,rf_geometry_body_
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--group-ramp")) {
+        struct {rf_group_motion_state motion;float elapsed,acceleration,deceleration,dt;} input;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            float scale=123;int status=rf_group_rotation_ramp(&input.motion,&input.elapsed,input.acceleration,input.deceleration,input.dt,&scale);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&input,28,1,stdout)!=1 || fwrite(&scale,4,1,stdout)!=1)return 141;
+        }
+        return ferror(stdin)?142:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--group-stop")) {
-        struct {rf_group_motion_state motion;float speed;uint32_t control;} input;
+        struct {rf_group_motion_state motion;float speed,control;} input;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(&input,sizeof(input),1,stdin)==1) {
             int status=rf_group_motion_stop(&input.motion,&input.speed,&input.control);

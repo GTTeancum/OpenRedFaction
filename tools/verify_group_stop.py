@@ -37,5 +37,5 @@ for kind,registered in ((8,0),(8,base),(6,base)):
  u.mem_write(base,bytes(raw));u.mem_write(0x7394cc,w(registered));u.mem_write(stack,w(stop,handle));u.reg_write(UC_X86_REG_ESP,stack)
  u.emu_start(0x46b5b0,stop,count=10000);assert u.reg_read(UC_X86_REG_EIP)==stop and bytes(u.mem_read(base,1024))==raw
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--group-stop'],input=commands);assert actual==expected
-report=dict(result='PASS',cases=1024,lookup_rejections=3,original_sha256=digest,scope='Complete46b5b0, actual46afa0/40a0e0 typed generation lookup and no-op46b610, no hooks. Whole original controller unchanged except verified fields; shared PC/NXDK motion/speed/raw308 exact. Synthetic arbitrary bit patterns and flag20/40 combinations. Campaign stop integration and meaning of308 remain open.')
+report=dict(result='PASS',cases=1024,lookup_rejections=3,original_sha256=digest,scope='Complete46b5b0, actual46afa0/40a0e0 typed generation lookup and no-op46b610, no hooks. Whole original controller unchanged except verified fields; shared PC/NXDK motion/speed/raw308 exact. Synthetic arbitrary bit patterns and flag20/40 combinations. Campaign stop integration and rotation runtime ownership remain open.')
 (root/'artifacts/group-stop.json').write_text(json.dumps(report,indent=2));print(report)
