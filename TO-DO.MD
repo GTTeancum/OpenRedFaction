@@ -19,6 +19,7 @@ Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Connect verified impact amount and force-region suppression to NPC contact ownership and the shared damage backend using registered skeletal owners.
+- [ ] Connect retained class damage factors and persistent NPC health/armor to the shared damage dispatcher and its pain/death/burn/AI effects.
 - [ ] Wire NPC world/support callbacks into the shared standing transition and normal/slow landing, then special class effects.
 - [ ] Extend motion residency to changing selections and verify transition/eviction ownership.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.

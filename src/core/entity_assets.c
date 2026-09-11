@@ -768,6 +768,30 @@ int rf_entity_movement_load(rf_vpp *tables,const char *name,uint32_t budget,rf_e
 done:
     free(text);return status;
 }
+int rf_entity_damage_factors_read(const void *text,uint32_t bytes,const char *name,float factors[11])
+{
+    static const char *names[]={"bash","bullet","armor piercing bullet","explosive","fire","energy","electrical","acid","scalding"};
+    lexer l={(const unsigned char*)text,bytes,0};float value[11];
+    char t[256];int status,quoted,found=0;uint32_t i;
+    if(!text || !name || !*name || !factors)return RF_RANGE;
+    for(i=0;i<11;++i)value[i]=1;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            found=same(t,name);
+        } else if(found && same(t,"$Damage")) {
+            if(token(&l,t,&quoted) || quoted || !same(t,"Type"))return RF_FORMAT;
+            if(token(&l,t,&quoted) || quoted || !same(t,"Factor:"))return RF_FORMAT;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            for(i=0;i<9;++i)if(same(t,names[i]))break;
+            if(i==9 || sphere_number(&l,&value[i]))return RF_FORMAT;
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;memcpy(factors,value,sizeof(value));return RF_OK;
+}
 int rf_entity_vitals_config_read(const void *text,uint32_t bytes,const char *name,
     rf_entity_creation_vitals_class *result)
 {
@@ -2116,6 +2140,7 @@ int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf
             const char *name=v.records.items[i].record.class_name;
             v.classes[j].record_index=i;
             status=rf_entity_vitals_config_read(text,entry.size,name,&v.classes[j].vitals);if(status)goto done;
+            status=rf_entity_damage_factors_read(text,entry.size,name,v.classes[j].damage_factors);if(status)goto done;
             status=rf_entity_class_physics_read(text,entry.size,name,&v.classes[j].physics);if(status)goto done;
             status=rf_entity_lod_distances_read(text,entry.size,name,&v.classes[j].lod);if(status)goto done;
             status=rf_entity_assets_read(text,entry.size,name,"",&assets);if(status)goto done;

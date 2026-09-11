@@ -197,12 +197,18 @@ typedef struct rf_entity_lod_distances {
 int rf_entity_lod_distances_read(const void *text,uint32_t bytes,const char *name,
     rf_entity_lod_distances *result);
 
+/* Original41bd0d..41bd7c: eleven default1 factors, named overrides in order.
+ * Name IDs follow48ab50/59f7b4; duplicate factors use the last value.
+ * Selected class only, finite numbers, unknown names fail without output writes. */
+int rf_entity_damage_factors_read(const void *text,uint32_t bytes,const char *name,float factors[11]);
+
 typedef struct rf_entity_seed_class {
     uint32_t record_index;
     char model[64];uint32_t model_kind;
     rf_entity_creation_vitals_class vitals;
     rf_entity_class_physics physics;
     rf_entity_lod_distances lod;
+    float damage_factors[11];
 } rf_entity_seed_class;
 typedef struct rf_entity_seed {
     uint32_t class_index;

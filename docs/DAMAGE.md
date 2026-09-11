@@ -1093,3 +1093,44 @@ shared owner-clear invocation is observed. Existing437 pool checks and eight
 CTests pass, as do both full builds. Evidence: artifacts/burn-resource-release.json.
 Real audio backend and persistent NPC ownership/scheduling remain open before
 this resource path can be exercised in live XEMU campaign gameplay.
+
+
+## Owned class damage factors (2026-09-11)
+
+rf_entity_damage_factors_read loads all eleven class multipliers from entity.tbl
+and rf_entity_seeds_open retains them once per loaded class. The original entity
+loader41bd0d..41bd7c initializes class+13e8 through+1410 to1.0, then overwrites
+named entries in authored order. Damage41a350 reads class+13e8+kind*4; kind-1
+bypasses scaling. Disassembly confirms the class loader and consumer offsets.
+The similar common-object loader40f72b was inspected first; the final oracle
+executes the entity-specific41bd0d block.
+
+Original48ab50 searches pointer table59f7b4 with57c130 case-insensitive matching.
+Its first nine names are bash, bullet, armor piercing bullet, explosive, fire,
+energy, electrical, acid and scalding. Slots9/10 have null name pointers, not
+empty strings; they still receive default1. Unknown/empty names are rejected
+by the port instead of following the original invalid-pointer path. Repeated
+valid entries use the last value. Finite negative values are not clamped.
+
+All63 installed classes match original numeric initialization and override
+stores on both PC and compiled NXDK. There are89 overrides across54 classes;
+miner1 and env_guard both scale armor-piercing damage by1.5. Two additional
+cases check default-only and mixed-case duplicate overrides. Six port-only
+malformed/unknown/nonfinite cases preserve all44 output bytes on PC/NXDK.
+verify_entity_damage_factors.py supplies parser token/string/float boundaries,
+but executes original class writes, string-wrapper lookup,48ab50 and57c130.
+It compares all11 factors and the complete prepared0x1514-byte original class
+record, ensuring unrelated original fields remain untouched. This is not a
+claim that the original tokenizer itself has been executed.
+
+Owned seed-class residency increases44 bytes per unique class, already counted
+in the existing seed resident/peak budget. Table scratch is reused; no new
+per-actor factor copy or allocation. Three opening PC replays retain their
+body/support results. Both builds and all nine CTests pass. Stock64MiB XEMU
+passes180 door frames: artifacts/xemu/replay-20260911-132919/report.json, with
+base RAM67108864 and plugged memory0. The native replay exercises class loading;
+the direct NXDK oracle checks every factor value. No new visual capture.
+
+Actual NPC damage dispatch still needs persistent damage-state ownership and
+pain/death/burn/AI effects. The retained factors should feed rf_entity_damage_sp
+rather than an assumed1.0 multiplier; loading them alone does not change health.
