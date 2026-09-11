@@ -3,6 +3,15 @@
 #include "rf/vpp.h"
 #include "rf/movement.h"
 #include "rf/physics.h"
+#include "rf/entity.h"
+
+typedef struct rf_player_entity_link {int32_t entity_handle;} rf_player_entity_link;
+/* Original4a4920/4a4940 normalized boolean results. A missing player/entity is
+ * dead but not dying; a resolved type0 entity is dying only for flags810 bit1.
+ * These queries do not infer phase from health or mutate lifetime/camera state.
+ * link represents the player+14 field, not the original player layout. */
+uint32_t rf_player_is_dead(const rf_entity_registry *registry,const rf_player_entity_link *link);
+uint32_t rf_player_is_dying(const rf_entity_registry *registry,const rf_player_entity_link *link);
 
 typedef struct rf_player_force_state {
     float velocity[3];uint32_t physics_flags;float alternate_cap;

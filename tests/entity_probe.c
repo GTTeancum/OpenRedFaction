@@ -328,6 +328,20 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--player-phase")) {
+        uint32_t words[6],output[2];rf_entity_registry registry;rf_entity_view view;rf_player_entity_link link;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(words,sizeof(words),1,stdin)==1) {
+            uint32_t slot=words[1]&0xffffu;
+            memset(&registry,0,sizeof(registry));memset(&view,0,sizeof(view));
+            link.entity_handle=(int32_t)words[1];view.handle=(int32_t)words[2];view.type=(int32_t)words[3];view.flags_810=words[4];
+            if(words[5] && slot<RF_OBJECT_SLOTS)registry.slots[slot]=&view;
+            output[0]=rf_player_is_dead(&registry,words[0]?&link:NULL);
+            output[1]=rf_player_is_dying(&registry,words[0]?&link:NULL);
+            fwrite(output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--player-sound")) {
         rf_player_sound_input input;rf_player_sound_request result;
         _Static_assert(sizeof(input)==36 && sizeof(result)==32,"Player sound wire layout");

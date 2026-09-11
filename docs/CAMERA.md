@@ -4288,3 +4288,40 @@ The guest DSP ring contains nonzero mixed output. Player audio telemetry is
 [5,3,3,3,49734,145,415139642,0,783005945]: five notifications, three selections,
 three plays/loads and zero errors. NPC audio and the normal replay checks pass.
 No isolated waveform, host listening or complete death lifecycle claim follows.
+
+
+## Original player dead/dying identity and death handoff
+
+Dash Faction's local rf/player/player.h supplied candidate addresses4a4920,
+4a4940 and4a2700; raw RF.exe disassembly and Ghidra exports verify the behavior.
+4a4920 reports dead for NULL player or when player+14 fails426fc0 lookup.
+4a4940 reports dying only for a present type0 entity whose flags810 bit1 is set.
+The original exposes useful low-byte booleans with incidental high EAX bits;
+shared rf_player_is_dead/rf_player_is_dying return normalized0/1. Both use the
+existing generation-checked entity registry through a compact borrowed
+rf_player_entity_link. Neither query reads health or writes state. This link is
+not a recovered whole player object or a new campaign ownership replacement.
+
+verify_player_phase.py executes both complete original functions with real
+426fc0 and40a0e0 lookup and no replaced callees. The4096 cases cover NULL owner,
+absent slot, stale generation, slot overflow, signed handles, nonentity types,
+flags and randomized original health (including negative/zero/NaN). Original
+owner bytes remain unchanged; both PC and compiled NXDK match normalized
+results. Counts are3896 dead and87 dying cases. Both builds and all12 CTests
+pass. These are executable query checks, not a native death transition test.
+
+Entity frame41e4b0 checks health at41e84b..41e85c, calls41fdc0 for the death
+start, then queries427020 and invokes41ee40 on the dying branch. This is a
+separate lifecycle boundary from damage41a350 and pain/death audio4196f0.
+41fdc0 rejects an already-dying entity, clears vectors, sets flags810 bit1 at
+41fe49 and clears body1a8 bit8000. It then handles timers, action selection,
+player-specific work and corpse/network ownership across a3637-byte routine.
+Its complete single-player effects have not yet been reconstructed.
+
+Player frame4a2700 runs its active path only with a resolved nondying entity.
+Its inactive path checks4a5b30 (player+b4 resolves to object type5), may clear
+b4, then stops exposure sound at1150 and resets that handle to-1. It does not
+simply disable input because health is nonpositive. Death sound flag810 bit4
+must not be substituted for dying bit1. Next work is to reconstruct41fdc0,
+41ee40 and their player/camera handoff before attaching lifecycle gating to
+the campaign. No fabricated dying flag or health-only control disable was added.

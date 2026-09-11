@@ -2,6 +2,13 @@
 #include "rf/collision.h"
 #include <string.h>
 #include <math.h>
+uint32_t rf_player_is_dead(const rf_entity_registry *registry,const rf_player_entity_link *link)
+{return !link || !rf_entity_lookup(registry,link->entity_handle);}
+uint32_t rf_player_is_dying(const rf_entity_registry *registry,const rf_player_entity_link *link)
+{
+    const rf_entity_view *entity=link?rf_entity_lookup(registry,link->entity_handle):NULL;
+    return entity?(entity->flags_810&1u):0;
+}
 int rf_player_force_replace(rf_player_force_state *state,const rf_player_force_input *input,
     uint32_t *selected_descriptor,rf_player_force_sound sound,void *context)
 {
