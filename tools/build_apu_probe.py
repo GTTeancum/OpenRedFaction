@@ -82,6 +82,15 @@ struct.pack_into('<4I',fixture,0,0x51890ace,1,1,len(fixture))
 fixture[2048:2048+len(b'DoorOpen_07.wav')]=b'DoorOpen_07.wav'
 struct.pack_into('<I',fixture,2108,len(data));fixture[4096:4096+len(data)]=data
 (build/'disc/bank.vpp').write_bytes(fixture)
+# Two distinct registrations with identical original waveform bytes isolate
+# eviction/reload ownership from decoder differences; generated fixture only.
+stride=(len(data)+2047)&~2047
+pressure=bytearray(4096+2*stride);struct.pack_into('<4I',pressure,0,0x51890ace,1,2,len(pressure))
+for index,name in enumerate((b'DoorOpen_07.wav',b'PressureReplacement.wav')):
+    at=2048+index*64;pressure[at:at+len(name)]=name;struct.pack_into('<I',pressure,at+60,len(data))
+    pressure[4096+index*stride:4096+index*stride+len(data)]=data
+(build/'disc/pressure.vpp').write_bytes(pressure)
+
 prefix='/'+root.drive[0].lower()+root.as_posix()[2:]
 (build/'Makefile').write_text(f'''XBE_TITLE = RF-APU-Probe
 NXDK_DIR = /c/nxdk

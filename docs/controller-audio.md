@@ -1121,3 +1121,27 @@ claiming end-to-end eviction coverage or audible parity.
 Final native L1S3 run20260911-013910 passes31 frames with PC state parity and
 nonzero guest DSP output under64MiB. The earlier013726 pass preceded moving
 the retry loop into the tested shared helper. Neither run forces eviction.
+
+
+### Native budget-pressure reclamation
+
+Stock64MiB APU run20260911-014139 now executes the same shared pressure-retry
+helper with the production Xbox release callback and actual allocated bank PCM.
+The isolated generated pressure.vpp contains two distinct registrations backed
+by identical original DoorOpen_07 waveform bytes. Its bank fits only metadata
+and one waveform, forcing a real replacement without decoder differences.
+
+The first retry is refused while the shared voice is active. After the shared
+mixer consumes its entire waveform, the next retry is still refused because
+the Xbox voice is playing. Both refusals preserve resident bytes and report
+zero reclamation. Once the Xbox voice naturally finishes, the retry releases
+its device record, clears the completed shared borrower, frees57014 bytes and
+loads the second registration within the unchanged budget. The old device
+handle is absent, registration count stays2 and only the replacement is resident.
+
+Starting the replacement produces left-channel guest output while an independent
+right-channel loop continues through reclamation. Device reset restores15796
+available pages, exactly matching the pre-open measurement. The native report
+records budget_pressure=[1,1,1,57014,1,15796,15796]; all earlier APU tests pass.
+This closes native shared-helper/device reclamation coverage, not full campaign
+moving-listener traversal, repeated eviction cycling or host-listening parity.

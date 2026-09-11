@@ -15,6 +15,7 @@ static int16_t calibration_pcm[48000];
 volatile uint32_t rf_apu_gain_sums[10],rf_apu_muted_start;
 volatile uint32_t rf_apu_residency[5]; /* cycles, loaded bytes, unloaded bytes, PCM hash, DSP cycles */
 volatile uint32_t rf_apu_idle_release[3];
+volatile uint32_t rf_apu_pressure[7]; /* shared/device busy, reclaimed count/bytes, output, restored/before pages */
 volatile uint32_t rf_apu_single_release;
 volatile uint32_t rf_apu_loop[4]; /* early/late DMA nonzero samples, stopped samples, restored pages */
 uint32_t rf_apu_fail_stopped;
@@ -257,6 +258,43 @@ int main(void)
         }
      }
      rf_audio_bank_close(&bank);}
+    rf_apu_probe[1]=18;
+    {rf_vpp archive;rf_audio_bank bank={0};rf_audio_mixer mixer;uint32_t a,b,handle,released[2];
+     uint8_t eligible[2]={1,0};int16_t scratch[512];int status;
+     uint32_t budget=(uint32_t)(sizeof(bank)+2*sizeof(rf_audio_sample)+bytes);
+     rf_audio_mixer_init(&mixer);
+     if(rf_vpp_open(&archive,"D:\\pressure.vpp") || rf_audio_bank_open(&archive,2,budget,&bank) ||
+        rf_audio_bank_declare(&bank,"DoorOpen_07.wav",5,.5f,1,&a) ||
+        rf_audio_bank_declare(&bank,"PressureReplacement.wav",5,.5f,1,&b) || rf_audio_bank_reload(&bank,&archive,a))goto fail;
+     const rf_wave_pcm *resident=rf_audio_bank_sample(&bank,a);
+     rf_apu_pressure[6]=available();
+     if(rf_xbox_audio_open() || rf_audio_voice_start(&mixer,resident,0,0,0,&handle) ||
+        rf_xbox_audio_events.play_mode(NULL,0xb0001u,resident,.5f,0,0) ||
+        rf_xbox_audio_events.play_mode(NULL,0xb0002u,&calibration,0,.5f,1))goto fail;
+     status=rf_audio_bank_reload_idle(&bank,&mixer,&archive,b,eligible,2,rf_xbox_audio_events.release_idle_sample,NULL,released);
+     if(status!=RF_RANGE || released[0] || released[1] || bank.bytes!=budget)goto fail;
+     rf_apu_pressure[0]=1;
+     while(mixer.voices[handle&0xffff].active)if(rf_audio_mix(&mixer,scratch,256))goto fail;
+     status=rf_audio_bank_reload_idle(&bank,&mixer,&archive,b,eligible,2,rf_xbox_audio_events.release_idle_sample,NULL,released);
+     if(status!=RF_RANGE || released[0] || released[1] || bank.bytes!=budget || !rf_audio_bank_sample(&bank,a))goto fail;
+     rf_apu_pressure[1]=1;begin=GetTickCount();
+     do {
+        Sleep(50);
+        status=rf_audio_bank_reload_idle(&bank,&mixer,&archive,b,eligible,2,rf_xbox_audio_events.release_idle_sample,NULL,released);
+        if(GetTickCount()-begin>5000)goto fail;
+     } while(status==RF_RANGE);
+     if(status || released[0]!=1 || released[1]!=(uint32_t)bytes || bank.bytes!=budget || bank.count!=2 ||
+        rf_audio_bank_sample(&bank,a) || !rf_audio_bank_sample(&bank,b) || mixer.voices[handle&0xffff].handle ||
+        rf_xbox_audio_release_voice(0xb0001u)!=RF_NOT_FOUND)goto fail;
+     rf_apu_pressure[2]=released[0];rf_apu_pressure[3]=released[1];
+     if(rf_xbox_audio_events.play_mode(NULL,0xb0003u,rf_audio_bank_sample(&bank,b),.5f,0,0))goto fail;
+     Sleep(150);
+     {const volatile int16_t *output=g_hw_ac97_buffer;uint32_t left=0,right=0;
+      for(uint32_t n=0;n<4096;n+=2){left+=output[n]!=0;right+=output[n+1]!=0;}
+      if(!left || !right)goto fail;rf_apu_pressure[4]=1;}
+     rf_xbox_audio_events.reset(NULL);rf_apu_pressure[5]=available();
+     if(rf_apu_pressure[5]!=rf_apu_pressure[6] || rf_xbox_audio_diagnostic[11])goto fail;
+     rf_audio_bank_close(&bank);rf_vpp_close(&archive);}
     rf_apu_probe[1]=9;
     for(;;)Sleep(100);
 fail:

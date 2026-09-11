@@ -71,6 +71,9 @@ try:
                 idle_address=int(re.search(r'_rf_apu_idle_release\s+([0-9a-fA-F]+)',mapping)[1],16)
                 idle=words(monitor,idle_address,3);report['idle_sample_release']=idle
                 assert idle[0]==1 and idle[1]>0 and idle[2]==state[3],idle
+                pressure_address=int(re.search(r'_rf_apu_pressure\s+([0-9a-fA-F]+)',mapping)[1],16)
+                pressure=words(monitor,pressure_address,7);report['budget_pressure']=pressure
+                assert pressure[:3]==[1,1,1] and pressure[3]==(build/'disc/door.wav').stat().st_size and pressure[4]==1 and pressure[5]==pressure[6],pressure
                 residency_address=int(re.search(r'_rf_apu_residency\s+([0-9a-fA-F]+)',mapping)[1],16)
                 residency=words(monitor,residency_address,5);report['residency']=residency
                 release_address=int(re.search(r'_rf_apu_single_release\s+([0-9a-fA-F]+)',mapping)[1],16)
