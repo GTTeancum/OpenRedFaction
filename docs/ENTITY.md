@@ -310,3 +310,30 @@ their IDs and ownership before that next step. No live NPC animation is claimed.
 Native stock64MiB replay-20260911-070422 passes180 door/audio frames after
 weapon catalogue/group-ID integration, with PC parity and nonzero guest DSP.
 This verifies loading/regression behavior, not weapon-group animation playback.
+
+
+Bound weapon-group state and action resources
+The campaign motion owner now binds every declared skeletal weapon group in
+ascending weapon ID. Each group retains23 state IDs,45 action IDs, sound labels
+and only its actual motion-file/loop-flag count. Temporary68-resource registry
+storage is reused while loading, then released. No full-capacity registry is
+retained per sparse group. Missing files or budget failures discard the entire
+provisional owner; exact group lookup returns NULL when absent, with no fallback
+policy inferred. Groups borrow the same immutable motions archive as base sets.
+
+verify_base_action_sets.py independently verifies all4284 weapon slots across
+63 groups (21 per level) plus495 base action slots for L1S1/L1S2/L1S3. It checks
+canonical local indices, filename/loop identity and sound labels against raw
+declarations. Exact/one-byte-short budget checks and post-table-close reads pass.
+Retained/peak PC bytes are211930/608842,167386/564298,234202/631114 respectively.
+The working registry, table scratch and all retained arrays are included; stack
+and allocator overhead remain excluded. Both builds/nine CTests and181 existing
+state-group checks pass (known edf_ship missing asset retained).
+
+These are still group-local motion indices. Before live switching, unify them
+into a stable shared model-resource registry and reproduce original registration
+ordering. Do not pass an active playback state from one group's local indices
+to another. Numeric sound-class IDs, alternate clips, initial weapon/selector
+inputs and live NPC pose evaluation remain open. No new visual claim.
+Native64MiB replay-20260911-070902 passes180 door/audio frames with PC parity
+and nonzero guest DSP output after integration; live NPC playback remains off.

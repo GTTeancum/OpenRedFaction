@@ -4,7 +4,7 @@ Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
 grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
-- [ ] Complete NPC weapon/action motion mappings, initial animation selection and live pose evaluation.
+- [ ] Unify NPC motion identities across weapon groups, resolve initial selection and enable live pose evaluation.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
@@ -2583,3 +2583,8 @@ Weapon ID order/name lookup is original-verified (44 weapons,140 lookups), and
 class weapon-group masks now persist. Bind each declared group to motion
 resources next; live initial selector and playback remain open.
 Native64MiB replay-20260911-070422 passes after weapon group-ID integration.
+
+Declared skeletal weapon groups now retain state/action file bindings within
+the1MiB budget;4284 weapon slots across63 level groups verify. Stable shared
+motion identities and initial actor/weapon selection are required before ticks.
+Native64MiB replay-20260911-070902 passes after weapon-group loading.

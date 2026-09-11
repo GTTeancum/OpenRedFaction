@@ -57,12 +57,31 @@ int main(int argc,char **argv)
                     index<0?"":m.classes[i].files[index].entry.name,m.classes[i].action_sounds[j]);
             }
         }
+        for(i=0;i<m.group_count;++i) {
+            const rf_entity_weapon_motion_group *g=m.groups+i;
+            const char *cls=seeds.records.items[seeds.classes[g->class_index].record_index].record.class_name;
+            if(rf_entity_weapon_motion_find(&m,g->class_index,(int32_t)g->weapon)!=g)return 10;
+            for(j=0;j<23;++j) {
+                int32_t index=g->states[j];if(index<-1 || (index>=0 && ((uint32_t)index>=g->count || g->looping[index]!=1)))return 11;
+                printf("GROUP_STATE\t%s\t%s\t%u\t%d\t%s\n",cls,m.weapons.names[g->weapon],j,index,index<0?"":g->files[index].entry.name);
+            }
+            for(j=0;j<45;++j) {
+                int32_t index=g->actions[j];if(index<-1 || (index>=0 && ((uint32_t)index>=g->count || g->looping[index]!=0)))return 12;
+                printf("GROUP_ACTION\t%s\t%s\t%u\t%d\t%s\t%s\n",cls,m.weapons.names[g->weapon],j,index,index<0?"":g->files[index].entry.name,g->action_sounds[j]);
+            }
+        }
+        if(rf_entity_weapon_motion_find(&m,0,-1) || rf_entity_weapon_motion_find(&m,m.class_count,0))return 13;
         rf_entity_seeds_close(&seeds);rf_vpp_close(&levels);rf_vpp_close(&tables);
         for(i=0;i<m.class_count;++i)for(j=0;j<m.classes[i].count;++j) {
             rf_motion_file *f=m.classes[i].files+j;rf_motion_track track;
             if(f->header[6] && rf_motion_file_track(f,0,&track))return 8;++files;
         }
         printf("BASE_MOTIONS %u %u %u %u\n",m.class_count,files,m.resident_bytes,m.peak_bytes);
+        printf("BOUND_GROUPS %u\n",m.group_count);
+        for(i=0;i<m.group_count;++i)for(j=0;j<m.groups[i].count;++j) {
+            rf_motion_file *f=m.groups[i].files+j;rf_motion_track track;
+            if(f->header[6] && rf_motion_file_track(f,0,&track))return 14;
+        }
         rf_entity_base_motions_close(&m);rf_vpp_close(&motions);free(expected);return 0;
     }
     if(argc==3 && !strcmp(argv[1],"--model-kind")) {

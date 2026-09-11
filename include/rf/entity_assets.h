@@ -268,19 +268,28 @@ typedef struct rf_entity_state_set {
     uint8_t looping[68];int32_t actions[45];char action_sounds[45][64];
     uint32_t weapon_groups[2];
 } rf_entity_state_set;
+typedef struct rf_entity_weapon_motion_group {
+    uint32_t class_index,weapon,count;
+    int32_t states[23],actions[45];char action_sounds[45][64];
+    rf_motion_file *files;uint8_t *looping;
+} rf_entity_weapon_motion_group;
 typedef struct rf_entity_base_motions {
     rf_entity_state_set *classes;uint32_t class_count,resident_bytes,peak_bytes;
     rf_weapon_names weapons;
+    rf_entity_weapon_motion_group *groups;uint32_t group_count;
 } rf_entity_base_motions;
 /* Retain canonical base state and action mappings per skeletal class, reading the
  * table once. Motion files borrow the caller's open immutable motions archive.
- * Sound labels retained; no sound-ID resolution. No weapon mappings, alternate
- * clips, initial selection or playback. States/actions share local indices;
+ * Includes sparse declared skeletal weapon groups, retaining only their actual
+ * resource counts. Sound labels retained; no sound-ID resolution, alternate
+ * clips, initial selection or playback. Each group's states/actions share local indices;
  * identical files with different looping flags register distinct entries.
  * Budget includes owner/arrays/table scratch; errors preserve empty output.
  * Port ownership and local motion indices, not the original global registry. */
 int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_vpp *motions,uint32_t budget,rf_entity_base_motions *result);
 void rf_entity_base_motions_close(rf_entity_base_motions *motions);
+/* Exact group only, NULL if absent; fallback/state switching policy is external. */
+const rf_entity_weapon_motion_group *rf_entity_weapon_motion_find(const rf_entity_base_motions *motions,uint32_t class_index,int32_t weapon);
 /* Register the 23 canonical state names (0x418030 order) from one exact base
  * or weapon block. Missing/empty declarations map to -1; missing referenced
  * files fail the whole operation. Distinct cache identities register once as

@@ -723,7 +723,7 @@ int rf_entity_state_set_open(const char *path,const char *class_name,const char 
 done:
     free(value);rf_vpp_close(&archive);return status;
 }
-static int action_set_extend(const void *text,uint32_t size,const char *name,rf_vpp *motions,rf_entity_state_set *v)
+static int action_set_extend(const void *text,uint32_t size,const char *name,const char *weapon,rf_vpp *motions,rf_entity_state_set *v)
 {
     static const char *names[45]={"corpse_drop","corpse_carry","fire_stand","alt_fire_stand","fire_crouch","death_generic","death_blast_forward","death_blast_backward","death_head_forward","death_head_backward","death_head_neutral","death_chest_forward","death_chest_backward","death_chest_neutral","death_leg_left","death_leg_right","death_crouch","sidestep_left","sidestep_right","roll_left","roll_right","land","flinch_stand","flinch_attack_stand","flinch_chest","flinch_back","flinch_leg_left","flinch_leg_right","idle_to_ready","ready_to_idle","idle_1","idle_2","idle_3","idle_4","rock_drop","rock_pickup","death_still_1","death_still_2","death_still_3","reload","unholster","speak","speak_short","heal_light_1","hit_alarm"};
     uint32_t identities[68]={0},i,identity;uint8_t flags[68]={0};int status,added;int32_t index;char compiled[64];
@@ -734,7 +734,7 @@ static int action_set_extend(const void *text,uint32_t size,const char *name,rf_
     for(i=0;i<v->count;++i){identities[i]=i+1;flags[i]=1;}
     for(i=0;i<45;++i) {
         rf_entity_action_declaration action;
-        status=rf_entity_action_read(text,size,name,"",names[i],&action);
+        status=rf_entity_action_read(text,size,name,weapon,names[i],&action);
         if(status==RF_NOT_FOUND)continue;if(status)return status;
         memcpy(v->action_sounds[i],action.sound,64);
         if(!*action.motion)continue;
@@ -751,15 +751,23 @@ static int action_set_extend(const void *text,uint32_t size,const char *name,rf_
 }
 void rf_entity_base_motions_close(rf_entity_base_motions *m)
 {
-    if(!m)return;free(m->classes);memset(m,0,sizeof(*m));
+    uint32_t i;if(!m)return;
+    for(i=0;i<m->group_count;++i)free(m->groups[i].files);
+    free(m->groups);free(m->classes);memset(m,0,sizeof(*m));
+}
+const rf_entity_weapon_motion_group *rf_entity_weapon_motion_find(const rf_entity_base_motions *m,uint32_t class_index,int32_t weapon)
+{
+    uint32_t i;if(!m || class_index>=m->class_count || weapon<0)return NULL;
+    for(i=0;i<m->group_count;++i)if(m->groups[i].class_index==class_index && m->groups[i].weapon==(uint32_t)weapon)return m->groups+i;
+    return NULL;
 }
 int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_vpp *motions,
     uint32_t budget,rf_entity_base_motions *result)
 {
     rf_entity_base_motions v={0};rf_vpp_entry entry,weapon_entry;void *text=NULL;
-    uint64_t bytes;uint32_t i,j;int status;
+    uint64_t bytes;uint32_t i,j,group_count=0,at=0;int status;rf_entity_state_set *working=NULL;
     if(!seeds || !tables || !motions || !result || result->classes || result->class_count ||
-       result->resident_bytes || result->peak_bytes || result->weapons.count || result->weapons.primary_count ||
+       result->resident_bytes || result->peak_bytes || result->weapons.count || result->weapons.primary_count || result->groups || result->group_count ||
        (seeds->class_count && !seeds->classes))return RF_RANGE;
     v.class_count=seeds->class_count;bytes=sizeof(v)+(uint64_t)v.class_count*sizeof(*v.classes);
     if(bytes>budget)return RF_RANGE;
@@ -784,12 +792,40 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
         if(c->model_kind!=2)continue;
         status=state_set_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,"",motions,v.classes+i);
         if(status)goto done;
-        status=action_set_extend(text,entry.size,seeds->records.items[c->record_index].record.class_name,motions,v.classes+i);
+        status=action_set_extend(text,entry.size,seeds->records.items[c->record_index].record.class_name,"",motions,v.classes+i);
         if(status)goto done;
+        for(j=0;j<v.weapons.count;++j)if(v.classes[i].weapon_groups[j>>5]&(1u<<(j&31)))++group_count;
     }
-    free(text);*result=v;return RF_OK;
+    if(group_count) {
+        bytes+=(uint64_t)group_count*sizeof(*v.groups);
+        if(bytes+entry.size+sizeof(*working)>budget){status=RF_RANGE;goto done;}
+        v.groups=calloc(group_count,sizeof(*v.groups));working=calloc(1,sizeof(*working));
+        if(!v.groups || !working){status=RF_RANGE;goto done;}
+        v.group_count=group_count;v.resident_bytes=(uint32_t)bytes;
+        for(i=0;i<v.class_count;++i)if(seeds->classes[i].model_kind==2)for(j=0;j<v.weapons.count;++j) {
+            rf_entity_weapon_motion_group *g;uint64_t resource_bytes,peak;const char *name;
+            if(!(v.classes[i].weapon_groups[j>>5]&(1u<<(j&31))))continue;
+            name=seeds->records.items[seeds->classes[i].record_index].record.class_name;
+            memset(working,0,sizeof(*working));
+            status=state_set_read(text,entry.size,name,v.weapons.names[j],motions,working);if(status)goto done;
+            status=action_set_extend(text,entry.size,name,v.weapons.names[j],motions,working);if(status)goto done;
+            resource_bytes=(uint64_t)working->count*(sizeof(*g->files)+sizeof(*g->looping));
+            peak=bytes+resource_bytes+entry.size+sizeof(*working);if(peak>budget){status=RF_RANGE;goto done;}
+            if(peak>v.peak_bytes)v.peak_bytes=(uint32_t)peak;
+            g=v.groups+at++;g->class_index=i;g->weapon=j;g->count=working->count;
+            memcpy(g->states,working->states,sizeof(g->states));memcpy(g->actions,working->actions,sizeof(g->actions));
+            memcpy(g->action_sounds,working->action_sounds,sizeof(g->action_sounds));
+            if(resource_bytes) {
+                g->files=malloc((size_t)resource_bytes);if(!g->files){status=RF_RANGE;goto done;}
+                g->looping=(uint8_t*)(g->files+g->count);
+                memcpy(g->files,working->files,g->count*sizeof(*g->files));memcpy(g->looping,working->looping,g->count);
+            }
+            bytes+=resource_bytes;v.resident_bytes=(uint32_t)bytes;
+        }
+    }
+    free(working);free(text);*result=v;return RF_OK;
 done:
-    free(text);rf_entity_base_motions_close(&v);return status;
+    free(working);free(text);rf_entity_base_motions_close(&v);return status;
 }
 int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *class_name,
     const char *weapon,const char *state,char motion[64])
