@@ -409,7 +409,7 @@ static rf_level_owned_regions campaign_regions;
 static rf_physics_force_collection campaign_forces;
 static uint32_t campaign_force_class_flags,campaign_force_class_kind;
 static float campaign_force_air_limit;
-static rf_camera_effect_state campaign_force_shake;
+static rf_camera_effect_state campaign_camera_effect;
 uint32_t rf_scene_force_ticks[12]; /* ticks, matches, eligible, carry, replace, turbulence, shakes, sounds, UID, RNG, cap, status */
 uint32_t rf_scene_campaign_forces[3]; /* count, owned bytes, ordered runtime record hash */
 uint32_t rf_scene_force_state[3]; /* current count, enabled count, full record hash */
@@ -572,6 +572,11 @@ uint32_t rf_scene_npc_materials[8]; /* appearances, materials, images, resident,
 uint32_t rf_scene_npc_geometry[7]; /* models, LODs, vertices, triangles, bytes, geometry hash, prepared skin hash */
 uint32_t rf_scene_npc_startup[4]; /* actors, bones, playback hash, matrix/cache hash */
 static rf_entity_view campaign_player_view;
+int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float duration,int32_t now)
+{
+    if(rf_entity_lookup(&campaign_entities,(int32_t)player_entity_handle)!=&campaign_player_view)return RF_NOT_FOUND;
+    return rf_camera_effect_start(&campaign_camera_effect,strength,duration,now);
+}
 static rf_registered_entity_view campaign_player_object;
 uint32_t rf_scene_campaign_player[4]; /* registered handle, kind, initial object flags, adapter bytes */
 uint32_t rf_scene_trigger_contacts[6]; /* polls, ready, last ready UID, lower door ready, unsupported, status */
@@ -2745,7 +2750,7 @@ static int campaign_force_tick(rf_physics_body_state *body,rf_level_particles *p
         if(!particles || !particles->state)return RF_FORMAT;
         status=rf_physics_force_turbulence(&influence,region->flags,scene_step_seconds,&particles->state->random,&amplitude);if(status)return status;
         ++rf_scene_force_ticks[5];rf_scene_force_ticks[9]=particles->state->random.value;
-        status=rf_camera_effect_start(&campaign_force_shake,amplitude,.05f,now);if(status)return status;
+        status=rf_scene_player_feedback((uint32_t)campaign_player_view.handle,amplitude,.05f,now);if(status)return status;
         ++rf_scene_force_ticks[6];
     }
     if(region->flags&0x40) {
@@ -2972,7 +2977,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     if(campaign_spawn && stream->particles.state) {
         uint32_t active;uint64_t elapsed=(uint64_t)frame*1000/60;
         int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
-        status=rf_camera_effect_apply_random(&campaign_force_shake,now,&stream->particles.state->random,(float *)orientation,&active);
+        status=rf_camera_effect_apply_random(&campaign_camera_effect,now,&stream->particles.state->random,(float *)orientation,&active);
         if(status)return status;
     }
     if(campaign_spawn) {
@@ -3426,7 +3431,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && campaign_spawn) {
             campaign_force_class_flags=physics_config.authored.flags;campaign_force_class_kind=physics_config.authored.use_kind;
             campaign_force_air_limit=0;memset(rf_scene_force_ticks,0,sizeof(rf_scene_force_ticks));
-            status=rf_camera_effect_reset(&campaign_force_shake,0);
+            status=rf_camera_effect_reset(&campaign_camera_effect,0);
         }
         if(!status && collision)status=rf_movement_descriptor_load(&tables,physics_config.authored.movement_index,65536,rf_scene_actor_movement);
         if(!status && collision)status=rf_movement_descriptor_load(&tables,3,65536,rf_scene_actor_movement+1);

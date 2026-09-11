@@ -51,6 +51,28 @@ static int event_damage_binding_check(void)
     CHECK(rf_object_registry_remove(&campaign_registry,event.handle)==RF_OK);
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;memset(&campaign_seeds,0,sizeof(campaign_seeds));return 0;
 }
+static int player_feedback_check(void)
+{
+    rf_registered_entity_view registration={0},other_registration={0};rf_entity_view other={0};rf_camera_effect_state saved;
+    rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
+    memset(&campaign_player_view,0,sizeof(campaign_player_view));
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&campaign_player_view,&registration)==RF_OK);
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&other,&other_registration)==RF_OK);
+    CHECK(rf_camera_effect_reset(&campaign_camera_effect,0)==RF_OK);
+    CHECK(rf_scene_player_feedback(registration.handle,2,.05f,1000)==RF_OK);
+    CHECK(campaign_camera_effect.strength==2 && campaign_camera_effect.deadline==1050);
+    CHECK(rf_scene_player_feedback(registration.handle,.01f,.5f,1000)==RF_OK);
+    CHECK(campaign_camera_effect.strength==.01f && campaign_camera_effect.duration==.5f && campaign_camera_effect.deadline==1500);
+    saved=campaign_camera_effect;
+    CHECK(rf_scene_player_feedback(other_registration.handle,3,1,1000)==RF_NOT_FOUND);
+    CHECK(rf_scene_player_feedback(registration.handle^0x10000u,3,1,1000)==RF_NOT_FOUND);
+    CHECK(rf_scene_player_feedback(registration.handle,3,NAN,1000)==RF_RANGE);
+    CHECK(!memcmp(&saved,&campaign_camera_effect,sizeof(saved)));
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&registration)==RF_OK);
+    CHECK(rf_scene_player_feedback(registration.handle,3,1,1000)==RF_NOT_FOUND);
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&other_registration)==RF_OK);
+    return 0;
+}
 static int eye_binding_check(void)
 {
     campaign_npc_body owner={0};campaign_npc_eye_class eye={0};rf_entity_pose pose={0};
@@ -202,6 +224,6 @@ int main(void)
     CHECK(campaign_npc_motion_require(0,0)==RF_IO && !data[0] && data[1]);
     CHECK(!motions[0].file.resident && !motions[1].file.resident && !sizes[0]);
     CHECK(campaign_npc_motion_bytes==1024*1024-80);
-    CHECK(pain_binding_check()==0);free(data[1]);CHECK(eye_binding_check()==0);CHECK(event_damage_binding_check()==0);
+    CHECK(pain_binding_check()==0);free(data[1]);CHECK(eye_binding_check()==0);CHECK(event_damage_binding_check()==0);CHECK(player_feedback_check()==0);
     puts("PASS: selection, aliases, pressure, reference protection, eviction, reload and failure recovery");return 0;
 }

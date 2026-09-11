@@ -3762,3 +3762,25 @@ The caller supplies string storage; token parsing and other reader fields are
 not claimed. Probe/NXDK builds and five CTests pass. Report is
 artifacts/particle-flags-verification.json. Particle spawning/rendering is not
 implemented by this helper, so no new visual behavior is claimed.
+
+
+## Shared player feedback ownership (2026-09-11)
+
+rf_scene_player_feedback resolves the registered local player entity and writes
+campaign_camera_effect through rf_camera_effect_start. Force-region feedback
+now calls this entry point too. Camera application/reset use that same state,
+matching original actor+8b4/+8b8/+8bc ownership. No separate damage-only shake
+or extra retained storage was introduced. A subsequent call replaces strength,
+duration and deadline. Missing/stale/nonlocal entities return NOT_FOUND without
+changing state.
+
+Private scene tests verify replacement and ownership/error preservation. The
+original comparisons pass 1,024 start cases, 600 timer/decay cases and 1,800
+complete random/orientation cases on PC and linked NXDK code. Both builds and
+all 11 CTests pass. The 120-frame PC L1S2 region3705 fixture retains its four
+carry/turbulence/shake activations and RNG3250303071. This supplies the resolved
+player camera-feedback entry point; player health and HUD damage feedback4a7520
+remain separate unfinished owners.
+
+Stock64MiB XEMU replay replay-20260911-153016 passes 120 frames with matching
+PC force, camera/RNG and actor telemetry through the registered-player path.

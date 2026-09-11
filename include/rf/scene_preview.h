@@ -39,6 +39,11 @@ int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random
  * original no-ops. A live different source requires the unfinished AI owner
  * and returns NOT_FOUND. This does not implement forced mode1 alerts. */
 int rf_scene_npc_damage_ai(uint32_t handle,uint32_t source);
+/* Resolved local-player entity portion of40e0b0. Uses the same retained
+ * camera-effect owner as force feedback and the rendered camera update.
+ * Strength/duration replace the previous effect. A stale/nonlocal entity
+ * returns NOT_FOUND without changing it. No health or HUD damage here. */
+int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float duration,int32_t now);
 /* Registered skeletal NPC damage adapter. Effects must be synchronous and keep
  * owners alive; callbacks mutate the retained damage state, not stale copies.
  * Does not supply gameplay effects. Unknown/stale target is successful zero.
