@@ -700,7 +700,7 @@ static int state_set_read(const void *text,uint32_t size,const char *class_name,
         status=rf_motion_cache_acquire(value->cache,23,authored,&identity);if(status)return status;
         status=rf_model_register_motion(&registry,identity+1,1,&index,&added);if(status)return status;
         if(added) {
-            value->looping[index]=1;
+            value->cache_indices[index]=identity;value->looping[index]=1;
             status=rf_motion_compiled_filename((const char*)value->cache[identity].bytes,compiled);if(status)return status;
             status=rf_motion_file_open(value->files+index,motions,compiled);if(status)return status;
         }
@@ -728,10 +728,10 @@ static int action_set_extend(const void *text,uint32_t size,const char *name,con
     static const char *names[45]={"corpse_drop","corpse_carry","fire_stand","alt_fire_stand","fire_crouch","death_generic","death_blast_forward","death_blast_backward","death_head_forward","death_head_backward","death_head_neutral","death_chest_forward","death_chest_backward","death_chest_neutral","death_leg_left","death_leg_right","death_crouch","sidestep_left","sidestep_right","roll_left","roll_right","land","flinch_stand","flinch_attack_stand","flinch_chest","flinch_back","flinch_leg_left","flinch_leg_right","idle_to_ready","ready_to_idle","idle_1","idle_2","idle_3","idle_4","rock_drop","rock_pickup","death_still_1","death_still_2","death_still_3","reload","unholster","speak","speak_short","heal_light_1","hit_alarm"};
     uint32_t identities[68]={0},i,identity;uint8_t flags[68]={0};int status,added;int32_t index;char compiled[64];
     rf_model_motion_registry registry={identities,flags,0,68};
-    /* Called immediately after base states: their cache and registry indices coincide. */
+    /* Reconstruct registration keys from retained state cache identities. */
     if(v->count>23)return RF_RANGE;
     registry.count=v->count;
-    for(i=0;i<v->count;++i){identities[i]=i+1;flags[i]=1;}
+    for(i=0;i<v->count;++i){identities[i]=v->cache_indices[i]+1;flags[i]=v->looping[i];}
     for(i=0;i<45;++i) {
         rf_entity_action_declaration action;
         status=rf_entity_action_read(text,size,name,weapon,names[i],&action);
@@ -743,7 +743,7 @@ static int action_set_extend(const void *text,uint32_t size,const char *name,con
         if(added) {
             status=rf_motion_compiled_filename((const char*)v->cache[identity].bytes,compiled);if(status)return status;
             status=rf_motion_file_open(v->files+index,motions,compiled);if(status)return status;
-            v->looping[index]=0;
+            v->cache_indices[index]=identity;v->looping[index]=0;
         }
         v->actions[i]=index;
     }
@@ -809,7 +809,7 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
             memset(working,0,sizeof(*working));
             status=state_set_read(text,entry.size,name,v.weapons.names[j],motions,working);if(status)goto done;
             status=action_set_extend(text,entry.size,name,v.weapons.names[j],motions,working);if(status)goto done;
-            resource_bytes=(uint64_t)working->count*(sizeof(*g->files)+sizeof(*g->looping));
+            resource_bytes=(uint64_t)working->count*(sizeof(*g->files)+sizeof(*g->looping)+sizeof(*g->identities));
             peak=bytes+resource_bytes+entry.size+sizeof(*working);if(peak>budget){status=RF_RANGE;goto done;}
             if(peak>v.peak_bytes)v.peak_bytes=(uint32_t)peak;
             g=v.groups+at++;g->class_index=i;g->weapon=j;g->count=working->count;
@@ -818,7 +818,9 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
             if(resource_bytes) {
                 g->files=malloc((size_t)resource_bytes);if(!g->files){status=RF_RANGE;goto done;}
                 g->looping=(uint8_t*)(g->files+g->count);
+                g->identities=(char(*)[64])(g->looping+g->count);
                 memcpy(g->files,working->files,g->count*sizeof(*g->files));memcpy(g->looping,working->looping,g->count);
+                {uint32_t k;for(k=0;k<g->count;++k)memcpy(g->identities[k],working->cache[working->cache_indices[k]].bytes,64);}
             }
             bytes+=resource_bytes;v.resident_bytes=(uint32_t)bytes;
         }

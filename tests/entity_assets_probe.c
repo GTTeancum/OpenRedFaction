@@ -50,6 +50,12 @@ int main(int argc,char **argv)
             if(rf_entity_state_set_open(argv[3],seeds.records.items[seeds.classes[i].record_index].record.class_name,"",&motions,512*1024,expected) ||
                memcmp(expected->states,m.classes[i].states,sizeof(expected->states)) ||
                memcmp(expected->files,m.classes[i].files,expected->count*sizeof(*expected->files)))return 7;
+            for(j=0;j<m.classes[i].count;++j) {
+                uint32_t identity=m.classes[i].cache_indices[j];
+                if(identity>=68)return 15;
+                printf("IDENTITY\t%s\t\t%u\t%u\t%s\n",seeds.records.items[seeds.classes[i].record_index].record.class_name,
+                    j,m.classes[i].looping[j],(const char*)m.classes[i].cache[identity].bytes);
+            }
             for(j=0;j<45;++j) {
                 int32_t index=m.classes[i].actions[j];
                 if(index<-1 || (index>=0 && ((uint32_t)index>=m.classes[i].count || m.classes[i].looping[index])))return 9;
@@ -61,6 +67,7 @@ int main(int argc,char **argv)
             const rf_entity_weapon_motion_group *g=m.groups+i;
             const char *cls=seeds.records.items[seeds.classes[g->class_index].record_index].record.class_name;
             if(rf_entity_weapon_motion_find(&m,g->class_index,(int32_t)g->weapon)!=g)return 10;
+            for(j=0;j<g->count;++j)printf("IDENTITY\t%s\t%s\t%u\t%u\t%s\n",cls,m.weapons.names[g->weapon],j,g->looping[j],g->identities[j]);
             for(j=0;j<23;++j) {
                 int32_t index=g->states[j];if(index<-1 || (index>=0 && ((uint32_t)index>=g->count || g->looping[index]!=1)))return 11;
                 printf("GROUP_STATE\t%s\t%s\t%u\t%d\t%s\n",cls,m.weapons.names[g->weapon],j,index,index<0?"":g->files[index].entry.name);

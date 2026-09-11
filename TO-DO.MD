@@ -3,6 +3,10 @@
 Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
 grounded re-entry, broader object ownership and full RNG ordering remain.
 
+NPC base/weapon bindings now retain original cache names and resource-to-cache
+indices; 854 installed identities verified. Shared model registration and live
+pose selection remain open.
+
 Immediate open items:
 - [ ] Unify NPC motion identities across weapon groups, resolve initial selection and enable live pose evaluation.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.

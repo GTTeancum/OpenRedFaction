@@ -20,8 +20,20 @@ parts=re.split(r'\$Name:\s*"([^"\r\n]+)"',text)
 groups={name.lower():re.findall(r'\+Weapon\s+Specific:\s*"([^"\r\n]*)"',body) for name,body in zip(parts[1::2],parts[2::2])}
 for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  out=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--base-motions',str(root/'Installed_Game/levels1.vpp'),str(root/'Installed_Game/tables.vpp'),str(root/'Installed_Game/motions.vpp'),level],text=True)
- registries={};checked=0;group_registries={};group_slots=0
+ registries={};checked=0;group_registries={};group_slots=0;identity_count=0
  for line in out.splitlines():
+  if line.startswith('IDENTITY\t'):
+   _,cls,weapon,index,loop,authored=line.split('\t');cls=cls.lower();weapon=weapon.lower()
+   cache={};resources=[]
+   for looping,canonical,rows in ((1,state_names,all_states),(0,action_names,all_actions)):
+    for name in canonical:
+     row=rows.get((cls,weapon,name));motion=(row if looping else row['motion']) if row else ''
+     if not motion:continue
+     stem=motion.rsplit('.',1)[0].lower();first=cache.setdefault(stem,motion);key=(stem,looping)
+     if key not in [r[0] for r in resources]:resources.append((key,first))
+   expected=resources[int(index)]
+   assert (authored,int(loop))==(expected[1],expected[0][1]),(level,cls,weapon,index,authored,expected)
+   identity_count+=1;continue
   if line.startswith(('GROUP_STATE\t','GROUP_ACTION\t')):
    fields=line.split('\t');kind,cls,weapon,number,index,file=fields[:6];cls=cls.lower();weapon=weapon.lower();number=int(number);index=int(index)
    key=(cls,weapon);resources=group_registries.setdefault(key,[])
@@ -62,7 +74,8 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
   checked+=1
  summary=next(line for line in out.splitlines() if line.startswith('BASE_MOTIONS '))
  assert group_slots==len(group_registries)*68
+ assert identity_count==sum(map(len,registries.values()))+sum(map(len,group_registries.values()))
  assert int(next(line for line in out.splitlines() if line.startswith('BOUND_GROUPS ')).split()[1])==len(group_registries)
- reports.append(dict(level=level,action_slots=checked,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary))
-report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames and sound labels exact. Cross-group/global original registry ordering and live playback excluded.')
+ reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary))
+report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames, retained first-authored cache names and sound labels exact. Cross-group/global original registry ordering and live playback excluded.')
 (root/'artifacts/base-action-sets.json').write_text(json.dumps(report,indent=2));print(report)
