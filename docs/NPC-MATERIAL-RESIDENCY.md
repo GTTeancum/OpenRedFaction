@@ -69,3 +69,31 @@ and correct ownership of the renderer's combined image table.
 Native follow-up `artifacts/xemu/replay-20260911-090838/report.json` passes
 the same 180-frame door/audio replay on stock 64 MiB XEMU. Both builds and all
 nine CTest checks pass after extraction. No new visual is introduced.
+
+## Initial campaign NPC drawing
+
+Campaign now iterates owned skeletal actors, prepares their verified starting
+poses, places them using authored transforms and emits each SUBM's highest-detail
+LOD through the shared renderer. Material indices resolve through appearance
+offsets and then the merged renderer image table. Image ownership transfers to
+that table; the NPC material owner releases only remaining instance arrays.
+
+One 444,880-byte batch workspace is reused across actors, plus four bytes per
+actor for cached room membership. Actor rooms use the collision-world locator;
+actors in known invisible rooms are skipped using the existing portal visibility
+result. Unknown-room actors remain eligible. Membership is stationary in this
+pass. Original per-actor visibility, distance LOD gates, live animation and
+lighting remain incomplete; white preview modulation remains diagnostic policy.
+
+The combined CPU/GPU vertex capacity grows from 2 to 3 MiB. Campaign world
+fallback is bounded at 2 MiB, reserving 1 MiB for NPC output. The staged world
+pass uses at most half the allocation, ensuring disjoint scratch is large enough.
+The original 2 MiB buffer failed at the authored spawn when NPCs were appended;
+the corrected spawn succeeds. An unculled native replay exceeded its deadline;
+the room-culling build passes the full 180-frame run in
+`artifacts/xemu/replay-20260911-091623/report.json` on stock 64 MiB XEMU, matching
+PC NPC vertex hashes, material/pose data and existing door/audio telemetry.
+
+The README's `pc-campaign-npcs.png` is frame 60 of that recorded door input
+sequence, rendered by PC at 640x480. It is a native renderer output conversion
+from PPM to PNG, with no visual editing or AI-generated content.

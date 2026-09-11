@@ -224,6 +224,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_materials==expected('NPC_MATERIALS') and npc_materials[4]<=5*1024*1024,npc_materials
      assert npc_materials[0]>0 and npc_materials[2]>0 and npc_materials[6]>0,npc_materials
      report['npc_materials']=npc_materials
+     npc_draw=words(monitor,symbol('rf_scene_npc_draw'),5)
+     assert npc_draw==expected('NPC_DRAW') and npc_draw[0]==frames and npc_draw[4]<512*1024,npc_draw
+     report['npc_draw']=npc_draw
      player=words(monitor,symbol('rf_scene_campaign_player'),4)
      assert player==expected('CAMPAIGN_PLAYER') and player[1:3]==[0,8],player
      report['campaign_player']=player
@@ -306,7 +309,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       assert report['outside_distance']>.25,'Walking approach missing'
     report['available_pages_at_completion']=d[44]
     replay_state=words(monitor,symbol('rf_player_replay_diagnostic'),4);assert replay_state==[0,frames,frames,0],replay_state
-    assert d[37]==frames and d[46]==2097152
+    assert d[37]==frames and d[46]==3145728
     peak=max(s[36]*56 for s in report['samples']);report['sampled_gpu_mesh_peak_bytes']=peak
     if args.require_wide:assert peak>1048576 and expected('ACTOR_FOLLOW_SUMMARY')[2]>1048576
     if args.capture:

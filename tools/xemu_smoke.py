@@ -391,7 +391,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                             report['scene_particles']=symbols['rf_scene_particles_summary']['words']
                             if symbols['rf_scene_particle_draw_frames']['words']!=draw_reference or symbols['rf_scene_particle_draw_summary']['words']!=draw_summary_reference:raise RuntimeError('Particle draw packets differ from PC')
                             report['scene_particle_draw']=symbols['rf_scene_particle_draw_summary']['words']
-                            if follow_summary_reference[4]!=2*1024*1024:raise RuntimeError('Unexpected follow CPU capacity')
+                            if follow_summary_reference[4]!=3*1024*1024:raise RuntimeError('Unexpected follow CPU capacity')
                             report['actor_follow']=dict(cpu_vertex_capacity=follow_summary_reference[4],frames=follow_summary_reference[0],world_hash=follow_summary_reference[1],peak_world_bytes=follow_summary_reference[2],camera_hash=follow_summary_reference[3],camera_ring_matches_pc=64,scope='Retained world reprojected each frame; eye_view describes first-person mode, otherwise a fixed-offset follow camera. No camera collision.')
                         for symbol,label in [('rf_scene_actor_room_frames','ACTOR_ROOMS'),('rf_scene_actor_room_summary','ACTOR_ROOM_SUMMARY')]:
                             if symbols[symbol]['words']!=live_reference[label]:raise RuntimeError('Actor room membership differs from PC: '+symbol)
@@ -646,7 +646,7 @@ dvd_path = '{(build / 'redfaction-diagnostic.iso').as_posix()}'
                     elif words[31]!=0:raise RuntimeError('Unknown preview scene')
                     report['scene']='authored-state Live Mines / miner 9858' if words[31]==5 else 'streamed Live Mines / miner 9858' if words[31]==4 else 'Live Mines / miner 9858 close inspection' if words[31]==3 else 'streamed miner inspection' if words[31]==2 else 'posed miner inspection' if words[31] else 'Live Mines static geometry'
                     if args.door_view:report['scene']='Live Mines mover 8544 door inspection; actor-state playback outside view'
-                    vertex_capacity=2*1024*1024 if args.actor_follow else 1024*1024+words[57]*56 if words[31] in (4,5) else 1024*1024 if words[31]==2 else words[36]*56
+                    vertex_capacity=3*1024*1024 if args.actor_follow else 1024*1024+words[57]*56 if words[31] in (4,5) else 1024*1024 if words[31]==2 else words[36]*56
                     if args.door_motion:vertex_capacity=1024*1024+2892*56
                     if not 0 < words[44] <= words[47] <= words[3] or words[45:47] != [expected_gpu_bytes, vertex_capacity]:
                         raise RuntimeError('Unexpected GPU allocation or memory telemetry')

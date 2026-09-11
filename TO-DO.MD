@@ -1,14 +1,11 @@
 # Red Faction Xbox / PC - open work
 
-Campaign owns verified NPC startup poses, shared model geometry, appearances
-and textures; per-frame NPC behavior and drawing remain incomplete.
-
-Stock 64 MiB XEMU matches PC for L1S1's 51 NPC images and 143 materials.
-The shared clipping/emission helper now removes the diagnostic-miner dependency
-from that draw stage; actor iteration, shared scratch and material mapping remain.
+Campaign NPCs now draw at authored positions using verified starting poses and
+shared textures; PC/XEMU vertex output matches in the L1S1 door replay.
+This initial-pose pass still needs live animation, actor draw gates and lighting.
 
 Immediate open items:
-- [ ] Connect shared NPC materials to drawing and complete per-frame actor rendering.
+- [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect per-frame NPC selection/pose updates, rendered geometry and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.

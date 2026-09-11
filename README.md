@@ -12,6 +12,14 @@ and door panels placed halfway along their authored travel. This is a diagnostic
 scene, not playable campaign footage. The Xbox target remains stock 64 MiB;
 this higher-resolution image is not an Xbox capture.
 
+![PC reconstruction: a human NPC and mining robot in Live Mines](docs/images/pc-campaign-npcs.png)
+
+**PC capture, rendered at 640 x 480 from the recorded campaign diagnostic replay.**
+The human NPC and mining robot use authored positions, reconstructed starting
+poses and shared model/texture resources. This initial NPC drawing pass holds
+those poses; live NPC behavior, animation updates and final lighting remain
+unimplemented. This is not an Xbox screenshot or finished campaign gameplay.
+
 Current outputs include archive/level diagnostics, a shared static geometry,
 texture and lightmap preview for PC and Xbox, and reconstructed filename checksum,
 entity eye-update and character tag-lookup routines. Model loading, gameplay and

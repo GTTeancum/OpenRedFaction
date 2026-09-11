@@ -11,7 +11,7 @@ for profile,name,command in [(p,n,c) for p in ('diagnostic','campaign') for n,c 
  (folder/(output+'-verified.txt')).write_text(run.stdout+'\n'+run.stderr)
  assert run.returncode==0,(name,run.stderr)
  values=list(map(int,next(x for x in run.stdout.splitlines() if x.startswith('ACTOR_FOLLOW_SUMMARY ')).split()[1:]))
- assert values[0]==480 and values[4]==2097152 and values[2]<=2097152
+ assert values[0]==480 and values[4]==3145728 and values[2]<=3145728
  # Static backface rejection reduces demand (some old routes below 1 MiB). The campaign
  # yaw case still exercises the retained full-capacity fallback.
  if profile=='campaign' and name=='yaw-sweep':assert values[2]>1048576
