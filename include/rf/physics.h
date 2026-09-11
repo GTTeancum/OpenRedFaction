@@ -2,6 +2,15 @@
 #define RF_PHYSICS_H
 #include "rf/vpp.h"
 #include "rf/random.h"
+/* Original4a0406..4a046e entry decision: negative/unordered contact field10c
+ * clears surface; [0,.85) retains it without a probe. Otherwise probe only
+ * with an existing surface or flags18000000. Returns whether to probe.
+ * NULL surface returns0. No contact query or accepted-hit mutation. */
+int rf_physics_surface_probe_gate(float contact_y,uint32_t flags,int32_t *surface);
+/* Original49feb6..49fedf, ONLY after entering49fe40's flag4000 branch and
+ * its preceding updates. Zero/unordered field1b0 clears surface unless
+ * flag10000000 is set. Returns whether cleared; NULL returns0. */
+int rf_physics_surface_reset_gate(float field_1b0,uint32_t flags,int32_t *surface);
 typedef struct rf_physics_gravity {float acceleration,vector[3];} rf_physics_gravity;
 /* Original 4a0e20: updates 5a00dc and vector 7c7058=(0,-gravity,0).
  * Does not recompute the separately initialized jump impulse. Finite signed

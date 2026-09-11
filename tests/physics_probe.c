@@ -16,6 +16,18 @@ static void observe_force(void *context,const rf_player_force_state *state,const
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--surface-gates")) {
+        struct {uint32_t phase;float field;uint32_t flags;int32_t surface;} input;
+        int32_t action;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            action=input.phase?rf_physics_surface_reset_gate(input.field,input.flags,&input.surface):
+                rf_physics_surface_probe_gate(input.field,input.flags,&input.surface);
+            fwrite(&action,4,1,stdout);fwrite(&input.surface,4,1,stdout);
+        }
+        return 0;
+    }
+
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

@@ -6,6 +6,20 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_surface_probe_gate(float contact_y,uint32_t flags,int32_t *surface)
+{
+    if(!surface)return 0;
+    if(!(contact_y>=0)){*surface=-1;return 0;}
+    return contact_y>=.85f && (*surface!=-1 || (flags&0x18000000u)!=0);
+}
+int rf_physics_surface_reset_gate(float field_1b0,uint32_t flags,int32_t *surface)
+{
+    if(!surface)return 0;
+    if((field_1b0==0 || isnan(field_1b0)) && !(flags&0x10000000u)) {
+        *surface=-1;return 1;
+    }
+    return 0;
+}
 int rf_physics_gravity_set(rf_physics_gravity *state,float acceleration)
 {
     if(!state || !isfinite(acceleration))return RF_RANGE;

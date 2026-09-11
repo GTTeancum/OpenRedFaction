@@ -43,6 +43,9 @@ ownership and moving room membership before dynamic NPC behavior.
 Footstep sample choice and audio routing match1025 original/PC/NXDK cases;
 connect support surfaces, marker timing, shared RNG and backend playback.
 
+Surface clear/retain/probe gates match1008 original/PC/NXDK cases; connect
+per-NPC contacts and accepted-hit material ownership before live footsteps.
+
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.

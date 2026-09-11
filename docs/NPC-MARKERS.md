@@ -465,3 +465,25 @@ draws. Together with one capacity-rejection case, all1025 match PC and NXDK
 code, including sample IDs, parameter bit patterns and final RNG state.
 Live marker timing, support surface ownership, shared frame RNG ordering and
 backend playback remain open. Both builds and nine CTest checks pass.
+
+## Surface clear/retain/probe gates
+
+`rf_physics_surface_probe_gate` executes the decision from4a0406..4a046e.
+Negative or unordered contact field+10c clears surface+1380 to-1. Values in
+[0,.85) retain the existing surface and do not probe. At or above the exact
+binary32 threshold0.8500000238418579, an existing surface other than-1 or
+flags1a8 mask18000000 permits probing. Otherwise the old surface survives.
+The API does not assign unverified velocity semantics to field+10c.
+
+`rf_physics_surface_reset_gate` covers49feb6..49fedf only, after the earlier
+flag4000 branch and its preceding updates. A zero or unordered field+1b0
+clears the surface unless flag10000000 is set. It must not be applied to
+all actors merely because the scalar is zero. Other49fe40 branches and later
+physics updates remain separate.
+
+`verify_surface_gates.py` executes both original prepared instruction spans
+and compares action plus material mutation with PC/NXDK code. All1008 cases
+pass, including signed zeros, .85 neighbors, signed material values, flag
+combinations, infinities and quiet/signaling NaNs. There are136 probe requests
+and90 reset requests; surface values actually change180/75 times respectively.
+These gates do not execute contact queries or supply live NPC support owners.
