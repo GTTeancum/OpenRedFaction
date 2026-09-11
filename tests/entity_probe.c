@@ -76,6 +76,22 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corpse-body")) {
+        uint32_t input[20];rf_physics_sphere spheres[8];rf_corpse_physics_seed seed;rf_physics_body body;float material[3];int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            if(input[19]>8 || fread(spheres,24,input[19],stdin)!=input[19])return 2;
+            memset(&seed,0,sizeof(seed));memset(&body,0,sizeof(body));seed.word_0c=input[0];seed.word_14=input[1];
+            memcpy(seed.position,input+2,12);memcpy(seed.basis,input+5,36);memcpy(&seed.radius,input+14,4);seed.flags=input[15];
+            memcpy(material,input+16,12);seed.spheres=spheres;seed.sphere_count=input[19];
+            status=rf_corpse_body_open(&seed,material[0],material[1],material[2],0,&body);
+            if(status!=RF_RANGE || body.allocated_bytes || body.spheres.items)return 3;
+            status=rf_corpse_body_open(&seed,material[0],material[1],material[2],sizeof(body)+(input[19]?input[19]:1)*24,&body);
+            fwrite(&status,4,1,stdout);fwrite(&body.state,sizeof(body.state),1,stdout);fwrite(&body.spheres.count,4,1,stdout);fwrite(body.spheres.items,24,body.spheres.count,stdout);
+            rf_physics_body_close(&body);rf_physics_body_close(&body);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--corpse-create-guard")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_create_probe(4);
     }

@@ -649,6 +649,32 @@ int rf_corpse_delete(rf_corpse_delete_state *s,rf_object_registry *registry,
 
 static rf_corpse *corpse_from_link(rf_corpse_list_link *link)
 {return (rf_corpse *)((unsigned char *)link-(offsetof(rf_corpse,deletion)+offsetof(rf_corpse_delete_state,corpse_link)));}
+int rf_corpse_body_open(const rf_corpse_physics_seed *seed,float elasticity,float friction,
+    float density,uint32_t budget,rf_physics_body *result)
+{
+    rf_physics_body_parameters parameters={0};rf_physics_mass_tensor initial={0},prepared;
+    rf_physics_sphere fallback={0};rf_physics_fallback values;
+    const rf_physics_sphere *spheres;uint32_t count;int status;
+    if(!seed || !result || (seed->flags!=0x33u && seed->flags!=0x73u) ||
+       (seed->sphere_count && !seed->spheres))return RF_RANGE;
+    if(result->allocated_bytes || result->spheres.items || result->spheres.count || result->spheres.allocated_bytes ||
+       sizeof(*result)+(uint64_t)(seed->sphere_count?seed->sphere_count:1)*sizeof(*spheres)>budget)return RF_RANGE;
+    memcpy(&parameters.coefficients[1],&seed->word_0c,4);memcpy(&parameters.mass,&seed->word_14,4);
+    parameters.coefficients[0]=elasticity;parameters.coefficients[2]=friction;parameters.flags=seed->flags;
+    memcpy(parameters.position,seed->position,12);memcpy(parameters.orientation,seed->basis,36);
+    spheres=seed->spheres;count=seed->sphere_count;
+    if(!count) {
+        status=rf_physics_fallback_prepare(density,seed->radius,parameters.mass,&values);if(status)return status;
+        parameters.mass=values.mass;fallback.radius=values.radius;fallback.parameter_10=values.parameter_10;
+        parameters.local_tensor[0]=parameters.local_tensor[4]=parameters.local_tensor[8]=1;
+        spheres=&fallback;count=1;
+    } else if(parameters.mass<=0) {
+        initial.mass=parameters.mass;
+        status=rf_physics_spheres_prepare(spheres,count,density,&initial,&prepared);if(status)return status;
+        parameters.mass=prepared.mass;memcpy(parameters.local_tensor,prepared.tensor,36);
+    }
+    return rf_physics_body_open(&parameters,spheres,count,budget,result);
+}
 static int corpse_owner_eligible(const rf_corpse *c)
 {return !(c->update.fade.flags_29c&0x43u) && !(c->update.fade.object_flags_7c&0x4000u);}
 int rf_corpse_create(rf_corpse_create_source *s,const rf_corpse_create_request *r,

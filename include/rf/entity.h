@@ -457,6 +457,15 @@ typedef struct rf_corpse_physics_seed {
     float position[3],basis[9],radius;
     const rf_physics_sphere *spheres;uint32_t sphere_count,flags;
 } rf_corpse_physics_seed;
+/*486da0->49ec90/49f010 for constructor seeds (flags33/73, no geometric model).
+ * Material arguments must come from material index0, not the source actor's
+ * material. word_0c/word_14 retain binary32 response/mass bits. Generates mass
+ * when required and installs the original empty-list fallback. Owns one sphere
+ * allocation; empty result required, failures preserve it. Budget includes the
+ * body and copied spheres, excluding allocator overhead. Fallback opaque_14
+ * is zeroed because the original does not define that word. */
+int rf_corpse_body_open(const rf_corpse_physics_seed *seed,float elasticity,float friction,
+    float density,uint32_t budget,rf_physics_body *result);
 typedef struct rf_corpse_create_request {
     const char *death_name;float position[3],basis[9],created_seconds;
     int32_t now_ms;uint8_t protected_body,seek_motion;

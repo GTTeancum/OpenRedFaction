@@ -52,7 +52,7 @@ assert actual==b''.join(expected),'PC body mismatch'
 xp=pefile.PE(str(root/'build/xbox/main.exe'));xb=xp.get_memory_mapped_image();origin=xp.OPTIONAL_HEADER.ImageBase
 x=Uc(UC_ARCH_X86,UC_MODE_32);x.mem_map(origin,(len(xb)+4095)//4096*4096);x.mem_write(origin,xb);x.mem_map(base,0x10000)
 mapping=(root/'build/xbox/main.map').read_text()
-symbol=lambda name:int(re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',mapping)[1],16)
+symbol=lambda name:int(re.search(r'\s_'+name+r'\s+([0-9a-fA-F]+)',mapping)[1],16)
 entry=symbol('rf_physics_body_open');close=symbol('rf_physics_body_close');malloc=symbol('malloc');free=symbol('free')
 heap_calls=[];fail_heap=False
 def shared_heap(cpu,address,size,data):

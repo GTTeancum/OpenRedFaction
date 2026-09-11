@@ -891,3 +891,38 @@ entry and must not be called blindly for the pre-insertion partial owner.
 Actual resource binding and cleanup remain open. These are compiled-code tests,
 not native XEMU gameplay; no game-runtime behavior changed in this step. All13
 CTests pass, and the updated PC probe compiles successfully.
+
+
+## Owned corpse physics body
+
+rf_corpse_body_open reconstructs the 486da0 -> 49ec90/49f010 path for
+corpse constructor seeds (flags 0x33/0x73, no geometric model). Source
+word_0c and word_14 carry binary32 response coefficient and mass. Elasticity,
+friction and density come from material index 0, not the source class material.
+Nonpositive mass with source spheres uses the reconstructed mass/tensor
+calculation. An empty list gets one centered fallback sphere and an identity
+tensor; nonpositive mass then becomes density * radius * radius. Positive
+inherited mass with existing spheres retains the zero seed tensor.
+
+The adapter owns one copied sphere allocation and uses the existing physics
+body closer. It rejects nonempty owners and insufficient budgets before
+preparation. Accounted Xbox storage is 324 body bytes plus 24 per sphere,
+excluding allocator overhead. The fallback sphere's undefined original opaque
+word is deliberately zeroed.
+
+python tools/verify_corpse_body.py compares all 308 represented state bytes and
+owned sphere records against complete original 49ec90/49f010 execution across
+640 cases: zero to eight spheres, inherited/generated mass, both corpse flags,
+and two orientations. PC and compiled NXDK match. Xbox tests also cover 640
+allocation failures, 640 short budgets, reopening rejection, source overwrite
+and repeated close. Original heap functions are supplied by the harness;
+this is Unicorn execution, not a native XEMU gameplay result.
+
+The new harness initially used an invalid empty-vector pointer and an ambiguous
+map-symbol lookup that matched apu_sge_free instead of free. Both are fixed;
+the existing physics-body verifier now also requires the symbol's leading
+whitespace. Its 480 original/PC/NXDK cases, 200 allocation failures and 62
+nonfinite guards pass against the current binary. PC and Xbox builds succeed,
+and all 13 CTests pass. Live corpse allocation/model ownership, partial-owner
+cleanup and finalization dispatch remain open; this adapter is not yet bound
+to the scene.
