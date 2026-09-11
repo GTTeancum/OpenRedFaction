@@ -178,3 +178,25 @@ name. All68 cases pass. The source entity table SHA256 is
 Results are in `artifacts/foley-classes.json`. Both builds and all nine existing
 CTest cases pass. Persistent campaign class storage, original registration
 ordering, surface selection and footstep dispatch scheduling remain open.
+
+
+## Startup registration ordering
+
+`tools/verify_foley_startup_order.py` executes original startup segment
+`4b22f4..4b2366`, including actual `4346f0` and its `506270` audio gate. Other
+callee bodies are intercepted. Gate values0,1,255 confirm global sounds load
+only for nonzero audio availability, followed by Foley unconditionally, finalizer,
+exit cleanup registration (`434c80`), then `41b730` entity initialization.
+`41b730` calls `41b830`; the latter opens `entity.tbl` and calls class loader
+`41b910`. This establishes the order within this startup segment, not later
+level loads, registry resets or every intervening loader's side effects.
+
+`tools/inspect_foley_registration.py` combines the independent declaration
+inventories in that order:88 global declarations plus1140 Foley declarations
+contain1136 distinct case-insensitive names and92 duplicate Foley declarations.
+Seven refer to global sound names. For example `death_hit1.wav` must retain
+near20/volume0.8 from sounds.tbl rather than Foley's near8/volume0.9; `Alarm_01.wav`
+retains near15/volume0.8 rather than near10/volume0.9. The inventory stores exact
+binary32 parameters for integration comparison. It does not establish presence
+in audio.vpp or successful registration; actual metadata-bank hookup still
+needs that check, and PCM must remain separately resident on demand.

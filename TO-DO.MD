@@ -10,7 +10,10 @@ Original footstep requests and material binding are verified against PC/NXDK;
 the shared reader covers497 groups,1140 samples and all63 authored classes.
 
 Foley tables retain26,452 bytes with113,092-byte parsing peak; campaign ownership,
-registration ordering, surface selection and dispatch scheduling remain open.
+level-transition ordering, surface selection and dispatch scheduling remain open.
+
+Original startup confirms global sounds precede Foley and entity initialization;
+verify1136 distinct declarations and seven global overlaps in the live bank.
 
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
