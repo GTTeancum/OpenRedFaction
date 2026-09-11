@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Connect the initialized player flash owner to real damage/HUD scheduling and the now pixel-verified PC/Xbox untextured compositor (mode0x18000).
+- [ ] Connect real player-health damage to the rendered flash pass, recover full HUD/pause timing, and validate active flashes across matching PC/Xbox presentation schedules.
 - [ ] Connect and verify NPC settling/fall/landing; deeper diagnostic sweeps find walkable floors below all24 opening-level short-probe misses.
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.

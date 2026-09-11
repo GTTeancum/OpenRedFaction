@@ -3896,3 +3896,37 @@ restoration and repacking still run after an emulator failure.
 This verifies backend pixels only. The retained player flash still needs
 the campaign render callback and real player-damage dispatch connected.
 No new campaign screenshot or full HUD fidelity is claimed.
+
+
+## Campaign flash render callback
+
+rf_scene_draw_player_flash is now called after world/particles by the PC
+and Xbox frame sinks, before presentation. It resolves the registered local
+player and emits four vertices for the diagnostic640x480 viewport, using
+mode0x18000 and no texture. A successful submission commits the fade;
+callbacks see the pre-decay owner. Failed submissions leave the owner
+unchanged as explicit port error behavior. Inactive flashes emit no packet.
+The check-only scene sink uses the same pass with no device callback.
+
+The pass requires an active campaign frame sink. It is not called during
+PC catch-up/presentation skips, and current replay policy rasterizes only
+the last PC frame; therefore future active multi-frame flash comparisons
+must account for differing presentation schedules. The diagnostic uses
+its fixed1/60-second step and has no recovered full-game pause/HUD scheduler.
+This does not yet connect real player health or change NPC damage into a
+player hit. Original41a350 invokes4a7520 only when42a8e0 is true, old health
+and scaled damage are positive, and damage kind is not10. The inspected
+42a8e0 requires object-player predicate4895d0 and entity1430 association;
+it is not interchangeable with merely having a registered entity handle.
+
+Private scene tests submit an active flash through a real generation-checked
+player registration, verify all four viewport vertices and the pre-decay
+color, check a failed sink preserves alpha, and check inactive/no-frame
+passes emit nothing. Both builds, all12 CTest checks and4096 original
+draw/decay comparisons pass. Native replay evidence follows below.
+
+Stock64MiB XEMU replay-20260911-155836 passes180 frames with the new
+render callback and existing door/NPC-damage checks. The flash remains
+inactive in that regression route: active packet checks are the private
+scene tests, and active GPU pixels are the preceding native compositor
+fixture. No screenshot or native active-campaign-hit claim is made.

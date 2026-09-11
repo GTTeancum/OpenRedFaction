@@ -573,6 +573,22 @@ uint32_t rf_scene_npc_materials[8]; /* appearances, materials, images, resident,
 uint32_t rf_scene_npc_geometry[7]; /* models, LODs, vertices, triangles, bytes, geometry hash, prepared skin hash */
 uint32_t rf_scene_npc_startup[4]; /* actors, bones, playback hash, matrix/cache hash */
 static rf_entity_view campaign_player_view;
+int rf_scene_draw_player_flash(rf_scene_particle_sink sink,void *context)
+{
+    rf_screen_flash next,draw;rf_particle_draw_vertex vertices[4];uint32_t active,i,color;int status;
+    if(!particle_draw_stream || !campaign_spawn)return RF_OK;
+    if(rf_entity_lookup(&campaign_entities,campaign_player_view.handle)!=&campaign_player_view)return RF_NOT_FOUND;
+    next=campaign_player_flash;
+    status=rf_screen_flash_step(&next,scene_step_seconds,0,&draw,&active);if(status || !active)return status;
+    color=((uint32_t)draw.rgba[3]<<24)|((uint32_t)draw.rgba[0]<<16)|((uint32_t)draw.rgba[1]<<8)|draw.rgba[2];
+    memset(vertices,0,sizeof(vertices));
+    for(i=0;i<4;++i) {
+        vertices[i].screen[0]=(i==1 || i==2)?640:0;vertices[i].screen[1]=i>=2?480:0;
+        vertices[i].reciprocal_w=1;vertices[i].argb=color;
+    }
+    if(sink){status=sink(context,vertices,4,NULL,0x18000);if(status)return status;}
+    campaign_player_flash=next;return RF_OK;
+}
 int rf_scene_player_damage_flash(uint32_t player_entity_handle)
 {
     if(rf_entity_lookup(&campaign_entities,(int32_t)player_entity_handle)!=&campaign_player_view)return RF_NOT_FOUND;

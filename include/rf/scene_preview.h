@@ -47,7 +47,7 @@ int rf_scene_npc_damage_ai(uint32_t handle,uint32_t source);
 int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float duration,int32_t now);
 /* Separate retained local-player flash owner. Damage replaces color/alpha
  * with original4a7520 red128. Draw/decay is called by the HUD/render owner,
- * not by camera shake or simulation ticks. No compositor is attached yet.
+ * not by camera shake or simulation ticks. The campaign pass uses the same owner.
  * Stale/nonlocal handles preserve outputs and return NOT_FOUND. */
 int rf_scene_player_damage_flash(uint32_t player_entity_handle);
 int rf_scene_player_flash_step(uint32_t player_entity_handle,float seconds,uint32_t freeze,
@@ -133,6 +133,11 @@ void rf_scene_set_audio_events(const rf_scene_audio_events *events,void *context
  * World/actor mesh is presented first by this diagnostic composition; complete
  * mixed-object/room-surface integration remains separate. No per-frame allocation. */
 int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context);
+/* Campaign HUD pass after world/particles, inside the frame sink only.
+ * NULL sink checks the packet; otherwise callback must preserve player owners.
+ * Emits an untextured 640x480 rectangle and commits fade after successful draw.
+ * Uses the diagnostic frame step; no full game pause/HUD scheduling claim. */
+int rf_scene_draw_player_flash(rf_scene_particle_sink sink,void *context);
 /* Frames, queued entries, particles visited, polygons, vertices, cumulative packet
  * hash, allocated workspace bytes. Ring rows: frame/queued/visited/polygons/vertices/hash. */
 extern uint32_t rf_scene_particle_draw_summary[7],rf_scene_particle_draw_frames[64][6];

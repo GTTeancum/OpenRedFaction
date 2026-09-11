@@ -63,6 +63,7 @@ static int frame_check(void *context,uint32_t frame,const rf_preview_mesh *mesh,
 {
     check *c=context;uint32_t i,hash=2166136261u;const uint8_t *bytes;
     {int status=rf_scene_draw_particles(NULL,NULL);if(status)return status;}
+    {int status=rf_scene_draw_player_flash(NULL,NULL);if(status)return status;}
     if(frame!=c->next++ || (!follow_camera && world!=c->world.count) || mesh->count<world || mesh->count%3 ||
        mesh->bytes!=(uint64_t)mesh->count*sizeof(rf_preview_vertex) ||
        mesh->bytes>(follow_camera?RF_SCENE_FOLLOW_CAPACITY:c->world.bytes+1024*1024) || (!follow_camera && memcmp(mesh->vertices,c->world.vertices,c->world.bytes)))return RF_FORMAT;

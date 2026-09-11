@@ -151,6 +151,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     status=rf_pc_raster_frame(&p->raster,mesh,materials,&p->lightmaps,world);
     if(status)return status;
     status=rf_scene_draw_particles(particle_present,p);if(status)return status;
+    status=rf_scene_draw_player_flash(particle_present,p);if(status)return status;
     ++p->frames;
     if(!p->headless) {
         for(i=0;i<p->raster.pixels;++i) {

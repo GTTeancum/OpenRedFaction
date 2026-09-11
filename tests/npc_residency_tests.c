@@ -51,9 +51,23 @@ static int event_damage_binding_check(void)
     CHECK(rf_object_registry_remove(&campaign_registry,event.handle)==RF_OK);
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;memset(&campaign_seeds,0,sizeof(campaign_seeds));return 0;
 }
+typedef struct flash_draw_check {uint32_t count,alpha;int fail;} flash_draw_check;
+static int flash_draw_sink(void *context,const rf_particle_draw_vertex *v,uint32_t count,
+    const rf_image *image,uint32_t mode)
+{
+    flash_draw_check *check=context;uint32_t i;
+    CHECK(count==4 && image==NULL && mode==0x18000);
+    CHECK(campaign_player_flash.alpha==check->alpha);
+    for(i=0;i<4;++i) {
+        CHECK(v[i].screen[0]==((i==1 || i==2)?640:0) && v[i].screen[1]==(i>=2?480:0));
+        CHECK(v[i].argb==((check->alpha<<24)|0xff0000) && v[i].reciprocal_w==1);
+    }
+    ++check->count;return check->fail?RF_IO:RF_OK;
+}
 static int player_feedback_check(void)
 {
     rf_screen_flash flash,snapshot;uint32_t active=0;
+    scene_stream stream={0};flash_draw_check draw_check={0,128,0};
     rf_registered_entity_view registration={0},other_registration={0};rf_entity_view other={0};rf_camera_effect_state saved;
     rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
     memset(&campaign_player_view,0,sizeof(campaign_player_view));
@@ -74,6 +88,18 @@ static int player_feedback_check(void)
     CHECK(rf_scene_player_flash_step(registration.handle,.5f,1,&flash,&active)==RF_OK && flash.alpha==126);
     CHECK(campaign_player_flash.alpha==126);
     CHECK(rf_scene_player_damage_flash(registration.handle)==RF_OK && campaign_player_flash.alpha==128);
+    /* Only an active campaign frame sink owns this HUD pass. */
+    CHECK(rf_scene_draw_player_flash(flash_draw_sink,&draw_check)==RF_OK && draw_check.count==0);
+    particle_draw_stream=&stream;campaign_spawn=1;
+    CHECK(rf_scene_draw_player_flash(flash_draw_sink,&draw_check)==RF_OK && draw_check.count==1);
+    CHECK(campaign_player_flash.alpha==126);
+    draw_check.alpha=126;draw_check.fail=1;
+    CHECK(rf_scene_draw_player_flash(flash_draw_sink,&draw_check)==RF_IO && campaign_player_flash.alpha==126);
+    draw_check.fail=0;
+    CHECK(rf_scene_draw_player_flash(NULL,NULL)==RF_OK && campaign_player_flash.alpha==124);
+    CHECK(rf_screen_flash_reset(&campaign_player_flash)==RF_OK);
+    CHECK(rf_scene_draw_player_flash(flash_draw_sink,&draw_check)==RF_OK && draw_check.count==2);
+    particle_draw_stream=NULL;campaign_spawn=0;
     CHECK(rf_scene_player_feedback(registration.handle,2,.05f,1000)==RF_OK);
     CHECK(campaign_camera_effect.strength==2 && campaign_camera_effect.deadline==1050);
     CHECK(rf_scene_player_feedback(registration.handle,.01f,.5f,1000)==RF_OK);
