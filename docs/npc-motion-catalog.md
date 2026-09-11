@@ -378,3 +378,25 @@ opening-class zero value but has not yet been substituted for complete original
 not evidence that the field remains uninitialized at first selection. Remaining
 startup assumptions, including vector initialization and later class/flag writes,
 need their own source attribution before wiring the full scene startup path.
+
+## Observed movement-intent and AI-flag initialization
+
+The complete40e380 constructor preserves both vectors at actor+708/+714 on
+all32 randomized buffers. Its40e600 member constructor calls467620, which
+calls409f90 twice;409f90 only returns its receiver. It is not a vector clear.
+The later422360 factory does establish zeros:422eaf..422ed8 clears+708/+70c/
++710 and calls4fad00 on+714. This executes before first41f270 at4231f0.
+
+The startup oracle now poisons those vector fields and executes that original
+factory span, including the actual clear helper. It also poisons+7d0 and runs
+403040..403080, including both unchanged5001d0 class-name comparisons against
+actual class strings. All covered opening classes receive AI flags0. These
+bounded spans establish the values without pretending to run full402c20 or
+422360; other unrelated fields and call inputs remain explicit fixtures.
+
+All60 authored selector cases and180 downstream weighting/advance/pose cases
+still pass, including3789 matrices and cache generations. This narrows the
+remaining constructor audit: movement intent is now source-backed, while
+physics velocity, link state and broader factory ordering still need completion
+before the scene startup is represented as a full reconstruction. Production
+C and native gameplay did not change in this audit.

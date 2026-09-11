@@ -87,6 +87,18 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
    put(entity+0x520,'<I',0xa5a5a5a5);put(entity+0x554,'<I',0xa5a5a5a5)
    u.reg_write(UC_X86_REG_ESI,entity+0x2a0);u.reg_write(UC_X86_REG_EBX,0);u.reg_write(UC_X86_REG_ESP,stack)
    call(0x402d68,0x402dad)
+   # The vector C++ constructor is a no-op; the later factory resets intent.
+   u.mem_write(entity+0x708,b'\xa5'*36)
+   u.reg_write(UC_X86_REG_ESI,entity);u.reg_write(UC_X86_REG_EBX,0);u.reg_write(UC_X86_REG_ESP,stack)
+   call(0x422eaf,0x422ed8)
+   assert bytes(u.mem_read(entity+0x708,24))==bytes(24)
+   # AI flag reset and both actual class-name tests; not full402c20.
+   name=cls.encode('ascii')+b'\0';u.mem_write(info+0x1000,name);put(info,'<II',len(name)-1,info+0x1000)
+   put(entity+0x7d0,'<I',0xa5a5a5a5);put(stack,'<II',info,0x593da8)
+   u.reg_write(UC_X86_REG_ESI,entity+0x2a0);u.reg_write(UC_X86_REG_ESP,stack)
+   call(0x403040,0x403080)
+   assert struct.unpack('<I',u.mem_read(entity+0x7d0,4))[0]==0,(cls,'non-turret initial AI flags')
+
    put(entity+0x834,'<i',-1);put(entity+0x1380,'<i',prior);u.mem_write(entity+0x138c,initial[:16])
    for i,value in enumerate(mapping):put(entity+0x8e4+16*i,'<i',value)
    for i,value in enumerate(actions):put(entity+0xa54+16*i,'<i',value)
@@ -190,7 +202,7 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
        pose_results.append(dict(level=level,entity_class=cls,model=model_name,delta=delta,prior_action=prior,creation_flags=creation,object_flags=object_flags,bones=bone_count,pose_sha256=hashlib.sha256(original_pose).hexdigest()))
    results.append(dict(level=level,entity_class=cls,mode=mode_id,primary=primary,secondary=secondary,prior_action=prior,creation_flags=creation,object_flags=object_flags,
     prior_action_reads=sum(a<=0x1380<a+n for a,n in reads),controller=list(struct.unpack('<iiff',actual[:16])),read_fields=sorted({hex(a) for a,n in reads})))
-report=dict(authored_creation_flags=authored_mode,result='PASS',cases=len(results),original_sha256=digest,scope='Full original41f400 selector versus PC priority/movement composition using installed base maps, class flags/movement modes and default weapon IDs. Original402d68 scalar span executes. Fixture zeroes unspecified actor state, uses kind0/no links/nonplayer, zero velocity and no external events; not full factory or first pose/weight update. Field1380 sensitivity is tested, not assumed.',results=results)
+report=dict(authored_creation_flags=authored_mode,result='PASS',cases=len(results),original_sha256=digest,scope='Full original41f400 selector versus PC priority/movement composition using installed base maps, class flags/movement modes and default weapon IDs. Original402d68 scalar,422eaf vector reset and403040 AI-flag/class-test spans execute with poisoned target fields. Fixture zeroes unspecified actor state, uses kind0/no links/nonplayer, factory-reset movement intent, fixture zero physics velocity and no external events; not full factory or first pose/weight update. Field1380 sensitivity is tested, not assumed.',results=results)
 (root/('artifacts/npc-authored-selection.json' if authored_mode else 'artifacts/npc-initial-selection.json')).write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
 
 if controller_mode:

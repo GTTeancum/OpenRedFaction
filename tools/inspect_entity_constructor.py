@@ -10,7 +10,7 @@ assert digest=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836
 p=pefile.PE(str(exe));im=p.get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32)
 u.mem_map(0x400000,(len(im)+4095)//4096*4096);u.mem_write(0x400000,im)
 b=0x30000000;stack=b+0xe000;stop=b+0xf000;u.mem_map(b,0x10000);u.mem_map(0,0x10000)
-rng=random.Random(0x40e380);writes=set();fields=[0x7c,0x1a8,0x200,0x294,0x520,0x554,0x7d0,0x810,0x834,0x1380,0x138c]
+rng=random.Random(0x40e380);writes=set();fields=[0x7c,0x1a8,0x200,0x294,0x520,0x554,0x708,0x70c,0x710,0x714,0x718,0x71c,0x7d0,0x810,0x834,0x1380,0x138c]
 def observe(uc,access,address,size,value,data):
  if b<=address<b+0x1494:writes.update(range(address-b,address-b+size))
 u.hook_add(UC_HOOK_MEM_WRITE,observe)

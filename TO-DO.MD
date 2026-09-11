@@ -40,6 +40,9 @@ three-level metadata/budget/reference checks pass. Connect actor startup next.
 Authored opening creation flags now pass180 original startup/pose cases;
 3789 matrices match. Finish attributing constructor fields for scene startup.
 
+Original factory spans now establish zero movement intent and opening AI flags;
+180 authored startup cases still pass. Resolve remaining link/physics inputs.
+
 Immediate open items:
 - [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
