@@ -73,6 +73,21 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corpse-retention")) {
+        uint32_t count,i,faded;rf_corpse_retention_node nodes[32];int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&count,4,1,stdin)==1) {
+            if(count>32)return 2;
+            for(i=0;i<count;i++) {
+                if(fread(&nodes[i].object_flags_7c,16,1,stdin)!=1)return 2;
+                nodes[i].next=i+1<count?nodes+i+1:NULL;
+            }
+            faded=UINT32_MAX;status=rf_corpse_retention_apply(count?nodes:NULL,count,&faded);
+            fwrite(&status,4,1,stdout);fwrite(&faded,4,1,stdout);
+            for(i=0;i<count;i++)fwrite(&nodes[i].object_flags_7c,16,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--burn-retarget")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return burn_retarget_probe();
     }

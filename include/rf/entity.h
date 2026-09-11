@@ -331,6 +331,18 @@ typedef struct rf_entity_death_entry_state {
     uint32_t flags_810,flags_1a8;
     float vector_714[3],vector_144[3],vector_150[3];
 } rf_entity_death_entry_state;
+typedef struct rf_corpse_retention_node {
+    struct rf_corpse_retention_node *next;
+    uint32_t object_flags_7c,flags_29c;
+    float created_294,fade_298;
+} rf_corpse_retention_node;
+/*416940 retention tail using416f20/416f80/4174f0: keep at most five eligible
+ * corpses, mark oldest extras fading with fade298=1. Protected bits29c42,
+ * object7c4000 and already-fading29c1 exclude a node. Equal times keep list
+ * order. Caller supplies a stable null-terminated list; visit_limit bounds
+ * traversal and rejects cycles/oversize lists before writes. No destruction
+ * or allocation; finite creation timestamps required. */
+int rf_corpse_retention_apply(rf_corpse_retention_node *head,uint32_t visit_limit,uint32_t *faded);
 /* SP41fdc0 state prefix through41fe59, before collision-link teardown.
  * Requires a live state; falling is the resolved42a020 low byte.
  * Returns1 on entry,0 if already dying (all fields then remain untouched).

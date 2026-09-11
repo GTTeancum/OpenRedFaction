@@ -518,3 +518,28 @@ checks partial bones, both ownership copies, preservation of particle/list
 bytes on transfer and duplicate/inactive-token rejection. Both builds and
 all13 CTests pass. This verifies native resource handling in a synthetic
 fixture, not authored corpse creation or visible burning-corpse gameplay.
+
+
+## Corpse retention policy
+
+`rf_corpse_retention_apply` reconstructs constructor416da3..416dc6 using
+416f20 count,416f80 oldest selection and4174f0 fade marking. A corpse is
+excluded by flags29c bit1 (already fading), bits42, or object7c bit4000.
+The helper keeps five eligible corpses and marks each oldest excess corpse
+with fade298=1 and flags29c bit1. Creation time294 uses a strict less-than
+comparison, so ties retain list order. Protected bodies do not count toward
+the five-body threshold. This is not a total corpse or memory allocation cap,
+and fade marking does not immediately free an object.
+
+The shared view uses a borrowed null-terminated list,20 bytes per node on
+Xbox. A caller-supplied visit bound and finite timestamps are checked before
+mutation; cycles/overlong lists and nonfinite times reject without changing
+output or nodes. No allocation or resource destruction occurs.
+
+`python tools/verify_corpse_retention.py` executes the actual constructor
+retention block and all real callees without replacements, then compares
+PC/NXDK final state over4096 cases with0..32 corpses. It verifies21927 fade
+marks, including27 in the32-eligible case, protection/already-fading flags
+and tied/negative finite timestamps. Three additional NXDK preflight guards
+pass. Both builds and all13 CTests pass. Full corpse creation, live list
+ownership, fade progression and eventual resource deletion remain open.

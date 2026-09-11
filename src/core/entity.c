@@ -514,6 +514,26 @@ uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t fa
     return 1;
 }
 
+static int corpse_retention_eligible(const rf_corpse_retention_node *n)
+{return !(n->flags_29c&0x43u) && !(n->object_flags_7c&0x4000u);}
+int rf_corpse_retention_apply(rf_corpse_retention_node *head,uint32_t limit,uint32_t *faded)
+{
+    rf_corpse_retention_node *n,*oldest;uint32_t visits=0,count=0,total,i;
+    if(!faded)return RF_RANGE;
+    for(n=head;n;n=n->next) {
+        if(visits==limit)return RF_RANGE;++visits;
+        if(!isfinite(n->created_294))return RF_RANGE;
+        if(corpse_retention_eligible(n))++count;
+    }
+    total=count>5?count-5:0;
+    for(i=0;i<total;i++) {
+        oldest=NULL;
+        for(n=head;n;n=n->next)if(corpse_retention_eligible(n) && (!oldest || n->created_294<oldest->created_294))oldest=n;
+        oldest->fade_298=1.0f;oldest->flags_29c|=1u;
+    }
+    *faded=total;return RF_OK;
+}
+
 int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backend *b)
 {
     uint32_t finish=0,token,i,gain;float end[3],offset,radius;
