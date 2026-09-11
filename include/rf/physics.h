@@ -169,6 +169,12 @@ int rf_physics_force_actor_carry(float support_velocity[3],uint32_t *body_flags,
  * errors preserve cap and flags. Velocity/output storage must not overlap. */
 int rf_physics_force_air_cap(const float velocity[3],float class_speed,
     float *alternate_cap,uint32_t *body_flags);
+/* 4868ca..486940 eligibility with resolved query/actor/player-list predicates.
+ * local_related means original 48aaf0 (object flag8 OR a player actor's +200
+ * reference matches object handle), not merely the local-player pointer.
+ * Presence/predicate arguments must be 0/1. Returns boolean; no mutations. */
+uint32_t rf_physics_force_eligible(uint32_t body_flags,uint32_t region_present,
+    uint32_t region_flags,uint32_t local_related,uint32_t actor_present,uint32_t actor_mode);
 /* First enabled containing region in supplied creation order. Sphere boundary
  * is strict; boxes inclusive. Unknown shapes are skipped. UINT32_MAX means
  * no match. No allocation or force application; errors preserve index. */

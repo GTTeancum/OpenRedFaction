@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
-Replacement force/fall/sound-callback/cap sequence matches 512 original PC/NXDK
-cases. Query eligibility, rotation, registration and live integration remain.
+Force eligibility matches 4320 original PC/NXDK cases; carry and replacement
+sequences pass. Rotation, ownership/registration and live integration remain.
 
 Immediate open items:
 - [ ] Register verified runtime force regions and connect force application plus alternate airborne speed-cap ownership.

@@ -105,3 +105,19 @@ count zero, volume one and pan zero. Whole-actor comparisons allow only
 velocity, physics flags, descriptor/orientation and alternate cap changes.
 Disabled low descriptor bytes select descriptor zero. This verifies composition,
 not actual audio playback or the surrounding query/eligibility/rotation paths.
+
+`rf_physics_force_eligible` reconstructs the eligibility gates with resolved
+query and registry predicates. Body flag `8` is required and a region must be
+selected. Region flag `20` rejects objects identified by `48aaf0`: object flag
+`8`, or a player-list actor whose `+200` handle references the tested object.
+Region flag `2` requires actor mode 1 or 5; if actor lookup fails, body flags
+`18000000` instead permit the object. Without region flag `2`, neither that
+mode restriction nor the nonactor body-mask restriction applies.
+
+`verify_force_eligible.py` executes the original prefix from `4868c0` through
+success at `486940` or rejection at `486c1c`. It retains the real region query,
+sphere containment, generation-checked handle lookup, actor type/mode checks
+and circular player-list traversal. All 4,320 PC/NXDK decisions agree, with
+752 eligible cases and no actor mutations. The shared function consumes the
+resolved predicates; this does not yet implement player-list ownership or
+campaign force-region registration. Rotation and integrated application remain.

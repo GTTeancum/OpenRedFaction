@@ -291,6 +291,15 @@ int rf_physics_force_air_cap(const float velocity[3],float class_speed,
     if(!isfinite(cap))return RF_RANGE;
     *alternate_cap=cap;*body_flags|=0x200000;return RF_OK;
 }
+uint32_t rf_physics_force_eligible(uint32_t body_flags,uint32_t region_present,
+    uint32_t region_flags,uint32_t local_related,uint32_t actor_present,uint32_t actor_mode)
+{
+    if(!(body_flags&8) || region_present!=1 || local_related>1 || actor_present>1)return 0;
+    if((region_flags&0x20) && local_related)return 0;
+    if(!(region_flags&2))return 1;
+    if(actor_present)return actor_mode==1 || actor_mode==5;
+    return (body_flags&0x18000000)!=0;
+}
 int rf_physics_force_region_select(const rf_physics_force_region *regions,uint32_t count,
     const float position[3],uint32_t *index)
 {
