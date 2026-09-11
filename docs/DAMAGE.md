@@ -836,3 +836,26 @@ artifacts/burn-model-assets/report.json. Game assets remain untracked.
 The file probe now supports --burn-bones after its payload path for repeatable
 real-asset checking. This does not yet bind a live model owner or evaluate
 animated burn positions; those remain separate integration requirements.
+
+## Burn bone query from evaluated animated poses
+
+rf_model_query_bone now exposes the position and3x3 basis from an already
+evaluated bone matrix, matching the skeletal kind2 route503230 ->5012a0 ->
+51c590 ->51b2e0 and the4fec30/4fec50 extraction helpers. Index-1 returns
+identity; ordinary indices are bounded to the supplied count<=256. Nonfinite
+matrices and invalid indices preserve the output and return an error. The
+function allocates nothing and permits input/output aliasing through a local
+copy. Lazy pose evaluation and virtual/attachment indices remain external.
+
+verify_burn_pose_query.py executes that complete original route without hooks
+using cached matrices. All520 valid cases match PC and actual NXDK bytes;
+26 port guards preserve output. The valid set includes264 queries of the four
+verified miner burn bones across33 time samples of each standing and crouching
+motion, using the existing shared skeleton sampler. This joins actual bone
+selection with current animated pose matrices, rather than bind-pose offsets.
+Both builds and eight CTests pass. Evidence is artifacts/burn-pose-query.json.
+
+This supplies the model query needed by a burn attachment adapter but does
+not yet connect live emitter room relocation, particle updates or persistent
+entity/audio ownership. It also does not verify lazy original animation
+advancement through this query.

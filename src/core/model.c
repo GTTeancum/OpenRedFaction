@@ -1022,3 +1022,14 @@ int rf_model_place_tag(const float local[12], const float orientation[9], const 
     for (i=0;i<12;++i) if (!isfinite(result[i])) return RF_RANGE;
     memcpy(out,result,sizeof(result)); return RF_OK;
 }
+
+int rf_model_query_bone(const float (*pose)[12],uint32_t count,int32_t index,rf_model_bone_query *out)
+{
+    rf_model_bone_query value={{0},{1,0,0,0,1,0,0,0,1}};unsigned i;
+    if(!out || count>256 || index<-1 || (index>=0 && ((uint32_t)index>=count || !pose)))return RF_RANGE;
+    if(index>=0) {
+        for(i=0;i<12;++i)if(!isfinite(pose[index][i]))return RF_FORMAT;
+        memcpy(value.basis,pose[index],36);memcpy(value.position,pose[index]+9,12);
+    }
+    *out=value;return RF_OK;
+}

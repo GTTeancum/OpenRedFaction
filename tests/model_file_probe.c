@@ -15,6 +15,16 @@ int main(int argc, char **argv)
     rf_model_file model;
     uint32_t i;
     int result;
+    if(argc==2 && !strcmp(argv[1],"--bone-query")) {
+        uint32_t count;int32_t index,status;float pose[256][12];rf_model_bone_query out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&count,4,1,stdin)==1) {
+            if(count>256 || fread(&index,4,1,stdin)!=1 || fread(pose,48,count,stdin)!=count)return 2;
+            memset(&out,0xa5,sizeof(out));status=rf_model_query_bone(pose,count,index,&out);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&out,48,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--sphere-pose")) {
         uint8_t raw[44];float matrices[256][12];uint32_t count;rf_model_collision_sphere sphere={0};
         struct {float value[4];int32_t status;} output;

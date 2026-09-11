@@ -2405,3 +2405,6 @@ Live model owner, pose binding and persistent campaign damage remain open.
 Installed burn bone binding passes95 model sets on PC/NXDK;31 resolve all
 four bones, and miner resolves11/12/15/8 including spine03 fallback.
 Live owner/animated pose integration and gameplay eligibility remain open.
+
+Animated burn-bone query passes520 original PC/NXDK cases including264 real
+miner pose queries plus26 guards; live emitter/owner adapters remain open.

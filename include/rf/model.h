@@ -241,6 +241,13 @@ typedef struct rf_model_lighting { float lights[3][6],ambient[3]; } rf_model_lig
 /* Complete 0x52dad0 setup with caller-owned global values and light list. */
 int rf_model_lighting_setup(const rf_model_lighting_input *input,const rf_model_local_light *lights,
     const float (*colors)[3],uint32_t count,rf_model_lighting *result);
+typedef struct rf_model_bone_query {float position[3],basis[9];} rf_model_bone_query;
+/*503230/5012a0 kind2 over already evaluated51b2e0 bone matrices.
+ * Index-1 supplies identity; other indices must be within count<=256.
+ * Virtual bones/attachments and lazy animation advancement are external.
+ * Finite matrix required; output unchanged on error, input/output may alias. */
+int rf_model_query_bone(const float (*pose)[12],uint32_t count,int32_t index,
+    rf_model_bone_query *result);
 /* Tag placement 0x5034f0 after character tag evaluation: rotate then translate.
  * Preserves its separate rounding stages; no extra scale parameter is applied. */
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12]);
