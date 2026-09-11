@@ -157,3 +157,29 @@ runtime alias selection is not yet connected to catalog lookup.
 
 PC and NXDK builds, the1024-case CPU comparison and all nine CTest checks pass.
 No new emulator gameplay behavior or visual change is claimed for these helpers.
+
+## Weapon ID to selected mapping
+
+`rf_entity_motion_selection_base` creates a compact base mapping with borrowed
+pointers to the class action sound labels. `rf_entity_motion_selection_weapon`
+implements negative-ID no-op behavior and resolves the machine-pistol-special
+alias before finding a sparse group. It restores base mappings and overlays
+present weapon records. An absent weapon action preserves its base sound label;
+a present weapon action uses its own label, including an explicit empty string.
+The binding owner must remain alive while a selection's sound pointers are used.
+These functions allocate no persistent storage and do not equip weapons or start
+animations. Invalid class/weapon IDs preserve output; non-skeletal base requests
+return NOT_FOUND. A missing alias destination is an explicit port error.
+
+The three-level independent verifier checks all44 weapon IDs for each skeletal
+class:220 selections in L1S1,88 in L1S2 and176 in L1S3 (484 total). It compares
+all68 effective motion IDs, resolved weapon/skeleton IDs and all45 sound labels.
+The probe also checks base initialization, negative no-op, out-of-range output
+preservation and non-skeletal rejection. PC/NXDK builds and CTest are checked;
+this is not native live-actor switching validation.
+
+Startup timing remains separate: the default-weapon42ab20 call precedes the
+factory's later base mapping population/copy. Do not apply the default weapon
+at an invented point merely because its ID is now available. The original first
+41f270 selector call and subsequent503360 update must be reproduced with their
+actual constructor inputs before claiming a faithful initial pose.

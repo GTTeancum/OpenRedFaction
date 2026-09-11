@@ -125,6 +125,23 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
   assert list(map(int,fields[4:]))==want and int(fields[3])==model_for[cls]
   effective_count+=1
  assert effective_count==len(group_registries)
+ selected_count=0
+ for line in out.splitlines():
+  if not line.startswith('SELECTED_MAP\t'):continue
+  fields=line.split('\t');cls=fields[1].lower();requested=int(fields[2]);resolved=int(fields[3]);model=int(fields[4])
+  weapon=weapons[requested].lower()
+  if weapon=='machine pistol special':weapon='machine pistol'
+  assert resolved==[w.lower() for w in weapons].index(weapon) and model==model_for[cls]
+  base_map=expected_maps[cls,''];weapon_map=expected_maps.get((cls,weapon),[-1]*68)
+  assert list(map(int,fields[5:73]))==[b if w==-1 else w for b,w in zip(base_map,weapon_map)]
+  expected_sounds=[]
+  for j,name in enumerate(action_names):
+   source=weapon if weapon_map[23+j]!=-1 else ''
+   row=all_actions.get((cls,source,name));expected_sounds.append(row['sound'] if row else '')
+  assert fields[73:]==expected_sounds,(level,cls,weapon,'selected sounds')
+  selected_count+=1
+ assert selected_count==sum(m!=0xffffffff for m in model_for.values())*len(weapons)
+
 
  assert catalog_resources==expected_resources,(level,'shared resources')
  shared_markers={}
@@ -149,6 +166,6 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  assert group_slots==len(group_registries)*68
  assert identity_count==sum(map(len,registries.values()))+sum(map(len,group_registries.values()))
  assert int(next(line for line in out.splitlines() if line.startswith('BOUND_GROUPS ')).split()[1])==len(group_registries)
- reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary,catalog_summary=catalog_summary,shared_resources=len(catalog_resources),marked_resources=marked,effective_groups=effective_count))
+ reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary,catalog_summary=catalog_summary,shared_resources=len(catalog_resources),marked_resources=marked,effective_groups=effective_count,weapon_selections=selected_count))
 report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames, retained first-authored cache names and sound labels exact. Shared per-model maps independently checked against authored declarations in weapon-before-base order. Shared base-state footstep masks/ticks checked independently across models and loop registrations. Original global cache order and live playback excluded.')
 (root/'artifacts/base-action-sets.json').write_text(json.dumps(report,indent=2));print(report)

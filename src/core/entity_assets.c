@@ -919,6 +919,42 @@ int rf_entity_motion_mapping_overlay(const rf_entity_motion_mapping *base,
     for(i=0;i<45;++i)v.actions[i]=a.actions[i].motion;
     *result=v;return RF_OK;
 }
+int rf_entity_motion_selection_base(const rf_entity_motion_catalog *c,
+    const rf_entity_base_motions *b,uint32_t class_index,rf_entity_motion_selection *result)
+{
+    rf_entity_motion_selection v;uint32_t i;
+    if(!c || !b || !result || c->class_count!=b->class_count || class_index>=c->class_count ||
+       !c->mappings || !b->classes || c->mapping_count<c->class_count)return RF_RANGE;
+    v.mapping=c->mappings[class_index];
+    if(v.mapping.class_index!=class_index || v.mapping.weapon!=-1)return RF_RANGE;
+    if(v.mapping.skeleton==UINT32_MAX)return RF_NOT_FOUND;
+    if(v.mapping.skeleton>=c->model_count)return RF_RANGE;
+    for(i=0;i<45;++i)v.action_sounds[i]=b->classes[class_index].action_sounds[i];
+    *result=v;return RF_OK;
+}
+int rf_entity_motion_selection_weapon(const rf_entity_motion_catalog *c,
+    const rf_entity_base_motions *b,uint32_t class_index,int32_t weapon,rf_entity_motion_selection *result)
+{
+    rf_entity_motion_selection v;const rf_entity_motion_mapping *map=NULL;
+    const rf_entity_weapon_motion_group *group=NULL;uint32_t i,j;int status;int32_t alias;
+    if(!result)return RF_RANGE;
+    if(weapon<0)return RF_OK;
+    status=rf_entity_motion_selection_base(c,b,class_index,&v);if(status)return status;
+    if((uint32_t)weapon>=b->weapons.count || b->weapons.count>64 ||
+       (uint64_t)c->class_count+b->group_count!=c->mapping_count || (b->group_count && !b->groups))return RF_RANGE;
+    alias=rf_weapon_name_find(&b->weapons,"machine pistol special");
+    if(weapon==alias) {
+        weapon=rf_weapon_name_find(&b->weapons,"machine pistol");if(weapon<0)return RF_NOT_FOUND;
+    }
+    for(i=0;i<b->group_count;++i)if(b->groups[i].class_index==class_index && b->groups[i].weapon==(uint32_t)weapon) {
+        group=b->groups+i;map=c->mappings+c->class_count+i;
+        if(map->weapon!=weapon)return RF_RANGE;break;
+    }
+    status=rf_entity_motion_mapping_overlay(c->mappings+class_index,map,&v.mapping);if(status)return status;
+    v.mapping.weapon=weapon;
+    if(group)for(j=0;j<45;++j)if(map->actions[j]!=-1)v.action_sounds[j]=group->action_sounds[j];
+    *result=v;return RF_OK;
+}
 static int catalog_markers(const rf_entity_skeletons *s,const rf_entity_base_motions *b,
     rf_entity_motion_catalog *v,uint32_t budget)
 {

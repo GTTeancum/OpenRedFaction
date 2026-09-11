@@ -173,6 +173,26 @@ int main(int argc,char **argv)
                 printf("EFFECTIVE_MAP\t%s\t%s\t%u",cls,m.weapons.names[effective.weapon],effective.skeleton);
                 for(j=0;j<23;++j)printf("\t%d",effective.states[j]);for(j=0;j<45;++j)printf("\t%d",effective.actions[j]);puts("");
             }
+            for(i=0;i<catalog.class_count;++i) {
+                rf_entity_motion_selection selected,before;uint32_t weapon,k;
+                const char *cls=seeds.records.items[seeds.classes[i].record_index].record.class_name;
+                memset(&selected,0xa5,sizeof(selected));before=selected;
+                status=rf_entity_motion_selection_base(&catalog,&m,i,&selected);
+                if(skeletons.class_indices[i]==UINT32_MAX) {
+                    if(status!=RF_NOT_FOUND || memcmp(&selected,&before,sizeof(selected)))return 24;continue;
+                }
+                if(status || memcmp(&selected.mapping,catalog.mappings+i,sizeof(selected.mapping)))return 25;
+                before=selected;
+                if(rf_entity_motion_selection_weapon(&catalog,&m,i,-1,&selected) || memcmp(&selected,&before,sizeof(selected)))return 26;
+                if(rf_entity_motion_selection_weapon(&catalog,&m,i,(int32_t)m.weapons.count,&selected)!=RF_RANGE || memcmp(&selected,&before,sizeof(selected)))return 27;
+                for(weapon=0;weapon<m.weapons.count;++weapon) {
+                    if(rf_entity_motion_selection_weapon(&catalog,&m,i,(int32_t)weapon,&selected))return 28;
+                    printf("SELECTED_MAP\t%s\t%u\t%d\t%u",cls,weapon,selected.mapping.weapon,selected.mapping.skeleton);
+                    for(k=0;k<23;++k)printf("\t%d",selected.mapping.states[k]);
+                    for(k=0;k<45;++k)printf("\t%d",selected.mapping.actions[k]);
+                    for(k=0;k<45;++k)printf("\t%s",selected.action_sounds[k]);puts("");
+                }
+            }
             rf_entity_skeletons_close(&skeletons);rf_vpp_close(&meshes);
         }
 

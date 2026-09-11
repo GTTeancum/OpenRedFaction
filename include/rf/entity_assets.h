@@ -344,6 +344,23 @@ void rf_entity_motion_catalog_close(rf_entity_motion_catalog *catalog);
  * Output may alias either input; invalid input leaves it unchanged. */
 int rf_entity_motion_mapping_overlay(const rf_entity_motion_mapping *base,
     const rf_entity_motion_mapping *weapon,rf_entity_motion_mapping *result);
+typedef struct rf_entity_motion_selection {
+    rf_entity_motion_mapping mapping;const char *action_sounds[45];
+} rf_entity_motion_selection;
+/* Initial base selection, before runtime weapon overlays. Sound strings borrow
+ * bindings; retain that owner while using the selection. No animation starts.
+ * Catalog and bindings must originate from the same seeds; skeletal classes
+ * only, non-skeletal returns NOT_FOUND. Errors preserve output. */
+int rf_entity_motion_selection_base(const rf_entity_motion_catalog *catalog,
+    const rf_entity_base_motions *bindings,uint32_t class_index,rf_entity_motion_selection *result);
+/* Apply42ab20's weapon selection to the compact view: negative weapon is a
+ * no-op; nonnegative IDs resolve machine-pistol-special to machine-pistol, then
+ * restore base and overlay available records. Sound labels follow their action
+ * record, including explicit empty labels. Does not grant/equip weapons, change
+ * playback, or decide when selection should occur. Output is unchanged on error. */
+int rf_entity_motion_selection_weapon(const rf_entity_motion_catalog *catalog,
+    const rf_entity_base_motions *bindings,uint32_t class_index,int32_t weapon,
+    rf_entity_motion_selection *result);
 /* Register the 23 canonical state names (0x418030 order) from one exact base
  * or weapon block. Missing/empty declarations map to -1; missing referenced
  * files fail the whole operation. Distinct cache identities register once as

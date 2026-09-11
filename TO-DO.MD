@@ -13,7 +13,8 @@ pass parser checks; shared marker times pass on L1S1/L1S2/L1S3.
 
 Class default primary/secondary weapon IDs are now retained; all63 classes pass.
 Effective weapon animation overlays now pass original/PC/NXDK comparison;
-resolve runtime selection and initialize the live selector.
+weapon-ID lookup, alias and sound-label selection pass484 combinations.
+Recover exact startup ordering and initialize the live selector.
 
 Immediate open items:
 - [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
