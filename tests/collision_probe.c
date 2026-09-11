@@ -383,6 +383,37 @@ int main(int argc,char **argv)
         }
         free(poison);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return ferror(stdout)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--cross-rooms")) {
+        struct {float start[3],end[3];uint32_t flags,cached,tree;} in;
+        const float lo[3]={-2,-2,-2},hi[3]={2,2,2};
+        struct {int32_t status;rf_collision_crossing location;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_collision_face faces[6]={{0}};float vertices[6][4][3];rf_collision_node nodes[3]={{0}};
+            rf_collision_tree tree={0};rf_collision_room_view room={0};uint32_t primary=0,stack[3],a,b,k;
+            const int corners[4][2]={{0,0},{1,0},{1,1},{0,1}};
+            for(a=0;a<6;++a) {
+                uint32_t axis=a/2,other[2],n=0;
+                for(k=0;k<3;++k)if(k!=axis)other[n++]=k;
+                faces[a].plane[axis]=(a&1)?-1.0f:1.0f;
+                faces[a].plane[3]=(a&1)?hi[axis]:-lo[axis];
+                for(b=0;b<4;++b) {
+                    vertices[a][b][axis]=(a&1)?hi[axis]:lo[axis];
+                    for(k=0;k<2;++k)vertices[a][b][other[k]]=corners[b][k]?hi[other[k]]:lo[other[k]];
+                }
+                memcpy(faces[a].minimum,lo,12);memcpy(faces[a].maximum,hi,12);
+                faces[a].minimum[axis]=faces[a].maximum[axis]=vertices[a][0][axis];
+                faces[a].vertices=vertices[a];faces[a].count=4;faces[a].filter.face_flags=in.flags;
+            }
+            for(a=0;a<3;++a) {memcpy(nodes[a].minimum,lo,12);memcpy(nodes[a].maximum,hi,12);nodes[a].first_face=a*2;nodes[a].face_count=2;nodes[a].left=nodes[a].right=UINT32_MAX;}
+            nodes[0].left=1;nodes[0].right=2;tree.faces=faces;tree.face_count=6;
+            tree.nodes=nodes;tree.node_count=in.tree?3:1;tree.node_capacity=3;tree.stack=stack;
+            if(!in.tree){nodes[0].face_count=6;nodes[0].left=nodes[0].right=UINT32_MAX;}
+            room.tree=&tree;room.skip=0;memset(&out,0xa5,sizeof(out));
+            out.status=rf_collision_cross_rooms(&room,1,&primary,1,in.cached?0:UINT32_MAX,in.start,in.end,&out.location);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--locate-room")) {
         struct {float position[3],lo[3],hi[3];uint32_t flags[6],skip,tree;} in;
         struct {int32_t status;rf_collision_room_location location;} out;

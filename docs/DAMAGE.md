@@ -934,3 +934,27 @@ generic nearest-hit segment query or different plane tolerance.
 Current executable geometry coverage excludes on-face endpoints, oblique
 planes, multiple room roots and real levels. Shared traversal implementation
 and those boundary checks remain the next steps before cached-room binding.
+
+## Shared cached-room face-crossing traversal
+
+rf_collision_cross_rooms now implements4cd9e0 over caller-owned room/tree
+views. It visits supplied roots in reverse order or one explicitly preferred
+room, processes node faces before right/left children, ignores room skip
+bytes, and skips empty root trees without inventing a flat-face fallback.
+It preserves expanded segment bounds, node segment testing, face0x0c filter,
+508570 denominator float store, abs(fraction)<=1.0001, and separate point
+multiply/add stores before polygon containment. The result names the first
+accepted room/tree-face pair; it is not a nearest-hit query.
+
+The implementation uses existing tree scratch without allocation; calls must
+be serialized. Bounds, indices, finite arithmetic and traversal limits guard
+malformed input. Errors preserve output but may change scratch. Nonfinite
+plane-fraction arithmetic returns RF_FORMAT explicitly. Prepared acyclic
+trees and ordered valid polygon arrays remain caller requirements.
+
+verify_room_crossing.py compares1,500 original cube scenarios with shared PC
+and actual NXDK code. First room/face selection matches exactly; two nonfinite
+guards preserve output. Both builds and eight CTests pass. Evidence is
+artifacts/room-crossing.json. This establishes the shared implementation under
+controlled geometry. Boundary/oblique/multiple-root/real-level tests remain
+before connecting cached-room policy to the live world locator and emitters.

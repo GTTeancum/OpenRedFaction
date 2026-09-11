@@ -2418,3 +2418,6 @@ and face crossing gate fresh lookup. Recover4cd9e0 before live room binding.
 Complete original room-crossing traversal passes1500 geometry cases; distinct
 508570 plane rules and1.0001 fraction limit must be preserved in shared code.
 Boundary/oblique/real-level checks and cached-room binding remain open.
+
+Shared room-crossing traversal passes1500 original PC/NXDK cases plus2 guards;
+edge/oblique/multiple-root/real-level checks precede cached-room integration.

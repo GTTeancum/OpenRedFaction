@@ -1743,3 +1743,61 @@ int rf_collision_locate_room(const rf_collision_room_view *rooms,uint32_t room_c
     if(!query.selected_face || !query.front)value.room=value.face=UINT32_MAX;
     *result=value;return RF_OK;
 }
+
+static int crossing_overlap(const float lo[3],const float hi[3],const float qlo[3],const float qhi[3],int *overlap)
+{
+    unsigned i;int value=1;
+    for(i=0;i<3;++i) {
+        if(!isfinite(lo[i]) || !isfinite(hi[i]) || lo[i]>hi[i])return RF_FORMAT;
+        if(lo[i]>qhi[i] || hi[i]<qlo[i])value=0;
+    }
+    *overlap=value;return RF_OK;
+}
+int rf_collision_cross_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *roots,uint32_t root_count,uint32_t preferred,
+    const float start[3],const float end[3],rf_collision_crossing *out)
+{
+    rf_collision_crossing value={UINT32_MAX,UINT32_MAX};float delta[3],lo[3],hi[3],point[3];
+    uint32_t p,total,i,j,used,visited,hit;int status,overlap;
+    if(!out || !start || !end || (room_count && !rooms))return RF_RANGE;
+    if(preferred!=UINT32_MAX){if(preferred>=room_count)return RF_RANGE;total=1;}
+    else {if(root_count && !roots)return RF_RANGE;total=root_count;for(p=0;p<total;++p)if(roots[p]>=room_count)return RF_RANGE;}
+    for(i=0;i<3;++i) {
+        if(!isfinite(start[i]) || !isfinite(end[i]))return RF_FORMAT;
+        delta[i]=end[i]-start[i];lo[i]=(start[i]<end[i]?start[i]:end[i])-.0001f;
+        hi[i]=(start[i]>end[i]?start[i]:end[i])+.0001f;
+        if(!isfinite(delta[i]) || !isfinite(lo[i]) || !isfinite(hi[i]))return RF_FORMAT;
+    }
+    for(p=total;p>0;--p) {
+        uint32_t room=preferred!=UINT32_MAX?preferred:roots[p-1];const rf_collision_tree *tree=rooms[room].tree;
+        if(!tree || !tree->node_count)continue;
+        if(!tree->nodes || !tree->stack || tree->node_capacity<tree->node_count || (tree->face_count && !tree->faces))return RF_RANGE;
+        used=1;visited=0;tree->stack[0]=0;
+        while(used) {
+            const rf_collision_node *node;uint32_t index=tree->stack[--used];
+            if(index>=tree->node_count || ++visited>tree->node_count)return RF_FORMAT;
+            node=tree->nodes+index;
+            if(node->first_face>tree->face_count || node->face_count>tree->face_count-node->first_face)return RF_RANGE;
+            status=crossing_overlap(node->minimum,node->maximum,lo,hi,&overlap);if(status)return status;if(!overlap)continue;
+            status=rf_collision_segment_box(node->minimum,node->maximum,start,end,point,&hit);if(status)return status;if(!hit)continue;
+            for(j=0;j<node->face_count;++j) {
+                uint32_t face_index=node->first_face+j;const rf_collision_face *face=tree->faces+face_index;
+                double dot,numerator;float denominator,fraction;
+                if(face->filter.face_flags&12)continue;
+                status=crossing_overlap(face->minimum,face->maximum,lo,hi,&overlap);if(status)return status;if(!overlap)continue;
+                for(i=0;i<4;++i)if(!isfinite(face->plane[i]))return RF_FORMAT;
+                dot=((double)face->plane[2]*delta[2]+(double)face->plane[1]*delta[1])+(double)face->plane[0]*delta[0];
+                denominator=(float)dot;if(dot==0)continue;
+                numerator=(((double)face->plane[2]*start[2]+(double)face->plane[1]*start[1])+(double)face->plane[0]*start[0])+face->plane[3];
+                fraction=(float)(-(numerator/denominator));if(!isfinite(fraction))return RF_FORMAT;
+                if(fabsf(fraction)>1.0001f)continue;
+                for(i=0;i<3;++i){volatile float scaled=delta[i]*fraction;point[i]=start[i]+scaled;}
+                status=rf_collision_polygon_contains(face->plane,point,face->vertices,face->count,&hit);if(status)return status;
+                if(hit){value.room=room;value.face=face_index;*out=value;return RF_OK;}
+            }
+            if(node->left!=UINT32_MAX){if(used>=tree->node_capacity)return RF_RANGE;tree->stack[used++]=node->left;}
+            if(node->right!=UINT32_MAX){if(used>=tree->node_capacity)return RF_RANGE;tree->stack[used++]=node->right;}
+        }
+    }
+    *out=value;return RF_OK;
+}

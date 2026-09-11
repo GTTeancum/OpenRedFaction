@@ -190,6 +190,16 @@ typedef struct rf_collision_room_view {
     uint32_t skip,first_child,child_count; /* Original room +1 byte, +6c array. */
     const rf_collision_tree *tree;
 } rf_collision_room_view;
+typedef struct rf_collision_crossing {uint32_t room,face;} rf_collision_crossing;
+/*4cd9e0: first accepted face crossing, roots in reverse supplied order, node
+ * faces then right/left children. preferred_room=UINT32_MAX gathers roots;
+ * otherwise only that room root is used. Room skip bytes are ignored here.
+ * Null/empty trees contribute no faces. Uses caller-owned tree scratch;
+ * calls must be serialized. No allocation; errors preserve result.
+ * Finite inputs, valid acyclic bounded trees and ordered polygons required. */
+int rf_collision_cross_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *roots,uint32_t root_count,uint32_t preferred_room,
+    const float start[3],const float end[3],rf_collision_crossing *result);
 typedef struct rf_collision_room_location {uint32_t room,face,retries;} rf_collision_room_location;
 /* 4e1630 point-room traversal over primary rooms, without detail children.
  * Bounds are the original solid bounds. Trees own ordered faces and scratch;
