@@ -157,3 +157,27 @@ loading, texture/animation ownership, or live actor construction. Both builds,
 nine CTests and native64MiB replay-20260911-062852 pass.
 Updated PC seed resident/peak bytes: L1S1 103649/478289, L1S2 52201/426841,
 L1S3 37871/412511. All three lifetime/budget probes pass.
+
+
+Shared campaign skeleton ownership
+rf_entity_skeletons_open owns decoded immutable bones once per compiled V3C
+name (ASCII-insensitive). A class-index array shares resources across classes;
+non-kind2 classes explicitly map to UINT32_MAX. It uses the existing validated
+model directory and BONE decoder, rejecting duplicate/missing BONE sections and
+zero or more than256 bones. No original cache/refcount equivalence is claimed:
+this is a bounded port lifetime owner. Model names and bones survive closure of
+mesh archives and seed records. Temporary directory/payload allocations are
+released between models; peak budget includes those plus all retained arrays.
+Stack/allocator overhead remains outside accounting. Errors release provisional
+resources and preserve the empty destination; close is repeatable.
+
+Campaign construction opens this owner with256KiB after seed loading and closes
+it during cleanup. It is not yet an actor pose or a geometry/material/animation
+cache. Non-skeletal resources, per-instance pose/playback, and actor registration
+remain open. PC probes for L1S1/L1S2/L1S3 check exact/insufficient budgets, a
+late missing-model failure, class mappings and valid hierarchy access after
+source closure. Class/resource/resident/peak counts (PC ABI):5/5/5504/15236,
+3/2/3252/13448,6/4/4140/14336. Both builds and nine CTests pass.
+Native stock64MiB L1S2 lift/audio replay-20260911-063337 passes600 frames
+with PC state parity and nonzero guest DSP output. This establishes successful
+loading and preserved replay behavior, not independent native bone-byte proof.

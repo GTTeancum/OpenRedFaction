@@ -4,6 +4,7 @@
 #include "rf/level.h"
 #include "rf/motion_file.h"
 #include "rf/entity.h"
+#include "rf/model.h"
 #include "rf/movement.h"
 #include "rf/effect.h"
 /* Port-owned emitters.tbl binding: first ASCII case-insensitive name match,
@@ -164,6 +165,20 @@ typedef struct rf_entity_seeds {
  * ASCII case. Archives may close after success. Failure preserves destination. */
 int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf_entity_seeds *result);
 void rf_entity_seeds_close(rf_entity_seeds *seeds);
+typedef struct rf_entity_skeleton {
+    char model[64];rf_model_bone *bones;uint32_t count;
+} rf_entity_skeleton;
+typedef struct rf_entity_skeletons {
+    rf_entity_skeleton *items;uint32_t *class_indices;
+    uint32_t count,class_count,resident_bytes,peak_bytes;
+} rf_entity_skeletons;
+/* Level-owned shared immutable bones for kind2 classes. Non-skeletal classes
+ * map to UINT32_MAX. No per-actor pose, geometry, skins or animation ownership.
+ * Requires successful seeds, empty output. Budget includes owner/heap/scratch,
+ * excluding stack and allocator overhead. Errors preserve output; archives and
+ * seeds may close after success. Close clears storage and is repeatable. */
+int rf_entity_skeletons_open(const rf_entity_seeds *seeds,rf_vpp *meshes,uint32_t budget,rf_entity_skeletons *result);
+void rf_entity_skeletons_close(rf_entity_skeletons *skeletons);
 /* Original41ba4d classification of the last-dot extension: vfx=3,vcm=2,
  * otherwise1, ASCII-insensitive. Bounded port input; error preserves output. */
 int rf_entity_model_kind(const char *model,uint32_t *kind);

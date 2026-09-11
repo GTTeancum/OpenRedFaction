@@ -1,5 +1,6 @@
 #include "rf/entity_assets.h"
 #include "rf/model.h"
+#include "rf/model_file.h"
 #include "rf/effect.h"
 #include "rf/audio.h"
 #include <string.h>
@@ -1064,6 +1065,58 @@ int rf_entity_model_kind(const char *model,uint32_t *kind)
     if(i==64)return RF_RANGE;
     *kind=extension && same(extension,".vfx")?3u:extension && same(extension,".vcm")?2u:1u;
     return RF_OK;
+}
+void rf_entity_skeletons_close(rf_entity_skeletons *s)
+{
+    uint32_t i;if(!s)return;
+    for(i=0;i<s->count;++i)free(s->items[i].bones);
+    free(s->items);free(s->class_indices);memset(s,0,sizeof(*s));
+}
+int rf_entity_skeletons_open(const rf_entity_seeds *seeds,rf_vpp *meshes,uint32_t budget,rf_entity_skeletons *result)
+{
+    rf_entity_skeletons v={0};rf_model_file *model=NULL;void *payload=NULL;
+    uint64_t bytes,peak;uint32_t i,j,k,total;int status=RF_OK;char compiled[64];
+    if(!seeds || !meshes || !result || result->items || result->class_indices || result->count ||
+       result->class_count || result->resident_bytes || result->peak_bytes ||
+       (seeds->class_count && !seeds->classes))return RF_RANGE;
+    v.class_count=seeds->class_count;
+    bytes=sizeof(v)+(uint64_t)v.class_count*(sizeof(*v.items)+sizeof(*v.class_indices));
+    if(bytes>budget)return RF_RANGE;
+    v.resident_bytes=v.peak_bytes=(uint32_t)bytes;
+    if(v.class_count) {
+        v.items=calloc(v.class_count,sizeof(*v.items));v.class_indices=malloc(v.class_count*sizeof(*v.class_indices));
+        if(!v.items || !v.class_indices){status=RF_RANGE;goto done;}
+    }
+    for(i=0;i<v.class_count;++i) {
+        const rf_model_section *section=NULL;rf_entity_skeleton *item;
+        v.class_indices[i]=UINT32_MAX;
+        if(seeds->classes[i].model_kind!=2)continue;
+        status=rf_entity_skeletal_filename(seeds->classes[i].model,compiled);if(status)goto done;
+        for(j=0;j<v.count;++j)if(same(v.items[j].model,compiled))break;
+        v.class_indices[i]=j;if(j<v.count)continue;
+        if(bytes+sizeof(*model)>budget){status=RF_RANGE;goto done;}
+        model=malloc(sizeof(*model));if(!model){status=RF_RANGE;goto done;}
+        status=rf_model_file_open(model,meshes,compiled);if(status)goto done;
+        for(k=0;k<model->section_count;++k)if(model->sections[k].type==0x424f4e45) {
+            if(section){status=RF_FORMAT;goto done;}section=model->sections+k;
+        }
+        if(!section || section->size<4 || (section->size-4)%56){status=RF_FORMAT;goto done;}
+        total=(section->size-4)/56;if(!total || total>256){status=RF_RANGE;goto done;}
+        peak=bytes+(uint64_t)total*sizeof(rf_model_bone)+sizeof(*model)+section->size;
+        if(peak>budget){status=RF_RANGE;goto done;}
+        if(peak>v.peak_bytes)v.peak_bytes=(uint32_t)peak;
+        item=v.items+v.count++;memcpy(item->model,compiled,strlen(compiled)+1);
+        item->bones=calloc(total,sizeof(*item->bones));payload=malloc(section->size);
+        if(!item->bones || !payload){status=RF_RANGE;goto done;}
+        status=rf_vpp_read(meshes,&model->entry,section->offset,payload,section->size);
+        if(!status)status=rf_model_decode_bones(payload,section->size,item->bones,total,&item->count);
+        if(status)goto done;
+        bytes+=(uint64_t)total*sizeof(*item->bones);v.resident_bytes=(uint32_t)bytes;
+        free(payload);payload=NULL;free(model);model=NULL;
+    }
+    *result=v;return RF_OK;
+done:
+    free(payload);free(model);rf_entity_skeletons_close(&v);return status;
 }
 int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf_entity_seeds *result)
 {

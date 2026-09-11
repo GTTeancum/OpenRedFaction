@@ -10,6 +10,29 @@ int main(int argc,char **argv)
         uint32_t kind=0xa5a5a5a5;status=rf_entity_model_kind(argv[2],&kind);
         printf("%d %u\n",status,kind);return 0;
     }
+    if(argc==6 && !strcmp(argv[1],"--skeletons")) {
+        rf_vpp levels,tables,meshes;rf_level level;rf_entity_seeds seeds={0};rf_entity_skeletons s={0},guard={0};
+        if(rf_vpp_open(&levels,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_vpp_open(&meshes,argv[4]) || rf_level_open(&level,&levels,argv[5]))return 2;
+        if(rf_entity_seeds_open(&level,&tables,4*1024*1024,&seeds))return 3;
+        status=rf_entity_skeletons_open(&seeds,&meshes,1024*1024,&s);if(status){fprintf(stderr,"skeleton open %d\n",status);return 4;}
+        if(rf_entity_skeletons_open(&seeds,&meshes,s.peak_bytes-1,&guard)!=RF_RANGE || guard.items || guard.class_indices)return 5;
+        if(rf_entity_skeletons_open(&seeds,&meshes,s.peak_bytes,&guard))return 6;
+        rf_entity_skeletons_close(&guard);rf_entity_skeletons_close(&guard);
+        if(seeds.class_count) {
+            rf_entity_seed_class *last=seeds.classes+seeds.class_count-1,saved=*last;
+            strcpy(last->model,"__missing_fixture__.vcm");last->model_kind=2;
+            status=rf_entity_skeletons_open(&seeds,&meshes,1024*1024,&guard);*last=saved;
+            if(status!=RF_NOT_FOUND || memcmp(&guard,&(rf_entity_skeletons){0},sizeof(guard)))return 10;
+        }
+        for(i=0;i<s.class_count;++i)if(seeds.classes[i].model_kind==2) {
+            char name[64];if(rf_entity_skeletal_filename(seeds.classes[i].model,name) || s.class_indices[i]>=s.count ||
+                _stricmp(name,s.items[s.class_indices[i]].model))return 7;
+        } else if(s.class_indices[i]!=UINT32_MAX)return 8;
+        rf_entity_seeds_close(&seeds);rf_vpp_close(&levels);rf_vpp_close(&tables);rf_vpp_close(&meshes);
+        for(i=0;i<s.count;++i){uint8_t order[256];if(rf_model_bone_order(s.items[i].bones,s.items[i].count,order,256))return 9;}
+        printf("SKELETONS %u %u %u %u\n",s.class_count,s.count,s.resident_bytes,s.peak_bytes);
+        rf_entity_skeletons_close(&s);return 0;
+    }
     if(argc==5 && !strcmp(argv[1],"--seeds")) {
         rf_vpp levels,tables;rf_level level;rf_entity_seeds seeds={0},guard={0};uint32_t peak,count,classes;
         if(rf_vpp_open(&levels,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_level_open(&level,&levels,argv[4]))return 2;
