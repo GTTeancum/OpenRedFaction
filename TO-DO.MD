@@ -4,11 +4,15 @@ Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
 grounded re-entry, broader object ownership and full RNG ordering remain.
 
 NPC base/weapon mappings now share stable per-model motion IDs; three opening
-levels and identity/loop alias guards pass. Initial selection, alternate clips
+levels and identity/loop alias guards pass. Initial selection, named timing markers
 and live pose evaluation remain open.
 
+Original51cd30 is named timing-marker registration, not alternate clips; the
+PC/NXDK helper matches1500 cases plus5 guards. Bind authored footstep markers
+to shared resources before live playback.
+
 Immediate open items:
-- [ ] Resolve initial NPC state/weapon selection and alternate clips, then enable live pose evaluation using shared motion IDs.
+- [ ] Resolve initial NPC state/weapon selection and named timing markers, then enable live pose evaluation using shared motion IDs.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
@@ -2575,12 +2579,12 @@ Native64MiB replay-20260911-064148 passes after per-NPC pose allocation.
 
 NPC base state mappings and borrowed motion descriptors now persist by class;
 three level owner probes and181 installed group checks pass. Weapon/actions,
-alternate clips and original startup selector inputs remain open.
+named timing markers and original startup selector inputs remain open.
 Native64MiB replay-20260911-064631 passes after retained base motion loading.
 
 Base45 action mappings and sound labels now persist with class state bindings;
 1168 action declarations and495 installed action slots verify. Weapon-specific
-mappings, numeric sound IDs, alternate clips and live initial selection remain.
+mappings, numeric sound IDs, named timing markers and live initial selection remain.
 Native64MiB replay-20260911-065339 passes with retained base action bindings.
 
 Weapon ID order/name lookup is original-verified (44 weapons,140 lookups), and

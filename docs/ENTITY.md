@@ -230,9 +230,9 @@ resident/peak values:5/38/32696/407336,3/31/19624/394264,6/36/39232/413872.
 This is port-owned base binding, not complete original registration. 422360
 first registers weapon-specific state/action maps across64 groups, then skeletal
 base23 states and45 actions;51cc10 deduplicates on resource pointer AND looping
-byte. Base alternate clips additionally go through51cd30. Our per-class local
+byte. Base named timing markers additionally go through51cd30. Our per-class local
 indices are not asserted equal to original shared descriptor indices. Weapon
-mappings, actions, alternate clips and global registration ordering remain open.
+mappings, actions, named timing markers and global registration ordering remain open.
 
 After registration,4231d1 calls5034d0, initializes current state0,next-1 and
 blend duration/age0, calls41f270 (which runs selector41f400 or vehicle logic),
@@ -333,7 +333,7 @@ state-group checks pass (known edf_ship missing asset retained).
 These are still group-local motion indices. Before live switching, unify them
 into a stable shared model-resource registry and reproduce original registration
 ordering. Do not pass an active playback state from one group's local indices
-to another. Numeric sound-class IDs, alternate clips, initial weapon/selector
+to another. Numeric sound-class IDs, named timing markers, initial weapon/selector
 inputs and live NPC pose evaluation remain open. No new visual claim.
 Native64MiB replay-20260911-070902 passes180 door/audio frames with PC parity
 and nonzero guest DSP output after integration; live NPC playback remains off.

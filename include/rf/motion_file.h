@@ -4,6 +4,13 @@
 /* Original 124-byte motion cache descriptor; unclassified fields remain bytes,
  * including original pointer slots. Caller owns storage and resource lifetime. */
 typedef struct rf_motion_cache_record {uint8_t bytes[124];} rf_motion_cache_record;
+/* 51cd30/51ccb0: register one named timing marker in the two descriptor slots.
+ * Exact case-sensitive duplicate keeps its original time; full slots do nothing.
+ * Frame conversion uses the original float constants with double intermediates
+ * and truncation. Port guards require names <16 bytes, terminated occupied slots,
+ * finite frames and representable ticks. Errors preserve all descriptor bytes.
+ * This does not register another clip or load a resource. */
+int rf_motion_marker_register(rf_motion_cache_record *record,const char *name,float frame);
 /* 0x539be0 lookup/initialization plus 0x539d00 reference increment. Compare ASCII
  * names ignoring case and their last-dot suffix; preserve the first acquired
  * spelling. Empty slots have first name byte zero. Empty input retains original

@@ -281,8 +281,8 @@ typedef struct rf_entity_base_motions {
 /* Retain canonical base state and action mappings per skeletal class, reading the
  * table once. Motion files borrow the caller's open immutable motions archive.
  * Includes sparse declared skeletal weapon groups, retaining only their actual
- * resource counts. Sound labels retained; no sound-ID resolution, alternate
- * clips, initial selection or playback. Each group's states/actions share local indices;
+ * resource counts. Sound labels retained; no sound-ID resolution, timing
+ * markers, initial selection or playback. Each group's states/actions share local indices;
  * identities retain authored cache names (last-dot stems), which must not be
  * inferred from compiled filenames (first-dot stems). cache_indices maps each
  * base resource to its cache record; compact groups own the corresponding names.
@@ -310,7 +310,7 @@ typedef struct rf_entity_motion_catalog {
  * returned by skeletons_open/base_motions_open for the same seeds. Classes are
  * visited in seed order, weapon groups before base (422360); resolved cache
  * identity + exact loop byte keys use 539be0/51cc42 helpers. Original global
- * cache order, alternate clips and selection are not reproduced here.
+ * cache order, named timing markers and selection are not reproduced here.
  * First class_count mappings are base, followed by source weapon-group order.
  * Maps/resources survive closing inputs; motion archives and skeleton index
  * order must remain valid. Sounds stay in the source bindings. No playback.

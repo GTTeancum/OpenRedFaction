@@ -1,6 +1,26 @@
 #include "rf/motion_file.h"
 #include <math.h>
 #include <string.h>
+int rf_motion_marker_register(rf_motion_cache_record *record,const char *name,float frame)
+{
+    uint32_t length=0,i,empty=2;double tick;int32_t value;
+    if(!record || !name || !isfinite(frame))return RF_RANGE;
+    while(length<16 && name[length])++length;
+    if(length==16)return RF_RANGE;
+    for(i=0;i<2;++i) {
+        const char *slot=(const char*)record->bytes+0x40+i*20;
+        if(!*slot){if(empty==2)empty=i;continue;}
+        if(!memchr(slot,0,16))return RF_RANGE;
+        if(!strcmp(slot,name))return RF_OK;
+    }
+    if(empty==2)return RF_OK;
+    tick=(double)frame*(double)0.03333333507180214f;
+    tick=tick*30.0;tick=tick*160.0;
+    if(tick<-2147483648.0 || tick>=2147483648.0)return RF_RANGE;
+    value=(int32_t)tick;
+    memcpy(record->bytes+0x40+empty*20,name,length+1);
+    memcpy(record->bytes+0x50+empty*20,&value,4);return RF_OK;
+}
 int rf_motion_compiled_filename(const char *authored,char compiled[64])
 {
     uint32_t length=0,stem=0;int dot=0;

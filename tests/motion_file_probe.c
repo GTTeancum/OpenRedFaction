@@ -65,6 +65,16 @@ static int visit(const rf_vpp_entry *entry, void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--marker-register")) {
+        struct {rf_motion_cache_record record;char name[16];float frame;} input;int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            status=rf_motion_marker_register(&input.record,input.name,input.frame);
+            fwrite(&status,4,1,stdout);fwrite(&input.record,sizeof(input.record),1,stdout);
+        }
+        return 0;
+    }
+
     rf_vpp archive; int status;
     _Static_assert(sizeof(rf_motion_rotation_key)==16,"Rotation layout");
     _Static_assert(sizeof(rf_motion_position_key)==40,"Position layout");

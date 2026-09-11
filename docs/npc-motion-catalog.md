@@ -16,7 +16,7 @@ helpers, processing seed classes in order and their retained weapon groups befor
 base mappings. Classes sharing the decoded skeleton share registry entries.
 
 This is port ownership and stable IDs, not exact original global IDs or reference
-counts: original global cache ordering, descriptor loading, alternate state clips
+counts: original global cache ordering, descriptor loading, named timing markers
 and the actor selector remain incomplete. Temporary caches are per model. Do not
 infer motion identity from the compiled filename, whose conversion uses the first
 dot. Identical resources with different loop bytes remain different entries.
@@ -47,3 +47,29 @@ Both PC and NXDK builds pass. Native replay separately checks loading and existi
 door/audio behavior; it does not establish NPC animation or exact catalog bytes.
 
 Stock 64 MiB XEMU replay: `artifacts/xemu/replay-20260911-072311/report.json` PASS (180 frames, door/audio fixture).
+
+## Timing-marker correction
+
+A subsequent instruction-level trace corrected the earlier interpretation of
+0x51cd30 as alternate clips. It selects the already-registered cache descriptor,
+compares two 16-byte marker names at +0x40 and +0x54 case-sensitively, and calls
+0x51ccb0 only when the name is absent. That helper fills the first empty slot,
+retains existing bytes after the terminating NUL, and writes an int32 time at
+slot+16. A full descriptor is unchanged. No additional clip is registered.
+
+The entity table parser at 0x41cd4e..0x41ce0e recognizes `+Footstep Trigger:` and
+stores `footstep_left` then `footstep_right` with two floating-point values.
+The factory later sends those declarations to 0x51cd30. The conversion multiplies
+by binary32 0.03333333507180214, then 30, then 160 before truncating; it must not be
+simplified to multiplying by160 if exact original arithmetic is required.
+`rf_motion_marker_register` matches the entire original124-byte descriptor in
+1500 cases, including duplicate/full slots, and has five PC/NXDK guard checks.
+The original helper and its real conversion callee run unchanged with53-bit x87
+precision. `tools/verify_motion_markers.py` records this evidence. Table binding
+and consumption by live playback remain open.
+
+The seemingly preparatory 0x5034d0 call at factory0x4231cc simply returns wrapper+4
+for model types1..3 (otherwise NULL); it does not initialize animation playback.
+The following factory writes initialize logical current0, next-1, duration0 and
+elapsed0 before calling selector0x41f270. That selector still must run before any
+claim about the initial visible pose.
