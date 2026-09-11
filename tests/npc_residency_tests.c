@@ -1,6 +1,51 @@
 /* Exercise the scene's private residency owner without adding runtime hooks. */
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do { if(!(x)){fprintf(stderr,"residency line %d\n",__LINE__);return 1;} } while(0)
+static uint32_t event_damage_notifications;
+static void event_damage_notify(void *context,uint32_t kind,uint32_t target,float amount,uint32_t source)
+{(void)context;(void)kind;(void)target;(void)amount;(void)source;++event_damage_notifications;}
+static int event_damage_binding_check(void)
+{
+    campaign_npc_body owner={0};rf_entity_seed seed={0};rf_entity_seed_class cls={0};
+    rf_runtime_event event={0};rf_level_owned_event authored={0};rf_level_link_target links[2];
+    rf_runtime_damage_backend backend={0};rf_runtime_triggers triggers={0};rf_physics_gravity gravity={0};
+    rf_damage_effect_backend effects={campaign_damage_test_predicate,campaign_damage_test_uid,campaign_damage_test_source,
+        campaign_damage_test_burn,campaign_damage_test_random,event_damage_notify,campaign_damage_test_playing,campaign_damage_test_play,NULL};
+    rf_scene_npc_event_damage_services services={&effects,1,0x3f800000,0,0,0};rf_startup_events_report report;
+    rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
+    campaign_npc_bodies=&owner;campaign_npc_body_count=1;campaign_seeds.items=&seed;
+    campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
+    owner.view.linked_handle=-1;owner.damage.effects.health=owner.damage.effects.armor=100;
+    owner.damage.effects.class_health=owner.damage.effects.class_armor=100;
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);
+    owner.damage.effects.handle=owner.registration.handle;
+    CHECK(rf_scene_npc_event_damage_bind(&services,&backend.effects)==RF_OK);backend.frame_seconds=.25f;
+    triggers.registry=&campaign_registry;triggers.damage_backend=&backend;
+    event.object_kind=6;event.authored=&authored;event.links=links;event.state.type=17;event.state.deadline=-1;
+    authored.record.words[0]=16;authored.record.words[1]=UINT32_MAX;authored.record.link_count=2;
+    links[0]=(rf_level_link_target){owner.registration.handle^0x10000u,1,0};
+    links[1]=(rf_level_link_target){owner.registration.handle,1,0};
+    CHECK(rf_object_registry_insert(&campaign_registry,&event,&event.handle)==RF_OK);
+    event_damage_notifications=0;
+    CHECK(rf_runtime_event_fire(&triggers,event.handle,0,UINT32_MAX,1000,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(!services.status && services.dispatches==1 && services.last_amount==4);
+    CHECK(fabsf(owner.damage.effects.health-98.08f)<.00001f && fabsf(owner.damage.effects.armor-97.92f)<.00001f);
+    CHECK(event_damage_notifications==2 && (owner.object_flags&0x200000u));
+    authored.record.link_count=0;services.dispatches=0;owner.view.flags_810=1;
+    CHECK(rf_runtime_event_fire(&triggers,event.handle,0,owner.registration.handle,1000,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(!services.status && !services.dispatches);owner.view.flags_810=0;
+    {rf_entity_view linked={0};rf_registered_entity_view registration={0};
+     linked.class_type=1;CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&linked,&registration)==RF_OK);
+     owner.view.linked_handle=(int32_t)registration.handle;
+     CHECK(rf_runtime_event_fire(&triggers,event.handle,0,owner.registration.handle,1000,&gravity,NULL,NULL,&report)==RF_OK);
+     CHECK(!services.status && !services.dispatches);
+     CHECK(rf_runtime_event_fire(&triggers,event.handle,0,registration.handle,1000,&gravity,NULL,NULL,&report)==RF_NOT_FOUND);
+     CHECK(services.status==RF_NOT_FOUND && !services.dispatches);
+     CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&registration)==RF_OK);}
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
+    CHECK(rf_object_registry_remove(&campaign_registry,event.handle)==RF_OK);
+    campaign_npc_bodies=NULL;campaign_npc_body_count=0;memset(&campaign_seeds,0,sizeof(campaign_seeds));return 0;
+}
 static int eye_binding_check(void)
 {
     campaign_npc_body owner={0};campaign_npc_eye_class eye={0};rf_entity_pose pose={0};
@@ -152,6 +197,6 @@ int main(void)
     CHECK(campaign_npc_motion_require(0,0)==RF_IO && !data[0] && data[1]);
     CHECK(!motions[0].file.resident && !motions[1].file.resident && !sizes[0]);
     CHECK(campaign_npc_motion_bytes==1024*1024-80);
-    CHECK(pain_binding_check()==0);free(data[1]);CHECK(eye_binding_check()==0);
+    CHECK(pain_binding_check()==0);free(data[1]);CHECK(eye_binding_check()==0);CHECK(event_damage_binding_check()==0);
     puts("PASS: selection, aliases, pressure, reference protection, eviction, reload and failure recovery");return 0;
 }

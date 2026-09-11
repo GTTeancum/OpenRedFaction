@@ -4,6 +4,20 @@
 #include "rf/preview.h"
 #include "rf/entity.h"
 #include "rf/random.h"
+#include "rf/event.h"
+
+/* Borrowed services for runtime damage events targeting registered NPCs.
+ * Caller updates clock/difficulty and supplies complete synchronous reactions.
+ * A fresh status/dispatch count is required for each outer dispatch. The first
+ * failure is retained; subsequent lookups stop dispatch. Check services.status
+ * after every outer dispatch because damage callbacks return void. Player/non-NPC health
+ * and feedback owners are explicitly unsupported. No owner removal in callbacks. */
+typedef struct rf_scene_npc_event_damage_services {
+    const rf_damage_effect_backend *effects;
+    float difficulty;uint32_t clock_bits;
+    int status;uint32_t dispatches;float last_amount;
+} rf_scene_npc_event_damage_services;
+int rf_scene_npc_event_damage_bind(rf_scene_npc_event_damage_services *services,rf_event_damage_backend *backend);
 typedef struct rf_scene_npc_pain_ops {
     int (*reset_weapon)(void *context,uint32_t handle,int32_t weapon);
     int (*play_sound)(void *context,uint32_t handle,const char *class_name);

@@ -1802,6 +1802,53 @@ int rf_scene_npc_damage(uint32_t handle,const rf_damage_request *request,float d
     if(c.status)return c.status;if(status)return status;*result=value;return RF_OK;
 }
 uint32_t rf_scene_npc_damage_test_uid=UINT32_MAX,rf_scene_npc_damage_test_words[64];
+static int campaign_event_damage_lookup(void *context,uint32_t handle,uint32_t stage,rf_event_damage_target *target)
+{
+    rf_scene_npc_event_damage_services *c=context;const rf_entity_view *view,*linked;uint32_t i;
+    if(c->status)return c->status;
+    if(stage>2)return c->status=RF_RANGE;
+    memset(target,0,sizeof(*target));view=rf_entity_lookup(&campaign_entities,(int32_t)handle);
+    if(!view) {
+        /* A missing generation is absent; another live target family needs
+         * its actual damage owner, not a pretend successful zero hit. */
+        if(rf_object_registry_lookup(&campaign_registry,handle))return c->status=RF_NOT_FOUND;
+        return RF_OK;
+    }
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view==view &&
+        campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return c->status=RF_NOT_FOUND;
+    target->present=1;target->entity_handle=handle;
+    if(stage==1) {
+        linked=rf_entity_lookup(&campaign_entities,view->linked_handle);
+        target->exclude_a=linked && linked->class_type==1; /*4290d0*/
+        target->exclude_b=(view->flags_810&1u)!=0; /*427020*/
+    }
+    /*48acf0: these NPC owners have no player association, so no feedback. */
+    return RF_OK;
+}
+static void campaign_event_damage_apply(void *context,const rf_event_damage_request *input)
+{
+    rf_scene_npc_event_damage_services *c=context;rf_damage_request request;
+    if(c->status)return;
+    request.amount=input->amount;request.source=input->source;request.kind=(int32_t)input->kind;
+    request.argument6=input->flags;request.auxiliary_uid=input->other;request.force=input->enabled;
+    c->status=rf_scene_npc_damage(input->target,&request,c->difficulty,c->clock_bits,c->effects,&c->last_amount);
+    ++c->dispatches;
+}
+static void campaign_event_damage_feedback(void *context,uint32_t handle,float first,float second)
+{
+    rf_scene_npc_event_damage_services *c=context;(void)handle;(void)first;(void)second;
+    c->status=RF_NOT_FOUND; /* A player feedback owner must be supplied separately. */
+}
+int rf_scene_npc_event_damage_bind(rf_scene_npc_event_damage_services *services,rf_event_damage_backend *backend)
+{
+    const rf_damage_effect_backend *e;
+    if(!services || !backend || !(e=services->effects) || !isfinite(services->difficulty) ||
+       !e->predicate || !e->resolve_uid || !e->source || !e->create_burn || !e->random ||
+       !e->notify || !e->playing || !e->play_kind6)return RF_RANGE;
+    *backend=(rf_event_damage_backend){campaign_event_damage_lookup,campaign_event_damage_apply,
+        campaign_event_damage_feedback,services};return RF_OK;
+}
 uint32_t rf_scene_npc_pain_test_words[10]; /* Two post-hit pain records plus RNG state. */
 typedef struct campaign_pain_context {
     campaign_npc_body *owner;rf_entity_pose *pose;rf_entity_pain_state state;
@@ -1971,6 +2018,9 @@ static uint32_t campaign_damage_test_play(void *c,uint32_t target)
 static int campaign_npc_damage_fixture(void)
 {
     uint32_t i,pass;campaign_npc_body *owner;const rf_entity_seed_class *definition;rf_random_state random={1};
+    rf_runtime_event event={0};rf_level_owned_event authored={0};rf_level_link_target link;
+    rf_runtime_triggers triggers=campaign_triggers;rf_runtime_damage_backend damage_backend={0};int status=RF_OK;
+    rf_startup_events_report report;
     rf_damage_effect_backend effects={campaign_damage_test_predicate,campaign_damage_test_uid,campaign_damage_test_source,
         campaign_damage_test_burn,campaign_damage_test_random,campaign_damage_test_notify,campaign_damage_test_playing,campaign_damage_test_play,&random};
     memset(rf_scene_npc_damage_test_words,0,sizeof(rf_scene_npc_damage_test_words));
@@ -1992,10 +2042,21 @@ static int campaign_npc_damage_fixture(void)
         int status=rf_scene_npc_damage(owner->registration.handle^0x10000u,&request,1,0x3f800000,&effects,&result);
         if(status || result!=0 || flags!=owner->object_flags || memcmp(&saved,&owner->damage,sizeof(saved)))return RF_FORMAT;
     }
+    /* Explicit diagnostic event, not an authored level event. Exercise the
+     * registered type17 runtime path before broad campaign backend attachment. */
+    rf_scene_npc_event_damage_services services={&effects,1,0x3f800000,0,0,0};
+    status=rf_scene_npc_event_damage_bind(&services,&damage_backend.effects);if(status)return status;
+    damage_backend.frame_seconds=.25f;triggers.damage_backend=&damage_backend;
+    event.object_kind=6;event.authored=&authored;event.links=&link;event.state.type=17;event.state.deadline=-1;
+    authored.record.words[0]=40;authored.record.link_count=1;link=(rf_level_link_target){owner->registration.handle,1,0};
+    status=rf_object_registry_insert(&campaign_registry,&event,&event.handle);if(status)return status;
     for(pass=0;pass<2;++pass) {
-        rf_damage_request request={10,UINT32_MAX,pass?-1:2,0,UINT32_MAX,0};float result;int status;
-        status=rf_scene_npc_damage(owner->registration.handle,&request,1,0x3f800000,&effects,&result);
-        rf_scene_npc_damage_test_words[0]=(uint32_t)status;if(status)return status;
+        float result;services.status=0;services.dispatches=0;authored.record.words[1]=pass?UINT32_MAX:2;
+        status=rf_runtime_event_fire(&triggers,event.handle,UINT32_MAX,UINT32_MAX,1000,&scene_gravity,NULL,NULL,&report);
+        if(!status)status=services.status;
+        if(!status && (services.dispatches!=1 || report.unsupported_actions))status=RF_FORMAT;
+        result=services.last_amount;
+        rf_scene_npc_damage_test_words[0]=(uint32_t)status;if(status)break;
         memcpy(rf_scene_npc_damage_test_words+(pass?47:31),&owner->damage,56);
         rf_scene_npc_damage_test_words[pass?61:45]=owner->object_flags;
         memcpy(rf_scene_npc_damage_test_words+(pass?62:46),&result,4);
@@ -2006,7 +2067,8 @@ static int campaign_npc_damage_fixture(void)
         rf_scene_npc_pain_sound_test[pass*5+3]=random.value;
         rf_scene_npc_pain_sound_test[pass*5+4]=rf_scene_npc_pain_audio[2];
     }
-    return rf_scene_npc_damage_test_words[63]?RF_FORMAT:RF_OK;
+    {int removed=rf_object_registry_remove(&campaign_registry,event.handle);if(!status)status=removed;}
+    return status?status:rf_scene_npc_damage_test_words[63]?RF_FORMAT:RF_OK;
 }
 
 static float campaign_jump_strength;

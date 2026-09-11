@@ -26,7 +26,7 @@ Immediate open items:
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
-- [ ] Attach the Continuous_Damage runtime backend to campaign health/reactions and player feedback, then complete NPC scripts, trigger backlinks and non-skeletal targets; repeated activation stays caller-owned.
+- [ ] Extend the verified Continuous_Damage-to-NPC path to authored campaign activation, complete reactions/AI, player health/feedback and non-skeletal targets; repeated activation stays caller-owned.
 - [ ] Resolve the L1S3 pressure-test route after fixing its 14 static ray errors, complete audio category settings, and recover light ownership.
 - [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.

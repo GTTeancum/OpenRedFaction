@@ -1335,6 +1335,35 @@ native replay exercises ordinary residency without exhaustion. Live flinch/AI
 transitions and sustained campaign cache behavior remain to be verified.
 # Pain sound selection and dispatch evidence (2026-09-11)
 
+`rf_scene_npc_event_damage_bind` now supplies the runtime event backend with
+generation-checked registered NPC lookup and the retained damage adapter.
+Actor exclusions resolve linked entity+200/class1 (4290d0) and flag810 bit1
+(427020); the ordinary link path does not apply these actor-only exclusions.
+NPCs have no player association, so48acf0 produces no feedback. Missing stale
+handles are absent; live player/non-NPC targets fail explicitly until their
+own health and feedback services are connected. The caller supplies complete
+reactions, clock and difficulty, and checks the retained service status after
+dispatch because the original-style damage callback returns void. Earlier
+health/reaction effects are not rolled back by a later error.
+
+The two-hit guard fixture now creates and unregisters an explicit diagnostic
+type17 event. It invokes the actual runtime event dispatcher with rate40 and
+frame_seconds.25, then kind2 and kind-1, preserving the10-unit requests. Event
+damage supplies the original final force argument1; the original health
+comparison now uses that argument. Health92.800003/88, armor92.199997/87 and
+flinch/audio telemetry remain unchanged. This tests the composed event/NPC
+path, not an authored mission hazard or repeated gameplay damage. Global
+campaign attachment still needs player feedback and complete reactions/AI.
+
+Private scene tests also cover a stale linked handle followed by a live NPC,
+health/armor writes, actor-only exclusions, and rejecting a live non-owned
+entity. Both builds, all11 CTests, and the original damage/flinch comparisons
+pass. The fixture reaction backend continues to observe AI notification only.
+Stock64MiB XEMU replay `replay-20260911-151855` passes180 frames through the
+new event/NPC route, including the pain sample and guest audio-device checks.
+PC health, animation, sound and RNG telemetry match. The temporary event is
+removed on both success and error; no permanent campaign event is synthesized.
+
 `rf_scene_npc_pain_sound` now connects registered, living NPC owners to the
 recovered4196f0 routing, retained class groups, eye position, sound deadline and
 voice identity. It selects through the verified group chooser using the

@@ -38,7 +38,7 @@ def observe(m,address,size,ctx):
 u.hook_add(UC_HOOK_CODE,observe)
 results=[]
 for index,kind in enumerate((2,-1)):
- words(stack,finish,a[2],0x41200000,0xffffffff,0xffffffff,kind,0,0xffffffff,0)
+ words(stack,finish,a[2],0x41200000,0xffffffff,0xffffffff,kind,0,0xffffffff,1)
  u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x27f)
  u.emu_start(0x4892c0,stop,count=1000000);assert u.reg_read(UC_X86_REG_EIP)==stop
  expected=[struct.unpack('<I',u.mem_read(b+off,4))[0] for off in [0x34,0x38,0x4044,0x4048,0x2c,0x810,0x814,0x4728,0x13d8,0x854,0x1f8,0x73c,0x144c]]+[state[13]]
