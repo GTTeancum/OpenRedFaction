@@ -400,3 +400,27 @@ remaining constructor audit: movement intent is now source-backed, while
 physics velocity, link state and broader factory ordering still need completion
 before the scene startup is represented as a full reconstruction. Production
 C and native gameplay did not change in this audit.
+
+## Generic links, object flags and initial velocity
+
+The startup oracle now executes486f0f..486f63 on poisoned target fields. This
+sets actor+200/+204 link handles to-1 and applies the generic object's flag
+augmentation: creation-derived4000 also adds8000, and all receive6000000.
+Earlier authored tests used only the preallocation flag projection. Their
+selector outputs still match after this correction. This is the bounded
+initial block; later generic/class object-flag mutations remain outside it.
+
+Initial selector velocity is actor+144 (41f56d and41f6bf). The factory first
+zeroes its0x98-byte parameter block with422552..42256d, including+6c velocity.
+49f072..49f086 copies that parameter vector into physics+bc, or actor+144.
+The oracle now executes both original spans on poisoned parameter/velocity
+storage and asserts the observed zeros. This does not invoke the whole physics
+factory or prove every later mutation; it establishes the initial data source.
+
+These additions replace the explicit link sentinel and zero-physics-velocity
+fixture writes. No production runtime changes or new visuals are claimed.
+
+All60 authored selector cases and180 downstream cases pass after these
+changes, with3789 exact bone matrices/generation stamps. NXDK controller and
+advance outputs also match. Scene startup remains unconnected while its full
+input projection and lifecycle are completed.

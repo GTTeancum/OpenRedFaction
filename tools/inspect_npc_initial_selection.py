@@ -7,7 +7,7 @@ from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_MEM_READ
-from unicorn.x86_const import UC_X86_REG_ECX,UC_X86_REG_EBX,UC_X86_REG_ESI,UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_FPCW,UC_X86_REG_EAX
+from unicorn.x86_const import UC_X86_REG_ECX,UC_X86_REG_EDI,UC_X86_REG_EBX,UC_X86_REG_ESI,UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_FPCW,UC_X86_REG_EAX
 exe=root/'Installed_Game/RF.exe';digest=hashlib.sha256(exe.read_bytes()).hexdigest()
 assert digest=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
 p=pefile.PE(str(exe));im=p.get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32)
@@ -78,8 +78,22 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
    physics=struct.unpack('<I',subprocess.check_output([entity_probe,'--physics-flags'],input=struct.pack('<5I',creation,flags,flags2,0,0)))[0]
    object_flags=struct.unpack('<I',subprocess.check_output([entity_probe,'--creation-flags'],input=struct.pack('<2I',creation,2)))[0] if authored_mode else 0
    u.mem_write(entity,bytes(0xd000));reads.clear()
-   put(entity+0x7c,'<I',object_flags)
-   put(entity+0x24,'<I',0);put(entity+0x2c,'<i',5);put(entity+0x200,'<i',-1)
+   # Generic factory establishes link sentinels and adds object flag bits.
+   u.mem_write(entity+0x200,b'\xa5'*8);put(entity+0x7c,'<I',0xa5a5a5a5)
+   put(stack+0x3c,'<I',object_flags);put(stack+0x34,'<I',0)
+   u.reg_write(UC_X86_REG_ESI,entity);u.reg_write(UC_X86_REG_ESP,stack)
+   call(0x486f0f,0x486f63)
+   assert bytes(u.mem_read(entity+0x200,8))==b'\xff'*8
+   object_flags=struct.unpack('<I',u.mem_read(entity+0x7c,4))[0]
+
+   # Factory zeroes its0x98-byte physics parameters, then49f010 copies velocity.
+   u.mem_write(stack+0x90,b'\xa5'*0x98);u.mem_write(entity+0x144,b'\xa5'*12)
+   u.reg_write(UC_X86_REG_ESP,stack);call(0x422552,0x42256d)
+   assert bytes(u.mem_read(stack+0x90,0x98))==bytes(0x98)
+   u.reg_write(UC_X86_REG_ESI,entity+0x88);u.reg_write(UC_X86_REG_EDI,stack+0x90)
+   u.reg_write(UC_X86_REG_ESP,stack);call(0x49f072,0x49f086)
+   assert bytes(u.mem_read(entity+0x144,12))==bytes(12)
+   put(entity+0x24,'<I',0);put(entity+0x2c,'<i',5)
    put(entity+0x294,'<I',info);put(entity+0x29c,'<I',info);put(info+0x94,'<I',2)
    put(info+0x724,'<II',flags,flags2);put(entity+0x858,'<I',mode);put(mode+4,'<i',mode_id)
    put(entity+0x1a8,'<I',physics);put(entity+0x2a0,'<I',entity);put(entity+0x2a4,'<ii',primary,secondary)
@@ -202,7 +216,7 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
        pose_results.append(dict(level=level,entity_class=cls,model=model_name,delta=delta,prior_action=prior,creation_flags=creation,object_flags=object_flags,bones=bone_count,pose_sha256=hashlib.sha256(original_pose).hexdigest()))
    results.append(dict(level=level,entity_class=cls,mode=mode_id,primary=primary,secondary=secondary,prior_action=prior,creation_flags=creation,object_flags=object_flags,
     prior_action_reads=sum(a<=0x1380<a+n for a,n in reads),controller=list(struct.unpack('<iiff',actual[:16])),read_fields=sorted({hex(a) for a,n in reads})))
-report=dict(authored_creation_flags=authored_mode,result='PASS',cases=len(results),original_sha256=digest,scope='Full original41f400 selector versus PC priority/movement composition using installed base maps, class flags/movement modes and default weapon IDs. Original402d68 scalar,422eaf vector reset and403040 AI-flag/class-test spans execute with poisoned target fields. Fixture zeroes unspecified actor state, uses kind0/no links/nonplayer, factory-reset movement intent, fixture zero physics velocity and no external events; not full factory or first pose/weight update. Field1380 sensitivity is tested, not assumed.',results=results)
+report=dict(authored_creation_flags=authored_mode,result='PASS',cases=len(results),original_sha256=digest,scope='Full original41f400 selector versus PC priority/movement composition using installed base maps, class flags/movement modes and default weapon IDs. Original402d68 scalar,422eaf vector reset and403040 AI-flag/class-test plus486f0f link/object-flag,422552 parameter clear and49f072 velocity-copy spans execute with poisoned target fields. Fixture zeroes unspecified actor state, uses kind0/no links/nonplayer, factory-reset movement intent, factory-cleared initial physics velocity and no external events; not full factory or first pose/weight update. Field1380 sensitivity is tested, not assumed.',results=results)
 (root/('artifacts/npc-authored-selection.json' if authored_mode else 'artifacts/npc-initial-selection.json')).write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
 
 if controller_mode:

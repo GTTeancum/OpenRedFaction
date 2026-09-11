@@ -43,6 +43,9 @@ Authored opening creation flags now pass180 original startup/pose cases;
 Original factory spans now establish zero movement intent and opening AI flags;
 180 authored startup cases still pass. Resolve remaining link/physics inputs.
 
+Original spans now establish link sentinels, generic flags and initial velocity;
+180 startup cases still pass. Complete scene input projection and lifecycle.
+
 Immediate open items:
 - [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
