@@ -701,3 +701,34 @@ This is original-executable evidence, not shared C/C++ deletion implementation
 or native XEMU gameplay. Next: bind this ownership order to the corpse allocator,
 registered model/physics resources and existing burn/sound owners, then integrate
 creation/update/deletion as one lifecycle.
+
+
+## Shared corpse deletion and registry lifetime
+
+`rf_corpse_delete` implements the traced486670 type7 cleanup order using
+caller-owned update/deletion state, intrusive corpse/object lists and the
+existing shared object registry. It marks a found sound object for deferred
+deletion, releases burn ownership through the backend, removes the corpse-list
+entry, dispatches physics/model/emitter cleanup, removes the object-list entry,
+returns storage through RECYCLE and finally removes the registry handle.
+Every resource callback still sees the registered owner. A lifecycle field
+blocks repeated/reentrant deletion; no owner/state reads follow RECYCLE.
+The original model-release flag400 gate and missing-sound-id behavior remain.
+
+Preflight checks live registration, nonzero distinct list counts, immediate
+list consistency and bounded emitter traversal before any effects. Backends
+must preserve registry/list ownership and perform infallible cleanup; the
+current emitter can be destroyed because its next pointer is saved first.
+RECYCLE must not immediately reuse/register the storage. The function allocates
+nothing. The deletion view is40 bytes and backend12 bytes on Xbox, in addition
+to the existing88-byte update state and external resource storage.
+
+`python tools/verify_corpse_delete.py` compares1024 complete original traces
+with PC/NXDK code, including shared list/count changes and real registry slot
+removal. Four extra guards cover stale handles, deleting state, broken links
+and cyclic emitters. PC callbacks attempt recursive deletion; emitter callbacks
+poison released links. NXDK guest-memory hooks reject owner reads after pool
+return. Both builds and all13 CTests pass. Resource/pool operations still use
+supplied backends in these tests; this is not native XEMU corpse gameplay.
+Live30-slot allocation, concrete model/physics/burn/sound cleanup binding and
+creation-to-deletion scene ownership remain open.

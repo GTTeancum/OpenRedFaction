@@ -384,6 +384,42 @@ typedef struct rf_corpse_update_backend {
  * No allocation, immediate destruction or corpse registration. */
 int rf_corpse_update(rf_corpse_update_state *state,float frame_seconds,int32_t now_ms,
     rf_corpse_emitter_link *emitters,uint32_t visit_limit,const rf_corpse_update_backend *backend);
+typedef struct rf_corpse_list_link {
+    struct rf_corpse_list_link *next,*previous;
+} rf_corpse_list_link;
+typedef struct rf_corpse_delete_emitter {
+    struct rf_corpse_delete_emitter *next;uint32_t token;
+} rf_corpse_delete_emitter;
+typedef struct rf_corpse_delete_state {
+    rf_corpse_update_state *update;
+    rf_corpse_list_link corpse_link,object_link;
+    rf_corpse_delete_emitter *emitters;
+    uint32_t burn,handle,lifecycle; /*0 live,1 deleting,2 retired*/
+    void *registered_object;
+} rf_corpse_delete_state;
+enum rf_corpse_delete_effect {
+    RF_CORPSE_DELETE_PAIRS,RF_CORPSE_DELETE_STRING,RF_CORPSE_DELETE_BURN,
+    RF_CORPSE_DELETE_PHYSICS,RF_CORPSE_DELETE_MODEL,RF_CORPSE_DELETE_EMITTER,
+    RF_CORPSE_DELETE_OBJECT_STRING,RF_CORPSE_DELETE_RECYCLE
+};
+typedef struct rf_corpse_delete_backend {
+    void (*effect)(void *context,uint32_t operation,uint32_t token);
+    uint32_t *(*sound_flags)(void *context,int32_t sound_id);
+    void *context;
+} rf_corpse_delete_backend;
+/*486670 type7,416ff0,489fc0 and4867b0 order. State references the registered
+ * owner and its update state; links belong to intact sentinel lists. Counts
+ * track the corpse and object lists. Preflight rejects stale/reentrant owners,
+ * broken immediate links and overlong/cyclic emitter lists before effects.
+ * Callbacks perform infallible resource cleanup; they may clear burn ownership
+ * and free the current emitter, but must preserve other links, registry and
+ * owner storage until RECYCLE. RECYCLE returns storage to a pool; it must not
+ * reallocate/register that storage. No owner/state access follows RECYCLE.
+ * Shared registry removal follows pool return, as in the original. No heap
+ * allocation; actual resource backends and the30-slot pool remain external. */
+int rf_corpse_delete(rf_corpse_delete_state *state,rf_object_registry *registry,
+    uint32_t *corpse_count,uint32_t *object_count,uint32_t emitter_limit,
+    const rf_corpse_delete_backend *backend);
 /* SP41fdc0 state prefix through41fe59, before collision-link teardown.
  * Requires a live state; falling is the resolved42a020 low byte.
  * Returns1 on entry,0 if already dying (all fields then remain untouched).

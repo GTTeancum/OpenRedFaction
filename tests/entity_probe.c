@@ -15,6 +15,7 @@
 #include "burn_retarget_probe.h"
 #include "dying_probe.h"
 #include "corpse_update_probe.h"
+#include "corpse_delete_probe.h"
 static uint32_t death_clearance(void *context,uint32_t direction)
 {uint32_t *v=context;++v[2];v[3]=direction;return v[direction];}
 typedef struct death_ray_trace {uint32_t responses[4],count,points[24];} death_ray_trace;
@@ -74,6 +75,9 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corpse-delete")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_delete_probe();
+    }
     if(argc==2 && !strcmp(argv[1],"--corpse-update")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_update_probe();
     }

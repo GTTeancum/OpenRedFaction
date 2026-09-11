@@ -588,6 +588,41 @@ int rf_corpse_update(rf_corpse_update_state *s,float dt,int32_t now,
     return RF_OK;
 }
 
+static int corpse_link_valid(const rf_corpse_list_link *n)
+{return n->next && n->previous && n->next!=n && n->previous!=n && n->next->previous==n && n->previous->next==n;}
+static void corpse_link_remove(rf_corpse_list_link *n)
+{
+    rf_corpse_list_link *next=n->next,*previous=n->previous;
+    n->next=n->previous=NULL;previous->next=next;next->previous=previous;
+}
+int rf_corpse_delete(rf_corpse_delete_state *s,rf_object_registry *registry,
+    uint32_t *corpse_count,uint32_t *object_count,uint32_t limit,const rf_corpse_delete_backend *b)
+{
+    rf_corpse_delete_emitter *e,*next;uint32_t visits=0,*sound,handle;int status;
+    if(!s || !s->update || !b || !b->effect || !b->sound_flags || !corpse_count || !object_count ||
+       corpse_count==object_count || !*corpse_count || !*object_count || s->lifecycle || !s->registered_object ||
+       !corpse_link_valid(&s->corpse_link) || !corpse_link_valid(&s->object_link))return RF_RANGE;
+    if(rf_object_registry_lookup(registry,s->handle)!=s->registered_object)return RF_NOT_FOUND;
+    for(e=s->emitters;e;e=e->next) {if(visits==limit)return RF_RANGE;++visits;}
+    handle=s->handle;s->lifecycle=1;
+    b->effect(b->context,RF_CORPSE_DELETE_PAIRS,handle);
+    b->effect(b->context,RF_CORPSE_DELETE_STRING,handle);
+    sound=b->sound_flags(b->context,s->update->sound_2cc);
+    if(sound) {*sound|=2u;s->update->sound_2cc=-1;}
+    if(s->burn)b->effect(b->context,RF_CORPSE_DELETE_BURN,s->burn);
+    corpse_link_remove(&s->corpse_link);--*corpse_count;
+    b->effect(b->context,RF_CORPSE_DELETE_PHYSICS,handle);
+    if(!(s->update->fade.object_flags_7c&0x400u) && s->update->model)
+        b->effect(b->context,RF_CORPSE_DELETE_MODEL,s->update->model);
+    while((e=s->emitters)!=NULL) {
+        next=e->next;b->effect(b->context,RF_CORPSE_DELETE_EMITTER,e->token);s->emitters=next;
+    }
+    b->effect(b->context,RF_CORPSE_DELETE_OBJECT_STRING,handle);
+    corpse_link_remove(&s->object_link);--*object_count;s->lifecycle=2;
+    b->effect(b->context,RF_CORPSE_DELETE_RECYCLE,handle);
+    status=rf_object_registry_remove(registry,handle);return status;
+}
+
 int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backend *b)
 {
     uint32_t finish=0,token,i,gain;float end[3],offset,radius;

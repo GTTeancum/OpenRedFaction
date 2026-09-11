@@ -74,5 +74,6 @@ for case in range(1024):
  returned=0x73a880+12*7
  assert read(0x7394c4)==returned and read(free_node)==returned
  assert read(returned)==0x7394c0 and read(returned+4)==free_node
+ if 'observe_case' in globals():observe_case(globals())
 report=dict(result='PASS',cases=1024,model_releases=releases,emitter_releases=emitter_releases,original_sha256=digest,scope='Complete original486670 type7,416ff0,489fc0,4867b0,48b8f0 and48ab40. Supplied resource backends; real corpse/object list unlink, sound deletion mark, model-release gate, emitter traversal, registry removal and pool recycling. Not shared PC/NXDK or native XEMU gameplay.')
 (root/'artifacts/corpse-delete-original.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
