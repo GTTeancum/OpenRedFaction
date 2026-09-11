@@ -618,3 +618,28 @@ reset, timer/emitter writes, decay, exact animation arguments and sound
 follow state. Both builds and all13 CTests pass. Native scene invocation,
 corpse creation/rendering and deferred resource deletion remain open; this
 is complete update orchestration, not complete corpse gameplay.
+
+
+## Corpse animated sphere refresh
+
+`rf_model_corpse_spheres_refresh` reconstructs4164c0 with already evaluated
+animated bone matrices. It queries each model collision sphere, copies only
+its center into the corresponding retained physics sphere, rebuilds bounds
+over the entire physics sphere list and copies the resulting radius to
+object78. The original writes the model radius into temporary stack storage;
+using it to overwrite the physics sphere radius would discard class tuning.
+Extra physics spheres remain intact and still participate in bounds.
+The bounds position is physics+5c (object+e4), not object render position3c.
+
+`python tools/verify_corpse_spheres.py` executes full4164c0 with real animated
+503250/503270, list helpers and4a0cb0, no replaced callees. All1024 cases
+match PC/NXDK centers, bounds and object radius;6117 sphere payloads retain
+radii and other fields. Coverage includes0..8 model spheres, up to12 physics
+spheres and four cached bones plus unparented spheres. Both builds and all13
+CTests pass. No allocation is introduced; later query failures can leave
+earlier centers updated while output bounds/radius remain unchanged.
+Uncached bone evaluation and live corpse model ownership are still separate.
+
+Static48ac70 inspection also identifies the sound-follow point: object26c=-1
+copies position3c; otherwise503230 evaluates that model tag/bone and4fb9d0
+transforms its point by the object pose. That binding remains to be verified.

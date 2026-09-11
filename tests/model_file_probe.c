@@ -11,6 +11,20 @@ static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 }
 int main(int argc, char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corpse-spheres")) {
+        uint32_t counts[3];float position[3],matrices[4][12],radius;
+        rf_model_collision_sphere models[8];rf_physics_sphere spheres[12];rf_physics_bounds bounds;int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(counts,sizeof(counts),1,stdin)==1) {
+            if(counts[0]>8 || counts[1]>12 || counts[2]>4 || fread(position,12,1,stdin)!=1 ||
+               fread(models,sizeof(*models),counts[0],stdin)!=counts[0] || fread(spheres,sizeof(*spheres),counts[1],stdin)!=counts[1] ||
+               fread(matrices,48,counts[2],stdin)!=counts[2])return 2;
+            memset(&bounds,0xa5,sizeof(bounds));memset(&radius,0xa5,4);
+            status=rf_model_corpse_spheres_refresh(models,counts[0],matrices,counts[2],spheres,counts[1],position,&bounds,&radius);
+            fwrite(&status,4,1,stdout);fwrite(spheres,sizeof(*spheres),counts[1],stdout);fwrite(&bounds,sizeof(bounds),1,stdout);fwrite(&radius,4,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     rf_vpp archive;
     rf_model_file model;
     uint32_t i;

@@ -2,6 +2,7 @@
 #define RF_MODEL_FILE_H
 #include "rf/vpp.h"
 #include "rf/model.h"
+#include "rf/physics.h"
 #define RF_MODEL_MAX_SECTIONS 128
 #define RF_MODEL_MAX_LODS 128
 typedef struct rf_model_lod {
@@ -62,6 +63,16 @@ int rf_model_file_collision_sphere(const rf_model_file *model,uint32_t index,rf_
  * Invalid input leaves output unchanged. */
 int rf_model_collision_sphere_pose(const rf_model_collision_sphere *sphere,
     const float (*matrices)[12],uint32_t bones,float result[4]);
+/*4164c0 animated cached-pose path. Updates first model_count physics sphere
+ * centers, deliberately preserving class-adjusted radii/other sphere words.
+ * Rebuilds bounds over every physics sphere and copies radius to object78.
+ * Model count may be smaller than physics count. All storage stays borrowed;
+ * no allocation. Initial argument errors preserve everything; later query or
+ * bounds errors can leave earlier centers updated, but preserve outputs.
+ * physics_position is the physics body position, not an inferred render pose. */
+int rf_model_corpse_spheres_refresh(const rf_model_collision_sphere *models,uint32_t model_count,
+    const float (*matrices)[12],uint32_t bones,rf_physics_sphere *spheres,uint32_t sphere_count,
+    const float physics_position[3],rf_physics_bounds *bounds,float *object_radius);
 /* Stream one 84-byte serialized SUBM material. This is not the 200-byte
  * runtime material layout; conversion is separate. Output unchanged on error. */
 int rf_model_file_material(const rf_model_file *model,uint32_t submesh,uint32_t index,uint8_t raw[84]);

@@ -20,6 +20,20 @@ int rf_model_collision_sphere_pose(const rf_model_collision_sphere *sphere,
     for(i=0;i<3;++i)if(!isfinite(value[i]))return RF_RANGE;
     value[3]=sphere->radius;memcpy(result,value,sizeof(value));return RF_OK;
 }
+int rf_model_corpse_spheres_refresh(const rf_model_collision_sphere *models,uint32_t model_count,
+    const float (*matrices)[12],uint32_t bones,rf_physics_sphere *spheres,uint32_t sphere_count,
+    const float position[3],rf_physics_bounds *bounds,float *radius)
+{
+    uint32_t i;int status;float posed[4];rf_physics_bounds value;
+    if((model_count && !models) || (sphere_count && !spheres) || model_count>sphere_count ||
+       !position || !bounds || !radius)return RF_RANGE;
+    for(i=0;i<model_count;i++) {
+        status=rf_model_collision_sphere_pose(models+i,matrices,bones,posed);if(status)return status;
+        memcpy(spheres[i].center,posed,12);
+    }
+    status=rf_physics_spheres_bounds(spheres,sphere_count,position,&value);if(status)return status;
+    *bounds=value;*radius=value.radius;return RF_OK;
+}
 int rf_model_file_collision_sphere(const rf_model_file *model,uint32_t index,rf_model_collision_sphere *sphere)
 {
     uint32_t i,j;uint8_t raw[44];rf_model_collision_sphere value={0};int status;
