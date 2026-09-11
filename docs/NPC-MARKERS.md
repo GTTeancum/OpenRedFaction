@@ -652,8 +652,9 @@ pending+f0, rebuilding bounds190/19c using radius180, setting object04000000,
 and then clearing body40000000. Other body fields survive. Caller must first
 establish substep completion; removal from the active-body list follows at
 487976. This is inside487770, before the487e00 movement/footstep/support pass.
-Consequently support can change body positions after normal publication;
-do not add an unconditional second publication after support without evidence.
+Accepted support contacts perform their own publication after normal physics:
+4a0b31..4a0c05 copies corrected body position to object3c. Rejected contacts
+do not justify an unconditional second publication. See the completed helper below.
 
 `tools/verify_physics_publish_position.py` compares1024 cases against unchanged
 487962..487973, including complete48a230 and its vector/bounds callees. Debug
@@ -752,3 +753,30 @@ factory execution. The1536 original/PC/NXDK descriptor cases pass again.
 Both builds and all9 CTests pass. Fresh native XEMU validation remains pending
 for this change and the preceding movement-slot owner addition; the last native
 run remains replay-20260911-114140. No new visual capture is warranted.
+
+
+### Accepted support publishes the corrected position
+
+The retained rf_physics_support_accept API now requires published[3]. After a
+successful numeric contact commit it copies the corrected body position into
+that owner, matching original object3c, and retains the support handle/material.
+The caller must provide disjoint outputs. All validation precedes publication;
+errors preserve the body, support and published position together. This helper
+does not set an object movement flag or clear body40000000 as the separate
+normal physics publication helper does. Those extra operations are absent from
+this original support-copy block. Rejected-query behavior remains external.
+
+verify_support_commit.py now reads the actual original3c copy, compares it with
+PC and compiled NXDK output, and retains its existing2048 static/moving contact
+cases. All pass, including270 upward corrections; all7 failure cases preserve
+the published sentinel as well as body/contact state. The probe input remains
+412 bytes; its output is now332 bytes (status, body, support, published vector).
+No live caller used this helper yet, so no replay behavior changes in this fix.
+Both builds and all9 CTests pass.
+
+Separately, native stock64MiB XEMU replay-20260911-115129 passes180 door/audio
+frames, closing validation for startup movement slots and resolved animation
+selection through9eab386. Base RAM67108864, plugged0. NPC_BODIES is
+[78,78,191,33912,408552,1465601968], matching PC; gate, playback and draw checksums
+also match. This native run does not exercise the still-unconnected support
+helper. No framebuffer capture was requested because there are no new visuals.

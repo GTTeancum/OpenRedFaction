@@ -36,25 +36,26 @@ for n in range(2048):
  x.mem_write(stack,w(stop,b,b+0x2000)+fraction+w(moving)+contact_y+w(handle,b+0x3000));x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x27f)
  x.emu_start(entry,stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop,(n,hex(x.reg_read(UC_X86_REG_EIP)))
  got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,308))+bytes(x.mem_read(b+0x3000,4));assert got==want,('NXDK',n)
- contact_commands.extend(command+w(material));contact_expected.extend(want+w(material))
- x.mem_write(b,bytes(state));x.mem_write(b+0x3000,w(0xa5a5a5a5,0xa5a5a5a5))
- x.mem_write(stack,w(stop,b,b+0x2000)+fraction+w(moving)+contact_y+w(handle,material,b+0x3000));x.reg_write(UC_X86_REG_ESP,stack)
+ published=bytes(u.mem_read(b+0x3c,12));assert published==bytes(value[88:100])
+ contact_commands.extend(command+w(material));contact_expected.extend(want+w(material)+published)
+ x.mem_write(b,bytes(state));x.mem_write(b+0x3000,w(*([0xa5a5a5a5]*5)))
+ x.mem_write(stack,w(stop,b,b+0x2000)+fraction+w(moving)+contact_y+w(handle,material,b+0x3000,b+0x3008));x.reg_write(UC_X86_REG_ESP,stack)
  x.emu_start(contact_entry,stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop
- got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,308))+bytes(x.mem_read(b+0x3000,8));assert got==want+w(material),('NXDK contact',n)
+ got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,308))+bytes(x.mem_read(b+0x3000,20));assert got==want+w(material)+published,('NXDK contact',n)
 
 # Port preflight failures preserve both retained records, including late bounds overflow.
 failures=0;valid_contact=bytes(contact_commands[-412:])
 for offset,value in [(392,-1.),(392,1.),(392,float('nan')),(400,float('nan')),(244,-1.),(104,float('nan')),(244,3.4e38)]:
  raw=bytearray(valid_contact);raw[offset:offset+4]=f(value)
  if offset==244 and value>0:raw[100:104]=f(3.4e38)
- want=w(-4)+bytes(raw[:308])+w(0xa5a5a5a5,0xa5a5a5a5)
- x.mem_write(b,bytes(raw[:308]));x.mem_write(b+0x2000,bytes(raw[308:392]));x.mem_write(b+0x3000,w(0xa5a5a5a5,0xa5a5a5a5))
- x.mem_write(stack,w(stop,b,b+0x2000)+bytes(raw[392:412])+w(b+0x3000));x.reg_write(UC_X86_REG_ESP,stack)
+ want=w(-4)+bytes(raw[:308])+w(*([0xa5a5a5a5]*5))
+ x.mem_write(b,bytes(raw[:308]));x.mem_write(b+0x2000,bytes(raw[308:392]));x.mem_write(b+0x3000,w(*([0xa5a5a5a5]*5)))
+ x.mem_write(stack,w(stop,b,b+0x2000)+bytes(raw[392:412])+w(b+0x3000,b+0x3008));x.reg_write(UC_X86_REG_ESP,stack)
  x.emu_start(contact_entry,stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop
- got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,308))+bytes(x.mem_read(b+0x3000,8));assert got==want,('failure',offset,value)
+ got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,308))+bytes(x.mem_read(b+0x3000,20));assert got==want,('failure',offset,value)
  contact_commands.extend(raw);contact_expected.extend(want);failures+=1
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_physics_probe.exe'),'--support-commit'],input=commands)
 assert actual==expected,'PC support differs'
 assert subprocess.check_output([str(root/'build/pc/Release/rf_physics_probe.exe'),'--support-contact'],input=contact_commands)==contact_expected,'PC contact differs'
-report=dict(result='PASS',cases=2048,port_failures=failures,raised=raised,material_transfers=2048,scope='Original4a0ae3/4a0b31 through4a0c05 verifies contact material transfer to entity+1380 before landing predicate. PC/NXDK support_accept additionally matches retained handle/material; legacy numeric comparison ends at4a0bfa; unchanged vector/bounds/min callees. PC/NXDK exact state and support handle for static and resolved mover contacts including positive/nonpositive Y. Lookup, entity rejection, contact-record copy and landing effects excluded.')
+report=dict(result='PASS',cases=2048,port_failures=failures,raised=raised,material_transfers=2048,scope='Original4a0ae3/4a0b31 through4a0c05 verifies contact material transfer to entity+1380 before landing predicate. PC/NXDK support_accept additionally matches published object3c and retained handle/material; all three outputs survive seven failure cases; legacy numeric comparison ends at4a0bfa; unchanged vector/bounds/min callees. PC/NXDK exact state and support handle for static and resolved mover contacts including positive/nonpositive Y. Lookup, entity rejection, contact-record copy and landing effects excluded.')
 (root/'artifacts/support-commit-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
