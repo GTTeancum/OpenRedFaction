@@ -640,6 +640,22 @@ CTests pass. No allocation is introduced; later query failures can leave
 earlier centers updated while output bounds/radius remain unchanged.
 Uncached bone evaluation and live corpse model ownership are still separate.
 
-Static48ac70 inspection also identifies the sound-follow point: object26c=-1
-copies position3c; otherwise503230 evaluates that model tag/bone and4fb9d0
-transforms its point by the object pose. That binding remains to be verified.
+## Sound-follow point
+
+`rf_model_sound_follow_point` reconstructs48ac70 with evaluated skeletal
+poses. Object26c=-1 copies position3c directly, without requiring a model or
+orientation. Otherwise503230 supplies the cached bone position and4fb9d0
+rotates and translates it by the object pose. Original4faa90 sums Z, Y, X
+products in that order, rounds to binary32, then40a030 adds translation.
+This differs from the existing5034f0 tag-placement arithmetic ordering.
+The original attachment result is AL (zero/one); the shared helper returns
+RF status, while the supplied index identifies attachment versus fallback.
+
+`python tools/verify_sound_follow.py` executes full48ac70 and its real
+callees without hooks, comparing4096 outputs bit-for-bit against PC and
+compiled NXDK code. Coverage includes four cached bones, arbitrary poses,
+identity orientations, absent-model fallback and preservation of raw fallback
+position bits. Six additional invalid-index/nonfinite guards preserve output.
+Both builds and all13 CTests pass. The helper allocates nothing. This does
+not yet bind live corpse sound owners or implement lazy/virtual bone queries,
+and the compiled Xbox comparison is not a native XEMU gameplay test.

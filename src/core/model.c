@@ -1033,3 +1033,26 @@ int rf_model_query_bone(const float (*pose)[12],uint32_t count,int32_t index,rf_
     }
     *out=value;return RF_OK;
 }
+
+int rf_model_sound_follow_point(const float (*pose)[12],uint32_t count,int32_t index,
+    const float orientation[9],const float position[3],float out[3])
+{
+    rf_model_bone_query bone;float result[3];unsigned i;int status;
+    if(!position || !out)return RF_RANGE;
+    if(index==-1) {memmove(out,position,12);return RF_OK;}
+    if(!orientation)return RF_RANGE;
+    status=rf_model_query_bone(pose,count,index,&bone);if(status)return status;
+    for(i=0;i<9;++i)if(!isfinite(orientation[i]))return RF_FORMAT;
+    for(i=0;i<3;++i) {
+        float rotated;
+        if(!isfinite(position[i]))return RF_FORMAT;
+        /*4faa90 sums Z then Y then X, stores binary32 before 40a030 adds
+         * the object translation. This differs from 5034f0 tag placement. */
+        rotated=(float)(((double)bone.position[2]*orientation[i+6]+
+                         (double)bone.position[1]*orientation[i+3])+
+                         (double)bone.position[0]*orientation[i]);
+        result[i]=position[i]+rotated;
+        if(!isfinite(result[i]))return RF_RANGE;
+    }
+    memcpy(out,result,12);return RF_OK;
+}

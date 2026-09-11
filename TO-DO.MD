@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Bind the verified corpse sphere refresh to owned model poses and recover tag-based sound-follow points.
+- [ ] Bind verified corpse sphere refresh and sound-follow points to live owned model poses and sounds.
 - [ ] Bind verified corpse retention/fade progression to live creation, bind the verified full corpse timer/animation/sound update and reconstruct resource deletion; protected corpses are outside the five-body threshold.
 - [ ] Connect native-verified burn retarget/release to live corpse inheritance after corpse ownership is reconstructed.
 - [ ] Recover finalization418f80 corpse creation/owner transfer and deferred deletion, then bind verified burn retargeting, ordinary-SP player detach and live death completion.

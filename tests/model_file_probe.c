@@ -11,6 +11,16 @@ static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 }
 int main(int argc, char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--sound-follow")) {
+        int32_t index,status;float pose[4][12],orientation[9],position[3],out[3];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&index,4,1,stdin)==1) {
+            if(fread(pose,sizeof(pose),1,stdin)!=1 || fread(orientation,36,1,stdin)!=1 || fread(position,12,1,stdin)!=1)return 2;
+            memset(out,0xa5,12);status=rf_model_sound_follow_point(pose,4,index,orientation,position,out);
+            fwrite(&status,4,1,stdout);fwrite(out,12,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--corpse-spheres")) {
         uint32_t counts[3];float position[3],matrices[4][12],radius;
         rf_model_collision_sphere models[8];rf_physics_sphere spheres[12];rf_physics_bounds bounds;int status;
