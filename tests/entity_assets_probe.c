@@ -313,6 +313,7 @@ int main(int argc,char **argv)
                _stricmp(seeds.records.items[i].record.class_name,
                    seeds.records.items[seeds.classes[seeds.items[i].class_index].record_index].record.class_name))return 6;
         }
+        for(i=0;i<count;++i)printf("SEED_FLAGS\t%s\t%u\n",seeds.records.items[i].record.class_name,seeds.items[i].spawn.creation_flags);
         printf("SEEDS %u %u %u %u\n",count,classes,seeds.resident_bytes,peak);
         rf_entity_seeds_close(&seeds);return 0;
     }

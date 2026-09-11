@@ -352,3 +352,29 @@ checks pass. No live NPC animation is enabled by this allocation step.
 Stock64MiB XEMU replay `artifacts/xemu/replay-20260911-081913/report.json`
 passes180 frames with the new campaign allocation; coverage remains startup
 and existing door/audio behavior, not active NPC reference changes.
+
+## Authored creation-flag coverage
+
+`inspect_npc_initial_selection.py --pose --authored` now uses every distinct
+class/creation-flag combination from retained opening-level records. It obtains
+flags through the existing spawn reader and applies the reconstructed object
+and physics flag builders before original selector execution. Descriptor kind2,
+class-kind0, no links, zero velocity and other previously documented fixture
+fields remain explicit; these flags are not a complete actor factory.
+
+The20 distinct level/class/creation combinations, three prior-action values and
+three deltas yield60 selector and180 weighting/advance/pose cases. All match;
+3789 bone matrices/cache generations are exact through the PC catalog bridge.
+Controller and advance outputs also match compiled NXDK. Separate ignored
+`npc-authored-selection/controller/advance/pose.json` reports preserve the older
+zero-creation fixture reports. Creation flags and derived object flags appear
+in every per-case result. The seed probe now exposes `SEED_FLAGS` rows.
+
+Further source inspection identifies402c20 (called at422cb4 with actor+2a0)
+as the owner of actor+7d0 initialization: param_1[0x14c] is cleared, then class
+name checks set bits for auto_turret_head and auto_turret. This explains the
+opening-class zero value but has not yet been substituted for complete original
+402c20 execution. Earlier40e380 constructor preservation of+7d0 is therefore
+not evidence that the field remains uninitialized at first selection. Remaining
+startup assumptions, including vector initialization and later class/flag writes,
+need their own source attribution before wiring the full scene startup path.

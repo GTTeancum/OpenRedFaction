@@ -23,6 +23,7 @@ u.hook_add(UC_HOOK_MEM_READ,lambda uc,access,address,size,value,data:reads.appen
 assets=str(root/'build/pc/Release/rf_entity_assets_probe.exe');motion=str(root/'build/pc/Release/rf_motion_probe.exe')
 entity_probe=str(root/'build/pc/Release/rf_entity_probe.exe');game=root/'Installed_Game'
 defaults={r['entity_class'].lower():r for r in json.loads((root/'artifacts/entity-default-weapons.json').read_text())['rows']}
+authored_mode='--authored' in sys.argv
 pose_mode='--pose' in sys.argv
 advance_mode='--advance' in sys.argv or pose_mode
 controller_mode='--controller' in sys.argv or advance_mode
@@ -51,6 +52,12 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  if pose_mode:
   skeleton_output=subprocess.check_output([assets,'--skeletons',str(game/'levels1.vpp'),str(game/'tables.vpp'),str(game/'meshes.vpp'),level],text=True)
   models={f[1]:f[2] for row in skeleton_output.splitlines() if (f:=row.split('\t'))[0]=='SKELETON_CLASS'}
+ authored_flags={}
+ if authored_mode:
+  seed_output=subprocess.check_output([assets,'--seeds',str(game/'levels1.vpp'),str(game/'tables.vpp'),level],text=True)
+  for row in seed_output.splitlines():
+   f=row.split('\t')
+   if f[0]=='SEED_FLAGS':authored_flags.setdefault(f[1],set()).add(int(f[2]))
  resource_rows={};envelopes={};markers={}
  for row in out.splitlines():
   f=row.split('\t')
@@ -66,8 +73,12 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
   flags,flags2,mode_id=struct.unpack_from('<3I',config,68)
   physics=struct.unpack('<I',subprocess.check_output([entity_probe,'--physics-flags'],input=struct.pack('<5I',0,flags,flags2,0,0)))[0]
   primary,secondary=[defaults[cls.lower()][k] for k in ('primary','secondary')]
-  for prior in (0,-1,123456):
+  variants=[(prior,creation) for creation in sorted(authored_flags.get(cls,{0})) for prior in (0,-1,123456)]
+  for prior,creation in variants:
+   physics=struct.unpack('<I',subprocess.check_output([entity_probe,'--physics-flags'],input=struct.pack('<5I',creation,flags,flags2,0,0)))[0]
+   object_flags=struct.unpack('<I',subprocess.check_output([entity_probe,'--creation-flags'],input=struct.pack('<2I',creation,2)))[0] if authored_mode else 0
    u.mem_write(entity,bytes(0xd000));reads.clear()
+   put(entity+0x7c,'<I',object_flags)
    put(entity+0x24,'<I',0);put(entity+0x2c,'<i',5);put(entity+0x200,'<i',-1)
    put(entity+0x294,'<I',info);put(entity+0x29c,'<I',info);put(info+0x94,'<I',2)
    put(info+0x724,'<II',flags,flags2);put(entity+0x858,'<I',mode);put(mode+4,'<i',mode_id)
@@ -132,7 +143,7 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
       expected_refs=struct.unpack('<i',u.mem_read(motion_mem+identity*256+0x74,4))[0]
       assert sum(refs[i] for i in range(count) if cache_ids[i]==identity)==expected_refs,(level,cls,delta,'cache references')
      active=struct.unpack_from('<I',state)[0]
-     controller_results.append(dict(level=level,entity_class=cls,delta=delta,prior_action=prior,resources=count,
+     controller_results.append(dict(level=level,entity_class=cls,delta=delta,prior_action=prior,creation_flags=creation,object_flags=object_flags,resources=count,
       controller=list(struct.unpack('<iiff',control[:16])),slots=[list(struct.unpack_from('<iif',state,4+i*12)) for i in range(active)]))
      if advance_mode:
       # Factory calls the full wrapper after selector/weighting, with these trailing arguments.
@@ -151,7 +162,7 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
        original_refs=struct.unpack('<i',u.mem_read(motion_mem+identity*256+0x74,4))[0]
        assert sum(advanced_refs[i] for i in range(count) if cache_ids[i]==identity)==original_refs
       active=struct.unpack_from('<I',advanced)[0]
-      advance_results.append(dict(level=level,entity_class=cls,delta=delta,prior_action=prior,
+      advance_results.append(dict(level=level,entity_class=cls,delta=delta,prior_action=prior,creation_flags=creation,object_flags=object_flags,
        slots=[list(struct.unpack_from('<iif',advanced,4+i*12)) for i in range(active)],
        phase=struct.unpack_from('<f',advanced,248)[0],generation=struct.unpack_from('<I',advanced,252)[0],events=struct.unpack_from('<I',advanced,256)[0]))
       if pose_mode:
@@ -176,20 +187,20 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
        put(stack,'<4I',stop,bone_count,desc+0x8000,obj);u.reg_write(UC_X86_REG_ESP,stack);call(0x51b500)
        original_pose=bytes(u.mem_read(obj,bone_count*48))+b''.join(bytes(u.mem_read(obj+0x1394+i*48,2)) for i in range(bone_count))
        assert pose_c[4:]==original_pose,(level,cls,prior,delta,'pose',[(i,pose_c[4+i:8+i].hex(),original_pose[i:i+4].hex()) for i in range(0,bone_count*48,4) if pose_c[4+i:8+i]!=original_pose[i:i+4]])
-       pose_results.append(dict(level=level,entity_class=cls,model=model_name,delta=delta,prior_action=prior,bones=bone_count,pose_sha256=hashlib.sha256(original_pose).hexdigest()))
-   results.append(dict(level=level,entity_class=cls,mode=mode_id,primary=primary,secondary=secondary,prior_action=prior,
+       pose_results.append(dict(level=level,entity_class=cls,model=model_name,delta=delta,prior_action=prior,creation_flags=creation,object_flags=object_flags,bones=bone_count,pose_sha256=hashlib.sha256(original_pose).hexdigest()))
+   results.append(dict(level=level,entity_class=cls,mode=mode_id,primary=primary,secondary=secondary,prior_action=prior,creation_flags=creation,object_flags=object_flags,
     prior_action_reads=sum(a<=0x1380<a+n for a,n in reads),controller=list(struct.unpack('<iiff',actual[:16])),read_fields=sorted({hex(a) for a,n in reads})))
-report=dict(result='PASS',cases=len(results),original_sha256=digest,scope='Full original41f400 selector versus PC priority/movement composition using installed base maps, class flags/movement modes and default weapon IDs. Original402d68 scalar span executes. Fixture zeroes unspecified actor state, uses kind0/no links/nonplayer, zero velocity and no external events; not full factory or first pose/weight update. Field1380 sensitivity is tested, not assumed.',results=results)
-(root/'artifacts/npc-initial-selection.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
+report=dict(authored_creation_flags=authored_mode,result='PASS',cases=len(results),original_sha256=digest,scope='Full original41f400 selector versus PC priority/movement composition using installed base maps, class flags/movement modes and default weapon IDs. Original402d68 scalar span executes. Fixture zeroes unspecified actor state, uses kind0/no links/nonplayer, zero velocity and no external events; not full factory or first pose/weight update. Field1380 sensitivity is tested, not assumed.',results=results)
+(root/('artifacts/npc-authored-selection.json' if authored_mode else 'artifacts/npc-initial-selection.json')).write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
 
 if controller_mode:
- report=dict(result='PASS',cases=len(controller_results),original_sha256=digest,scope='Original complete41f270 and actual loaded-motion callees versus PC priority/movement/controller composition. NXDK controller also matches all99 cases. Real catalog envelopes/loop flags, cache aliases and aggregated references; zero/60Hz/30Hz deltas. Actor construction remains an explicit fixture; no503360 playback advance or pose sampling.',results=controller_results)
- (root/'artifacts/npc-initial-controller.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
+ report=dict(authored_creation_flags=authored_mode,result='PASS',cases=len(controller_results),original_sha256=digest,scope='Original complete41f270 and actual loaded-motion callees versus PC priority/movement/controller composition. NXDK controller also matches every case. Real catalog envelopes/loop flags, cache aliases and aggregated references; zero/60Hz/30Hz deltas. Actor construction remains an explicit fixture; no503360 playback advance or pose sampling.',results=controller_results)
+ (root/('artifacts/npc-authored-controller.json' if authored_mode else 'artifacts/npc-initial-controller.json')).write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
 
 if advance_mode:
- report=dict(result='PASS',cases=len(advance_results),original_sha256=digest,scope='Complete original503360/501ab0/51ba80 after41f270 versus PC and NXDK rf_motion_update; loaded catalog envelopes and markers with shared cache aliases. Full compact playback state and aggregated references match. Zero/60Hz/30Hz first advances only; actor construction is a fixture, no pose sampling or live NPC animation.',results=advance_results)
- (root/'artifacts/npc-initial-advance.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
+ report=dict(authored_creation_flags=authored_mode,result='PASS',cases=len(advance_results),original_sha256=digest,scope='Complete original503360/501ab0/51ba80 after41f270 versus PC and NXDK rf_motion_update; loaded catalog envelopes and markers with shared cache aliases. Full compact playback state and aggregated references match. Zero/60Hz/30Hz first advances only; actor construction is a fixture, no pose sampling or live NPC animation.',results=advance_results)
+ (root/('artifacts/npc-authored-advance.json' if authored_mode else 'artifacts/npc-initial-advance.json')).write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
 
 if pose_mode:
- report=dict(result='PASS',cases=len(pose_results),bone_matrices=sum(r['bones'] for r in pose_results),original_sha256=digest,scope='Complete original51b500 and callees after verified first startup advance versus PC archive-based evaluator. Real model parent trees and complete active motion bytes; matrices and cache generations match exactly. C wire packs active files; the probe constructs sparse catalog IDs and calls rf_entity_pose_evaluate without changing slot order. No live actor ownership, rendering or NXDK pose execution.',results=pose_results)
- (root/'artifacts/npc-initial-pose.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
+ report=dict(authored_creation_flags=authored_mode,result='PASS',cases=len(pose_results),bone_matrices=sum(r['bones'] for r in pose_results),original_sha256=digest,scope='Complete original51b500 and callees after verified first startup advance versus PC archive-based evaluator. Real model parent trees and complete active motion bytes; matrices and cache generations match exactly. C wire packs active files; the probe constructs sparse catalog IDs and calls rf_entity_pose_evaluate without changing slot order. No live actor ownership, rendering or NXDK pose execution.',results=pose_results)
+ (root/('artifacts/npc-authored-pose.json' if authored_mode else 'artifacts/npc-initial-pose.json')).write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
