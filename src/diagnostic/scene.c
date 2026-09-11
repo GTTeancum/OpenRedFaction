@@ -1730,6 +1730,83 @@ int rf_scene_npc_damage(uint32_t handle,const rf_damage_request *request,float d
     if(c.status)return c.status;if(status)return status;*result=value;return RF_OK;
 }
 uint32_t rf_scene_npc_damage_test_uid=UINT32_MAX,rf_scene_npc_damage_test_words[64];
+uint32_t rf_scene_npc_pain_test_words[10]; /* Two post-hit pain records plus RNG state. */
+typedef struct campaign_pain_context {
+    campaign_npc_body *owner;rf_entity_pose *pose;rf_entity_pain_state state;
+    const rf_entity_state_set *bindings;rf_entity_playback_model *model;
+    rf_random_state *random;const rf_scene_npc_pain_ops *ops;int32_t now;int status;
+} campaign_pain_context;
+static uint32_t campaign_pain_query(void *context,uint32_t query)
+{
+    campaign_pain_context *c=context;int value=0,eligible;
+    if(c->status)return 0;
+    switch(query) {
+    case RF_PAIN_PLAYER:case RF_PAIN_PLAYER_MODE:return 0; /* No player association on these NPC owners. */
+    case RF_PAIN_COOLDOWN:c->status=rf_timer_expired(c->owner->pain.cooldown,c->now,&value);break;
+    case RF_PAIN_EXCLUDED:return (c->owner->view.flags_810&1)!=0;
+    case RF_PAIN_AI_ENABLED:return (c->owner->view.flags_7d0&1)!=0;
+    case RF_PAIN_AI_BLOCKED:return (c->owner->view.flags_7d0&0x100)!=0;
+    case RF_PAIN_AI_TIMER:c->status=rf_timer_pending(c->owner->pain.ai_timer,c->now,&value);break;
+    case RF_PAIN_FIRE_PRIMARY:case RF_PAIN_FIRE_SECONDARY:
+        c->status=rf_motion_action_active(&c->pose->playback,c->model->resources,c->model->count,
+            c->state.motions,query==RF_PAIN_FIRE_PRIMARY?2:3,&value);break;
+    case RF_PAIN_COMBAT:c->status=rf_entity_combat_predicates(&campaign_entities,&c->owner->view,NULL,0,&value,&eligible);break;
+    default:c->status=RF_RANGE;break;
+    }
+    return (uint32_t)value;
+}
+static void campaign_pain_effect(void *context,uint32_t effect,uint32_t first,uint32_t second)
+{
+    campaign_pain_context *c=context;int32_t sounds[45],sound;uint32_t i;
+    if(c->status)return;
+    switch(effect) {
+    case RF_PAIN_RESET_WEAPON:
+        if(second<64)c->status=c->ops && c->ops->reset_weapon?
+            c->ops->reset_weapon(c->ops->context,first,(int32_t)second):RF_NOT_FOUND;
+        break;
+    case RF_PAIN_START:
+        c->owner->pain.selected_action=c->state.selected_action;
+        c->status=campaign_npc_motion_require(c->pose->skeleton,(uint32_t)c->state.motions[first]);if(c->status)break;
+        for(i=0;i<45;++i)sounds[i]=c->bindings->action_sounds[i][0]?(int32_t)i:-1;
+        c->status=rf_motion_start_action(&c->pose->playback,c->model->resources,c->model->count,
+            c->state.motions,sounds,(int32_t)first,1,0,1,&sound);
+        if(!c->status && sound>=0)c->status=c->ops && c->ops->play_sound?
+            c->ops->play_sound(c->ops->context,c->owner->registration.handle,c->bindings->action_sounds[sound]):RF_NOT_FOUND;
+        break;
+    case RF_PAIN_RESET_COOLDOWN:c->status=rf_timer_set_random(&c->owner->pain.cooldown,c->now,(int32_t)first,(int32_t)second,c->random);break;
+    case RF_PAIN_SET_LOCK:c->status=rf_timer_set(&c->owner->pain.animation_lock,c->now,(int32_t)first);break;
+    default:c->status=RF_RANGE;break;
+    }
+}
+static double campaign_pain_duration(void *context,uint32_t model,int32_t motion)
+{
+    campaign_pain_context *c=context;const rf_motion_file *file;
+    if(c->status)return NAN;
+    if(model>=campaign_motion_catalog.model_count || motion<0 || (uint32_t)motion>=campaign_motion_catalog.models[model].count) {
+        c->status=RF_RANGE;return NAN;
+    }
+    file=&campaign_motion_catalog.models[model].items[motion].file;
+    return rf_motion_duration((int32_t)file->header[4],(int32_t)file->header[5]);
+}
+int rf_scene_npc_pain(uint32_t handle,int32_t now,rf_random_state *random,const rf_scene_npc_pain_ops *ops)
+{
+    uint32_t i,cls;int status;campaign_pain_context c={0};
+    rf_entity_pain_backend backend={campaign_pain_query,campaign_pain_effect,campaign_pain_duration,&c};
+    if(!random || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;
+    c.owner=campaign_npc_bodies+i;c.pose=campaign_poses.items+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&c.owner->view)return RF_NOT_FOUND;
+    cls=campaign_seeds.items[i].class_index;
+    if(cls>=campaign_motion_catalog.class_count || cls>=campaign_base_motions.class_count ||
+       c.pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
+    c.bindings=campaign_base_motions.classes+cls;c.model=campaign_playback_resources.models+c.pose->skeleton;
+    c.state.handle=handle;c.state.primary_weapon=c.owner->view.weapons[0];c.state.model=c.pose->skeleton;
+    c.state.selected_action=c.owner->pain.selected_action;
+    memcpy(c.state.motions,campaign_motion_catalog.mappings[cls].actions,sizeof(c.state.motions));
+    c.now=now;c.random=random;c.ops=ops;
+    status=rf_entity_pain_react(&c.state,&backend);return c.status?c.status:status;
+}
 static uint32_t campaign_damage_test_predicate(void *c,uint32_t kind,uint32_t handle)
 {(void)c;(void)kind;(void)handle;return 0;}
 static uint32_t campaign_damage_test_uid(void *c,int32_t uid)
@@ -1742,7 +1819,8 @@ static float campaign_damage_test_random(void *c,float low,float high)
 {(void)c;(void)low;(void)high;rf_scene_npc_damage_test_words[63]++;return 0;}
 static void campaign_damage_test_notify(void *c,uint32_t kind,uint32_t target,float value,uint32_t source)
 {
-    (void)c;(void)target;(void)value;(void)source;
+    (void)value;(void)source;
+    if(kind==RF_DAMAGE_PAIN_ANIMATION && rf_scene_npc_pain(target,1000,c,NULL))rf_scene_npc_damage_test_words[63]++;
     if(kind!=RF_DAMAGE_PAIN_ANIMATION && kind!=RF_DAMAGE_PAIN_SOUND && kind!=RF_DAMAGE_AI_REACTION)rf_scene_npc_damage_test_words[63]++;
     ++rf_scene_npc_damage_test_words[3]; /* Observed boundaries; no simulated sound/AI. */
 }
@@ -1752,10 +1830,11 @@ static uint32_t campaign_damage_test_play(void *c,uint32_t target)
 {(void)c;(void)target;rf_scene_npc_damage_test_words[63]++;return UINT32_MAX;}
 static int campaign_npc_damage_fixture(void)
 {
-    uint32_t i,pass;campaign_npc_body *owner;const rf_entity_seed_class *definition;
+    uint32_t i,pass;campaign_npc_body *owner;const rf_entity_seed_class *definition;rf_random_state random={1};
     rf_damage_effect_backend effects={campaign_damage_test_predicate,campaign_damage_test_uid,campaign_damage_test_source,
-        campaign_damage_test_burn,campaign_damage_test_random,campaign_damage_test_notify,campaign_damage_test_playing,campaign_damage_test_play,NULL};
+        campaign_damage_test_burn,campaign_damage_test_random,campaign_damage_test_notify,campaign_damage_test_playing,campaign_damage_test_play,&random};
     memset(rf_scene_npc_damage_test_words,0,sizeof(rf_scene_npc_damage_test_words));
+    memset(rf_scene_npc_pain_test_words,0,sizeof(rf_scene_npc_pain_test_words));
     if(rf_scene_npc_damage_test_uid==UINT32_MAX)return RF_OK;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
         (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_npc_damage_test_uid)break;
@@ -1778,6 +1857,8 @@ static int campaign_npc_damage_fixture(void)
         memcpy(rf_scene_npc_damage_test_words+(pass?47:31),&owner->damage,56);
         rf_scene_npc_damage_test_words[pass?61:45]=owner->object_flags;
         memcpy(rf_scene_npc_damage_test_words+(pass?62:46),&result,4);
+        memcpy(rf_scene_npc_pain_test_words+pass*5,&owner->pain,16);
+        rf_scene_npc_pain_test_words[pass*5+4]=random.value;
     }
     return rf_scene_npc_damage_test_words[63]?RF_FORMAT:RF_OK;
 }
@@ -3272,8 +3353,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             /* This diagnostic begins the simulation clock at zero. */
             status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;
-            status=campaign_npc_damage_fixture();if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;
+            status=campaign_npc_damage_fixture();if(status)goto done;
             memset(rf_scene_npc_playback,0,sizeof(rf_scene_npc_playback));
             memset(rf_scene_npc_gate,0,sizeof(rf_scene_npc_gate));
             status=campaign_npc_geometry_digest();if(status)goto done;

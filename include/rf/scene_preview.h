@@ -3,6 +3,19 @@
 #include "rf/material.h"
 #include "rf/preview.h"
 #include "rf/entity.h"
+#include "rf/random.h"
+typedef struct rf_scene_npc_pain_ops {
+    int (*reset_weapon)(void *context,uint32_t handle,int32_t weapon);
+    int (*play_sound)(void *context,uint32_t handle,const char *class_name);
+    void *context;
+} rf_scene_npc_pain_ops;
+/* Registered startup NPC pain binding; caller owns clock/RNG invocation order.
+ * Uses retained timers, base action mappings and live playback. Current NPC
+ * views have no associated player/attachment owners. Reached weapon/sound
+ * operations require callbacks; NULL is allowed only when neither is reached.
+ * Callbacks keep the actor and catalog alive and must not replace its mappings.
+ * Missing target returns NOT_FOUND. Errors retain preceding effects. */
+int rf_scene_npc_pain(uint32_t handle,int32_t now,rf_random_state *random,const rf_scene_npc_pain_ops *ops);
 /* Registered skeletal NPC damage adapter. Effects must be synchronous and keep
  * owners alive; callbacks mutate the retained damage state, not stale copies.
  * Does not supply gameplay effects. Unknown/stale target is successful zero.

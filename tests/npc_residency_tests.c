@@ -1,6 +1,42 @@
 /* Exercise the scene's private residency owner without adding runtime hooks. */
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do { if(!(x)){fprintf(stderr,"residency line %d\n",__LINE__);return 1;} } while(0)
+static int pain_binding_check(void)
+{
+    campaign_npc_body owner={0};rf_random_state random={1};uint32_t i;
+    rf_motion_playback_state saved;uint32_t saved_random;
+    rf_entity_state_set *bindings=calloc(1,sizeof(*bindings));CHECK(bindings);
+    campaign_npc_bodies=&owner;campaign_npc_body_count=1;
+    campaign_base_motions.classes=bindings;campaign_base_motions.class_count=1;
+    rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
+    owner.view.weapons[0]=owner.view.weapons[1]=-1;owner.view.linked_handle=-1;
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);
+    owner.pain.selected_action=-1;
+    for(i=0;i<45;++i)campaign_motion_catalog.mappings[0].actions[i]=-1;
+    campaign_motion_catalog.mappings[0].actions[22]=2;
+    campaign_playback_resources.models[0].resources=campaign_playback_resources.resources;
+    memset(campaign_playback_resources.resources,0,3*sizeof(*campaign_playback_resources.resources));
+    campaign_playback_resources.resources[2].comparison.end_tick=2400;
+    campaign_playback_resources.resources[2].comparison.weight=1;
+    rf_motion_playback_initialize(&campaign_poses.items[0].playback);
+    CHECK(rf_scene_npc_pain(owner.registration.handle^0x10000,1000,&random,NULL)==RF_NOT_FOUND && random.value==1);
+    CHECK(rf_scene_npc_pain(owner.registration.handle,1000,&random,NULL)==RF_OK);
+    CHECK(owner.pain.selected_action==22 && owner.pain.cooldown==2041 && random.value==2745024);
+    CHECK(campaign_poses.items[0].playback.completion.active.count==1);
+    saved=campaign_poses.items[0].playback;saved_random=random.value;
+    CHECK(rf_scene_npc_pain(owner.registration.handle,1000,&random,NULL)==RF_OK);
+    CHECK(!memcmp(&saved,&campaign_poses.items[0].playback,sizeof(saved)) && random.value==saved_random);
+    owner.view.weapons[0]=0;owner.pain.cooldown=0;owner.pain.selected_action=-1;
+    CHECK(rf_scene_npc_pain(owner.registration.handle,3000,&random,NULL)==RF_NOT_FOUND);
+    CHECK(owner.pain.selected_action==-1 && owner.pain.cooldown==0 && random.value==saved_random);
+    CHECK(!memcmp(&saved,&campaign_poses.items[0].playback,sizeof(saved)));
+    owner.view.weapons[0]=-1;strcpy(bindings->action_sounds[22],"test sound");
+    CHECK(rf_scene_npc_pain(owner.registration.handle,3000,&random,NULL)==RF_NOT_FOUND);
+    CHECK(owner.pain.selected_action==22 && owner.pain.cooldown==0 && random.value==saved_random);
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
+    free(bindings);campaign_base_motions.classes=NULL;campaign_npc_bodies=NULL;campaign_npc_body_count=0;
+    return 0;
+}
 int main(void)
 {
     rf_vpp archive={0};unsigned char payload[160]={0};
@@ -74,6 +110,6 @@ int main(void)
     CHECK(campaign_npc_motion_require(0,0)==RF_IO && !data[0] && data[1]);
     CHECK(!motions[0].file.resident && !motions[1].file.resident && !sizes[0]);
     CHECK(campaign_npc_motion_bytes==1024*1024-80);
-    free(data[1]);
+    CHECK(pain_binding_check()==0);free(data[1]);
     puts("PASS: selection, aliases, pressure, reference protection, eviction, reload and failure recovery");return 0;
 }

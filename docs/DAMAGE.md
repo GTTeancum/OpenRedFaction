@@ -1374,3 +1374,43 @@ artifacts/motion-duration.json. Both builds and all ten CTests pass. Missing
 clips, lazy allocation and non-character model kinds are outside this helper's
 scope. The helper is ready for the pain duration backend but not yet connected
 to a live flinch; no new XEMU run or visual capture is claimed here.
+
+## Registered NPC flinch binding (2026-09-11)
+
+rf_scene_npc_pain now connects428740 to retained NPC timers/action,810/7d0 flags,
+base action mappings, actual playback remaining-time queries, combat predicates,
+rf_motion_start_action, motion residency and exact double clip duration. The
+caller supplies the clock and RNG stream. Current startup NPCs have no player
+association or attached-player owners; this binding does not establish those
+paths or armed weapon-overlay behavior. Required weapon resets and action sound
+labels use explicit callbacks. Missing reached operations return RF_NOT_FOUND;
+later effects stop, with earlier mutations retained. Callbacks must preserve
+actor/catalog lifetime and mappings. There is no implicit sound or weapon no-op.
+
+The explicit damage fixture now calls this binding for PAIN_ANIMATION after
+motion residency is initialized. It still only observes pain-sound and AI
+notifications. The test uses clock1000 and an explicitly owned RNG seeded1,
+not a claim about full campaign RNG order. Guard8456's unarmed base mapping has
+no idle_to_ready clip and an empty flinch action sound, so the recovered gates
+permit action22 without a weapon/sound callback. The first hit starts the
+actual ult2_flinch_stand motion, sets cooldown2041 and lock1717, and leaves RNG
+2745024. The second same-time hit is cooldown-rejected with all five values
+unchanged. Ordinary sessions still do not inject damage.
+
+NPC_PAIN_TEST records both post-hit timer/action/RNG states. The independent
+verify_npc_pain_binding.py runs original428740 with actual flags, combat,
+invalid-weapon reset, timer/RNG and loaded-duration callees, using the installed
+clip header (ticks160..2400). Active-fire queries and action-start are supplied
+boundaries, along with CRT thread storage. The original produces exactly one
+start and one draw and matches all ten PC words. This is an unarmed prepared
+NPC comparison; it does not verify armed/audio/AI effects. Existing action-start
+and broader pain-wrapper oracles cover those helpers separately.
+
+The scene ownership CTest additionally checks positive playback insertion,
+stale-handle rejection, cooldown preservation, missing weapon operation before
+playback and missing sound after playback but before cooldown/RNG updates.
+Both builds, all ten CTests, ordinary three-level support and the two-hit damage
+comparison pass. Native stock64MiB XEMU matches all ten pain words and the
+existing64 damage words over180 frames: artifacts/xemu/replay-20260911-142837/
+report.json. No new capture was taken. Real weapon/event/fall callers, sound
+ownership, armed overlays and full AI/mission gameplay remain unfinished.
