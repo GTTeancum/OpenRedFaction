@@ -4,7 +4,7 @@ Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
 grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
-- [ ] Implement Switch target routing from the verified original trace, then connect initialization, toggling and sound ownership.
+- [ ] Connect verified Switch routing, initialization and toggling to campaign owners and sound playback.
 - [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.

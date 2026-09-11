@@ -5,6 +5,23 @@
 #include <io.h>
 #include <string.h>
 static uint32_t actions,mutation;
+typedef struct switch_route_fixture {uint32_t mask,damage,renderable,hash;} switch_route_fixture;
+static void switch_route_word(switch_route_fixture *c,uint32_t word) {c->hash=(c->hash^word)*16777619u;}
+static int switch_route_lookup(void *context,uint32_t family,uint32_t link,rf_switch_target *target)
+{
+    switch_route_fixture *c=context;uint32_t mask=link==100?c->mask:63u^c->mask;
+    switch_route_word(c,0);switch_route_word(c,family);switch_route_word(c,link);
+    if(!(mask&(1u<<family)))return RF_NOT_FOUND;
+    target->token=link;target->event_type=c->damage?17:51;target->renderable=c->renderable;
+    return RF_OK;
+}
+static int switch_route_dispatch(void *context,const rf_switch_request *request)
+{
+    switch_route_fixture *c=context;
+    if(request->source!=77 || request->actor!=88)return RF_FORMAT;
+    switch_route_word(c,1);switch_route_word(c,request->family);switch_route_word(c,request->token);
+    switch_route_word(c,request->enabled);switch_route_word(c,request->flags_only);return RF_OK;
+}
 static uint32_t switch_trace;
 static void switch_callback(void *context,const rf_switch_state *state,uint32_t effect)
 {
@@ -75,6 +92,17 @@ static void occupancy_wake(void *context,uint32_t handle)
 { (void)context;++occupancy_wakes;occupancy_hash=occupancy_hash*31+handle; }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--switch-links")) {
+        uint32_t input[5],ids[2]={100,200};rf_event_links links={2,ids};rf_event_state event={0};
+        event.source=77;event.actor=88;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            rf_switch_state state={0};switch_route_fixture context={input[2],input[3],input[4],2166136261u};int status;
+            state.disabled=input[0];status=rf_event_switch_links(&state,&event,&links,input[1],switch_route_lookup,switch_route_dispatch,&context);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&context.hash,4,1,stdout)!=1)return 135;
+        }
+        return ferror(stdin)?136:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--switch-init")) {
         struct {uint32_t disabled;int32_t limit;float mode;uint32_t unlimited;} input;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

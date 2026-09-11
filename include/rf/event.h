@@ -151,6 +151,25 @@ typedef struct rf_event_links {
     uint32_t count;
     const uint32_t *handles;
 } rf_event_links;
+enum { RF_SWITCH_TRIGGER,RF_SWITCH_CONTROLLER,RF_SWITCH_SOUND,RF_SWITCH_LIGHT,
+    RF_SWITCH_EVENT,RF_SWITCH_OBJECT };
+typedef struct rf_switch_target {uint32_t token,event_type,renderable;} rf_switch_target;
+typedef struct rf_switch_request {
+    uint32_t family,token,enabled,source,actor,flags_only;
+} rf_switch_request;
+typedef int (*rf_switch_lookup)(void *context,uint32_t family,uint32_t link,rf_switch_target *target);
+typedef int (*rf_switch_dispatch)(void *context,const rf_switch_request *request);
+/* Original4bc340 routing. Lookup returns RF_NOT_FOUND to continue to the next
+ * family, RF_OK with a live token, or an error. First four families are
+ * exclusive; event and renderable-object effects may both run. Type17 event
+ * uses flags_only, including during initialization; other events are skipped
+ * when initial's low byte is nonzero. Light accepts disabled0/1 only.
+ * Caller owns lookup namespaces and effects. Owners and ordered links must
+ * remain alive/stable; callbacks may change switch/common state, which is
+ * reread for each effect. Errors stop dispatch without rolling back effects. */
+int rf_event_switch_links(const rf_switch_state *state,const rf_event_state *event,
+    const rf_event_links *links,uint32_t initial,rf_switch_lookup lookup,
+    rf_switch_dispatch dispatch,void *context);
 /* Original 4b8b00 ordered propagation. Dispatch receives on=1 only when the
  * incoming mode low byte equals 1; otherwise off with suppress_movers=1.
  * Source/actor are passed unchanged to generic dispatch (which owns target-

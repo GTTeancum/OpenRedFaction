@@ -4,6 +4,32 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+int rf_event_switch_links(const rf_switch_state *state,const rf_event_state *event,
+    const rf_event_links *links,uint32_t initial,rf_switch_lookup lookup,
+    rf_switch_dispatch dispatch,void *context)
+{
+    uint32_t i,family;int status;
+    if(!state || !event || !links || !lookup || !dispatch || (links->count && !links->handles))return RF_RANGE;
+    for(i=0;i<links->count;++i) {
+        for(family=0;family<6;++family) {
+            rf_switch_target target={0};rf_switch_request request;
+            status=lookup(context,family,links->handles[i],&target);
+            if(status==RF_NOT_FOUND)continue;
+            if(status)return status;
+            request.family=family;request.token=target.token;request.enabled=state->disabled==0;
+            request.source=event->source;request.actor=event->actor;request.flags_only=0;
+            if(family==RF_SWITCH_LIGHT && state->disabled>1)break;
+            if(family==RF_SWITCH_EVENT) {
+                if(target.event_type==17)request.flags_only=1;
+                else if(initial&255u)continue;
+            }
+            if(family==RF_SWITCH_OBJECT && !target.renderable)continue;
+            status=dispatch(context,&request);if(status)return status;
+            if(family<RF_SWITCH_EVENT)break;
+        }
+    }
+    return RF_OK;
+}
 int rf_event_switch_init(rf_switch_state *state,uint32_t disabled,int32_t limit,
     float mode,uint32_t unlimited)
 {

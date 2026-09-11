@@ -388,3 +388,23 @@ disabled0/1/2, initialization0/1/256/257, type17/ordinary events and
 renderable/nonrenderable objects. Resolver internals and downstream effects
 are outside this proof; ordered routing and argument selection are covered.
 The shared C routing backend and campaign ownership remain unfinished.
+
+
+### Portable Switch routing
+
+`rf_event_switch_links` now implements the ordered lookup/effect policy in
+shared C. A typed resolver supplies live tokens for trigger, controller,
+ambient sound, light, event and general-object families. The effect request
+contains family/token, enabled state, source/actor and a flags-only marker
+for Continuous_Damage. Lookup RF_NOT_FOUND advances to the next family;
+other errors stop dispatch without rolling back previous effects.
+
+The routing verifier now compares all3,072 original traces with NXDK
+callbacks instruction-by-instruction at the effect/lookup boundaries,
+and PC callback-trace hashes. All pass, including the event-plus-object
+path, skipped ordinary event initialization and light's disabled0/1-only
+behavior. Source/actor arguments match. Owners/links are stable in these
+fixtures; recursive callback mutations are not yet a separate proof.
+Existing force-event and particle-event integration probes pass, and the
+Xbox build succeeds. Campaign resource resolvers, Switch lifecycle and
+sound ownership remain to be connected before native reactivation tests.
