@@ -298,6 +298,9 @@ int main(int argc,char **argv)
             printf("NPC_PAIN_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_owners[k]);puts("");
             printf("NPC_PAIN_SOUND_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_sound_owners[k]);puts("");
             {extern uint32_t rf_scene_npc_eyes[4];printf("NPC_EYES");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_eyes[k]);puts("");}
+            {extern uint32_t rf_scene_npc_pain_audio[9],rf_scene_npc_pain_sound_test[10];
+             printf("NPC_PAIN_AUDIO");for(uint32_t k=0;k<9;++k)printf(" %u",rf_scene_npc_pain_audio[k]);puts("");
+             printf("NPC_PAIN_SOUND_TEST");for(uint32_t k=0;k<10;++k)printf(" %u",rf_scene_npc_pain_sound_test[k]);puts("");}
             printf("NPC_PAIN_TEST");for(uint32_t k=0;k<10;++k)printf(" %u",rf_scene_npc_pain_test_words[k]);puts("");
             printf("NPC_BACKLINKS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_backlinks[k]);puts("");
             printf("NPC_LINKS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_links[k]);puts("");

@@ -58,6 +58,23 @@ static int pain_binding_check(void)
     owner.view.weapons[0]=-1;strcpy(bindings->action_sounds[22],"test sound");
     CHECK(rf_scene_npc_pain(owner.registration.handle,3000,&random,NULL)==RF_NOT_FOUND);
     CHECK(owner.pain.selected_action==22 && owner.pain.cooldown==0 && random.value==saved_random);
+    {int32_t groups[1][2]={{-1,-1}},samples[2]={-1,-1};rf_foley_group group={0};
+     campaign_pain_groups=groups;campaign_seeds.class_count=1;owner.damage.effects.health=100;owner.pain_sound.voice=-1;
+     CHECK(rf_scene_npc_pain_sound(owner.registration.handle^0x10000u,.1f,1000,&random)==RF_NOT_FOUND);
+     CHECK(owner.pain_sound.deadline==0 && random.value==saved_random);
+     CHECK(rf_scene_npc_pain_sound(owner.registration.handle,.1f,1000,&random)==RF_OK);
+     CHECK(owner.pain_sound.deadline==2000 && owner.pain_sound.voice==-1 && random.value==saved_random);
+     groups[0][0]=0;campaign_foley.groups=&group;campaign_foley.group_count=1;
+     campaign_foley.samples=samples;campaign_foley.sample_count=2;group.count=2;
+     CHECK(rf_scene_npc_pain_sound(owner.registration.handle,.1f,1000,&random)==RF_OK && random.value==saved_random);
+     CHECK(rf_scene_npc_pain_sound(owner.registration.handle,.1f,2000,&random)==RF_OK);
+     CHECK(owner.pain_sound.deadline==3000 && random.value!=saved_random && owner.pain_sound.voice==-1);
+     saved_random=random.value;group.count=0;
+     CHECK(rf_scene_npc_pain_sound(owner.registration.handle,.1f,3000,&random)==RF_FORMAT);
+     CHECK(owner.pain_sound.deadline==4000 && random.value==saved_random);
+     owner.damage.effects.health=0;
+     CHECK(rf_scene_npc_pain_sound(owner.registration.handle,.1f,4000,&random)==RF_NOT_FOUND && owner.pain_sound.deadline==4000);
+     memset(&campaign_foley,0,sizeof(campaign_foley));campaign_pain_groups=NULL;campaign_seeds.class_count=0;}
     CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
     free(bindings);campaign_base_motions.classes=NULL;campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     return 0;

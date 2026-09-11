@@ -16,6 +16,11 @@ typedef struct rf_scene_npc_pain_ops {
  * Callbacks keep the actor and catalog alive and must not replace its mappings.
  * Missing target returns NOT_FOUND. Errors retain preceding effects. */
 int rf_scene_npc_pain(uint32_t handle,int32_t now,rf_random_state *random,const rf_scene_npc_pain_ops *ops);
+/* Retained nonlethal NPC sound adapter; registered NPCs have no player owner.
+ * Uses the caller's shared RNG, cached eye and pain groups, and bounded lazy
+ * waveform residency. Death/player override owners remain unsupported.
+ * Errors after dispatch preserve prior timer/RNG/loading effects. */
+int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random);
 /* Registered skeletal NPC damage adapter. Effects must be synchronous and keep
  * owners alive; callbacks mutate the retained damage state, not stale copies.
  * Does not supply gameplay effects. Unknown/stale target is successful zero.

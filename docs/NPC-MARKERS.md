@@ -1335,6 +1335,41 @@ native replay exercises ordinary residency without exhaustion. Live flinch/AI
 transitions and sustained campaign cache behavior remain to be verified.
 # Pain sound selection and dispatch evidence (2026-09-11)
 
+`rf_scene_npc_pain_sound` now connects registered, living NPC owners to the
+recovered4196f0 routing, retained class groups, eye position, sound deadline and
+voice identity. It selects through the verified group chooser using the
+caller's RNG, loads the selected waveform through the existing bounded idle
+cache, then submits spatial playback to the shared mixer/device backend.
+Successful playback deliberately leaves entity+808 unchanged. Missing optional
+groups make no sound; a corrupt empty selected group fails explicitly. Timer,
+RNG and residency effects before an error remain committed. Dead NPCs return
+unsupported until death descriptors and their effects are connected.
+
+The explicit guard8456 two-hit fixture now dispatches pain sound after flinch
+with the same seeded RNG. It plays `Grd_Smpain_03.wav` once (port sample564,
+16,258 resident file bytes), retains sound deadline2000/voice-1, and finishes
+with RNG3357800067. The second same-time hit consumes no further draw and plays
+nothing. Animation deadlines/action remain1717/2041/22. The fixture is still
+pre-frame diagnostic damage at clock1000 with seed1; it does not establish the
+full campaign RNG ordering or normal weapon/event scheduling. Its sound starts
+with the startup listener and follows subsequent listener gain updates.
+
+The updated `verify_npc_pain_binding.py` executes original428740 followed by
+4196f0,434da0 and48a9c0. It supplies only the documented motion/voice boundaries,
+nonplayer routing and CRT TLS, and uses the actual five-entry authored Foley
+group with ordinal sample IDs. Both hits match retained deadlines/action/RNG,
+voice preservation, selected asset name and play count. Actual original device
+playback and original loader-assigned numeric IDs are not asserted. The private
+scene tests cover stale handles, missing groups, cooldown, missing samples,
+shared RNG, malformed groups and unsupported death. All ten CTests pass;
+the4,101-case PC/NXDK sound-helper comparison also passes.
+Native stock64MiB replay `replay-20260911-150713` passes180 frames with identical
+PC pain telemetry and no guest audio-device errors. Five total device starts
+match the PC playback count, including the pain sample; the final8,192-byte DSP
+snapshot contains4,051 nonzero samples. That snapshot contains mixed campaign
+audio and is not an isolated recording of the pain sample or an audibility test.
+All three opening-level support/group regression checks also pass.
+
 NPC owners now retain entity+7d4 eye positions, with a shared 80-byte eye
 record per authored class and 12 bytes per actor slot. Class startup resolves
 the installed skeletal models' eye attachment, retains its local transform and
