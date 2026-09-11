@@ -142,6 +142,17 @@ typedef struct rf_entity_physics_config {
  * Does not resolve model spheres/poses or construct a gameplay body. */
 int rf_entity_physics_config_load(rf_vpp *tables,const char *class_name,
     uint32_t scratch_budget,rf_entity_physics_config *result);
+/* Required entity.tbl $Life, $Envirosuit and $FOV metadata from41bcba.
+ * field_764 contains binary32 cos(FOV * binary32(pi/180) *0.5).
+ * Selected class only, ASCII-insensitive name, no allocation in read. Missing
+ * or repeated required fields fail; FOV0..360 and finite numbers are the port
+ * input domain. Loader owns one bounded scratch block. Outputs preserved on
+ * error; this is a port parser, not execution of the full original loader. */
+int rf_entity_vitals_config_read(const void *text,uint32_t bytes,const char *class_name,
+    rf_entity_creation_vitals_class *result);
+int rf_entity_vitals_config_load(rf_vpp *tables,const char *class_name,uint32_t scratch_budget,
+    rf_entity_creation_vitals_class *result);
+
 typedef struct rf_entity_assets {
     char model[64];
     char textures[64][64];uint32_t texture_count;

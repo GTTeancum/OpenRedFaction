@@ -6,6 +6,23 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==4 && !strcmp(argv[1],"--vitals-config")) {
+        rf_entity_creation_vitals_class value,before;
+        memset(&value,0xa5,sizeof(value));before=value;
+        if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"entity.tbl",&entry))return 2;
+        if(rf_entity_vitals_config_load(&archive,argv[3],entry.size-1,&value)!=RF_RANGE || memcmp(&value,&before,12))return 3;
+        status=rf_entity_vitals_config_load(&archive,argv[3],entry.size,&value);rf_vpp_close(&archive);
+        _setmode(_fileno(stdout),_O_BINARY);
+        if(fwrite(&status,4,1,stdout)!=1 || fwrite(&value,12,1,stdout)!=1)return 4;
+        return 0;
+    }
+    if(argc==3 && !strcmp(argv[1],"--vitals-text")) {
+        char data[8192];size_t size;rf_entity_creation_vitals_class value;
+        memset(&value,0xa5,sizeof(value));_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        size=fread(data,1,sizeof(data),stdin);status=rf_entity_vitals_config_read(data,(uint32_t)size,argv[2],&value);
+        if(fwrite(&status,4,1,stdout)!=1 || fwrite(&value,12,1,stdout)!=1)return 4;
+        return 0;
+    }
     if(argc==3 && !strcmp(argv[1],"--jump-height")) {
         float value=123;uint32_t budget;
         if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"game.tbl",&entry))return 2;

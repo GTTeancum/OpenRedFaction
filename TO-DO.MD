@@ -2534,3 +2534,12 @@ becoming100 plus object flag4, and opaque class764->entity840 transfer. Both bui
 and nine CTests pass. This is numeric construction only; intervening factory calls,
 class metadata binding, persistent NPC registration and live burn/damage ownership
 remain open. The campaign still registers only the compact player view.
+
+
+Required class Life/Envirosuit/FOV metadata now loads through a bounded archive
+adapter. All63 installed classes match original numeric stores/FCOS, PC archive
+loading and NXDK text reading; five malformed guards preserve output. The prior
+class764->entity840 word is identified as cosine of half authored FOV. Both builds,
+nine CTests and1,536 creation-assignment cases pass. Persistent NPC construction
+can consume verified class values next; registration/model/physics ownership and
+live damage/burn integration remain open.

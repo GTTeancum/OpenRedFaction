@@ -6,6 +6,18 @@
 #include <stdlib.h>
 #include <math.h>
 #include <float.h>
+int rf_entity_vitals_config_load(rf_vpp *tables,const char *class_name,uint32_t budget,
+    rf_entity_creation_vitals_class *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !class_name || !*class_name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_entity_vitals_config_read(text,entry.size,class_name,result);
+    free(text);return status;
+}
 int rf_entity_physics_config_load(rf_vpp *tables,const char *class_name,
     uint32_t scratch_budget,rf_entity_physics_config *result)
 {
@@ -394,6 +406,29 @@ int rf_entity_movement_load(rf_vpp *tables,const char *name,uint32_t budget,rf_e
     }
 done:
     free(text);return status;
+}
+int rf_entity_vitals_config_read(const void *text,uint32_t bytes,const char *name,
+    rf_entity_creation_vitals_class *result)
+{
+    lexer l={(const unsigned char*)text,bytes,0};rf_entity_creation_vitals_class value={0};
+    char t[256];uint32_t mask=0,bit;int status,quoted,found=0;float fov=0,cosine;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            found=same(t,name);
+        } else if(found) {
+            bit=same(t,"$Life:")?1:same(t,"$Envirosuit:")?2:same(t,"$FOV:")?4:0;
+            if(!bit)continue;if(mask&bit)return RF_FORMAT;mask|=bit;
+            if(sphere_number(&l,bit==1?&value.health:bit==2?&value.armor:&fov))return RF_FORMAT;
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;if(mask!=7 || fov<0 || fov>360)return RF_FORMAT;
+    cosine=(float)cos(((double)fov*(double)0.01745329238474369f)*0.5);
+    memcpy(&value.field_764,&cosine,4);*result=value;return RF_OK;
 }
 static int class_flags(lexer *l,uint32_t secondary,uint32_t *result)
 {

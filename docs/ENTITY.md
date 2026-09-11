@@ -80,3 +80,38 @@ This includes bit-preserving SP armor copying. PC rf_entity_probe
 --creation-vitals consumes32-byte cases and returns16-byte projected states.
 Report:artifacts/entity-creation-vitals.json. Both full builds and nine CTests pass.
 No native XEMU actor construction or new visual behavior is claimed.
+
+
+Authored health, armor and FOV binding (2026-09-11)
+------------------------------------------------
+
+rf_entity_vitals_config_read/load now projects the required $FOV, $Envirosuit
+and $Life fields from entity.tbl into the creation-class input. Original
+41bcba..41bd0d calls5126a0/512920 for these three fields in that order. It stores
+Envirosuit at class+48 and Life at+44. FOV is multiplied by binary32 constant
+3c8efa35 (pi/180 approximation), then0.5, converted by x87 FCOS and stored at+764.
+This identifies the previously unnamed word copied to entity+840: its bits are
+the cosine of half the authored FOV, not an unrelated opaque setting.
+
+The port reader selects the first ASCII-insensitive class name and requires all
+three fields, rejecting duplicates and malformed numbers without changing output.
+FOV0..360 is the supported domain. It uses the existing bounded decimal parser;
+no NXDK strtod stub. Loading borrows the archive, allocates one scratch block
+bounded by the supplied budget, and releases it before return. Returned fields
+retain no text/archive pointers. No defaults or inherited values are fabricated.
+This is a selected-field port parser, not the complete original table reader.
+
+verify_entity_vitals_config.py reads the actual tables.vpp member and covers all
+63 installed classes. Original41bcba..41bd0d executes with only token/number reads
+supplied; actual FOV arithmetic/FCOS and field stores are retained. Every class
+field matches the PC archive loader and NXDK text reader bit-for-bit, while all
+other original descriptor bytes remain unchanged. Each PC archive case also
+checks an insufficient scratch budget preserves output. Five malformed/missing
+fixtures check the PC and Xbox reader guards. Installed FOV values are60,90,120,
+180 and360; no claim of full original parser behavior or every possible FOV value.
+The Unicorn verifier explicitly checks completion before inspecting outputs.
+
+Report:artifacts/entity-vitals-config.json. Both builds/nine CTests and the1,536
+factory-assignment cases pass. These values are ready for the persistent NPC
+constructor, which is still pending together with registration, model/physics
+ownership and live damage/burn scheduling. No new native XEMU gameplay is claimed.
