@@ -12,6 +12,9 @@ original named-marker consumption matches PC/NXDK, with sound dispatch still ope
 Entity footstep request routing now matches640 original PC/NXDK cases;
 recover sound-group ownership, dispatch and the entity-update call schedule.
 
+Original Foley parser execution confirms two surplus samples are skipped in
+Default/Solid Footstep; preserve declared counts when recovering the group owner.
+
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.

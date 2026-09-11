@@ -62,3 +62,34 @@ including its real marker wrappers, group getters and vector-copy calls. Only
 NXDK machine code match640 cases, including85 alternate routes,213 sound
 requests and4 left-failure/right-pending cases. Report:
 `artifacts/entity-footsteps.json`. Both builds and all nine CTest checks pass.
+
+
+## Foley group parsing evidence
+
+`foley.tbl` owns the named groups referenced by entity footstep declarations.
+Original `434880` opens that table; `434960` writes 44-byte group records at
+`6300f8` (32-byte name, material, signed sample count, sample-array pointer).
+The decompile shows a default count of one when `$Sounds:` is absent and a
+loop over exactly the declared count. Missing material leaves the existing
+record field untouched; a reconstructed owner must account for initialization.
+
+`python tools/verify_foley_parser.py` executes original `511fc0` and `5125c0`
+without hooks, including their whitespace/comment and CRT callees. Eight
+primitive cases verify that forward search is case-sensitive and can skip
+arbitrary intervening rows, while optional-token consumption is case-insensitive
+and only accepts the current token after whitespace/comments. A supplied stop
+token prevents searching past it; `434960` supplies no stop token for `$Name:`.
+The search advances CR-based line accounting across skipped rows.
+
+Two checks using the installed Foley table confirm that searches starting at
+the fifth sample of Default Footstep and Solid Footstep skip both surplus rows
+and land on the next group. Each declares four samples but lists six. Do not
+silently add those two samples when reconstructing the group owner: this would
+change the left/right halves consumed by `42f940`.
+
+Evidence: `artifacts/foley-parser.json`, original executable SHA256 as recorded
+above. This verifier covers parser primitives and real table tails, not the full
+`434960` loader, allocation or registration. The candidate per-sample reader
+`434620` reads a quoted filename, returns -1 for an empty name, otherwise reads
+two floats and calls `5054b0` with an additional 1.0 scalar. Registration argument
+semantics and runtime ownership still require direct verification before hookup.
