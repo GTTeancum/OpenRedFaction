@@ -2543,3 +2543,7 @@ class764->entity840 word is identified as cosine of half authored FOV. Both buil
 nine CTests and1,536 creation-assignment cases pass. Persistent NPC construction
 can consume verified class values next; registration/model/physics ownership and
 live damage/burn integration remain open.
+
+Current Xbox regression after7830833: replay-20260911-062100 PASS,180 staged
+L1S1 door/audio frames, stock64MiB, PC state parity and nonzero DSP output.
+Nine CTests pass; persistent NPC construction/ownership remains open.

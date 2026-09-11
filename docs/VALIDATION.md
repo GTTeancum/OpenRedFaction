@@ -782,3 +782,16 @@ PC and stock64MiB XEMU artifacts/xemu/replay-20260910-162838/report.json pass:22
 rf_entity_view_register/unregister join a borrowed type0 entity predicate view to the typed object registry through a wrapper. Both registries share the generated handle; duplicate views, occupied compact slots, exhaustion and stale/replaced removal are rejected. No heap allocation or full entity construction is implied. The scene registers its compact player after mover registration and unregisters it during cleanup. It records confirmed local-player flag8, explicit unknown classification/action(-1), and absent links/weapons. Full factory flags, classification, class-specific state and trigger polling remain unrecovered/unwired; do not infer those fields from zero initialization.
 
 rf_collision_probe --entity-registration passes1025 registrations with exhaustion, duplicate and stale guards. Native stock64MiB180-frame staged door replay artifacts/xemu/replay-20260910-163659/report.json matches PC player registration telemetry and still records111 mover contacts with an exact final contact. The compact registry/view/wrapper uses4164 static bytes. Both builds and six CTests pass. No trigger activation or door opening is claimed.
+
+
+2026-09-11 current Xbox regression after entity vitals reconstruction
+------------------------------------------------------------------
+Source commit 7830833 passed the 180-frame staged L1S1 door/audio replay in
+stock 64 MiB XEMU (base-memory 67108864, plugged-memory 0). Report:
+artifacts/xemu/replay-20260911-062100/report.json. Guest state checks matched
+the PC reference; 10412 physical pages remained at completion. The 8192-byte
+guest DSP ring snapshot contained 4051 nonzero samples. This proves native
+replay/device output, not host audibility, full campaign or live NPC behavior.
+The harness restored the normal disc flags and rebuilt the ISO successfully.
+All nine CTests also passed. No new visual capture was warranted.
+Test XBE SHA256: 54b8b6d022addf7aa1551f9aee6bc0874475ea5c7af4235bad6192469ad646cb
