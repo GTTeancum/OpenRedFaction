@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Validate descending lift carry, use-input scheduling and linked-object use interactions.
+- [ ] Verify per-frame lift support, stepping/jumping off, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
 - [ ] Implement sound metadata persistence across level transitions and recover automatic PCM residency policy.
 - [ ] Complete controller audio groups/loop metadata and validate interactive PC/Xbox playback.

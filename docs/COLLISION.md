@@ -2890,3 +2890,20 @@ Stock64MiB XEMU replay-20260910-200250 passes360 frames with PC-equivalent
 body/controller state using `tools/xemu_replay_check.py <inputs> --lift`.
 PC door and RFI2 jump replays plus six CTests pass. No new audio fidelity or
 PS2 visual-parity claim; linked general objects and key effects remain open.
+
+
+## Descending lift checkpoint replay
+
+`python tools/replay_lift_contact.py --cycle` now includes600 frames and ten
+independent checkpoint runs. One use pulse at30 starts the authored rise,
+upper dwell and automatic return. At420/480 frames player Y is-4.097650 and
+-5.347659; at540/600 it is back to the settled baseline-6.055979. X/Z remain
+unchanged, the final sweep identifies mover8670, and the controller reports
+three arrivals with no controller error. This verifies the sampled return
+and stopped dwell; per-frame support continuity and stepping/jumping off are
+not yet checked. No source movement correction was needed for this fixture.
+
+Stock64MiB XEMU replay-20260910-200702 passes600 frames with PC-equivalent
+final body, controller and diagnostic state. Upper dwell180/360 and lower
+dwell540/600 positions match within0.0001; final player velocity is zero.
+The existing rise fixture is preserved without --cycle.
