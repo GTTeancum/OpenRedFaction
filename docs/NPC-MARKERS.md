@@ -1232,3 +1232,47 @@ Both builds and all nine CTests pass. Native stock 64 MiB XEMU matches PC over
 ordered link digests: artifacts/xemu/replay-20260911-131408/report.json. Base RAM
 is 67,108,864 bytes with no plugged memory. The PC final framebuffer equals the
 previous registration-only replay byte for byte. No new screenshot was taken.
+
+
+## Retained trigger backlinks (2026-09-11)
+
+Each skeletal NPC owner now retains trigger_handle for original entity+838.
+Constructor422360 initializes that field to -1 (near423360..4233a8). Original
+load block4611d8..461200, confirmed with disassembly, calls4c0910 to test trigger
+flag4, then426fc0 to resolve the object handle as an entity. A successful lookup
+stores the trigger handle at entity+838. Key-owner fallback never performs this
+write. Later qualifying triggers overwrite earlier ones in traversal order.
+The scene now applies this step after resolving trigger links, using registered
+typed entities and authored trigger/link order; event links do not write it.
+
+The field costs four bytes per actor slot: 312/156/112 bytes in L1S1/L1S2/L1S3.
+Their total body-owner residency becomes41604/21360/15400 bytes, with unchanged
+body content hashes and a separate backlink digest. Four telemetry words report
+write count, linked actor count, ordered UID/handle/backlink hash and added bytes.
+PC records individual fields during frame-zero polling while owners are alive;
+reading them after scene teardown would produce no records. No retained trace
+array or extra allocation is needed.
+
+verify_npc_backlinks.py executes original4611a1..461231 with real UID, flag,
+array and typed-handle lookup callees and no substituted calls. It compares all
+147 registered actor fields across four PC levels. Prepared original objects
+use observed port handles; authored trigger order and flag mapping feed the
+original block. Non-NPC objects and key owners are omitted in this backlink
+fixture; the separate UID resolver tests cover their generic lookup precedence.
+This does not establish original global factory ordering or duplicate-trigger
+precedence beyond these authored cases.
+
+The first three levels correctly retain -1 for every actor: they contain no
+qualifying trigger. L4S2 supplies positive coverage: trigger1387 links NPC1287,
+producing one write and one linked actor among six registered skeletal NPCs.
+Its summary is [1,1,415388634,36], with body residency5256 and peak379680 bytes.
+The verifier requires at least one positive write rather than accepting only
+empty-field coverage. Trigger eligibility, consuming this backlink during actor
+logic, AI and non-skeletal ownership remain unfinished.
+
+Both builds and all nine CTests pass. Stock64MiB XEMU matches the PC negative
+case over180 Live Mines frames (replay-20260911-131856) and the positive L4S2
+startup frame (replay-20260911-132121). Reports are under artifacts/xemu; both
+show base RAM67108864 and plugged memory0. L4S2 native backlink summary matches
+[1,1,415388634,36]. This verifies startup ownership, not sustained L4S2 gameplay.
+No new visual capture was requested.

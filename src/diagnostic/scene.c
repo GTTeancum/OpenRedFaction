@@ -1191,6 +1191,7 @@ static rf_movement_descriptor campaign_modes[16];
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_entity_creation_vitals_state vitals;float published[3],previous[3];uint32_t movement_slot;
+    uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
     rf_movement_settings movement;rf_entity_view view;rf_registered_entity_view registration;
 } campaign_npc_body;
 static campaign_npc_body *campaign_npc_bodies;
@@ -1318,6 +1319,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     for(actor=0;actor<campaign_npc_body_count;++actor)if(campaign_poses.items[actor].skeleton!=UINT32_MAX) {
         campaign_npc_body *owner=campaign_npc_bodies+actor;rf_entity_view *view=&owner->view;
         const rf_entity_seed_class *definition=campaign_seeds.classes+campaign_seeds.items[actor].class_index;
+        owner->trigger_handle=UINT32_MAX;
         view->handle=-1;view->type=0;view->class_type=(int32_t)definition->physics.use_kind;
         view->flags_7c=owner->vitals.object_flags;view->linked_handle=-1;
         view->weapons[0]=view->weapons[1]=-1;view->base_speed=campaign_npc_movement_configs[campaign_seeds.items[actor].class_index].base_speed;
@@ -1477,6 +1479,15 @@ uint32_t rf_scene_campaign_triggers[2]; /* registered triggers, owner bytes */
 uint32_t rf_scene_campaign_links[4]; /* total, resolved, unresolved, ordered target hash */
 uint32_t rf_scene_campaign_event_links[4];
 uint32_t rf_scene_event_ticks[12]; /* ticks, clock ms, pending other types, cumulative action report */
+/* Read-only diagnostic access; no pointer or ownership escapes. */
+int rf_scene_npc_backlink_row(uint32_t index,uint32_t row[3])
+{
+    if(!row || index>=campaign_npc_body_count || !campaign_npc_bodies[index].registration.view)return RF_NOT_FOUND;
+    row[0]=campaign_seeds.records.items[index].record.uid;
+    row[1]=campaign_npc_bodies[index].registration.handle;row[2]=campaign_npc_bodies[index].trigger_handle;
+    return RF_OK;
+}
+uint32_t rf_scene_npc_backlinks[4]; /* writes, linked actors, hash, retained bytes */
 uint32_t rf_scene_npc_links[4]; /* UID objects, temporary bytes, trigger NPC links, event NPC links */
 static int campaign_resolve_trigger_links(void)
 {
@@ -1517,6 +1528,25 @@ static int campaign_resolve_trigger_links(void)
      * Original whole-world factory order and non-skeletal owners remain open. */
     status=rf_runtime_triggers_resolve(&campaign_triggers,objects,n,
         campaign_group_registration.keys,campaign_group_registration.key_count);
+    memset(rf_scene_npc_backlinks,0,sizeof(rf_scene_npc_backlinks));
+    rf_scene_npc_backlinks[2]=2166136261u;rf_scene_npc_backlinks[3]=campaign_npc_body_count*4;
+    /*4611d8..461200: only object links, flag4, and a valid typed entity.
+     * Iterate authored trigger/link order so later writes replace earlier ones. */
+    if(!status)for(i=0;i<campaign_triggers.count;++i)if(campaign_triggers.items[i].state.flags&4) {
+        rf_runtime_trigger *trigger=campaign_triggers.items+i;
+        for(j=0;j<trigger->authored->record.link_count;++j)if(trigger->links[j].kind==1) {
+            const rf_entity_view *view=rf_entity_lookup(&campaign_entities,(int32_t)trigger->links[j].value);
+            uint32_t actor;if(!view)continue;
+            for(actor=0;actor<campaign_npc_body_count;++actor)if(view==&campaign_npc_bodies[actor].view) {
+                campaign_npc_bodies[actor].trigger_handle=trigger->handle;++rf_scene_npc_backlinks[0];break;
+            }
+        }
+    }
+    for(i=0;i<campaign_npc_body_count;++i) {
+        uint32_t row[3];if(rf_scene_npc_backlink_row(i,row))continue;
+        if(row[2]!=UINT32_MAX)++rf_scene_npc_backlinks[1];
+        rf_scene_npc_backlinks[2]=npc_hash_bytes(rf_scene_npc_backlinks[2],row,sizeof(row));
+    }
     if(!status)status=rf_runtime_events_resolve(&campaign_events,objects,n,
         campaign_group_registration.keys,campaign_group_registration.key_count);
     free(objects);

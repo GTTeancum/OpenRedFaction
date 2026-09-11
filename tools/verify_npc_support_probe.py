@@ -2,9 +2,9 @@
 import json,os,struct,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];folder=root/'artifacts/npc-support-probe';folder.mkdir(exist_ok=True)
-fixtures=[('L1S1.rfl','door-audio-reference/inputs.bin','RF_REPLAY_DOOR_START',[78,78,191,41292,415932,1546073344]),
- ('L1S2.rfl','lift-cycle/inputs.bin','RF_REPLAY_LIFT_START',[39,38,114,21204,395196,1626689487]),
- ('L1S3.rfl','npc-bodies-start.bin',None,[28,25,48,15288,388992,3245065254])]
+fixtures=[('L1S1.rfl','door-audio-reference/inputs.bin','RF_REPLAY_DOOR_START',[78,78,191,41604,416244,1546073344]),
+ ('L1S2.rfl','lift-cycle/inputs.bin','RF_REPLAY_LIFT_START',[39,38,114,21360,395352,1626689487]),
+ ('L1S3.rfl','npc-bodies-start.bin',None,[28,25,48,15400,389104,3245065254])]
 reports=[]
 for level,inputs,staged,bodies in fixtures:
  env=os.environ.copy()
