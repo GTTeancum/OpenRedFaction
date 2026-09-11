@@ -14,8 +14,14 @@ def hook(m,address,size,context):
  if address==0x4cdc41:selected.append((m.reg_read(UC_X86_REG_ESI)-faces)//0x100)
 u.hook_add(UC_HOOK_CODE,hook)
 results=[];cases=hits=0
-for axis,a,z,flag,cached,tree in itertools.product(range(3),(-3.,-1.,0.,1.,3.),(-3.,-1.,0.,1.,3.),(0,4,8,12,16),(0,1),(0,1)):
- lo=[-2.]*3;hi=[2.]*3;s=[0.]*3;t=[0.]*3;s[axis]=a;t[axis]=z
+query_specs=globals().get('query_specs');custom=query_specs is not None
+if query_specs is None:
+ query_specs=[]
+ for axis,a,z,flag,cached,tree in itertools.product(range(3),(-3.,-1.,0.,1.,3.),(-3.,-1.,0.,1.,3.),(0,4,8,12,16),(0,1),(0,1)):
+  s=[0.]*3;t=[0.]*3;s[axis]=a;t[axis]=z;query_specs.append(dict(start=s,end=t,flags=flag,cached=cached,tree=tree,axis=axis))
+for spec in query_specs:
+ lo=[-2.]*3;hi=[2.]*3;s=spec['start'];t=spec['end'];flag=spec['flags'];cached=spec['cached'];tree=spec['tree'];axis=spec.get('axis',-1)
+ a=s[axis];z=t[axis]
  u.mem_write(b,bytes(0x8000));u.mem_write(b+0x9c,w(1,1,b+0x800));u.mem_write(b+0x800,w(room));u.mem_write(room+0x3c,w(nodes));u.mem_write(start,f(*s,*t))
  for face_index in range(6):
   dim=face_index//2;other=[i for i in range(3) if i!=dim];point=2. if face_index%2 else -2.;plane=[0.,0.,0.,2.];plane[dim]=-1. if face_index%2 else 1.
@@ -30,8 +36,10 @@ for axis,a,z,flag,cached,tree in itertools.product(range(3),(-3.,-1.,0.,1.,3.),(
  u.mem_write(stack,w(stop,b,room if cached else 0,start,end));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x27f);selected=[];u.emu_start(0x4cd9e0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
  hit=u.reg_read(UC_X86_REG_EAX)&255
  expected=not(flag&12) and a!=z and (min(a,z)<-2<max(a,z) or min(a,z)<2<max(a,z))
- assert hit==int(expected) and len(selected)==hit,(axis,a,z,flag,cached,tree,hit,selected)
- if hit:assert selected[0]//2==axis
- results.append(dict(axis=axis,start=a,end=z,flags=flag,cached=cached,tree=tree,hit=hit,face=selected[0] if hit else None));hits+=hit;cases+=1
-report=dict(result='PASS',cases=cases,hits=hits,original_sha256=digest,scope='Complete unmodified4cd9e0 and all geometry callees, synthetic cube one-node/three-node trees, world-root and supplied-room-root selection, directions/zero movement, flags0/4/8/12/16. Strictly off-face endpoints; boundary/oblique/real-level cases remain. Exact booleans vs analytical crossings and selected-face axis. No shared crossing implementation yet.',results=results)
-(root/'artifacts/room-crossing-trace.json').write_text(json.dumps(report,indent=2)+'\n');print({k:v for k,v in report.items() if k!='results'})
+ assert len(selected)==hit,(spec,hit,selected)
+ if axis>=0:
+  assert hit==int(expected),(axis,a,z,flag,cached,tree,hit,selected)
+  if hit:assert selected[0]//2==axis
+ results.append(dict(axis=axis,start=a,end=z,from_point=s,to_point=t,flags=flag,cached=cached,tree=tree,hit=hit,face=selected[0] if hit else None));hits+=hit;cases+=1
+report=dict(result='PASS',cases=cases,hits=hits,original_sha256=digest,scope=('Provided-vector cube traversal with actual geometry callees; original results are the reference for shared comparisons. Boundary and angled segments; no oblique planes or real levels.' if custom else 'Complete unmodified4cd9e0 and all geometry callees, synthetic cube one-node/three-node trees, world-root and supplied-room-root selection, directions/zero movement, flags0/4/8/12/16. Strictly off-face endpoints; boundary/oblique/real-level cases remain. Exact booleans vs analytical crossings and selected-face axis. No shared crossing implementation yet.'),results=results)
+(root/'artifacts'/((globals().get('suite','room-crossing'))+'-trace.json')).write_text(json.dumps(report,indent=2)+'\n');print({k:v for k,v in report.items() if k!='results'})

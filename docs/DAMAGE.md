@@ -958,3 +958,19 @@ guards preserve output. Both builds and eight CTests pass. Evidence is
 artifacts/room-crossing.json. This establishes the shared implementation under
 controlled geometry. Boundary/oblique/multiple-root/real-level tests remain
 before connecting cached-room policy to the live world locator and emitters.
+
+## Crossing boundary and angled-segment coverage
+
+verify_room_crossing_boundaries.py extends the complete original/shared
+comparison with3,506 cube queries. It covers on-face endpoints, edges and
+corners, immediately adjacent float values around both boundaries, zero and
+very short movement, and randomized angled segments under face filters.
+The original geometry routines supply the reference; shared PC and actual
+NXDK first room/face selection match exactly, including1,320 accepted
+crossings. Two nonfinite-input guards also pass. The initial1,500-case
+analytical suite still passes after the harness was generalized.
+
+Reports are artifacts/room-crossing-boundaries.json and its original trace.
+The geometry remains axis-aligned even when segments are angled. Oblique
+planes, multiple world roots, and real-level geometry remain unverified;
+these checks do not establish live cached-room integration.

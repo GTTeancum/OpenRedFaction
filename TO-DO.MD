@@ -2421,3 +2421,6 @@ Boundary/oblique/real-level checks and cached-room binding remain open.
 
 Shared room-crossing traversal passes1500 original PC/NXDK cases plus2 guards;
 edge/oblique/multiple-root/real-level checks precede cached-room integration.
+
+Room crossing matches3506 additional PC/NXDK boundary/angled-segment cases;
+oblique planes, multiple roots and real levels remain before live integration.
