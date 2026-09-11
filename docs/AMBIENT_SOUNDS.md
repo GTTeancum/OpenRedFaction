@@ -1,9 +1,9 @@
 # Ambient sound ownership
 
-The shared C campaign now owns the authored ambient-sound records needed to
-resolve Switch sound targets. It does not yet create the original runtime sound
-instances or play their loops. Authored presence alone must not be reported as a
-successful runtime lookup: original registration can fail and omit an instance.
+The shared C campaign now owns authored ambient-sound records and creates runtime
+instances only after successful metadata registration. It does not yet schedule
+or play their loops. UID lookup retains original order and first-match behavior;
+failed registrations are omitted.
 
 ## Source evidence
 
@@ -34,8 +34,8 @@ result returns-1 without allocating a runtime instance. Otherwise it allocates
 0x3c bytes, stores UID at+8, registered sample at+c, initial voice handle-1 at+10,
 position at+14, sound parameters at+28/+2c/+30 and flags at+34, and appends the
 instance to the circular list at644ec0. Lookup45afe0 searches that list in order
-and returns the first matching UID. Registration and runtime flags still need
-their own execution proofs before this list is reconstructed.
+and returns the first matching UID. Runtime playback and the final authored word
+still require further recovery.
 
 ## Port reader and owner
 
@@ -74,7 +74,55 @@ playback, Switch sound mutation, or full campaign functionality.
 
 ## Remaining integration
 
-Recover505a90 registration/instance setup and its failure behavior; establish
-runtime flags, loop scheduling, start/stop and volume changes; register only
-successful instances for UID lookup; connect Switch sound dispatch; recover
-the light target owner so routing priority remains correct across both families.
+Establish the final authored word's meaning, loop scheduling, start/stop and
+volume changes; connect Switch sound dispatch; recover the light target owner
+so routing priority remains correct across both families.
+
+## Runtime registration and ordered lookup
+
+`rf_ambient_instances_open` reconstructs the45aca0 instance fields in44 bytes:
+UID, sample index, voice handle, position, three authored sound parameters,
+uninterpreted authored word and timer deadline. Voice and deadline start at-1.
+The name remains in the audio bank. Every negative registration result omits
+the instance; accepted instances retain order and duplicate UIDs. `rf_ambient_find`
+returns the first matching instance. Capacity is budgeted for all authored rows,
+with one allocation and no allocation after registration callbacks start.
+Malformed input and insufficient budget fail before invoking callbacks.
+
+Original505a90 returns-1 when audio-enabled byte17543d8 is zero; otherwise it
+calls5054b0 with the authored parameters. The shared owner receives this policy
+through its registration callback. The campaign uses its enabled deterministic
+bank even when no host audio device is attached. This is an explicit port policy.
+Registration does not preload PCM. Global declarations precede ambient records,
+which precede controllers in all installed levels containing those sections.
+This preserves first-registration parameter precedence among these families.
+Other sound-producing object families and full registration order remain open.
+
+`verify_ambient_instances.py` executes original45aca0/45b080 construction,
+505a90 gating, vector/timer routines, list insertion and45afe0 lookup. Allocation,
+string ownership and the5054b0 result are supplied. In285 cases covering2,646
+rows, shared C output matches accepted, negative-registration and disabled-audio
+paths, including duplicate, zero andFFFFFFFF UIDs. The C probe also tests budget
+preflight, malformed input without callbacks, nonempty-owner rejection and close.
+
+`verify_ambient_campaign.py` independently derives sample indices and instance
+hashes from global declarations, authored order and archive presence, then checks
+actual campaign loading in L1S1, L1S3, L2S1 and ctf01. L2S1 omits two unavailable
+underwater resources; these names are absent from all inventoried archives.
+L1S1 now registers100 samples, including eight added ambient names, while retaining
+the same four controller waveforms and111,904 waveform-file bytes. Bank metadata
+is13,128 bytes and the nine runtime instances occupy412 bytes. The sound-bank
+budget remains1MiB, with a separate64KiB runtime-instance ceiling.
+
+`AMBIENT_INSTANCES` reports accepted count, rejected count, owner bytes and state
+hash. Native64MiB L1S3 replay20260910-223214 matches PC[24,0,1072,2278460717].
+This proves native registration/state ownership for that replay, not live ambient
+audio or Switch volume changes. Original45b010/45b040 call505b50 with the voice
+handle and zero/authored volume respectively; they do not mutate a persistent
+enabled flag in the instance. That playback connection is still pending.
+
+Native64MiB door replay20260910-223419 also passes180 frames with the updated
+registration order. L1S1 instance state matches[9,0,412,3934104921]; door motion,
+spatial output and PCM hash773011109 remain equal to PC. The door bank-count
+assertion now requires100 entries (previously92), while resident-waveform count
+stays4. No ambient voices are started by this change.

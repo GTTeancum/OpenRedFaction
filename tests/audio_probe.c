@@ -1,10 +1,50 @@
 #include "rf/audio.h"
+#include "rf/level.h"
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+typedef struct ambient_fixture {const rf_level_owned_ambient *rows;const int32_t *samples;uint32_t calls;} ambient_fixture;
+static int32_t ambient_register(void *context,const char *name,float near_distance,float volume,float rolloff)
+{
+    ambient_fixture *fixture=context;uint32_t i=fixture->calls++;
+    const rf_level_ambient_sound *row=fixture->rows->items+i;
+    if(strcmp(name,row->name) || memcmp(&near_distance,&row->near_distance,4) ||
+        memcmp(&volume,&row->volume,4) || memcmp(&rolloff,&row->rolloff,4))exit(98);
+    return fixture->samples[i];
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--ambient-instances")) {
+        uint32_t count,i,bytes;rf_level_ambient_sound rows[64];int32_t samples[64];
+        rf_level_owned_ambient authored={rows,0,0};rf_ambient_instances owned={0},small={0},zero={0};
+        ambient_fixture fixture={&authored,samples,0};
+        _Static_assert(sizeof(rf_ambient_instance)==44,"Ambient instance wire layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        if(fread(&count,4,1,stdin)!=1 || count>64)return 90;
+        authored.count=count;
+        for(i=0;i<count;i++)if(fread(rows+i,sizeof(*rows),1,stdin)!=1 || fread(samples+i,4,1,stdin)!=1)return 91;
+        bytes=sizeof(owned)+count*sizeof(*owned.items);
+        if(rf_ambient_instances_open(&authored,bytes-1,ambient_register,&fixture,&small)!=RF_RANGE ||
+            fixture.calls || memcmp(&small,&zero,sizeof(small)))return 92;
+        if(count) {
+            uint32_t saved,invalid=0x7fc00000;memcpy(&saved,&rows[count-1].position[0],4);
+            memcpy(&rows[count-1].position[0],&invalid,4);
+            if(rf_ambient_instances_open(&authored,bytes,ambient_register,&fixture,&small)!=RF_FORMAT ||
+                fixture.calls || memcmp(&small,&zero,sizeof(small)))return 96;
+            memcpy(&rows[count-1].position[0],&saved,4);
+        }
+        if(rf_ambient_instances_open(&authored,bytes,ambient_register,&fixture,&owned) || fixture.calls!=count)return 93;
+        if(rf_ambient_instances_open(&authored,bytes,ambient_register,&fixture,&owned)!=RF_RANGE || fixture.calls!=count)return 94;
+        fwrite(&owned.count,4,1,stdout);fwrite(&owned.rejected,4,1,stdout);
+        fwrite(owned.items,sizeof(*owned.items),owned.count,stdout);
+        for(i=0;i<count;i++) {
+            rf_ambient_instance *found=rf_ambient_find(&owned,rows[i].uid);
+            int32_t index=found?(int32_t)(found-owned.items):-1;fwrite(&index,4,1,stdout);
+        }
+        memset(rows,0xa5,sizeof(rows));rf_ambient_instances_close(&owned);rf_ambient_instances_close(&owned);
+        return memcmp(&owned,&zero,sizeof(owned))?95:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--global-bank")) {
         rf_vpp tables,archive;rf_audio_bank bank={0};rf_audio_declaration *rows;uint32_t count,i,index;
         if(rf_vpp_open(&tables,argv[2]) || rf_sound_table_load(&tables,65536,NULL,0,&count) || count!=88)return 68;

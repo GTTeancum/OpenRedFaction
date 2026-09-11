@@ -423,7 +423,9 @@ static void campaign_force_snapshot(void)
 static rf_object_registry campaign_registry;
 static rf_runtime_events campaign_events;
 static rf_level_owned_ambient campaign_ambient;
+static rf_ambient_instances campaign_ambient_instances;
 uint32_t rf_scene_ambient_records[3]; /* authored count, owner bytes, ordered record hash */
+uint32_t rf_scene_ambient_instances[4]; /* registered, rejected, owner bytes, ordered state hash */
 uint32_t rf_scene_switch_state[3]; /* count, enabled count, ordered persistent state hash */
 static void campaign_switch_snapshot(void)
 {
@@ -514,6 +516,14 @@ static void campaign_audio_listener(const float position[3],const float right[3]
     uint32_t i;memcpy(campaign_listener_position,position,12);memcpy(campaign_listener_right,right,12);
     for(i=0;i<RF_AUDIO_VOICES;i++)if(campaign_spatial_voices[i].handle)campaign_spatial_update(campaign_spatial_voices+i,0);
 }
+static int32_t campaign_ambient_register(void *context,const char *name,float near_distance,float volume,float rolloff)
+{
+    rf_audio_bank *bank=context;uint32_t index;int status;
+    status=rf_audio_bank_declare(bank,name,near_distance,volume,rolloff,&index);
+    if(!status)return (int32_t)index;
+    if(status==RF_NOT_FOUND)++rf_scene_live_audio[2];else ++rf_scene_live_audio[3];
+    return -1;
+}
 static int campaign_audio_open(const char *tables_path,const char *level_name)
 {
     char path[1024];size_t prefix=0,n;uint32_t i,j,index,capacity;
@@ -541,7 +551,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
         declarations=malloc((size_t)declared*sizeof(*declarations));if(!declarations){status=RF_RANGE;goto audio_done;}
         status=rf_sound_table_load(&tables,65536,declarations,declared,&declared);if(status)goto audio_done;
     }
-    capacity=declared+campaign_group_runtime.count*4;
+    capacity=declared+campaign_group_runtime.count*4+campaign_ambient.count;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state) {
         ++rf_scene_switch_audio[0];
         if(campaign_events.items[i].authored->record.texts[0][0])++capacity;
@@ -558,6 +568,17 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
     }
     rf_scene_sound_bank[0]=declared;
     free(declarations);declarations=NULL;rf_vpp_close(&tables);
+    /* All installed section500 records precede section3000 controllers. Their
+     * first successful metadata registration must retain parameter precedence.
+     * The deterministic port sound bank is enabled even without a host device. */
+    status=rf_ambient_instances_open(&campaign_ambient,65536,campaign_ambient_register,
+        &campaign_audio_bank,&campaign_ambient_instances);if(status)goto audio_done;
+    rf_scene_ambient_instances[0]=campaign_ambient_instances.count;
+    rf_scene_ambient_instances[1]=campaign_ambient_instances.rejected;
+    rf_scene_ambient_instances[2]=campaign_ambient_instances.allocated_bytes;
+    rf_scene_ambient_instances[3]=2166136261u;
+    for(i=0;i<campaign_ambient_instances.count*sizeof(*campaign_ambient_instances.items);i++)
+        rf_scene_ambient_instances[3]=(rf_scene_ambient_instances[3]^((unsigned char *)campaign_ambient_instances.items)[i])*16777619u;
     if(!status)for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
         const char *name=campaign_group_runtime.items[i].source->record.sounds[j];
         if(!name[0])continue;
@@ -798,6 +819,7 @@ static void campaign_close_movers(void)
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
     rf_audio_mixer_init(&campaign_audio_mixer);rf_audio_bank_close(&campaign_audio_bank);
+    rf_ambient_instances_close(&campaign_ambient_instances);
     if(campaign_player_object.view)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&campaign_player_object);
     uint32_t i;for(i=0;i<campaign_mover_count;i++)rf_object_registry_remove(&campaign_registry,campaign_mover_wrappers[i].handle);
     rf_group_mover_memberships_close(&campaign_memberships);

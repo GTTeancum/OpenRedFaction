@@ -1,6 +1,25 @@
 #ifndef RF_AUDIO_H
 #define RF_AUDIO_H
 #include "rf/vpp.h"
+struct rf_level_owned_ambient;
+typedef struct rf_ambient_instance {
+    uint32_t uid;int32_t sample,voice;float position[3];
+    float near_distance,volume,rolloff;uint32_t authored_word;int32_t deadline;
+} rf_ambient_instance;
+typedef struct rf_ambient_instances {
+    rf_ambient_instance *items;uint32_t count,rejected,allocated_bytes;
+} rf_ambient_instances;
+/* Register by name/near/volume/rolloff; every negative result omits that instance.
+ * Caller controls the audio-enabled gate. No PCM preload is requested here. */
+typedef int32_t (*rf_ambient_register)(void *context,const char *name,float near_distance,float volume,float rolloff);
+/* Original45aca0 state and list order, with allocation/registration supplied.
+ * Budget includes owner plus capacity for all authored rows. Preflights before
+ * callbacks; callback side effects are caller-owned. No archive/name pointers
+ * are retained. Output must be empty; original OOM crash is not reproduced. */
+int rf_ambient_instances_open(const struct rf_level_owned_ambient *authored,uint32_t budget,
+    rf_ambient_register registration,void *context,rf_ambient_instances *result);
+void rf_ambient_instances_close(rf_ambient_instances *instances);
+rf_ambient_instance *rf_ambient_find(rf_ambient_instances *instances,uint32_t uid);
 /* DirectSound hundredths-of-dB adapter to linear L/R amplitude.
  * Volume -10000..0, pan -10000..10000; errors preserve output. */
 int rf_audio_device_gains(int32_t volume,int32_t pan,float output[2]);

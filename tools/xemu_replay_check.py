@@ -192,6 +192,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      ambient=words(monitor,symbol('rf_scene_ambient_records'),3)
      assert ambient==expected('AMBIENT_RECORDS') and ambient[1]<=65536,ambient
      report['ambient_records']=ambient
+     ambient_instances=words(monitor,symbol('rf_scene_ambient_instances'),4)
+     assert ambient_instances==expected('AMBIENT_INSTANCES') and ambient_instances[2]<=65536,ambient_instances
+     assert ambient_instances[0]+ambient_instances[1]==ambient[0],ambient_instances
+     report['ambient_instances']=ambient_instances
      triggers=words(monitor,symbol('rf_scene_campaign_triggers'),2)
      assert triggers[0]==expected('CAMPAIGN_TRIGGERS')[0] and triggers[1]<=1024*1024
      report['campaign_triggers']=triggers
@@ -224,7 +228,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['live_audio']=audio
      bank=words(monitor,symbol('rf_scene_sound_bank'),4)
      assert bank==expected('SOUND_BANK') and bank[2]+bank[3]==audio[1],bank
-     if args.door:assert bank[0]==88 and bank[1]==4 and audio[0]==92,bank
+     if args.door:assert bank[0]==88 and bank[1]==4 and audio[0]==100,bank
      report['sound_bank']=bank
      switch_audio=words(monitor,symbol('rf_scene_switch_audio'),4)
      assert switch_audio==expected('SWITCH_AUDIO') and switch_audio[0]==switches[0],switch_audio

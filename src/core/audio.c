@@ -1,7 +1,46 @@
 #include "rf/audio.h"
+#include "rf/level.h"
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+int rf_ambient_instances_open(const rf_level_owned_ambient *authored,uint32_t budget,
+    rf_ambient_register registration,void *context,rf_ambient_instances *result)
+{
+    rf_ambient_instances value={0};uint64_t bytes;uint32_t i;
+    if(!authored || !registration || !result || result->items || result->count || result->rejected ||
+        result->allocated_bytes || (authored->count && !authored->items))return RF_RANGE;
+    bytes=sizeof(value)+(uint64_t)authored->count*sizeof(*value.items);if(bytes>budget)return RF_RANGE;
+    for(i=0;i<authored->count;i++) {
+        const rf_level_ambient_sound *row=authored->items+i;uint32_t axis;
+        if(!memchr(row->name,0,sizeof(row->name)) || !isfinite(row->near_distance) ||
+            !isfinite(row->volume) || !isfinite(row->rolloff))return RF_FORMAT;
+        for(axis=0;axis<3;axis++)if(!isfinite(row->position[axis]))return RF_FORMAT;
+    }
+    value.allocated_bytes=(uint32_t)bytes;
+    if(authored->count) {
+        value.items=calloc(authored->count,sizeof(*value.items));if(!value.items)return RF_RANGE;
+    }
+    for(i=0;i<authored->count;i++) {
+        const rf_level_ambient_sound *row=authored->items+i;rf_ambient_instance *instance;
+        int32_t sample=registration(context,row->name,row->near_distance,row->volume,row->rolloff);
+        if(sample<0){++value.rejected;continue;}
+        instance=value.items+value.count++;instance->uid=row->uid;instance->sample=sample;instance->voice=-1;
+        memcpy(instance->position,row->position,sizeof(instance->position));
+        instance->near_distance=row->near_distance;instance->volume=row->volume;instance->rolloff=row->rolloff;
+        instance->authored_word=row->flags;instance->deadline=-1;
+    }
+    *result=value;return RF_OK;
+}
+void rf_ambient_instances_close(rf_ambient_instances *instances)
+{
+    if(instances){free(instances->items);memset(instances,0,sizeof(*instances));}
+}
+rf_ambient_instance *rf_ambient_find(rf_ambient_instances *instances,uint32_t uid)
+{
+    uint32_t i;if(!instances || (instances->count && !instances->items))return NULL;
+    for(i=0;i<instances->count;i++)if(instances->items[i].uid==uid)return instances->items+i;
+    return NULL;
+}
 static uint32_t wave_u16(const uint8_t *p){return (uint32_t)p[0]|((uint32_t)p[1]<<8);}
 static uint32_t wave_u32(const uint8_t *p){return wave_u16(p)|(wave_u16(p+2)<<16);}
 int rf_wave_pcm_parse(const void *data,uint32_t size,rf_wave_pcm *result)
