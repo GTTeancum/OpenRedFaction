@@ -20,7 +20,7 @@ Immediate open items:
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Connect verified impact amount and force-region suppression to NPC contact ownership and the shared damage backend using registered skeletal owners.
 - [ ] Connect real event/fall/weapon damage sources to the registered NPC adapter, implement pain/death/burn/AI effects and broaden lethal/reentrant coverage.
-- [ ] Extend working NPC flinch playback to real damage callers, weapon reset, action sounds, armed overlays and AI; bind verified pain groups to their separate timer/808 voice owner.
+- [ ] Extend NPC flinch to real damage callers, weapon reset, armed overlays and AI; connect retained pain-sound state/groups to NPC eye positions, waveform loading and playback.
 - [ ] Wire NPC world/support callbacks into the shared standing transition and normal/slow landing, then special class effects.
 - [ ] Verify live NPC action transitions and sustained cache pressure on Xbox; selected clips load within budget and zero-reference payloads can now be evicted.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.

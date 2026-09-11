@@ -2,9 +2,9 @@
 import json,os,struct,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];folder=root/'artifacts/npc-support-probe';folder.mkdir(exist_ok=True)
-fixtures=[('L1S1.rfl','door-audio-reference/inputs.bin','RF_REPLAY_DOOR_START',[78,78,191,46596,421236,1546073344]),
- ('L1S2.rfl','lift-cycle/inputs.bin','RF_REPLAY_LIFT_START',[39,38,114,23856,397848,1626689487]),
- ('L1S3.rfl','npc-bodies-start.bin',None,[28,25,48,17192,390896,3245065254])]
+fixtures=[('L1S1.rfl','door-audio-reference/inputs.bin','RF_REPLAY_DOOR_START',[78,78,191,47220,421860,1546073344]),
+ ('L1S2.rfl','lift-cycle/inputs.bin','RF_REPLAY_LIFT_START',[39,38,114,24168,398160,1626689487]),
+ ('L1S3.rfl','npc-bodies-start.bin',None,[28,25,48,17416,391120,3245065254])]
 reports=[]
 for level,inputs,staged,bodies in fixtures:
  env=os.environ.copy()
@@ -25,6 +25,9 @@ for level,inputs,staged,bodies in fixtures:
  pain=rows['NPC_PAIN_OWNERS'];pain_hash=2166136261
  for byte in struct.pack('<4i',0,0,0,-1)*bodies[1]:pain_hash=((pain_hash^byte)*16777619)&0xffffffff
  assert pain==[bodies[1],16*bodies[0],pain_hash,0],(level,pain)
+ sound=rows['NPC_PAIN_SOUND_OWNERS'];sound_hash=2166136261
+ for byte in struct.pack('<2i',0,-1)*bodies[1]:sound_hash=((sound_hash^byte)*16777619)&0xffffffff
+ assert sound==[bodies[1],8*bodies[0],sound_hash,0],(level,sound)
  assert damage[0]==bodies[1] and damage[1]==48*bodies[0],(level,damage)
  registration=rows['NPC_REGISTRATION']
  assert registration[0]==registration[5]==bodies[1] and registration[1]==68*bodies[0],registration

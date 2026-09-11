@@ -1439,3 +1439,33 @@ override exists. The current damage fixture still observes PAIN_SOUND only.
 Retaining the pain-sound timer/808 voice and binding waveform reload, group RNG
 selection and positional voice playback remain open; no audio or XEMU playback
 claim is made for this metadata change.
+
+## Retained pain-sound deadline and voice (2026-09-11)
+
+NPC owners now retain pain-sound deadline1458 and voice808 separately from the
+flinch timers and damage-effects voice854. The original member constructor
+40e4cc calls4fa340 to disable1458, but later factory4239d9..4239f1 resets it to
+the construction clock. EBP is cleared at42358b and EBX becomes-1 at4238a2 before
+that span. Voice808 is set to-1 in the already verified423318..4233a8 span.
+verify_pain_initialization.py now checks512 later sound-timer resets with actual
+4fa360 and exact complete object bytes, using prepared EBP0/EBX-1. This is still
+bounded constructor evidence, not execution of the full factory.
+
+The scene initializes these fields with the same explicit construction clock
+as the flinch owner. They add8 bytes per actor slot inside existing body-budget
+accounting. NPC_PAIN_SOUND_OWNERS reports registered count, added bytes, initial
+state hash and clock. Live Mines reports[78,624,3227875469,0], with body residency
+47220 and peak421860 bytes. The PC three-level verifier independently hashes
+the expected records. Both builds, all ten CTests, ordinary support and the
+damage/flinch comparisons pass. Flinch timers and RNG results remain unchanged.
+
+Sound placement still needs the NPC eye update:4194e0 publishes entity7d4,
+which4196f0 copies for playback. The body origin is not a substitute. Shared eye
+and animated-tag helpers exist, but per-NPC class eye offsets/tag ownership and
+their live refresh have not yet been connected. No pain cry is emitted by this
+storage change; waveform loading, group selection and positional playback remain
+open along with that eye-position binding.
+
+Stock64MiB XEMU matches the new sound-owner summary, both flinch records and
+the existing damage fixture over180 frames: artifacts/xemu/replay-20260911-
+144350/report.json. Base RAM67108864, plugged memory0. No new capture was taken.

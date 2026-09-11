@@ -1256,6 +1256,7 @@ typedef struct campaign_npc_body {
     float published[3],previous[3];uint32_t movement_slot;
     uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
     struct {int32_t ai_timer,animation_lock,cooldown,selected_action;} pain; /*514/744/830/828*/
+    struct {int32_t deadline,voice;} pain_sound; /*1458/808; separate from damage.effects.voice(854)*/
     rf_movement_settings movement;rf_entity_view view;rf_registered_entity_view registration;
 } campaign_npc_body;
 static campaign_npc_body *campaign_npc_bodies;
@@ -1269,6 +1270,7 @@ static void campaign_npc_support_probe(const rf_geometry_collision_world *world,
     const rf_entity_physics_config *config,float class_speed,uint32_t uid);
 uint32_t rf_scene_npc_damage_owners[3]; /* registered damage records, added owner bytes, state hash */
 uint32_t rf_scene_npc_pain_owners[4]; /* registered, added bytes, initial state hash, construction clock */
+uint32_t rf_scene_npc_pain_sound_owners[4]; /* registered, added bytes, initial state hash, construction clock */
 uint32_t rf_scene_npc_registration[6]; /* registered, view/wrapper bytes, hash, first/last handle, validated */
 uint32_t rf_scene_npc_bodies[6]; /* actors, bodies, spheres, resident, peak, content hash */
 static void campaign_npc_bodies_close(void)
@@ -1401,6 +1403,8 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         status=rf_timer_set(&owner->pain.animation_lock,now,0);if(status)goto done;
         status=rf_timer_set(&owner->pain.cooldown,now,0);if(status)goto done;
         owner->pain.selected_action=-1;
+        status=rf_timer_set(&owner->pain_sound.deadline,now,0);if(status)goto done;
+        owner->pain_sound.voice=-1;
         view->handle=-1;view->type=0;view->class_type=(int32_t)definition->physics.use_kind;
         view->flags_7c=owner->object_flags;view->linked_handle=-1;
         view->weapons[0]=view->weapons[1]=-1;view->base_speed=campaign_npc_movement_configs[campaign_seeds.items[actor].class_index].base_speed;
@@ -1422,12 +1426,16 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     rf_scene_npc_damage_owners[2]=2166136261u;
     rf_scene_npc_pain_owners[0]=0;rf_scene_npc_pain_owners[1]=campaign_npc_body_count*sizeof(campaign_npc_bodies[0].pain);
     rf_scene_npc_pain_owners[2]=2166136261u;rf_scene_npc_pain_owners[3]=(uint32_t)now;
+    rf_scene_npc_pain_sound_owners[0]=0;rf_scene_npc_pain_sound_owners[1]=campaign_npc_body_count*sizeof(campaign_npc_bodies[0].pain_sound);
+    rf_scene_npc_pain_sound_owners[2]=2166136261u;rf_scene_npc_pain_sound_owners[3]=(uint32_t)now;
     for(actor=0;actor<campaign_npc_body_count;++actor)if(campaign_npc_bodies[actor].registration.view) {
         campaign_npc_body *owner=campaign_npc_bodies+actor;
         rf_scene_npc_damage_owners[2]=npc_hash_bytes(rf_scene_npc_damage_owners[2],&owner->damage,sizeof(owner->damage));
         ++rf_scene_npc_damage_owners[0];
         rf_scene_npc_pain_owners[2]=npc_hash_bytes(rf_scene_npc_pain_owners[2],&owner->pain,sizeof(owner->pain));
         ++rf_scene_npc_pain_owners[0];
+        rf_scene_npc_pain_sound_owners[2]=npc_hash_bytes(rf_scene_npc_pain_sound_owners[2],&owner->pain_sound,sizeof(owner->pain_sound));
+        ++rf_scene_npc_pain_sound_owners[0];
     }
     rf_scene_npc_bodies[3]=(uint32_t)bytes;
     if(bytes>rf_scene_npc_bodies[4])rf_scene_npc_bodies[4]=(uint32_t)bytes;

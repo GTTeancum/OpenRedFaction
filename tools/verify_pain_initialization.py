@@ -44,11 +44,20 @@ for case in range(512):
  expected[0x13d8:0x13dc]=w(0);expected[0x80c:0x810]=w(-1 if case%2==0 else 0x12345678)
  assert bytes(u.mem_read(obj,0x1500))==expected
  assert calls==([] if case%2==0 else [0x434d00,0x5056a0])
+ # Later factory reset after the optional turret child creation. Its caller
+ # has EBP=0 and EBX=-1; verify this bounded span and actual timer setter.
+ u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_ESI,obj)
+ u.reg_write(UC_X86_REG_EBP,0);u.reg_write(UC_X86_REG_EBX,0xffffffff)
+ u.emu_start(0x4239d9,0x4239f1,count=100000);assert u.reg_read(UC_X86_REG_EIP)==0x4239f1
+ expected[0x1458:0x145c]=w(now)
+ expected[0x144c:0x1454]=w(-1,-1)
+ assert bytes(u.mem_read(obj,0x1500))==expected
+ assert struct.unpack_from('<I',expected,0x808)[0]==0xffffffff
  # Existing shared setter and both queries agree with the observed initial state.
  for op,result in ((3,123),(4,1),(7,0)):
   commands.append(w(now,0,0,now,op,0));wanted.append(w(0,now,0,0,now,result))
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_timer_probe.exe')],input=b''.join(commands))
 assert actual==b''.join(wanted)
-report=dict(result='PASS',constructor_cases=512,pc_timer_checks=1536,
- scope='Original402c33..402d68 and423318..4233a8 with actual timer callees; two factory sound calls supplied. Poisoned owners and EBP/EBX; both sound branches. AI timer514, lock744 and cooldown830 equal construction time, action828 is-1. Exact complete post-factory object bytes. PC setter/expired/pending agree. Does not execute full actor construction or later AI/event writes.')
+report=dict(result='PASS',constructor_cases=512,pc_timer_checks=1536,sound_owner_cases=512,
+ scope='Original402c33..402d68 and423318..4233a8 with actual timer callees; two factory sound calls supplied. Poisoned owners and EBP/EBX; both sound branches. AI timer514, lock744 and cooldown830 equal construction time, action828 and voice808 are-1. Later4239d9..4239f1 with prepared EBP0/EBX-1 sets pain-sound timer1458 to now. Exact complete object bytes after each span. PC setter/expired/pending agree. Does not execute full actor construction or later AI/event writes.')
 (root/'artifacts/pain-initialization.json').write_text(json.dumps(report,indent=2));print(report)
