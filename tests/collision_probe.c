@@ -92,6 +92,15 @@ static int geometry_body_fixture_run(const body_fixture *input,rf_geometry_body_
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--group-stop")) {
+        struct {rf_group_motion_state motion;float speed;uint32_t control;} input;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            int status=rf_group_motion_stop(&input.motion,&input.speed,&input.control);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&input,sizeof(input),1,stdout)!=1)return 139;
+        }
+        return ferror(stdin)?140:0;
+    }
     struct {float lo[3],hi[3],start[3],end[3],point[3];} input;
     struct {int32_t status;uint32_t hit;float point[3];} output;
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

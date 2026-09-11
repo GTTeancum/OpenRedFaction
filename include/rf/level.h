@@ -155,6 +155,12 @@ typedef struct rf_group_motion_state {
  * sounds/events, wake objects, or advance/interpolate poses. No allocation.
  * Active transitions are unchanged; malformed idle input preserves state. */
 int rf_group_motion_activate(rf_group_motion_state *state,uint32_t key_count);
+/* Original46b5b0 after successful type8 lookup. Always zeros speed. Flag40
+ * clears raw controller+308 and sets flag20, retaining next_key; otherwise
+ * sets next_key=-1 and preserves flags/+308. Original46b610 is a no-op.
+ * No sound/pose/velocity changes. Distinct valid output pointers required.
+ * The meaning/lifecycle of +308 is not yet reconstructed. */
+int rf_group_motion_stop(rf_group_motion_state *state,float *speed,uint32_t *control_308);
 typedef struct rf_group_activation_actor {
     uint32_t present,flags,entity_present,controller_handle;
 } rf_group_activation_actor;

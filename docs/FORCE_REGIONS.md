@@ -431,3 +431,25 @@ XEMU replay-20260910-214358 passes the existing120-frame L1S2 force fixture
 with this telemetry matching PC. This validates initialized ownership
 in the running Xbox build, not Switch-driven activation: resource
 backends, linked initialization lifecycle and audio are still open.
+
+
+### Controller off-action dependency
+
+Switch's controller-off branch invokes46b5b0(handle), which performs actual
+type8/generation lookup. Missing, stale or wrong-type objects are ignored.
+For flag40, it clears controller+308, sets flag20, and zeros speed+2f4
+without changing next_key. Otherwise it calls46b610 (a single RET in this
+executable), sets next_key+2fc to-1, and zeros speed. No audio call occurs.
+
+`rf_group_motion_stop` implements the resolved-controller state transition.
+The raw+308 field is an explicit pointer because its semantic meaning and
+lifecycle have not yet been established; it must not be guessed from the
+stop action. Other motion, pose and velocity fields are untouched.
+
+`python tools/verify_group_stop.py` passes1,024 original/PC/NXDK cases
+covering arbitrary original storage and every flag20/40 combination. The
+entire original46b5b0 executes with real typed/generation lookup and its
+no-op helper, without hooked callees. The verifier checks all1,024 original
+object bytes for unintended writes and adds three lookup rejection cases.
+The Xbox build succeeds. This resolves the off-action prerequisite but
+does not yet connect Switch to campaign controllers or complete+308 ownership.
