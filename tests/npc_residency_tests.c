@@ -440,9 +440,14 @@ static int death_geometry_check(void)
         memcpy(rf_scene_actor_pose.public_position,actor.position,12);memcpy(rf_scene_actor_pose.input_matrix,state.matrix,36);
         campaign_player_geometry.model_radius=2;memcpy(&campaign_player_geometry.eye_limits.minimum[2],&bank,4);
         scene_actor_body.state.bounds.radius=.5f;
+        memcpy(scene_actor_body.state.orientation,state.matrix,36);
+        memset(rf_scene_actor_pose.input_matrix,0,36);
         CHECK(rf_scene_death_clearance(&world,5,1,scratch,3,&allowed)==RF_OK && allowed==0);
         CHECK(scratch[0].extent_180==1 && scratch[1].extent_180==.5f && scratch[1].class_word_74==4);
         CHECK(rf_scene_death_clearance(&world,5,0,scratch,3,&allowed)==RF_OK && allowed==1);
+        scene_actor_body.state.bounds.radius=4;
+        CHECK(rf_scene_death_clearance(&world,7,1,scratch,3,&allowed)==RF_OK && allowed==0);
+        scene_actor_body.state.bounds.radius=.5f;
         allowed=99;CHECK(rf_scene_death_clearance(&world,5,1,scratch,1,&allowed)==RF_RANGE && allowed==99);
         CHECK(rf_scene_death_clearance(&world,0x10005,1,scratch,3,&allowed)==RF_NOT_FOUND && allowed==99);
         unknown.handle=9;unknown.type=0;campaign_entities.slots[9]=&unknown;

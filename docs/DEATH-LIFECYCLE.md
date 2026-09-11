@@ -343,3 +343,23 @@ Native replay-20260911-180240 passes180 frames on67108864 bytes with no
 expansion. CAMPAIGN_PLAYER is[16777471, 0, 8, 4328], including the added28
 bytes; NPC body hash remains matched. This is startup/regression evidence;
 the new scene query is not yet invoked by this native replay.
+
+
+## Native registered clearance verification
+
+The player binding now reads orientation from the physics body, which the
+look code updates. The attached pose publishes position but does not maintain
+its input matrix. The PC regression deliberately zeros that unused matrix
+and checks a forward support miss using the actual body orientation.
+
+The damage replay fixture invokes the registered query at frames1 and90 for
+every registered actor in both directions, hashing results and copied
+candidates in registry order. It allocates1580 temporary scratch bytes for79
+actors and releases them after each pass; production queries remain caller-
+scratch based. This is a read-only diagnostic, not death-start dispatch.
+
+Stock64MiB XEMU replay-20260911-180931 passes180 frames. DEATH_CLEARANCE is
+[2,316,255,61,79,1166757824,0,1580], exactly matching PC: two passes,316
+queries,255 allowed,61 blocked,79 candidates, matching hash, zero status.
+Both platform builds and all12 CTests pass. Complete death-start, animation
+playback and moving-NPC orientation publication remain open.

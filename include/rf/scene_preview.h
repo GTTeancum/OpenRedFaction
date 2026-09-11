@@ -90,9 +90,10 @@ int rf_scene_player_flash_step(uint32_t player_entity_handle,float seconds,uint3
  * owners alive; callbacks mutate the retained damage state, not stale copies.
  * Does not supply gameplay effects. Unknown/stale target is successful zero.
  * kind must be-1..10. Caller supplies real clock and difficulty settings. */
+extern uint32_t rf_scene_death_clearance_test[8];
 /* Read-only clearance for registered scene actors. Caller supplies capacity
  * for all registered entities; scratch may change on error, allowed does not.
- * Uses current player pose and stationary NPC published/authored orientation.
+ * Uses player published position/body orientation and stationary NPC pose.
  * Unknown owner families fail. Slot order is harmless for this read-only
  * any-blocker scan; this does not implement original factory list ordering. */
 int rf_scene_death_clearance(const rf_geometry_collision_world *world,uint32_t handle,uint32_t direction,

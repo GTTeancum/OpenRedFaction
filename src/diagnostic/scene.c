@@ -2413,7 +2413,7 @@ int rf_scene_death_clearance(const rf_geometry_collision_world *world,uint32_t h
         if(rf_entity_lookup(&campaign_entities,view->handle)!=view)return RF_FORMAT;
         if(count==capacity)return RF_RANGE;
         if(view==&campaign_player_view) {
-            memcpy(state.position,rf_scene_actor_pose.public_position,12);memcpy(state.matrix,rf_scene_actor_pose.input_matrix,36);
+            memcpy(state.position,rf_scene_actor_pose.public_position,12);memcpy(state.matrix,scene_actor_body.state.orientation,36);
             state.model_radius_78=campaign_player_geometry.model_radius;state.extent_180=scene_actor_body.state.bounds.radius;
             memcpy(&word,&campaign_player_geometry.eye_limits.minimum[2],4);
         } else {
@@ -2433,6 +2433,28 @@ int rf_scene_death_clearance(const rf_geometry_collision_world *world,uint32_t h
 }
 
 uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
+uint32_t rf_scene_death_clearance_test[8]; /* passes, queries, allowed, blocked, candidates, hash, status, scratch bytes */
+static int campaign_death_clearance_fixture(const rf_geometry_collision_world *world,uint32_t frame)
+{
+    rf_entity_death_obstacle *scratch;uint32_t slot,count=0,direction,allowed;int status=RF_OK;
+    if(!frame) {memset(rf_scene_death_clearance_test,0,sizeof(rf_scene_death_clearance_test));rf_scene_death_clearance_test[5]=2166136261u;}
+    if(!campaign_spawn || rf_scene_npc_damage_test_uid==UINT32_MAX || (frame!=1 && frame!=90))return RF_OK;
+    for(slot=0;slot<RF_OBJECT_SLOTS;slot++)if(campaign_entities.slots[slot])++count;
+    if(!count || count>RF_OBJECT_SLOTS)return RF_FORMAT;
+    scratch=malloc(count*sizeof(*scratch));if(!scratch)return RF_IO;
+    rf_scene_death_clearance_test[4]=count;rf_scene_death_clearance_test[7]=count*sizeof(*scratch);
+    for(slot=0;slot<RF_OBJECT_SLOTS && !status;slot++)if(campaign_entities.slots[slot]) {
+        uint32_t handle=(uint32_t)campaign_entities.slots[slot]->handle;
+        for(direction=0;direction<2 && !status;direction++) {
+            uint32_t row[4]={frame,handle,direction,0};
+            status=rf_scene_death_clearance(world,handle,direction,scratch,count,&allowed);if(status)break;
+            row[3]=allowed;++rf_scene_death_clearance_test[1];++rf_scene_death_clearance_test[allowed?2:3];
+            rf_scene_death_clearance_test[5]=npc_hash_bytes(rf_scene_death_clearance_test[5],row,sizeof(row));
+            rf_scene_death_clearance_test[5]=npc_hash_bytes(rf_scene_death_clearance_test[5],scratch,count*sizeof(*scratch));
+        }
+    }
+    free(scratch);rf_scene_death_clearance_test[6]=(uint32_t)status;if(!status)++rf_scene_death_clearance_test[0];return status;
+}
 uint32_t rf_scene_actor_render_frames[64][5]; /* vertices, hash, body position bits */
 typedef struct actor_ground_record {
     rf_physics_ground_probe probe;
@@ -3565,6 +3587,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
          rf_scene_actor_stance_frames[frame%64][2]=h;}
         rf_scene_actor_stance_frames[frame%64][3]=(uint32_t)blocked;
         status=actor_room_refresh(stream->collision,frame);if(status)return status;
+        status=campaign_death_clearance_fixture(stream->collision,frame);if(status)return status;
         status=actor_ground_check(stream->collision,frame);if(status)return status;
         {
             const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);

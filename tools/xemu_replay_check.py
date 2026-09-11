@@ -301,6 +301,14 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_damage_test==expected('NPC_DAMAGE_TEST'),npc_damage_test
      assert npc_damage_test[0]==npc_damage_test[63]==0,npc_damage_test
      report['npc_damage_test']=npc_damage_test
+     death_clearance=words(monitor,symbol('rf_scene_death_clearance_test'),8)
+     assert death_clearance==expected('DEATH_CLEARANCE'),death_clearance
+     if args.damage_uid is not None:
+      passes=int(frames>1)+int(frames>90)
+      assert death_clearance[0]==passes and death_clearance[6]==0,death_clearance
+      assert death_clearance[1]==2*passes*death_clearance[4] and sum(death_clearance[2:4])==death_clearance[1],death_clearance
+      assert death_clearance[7]==20*death_clearance[4],death_clearance
+     report['death_clearance']=death_clearance
      npc_registration=words(monitor,symbol('rf_scene_npc_registration'),6)
      assert npc_registration==expected('NPC_REGISTRATION'),npc_registration
      assert npc_registration[0]==npc_registration[5]==npc_bodies[1],npc_registration
