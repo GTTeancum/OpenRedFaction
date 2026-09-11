@@ -407,3 +407,13 @@ int rf_entity_animation_should_advance(const rf_entity_animation_gate *input)
     }
     return (input->predicate&255u)==1 || allowed;
 }
+
+int rf_entity_support_route(const rf_entity_support_gate *input)
+{
+    if(!input)return RF_ENTITY_SUPPORT_NONE;
+    if(input->flags_810&2u)return RF_ENTITY_SUPPORT_FALL;
+    if((input->falling&255u) || (input->movement_mode==1 && input->linked_handle==-1 &&
+       ((input->moved&255u) || (input->body_flags&0x400000u) || (input->special&255u))))
+        return RF_ENTITY_SUPPORT_QUERY;
+    return RF_ENTITY_SUPPORT_NONE;
+}

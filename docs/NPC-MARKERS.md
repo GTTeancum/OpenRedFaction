@@ -570,3 +570,23 @@ orientation[4] is entity+10c. Thus the0.85 threshold is actor uprightness,
 not a contact normal or velocity. `verify_physics_body.py` already compares
 the retained original fresh-body fields and copied orientations; the
 parameter is now named up_y without changing its tested arithmetic.
+
+## Post-entity-update support eligibility
+
+`rf_entity_support_route` reconstructs487f6d..487fc9, after41e4b0.
+Entity810 mask0x2 requests4281a0 unconditionally. Otherwise a nonzero low-byte
+42a020 falling predicate requests4a0840. Non-falling actors require movement
+mode1, linked handle-1 and at least one of: earlier moved byte, body moving
+support flag400000, or nonzero4895d0. Other cases do neither.
+
+`verify_entity_support_route.py` executes this original prepared span with
+predicate returns supplied, observes query/fall calls and compares PC/NXDK
+choices. All3456 cases pass:1212 neither,1380 queries,864 fall transitions;
+only36 cases reach the last special predicate. This establishes why a blanket
+ground query for all retained NPC bodies would be wrong.
+
+The preceding487f20..487f67 computes movement from object flags02000000/
+04000000 and squared distance between previous object position+6c and current
+body position+e4, then updates those flags before41e4b0. That phase, predicate
+ownership and accepted-contact filtering remain to be connected. A retained
+body alone is not evidence that an actor is eligible for a support update.

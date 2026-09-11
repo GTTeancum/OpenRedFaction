@@ -53,6 +53,16 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--support-route")) {
+        rf_entity_support_gate input;int32_t result;
+        _Static_assert(sizeof(input)==28,"support route wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            result=rf_entity_support_route(&input);fwrite(&result,4,1,stdout);
+        }
+        return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--animation-gate")) {
         rf_entity_animation_gate input;int32_t result;
         _Static_assert(sizeof(input)==40,"animation gate wire size");

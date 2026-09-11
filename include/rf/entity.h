@@ -5,6 +5,17 @@
 #include "rf/object_registry.h"
 #include "rf/motion.h"
 
+typedef struct rf_entity_support_gate {
+    uint32_t flags_810,falling;int32_t movement_mode,linked_handle;
+    uint32_t moved,body_flags,special;
+} rf_entity_support_gate;
+enum {RF_ENTITY_SUPPORT_NONE=0,RF_ENTITY_SUPPORT_QUERY=1,RF_ENTITY_SUPPORT_FALL=2};
+/* Original487f6d..487fc9 AFTER41e4b0 entity update. Flags810 mask0x2 requests
+ * fall unconditionally. Otherwise falling allows a query; ordinary mode1,
+ * unlinked actors query when moved, on moving support or special4895d0 is true.
+ * Predicate bytes use their low byte. No queries, mutation or fall execution. */
+int rf_entity_support_route(const rf_entity_support_gate *input);
+
 typedef struct rf_entity_animation_gate {
     uint32_t model_present,model_kind,descriptor_present,descriptor_flag,flags;
     int32_t action_520,lod_distance_count;uint32_t predicate;double distance;
