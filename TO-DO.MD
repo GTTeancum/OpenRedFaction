@@ -2347,3 +2347,8 @@ Shared burn creation now matches612 original cases on PC/NXDK plus two
 ring guards,including full-capacity free ring and partial emitter/audio failure.
 Release/init437 cases,both builds and eight CTests pass. Next implement
 update/fade and bind actual attachment/particle/audio/entity ownership.
+
+Burn fade42f2f0:8,192 original traces verify5/12/17-second boundaries,
+byte87 wrap/scaling and release order.4174c0 requires type7 owner before
+flags29c writes;actual owner conversion remains required. Implement shared
+fade/update and reconcile particle fields next;see docs/DAMAGE.md.

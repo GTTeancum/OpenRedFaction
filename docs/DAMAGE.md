@@ -448,3 +448,33 @@ callback order match; callback arguments/template selection are also checked.
 The437 release/init cases, both builds and eight CTests pass. Generated
 artifacts/burn-create.json records executable hashes. Next implement update/
 fade and bind actual attachment, particle, audio and entity ownership adapters.
+
+## Burn fade and expiry evidence
+
+verify_burn_fade_trace.py executes complete42f2f0 for8,192 cases using the
+original shared timer. Emitter stop, typed owner lookup, entity reaction and
+release are supplied. All bytes of four distinct emitter fixtures are checked,
+along with volume28, owner flags29c and ordered calls. Cases include exact
+thresholds and their next floats, cleared/future/expired timers and byte wrap.
+The trace records2,391 release requests,2,143 scaling passes and3,831 groups
+of three emitter-stop calls; evidence is artifacts/burn-fade-trace.json.
+
+After elapsed30 exceeds12, if any of the first three emitter140 bytes is
+nonzero,42f2f0 stops all three and resolves4174c0(target), then changes its
+flags29c to(flags & ~0x200) |0x100. Disassembly confirms4174c0 accepts only
+object type7. This result is dereferenced without a null check: actual owner
+conversion/identity is a required lifecycle dependency, not an optional input.
+The harness supplies a valid result rather than claiming that transition.
+
+Elapsed above17 requests entity426fc0, optionally407ee0(entity+2a0), then
+42ed20(record,0). Otherwise only an expired shared timer permits fade scaling.
+After elapsed exceeds5, that tick first decrements fourth-emitter byte87.
+A resulting0 takes the same release path before scaling; starting0 wraps255.
+
+On a scaling tick, the first three emitters'44/48/30/34 float fields multiply
+by binary32 .95f, while24/28 multiply by .9f. The fourth emitter's44/48/24/28
+multiply by .75f; its30/34 fields are unchanged. Record volume28 multiplies
+by .95f. The semantic names of these emitter fields still need reconciliation
+with the reconstructed particle owner. Their exact offsets and arithmetic are
+verified, not a guessed visual interpretation. Original stop/release callees
+and owner conversion remain outside this fixture; shared fade is still open.
