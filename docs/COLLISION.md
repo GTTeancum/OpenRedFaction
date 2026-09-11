@@ -2961,3 +2961,33 @@ then supply its transformed result. The executable initializes5a00e0 to0.5;
 no game.tbl air entry was found. Entity+1488 writes were located at486b4d and
 486b5a and require recovery before alternate-cap selection is integrated.
 Generated report: artifacts/air-steer-verification.json.
+
+
+## Live airborne steering and forward lift dismount
+
+Campaign falling now scales commands by class acceleration, transforms with
+the current movement descriptor, and calls verified air_steer before gravity
+and position proposal. Repeated passes skip steering. Class speed is used
+for the ordinary branch, with original initialized air-control scalar0.5.
+Force-region flag200000 currently returns RF_FORMAT rather than silently
+using an incorrect cap; its owner/application remains unfinished.
+
+inspect_air_speed_cap.py executes512 prepared original486b1c..486b6a cases
+with unchanged vector/norm callees. The force-region path writes entity+1488
+from horizontal velocity only: class speed unless horizontal norm exceeds it,
+then norm+1. It sets flag200000; other actor bytes remain unchanged.355 cases
+raise the cap. This is not full force-region application or C ownership.
+
+replay_lift_dismount.py sends use30, jump90, forward90..149 over210 frames.
+It now travels4.80299 units horizontally, lands at150 and ends grounded with
+the moving-support flag cleared. Before steering integration X/Z did not
+change. BODY_CONTACT retains the last body-sweep hit and can still name the
+lift after a ground query lands on static geometry; it is not the current
+support record. The test uses grounded mode plus cleared moving-support flag.
+Final position is(83.814865,-3.430979,-39.695194).
+
+Stock64MiB XEMU replay-20260910-201822 passes the dismount with PC-equivalent
+body/controller/jump state. Both builds, ordinary jump, lift ascent/descent
+jumps, door traversal and six CTests pass. Full original airborne-step
+composition, force regions, all dismount directions and per-frame support
+identity remain open. No new visual-parity claim.

@@ -1420,7 +1420,22 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
                 state->orientation,state->orientation,state->orientation,input);if(status)return status;
             status=rf_physics_run_propose(state,remaining,rf_scene_actor_movement_settings.speed,
                 rf_scene_actor_movement_values.acceleration,rf_scene_actor_run_traction,input,ground_normal,support);
-        } else status=rf_physics_fall_propose(state,remaining,scene_gravity.acceleration,support);
+        } else {
+            if(campaign_spawn && !(state->flags&0x1000000)) {
+                float scaled[3],input[3];uint32_t axis;
+                /* 49e780..49e8b7: class acceleration precedes the transform.
+                 * 4868c0 force-region ownership of the alternate cap is not
+                 * connected; do not silently substitute class speed for it. */
+                if(state->flags&0x200000)return RF_FORMAT;
+                for(axis=0;axis<3;axis++)scaled[axis]=(float)((double)command[axis]*rf_scene_actor_movement_values.acceleration);
+                status=rf_movement_transform(campaign_modes[rf_scene_actor_landing[1]].translation,scaled,
+                    actor_look.eye_orientation,state->next_orientation,(const float *)campaign_identity,input);if(status)return status;
+                /* Original initialized air-control scalar at 5a00e0 is .5. */
+                status=rf_physics_air_steer(state,remaining,.5f,rf_scene_actor_movement_values.acceleration,
+                    rf_scene_actor_movement_values.speed,input);if(status)return status;
+            }
+            status=rf_physics_fall_propose(state,remaining,scene_gravity.acceleration,support);
+        }
         if(status)return status;
         memset(state->vector_e0,0,sizeof(state->vector_e0)); /* full 49f3c0 clears force after proposal */
         state->flags|=0x1000000;

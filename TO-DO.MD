@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Connect verified airborne steering after recovering alternate speed-cap ownership and air-control configuration.
+- [ ] Reconstruct force-region application and alternate airborne speed-cap ownership.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
 - [ ] Implement sound metadata persistence across level transitions and recover automatic PCM residency policy.
