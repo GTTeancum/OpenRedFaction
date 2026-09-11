@@ -26,7 +26,7 @@ int main(int argc,char **argv)
         status=rf_entity_state_declaration_read(raw,(uint32_t)size,argv[2],argv[3],argv[4],&result);
         fwrite(&status,4,1,stdout);fwrite(&result,sizeof(result),1,stdout);return 0;
     }
-    if(argc==2 && !strcmp(argv[1],"--catalog-fixture")) {
+    if(argc==3 && !strcmp(argv[1],"--catalog-fixture")) {
         rf_entity_state_set *base=calloc(2,sizeof(*base));rf_entity_skeleton skeleton={0};
         uint32_t models[2]={0,0};rf_entity_skeletons skeletons={0};
         rf_entity_weapon_motion_group group={0};rf_motion_file file={0};uint8_t loop=1;
@@ -36,7 +36,7 @@ int main(int argc,char **argv)
         skeletons.items=&skeleton;skeletons.class_indices=models;skeletons.count=1;skeletons.class_count=2;
         bindings.classes=base;bindings.class_count=2;bindings.groups=&group;bindings.group_count=1;
         group.files=&file;group.looping=&loop;group.identities=identities;group.count=1;group.weapon=3;
-        strcpy(file.entry.name,"a.rfa");
+        if(rf_vpp_open(&archive,argv[2]) || rf_motion_file_open(&file,&archive,"tech01_stand.rfa"))return 8;
         for(i=0;i<2;++i){for(j=0;j<23;++j)base[i].states[j]=-1;for(j=0;j<45;++j)base[i].actions[j]=-1;}
         for(j=0;j<23;++j)group.states[j]=-1;for(j=0;j<45;++j)group.actions[j]=-1;
         group.states[0]=0;base[0].count=2;base[1].count=1;
@@ -65,7 +65,7 @@ int main(int argc,char **argv)
         base[1].states[0]=1;
         if(rf_entity_motion_catalog_open(&skeletons,&bindings,128*1024,&guard)!=RF_RANGE ||
            memcmp(&guard,&(rf_entity_motion_catalog){0},sizeof(guard)))return 6;
-        rf_entity_motion_catalog_close(&catalog);free(base);puts("CATALOG_FIXTURE PASS");return 0;
+        rf_entity_motion_catalog_close(&catalog);rf_vpp_close(&archive);free(base);puts("CATALOG_FIXTURE PASS");return 0;
     }
     if(argc==3 && !strcmp(argv[1],"--weapon-names")) {
         rf_weapon_names value,before;memset(&value,0xa5,sizeof(value));before=value;
@@ -213,6 +213,9 @@ int main(int argc,char **argv)
             if(r->file.header[6] && rf_motion_file_track(&r->file,0,&track))return 20;
             printf("CATALOG_RESOURCE\t%u\t%u\t%u\t%s\t%s\n",i,j,r->looping,r->identity,r->file.entry.name);
             printf("CATALOG_MARKERS\t%u\t%u\t%u\t%d\t%d\n",i,j,r->marker_mask,r->markers[0],r->markers[1]);
+            {uint32_t weight;memcpy(&weight,&r->comparison.weight,4);
+             printf("CATALOG_ENVELOPE\t%u\t%u\t%u\t%d\t%d\t%d\t%d\n",i,j,weight,r->comparison.start_tick,r->comparison.end_tick,r->comparison.fade_in,r->comparison.fade_out);}
+
         }
         if(argc==7)printf("CATALOG %u %u %u %u\n",catalog.model_count,catalog.mapping_count,catalog.resident_bytes,catalog.peak_bytes);
         rf_entity_motion_catalog_close(&catalog);rf_entity_motion_catalog_close(&catalog);

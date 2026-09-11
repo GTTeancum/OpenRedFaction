@@ -12,7 +12,7 @@ all_states={(r['entity_class'].lower(),r['weapon'].lower(),r['state'].lower()):r
 all_actions={(r['entity_class'].lower(),r['weapon'].lower(),r['action'].lower()):r for r in actions}
 defaults={r['entity_class'].lower():(r['primary'],r['secondary']) for r in json.loads((root/'artifacts/entity-default-weapons.json').read_text())['rows']}
 reports=[]
-assert subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--catalog-fixture'],text=True).strip()=='CATALOG_FIXTURE PASS'
+assert subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--catalog-fixture',str(root/'Installed_Game/motions.vpp')],text=True).strip()=='CATALOG_FIXTURE PASS'
 weapons=json.loads((root/'artifacts/weapon-names.json').read_text())['names']
 inventory=json.loads((root/'artifacts/inventory.json').read_text())
 entry=next(e for a in inventory['files'] if a['path']=='tables.vpp' for e in a['vpp']['entries'] if e['name']=='entity.tbl')
@@ -161,11 +161,24 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
   marker_rows+=1;marked+=ticks is not None
  assert marker_rows==len(catalog_resources)
 
+ motion_entries={e['name'].lower():e for a in inventory['files'] if a['path']=='motions.vpp' for e in a['vpp']['entries']}
+ envelope_count=0
+ with (root/'Installed_Game/motions.vpp').open('rb') as archive:
+  for line in out.splitlines():
+   if not line.startswith('CATALOG_ENVELOPE\t'):continue
+   fields=line.split('\t');model,index=map(int,fields[1:3]);file=catalog_resources[model,index][2]
+   entry=motion_entries[file];archive.seek(entry['offset']);header=archive.read(84)
+   assert struct.unpack_from('<I',header,24)[0]>0
+   track=struct.unpack_from('<I',header,80)[0];archive.seek(entry['offset']+track);weight=struct.unpack('<I',archive.read(4))[0]
+   expected=[weight,*struct.unpack_from('<2i',header,16),*struct.unpack_from('<2i',header,36)]
+   assert list(map(int,fields[3:]))==expected,(level,file,'envelope')
+   envelope_count+=1
+ assert envelope_count==len(catalog_resources)
  catalog_summary=next(line for line in out.splitlines() if line.startswith('CATALOG '))
  summary=next(line for line in out.splitlines() if line.startswith('BASE_MOTIONS '))
  assert group_slots==len(group_registries)*68
  assert identity_count==sum(map(len,registries.values()))+sum(map(len,group_registries.values()))
  assert int(next(line for line in out.splitlines() if line.startswith('BOUND_GROUPS ')).split()[1])==len(group_registries)
- reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary,catalog_summary=catalog_summary,shared_resources=len(catalog_resources),marked_resources=marked,effective_groups=effective_count,weapon_selections=selected_count))
+ reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary,catalog_summary=catalog_summary,shared_resources=len(catalog_resources),marked_resources=marked,effective_groups=effective_count,weapon_selections=selected_count,envelopes=envelope_count))
 report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames, retained first-authored cache names and sound labels exact. Shared per-model maps independently checked against authored declarations in weapon-before-base order. Shared base-state footstep masks/ticks checked independently across models and loop registrations. Original global cache order and live playback excluded.')
 (root/'artifacts/base-action-sets.json').write_text(json.dumps(report,indent=2));print(report)

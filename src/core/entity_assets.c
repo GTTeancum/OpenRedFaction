@@ -882,6 +882,7 @@ static int catalog_bind(catalog_work *w,const rf_entity_state_set *base,
         if(added) {
             rf_entity_model_motion *r=w->resources+index;
             r->file=base?base->files[i]:group->files[i];r->looping=loop;
+            {rf_motion_track track;status=rf_motion_file_track(&r->file,0,&track);if(status)return status;r->comparison=track.envelope;}
             memcpy(r->identity,w->cache[identity].bytes,64);
         }
         remap[i]=index;

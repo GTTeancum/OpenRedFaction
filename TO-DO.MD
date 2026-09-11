@@ -20,6 +20,10 @@ Opening NPC selector fixtures now match33 original/PC cases: fish transition
 to swim_stand, while other tested classes retain state0. Full construction and
 first pose/weight update remain open; no live NPC animation is claimed.
 
+First selector/weighting now matches99 original/PC cases with real envelopes;
+NXDK controller outputs also match. Connect first playback advance and pose
+evaluation, with shared cache lifetime counts across aliased registrations.
+
 Immediate open items:
 - [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.

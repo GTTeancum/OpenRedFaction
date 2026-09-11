@@ -219,3 +219,35 @@ No C implementation changed in this audit. Next work is to materialize verified
 constructor inputs and run the first controller/playback update against loaded
 motion envelopes, then connect pose evaluation. An unconditional idle animation
 for every NPC would already contradict the observed fish selector path.
+
+## Loaded envelopes and first weighting
+
+Each catalog resource now retains its track-zero envelope from the validated
+motion file. The comparison-track choice matches the existing playback adapter;
+the new startup check does not claim a complete original model loader. Raw archive
+header/track bytes independently verify all728 envelopes across the three levels.
+PC catalog resident bytes are70940/67532/69936 and peak137039/136447/114275.
+The synthetic alias fixture now uses one real loaded motion for its deliberately
+different cache names, rather than an archive-less file placeholder.
+
+`inspect_npc_initial_selection.py --controller` now materializes the original
+loaded-character control structures and calls full41f270, including its selector
+and actual weighting callees. It uses the real catalog registry counts, envelopes
+and loop flags. Thirty-three creation-field fixtures at zero,1/60 and1/30 second
+deltas give99 matching PC results for the entire compact playback/controller state.
+The same99 controller inputs execute the compiled NXDK helper with equal results.
+A variable-count development probe replaces the old32-resource fixture limitation.
+
+The original fixture uses one cache descriptor for all registrations sharing an
+identity, including loop/nonloop aliases. Reference counts therefore compare to
+the sum of the port's per-registration counts. These counts are not interchangeable
+without aggregation: a future resource release owner must balance the shared cache
+identity, not unload it just because one registration has no references. Live
+resource lifetime ownership remains open.
+
+This still excludes complete actor construction,503360's first cursor advance,
+pose sampling and rendering. It proves more than the logical-selector check, but
+must not be reported as animated NPCs or a complete initial pose. Existing native
+replay only checks successful catalog loading and its established door/audio path.
+
+Both builds and nine CTest checks pass. Stock64MiB XEMU replay `artifacts/xemu/replay-20260911-080246/report.json` passes180 frames after envelope retention; its coverage remains loading and existing door/audio behavior.

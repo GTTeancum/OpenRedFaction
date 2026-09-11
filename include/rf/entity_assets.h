@@ -310,6 +310,7 @@ void rf_entity_base_motions_close(rf_entity_base_motions *motions);
 const rf_entity_weapon_motion_group *rf_entity_weapon_motion_find(const rf_entity_base_motions *motions,uint32_t class_index,int32_t weapon);
 typedef struct rf_entity_model_motion {
     rf_motion_file file;char identity[64];uint8_t looping;
+    rf_motion_weight_envelope comparison; /* Track-zero envelope, as in existing playback adapter. */
     int32_t markers[2];uint32_t marker_mask;
 } rf_entity_model_motion;
 typedef struct rf_entity_model_motions {

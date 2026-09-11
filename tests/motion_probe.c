@@ -109,6 +109,18 @@ int main(int argc, char **argv)
         }
         return ferror(stdin) ? 1 : 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--controller-count")) {
+        rf_motion_playback_state state;rf_motion_controller controller;rf_motion_playback_resource *resources;
+        int32_t motions[23],status;float elapsed;uint32_t count,i;
+        if(fread(&count,4,1,stdin)!=1 || !count || count>800)return 2;
+        resources=calloc(count,sizeof(*resources));if(!resources)return 3;
+        if(fread(&state,sizeof(state),1,stdin)!=1 || fread(resources,sizeof(*resources),count,stdin)!=count ||
+           fread(&controller,sizeof(controller),1,stdin)!=1 || fread(motions,sizeof(motions),1,stdin)!=1 || fread(&elapsed,4,1,stdin)!=1){free(resources);return 4;}
+        status=rf_motion_apply_controller(&controller,motions,elapsed,&state,resources,count);
+        fwrite(&status,4,1,stdout);fwrite(&state,sizeof(state),1,stdout);fwrite(&controller,sizeof(controller),1,stdout);
+        for(i=0;i<count;++i)fwrite(&resources[i].references,4,1,stdout);
+        free(resources);return ferror(stdout)?1:0;
+    }
     if (argc == 2 && strcmp(argv[1], "--controller") == 0) {
         struct { rf_motion_playback_state state; rf_motion_playback_resource resources[32];
                  rf_motion_controller controller; int32_t motions[23]; float elapsed; } input;
