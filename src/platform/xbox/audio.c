@@ -141,7 +141,15 @@ static void gain(void *context,uint32_t handle,float left,float right)
         break;
     }
 }
+static uint32_t playing(void *context,uint32_t handle)
+{
+    uint32_t i;(void)context;
+    if(!initialized)return 0;
+    for(i=0;i<VOICES;i++)if(slots[i].created && slots[i].handle==handle)
+        return nxAudioVoiceGetState(&slots[i].voice)!=NX_STOPPED;
+    return 0;
+}
 static void reset(void *context){(void)context;rf_xbox_audio_close();}
 static int release_idle_sample(void *context,const uint8_t *samples)
 {(void)context;return rf_xbox_audio_release_idle_sample(samples);}
-const rf_scene_audio_events rf_xbox_audio_events={play,stop,poll,reset,gain,play_mode,release_idle_sample};
+const rf_scene_audio_events rf_xbox_audio_events={play,stop,poll,reset,gain,play_mode,release_idle_sample,playing};

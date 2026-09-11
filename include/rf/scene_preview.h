@@ -53,6 +53,11 @@ typedef struct rf_scene_audio_events {
     int (*play_mode)(void *context,uint32_t handle,const struct rf_wave_pcm *pcm,float left,float right,uint32_t looping);
     /* RF_OK certifies no device borrowers remain for this PCM base. */
     int (*release_idle_sample)(void *context,const uint8_t *samples);
+    /* Nonzero while the matched device source is running, zero for unknown,
+     * completed, released or closed voices. Uses the device clock, not scene
+     * replay time; muted running sources still count. Does not certify PCM
+     * release or that already queued output has reached the speakers. */
+    uint32_t (*playing)(void *context,uint32_t handle);
 } rf_scene_audio_events;
 /* Device event adapter: PCM is borrowed until reset, which MUST synchronously
  * release all device references before returning. Events use logical mixer

@@ -193,6 +193,8 @@ int main(void)
         rf_xbox_audio_events.play_mode(NULL,0xa0002u,&short_sample,0,0,1) ||
         rf_xbox_audio_events.play_mode(NULL,0xa0004u,&pcm,.5f,.5f,1))goto fail;
      Sleep(150);
+     if(rf_xbox_audio_events.playing(NULL,0xa0001u) || !rf_xbox_audio_events.playing(NULL,0xa0002u) ||
+        !rf_xbox_audio_events.playing(NULL,0xa0004u) || rf_xbox_audio_events.playing(NULL,0xdeadbeefu))goto fail;
      if(rf_xbox_audio_release_idle_sample(short_sample.samples)!=RF_RANGE || rf_xbox_audio_release_voice(0xa0001u))goto fail;
      rf_apu_idle_release[0]=1;
      if(rf_xbox_audio_events.play_mode(NULL,0xa0003u,&short_sample,0,0,0) || rf_xbox_audio_release_voice(0xa0002u))goto fail;
@@ -204,6 +206,7 @@ int main(void)
       for(uint32_t n=0;n<4096;n++)rf_apu_idle_release[1]+=output[n]!=0;}
      if(!rf_apu_idle_release[1])goto fail;
      rf_xbox_audio_events.reset(NULL);rf_apu_idle_release[2]=available();
+     if(rf_xbox_audio_events.playing(NULL,0xa0004u) || rf_xbox_audio_events.playing(NULL,0xa0002u))goto fail;
      if(rf_apu_idle_release[2]!=rf_apu_probe[3] || rf_xbox_audio_diagnostic[11])goto fail;}
     rf_apu_probe[1]=15;
     {rf_vpp archive;rf_audio_bank bank={0};uint32_t index;

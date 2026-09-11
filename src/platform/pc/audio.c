@@ -119,7 +119,17 @@ static void gain(void *context,uint32_t handle,float left,float right)
         rf_audio_voice_gain(&mixer,mixer.voices[i].handle,(uint32_t)(left*32768),(uint32_t)(right*32768));
     LeaveCriticalSection(&lock);
 }
+static uint32_t playing(void *context,uint32_t handle)
+{
+    unsigned i;uint32_t active=0;(void)context;
+    if(!device)return 0;
+    EnterCriticalSection(&lock);
+    for(i=0;i<RF_AUDIO_VOICES;i++)if(handles[i]==handle && mixer.voices[i].handle && mixer.voices[i].active) {
+        active=1;break;
+    }
+    LeaveCriticalSection(&lock);return active;
+}
 static void reset(void *context){(void)context;rf_pc_audio_close();}
 static int release_idle_sample(void *context,const uint8_t *samples)
 {(void)context;return rf_pc_audio_release_idle_sample(samples);}
-const rf_scene_audio_events rf_pc_audio_events={play,stop,NULL,reset,gain,play_mode,release_idle_sample};
+const rf_scene_audio_events rf_pc_audio_events={play,stop,NULL,reset,gain,play_mode,release_idle_sample,playing};

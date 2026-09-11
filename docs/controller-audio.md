@@ -1244,3 +1244,30 @@ Archive loading/decoding and actual device allocation still need adapters.
 Do not cast the port mixer's uint32 handles to original signed device handles:
 its65534-generation cycle can set the sign bit. Any shared control/device bridge
 must preserve separate handle ownership and account for native playback status.
+
+
+Device-source status adapter (2026-09-11)
+---------------------------------------
+
+The optional rf_scene_audio_events.playing callback queries a logical unsigned
+handle against the platform's actual source owner. Xbox reads nxAudioVoiceGetState
+from the matching created slot. PC reads the device-refill mixer under its critical
+section; it does not inspect the separate deterministic campaign mixer. Unknown,
+released, naturally completed and closed-device sources return zero. Muted running
+sources return one. Queries neither release nor modify source ownership.
+
+The PC source can finish while copied output remains in waveOut's bounded queue;
+this callback describes source consumption, not speaker completion. Neither platform
+uses a false result as proof that PCM has been released: the existing explicit
+release_idle_sample/reset contracts remain necessary. The callback is optional and
+must be checked before use by a future control adapter. Platform lifecycle operations
+remain serialized on the owner thread; the PC refill worker is synchronized by lock.
+
+The existing real-device probes now distinguish an expired short one-shot from a
+muted looping source and an unrelated live loop, reject unknown handles, retain the
+expired borrower for explicit release, and return zero after device close. PC
+rf_pc_audio_check passes, including protected-source release checks. Native stock64MiB
+APU report artifacts/xemu/apu-20260911-054025/report.json passes the same checks and
+the existing allocation/lifecycle/bank pressure suite. PC/NXDK builds and eight CTests
+pass. This adds the device-status boundary required for original control-table
+integration; signed device-handle mapping and sample loader wiring remain open.

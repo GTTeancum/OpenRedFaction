@@ -2485,3 +2485,11 @@ frames with PC state parity, QMP-verified64MiB and nonzero DSP output;
 restored and ISO rebuilt. See docs/XEMU-MEMORY.md. This confirms the existing
 live path only; burn NPC ownership and sample-control device integration remain
 open. No new visuals or hardware listening claim.
+
+
+Device-source playing queries now exist for PC and Xbox, using each platform's
+source clock. Real PC audio checks and native64MiB APU20260911-054025 pass expired
+one-shot, muted loop, unrelated voice, unknown handle and closed-device cases.
+Queries do not release PCM or certify speaker completion. Both builds/eight CTests
+pass. Connect signed control-device ownership and sample loading next; persistent
+NPC/burn ownership remains open. See docs/controller-audio.md.

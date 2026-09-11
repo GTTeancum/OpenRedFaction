@@ -63,6 +63,8 @@ int main(void)
      if(rf_pc_audio_events.play_mode(NULL,3001,&a,0,0,0) || rf_pc_audio_events.play_mode(NULL,3002,&a,0,0,1) ||
         rf_pc_audio_events.play_mode(NULL,3004,&b,.5f,.5f,1))return 19;
      Sleep(150);
+     if(rf_pc_audio_events.playing(NULL,3001) || !rf_pc_audio_events.playing(NULL,3002) ||
+        !rf_pc_audio_events.playing(NULL,3004) || rf_pc_audio_events.playing(NULL,0xdeadbeef))return 25;
      if(rf_pc_audio_release_idle_sample(borrowed)!=RF_RANGE || rf_pc_audio_release_voice(3001))return 20;
      if(rf_pc_audio_events.play_mode(NULL,3003,&a,0,0,0) || rf_pc_audio_release_voice(3002))return 21;
      Sleep(150);
@@ -71,6 +73,7 @@ int main(void)
      before=rf_pc_audio_diagnostic[3];Sleep(100);
      if(rf_pc_audio_diagnostic[3]<=before)return 24;
      rf_pc_audio_close();VirtualFree(borrowed,0,MEM_RELEASE);
-     puts("PASS idle sample release, atomic busy rejection and unrelated playback with protected source");}
+     if(rf_pc_audio_events.playing(NULL,3004) || rf_pc_audio_events.playing(NULL,3002))return 26;
+     puts("PASS device source status, idle sample release, atomic busy rejection and unrelated playback with protected source");}
     return 0;
 }
