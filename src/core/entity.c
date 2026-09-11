@@ -514,6 +514,43 @@ uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t fa
     return 1;
 }
 
+int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backend *b)
+{
+    uint32_t finish=0,token,i,gain;float end[3],offset,radius;
+    if(!s || !b || !b->call || !b->segment)return RF_RANGE;
+    if(s->flags_810&0x80u) {
+        finish=1;b->call(b->context,RF_DYING_REMOVE,s->handle,0);
+        if(s->burn_13d8) {
+            b->call(b->context,RF_DYING_RELEASE_BURN,s->burn_13d8,0);s->burn_13d8=0;
+        }
+    } else if(s->action_824==-1 || !(b->call(b->context,RF_DYING_ACTION_ACTIVE,(uint32_t)s->action_824,0)&255u))finish=1;
+    if((b->call(b->context,RF_DYING_WEAPON_ACTIVE,s->handle,(uint32_t)s->primary_weapon)&255u)==1)
+        b->call(b->context,RF_DYING_RESET_WEAPON,s->handle,(uint32_t)s->primary_weapon);
+    if((s->class_flags_728&0x20u) && b->player && (b->call(b->context,RF_DYING_TIMER,0,0)&255u)==1) {
+        if(!isfinite(s->model_radius_78))return RF_RANGE;
+        for(i=0;i<3;i++) {
+            if(!isfinite(s->position[i]) || !isfinite(s->forward[i]) || !isfinite(b->player->position[i]))return RF_RANGE;
+            offset=(float)((double)s->forward[i]*s->model_radius_78);
+            end[i]=(float)((double)s->position[i]+offset);if(!isfinite(end[i]))return RF_RANGE;
+        }
+        radius=s->model_radius_78>6.0f?2.5f:1.5f;
+        gain=s->model_radius_78>6.0f?0x3fa00000u:0x3f800000u;
+        if((b->segment(b->context,s->position,end,b->player->position,radius)&255u)==1)
+            b->call(b->context,RF_DYING_DAMAGE,b->player->handle,s->handle);
+        b->call(b->context,RF_DYING_SHAKE,b->player->camera,gain);
+    }
+    if(finish) {
+        b->call(b->context,RF_DYING_FINALIZE,0,0);
+        if(b->call(b->context,RF_DYING_ENDGAME_NAME,0,0)&255u) {
+            token=b->call(b->context,RF_DYING_LOOKUP_A,0x118a,0);
+            if(token)b->call(b->context,RF_DYING_ACTIVATE_A,token,0);
+            token=b->call(b->context,RF_DYING_LOOKUP_B,0x47c3,0);
+            if(token)b->call(b->context,RF_DYING_ACTIVATE_B,token,0);
+        }
+    }
+    return RF_OK;
+}
+
 int rf_entity_death_select(const rf_entity_death_selection *state,
     uint32_t (*clearance)(void *context,uint32_t direction),void *context,
     rf_random_state *random,int32_t *result)

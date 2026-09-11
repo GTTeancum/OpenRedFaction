@@ -390,3 +390,25 @@ actual implementations, reentrant mutation, nonfinite geometry and native
 Xbox integration remain outside this evidence. The next runtime step must
 preserve these effects and order, rather than treating animation completion
 as sufficient to remove the actor.
+
+
+## Shared dying-update orchestration
+
+`rf_entity_dying_update` reconstructs complete41ee40 control flow with an
+explicit backend for playback, weapon, timer, collision, damage, camera,
+finalization and endgame effects. It preserves the previously traced call
+order and low-byte comparisons, including shake after a collision miss.
+Its state is52 bytes, with a borrowed20-byte player view and16-byte backend
+on Xbox; the routine allocates nothing. Burn cleanup commits only after its
+release callback. The state must remain owned after finalization until the
+following name/event work completes. Live entity retirement must respect that
+lifetime when the backend is attached.
+
+`python tools/verify_dying_update.py` compares all4096 original cases with PC
+and NXDK machine code: exact operation arguments/order, segment coordinates
+and radius, and complete state bytes. Both builds and all12 CTests pass.
+These cases use stable owners, finite axis-aligned segments, four model
+radii including6, and varied low-byte query responses. Actual backend effects,
+reentrant mutation and native scene dispatch are not verified by this test.
+The runtime must still connect death-start and finalization before enabling
+this update for live actors.

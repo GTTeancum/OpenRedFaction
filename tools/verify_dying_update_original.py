@@ -70,6 +70,7 @@ for case in range(4096):
     assert trace==expected,(case,trace,expected)
     assert bytes(u.mem_read(b,len(body)))==body,case
     digest.update(json.dumps(trace).encode())
+    if 'observe_case' in globals():observe_case(globals())
 report=dict(result='PASS',cases=4096,finalized=finalized,damage_calls=damaged,burn_clears=burns,trace_sha256=digest.hexdigest(),original_sha256=sha,
     scope='Full original41ee40 with real vector initialization/scale/add; supplied playback, weapon, timer, collision, damage, camera, finalization and event boundaries. Exact call order/arguments and actor mutations, including low-byte gates and radius6 branch. Stable callback owners; no reconstructed runtime, actual effect implementations or reentrant mutations verified.')
 (root/'artifacts/dying-update-original.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))

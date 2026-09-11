@@ -338,6 +338,38 @@ typedef struct rf_entity_death_entry_state {
  * activate live dying updates before the remaining death effects exist. */
 uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t falling);
 
+typedef struct rf_entity_dying_state {
+    uint32_t handle,flags_810;int32_t action_824,primary_weapon;
+    uint32_t burn_13d8,class_flags_728;
+    float position[3],forward[3],model_radius_78;
+} rf_entity_dying_state;
+typedef struct rf_entity_dying_player {uint32_t handle,camera;float position[3];} rf_entity_dying_player;
+enum rf_entity_dying_call {
+    RF_DYING_REMOVE,RF_DYING_RELEASE_BURN,RF_DYING_ACTION_ACTIVE,
+    RF_DYING_WEAPON_ACTIVE,RF_DYING_RESET_WEAPON,RF_DYING_TIMER,
+    RF_DYING_DAMAGE,RF_DYING_SHAKE,RF_DYING_FINALIZE,RF_DYING_ENDGAME_NAME,
+    RF_DYING_LOOKUP_A,RF_DYING_ACTIVATE_A,RF_DYING_LOOKUP_B,RF_DYING_ACTIVATE_B
+};
+typedef struct rf_entity_dying_backend {
+    uint32_t (*call)(void *context,uint32_t operation,uint32_t first,uint32_t second);
+    uint32_t (*segment)(void *context,const float start[3],const float end[3],const float point[3],float radius);
+    void *context;
+    const rf_entity_dying_player *player;
+} rf_entity_dying_backend;
+/* Full41ee40 orchestration. State/backend/owners must remain alive through
+ * FINALIZE and the following name/event calls. Class/identity/geometry stay
+ * stable; effects may mutate burn and weapon state, which are reread.
+ * Calls: REMOVE(handle,0)=42e3c0; RELEASE_BURN(token,0)=42ed20;
+ * ACTION_ACTIVE(action,0)=428d10; WEAPON_ACTIVE/RESET(handle,weapon)=41a830/41ae70;
+ * TIMER(0,0)=4fa3f0 on actor4b8; DAMAGE(target,source)=4892c0 with1600,
+ * kind/extra=-1,-1,0,-1,0; SHAKE(camera,gain bits)=40e0b0 with strength3b449ba6;
+ * FINALIZE(0,0)=418f80; ENDGAME_NAME(0,0)=5001d0 against masako_endgame;
+ * LOOKUP_A/B(uid,0)=4c0e00/4be410 (zero absent); ACTIVATE_A(token,0)=4c0200;
+ * ACTIVATE_B(token,0)=4b6760 on resolved token+30 with -1,-1.
+ * Finite geometry and representable segment required. No allocation, no
+ * rollback after effects; underlying effects and live dispatch are separate. */
+int rf_entity_dying_update(rf_entity_dying_state *state,const rf_entity_dying_backend *backend);
+
 typedef struct rf_entity_death_selection {
     uint32_t flags_810;
     int32_t damage_138c,damage_1390,action_824,motions[45];
