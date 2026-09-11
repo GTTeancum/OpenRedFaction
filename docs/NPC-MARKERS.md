@@ -1305,3 +1305,31 @@ artifacts/xemu/replay-20260911-141015/report.json. This remains the existing
 startup animation selection and does not prove a live flinch transition.
 Primary-weapon reset, pain gates, action start/sound and reference-aware eviction
 remain open. No new visual capture was taken.
+
+## Motion eviction under pressure (2026-09-11)
+
+The scene loader now reclaims unused motion payloads when a new selection would
+exceed its1MiB ceiling. It uses rf_entity_playback_cache_references to total
+references across every model registration of an identity. Any live reference
+protects the entire shared payload, including references through another alias.
+All catalog file aliases are unbound before freeing a zero-reference allocation;
+cache pointer, size and retained-byte accounting are then updated together.
+Future use reloads the archive bytes through the existing validation path.
+
+A full preflight rejects invalid reference counters or insufficient reclaimable
+space before any payload is discarded. Reclamation visits cache identities in
+stable order until enough space exists; this is a port policy, not recovered
+original LRU behavior. It allocates no eviction bookkeeping. No callback or
+simulation step runs between reference preflight and release. Successful eviction
+is not rolled back if the subsequent archive read fails: freed identities stay
+unbound and can be retried. Referenced data remains intact. An active working set
+larger than the ceiling still fails rather than freeing an in-use motion.
+
+The existing residency CTest now covers cross-registration protection, negative
+reference rejection (including a later candidate), insufficient-space preservation,
+complete alias invalidation, accounting, reload, rebinding and failed reload after
+eviction. Pressure is prepared by setting retained-byte accounting at the budget
+boundary; it is not a representative campaign working-set measurement. Both
+builds and all ten CTests pass. No new XEMU pressure run is claimed; the preceding
+native replay exercises ordinary residency without exhaustion. Live flinch/AI
+transitions and sustained campaign cache behavior remain to be verified.

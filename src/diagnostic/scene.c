@@ -466,7 +466,39 @@ static uint32_t *campaign_npc_motion_sizes;
 static uint32_t campaign_npc_motion_count,campaign_npc_motion_bytes;
 /* Port residency policy: one immutable payload per shared cache identity.
  * A selected clip must be resident before pose sampling, including actions
- * started after initialization. No eviction until borrower release is wired. */
+ * started after initialization. Under pressure, only identities with zero
+ * references across all model registrations may be released. */
+static int campaign_npc_motion_reserve(uint32_t bytes)
+{
+    uint32_t cache,reclaim=0,needed,i,j,references;int status;
+    if(campaign_npc_motion_bytes>1024*1024 || bytes>1024*1024)return RF_RANGE;
+    if(bytes<=1024*1024-campaign_npc_motion_bytes)return RF_OK;
+    needed=bytes-(1024*1024-campaign_npc_motion_bytes);
+    /* Preflight the full candidate set before discarding any payload. The
+     * simulation is single-threaded; references cannot change between passes. */
+    for(cache=0;cache<campaign_npc_motion_count;++cache)if(campaign_npc_motion_data[cache]) {
+        status=rf_entity_playback_cache_references(&campaign_playback_resources,cache,&references);if(status)return status;
+        if(!references) {
+            if(campaign_npc_motion_sizes[cache]>campaign_npc_motion_bytes-reclaim)return RF_RANGE;
+            reclaim+=campaign_npc_motion_sizes[cache];
+        }
+    }
+    if(reclaim<needed)return RF_RANGE;
+    for(cache=0;cache<campaign_npc_motion_count && needed;++cache)if(campaign_npc_motion_data[cache]) {
+        status=rf_entity_playback_cache_references(&campaign_playback_resources,cache,&references);if(status)return status;
+        if(references)continue;
+        /* Every alias must stop borrowing before the shared payload is freed. */
+        for(i=0;i<campaign_motion_catalog.model_count;++i)for(j=0;j<campaign_motion_catalog.models[i].count;++j) {
+            rf_motion_file *file=&campaign_motion_catalog.models[i].items[j].file;
+            if(file->resident==campaign_npc_motion_data[cache])file->resident=NULL;
+        }
+        free(campaign_npc_motion_data[cache]);campaign_npc_motion_data[cache]=NULL;
+        campaign_npc_motion_bytes-=campaign_npc_motion_sizes[cache];
+        needed=campaign_npc_motion_sizes[cache]>=needed?0:needed-campaign_npc_motion_sizes[cache];
+        campaign_npc_motion_sizes[cache]=0;
+    }
+    return RF_OK;
+}
 static int campaign_npc_motion_require(uint32_t skeleton,uint32_t id)
 {
     uint32_t cache;rf_motion_file *file;void *data;int status;
@@ -480,7 +512,7 @@ static int campaign_npc_motion_require(uint32_t skeleton,uint32_t id)
         if(file->resident==campaign_npc_motion_data[cache])return RF_OK;
         return rf_motion_file_bind_memory(file,campaign_npc_motion_data[cache],campaign_npc_motion_sizes[cache]);
     }
-    if(campaign_npc_motion_bytes>1024*1024 || file->entry.size>1024*1024-campaign_npc_motion_bytes)return RF_RANGE;
+    status=campaign_npc_motion_reserve(file->entry.size);if(status)return status;
     data=malloc(file->entry.size);if(!data)return RF_IO;
     status=rf_vpp_read(file->archive,&file->entry,0,data,file->entry.size);
     if(!status)status=rf_motion_file_bind_memory(file,data,file->entry.size);

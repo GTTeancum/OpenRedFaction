@@ -22,7 +22,7 @@ Immediate open items:
 - [ ] Connect real event/fall/weapon damage sources to the registered NPC adapter, implement pain/death/burn/AI effects and broaden lethal/reentrant coverage.
 - [ ] Bind the verified pain wrapper and timers to NPC AI/cooldown owners, primary-weapon reset, action22/23 residency, playback and sound.
 - [ ] Wire NPC world/support callbacks into the shared standing transition and normal/slow landing, then special class effects.
-- [ ] Complete reference-aware motion eviction and verify live action transitions; selected clips now load before NPC pose sampling within the existing budget.
+- [ ] Verify live NPC action transitions and sustained cache pressure on Xbox; selected clips load within budget and zero-reference payloads can now be evicted.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.

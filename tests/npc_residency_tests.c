@@ -6,6 +6,7 @@ int main(void)
     rf_vpp archive={0};unsigned char payload[160]={0};
     rf_entity_model_motion motions[3]={0};
     rf_entity_model_motions model={0};rf_entity_playback_model playback={0};
+    rf_motion_playback_resource resources[3]={0};
     uint32_t ids[3]={0,0,1};void *data[2]={0};uint32_t sizes[2]={0};
     rf_entity_pose pose={0};rf_entity_seed seed={0};rf_entity_motion_mapping mapping={0};
     uint32_t baseline=2*(sizeof(void*)+sizeof(uint32_t)),i;
@@ -17,6 +18,8 @@ int main(void)
     campaign_motion_catalog.models=&model;campaign_motion_catalog.model_count=1;
     campaign_motion_catalog.mappings=&mapping;campaign_motion_catalog.class_count=1;
     campaign_playback_resources.models=&playback;campaign_playback_resources.model_count=1;
+    campaign_playback_resources.resources=resources;campaign_playback_resources.cache_ids=ids;
+    campaign_playback_resources.resource_count=3;campaign_playback_resources.cache_count=2;
     campaign_npc_motion_data=data;campaign_npc_motion_sizes=sizes;
     campaign_npc_motion_count=2;campaign_npc_motion_bytes=baseline;
     campaign_poses.items=&pose;campaign_poses.count=1;
@@ -39,7 +42,9 @@ int main(void)
     CHECK(campaign_npc_motion_require(0,3)==RF_RANGE);
     free(data[1]);data[1]=NULL;sizes[1]=0;motions[2].file.resident=NULL;
     campaign_npc_motion_bytes=1024*1024-79;
+    resources[1].references=1; /* A different registration keeps identity zero live. */
     CHECK(campaign_npc_motion_require(0,2)==RF_RANGE && !data[1] && !motions[2].file.resident);
+    CHECK(data[0] && motions[0].file.resident==data[0] && motions[1].file.resident==data[0]);
     campaign_npc_motion_bytes=baseline+80;
     CHECK(campaign_npc_motion_require(0,2)==RF_IO && !data[1] && !sizes[1]);
     CHECK(campaign_npc_motion_bytes==baseline+80);
@@ -51,6 +56,24 @@ int main(void)
     motions[2].file.header[0]=1;
     CHECK(campaign_npc_motion_require(0,2)==RF_OK && data[1]);
     CHECK(campaign_npc_motion_bytes==baseline+160);
-    fclose(archive.stream);free(data[0]);free(data[1]);
-    puts("PASS: changing selections, shared aliases, budget, I/O/header failure and retry");return 0;
+    /* Full pressure scans reject corrupt references before touching any alias. */
+    campaign_npc_motion_bytes=1024*1024;resources[0].references=-1;
+    CHECK(campaign_npc_motion_reserve(1)==RF_RANGE && data[0] && data[1]);
+    resources[0].references=0;resources[1].references=0;resources[2].references=-1;
+    CHECK(campaign_npc_motion_reserve(1)==RF_RANGE && data[0] && data[1]);
+    resources[0].references=0;resources[1].references=0;resources[2].references=1;
+    CHECK(campaign_npc_motion_reserve(81)==RF_RANGE && data[0] && data[1]);
+    CHECK(campaign_npc_motion_reserve(80)==RF_OK && !data[0] && data[1]);
+    CHECK(!motions[0].file.resident && !motions[1].file.resident && motions[2].file.resident==data[1]);
+    CHECK(!sizes[0] && campaign_npc_motion_bytes==1024*1024-80);
+    CHECK(campaign_npc_motion_require(0,1)==RF_OK && data[0] && motions[1].file.resident==data[0]);
+    CHECK(campaign_npc_motion_bytes==1024*1024 && sizes[0]==80);
+    CHECK(campaign_npc_motion_require(0,0)==RF_OK && motions[0].file.resident==data[0]);
+    fclose(archive.stream);archive.stream=NULL;
+    CHECK(campaign_npc_motion_reserve(80)==RF_OK && !data[0] && data[1]);
+    CHECK(campaign_npc_motion_require(0,0)==RF_IO && !data[0] && data[1]);
+    CHECK(!motions[0].file.resident && !motions[1].file.resident && !sizes[0]);
+    CHECK(campaign_npc_motion_bytes==1024*1024-80);
+    free(data[1]);
+    puts("PASS: selection, aliases, pressure, reference protection, eviction, reload and failure recovery");return 0;
 }
