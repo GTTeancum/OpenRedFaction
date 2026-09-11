@@ -53,6 +53,17 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--creation-vitals")) {
+        uint32_t wire[8];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            rf_entity_creation_vitals_state state;rf_entity_creation_vitals_class definition;
+            memcpy(&state,wire,16);memcpy(&definition,wire+4,12);
+            rf_entity_creation_vitals(&state,&definition,wire[7]);
+            if(fwrite(&state,sizeof(state),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?3:0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--burn-attachments"))return burn_attachment_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-spread"))return burn_spread_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-body"))return burn_body_probe();

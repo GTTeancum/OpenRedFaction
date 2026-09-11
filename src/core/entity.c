@@ -2,6 +2,15 @@
 #include "rf/timer.h"
 #include <math.h>
 #include <string.h>
+void rf_entity_creation_vitals(rf_entity_creation_vitals_state *state,
+    const rf_entity_creation_vitals_class *definition,uint32_t network_mode)
+{
+    if(network_mode&255u)state->armor=0;
+    else memcpy(&state->armor,&definition->armor,4);
+    state->field_840=definition->field_764;
+    if(!(definition->health>=0)) {state->health=100;state->object_flags|=4u;}
+    else memcpy(&state->health,&definition->health,4);
+}
 int rf_entity_sphere_overrides(rf_entity_class_sphere *spheres,uint32_t count,
     const rf_entity_sphere_override *overrides,uint32_t override_count,uint8_t network_mode)
 {

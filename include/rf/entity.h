@@ -5,6 +5,20 @@
 #include "rf/object_registry.h"
 
 #define RF_OBJECT_SLOTS 1024
+typedef struct rf_entity_creation_vitals_state {
+    float health,armor;uint32_t object_flags,field_840;
+} rf_entity_creation_vitals_state;
+typedef struct rf_entity_creation_vitals_class {
+    float health,armor;uint32_t field_764;
+} rf_entity_creation_vitals_class;
+/* Numeric assignment blocks422a80..422a9e and422cb4..422cea. Network low
+ * byte nonzero sets armor to+0; otherwise copies class armor bits. Negative
+ * or unordered class health becomes100 and ORs object flag4; nonnegative
+ * health copies bits and leaves existing flag4 intact. Also copies class+764
+ * to entity+840 without assigning semantics. Borrowed inputs must be intact
+ * and nonoverlapping. No allocation, class loading or complete factory claim. */
+void rf_entity_creation_vitals(rf_entity_creation_vitals_state *state,
+    const rf_entity_creation_vitals_class *definition,uint32_t network_mode);
 /* Object flags assembled by 422360 before generic allocation. descriptor_kind
  * is class descriptor +0x94. Remaining factory initialization is separate. */
 uint32_t rf_entity_creation_object_flags(uint32_t creation_flags,uint32_t descriptor_kind);

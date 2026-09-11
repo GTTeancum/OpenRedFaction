@@ -2526,3 +2526,11 @@ travel timing is retained; current contact startup adds one ambient-only block.
 Observer-disabled PC repeat and native64MiB replay20260911-060021 pass with matching
 PCM hash and guest state, plus nonzero DSP. Both builds/nine CTests pass. The earlier
 historical two-track oracle failure is resolved for the current mixed PCM stream.
+
+
+Entity factory armor/health assignment now matches1,536 original/PC/NXDK cases:
+SP class armor copy, low-byte network zero armor, negative/unordered class health
+becoming100 plus object flag4, and opaque class764->entity840 transfer. Both builds
+and nine CTests pass. This is numeric construction only; intervening factory calls,
+class metadata binding, persistent NPC registration and live burn/damage ownership
+remain open. The campaign still registers only the compact player view.
