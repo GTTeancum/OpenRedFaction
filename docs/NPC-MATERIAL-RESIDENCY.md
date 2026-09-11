@@ -48,3 +48,24 @@ door/audio replay on 64 MiB XEMU. All eight telemetry words match PC:
 The existing NPC startup/geometry and door/audio checks also pass. These totals
 cover NPC appearance/material ownership, not the entire game memory footprint.
 No new rendered NPCs are claimed by this residency verification.
+
+## Shared model emission
+
+`rf_preview_model_emit` now supplies the clipping, triangle emission and preview
+vertex conversion previously embedded in diagnostic animation. It takes an
+already processed resident batch and caller-owned scratch, performs no allocation
+or archive reads, and retains the model-local material index for appearance
+mapping. The existing animation renderer uses the same helper.
+
+`artifacts/npc-render-refactor/report.json` compares a saved pre-change PC
+executable with this path over the 180-frame door replay. Every telemetry line
+and the final framebuffer bytes match. The existing placed-stream test also
+passes translated/rotated equivalence, moving placement and full culling.
+This preserves the current diagnostic screen/depth/color policy; original
+lighting and render-state parity remain separate work. Campaign integration
+still needs shared scratch, actor iteration, LOD selection, appearance mapping
+and correct ownership of the renderer's combined image table.
+
+Native follow-up `artifacts/xemu/replay-20260911-090838/report.json` passes
+the same 180-frame door/audio replay on stock 64 MiB XEMU. Both builds and all
+nine CTest checks pass after extraction. No new visual is introduced.

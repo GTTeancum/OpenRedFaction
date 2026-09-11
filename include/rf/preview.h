@@ -11,6 +11,21 @@ typedef struct rf_preview_vertex {
     uint32_t lightmap;
 } rf_preview_vertex;
 typedef struct rf_preview_mesh { rf_preview_vertex *vertices; uint32_t count, bytes; } rf_preview_mesh;
+/* Append a processed model batch using the recovered clipping/emission helpers.
+ * Caller supplies batch-local render buffers, 4096 output vertex slots, 24576
+ * index slots and an initialized clip pool; all can be reused between actors.
+ * No allocation or archive I/O. NULL mesh performs clipping/counting only.
+ * Non-NULL mesh appends to its existing allocation, preserving prior vertices;
+ * errors may alter scratch and append bytes but preserve count/bytes. Material
+ * remains the model-local index, for the caller's appearance mapping.
+ * Screen/depth conversion is the current 640x480 diagnostic renderer policy,
+ * not a claim of recovered world lighting or final draw-state parity. */
+int rf_preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
+    rf_model_render_buffers *buffers,uint16_t *indices,rf_model_clip_pool *pool,
+    const rf_model_projection *view,const rf_model_clip_planes *planes,
+    const rf_model_clip_projection *projection,const rf_model_render_output *attributes,
+    rf_preview_mesh *mesh,uint32_t capacity_bytes,uint32_t *emitted);
+
 /* Last world capacity error: valid, face, fan corner, used/capacity vertices,
  * geometry face count, writing pass, required vertices. Diagnostic only. */
 extern uint32_t rf_preview_failure[8];

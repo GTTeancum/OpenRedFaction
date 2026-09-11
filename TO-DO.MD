@@ -1,22 +1,11 @@
-# Red Faction Xbox / PC — open work
+# Red Faction Xbox / PC - open work
 
-Campaign startup now selects and evaluates owned NPC poses; PC matches all141
-authored opening actors and3087 bone matrices. Per-frame AI/rendering remains.
+Campaign owns verified NPC startup poses, shared model geometry, appearances
+and textures; per-frame NPC behavior and drawing remain incomplete.
 
-Campaign now loads shared NPC model LODs and verifies initial skin transforms;
-opening geometry is176-308KiB on PC before textures/draw buffers.
-
-Authored NPC appearance maps now pass all141 opening actors; five L1S1 models
-need twelve appearances. Connect deduplicated texture/material residency.
-
-All59 unique opening NPC textures and31 appearance bundles load successfully;
-global image sharing saves4-5MiB versus separate appearance bundles.
-
-Shared NPC materials now pass all 31 opening appearances with deduplicated
-primary/secondary images; connect campaign ownership and verify native residency.
-
-Campaign NPC materials now match PC in stock 64 MiB XEMU: all 51 L1S1 images
-and 143 material records verified; drawing integration remains.
+Stock 64 MiB XEMU matches PC for L1S1's 51 NPC images and 143 materials.
+The shared clipping/emission helper now removes the diagnostic-miner dependency
+from that draw stage; actor iteration, shared scratch and material mapping remain.
 
 Immediate open items:
 - [ ] Connect shared NPC materials to drawing and complete per-frame actor rendering.

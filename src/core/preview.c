@@ -293,3 +293,44 @@ int rf_preview_update_world_staged(rf_preview_mesh *mesh,uint32_t capacity_bytes
        (source<destination+capacity_bytes && destination<source+scratch_bytes))return RF_RANGE;
     return world_mesh(mesh,world,movers,poses,materials,level,capacity_bytes,1,scratch);
 }
+
+int rf_preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
+    rf_model_render_buffers *buffers,uint16_t *indices,rf_model_clip_pool *pool,
+    const rf_model_projection *view,const rf_model_clip_planes *planes,
+    const rf_model_clip_projection *projection,const rf_model_render_output *attributes,
+    rf_preview_mesh *mesh,uint32_t capacity_bytes,uint32_t *emitted)
+{
+    const rf_model_draw_batch *draw;rf_model_triangle_output output;uint32_t n,start;int status;
+    if(!geometry || !geometry->batches || batch>=geometry->batch_count || !buffers ||
+       !indices || !pool || !view || !planes || !projection || !attributes || !emitted)return RF_RANGE;
+    if(mesh && (!mesh->vertices || mesh->bytes!=(uint64_t)mesh->count*sizeof(rf_preview_vertex) ||
+        mesh->bytes>capacity_bytes))return RF_RANGE;
+    draw=geometry->batches+batch;
+    if(draw->vertices>4096)return RF_RANGE;
+    output.vertices=buffers->vertices;output.indices=indices;output.vertex_count=draw->vertices;
+    output.vertex_capacity=4096;output.index_count=0;output.index_capacity=24576;
+    if(planes->near_depth>0) {
+        status=rf_model_geometry_clip_near(geometry,batch,buffers,planes->near_depth);if(status)return status;
+    }
+    status=rf_model_geometry_emit_batch(geometry,batch,buffers,view,planes,projection,attributes,0,pool,&output);
+    if(status)return status;
+    if(output.index_count%3)return RF_FORMAT;
+    for(n=0;n<output.index_count;++n)if(indices[n]>=output.vertex_count)return RF_FORMAT;
+    if(mesh) {
+        if(output.index_count>capacity_bytes/sizeof(rf_preview_vertex)-mesh->count)return RF_RANGE;
+        start=mesh->count;
+        for(n=0;n<output.index_count;++n) {
+            const uint8_t *v=buffers->vertices[indices[n]];float xy[2],q,uv[2];
+            rf_preview_vertex *p=mesh->vertices+start+n;
+            memcpy(xy,v,8);memcpy(&q,v+12,4);memcpy(uv,v+24,8);
+            if(!isfinite(xy[0]) || !isfinite(xy[1]) || !isfinite(q) || q<=0)return RF_FORMAT;
+            p->position[0]=floorf(xy[0]*16)/16;p->position[1]=floorf(xy[1]*16)/16;
+            p->position[2]=(1000.0f/999.9f)*(1-.1f*q)*16777215;
+            p->color[0]=p->color[1]=p->color[2]=1;
+            p->texture[0]=uv[0]*q;p->texture[1]=uv[1]*q;p->texture[2]=q;p->material=draw->material;
+            p->lightmap_texture[0]=p->lightmap_texture[1]=0;p->lightmap_texture[2]=q;p->lightmap=UINT32_MAX;
+        }
+        mesh->count+=output.index_count;mesh->bytes=mesh->count*sizeof(rf_preview_vertex);
+    }
+    *emitted=output.index_count;return RF_OK;
+}

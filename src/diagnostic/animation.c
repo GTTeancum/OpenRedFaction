@@ -305,7 +305,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             status=placement->begin_frame(placement->frame_context,frame);
             if(status==RF_NOT_FOUND){status=RF_OK;goto done;}if(status)goto done;
         }
-        if(sink)preview->count=0;
+        if(sink){preview->count=0;preview->bytes=0;}
         rf_animation_progress[1]=2;
         if(authored) {
             static const int32_t sequence[4]={0,2,8,0};
@@ -457,7 +457,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         for(render_batch=0;render_batch<geometry.batch_count;++render_batch) {
             rf_animation_progress[1]=7;rf_animation_progress[3]=render_batch;
             const rf_model_draw_batch *draw=geometry.batches+render_batch;uint32_t n;
-            rf_model_triangle_output triangle_output={render_buffers.vertices,render_indices,draw->vertices,4096,0,24576};
+            uint32_t batch_indices;
             memset(render_memory,0xa5,render_bytes);
             status=rf_model_geometry_render_batch(&geometry,render_batch,prepared,count,&render_view,&render_lights,&render_output,&render_buffers);if(status)goto done;
             for(n=0;n<draw->vertices;++n) {
@@ -472,28 +472,10 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 if(memcmp(v+24,vertices[index].uv,8) || v[16]!=60 || v[17]!=50 || v[18]!=40 || v[19]!=255 ||
                     v[20]!=0xa5 || v[21]!=0xa5 || v[22]!=0xa5 || v[32]!=0xa5 || v[39]!=0xa5) {status=RF_FORMAT;goto done;}
             }
-            if(placement && clip_planes.near_depth>0) {
-                status=rf_model_geometry_clip_near(&geometry,render_batch,&render_buffers,clip_planes.near_depth);if(status)goto done;
-            }
-            status=rf_model_geometry_emit_batch(&geometry,render_batch,&render_buffers,&render_view,&clip_planes,&clip_projection,
-                &render_output,0,clip_pool,&triangle_output);if(status)goto done;
-            if(triangle_output.index_count%3) {status=RF_FORMAT;goto done;}
-            for(n=0;n<triangle_output.index_count;++n)if(render_indices[n]>=triangle_output.vertex_count) {status=RF_FORMAT;goto done;}
-            emitted_indices+=triangle_output.index_count;
-            if(preview && (sink || frame==preview_frame)) {
-                if(triangle_output.index_count>budget/sizeof(rf_preview_vertex)-preview->count) {status=RF_RANGE;goto done;}
-                for(n=0;n<triangle_output.index_count;++n) {
-                    const uint8_t *v=render_buffers.vertices[render_indices[n]];float xy[2],q,uv[2];
-                    rf_preview_vertex *p=preview->vertices+preview->count++;
-                    memcpy(xy,v,8);memcpy(&q,v+12,4);memcpy(uv,v+24,8);
-                    if(!isfinite(xy[0]) || !isfinite(xy[1]) || !isfinite(q) || q<=0) {status=RF_FORMAT;goto done;}
-                    p->position[0]=floorf(xy[0]*16)/16;p->position[1]=floorf(xy[1]*16)/16;
-                    p->position[2]=(1000.0f/999.9f)*(1-.1f*q)*16777215;
-                    p->color[0]=p->color[1]=p->color[2]=1;
-                    p->texture[0]=uv[0]*q;p->texture[1]=uv[1]*q;p->texture[2]=q;p->material=draw->material;
-                    p->lightmap_texture[0]=p->lightmap_texture[1]=0;p->lightmap_texture[2]=q;p->lightmap=UINT32_MAX;
-                }
-            }
+            status=rf_preview_model_emit(&geometry,render_batch,&render_buffers,render_indices,clip_pool,
+                &render_view,&clip_planes,&clip_projection,&render_output,
+                preview && (sink || frame==preview_frame)?preview:NULL,budget,&batch_indices);if(status)goto done;
+            emitted_indices+=batch_indices;
         }
         out[2]=frame+1;
         rf_animation_progress[1]=8;
