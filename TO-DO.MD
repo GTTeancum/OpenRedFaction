@@ -2459,3 +2459,9 @@ separately from mixer handles;2,500 original/PC/NXDK cases pass, including zero
 and stale handles. Recover control-voice allocation/refresh before connecting
 burn audio to device adapters. Both builds and eight CTests pass.
 Evidence: tools/verify_audio_control_stop.py and docs/controller-audio.md.
+
+Original control-voice allocation now sweeps30 slots before selection and assigns
+generations only after successful playback;1,024 original/PC/NXDK comparisons
+pass. Positional start/refresh and real sample/device adapters remain. Both
+builds,2,500 stop regressions and eight CTests pass.
+Evidence: tools/verify_audio_control_start.py and docs/controller-audio.md.

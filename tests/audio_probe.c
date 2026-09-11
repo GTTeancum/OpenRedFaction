@@ -4,6 +4,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+#include "audio_control_start_probe.h"
 typedef struct allocation_fixture {uint32_t input[55][4],count,trace[62];} allocation_fixture;
 static int32_t allocation_status(void *context,uint32_t slot,uint32_t *bits)
 {
@@ -49,6 +50,7 @@ static void control_stop(void *context,int32_t device)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--control-start"))return audio_control_start_probe();
     if(argc==2 && !strcmp(argv[1],"--control-stop")) {
         uint32_t wire[14],index;rf_audio_control_voice voices[RF_AUDIO_VOICES];
         _Static_assert(sizeof(rf_audio_control_voice)==44,"Original control voice size");

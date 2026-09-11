@@ -252,6 +252,31 @@ int rf_audio_voice_gain(rf_audio_mixer *mixer,uint32_t handle,uint32_t left,uint
     if(i>=RF_AUDIO_VOICES || !mixer->voices[i].active || mixer->voices[i].handle!=handle)return RF_NOT_FOUND;
     mixer->voices[i].left=left;mixer->voices[i].right=right;return RF_OK;
 }
+static void audio_control_reset(rf_audio_control_voice *voice)
+{
+    voice->device=voice->sample=-1;voice->category=0;
+    voice->requested_volume=voice->pan=0;voice->volume=0;
+}
+int32_t rf_audio_control_start(rf_audio_control_voice voices[RF_AUDIO_VOICES],uint32_t enabled,
+    int32_t sample,uint32_t category,float pan,float volume,const float *category_gain,
+    const uint8_t *looping,const rf_audio_control_start_backend *be,void *context)
+{
+    uint32_t i,bits;int32_t device,handle;float gain;rf_audio_control_voice *voice;
+    if(!(enabled&255u))return -1;
+    if(be->prepare_sample(context,sample)==-1)return -1;
+    for(i=0;i<RF_AUDIO_VOICES;++i)if(!(be->playing(context,voices[i].device)&255u)) {
+        be->stop(context,voices[i].device);audio_control_reset(&voices[i]);
+    }
+    for(i=0;i<RF_AUDIO_VOICES;++i)if(voices[i].sample<0)break;
+    if(i==RF_AUDIO_VOICES)return -1;
+    voice=&voices[i];gain=volume * *category_gain;
+    device=be->start(context,sample,gain,pan,*looping!=0);voice->device=device;
+    if(device<0)return -1;
+    voice->sample=sample;voice->category=category;voice->requested_volume=volume;voice->pan=pan;
+    voice->positional&=~255u;
+    bits=(uint32_t)voice->generation+1u;memcpy(&voice->generation,&bits,4);
+    bits=(bits<<8)|i;memcpy(&handle,&bits,4);return handle;
+}
 void rf_audio_control_stop(rf_audio_control_voice voices[RF_AUDIO_VOICES],uint32_t enabled,
     int32_t handle,void (*stop_device)(void *context,int32_t device),void *context)
 {
@@ -261,8 +286,7 @@ void rf_audio_control_stop(rf_audio_control_voice voices[RF_AUDIO_VOICES],uint32
     if((uint32_t)handle&0x80000000u)generation-=0x1000000;
     voice=&voices[index];if(voice->device<0 || voice->generation!=generation)return;
     stop_device(context,voice->device);
-    voice->device=voice->sample=-1;voice->category=0;
-    voice->field10=voice->field14=0;voice->volume=0;
+    audio_control_reset(voice);
 }
 int rf_audio_voice_stop(rf_audio_mixer *mixer,uint32_t handle)
 {

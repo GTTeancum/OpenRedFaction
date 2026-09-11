@@ -1166,3 +1166,29 @@ the original reset executes. Both builds and eight CTests pass. Evidence:
 artifacts/audio-control-stop.json. Allocation/refresh must populate this original
 control layer and translate to the existing device/mixer adapters before burn
 voice lifetime can be connected end to end; this is not native audio evidence.
+
+
+## Original game voice allocation
+
+rf_audio_control_start reconstructs505560 over the original30 control slots.
+Only prepare_sample result-1 rejects; other results continue. It queries every
+device using the playing low byte, stops/resets each nonplaying slot, and only
+then scans for the first negative sample field. Category gain and sample loop
+byte remain borrowed until this cleanup finishes. Failed device playback stores
+its negative result without completing assignment. Success stores sample,
+category, requested volume and pan, clears only the positional low byte, then
+increments the full32-bit generation and returns its low24 bits shifted by8
+with the slot. Full generation is intentionally not masked in storage, matching
+the original even beyond representable handle generations. The formerly named
+fields10/14 are now identified as requested_volume/pan. Control reset is shared
+with the previously verified stop helper; metadata/PCM/device work is supplied.
+
+verify_audio_control_start.py compares1,024 full original/PC/NXDK scenarios:
+357 playback requests,102 exhausted control tables, all30 cleanup calls and
+exact callback arguments, complete table bytes and returned handles. It covers
+low-byte gates, preparation/playback failures, signed/overflow generations,
+first/last free slots and callbacks that mutate device, gain, loop byte or
+selected generation before subsequent original reads. Both full builds,
+2,500 control-stop regression cases and eight CTests pass. Evidence:
+artifacts/audio-control-start.json. Positional5056a0/5058c0 wrappers and real
+sample/device adapters still need connection before live burn-audio proof.

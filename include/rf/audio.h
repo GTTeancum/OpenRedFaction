@@ -179,10 +179,10 @@ void rf_audio_bank_close(rf_audio_bank *bank);
 #define RF_AUDIO_RATE 48000u
 /* Original1753c38 control records, separate from port mixer/device voices.
  * Game handles encode signed generation<<8 | slot, not mixer handles.
- * fields10/14 await recovery of their producers. */
+ * requested_volume/pan are the505560 inputs; volume is positional5056a0 gain. */
 typedef struct rf_audio_control_voice {
     int32_t device,sample;uint32_t category;int32_t generation;
-    float field10,field14,position[3],volume;uint32_t positional;
+    float requested_volume,pan,position[3],volume;uint32_t positional;
 } rf_audio_control_voice;
 /*505a40 -> supplied5442b0 ->505680. Disabled low byte, invalid slot, negative
  * device or stale generation do nothing. Handle zero is valid. Stop precedes
@@ -191,6 +191,23 @@ typedef struct rf_audio_control_voice {
  * may mutate fields but must retain table storage. No allocation. */
 void rf_audio_control_stop(rf_audio_control_voice voices[RF_AUDIO_VOICES],uint32_t enabled,
     int32_t handle,void (*stop_device)(void *context,int32_t device),void *context);
+typedef struct rf_audio_control_start_backend {
+    int32_t (*prepare_sample)(void *context,int32_t sample); /*5054d0; only-1 rejects. */
+    uint32_t (*playing)(void *context,int32_t device); /*544360 low byte. */
+    void (*stop)(void *context,int32_t device); /*5442b0. */
+    int32_t (*start)(void *context,int32_t sample,float gain,float pan,uint32_t looping);
+} rf_audio_control_start_backend;
+/*505560: prepare sample, sweep all30 voices, select first negative sample,
+ * then5439d0/543a80 playback and generation assignment. Device failure stores
+ * the negative result but does not finish assignment. Category gain/loop byte
+ * are read after cleanup, so callback changes remain visible. Generation adds
+ * modulo32 bits; returned handle keeps the original low24 generation bits.
+ * Disabled uses low byte; finite gain/pan/volume and valid borrowed pointers/
+ * callbacks are caller preconditions. Callbacks retain table/metadata storage.
+ * No allocation here; prepared sample/device resources belong to the backend. */
+int32_t rf_audio_control_start(rf_audio_control_voice voices[RF_AUDIO_VOICES],uint32_t enabled,
+    int32_t sample,uint32_t category,float pan,float volume,const float *category_gain,
+    const uint8_t *looping,const rf_audio_control_start_backend *backend,void *context);
 typedef struct rf_audio_voice {
     rf_wave_pcm pcm;uint32_t handle,frame,phase,left,right,loop,active;
 } rf_audio_voice;
