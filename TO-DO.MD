@@ -2429,3 +2429,8 @@ Retained L1S1/L1S2/L1S3 room crossings match complete original4cd9e0 in2,160
 NXDK CPU-harness queries, including oblique faces and multiple primary roots;
 cached-room policy composition and live emitter ownership remain open.
 Evidence: tools/verify_loaded_room_crossing.py and docs/DAMAGE.md.
+
+Shared cached-room tracking and emitter room-token adapter now match complete
+original4cd970 across6,480 retained L1S1/L1S2/L1S3 scenarios on PC and NXDK;
+both builds and eight CTests pass. Connect live emitter ownership next.
+Evidence: tools/verify_loaded_room_tracking.py and docs/DAMAGE.md.

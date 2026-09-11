@@ -347,6 +347,22 @@ int main(int argc,char **argv)
         }
         rf_geometry_collision_movers_close(&movers);rf_geometry_collision_world_close(&world);return ferror(stdin)?6:0;
     }
+    if(argc==4 && !strcmp(argv[1],"--world-track")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};
+        struct {float points[6];uint32_t old,flags;} query;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,8u*1024u*1024u))return 3;
+        if(rf_geometry_collision_world_open(&geometry,8u*1024u*1024u,&world))return 4;
+        rf_geometry_close(&geometry);
+        while(fread(&query,sizeof(query),1,stdin)==1) {
+            struct {int32_t status;uint32_t room;int32_t adapter_status;uint32_t token;} result;
+            result.room=result.token=0xa5a5a5a5u;
+            result.status=rf_geometry_collision_world_track(&world,query.old,query.points,query.points+3,query.flags,&result.room);
+            result.adapter_status=rf_geometry_collision_world_track_emitter(&world,query.old==UINT32_MAX?0:query.old+1,
+                query.points,query.points+3,query.flags,&result.token);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 5;
+        }
+        rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return ferror(stdin)?6:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--world-locate-dump")) {
         rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};
         uint32_t i,j,k,p,n,bytes;void *poison;

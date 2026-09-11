@@ -175,6 +175,17 @@ void rf_geometry_collision_world_close(rf_geometry_collision_world *world);
  * Shares tree scratch, no allocation. Source geometry may already be closed. */
 int rf_geometry_collision_world_locate(const rf_geometry_collision_world *world,
     const float position[3],rf_collision_room_location *result);
+/*4cd970: retain a cached room until positive movement crosses an eligible face.
+ * UINT32_MAX means no cached/result room. The original flags input is ignored.
+ * Finite coordinates required; errors preserve result. Serialized tree scratch.
+ * Room indices belong to this world's lifetime, not serialized room IDs. */
+int rf_geometry_collision_world_track(const rf_geometry_collision_world *world,
+    uint32_t previous_room,const float previous_position[3],const float position[3],
+    uint32_t flags,uint32_t *room);
+/* rf_particle_room_locator adapter: context is this world; emitter room tokens
+ * are index+1, with zero denoting no room. No allocation or emitter mutation. */
+int rf_geometry_collision_world_track_emitter(void *context,uint32_t previous_room,
+    const float previous_position[3],const float position[3],uint32_t flags,uint32_t *room);
 int rf_geometry_collision_world_ray(const rf_geometry_collision_world *world,
     uint32_t flags,const float start[3],const float delta[3],float limit,
     rf_geometry_world_hit *result,uint32_t *matched);

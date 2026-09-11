@@ -992,3 +992,27 @@ This extends coverage beyond cube geometry to actual retained level trees.
 The reconstructed loader provides both inputs; the original loader is not
 executed, and this harness does not run PC crossings or native XEMU gameplay.
 Cached-room policy composition and live emitter ownership remain open.
+
+
+## Shared cached-room tracking
+
+rf_geometry_collision_world_track reconstructs4cd970 over the retained world:
+missing room uses the world locator; a finite unchanged position keeps its room;
+otherwise a qualifying crossing through all primary roots triggers fresh lookup.
+The fourth flag is ignored. For finite float coordinates, coordinate inequality
+preserves the original x87 positive-distance decision without SSE underflow.
+The API uses UINT32_MAX for no room and preserves output on errors.
+rf_geometry_collision_world_track_emitter adapts this to emitter tokens: index+1,
+zero absent. Tokens must belong to the same world lifetime. Both paths allocate
+nothing and share serialized tree scratch. Nonfinite coordinates are rejected
+explicitly, unlike the original cached NaN path which retained its room.
+
+verify_loaded_room_tracking.py compares complete unmodified4cd970, including its
+real crossing and locator callees, with PC and actual NXDK implementations.
+L1S1/L1S2/L1S3 each pass2,160 original scenarios, with both direct and adapter
+results checked:6,480 original cases and12,960 function results per platform.
+Missing rooms, stationary cached rooms, moving cached rooms and ignored flags
+are included. Reports: artifacts/loaded-room-tracking-L1S1.rfl.json and peers.
+PC and NXDK builds and all eight CTests pass. The original loader remains outside
+this comparison. The adapter is available for emitter movement, but persistent
+live effect ownership and native XEMU execution of this path remain open.

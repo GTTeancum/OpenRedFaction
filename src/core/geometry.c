@@ -602,6 +602,42 @@ int rf_geometry_collision_world_locate(const rf_geometry_collision_world *world,
     *result=value;return RF_OK;
 }
 
+int rf_geometry_collision_world_track(const rf_geometry_collision_world *world,
+    uint32_t previous_room,const float previous_position[3],const float position[3],
+    uint32_t flags,uint32_t *room)
+{
+    rf_collision_room_location location;rf_collision_crossing crossing;int status;
+    (void)flags;
+    if(!world || !room || !previous_position || !position)return RF_RANGE;
+    if(!finite_words((const unsigned char *)previous_position,3) ||
+       !finite_words((const unsigned char *)position,3))return RF_FORMAT;
+    if(previous_room!=UINT32_MAX) {
+        if(previous_room>=world->room_count)return RF_RANGE;
+        /* For finite binary32 coordinates, original x87 squared distance is
+         * positive exactly when any coordinate differs. Comparing coordinates
+         * avoids underflow on PC SSE for the smallest nonzero displacement. */
+        if(previous_position[0]==position[0] && previous_position[1]==position[1] &&
+           previous_position[2]==position[2]) {*room=previous_room;return RF_OK;}
+        status=rf_collision_cross_rooms(world->views,world->room_count,world->primary,
+            world->primary_count,UINT32_MAX,previous_position,position,&crossing);
+        if(status)return status;
+        if(crossing.room==UINT32_MAX) {*room=previous_room;return RF_OK;}
+    }
+    status=rf_geometry_collision_world_locate(world,position,&location);if(status)return status;
+    *room=location.room;return RF_OK;
+}
+
+int rf_geometry_collision_world_track_emitter(void *context,uint32_t previous_room,
+    const float previous_position[3],const float position[3],uint32_t flags,uint32_t *room)
+{
+    uint32_t result;int status;
+    if(!room)return RF_RANGE;
+    status=rf_geometry_collision_world_track((const rf_geometry_collision_world *)context,
+        previous_room?previous_room-1:UINT32_MAX,previous_position,position,flags,&result);
+    if(status)return status;
+    *room=result==UINT32_MAX?0:result+1;return RF_OK;
+}
+
 int rf_geometry_collision_world_ray(const rf_geometry_collision_world *world,
     uint32_t flags,const float start[3],const float delta[3],float limit,
     rf_geometry_world_hit *result,uint32_t *matched)

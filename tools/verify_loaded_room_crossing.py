@@ -52,7 +52,7 @@ for r,i,(geometry,count,flags,source,vertices) in sample:
             room,face=struct.unpack('<2I',x.mem_read(output,8))
             actual=(room,rooms[room][2][face][3]) if room!=0xffffffff else (room,face)
             assert actual==wanted,('crossing',r,i,distance,preferred,actual,wanted)
-            results.append(dict(source=source,preferred=preferred,distance=distance,room=room,face=actual[1]))
+            results.append(dict(source=source,preferred=preferred,distance=distance,room=room,face=actual[1],start=start,end=end))
 report=dict(result='PASS',level=ev['level'],rooms=len(rooms),primary=ev['primary_count'],sampled_faces=len(sample),oblique_faces=oblique,queries=len(results),hits=sum(v['room']!=0xffffffff for v in results),nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Complete original4cd9e0 vs NXDK over retained real-level trees; compare exact first room/source face. Short and long normal crossings, all primary roots and preferred room. Loader reconstruction remains shared input; no PC crossing execution or native XEMU gameplay.',results=results)
 (root/('artifacts/loaded-room-crossing-'+ev['level']+'.json')).write_text(json.dumps(report,indent=2)+'\n')
 print({k:v for k,v in report.items() if k!='results'})
