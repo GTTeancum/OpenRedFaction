@@ -1,5 +1,6 @@
 #include "rf/audio.h"
 #include "rf/level.h"
+#include "rf/timer.h"
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -42,6 +43,35 @@ rf_ambient_instance *rf_ambient_find(rf_ambient_instances *instances,uint32_t ui
     return NULL;
 }
 static uint32_t wave_u16(const uint8_t *p){return (uint32_t)p[0]|((uint32_t)p[1]<<8);}
+int rf_ambient_schedule(rf_ambient_instances *instances,rf_ambient_slot slots[RF_AMBIENT_SLOTS],
+    uint32_t enabled,int32_t now,uint32_t initial)
+{
+    uint32_t i;
+    if(!instances || !slots || (instances->count && !instances->items) || initial>1 ||
+        now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    for(i=0;i<instances->count;i++) {
+        const rf_ambient_instance *instance=instances->items+i;int32_t delay;
+        memcpy(&delay,&instance->authored_word,4);
+        if(initial && instance->slot==-1 && (delay < -RF_TIMER_PERIOD || delay>RF_TIMER_PERIOD))return RF_RANGE;
+        if(!initial && instance->slot<0 && instance->deadline>RF_TIMER_PERIOD)return RF_RANGE;
+    }
+    for(i=0;i<instances->count;i++) {
+        rf_ambient_instance *instance=instances->items+i;
+        if(initial) {
+            int32_t delay;if(instance->slot!=-1)continue;
+            memcpy(&delay,&instance->authored_word,4);
+            if(delay)rf_timer_set(&instance->deadline,now,delay);
+            else instance->slot=rf_ambient_slot_start(slots,enabled,instance->sample,instance->position,instance->volume);
+        } else if(instance->slot<0) {
+            int expired;rf_timer_expired(instance->deadline,now,&expired);
+            if(expired) {
+                instance->slot=rf_ambient_slot_start(slots,enabled,instance->sample,instance->position,instance->volume);
+                instance->deadline=-1;
+            }
+        } else rf_ambient_slot_position(slots,enabled,instance->slot,instance->position);
+    }
+    return RF_OK;
+}
 int32_t rf_ambient_slot_start(rf_ambient_slot slots[RF_AMBIENT_SLOTS],uint32_t enabled,
     int32_t sample,const float position[3],float volume)
 {

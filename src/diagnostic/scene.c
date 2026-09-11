@@ -424,6 +424,9 @@ static rf_object_registry campaign_registry;
 static rf_runtime_events campaign_events;
 static rf_level_owned_ambient campaign_ambient;
 static rf_ambient_instances campaign_ambient_instances;
+static rf_ambient_slot campaign_ambient_slots[RF_AMBIENT_SLOTS];
+static uint32_t campaign_ambient_frame;
+uint32_t rf_scene_ambient_schedule[6]; /* ticks, clock, occupied slots, pending timers, instance/table hashes */
 uint32_t rf_scene_ambient_records[3]; /* authored count, owner bytes, ordered record hash */
 uint32_t rf_scene_ambient_instances[4]; /* registered, rejected, owner bytes, ordered state hash */
 uint32_t rf_scene_switch_state[3]; /* count, enabled count, ordered persistent state hash */
@@ -523,6 +526,21 @@ static int32_t campaign_ambient_register(void *context,const char *name,float ne
     if(!status)return (int32_t)index;
     if(status==RF_NOT_FOUND)++rf_scene_live_audio[2];else ++rf_scene_live_audio[3];
     return -1;
+}
+static int campaign_ambient_schedule(int32_t now,uint32_t initial)
+{
+    uint32_t i;int status=rf_ambient_schedule(&campaign_ambient_instances,campaign_ambient_slots,1,now,initial);
+    if(status)return status;
+    if(!initial)++rf_scene_ambient_schedule[0];rf_scene_ambient_schedule[1]=(uint32_t)now;
+    rf_scene_ambient_schedule[2]=rf_scene_ambient_schedule[3]=0;
+    rf_scene_ambient_schedule[4]=rf_scene_ambient_schedule[5]=2166136261u;
+    for(i=0;i<RF_AMBIENT_SLOTS;i++)rf_scene_ambient_schedule[2]+=campaign_ambient_slots[i].sample>=0;
+    for(i=0;i<campaign_ambient_instances.count;i++)rf_scene_ambient_schedule[3]+=campaign_ambient_instances.items[i].deadline>=0;
+    for(i=0;i<campaign_ambient_instances.count*sizeof(*campaign_ambient_instances.items);i++)
+        rf_scene_ambient_schedule[4]=(rf_scene_ambient_schedule[4]^((unsigned char *)campaign_ambient_instances.items)[i])*16777619u;
+    for(i=0;i<sizeof(campaign_ambient_slots);i++)
+        rf_scene_ambient_schedule[5]=(rf_scene_ambient_schedule[5]^((unsigned char *)campaign_ambient_slots)[i])*16777619u;
+    return RF_OK;
 }
 static int campaign_audio_open(const char *tables_path,const char *level_name)
 {
@@ -1759,7 +1777,17 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=rf_camera_effect_apply_random(&campaign_force_shake,now,&stream->particles.state->random,(float *)orientation,&active);
         if(status)return status;
     }
-    if(campaign_spawn)campaign_audio_listener(position,orientation[0]);
+    if(campaign_spawn) {
+        campaign_audio_listener(position,orientation[0]);
+        /* Original480ef7 follows listener refresh. Use the owned replay clock;
+         * rendering the same frame again must not add a simulation tick. */
+        if(campaign_ambient_frame!=frame) {
+            uint64_t elapsed=(uint64_t)frame*1000/60;
+            int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
+            status=campaign_ambient_schedule(now,0);if(status)return status;
+            campaign_ambient_frame=frame;
+        }
+    }
     if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
         memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);
         if(rf_scene_particle_view_back) {
@@ -2264,6 +2292,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
+            memset(campaign_ambient_slots,0,sizeof(campaign_ambient_slots));
+            for(i=0;i<RF_AMBIENT_SLOTS;i++)campaign_ambient_slots[i].sample=campaign_ambient_slots[i].voice=-1;
+            memset(rf_scene_ambient_schedule,0,sizeof(rf_scene_ambient_schedule));campaign_ambient_frame=UINT32_MAX;
+            /* Original level startup435df0 calls45ade0 before levelstart.vcs. */
+            status=campaign_ambient_schedule(0,1);if(status)goto done;
             status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles, &campaign_forces,&rf_scene_startup_events);
             if(status)goto done;
             campaign_force_snapshot();campaign_switch_snapshot();

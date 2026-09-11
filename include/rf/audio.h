@@ -32,6 +32,14 @@ int32_t rf_ambient_slot_start(rf_ambient_slot slots[RF_AMBIENT_SLOTS],uint32_t e
     int32_t sample,const float position[3],float volume);
 void rf_ambient_slot_volume(rf_ambient_slot slots[RF_AMBIENT_SLOTS],uint32_t enabled,int32_t slot,float volume);
 void rf_ambient_slot_position(rf_ambient_slot slots[RF_AMBIENT_SLOTS],uint32_t enabled,int32_t slot,const float position[3]);
+/* Original45ade0 startup (initial=1) or45ae30 tick (initial=0), in instance
+ * order. Startup only handles slot==-1; tick handles every negative slot.
+ * A delayed allocation clears its timer even if no slot is available.
+ * Caller initializes/owns the slot table. No PCM/device work. Valid timer
+ * domain is the shared game clock's single period; invalid inputs preserve
+ * both owners. Instances/table must not overlap. */
+int rf_ambient_schedule(rf_ambient_instances *instances,rf_ambient_slot slots[RF_AMBIENT_SLOTS],
+    uint32_t enabled,int32_t now,uint32_t initial);
 /* DirectSound hundredths-of-dB adapter to linear L/R amplitude.
  * Volume -10000..0, pan -10000..10000; errors preserve output. */
 int rf_audio_device_gains(int32_t volume,int32_t pan,float output[2]);

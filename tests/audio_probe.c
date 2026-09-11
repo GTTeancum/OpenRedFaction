@@ -15,6 +15,20 @@ static int32_t ambient_register(void *context,const char *name,float near_distan
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--ambient-schedule")) {
+        struct {uint32_t enabled,initial;int32_t now;rf_ambient_instance items[4];rf_ambient_slot slots[RF_AMBIENT_SLOTS];} command;
+        _Static_assert(sizeof(command)==788,"Ambient scheduling command layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        for(;;) {
+            size_t received=fread(&command,1,sizeof(command),stdin);int status;
+            rf_ambient_instances instances={command.items,4,0,0};
+            if(!received)break;if(received!=sizeof(command))return 86;
+            status=rf_ambient_schedule(&instances,command.slots,command.enabled,command.now,command.initial);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(command.items,sizeof(command.items),1,stdout)!=1 ||
+                fwrite(command.slots,sizeof(command.slots),1,stdout)!=1)return 85;
+        }
+        return ferror(stdin)?84:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ambient-slots")) {
         struct {uint32_t operation,enabled;int32_t handle;float position[3],volume;rf_ambient_slot slots[RF_AMBIENT_SLOTS];} command;
         _Static_assert(sizeof(command)==628,"Ambient slot command layout");

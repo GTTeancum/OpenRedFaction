@@ -1,8 +1,8 @@
 # Ambient sound ownership
 
 The shared C campaign now owns authored ambient-sound records and creates runtime
-instances only after successful metadata registration. It does not yet schedule
-or play their loops. UID lookup retains original order and first-match behavior;
+instances only after successful metadata registration. It schedules logical
+ambient slots but does not yet play their loops. UID lookup retains original order and first-match behavior;
 failed registrations are omitted.
 
 ## Source evidence
@@ -76,7 +76,8 @@ playback, Switch sound mutation, or full campaign functionality.
 
 Establish the final authored word's meaning, loop scheduling, start/stop and
 volume changes; connect Switch sound dispatch; recover the light target owner
-so routing priority remains correct across both families.
+so routing priority remains correct across both families. The logical scheduler
+is connected; the audio-side slot processor and PCM residency remain open.
 
 ## Runtime registration and ordered lookup
 
@@ -160,5 +161,50 @@ setter4fa360. This identifies a startup-delay path rather than a bit flag.
 a valid, expired timer before allocation and clears the timer afterward, even
 if allocation returns-1. Direct calls to45ade0 occur at436040 and45c4e0;45ae30
 is called at480ef7. Full caller lifecycle, scheduler execution proofs and the
-separate audio-side table processing remain the next steps. No ambient slot
-is allocated by the live campaign yet, so no new ambient playback is claimed.
+separate audio-side table processing remain the next steps. At that checkpoint the slot helpers were not connected to the campaign; the
+scheduler integration below supersedes that limitation.
+
+
+## Connected startup and tick scheduling
+
+`rf_ambient_schedule` implements45ade0 startup and45ae30 per-frame updates.
+Startup only handles slot==-1: a zero authored delay allocates immediately;
+a nonzero signed delay sets the timer through the shared wrapped game clock.
+Other negative slot values are skipped at startup. Tick handles all negative
+slots, allocating only when their timer is valid and expired, then clearing
+the deadline even when allocation fails. Nonnegative slots update position.
+The helper preflights its timer-domain constraints before changing either owner.
+
+`verify_ambient_schedule.py` executes both original list sweeps, the actual
+slot/vector routines and timer routines without hooks. All2,048 original cases
+match PC and compiled NXDK instance bytes and the full600-byte table. Coverage
+includes startup equality versus tick signed tests, negative/positive delays,
+clock wrapping, expiry boundaries, full-table failures and disabled audio.
+Six invalid-input cases preserve both owners under the port contract.
+
+Original startup435df0 calls45ade0 at436040 before executing levelstart.vcs.
+Original480ef7 calls45ae30 immediately after listener refresh. The campaign
+now initializes the table at its startup boundary and ticks after listener
+refresh, using its owned60Hz replay clock. Repeated rendering of the same frame
+does not add another tick. The table adds600 static bytes; it neither preloads
+ambient PCM nor starts mixer/device voices. Full original frame timing and
+other lifecycle paths, including the second startup call at45c4e0, remain open.
+The initial AMBIENT_INSTANCES snapshot remains registration evidence;
+AMBIENT_SCHEDULE contains live scheduling state.
+
+`replay_ambient_schedule.py` checks two authored timing boundaries without input
+staging. L4S2 UID1519 remains pending at483ms with six occupied slots and starts
+at500ms with seven. L1S2 UID9925 remains pending at83ms; at100ms it attempts to
+start into the full25-slot table, clears its timer, and leaves the table hash
+unchanged. Audio-side slot processing/recycling is not connected yet, so these
+are logical scheduling checks rather than complete original audio trajectories.
+
+Native64MiB L4S2 replay20260910-224846 matches PC at500ms:
+AMBIENT_SCHEDULE=[31,500,7,0,967988799,2945009360]. Startup, event/physics state,
+registration and sound-bank comparisons also pass. Audible ambient output,
+streaming/residency, device voice creation and Switch volume propagation to the
+device remain unfinished.
+
+Native64MiB L1S2 replay20260911-001906 also passes the full-table case at100ms:
+AMBIENT_SCHEDULE=[7,100,25,0,3414608215,1929861464], matching PC exactly.
+PC/NXDK builds and all eight CTests pass.
