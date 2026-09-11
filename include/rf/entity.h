@@ -130,6 +130,9 @@ typedef struct rf_entity_damage_sound_backend {
  * after playback). Other fields remain stable. No sample loading here. */
 int rf_entity_damage_sound(rf_entity_damage_sound_state *state,float fraction,
     uint32_t predicate_a,uint32_t predicate_b,int32_t now,const rf_entity_damage_sound_backend *backend);
+/*42cca0 for a present entity: class724 bit02000000, armor>0,814 bit20 clear.
+ * Normalized low-byte result; a missing entity is handled by caller lookup. */
+uint32_t rf_entity_armor_immunity(float armor,uint32_t class_flags_724,uint32_t flags_814);
 typedef struct rf_damage_object {uint32_t type,flags;float health;} rf_damage_object;
 typedef struct rf_damage_request {
     float amount;uint32_t source;int32_t kind;uint32_t argument6,auxiliary_uid,force;

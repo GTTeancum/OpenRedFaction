@@ -221,6 +221,10 @@ int rf_entity_damage_credit_sp(rf_entity_damage_credit *state,int32_t kind,
     state->responsible_handle=responsible;return RF_OK;
 }
 
+uint32_t rf_entity_armor_immunity(float armor,uint32_t class_flags_724,uint32_t flags_814)
+{
+    return (class_flags_724&0x02000000) && armor>0 && !(flags_814&0x20);
+}
 int rf_damage_dispatch_sp(uint32_t target,const rf_damage_request *request,
     float difficulty_multiplier,const rf_damage_backend *backend,float *result)
 {

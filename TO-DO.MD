@@ -2302,3 +2302,8 @@ creation gates/source resolution, pain thresholds, kind6 voice, player feedback
 and AI notification. External effects remain supplied; next reconstruct shared
 orchestration and effect ownership. See docs/DAMAGE.md and
 tools/verify_damage_effects_trace.py.
+
+Armor immunity42cca0 is now shared C, with4,096 original/PC/NXDK cases
+including full flag words and floating boundaries. Damage dispatch8,194 cases
+and eight CTests still pass; PC/Xbox builds pass. Owned predicate adapters
+and shared burn/effect orchestration remain open; see docs/DAMAGE.md.

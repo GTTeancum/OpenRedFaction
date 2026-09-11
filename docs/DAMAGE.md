@@ -195,3 +195,27 @@ queried afresh; selection, positive pre-hit health and positive class-scaled
 damage request4a7520 except for kind10. Finally4895d0 is queried; a zero low
 byte and positive current health request407fb0(entity+2a0,source,incoming,0).
 Reconstruct these effect owners before claiming campaign damage support.
+
+## Entity-state predicates for integration
+
+rf_entity_armor_immunity reconstructs the normalized low byte of42cca0 for a
+present entity: class724 bit02000000 must be set, current armor must be
+strictly positive, and entity814 bit20 must be clear. A missing entity is
+handled by the dispatcher's lookup stage. The predicate preserves original
+floating comparison behavior, including false for quiet NaN and signed zero.
+It requires class and entity flag ownership before live use.
+
+verify_armor_immunity.py compares complete original42cca0, without hooks,
+against PC and NXDK code for4,096 cases. Inputs include random complete flag
+words, positive/negative armor, signed zero, subnormal, infinities and quiet
+NaN. The report records executable hashes in artifacts/armor-immunity.json.
+
+Other predicate dependencies overlap existing entity/trigger reconstruction:
+429990 checks class type1;4290d0 resolves linked handle200 and checks class1.
+427020 returns low-byte1 for a missing entity, otherwise entity810 bit1.
+42a8e0 requires object7c bit8 plus nonnull1430;429a80 instead requires bit8
+with42a8e0 false. Consequently the sequential burn gate excludes both forms
+of bit8, but its original predicate call order must still be preserved.
+These findings come from the exported original functions; the new compiled
+comparison here covers42cca0 only. Shared burn orchestration and live owned
+predicate adapters remain open.

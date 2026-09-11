@@ -48,6 +48,14 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--armor-immunity")) {
+        uint32_t wire[3],result;float armor;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            memcpy(&armor,wire,4);result=rf_entity_armor_immunity(armor,wire[1],wire[2]);fwrite(&result,4,1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--damage-dispatch")) {
         uint32_t wire[15];rf_damage_request request;float multiplier,result;int status;
         rf_damage_backend backend={dispatch_lookup,dispatch_predicate,dispatch_effect_call,NULL};
