@@ -183,3 +183,39 @@ factory's later base mapping population/copy. Do not apply the default weapon
 at an invented point merely because its ID is now available. The original first
 41f270 selector call and subsequent503360 update must be reproduced with their
 actual constructor inputs before claiming a faithful initial pose.
+
+## First-selector evidence and remaining assumptions
+
+`inspect_npc_initial_selection.py` executes full original41f400 using actual
+opening-level base maps, class movement modes/flags and default weapons. The
+402d68..402dac scalar initializer span executes unchanged. Thirty-three cases
+(11 class/level combinations, three prior values for actor+1380) match the PC
+priority/movement composition. env_guard/miner1/run, Grabber/robot-fly and
+Cutter/bat/hover retain logical current0/next-1. Fish/swim requests next18
+(swim_stand), duration0.25, elapsed0. This is selection only, before41f270's
+weight/time update and503360's first playback advance. No pose is rendered.
+
+The fixture explicitly uses a nonplayer with no links, zero velocity and zero
+unspecified actor state, kind0 classification and no external events. Actual
+class flags, mode and default weapon IDs are loaded; the full allocator/factory
+and all prior side effects are not reproduced. Per-case actor read offsets are
+recorded to guide the remaining constructor audit. It would be incorrect to
+promote these fixtures to proof of all authored NPC startup behavior.
+
+The older `inspect_initial_player_motion.py` now tests actor+1380 at0,-1 and
+123456 instead of assuming-1. Its24 cases still match original41f270 versus PC
+movement/controller composition. Neither that fixture nor the33 NPC cases reads
++1380 along the exercised path, so changing that value does not affect results.
+This is not proof of the field's initial value in other branches.
+
+`inspect_entity_constructor.py` executes40e380 and its actual member constructors
+on32 patterned1494-byte buffers. The constructor preserves+1380 and the other
+listed selector-related scalar samples; it does not blanket-zero actor storage.
+The observed member write ranges are retained in the report. Allocation policy
+and later generic/entity factory writes are excluded. In particular, the later
+explicit+1380 write cannot be moved earlier without checking its consumers.
+
+No C implementation changed in this audit. Next work is to materialize verified
+constructor inputs and run the first controller/playback update against loaded
+motion envelopes, then connect pose evaluation. An unconditional idle animation
+for every NPC would already contradict the observed fish selector path.

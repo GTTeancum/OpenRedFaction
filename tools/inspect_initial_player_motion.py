@@ -5,7 +5,7 @@ import hashlib,itertools,json,struct,subprocess,sys
 from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
-from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_CODE
+from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_CODE,UC_HOOK_MEM_READ
 from unicorn.x86_const import *
 exe=root/'Installed_Game/RF.exe'
 assert hashlib.sha256(exe.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
@@ -34,7 +34,10 @@ def call(address,end=stop):
  except Exception:
   print('trace',[hex(a) for a in trace]);raise
  assert u.reg_read(UC_X86_REG_EIP)==end
-for player,primary,secondary in itertools.product((0,1),(-1,5),(-1,6)):
+field_reads=[]
+u.hook_add(UC_HOOK_MEM_READ,lambda uc,access,address,size,value,data:field_reads.append((address-entity,size)),begin=entity+0x1380,end=entity+0x1383)
+for player,primary,secondary,prior_action in itertools.product((0,1),(-1,5),(-1,6),(0,-1,123456)):
+ field_reads.clear()
  u.mem_write(entity,bytes(65536));u.mem_write(info,bytes(65536));u.mem_write(mode,bytes(65536))
  # 422360 param6 bit1 -> generic object flag8; 4a41bf supplies one.
  put(entity+0x7c,'<I',8 if player else 0)
@@ -51,7 +54,7 @@ for player,primary,secondary in itertools.product((0,1),(-1,5),(-1,6)):
  call(0x402d68,0x402dad)
  assert bytes(u.mem_read(entity+0x520,4))==bytes(4)
  assert bytes(u.mem_read(entity+0x554,4))==bytes(4)
- put(entity+0x834,'<i',-1);put(entity+0x1380,'<i',-1)
+ put(entity+0x834,'<i',-1);put(entity+0x1380,'<i',prior_action)
  put(entity+0x138c,'<iiff',0,-1,0,0)
  put(entity+0x8c0,'<f',6)
  for i in range(23):put(entity+0x8e4+16*i,'<i',i)
@@ -82,8 +85,8 @@ for player,primary,secondary in itertools.product((0,1),(-1,5),(-1,6)):
  controller=struct.unpack('<iiff',read(entity+0x138c,16))
  assert controller[:2]==(0,1 if player and armed else -1)
  count=struct.unpack_from('<I',state)[0]
- results.append(dict(player_flag=player,primary=primary,secondary=secondary,controller=controller,
+ results.append(dict(player_flag=player,primary=primary,secondary=secondary,prior_action=prior_action,prior_action_reads=len(field_reads),controller=controller,
                      slots=[struct.unpack_from('<iif',state,4+12*i) for i in range(count)]))
 report=dict(result='PASS',cases=len(results),results=results,
- scope='Original complete 41f270 and unmodified callees against PC movement/controller composition; creation-field fixtures, not complete 422360/4a4130 or loaded model pose. Scalar action/behavior defaults execute 402d68..402dac; remaining fields explicitly materialized.')
+ scope='Original complete 41f270 and unmodified callees against PC movement/controller composition; creation-field fixtures, not complete 422360/4a4130 or loaded model pose. Scalar action/behavior defaults execute 402d68..402dac; remaining fields explicitly materialized. Field1380 tested at0/-1/123456 rather than assumed initialized before selector.')
 (root/'artifacts/initial-player-motion.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))

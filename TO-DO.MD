@@ -16,6 +16,10 @@ Effective weapon animation overlays now pass original/PC/NXDK comparison;
 weapon-ID lookup, alias and sound-label selection pass484 combinations.
 Recover exact startup ordering and initialize the live selector.
 
+Opening NPC selector fixtures now match33 original/PC cases: fish transition
+to swim_stand, while other tested classes retain state0. Full construction and
+first pose/weight update remain open; no live NPC animation is claimed.
+
 Immediate open items:
 - [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
