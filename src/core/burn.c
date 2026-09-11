@@ -4,9 +4,9 @@ int rf_burn_retarget(rf_burn_record *r,uint32_t token,uint32_t target,
     uint32_t *flags,int32_t *const owners[4],const rf_burn_retarget_backend *be)
 {
     uint32_t i,j;int status;
-    if(!r || !be || !be->release || !be->attachments)return RF_RANGE;
-    if(!flags) {be->release(be->context,token);return RF_OK;}
-    if(!owners)return RF_RANGE;
+    if(!r || !be)return RF_RANGE;
+    if(!flags) {if(!be->release)return RF_RANGE;be->release(be->context,token);return RF_OK;}
+    if(!owners || !be->attachments)return RF_RANGE;
     for(i=0;i<4;i++) {
         if(!owners[i])return RF_RANGE;
         for(j=0;j<i;j++)if(owners[i]==owners[j])return RF_RANGE;
@@ -391,6 +391,36 @@ int rf_burn_resolve_bones(const rf_model_name *bones,uint32_t count,int32_t indi
         indices[group]=index;if(index==-1)missing=1;
     }
     return missing?RF_NOT_FOUND:RF_OK;
+}
+
+typedef struct burn_retarget_bones {const rf_model_name *names;uint32_t count;} burn_retarget_bones;
+static int burn_retarget_resolve(void *context,uint32_t target,int32_t indices[4])
+{
+    const burn_retarget_bones *b=context;(void)target;
+    return rf_burn_resolve_bones(b->names,b->count,indices);
+}
+int rf_burn_retarget_resolved(rf_burn_pool *p,uint32_t token,uint32_t target,
+    uint32_t *flags,const rf_model_name *bones,uint32_t count,rf_emitter_pool *emitters,
+    const rf_burn_release_owner_backend *release)
+{
+    burn_retarget_bones context={bones,count};rf_burn_retarget_backend backend={burn_retarget_resolve,NULL,&context};
+    rf_burn_record *r;int32_t *owners[4];uint32_t i,j,seen=0;int status;
+    if(!p || token<1 || token>RF_BURN_SLOTS)return RF_RANGE;
+    if(!ring_valid(p,p->active_head,&seen) || !(seen&(1u<<(token-1))) || !ring_valid(p,p->free_head,&seen))return RF_FORMAT;
+    if(!flags)return rf_burn_release_resolved(p,token,0,emitters,release);
+    if(!emitters || !emitters->slots || (count && !bones) || count>(uint32_t)INT32_MAX)return RF_RANGE;
+    if(emitters->live<4)return RF_FORMAT;
+    r=&p->records[token-1];
+    for(i=0;i<4;i++) {
+        uint32_t id=r->emitters[i];
+        if(!id || id>RF_PARTICLE_EMITTER_CAPACITY || !emitters->slots[id-1].active)return RF_RANGE;
+        for(j=0;j<i;j++)if(id==r->emitters[j])return RF_FORMAT;
+        owners[i]=&emitters->slots[id-1].runtime.emitter.owner;
+    }
+    status=rf_burn_retarget(r,token,target,flags,owners,&backend);if(status)return status;
+    /* Both fields represent original emitter+4; bounds must follow ownership. */
+    for(i=0;i<4;i++)emitters->slots[r->emitters[i]-1].bounds.owner=(int32_t)target;
+    return RF_OK;
 }
 
 static int burn_pose_attachment(void *context,int32_t index,float position[3])

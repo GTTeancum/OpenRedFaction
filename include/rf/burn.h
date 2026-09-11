@@ -53,6 +53,18 @@ typedef struct rf_burn_release_owner_backend {
  * external callbacks cannot mutate these pools or burn links. No allocation. */
 int rf_burn_release_resolved(rf_burn_pool *pool,uint32_t token,uint32_t reset_only,
     rf_emitter_pool *emitters,const rf_burn_release_owner_backend *backend);
+/*42f510 over an active burn and four distinct active emitter slot+1 tokens.
+ * Real bone resolver retains partial matches. Keeps runtime/bounds owner
+ * copies synchronized without changing particle owners or resource lists.
+ * NULL flags means missing target: performs resolved release, including
+ * surviving-particle detachment and voice/owner cleanup. Release callbacks
+ * are required only on that path; bones only on the present-target path.
+ * Caller owns target flags and bone names through return. No allocation;
+ * invalid topology/tokens fail before mutations, bone errors follow target
+ * commit as in the core adapter. Does not publish a corpse owner field. */
+int rf_burn_retarget_resolved(rf_burn_pool *pool,uint32_t token,uint32_t target,
+    uint32_t *target_flags,const rf_model_name *bones,uint32_t bone_count,
+    rf_emitter_pool *emitters,const rf_burn_release_owner_backend *release);
 /*42e8a0: clean all8 existing payloads, rebuild free list in array order and
  * clear spread deadline. New storage must be zero-initialized before first
  * call; subsequent calls release existing resources. Source/padding survive. */

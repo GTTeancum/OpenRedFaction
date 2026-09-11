@@ -477,3 +477,25 @@ observation of the committed target. Both builds and all12 CTests pass.
 No allocation is introduced. The caller must still resolve live emitter
 owner fields and attach the verified bone/release implementations. Corpse
 creation and transfer of the actor/corpse burn-owner fields remain separate.
+
+
+## Burn retargeting over retained resources
+
+`rf_burn_retarget_resolved` now validates active burn membership and four
+distinct active emitter tokens, invokes the real bone-name resolver, and
+updates emitter runtime.owner plus bounds.owner. Both fields represent
+original emitter+4 and must agree after transfer. Already-emitted particles
+retain their owners and list membership. No resources are allocated and
+voice ownership is unchanged on success. A missing target instead invokes
+`rf_burn_release_resolved`, detaching surviving particles, returning emitter
+slots, stopping the voice and clearing the burn owner.
+
+The new burn_retarget_resources CTest uses actual particle/emitter pools,
+a partial head/spine skeleton and particles already in flight. It checks
+that duplicate/inactive emitter references fail before mutation; successful
+retargeting preserves every particle byte and list; and missing-target
+cleanup leaves particles alive, with emitter tokens cleared, while all four
+emitters return to the pool. Both builds and all13 CTests pass, as does the
+4096-case original/PC/NXDK core retarget verifier. The resolved adapter has
+PC resource coverage, not native XEMU invocation yet. Live corpse ownership
+and dispatch remain open.
