@@ -15,6 +15,12 @@
  * Returns a port device voice ID; does not assign entity808 or load PCM.
  * Errors preserve the output ID. Listener updates affect positional voices only. */
 int rf_scene_sound_play_request(const rf_player_sound_request *request,int32_t *voice);
+/* Living registered campaign player in the current first-person eye profile.
+ * Retains4196f0 cooldown/voice and class sound groups, shares caller RNG, lazily
+ * loads bounded PCM and dispatches nonpositional playback. Does not update808.
+ * Other camera profiles and death require their own owners and return NOT_FOUND.
+ * Caller supplies the pain fraction and current timer; not attached to hazards. */
+int rf_scene_player_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random);
 
 /* Borrowed services for runtime damage events targeting registered NPCs/player.
  * Caller updates clock/difficulty and supplies complete synchronous reactions.

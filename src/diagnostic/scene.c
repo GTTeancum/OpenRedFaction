@@ -416,6 +416,8 @@ typedef struct campaign_player_damage_owner {
     float factors[11];uint32_t class_flags,object_flags;
 } campaign_player_damage_owner;
 static campaign_player_damage_owner campaign_player_damage;
+static struct {int32_t groups[2],deadline,voice;} campaign_player_pain_sound;
+uint32_t rf_scene_player_pain_audio[9]; /* same fields as NPC pain audio */
 uint32_t rf_scene_player_vitals[6]; /* health/armor/class health/class armor bits, owner bytes, factor hash */
 static int campaign_player_damage_open(rf_vpp *tables,const char *name,const rf_entity_class_physics *physics)
 {
@@ -434,6 +436,10 @@ static int campaign_player_damage_open(rf_vpp *tables,const char *name,const rf_
     owner.state.effects.class_flags_728=physics->flags2;owner.class_flags=physics->flags;
     owner.state.effects.voice=UINT32_MAX;owner.state.responsible_handle=UINT32_MAX;owner.state.burn_source=UINT32_MAX;
     campaign_player_damage=owner;
+    campaign_player_pain_sound.groups[0]=campaign_player_pain_sound.groups[1]=-1;
+    campaign_player_pain_sound.voice=-1;
+    status=rf_timer_set(&campaign_player_pain_sound.deadline,0,0);if(status)return status;
+    memset(rf_scene_player_pain_audio,0,sizeof(rf_scene_player_pain_audio));
     memcpy(rf_scene_player_vitals,&owner.state.effects.health,16);rf_scene_player_vitals[4]=sizeof(owner);
     for(i=0;i<sizeof(owner.factors);++i)hash=(hash^((const unsigned char *)owner.factors)[i])*16777619u;
     rf_scene_player_vitals[5]=hash;return RF_OK;
@@ -875,7 +881,7 @@ static int campaign_ambient_schedule(int32_t now,uint32_t initial)
         rf_scene_ambient_schedule[5]=(rf_scene_ambient_schedule[5]^((unsigned char *)campaign_ambient_slots)[i])*16777619u;
     return RF_OK;
 }
-static int campaign_audio_open(const char *tables_path,const char *level_name)
+static int campaign_audio_open(const char *tables_path,const char *level_name,const char *player_class)
 {
     char path[1024];size_t prefix=0,n;uint32_t i,j,index,capacity;
     rf_vpp archive={0},tables={0};rf_audio_declaration *declarations=NULL;uint32_t declared=0,foley_groups,foley_samples,foley_bank_bytes,global_hash=2166136261u;
@@ -947,12 +953,14 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
     if(global_hash!=rf_scene_foley[6]){status=RF_FORMAT;goto audio_done;}
     rf_scene_foley[7]=npc_hash_bytes(2166136261u,campaign_foley.samples,campaign_foley.sample_count*4);
     free(foley_text);foley_text=NULL;
-    if(campaign_seeds.class_count) {
+    if(campaign_seeds.class_count || player_class) {
         if(campaign_seeds.class_count>640){status=RF_RANGE;goto audio_done;}
-        campaign_footstep_groups=malloc(campaign_seeds.class_count*sizeof(*campaign_footstep_groups));
-        if(!campaign_footstep_groups){status=RF_RANGE;goto audio_done;}
-        campaign_pain_groups=malloc(campaign_seeds.class_count*sizeof(*campaign_pain_groups));
-        if(!campaign_pain_groups){status=RF_RANGE;goto audio_done;}
+        if(campaign_seeds.class_count) {
+            campaign_footstep_groups=malloc(campaign_seeds.class_count*sizeof(*campaign_footstep_groups));
+            if(!campaign_footstep_groups){status=RF_RANGE;goto audio_done;}
+            campaign_pain_groups=malloc(campaign_seeds.class_count*sizeof(*campaign_pain_groups));
+            if(!campaign_pain_groups){status=RF_RANGE;goto audio_done;}
+        }
         status=rf_vpp_find(&tables,"entity.tbl",&entity_entry);if(status)goto audio_done;
         if(!entity_entry.size || entity_entry.size>1024*1024){status=RF_RANGE;goto audio_done;}
         entity_text=malloc(entity_entry.size);if(!entity_text){status=RF_RANGE;goto audio_done;}
@@ -962,6 +970,10 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
             status=rf_entity_footstep_groups_read(entity_text,entity_entry.size,name,&campaign_foley,campaign_footstep_groups[i]);
             if(status)goto audio_done;
             status=rf_entity_pain_groups_read(entity_text,entity_entry.size,name,&campaign_foley,campaign_pain_groups[i]);
+            if(status)goto audio_done;
+        }
+        if(player_class) {
+            status=rf_entity_pain_groups_read(entity_text,entity_entry.size,player_class,&campaign_foley,campaign_player_pain_sound.groups);
             if(status)goto audio_done;
         }
         free(entity_text);entity_text=NULL;
@@ -2104,7 +2116,7 @@ int rf_scene_npc_pain(uint32_t handle,int32_t now,rf_random_state *random,const 
 }
 uint32_t rf_scene_npc_pain_audio[9]; /* calls, selections, plays, loads, PCM bytes, last sample, RNG, errors, name hash */
 uint32_t rf_scene_npc_pain_sound_test[10]; /* two deadline/voice/sample/RNG/play-count snapshots */
-typedef struct campaign_pain_audio_context {rf_random_state *random;int status;} campaign_pain_audio_context;
+typedef struct campaign_pain_audio_context {rf_random_state *random;int status;uint32_t *telemetry,player;} campaign_pain_audio_context;
 static int32_t campaign_pain_audio_resolve(void *context,int32_t group)
 {
     campaign_pain_audio_context *c=context;const rf_foley_group *g;
@@ -2117,7 +2129,7 @@ static int32_t campaign_pain_audio_resolve(void *context,int32_t group)
     input.object_kind=1;
     c->status=rf_audio_group_choose(&input,campaign_foley.samples+g->first,g->count,(int32_t)g->count,c->random,&request);
     if(c->status)return -1;
-    ++rf_scene_npc_pain_audio[1];rf_scene_npc_pain_audio[5]=(uint32_t)request.sample;
+    ++c->telemetry[1];c->telemetry[5]=(uint32_t)request.sample;
     return request.sample;
 }
 static int32_t campaign_pain_audio_playing(void *context,int32_t voice)
@@ -2133,22 +2145,29 @@ static void campaign_pain_audio_play(void *context,const float position[3],int32
     {const unsigned char *name=(const unsigned char *)campaign_audio_bank.samples[sample].name;
      uint32_t hash=2166136261u;for(;*name;++name) {
         uint32_t ch=*name;if(ch>='A' && ch<='Z')ch+='a'-'A';hash=(hash^ch)*16777619u;
-     }rf_scene_npc_pain_audio[8]=hash;}
+     }c->telemetry[8]=hash;}
     if(!rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample)) {
         c->status=campaign_ambient_reload((uint32_t)sample);if(c->status)return;
         if((uint32_t)sample<sizeof(campaign_audio_evictable))campaign_audio_evictable[sample]=1;
         ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[sample].bytes;
         rf_scene_live_audio[1]=campaign_audio_bank.bytes;
-        ++rf_scene_npc_pain_audio[3];rf_scene_npc_pain_audio[4]+=campaign_audio_bank.samples[sample].bytes;
+        ++c->telemetry[3];c->telemetry[4]+=campaign_audio_bank.samples[sample].bytes;
     }
-    if(campaign_sound_play(NULL,sample,position,1,0)<0){c->status=RF_IO;return;}
-    ++rf_scene_npc_pain_audio[2];
+    if(c->player) {
+        rf_player_sound_input input={0};rf_player_sound_request request;int32_t voice;
+        input.owner_present=1;input.sound_id=sample;input.volume=1;
+        memcpy(input.position,position,12);
+        c->status=rf_player_sound_route(&input,&request);
+        if(!c->status)c->status=rf_scene_sound_play_request(&request,&voice);
+        if(c->status)return;
+    } else if(campaign_sound_play(NULL,sample,position,1,0)<0){c->status=RF_IO;return;}
+    ++c->telemetry[2];
     /* Original48a9c0 does not store the returned voice in entity+808. */
 }
 int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random)
 {
     uint32_t i,cls;int status;campaign_npc_body *owner;
-    rf_entity_damage_sound_state state={0};campaign_pain_audio_context context={random,0};
+    rf_entity_damage_sound_state state={0};campaign_pain_audio_context context={random,0,rf_scene_npc_pain_audio,0};
     rf_entity_damage_sound_backend backend={campaign_pain_audio_resolve,campaign_pain_audio_playing,campaign_pain_audio_play,&context};
     if(!random || !isfinite(fraction) || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
@@ -2167,6 +2186,27 @@ int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random
     owner->pain_sound.deadline=state.deadline;
     rf_scene_npc_pain_audio[6]=random->value;
     if(context.status || status)++rf_scene_npc_pain_audio[7];
+    return context.status?context.status:status;
+}
+int rf_scene_player_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random)
+{
+    rf_entity_damage_sound_state state={0};int status;
+    campaign_pain_audio_context context={random,0,rf_scene_player_pain_audio,1};
+    rf_entity_damage_sound_backend backend={campaign_pain_audio_resolve,campaign_pain_audio_playing,campaign_pain_audio_play,&context};
+    if(!random || !isfinite(fraction) || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    if(!campaign_spawn || !rf_scene_actor_eye_enabled ||
+       rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&campaign_player_view ||
+       campaign_player_damage.state.effects.handle!=handle || !(campaign_player_view.flags_7c&8))return RF_NOT_FOUND;
+    if(campaign_player_damage.state.effects.health<=0)return RF_NOT_FOUND; /* Death owns separate descriptors. */
+    state.health=campaign_player_damage.state.effects.health;state.flags=campaign_player_view.flags_810;
+    state.death_descriptor=state.death_class=-1;
+    state.light_class=campaign_player_pain_sound.groups[0];state.heavy_class=campaign_player_pain_sound.groups[1];
+    state.action=campaign_player_view.action_520;state.deadline=campaign_player_pain_sound.deadline;state.voice=campaign_player_pain_sound.voice;
+    /* Mode0 playback does not consume position; no fabricated entity eye owner. */
+    ++rf_scene_player_pain_audio[0];
+    status=rf_entity_damage_sound(&state,fraction,campaign_player_view.flags_810&1u,1,now,&backend);
+    campaign_player_pain_sound.deadline=state.deadline;rf_scene_player_pain_audio[6]=random->value;
+    if(context.status || status)++rf_scene_player_pain_audio[7];
     return context.status?context.status:status;
 }
 int rf_scene_npc_damage_ai(uint32_t handle,uint32_t source)
@@ -2261,6 +2301,24 @@ static int campaign_npc_damage_fixture(void)
 }
 
 static float campaign_jump_strength;
+uint32_t rf_scene_player_pain_test[21]; /* three deadline/voice/sample/RNG/play/group/flat-voice snapshots */
+static int campaign_player_pain_fixture(void)
+{
+    rf_random_state random={1};uint32_t pass,i;int status;
+    memset(rf_scene_player_pain_test,0,sizeof(rf_scene_player_pain_test));
+    if(rf_scene_npc_damage_test_uid==UINT32_MAX)return RF_OK;
+    for(pass=0;pass<3;++pass) {
+        uint32_t *words=rf_scene_player_pain_test+pass*7;
+        status=rf_scene_player_pain_sound((uint32_t)campaign_player_view.handle,pass?1:.1f,pass==2?2000:1000,&random);
+        if(status)return status;
+        words[0]=(uint32_t)campaign_player_pain_sound.deadline;words[1]=(uint32_t)campaign_player_pain_sound.voice;
+        words[2]=rf_scene_player_pain_audio[5];words[3]=random.value;words[4]=rf_scene_player_pain_audio[2];
+        words[5]=(uint32_t)campaign_player_pain_sound.groups[pass==2?1:0];
+        for(i=0;i<RF_AUDIO_VOICES;++i)if(campaign_audio_mixer.voices[i].active &&
+            campaign_spatial_voices[i].handle && !campaign_spatial_voices[i].positional)++words[6];
+    }
+    return RF_OK;
+}
 static rf_player_climb_state campaign_climb;
 static const float campaign_identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
 uint32_t rf_scene_player_climb_frames[128][9]; /* frame, region, mode, position XYZ, velocity XYZ before motion */
@@ -3669,7 +3727,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             for(i=0;i<campaign_movers.count;i++)campaign_surface_sources[i+1]=&actor_follow_world->movers.items[i].geometry;
             campaign_controller_requests=calloc(campaign_group_runtime.count?campaign_group_runtime.count:1,sizeof(*campaign_controller_requests));
             if(!campaign_controller_requests){status=RF_RANGE;goto done;}
-            status=campaign_audio_open(tables_path,level->entry.name);if(status)goto done;
+            status=campaign_audio_open(tables_path,level->entry.name,binding.entity.class_name);if(status)goto done;
             memset(rf_scene_live_activation,0,sizeof(rf_scene_live_activation));campaign_actor_controller=UINT32_MAX;
             memset(rf_scene_trigger_contacts,0,sizeof(rf_scene_trigger_contacts));
             memset(&campaign_entities,0,sizeof(campaign_entities));memset(&campaign_player_view,0,sizeof(campaign_player_view));
@@ -3681,7 +3739,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_player_damage.state.effects.handle=campaign_player_object.handle;
             rf_scene_campaign_player[0]=campaign_player_object.handle;rf_scene_campaign_player[1]=campaign_player_object.object_kind;
             rf_scene_campaign_player[2]=campaign_player_view.flags_7c;
-            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object)+sizeof(campaign_player_flash)+sizeof(campaign_player_damage);
+            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object)+sizeof(campaign_player_flash)+sizeof(campaign_player_damage)+sizeof(campaign_player_pain_sound);
             memset(rf_scene_actor_body_sweeps,0,sizeof(rf_scene_actor_body_sweeps));
             memset(rf_scene_actor_ground_queries,0,sizeof(rf_scene_actor_ground_queries));
             memset(rf_scene_actor_ground_contacts,0,sizeof(rf_scene_actor_ground_contacts));
@@ -3760,6 +3818,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_resolve_trigger_links();if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;
             status=campaign_npc_damage_fixture();if(status)goto done;
+            status=campaign_player_pain_fixture();if(status)goto done;
             memset(rf_scene_npc_playback,0,sizeof(rf_scene_npc_playback));
             memset(rf_scene_npc_gate,0,sizeof(rf_scene_npc_gate));
             status=campaign_npc_geometry_digest();if(status)goto done;

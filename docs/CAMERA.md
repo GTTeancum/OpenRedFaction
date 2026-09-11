@@ -4136,3 +4136,53 @@ pan by1000 before ftol without that clamp. The adapter accepts the device range
 [-10,10] and rejects values beyond it. PC tests additionally check pan2 becomes
 2000 and pan11 fails without publishing an ID. Both builds and all12 tests
 pass after that correction. No screenshot or new audible campaign event.
+
+
+## Retained living-player pain sound and bounded PCM binding
+
+rf_scene_player_pain_sound now composes the verified4196f0 selection/cooldown
+with shared group RNG, bounded campaign PCM reload and48a9c0 nonpositional
+playback. It requires the generation-checked local player, matching damage
+handle, positive health, object flag8 and the current campaign first-person
+profile. Unknown camera profiles and death return NOT_FOUND instead of guessing.
+The player retains16 bytes: two class group IDs, deadline1458 and voice808.
+Initialization sets deadline from the existing zero construction clock and
+voice-1. Playing a sound does not replace808. The active first-person route
+does not consume world position; no new entity eye-position owner is inferred.
+
+Groups load from the selected binding's entity.tbl class while the shared table
+scratch is live, using the existing foley declarations. Current miner1 binds
+light group18 and medium group19. This does not establish the full original
+factory's alternate29c class or lifecycle transitions. Campaign player retained
+bytes increase from4280 to4296. The NPC callback context now receives its own
+telemetry pointer, sharing sample selection/loading without mixing player and
+NPC counters. Existing NPC playback stays positional.
+
+PC tests exercise first play, same-time cooldown suppression, heavy selection
+with RNG, flag810-bit1 suppression, action17 suppression, unsupported camera,
+dead and removed player rejection. Voice808 stays-1. Both builds and all12
+CTest checks pass. The existing explicit damage-UID replay fixture now also
+calls the player pain API at fractions.1/1/1 and times1000/1000/2000. These are
+diagnostic sound requests, not player damage or an authored hazard. It records
+three seven-word deadline/voice/sample/RNG/play/group/flat-voice snapshots.
+PC selects samples134 then140, loads20964 PCM file bytes in two samples, plays
+twice and reports zero errors. The second snapshot equals the first; deadlines
+are2000/2000/3000 and flat voice counts1/1/2. Native results follow.
+
+Pain notifications from damage still require the caller backend to invoke this
+API with the shared random state and current clock. Full player reactions,
+death, camera-mode ownership, original audio control identities and authored
+activation remain open. This API supplies the living first-person pain sound
+implementation needed by that backend; it does not complete gameplay damage.
+
+
+Native replay-20260911-163835 matched all player sound snapshots but failed
+an older sound-bank formula that omitted the new player PCM bytes. The formula
+now explicitly sums base, ambient, NPC pain and player pain loads; it still
+requires equality with the shared PC bank and total resident bytes. The corrected
+replay-20260911-164022 passes180 frames on base RAM67108864/plugged0, exact
+player snapshots above, both nonpositional voices and zero player audio errors.
+The captured guest DSP ring contains nonzero samples; this is mixed output,
+not isolated player waveform equivalence or a claim about host audibility.
+The sound bank retains9 PCM files totaling322140 bytes plus140808 metadata
+bytes. Existing NPC pain telemetry is unchanged. No framebuffer was captured.

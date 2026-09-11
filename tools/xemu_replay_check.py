@@ -4,7 +4,7 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit two-hit NPC damage fixture with flinch and pain audio');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');args=p.parse_args()
 if args.damage_uid is not None and not 0<=args.damage_uid<0xffffffff:p.error('--damage-uid requires an unsigned actor UID')
 if args.force_uid is not None and (not args.level or args.climb or args.door or args.lift or not 0<=args.force_uid<=0xffffffff):p.error('--force-uid requires --level and no other staging')
 if args.lift:
@@ -268,6 +268,17 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert pain_sound_test==expected('NPC_PAIN_SOUND_TEST'),pain_sound_test
      if args.damage_uid==8456:assert pain_audio[:4]==[2,1,1,1] and pain_audio[4]>0,pain_audio
      report['npc_pain_audio']=pain_audio;report['npc_pain_sound_test']=pain_sound_test
+     player_pain_audio=words(monitor,symbol('rf_scene_player_pain_audio'),9)
+     player_pain_test=words(monitor,symbol('rf_scene_player_pain_test'),21)
+     assert player_pain_audio==expected('PLAYER_PAIN_AUDIO') and player_pain_audio[7]==0,player_pain_audio
+     assert player_pain_test==expected('PLAYER_PAIN_TEST'),player_pain_test
+     if args.damage_uid==8456:
+      assert player_pain_audio[:3]==[3,2,2] and player_pain_audio[4]>0,player_pain_audio
+      assert player_pain_test[:7]==player_pain_test[7:14],player_pain_test
+      assert [player_pain_test[i] for i in (0,7,14)]==[2000,2000,3000],player_pain_test
+      assert [player_pain_test[i] for i in (1,8,15)]==[0xffffffff]*3,player_pain_test
+      assert [player_pain_test[i] for i in (6,13,20)]==[1,1,2],player_pain_test
+     report['player_pain_audio']=player_pain_audio;report['player_pain_test']=player_pain_test
      npc_damage_test=words(monitor,symbol('rf_scene_npc_damage_test_words'),64)
      assert npc_damage_test==expected('NPC_DAMAGE_TEST'),npc_damage_test
      assert npc_damage_test[0]==npc_damage_test[63]==0,npc_damage_test
@@ -332,7 +343,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['npc_pain_groups']=pain_groups
      bank=words(monitor,symbol('rf_scene_sound_bank'),4)
      assert bank==expected('SOUND_BANK') and bank[2]+bank[3]==audio[1],bank
-     if args.door:assert bank[0]==88 and bank[1]>=4 and bank[2]==111904+ambient_audio[5]+pain_audio[4] and audio[0]==foley[5]+12,bank
+     if args.door:assert bank[0]==88 and bank[1]>=4 and bank[2]==111904+ambient_audio[5]+pain_audio[4]+player_pain_audio[4] and audio[0]==foley[5]+12,bank
      report['sound_bank']=bank
      switch_audio=words(monitor,symbol('rf_scene_switch_audio'),4)
      assert switch_audio==expected('SWITCH_AUDIO') and switch_audio[0]==switches[0],switch_audio
