@@ -467,3 +467,29 @@ cases, scale/category/default variations, near/far boundaries, random positions
 and the zero-denominator branch. No device hooks or supplied arithmetic are
 used. PC/NXDK builds and all eight CTests pass. These helpers are ready for the
 ambient backend; PCM ownership and native ambient output remain unfinished.
+
+
+## Explicit device loop support
+
+The scene device interface now has play_mode, returning a status and accepting
+whole-buffer looping0/1. PC forwards the mode to its device-clock mixer; Xbox
+sets nxAudioVoiceSetLooping after static-buffer submission and before initial
+gains/start. Legacy play remains a one-shot wrapper. Closed devices return
+RF_NOT_FOUND; invalid modes/resources and unavailable voice slots return errors.
+No caller may infer a device voice started merely because a callback ran.
+The existing PCM borrower/reset/release contracts are unchanged.
+
+PC rf_pc_audio_check now checks a64-sample48kHz loop, persistent device refill
+output at150 and300ms (far beyond its1.33ms duration), silence after stop,
+selective release and explicit invalid-mode/closed-device errors. Its previous
+muted start and protected-source release checks still pass. This is device
+refill evidence, not a host listening assessment.
+
+Native64MiB isolated APU run20260911-005900 passes the same short-loop endpoint
+check, reading guest DMA output at150/300ms, silence after stopping and exact
+restoration of available pages after release/reset. The existing overlapping
+voice, allocation-failure, gain/mute and PCM unload/reload tests also pass.
+The isolated probe build now includes timer.c because shared audio.c references
+the reconstructed ambient scheduler. Production PC/NXDK builds and all eight
+CTests pass. Live campaign ambient PCM loading/playback is still unconnected;
+this increment establishes the device capability its backend needs.

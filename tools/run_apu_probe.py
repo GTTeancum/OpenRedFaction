@@ -65,6 +65,9 @@ try:
                 assert 2400<=lifecycle[0]<=3200 and lifecycle[1:]==[8,8,1,state[3],0],lifecycle
                 muted_address=int(re.search(r'_rf_apu_muted_start\s+([0-9a-fA-F]+)',mapping)[1],16)
                 report['muted_start']=words(monitor,muted_address,1)[0];assert report['muted_start']==1
+                loop_address=int(re.search(r'_rf_apu_loop\s+([0-9a-fA-F]+)',mapping)[1],16)
+                loop=words(monitor,loop_address,4);report['static_loop']=loop
+                assert loop[0]>0 and loop[1]>0 and loop[2:]==[0,state[3]],loop
                 residency_address=int(re.search(r'_rf_apu_residency\s+([0-9a-fA-F]+)',mapping)[1],16)
                 residency=words(monitor,residency_address,5);report['residency']=residency
                 release_address=int(re.search(r'_rf_apu_single_release\s+([0-9a-fA-F]+)',mapping)[1],16)

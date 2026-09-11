@@ -61,7 +61,7 @@ assert allocation in probe_core
 probe_core=probe_core.replace(allocation,
     '(rf_apu_fail_allocation && ++rf_apu_allocation_index == rf_apu_fail_allocation ? NULL : '+allocation+')',1)
 core.write_text(probe_core)
-for name,source in [('probe.c','tests/xbox_apu_probe.c'),('audio.c','src/core/audio.c'),('vpp.c','src/core/vpp.c'),('xbox_audio.c','src/platform/xbox/audio.c'),('audio.h','src/platform/xbox/audio.h')]:
+for name,source in [('probe.c','tests/xbox_apu_probe.c'),('audio.c','src/core/audio.c'),('vpp.c','src/core/vpp.c'),('timer.c','src/core/timer.c'),('xbox_audio.c','src/platform/xbox/audio.c'),('audio.h','src/platform/xbox/audio.h')]:
     shutil.copyfile(root/source,build/name)
 # Force a failed stopped-state observation only in the isolated adapter copy.
 adapter=build/'xbox_audio.c';adapter_text=adapter.read_text()
@@ -87,7 +87,7 @@ prefix='/'+root.drive[0].lower()+root.as_posix()[2:]
 NXDK_DIR = /c/nxdk
 OUTPUT_DIR = {prefix}/build/apu-probe/disc
 GEN_XISO = apu-probe.iso
-SRCS = {prefix}/build/apu-probe/xbox_audio.c {prefix}/build/apu-probe/probe.c {prefix}/build/apu-probe/audio.c {prefix}/build/apu-probe/vpp.c {prefix}/build/apu-probe/backend/audio_core.c {prefix}/build/apu-probe/backend/audio_buffer.c {prefix}/build/apu-probe/backend/audio_voice.c
+SRCS = {prefix}/build/apu-probe/xbox_audio.c {prefix}/build/apu-probe/probe.c {prefix}/build/apu-probe/audio.c {prefix}/build/apu-probe/vpp.c {prefix}/build/apu-probe/timer.c {prefix}/build/apu-probe/backend/audio_core.c {prefix}/build/apu-probe/backend/audio_buffer.c {prefix}/build/apu-probe/backend/audio_voice.c
 CFLAGS = -std=c23 -O2 -I{prefix}/include -I{prefix}/build/apu-probe/backend/include -I{prefix}/build/apu-probe/backend
 LDFLAGS = -map:main.map
 include $(NXDK_DIR)/Makefile

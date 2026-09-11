@@ -70,15 +70,19 @@ int rf_pc_audio_open(void)
 fail:
     rf_pc_audio_diagnostic[7]=1;rf_pc_audio_close();return RF_IO;
 }
-static void play(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left,float right)
+static int play_mode(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left,float right,uint32_t looping)
 {
-    uint32_t internal;(void)context;if(!device)return;
-    if(!(left>=0 && left<=1 && right>=0 && right<=1)){++rf_pc_audio_diagnostic[5];return;}
+    uint32_t internal;int status;(void)context;if(!device)return RF_NOT_FOUND;
+    if(!(left>=0 && left<=1 && right>=0 && right<=1) || looping>1){++rf_pc_audio_diagnostic[5];return RF_RANGE;}
     EnterCriticalSection(&lock);
-    if(rf_audio_voice_start(&mixer,pcm,(uint32_t)(left*32768),(uint32_t)(right*32768),0,&internal))++rf_pc_audio_diagnostic[5];
+    status=rf_audio_voice_start(&mixer,pcm,(uint32_t)(left*32768),(uint32_t)(right*32768),looping,&internal);
+    if(status)++rf_pc_audio_diagnostic[5];
     else {handles[internal&0xffff]=handle;++rf_pc_audio_diagnostic[4];}
     LeaveCriticalSection(&lock);
+    return status;
 }
+static void play(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left,float right)
+{(void)play_mode(context,handle,pcm,left,right,0);}
 static void stop(void *context,uint32_t handle)
 {
     unsigned i;(void)context;if(!device)return;EnterCriticalSection(&lock);
@@ -106,4 +110,4 @@ static void gain(void *context,uint32_t handle,float left,float right)
     LeaveCriticalSection(&lock);
 }
 static void reset(void *context){(void)context;rf_pc_audio_close();}
-const rf_scene_audio_events rf_pc_audio_events={play,stop,NULL,reset,gain};
+const rf_scene_audio_events rf_pc_audio_events={play,stop,NULL,reset,gain,play_mode};
