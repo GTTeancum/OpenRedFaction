@@ -3,12 +3,12 @@
 Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
 grounded re-entry, broader object ownership and full RNG ordering remain.
 
-NPC base/weapon bindings now retain original cache names and resource-to-cache
-indices; 854 installed identities verified. Shared model registration and live
-pose selection remain open.
+NPC base/weapon mappings now share stable per-model motion IDs; three opening
+levels and identity/loop alias guards pass. Initial selection, alternate clips
+and live pose evaluation remain open.
 
 Immediate open items:
-- [ ] Unify NPC motion identities across weapon groups, resolve initial selection and enable live pose evaluation.
+- [ ] Resolve initial NPC state/weapon selection and alternate clips, then enable live pose evaluation using shared motion IDs.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.

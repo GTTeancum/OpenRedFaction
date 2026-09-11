@@ -11,6 +11,7 @@ action_rows={(r['entity_class'].lower(),r['action'].lower()):r for r in actions 
 all_states={(r['entity_class'].lower(),r['weapon'].lower(),r['state'].lower()):r['motion'] for r in states}
 all_actions={(r['entity_class'].lower(),r['weapon'].lower(),r['action'].lower()):r for r in actions}
 reports=[]
+assert subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--catalog-fixture'],text=True).strip()=='CATALOG_FIXTURE PASS'
 weapons=json.loads((root/'artifacts/weapon-names.json').read_text())['names']
 inventory=json.loads((root/'artifacts/inventory.json').read_text())
 entry=next(e for a in inventory['files'] if a['path']=='tables.vpp' for e in a['vpp']['entries'] if e['name']=='entity.tbl')
@@ -19,7 +20,7 @@ text='\n'.join(line.split('//',1)[0] for line in raw.decode('cp1252').splitlines
 parts=re.split(r'\$Name:\s*"([^"\r\n]+)"',text)
 groups={name.lower():re.findall(r'\+Weapon\s+Specific:\s*"([^"\r\n]*)"',body) for name,body in zip(parts[1::2],parts[2::2])}
 for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
- out=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--base-motions',str(root/'Installed_Game/levels1.vpp'),str(root/'Installed_Game/tables.vpp'),str(root/'Installed_Game/motions.vpp'),level],text=True)
+ out=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--catalog',str(root/'Installed_Game/levels1.vpp'),str(root/'Installed_Game/tables.vpp'),str(root/'Installed_Game/motions.vpp'),str(root/'Installed_Game/meshes.vpp'),level],text=True)
  registries={};checked=0;group_registries={};group_slots=0;identity_count=0
  for line in out.splitlines():
   if line.startswith('IDENTITY\t'):
@@ -72,10 +73,42 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
    assert file.lower()==motion.split('.',1)[0].lower()+'.rfa'
   else:assert index==-1 and file==''
   checked+=1
+ # Independently register authored groups in factory order into shared model maps.
+ catalog_maps={};catalog_resources={};class_order=[];model_for={}
+ for line in out.splitlines():
+  if line.startswith('CATALOG_MAP\t'):
+   fields=line.split('\t');cls,weapon=fields[1].lower(),fields[2].lower();model=int(fields[3])
+   assert (cls,weapon) not in catalog_maps
+   catalog_maps[cls,weapon]=list(map(int,fields[4:]))
+   if not weapon:class_order.append(cls);model_for[cls]=model
+  elif line.startswith('CATALOG_RESOURCE\t'):
+   _,model,index,loop,identity,file=line.split('\t')
+   assert (int(model),int(index)) not in catalog_resources
+   catalog_resources[int(model),int(index)]=(int(loop),identity,file.lower())
+ model_keys={};model_names={};expected_maps={};expected_resources={}
+ for cls in class_order:
+  model=model_for[cls]
+  if model==0xffffffff:
+   expected_maps[cls,'']=[-1]*68;continue
+  keys=model_keys.setdefault(model,[]);cache=model_names.setdefault(model,{})
+  for weapon in sorted(groups[cls],key=lambda w:[n.lower() for n in weapons].index(w.lower()))+['']:
+   weapon=weapon.lower();mapping=[]
+   for loop,canonical,rows in ((1,state_names,all_states),(0,action_names,all_actions)):
+    for name in canonical:
+     row=rows.get((cls,weapon,name));motion=(row if loop else row['motion']) if row else ''
+     if not motion:mapping.append(-1);continue
+     stem=motion.rsplit('.',1)[0].lower();identity=cache.setdefault(stem,motion);key=(stem,loop)
+     if key not in keys:
+      expected_resources[model,len(keys)]=(loop,identity,identity.split('.',1)[0].lower()+'.rfa');keys.append(key)
+     mapping.append(keys.index(key))
+   expected_maps[cls,weapon]=mapping
+ assert catalog_maps==expected_maps,(level,'shared mappings')
+ assert catalog_resources==expected_resources,(level,'shared resources')
+ catalog_summary=next(line for line in out.splitlines() if line.startswith('CATALOG '))
  summary=next(line for line in out.splitlines() if line.startswith('BASE_MOTIONS '))
  assert group_slots==len(group_registries)*68
  assert identity_count==sum(map(len,registries.values()))+sum(map(len,group_registries.values()))
  assert int(next(line for line in out.splitlines() if line.startswith('BOUND_GROUPS ')).split()[1])==len(group_registries)
- reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary))
-report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames, retained first-authored cache names and sound labels exact. Cross-group/global original registry ordering and live playback excluded.')
+ reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary,catalog_summary=catalog_summary,shared_resources=len(catalog_resources)))
+report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames, retained first-authored cache names and sound labels exact. Shared per-model maps independently checked against authored declarations in weapon-before-base order. Original global cache order, alternate clips and live playback excluded.')
 (root/'artifacts/base-action-sets.json').write_text(json.dumps(report,indent=2));print(report)

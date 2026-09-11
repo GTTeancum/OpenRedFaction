@@ -6,6 +6,40 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--catalog-fixture")) {
+        rf_entity_state_set *base=calloc(2,sizeof(*base));rf_entity_skeleton skeleton={0};
+        uint32_t models[2]={0,0};rf_entity_skeletons skeletons={0};
+        rf_entity_weapon_motion_group group={0};rf_motion_file file={0};uint8_t loop=1;
+        char identities[1][64]={"a.b.mvf"};rf_entity_base_motions bindings={0};
+        rf_entity_motion_catalog catalog={0},guard={0};uint32_t j;
+        if(!base)return 1;
+        skeletons.items=&skeleton;skeletons.class_indices=models;skeletons.count=1;skeletons.class_count=2;
+        bindings.classes=base;bindings.class_count=2;bindings.groups=&group;bindings.group_count=1;
+        group.files=&file;group.looping=&loop;group.identities=identities;group.count=1;group.weapon=3;
+        strcpy(file.entry.name,"a.rfa");
+        for(i=0;i<2;++i){for(j=0;j<23;++j)base[i].states[j]=-1;for(j=0;j<45;++j)base[i].actions[j]=-1;}
+        for(j=0;j<23;++j)group.states[j]=-1;for(j=0;j<45;++j)group.actions[j]=-1;
+        group.states[0]=0;base[0].count=2;base[1].count=1;
+        strcpy((char*)base[0].cache[0].bytes,"a.c.mvf");strcpy((char*)base[0].cache[1].bytes,"a.b.mvf");
+        strcpy((char*)base[1].cache[0].bytes,"A.B.other");
+        base[0].cache_indices[1]=1;base[0].looping[0]=base[1].looping[0]=1;
+        base[0].states[0]=base[1].states[0]=0;base[0].actions[0]=1;
+        base[0].files[0]=base[0].files[1]=base[1].files[0]=file;
+        if(rf_entity_motion_catalog_open(&skeletons,&bindings,128*1024,&catalog))return 2;
+        if(catalog.models[0].count!=3 || catalog.mappings[2].states[0]!=0 || catalog.mappings[0].states[0]!=1 ||
+           catalog.mappings[0].actions[0]!=2 || catalog.mappings[1].states[0]!=0 ||
+           strcmp(catalog.models[0].items[0].identity,"a.b.mvf") ||
+           strcmp(catalog.models[0].items[1].identity,"a.c.mvf") ||
+           strcmp(catalog.models[0].items[2].identity,"a.b.mvf") || catalog.models[0].items[2].looping)return 3;
+        if(rf_entity_motion_catalog_open(&skeletons,&bindings,catalog.peak_bytes-1,&guard)!=RF_RANGE ||
+           memcmp(&guard,&(rf_entity_motion_catalog){0},sizeof(guard)))return 4;
+        if(rf_entity_motion_catalog_open(&skeletons,&bindings,catalog.peak_bytes,&guard))return 5;
+        rf_entity_motion_catalog_close(&guard);
+        base[1].states[0]=1;
+        if(rf_entity_motion_catalog_open(&skeletons,&bindings,128*1024,&guard)!=RF_RANGE ||
+           memcmp(&guard,&(rf_entity_motion_catalog){0},sizeof(guard)))return 6;
+        rf_entity_motion_catalog_close(&catalog);free(base);puts("CATALOG_FIXTURE PASS");return 0;
+    }
     if(argc==3 && !strcmp(argv[1],"--weapon-names")) {
         rf_weapon_names value,before;memset(&value,0xa5,sizeof(value));before=value;
         if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"weapons.tbl",&entry))return 2;
@@ -33,11 +67,12 @@ int main(int argc,char **argv)
         free(text);rf_vpp_close(&archive);_setmode(_fileno(stdout),_O_BINARY);
         fwrite(&status,4,1,stdout);fwrite(&result,sizeof(result),1,stdout);return 0;
     }
-    if(argc==6 && !strcmp(argv[1],"--base-motions")) {
+    if((argc==6 && !strcmp(argv[1],"--base-motions")) || (argc==7 && !strcmp(argv[1],"--catalog"))) {
         rf_vpp levels,tables,motions;rf_level level;rf_entity_seeds seeds={0};
         rf_entity_base_motions m={0},guard={0};uint32_t files=0,j;
+        rf_entity_motion_catalog catalog={0},catalog_guard={0};
         rf_entity_state_set *expected=malloc(sizeof(*expected));if(!expected)return 1;
-        if(rf_vpp_open(&levels,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_vpp_open(&motions,argv[4]) || rf_level_open(&level,&levels,argv[5]))return 2;
+        if(rf_vpp_open(&levels,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_vpp_open(&motions,argv[4]) || rf_level_open(&level,&levels,argv[argc-1]))return 2;
         if(rf_entity_seeds_open(&level,&tables,4*1024*1024,&seeds))return 3;
         status=rf_entity_base_motions_open(&seeds,&tables,&motions,1024*1024,&m);
         if(status){fprintf(stderr,"base motions %d\n",status);return 4;}
@@ -78,6 +113,24 @@ int main(int argc,char **argv)
             }
         }
         if(rf_entity_weapon_motion_find(&m,0,-1) || rf_entity_weapon_motion_find(&m,m.class_count,0))return 13;
+        if(argc==7) {
+            rf_vpp meshes;rf_entity_skeletons skeletons={0};
+            if(rf_vpp_open(&meshes,argv[5]) || rf_entity_skeletons_open(&seeds,&meshes,256*1024,&skeletons))return 16;
+            status=rf_entity_motion_catalog_open(&skeletons,&m,512*1024,&catalog);
+            if(status){fprintf(stderr,"catalog %d\n",status);return 17;}
+            if(rf_entity_motion_catalog_open(&skeletons,&m,catalog.peak_bytes-1,&catalog_guard)!=RF_RANGE ||
+                memcmp(&catalog_guard,&(rf_entity_motion_catalog){0},sizeof(catalog_guard)))return 18;
+            if(rf_entity_motion_catalog_open(&skeletons,&m,catalog.peak_bytes,&catalog_guard))return 19;
+            rf_entity_motion_catalog_close(&catalog_guard);rf_entity_motion_catalog_close(&catalog_guard);
+            for(i=0;i<catalog.mapping_count;++i) {
+                const rf_entity_motion_mapping *map=catalog.mappings+i;
+                const char *cls=seeds.records.items[seeds.classes[map->class_index].record_index].record.class_name;
+                printf("CATALOG_MAP\t%s\t%s\t%u",cls,map->weapon<0?"":m.weapons.names[map->weapon],map->skeleton);
+                for(j=0;j<23;++j)printf("\t%d",map->states[j]);for(j=0;j<45;++j)printf("\t%d",map->actions[j]);puts("");
+            }
+            rf_entity_skeletons_close(&skeletons);rf_vpp_close(&meshes);
+        }
+
         rf_entity_seeds_close(&seeds);rf_vpp_close(&levels);rf_vpp_close(&tables);
         for(i=0;i<m.class_count;++i)for(j=0;j<m.classes[i].count;++j) {
             rf_motion_file *f=m.classes[i].files+j;rf_motion_track track;
@@ -89,7 +142,15 @@ int main(int argc,char **argv)
             rf_motion_file *f=m.groups[i].files+j;rf_motion_track track;
             if(f->header[6] && rf_motion_file_track(f,0,&track))return 14;
         }
-        rf_entity_base_motions_close(&m);rf_vpp_close(&motions);free(expected);return 0;
+        rf_entity_base_motions_close(&m);
+        for(i=0;i<catalog.model_count;++i)for(j=0;j<catalog.models[i].count;++j) {
+            rf_entity_model_motion *r=catalog.models[i].items+j;rf_motion_track track;
+            if(r->file.header[6] && rf_motion_file_track(&r->file,0,&track))return 20;
+            printf("CATALOG_RESOURCE\t%u\t%u\t%u\t%s\t%s\n",i,j,r->looping,r->identity,r->file.entry.name);
+        }
+        if(argc==7)printf("CATALOG %u %u %u %u\n",catalog.model_count,catalog.mapping_count,catalog.resident_bytes,catalog.peak_bytes);
+        rf_entity_motion_catalog_close(&catalog);rf_entity_motion_catalog_close(&catalog);
+        rf_vpp_close(&motions);free(expected);return 0;
     }
     if(argc==3 && !strcmp(argv[1],"--model-kind")) {
         uint32_t kind=0xa5a5a5a5;status=rf_entity_model_kind(argv[2],&kind);

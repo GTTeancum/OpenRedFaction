@@ -293,6 +293,32 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
 void rf_entity_base_motions_close(rf_entity_base_motions *motions);
 /* Exact group only, NULL if absent; fallback/state switching policy is external. */
 const rf_entity_weapon_motion_group *rf_entity_weapon_motion_find(const rf_entity_base_motions *motions,uint32_t class_index,int32_t weapon);
+typedef struct rf_entity_model_motion {
+    rf_motion_file file;char identity[64];uint8_t looping;
+} rf_entity_model_motion;
+typedef struct rf_entity_model_motions {
+    rf_entity_model_motion *items;uint32_t count;
+} rf_entity_model_motions;
+typedef struct rf_entity_motion_mapping {
+    uint32_t class_index,skeleton;int32_t weapon,states[23],actions[45];
+} rf_entity_motion_mapping;
+typedef struct rf_entity_motion_catalog {
+    rf_entity_model_motions *models;rf_entity_motion_mapping *mappings;
+    uint32_t model_count,mapping_count,class_count,resident_bytes,peak_bytes;
+} rf_entity_motion_catalog;
+/* Stable per-skeleton indices across class base/weapon groups. Requires owners
+ * returned by skeletons_open/base_motions_open for the same seeds. Classes are
+ * visited in seed order, weapon groups before base (422360); resolved cache
+ * identity + exact loop byte keys use 539be0/51cc42 helpers. Original global
+ * cache order, alternate clips and selection are not reproduced here.
+ * First class_count mappings are base, followed by source weapon-group order.
+ * Maps/resources survive closing inputs; motion archives and skeleton index
+ * order must remain valid. Sounds stay in the source bindings. No playback.
+ * Empty destination; budget includes owner/heap/workspace (not stack/allocator
+ * overhead). Errors preserve output. Close is repeatable. */
+int rf_entity_motion_catalog_open(const rf_entity_skeletons *skeletons,
+    const rf_entity_base_motions *bindings,uint32_t budget,rf_entity_motion_catalog *result);
+void rf_entity_motion_catalog_close(rf_entity_motion_catalog *catalog);
 /* Register the 23 canonical state names (0x418030 order) from one exact base
  * or weapon block. Missing/empty declarations map to -1; missing referenced
  * files fail the whole operation. Distinct cache identities register once as

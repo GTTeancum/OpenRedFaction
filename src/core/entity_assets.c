@@ -829,6 +829,111 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
 done:
     free(working);free(text);rf_entity_base_motions_close(&v);return status;
 }
+
+/* Temporary per-model registry; it is discarded after copying exact resources. */
+typedef struct catalog_work {
+    rf_motion_cache_record *cache;uint32_t cache_capacity;
+    rf_model_motion_registry registry;rf_entity_model_motion *resources;
+} catalog_work;
+static int catalog_bind(catalog_work *w,const rf_entity_state_set *base,
+    const rf_entity_weapon_motion_group *group,rf_entity_motion_mapping *out)
+{
+    uint32_t count=base?base->count:group->count,i,identity;int status,added;
+    int32_t remap[68],index;const int32_t *states=base?base->states:group->states;
+    const int32_t *actions=base?base->actions:group->actions;
+    if(count>68)return RF_RANGE;
+    for(i=0;i<count;++i) {
+        const char *name;uint8_t loop=base?base->looping[i]:group->looping[i];
+        if(base) {
+            if(base->cache_indices[i]>=68)return RF_RANGE;
+            name=(const char*)base->cache[base->cache_indices[i]].bytes;
+        } else name=group->identities[i];
+        if(!*name)return RF_FORMAT;
+        status=rf_motion_cache_acquire(w->cache,w->cache_capacity,name,&identity);if(status)return status;
+        status=rf_model_register_motion(&w->registry,identity+1,loop,&index,&added);if(status)return status;
+        if(added) {
+            rf_entity_model_motion *r=w->resources+index;
+            r->file=base?base->files[i]:group->files[i];r->looping=loop;
+            memcpy(r->identity,w->cache[identity].bytes,64);
+        }
+        remap[i]=index;
+    }
+    for(i=0;i<68;++i) {
+        int32_t source=i<23?states[i]:actions[i-23];
+        if(source<-1 || (source>=0 && (uint32_t)source>=count))return RF_RANGE;
+        if(i<23)out->states[i]=source<0?-1:remap[source];
+        else out->actions[i-23]=source<0?-1:remap[source];
+    }
+    return RF_OK;
+}
+void rf_entity_motion_catalog_close(rf_entity_motion_catalog *v)
+{
+    uint32_t i;if(!v)return;
+    for(i=0;i<v->model_count;++i)free(v->models[i].items);
+    free(v->models);free(v->mappings);memset(v,0,sizeof(*v));
+}
+int rf_entity_motion_catalog_open(const rf_entity_skeletons *s,const rf_entity_base_motions *b,
+    uint32_t budget,rf_entity_motion_catalog *result)
+{
+    rf_entity_motion_catalog v={0};catalog_work w={0};
+    uint64_t bytes,capacity,scratch,peak;uint32_t i,j,k;int status=RF_RANGE;
+    if(!s || !b || !result || result->models || result->mappings || result->model_count ||
+       result->mapping_count || result->class_count || result->resident_bytes || result->peak_bytes ||
+       s->class_count!=b->class_count || (s->class_count && (!s->class_indices || !b->classes)) ||
+       (b->group_count && !b->groups) || (s->count && !s->items))return RF_RANGE;
+    if((uint64_t)b->class_count+b->group_count>UINT32_MAX)return RF_RANGE;
+    v.model_count=s->count;v.class_count=b->class_count;v.mapping_count=b->class_count+b->group_count;
+    bytes=sizeof(v)+(uint64_t)v.model_count*sizeof(*v.models)+(uint64_t)v.mapping_count*sizeof(*v.mappings);
+    if(bytes>budget)return RF_RANGE;
+    v.resident_bytes=v.peak_bytes=(uint32_t)bytes;
+    if(v.model_count){v.models=calloc(v.model_count,sizeof(*v.models));if(!v.models)return RF_IO;}
+    if(v.mapping_count){v.mappings=calloc(v.mapping_count,sizeof(*v.mappings));if(!v.mappings){status=RF_IO;goto done;}}
+    for(i=0;i<v.mapping_count;++i) {
+        rf_entity_motion_mapping *m=v.mappings+i;
+        m->class_index=i<v.class_count?i:b->groups[i-v.class_count].class_index;
+        if(m->class_index>=v.class_count)goto done;
+        m->skeleton=s->class_indices[m->class_index];
+        if(m->skeleton!=UINT32_MAX && m->skeleton>=v.model_count)goto done;
+        m->weapon=i<v.class_count?-1:(int32_t)b->groups[i-v.class_count].weapon;
+        for(j=0;j<23;++j)m->states[j]=-1;for(j=0;j<45;++j)m->actions[j]=-1;
+    }
+    for(i=0;i<v.model_count;++i) {
+        capacity=0;
+        for(j=0;j<v.mapping_count;++j)if(v.mappings[j].skeleton==i)
+            capacity+=j<v.class_count?b->classes[j].count:b->groups[j-v.class_count].count;
+        if(!capacity)continue;
+        if(capacity>INT32_MAX)goto done;
+        w.cache_capacity=(uint32_t)(capacity<800?capacity:800);
+        scratch=(uint64_t)w.cache_capacity*sizeof(*w.cache)+capacity*(sizeof(*w.registry.identities)+sizeof(*w.registry.flags)+sizeof(*w.resources));
+        peak=bytes+scratch;if(peak>budget)goto done;
+        if(peak>v.peak_bytes)v.peak_bytes=(uint32_t)peak;
+        w.cache=calloc(w.cache_capacity,sizeof(*w.cache));
+        w.registry.identities=calloc((size_t)capacity,sizeof(*w.registry.identities));
+        w.registry.flags=calloc((size_t)capacity,sizeof(*w.registry.flags));
+        w.resources=calloc((size_t)capacity,sizeof(*w.resources));
+        if(!w.cache || !w.registry.identities || !w.registry.flags || !w.resources){status=RF_IO;goto done;}
+        w.registry.count=0;w.registry.capacity=(uint32_t)capacity;
+        for(j=0;j<v.class_count;++j)if(s->class_indices[j]==i) {
+            for(k=0;k<b->group_count;++k)if(b->groups[k].class_index==j) {
+                status=catalog_bind(&w,NULL,b->groups+k,v.mappings+v.class_count+k);if(status)goto done;
+            }
+            status=catalog_bind(&w,b->classes+j,NULL,v.mappings+j);if(status)goto done;
+        }
+        bytes+=(uint64_t)w.registry.count*sizeof(*v.models[i].items);peak=bytes+scratch;
+        status=RF_RANGE;if(peak>budget)goto done;
+        if(peak>v.peak_bytes)v.peak_bytes=(uint32_t)peak;
+        v.models[i].items=malloc(w.registry.count*sizeof(*v.models[i].items));
+        if(!v.models[i].items){status=RF_IO;goto done;}
+        v.models[i].count=w.registry.count;
+        memcpy(v.models[i].items,w.resources,w.registry.count*sizeof(*w.resources));
+        v.resident_bytes=(uint32_t)bytes;
+        free(w.cache);free(w.registry.identities);free(w.registry.flags);free(w.resources);memset(&w,0,sizeof(w));
+    }
+    *result=v;return RF_OK;
+done:
+    free(w.cache);free(w.registry.identities);free(w.registry.flags);free(w.resources);
+    rf_entity_motion_catalog_close(&v);return status;
+}
 int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *class_name,
     const char *weapon,const char *state,char motion[64])
 {
