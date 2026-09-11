@@ -22,6 +22,11 @@ typedef struct rf_first_person_pose {
 int rf_first_person_pose_copy(const float eye[3],const float body_orientation[3][3],
     const float eye_orientation[3][3],rf_first_person_pose *result);
 typedef struct rf_camera_effect_state {float strength,duration;int32_t deadline;} rf_camera_effect_state;
+/* Resolved player portion of 416450/50cc40: packed bytes at player+10d0,
+ * full alpha word at +10d4. 4a7520 supplies (255,0,0,128) for damage.
+ * This sets state only; flash decay, compositing and player lifetime are separate. */
+typedef struct rf_screen_flash {uint8_t rgba[4];uint32_t alpha;} rf_screen_flash;
+int rf_screen_flash_set(rf_screen_flash *state,uint32_t red,uint32_t green,uint32_t blue,uint32_t alpha);
 /* Resolved actor portion of 40e0b0: stores strength/duration and sets deadline
  * from trunc(duration*1000). Signed duration supported within one timer period.
  * Caller resolves view/player/actor ownership. Errors preserve state. */

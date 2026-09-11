@@ -3784,3 +3784,22 @@ remain separate unfinished owners.
 
 Stock64MiB XEMU replay replay-20260911-153016 passes 120 frames with matching
 PC force, camera/RNG and actor telemetry through the registered-player path.
+
+
+## Player damage flash state
+
+Original 4a7520 calls 416450 with the player pointer at 7c75d4 and
+RGBA (255,0,0,128). Disassembly confirms 416450 passes player+10d0
+as the this pointer to 50cc40, which truncates each argument to a byte;
+it then stores the full alpha argument at player+10d4. These are separate
+fields, not a float opacity or a camera-shake parameter.
+
+rf_screen_flash_set reconstructs that eight-byte state in shared C.
+verify_screen_flash.py executes the complete original setter and color
+callee across4096 cases, including1024 entering the damage wrapper, and
+compares exact output with PC and linked NXDK code. Random full-width
+arguments check truncation; original owner bytes and NXDK guards verify
+write boundaries. Report: artifacts/screen-flash.json, PASS.
+Both builds and all11 CTest checks pass. This does not yet wire player
+ownership, flash initialization/decay, or framebuffer compositing; no
+new rendered damage effect or native XEMU run is claimed.
