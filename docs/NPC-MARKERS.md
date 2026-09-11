@@ -441,3 +441,27 @@ and checks considered=(frames-1)*skeletalActors and advanced+skipped=considered.
 Native stock64MiB XEMU replay-20260911-105533 passes180 frames with
 exact PC gate counters and playback hashes above; Foley/APU checks also pass.
 L1S2 remains PC-only for this change. No new framebuffer was requested.
+
+## Sound-group selection and audio request routing
+
+`rf_audio_group_choose` reconstructs48a930 through its audio-call boundary.
+Signed counts<=1 select element0 without drawing random values; larger counts
+consume one original CRT draw modulo count. It retains the selected signed
+sample ID, including-1. The supplied capacity must cover max(count,1), so an
+invalid group span fails before mutating the random state or output.
+
+Actual48acf0 identifies object kind+24 zero with a non-null player+1430.
+When player view+8 is zero,505560 receives sample, group0 and the two supplied
+parameters in reversed order (pan/volume becomes volume/pan). Other cases
+call5056a0 with position, volume1, shared vector173c378 and group0. The
+compact request records scalar and position arguments; original5056a0 ignores
+the vector argument, as already verified in controller-audio.md.
+No sound is played by the chooser and no global RNG is introduced.
+
+`verify_audio_group_choice.py` executes full48a930, actual48acf0/40d740 and
+57312d, supplying only CRT thread storage and observing505560/5056a0 calls.
+1024 original cases yield128 flat requests,896 spatial requests and651 random
+draws. Together with one capacity-rejection case, all1025 match PC and NXDK
+code, including sample IDs, parameter bit patterns and final RNG state.
+Live marker timing, support surface ownership, shared frame RNG ordering and
+backend playback remain open. Both builds and nine CTest checks pass.

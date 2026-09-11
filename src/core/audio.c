@@ -4,6 +4,19 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+int rf_audio_group_choose(const rf_audio_group_input *input,const int32_t *samples,
+    uint32_t capacity,int32_t count,rf_random_state *random,rf_audio_group_request *result)
+{
+    rf_audio_group_request value={0};uint32_t index=0;
+    if(!input || !samples || !result || !capacity ||
+       (count>1 && (!random || (uint32_t)count>capacity)))return RF_RANGE;
+    if(count>1){rf_random_next(random,&index);index%=(uint32_t)count;}
+    value.sample=samples[index];
+    value.spatial=input->object_kind!=0 || !input->player_present || input->view_mode!=0;
+    if(value.spatial){memcpy(value.position,input->position,12);value.parameters[0]=1;}
+    else {value.parameters[0]=input->parameters[1];value.parameters[1]=input->parameters[0];}
+    *result=value;return RF_OK;
+}
 int32_t rf_audio_select_ordinary(const rf_audio_allocation_slot *slots,
     const rf_audio_allocation_backend *backend,void *context)
 {

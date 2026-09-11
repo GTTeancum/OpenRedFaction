@@ -112,6 +112,19 @@ static int foley_classes_probe(const char *entity_path,const char *foley_path)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--group-choose")) {
+        struct {rf_audio_group_input input;int32_t count;rf_random_state random;int32_t samples[8];} wire;
+        rf_audio_group_request result;int32_t status;
+        _Static_assert(sizeof(wire)==72 && sizeof(result)==32,"group wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&wire,sizeof(wire),1,stdin)==1) {
+            memset(&result,0xa5,sizeof(result));
+            status=rf_audio_group_choose(&wire.input,wire.samples,8,wire.count,&wire.random,&result);
+            fwrite(&status,4,1,stdout);fwrite(&wire.random,4,1,stdout);fwrite(&result,32,1,stdout);
+        }
+        return 0;
+    }
+
     if(argc==4 && !strcmp(argv[1],"--foley-classes"))return foley_classes_probe(argv[2],argv[3]);
     if(argc==2 && !strcmp(argv[1],"--foley-bind")) {
         uint32_t counts[2];rf_foley_group groups[640];char names[640][32];int32_t slots[10];int status;

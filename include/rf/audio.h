@@ -1,6 +1,25 @@
 #ifndef RF_AUDIO_H
 #define RF_AUDIO_H
 #include "rf/vpp.h"
+#include "rf/random.h"
+typedef struct rf_audio_group_input {
+    uint32_t object_kind,player_present;int32_t view_mode;
+    float position[3],parameters[2];
+} rf_audio_group_input;
+typedef struct rf_audio_group_request {
+    int32_t sample;uint32_t spatial;float position[3],parameters[2];uint32_t group;
+} rf_audio_group_request;
+/* 48a930 selection through505560/5056a0 dispatch. Signed count<=1 selects
+ * sample0 without RNG; count>1 consumes one CRT draw modulo count. Capacity
+ * must cover max(count,1). Negative sample IDs are retained. Flat routing is
+ * object_kind0 with a player and view_mode0; flat parameters reverse input
+ * order (input pan/volume becomes output volume/pan). Spatial requests use
+ * volume1 and group0. Original5056a0 ignores its shared-vector argument.
+ * No voice allocation or audio execution.
+ * Inputs/output/random must not overlap. Errors preserve output/random. */
+int rf_audio_group_choose(const rf_audio_group_input *input,const int32_t *samples,
+    uint32_t capacity,int32_t count,rf_random_state *random,rf_audio_group_request *result);
+
 #define RF_SOUND_METADATA_CAPACITY 4096u
 #define RF_AUDIO_ORDINARY_SLOTS 30u
 typedef struct rf_audio_allocation_slot {uint32_t present,flags;} rf_audio_allocation_slot;
