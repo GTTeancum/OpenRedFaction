@@ -3,7 +3,7 @@
 Campaign startup now selects and evaluates owned NPC poses; PC matches all141
 authored opening actors and3087 bone matrices. Per-frame AI/rendering remains.
 
-Shared NPC geometry owner now retains all model LODs and bind transforms;
+Campaign now loads shared NPC model LODs and verifies initial skin transforms;
 opening geometry is176-308KiB on PC before textures/draw buffers.
 
 Immediate open items:

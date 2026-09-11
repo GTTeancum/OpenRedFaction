@@ -24,7 +24,7 @@ extern rf_physics_body scene_actor_body;
 extern rf_startup_events_report rf_scene_startup_events;
 extern uint32_t rf_scene_startup_gravity[4];
 extern uint32_t rf_scene_switch_state[3],rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
-extern uint32_t rf_scene_npc_startup[4];
+extern uint32_t rf_scene_npc_startup[4],rf_scene_npc_geometry[7];
 extern uint32_t rf_scene_campaign_event_links[4],rf_scene_campaign_groups[5],rf_scene_campaign_movers[3],rf_scene_campaign_memberships[5];
 extern uint32_t rf_scene_campaign_forces[3],rf_scene_force_state[3];
 extern uint32_t rf_scene_ambient_records[3],rf_scene_ambient_instances[4];
@@ -275,6 +275,7 @@ int main(int argc,char **argv)
              memcpy(words+9,rf_scene_startup_gravity,16);printf("CAMPAIGN_STARTUP");
              for(k=0;k<13;++k)printf(" %u",words[k]);puts("");}
             printf("CAMPAIGN_MEMBERSHIPS %u %u %u %u %u\n",rf_scene_campaign_memberships[0],rf_scene_campaign_memberships[1],rf_scene_campaign_memberships[2],rf_scene_campaign_memberships[3],rf_scene_campaign_memberships[4]);
+            printf("NPC_GEOMETRY %u %u %u %u %u %u %u\n",rf_scene_npc_geometry[0],rf_scene_npc_geometry[1],rf_scene_npc_geometry[2],rf_scene_npc_geometry[3],rf_scene_npc_geometry[4],rf_scene_npc_geometry[5],rf_scene_npc_geometry[6]);
             printf("NPC_STARTUP %u %u %u %u\n",rf_scene_npc_startup[0],rf_scene_npc_startup[1],rf_scene_npc_startup[2],rf_scene_npc_startup[3]);
             printf("CAMPAIGN_MOVERS %u %u %u\n",rf_scene_campaign_movers[0],rf_scene_campaign_movers[1],rf_scene_campaign_movers[2]);
             {extern uint32_t rf_scene_actor_body_sweeps[5];

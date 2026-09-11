@@ -460,6 +460,8 @@ static rf_entity_poses campaign_poses;
 static rf_entity_base_motions campaign_base_motions;
 static rf_entity_motion_catalog campaign_motion_catalog;
 static rf_entity_playback_resources campaign_playback_resources;
+static rf_entity_render_models campaign_render_models;
+uint32_t rf_scene_npc_geometry[7]; /* models, LODs, vertices, triangles, bytes, geometry hash, prepared skin hash */
 uint32_t rf_scene_npc_startup[4]; /* actors, bones, playback hash, matrix/cache hash */
 static rf_entity_view campaign_player_view;
 static rf_registered_entity_view campaign_player_object;
@@ -1028,6 +1030,38 @@ static rf_surface_materials *campaign_surface_palette;
 rf_geometry_body_hit rf_scene_actor_body_contact;
 uint32_t rf_scene_actor_body_sweeps[5]; /* queries, hits, mover hits, status, retained adapter bytes */
 uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, registration bytes */
+static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes)
+{
+    const unsigned char *p=data;while(bytes--)hash=(hash^*p++)*16777619u;return hash;
+}
+static int campaign_npc_geometry_digest(void)
+{
+    uint32_t i,j;float prepared[50][12];uint16_t generations[50];int status;
+    memset(rf_scene_npc_geometry,0,sizeof(rf_scene_npc_geometry));
+    rf_scene_npc_geometry[0]=campaign_render_models.count;rf_scene_npc_geometry[4]=campaign_render_models.resident_bytes;
+    rf_scene_npc_geometry[5]=rf_scene_npc_geometry[6]=2166136261u;
+    for(i=0;i<campaign_render_models.count;++i) {
+        const rf_entity_render_model *model=campaign_render_models.items+i;
+        rf_scene_npc_geometry[1]+=model->file.lod_count;
+        rf_scene_npc_geometry[5]=npc_hash_bytes(rf_scene_npc_geometry[5],model->stored,model->bone_count*48);
+        for(j=0;j<model->file.lod_count;++j) {
+            const rf_model_geometry *g=model->lods+j;
+            rf_scene_npc_geometry[2]+=g->vertex_count;rf_scene_npc_geometry[3]+=g->triangle_count;
+            rf_scene_npc_geometry[5]=npc_hash_bytes(rf_scene_npc_geometry[5],g->batches,g->batch_count*sizeof(*g->batches));
+            rf_scene_npc_geometry[5]=npc_hash_bytes(rf_scene_npc_geometry[5],g->vertices,g->vertex_count*sizeof(*g->vertices));
+            rf_scene_npc_geometry[5]=npc_hash_bytes(rf_scene_npc_geometry[5],g->triangles,g->triangle_count*sizeof(*g->triangles));
+            rf_scene_npc_geometry[5]=npc_hash_bytes(rf_scene_npc_geometry[5],g->reuse,g->vertex_count*sizeof(*g->reuse));
+        }
+    }
+    for(i=0;i<campaign_poses.count;++i)if(campaign_poses.items[i].skeleton!=UINT32_MAX) {
+        const rf_entity_pose *p=campaign_poses.items+i;const rf_entity_render_model *m=campaign_render_models.items+p->skeleton;
+        if(p->bone_count!=m->bone_count || p->bone_count>50)return RF_RANGE;
+        memset(prepared,0,sizeof(prepared));memset(generations,0,sizeof(generations));
+        status=rf_model_prepare_skinning(m->stored,p->matrices,p->bone_count,(uint16_t)p->playback.generation,prepared,generations,50);if(status)return status;
+        rf_scene_npc_geometry[6]=npc_hash_bytes(rf_scene_npc_geometry[6],prepared,p->bone_count*48);
+    }
+    return RF_OK;
+}
 static void campaign_close_movers(void)
 {
     if(campaign_playback_resources.models) {
@@ -1036,6 +1070,7 @@ static void campaign_close_movers(void)
     }
     rf_entity_seeds_close(&campaign_seeds);
     rf_entity_poses_close(&campaign_poses);
+    rf_entity_render_models_close(&campaign_render_models);
     rf_entity_playback_resources_close(&campaign_playback_resources);
     rf_entity_motion_catalog_close(&campaign_motion_catalog);
     rf_entity_base_motions_close(&campaign_base_motions);
@@ -2330,6 +2365,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && campaign_spawn)status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
         if(!status && collision && campaign_spawn)status=rf_entity_skeletons_open(&campaign_seeds,&archive,256*1024,&campaign_skeletons);
         if(!status && collision && campaign_spawn)status=rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses);
+        if(!status && collision && campaign_spawn)status=rf_entity_render_models_open(&campaign_skeletons,&archive,1024*1024,&campaign_render_models);
         rf_vpp_close(&tables);if(status)goto done;
         if(campaign_spawn && collision) {
             rf_object_registry_init(&campaign_registry);
@@ -2462,6 +2498,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              * Subsequent live selector scheduling/geometry submission is separate. */
             status=rf_entity_poses_start_initial(&campaign_seeds,&campaign_skeletons,&campaign_motion_catalog,
                 &campaign_playback_resources,&campaign_poses,1.0f/30.0f);if(status)goto done;
+            status=campaign_npc_geometry_digest();if(status)goto done;
             {
                 uint32_t actor,k;rf_scene_npc_startup[0]=rf_scene_npc_startup[1]=0;
                 rf_scene_npc_startup[2]=rf_scene_npc_startup[3]=2166136261u;

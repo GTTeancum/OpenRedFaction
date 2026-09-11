@@ -509,3 +509,28 @@ reports aggregate vertex/triangle counts per LOD from its serialized batch infos
 
 NXDK build also passes with the new render owner compiled; no new native
 replay was run because the scene does not call this loader yet.
+
+## Native campaign geometry residency
+
+Campaign load now constructs the shared render-model owner after skeleton/pose
+allocation, with a1MiB budget. Its borrowed mesh archive remains open through
+the scene stream. Teardown frees render geometry before the archive closes.
+After initial poses, a bounded50-bone workspace runs the existing prepared
+skinning transform helper for every actor; it does not retain per-actor posed
+vertices or submit geometry yet.
+
+`rf_scene_npc_geometry` exposes seven words: shared model count, LOD count,
+vertex count, triangle count, owner resident bytes, geometry/bind-transform FNV,
+and prepared-skinning FNV across initial actor poses. The geometry digest covers
+batch records, decoded vertices, triangles and reuse arrays without pointers.
+PC emits `NPC_GEOMETRY`; the QMP replay compares every word, including measured
+owner residency, with PC and enforces the1MiB allocation budget.
+
+Both builds and all nine CTest checks pass. Material/skin selection, texture
+residency, scratch buffers, visibility/LOD selection and triangle submission
+remain separate work; this change does not produce new rendered NPCs.
+
+Stock64MiB XEMU replay `artifacts/xemu/replay-20260911-084426/report.json`
+passes180 frames. Native geometry and prepared-skinning digests match PC, as
+does resident geometry size315036 bytes for five models/thirteen LODs. Existing
+door/audio and NPC startup digest checks remain passing.
