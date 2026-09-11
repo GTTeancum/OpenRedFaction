@@ -534,3 +534,26 @@ Stock64MiB XEMU replay `artifacts/xemu/replay-20260911-084426/report.json`
 passes180 frames. Native geometry and prepared-skinning digests match PC, as
 does resident geometry size315036 bytes for five models/thirteen LODs. Existing
 door/audio and NPC startup digest checks remain passing.
+
+## Authored appearance ownership
+
+`rf_entity_appearances_open` reads entity.tbl once and resolves each retained
+actor's authored class/skin through the existing parser. It verifies the compiled
+model against the shared skeleton, then deduplicates by skeleton and ordered
+case-insensitive replacement texture names. Empty skin means base materials;
+non-skeletal actors map toUINT32_MAX. Model sharing alone is insufficient: L1S1
+has five skeletal models but twelve distinct authored appearances.
+
+The owner retains actor-to-appearance indices and copied replacement names.
+It has no borrowed table/seed text, image allocations or runtime skin-switch
+implementation. Array capacity is the authored actor count and included in
+resident accounting; peak includes the one table scratch buffer. Failure
+preserves empty output and frees partial names; close is repeatable.
+
+`verify_npc_appearances.py` compares every skeletal actor's selected model and
+ordered names to the independent entity.tbl inventory, and verifies identical
+selections share a single appearance ID. Exact/one-byte-short budgets and repeat
+close pass. L1S1/L1S2/L1S3 contain12/9/10 appearances over78/38/25 skeletal actors,
+using6648/6024/5848 resident bytes and381288/380664/380488 peak bytes on PC.
+Both builds and nine CTest checks pass. This metadata owner is not yet connected
+to the scene; image residency and model material binding remain next.

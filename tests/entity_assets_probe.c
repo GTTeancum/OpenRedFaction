@@ -313,6 +313,21 @@ int main(int argc,char **argv)
             printf("RENDER_MODELS %u %u\n",render.count,render.resident_bytes);
             rf_entity_render_models_close(&render);rf_entity_render_models_close(&render);
         }
+        {
+            rf_entity_appearances appearances={0},guard={0};uint32_t actor,k;
+            status=rf_entity_appearances_open(&seeds,&s,&tables,1024*1024,&appearances);
+            if(status){fprintf(stderr,"appearances %d\n",status);return 20;}
+            if(rf_entity_appearances_open(&seeds,&s,&tables,appearances.peak_bytes-1,&guard)!=RF_RANGE || memcmp(&guard,&(rf_entity_appearances){0},sizeof(guard)))return 21;
+            if(rf_entity_appearances_open(&seeds,&s,&tables,appearances.peak_bytes,&guard))return 22;
+            rf_entity_appearances_close(&guard);rf_entity_appearances_close(&guard);
+            for(actor=0;actor<appearances.actor_count;++actor)if(appearances.actor_indices[actor]!=UINT32_MAX) {
+                const rf_entity_appearance *a=appearances.items+appearances.actor_indices[actor];const rf_level_entity *r=&seeds.records.items[actor].record;
+                printf("APPEARANCE\t%s\t%s\t%u\t%s",r->class_name,r->skin,appearances.actor_indices[actor],s.items[a->skeleton].model);
+                for(k=0;k<a->texture_count;++k)printf("\t%s",a->textures[k]);putchar('\n');
+            }
+            printf("APPEARANCES %u %u %u %u\n",appearances.actor_count,appearances.count,appearances.resident_bytes,appearances.peak_bytes);
+            rf_entity_appearances_close(&appearances);rf_entity_appearances_close(&appearances);
+        }
         printf("POSES %u %u %u\n",poses.count,poses.bone_count,poses.resident_bytes);
         rf_entity_poses_close(&poses);
         rf_entity_seeds_close(&seeds);rf_vpp_close(&levels);rf_vpp_close(&tables);rf_vpp_close(&meshes);

@@ -1610,6 +1610,52 @@ int rf_entity_playback_cache_references(const rf_entity_playback_resources *r,ui
     }
     *references=(uint32_t)total;return RF_OK;
 }
+void rf_entity_appearances_close(rf_entity_appearances *a)
+{
+    uint32_t i;if(!a)return;if(a->items)for(i=0;i<a->count;++i)free(a->items[i].textures);
+    free(a->items);free(a->actor_indices);memset(a,0,sizeof(*a));
+}
+int rf_entity_appearances_open(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,
+    rf_vpp *tables,uint32_t budget,rf_entity_appearances *result)
+{
+    rf_entity_appearances v={0};rf_vpp_entry entry;void *text=NULL;uint64_t bytes;
+    uint32_t i,j,k;int status;rf_entity_assets selected;char model[64];
+    if(!seeds || !skeletons || !tables || !result || result->items || result->actor_indices || result->count ||
+       result->actor_count || result->resident_bytes || result->peak_bytes || seeds->class_count!=skeletons->class_count ||
+       (seeds->records.count && (!seeds->items || !seeds->records.items)) || (skeletons->class_count && !skeletons->class_indices))return RF_RANGE;
+    status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)return status;
+    v.actor_count=seeds->records.count;
+    bytes=sizeof(v)+(uint64_t)v.actor_count*(sizeof(*v.items)+sizeof(*v.actor_indices));
+    if(bytes+entry.size>budget)return RF_RANGE;
+    if(v.actor_count){v.items=calloc(v.actor_count,sizeof(*v.items));v.actor_indices=calloc(v.actor_count,sizeof(*v.actor_indices));}
+    text=malloc(entry.size);if(!text || (v.actor_count && (!v.items || !v.actor_indices))){status=RF_RANGE;goto fail;}
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto fail;
+    for(i=0;i<v.actor_count;++i) {
+        uint32_t c=seeds->items[i].class_index,index;const rf_level_entity *record=&seeds->records.items[i].record;
+        if(c>=skeletons->class_count){status=RF_RANGE;goto fail;}index=skeletons->class_indices[c];v.actor_indices[i]=UINT32_MAX;
+        if(index==UINT32_MAX)continue;
+        if(index>=skeletons->count || !skeletons->items){status=RF_RANGE;goto fail;}
+        status=rf_entity_assets_read(text,entry.size,record->class_name,record->skin,&selected);if(status)goto fail;
+        status=rf_entity_skeletal_filename(selected.model,model);if(status)goto fail;
+        if(!same(model,skeletons->items[index].model)){status=RF_FORMAT;goto fail;}
+        for(j=0;j<v.count;++j) {
+            if(v.items[j].skeleton!=index || v.items[j].texture_count!=selected.texture_count)continue;
+            for(k=0;k<selected.texture_count && same(v.items[j].textures[k],selected.textures[k]);++k){}
+            if(k==selected.texture_count)break;
+        }
+        if(j==v.count) {
+            rf_entity_appearance *a=v.items+v.count;uint32_t names=selected.texture_count*64;
+            if(bytes+entry.size+names>budget){status=RF_RANGE;goto fail;}
+            a->skeleton=index;a->texture_count=selected.texture_count;
+            if(names){a->textures=malloc(names);if(!a->textures){status=RF_RANGE;goto fail;}memcpy(a->textures,selected.textures,names);}
+            bytes+=names;++v.count;
+        }
+        v.actor_indices[i]=j;
+    }
+    v.resident_bytes=(uint32_t)bytes;v.peak_bytes=(uint32_t)(bytes+entry.size);free(text);*result=v;return RF_OK;
+fail:
+    free(text);rf_entity_appearances_close(&v);return status;
+}
 void rf_entity_render_models_close(rf_entity_render_models *models)
 {
     uint32_t i,j;if(!models)return;

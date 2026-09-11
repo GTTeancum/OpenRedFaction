@@ -208,6 +208,22 @@ typedef struct rf_entity_render_models {
  * Empty output required; failure preserves it. Close is repeatable. */
 int rf_entity_render_models_open(const rf_entity_skeletons *skeletons,rf_vpp *meshes,uint32_t budget,rf_entity_render_models *result);
 void rf_entity_render_models_close(rf_entity_render_models *models);
+typedef struct rf_entity_appearance {
+    uint32_t skeleton,texture_count;char (*textures)[64];
+} rf_entity_appearance;
+typedef struct rf_entity_appearances {
+    rf_entity_appearance *items;uint32_t *actor_indices;
+    uint32_t count,actor_count,resident_bytes,peak_bytes;
+} rf_entity_appearances;
+/* Authored class/skin binding, shared by skeleton and ordered case-insensitive
+ * replacement names. Empty skin uses base materials; non-skeletal actors map
+ * to UINT32_MAX. This is port binding, not original dynamic skin switching.
+ * Owns names/mappings; archives/seeds may close after success. Same skeleton
+ * index order required. Budget includes table scratch and worst-case item slots.
+ * Empty destination; failures preserve it; close is repeatable. No images. */
+int rf_entity_appearances_open(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,
+    rf_vpp *tables,uint32_t budget,rf_entity_appearances *result);
+void rf_entity_appearances_close(rf_entity_appearances *appearances);
 typedef struct rf_entity_pose {
     uint32_t skeleton,bone_count;rf_motion_playback_state playback;
     rf_motion_controller controller;

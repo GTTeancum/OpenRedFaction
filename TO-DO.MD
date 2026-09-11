@@ -6,6 +6,9 @@ authored opening actors and3087 bone matrices. Per-frame AI/rendering remains.
 Campaign now loads shared NPC model LODs and verifies initial skin transforms;
 opening geometry is176-308KiB on PC before textures/draw buffers.
 
+Authored NPC appearance maps now pass all141 opening actors; five L1S1 models
+need twelve appearances. Connect deduplicated texture/material residency.
+
 Immediate open items:
 - [ ] Connect per-frame NPC selection/pose updates, rendered geometry and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
