@@ -4,7 +4,7 @@
 #include <nxaudio.h>
 #include <windows.h>
 #include <string.h>
-#define VOICES 16u
+#define VOICES RF_AUDIO_ORDINARY_SLOTS
 typedef struct audio_slot {nxAudioVoice voice;nxAudioBuffer buffer;uint32_t handle,created;} audio_slot;
 static audio_slot slots[VOICES];
 static int initialized;
@@ -66,15 +66,21 @@ int rf_xbox_audio_open(void)
     if(!nxAudioInit(&init)){rf_xbox_audio_diagnostic[0]=(uint32_t)RF_IO;return RF_IO;}
     initialized=1;rf_xbox_audio_diagnostic[0]=1;rf_xbox_audio_diagnostic[8]=available();return RF_OK;
 }
+static int32_t allocation_status(void *context,uint32_t slot,uint32_t *bits)
+{(void)context;*bits=nxAudioVoiceGetState(&slots[slot].voice)==NX_STOPPED?0u:1u;return 0;}
+static void allocation_release(void *context,uint32_t index)
+{(void)context;nxAudioVoiceDestroy(&slots[index].voice);memset(slots+index,0,sizeof(*slots));}
 static int play_mode(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left,float right,uint32_t looping)
 {
-    uint32_t i;nxAudioFormat format={0};audio_slot *slot;(void)context;
+    uint32_t i;int32_t selected;nxAudioFormat format={0};audio_slot *slot;rf_audio_allocation_slot facts[VOICES];(void)context;
+    static const rf_audio_allocation_backend backend={allocation_status,allocation_release};
     if(!initialized)return RF_NOT_FOUND;
     if(!(left>=0 && left<=1 && right>=0 && right<=1) || looping>1 || !pcm || !pcm->samples || !pcm->frames ||
        !pcm->rate || pcm->rate>192000 || (pcm->channels!=1 && pcm->channels!=2) || (pcm->bits!=8 && pcm->bits!=16) ||
        (uint64_t)pcm->frames*pcm->channels*(pcm->bits/8)!=pcm->bytes){++rf_xbox_audio_diagnostic[3];return RF_RANGE;}
-    for(i=0;i<VOICES;i++)if(!slots[i].created || nxAudioVoiceGetState(&slots[i].voice)==NX_STOPPED)break;
-    if(i==VOICES){++rf_xbox_audio_diagnostic[3];return RF_RANGE;}
+    for(i=0;i<VOICES;i++) {facts[i].present=slots[i].created;facts[i].flags=slots[i].created && slots[i].voice.looping?1u:0u;}
+    selected=rf_audio_select_ordinary(facts,&backend,NULL);
+    if(selected<0){++rf_xbox_audio_diagnostic[3];return RF_RANGE;}i=(uint32_t)selected;
     slot=slots+i;
     if(slot->created){nxAudioVoiceDestroy(&slot->voice);memset(slot,0,sizeof(*slot));}
     format.sample_rate=pcm->rate;format.channels=(uint8_t)pcm->channels;

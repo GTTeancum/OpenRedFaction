@@ -175,7 +175,7 @@ const rf_wave_pcm *rf_audio_bank_sample(const rf_audio_bank *bank,uint32_t index
 int rf_audio_bank_unload(rf_audio_bank *bank,uint32_t index);
 int rf_audio_bank_reload(rf_audio_bank *bank,rf_vpp *archive,uint32_t index);
 void rf_audio_bank_close(rf_audio_bank *bank);
-#define RF_AUDIO_VOICES 16u
+#define RF_AUDIO_VOICES RF_AUDIO_ORDINARY_SLOTS
 #define RF_AUDIO_RATE 48000u
 typedef struct rf_audio_voice {
     rf_wave_pcm pcm;uint32_t handle,frame,phase,left,right,loop,active;

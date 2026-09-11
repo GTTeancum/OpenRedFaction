@@ -329,9 +329,9 @@ int main(int argc,char **argv)
         while(fread(header,sizeof(header),1,stdin)==1) {
             if(header[0]>4096 || header[7]>1024 || fread(samples,1,header[0],stdin)!=header[0])return 10;
             pcm=(rf_wave_pcm){samples,header[0],header[1],header[2],header[3],header[4]};rf_audio_mixer_init(&mixer);
-            if(!header[8] || header[8]>16)return 11;
+            if(!header[8] || header[8]>RF_AUDIO_VOICES)return 11;
             for(n=0;n<header[8];n++){uint32_t h;if(rf_audio_voice_start(&mixer,&pcm,header[5],32768,header[6],&h))return 11;if(!n)handle=h;}
-            if(header[8]==16){other=123;if(rf_audio_voice_start(&mixer,&pcm,0,0,0,&other)!=RF_RANGE || other!=123)return 17;}
+            if(header[8]==RF_AUDIO_VOICES){other=123;if(rf_audio_voice_start(&mixer,&pcm,0,0,0,&other)!=RF_RANGE || other!=123)return 17;}
             /* Chunked calls must produce the same stream as one render. */
             for(n=0;n<header[7];n+=17)if(rf_audio_mix(&mixer,out+n*2,header[7]-n<17?header[7]-n:17))return 12;
             if(fwrite(out,4,header[7],stdout)!=header[7])return 13;

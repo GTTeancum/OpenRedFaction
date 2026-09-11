@@ -16,7 +16,7 @@ def call(name,args):
 trunc=lambda n,d:-(abs(n)//d) if n<0 else n//d
 rng=random.Random(48000);commands=bytearray();expected=bytearray();clipped=0
 for case in range(144):
- channels=1+case%2;bits=(8,16)[case//2%2];frames=(1,3,31)[case//4%3];rate=(8000,11025,22050,48000,96000,192000)[case//3%6];gain=(0,12345,32768)[case//5%3];loop=case%2;voices=(1,2,16)[case//7%3];count=257
+ channels=1+case%2;bits=(8,16)[case//2%2];frames=(1,3,31)[case//4%3];rate=(8000,11025,22050,48000,96000,192000)[case//3%6];gain=(0,12345,32768)[case//5%3];loop=case%2;voices=(1,2,30)[case//7%3];count=257
  values=[rng.randrange(256) if bits==8 else rng.randrange(-32768,32768) for i in range(frames*channels)]
  raw=bytes(values) if bits==8 else struct.pack('<'+'h'*len(values),*values)
  samples=[(v-128)*256 for v in values] if bits==8 else values
@@ -34,5 +34,5 @@ for case in range(144):
  for v in range(voices):call('rf_audio_voice_start',[b,b+3000,gain,32768,loop,b+3500])
  call('rf_audio_mix',[b,b+8192,count]);assert bytes(x.mem_read(b+8192,count*4))==pcm,case
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_audio_probe.exe'),'--mix'],input=commands);assert actual==expected
-report=dict(result='PASS',cases=144,stereo_frames=144*257,clipped_samples=clipped,mixer_bytes_x86=836,scope='Independent integer reference equals PC chunked17-frame and NXDK single-call renders. PCM8/16 mono/stereo, six rates, gains, loops, natural completion and1/2/16 voices. PC additionally checks full-pool rejection and stale stop handles. Output adapter only; no original Miles equivalence, hardware playback, spatial attenuation or live thread ownership.')
+report=dict(result='PASS',cases=144,stereo_frames=144*257,clipped_samples=clipped,mixer_bytes_x86=1564,scope='Independent integer reference equals PC chunked17-frame and NXDK single-call renders. PCM8/16 mono/stereo, six rates, gains, loops, natural completion and1/2/30 voices. PC additionally checks full-pool rejection and stale stop handles. Output adapter only; no original Miles equivalence, hardware playback, spatial attenuation or live thread ownership.')
 (root/'artifacts/audio-mixer-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

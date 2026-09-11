@@ -227,15 +227,20 @@ int rf_wave_pcm_parse(const void *data,uint32_t size,rf_wave_pcm *result)
 }
 
 void rf_audio_mixer_init(rf_audio_mixer *mixer){if(mixer)memset(mixer,0,sizeof(*mixer));}
+static int32_t mixer_allocation_status(void *context,uint32_t slot,uint32_t *bits)
+{rf_audio_mixer *mixer=context;*bits=mixer->voices[slot].active?1u:0u;return 0;}
+static void mixer_allocation_release(void *context,uint32_t slot)
+{rf_audio_mixer *mixer=context;memset(mixer->voices+slot,0,sizeof(*mixer->voices));}
 int rf_audio_voice_start(rf_audio_mixer *mixer,const rf_wave_pcm *pcm,
     uint32_t left,uint32_t right,uint32_t loop,uint32_t *handle)
 {
-    uint32_t i;rf_audio_voice voice={0};
+    uint32_t i;int32_t selected;rf_audio_voice voice={0};rf_audio_allocation_slot slots[RF_AUDIO_VOICES];
+    static const rf_audio_allocation_backend backend={mixer_allocation_status,mixer_allocation_release};
     if(!mixer || !pcm || !handle || !pcm->samples || !pcm->frames || !pcm->rate || pcm->rate>192000 ||
        (pcm->channels!=1 && pcm->channels!=2) || (pcm->bits!=8 && pcm->bits!=16) ||
        (uint64_t)pcm->frames*pcm->channels*(pcm->bits/8)!=pcm->bytes || left>32768 || right>32768 || loop>1)return RF_RANGE;
-    for(i=0;i<RF_AUDIO_VOICES;i++)if(!mixer->voices[i].active)break;
-    if(i==RF_AUDIO_VOICES)return RF_RANGE;
+    for(i=0;i<RF_AUDIO_VOICES;i++) {slots[i].present=mixer->voices[i].handle!=0;slots[i].flags=mixer->voices[i].loop?1u:0u;}
+    selected=rf_audio_select_ordinary(slots,&backend,mixer);if(selected<0)return RF_RANGE;i=(uint32_t)selected;
     mixer->generation=mixer->generation%65534+1;
     voice.pcm=*pcm;voice.handle=(mixer->generation<<16)|i;voice.left=left;voice.right=right;
     voice.loop=loop;voice.active=1;mixer->voices[i]=voice;*handle=voice.handle;return RF_OK;
@@ -252,7 +257,7 @@ int rf_audio_voice_stop(rf_audio_mixer *mixer,uint32_t handle)
     uint32_t i=handle&0xffff;
     if(!mixer)return RF_RANGE;
     if(i>=RF_AUDIO_VOICES || !mixer->voices[i].active || mixer->voices[i].handle!=handle)return RF_NOT_FOUND;
-    mixer->voices[i].active=0;return RF_OK;
+    memset(mixer->voices+i,0,sizeof(*mixer->voices));return RF_OK;
 }
 static int32_t voice_sample(const rf_audio_voice *v,uint32_t frame,uint32_t channel)
 {

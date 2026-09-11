@@ -601,3 +601,33 @@ loop output, silence after stop, already-released handle detection and exact
 available-page restoration, plus the previous lifetime/failure checks. PC/NXDK
 builds and all eight CTests pass. The live30-slot allocator and safe PCM eviction
 remain open; this increment connects the explicit-stop cleanup prerequisite.
+
+
+## Live ordinary allocation integration
+
+The shared mixer (also used by the PC device) and Xbox device now use the
+verified rf_audio_select_ordinary policy with30 slots. Present records carry
+the loop flag; shared active state and native NX_STOPPED supply playback status.
+Reusable completed one-shots are cleared/destroyed before replacement; active
+voices and loop records remain protected. Explicit shared stop clears the
+record, complementing the previously verified device release path. Native
+non-stopped states are conservatively treated as playing; pause and other
+original flag families have not been integrated. The x86 mixer occupies1564
+bytes. This supersedes the earlier16-slot/live-integration limitations above.
+
+Verification after integration:
+- PC and NXDK builds pass, along with all eight CTests.
+- Original allocator comparison still passes4096 cases.
+- Independent mixer reference matches PC/NXDK for144 cases, now including30
+  voices, clipping, loops, natural completion, full-pool rejection and stale stop.
+- PC device checks pass, including protected source pages after loop release.
+- Stock64MiB native APU run20260911-011820 passes30 overlapping voices, rejected
+  overflow, reuse after release, stale-handle protection and memory restoration,
+  plus loop, gain, allocation-failure and borrower-lifetime checks.
+- Native L1S3 campaign replay20260911-011855 passes31 frames with PC state
+  parity and no device errors. Guest DMA contains4067 nonzero samples and9536
+  pages remain available. This proves guest output, not host listening.
+
+Automatic safe PCM eviction, category settings, broader moving-listener
+coverage, original handle lifecycle and the remaining25 record roles remain
+open. No full original audio-system or hardware-listening parity is claimed.

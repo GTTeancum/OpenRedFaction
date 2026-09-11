@@ -38,7 +38,7 @@ startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDO
 process=None;monitor=None;report=dict(result='FAIL',command=command,samples=[],
     xbe_sha256=hashlib.sha256((build/'disc/default.xbe').read_bytes()).hexdigest(),
     provenance=json.loads((build/'provenance.json').read_text()),
-    scope='Isolated original DoorOpen_07 sample through APU voice/DSP on stock64MiB XEMU. Checks natural completion, replay of the retained static buffer, eight stop/destroy/recreate cycles, reinitialization, running-voice left/right/mute DSP routing, synthetic periodic PCM intermediate gain calibration, ten injected initialization allocation failures with restored pages, three bank PCM playback/unload cycles with injected failed stopped-state observation/retry and selective voice release while independent right-channel output continues and two reloads, preserved metadata, budget rejection and matching PCM, production adapter sixteen overlapping voices, overflow rejection, slot reuse, stale stop protection, restored available pages and nonzero guest DMA output snapshot. Not a linear audio capture, host audibility, live campaign integration, spatial parity or full backend validation.')
+    scope='Isolated original DoorOpen_07 sample through APU voice/DSP on stock64MiB XEMU. Checks natural completion, replay of the retained static buffer, eight stop/destroy/recreate cycles, reinitialization, running-voice left/right/mute DSP routing, synthetic periodic PCM intermediate gain calibration, ten injected initialization allocation failures with restored pages, three bank PCM playback/unload cycles with injected failed stopped-state observation/retry and selective voice release while independent right-channel output continues and two reloads, preserved metadata, budget rejection and matching PCM, production adapter thirty overlapping voices, overflow rejection, slot reuse, stale stop protection, restored available pages and nonzero guest DMA output snapshot. Not a linear audio capture, host audibility, live campaign integration, spatial parity or full backend validation.')
 try:
     with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
         environment=dict(os.environ,SDL_AUDIO_DRIVER='dummy')
@@ -95,7 +95,7 @@ try:
                 assert report['allocation_failures']==10,report['allocation_failures']
                 adapter_address=int(re.search(r'_rf_apu_adapter\s+([0-9a-fA-F]+)',mapping)[1],16)
                 adapter=words(monitor,adapter_address,5);report['adapter']=adapter
-                assert adapter==[16,1,17,state[3],0],adapter
+                assert adapter==[30,1,31,state[3],0],adapter
                 assert state[6:9]==[11025,28485,3],state
                 assert state[3]==state[5] and state[12]>0,state
                 elapsed=(state[11]-state[10])&0xffffffff

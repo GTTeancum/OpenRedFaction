@@ -118,11 +118,11 @@ int main(void)
     /* Exercise the production adapter with shared PCM page ownership. */
     rf_apu_probe[1]=12;
     if(rf_xbox_audio_open()!=RF_OK)goto fail;
-    for(uint32_t n=0;n<16;n++)rf_xbox_audio_events.play(NULL,0x10000u+n,&pcm,1,1);
+    for(uint32_t n=0;n<RF_AUDIO_ORDINARY_SLOTS;n++)rf_xbox_audio_events.play(NULL,0x10000u+n,&pcm,1,1);
     Sleep(50);
     rf_xbox_audio_events.poll(NULL);
     rf_apu_adapter[0]=rf_xbox_audio_diagnostic[7];
-    if(rf_apu_adapter[0]!=16 || rf_xbox_audio_diagnostic[1]!=16 || !rf_xbox_audio_diagnostic[5])goto fail;
+    if(rf_apu_adapter[0]!=RF_AUDIO_ORDINARY_SLOTS || rf_xbox_audio_diagnostic[1]!=RF_AUDIO_ORDINARY_SLOTS || !rf_xbox_audio_diagnostic[5])goto fail;
     rf_xbox_audio_events.play(NULL,0x20000u,&pcm,1,1);
     rf_apu_adapter[1]=rf_xbox_audio_diagnostic[3];
     if(rf_apu_adapter[1]!=1)goto fail;
@@ -130,7 +130,7 @@ int main(void)
     Sleep(100);
     rf_xbox_audio_events.play(NULL,0x30000u,&pcm,1,1);
     rf_apu_adapter[2]=rf_xbox_audio_diagnostic[1];
-    if(rf_apu_adapter[2]!=17 || rf_xbox_audio_diagnostic[3]!=1)goto fail;
+    if(rf_apu_adapter[2]!=RF_AUDIO_ORDINARY_SLOTS+1 || rf_xbox_audio_diagnostic[3]!=1)goto fail;
     /* The old logical handle must not stop its replacement. */
     rf_xbox_audio_events.stop(NULL,0x10000u);
     if(rf_xbox_audio_diagnostic[2]!=1)goto fail;
