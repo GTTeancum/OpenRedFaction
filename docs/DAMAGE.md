@@ -527,3 +527,32 @@ this original branch's infinite loop. This is an explicit defect correction,
 not a claim of byte-for-byte behavior in the invalid-owner case. Confirm the
 corrected traversal with head/interior/tail removal before live integration.
 The current shared pool functions do not yet implement that update loop.
+
+## Shared traversal with missing-owner correction
+
+rf_burn_pool_update now implements42ee80's list traversal, four-emitter gate,
+missing-owner release and225ms timer epilogue. Its body callback remains the
+boundary for attachment/spread/audio/damage/fade work. The function saves the
+next active token before dispatch and resumes it after release, deliberately
+correcting the original free-ring cycle. It validates initial ring topology
+and checks for repeated/out-of-range traversal tokens rather than looping.
+
+The body may release its current record, but cannot remove/reorder other active
+records or reuse released tokens during the pass. Lookups are read-only.
+Failures do not roll back previous records' effects and do not complete the
+timer epilogue. The normal epilogue checks the current shared deadline and
+sets225ms only if expired or cleared. No record or emitter storage is allocated.
+
+verify_burn_update.py compares90 reference paths with only42ef39 redirected
+to42f2a2 in Unicorn; installed RF.exe is unchanged. Real original release and
+timer code execute, while the live-owner body is supplied. All90 paths now
+terminate, including the18 formerly cycling missing-owner cases. PC and actual
+NXDK code match pool bytes, callback order and deadline. Two malformed-list
+guards bring each compiled suite to92 cases. Both builds and eight CTests pass.
+The unmodified audit still confirms the18 original cycles. This verifies the
+explicit branch correction, not bit-identical behavior in that defective path.
+
+Remaining work is the full body, including normal fade-triggered current-record
+release in this traversal, attachment/emitter geometry and spread targets, plus
+live adapters. The existence of this traversal callback is not a completed
+per-frame burn simulation. Evidence is artifacts/burn-update.json.

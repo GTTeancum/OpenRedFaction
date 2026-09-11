@@ -71,3 +71,22 @@ static int burn_fade_probe(void)
     }
     return ferror(stdin)?2:0;
 }
+
+static uint32_t bu_missing;
+static int bu_present(void *ctx,uint32_t target){(void)ctx;burn_record_call(0x40a0e0,target);return target!=bu_missing;}
+static int bu_body(void *ctx,uint32_t token,rf_burn_record *record){(void)ctx;(void)record;burn_record_call(0x42ef3e,token);return RF_OK;}
+static void bu_clear(void *ctx,uint32_t token){(void)ctx;burn_record_call(0x42ee13,token);}
+static int burn_update_probe(void)
+{
+    uint32_t wire[132];rf_burn_pool pool;int status;
+    rf_burn_release_backend release={burn_reset,burn_free,burn_stop,bu_clear,NULL};
+    rf_burn_update_backend backend={bu_present,bu_body,&release,NULL};
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(wire,sizeof(wire),1,stdin)==1) {
+        memcpy(&pool,wire,524);bu_missing=wire[131];burn_count=0;memset(burn_trace,0,sizeof(burn_trace));
+        status=rf_burn_pool_update(&pool,1000,&backend);
+        if(burn_count>64)return 4;
+        fwrite(&status,4,1,stdout);fwrite(&pool,524,1,stdout);fwrite(&burn_count,4,1,stdout);fwrite(burn_trace,512,1,stdout);
+    }
+    return ferror(stdin)?2:0;
+}

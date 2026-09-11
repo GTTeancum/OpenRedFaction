@@ -2362,3 +2362,8 @@ Original burn traversal audit:90 cases confirm18 missing-owner free-ring
 cycles after release and72 terminating missing-emitter paths. Shared update
 must resume saved next active token after release,an explicit defect correction;
 verify head/interior/tail removal before integration. See docs/DAMAGE.md.
+
+Shared burn traversal now fixes missing-owner cycling by resuming saved next
+active token.90 corrected-original paths plus two guards match PC/NXDK;
+both builds/eight CTests pass. Full body and fade-triggered release integration
+remain open; this is traversal infrastructure,not completed burn simulation.

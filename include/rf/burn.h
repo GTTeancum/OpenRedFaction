@@ -70,4 +70,18 @@ typedef struct rf_burn_fade_backend {
  * Caller supplies current shared spread deadline and clock, not frame delta. */
 int rf_burn_fade(rf_burn_record *record,rf_burn_emitter_view *const emitters[4],
     uint32_t token,int32_t deadline,int32_t now,const rf_burn_fade_backend *backend);
+typedef struct rf_burn_update_backend {
+    int (*owner_present)(void *context,uint32_t target);
+    int (*body)(void *context,uint32_t token,rf_burn_record *record);
+    const rf_burn_release_backend *release;
+    void *context;
+} rf_burn_update_backend;
+/*42ee80 traversal and timer epilogue. body supplies the remaining attachment,
+ * spread, audio and owner-damage/fade sequence. It may release the current
+ * record, but may not remove/reorder other active records or reuse a released
+ * token during this pass. Lookups are read-only. Missing-owner release resumes
+ * saved next active token, deliberately fixing the original free-ring cycle.
+ * Invalid initial topology fails before callbacks; later failures do not roll
+ * back earlier effects. Timer rearms225ms at successful end of pass only. */
+int rf_burn_pool_update(rf_burn_pool *pool,int32_t now,const rf_burn_update_backend *backend);
 #endif

@@ -50,6 +50,7 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--burn-update"))return burn_update_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-fade"))return burn_fade_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-create"))return burn_create_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-pool"))return burn_pool_probe();

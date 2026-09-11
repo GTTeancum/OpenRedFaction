@@ -131,3 +131,25 @@ int rf_burn_fade(rf_burn_record *r,rf_burn_emitter_view *const e[4],
     }
     r->volume*=.95f;return RF_OK;
 }
+int rf_burn_pool_update(rf_burn_pool *p,int32_t now,const rf_burn_update_backend *be)
+{
+    uint32_t seen=0,visited=0,at,next;int status,expired;
+    if(!p || !be || !be->owner_present || !be->body || !backend_valid(be->release))return RF_RANGE;
+    if(!ring_valid(p,p->active_head,&seen) || !ring_valid(p,p->free_head,&seen))return RF_FORMAT;
+    status=rf_timer_expired(p->spread_deadline,now,&expired);if(status)return status;
+    at=p->active_head;
+    while(at) {
+        rf_burn_record *r;
+        if(at>RF_BURN_SLOTS || (visited&(1u<<(at-1))))return RF_FORMAT;
+        visited|=1u<<(at-1);r=&p->records[at-1];next=r->next==p->active_head?0:r->next;
+        if(r->emitters[0] && r->emitters[1] && r->emitters[2] && r->emitters[3]) {
+            if(!be->owner_present(be->context,r->target))status=rf_burn_release(p,at,0,be->release);
+            else status=be->body(be->context,at,r);
+            if(status)return status;
+        }
+        at=next;
+    }
+    status=rf_timer_expired(p->spread_deadline,now,&expired);if(status)return status;
+    if(expired || p->spread_deadline==-1)return rf_timer_set(&p->spread_deadline,now,225);
+    return RF_OK;
+}
