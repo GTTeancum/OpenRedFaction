@@ -1008,3 +1008,28 @@ cache-hole reuse is not established: acquisition uses the current count while
 release decrements it. Selective-release ordering, loading/destruction internals
 and registry retention scheduling must be reconciled before transplanting this
 policy into the bounded port bank. No automatic eviction is added by this test.
+
+
+### Loader dispatch and stream cleanup
+
+verify_audio_loader_dispatch.py executes521d30 and522130 with resource
+open/read/close and format-specific loaders supplied.720 cases check exact
+arguments and ordered calls, complete cache records, enabled/negative-index
+gates, low-byte modes, format tags1/2/unsupported and each failure stage.
+All pass. The supplied open callback writes only the format pointer; its
+allocation and initialization effects are outside this proof.
+
+522130 checks the enabled low byte and nonnegative index, calls563370 to open
+resource metadata, then5635d0 to read data metadata. Either reported failure
+closes the stream through5636e0 and returns-1. After success,521d30 returns
+immediately without stream closure when the mode low byte equals1. Other
+modes dispatch format tag1 to521db0 or tag2 to521f90, then close the stream;
+unsupported tags fail and also close it. Mode1 is therefore a distinct stream
+lifetime, not merely another boolean variant of immediate buffer creation.
+
+The tested orchestration itself does not reset the device reference at+588.
+New raw exports show format1 creates/fills a DirectSound buffer and optionally
+queries3D state, while format2 uses a conversion buffer and codec context.
+Their actual failure cleanup and global cache initialization remain unverified;
+raw decompilation is not taken as proof of reference initialization. Automatic
+PCM eviction and level-transition retention remain open.
