@@ -116,3 +116,21 @@ static int burn_owner_probe(void)
     }
     return ferror(stdin)?2:0;
 }
+
+static float ba_points[4][3];static uint32_t ba_trace[8][5],ba_count;
+static int ba_attachment(void *ctx,int32_t index,float point[3])
+{(void)ctx;if(index<0 || index>3 || ba_count>=8)return RF_RANGE;ba_trace[ba_count][0]=0;ba_trace[ba_count++][1]=(uint32_t)index;memcpy(point,ba_points[index],12);return RF_OK;}
+static int ba_move(void *ctx,uint32_t emitter,const float point[3])
+{(void)ctx;if(ba_count>=8)return RF_RANGE;ba_trace[ba_count][0]=1;ba_trace[ba_count][1]=emitter;memcpy(ba_trace[ba_count++]+2,point,12);return RF_OK;}
+static int burn_attachment_probe(void)
+{
+    uint32_t wire[28];rf_burn_record record;rf_burn_attachment_result result;int status;
+    rf_burn_attachment_backend be={ba_attachment,ba_move,NULL};
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(wire,sizeof(wire),1,stdin)==1) {
+        memcpy(&record,wire,64);memcpy(ba_points,wire+16,48);memset(&result,0,sizeof(result));memset(ba_trace,0,sizeof(ba_trace));ba_count=0;
+        status=rf_burn_attachments(&record,&be,&result);
+        fwrite(&status,4,1,stdout);fwrite(&result,16,1,stdout);fwrite(&ba_count,4,1,stdout);fwrite(ba_trace,160,1,stdout);
+    }
+    return ferror(stdin)?2:0;
+}

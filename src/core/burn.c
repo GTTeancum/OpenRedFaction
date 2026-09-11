@@ -177,3 +177,43 @@ int rf_burn_owner_tick(rf_burn_record *r,rf_burn_owner_view *owner,
     }
     return RF_OK;
 }
+
+static int burn_attachment_point(const rf_burn_attachment_backend *be,int32_t tag,float point[3])
+{
+    unsigned i;int status=be->attachment(be->context,tag,point);
+    if(status!=RF_OK)return status;
+    for(i=0;i<3;++i)if(!isfinite(point[i]))return RF_FORMAT;
+    return RF_OK;
+}
+int rf_burn_attachments(rf_burn_record *r,const rf_burn_attachment_backend *be,rf_burn_attachment_result *out)
+{
+    rf_burn_attachment_result result;float left[3],right[3],other[3],delta[3],middle[3],length;
+    double magnitude,inverse;unsigned i;int status;
+    if(!r || !be || !be->attachment || !be->move_update || !out)return RF_RANGE;
+    if(!isfinite(r->elapsed))return RF_FORMAT;
+    for(i=0;i<4;++i)if(!r->emitters[i])return RF_RANGE;
+    status=burn_attachment_point(be,r->attachments[2],result.spine);if(status!=RF_OK)return status;
+    status=be->move_update(be->context,r->emitters[3],result.spine);if(status!=RF_OK)return status;
+    if(!isfinite(r->elapsed))return RF_FORMAT;
+    result.spread_age_eligible=r->elapsed<=12;
+    if(result.spread_age_eligible) {
+        status=burn_attachment_point(be,r->attachments[0],left);if(status!=RF_OK)return status;
+        status=burn_attachment_point(be,r->attachments[1],right);if(status!=RF_OK)return status;
+        status=burn_attachment_point(be,r->attachments[3],other);if(status!=RF_OK)return status;
+        for(i=0;i<3;++i)delta[i]=right[i]-left[i];
+        magnitude=sqrt(((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2]);
+        if(!isfinite(magnitude) || magnitude==0)return RF_RANGE;
+        inverse=1.0/magnitude;length=(float)magnitude;
+        for(i=0;i<3;++i) {
+            float normalized=(float)(delta[i]*inverse);
+            float scaled=normalized*length;
+            float half=scaled*.5f;
+            middle[i]=left[i]+half;
+            if(!isfinite(middle[i]))return RF_FORMAT;
+        }
+        status=be->move_update(be->context,r->emitters[0],middle);if(status!=RF_OK)return status;
+        status=be->move_update(be->context,r->emitters[1],result.spine);if(status!=RF_OK)return status;
+        status=be->move_update(be->context,r->emitters[2],other);if(status!=RF_OK)return status;
+    }
+    *out=result;return RF_OK;
+}

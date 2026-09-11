@@ -25,7 +25,7 @@ def hook(m,address,size,context):
         index=emitters.index(m.reg_read(UC_X86_REG_ECX));trace.append(('update',index))
     m.reg_write(UC_X86_REG_EAX,result);m.reg_write(UC_X86_REG_ESP,sp+pop);m.reg_write(UC_X86_REG_EIP,a[0])
 u.hook_add(UC_HOOK_CODE,hook)
-rng=random.Random(0x42ef3e);maximum_error=0.;cases=0
+rng=random.Random(0x42ef3e);maximum_error=0.;cases=0;wire_cases=[];wire_expected=[]
 for i in range(1024):
     attachments=[struct.unpack('<3f',v([rng.uniform(-10,10) for _ in range(3)])) for j in range(4)]
     if i%17==0:attachments[1]=attachments[0]
@@ -45,6 +45,17 @@ for i in range(1024):
                 assert math.isnan(actual),(i,index,positions[index]);continue
             error=abs(actual-desired);assert math.isfinite(actual) and error<3e-6,(i,index,positions[index],xyz)
             maximum_error=max(maximum_error,error)
+    record=bytearray(u.mem_read(b,64));record[:16]=w(1,2,3,4)
+    wire_cases.append(bytes(record)+b''.join(v(xyz) for xyz in attachments))
+    degenerate=elapsed<=12 and attachments[0]==attachments[1]
+    rows=[]
+    for kind,index in trace:
+        if kind=='attachment':rows.append(w(0,index,0,0,0))
+        elif kind=='position':
+            if degenerate and index==0:break
+            rows.append(w(1,index+1)+v(positions[index]))
+    result=bytes(16) if degenerate else v(attachments[2])+w(int(elapsed<=12))
+    wire_expected.append(w(-4 if degenerate else 0)+result+w(len(rows))+b''.join(rows)+bytes((8-len(rows))*20))
     cases+=1
 report=dict(result='PASS',cases=cases,maximum_midpoint_error=maximum_error,original_sha256=digest,scope='Unchanged42ef3e..42f0bd (or age skip42f1dc), original vector subtraction/normalization/distance/scaling helpers. Supplied model attachment vectors and intercepted position/update calls. Fourth emitter follows spine at every age; first3 only through12 seconds; Coincident leg tags produce NaN midpoint components (original zero normalization). Does not execute model evaluation, room relocation4972a0, emission4972f0, timer/spread, or callback mutation.')
 (root/'artifacts/burn-attachment-trace.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

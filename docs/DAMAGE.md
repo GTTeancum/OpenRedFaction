@@ -619,3 +619,29 @@ list is stable and world spine already transformed. Timer gating, world
 transform, callback mutation and live integration remain outside this trace.
 Evidence is artifacts/burn-attachment-trace.json and burn-spread-trace.json.
 These traces establish the body behavior for the next shared implementation.
+
+## Shared burn attachment phase
+
+rf_burn_attachments now implements42ef3e..42f0bd with model-tag evaluation
+and combined4972a0/4972f0 callbacks. It preserves spine-first emitter3 update,
+then re-reads elapsed for the inclusive12-second gate. Eligible records query
+left/right/fourth tags and update emitters0,1,2 in original order. The midpoint
+retains separate float stores for subtraction, normalized components, distance,
+scaling, halving and addition. The result supplies local spine and age eligibility
+for subsequent world-transform/timer/spread work. No allocation occurs.
+
+Finite values and four nonzero emitter identities are required. Coincident leg
+points return RF_RANGE after the prior spine update and tag queries, deliberately
+preventing the original NaNs from reaching emitter0. This is an explicit error
+boundary, not a repaired complete burn simulation. Callers must handle the error
+and own cleanup; previous callbacks are not rolled back and result is unchanged
+on failure. Model identity and record storage must survive all callbacks.
+
+verify_burn_attachments.py passes1,025 cases on PC and actual NXDK-linked code:
+1,024 original placement cases (including explicit degenerate divergence), plus
+a nonfinite-age guard. Non-midpoint output and call order are exact; midpoint
+comparison allows2e-6, with zero measured error in this suite. Both builds and
+eight CTests pass. Evidence is artifacts/burn-attachments.json. Callback mutation,
+room relocation and emission remain untested at this combined boundary.
+Next connect spread selection and world transformation, then assemble the
+complete per-record update with persistent model/particle/audio/entity adapters.

@@ -2374,3 +2374,7 @@ and NXDK plus6 input guards; full attachment/spread and live ownership remain.
 Burn attachment1024 and spread3125 original traces pass; radius is2 units
 (squared limit4), while coincident leg tags expose original NaN normalization.
 Shared attachment/spread implementation and persistent ownership remain open.
+
+Shared burn attachment placement passes1025 PC/NXDK cases with zero measured
+position error; coincident tags return an explicit error before NaN emission.
+Spread, world transform and full live burn ownership remain to be connected.

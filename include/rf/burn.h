@@ -104,4 +104,19 @@ typedef struct rf_burn_owner_backend {
  * Errors after callbacks do not roll back. Does not perform attachment/spread. */
 int rf_burn_owner_tick(rf_burn_record *record,rf_burn_owner_view *owner,
     uint32_t token,float frame_seconds,const rf_burn_owner_backend *backend);
+typedef struct rf_burn_attachment_backend {
+    int (*attachment)(void *context,int32_t index,float position[3]);
+    /*4972a0 then4972f0 on this emitter, preserving its direction. */
+    int (*move_update)(void *context,uint32_t emitter,const float position[3]);
+    void *context;
+} rf_burn_attachment_backend;
+typedef struct rf_burn_attachment_result {float spine[3];uint32_t spread_age_eligible;} rf_burn_attachment_result;
+/*42ef3e..42f0bd. Caller resolves the same model/owner for every tag.
+ * Callbacks retain record/storage and attachment identity; first emitter
+ * update may advance elapsed, which is re-read for the12-second gate.
+ * Finite fields required. Coincident legs return RF_RANGE instead of passing
+ * original NaNs to emitter0. Earlier callbacks are not rolled back; result
+ * is committed only on success. No timer, world transform or spread here. */
+int rf_burn_attachments(rf_burn_record *record,const rf_burn_attachment_backend *backend,
+    rf_burn_attachment_result *result);
 #endif
