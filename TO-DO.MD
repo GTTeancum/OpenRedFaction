@@ -15,6 +15,9 @@ L1S1 retains26,652 table bytes plus127,680 additional bank bytes without new PCM
 Connect marker-name residency, entity-update scheduling, surface selection and
 footstep dispatch; verify persistent registration across level transitions.
 
+Original entity-update prefix now passes256 scheduling/gate cases; trace model
+advancement and surface selection before enabling live marker consumption.
+
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.

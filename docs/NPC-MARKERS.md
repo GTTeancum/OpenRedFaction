@@ -236,3 +236,23 @@ it is not an updated native proof. Both builds and all nine CTest cases pass.
 Marker-name residency, entity-update scheduling, live surface selection and
 footstep sound dispatch remain unconnected. Global registry persistence across
 level transitions remains separate work.
+
+
+## Entity-update scheduling boundary
+
+`tools/verify_footstep_schedule.py` executes original `41e4b0` through the return
+from its footstep call at41e6e9, or an earlier return. Across256 combinations,
+28 reach footsteps and16 exercise the player/network rejection flag write.
+Actual40a110 tests object flag0x4000. Its true path returns early (the fixture
+has no ambient handle). Additional early exits include missing model+80,
+entity identity matching global5afb70, and the mode-byte64ecb9/64ecba path with
+flag8 and a failed4a3740 lookup. In that mode, flag0x40 clears object+34; failed
+lookup also sets object flag2. These are verified field effects, not new labels
+for the object's lifecycle state.
+
+For the accepted fixture path, ordered calls are421240,421170,429620,41f160,
+421720,41f070,4194e0,4895d0, optional409280/409340, then42f940. Other callee bodies
+are supplied, and auxiliary sound handles are inactive. This does not establish
+the internals of those callees, ordering relative to model advancement, or the
+writer of entity+1380 used for surface selection. Do not trigger footsteps from
+the render loop or assume the entire entity update has been reconstructed.
