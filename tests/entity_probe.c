@@ -5,6 +5,15 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+static rf_damage_object dispatch_object;
+static uint32_t dispatch_facts[3],dispatch_present,dispatch_trace[8],dispatch_count,dispatch_effect[6];
+static float dispatch_after;
+static rf_damage_object *dispatch_lookup(void *context,uint32_t handle)
+{(void)context;(void)handle;dispatch_trace[dispatch_count++]=0x40a0e0;return dispatch_present?&dispatch_object:NULL;}
+static uint32_t dispatch_predicate(void *context,uint32_t stage,uint32_t handle,const rf_damage_object *object)
+{static const uint32_t addresses[3]={0x426fc0,0x42cca0,0x48aaf0};(void)context;(void)handle;(void)object;dispatch_trace[dispatch_count++]=addresses[stage];return dispatch_facts[stage];}
+static float dispatch_effect_call(void *context,rf_damage_object *object,float amount,uint32_t source,int32_t kind,uint32_t extra)
+{uint32_t address=object->type==0?0x41a350:object->type==4?0x410270:0x417c60;(void)context;dispatch_trace[dispatch_count++]=address;dispatch_effect[0]=address;dispatch_effect[1]=0x30000000;memcpy(dispatch_effect+2,&amount,4);dispatch_effect[3]=source;dispatch_effect[4]=(uint32_t)kind;dispatch_effect[5]=extra;object->health=dispatch_after;return 7.25f;}
 static uint32_t damage_sound_trace[3][8],damage_sound_count,damage_sound_mutation;
 static int32_t damage_sound_sample,damage_sound_playing;
 static rf_entity_damage_sound_state *damage_sound_state;
@@ -39,6 +48,20 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--damage-dispatch")) {
+        uint32_t wire[15];rf_damage_request request;float multiplier,result;int status;
+        rf_damage_backend backend={dispatch_lookup,dispatch_predicate,dispatch_effect_call,NULL};
+        _Static_assert(sizeof(request)==24,"Damage request wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            memcpy(&dispatch_object,wire,12);memcpy(&request,wire+3,24);memcpy(&multiplier,wire+9,4);
+            dispatch_present=wire[10];memcpy(dispatch_facts,wire+11,12);memcpy(&dispatch_after,wire+14,4);
+            dispatch_count=0;memset(dispatch_trace,0,sizeof(dispatch_trace));memset(dispatch_effect,0,sizeof(dispatch_effect));memset(&result,0xa5,4);
+            status=rf_damage_dispatch_sp(0x12340001,&request,multiplier,&backend,&result);
+            fwrite(&status,4,1,stdout);fwrite(&dispatch_object,12,1,stdout);fwrite(&result,4,1,stdout);fwrite(&dispatch_count,4,1,stdout);fwrite(dispatch_trace,32,1,stdout);fwrite(dispatch_effect,24,1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--damage-sound")) {
         uint32_t wire[19];rf_entity_damage_sound_state state;float fraction;int32_t now,status;
         rf_entity_damage_sound_backend backend={damage_sound_resolve,damage_sound_poll,damage_sound_play,NULL};

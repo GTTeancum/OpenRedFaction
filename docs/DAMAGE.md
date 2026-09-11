@@ -109,8 +109,8 @@ routing, not audible playback or the remaining damage/death lifecycle.
 verify_damage_wrapper_trace.py executes complete original4892c0 for8,192
 cases, with SP globals64ecb9/ba and6fc4d8 zero. Lookup, immunity/player
 predicates and delegated effects are supplied; exact call order, arguments,
-health, flags and return value are checked. This is original behavior evidence,
-not yet a reconstructed C wrapper or end-to-end damage test.
+health, flags and return value are checked. This harness produces original
+behavior evidence; the compiled wrapper comparison is described below.
 
 Missing targets and amounts below binary32 .001 return zero without setting
 flags. Otherwise object+7c gains0x200000 before any subsequent rejection.
@@ -135,3 +135,23 @@ The trace covers all object kinds0..9, threshold boundaries, all four
 difficulty entries, low-byte predicates, forced hits and mutations performed
 by the supplied effect callback. It records3,257 accepted routes. Generated
 artifacts/damage-wrapper-trace.json includes the checked original SHA256.
+
+rf_damage_dispatch_sp now implements this path in shared C. Its backend owns
+object lookup, the three predicate stages and per-type delegated effects.
+The borrowed object remains alive across callbacks; effect callbacks may
+change health and flags, and the final player predicate is queried anew.
+The request stays stable. No allocation or actor lifetime management occurs
+inside this dispatcher. Missing targets return successful zero damage.
+
+Finite values are required. Malformed arguments return errors; errors after
+marking flags or invoking an effect do not roll back earlier changes. The
+output result is committed only on success. The multiplier is caller-supplied
+from the selected original difficulty row. Multiplayer and the alternate
+6fc4d8 path must not use this entry point without further reconstruction.
+
+verify_damage_dispatch.py compares8,192 original results to both the PC probe
+and actual NXDK-linked function, checking full callback order, effect
+arguments, health/flags and returned damage. Two nonfinite input guards bring
+each compiled suite to8,194 cases. Both builds and eight CTests pass. This
+establishes the shared entry point but does not yet connect campaign entity
+ownership or the remaining41a350 effects to Continuous_Damage.

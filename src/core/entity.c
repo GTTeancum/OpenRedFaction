@@ -221,6 +221,39 @@ int rf_entity_damage_credit_sp(rf_entity_damage_credit *state,int32_t kind,
     state->responsible_handle=responsible;return RF_OK;
 }
 
+int rf_damage_dispatch_sp(uint32_t target,const rf_damage_request *request,
+    float difficulty_multiplier,const rf_damage_backend *backend,float *result)
+{
+    rf_damage_object *object;float amount,value=0,next;
+    if(!request || !backend || !backend->lookup || !backend->predicate || !backend->effect || !result)return RF_RANGE;
+    if(!isfinite(request->amount) || !isfinite(difficulty_multiplier))return RF_FORMAT;
+    object=backend->lookup(backend->context,target);
+    if(!object){*result=0;return RF_OK;}
+    if(!isfinite(object->health))return RF_FORMAT;
+    amount=request->amount;
+    if(amount<.001f){*result=0;return RF_OK;}
+    object->flags|=0x200000;
+    if(!(request->force&255)) {
+        if(object->flags&4){*result=0;return RF_OK;}
+        if(backend->predicate(backend->context,0,target,object) &&
+           (backend->predicate(backend->context,1,target,object)&255)){*result=0;return RF_OK;}
+        if(request->kind!=9 && (backend->predicate(backend->context,2,target,object)&255)) {
+            amount*=difficulty_multiplier;
+            if(!isfinite(amount))return RF_FORMAT;
+        }
+    }
+    if(object->type==0 || object->type==4 || object->type==7) {
+        next=backend->effect(backend->context,object,amount,request->source,request->kind,
+            object->type==0?request->auxiliary_uid:object->type==4?request->argument6:0);
+        if(object->type==0)value=next;
+    } else if(object->type==2 || (object->type==3 && amount>100)) {
+        next=object->health-amount;if(!isfinite(next))return RF_FORMAT;object->health=next;
+    }
+    if(backend->predicate(backend->context,2,target,object)&255)
+        if(object->health>0 && object->health<=.5f)object->health=0;
+    if(!isfinite(value) || !isfinite(object->health))return RF_FORMAT;
+    *result=value;return RF_OK;
+}
 int rf_entity_damage_sound(rf_entity_damage_sound_state *state,float fraction,
     uint32_t predicate_a,uint32_t predicate_b,int32_t now,const rf_entity_damage_sound_backend *backend)
 {

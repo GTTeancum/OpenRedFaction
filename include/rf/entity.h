@@ -130,4 +130,25 @@ typedef struct rf_entity_damage_sound_backend {
  * after playback). Other fields remain stable. No sample loading here. */
 int rf_entity_damage_sound(rf_entity_damage_sound_state *state,float fraction,
     uint32_t predicate_a,uint32_t predicate_b,int32_t now,const rf_entity_damage_sound_backend *backend);
+typedef struct rf_damage_object {uint32_t type,flags;float health;} rf_damage_object;
+typedef struct rf_damage_request {
+    float amount;uint32_t source;int32_t kind;uint32_t argument6,auxiliary_uid,force;
+} rf_damage_request;
+typedef struct rf_damage_backend {
+    rf_damage_object *(*lookup)(void *context,uint32_t handle);
+    /* stage0: entity exists (full word); stage1: immunity (low byte);
+     * stage2:48aaf0 player selection (low byte), refreshed after effect. */
+    uint32_t (*predicate)(void *context,uint32_t stage,uint32_t handle,const rf_damage_object *object);
+    float (*effect)(void *context,rf_damage_object *object,float amount,uint32_t source,int32_t kind,uint32_t extra);
+    void *context;
+} rf_damage_backend;
+/* Complete4892c0 routing for SP globals64ecb9/ba and6fc4d8 zero.
+ * Caller supplies selected593dd4 difficulty multiplier. Objects/backend must
+ * remain alive; request remains stable. Predicates are read-only; effect may
+ * change health/flags but
+ * not type or backend. extra is UID for type0, argument6 for type4, zero for7.
+ * Missing target is successful zero damage. Errors after flag/effect changes
+ * do not roll back. No delegated lifecycle or alternate/global modes here. */
+int rf_damage_dispatch_sp(uint32_t target,const rf_damage_request *request,
+    float difficulty_multiplier,const rf_damage_backend *backend,float *result);
 #endif

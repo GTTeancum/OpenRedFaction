@@ -2291,3 +2291,8 @@ Outer damage evidence:8,192 original4892c0 SP traces verify eligibility,
 force bypass, difficulty scaling, object dispatch and post-effect health
 cleanup. Implement the C wrapper next; delegated effects and the alternate
 6fc4d8 path remain open. See docs/DAMAGE.md and verify_damage_wrapper_trace.py.
+
+Shared SP damage dispatch now reconstructs4892c0 for normal SP globals.
+8,192 original traces and two port guards match PC/NXDK state, return values
+and callback arguments. Both builds/eight CTests pass. Remaining work includes
+entity damage effects, owned registration and connecting Continuous_Damage.
