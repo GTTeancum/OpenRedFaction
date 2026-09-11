@@ -4065,3 +4065,41 @@ addition to8 direct damage and4 event cases. All12 CTest checks pass. This is
 original-executable and linked-NXDK execution under Unicorn, not a new native
 XEMU player-hit test. Player pain audio, death, camera lifecycle and authored
 hazard activation remain open. No new visual result is claimed.
+
+
+## Composed living-player pain sound evidence
+
+verify_player_pain_sound_chain.py now executes the original4196f0 through
+427020,42a8e0,4895d0, the original timer routines,434da0/CRT RNG, and48a9c0
+with its real48acf0/40d740 ownership/camera checks. Only TLS access and the
+playing/start device boundaries are supplied. Prepared class rows use the
+original44-byte group stride; an initial incorrect8-byte fixture stride
+faulted and was corrected before accepting evidence.
+
+The comparison composes the linked NXDK rf_entity_damage_sound,
+rf_audio_group_choose and rf_player_sound_route helpers. All2048 cases agree
+on ordered playing/play calls, complete playback request bytes, cooldown and
+RNG state. There are133 nonpositional starts,434 positional starts and1481
+cases without playback, including a512-case eligible player cohort. Whole
+original actor storage remains unchanged except the cooldown at1458; in
+particular voice808 is not replaced with the new device return value.
+Separate PC/NXDK checks pass648 route cases and4101 damage-sound cases.
+
+Pain suppression uses the low byte of427020 (entity810 bit1) together with
+42a8e0 (object flag8 and associated player), independently of camera mode.
+Action1/17 and the cooldown can also suppress playback. Successful selection
+uses class29c low/medium groups16c/170 and the original binary64 .3 threshold.
+First-person ordinary entities with association and camera mode0 reach505560;
+other camera modes reach5056a0. A missing sample still consumes the cooldown
+and may consume RNG before playback is skipped.
+
+This confirms the helper composition needed for living-player audio; it does
+not wire a new sound into the campaign. The existing NPC adapter unconditionally
+uses spatial playback, so it cannot be reused unchanged. Next integration must
+retain player1458/808 and class sound groups, use the shared profile routing,
+load bounded PCM and dispatch nonpositional device gains. General audio control
+ownership, camera transitions, death descriptors and authored damage remain
+open. Class construction also permits a distinct29c class from294: inspected
+422360 selects the alternate class through param6 bit1 and param7. Do not
+assume class identity across the full player factory without verifying callers.
+No native XEMU playback or new screenshot is claimed for this evidence run.
