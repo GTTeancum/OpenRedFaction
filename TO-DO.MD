@@ -2408,3 +2408,6 @@ Live owner/animated pose integration and gameplay eligibility remain open.
 
 Animated burn-bone query passes520 original PC/NXDK cases including264 real
 miner pose queries plus26 guards; live emitter/owner adapters remain open.
+
+Burn emitter movement boundary passes1024 PC/NXDK original cases plus4
+guards; actual room locator, parent synchronization and emission remain.

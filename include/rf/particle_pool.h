@@ -34,6 +34,15 @@ typedef struct rf_particle_emitter {
     rf_particle_spawn spawn;
     int32_t deadline;
 } rf_particle_emitter;
+typedef int (*rf_particle_room_locator)(void *context,uint32_t previous_room,
+    const float previous_position[3],const float position[3],uint32_t flags,uint32_t *room);
+/*4972a0: resolve room with flag0 before committing position and direction.
+ * Locator retains all input/storage and must not mutate them. Failure preserves
+ * emitter; room0 is a valid successful miss. Finite positions/direction required.
+ * Inputs may alias their own emitter fields, not each other's destination.
+ * No parent transform or emission here;4972f0 follows at the call site. */
+int rf_particle_emitter_move(rf_particle_emitter *emitter,const float position[3],
+    const float direction[3],rf_particle_room_locator locate,void *context);
 /* 496c50 parentless path, including pool-1 allocation and timer reset.
  * Emitter handle must name a caller-owned list (1+). Positive/nonnegative
  * owners return RF_NOT_FOUND unchanged pending parent resolution.

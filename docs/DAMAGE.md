@@ -859,3 +859,27 @@ This supplies the model query needed by a burn attachment adapter but does
 not yet connect live emitter room relocation, particle updates or persistent
 entity/audio ownership. It also does not verify lazy original animation
 advancement through this query.
+
+## Emitter movement boundary for burn attachments
+
+rf_particle_emitter_move reconstructs4972a0: call the supplied4cd970 room
+locator with previous room, previous position, requested position and flag0,
+then commit returned room, position and direction in original order. Room0
+is accepted as a successful miss. It does not normalize direction or skip
+unchanged positions. Direction can alias the emitter's current direction,
+as it does at burn attachment call sites. Parent transforms and4972f0 emission
+remain subsequent operations; the locator sees the raw supplied positions.
+
+The locator must retain input storage and not mutate it. Finite positions/
+direction are required, and callback errors preserve emitter fields. This
+explicit error return extends the original direct room-pointer return without
+pretending a failed query succeeded. No allocation is introduced.
+
+verify_emitter_move.py compares complete original4972a0 with its real copy
+helpers against PC and actual NXDK code. The room locator is supplied;1,024
+cases match exact room/from/to/flag arguments and committed fields, including
+unchanged position, zero returned room and direction self-aliasing. Four
+nonfinite/callback-failure guards also pass. Both builds and eight CTests pass.
+Evidence is artifacts/emitter-move.json. Actual world-room traversal, parent
+room synchronization and emitter emission still need to be joined to the
+model/burn adapter under persistent campaign ownership.

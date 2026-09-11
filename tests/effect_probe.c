@@ -14,8 +14,21 @@ static int queue_parent_lookup(void *context,uint32_t handle,rf_level_particle_o
     if(handle)*out=*(const rf_level_particle_object*)context;
     return RF_OK;
 }
+static uint32_t move_trace[9],move_room;static int move_status;
+static int move_locate(void *ctx,uint32_t old,const float from[3],const float to[3],uint32_t flags,uint32_t *room)
+{(void)ctx;move_trace[0]++;move_trace[1]=old;memcpy(move_trace+2,from,12);memcpy(move_trace+5,to,12);move_trace[8]=flags;*room=move_room;return move_status;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--emitter-move")) {
+        uint32_t wire[15];rf_particle_emitter emitter;float position[3],direction[3];int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            memset(&emitter,0,sizeof(emitter));memcpy(emitter.position,wire,12);memcpy(emitter.direction,wire+3,12);emitter.room=wire[6];memcpy(position,wire+7,12);memcpy(direction,wire+10,12);move_room=wire[13];memcpy(&move_status,wire+14,4);memset(move_trace,0,sizeof(move_trace));
+            status=rf_particle_emitter_move(&emitter,position,direction,move_locate,NULL);
+            fwrite(&status,4,1,stdout);fwrite(emitter.position,12,1,stdout);fwrite(emitter.direction,12,1,stdout);fwrite(&emitter.room,4,1,stdout);fwrite(move_trace,36,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-state")) {
         struct {uint32_t action;int32_t now;uint32_t count,uids[8],objects[4][3];} in;
         static rf_level_particle_state state;rf_level_particle_binding bindings[4];

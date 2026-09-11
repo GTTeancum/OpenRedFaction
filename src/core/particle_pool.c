@@ -444,3 +444,16 @@ int rf_level_emitter_template(const rf_level_emitter *level,uint32_t bitmap,
     memcpy(&value.copied_80,&level->finish_age,4);
     *result=value;return RF_OK;
 }
+
+int rf_particle_emitter_move(rf_particle_emitter *emitter,const float position[3],
+    const float direction[3],rf_particle_room_locator locate,void *context)
+{
+    unsigned i;uint32_t room;int status;
+    if(!emitter || !position || !direction || !locate)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(emitter->position[i]) || !isfinite(position[i]) || !isfinite(direction[i]))return RF_FORMAT;
+    status=locate(context,emitter->room,emitter->position,position,0,&room);if(status)return status;
+    emitter->room=room;
+    for(i=0;i<3;++i)emitter->position[i]=position[i];
+    for(i=0;i<3;++i)emitter->direction[i]=direction[i];
+    return RF_OK;
+}
