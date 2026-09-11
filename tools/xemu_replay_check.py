@@ -301,6 +301,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      player=words(monitor,symbol('rf_scene_campaign_player'),4)
      assert player==expected('CAMPAIGN_PLAYER') and player[1:3]==[0,8],player
      report['campaign_player']=player
+     player_vitals=words(monitor,symbol('rf_scene_player_vitals'),6)
+     assert player_vitals==expected('PLAYER_VITALS'),player_vitals
+     report['player_vitals']=player_vitals
      trigger_contacts=words(monitor,symbol('rf_scene_trigger_contacts'),6)
      assert trigger_contacts==expected('TRIGGER_CONTACTS') and trigger_contacts[5]==0,trigger_contacts
      if args.door:assert trigger_contacts[3]>0,trigger_contacts

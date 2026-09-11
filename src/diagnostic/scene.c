@@ -411,6 +411,33 @@ static uint32_t campaign_force_class_flags,campaign_force_class_kind;
 static float campaign_force_air_limit;
 static rf_camera_effect_state campaign_camera_effect;
 static rf_screen_flash campaign_player_flash;
+typedef struct campaign_player_damage_owner {
+    rf_entity_damage_state state;
+    float factors[11];uint32_t class_flags,object_flags;
+} campaign_player_damage_owner;
+static campaign_player_damage_owner campaign_player_damage;
+uint32_t rf_scene_player_vitals[6]; /* health/armor/class health/class armor bits, owner bytes, factor hash */
+static int campaign_player_damage_open(rf_vpp *tables,const char *name,const rf_entity_class_physics *physics)
+{
+    campaign_player_damage_owner owner={0};rf_entity_creation_vitals_class cls;
+    rf_entity_creation_vitals_state vitals={0};rf_vpp_entry entry;void *text=NULL;int status;uint32_t i,hash=2166136261u;
+    status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>512*1024)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_entity_vitals_config_read(text,entry.size,name,&cls);
+    if(!status)status=rf_entity_damage_factors_read(text,entry.size,name,owner.factors);
+    free(text);if(status)return status;
+    vitals.object_flags=8;rf_entity_creation_vitals(&vitals,&cls,0);owner.object_flags=vitals.object_flags;
+    owner.state.effects.health=vitals.health;owner.state.effects.armor=vitals.armor;
+    owner.state.effects.class_health=cls.health;owner.state.effects.class_armor=cls.armor;
+    owner.state.effects.class_flags_728=physics->flags2;owner.class_flags=physics->flags;
+    owner.state.effects.voice=UINT32_MAX;owner.state.responsible_handle=UINT32_MAX;owner.state.burn_source=UINT32_MAX;
+    campaign_player_damage=owner;
+    memcpy(rf_scene_player_vitals,&owner.state.effects.health,16);rf_scene_player_vitals[4]=sizeof(owner);
+    for(i=0;i<sizeof(owner.factors);++i)hash=(hash^((const unsigned char *)owner.factors)[i])*16777619u;
+    rf_scene_player_vitals[5]=hash;return RF_OK;
+}
 uint32_t rf_scene_force_ticks[12]; /* ticks, matches, eligible, carry, replace, turbulence, shakes, sounds, UID, RNG, cap, status */
 uint32_t rf_scene_campaign_forces[3]; /* count, owned bytes, ordered runtime record hash */
 uint32_t rf_scene_force_state[3]; /* current count, enabled count, full record hash */
@@ -3461,6 +3488,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_force_air_limit=0;memset(rf_scene_force_ticks,0,sizeof(rf_scene_force_ticks));
             status=rf_camera_effect_reset(&campaign_camera_effect,0);
             if(!status)status=rf_screen_flash_reset(&campaign_player_flash);
+            if(!status)status=campaign_player_damage_open(&tables,binding.entity.class_name,&physics_config.authored);
         }
         if(!status && collision)status=rf_movement_descriptor_load(&tables,physics_config.authored.movement_index,65536,rf_scene_actor_movement);
         if(!status && collision)status=rf_movement_descriptor_load(&tables,3,65536,rf_scene_actor_movement+1);
@@ -3534,9 +3562,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_player_view.linked_handle=-1;campaign_player_view.weapons[0]=campaign_player_view.weapons[1]=-1;
             campaign_player_view.action_520=-1;campaign_player_view.base_speed=rf_scene_actor_movement_values.speed;
             status=rf_entity_view_register(&campaign_registry,&campaign_entities,&campaign_player_view,&campaign_player_object);if(status)goto done;
+            campaign_player_damage.state.effects.handle=campaign_player_object.handle;
             rf_scene_campaign_player[0]=campaign_player_object.handle;rf_scene_campaign_player[1]=campaign_player_object.object_kind;
             rf_scene_campaign_player[2]=campaign_player_view.flags_7c;
-            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object)+sizeof(campaign_player_flash);
+            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object)+sizeof(campaign_player_flash)+sizeof(campaign_player_damage);
             memset(rf_scene_actor_body_sweeps,0,sizeof(rf_scene_actor_body_sweeps));
             memset(rf_scene_actor_ground_queries,0,sizeof(rf_scene_actor_ground_queries));
             memset(rf_scene_actor_ground_contacts,0,sizeof(rf_scene_actor_ground_contacts));

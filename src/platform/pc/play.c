@@ -295,6 +295,7 @@ int main(int argc,char **argv)
             printf("NPC_SUPPORT_DEEP");for(uint32_t k=0;k<8;++k)printf(" %u",rf_scene_npc_support_deep[k]);puts("");
             printf("NPC_SUPPORT_DEEP_FIRST");for(uint32_t k=0;k<20;++k)printf(" %u",rf_scene_npc_support_deep_first[k]);puts("");
             printf("NPC_DAMAGE_TEST");for(uint32_t k=0;k<64;++k)printf(" %u",rf_scene_npc_damage_test_words[k]);puts("");
+            printf("PLAYER_VITALS");for(uint32_t k=0;k<6;++k)printf(" %u",rf_scene_player_vitals[k]);puts("");
             printf("NPC_DAMAGE_OWNERS");for(uint32_t k=0;k<3;++k)printf(" %u",rf_scene_npc_damage_owners[k]);puts("");
             printf("NPC_PAIN_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_owners[k]);puts("");
             printf("NPC_PAIN_SOUND_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_sound_owners[k]);puts("");

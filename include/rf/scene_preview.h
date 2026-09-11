@@ -50,6 +50,7 @@ int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float 
  * not by camera shake or simulation ticks. The campaign pass uses the same owner.
  * Stale/nonlocal handles preserve outputs and return NOT_FOUND. */
 int rf_scene_player_damage_flash(uint32_t player_entity_handle);
+extern uint32_t rf_scene_player_vitals[6];
 int rf_scene_player_flash_step(uint32_t player_entity_handle,float seconds,uint32_t freeze,
     rf_screen_flash *draw,uint32_t *active);
 /* Registered skeletal NPC damage adapter. Effects must be synchronous and keep

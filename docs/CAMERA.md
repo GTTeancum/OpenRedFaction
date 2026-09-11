@@ -3930,3 +3930,35 @@ render callback and existing door/NPC-damage checks. The flash remains
 inactive in that regression route: active packet checks are the private
 scene tests, and active GPU pixels are the preceding native compositor
 fixture. No screenshot or native active-campaign-hit claim is made.
+
+
+## Retained player class vitals
+
+The campaign now loads the selected player class Life, Envirosuit and
+eleven damage factors from entity.tbl into a108-byte retained owner.
+The existing verified SP constructor-vitals helper applies class health/
+armor rules. The owner also retains class physics flags for later damage
+immunity/effects and receives the actual registered player handle. Scratch
+is bounded at512KiB and freed before returning. Player owner byte accounting
+includes the new state. PLAYER_VITALS reports initial health/armor/class
+health/class armor bits, owner bytes and multiplier hash on PC and XEMU.
+
+Original4a4130 creates the entity via422360, sets object bit8, and assigns
+entity1430 only if the player appears in the active player-owner array.
+For the local player,4a40f0 installs globals and association/weapon state;
+its inspected callees489f70 and4a4980 do not directly assign vitals. This
+trace is not proof of the complete player lifecycle or absence of other
+late overrides. Save restoration, respawn, real damage dispatch, full
+factory flags and associated-player behavior remain open. In particular,
+retaining constructor health does not make player combat operational.
+
+verify_player_vitals_binding.py compares opening miner1 state with the
+separate vitals probe and original-verified damage-factor report: health100,
+armor100, eleven factors with slot2=1.5 and the rest1. Owner telemetry is
+[1120403456,1120403456,1120403456,1120403456,108,350883656].
+The1536 original constructor-vitals comparisons,65 factor cases covering
+63 installed classes, both builds and all12 CTest checks pass.
+
+Stock64MiB XEMU replay-20260911-160409 passes180 frames and exact
+PLAYER_VITALS comparison, alongside the existing door/NPC damage checks.
+This verifies native initialization, not player damage or full startup.
