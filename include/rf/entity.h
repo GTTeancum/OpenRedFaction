@@ -326,4 +326,15 @@ typedef struct rf_entity_pain_backend {
  * Finite representable lock duration required; post-effect errors do not roll
  * back state. Timer/RNG, weapon reset, playback and sound remain backend-owned. */
 int rf_entity_pain_react(rf_entity_pain_state *state,const rf_entity_pain_backend *backend);
+typedef struct rf_entity_death_entry_state {
+    uint32_t flags_810,flags_1a8;
+    float vector_714[3],vector_144[3],vector_150[3];
+} rf_entity_death_entry_state;
+/* SP41fdc0 state prefix through41fe59, before collision-link teardown.
+ * Requires a live state; falling is the resolved42a020 low byte.
+ * Returns1 on entry,0 if already dying (all fields then remain untouched).
+ * This is not the complete death-start owner and must not independently
+ * activate live dying updates before the remaining death effects exist. */
+uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t falling);
+
 #endif

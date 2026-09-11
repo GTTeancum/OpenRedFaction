@@ -328,6 +328,17 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--death-entry")) {
+        uint32_t words[12],entered;rf_entity_death_entry_state state;
+        _Static_assert(sizeof(state)==44,"Death entry wire layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(words,sizeof(words),1,stdin)==1) {
+            memcpy(&state,words,sizeof(state));
+            entered=rf_entity_death_entry_sp(&state,words[11]);
+            if(fwrite(&entered,4,1,stdout)!=1 || fwrite(&state,sizeof(state),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--player-phase")) {
         uint32_t words[6],output[2];rf_entity_registry registry;rf_entity_view view;rf_player_entity_link link;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

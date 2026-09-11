@@ -502,3 +502,14 @@ int rf_entity_pain_react(rf_entity_pain_state *s,const rf_entity_pain_backend *b
     b->effect(b->context,RF_PAIN_SET_LOCK,(uint32_t)delay,0);
     return RF_OK;
 }
+
+uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t falling)
+{
+    if(state->flags_810&1u)return 0;
+    memset(state->vector_714,0,sizeof(state->vector_714));
+    if(!(falling&255u))memset(state->vector_144,0,sizeof(state->vector_144));
+    memset(state->vector_150,0,sizeof(state->vector_150));
+    state->flags_810|=1u;
+    state->flags_1a8&=~0x8000u;
+    return 1;
+}
