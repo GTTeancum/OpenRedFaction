@@ -239,6 +239,15 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_bodies==expected('NPC_BODIES') and npc_bodies[1]==startup[0],npc_bodies
      assert 0<npc_bodies[3]<=npc_bodies[4]<=512*1024,npc_bodies
      report['npc_bodies']=npc_bodies
+     npc_support=words(monitor,symbol('rf_scene_npc_support'),12)
+     assert npc_support==expected('NPC_SUPPORT_PROBE'),npc_support
+     assert npc_support[0]==npc_bodies[1] and npc_support[1]+npc_support[2]==npc_support[0],npc_support
+     report['npc_support_probe']=npc_support
+     npc_support_miss=words(monitor,symbol('rf_scene_npc_support_first_miss'),16)
+     assert npc_support_miss==expected('NPC_SUPPORT_FIRST_MISS'),npc_support_miss
+     report['npc_support_first_miss']=npc_support_miss
+
+
      player=words(monitor,symbol('rf_scene_campaign_player'),4)
      assert player==expected('CAMPAIGN_PLAYER') and player[1:3]==[0,8],player
      report['campaign_player']=player

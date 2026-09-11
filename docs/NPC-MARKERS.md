@@ -995,3 +995,52 @@ artifacts/xemu/replay-20260911-123205/report.json. It presses crouch at8, moves
 at24 and stands after release at40; unobstructed clearance only. Base memory
 is67108864 with plugged0. No new framebuffer capture. Blocked geometry beyond
 the existing fixture and live NPC landing remain open.
+
+
+## NPC startup support probe (2026-09-11)
+
+The campaign diagnostic now samples actual NPC collision shapes against the
+shared world/mover sweep at startup. It projects487e00 eligibility from the
+existing unlinked, cleared-intent startup fixture, using resolved movement
+mode, class use-kind, initial material and a copy of the movement flags.
+Ground preparation uses each body's pending position and own spheres, class
+base speed,1/30 second, and initial zero support velocity. It does not reuse
+the player's class, movement mode or collider. Actor collision prepass49b900,
+full original scheduling and runtime linked-parent ownership remain absent.
+
+Walkable hits run the shared numeric support commit only on private body,
+material/handle and published-position copies. No live NPC is moved, dropped,
+landed or given footsteps. Moving-solid hits are reported separately; the
+original moving-object acceptance/impact/landing effects are not inferred.
+The diagnostic retains112 global bytes (12 summary words and16 first-miss
+words), allocates no additional heap and serializes the existing sweep scratch.
+The body-owner budget/hash remains unchanged. First-miss contact fields are
+undefined when matched=0; only UID, decision and prepared positions are used.
+
+Summary order: sampled, queried, skipped, missed, steep, static walkable,
+moving walkable, errors, record hash, first error UID, first miss UID, numeric
+position corrections. Each query record hashes UID, decision, falling, matched,
+solid/face/material, status, fraction, normal, start/end Y, old/new Y. Records
+are observational; a hash match does not prove original-runtime correctness.
+
+PC results:
+- L1S1:78 bodies,60 queries,18 skipped,43 static hits,17 misses,14 corrections.
+  First miss is env_guard8456 at(-5.314911,1.842198,25.042206), query origin Y
+  1.892198 to1.558865. This is not yet evidence that the actor should fall.
+- L1S2:38 bodies,38 queries,33 static hits,5 misses,12 corrections. First miss
+  env_guard9695 at(33.833450,-0.308716,50.428345).
+- L1S3:25 bodies,16 queries,9 skipped,14 static hits,2 misses,1 correction.
+  First miss miner18213 at(-29.634155,12.050980,55.636513); startup-only coverage.
+All three report zero query errors and no moving/steep hits.
+
+Run python tools/verify_npc_support_probe.py for the three-level report at
+artifacts/npc-support-probe/report.json. It checks the pre-probe c560fea live
+owner hashes and resolves first-miss records from the installed level. Existing
+telemetry and every framebuffer byte match the preceding stance-owner runs.
+Both builds/all9 CTests pass. Native stock64MiB XEMU180-frame door report
+artifacts/xemu/replay-20260911-123851/report.json matches PC summary3755277132
+and first-miss words, base RAM67108864/plugged0. No framebuffer capture.
+
+Next: establish the first misses' original class pose/placement and floor
+relationship, then connect the actual NPC physics/support/landing lifecycle.
+Do not convert this diagnostic into unconditional per-frame ground commits.
