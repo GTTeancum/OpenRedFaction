@@ -187,4 +187,17 @@ typedef struct rf_damage_effect_backend {
  * after callbacks. This does not implement downstream effects or ownership. */
 int rf_entity_damage_effects(rf_damage_effect_state *state,const rf_damage_effect_input *input,
     const rf_damage_effect_backend *backend);
+typedef struct rf_entity_damage_state {
+    rf_damage_effect_state effects;
+    uint32_t last_damage_time,responsible_handle,burn_source;
+} rf_entity_damage_state;
+/*SP41a350: composed vitals, lethal credit and effects. burn_source is the
+ * source of the currently owned burn, refreshed by the owner before entry.
+ * UID lookup uses the backend's ordered authored-UID lookup. Effects receive
+ * already-committed health/armor/time/credit; callback state remains owned.
+ * Errors preserve result but do not roll back committed state/effects.
+ * Outer eligibility4892c0 is separate; downstream effects remain backend-owned. */
+int rf_entity_damage_sp(rf_entity_damage_state *state,float amount,int32_t kind,
+    uint32_t source,int32_t auxiliary_uid,float multiplier,uint32_t clock_bits,
+    const rf_damage_effect_backend *backend,float *result);
 #endif

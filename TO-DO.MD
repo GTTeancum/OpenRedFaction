@@ -2317,3 +2317,8 @@ Damage effect callback mutation coverage now passes16,384 original/PC/NXDK
 cases plus seven guards. All nine effect boundaries exercise mutations
 (1,251 actual callback mutations); no core correction needed. Assemble the
 damage phases next; real effect/lifetime ownership remains open.
+
+Composed SP entity damage now joins vitals, lethal credit and effects;16,384
+original paths match PC/NXDK state, return and call order. Effects-only suite,
+both builds and eight CTests pass. Next bind persistent entity/class/burn
+ownership and actual downstream effects, then connect event damage.

@@ -269,3 +269,32 @@ This verifies reads/writes around callbacks, including overwriting a callback's
 burn/voice mutation with its return value and observing changed health before
 AI notification. It does not verify destroying entities during callbacks,
 changing class/identity fields or running the actual downstream effect code.
+
+## Composed single-player entity damage
+
+rf_entity_damage_sp joins the numeric prefix, lethal attribution and effect
+orchestration into one shared entry point. It captures pre-hit health and the
+incoming amount, applies class/armor damage, commits health/armor/time, resolves
+lethal responsibility, then dispatches effects with both incoming and scaled
+amounts. Its return is the class-scaled damage, independent of later callback
+health mutations. Outer4892c0 eligibility remains a separate dispatcher.
+
+The caller owns a persistent rf_entity_damage_state. Before entry it refreshes
+burn_source from the currently owned burn token. Attribution uses that source
+for an existing burn; otherwise the backend's authored-UID lookup supplies
+the fallback handle. Effect callbacks operate on the embedded live effect
+state. The backend must not destroy or replace that storage during the call.
+Errors preserve the return output but do not roll back committed state or
+effects. This is not a transaction or a complete entity lifetime manager.
+
+verify_damage_effects.py --full runs16,384 original paths from41a350 entry
+through return preparation41a7ab. Original armor41a7c0 and burn-source42f5a0
+execute unchanged; lookups and downstream effects remain supplied. PC and
+actual NXDK code match exact health/armor/time/credit, effect state, prepared
+float return and ordered callback arguments. Half the cases offer mutations
+at the nine effect boundaries. The existing effect-only suite also passes,
+as do both builds and eight CTests. artifacts/damage-full.json records hashes.
+
+Next bind persistent class/entity/burn ownership and implemented downstream
+effects to this composed entry point, then connect the event damage callback.
+No live campaign death, burn animation or AI behavior is claimed by this test.

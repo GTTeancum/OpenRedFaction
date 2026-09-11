@@ -5,11 +5,12 @@ import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_EAX,UC_X86_REG_FPCW
-ev=runpy.run_path(str(root/'tools/verify_damage_effects_trace.py'));cases=ev['cases'];expected=ev['expected'];w=ev['w']
+full='--full' in sys.argv
+ev=runpy.run_path(str(root/'tools/verify_damage_effects_trace.py'),init_globals={'full':full});cases=ev['cases'];expected=ev['expected'];w=ev['w']
 p=pefile.PE(str(root/'build/xbox/main.exe'));im=p.get_memory_mapped_image();ib=p.OPTIONAL_HEADER.ImageBase
 x=Uc(UC_ARCH_X86,UC_MODE_32);x.mem_map(ib,(len(im)+4095)//4096*4096);x.mem_write(ib,im)
 b=0x30000000;stack=b+0xe000;stop=b+0xf000;x.mem_map(b,65536)
-entry=int(re.search(r'_rf_entity_damage_effects\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+entry=int(re.search(r'_rf_entity_damage_'+('sp' if full else 'effects')+r'\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
 x.mem_write(b+0x3100,b'\xd9\x05'+w(b+0x3200)+b'\xc3');x.mem_write(b+0x3200,struct.pack('<f',4))
 trace=[];current=None
 def record(address,*args):
@@ -43,14 +44,19 @@ def hook(m,address,size,context):
     else:record(0x5056a0,0x23,b+0x3c,0x3f800000,0x173c378,0);result=0x76540001
     m.reg_write(UC_X86_REG_EAX,result);m.reg_write(UC_X86_REG_ESP,sp+4);m.reg_write(UC_X86_REG_EIP,a[0])
 x.hook_add(UC_HOOK_CODE,hook)
-for offset in (0,4,8,12,44,48,52):
+for offset in (() if full else (0,4,8,12,44,48,52)):
     wire=bytearray(cases[0]);wire[offset:offset+4]=w(0x7fc00000);cases.append(bytes(wire));expected.append(w(-2)+wire[:44]+bytes(388))
-actual=subprocess.check_output([str(root/'build/pc/Release/rf_entity_probe.exe'),'--damage-effects'],input=b''.join(cases));assert len(actual)==len(cases)*436
+actual=subprocess.check_output([str(root/'build/pc/Release/rf_entity_probe.exe'),'--damage-full' if full else '--damage-effects'],input=b''.join(cases));size=452 if full else 436;assert len(actual)==len(cases)*size
 for i,(wire,want) in enumerate(zip(cases,expected)):
-    assert actual[i*436:(i+1)*436]==want,('PC',i,actual[i*436:(i+1)*436].hex(),want.hex())
-    current=struct.unpack('<34I',wire);trace=[];x.mem_write(b,wire[:44]);x.mem_write(b+0x1000,wire[44:68]);x.mem_write(b+0x2000,w(*[b+0x3000+j*16 for j in range(8)],0))
-    x.mem_write(stack,w(stop,b,b+0x1000,b+0x2000));x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x27f);x.emu_start(entry,stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop
-    got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,44))+w(len(trace))+b''.join(trace)+bytes((16-len(trace))*24)
+    assert actual[i*size:(i+1)*size]==want,('PC',i,actual[i*size:(i+1)*size].hex(),want.hex())
+    current=struct.unpack('<39I' if full else '<34I',wire);trace=[];x.mem_write(b,wire[:44]);x.mem_write(b+0x1000,wire[44:68]);x.mem_write(b+0x2000,w(*[b+0x3000+j*16 for j in range(8)],0))
+    if full:
+        x.mem_write(b+44,w(*current[36:39]));x.mem_write(b+0x2100,bytes([0xa5])*4)
+        args=w(stop,b,current[11],current[14],current[15],current[16],current[34],current[35],b+0x2000,b+0x2100)
+    else:args=w(stop,b,b+0x1000,b+0x2000)
+    x.mem_write(stack,args);x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x27f);x.emu_start(entry,stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop
+    got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,56 if full else 44))+(bytes(x.mem_read(b+0x2100,4)) if full else b'')+w(len(trace))+b''.join(trace)+bytes((16-len(trace))*24)
     assert got==want,('NXDK',i,got.hex(),want.hex())
-report=dict(result='PASS',original_cases=16384,mutation_cases=8192,port_guards=7,pc_nxdk_cases=len(cases),original_sha256=ev['digest'],nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Complete effect orchestration41a505..41a7ab: exact state and ordered calls against original. Supplied predicates/lookups/random and downstream effects, including8192 mutation scenarios for health/flags/burn/voice during effect callbacks. No live ownership or implemented burn/AI reaction.')
-(root/'artifacts/damage-effects.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
+report=dict(full_entity_function=full,result='PASS',original_cases=16384,mutation_cases=8192,port_guards=0 if full else 7,pc_nxdk_cases=len(cases),original_sha256=ev['digest'],nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Complete effect orchestration41a505..41a7ab: exact state and ordered calls against original. Supplied predicates/lookups/random and downstream effects, including8192 mutation scenarios for health/flags/burn/voice during effect callbacks. No live ownership or implemented burn/AI reaction.')
+if full:report['scope']='Composed SP entity damage vs original41a350 entry through return preparation41a7ab. Exact vitals, time, lethal credit, effect state, prepared float return and ordered callbacks;8192 mutation scenarios. Supplied UID/entity lookups and downstream effects; no live campaign ownership or multiplayer.'
+(root/('artifacts/damage-full.json' if full else 'artifacts/damage-effects.json')).write_text(json.dumps(report,indent=2)+'\n');print(report)

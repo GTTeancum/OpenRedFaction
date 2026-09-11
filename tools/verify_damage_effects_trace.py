@@ -36,6 +36,7 @@ def hook(m,address,size,context):
         m.reg_write(UC_X86_REG_EIP,trampoline);return
     m.reg_write(UC_X86_REG_EAX,result);m.reg_write(UC_X86_REG_ESP,sp+4);m.reg_write(UC_X86_REG_EIP,args[0])
 u.hook_add(UC_HOOK_CODE,hook)
+full=globals().get("full",False)
 cases=[];expected=[]
 rng=random.Random(0x41a505)
 for i in range(16384):
@@ -45,16 +46,26 @@ for i in range(16384):
     predicates={a:rng.choice([0,0,0,1,256,257]) for a in (0x429990,0x4290d0,0x429a80,0x4895d0)}
     mutation=(0,0,0,0,0,0) if i<8192 else (rng.choice([0x428740,0x4196f0,0x42e910,0x504e40,0x4089f0,0x4085f0,0x5056a0,0x4a7520,0x407fb0]),bits(rng.choice([-1,0,100])),rng.choice([0,0x80000000]),rng.choice([0,0x2000,0x8000,0xa000]),rng.choice([0,burn]),rng.choice([0,0x10000]))
     wire=f(health)+f(armor)+f(maximum)+f(maxarmor)+w(0x12340001,flags,flags2,classflags,burn if hasburn else 0,0x65430001,team)+f(incoming)+f(scaled)+f(oldhealth)+w(kind,source,uid,source_exists,otherteam,uid_found,create_success,selected,source_selected,playing,predicates[0x429990],predicates[0x4290d0],predicates[0x429a80],predicates[0x4895d0])+w(*mutation);cases.append(wire)
+    if full:
+        multiplier=rng.choice([0,.125,.52,1,1.5,3]);wire+=f(multiplier)+w(0x87654321,0x11112222,0xaabbccdd,0x45670004);cases[-1]=wire
     u.mem_write(b,bytes(0x1500))
     for off,data in [(0x34,f(health)+f(armor)),(0x294,w(b+0x4000)),(0x2c,w(0x12340001)),(0x1f8,w(team)),(0x810,w(flags,flags2)),(0x854,w(0x65430001)),(0x13d8,w(burn if hasburn else 0))]:u.mem_write(b+off,data)
     u.mem_write(b+0x4044,f(maximum)+f(maxarmor));u.mem_write(b+0x4728,w(classflags));u.mem_write(other+0x1f8,w(otherteam));u.mem_write(other+0x2c,w(0x34560003));u.mem_write(b+0xf100,f(4))
     u.mem_write(stack+0x10,f(incoming)+f(oldhealth));u.mem_write(stack+0x20,f(scaled));u.mem_write(stack+0x28,w(kind))
     for reg,value in [(UC_X86_REG_ESP,stack),(UC_X86_REG_ESI,b),(UC_X86_REG_EBX,source&0xffffffff),(UC_X86_REG_EDI,uid&0xffffffff),(UC_X86_REG_EBP,kind&0xffffffff),(UC_X86_REG_FPCW,0x27f)]:u.reg_write(reg,value)
-    trace=[];u.emu_start(0x41a505,0x41a7ab,count=100000);assert u.reg_read(UC_X86_REG_EIP)==0x41a7ab
+    if full:
+        u.mem_write(0x64ecb9,bytes(2));u.mem_write(0x6460f0,w(0x87654321));u.mem_write(b+0x73c,w(0x11112222));u.mem_write(b+0x144c,w(0xaabbccdd));u.mem_write(burn+0x34,w(0x45670004))
+        u.mem_write(b+0x4000+0x13e8+max(kind,0)*4,f(multiplier))
+        u.mem_write(stack,w(trampoline,b)+f(incoming)+w(source,kind,uid));u.reg_write(UC_X86_REG_ESP,stack)
+    trace=[];u.emu_start(0x41a350 if full else 0x41a505,0x41a7ab,count=100000);assert u.reg_read(UC_X86_REG_EIP)==0x41a7ab
     state=bytearray(wire[:44]);state[:4]=u.mem_read(b+0x34,4);state[20:24]=u.mem_read(b+0x810,4);state[24:28]=u.mem_read(b+0x814,4);state[32:36]=u.mem_read(b+0x13d8,4);state[36:40]=u.mem_read(b+0x854,4)
+    if full:
+        state[4:8]=u.mem_read(b+0x38,4)
+        state+=u.mem_read(b+0x73c,4)+u.mem_read(b+0x144c,4)+w(0x45670004)
+        state+=u.mem_read(u.reg_read(UC_X86_REG_ESP)+0x20,4)
     assert len(trace)<=16
     expected.append(w(0)+state+w(len(trace))+b"".join(w(address,*args).ljust(24,b"\0") for address,args in trace)+bytes((16-len(trace))*24))
-    if i>=8192:continue # Mutating cases use the executable as the oracle.
+    if full or i>=8192:continue # Mutating cases use the executable as the oracle.
     want=[];wantburn=burn if hasburn else 0;wantvoice=0x65430001
     def call(address,*args):want.append((address,tuple(a&0xffffffff for a in args)))
     if incoming>5:call(0x428740,b)
@@ -99,5 +110,6 @@ for i in range(16384):
     assert bytes(u.mem_read(b+0x854,4))==w(wantvoice),i
 assert all(hits.values()),hits
 assert all(mutation_hits.values()),mutation_hits
-report=dict(result='PASS',cases=16384,mutation_cases=8192,mutation_calls={hex(k):v for k,v in mutation_hits.items()},calls={hex(k):v for k,v in hits.items()},original_sha256=digest,scope='Original41a505..41a7ab after vitals/credit; exact effect/predicate call order and arguments plus burn pointer, voice and flag changes. External effects, UID/entity lookup, predicate results and random return supplied;8192 mutation scenarios for health/flags/burn/voice inside effect callbacks. No effect implementations, lifecycle or multiplayer; x87 quotient checked before float argument rounding.')
-(root/'artifacts/damage-effects-trace.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
+report=dict(full_entity_function=full,result='PASS',cases=16384,mutation_cases=8192,mutation_calls={hex(k):v for k,v in mutation_hits.items()},calls={hex(k):v for k,v in hits.items()},original_sha256=digest,scope='Original41a505..41a7ab after vitals/credit; exact effect/predicate call order and arguments plus burn pointer, voice and flag changes. External effects, UID/entity lookup, predicate results and random return supplied;8192 mutation scenarios for health/flags/burn/voice inside effect callbacks. No effect implementations, lifecycle or multiplayer; x87 quotient checked before float argument rounding.')
+if full:report['scope']='Original41a350 entry through41a7ab return preparation with SP globals zero. Real armor41a7c0 and burn source42f5a0; supplied UID/entity lookup, predicates, random and effects. Exact final health/armor/time/credit/burn/voice/flags and prepared float return, plus callback order with8192 mutation scenarios. No actual downstream effects or multiplayer.'
+(root/('artifacts/damage-full-trace.json' if full else 'artifacts/damage-effects-trace.json')).write_text(json.dumps(report,indent=2)+'\n');print(report)

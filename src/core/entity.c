@@ -221,6 +221,30 @@ int rf_entity_damage_credit_sp(rf_entity_damage_credit *state,int32_t kind,
     state->responsible_handle=responsible;return RF_OK;
 }
 
+int rf_entity_damage_sp(rf_entity_damage_state *s,float amount,int32_t kind,
+    uint32_t source,int32_t auxiliary_uid,float multiplier,uint32_t clock_bits,
+    const rf_damage_effect_backend *be,float *result)
+{
+    rf_entity_damage_vitals vitals;rf_damage_effect_input input;float scaled;int status;
+    if(!s || !be || !be->resolve_uid || !result)return RF_RANGE;
+    input.old_health=s->effects.health;input.incoming=amount;input.kind=kind;
+    input.source=source;input.auxiliary_uid=auxiliary_uid;
+    vitals.health=s->effects.health;vitals.armor=s->effects.armor;vitals.last_damage_time=s->last_damage_time;
+    status=rf_entity_damage_vitals_sp(&vitals,amount,kind,multiplier,clock_bits,&scaled);
+    if(status)return status;
+    s->effects.health=vitals.health;s->effects.armor=vitals.armor;s->last_damage_time=vitals.last_damage_time;
+    if(vitals.health<=0) {
+        uint32_t credit=source;
+        if(kind==4 && source==UINT32_MAX) {
+            if(s->effects.burn)credit=s->burn_source;
+            else if(auxiliary_uid!=-1)credit=be->resolve_uid(be->context,auxiliary_uid);
+        }
+        s->responsible_handle=credit;
+    }
+    input.scaled=scaled;
+    status=rf_entity_damage_effects(&s->effects,&input,be);if(status)return status;
+    *result=scaled;return RF_OK;
+}
 int rf_entity_damage_effects(rf_damage_effect_state *s,const rf_damage_effect_input *in,
     const rf_damage_effect_backend *be)
 {

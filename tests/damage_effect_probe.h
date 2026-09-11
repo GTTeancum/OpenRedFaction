@@ -50,3 +50,20 @@ static int damage_effect_probe(void)
     }
     return ferror(stdin)?2:0;
 }
+
+static int damage_full_probe(void)
+{
+    uint32_t wire[39];rf_entity_damage_state state;float amount,multiplier,result;int status;
+    rf_damage_effect_backend backend={de_predicate,de_uid,de_source,de_create,de_random,de_notify,de_playing,de_play,NULL};
+    _Static_assert(sizeof(state)==56,"Full damage state wire");
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(wire,sizeof(wire),1,stdin)==1) {
+        memcpy(&state.effects,wire,44);state.last_damage_time=wire[36];state.responsible_handle=wire[37];state.burn_source=wire[38];
+        memcpy(&amount,wire+11,4);memcpy(&multiplier,wire+34,4);memcpy(de_facts,wire+17,44);memcpy(de_mutation,wire+28,24);
+        de_state=&state.effects;de_count=0;memset(de_trace,0,sizeof(de_trace));memset(&result,0xa5,4);
+        status=rf_entity_damage_sp(&state,amount,(int32_t)wire[14],wire[15],(int32_t)wire[16],multiplier,wire[35],&backend,&result);
+        if(de_count>16)return 4;
+        fwrite(&status,4,1,stdout);fwrite(&state,56,1,stdout);fwrite(&result,4,1,stdout);fwrite(&de_count,4,1,stdout);fwrite(de_trace,384,1,stdout);
+    }
+    return ferror(stdin)?2:0;
+}
