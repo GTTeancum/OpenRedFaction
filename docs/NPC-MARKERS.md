@@ -300,3 +300,28 @@ original/PC/NXDK marker-consumption oracle and all nine CTest cases pass; both
 builds succeed. A fresh180-frame PC door replay retains the previous playback
 words and framebuffer hash. This turn does not add a new XEMU runtime proof or
 activate live footstep consumption; entity scheduling/support work remains.
+
+
+## Main-model advance versus footstep phase
+
+Static call sites in original487a40 place the object pass (`487b60 ->487cf0`)
+before the later entity/support pass (`487c33 ->487e00`). Actual487cf0 dispatch
+for object kind0 calls41daf0 and then4868c0. Within41daf0, prepared block
+41dd16..41dd49 advances the main model when the retained BL condition is nonzero
+or427020 returns exactly1. It forwards elapsed global5a4014, zero, and1 through
+503360/501ab0 to51ba80 for a type2 model wrapper. This call is conditional; the
+upstream calculation of BL includes state/distance logic that remains unported.
+
+`tools/verify_npc_animation_order.py` verifies the static phase call sites,
+executes the object dispatcher, and executes eight prepared advance-gate cases
+with the real model wrappers. It intercepts51ba80 after checking model/arguments;
+it does not execute the complete outer frame or animation body. The later
+487e00 calls41e4b0 (whose footstep boundary is already tested), then decides
+whether to run4a0840 support. Thus that later support query does not precede
+this pass's footstep consumption. An earlier4a03b0 support path also exists in
+487a40, so this alone must not be described as always using last-frame ground.
+
+Keep model advancement, entity update and accepted-support writes as separate
+ordered phases when connecting NPC lifecycle. Current preview playback still
+advances every skeletal actor; conditional skip/state logic and the full
+per-actor support lifecycle remain outstanding.
