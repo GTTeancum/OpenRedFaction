@@ -64,6 +64,18 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--impact-damage")) {
+        struct {float speed;uint32_t falling;int32_t material;uint32_t kind,flags;} input;
+        struct {int32_t status;float amount;uint32_t eligible;} output;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&output,0xa5,sizeof(output));
+            output.status=rf_entity_impact_damage(input.speed,input.falling,input.material,input.kind,input.flags,&output.amount,&output.eligible);
+            fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
+
     if(argc==2 && (!strcmp(argv[1],"--slow-enter") || !strcmp(argv[1],"--normal-enter"))) {
         uint32_t v[7];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(v,sizeof(v),1,stdin)==1) {

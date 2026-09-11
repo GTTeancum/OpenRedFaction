@@ -2,6 +2,20 @@
 #include "rf/timer.h"
 #include <math.h>
 #include <string.h>
+int rf_entity_impact_damage(float impact_speed,uint32_t falling,int32_t contact_material,
+    uint32_t kind_one,uint32_t object_flags,float *amount,uint32_t *eligible)
+{
+    float excess,value;double scaled;
+    if(!amount || !eligible || !isfinite(impact_speed))return RF_RANGE;
+    excess=(float)((double)impact_speed-7.0);
+    if(excess<0)excess=0;
+    scaled=excess;
+    if(!(falling&255u) && contact_material==3)scaled*=.5;
+    value=(float)(scaled*scaled);
+    if(kind_one&255u)value=(float)((double)value+value);
+    if(!isfinite(value))return RF_RANGE;
+    *amount=value;*eligible=value>=10 && value>0 && !(object_flags&4u);return RF_OK;
+}
 void rf_entity_creation_vitals(rf_entity_creation_vitals_state *state,
     const rf_entity_creation_vitals_class *definition,uint32_t network_mode)
 {

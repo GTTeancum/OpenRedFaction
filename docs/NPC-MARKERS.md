@@ -1094,3 +1094,37 @@ Native stock 64 MiB XEMU also matches the PC deeper summary and first-result
 words over 180 door-replay frames: artifacts/xemu/replay-20260911-124440/report.json.
 Deep summary is [17,17,17,0,0,0,3049653555,17], with base RAM 67108864 and
 plugged memory 0. No framebuffer capture was requested.
+
+
+## Impact-damage gate needed by NPC landing (2026-09-11)
+
+rf_entity_impact_damage reconstructs 49cd80 through the pre-region decision at
+49ce1c (or rejection at 49cf34). It subtracts 7 from impact speed and clamps at
+zero, optionally halves the excess, squares it, then doubles the result for
+429990's resolved kind-one predicate. Damage at least 10 with object flag 4
+clear is eligible for the later region-suppression/damage path. This computes
+an amount and request only; it does not change health or deliver an effect.
+
+The halving condition is NOT a movement-mode test: 42a020 must return false
+and entity+1d0 must equal material 3. Collision collection loads the material
+from 7c6a9c at 49c525 and stores it to entity+1d0 at 49c540. The same field feeds
+material coefficient lookup 468810 in collision response. It is distinct from
+the cached support material at entity+1380. The installed material table's
+index 3 is flesh. The public API names this argument contact_material so a
+future NPC caller cannot mistake it for its movement descriptor.
+
+verify_impact_damage.py executes 2,400 original cases with the actual max,
+42a020, 429990 and category lookup callees. Only final branch boundaries stop
+the original; no predicate or math hooks substitute behavior. PC and NXDK
+amount/eligibility match exactly, including adjacent floats around thresholds,
+negative/zero speeds, material 3, immunity flag 4 and predicate low-byte inputs.
+661 cases reach the region-check boundary. Four finite-domain rejections on
+both builds preserve outputs. Complete prepared entity storage remains intact.
+
+Both PC/NXDK builds and all nine CTests pass. NXDK code is exercised directly
+in Unicorn; this helper is not yet wired into a native XEMU gameplay path.
+The later 45ce50 region-suppression query, multiplayer routing, damage receiver,
+death/pain sound and player camera effects still require integration. Neither
+the deep diagnostic's geometric drop nor this numeric gate proves actual NPC
+impact velocity or landing timing. Live NPC settling remains the next runtime
+integration task, with collision material and region suppression kept explicit.

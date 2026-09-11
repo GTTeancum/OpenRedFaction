@@ -11,6 +11,16 @@
  * Disjoint flags/positions required; NULL inputs leave outputs unchanged. */
 void rf_entity_position_snapshot(uint32_t *flags,float previous[3],const float published[3]);
 
+/* Original49cd80..49ce1c impact amount and pre-region gate. Subtract7, clamp
+ * at0, halve before squaring only when not falling and contact material equals3,
+ * then double for the resolved kind-one predicate. Amount>=10 and object flag4
+ * clear requests the later force-region/damage path. Predicate low bytes only.
+ * Contact material is entity+1d0, copied from the collision record, not the
+ * current movement descriptor or cached ground material at1380. Finite representable domain; errors preserve both outputs.
+ * No region query, health change, multiplayer routing, sound or camera effect. */
+int rf_entity_impact_damage(float impact_speed,uint32_t falling,int32_t contact_material,
+    uint32_t kind_one,uint32_t object_flags,float *amount,uint32_t *eligible);
+
 typedef struct rf_entity_landing_state {
     uint32_t actor_flags,class_flags,body_flags;int32_t action;
 } rf_entity_landing_state;
