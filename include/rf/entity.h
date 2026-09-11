@@ -5,6 +5,7 @@
 #include "rf/object_registry.h"
 #include "rf/motion.h"
 #include "rf/random.h"
+#include "rf/physics.h"
 
 /* Original487b11..487b2f: snapshot published object+3c into previous+6c
  * and clear object flag01000000 before model/physics updates. Does not read
@@ -434,6 +435,67 @@ typedef struct rf_corpse_delete_backend {
 int rf_corpse_delete(rf_corpse_delete_state *state,rf_object_registry *registry,
     uint32_t *corpse_count,uint32_t *object_count,uint32_t emitter_limit,
     const rf_corpse_delete_backend *backend);
+typedef struct rf_corpse {
+    rf_corpse_update_state update;
+    rf_corpse_delete_state deletion;
+    uint32_t uid,attachment_index,class_index,word_1fc,word_2d8,extra_model;
+    int32_t weapon,drop_motion,carry_motion,direction,word_2d4;
+    float model_radius,physics_radius,created_seconds,velocity[3],vector_150[3];
+    uint32_t physics_flags,emitter_argument,presentation[15];
+} rf_corpse;
+typedef struct rf_corpse_create_source {
+    uint32_t handle,uid,object_flags,model,flags_810,flags_814;
+    uint32_t class_flags_724,class_flags_728,class_index,model_kind;
+    const char *replacement_model;
+    uint32_t word_8c,word_98,attachment_index,word_1fc,word_2d8,extra_model;
+    float physics_radius,class_health,class_value,emitter_lifetime;
+    int32_t weapon,motion_a44,emitter_kind,motions[45];
+    const rf_physics_sphere *spheres;uint32_t sphere_count;
+} rf_corpse_create_source;
+typedef struct rf_corpse_physics_seed {
+    uint32_t word_0c,word_14;
+    float position[3],basis[9],radius;
+    const rf_physics_sphere *spheres;uint32_t sphere_count,flags;
+} rf_corpse_physics_seed;
+typedef struct rf_corpse_create_request {
+    const char *death_name;float position[3],basis[9],created_seconds;
+    int32_t now_ms;uint8_t protected_body,seek_motion;
+    rf_physics_sphere *sphere_scratch;uint32_t sphere_capacity;
+} rf_corpse_create_request;
+enum rf_corpse_create_effect {
+    RF_CORPSE_CREATE_SNAPSHOT, /*4cb520, presentation[] at original2dc*/
+    RF_CORPSE_CREATE_POSE, /*4164c0, refresh physics_radius*/
+    RF_CORPSE_CREATE_PLAY, /*503390(model,source.motion_a44,1)*/
+    RF_CORPSE_CREATE_NAME, /*4ffa80, own/copy supplied name*/
+    RF_CORPSE_CREATE_COLLISION, /*48c9a0*/
+    RF_CORPSE_CREATE_SOURCE_EFFECTS /*42dc00*/
+};
+typedef struct rf_corpse_create_backend {
+    /* Own/copy seed data before returning; other original descriptor fields
+     * are zero. Return an initialized type7 base owner, with registered handle,
+     * update position/basis, physics radius/flags and existing sound id.
+     * Do not insert its corpse_link: creation does that after resource setup. */
+    rf_corpse *(*allocate)(void *context,rf_corpse_create_source *source,const rf_corpse_physics_seed *seed);
+    uint32_t (*load_model)(void *context,const char *name); /*502880(name,1,-1)*/
+    int32_t (*motion)(void *context,rf_corpse_create_source *source,const char *name); /*428fe0*/
+    void (*effect)(void *context,uint32_t operation,rf_corpse_create_source *source,rf_corpse *corpse,const char *name);
+    rf_corpse_delete_emitter *(*emitter)(void *context,rf_corpse_create_source *source,rf_corpse *corpse);
+    void *context;
+} rf_corpse_create_backend;
+/*416940 reconstruction, PC field comparison verified; NXDK comparison and
+ * live dispatch pending.
+ * List is an intact sentinel ring of rf_corpse owners, max30. Request/source,
+ * class data and list membership stay stable during callbacks except the
+ * specified source ownership fields. Motion callbacks return -1 or0..44.
+ * Output must be disjoint. Scratch is temporary; backend must own its copies.
+ * Null source/allocation failure returns RF_NOT_FOUND and NULL output. Source
+ * deletion/model-retention marks persist after allocation failure. A null
+ * loaded replacement model does not abort original construction. Resource
+ * effects are infallible; no rollback after they run. If a later guard fails,
+ * result retains the allocated owner so the caller can clean it up. No heap
+ * use internally. Only constructor-owned fields are initialized. */
+int rf_corpse_create(rf_corpse_create_source *source,const rf_corpse_create_request *request,
+    rf_corpse_list_link *head,uint32_t *count,const rf_corpse_create_backend *backend,rf_corpse **result);
 /* SP41fdc0 state prefix through41fe59, before collision-link teardown.
  * Requires a live state; falling is the resolved42a020 low byte.
  * Returns1 on entry,0 if already dying (all fields then remain untouched).

@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Reconstruct verified416940 corpse creation in shared C, preserving source/model ownership and failure behavior before connecting the live pool.
+- [ ] Verify shared416940 corpse creation on compiled NXDK and multiple-body retention, then connect live allocation and resource backends; PC1024-case field comparison passes.
 - [ ] Bind verified corpse sphere refresh and sound-follow points to live owned model poses and sounds.
 - [ ] Bind verified corpse retention/fade/update/deletion and30-slot allocation to live creation and owned resource backends; five eligible bodies trigger fading.
 - [ ] Connect native-verified burn retarget/release to live corpse inheritance after corpse ownership is reconstructed.

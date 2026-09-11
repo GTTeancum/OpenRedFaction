@@ -2,6 +2,7 @@
 #include "rf/timer.h"
 #include <math.h>
 #include <string.h>
+#include <stddef.h>
 int rf_entity_impact_damage(float impact_speed,uint32_t falling,int32_t contact_material,
     uint32_t kind_one,uint32_t object_flags,float *amount,uint32_t *eligible)
 {
@@ -644,6 +645,97 @@ int rf_corpse_delete(rf_corpse_delete_state *s,rf_object_registry *registry,
     corpse_link_remove(&s->object_link);--*object_count;s->lifecycle=2;
     b->effect(b->context,RF_CORPSE_DELETE_RECYCLE,handle);
     status=rf_object_registry_remove(registry,handle);return status;
+}
+
+static rf_corpse *corpse_from_link(rf_corpse_list_link *link)
+{return (rf_corpse *)((unsigned char *)link-(offsetof(rf_corpse,deletion)+offsetof(rf_corpse_delete_state,corpse_link)));}
+static int corpse_owner_eligible(const rf_corpse *c)
+{return !(c->update.fade.flags_29c&0x43u) && !(c->update.fade.object_flags_7c&0x4000u);}
+int rf_corpse_create(rf_corpse_create_source *s,const rf_corpse_create_request *r,
+    rf_corpse_list_link *head,uint32_t *count,const rf_corpse_create_backend *b,rf_corpse **result)
+{
+    rf_corpse_physics_seed seed;rf_corpse *c,*oldest,*candidate;rf_corpse_list_link *n,*previous;
+    rf_corpse_delete_emitter *emitter;uint32_t visits=0,eligible=0;int32_t motion,offset=0;double delay;int status;
+    if(!result)return RF_RANGE;
+    *result=NULL;if(!s)return RF_NOT_FOUND;
+    if(!r || !head || !count || !b || !b->allocate || !b->load_model || !b->motion || !b->effect || !b->emitter ||
+       !r->death_name || !head->next || !head->previous || !isfinite(r->created_seconds) || *count>RF_CORPSE_CAPACITY ||
+       s->sphere_count>r->sphere_capacity || s->sphere_count>UINT32_MAX/sizeof(*s->spheres) ||
+       (s->sphere_count && (!s->spheres || !r->sphere_scratch)))return RF_RANGE;
+    previous=head;
+    for(n=head->next;n!=head;n=n->next) {
+        if(!n || visits==RF_CORPSE_CAPACITY || n->previous!=previous || !isfinite(corpse_from_link(n)->created_seconds))return RF_RANGE;
+        previous=n;++visits;
+    }
+    if(visits!=*count || head->previous!=previous)return RF_RANGE;
+    if(s->emitter_kind>0) {
+        delay=(double)s->emitter_lifetime*1000.0+0.5;
+        if(!isfinite(delay) || delay<-(double)RF_TIMER_PERIOD || delay>(double)RF_TIMER_PERIOD)return RF_RANGE;
+        offset=(int32_t)delay;status=rf_timer_set(&motion,r->now_ms,offset);if(status)return status;
+    }
+    if(!s->replacement_model || !s->replacement_model[0])s->object_flags|=0x400u;
+    s->object_flags|=2u;
+    if(*count==RF_CORPSE_CAPACITY)return RF_NOT_FOUND;
+    memset(&seed,0,sizeof(seed));seed.word_0c=s->word_8c;seed.word_14=s->word_98;
+    memcpy(seed.position,r->position,sizeof(seed.position));memcpy(seed.basis,r->basis,sizeof(seed.basis));
+    seed.radius=s->physics_radius;seed.flags=(s->class_flags_724&0x80000u)?0x73u:0x33u;
+    if(s->sphere_count)memmove(r->sphere_scratch,s->spheres,s->sphere_count*sizeof(*s->spheres));
+    seed.spheres=r->sphere_scratch;seed.sphere_count=s->sphere_count;
+    c=b->allocate(b->context,s,&seed);if(!c)return RF_NOT_FOUND;
+    *result=c;
+    c->deletion.update=&c->update;c->deletion.lifecycle=0;
+    c->attachment_index=s->attachment_index;
+    if(s->flags_814&2u)c->presentation[1]=0;
+    else b->effect(b->context,RF_CORPSE_CREATE_SNAPSHOT,s,c,NULL);
+    c->update.fade.flags_29c=(s->class_flags_724&0x20000u)?0x80u:0;
+    if(s->class_flags_728&0x20u)c->update.fade.flags_29c|=0x400u;
+    c->uid=s->uid;c->weapon=s->weapon;c->update.motion_2b8=-1;c->word_2d8=s->word_2d8;
+    c->update.model=(s->replacement_model && s->replacement_model[0])?b->load_model(b->context,s->replacement_model):s->model;
+    if(s->model && s->model_kind==2) {
+        motion=b->motion(b->context,s,r->death_name);
+        if(motion<-1 || motion>=45)return RF_RANGE;
+        if(motion!=-1 && !(s->class_flags_724&0x200000u)) {
+            c->update.motion_2b8=s->motions[motion];if(r->seek_motion==1)c->update.fade.flags_29c|=8u;
+            b->effect(b->context,RF_CORPSE_CREATE_POSE,s,c,NULL);
+        }
+    }
+    if((s->class_flags_724&0x200000u) && s->motion_a44!=-1) {
+        b->effect(b->context,RF_CORPSE_CREATE_PLAY,s,c,NULL);c->update.fade.flags_29c|=4u;
+    }
+    c->model_radius=c->physics_radius;c->word_1fc=s->word_1fc;
+    c->created_seconds=r->created_seconds;
+    c->class_index=s->class_index;c->update.fade.health_34=s->class_health;
+    c->deletion.burn=0;c->word_2d4=-1;memset(c->velocity,0,sizeof(c->velocity));memset(c->vector_150,0,sizeof(c->vector_150));
+    b->effect(b->context,RF_CORPSE_CREATE_NAME,s,c,r->death_name);
+    rf_timer_clear(&c->update.emitter_deadline_2ac);
+    if(s->emitter_kind>=0) {
+        emitter=b->emitter(b->context,s,c);
+        if(emitter){emitter->next=c->deletion.emitters;c->deletion.emitters=emitter;}
+        if(s->emitter_kind>0){status=rf_timer_set(&c->update.emitter_deadline_2ac,r->now_ms,offset);if(status)return status;}
+    }
+    if(s->flags_814&8u)c->update.fade.flags_29c|=2u;
+    if(r->protected_body==1)c->update.fade.flags_29c|=0x40u;
+    c->deletion.corpse_link.previous=head->previous;c->deletion.corpse_link.next=head;
+    head->previous->next=&c->deletion.corpse_link;head->previous=&c->deletion.corpse_link;++*count;
+    for(n=head->next;n!=head;n=n->next)if(corpse_owner_eligible(corpse_from_link(n)))++eligible;
+    while(eligible>5) {
+        oldest=NULL;
+        for(n=head->next;n!=head;n=n->next) {
+            candidate=corpse_from_link(n);
+            if(corpse_owner_eligible(candidate) && (!oldest || candidate->created_seconds<oldest->created_seconds))oldest=candidate;
+        }
+        oldest->update.fade.fade_298=1;oldest->update.fade.flags_29c|=1u;--eligible;
+    }
+    c->update.value_2b0=s->class_value;c->update.class_value=s->class_value;
+    motion=b->motion(b->context,s,"corpse_drop");if(motion<-1 || motion>=45)return RF_RANGE;
+    c->drop_motion=motion==-1?-1:s->motions[motion];
+    motion=b->motion(b->context,s,"corpse_carry");if(motion<-1 || motion>=45)return RF_RANGE;
+    c->carry_motion=motion==-1?-1:s->motions[motion];
+    c->direction=(strstr(r->death_name,"forward") || strstr(r->death_name,"front"))?0:strstr(r->death_name,"back")?1:2;
+    c->extra_model=0;if((s->flags_810&0x200000u) && s->extra_model){c->extra_model=s->extra_model;s->extra_model=0;}
+    if((c->physics_flags&0x20u) && !(c->update.fade.object_flags_7c&0x8000u))b->effect(b->context,RF_CORPSE_CREATE_COLLISION,s,c,NULL);
+    b->effect(b->context,RF_CORPSE_CREATE_SOURCE_EFFECTS,s,c,NULL);
+    *result=c;return RF_OK;
 }
 
 int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backend *b)

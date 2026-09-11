@@ -68,7 +68,9 @@ for case in range(1024):
  u.emu_start(0x416940,stop,count=1000000);assert u.reg_read(UC_X86_REG_EIP)==stop
  result=u.reg_read(UC_X86_REG_EAX)
  if null:
-  assert result==0 and not trace and bytes(u.mem_read(actor,0x1494))==before_actor;nulls+=1;continue
+  assert result==0 and not trace and bytes(u.mem_read(actor,0x1494))==before_actor;nulls+=1
+  if 'observe_case' in globals():observe_case(globals())
+  continue
  assert read(actor+0x7c)==(flags7c|2|(0 if replacement else 0x400))
  expected_actor=bytearray(before_actor);expected_actor[0x7c:0x80]=w(flags7c|2|(0 if replacement else 0x400))
  assert len(descriptors)==1;desc=descriptors[0]
@@ -78,7 +80,9 @@ for case in range(1024):
  assert struct.unpack_from('<I',desc,136)[0]==num_spheres and bytes(u.mem_read(cloned_spheres,len(raw)))==raw
  if fail:
   assert result==0 and read(0x5caed0)==0 and bytes(u.mem_read(corpse,0x318))==before_corpse
-  assert bytes(u.mem_read(actor,0x1494))==bytes(expected_actor);failures+=1;continue
+  assert bytes(u.mem_read(actor,0x1494))==bytes(expected_actor);failures+=1
+  if 'observe_case' in globals():observe_case(globals())
+  continue
  successes+=1;assert result==corpse
  expected_flags=(0x80 if flags724&0x20000 else 0)|(0x400 if flags728&0x20 else 0)|(2 if flags814&8 else 0)|(0x40 if keep==1 else 0)
  transition=source_model!=0 and kind==2 and motion_indices[0]!=-1 and not flags724&0x200000

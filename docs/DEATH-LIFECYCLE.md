@@ -806,3 +806,34 @@ This is original executable evidence, not shared constructor code or native
 XEMU gameplay. Runtime source/build outputs are unchanged by this evidence
 commit. Next implement the constructor against the retained pool and resource
 owners, using these verified ordering and failure semantics.
+
+
+## Shared corpse constructor: PC field verification
+
+`rf_corpse_create` now reconstructs416940 around a caller-owned rf_corpse
+record, shared update/deletion state and explicit allocation/resource backends.
+The allocator receives a copied physics seed through caller-provided scratch;
+it must own that data before returning. Seed fields not represented in the
+view correspond to zero-initialized original descriptor fields. No heap use
+occurs inside the constructor. Original temporary-vector allocation is replaced
+by bounded scratch; allocation backends still own the actual physics resources.
+
+The constructor applies source deletion/model-retention flags, model selection,
+motion/pose setup, timer/emitter setup, corpse-list insertion and oldest-eligible
+retention, motion labels, extra-model transfer and final collision/source
+callbacks. The owner contains its independent creation time, velocity fields,
+model/physics radii and neutral presentation storage. Fields not written by the
+original constructor, notably the incoming sound id, are preserved. Allocation
+failure returns a null result with source flags retained; replacement-model
+failure still allows construction. Guard failures after allocation expose the
+allocated result so the caller can clean up; effects are not rolled back.
+
+`python tools/verify_corpse_create.py` compares1024 complete original cases to
+shared PC output:848 successful owners,142 allocation failures,34 null sources,
+334 extra-model transfers and38 null replacement models. It checks scalar
+owner/update fields, source ownership, copied sphere seed, links and velocity
+reset. Both PC/NXDK builds and all13 CTests pass. Backend call-trace parity,
+compiled NXDK execution comparison, constructor retention with several bodies,
+and guard/cleanup failure coverage remain to be added. This is not live scene
+creation: the concrete allocator/model/physics/emitter/sound owners are still
+external backends, and live dispatch remains disabled.
