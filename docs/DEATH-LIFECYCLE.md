@@ -593,3 +593,28 @@ point at sound+f0, then48a230 is invoked. Finally, a nonzero current model
 advances by frame delta with the corpse position/orientation pointers.
 Health-negative early return skips all this; fade expiry does not. Shared
 full-update orchestration and actual model/sound effect binding remain next.
+
+
+## Shared complete corpse update
+
+`rf_corpse_update` now composes the verified fade gate, timer expiry/clear,
+linked emitter low-byte shutdown, class-dependent2b0 decay, transition
+playback/pose work, sound following and final model advance. It rereads
+model/motion/flags at the original callback boundaries and continues after
+fade-expiry deletion marking. Model duration is rounded to binary32 before
+the transition seek, followed by0.3; final advance uses the current model
+and borrowed position/basis. The sound view receives its follow point before
+the backend move call.
+
+The state is88 bytes, emitter links8 bytes and backend36 bytes on Xbox.
+All are caller-owned; the routine allocates nothing. An explicit visit bound
+protects emitter traversal. Invalid finite/timer/backend inputs report errors;
+state changes or effects already performed are not rolled back. Actual model,
+pose and sound effects remain backend responsibilities.
+
+`python tools/verify_corpse_update.py` compares4096 full original traces to
+shared PC and NXDK machine code, including481 model/motion mutations during
+reset, timer/emitter writes, decay, exact animation arguments and sound
+follow state. Both builds and all13 CTests pass. Native scene invocation,
+corpse creation/rendering and deferred resource deletion remain open; this
+is complete update orchestration, not complete corpse gameplay.

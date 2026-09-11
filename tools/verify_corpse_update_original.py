@@ -45,6 +45,7 @@ for case in range(4096):
     for off,v in ((0x7c,objflags),(0x80,initial_model),(0x29c,flags),(0x2a0,0),(0x2ac,deadline),(0x2b8,motion),(0x2cc,sound_id),(0x268,emit if n else 0)):body[off:off+4]=w(v)
     for i in range(n):
         e=bytearray(rng.randbytes(0x180));e[0x150:0x154]=w(emit+(i+1)*0x200 if i+1<n else 0);emitter_bodies.append(e);u.mem_write(emit+i*0x200,bytes(e))
+    input_body=bytes(body);input_emitters=[bytes(e) for e in emitter_bodies]
     u.mem_write(b,bytes(body));u.mem_write(sound,bytes(sound_body));u.mem_write(duration_ptr,struct.pack('<d',duration))
     u.mem_write(0x5a4014,f(dt));u.mem_write(0x5a3ed8,w(1000));u.mem_write(0x5cd8e4,f(class_value));u.mem_write(stack,w(stop,b));u.reg_write(UC_X86_REG_ESP,stack);trace=[]
     u.emu_start(0x417290,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
@@ -78,5 +79,6 @@ for case in range(4096):
     assert bytes(u.mem_read(sound,len(sound_body)))==sound_body,case
     for i,e in enumerate(emitter_bodies):assert bytes(u.mem_read(emit+i*0x200,len(e)))==e,case
     digest.update(json.dumps(trace).encode())
+    if 'observe_case' in globals():observe_case(globals())
 report=dict(result='PASS',cases=4096,animation_transitions=transitions,reset_mutations=mutations,emitter_shutdowns=shutdowns,sound_follows=followed,trace_sha256=digest.hexdigest(),original_sha256=sha,scope='Full417290 with real timer expiry/invalidation, deletion/fading helpers and vector initialization/copy. Supplied model, pose, sound lookup/position effects; duration returns x87 double. Exact actor/emitter/sound writes and ordered callback arguments, including model/motion mutation during reset. No shared implementation comparison or live resources.')
 (root/'artifacts/corpse-update-original.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))

@@ -547,6 +547,47 @@ int rf_corpse_retention_apply(rf_corpse_retention_node *head,uint32_t limit,uint
     *faded=total;return RF_OK;
 }
 
+int rf_corpse_update(rf_corpse_update_state *s,float dt,int32_t now,
+    rf_corpse_emitter_link *emitters,uint32_t limit,const rf_corpse_update_backend *b)
+{
+    rf_corpse_emitter_link *e;rf_corpse_sound_view *sound;uint32_t proceed,visits=0;
+    int status,expired;double value,duration;float point[3],seconds;
+    if(!s || !b || !b->reset || !b->play || !b->duration || !b->advance || !b->pose ||
+       !b->sound || !b->follow_point || !b->move_sound)return RF_RANGE;
+    status=rf_corpse_fade_step(&s->fade,dt,&proceed);if(status || !proceed)return status;
+    if(!isfinite(dt) || dt<0)return RF_RANGE;
+    status=rf_timer_expired(s->emitter_deadline_2ac,now,&expired);if(status)return status;
+    if(expired) {
+        for(e=emitters;e;e=e->next) {if(visits==limit || !e->enabled)return RF_RANGE;++visits;}
+        rf_timer_clear(&s->emitter_deadline_2ac);
+        for(e=emitters;e;e=e->next)*e->enabled&=~255u;
+    }
+    if(!isfinite(s->value_2b0))return RF_RANGE;
+    if(s->value_2b0>0) {
+        if(!isfinite(s->class_value))return RF_RANGE;
+        value=(double)s->value_2b0-(((double)dt*(double)0.002f)*s->class_value);
+        if(!isfinite((float)value))return RF_RANGE;s->value_2b0=(float)value;
+    }
+    if(s->motion_2b8>=0 && (s->fade.flags_29c&8u)) {
+        b->reset(b->context,s->model);
+        b->play(b->context,s->model,s->motion_2b8);
+        duration=b->duration(b->context,s->model,s->motion_2b8);seconds=(float)duration;
+        if(!isfinite(seconds))return RF_RANGE;
+        b->advance(b->context,s->model,seconds,NULL,NULL);
+        b->advance(b->context,s->model,0.3f,NULL,NULL);
+        s->fade.flags_29c&=~8u;b->pose(b->context);
+    }
+    if(s->sound_2cc!=-1) {
+        sound=b->sound(b->context,s->sound_2cc);
+        if(sound) {
+            memset(point,0,sizeof(point));status=b->follow_point(b->context,point);if(status)return status;
+            memcpy(sound->position,point,sizeof(point));b->move_sound(b->context,sound,point);
+        }
+    }
+    if(s->model)b->advance(b->context,s->model,dt,s->position,s->basis);
+    return RF_OK;
+}
+
 int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backend *b)
 {
     uint32_t finish=0,token,i,gain;float end[3],offset,radius;

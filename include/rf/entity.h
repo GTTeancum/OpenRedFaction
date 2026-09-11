@@ -353,6 +353,37 @@ typedef struct rf_corpse_fade_state {
  * Finite health; active fade requires finite nonnegative dt and finite
  * representable remainder. Errors preserve state/output. No clamp/free. */
 int rf_corpse_fade_step(rf_corpse_fade_state *state,float frame_seconds,uint32_t *continue_tick);
+typedef struct rf_corpse_update_state {
+    rf_corpse_fade_state fade;
+    int32_t emitter_deadline_2ac;float value_2b0,class_value;
+    uint32_t model;int32_t motion_2b8,sound_2cc;
+    float position[3],basis[9];
+} rf_corpse_update_state;
+typedef struct rf_corpse_emitter_link {
+    struct rf_corpse_emitter_link *next;uint32_t *enabled;
+} rf_corpse_emitter_link;
+typedef struct rf_corpse_sound_view {float position[3];uint32_t token;} rf_corpse_sound_view;
+typedef struct rf_corpse_update_backend {
+    void (*reset)(void *context,uint32_t model); /*5033f0*/
+    void (*play)(void *context,uint32_t model,int32_t motion); /*5033b0, rate1/flag1*/
+    double (*duration)(void *context,uint32_t model,int32_t motion); /*5033e0*/
+    /*503360(model,dt,0,position,basis,1), NULL transforms for transition seeks.*/
+    void (*advance)(void *context,uint32_t model,float dt,const float *position,const float *basis);
+    void (*pose)(void *context); /*4164c0, after bit8 clear*/
+    rf_corpse_sound_view *(*sound)(void *context,int32_t id); /*459a20*/
+    int (*follow_point)(void *context,float point[3]); /*48ac70*/
+    void (*move_sound)(void *context,rf_corpse_sound_view *sound,const float point[3]); /*48a230*/
+    void *context;
+} rf_corpse_update_backend;
+/* Full417290 orchestration. Borrowed state, backend and emitter links remain
+ * alive. Callbacks may change model/motion/flags, reread at original boundaries;
+ * geometry/class/frame inputs stay stable. Timer shutdown clears only each
+ * enabled low byte. Emission and model/sound implementations remain external.
+ * Nonnegative finite dt and finite representable arithmetic/duration required.
+ * Emitter traversal is bounded; errors after fade/effects do not roll back.
+ * No allocation, immediate destruction or corpse registration. */
+int rf_corpse_update(rf_corpse_update_state *state,float frame_seconds,int32_t now_ms,
+    rf_corpse_emitter_link *emitters,uint32_t visit_limit,const rf_corpse_update_backend *backend);
 /* SP41fdc0 state prefix through41fe59, before collision-link teardown.
  * Requires a live state; falling is the resolved42a020 low byte.
  * Returns1 on entry,0 if already dying (all fields then remain untouched).
