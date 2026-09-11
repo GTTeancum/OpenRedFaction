@@ -21,6 +21,7 @@ for case in range(256):
     u.mem_write(0x1818b65,bytes([far_enabled]));u.mem_write(0x5a4d18,b'\1');u.mem_write(0x5a445a,b'\1');u.mem_write(0x1e652e8,bytes(4));u.mem_write(0x17c7bcc,struct.pack('<I',0x66))
     u.mem_write(base,struct.pack('<9f',*basis));u.mem_write(base+64,struct.pack('<3f',*origin));u.mem_write(0x1818a68,bytes([0xa5])*168)
     call(0x547150,(base,base+64,struct.unpack('<I',struct.pack('<f',fov))[0],0,mode))
+    assert bytes(u.mem_read(0x1818680,12))==struct.pack('<3f',*origin),('LOD camera origin',case)
     view=bytes(u.mem_read(0x1818690,12))+bytes(u.mem_read(0x18186a0,36))+bytes(u.mem_read(0x1818b48,12))+struct.pack('<2f2I',far,near,mode,far_enabled)
     n=struct.unpack('<I',u.mem_read(0x1818b8c,4))[0];planes=bytearray();tags=[]
     for i in range(6):

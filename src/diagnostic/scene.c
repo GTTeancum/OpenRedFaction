@@ -2249,9 +2249,10 @@ static int actor_room_refresh(const rf_geometry_collision_world *world,uint32_t 
 uint32_t rf_scene_npc_playback[7]; /* ticks, actors, bones, state hash, pose hash, sticky marker bits, clip bytes */
 /* Advance the existing startup selection once per simulation step. AI/state
  * reselection and weapon overlays remain external; do not tick from drawing. */
-static int campaign_npc_playback_tick(float elapsed)
+uint32_t rf_scene_npc_gate[4]; /* cumulative considered, advanced, skipped; last decision hash */
+static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
 {
-    uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0;int status;
+    uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0,g=2166136261u;int status;
     for(i=0;i<campaign_poses.count;++i) {
         rf_entity_pose *pose=campaign_poses.items+i;const rf_entity_motion_mapping *map;
         rf_entity_playback_model *model;float displacement[3]={0};uint32_t class_index;
@@ -2261,12 +2262,34 @@ static int campaign_npc_playback_tick(float elapsed)
         map=campaign_motion_catalog.mappings+class_index;model=campaign_playback_resources.models+pose->skeleton;
         if(map->skeleton!=pose->skeleton || map->weapon!=-1)return RF_FORMAT;
         status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return status;
-        status=rf_entity_pose_advance(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement);if(status)return status;
+        {
+            rf_entity_animation_gate gate={0};uint32_t room;int advance;
+            const rf_entity_seed_class *cls=campaign_seeds.classes+class_index;
+            const rf_visibility_view *camera=&stream->particle_camera.view;
+            if(!stream->npc_rooms || !stream->visibility.storage)return RF_RANGE;
+            room=stream->npc_rooms[i];gate.model_present=1;gate.model_kind=cls->model_kind;
+            gate.descriptor_present=room<stream->visibility.state.count;
+            if(gate.descriptor_present)gate.descriptor_flag=stream->visibility.state.rooms[room].visible;
+            /* Fixed startup actors:402d68 clears action520;422360 clears810/814.
+             * AI/action changes, death and script overrides need persistent actor
+             * ownership before they can replace these startup values. */
+            gate.action_520=0;gate.flags=0;gate.predicate=0;
+            gate.lod_distance_count=(int32_t)cls->lod.count;
+            status=rf_model_lod_metric(0x66,campaign_seeds.records.items[i].record.position,
+                camera->origin,camera->scale[2],camera->scale[0],&gate.distance);if(status)return status;
+            advance=rf_entity_animation_should_advance(&gate);
+            ++rf_scene_npc_gate[0];++rf_scene_npc_gate[advance?1:2];
+            g=(g^(uint32_t)advance)*16777619u;
+            if(advance) {
+                status=rf_entity_pose_advance(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement);if(status)return status;
+            }
+        }
         ++actors;bones+=pose->bone_count;
         h=npc_hash_bytes(h,&pose->playback,sizeof(pose->playback));
         p=npc_hash_bytes(p,pose->matrices,pose->bone_count*48);p=npc_hash_bytes(p,pose->generations,pose->bone_count*2);
         markers|=pose->playback.event_mask;
     }
+    rf_scene_npc_gate[3]=g;
     ++rf_scene_npc_playback[0];rf_scene_npc_playback[1]=actors;rf_scene_npc_playback[2]=bones;
     rf_scene_npc_playback[3]=h;rf_scene_npc_playback[4]=p;rf_scene_npc_playback[5]=markers;rf_scene_npc_playback[6]=campaign_npc_motion_bytes;return RF_OK;
 }
@@ -2513,7 +2536,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++summary[0];summary[3]+=record[1]+record[4];summary[4]+=record[3];
                 summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
-            if(campaign_spawn){status=campaign_npc_playback_tick(scene_step_seconds);if(status)return status;}
+            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;}
         }
         profile_mark(7);
         return RF_OK;
@@ -2721,6 +2744,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 &campaign_playback_resources,&campaign_poses,1.0f/30.0f);if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;
             memset(rf_scene_npc_playback,0,sizeof(rf_scene_npc_playback));
+            memset(rf_scene_npc_gate,0,sizeof(rf_scene_npc_gate));
             status=campaign_npc_geometry_digest();if(status)goto done;
             {
                 uint32_t actor,k;rf_scene_npc_startup[0]=rf_scene_npc_startup[1]=0;

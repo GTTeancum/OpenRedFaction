@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
-Campaign NPCs advance startup-selected playback on simulation ticks with bounded
-resident clips; AI/state reselection, sound events and lighting remain.
+Campaign NPCs gate startup-selected playback using retained room/LOD/camera data;
+AI/action ownership, sound events and lighting remain.
 
 Stock 64 MiB XEMU matches L1S1 playback/drawing and the L1S2 lift replay;
 78 L1S1 actors share 10,536 bytes of resident motion data/cache metadata.
@@ -35,6 +35,10 @@ retain double metric precision and recover remaining live actor inputs.
 
 NPC seed classes retain verified authored LOD distances for all63 classes;
 connect room/frame state; stock64MiB XEMU validates the expanded seed layout.
+
+Stationary startup actors use the animation gate with exact PC/XEMU results;
+extend action/flag
+ownership and moving room membership before dynamic NPC behavior.
 
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.

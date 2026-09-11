@@ -412,3 +412,32 @@ not `rf_motion_controller.current`. Existing creation evidence402d68..402dac
 clears this action and behavior554; see CAMERA.md. Mapping the controller's
 selected idle/locomotion state into this field would be incorrect. The field
 rename does not change the wire layout or gate behavior.
+
+## Live startup-actor gate
+
+The campaign now calls `rf_entity_animation_should_advance` before advancing
+each startup-selected skeletal pose. It supplies retained class LOD count,
+cached stationary room membership, that room's retained visibility byte, and
+the last rendered camera origin/scale. The metric uses scale[2]/scale[0],
+corresponding to original1818b50/1818b48. `verify_visibility_camera.py` now
+also checks that original547150 copies the supplied origin to1818680, the
+LOD distance origin, across256 camera setups.
+
+This is explicitly the existing stationary startup-actor path: action520 and
+the relevant810/814 flag bits remain at their creation-cleared values. It does
+not pretend controller.current is an entity action. Persistent AI/action, death,
+script overrides and moving room membership still require live actor owners.
+Controller application retains its existing scheduling; skipped advances leave
+pose playback advancement/cache refresh untouched. Full original frame ordering
+and marker consumption remain open. No extra per-actor allocation is added.
+
+`rf_scene_npc_gate` reports cumulative considered/advanced/skipped decisions
+and the last decision hash. PC's180-frame L1S1 door replay reports
+13962/7308/6654, hash2606724109; playback hashes become962482953/1873909465.
+The600-frame L1S2 lift reports22762/9255/13507, hash3778810013.
+Nine CTest checks pass. The XEMU harness compares gate counters/hash with PC
+and checks considered=(frames-1)*skeletalActors and advanced+skipped=considered.
+
+Native stock64MiB XEMU replay-20260911-105533 passes180 frames with
+exact PC gate counters and playback hashes above; Foley/APU checks also pass.
+L1S2 remains PC-only for this change. No new framebuffer was requested.

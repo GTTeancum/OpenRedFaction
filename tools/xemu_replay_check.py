@@ -231,6 +231,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_playback==expected('NPC_PLAYBACK') and npc_playback[0]==frames-1 and npc_playback[6]<=1024*1024,npc_playback
      if frames>1:assert npc_playback[1:3]==startup[:2],npc_playback
      report['npc_playback']=npc_playback
+     npc_gate=words(monitor,symbol('rf_scene_npc_gate'),4)
+     assert npc_gate==expected('NPC_GATE') and npc_gate[0]==(frames-1)*startup[0],npc_gate
+     assert npc_gate[1]+npc_gate[2]==npc_gate[0],npc_gate
+     report['npc_gate']=npc_gate
      player=words(monitor,symbol('rf_scene_campaign_player'),4)
      assert player==expected('CAMPAIGN_PLAYER') and player[1:3]==[0,8],player
      report['campaign_player']=player
