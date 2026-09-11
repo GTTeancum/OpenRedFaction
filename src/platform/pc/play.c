@@ -315,6 +315,7 @@ int main(int argc,char **argv)
             {extern uint32_t rf_scene_live_audio[8],rf_scene_spatial_audio[6],rf_scene_sound_bank[4],rf_scene_switch_audio[4],rf_scene_controller_audio[4];uint32_t k;
             printf("SWITCH_AUDIO");for(k=0;k<4;k++)printf(" %u",rf_scene_switch_audio[k]);printf("\n");
             {extern uint32_t rf_scene_foley[10];printf("FOLEY");for(k=0;k<10;++k)printf(" %u",rf_scene_foley[k]);printf("\n");}
+            {extern uint32_t rf_scene_npc_pain_groups[3];printf("NPC_PAIN_GROUPS");for(k=0;k<3;++k)printf(" %u",rf_scene_npc_pain_groups[k]);printf("\n");}
             printf("SOUND_BANK");for(k=0;k<4;k++)printf(" %u",rf_scene_sound_bank[k]);printf("\n");
             printf("CONTROLLER_AUDIO");for(k=0;k<4;k++)printf(" %u",rf_scene_controller_audio[k]);printf("\n");
             printf("SPATIAL_AUDIO");for(k=0;k<6;k++)printf(" %u",rf_scene_spatial_audio[k]);printf("\n");

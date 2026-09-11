@@ -1335,6 +1335,22 @@ native replay exercises ordinary residency without exhaustion. Live flinch/AI
 transitions and sustained campaign cache behavior remain to be verified.
 # Pain sound selection and dispatch evidence (2026-09-11)
 
+Campaign audio startup now retains the low/medium pain group pair for every
+authored class alongside the footstep bindings, using the same loaded entity
+table and Foley owner. The pair consumes eight bytes per class, is included
+in Foley residency/peak accounting, and is released with campaign resources.
+Missing optional groups stay -1. This retains metadata only; waveform loading
+and damage-triggered playback are still open.
+
+`verify_campaign_pain_groups.py` compares retained hashes to the independent
+label inventory in first-authored-class order across L1S1, L1S2 and L1S3.
+The added storage is respectively 40, 24 and 48 bytes; hashes are 375583174,
+2439332939 and 3019285536. PC and Xbox builds and all ten CTests pass.
+The native replay harness now compares `NPC_PAIN_GROUPS` against PC and includes
+the additional bytes in its Foley memory assertion.
+Stock64MiB XEMU replay `replay-20260911-145355` passes 180 frames with the
+same 40-byte Live Mines bindings and unchanged two-hit flinch telemetry.
+
 `tools/verify_pain_sound_dispatch.py` executes the original `434da0` selector
 with the real CRT random routine, supplying only its thread-storage address.
 Across 1,024 cases, invalid group IDs return -1 without drawing; signed counts

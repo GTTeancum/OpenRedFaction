@@ -583,6 +583,8 @@ static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
 static rf_foley_owner campaign_foley;
 static int32_t (*campaign_footstep_groups)[10];
+static int32_t (*campaign_pain_groups)[2];
+uint32_t rf_scene_npc_pain_groups[3]; /* classes, resident bytes, binding hash */
 uint32_t rf_scene_foley[10]; /* groups,samples,missing,resident,peak,bank count,global hash,ID hash,classes,class hash */
 static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes);
 static rf_vpp campaign_audio_archive;
@@ -819,6 +821,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
     rf_vpp_entry foley_entry,entity_entry;void *foley_text=NULL,*entity_text=NULL;
     campaign_foley_registration foley_registration={0};int status;
     memset(rf_scene_foley,0,sizeof(rf_scene_foley));
+    memset(rf_scene_npc_pain_groups,0,sizeof(rf_scene_npc_pain_groups));
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     memset(campaign_listener_position,0,sizeof(campaign_listener_position));
     memset(campaign_listener_right,0,sizeof(campaign_listener_right));campaign_listener_right[0]=-1;
@@ -887,6 +890,8 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
         if(campaign_seeds.class_count>640){status=RF_RANGE;goto audio_done;}
         campaign_footstep_groups=malloc(campaign_seeds.class_count*sizeof(*campaign_footstep_groups));
         if(!campaign_footstep_groups){status=RF_RANGE;goto audio_done;}
+        campaign_pain_groups=malloc(campaign_seeds.class_count*sizeof(*campaign_pain_groups));
+        if(!campaign_pain_groups){status=RF_RANGE;goto audio_done;}
         status=rf_vpp_find(&tables,"entity.tbl",&entity_entry);if(status)goto audio_done;
         if(!entity_entry.size || entity_entry.size>1024*1024){status=RF_RANGE;goto audio_done;}
         entity_text=malloc(entity_entry.size);if(!entity_text){status=RF_RANGE;goto audio_done;}
@@ -895,11 +900,17 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
             const char *name=campaign_seeds.records.items[campaign_seeds.classes[i].record_index].record.class_name;
             status=rf_entity_footstep_groups_read(entity_text,entity_entry.size,name,&campaign_foley,campaign_footstep_groups[i]);
             if(status)goto audio_done;
+            status=rf_entity_pain_groups_read(entity_text,entity_entry.size,name,&campaign_foley,campaign_pain_groups[i]);
+            if(status)goto audio_done;
         }
         free(entity_text);entity_text=NULL;
         rf_scene_foley[8]=campaign_seeds.class_count;
         rf_scene_foley[9]=npc_hash_bytes(2166136261u,campaign_footstep_groups,campaign_seeds.class_count*sizeof(*campaign_footstep_groups));
         rf_scene_foley[3]+=campaign_seeds.class_count*sizeof(*campaign_footstep_groups);
+        rf_scene_npc_pain_groups[0]=campaign_seeds.class_count;
+        rf_scene_npc_pain_groups[1]=campaign_seeds.class_count*sizeof(*campaign_pain_groups);
+        rf_scene_npc_pain_groups[2]=npc_hash_bytes(2166136261u,campaign_pain_groups,rf_scene_npc_pain_groups[1]);
+        rf_scene_foley[3]+=rf_scene_npc_pain_groups[1];
         if(rf_scene_foley[3]+entity_entry.size>rf_scene_foley[4])rf_scene_foley[4]=rf_scene_foley[3]+entity_entry.size;
     }
     free(declarations);declarations=NULL;rf_vpp_close(&tables);
@@ -1483,6 +1494,7 @@ static void campaign_close_movers(void)
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
     rf_audio_mixer_init(&campaign_audio_mixer);
     free(campaign_footstep_groups);campaign_footstep_groups=NULL;rf_foley_close(&campaign_foley);
+    free(campaign_pain_groups);campaign_pain_groups=NULL;
     rf_audio_bank_close(&campaign_audio_bank);
     memset(campaign_audio_evictable,0,sizeof(campaign_audio_evictable));
     rf_vpp_close(&campaign_audio_archive);
