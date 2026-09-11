@@ -363,3 +363,30 @@ Stock64MiB XEMU replay-20260911-180931 passes180 frames. DEATH_CLEARANCE is
 queries,255 allowed,61 blocked,79 candidates, matching hash, zero status.
 Both platform builds and all12 CTests pass. Complete death-start, animation
 playback and moving-NPC orientation publication remain open.
+
+
+## Complete original dying-update boundary trace
+
+`python tools/verify_dying_update_original.py` executes full41ee40 across4096
+cases with real vector initialization/scale/add and supplied owner/effect
+boundaries. It verifies exact call order, arguments and whole actor memory.
+There are3100 finalizations,1047 burn clears and100 damage calls. This is
+original-executable evidence, not a PC/NXDK implementation comparison.
+
+The flags810 bit80 path first calls42e3c0(handle), then releases a nonzero
+burn13d8 through42ed20(burn,0) and clears it. Otherwise action824=-1 or a
+zero low byte from428d10 permits finalization. Weapon41a830 must return
+low byte exactly1 to invoke41ae70, even while the death animation continues.
+Class728 bit20 plus a present player checks timer4b8; only low byte1 permits
+the segment test from position to position+forward*model_radius78. Radius
+above6 uses collision radius2.5 and camera gain1.25; radius6 or below uses
+1.5 and1. Collision506ae0 must return low byte1 to damage the player for1600;
+camera shake follows even on a miss. Finalization418f80 then precedes the
+masako_endgame name check and optional UID118a/47c3 effects.
+
+The harness supplies playback, weapon, timer, collision, damage, camera,
+finalization and event boundaries without mutating their owners. Their
+actual implementations, reentrant mutation, nonfinite geometry and native
+Xbox integration remain outside this evidence. The next runtime step must
+preserve these effects and order, rather than treating animation completion
+as sufficient to remove the actor.
