@@ -1,5 +1,5 @@
 """Independent canonical state/action registration order for installed levels."""
-import json,subprocess,re
+import json,subprocess,re,struct
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 actions=json.loads((root/'artifacts/entity-actions.json').read_text())['rows']
@@ -19,6 +19,15 @@ with (root/'Installed_Game/tables.vpp').open('rb') as f:f.seek(entry['offset']);
 text='\n'.join(line.split('//',1)[0] for line in raw.decode('cp1252').splitlines())
 parts=re.split(r'\$Name:\s*"([^"\r\n]+)"',text)
 groups={name.lower():re.findall(r'\+Weapon\s+Specific:\s*"([^"\r\n]*)"',body) for name,body in zip(parts[1::2],parts[2::2])}
+# Footstep pairs are read independently from the original class bodies.
+footsteps={}
+for cls,body in zip(parts[1::2],parts[2::2]):
+ weapon=''
+ for match in re.finditer(r'\+Weapon\s+Specific:\s*"([^"\r\n]*)"|\+State:\s*"([^"\r\n]*)"\s*"([^"\r\n]*)"',body):
+  if match[1] is not None:weapon=match[1].lower();continue
+  tail=body[match.end():]
+  pair=re.match(r'\s*\+Footstep\s+Trigger:\s*([^\s]+)\s+([^\s]+)',tail)
+  if pair:footsteps[cls.lower(),weapon,match[2].lower()]=[struct.unpack('<f',struct.pack('<f',float(v)))[0] for v in pair.groups()]
 for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  out=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--catalog',str(root/'Installed_Game/levels1.vpp'),str(root/'Installed_Game/tables.vpp'),str(root/'Installed_Game/motions.vpp'),str(root/'Installed_Game/meshes.vpp'),level],text=True)
  registries={};checked=0;group_registries={};group_slots=0;identity_count=0
@@ -104,11 +113,28 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
    expected_maps[cls,weapon]=mapping
  assert catalog_maps==expected_maps,(level,'shared mappings')
  assert catalog_resources==expected_resources,(level,'shared resources')
+ shared_markers={}
+ for cls in class_order:
+  if model_for[cls]==0xffffffff:continue
+  for state in state_names:
+   motion=all_states.get((cls,'',state),'');pair=footsteps.get((cls,'',state))
+   if motion and pair:
+    stem=motion.rsplit('.',1)[0].lower()
+    shared_markers.setdefault(stem,tuple(int(frame*struct.unpack('<f',bytes.fromhex('8988083d'))[0]*30.*160.) for frame in pair))
+ marked=0;marker_rows=0
+ for line in out.splitlines():
+  if not line.startswith('CATALOG_MARKERS\t'):continue
+  _,model,index,mask,left,right=line.split('\t');resource=catalog_resources[int(model),int(index)]
+  ticks=shared_markers.get(resource[1].rsplit('.',1)[0].lower())
+  assert (int(mask),int(left),int(right))==((3,*ticks) if ticks else (0,0,0)),(level,model,index,resource,ticks,line)
+  marker_rows+=1;marked+=ticks is not None
+ assert marker_rows==len(catalog_resources)
+
  catalog_summary=next(line for line in out.splitlines() if line.startswith('CATALOG '))
  summary=next(line for line in out.splitlines() if line.startswith('BASE_MOTIONS '))
  assert group_slots==len(group_registries)*68
  assert identity_count==sum(map(len,registries.values()))+sum(map(len,group_registries.values()))
  assert int(next(line for line in out.splitlines() if line.startswith('BOUND_GROUPS ')).split()[1])==len(group_registries)
- reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary,catalog_summary=catalog_summary,shared_resources=len(catalog_resources)))
-report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames, retained first-authored cache names and sound labels exact. Shared per-model maps independently checked against authored declarations in weapon-before-base order. Original global cache order, named timing markers and live playback excluded.')
+ reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary,catalog_summary=catalog_summary,shared_resources=len(catalog_resources),marked_resources=marked))
+report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames, retained first-authored cache names and sound labels exact. Shared per-model maps independently checked against authored declarations in weapon-before-base order. Shared base-state footstep masks/ticks checked independently across models and loop registrations. Original global cache order and live playback excluded.')
 (root/'artifacts/base-action-sets.json').write_text(json.dumps(report,indent=2));print(report)

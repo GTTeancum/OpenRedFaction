@@ -686,18 +686,19 @@ static int state_set_read(const void *text,uint32_t size,const char *class_name,
         "flee_run","flail_run","crouch","attack_crouch","attack_crouch_walk","attack_lean_left",
         "attack_lean_right","cower","freefall","on_turret","corpse_carry_stand","corpse_carry_walk",
         "swim_stand","swim_walk","jeep_drive","jeep_gun","custom"};
-    char authored[64],compiled[64];uint32_t identities[23]={0},i,identity;
+    rf_entity_state_declaration declaration;char compiled[64];uint32_t identities[23]={0},i,identity;
     uint8_t flags[23]={0};int status,added;int32_t index;
     rf_model_motion_registry registry={identities,flags,0,23};
     status=state_group_exists(text,size,class_name,weapon);if(status)return status;
     for(i=0;i<45;++i)value->actions[i]=-1;
     for(i=0;i<23;++i) {
         value->states[i]=-1;
-        status=rf_entity_state_motion_read(text,size,class_name,weapon,names[i],authored);
+        status=rf_entity_state_declaration_read(text,size,class_name,weapon,names[i],&declaration);
         if(status==RF_NOT_FOUND) {status=RF_OK;continue;}
         if(status)return status;
-        if(!*authored)continue;
-        status=rf_motion_cache_acquire(value->cache,23,authored,&identity);if(status)return status;
+        if(!*declaration.motion)continue;
+        value->marker_counts[i]=declaration.marker_count;memcpy(value->marker_frames[i],declaration.marker_frames,sizeof(declaration.marker_frames));
+        status=rf_motion_cache_acquire(value->cache,23,declaration.motion,&identity);if(status)return status;
         status=rf_model_register_motion(&registry,identity+1,1,&index,&added);if(status)return status;
         if(added) {
             value->cache_indices[index]=identity;value->looping[index]=1;
@@ -872,6 +873,36 @@ void rf_entity_motion_catalog_close(rf_entity_motion_catalog *v)
     for(i=0;i<v->model_count;++i)free(v->models[i].items);
     free(v->models);free(v->mappings);memset(v,0,sizeof(*v));
 }
+static int catalog_markers(const rf_entity_skeletons *s,const rf_entity_base_motions *b,
+    rf_entity_motion_catalog *v,uint32_t budget)
+{
+    rf_motion_cache_record *cache;uint64_t total=0,peak;uint32_t capacity,i,j,k,identity;int status=RF_OK;
+    static const char *names[2]={"footstep_left","footstep_right"};
+    for(i=0;i<v->model_count;++i)total+=v->models[i].count;
+    if(!total)return RF_OK;
+    capacity=(uint32_t)(total<800?total:800);peak=(uint64_t)v->resident_bytes+capacity*sizeof(*cache);
+    if(peak>budget)return RF_RANGE;
+    if(peak>v->peak_bytes)v->peak_bytes=(uint32_t)peak;
+    cache=calloc(capacity,sizeof(*cache));if(!cache)return RF_IO;
+    /* Markers belong to the motion cache, across models and loop registrations. */
+    for(i=0;i<b->class_count;++i)if(s->class_indices[i]!=UINT32_MAX)for(j=0;j<23;++j) {
+        const rf_entity_state_set *base=b->classes+i;int32_t index=base->states[j];
+        if(index<0 || !base->marker_counts[j])continue;
+        if(base->marker_counts[j]!=2 || (uint32_t)index>=base->count || base->cache_indices[index]>=68){status=RF_RANGE;goto done;}
+        status=rf_motion_cache_acquire(cache,capacity,(const char*)base->cache[base->cache_indices[index]].bytes,&identity);if(status)goto done;
+        for(k=0;k<2;++k){status=rf_motion_marker_register(cache+identity,names[k],base->marker_frames[j][k]);if(status)goto done;}
+    }
+    for(i=0;i<v->model_count;++i)for(j=0;j<v->models[i].count;++j) {
+        rf_entity_model_motion *r=v->models[i].items+j;
+        status=rf_motion_cache_acquire(cache,capacity,r->identity,&identity);if(status)goto done;
+        for(k=0;k<2;++k) {
+            memcpy(r->markers+k,cache[identity].bytes+0x50+k*20,4);
+            if(cache[identity].bytes[0x40+k*20])r->marker_mask|=1u<<k;
+        }
+    }
+done:
+    free(cache);return status;
+}
 int rf_entity_motion_catalog_open(const rf_entity_skeletons *s,const rf_entity_base_motions *b,
     uint32_t budget,rf_entity_motion_catalog *result)
 {
@@ -929,17 +960,18 @@ int rf_entity_motion_catalog_open(const rf_entity_skeletons *s,const rf_entity_b
         v.resident_bytes=(uint32_t)bytes;
         free(w.cache);free(w.registry.identities);free(w.registry.flags);free(w.resources);memset(&w,0,sizeof(w));
     }
+    status=catalog_markers(s,b,&v,budget);if(status)goto done;
     *result=v;return RF_OK;
 done:
     free(w.cache);free(w.registry.identities);free(w.registry.flags);free(w.resources);
     rf_entity_motion_catalog_close(&v);return status;
 }
-int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *class_name,
-    const char *weapon,const char *state,char motion[64])
+int rf_entity_state_declaration_read(const void *text,uint32_t bytes,const char *class_name,
+    const char *weapon,const char *state,rf_entity_state_declaration *result)
 {
-    lexer l={(const unsigned char*)text,bytes,0};char t[256],value[64]={0};
+    lexer l={(const unsigned char*)text,bytes,0};char t[256];rf_entity_state_declaration value={0};
     int quoted,status,selected=0,found=0,group,matched=0;
-    if(!text || !class_name || !*class_name || !weapon || !state || !*state || !motion)return RF_RANGE;
+    if(!text || !class_name || !*class_name || !weapon || !state || !*state || !result)return RF_RANGE;
     group=!*weapon;
     while((status=token(&l,t,&quoted))==RF_OK) {
         if(quoted)continue;
@@ -958,14 +990,26 @@ int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *clas
             status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
             if(use) {
                 if(matched)return RF_FORMAT;
-                if(*t) {status=asset(value,t);if(status)return status;}
+                if(*t) {status=asset(value.motion,t);if(status)return status;}
                 matched=1;
+                while(metadata_tag(&l,"+Footstep Trigger:")) {
+                    if(value.marker_count || sphere_number(&l,&value.marker_frames[0]) ||
+                       sphere_number(&l,&value.marker_frames[1]))return RF_FORMAT;
+                    value.marker_count=2;
+                }
             }
         }
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found || !matched)return RF_NOT_FOUND;
-    memcpy(motion,value,64);return RF_OK;
+    *result=value;return RF_OK;
+}
+int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *class_name,
+    const char *weapon,const char *state,char motion[64])
+{
+    rf_entity_state_declaration value;int status;if(!motion)return RF_RANGE;
+    status=rf_entity_state_declaration_read(text,bytes,class_name,weapon,state,&value);
+    if(!status)memcpy(motion,value.motion,64);return status;
 }
 int rf_entity_action_read(const void *text,uint32_t bytes,const char *class_name,
     const char *weapon,const char *action,rf_entity_action_declaration *result)

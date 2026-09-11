@@ -73,3 +73,28 @@ for model types1..3 (otherwise NULL); it does not initialize animation playback.
 The following factory writes initialize logical current0, next-1, duration0 and
 elapsed0 before calling selector0x41f270. That selector still must run before any
 claim about the initial visible pose.
+
+## Authored footstep binding
+
+The shared catalog now receives base-state `+Footstep Trigger` pairs. The bounded
+state reader retains two frames per declared pair and rejects duplicate pairs or
+malformed numbers without changing output. Existing state-only callers still
+receive the same motion name and IDs. Sparse weapon binding storage does not add
+footstep declarations; the recovered factory registration calls occur in the base
+state loop. This distinction does not imply weapon-specific footstep behavior is
+fully understood.
+
+A temporary cache processes base classes in seed order and states in canonical
+order, registering left then right as at factory0x423005..0x423044. First named
+registration wins. Marker masks/ticks are then copied to every matching catalog
+resource, across skeletons and loop flags. Cache size is capped at800 and included
+in peak allocation accounting. No automatic actor motion or footstep audio starts.
+
+`verify_state_markers.py` checks all153 authored pairs plus6 guards; full-table
+catalog checks on L1S1/L1S2/L1S3 independently match all masks/ticks (13 marked
+resource entries per level). A fixture checks conflicting duplicate declarations
+retain the first time and a one-shot registration receives the shared markers.
+Catalog PC resident bytes are now65980/62792/65076, peak128719/128127/107755.
+The metadata comparison probe compares fields rather than indeterminate padding.
+
+Stock64MiB XEMU loading/door/audio regression: `artifacts/xemu/replay-20260911-073427/report.json` PASS, 180 frames. This does not verify live footstep playback or byte-for-byte native catalog contents.

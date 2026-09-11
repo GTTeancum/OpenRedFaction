@@ -6,6 +6,13 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==5 && !strcmp(argv[1],"--state-text")) {
+        char raw[8192];size_t size;rf_entity_state_declaration result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        size=fread(raw,1,sizeof(raw),stdin);memset(&result,0xa5,sizeof(result));
+        status=rf_entity_state_declaration_read(raw,(uint32_t)size,argv[2],argv[3],argv[4],&result);
+        fwrite(&status,4,1,stdout);fwrite(&result,sizeof(result),1,stdout);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--catalog-fixture")) {
         rf_entity_state_set *base=calloc(2,sizeof(*base));rf_entity_skeleton skeleton={0};
         uint32_t models[2]={0,0};rf_entity_skeletons skeletons={0};
@@ -25,12 +32,19 @@ int main(int argc,char **argv)
         base[0].cache_indices[1]=1;base[0].looping[0]=base[1].looping[0]=1;
         base[0].states[0]=base[1].states[0]=0;base[0].actions[0]=1;
         base[0].files[0]=base[0].files[1]=base[1].files[0]=file;
+        base[0].marker_counts[0]=base[0].marker_counts[1]=base[1].marker_counts[0]=2;
+        base[0].marker_frames[0][0]=5;base[0].marker_frames[0][1]=19;
+        base[0].states[1]=0;base[0].marker_frames[1][0]=9;base[0].marker_frames[1][1]=30;
+        base[1].marker_frames[0][0]=7;base[1].marker_frames[0][1]=20;
         if(rf_entity_motion_catalog_open(&skeletons,&bindings,128*1024,&catalog))return 2;
         if(catalog.models[0].count!=3 || catalog.mappings[2].states[0]!=0 || catalog.mappings[0].states[0]!=1 ||
            catalog.mappings[0].actions[0]!=2 || catalog.mappings[1].states[0]!=0 ||
            strcmp(catalog.models[0].items[0].identity,"a.b.mvf") ||
            strcmp(catalog.models[0].items[1].identity,"a.c.mvf") ||
            strcmp(catalog.models[0].items[2].identity,"a.b.mvf") || catalog.models[0].items[2].looping)return 3;
+        if(catalog.models[0].items[1].marker_mask!=3 || catalog.models[0].items[1].markers[0]!=800 ||
+           catalog.models[0].items[1].markers[1]!=3040 || catalog.models[0].items[0].markers[0]!=1120 ||
+           catalog.models[0].items[2].markers[0]!=1120 || catalog.models[0].items[2].markers[1]!=3200)return 7;
         if(rf_entity_motion_catalog_open(&skeletons,&bindings,catalog.peak_bytes-1,&guard)!=RF_RANGE ||
            memcmp(&guard,&(rf_entity_motion_catalog){0},sizeof(guard)))return 4;
         if(rf_entity_motion_catalog_open(&skeletons,&bindings,catalog.peak_bytes,&guard))return 5;
@@ -82,9 +96,13 @@ int main(int argc,char **argv)
         for(i=0;i<m.class_count;++i)printf("WEAPON_GROUPS\t%s\t%u\t%u\n",
             seeds.records.items[seeds.classes[i].record_index].record.class_name,m.classes[i].weapon_groups[0],m.classes[i].weapon_groups[1]);
         for(i=0;i<m.class_count;++i)if(seeds.classes[i].model_kind==2) {
-            if(rf_entity_state_set_open(argv[3],seeds.records.items[seeds.classes[i].record_index].record.class_name,"",&motions,512*1024,expected) ||
-               memcmp(expected->states,m.classes[i].states,sizeof(expected->states)) ||
-               memcmp(expected->files,m.classes[i].files,expected->count*sizeof(*expected->files)))return 7;
+            status=rf_entity_state_set_open(argv[3],seeds.records.items[seeds.classes[i].record_index].record.class_name,"",&motions,512*1024,expected);
+            if(status || memcmp(expected->states,m.classes[i].states,sizeof(expected->states)))return 7;
+            for(j=0;j<expected->count;++j) {
+                const rf_motion_file *a=expected->files+j,*b=m.classes[i].files+j;
+                if(a->archive!=b->archive || strcmp(a->entry.name,b->entry.name) || a->entry.offset!=b->entry.offset ||
+                   a->entry.size!=b->entry.size || memcmp(a->header,b->header,sizeof(a->header)))return 7;
+            }
             for(j=0;j<m.classes[i].count;++j) {
                 uint32_t identity=m.classes[i].cache_indices[j];
                 if(identity>=68)return 15;
@@ -147,6 +165,7 @@ int main(int argc,char **argv)
             rf_entity_model_motion *r=catalog.models[i].items+j;rf_motion_track track;
             if(r->file.header[6] && rf_motion_file_track(&r->file,0,&track))return 20;
             printf("CATALOG_RESOURCE\t%u\t%u\t%u\t%s\t%s\n",i,j,r->looping,r->identity,r->file.entry.name);
+            printf("CATALOG_MARKERS\t%u\t%u\t%u\t%d\t%d\n",i,j,r->marker_mask,r->markers[0],r->markers[1]);
         }
         if(argc==7)printf("CATALOG %u %u %u %u\n",catalog.model_count,catalog.mapping_count,catalog.resident_bytes,catalog.peak_bytes);
         rf_entity_motion_catalog_close(&catalog);rf_entity_motion_catalog_close(&catalog);

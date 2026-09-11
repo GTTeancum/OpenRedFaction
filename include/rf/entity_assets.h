@@ -262,11 +262,20 @@ int rf_entity_state_motion_load(const char *tables_path,const char *class_name,
  * NOT_FOUND. Caller keeps motions archive open. Output unchanged on failure. */
 int rf_entity_state_motion_open(const char *tables_path,const char *class_name,
     const char *weapon,const char *state,rf_vpp *motions,uint32_t table_budget,rf_motion_file *file);
+typedef struct rf_entity_state_declaration {
+    char motion[64];uint32_t marker_count;float marker_frames[2];
+} rf_entity_state_declaration;
+/* Exact state plus optional +Footstep Trigger pair in authored left/right order.
+ * Bounded port parser, not original full-table parser equivalence. Duplicate
+ * pairs, missing/invalid numbers and duplicate selected states fail unchanged. */
+int rf_entity_state_declaration_read(const void *text,uint32_t bytes,const char *class_name,
+    const char *weapon,const char *state,rf_entity_state_declaration *result);
 typedef struct rf_entity_state_set {
     int32_t states[23];uint32_t count;
     rf_motion_cache_record cache[68];rf_motion_file files[68];
     uint32_t cache_indices[68];uint8_t looping[68];int32_t actions[45];char action_sounds[45][64];
     uint32_t weapon_groups[2];
+    uint32_t marker_counts[23];float marker_frames[23][2];
 } rf_entity_state_set;
 typedef struct rf_entity_weapon_motion_group {
     uint32_t class_index,weapon,count;
@@ -281,8 +290,8 @@ typedef struct rf_entity_base_motions {
 /* Retain canonical base state and action mappings per skeletal class, reading the
  * table once. Motion files borrow the caller's open immutable motions archive.
  * Includes sparse declared skeletal weapon groups, retaining only their actual
- * resource counts. Sound labels retained; no sound-ID resolution, timing
- * markers, initial selection or playback. Each group's states/actions share local indices;
+ * resource counts. Base authored footstep pairs and sound labels retained; no
+ * sound-ID resolution, initial selection or playback. Each group's states/actions share local indices;
  * identities retain authored cache names (last-dot stems), which must not be
  * inferred from compiled filenames (first-dot stems). cache_indices maps each
  * base resource to its cache record; compact groups own the corresponding names.
@@ -295,6 +304,7 @@ void rf_entity_base_motions_close(rf_entity_base_motions *motions);
 const rf_entity_weapon_motion_group *rf_entity_weapon_motion_find(const rf_entity_base_motions *motions,uint32_t class_index,int32_t weapon);
 typedef struct rf_entity_model_motion {
     rf_motion_file file;char identity[64];uint8_t looping;
+    int32_t markers[2];uint32_t marker_mask;
 } rf_entity_model_motion;
 typedef struct rf_entity_model_motions {
     rf_entity_model_motion *items;uint32_t count;
@@ -310,7 +320,8 @@ typedef struct rf_entity_motion_catalog {
  * returned by skeletons_open/base_motions_open for the same seeds. Classes are
  * visited in seed order, weapon groups before base (422360); resolved cache
  * identity + exact loop byte keys use 539be0/51cc42 helpers. Original global
- * cache order, named timing markers and selection are not reproduced here.
+ * cache order and selection are not reproduced here. Base footstep markers are
+ * registered in class/state order and shared across model/loop identities.
  * First class_count mappings are base, followed by source weapon-group order.
  * Maps/resources survive closing inputs; motion archives and skeleton index
  * order must remain valid. Sounds stay in the source bindings. No playback.
