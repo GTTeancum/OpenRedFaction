@@ -12,7 +12,7 @@ the shared reader covers497 groups,1140 samples and all63 authored classes.
 Campaign Foley metadata and per-class bindings now match PC/stock64MiB XEMU;
 L1S1 retains26,652 table bytes plus127,680 additional bank bytes without new PCM.
 
-Connect marker-name residency, entity-update scheduling, surface selection and
+Connect resident marker names to entity-update scheduling, surface selection and
 footstep dispatch; verify persistent registration across level transitions.
 
 Original entity-update prefix now passes256 scheduling/gate cases; trace model
@@ -20,6 +20,9 @@ advancement and surface selection before enabling live marker consumption.
 
 Accepted-support material transfer into the footstep surface field is verified
 in2048 original cases; recover per-NPC support updates and airborne retention.
+
+Motion catalogs retain indexed marker names after loading; all728 opening-level
+resources pass, with7956 additional resident bytes in L1S1.
 
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.

@@ -254,6 +254,12 @@ int main(int argc,char **argv)
             if(r->file.header[6] && rf_motion_file_track(&r->file,0,&track))return 20;
             printf("CATALOG_RESOURCE\t%u\t%u\t%u\t%s\t%s\n",i,j,r->looping,r->identity,r->file.entry.name);
             printf("CATALOG_MARKERS\t%u\t%u\t%u\t%d\t%d\n",i,j,r->marker_mask,r->markers[0],r->markers[1]);
+            printf("CATALOG_MARKER_NAMES\t%u\t%u\t%s\t%s\n",i,j,catalog.models[i].marker_names[j].names[0],catalog.models[i].marker_names[j].names[1]);
+            {rf_motion_playback_state playback={0};uint32_t fired;
+             playback.completion.active.count=1;playback.completion.active.slots[0].motion=(int32_t)j;playback.completion.active.dominant_slot=0;playback.event_mask=3;
+             if(rf_motion_consume_marker(&playback,catalog.models[i].marker_names,catalog.models[i].count,"footstep_left",&fired) || fired!=!!(r->marker_mask&1))return 122;
+             if(rf_motion_consume_marker(&playback,catalog.models[i].marker_names,catalog.models[i].count,"footstep_right",&fired) || fired!=!!(r->marker_mask&2))return 123;
+            }
             {uint32_t weight;memcpy(&weight,&r->comparison.weight,4);
              printf("CATALOG_ENVELOPE\t%u\t%u\t%u\t%d\t%d\t%d\t%d\n",i,j,weight,r->comparison.start_tick,r->comparison.end_tick,r->comparison.fade_in,r->comparison.fade_out);}
 

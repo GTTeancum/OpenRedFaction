@@ -345,7 +345,7 @@ typedef struct rf_entity_model_motion {
     int32_t markers[2];uint32_t marker_mask;
 } rf_entity_model_motion;
 typedef struct rf_entity_model_motions {
-    rf_entity_model_motion *items;uint32_t count;
+    rf_entity_model_motion *items;rf_motion_marker_names *marker_names;uint32_t count;
 } rf_entity_model_motions;
 typedef struct rf_entity_motion_mapping {
     uint32_t class_index,skeleton;int32_t weapon,states[23],actions[45];
@@ -358,7 +358,8 @@ typedef struct rf_entity_motion_catalog {
  * returned by skeletons_open/base_motions_open for the same seeds. Classes are
  * visited in seed order, weapon groups before base (422360); resolved cache
  * identity + exact loop byte keys use 539be0/51cc42 helpers. Original global
- * cache order and selection are not reproduced here. Base footstep markers are
+ * cache order and selection are not reproduced here. Per-model marker_names
+ * retain two bounded names per motion index in contiguous owned storage. Base footstep markers are
  * registered in class/state order and shared across model/loop identities.
  * First class_count mappings are base, followed by source weapon-group order.
  * Maps/resources survive closing inputs; motion archives and skeleton index

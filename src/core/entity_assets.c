@@ -1124,6 +1124,7 @@ static int catalog_markers(const rf_entity_skeletons *s,const rf_entity_base_mot
         status=rf_motion_cache_acquire(cache,capacity,r->identity,&identity);if(status)goto done;
         for(k=0;k<2;++k) {
             memcpy(r->markers+k,cache[identity].bytes+0x50+k*20,4);
+            memcpy(v->models[i].marker_names[j].names[k],cache[identity].bytes+0x40+k*20,16);
             if(cache[identity].bytes[0x40+k*20])r->marker_mask|=1u<<k;
         }
     }
@@ -1177,12 +1178,14 @@ int rf_entity_motion_catalog_open(const rf_entity_skeletons *s,const rf_entity_b
             }
             status=catalog_bind(&w,b->classes+j,NULL,v.mappings+j);if(status)goto done;
         }
-        bytes+=(uint64_t)w.registry.count*sizeof(*v.models[i].items);peak=bytes+scratch;
+        bytes+=(uint64_t)w.registry.count*(sizeof(*v.models[i].items)+sizeof(*v.models[i].marker_names));peak=bytes+scratch;
         status=RF_RANGE;if(peak>budget)goto done;
         if(peak>v.peak_bytes)v.peak_bytes=(uint32_t)peak;
-        v.models[i].items=malloc(w.registry.count*sizeof(*v.models[i].items));
+        v.models[i].items=malloc(w.registry.count*(sizeof(*v.models[i].items)+sizeof(*v.models[i].marker_names)));
         if(!v.models[i].items){status=RF_IO;goto done;}
         v.models[i].count=w.registry.count;
+        v.models[i].marker_names=(rf_motion_marker_names *)(v.models[i].items+w.registry.count);
+        memset(v.models[i].marker_names,0,w.registry.count*sizeof(*v.models[i].marker_names));
         memcpy(v.models[i].items,w.resources,w.registry.count*sizeof(*w.resources));
         v.resident_bytes=(uint32_t)bytes;
         free(w.cache);free(w.registry.identities);free(w.registry.flags);free(w.resources);memset(&w,0,sizeof(w));

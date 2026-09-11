@@ -160,6 +160,15 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
   assert (int(mask),int(left),int(right))==((3,*ticks) if ticks else (0,0,0)),(level,model,index,resource,ticks,line)
   marker_rows+=1;marked+=ticks is not None
  assert marker_rows==len(catalog_resources)
+ name_rows=0
+ for line in out.splitlines():
+  if not line.startswith('CATALOG_MARKER_NAMES\t'):continue
+  _,model,index,left,right=line.split('\t');resource=catalog_resources[int(model),int(index)]
+  marked_names=resource[1].rsplit('.',1)[0].lower() in shared_markers
+  assert (left,right)==(('footstep_left','footstep_right') if marked_names else ('','')),(level,model,index,left,right)
+  name_rows+=1
+ assert name_rows==len(catalog_resources)
+
 
  motion_entries={e['name'].lower():e for a in inventory['files'] if a['path']=='motions.vpp' for e in a['vpp']['entries']}
  envelope_count=0
@@ -180,5 +189,5 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  assert identity_count==sum(map(len,registries.values()))+sum(map(len,group_registries.values()))
  assert int(next(line for line in out.splitlines() if line.startswith('BOUND_GROUPS ')).split()[1])==len(group_registries)
  reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary,catalog_summary=catalog_summary,shared_resources=len(catalog_resources),marked_resources=marked,effective_groups=effective_count,weapon_selections=selected_count,envelopes=envelope_count))
-report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames, retained first-authored cache names and sound labels exact. Shared per-model maps independently checked against authored declarations in weapon-before-base order. Shared base-state footstep masks/ticks checked independently across models and loop registrations. Original global cache order and live playback excluded.')
+report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames, retained first-authored cache names and sound labels exact. Shared per-model maps independently checked against authored declarations in weapon-before-base order. Shared base-state footstep masks/ticks/names checked independently across models and loop registrations; probe consumes retained names after closing base motions. Original global cache order and live playback excluded.')
 (root/'artifacts/base-action-sets.json').write_text(json.dumps(report,indent=2));print(report)

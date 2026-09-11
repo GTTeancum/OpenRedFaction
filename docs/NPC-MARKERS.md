@@ -280,3 +280,23 @@ for negative entity+10c or updating it from a successful contact. These paths
 need their own behavioral verification before defining persistent airborne or
 miss behavior. The current NPC preview has no per-NPC support update, so it
 must not assume the player's material applies to every actor.
+
+
+## Resident marker names
+
+Each `rf_entity_model_motions` now owns a contiguous `rf_motion_marker_names`
+array indexed by the same local motion ID as its resources. It shares the model's
+allocation; catalog creation copies both16-byte names from the temporary cache
+before freeing it. Catalog memory/peak budget checks include the added storage.
+This preserves actual registered names rather than synthesizing them from event
+bits, and supplies the array required by `rf_motion_consume_marker`.
+
+The extended base-action verifier checks names for all728 resources across
+L1S1/L1S2/L1S3 (248/237/243 entries,13 marked entries per level). The probe closes
+base motions before reading and consuming catalog-owned names. Exact/short
+catalog budget and repeat-close checks continue to pass. L1S1 adds7956 bytes
+(32 bytes per resource and one32-bit array pointer per model). The512-case
+original/PC/NXDK marker-consumption oracle and all nine CTest cases pass; both
+builds succeed. A fresh180-frame PC door replay retains the previous playback
+words and framebuffer hash. This turn does not add a new XEMU runtime proof or
+activate live footstep consumption; entity scheduling/support work remains.
