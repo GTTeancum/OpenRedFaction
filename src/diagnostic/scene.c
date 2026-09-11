@@ -1191,32 +1191,39 @@ static rf_movement_descriptor campaign_modes[16];
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_entity_creation_vitals_state vitals;float published[3],previous[3];uint32_t movement_slot;
+    rf_movement_settings movement;
 } campaign_npc_body;
 static campaign_npc_body *campaign_npc_bodies;
+static rf_movement_config *campaign_npc_movement_configs;
 static uint32_t campaign_npc_body_count;
 uint32_t rf_scene_npc_bodies[6]; /* actors, bodies, spheres, resident, peak, content hash */
 static void campaign_npc_bodies_close(void)
 {
     uint32_t i;for(i=0;i<campaign_npc_body_count;++i)rf_physics_body_close(&campaign_npc_bodies[i].body);
     free(campaign_npc_bodies);campaign_npc_bodies=NULL;campaign_npc_body_count=0;
+    free(campaign_npc_movement_configs);campaign_npc_movement_configs=NULL;
 }
 static int campaign_npc_bodies_open(const char *tables_path)
 {
     const uint32_t budget=512*1024;rf_vpp tables;rf_vpp_entry entity_table,materials;
     uint32_t cls,actor,first,scratch,hash=2166136261u;uint64_t bytes;int status;
-    if(campaign_npc_bodies || campaign_npc_body_count)return RF_RANGE;
+    if(campaign_npc_bodies || campaign_npc_body_count || campaign_npc_movement_configs)return RF_RANGE;
     status=rf_vpp_open(&tables,tables_path);if(status)return status;
     status=rf_vpp_find(&tables,"entity.tbl",&entity_table);if(status)goto done;
     status=rf_vpp_find(&tables,"materials.tbl",&materials);if(status)goto done;
     scratch=entity_table.size>materials.size?entity_table.size:materials.size;
-    bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_npc_bodies);
+    bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_npc_bodies)+
+        (uint64_t)campaign_seeds.class_count*sizeof(*campaign_npc_movement_configs);
     if(bytes+scratch>budget){status=RF_RANGE;goto done;}
     campaign_npc_bodies=calloc(campaign_poses.count,sizeof(*campaign_npc_bodies));
     if(campaign_poses.count && !campaign_npc_bodies){status=RF_RANGE;goto done;}
+    campaign_npc_movement_configs=calloc(campaign_seeds.class_count,sizeof(*campaign_npc_movement_configs));
+    if(campaign_seeds.class_count && !campaign_npc_movement_configs){status=RF_RANGE;goto done;}
     campaign_npc_body_count=campaign_poses.count;memset(rf_scene_npc_bodies,0,sizeof(rf_scene_npc_bodies));
     rf_scene_npc_bodies[0]=campaign_poses.count;rf_scene_npc_bodies[3]=(uint32_t)bytes;
     for(cls=0;cls<campaign_seeds.class_count;++cls) {
         rf_entity_physics_config config;rf_physics_sphere spheres[8];uint32_t count=0;
+        rf_entity_movement_values movement_values;rf_movement_config *movement=campaign_npc_movement_configs+cls;
         const rf_entity_pose *pose;const rf_entity_render_model *model;
         for(first=0;first<campaign_poses.count;++first)if(campaign_seeds.items[first].class_index==cls)break;
         if(first==campaign_poses.count){status=RF_FORMAT;goto done;}
@@ -1227,6 +1234,11 @@ static int campaign_npc_bodies_open(const char *tables_path)
         if(bytes+scratch>rf_scene_npc_bodies[4])rf_scene_npc_bodies[4]=(uint32_t)bytes+scratch;
         status=rf_entity_physics_config_load(&tables,campaign_seeds.records.items[first].record.class_name,
             budget-(uint32_t)bytes,&config);if(status)goto done;
+        status=rf_entity_movement_load(&tables,campaign_seeds.records.items[first].record.class_name,
+            budget-(uint32_t)bytes,&movement_values);if(status)goto done;
+        movement->flags=config.authored.flags;movement->base_speed=movement_values.speed;
+        movement->slow_factor=movement_values.slow_factor;movement->alternate_factor=movement_values.fast_factor;
+        movement->response=movement_values.acceleration; /* SP ignores network overrides. */
         /* Shared class geometry comes from the first authored startup actor. */
         status=rf_entity_class_spheres_build(&model->file,pose->matrices,pose->bone_count,&config,spheres,&count);if(status)goto done;
         for(actor=first;actor<campaign_poses.count;++actor)if(campaign_seeds.items[actor].class_index==cls) {
@@ -1247,6 +1259,10 @@ static int campaign_npc_bodies_open(const char *tables_path)
                 owner->vitals.object_flags=flags;
                 rf_entity_creation_vitals(&owner->vitals,&definition->vitals,0);
                 owner->movement_slot=rf_movement_start(campaign_modes,(int32_t)config.authored.movement_index,&body->state.flags);
+                owner->movement.response=body->state.coefficients[1];
+                /* Constructor422e19 requests normal speed via427450. */
+                status=rf_movement_set_mode(&owner->movement,movement,1,-1,body->state.mass,0);if(status)goto done;
+                body->state.coefficients[1]=owner->movement.response;
                 memcpy(owner->published,record->position,12);memcpy(owner->previous,record->position,12);
             }
             /* Constructor surface1380=0; support handle remains creation-zero.
@@ -1265,7 +1281,9 @@ static int campaign_npc_bodies_open(const char *tables_path)
         hash=npc_hash_bytes(hash,campaign_npc_bodies[actor].published,12);
         hash=npc_hash_bytes(hash,campaign_npc_bodies[actor].previous,12);
         hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].movement_slot,4);
+        hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].movement,sizeof(campaign_npc_bodies[actor].movement));
     }
+    hash=npc_hash_bytes(hash,campaign_npc_movement_configs,campaign_seeds.class_count*sizeof(*campaign_npc_movement_configs));
     rf_scene_npc_bodies[5]=hash;status=RF_OK;
 done:
     rf_vpp_close(&tables);if(status)campaign_npc_bodies_close();return status;

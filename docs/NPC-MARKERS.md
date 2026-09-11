@@ -893,3 +893,33 @@ matches, including blocked/successful attempts, enabled fallback, forced action,
 network overrides, region fields and callback counts. This catches the previous
 successful-standing overwrite. Existing128 climb-exit and512 slow-enter cases
 also pass; both builds and all9 CTests pass. Native gameplay is not newly claimed.
+
+
+### Retained NPC class movement configuration and current speed
+
+Campaign NPC construction now owns one28-byte rf_movement_config per retained
+class and12-byte current movement settings per actor slot. Class speed/slow/
+fast/acceleration values are loaded once per skeletal class while the tables
+archive is open; the archive scratch budget is reused sequentially. No pointers
+to archive text are retained. Per-actor initialization requests normal speed
+through rf_movement_set_mode, matching422e19's427450 request for the unforced
+SP startup fixture. Initial response comes from body coefficient8c and entity
+scale from mass98; updated response is copied back to the body. Forced actions,
+class mutations and complete constructor side effects remain outside this
+startup projection. Network override values remain zero and are ignored in SP.
+
+Both allocations participate in the512KiB owner cap, startup content hash and
+partial-failure cleanup. Class configs are shared instead of copied per actor;
+nonskeletal classes/slots remain empty. Counts exclude allocator overhead as
+before. L1S1 adds1076 resident/peak bytes and now reports NPC_BODIES
+[78,78,191,34988,409628,853829663]. PC L1S2 lift reports
+[39,38,114,17952,391944,3203745604]; L1S3 startup reports
+[28,25,48,12184,385888,365082509]. L1S3 remains startup-only coverage.
+
+The6000 original427450 comparisons and3 finite-contract rejections pass again;
+both builds and all9 CTests pass. Native stock64MiB XEMU door/audio report
+artifacts/xemu/replay-20260911-121236/report.json passes180 frames with the
+L1S1 owner hash matching PC, base RAM67108864 and plugged0. Animation gate,
+playback and draw remain unchanged. No new framebuffer capture. These owners
+are ready for support-depth, force and landing settings; NPC physics/support
+calls still need live integration, so this does not demonstrate moving AI.
