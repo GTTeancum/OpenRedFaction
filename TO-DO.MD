@@ -2,7 +2,7 @@
 
 Shortlist:
 - Complete the single-player actor, AI, damage and mission runtime.
-- Connect NPC physics publication, support queries and verified contact routing to retained actors and timed footsteps.
+- Connect NPC support queries, contact/fall routing and physics stepping to retained actors and timed footsteps.
 - Complete moving NPC animation, room membership, LOD selection and lighting.
 - Finish controller/event interactions, traversal, particles and GeoMod.
 - Complete audio playback ownership, shared RNG ordering and level transitions.

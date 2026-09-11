@@ -14,9 +14,8 @@ int rf_player_force_replace(rf_player_force_state *state,const rf_player_force_i
     }
     flags=state->physics_flags|1;
     status=rf_physics_force_air_cap(velocity,input->class_speed,&cap,&flags);if(status)return status;
-    selected=(input->class_flags&0x400)?8:3;
-    if(!(input->descriptors[selected].enabled&255))selected=0;
-    memcpy(state->velocity,velocity,sizeof(velocity));state->physics_flags|=1;
+    memcpy(state->velocity,velocity,sizeof(velocity));
+    selected=rf_movement_fall(input->descriptors,input->class_flags,&state->physics_flags);
     state->movement=input->descriptors+selected;state->orientation=input->identity;*selected_descriptor=selected;
     if(!(state->physics_flags&0x200000))sound(context,state,input->position,0x53);
     state->alternate_cap=cap;state->physics_flags=flags|0x80000000u;return RF_OK;
@@ -57,9 +56,8 @@ int rf_player_jump(rf_player_jump_state *state,const rf_player_jump_input *input
     if(mode==4)impulse=((long double)1.25f-
         ((long double)0.1f-input->frame_dt)*(long double)-4.200000286102295f)*impulse;
     if(state->vertical_velocity<0)impulse+=state->vertical_velocity;
-    selected=input->alternate_fall?8:3;
-    if(!(input->descriptors[selected].enabled&255))selected=0;
-    state->vertical_velocity=(float)impulse;state->actor_flags|=2;state->physics_flags|=1;
+    state->vertical_velocity=(float)impulse;state->actor_flags|=2;
+    selected=rf_movement_fall(input->descriptors,input->alternate_fall?0x400u:0u,&state->physics_flags);
     state->movement=input->descriptors+selected;*selected_descriptor=selected;
     state->orientation=input->identity;
     sound(context,state,input->class_sound);state->jump_time=input->now;return RF_OK;

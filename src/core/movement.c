@@ -70,3 +70,12 @@ uint32_t rf_movement_start(const rf_movement_descriptor descriptors[16],int32_t 
     if(descriptors[slot].index==10)*body_flags&=~0x10u;
     return slot;
 }
+
+uint32_t rf_movement_fall(const rf_movement_descriptor descriptors[16],uint32_t class_flags,uint32_t *body_flags)
+{
+    uint32_t slot;
+    if(!descriptors || !body_flags)return 0;
+    *body_flags|=1u;slot=(class_flags&0x400u)?8u:3u;
+    if(!(descriptors[slot].enabled&255u))slot=0;
+    return slot;
+}

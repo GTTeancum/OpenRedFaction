@@ -10,6 +10,12 @@ typedef struct rf_movement_descriptor {
  * NULL descriptors/body_flags returns0 without mutation. */
 uint32_t rf_movement_start(const rf_movement_descriptor descriptors[16],int32_t requested,uint32_t *body_flags);
 
+/* Original4281a0 descriptor/flag operation: set body bit1, choose slot8
+ * when class724 bit400 is set, otherwise3; disabled low byte falls back0.
+ * Caller installs the returned descriptor and identity orientation85c.
+ * No creation-mode10 flag adjustment. NULL inputs return0 unchanged. */
+uint32_t rf_movement_fall(const rf_movement_descriptor descriptors[16],uint32_t class_flags,uint32_t *body_flags);
+
 typedef struct rf_movement_settings {
     float response, speed; /* Entity +8c and +8c0. Response meaning pending. */
     int32_t mode; /* Entity +8c4, read by animation selection. */

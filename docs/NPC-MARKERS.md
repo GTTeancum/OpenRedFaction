@@ -806,3 +806,23 @@ compiled NXDK routes match:1008 NONE,504 FALL,576 STATIC,216 MOVING. Dot fixture
 use normal(0,Y,0) and up(0,1,0); arbitrary vector-dot rounding is not claimed.
 Both builds and all9 CTests pass. This helper is not yet called by the NPC loop;
 query, contact-owner update and mode transitions must be connected together.
+
+
+### Shared fall descriptor operation
+
+rf_movement_fall now provides the descriptor/flag part of4281a0 for NPC support
+loss and existing player callers: set body bit1, request slot8 when class724
+bit400 is set, otherwise3, and fall back to0 when the selected enabled low byte
+is zero. It does not perform the creation-only mode10 flag clearing. Callers
+install descriptors[returned_slot] and identity orientation85c; it does not
+reset cached support velocity/handle or change published positions.
+
+Player force replacement and jump now call this shared operation. The former
+supplies actual class flags; jump adapts its already-resolved alternate-fall
+predicate to bit400. Existing full-path comparisons still pass:512 force cases
+(including original4281a0/40a270/4339d0 and callback ordering) and6144 jump cases
+(144 accepted, original jump/fall with documented external predicates/audio).
+Both PC and compiled NXDK results match, and all9 CTests pass. Both platforms
+build successfully. Native runtime is not newly claimed by these comparisons.
+The NPC caller still needs query scheduling, fall descriptor/orientation owner
+installation and subsequent physics stepping connected together.
