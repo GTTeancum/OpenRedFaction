@@ -206,3 +206,25 @@ int rf_player_spawn_prepare(rf_player_spawn_state *player,int local_player,
     }
     return RF_OK;
 }
+
+int rf_player_slow_enter(rf_player_climb_state *state,uint32_t *actor_flags,
+    const rf_player_slow_input *input,uint32_t *selected_descriptor,rf_player_try_stand stand,void *context)
+{
+    uint32_t walk,stood=0,selected;int status;
+    if(!state || !input || !input->config)return RF_RANGE;
+    walk=input->config->flags&1u;
+    if(walk) {
+        if(!actor_flags || !input->descriptors || !input->identity || !selected_descriptor ||
+           (!(input->forced_crouch&255u) && (*actor_flags&0x400u) && !stand))return RF_RANGE;
+        if(input->forced_crouch&255u)*actor_flags|=0x400u;
+        else if(*actor_flags&0x400u) {
+            status=stand(context,&stood);if(status)return status;
+            if(stood>1)return RF_FORMAT;
+        }
+    }
+    status=rf_movement_set_mode(&state->speed,input->config,0,input->forced_action,input->entity_scale,input->override_enabled);
+    if(status || !walk)return status;
+    selected=(input->descriptors[1].enabled&255u)?1u:0u;
+    state->movement=input->descriptors+selected;*selected_descriptor=selected;
+    state->orientation=input->identity;state->vertical_velocity=0;return RF_OK;
+}

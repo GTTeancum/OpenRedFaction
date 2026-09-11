@@ -86,6 +86,19 @@ typedef int (*rf_player_try_stand)(void *context,uint32_t *stood);
 int rf_player_climb_exit(rf_player_climb_state *state,const rf_player_climb_exit_input *input,
     uint32_t *selected_descriptor,rf_player_try_stand stand,void *context);
 
+typedef struct rf_player_slow_input {
+    const rf_movement_config *config;const rf_movement_descriptor *descriptors;
+    const float (*identity)[3];int32_t forced_action;float entity_scale;
+    uint32_t forced_crouch;uint8_t override_enabled;
+} rf_player_slow_input;
+/* Original428030. Walk classes force crouch or attempt standing, then set
+ * slow speed and slot1 (enabled-byte fallback0), identity orientation and
+ * zero vertical velocity, even when standing was blocked. Keeps both regions.
+ * Standing callback owns clearance, actor flag/sphere/support effects and may
+ * update state. Its effects are not rolled back on a later numeric error. */
+int rf_player_slow_enter(rf_player_climb_state *state,uint32_t *actor_flags,
+    const rf_player_slow_input *input,uint32_t *selected_descriptor,rf_player_try_stand stand,void *context);
+
 typedef struct rf_player_support_input {
     uint32_t movement_mode,actor_flags,kind_one;
     int32_t attachment,parent;

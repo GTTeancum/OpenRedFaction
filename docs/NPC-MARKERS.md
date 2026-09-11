@@ -852,3 +852,26 @@ when standing is blocked. Normal4280b0's blocked-standing early return differs.
 Do not substitute the normal/climb-exit helper for this slow branch. Existing
 ordinary-player support code's direct vertical reset is still a restricted
 fixture; NPC landing must preserve these class/action-dependent transitions.
+
+
+### Slow/crouch landing transition
+
+rf_player_slow_enter implements428030 for the shared player/NPC movement
+state. Walk-disabled classes only apply slow speed. Walk classes force actor
+crouch bit400 when the force argument's low byte is nonzero, or call the
+standing adapter when already crouched. A blocked stand does not stop the
+remaining slow-speed, slot1/fallback0, identity orientation and vertical-zero
+assignments. Both region references remain untouched, unlike4280b0's normal
+restore. Standing owns clearance, sphere/contact changes and actor-flag
+clearing. It may update movement state; speed calculation happens afterwards.
+Its effects are not rolled back if a later port numeric validation fails.
+
+verify_slow_enter.py executes complete original428030 with real427fb0/40a130,
+427450 and4339d0. Only428a60 is supplied at an explicit standing boundary.
+512 PC/NXDK cases cover walk capability, crouch, force/enable low bytes0/1/256/
+257, blocked/successful standing, forced action and network speed overrides.
+Callback response mutation verifies speed calculation observes updated state.
+Descriptor, actor flags, speed, vertical velocity and callback count match;
+original region pointers and shared region references remain unchanged.
+Both builds and all9 CTests pass. This does not implement clearance or install
+NPC landing callbacks in the campaign. No new visual or native replay claim.
