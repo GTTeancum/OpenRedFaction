@@ -15,6 +15,30 @@ static int32_t ambient_register(void *context,const char *name,float near_distan
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--sound-metadata-read")) {
+        uint32_t bytes,budget,count=0x55555555u,i;void *text;int status,read_status;
+        rf_sound_metadata_owner owner={0};rf_sound_metadata *scratch;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        if(fread(&bytes,4,1,stdin)!=1 || fread(&budget,4,1,stdin)!=1 || bytes>1048576)return 79;
+        text=malloc(bytes?bytes:1);scratch=malloc(RF_SOUND_METADATA_CAPACITY*sizeof(*scratch));
+        if(!text || !scratch || fread(text,1,bytes,stdin)!=bytes)return 78;
+        memset(scratch,0x55,RF_SOUND_METADATA_CAPACITY*sizeof(*scratch));
+        read_status=rf_sound_metadata_read(text,bytes,scratch,RF_SOUND_METADATA_CAPACITY,&count);
+        if(read_status) {
+            if(count!=0x55555555u)return 77;
+            for(i=0;i<RF_SOUND_METADATA_CAPACITY*sizeof(*scratch);++i)if(((unsigned char *)scratch)[i]!=0x55)return 76;
+        }
+        status=rf_sound_metadata_open(text,bytes,budget,&owner);
+        if(!status && (read_status || count!=owner.count || memcmp(scratch,owner.rows,count*sizeof(*scratch))))return 75;
+        if(!status && rf_sound_metadata_open(text,bytes,budget,&owner)==RF_OK)return 74;
+        memset(text,0,bytes);free(text);free(scratch);
+        if(fwrite(&status,4,1,stdout)!=1 || fwrite(&owner.count,4,1,stdout)!=1 || fwrite(&owner.allocated_bytes,4,1,stdout)!=1)return 73;
+        if(!status && (fwrite(owner.rows,sizeof(*owner.rows),owner.count,stdout)!=owner.count ||
+            fwrite(owner.order,2,RF_SOUND_METADATA_CAPACITY,stdout)!=RF_SOUND_METADATA_CAPACITY))return 72;
+        rf_sound_metadata_close(&owner);rf_sound_metadata_close(&owner);
+        if(owner.rows || owner.order || owner.count || owner.allocated_bytes)return 71;
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--sound-metadata")) {
         rf_sound_metadata rows[RF_SOUND_METADATA_CAPACITY];uint16_t order[RF_SOUND_METADATA_CAPACITY];
         uint32_t count,queries,i;char name[120];int status;

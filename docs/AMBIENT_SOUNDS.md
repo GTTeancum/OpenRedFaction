@@ -339,3 +339,36 @@ NXDK CPU execution evidence, not a new XEMU/device playback test.
 File parsing, budgeted owner construction/destruction, registration attachment
 and ambient PCM/device output remain open. No sound-bank layout or live audio
 behavior changed in this ordering/search increment.
+
+
+## Bounded Bluebeard reader and owner
+
+rf_sound_metadata_read consumes Bluebeard text in the recovered56bbc0 field
+order, retaining names and packed+a8/ac words in the shared128-byte rows.
+Directory, time, envelope and incidental fields are validated/consumed but
+not retained. The reader handles Music Track, Ambient Sound, Looping Sound,
+Loop Start, Keyoff Time, Preload and low/medium preservation bits. It accepts
+ASCII tokens/comments and bounded decimal/hex integers without NXDK strtod.
+The compact representation is for runtime playback metadata, not editor export.
+
+This is a bounded adapter with explicit errors, not a claim to reproduce every
+original lexer/error-recovery behavior. In particular unknown/trailing fields,
+embedded NUL, non-ASCII text, overflowing integers, missing fields and oversized
+names are rejected. A validation pass precedes writes, preserving rows/count
+on failure. NULL rows and zero capacity query the number of authored records.
+
+rf_sound_metadata_open allocates rows plus the8KiB index in one block, calls
+the verified sorter, and publishes the owner only after success. The budget
+includes the caller-owned structure and allocation, excludes input text and
+allocator overhead. Empty output is required; repeated close is safe. Input
+text is not borrowed. Installed data needs355,344 bytes on Win32/Xbox for all
+2,712 records, versus the original737,280-byte record table alone.
+
+verify_sound_metadata_reader.py independently compares every installed name
+and packed flag word against PC and compiled NXDK parsing. Four valid datasets
+and11 malformed cases pass. Synthetic rows cover signed masked offsets, music,
+preload and preservation flags. The probe checks unchanged outputs on reader
+errors, rejection of a populated owner, use after input text release, and
+repeated close. Exact owner budget succeeds; one byte less fails cleanly.
+PC/NXDK builds and all eight CTests pass. Native XEMU file I/O, campaign metadata
+attachment and ambient device playback are still unconnected and unverified.

@@ -14,6 +14,21 @@ int rf_sound_metadata_order(const rf_sound_metadata *rows,uint32_t count,
     uint16_t order[RF_SOUND_METADATA_CAPACITY]);
 const rf_sound_metadata *rf_sound_metadata_find(const rf_sound_metadata *rows,
     const uint16_t order[RF_SOUND_METADATA_CAPACITY],const char *name);
+/* Bounded Bluebeard adapter for original56bbc0 field order. Retains name and
+ * packed loop/keyoff words; validates but discards directories/time/envelope/
+ * incidental fields. ASCII text, // comments, decimal or hexadecimal integers.
+ * No allocation; two passes preserve rows/count on error. NULL rows/capacity0
+ * queries count. Input and outputs must not overlap. */
+int rf_sound_metadata_read(const void *text,uint32_t bytes,rf_sound_metadata *rows,
+    uint32_t capacity,uint32_t *count);
+typedef struct rf_sound_metadata_owner {
+    rf_sound_metadata *rows;uint16_t *order;uint32_t count,allocated_bytes;
+} rf_sound_metadata_owner;
+/* One allocation plus caller-owned owner; budget includes both, excludes
+ * input text and allocator overhead. Result must be empty. No text borrowing.
+ * Repeated close is safe; discard borrowed lookup results before closing. */
+int rf_sound_metadata_open(const void *text,uint32_t bytes,uint32_t budget,rf_sound_metadata_owner *result);
+void rf_sound_metadata_close(rf_sound_metadata_owner *owner);
 struct rf_level_owned_ambient;
 typedef struct rf_ambient_instance {
     uint32_t uid;int32_t sample,slot;float position[3];

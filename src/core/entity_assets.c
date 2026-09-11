@@ -193,6 +193,97 @@ static int sphere_number(lexer *l,float *result)
     if(!isfinite(value) || value>FLT_MAX)return RF_FORMAT;
     *result=(float)(negative?-value:value);return RF_OK;
 }
+static int metadata_tag(lexer *l,const char *tag)
+{
+    lexer probe=*l;char expected[64],actual[256];uint32_t n;int quoted;
+    while(*tag) {
+        n=0;while(*tag && *tag!=' ')expected[n++]=*tag++;
+        expected[n]=0;while(*tag==' ')++tag;
+        if(token(&probe,actual,&quoted) || quoted || !same(actual,expected))return 0;
+    }
+    *l=probe;return 1;
+}
+static int metadata_string(lexer *l,char *destination,uint32_t capacity)
+{
+    char value[256];int quoted;size_t length;
+    if(token(l,value,&quoted) || !quoted)return RF_FORMAT;
+    length=strlen(value);if(length>=capacity)return RF_FORMAT;
+    if(destination)memcpy(destination,value,length+1);
+    return RF_OK;
+}
+static int metadata_integer(lexer *l,uint32_t *result)
+{
+    char value[256];uint32_t at=0,base=10,digit,digits=0;uint64_t number=0;int quoted,negative=0;
+    if(token(l,value,&quoted) || quoted)return RF_FORMAT;
+    if(value[at]=='-' || value[at]=='+')negative=value[at++]=='-';
+    if(value[at]=='0' && (value[at+1]=='x' || value[at+1]=='X')) {at+=2;base=16;}
+    for(;value[at];++at) {
+        char c=value[at];digit=c>='0' && c<='9'?(uint32_t)(c-'0'):
+            c>='a' && c<='f'?(uint32_t)(c-'a'+10):c>='A' && c<='F'?(uint32_t)(c-'A'+10):16;
+        if(digit>=base)return RF_FORMAT;
+        number=number*base+digit;if(number>(negative?2147483648ull:4294967295ull))return RF_FORMAT;++digits;
+    }
+    if(!digits)return RF_FORMAT;*result=negative?0u-(uint32_t)number:(uint32_t)number;return RF_OK;
+}
+static int metadata_pass(const void *text,uint32_t bytes,rf_sound_metadata *rows,uint32_t *count)
+{
+    lexer l={text,bytes,0};char trailing[256];int quoted;uint32_t n=0,value;
+    if(!metadata_tag(&l,"$Sound Root:") || metadata_string(&l,NULL,219) ||
+       !metadata_tag(&l,"$PS2 Sound Root:") || metadata_string(&l,NULL,219))return RF_FORMAT;
+    metadata_tag(&l,"+Use Flat Directory Layout for PS2 Sounds");
+    while(metadata_tag(&l,"$Folder:"))if(metadata_string(&l,NULL,256))return RF_FORMAT;
+    while(metadata_tag(&l,"$Sound:")) {
+        rf_sound_metadata row={0};
+        if(n==RF_SOUND_METADATA_CAPACITY || metadata_string(&l,row.name,80) ||
+           !metadata_tag(&l,"$Folder:") || metadata_string(&l,NULL,40))return RF_FORMAT;
+        if(metadata_tag(&l,"+Time:") && metadata_integer(&l,&value))return RF_FORMAT;
+        if(metadata_tag(&l,"+Music Track"))row.keyoff_flags|=0x20000000u;
+        else {
+            if(metadata_tag(&l,"+Ambient Sound"))row.loop_flags|=0x80000000u;
+            if(!metadata_tag(&l,"$Envelope:") || metadata_integer(&l,&value) ||
+               !metadata_tag(&l,"$Keyoff Time:") || metadata_integer(&l,&value))return RF_FORMAT;
+            row.keyoff_flags|=value&0x0fffffffu;
+        }
+        if(metadata_tag(&l,"+Looping Sound")) {
+            if(!metadata_tag(&l,"+Loop Start:") || metadata_integer(&l,&value))return RF_FORMAT;
+            row.loop_flags|=0x40000000u|(value&0x07ffffffu);
+        }
+        if(metadata_tag(&l,"+Preload"))row.keyoff_flags|=0x80000000u;
+        metadata_tag(&l,"+Incidental");
+        if(metadata_tag(&l,"+Preserve Low Frequencies"))row.loop_flags|=0x10000000u;
+        else if(metadata_tag(&l,"+Preserve Medium Frequencies"))row.loop_flags|=0x08000000u;
+        row.keyoff_flags|=0x10000000u;
+        if(rows)rows[n]=row;++n;
+    }
+    if(token(&l,trailing,&quoted)!=RF_NOT_FOUND)return RF_FORMAT;
+    *count=n;return RF_OK;
+}
+int rf_sound_metadata_read(const void *text,uint32_t bytes,rf_sound_metadata *rows,uint32_t capacity,uint32_t *count)
+{
+    uint32_t i,n;int status;
+    if(!text || !bytes || !count || (!rows && capacity))return RF_RANGE;
+    for(i=0;i<bytes;++i)if(!((const unsigned char *)text)[i] || ((const unsigned char *)text)[i]>127)return RF_FORMAT;
+    status=metadata_pass(text,bytes,NULL,&n);if(status)return status;
+    if(rows && n>capacity)return RF_RANGE;
+    if(rows) {status=metadata_pass(text,bytes,rows,&n);if(status)return status;}
+    *count=n;return RF_OK;
+}
+int rf_sound_metadata_open(const void *text,uint32_t bytes,uint32_t budget,rf_sound_metadata_owner *result)
+{
+    rf_sound_metadata_owner value={0};uint32_t size;int status;
+    if(!result || result->rows || result->order || result->count || result->allocated_bytes)return RF_RANGE;
+    status=rf_sound_metadata_read(text,bytes,NULL,0,&value.count);if(status)return status;
+    size=value.count*sizeof(*value.rows)+RF_SOUND_METADATA_CAPACITY*sizeof(*value.order);
+    if(size+sizeof(value)>budget)return RF_RANGE;
+    value.rows=malloc(size);if(!value.rows)return RF_RANGE;
+    value.order=(uint16_t *)(value.rows+value.count);value.allocated_bytes=size+sizeof(value);
+    status=rf_sound_metadata_read(text,bytes,value.rows,value.count,&value.count);
+    if(!status)status=rf_sound_metadata_order(value.rows,value.count,value.order);
+    if(status) {free(value.rows);return status;}
+    *result=value;return RF_OK;
+}
+void rf_sound_metadata_close(rf_sound_metadata_owner *owner)
+{ if(owner) {free(owner->rows);memset(owner,0,sizeof(*owner));} }
 static int sound_table_pass(const void *text,uint32_t bytes,rf_audio_declaration *rows,uint32_t *count)
 {
     lexer l={text,bytes,0};char t[256];int quoted;uint32_t n=0;
