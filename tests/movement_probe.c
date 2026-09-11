@@ -11,6 +11,14 @@ int main(int argc,char **argv)
     int32_t status;
     _Static_assert(sizeof(input)==56,"Movement settings wire layout");
     _setmode(_fileno(stdin),_O_BINARY); _setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--start")) {
+        struct {rf_movement_descriptor descriptors[16];int32_t requested;uint32_t flags;} v;uint32_t slot;
+        while(fread(&v,sizeof(v),1,stdin)==1) {
+            slot=rf_movement_start(v.descriptors,v.requested,&v.flags);
+            fwrite(&slot,4,1,stdout);fwrite(&v.flags,4,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--class")) {
         rf_vpp archive;rf_entity_movement_values value;int result;
         if(rf_vpp_open(&archive,argv[2]))return 3;

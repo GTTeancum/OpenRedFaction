@@ -61,3 +61,12 @@ int rf_movement_set_mode(rf_movement_settings *state, const rf_movement_config *
     if (!isfinite(next.speed)) return RF_RANGE;
     *state=next; return RF_OK;
 }
+
+uint32_t rf_movement_start(const rf_movement_descriptor descriptors[16],int32_t requested,uint32_t *body_flags)
+{
+    uint32_t slot=0;
+    if(!descriptors || !body_flags)return 0;
+    if(requested>=0 && requested<16 && (descriptors[requested].enabled&255u))slot=(uint32_t)requested;
+    if(descriptors[slot].index==10)*body_flags&=~0x10u;
+    return slot;
+}

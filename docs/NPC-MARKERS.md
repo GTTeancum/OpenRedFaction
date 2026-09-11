@@ -703,3 +703,30 @@ gate/playback. Both builds and all9 CTests pass. No framebuffer capture was
 requested because this change has no new visual result. The startup body hash
 does not measure per-frame position mutations; full moving-body integration
 will require dynamic telemetry and original-game comparisons.
+
+
+### Retained initial movement selection
+
+NPC bodies now retain a movement-table slot selected through rf_movement_start.
+It implements4339d0: out-of-range requested indices or a zero low enabled byte
+select slot0, even if slot0 is disabled. The mode is descriptors[slot].index;
+it must not be conflated with the slot number. The creation422dfa..422e19
+adjustment clears body flag10 when that descriptor's mode is10. The campaign's
+existing16 loaded descriptors outlive these owners. Named lookup remains the
+validated class parser's responsibility; later movement transitions are open.
+
+verify_movement_start.py executes complete4339d0 plus prepared422dfa..422e19,
+without hooks, and compares PC/NXDK results across1536 cases. Tests vary mode
+independently of slot, enabled upper bytes and invalid indices;1152 select0
+and40 change body flags. Descriptor storage and unrelated inputs are preserved.
+This does not claim execution of the full entity factory or support query.
+
+The180-frame PC door replay reports NPC_BODIES
+[78,78,191,33912,408552,1465601968]; the312 extra bytes store78 selected slots.
+Animation gate/playback and rendered geometry remain unchanged. Both builds and
+all9 CTests pass. The compiled NXDK helper is execution-verified in Unicorn;
+this specific slot addition has not yet received a fresh native XEMU replay.
+The previous e2bde86 native run remains the latest complete runtime evidence.
+Initial animation selection still uses the earlier authored-index projection;
+connect that caller to the retained descriptor when its startup ordering is
+reworked, including disabled-mode coverage. Live support/physics remain open.

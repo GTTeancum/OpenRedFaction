@@ -1187,9 +1187,10 @@ static int campaign_npc_geometry_digest(void)
     }
     return RF_OK;
 }
+static rf_movement_descriptor campaign_modes[16];
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
-    rf_entity_creation_vitals_state vitals;float published[3],previous[3];
+    rf_entity_creation_vitals_state vitals;float published[3],previous[3];uint32_t movement_slot;
 } campaign_npc_body;
 static campaign_npc_body *campaign_npc_bodies;
 static uint32_t campaign_npc_body_count;
@@ -1245,6 +1246,7 @@ static int campaign_npc_bodies_open(const char *tables_path)
                 flags|=0x06000000u;if(!(config.authored.flags2&1u))flags|=0x20000u;
                 owner->vitals.object_flags=flags;
                 rf_entity_creation_vitals(&owner->vitals,&definition->vitals,0);
+                owner->movement_slot=rf_movement_start(campaign_modes,(int32_t)config.authored.movement_index,&body->state.flags);
                 memcpy(owner->published,record->position,12);memcpy(owner->previous,record->position,12);
             }
             /* Constructor surface1380=0; support handle remains creation-zero.
@@ -1262,6 +1264,7 @@ static int campaign_npc_bodies_open(const char *tables_path)
         hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].vitals,sizeof(campaign_npc_bodies[actor].vitals));
         hash=npc_hash_bytes(hash,campaign_npc_bodies[actor].published,12);
         hash=npc_hash_bytes(hash,campaign_npc_bodies[actor].previous,12);
+        hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].movement_slot,4);
     }
     rf_scene_npc_bodies[5]=hash;status=RF_OK;
 done:
@@ -1435,7 +1438,7 @@ static int campaign_resolve_trigger_links(void)
     return RF_OK;
 }
 uint32_t rf_scene_campaign_events[3]; /* registered events, owner bytes, registry bytes */
-static rf_movement_descriptor campaign_modes[16];
+
 static float campaign_jump_strength;
 static rf_player_climb_state campaign_climb;
 static const float campaign_identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};

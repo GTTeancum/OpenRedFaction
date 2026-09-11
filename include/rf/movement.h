@@ -4,6 +4,12 @@
 typedef struct rf_movement_descriptor {
     uint32_t enabled,index,translation[3],rotation[3];
 } rf_movement_descriptor;
+/* Original4339d0 selection plus422dfa creation flag adjustment. Disabled
+ * low-byte enabled or out-of-range requested index selects slot0 (even when
+ * slot0 is disabled). Descriptor mode10 clears body flag10. Returns slot;
+ * NULL descriptors/body_flags returns0 without mutation. */
+uint32_t rf_movement_start(const rf_movement_descriptor descriptors[16],int32_t requested,uint32_t *body_flags);
+
 typedef struct rf_movement_settings {
     float response, speed; /* Entity +8c and +8c0. Response meaning pending. */
     int32_t mode; /* Entity +8c4, read by animation selection. */
