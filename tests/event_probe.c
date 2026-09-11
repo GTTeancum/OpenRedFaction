@@ -5,6 +5,20 @@
 #include <io.h>
 #include <string.h>
 static uint32_t actions,mutation;
+static uint32_t damage_mode,damage_count,damage_trace[4][9];
+static int damage_lookup(void *context,uint32_t handle,uint32_t stage,rf_event_damage_target *target)
+{
+    (void)context;memset(target,0,sizeof(*target));
+    target->present=handle==0x12340001 || handle==0x23450002;
+    target->entity_handle=0x23450002;target->exclude_a=damage_mode==5?2:damage_mode==6?257:damage_mode==2;
+    target->exclude_b=damage_mode==8?2:damage_mode==9?257:damage_mode==3;
+    target->feedback=damage_mode==7?256:damage_mode==10?257:damage_mode==4;target->feedback_handle=0x76543210;(void)stage;return RF_OK;
+}
+static void damage_request(void *context,const rf_event_damage_request *request)
+{(void)context;if(damage_count<4){damage_trace[damage_count][0]=0;memcpy(damage_trace[damage_count]+1,request,32);}++damage_count;}
+static void damage_feedback(void *context,uint32_t handle,float first,float second)
+{(void)context;if(damage_count<4){uint32_t *row=damage_trace[damage_count];row[0]=1;row[1]=handle;memcpy(row+2,&first,4);memcpy(row+3,&second,4);}++damage_count;}
+
 typedef struct switch_runtime_fixture {rf_object_registry *registry;uint32_t sounds,last_count;int error;} switch_runtime_fixture;
 static int switch_runtime_lookup(void *context,uint32_t family,uint32_t link,rf_switch_target *target)
 {
@@ -287,6 +301,22 @@ int main(int argc,char **argv)
         trigger.state.count=trigger.state.flags=0;live_link_calls=0;live_link_error=RF_FORMAT;
         if(rf_runtime_trigger_fire_links(&owner,trigger.handle,123,100,0,0,0,live_link_effect,&trigger,&fired)!=RF_FORMAT || !fired || live_link_calls!=1 || trigger.state.count!=1)return 107;
         puts("PASS runtime ordered controller/event activation, suppression, blocking, bookkeeping and backend error");return 0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--continuous-damage")) {
+        uint32_t input[5],links[3]={0x12340001,0x99990001,0x23450002};int32_t status;
+        rf_event_damage_state state={{3,links},0,0,UINT32_MAX,0};
+        rf_event_damage_backend backend={damage_lookup,damage_request,damage_feedback,NULL};
+        _Static_assert(sizeof(rf_event_damage_request)==32,"Damage request wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            memcpy(&state.rate,input,4);memcpy(&state.frame_seconds,input+1,4);state.kind=input[2];
+            damage_mode=input[3];state.actor=damage_mode?0x23450002:UINT32_MAX;
+            damage_count=0;memset(damage_trace,0,sizeof(damage_trace));
+            status=rf_event_continuous_damage_action(&state,input[4],&backend);
+            if(damage_count>4)return 4;
+            fwrite(&status,4,1,stdout);fwrite(&damage_count,4,1,stdout);fwrite(damage_trace,sizeof(damage_trace),1,stdout);
+        }
+        return ferror(stdin)?2:0;
     }
     if(argc==2 && !strcmp(argv[1],"--authored-trigger-contact")) {
         rf_object_registry registry;rf_runtime_triggers owner={0};rf_runtime_trigger trigger={0};

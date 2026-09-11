@@ -1033,3 +1033,30 @@ the ignored damage float return. Real array and object-handle lookup run.
 This establishes request ordering/arithmetic; it does not implement health,
 death, backend effects, missing-entity behavior or event scheduling, and does
 not yet compare a reconstructed C action. Report:continuous-damage-trace.json.
+
+## Shared Continuous_Damage request dispatch
+
+rf_event_continuous_damage_action now reconstructs the on-action request
+sequence and off no-op in shared C. Backend lookup distinguishes linked
+object presence, actor entity/exclusion facts and post-damage feedback facts.
+Each32-byte damage request preserves all eight4892c0 arguments; secondary
+feedback keeps its separate typed callback. The helper allocates nothing.
+Event/link storage and backend must stay stable through callbacks; target
+facts are refreshed at each lookup. This contract does not establish arbitrary
+callback mutation of the original event. Effects are not rolled back on errors.
+
+Missing actor entity/post-damage object is an explicit RF_NOT_FOUND lifetime
+guard, since original behavior for these cases has not been established.
+Nonfinite computed amounts return RF_FORMAT before requests; invalid action
+returns RF_RANGE. These guards are port behavior. Zero rate still uses10000
+without reading frame duration. Actor exclusions compare low byte exactly1;
+feedback tests low byte nonzero. Signed rates are not prematurely rounded
+to float before multiplying by frame duration under53-bit x87 precision.
+
+The verifier now compares990 original on and990 off cases against both PC
+and actual NXDK-linked code in Unicorn:2,520 damage requests and144 secondary
+effects match exactly. Four additional guards bring each compiled suite to
+1,984 cases. Predicate values2,256,257 cover byte semantics. Both builds
+and eight CTests pass. The scene still reports this event as unsupported:
+actor ownership, the actual damage backend, loader-call inputs and repeated
+scheduling must be recovered before enabling gameplay health/death changes.

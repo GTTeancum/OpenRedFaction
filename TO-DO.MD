@@ -5,7 +5,7 @@ grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
-- [ ] Complete NPC actor/link registration and recover APC-linked Continuous_Damage dispatch after connecting authored contact filters0..4.
+- [ ] Complete NPC actor/link registration, damage backend and repeat scheduling after reconstructing Continuous_Damage request dispatch.
 - [ ] Resolve the L1S3 pressure-test route after fixing its 14 static ray errors, complete audio category settings, and recover light ownership.
 - [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
@@ -2265,3 +2265,7 @@ NPC registration, point-event filter5 and special ownership gates remain open.
 2026-09-11: Continuous_Damage original on/off trace passes450 cases each,
 including1080 damage requests and72 secondary effects. Next reconstruct
 target dispatch and verify loader inputs/repeat scheduling before integration.
+
+2026-09-11: Shared Continuous_Damage request dispatch matches990 original
+on/990 off traces on PC/NXDK; four guards and eight CTests pass. Scene
+integration awaits damage backend, actor ownership and scheduling evidence.

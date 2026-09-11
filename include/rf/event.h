@@ -196,6 +196,31 @@ int rf_trigger_links_dispatch(const rf_object_registry *registry,rf_event_links 
  * common callback action 0/1; propagation action 2 is handled by the caller.
  * On applies 4bcc00, off preserves gravity. No event registration or links. */
 int rf_event_gravity_action(rf_physics_gravity *gravity,float value,uint32_t action);
+typedef struct rf_event_damage_state {
+    rf_event_links links;int32_t rate;uint32_t kind,actor;float frame_seconds;
+} rf_event_damage_state;
+typedef struct rf_event_damage_target {
+    uint32_t present,entity_handle,exclude_a,exclude_b,feedback,feedback_handle;
+} rf_event_damage_target;
+typedef struct rf_event_damage_request {
+    uint32_t target;float amount;uint32_t source,other,kind,flags,owner,enabled;
+} rf_event_damage_request;
+typedef struct rf_event_damage_backend {
+    /* stage0=object presence,1=actor entity/exclusions,2=post-damage feedback.
+     * Exclusions use low byte exactly1; feedback uses low byte nonzero. */
+    int (*lookup)(void *context,uint32_t handle,uint32_t stage,rf_event_damage_target *target);
+    void (*damage)(void *context,const rf_event_damage_request *request);
+    void (*feedback)(void *context,uint32_t handle,float first,float second);
+    void *context;
+} rf_event_damage_backend;
+/* Original4bb4d0 request dispatch and type17 off no-op. Backend and event/link
+ * storage must remain stable through callbacks; target facts refresh at each
+ * lookup. Missing actor entity/post-damage object is RF_NOT_FOUND (unverified
+ * original lifetime path). Effects already dispatched are not rolled back.
+ * Does not apply health changes, schedule repeats or register world actors. */
+int rf_event_continuous_damage_action(const rf_event_damage_state *state,uint32_t action,
+    const rf_event_damage_backend *backend);
+
 typedef struct rf_event_explode_state {
     uint32_t geometry_flag,room;
     float position[3];int32_t effect;

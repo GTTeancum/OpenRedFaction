@@ -270,6 +270,37 @@ int rf_trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_actor_f
     }
     return rf_trigger_contact_delay(timer,now,accepted,ready);
 }
+int rf_event_continuous_damage_action(const rf_event_damage_state *state,uint32_t action,
+    const rf_event_damage_backend *backend)
+{
+    rf_event_damage_request request={0};rf_event_damage_target target;uint32_t i;int status;
+    if(!state || action>1)return RF_RANGE;
+    if(!action)return RF_OK;
+    if(!backend || !backend->lookup || !backend->damage || !backend->feedback ||
+       state->links.count>INT32_MAX || (state->links.count && !state->links.handles))return RF_RANGE;
+    /* 4bb535 fild/fmul/fstp: preserve the integer before multiplication. */
+    request.amount=state->rate?(float)((long double)state->rate*state->frame_seconds):10000.0f;
+    if(!isfinite(request.amount))return RF_FORMAT;
+    request.source=request.other=request.owner=UINT32_MAX;request.kind=state->kind;request.enabled=1;
+    for(i=0;i<state->links.count;++i) {
+        memset(&target,0,sizeof(target));
+        status=backend->lookup(backend->context,state->links.handles[i],0,&target);if(status)return status;
+        if(target.present) {request.target=state->links.handles[i];backend->damage(backend->context,&request);}
+    }
+    if(state->actor==UINT32_MAX)return RF_OK;
+    memset(&target,0,sizeof(target));
+    status=backend->lookup(backend->context,state->actor,1,&target);if(status)return status;
+    if(!target.present)return RF_NOT_FOUND;
+    if((target.exclude_a&255)==1 || (target.exclude_b&255)==1)return RF_OK;
+    request.target=state->actor;request.source=target.entity_handle;
+    backend->damage(backend->context,&request);
+    memset(&target,0,sizeof(target));
+    status=backend->lookup(backend->context,state->actor,2,&target);if(status)return status;
+    if(!target.present)return RF_NOT_FOUND;
+    if((target.feedback&255) && (state->kind==0 || state->kind==3 || state->kind==5 || state->kind==6))
+        backend->feedback(backend->context,target.feedback_handle,.01f,.5f);
+    return RF_OK;
+}
 int rf_event_explode_action(rf_event_explode_state *state,uint32_t action,
     rf_event_explode_callback callback,void *context)
 {
