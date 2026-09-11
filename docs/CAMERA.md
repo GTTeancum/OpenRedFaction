@@ -3803,3 +3803,32 @@ write boundaries. Report: artifacts/screen-flash.json, PASS.
 Both builds and all11 CTest checks pass. This does not yet wire player
 ownership, flash initialization/decay, or framebuffer compositing; no
 new rendered damage effect or native XEMU run is claimed.
+
+
+## Player flash draw decision and decay
+
+Original4163c0 tests player+10d4 as a signed positive integer. It sends
+the stored RGB and current alpha to50cf80, then draws50dbe0 at(0,0)
+with viewport width50cdb0/global17c7bf4, height50cdc0/global17c7bf8,
+and render mode17756c0. The decompiler misses the retained stack
+arguments: the rectangle call has five arguments, not three.
+Only after drawing does436320 read the freeze byte637086. When zero,
+alpha decreases by trunc(frame_seconds*170), using globals5a4014 and
+589514 and the original ftol. A decrement at least alpha sets it to zero.
+The stored RGBA alpha byte is not updated by decay; the current full word
+is passed to the color setter on each subsequent draw.
+
+rf_screen_flash_step returns that pre-decay draw snapshot and updates
+state; it preserves the draw output when inactive. It accepts nonnegative
+finite frame steps with a representable signed decrement, and models
+the low-byte freeze condition. Original negative/nonfinite time behavior
+is outside this API. Caller must still supply full-viewport compositing
+and correct player/render scheduling; no live damage flash is claimed.
+
+verify_screen_flash_step.py passes4096 PC/NXDK comparisons against the
+original routine, executing its viewport/freeze getters and ftol while
+recording the two graphics terminals. Coverage includes signed alpha
+gates, byte/full-word disagreement, freeze values0/1/255/256/257, zero
+and sub-unit decrements, clamping, unchanged owner bytes and exact
+rectangle arguments. It also reruns the4096 setter cases. Both builds
+and all11 CTest checks pass. GPU blending and pixels remain unverified.

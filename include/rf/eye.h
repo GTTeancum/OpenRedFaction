@@ -27,6 +27,13 @@ typedef struct rf_camera_effect_state {float strength,duration;int32_t deadline;
  * This sets state only; flash decay, compositing and player lifetime are separate. */
 typedef struct rf_screen_flash {uint8_t rgba[4];uint32_t alpha;} rf_screen_flash;
 int rf_screen_flash_set(rf_screen_flash *state,uint32_t red,uint32_t green,uint32_t blue,uint32_t alpha);
+/* 4163c0 state/draw decision: positive signed alpha draws BEFORE decay.
+ * draw is a color snapshot (its alpha byte comes from the current full word),
+ * active=0 preserves draw. Low-byte freeze suppresses decay but not drawing.
+ * Caller composites the snapshot as a full-viewport rectangle. Nonnegative
+ * finite frame_seconds required; errors preserve all outputs. */
+int rf_screen_flash_step(rf_screen_flash *state,float frame_seconds,uint32_t freeze,
+    rf_screen_flash *draw,uint32_t *active);
 /* Resolved actor portion of 40e0b0: stores strength/duration and sets deadline
  * from trunc(duration*1000). Signed duration supported within one timer period.
  * Caller resolves view/player/actor ownership. Errors preserve state. */

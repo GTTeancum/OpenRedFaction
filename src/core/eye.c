@@ -494,6 +494,23 @@ int rf_look_orientation(const float angles[3],float orientation[9])
     memcpy(orientation,out,sizeof(out));return RF_OK;
 }
 
+int rf_screen_flash_step(rf_screen_flash *state,float frame_seconds,uint32_t freeze,
+    rf_screen_flash *draw,uint32_t *active)
+{
+    double amount;uint32_t decrement;
+    if(!state || !draw || !active || state==draw)return RF_RANGE;
+    if(!isfinite(frame_seconds) || frame_seconds<0)return RF_RANGE;
+    amount=(double)frame_seconds*170.0;
+    if(amount>2147483647.0)return RF_RANGE;
+    if(!state->alpha || state->alpha>=0x80000000u){*active=0;return RF_OK;}
+    *draw=*state;draw->rgba[3]=(uint8_t)state->alpha;*active=1;
+    if(!(freeze&255u)) {
+        decrement=(uint32_t)amount;
+        state->alpha=decrement<state->alpha?state->alpha-decrement:0;
+    }
+    return RF_OK;
+}
+
 int rf_screen_flash_set(rf_screen_flash *state,uint32_t red,uint32_t green,uint32_t blue,uint32_t alpha)
 {
     if(!state)return RF_RANGE;

@@ -66,6 +66,16 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--screen-flash-step")) {
+        struct {rf_screen_flash state;float dt;uint32_t freeze;} input;
+        struct {rf_screen_flash state,draw;uint32_t active;} output;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&output,0xa5,sizeof(output));output.state=input.state;
+            if(rf_screen_flash_step(&output.state,input.dt,input.freeze,&output.draw,&output.active) ||
+                fwrite(&output,sizeof(output),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--screen-flash")) {
         uint32_t input[4];rf_screen_flash result;
         _Static_assert(sizeof(result)==8,"flash wire");
