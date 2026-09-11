@@ -2424,3 +2424,8 @@ edge/oblique/multiple-root/real-level checks precede cached-room integration.
 
 Room crossing matches3506 additional PC/NXDK boundary/angled-segment cases;
 oblique planes, multiple roots and real levels remain before live integration.
+
+Retained L1S1/L1S2/L1S3 room crossings match complete original4cd9e0 in2,160
+NXDK CPU-harness queries, including oblique faces and multiple primary roots;
+cached-room policy composition and live emitter ownership remain open.
+Evidence: tools/verify_loaded_room_crossing.py and docs/DAMAGE.md.

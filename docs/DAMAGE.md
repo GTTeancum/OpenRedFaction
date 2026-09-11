@@ -974,3 +974,21 @@ Reports are artifacts/room-crossing-boundaries.json and its original trace.
 The geometry remains axis-aligned even when segments are angled. Oblique
 planes, multiple world roots, and real-level geometry remain unverified;
 these checks do not establish live cached-room integration.
+
+
+## Retained real-level crossing evidence
+
+verify_loaded_room_crossing.py reuses the verified loaded-room materialization
+and executes complete original4cd9e0 against the linked NXDK crossing function.
+L1S1, L1S2 and L1S3 each pass720 queries over120 sampled faces:2,160 exact
+first-room/source-face comparisons, with1,701 accepted crossings. The samples
+include255 faces with normals having multiple nonzero components. Each face
+is tested across three segment lengths, both through all primary roots and
+through its preferred room; the levels have31,35 and27 primary roots.
+Existing loaded locator checks also pass for all three fixtures.
+
+Reports: artifacts/loaded-room-crossing-L1S1.rfl.json (and L1S2/L1S3).
+This extends coverage beyond cube geometry to actual retained level trees.
+The reconstructed loader provides both inputs; the original loader is not
+executed, and this harness does not run PC crossings or native XEMU gameplay.
+Cached-room policy composition and live emitter ownership remain open.
