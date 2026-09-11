@@ -2848,3 +2848,19 @@ next physics tick after post-physics events; audio timing changes accordingly
 (unity PCM hash773011109 for180 frames). These door fixtures do not establish
 sustained lift carry: an authored platform replay is still required. Generated report:
 artifacts/support-refresh-verification.json.
+
+
+## Authored lift fixture and missing use input
+
+`python tools/replay_lift_contact.py` runs360 idle PC frames on L1S2 mover8670.
+The headless-only RF_REPLAY_LIFT_START uses its authored origin with explicit
+x offset-.5 and y offset+.625; this is not the original player spawn. Final
+sweep contacts mover8670; player settles at(83.814865,-6.055979,-44.498184).
+The controller has keys8687/8688 with2.5 vertical travel, but there are zero
+activations or arrivals. Trigger8689 links to8687 and8910; authored flags[0]=1
+becomes runtime flag1. Verified rf_trigger_eligible requires a nonzero input
+byte for that flag. campaign_trigger_contacts currently supplies zero and
+rf_scene_input lacks use input. Connect that original input path before
+claiming carry; do not bypass the trigger or manufacture activation in a test.
+The report explicitly says CONTACT_VERIFIED_CARRY_UNVERIFIED. Both PC and NXDK
+builds pass; this fixture currently runs only through the PC headless adapter.
