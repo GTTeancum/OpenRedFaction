@@ -501,6 +501,36 @@ int rf_foley_table_read(const void *text,uint32_t bytes,
     if(groups || samples) {status=foley_pass(text,bytes,groups,samples,&ng,&ns);if(status)return status;}
     *group_count=ng;*sample_count=ns;return RF_OK;
 }
+int rf_foley_open(const void *text,uint32_t bytes,uint32_t budget,
+    rf_ambient_register registration,void *context,rf_foley_owner *result)
+{
+    rf_foley_owner value={0};rf_audio_declaration *declarations=NULL;
+    uint32_t storage,scratch,i;int status;
+    if(!registration || !result || result->groups || result->samples ||
+       result->group_count || result->sample_count || result->resident_bytes || result->peak_bytes)return RF_RANGE;
+    status=rf_foley_table_read(text,bytes,NULL,0,NULL,0,&value.group_count,&value.sample_count);
+    if(status)return status;
+    storage=value.group_count*sizeof(*value.groups)+value.sample_count*sizeof(*value.samples);
+    scratch=value.sample_count*sizeof(*declarations);
+    value.resident_bytes=sizeof(value)+storage;value.peak_bytes=value.resident_bytes+scratch;
+    if(value.peak_bytes>budget)return RF_RANGE;
+    if(storage) {
+        value.groups=malloc(storage);if(!value.groups)return RF_RANGE;
+        value.samples=(int32_t *)(value.groups+value.group_count);
+    }
+    if(scratch) {declarations=malloc(scratch);if(!declarations){free(value.groups);return RF_RANGE;}}
+    status=rf_foley_table_read(text,bytes,value.groups,value.group_count,declarations,
+        value.sample_count,&value.group_count,&value.sample_count);
+    if(status) {free(declarations);free(value.groups);return status;}
+    for(i=0;i<value.sample_count;++i) {
+        const rf_audio_declaration *sample=declarations+i;
+        value.samples[i]=sample->name[0]?registration(context,sample->name,
+            sample->near_distance,sample->volume,sample->rolloff):-1;
+    }
+    free(declarations);*result=value;return RF_OK;
+}
+void rf_foley_close(rf_foley_owner *owner)
+{if(owner){free(owner->groups);memset(owner,0,sizeof(*owner));}}
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height)
 {
     static const char *words[]={"$Max","Entity","Jump","Height:"};

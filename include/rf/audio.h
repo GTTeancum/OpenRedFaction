@@ -157,6 +157,22 @@ int rf_foley_table_read(const void *text,uint32_t bytes,
     rf_audio_declaration *samples,uint32_t sample_capacity,
     uint32_t *group_count,uint32_t *sample_count);
 
+typedef struct rf_foley_owner {
+    rf_foley_group *groups;int32_t *samples;
+    uint32_t group_count,sample_count,resident_bytes,peak_bytes;
+} rf_foley_owner;
+/* Port lifetime adapter: validate/allocate everything before registration, then
+ * register nonempty declarations in table order. Preserve negative callback
+ * IDs; empty names store -1 without calling registration. Registration effects
+ * belong to the caller and must outlive this owner. No PCM or text is retained.
+ * Budget includes owner, group/sample-ID storage and temporary declarations;
+ * excludes input text/allocator overhead/backend storage. Result must be zero.
+ * Callback must not mutate inputs/result. Close frees only owned tables, never
+ * backend samples; repeated close is safe after borrowers release references. */
+int rf_foley_open(const void *text,uint32_t bytes,uint32_t budget,
+    rf_ambient_register registration,void *context,rf_foley_owner *result);
+void rf_foley_close(rf_foley_owner *owner);
+
 typedef struct rf_audio_sample { char name[61];void *storage;rf_wave_pcm pcm;uint32_t bytes;rf_audio_parameters parameters; } rf_audio_sample;
 typedef struct rf_audio_bank {
     rf_vpp *archive;rf_audio_sample *samples;uint32_t count,capacity,bytes,budget;

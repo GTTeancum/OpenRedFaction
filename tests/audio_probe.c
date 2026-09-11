@@ -50,8 +50,43 @@ static void control_stop(void *context,int32_t device)
     control_stop_trace[0]++;control_stop_trace[1]=(uint32_t)device;
     if(control_stop_mutation)for(i=0;i<44;++i)bytes[i]^=0x5a;
 }
+typedef struct foley_fixture {const rf_audio_declaration *rows;uint32_t count,at,calls;} foley_fixture;
+static int32_t foley_register(void *context,const char *name,float near_distance,float volume,float rolloff)
+{
+    foley_fixture *f=context;const rf_audio_declaration *row;
+    while(f->at<f->count && !f->rows[f->at].name[0])++f->at;
+    if(f->at>=f->count)exit(100);row=f->rows+f->at;
+    if(strcmp(name,row->name) || near_distance!=row->near_distance || volume!=row->volume || rolloff!=row->rolloff)exit(101);
+    ++f->calls;++f->at;return f->at%7?(int32_t)(f->at+100):-3;
+}
+static int foley_owner_probe(const char *path)
+{
+    FILE *f=fopen(path,"rb");long bytes;void *text;rf_audio_declaration *rows;
+    rf_foley_group *groups;rf_foley_owner owner={0},empty={0};foley_fixture fixture={0};
+    uint32_t ng=0,ns=0,budget,i,calls;int status;
+    if(!f)return 102;fseek(f,0,SEEK_END);bytes=ftell(f);rewind(f);
+    if(bytes<=0 || bytes>1048576)return 103;text=malloc((size_t)bytes);if(!text)return 104;
+    if(fread(text,1,(size_t)bytes,f)!=(size_t)bytes)return 105;fclose(f);
+    status=rf_foley_table_read(text,(uint32_t)bytes,NULL,0,NULL,0,&ng,&ns);if(status)return 106;
+    groups=ng?malloc(ng*sizeof(*groups)):NULL;rows=ns?malloc(ns*sizeof(*rows)):NULL;
+    if((ng && !groups) || (ns && !rows))return 107;
+    if(rf_foley_table_read(text,(uint32_t)bytes,groups,ng,rows,ns,&ng,&ns))return 108;
+    fixture.rows=rows;fixture.count=ns;budget=sizeof(owner)+ng*sizeof(*groups)+ns*(sizeof(*rows)+4);
+    if(rf_foley_open(text,(uint32_t)bytes,budget-1,foley_register,&fixture,&owner)!=RF_RANGE || fixture.calls || memcmp(&owner,&empty,sizeof(owner)))return 109;
+    if(rf_foley_open(text,(uint32_t)bytes,budget,foley_register,&fixture,&owner))return 110;
+    calls=fixture.calls;
+    if(rf_foley_open(text,(uint32_t)bytes,budget,foley_register,&fixture,&owner)!=RF_RANGE || calls!=fixture.calls)return 111;
+    memset(text,0,(size_t)bytes);free(text);
+    if(owner.group_count!=ng || owner.sample_count!=ns || owner.peak_bytes!=budget ||
+       owner.resident_bytes!=budget-ns*sizeof(*rows) || (ng && memcmp(owner.groups,groups,ng*sizeof(*groups))))return 112;
+    for(i=0;i<ns;++i)if(owner.samples[i]!=(rows[i].name[0]?((i+1)%7?(int32_t)(i+101):-3):-1))return 113;
+    printf("FOLEY_OWNER groups=%u samples=%u calls=%u resident=%u peak=%u\n",ng,ns,calls,owner.resident_bytes,owner.peak_bytes);
+    rf_foley_close(&owner);rf_foley_close(&owner);if(memcmp(&owner,&empty,sizeof(owner)))return 114;
+    free(groups);free(rows);return 0;
+}
 int main(int argc,char **argv)
 {
+    if(argc==3 && !strcmp(argv[1],"--foley-owner"))return foley_owner_probe(argv[2]);
     if(argc==3 && !strcmp(argv[1],"--foley")) {
         FILE *f=fopen(argv[2],"rb");long bytes;void *text;
         rf_foley_group groups[640];rf_audio_declaration samples[4096];

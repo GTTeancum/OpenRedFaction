@@ -116,3 +116,25 @@ NXDK checks reject group/sample capacities one short while preserving outputs.
 PC and NXDK builds and all nine CTest cases pass. This adds no PCM residency and
 does not establish original registration order or full parser fidelity outside
 the bounded adapter's accepted grammar.
+
+
+## Foley resource lifetime
+
+`rf_foley_open/close` retains group records and signed sample IDs in one owned
+allocation. It parses into temporary declarations before any registration,
+then calls the supplied registration function for nonempty names in table order.
+Empty names store -1; negative backend IDs remain unchanged. Closing releases
+only table storage, leaving the caller's audio resources under caller ownership.
+This is a bounded port lifetime adapter around the recovered declaration order;
+original global registration order and live campaign hookup remain open.
+
+All installed groups require 26,452 resident bytes and 113,092 peak bytes,
+including the 24-byte owner and temporary declarations, excluding source text,
+allocator overhead and backend allocations. No PCM is allocated by this owner.
+`tools/verify_foley_owner.py` checks PC and NXDK registration arguments/order,
+empty filenames, negative IDs, exact/short budgets, source/temporary disposal,
+empty tables and repeated close. NXDK execution injects both allocation failures
+and checks no leaks or callbacks; malformed input also fails before allocation.
+The harness supplies allocation/free and registration boundaries; shared owner
+and parser machine code execute directly. This is not an XEMU/device audio test.
+Both builds and all nine existing CTest cases pass.

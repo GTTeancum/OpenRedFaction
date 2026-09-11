@@ -18,6 +18,9 @@ Default/Solid Footstep; preserve declared counts when recovering the group owner
 Shared Foley reader matches497 groups/1140 declarations on PC and NXDK;
 connect bounded group ownership and original registration order next.
 
+Foley owner retains26452 bytes with113092-byte peak and verified cleanup;
+recover registration order and class bindings before live footstep hookup.
+
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
