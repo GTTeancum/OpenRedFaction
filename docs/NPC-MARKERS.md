@@ -1276,3 +1276,32 @@ startup frame (replay-20260911-132121). Reports are under artifacts/xemu; both
 show base RAM67108864 and plugged memory0. L4S2 native backlink summary matches
 [1,1,415388634,36]. This verifies startup ownership, not sustained L4S2 gameplay.
 No new visual capture was requested.
+
+## Motion residency after selection (2026-09-11)
+
+The shared scene now ensures each NPC's active clips and current/next/override
+state clips are resident after controller application and before pose sampling.
+Startup uses the same loader. A later action selection therefore no longer
+relies on the startup-only preload list. One immutable allocation is retained
+per cache identity; a newly used catalog alias borrows that allocation. An
+already bound clip does no archive I/O or allocation during this check.
+
+The existing1MiB ceiling includes payloads and cache pointer/size arrays. Loads
+are committed only after archive read and header validation succeed; failures
+free the temporary payload and preserve the cache entry and byte accounting.
+No eviction policy is added: a selection exceeding the ceiling still fails.
+This is a port resource policy, not a claim about the original allocator.
+
+The npc_motion_residency CTest exercises the private scene owner with synthetic
+archive payloads: changing active selection after startup, alias reuse with the
+archive stream unavailable, repeated access, invalid index, budget exhaustion,
+I/O failure, mismatched header and successful retry. It adds no runtime test
+hook. This test verifies residency ownership, not action choice or animation
+sampling fidelity. All ten CTests and both builds pass. Three-level PC support
+and four-level backlink checks pass; retained body hashes remain unchanged.
+
+Stock64MiB XEMU passes180 door replay frames with the added per-step check:
+artifacts/xemu/replay-20260911-141015/report.json. This remains the existing
+startup animation selection and does not prove a live flinch transition.
+Primary-weapon reset, pain gates, action start/sound and reference-aware eviction
+remain open. No new visual capture was taken.

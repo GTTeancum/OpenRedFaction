@@ -1,0 +1,56 @@
+/* Exercise the scene's private residency owner without adding runtime hooks. */
+#include "../src/diagnostic/scene.c"
+#define CHECK(x) do { if(!(x)){fprintf(stderr,"residency line %d\n",__LINE__);return 1;} } while(0)
+int main(void)
+{
+    rf_vpp archive={0};unsigned char payload[160]={0};
+    rf_entity_model_motion motions[3]={0};
+    rf_entity_model_motions model={0};rf_entity_playback_model playback={0};
+    uint32_t ids[3]={0,0,1};void *data[2]={0};uint32_t sizes[2]={0};
+    rf_entity_pose pose={0};rf_entity_seed seed={0};rf_entity_motion_mapping mapping={0};
+    uint32_t baseline=2*(sizeof(void*)+sizeof(uint32_t)),i;
+    archive.stream=tmpfile();CHECK(archive.stream);archive.length=sizeof(payload);
+    payload[80]=1;CHECK(fwrite(payload,1,sizeof(payload),archive.stream)==sizeof(payload));
+    for(i=0;i<3;++i){motions[i].file.archive=&archive;motions[i].file.entry.size=80;}
+    motions[2].file.entry.offset=80;motions[2].file.header[0]=1;
+    model.items=motions;model.count=3;playback.cache_ids=ids;playback.count=3;
+    campaign_motion_catalog.models=&model;campaign_motion_catalog.model_count=1;
+    campaign_motion_catalog.mappings=&mapping;campaign_motion_catalog.class_count=1;
+    campaign_playback_resources.models=&playback;campaign_playback_resources.model_count=1;
+    campaign_npc_motion_data=data;campaign_npc_motion_sizes=sizes;
+    campaign_npc_motion_count=2;campaign_npc_motion_bytes=baseline;
+    campaign_poses.items=&pose;campaign_poses.count=1;
+    campaign_seeds.items=&seed;campaign_seeds.records.count=1;
+    pose.controller.current=pose.controller.next=-1;
+    pose.playback.completion.active.count=1;pose.playback.completion.active.slots[0].motion=0;
+    CHECK(campaign_npc_pose_residency(0)==RF_OK);
+    CHECK(data[0] && !data[1] && campaign_npc_motion_bytes==baseline+80);
+    CHECK(motions[0].file.resident==data[0]);
+    /* A new action selected after startup loads its payload before sampling. */
+    pose.playback.completion.active.slots[0].motion=2;
+    CHECK(campaign_npc_pose_residency(0)==RF_OK);
+    CHECK(data[1] && motions[2].file.resident==data[1] && campaign_npc_motion_bytes==baseline+160);
+    /* An uncopied alias binds the same allocation even with archive I/O unavailable. */
+    fclose(archive.stream);archive.stream=NULL;
+    pose.playback.completion.active.slots[0].motion=1;
+    CHECK(campaign_npc_pose_residency(0)==RF_OK);
+    CHECK(motions[1].file.resident==data[0] && campaign_npc_motion_bytes==baseline+160);
+    CHECK(campaign_npc_pose_residency(0)==RF_OK);
+    CHECK(campaign_npc_motion_require(0,3)==RF_RANGE);
+    free(data[1]);data[1]=NULL;sizes[1]=0;motions[2].file.resident=NULL;
+    campaign_npc_motion_bytes=1024*1024-79;
+    CHECK(campaign_npc_motion_require(0,2)==RF_RANGE && !data[1] && !motions[2].file.resident);
+    campaign_npc_motion_bytes=baseline+80;
+    CHECK(campaign_npc_motion_require(0,2)==RF_IO && !data[1] && !sizes[1]);
+    CHECK(campaign_npc_motion_bytes==baseline+80);
+    archive.stream=tmpfile();CHECK(archive.stream);
+    CHECK(fwrite(payload,1,sizeof(payload),archive.stream)==sizeof(payload));
+    motions[2].file.header[0]=99;
+    CHECK(campaign_npc_motion_require(0,2)==RF_FORMAT && !data[1] && !motions[2].file.resident);
+    CHECK(campaign_npc_motion_bytes==baseline+80);
+    motions[2].file.header[0]=1;
+    CHECK(campaign_npc_motion_require(0,2)==RF_OK && data[1]);
+    CHECK(campaign_npc_motion_bytes==baseline+160);
+    fclose(archive.stream);free(data[0]);free(data[1]);
+    puts("PASS: changing selections, shared aliases, budget, I/O/header failure and retry");return 0;
+}

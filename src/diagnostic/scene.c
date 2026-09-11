@@ -464,17 +464,39 @@ static rf_entity_playback_resources campaign_playback_resources;
 static void **campaign_npc_motion_data;
 static uint32_t *campaign_npc_motion_sizes;
 static uint32_t campaign_npc_motion_count,campaign_npc_motion_bytes;
-static int campaign_npc_motion_residency(void)
+/* Port residency policy: one immutable payload per shared cache identity.
+ * A selected clip must be resident before pose sampling, including actions
+ * started after initialization. No eviction until borrower release is wired. */
+static int campaign_npc_motion_require(uint32_t skeleton,uint32_t id)
 {
-    uint32_t actor,i,j;int status;
-    campaign_npc_motion_count=campaign_playback_resources.cache_count;
-    campaign_npc_motion_bytes=campaign_npc_motion_count*(sizeof(void*)+sizeof(uint32_t));
-    if(campaign_npc_motion_bytes>1024*1024)return RF_RANGE;
-    campaign_npc_motion_data=calloc(campaign_npc_motion_count,sizeof(void*));if(!campaign_npc_motion_data)return RF_IO;
-    campaign_npc_motion_sizes=calloc(campaign_npc_motion_count,sizeof(uint32_t));if(!campaign_npc_motion_sizes)return RF_IO;
-    for(actor=0;actor<campaign_poses.count;++actor) {
+    uint32_t cache;rf_motion_file *file;void *data;int status;
+    if(skeleton>=campaign_playback_resources.model_count || skeleton>=campaign_motion_catalog.model_count ||
+       id>=campaign_playback_resources.models[skeleton].count || id>=campaign_motion_catalog.models[skeleton].count ||
+       !campaign_npc_motion_data || !campaign_npc_motion_sizes)return RF_RANGE;
+    cache=campaign_playback_resources.models[skeleton].cache_ids[id];
+    if(cache>=campaign_npc_motion_count)return RF_RANGE;
+    file=&campaign_motion_catalog.models[skeleton].items[id].file;
+    if(campaign_npc_motion_data[cache]) {
+        if(file->resident==campaign_npc_motion_data[cache])return RF_OK;
+        return rf_motion_file_bind_memory(file,campaign_npc_motion_data[cache],campaign_npc_motion_sizes[cache]);
+    }
+    if(campaign_npc_motion_bytes>1024*1024 || file->entry.size>1024*1024-campaign_npc_motion_bytes)return RF_RANGE;
+    data=malloc(file->entry.size);if(!data)return RF_IO;
+    status=rf_vpp_read(file->archive,&file->entry,0,data,file->entry.size);
+    if(!status)status=rf_motion_file_bind_memory(file,data,file->entry.size);
+    if(status){free(data);return status;}
+    campaign_npc_motion_data[cache]=data;campaign_npc_motion_sizes[cache]=file->entry.size;
+    campaign_npc_motion_bytes+=file->entry.size;return RF_OK;
+}
+static int campaign_npc_pose_residency(uint32_t actor)
+{
+    uint32_t i;int status;
+    if(actor>=campaign_poses.count || actor>=campaign_seeds.records.count)return RF_RANGE;
+    {
         const rf_entity_pose *pose=campaign_poses.items+actor;
-        if(pose->skeleton==UINT32_MAX)continue;
+        if(pose->skeleton==UINT32_MAX)return RF_OK;
+        if(pose->playback.completion.active.count>16 ||
+           campaign_seeds.items[actor].class_index>=campaign_motion_catalog.class_count)return RF_RANGE;
         for(i=0;i<pose->playback.completion.active.count+3;++i) {
             uint32_t id;int32_t selected;
             if(i<pose->playback.completion.active.count)selected=pose->playback.completion.active.slots[i].motion;
@@ -486,15 +508,22 @@ static int campaign_npc_motion_residency(void)
                 selected=campaign_motion_catalog.mappings[campaign_seeds.items[actor].class_index].states[state];
             }
             if(selected<0)continue;id=(uint32_t)selected;
-            if(id>=campaign_playback_resources.models[pose->skeleton].count)return RF_RANGE;
-            uint32_t cache=campaign_playback_resources.models[pose->skeleton].cache_ids[id];
-            const rf_motion_file *file=&campaign_motion_catalog.models[pose->skeleton].items[id].file;
-            if(campaign_npc_motion_data[cache])continue;
-            if(file->entry.size>1024*1024-campaign_npc_motion_bytes)return RF_RANGE;
-            campaign_npc_motion_data[cache]=malloc(file->entry.size);if(!campaign_npc_motion_data[cache])return RF_IO;
-            status=rf_vpp_read(file->archive,&file->entry,0,campaign_npc_motion_data[cache],file->entry.size);if(status)return status;
-            campaign_npc_motion_sizes[cache]=file->entry.size;campaign_npc_motion_bytes+=file->entry.size;
+            status=campaign_npc_motion_require(pose->skeleton,id);if(status)return status;
         }
+    }
+    return RF_OK;
+}
+static int campaign_npc_motion_residency(void)
+{
+    uint32_t actor,i,j;int status;
+    campaign_npc_motion_count=campaign_playback_resources.cache_count;
+    if(campaign_npc_motion_count>(1024*1024)/(sizeof(void*)+sizeof(uint32_t)))return RF_RANGE;
+    campaign_npc_motion_bytes=campaign_npc_motion_count*(sizeof(void*)+sizeof(uint32_t));
+    if(!campaign_npc_motion_count)return RF_OK;
+    campaign_npc_motion_data=calloc(campaign_npc_motion_count,sizeof(void*));if(!campaign_npc_motion_data)return RF_IO;
+    campaign_npc_motion_sizes=calloc(campaign_npc_motion_count,sizeof(uint32_t));if(!campaign_npc_motion_sizes)return RF_IO;
+    for(actor=0;actor<campaign_poses.count;++actor) {
+        status=campaign_npc_pose_residency(actor);if(status)return status;
     }
     for(i=0;i<campaign_motion_catalog.model_count;++i)for(j=0;j<campaign_motion_catalog.models[i].count;++j) {
         uint32_t cache=campaign_playback_resources.models[i].cache_ids[j];rf_motion_file *file=&campaign_motion_catalog.models[i].items[j].file;
@@ -2715,6 +2744,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
         map=campaign_motion_catalog.mappings+class_index;model=campaign_playback_resources.models+pose->skeleton;
         if(map->skeleton!=pose->skeleton || map->weapon!=-1)return RF_FORMAT;
         status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return status;
+        status=campaign_npc_pose_residency(i);if(status)return status;
         {
             rf_entity_animation_gate gate={0};uint32_t room;int advance;
             const rf_entity_seed_class *cls=campaign_seeds.classes+class_index;
