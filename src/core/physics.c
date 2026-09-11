@@ -190,6 +190,36 @@ int rf_physics_player_contact(rf_physics_body_state *state,const float normal[3]
     for(i=0;i<3;++i)if(!isfinite(velocity[i]))return RF_RANGE;
     memcpy(state->velocity,velocity,sizeof(velocity));*impact_speed=impact;return RF_OK;
 }
+int rf_physics_air_steer(rf_physics_body_state *state,float dt,float air_control,
+    float acceleration_limit,float speed_limit,const float world_acceleration[3])
+{
+    float desired[3],horizontal[2],length;double magnitude;uint32_t i;
+    volatile float scale;
+    if(!state || !world_acceleration || !isfinite(dt) || dt<0 ||
+       !isfinite(air_control) || air_control<0 || !isfinite(acceleration_limit) || acceleration_limit<0 ||
+       !isfinite(speed_limit) || speed_limit<0)return RF_RANGE;
+    if(state->flags&0x1000000)return RF_OK;
+    for(i=0;i<3;i++) {
+        if(!isfinite(world_acceleration[i]) || !isfinite(state->velocity[i]))return RF_RANGE;
+        desired[i]=world_acceleration[i];
+    }
+    magnitude=sqrt(((double)desired[0]*desired[0]+(double)desired[1]*desired[1])+(double)desired[2]*desired[2]);
+    if(magnitude>acceleration_limit) {
+        scale=(float)((double)acceleration_limit/magnitude);
+        for(i=0;i<3;i++)desired[i]=(float)((double)desired[i]*scale);
+    }
+    scale=(float)((double)air_control*dt);
+    for(i=0;i<3;i++)desired[i]=(float)((double)desired[i]*scale);
+    horizontal[0]=(float)((double)desired[0]+state->velocity[0]);
+    horizontal[1]=(float)((double)desired[2]+state->velocity[2]);
+    length=(float)sqrt((double)horizontal[0]*horizontal[0]+(double)horizontal[1]*horizontal[1]);
+    if(length>speed_limit) {
+        double ratio=(double)speed_limit/length;
+        for(i=0;i<2;i++)horizontal[i]=(float)((double)horizontal[i]*ratio);
+    }
+    if(!isfinite(horizontal[0]) || !isfinite(horizontal[1]))return RF_RANGE;
+    state->velocity[0]=horizontal[0];state->velocity[2]=horizontal[1];return RF_OK;
+}
 int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,const float support_velocity[3])
 {
     float velocity[3],position[3];volatile float half_dt_squared;uint32_t i;

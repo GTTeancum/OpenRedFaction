@@ -2938,3 +2938,26 @@ That helper begins at49e8b7 after the original steering/speed-limiting phase;
 its contract explicitly excludes those earlier operations. Recover and connect
 that phase before interpreting these probes as blocked geometry or claiming
 horizontal dismount support. Probe outputs remain under artifacts/lift-dismount.
+
+
+## Prepared airborne steering reconstruction
+
+rf_physics_air_steer covers49e7ca..49e8b7 after command scaling and movement
+transform. It limits the supplied world acceleration by class+5c, multiplies
+by air-control*dt, adds only X/Z velocity, then caps horizontal speed. The
+caller selects class+50 or entity+1488 according to physics flag200000.
+Repeated-pass flag1000000 is a no-op; gravity and position remain in the
+existing fall_propose helper. No allocation; errors preserve the body.
+
+verify_air_steer.py executes4096 original prepared blocks with unchanged norm
+and scaling callees. Both cap branches have deliberately different unused
+limits; zero/nonzero caps, several dt/control values and oblique vectors are
+covered. PC and compiled NXDK match velocity exactly; whole body preservation
+and4096 additional repeat no-ops pass. Both builds and six CTests pass. This
+is not a live airborne-steering or full floating-domain equivalence claim.
+
+The helper is not connected yet: scale command before rf_movement_transform,
+then supply its transformed result. The executable initializes5a00e0 to0.5;
+no game.tbl air entry was found. Entity+1488 writes were located at486b4d and
+486b5a and require recovery before alternate-cap selection is integrated.
+Generated report: artifacts/air-steer-verification.json.

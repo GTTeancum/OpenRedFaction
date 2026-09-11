@@ -8,6 +8,17 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--air-steer")) {
+        struct {float dt,control,acceleration,speed,desired[3],velocity[3];uint32_t flags;} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_physics_body_state state={0};int status;
+            state.flags=input.flags;memcpy(state.velocity,input.velocity,12);
+            status=rf_physics_air_steer(&state,input.dt,input.control,input.acceleration,input.speed,input.desired);
+            if(status)return 3;
+            if(fwrite(state.velocity,12,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--support-refresh")) {
         struct {uint32_t mode,resolved;float source[3],cached[3];uint32_t body_flags,object_flags;} input;
         while(fread(&input,sizeof(input),1,stdin)==1) {

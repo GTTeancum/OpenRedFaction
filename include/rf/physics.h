@@ -130,6 +130,12 @@ int rf_physics_run_propose(rf_physics_body_state *state,float dt,float speed,flo
  * mass and finite inputs required; errors preserve the state. */
 int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
     const float support_velocity[3]);
+/* 49e7ca..49e8b7 after class-acceleration scaling and movement transform.
+ * Caller selects class speed or entity+1488 cap from flag200000. Updates X/Z
+ * velocity only; repeat-pass flag1000000 preserves state. No transform,
+ * gravity or position integration. Finite nonnegative scalars required. */
+int rf_physics_air_steer(rf_physics_body_state *state,float dt,float air_control,
+    float acceleration_limit,float speed_limit,const float world_acceleration[3]);
 /* 49dc1d..49dcf1 velocity response: stationary non-liquid contact, flags&0x80
  * clear, non-rotating actor predicate. Normal is used as supplied. Returns
  * signed impact speed for the later damage path; does not apply damage or
