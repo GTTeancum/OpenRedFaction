@@ -9,6 +9,7 @@
 #include "rf/frame_clock.h"
 #include "pc_raster.h"
 #include "audio.h"
+#include "rf/audio.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -158,11 +159,28 @@ static int path_join(char *out,size_t size,const char *directory,const char *nam
     return n<0 || (size_t)n>=size?RF_RANGE:RF_OK;
 }
 
+typedef struct audio_capture {FILE *trace,*pcm;} audio_capture;
+static void audio_observe(void *context,const rf_audio_mixer *mixer,const rf_audio_bank *bank,uint32_t frames)
+{
+    audio_capture *capture=context;uint32_t i,j;
+    fprintf(capture->trace,"B %u\n",frames);
+    for(i=0;i<RF_AUDIO_VOICES;i++) {
+        const rf_audio_voice *v=mixer->voices+i;if(!v->active)continue;
+        for(j=0;j<bank->count;j++)if(bank->samples[j].pcm.samples==v->pcm.samples)break;
+        fprintf(capture->trace,"V %u %u %u %u %u %u %s\n",v->handle,v->frame,v->phase,
+            v->left,v->right,v->loop,j<bank->count?bank->samples[j].name:"<unregistered>");
+    }
+    fputs("E\n",capture->trace);
+}
+static void audio_capture_pcm(void *context,const int16_t *stereo,uint32_t frames)
+{
+    audio_capture *capture=context;fwrite(stereo,4,frames,capture->pcm);
+}
 int main(int argc,char **argv)
 {
     const char *map_names[]={"maps1.vpp","maps2.vpp","maps3.vpp","maps4.vpp","maps_en.vpp"};
     const char *directory;char path[4096],meshes[4096],motions[4096],tables[4096];
-    player p={0};rf_vpp archive={0},maps[5]={{0}};rf_level level;
+    player p={0};rf_vpp archive={0},maps[5]={{0}};rf_level level;audio_capture capture={0};
     rf_geometry geometry={0};rf_geometry_collision_world collision={0};
     rf_scene_world_geometry retained={0};rf_preview_mesh mesh={0};rf_materials materials={0};
     uint32_t opened=0,i,limit=0;int status=RF_OK,spawn_profile=0;WNDCLASSW wc={0};
@@ -238,6 +256,14 @@ int main(int argc,char **argv)
     rf_scene_actor_live_enabled=1;rf_scene_actor_eye_enabled=1;
     rf_scene_actor_look_enabled=1;rf_scene_actor_turn_enabled=1;
     rf_scene_actor_drive(1);rf_scene_actor_follow(&retained);rf_scene_set_input(input,&p,limit);
+    if(p.headless && getenv("RF_REPLAY_AUDIO_TRACE")) {
+        const char *name=getenv("RF_REPLAY_AUDIO_TRACE");int n;
+        capture.trace=fopen(name,"wb");if(!capture.trace){status=RF_IO;goto cleanup;}
+        n=snprintf(path,sizeof(path),"%s.pcm",name);
+        if(n<0 || (size_t)n>=sizeof(path)){status=RF_RANGE;goto cleanup;}
+        capture.pcm=fopen(path,"wb");if(!capture.pcm){status=RF_IO;goto cleanup;}
+        rf_scene_set_audio_observer(audio_observe,&capture);rf_scene_set_audio(audio_capture_pcm,&capture);
+    }
     if(!p.headless && spawn_profile && rf_pc_audio_open()==RF_OK)rf_scene_set_audio_events(&rf_pc_audio_events,NULL);
     CHECK(rf_scene_stream_miner_body(&level,9858,meshes,motions,tables,maps,opened,&mesh,&materials,
         8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,present,&p,&collision,&geometry));
@@ -309,6 +335,9 @@ int main(int argc,char **argv)
     }
     printf("Completed %u frames, 640x480 raster, %u byte mesh cap.\n",p.frames,RF_SCENE_FOLLOW_CAPACITY);
 cleanup:
+    rf_scene_set_audio_observer(NULL,NULL);rf_scene_set_audio(NULL,NULL);
+    if(capture.trace){int error=ferror(capture.trace);if(fclose(capture.trace) || error)status=RF_IO;}
+    if(capture.pcm){int error=ferror(capture.pcm);if(fclose(capture.pcm) || error)status=RF_IO;}
     rf_pc_audio_close();rf_scene_set_audio_events(NULL,NULL);
     if(status) {
         fprintf(stderr,"MATERIAL_FAILURE %s %u %u %u\n",rf_material_failure_name,rf_material_failure[0],rf_material_failure[1],rf_material_failure[2]);

@@ -42,6 +42,14 @@ typedef void (*rf_scene_audio_sink)(void *context,const int16_t *stereo,uint32_t
  * Configure before streaming; clear before destroying the sink context. */
 void rf_scene_set_audio(rf_scene_audio_sink sink,void *context);
 struct rf_wave_pcm;
+struct rf_audio_mixer;
+struct rf_audio_bank;
+/* Optional diagnostic observer immediately before each scene mix block.
+ * Borrowed state is read-only and valid only during the callback. Configure
+ * outside streaming; NULL disables. No allocations or device operations here. */
+typedef void (*rf_scene_audio_observer)(void *context,const struct rf_audio_mixer *mixer,
+    const struct rf_audio_bank *bank,uint32_t frames);
+void rf_scene_set_audio_observer(rf_scene_audio_observer observer,void *context);
 typedef struct rf_scene_audio_events {
     void (*play)(void *context,uint32_t handle,const struct rf_wave_pcm *pcm,float left,float right);
     void (*stop)(void *context,uint32_t handle);

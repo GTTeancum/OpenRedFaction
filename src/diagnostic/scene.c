@@ -501,6 +501,10 @@ static rf_audio_mixer campaign_audio_mixer;
 static int16_t campaign_audio_frame[1600];
 static rf_scene_audio_sink campaign_audio_sink;
 static void *campaign_audio_context;
+static rf_scene_audio_observer campaign_audio_observer;
+static void *campaign_audio_observer_context;
+void rf_scene_set_audio_observer(rf_scene_audio_observer observer,void *context)
+{campaign_audio_observer=observer;campaign_audio_observer_context=context;}
 static rf_scene_audio_events campaign_audio_events;
 static void *campaign_audio_events_context;
 void rf_scene_set_audio_events(const rf_scene_audio_events *events,void *context)
@@ -994,6 +998,7 @@ static int campaign_controller_commit(void)
         if(campaign_movers.uids[i]==8543)memcpy(rf_scene_live_door_positions,campaign_movers.poses[i].position,12);
         if(campaign_movers.uids[i]==8544)memcpy(rf_scene_live_door_positions+3,campaign_movers.poses[i].position,12);
     }
+    if(campaign_audio_observer)campaign_audio_observer(campaign_audio_observer_context,&campaign_audio_mixer,&campaign_audio_bank,800);
     {uint32_t before[RF_AUDIO_VOICES];
      for(i=0;i<RF_AUDIO_VOICES;i++) {
         const rf_audio_voice *voice=campaign_audio_mixer.voices+i;

@@ -1364,3 +1364,40 @@ tracks, which that oracle never synthesizes. It is not a passing check for this
 build and has not been relaxed. Extend its independent reference to current
 ambient scheduling/gain/mixing before claiming independent full-door PCM parity.
 The PC/Xbox replay comparisons remain shared-code parity checks.
+
+
+Current full-mix PCM reference (2026-09-11)
+-----------------------------------------
+
+verify_live_door_audio.py now executes the current180-frame staged door replay
+with an opt-in headless observer and raw PCM sink. RF_REPLAY_AUDIO_TRACE selects
+a local trace filename; the PCM companion is that name plus.pcm. Before each mix,
+the observer records active source identities, sample names, cursor/phase and Q15
+L/R gains. It does not mutate the scene or retain borrowed PCM. Trace/PCM write
+or close failures fail the PC process. The Xbox build leaves this observer unset.
+No desktop control, native input or window capture is involved.
+
+Python independently decodes the actual archive WAV files and computes every
+interpolated/gained/summed/saturated sample. It advances its own source cursors
+across blocks and checks each following observed cursor. All572800 captured bytes
+(143200 stereo frames over179 blocks) match. The trace contains two ambient loops
+at output frame0, DoorOpen_07 at800 and DoorEnd_07 at116000, with ten gain changes.
+The original-verified145-tick controller motion retains the144-block start-to-end
+interval. The earlier oracle assumed the door started in the first block; the
+current contact replay has one initial ambient-only block. The trace-disabled
+repeat matches audio/body/motion/ambient results, confirming observation does not
+change those results.
+
+PCM SHA256:4799af700d27d7e0fe8422654712a86181260b1aa1e486282a557a1ee774f890;
+FNV2086754239. Report:artifacts/live-door-audio-verification.json; trace and PCM
+under artifacts/door-audio-reference. Ambient starts/stops/gain values are observed
+inputs. This is independent PCM decoding/mixing and cursor progression coverage,
+not independent original-game ambient scheduling, attenuation or Miles output.
+That remaining fidelity requirement stays in the shortlist.
+
+Both builds/nine CTests pass. Native64MiB replay20260911-060021 also passes the
+same input sequence with PC guest-state/PCM-hash parity and nonzero DSP output.
+Its observer is disabled; the native test compares the guest hash, not a bytewise
+capture of the entire DSP stream. Normal disc flags are restored and ISO rebuilt.
+The historical two-track verifier gap described above is superseded for mixed PCM;
+no new visual or full single-player completion claim is made.

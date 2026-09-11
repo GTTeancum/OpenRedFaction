@@ -4,7 +4,7 @@ Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
 grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
-- [ ] Extend the independent door PCM oracle to cover current ambient scheduling and mixing.
+- [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
 - [ ] Complete NPC actor/link registration, the damage backend and upstream repeated activation; Continuous_Damage itself does not automatically repeat.
@@ -2516,3 +2516,13 @@ builds/nine CTests, door traversal and1170-frame ambient restart. The historical
 two-track door PCM oracle fails on newly included ambient starts; independent
 full-mix reference coverage remains open. Game control-table/category/native-status
 integration and persistent NPC burn ownership remain pending.
+
+
+The current door-plus-ambient PCM oracle now matches every572800 output bytes via
+independent Python WAV decoding/resampling/mixing and propagated source cursors.
+It captures actual scene scheduling/gain decisions as inputs; independent original
+runtime verification of those decisions remains in the shortlist. Relative door
+travel timing is retained; current contact startup adds one ambient-only block.
+Observer-disabled PC repeat and native64MiB replay20260911-060021 pass with matching
+PCM hash and guest state, plus nonzero DSP. Both builds/nine CTests pass. The earlier
+historical two-track oracle failure is resolved for the current mixed PCM stream.
