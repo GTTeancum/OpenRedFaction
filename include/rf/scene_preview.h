@@ -6,6 +6,15 @@
 #include "rf/random.h"
 #include "rf/event.h"
 #include "rf/eye.h"
+#include "rf/player.h"
+
+/* Play a resolved48a9c0 request from an already resident campaign sample.
+ * Flat pan is the original float bit pattern retained in request.pan; values
+ * outside the supported device range [-10,10] are rejected, not clamped.
+ * Category0 is supported with unity settings; other categories fail explicitly.
+ * Returns a port device voice ID; does not assign entity808 or load PCM.
+ * Errors preserve the output ID. Listener updates affect positional voices only. */
+int rf_scene_sound_play_request(const rf_player_sound_request *request,int32_t *voice);
 
 /* Borrowed services for runtime damage events targeting registered NPCs/player.
  * Caller updates clock/difficulty and supplies complete synchronous reactions.

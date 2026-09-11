@@ -3,6 +3,60 @@
 #define CHECK(x) do { if(!(x)){fprintf(stderr,"residency line %d\n",__LINE__);return 1;} } while(0)
 static uint32_t event_damage_notifications;
 static uint32_t player_notifications[6];
+static uint32_t sound_starts,sound_updates,sound_fail;
+static float sound_gains[2];
+static int sound_test_start(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left,float right,uint32_t looping)
+{
+    (void)context;(void)handle;(void)pcm;(void)looping;
+    ++sound_starts;sound_gains[0]=left;sound_gains[1]=right;return (int)sound_fail;
+}
+static void sound_test_gain(void *context,uint32_t handle,float left,float right)
+{
+    (void)context;(void)handle;(void)left;(void)right;++sound_updates;
+}
+static int sound_request_check(void)
+{
+    uint8_t pcm[16]={0};rf_audio_sample sample={0};rf_player_sound_request request={0};
+    float origin[3]={0},right[3]={1,0,0},moved[3]={100,20,-30},pan=.25f,expected[2];
+    int32_t voice=123;uint32_t source,slot;
+    strcpy(sample.name,"test.wav");sample.storage=pcm;
+    sample.pcm.samples=pcm;sample.pcm.bytes=16;sample.pcm.frames=8;
+    sample.pcm.rate=22050;sample.pcm.channels=1;sample.pcm.bits=16;
+    sample.parameters.near_distance=1;sample.parameters.far_distance=100;
+    sample.parameters.volume=.5f;sample.parameters.rolloff=1;
+    campaign_audio_bank.samples=&sample;campaign_audio_bank.count=1;
+    rf_audio_mixer_init(&campaign_audio_mixer);memset(&campaign_device_voice_ids,0,sizeof(campaign_device_voice_ids));
+    memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
+    memset(&campaign_audio_events,0,sizeof(campaign_audio_events));
+    campaign_audio_events.play_mode=sound_test_start;campaign_audio_events.gain=sound_test_gain;
+    request.volume=.5f;memcpy(&request.pan,&pan,4);
+    CHECK(rf_scene_sound_play_request(&request,&voice)==RF_OK && sound_starts==1);
+    CHECK(rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,voice,&source)==RF_OK);
+    slot=source&0xffff;CHECK(!campaign_spatial_voices[slot].positional);
+    CHECK(rf_audio_device_gains(rf_audio_device_volume(.25f,0),250,expected)==RF_OK);
+    CHECK(sound_gains[0]==expected[0] && sound_gains[1]==expected[1]);
+    campaign_audio_listener(moved,right);campaign_audio_listener(origin,right);
+    CHECK(!sound_updates && campaign_spatial_voices[slot].last_pan==250);
+    request.spatial=1;request.position[0]=10;request.volume=1;request.pan=0;
+    CHECK(rf_scene_sound_play_request(&request,&voice)==RF_OK && sound_starts==2);
+    CHECK(rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,voice,&source)==RF_OK);
+    CHECK(campaign_spatial_voices[source&0xffff].positional);
+    campaign_audio_listener(request.position,right);CHECK(sound_updates==1);
+    CHECK(campaign_spatial_voices[slot].last_pan==250);
+    voice=123;request.group=1;CHECK(rf_scene_sound_play_request(&request,&voice)==RF_NOT_FOUND && voice==123);
+    request.group=0;request.sound_id=1;CHECK(rf_scene_sound_play_request(&request,&voice)==RF_NOT_FOUND && voice==123);
+    request.sound_id=0;request.spatial=0;pan=2;memcpy(&request.pan,&pan,4);
+    CHECK(rf_scene_sound_play_request(&request,&voice)==RF_OK);
+    CHECK(rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,voice,&source)==RF_OK);
+    CHECK(campaign_spatial_voices[source&0xffff].last_pan==2000);
+    voice=123;pan=11;memcpy(&request.pan,&pan,4);
+    CHECK(rf_scene_sound_play_request(&request,&voice)==RF_RANGE && voice==123);
+    request.pan=0;sound_fail=1;CHECK(rf_scene_sound_play_request(&request,&voice)==RF_IO && voice==123);
+    CHECK(!campaign_audio_mixer.voices[3].active && !campaign_spatial_voices[3].handle);
+    rf_audio_mixer_init(&campaign_audio_mixer);memset(&campaign_audio_bank,0,sizeof(campaign_audio_bank));
+    memset(&campaign_audio_events,0,sizeof(campaign_audio_events));memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
+    return 0;
+}
 static void player_test_notify(void *context,uint32_t kind,uint32_t handle,float value,uint32_t source)
 {
     (void)context;(void)handle;(void)value;(void)source;
@@ -361,5 +415,6 @@ int main(void)
     CHECK(!motions[0].file.resident && !motions[1].file.resident && !sizes[0]);
     CHECK(campaign_npc_motion_bytes==1024*1024-80);
     CHECK(pain_binding_check()==0);free(data[1]);CHECK(eye_binding_check()==0);CHECK(event_damage_binding_check()==0);CHECK(player_feedback_check()==0);CHECK(player_damage_check()==0);
+    CHECK(sound_request_check()==0);
     puts("PASS: selection, aliases, pressure, reference protection, eviction, reload and failure recovery");return 0;
 }

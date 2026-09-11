@@ -4103,3 +4103,36 @@ open. Class construction also permits a distinct29c class from294: inspected
 422360 selects the alternate class through param6 bit1 and param7. Do not
 assume class identity across the full player factory without verifying callers.
 No native XEMU playback or new screenshot is claimed for this evidence run.
+
+
+## Campaign playback accepts nonpositional player sound requests
+
+rf_scene_sound_play_request now dispatches a resolved48a9c0 request to the
+campaign mixer/device bridge using already resident PCM. The common start
+path retains whether each voice is positional. Nonpositional requests apply
+sample default gain once, preserve the original float pan bits, convert to
+device settings and do not participate in listener refresh. Existing controller
+and NPC starts still select the positional path. The retained voice record grows
+from32 to36 bytes, adding120 bytes for30 voices; spatial telemetry includes it.
+Category0 uses the existing unity category settings; other categories fail
+explicitly. This adapter returns a port voice ID without assigning entity808.
+It does not load samples or attach player pain notifications yet.
+
+PC scene-owner checks start a nonpositional resident PCM sample with default
+volume.5, requested volume.5 and pan.25, then move the listener and verify
+no gain callback or changed flat settings. A positional voice in the same mixer
+still refreshes when the listener moves. Checks also verify unsupported category,
+missing sample and failed device start, with output-ID preservation and mixer
+voice cleanup. All12 CTests pass and both complete builds succeed. Native
+regression evidence is recorded below when the scoped replay finishes.
+
+
+Stock64MiB XEMU replay-20260911-163155 passes180 frames with existing NPC
+pain/door audio and the enlarged voice record. This regression exercises the
+positional path; the new nonpositional device request is covered by the PC
+owner fixture, not a live XEMU player hit. A subsequent nonpositional-only
+correction removed an inferred [-1,1] clamp: original52261c..522641 multiplies
+pan by1000 before ftol without that clamp. The adapter accepts the device range
+[-10,10] and rejects values beyond it. PC tests additionally check pan2 becomes
+2000 and pan11 fails without publishing an ID. Both builds and all12 tests
+pass after that correction. No screenshot or new audible campaign event.

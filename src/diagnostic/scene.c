@@ -705,6 +705,7 @@ uint32_t rf_scene_sound_bank[4]; /* global declarations, resident samples, PCM f
 uint32_t rf_scene_switch_audio[4];
 typedef struct campaign_spatial_voice {
     uint32_t handle,sample;float position[3],volume;int32_t last_volume,last_pan;
+    uint32_t positional;
 } campaign_spatial_voice;
 static campaign_spatial_voice campaign_spatial_voices[RF_AUDIO_VOICES];
 static rf_audio_voice_ids campaign_device_voice_ids;
@@ -718,7 +719,7 @@ static void campaign_spatial_update(campaign_spatial_voice *voice,int initial)
 {
     const rf_audio_parameters *parameters=rf_audio_bank_parameters(&campaign_audio_bank,voice->sample);
     float spatial[2],gains[2],volume;int32_t device_volume,pan;
-    if(!parameters || !voice->handle)return;
+    if(!parameters || !voice->handle || !voice->positional)return;
     rf_audio_position(voice->position,campaign_listener_position,campaign_listener_right,
         parameters->near_distance,parameters->far_distance,parameters->rolloff,voice->volume,spatial);
     /* Controller group/category gains remain unity. Original initial and
@@ -1048,11 +1049,11 @@ audio_done:
     rf_vpp_close(&archive);
     return status;
 }
-static int32_t campaign_sound_play(void *context,int32_t sample,const float position[3],float volume,uint32_t category)
+static int32_t campaign_sound_start(int32_t sample,const float position[3],float volume,uint32_t category,uint32_t positional,float pan)
 {
     const rf_wave_pcm *pcm;const rf_sound_metadata *metadata;uint32_t handle,looping;int32_t id;
     float gains[2];campaign_spatial_voice *voice;
-    (void)context;(void)category; /* Category settings still default to unity. */
+    (void)category; /* Category settings still default to unity. */
     pcm=sample<0?NULL:rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
     if(!pcm)goto failed;
     metadata=rf_sound_metadata_find(campaign_audio_metadata.rows,campaign_audio_metadata.order,
@@ -1064,9 +1065,15 @@ static int32_t campaign_sound_play(void *context,int32_t sample,const float posi
      * The device receives the separate listener-driven gain calculation. */
     if(rf_audio_voice_start(&campaign_audio_mixer,pcm,32768,32768,looping,&handle))goto failed;
     voice=campaign_spatial_voices+(handle&0xffff);
-    voice->handle=handle;voice->sample=(uint32_t)sample;voice->volume=volume;
+    voice->handle=handle;voice->sample=(uint32_t)sample;voice->volume=volume;voice->positional=positional;
     memcpy(voice->position,position,12);voice->last_volume=INT32_MIN;voice->last_pan=INT32_MIN;
-    campaign_spatial_update(voice,1);
+    if(positional)campaign_spatial_update(voice,1);
+    else {
+        /*505560 -> sample start: category gains currently unity, default
+         * sample gain applies once. Flat voices never follow the listener. */
+        float gain=rf_audio_sample_gain(campaign_audio_bank.samples[sample].parameters.volume,1,volume);
+        voice->last_volume=rf_audio_device_volume(gain,0);voice->last_pan=(int32_t)((double)pan*1000);
+    }
     if(rf_audio_device_gains(voice->last_volume,voice->last_pan,gains) ||
        (campaign_audio_events.play && !campaign_audio_events.play_mode) ||
        (campaign_audio_events.play_mode && campaign_audio_events.play_mode(campaign_audio_events_context,
@@ -1080,6 +1087,23 @@ static int32_t campaign_sound_play(void *context,int32_t sample,const float posi
     ++rf_scene_live_audio[4];rf_scene_controller_audio[0]+=looping;return id;
 failed:
     ++rf_scene_live_audio[5];return -1;
+}
+static int32_t campaign_sound_play(void *context,int32_t sample,const float position[3],float volume,uint32_t category)
+{
+    (void)context;return campaign_sound_start(sample,position,volume,category,1,0);
+}
+int rf_scene_sound_play_request(const rf_player_sound_request *request,int32_t *voice)
+{
+    uint32_t i;float pan;int32_t id;
+    if(!request || !voice || request->spatial>1)return RF_RANGE;
+    if(request->group)return RF_NOT_FOUND;
+    memcpy(&pan,&request->pan,4);
+    if(!isfinite(request->volume) || (!request->spatial && !isfinite(pan)))return RF_FORMAT;
+    if(!request->spatial && (pan<-10 || pan>10))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(request->position[i]))return RF_FORMAT;
+    if(request->sound_id<0 || !rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)request->sound_id))return RF_NOT_FOUND;
+    id=campaign_sound_start(request->sound_id,request->position,request->volume,request->group,request->spatial,pan);
+    if(id<0)return RF_IO;*voice=id;return RF_OK;
 }
 static void campaign_sound_request(rf_group_runtime_entry *entry,campaign_controller_effects *request,uint32_t effects)
 {
