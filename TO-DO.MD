@@ -2277,3 +2277,7 @@ each activation dispatches once. Upstream repeated activation remains open.
 2026-09-11: Shared SP health/armor numeric phase matches8,192 original
 41a350 prefixes plus four port guards on PC/NXDK; builds/eight CTests pass.
 Recover kill attribution/effects and outer4892c0 routing before live damage.
+
+2026-09-11: Shared SP lethal attribution matches4,096 original prefixes
+plus two guards on PC/NXDK. Burn-source and first authored-UID lookup order
+are verified. Remaining damage effects, outer routing and ownership stay open.

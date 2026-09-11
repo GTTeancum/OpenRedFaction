@@ -202,3 +202,20 @@ int rf_entity_damage_vitals_sp(rf_entity_damage_vitals *state,float amount,
     if(value.health>=0 && value.health<=.5f)value.health=-.1f;
     *state=value;*scaled_amount=scaled;return RF_OK;
 }
+
+int rf_entity_damage_credit_sp(rf_entity_damage_credit *state,int32_t kind,
+    uint32_t source,int32_t auxiliary_uid,const rf_entity_damage_uid *entities,uint32_t count)
+{
+    uint32_t i,responsible=source;
+    if(!state)return RF_RANGE;
+    if(!isfinite(state->health))return RF_FORMAT;
+    if(state->health>0)return RF_OK;
+    if(kind==4 && source==UINT32_MAX) {
+        if(state->burn_present)responsible=state->burn_source_handle;
+        else if(auxiliary_uid!=-1) {
+            if(count>INT32_MAX || (count && !entities))return RF_RANGE;
+            for(i=0;i<count;++i)if(entities[i].uid==auxiliary_uid){responsible=entities[i].handle;break;}
+        }
+    }
+    state->responsible_handle=responsible;return RF_OK;
+}

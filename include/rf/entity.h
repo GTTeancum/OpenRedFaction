@@ -104,4 +104,14 @@ typedef struct rf_entity_damage_vitals {float health,armor;uint32_t last_damage_
  * eligibility, kill credit, burn/audio/AI effects or multiplayer behavior. */
 int rf_entity_damage_vitals_sp(rf_entity_damage_vitals *state,float amount,
     int32_t kind,float multiplier,uint32_t clock_bits,float *scaled_amount);
+typedef struct rf_entity_damage_credit {
+    float health;uint32_t responsible_handle,burn_present,burn_source_handle;
+} rf_entity_damage_credit;
+typedef struct rf_entity_damage_uid {int32_t uid;uint32_t handle;} rf_entity_damage_uid;
+/* SP41a44d..41a505: direct source except kind4 with source-1; then an
+ * existing burn source wins, otherwise first auxiliary UID match. The lookup
+ * is by authored UID (425210), not generation-checked handle. Caller supplies
+ * entity-list order and burn42f5a0(+34) snapshot. Positive health is unchanged. */
+int rf_entity_damage_credit_sp(rf_entity_damage_credit *state,int32_t kind,
+    uint32_t source,int32_t auxiliary_uid,const rf_entity_damage_uid *entities,uint32_t count);
 #endif

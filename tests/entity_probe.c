@@ -30,6 +30,17 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--damage-credit")) {
+        uint32_t wire[16];rf_entity_damage_credit state;rf_entity_damage_uid entities[4];int32_t kind,uid,status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            memcpy(&state,wire,16);memcpy(&kind,wire+4,4);memcpy(&uid,wire+6,4);memcpy(entities,wire+8,32);
+            if(wire[7]>4)return 4;
+            status=rf_entity_damage_credit_sp(&state,kind,wire[5],uid,entities,wire[7]);
+            fwrite(&status,4,1,stdout);fwrite(&state,16,1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--damage-vitals")) {
         uint32_t wire[7];rf_entity_damage_vitals state;float amount,multiplier,scaled;int32_t kind,status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

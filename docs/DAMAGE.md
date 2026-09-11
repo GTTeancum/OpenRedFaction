@@ -51,3 +51,26 @@ Both builds and eight CTests pass. No new native gameplay behavior is claimed.
 
 Next recover the remainder of41a350 and its required effects, verify outer
 4892c0 routing, and connect owned entity/class data to the event backend.
+
+## Single-player lethal attribution
+
+rf_entity_damage_credit_sp reconstructs41a44d..41a505. Positive health leaves
+the previous responsible_handle unchanged. At nonpositive health, the supplied
+source normally replaces it. Only kind4 with source-1 takes the fallback:
+an existing burn object supplies its+34 source via42f5a0; otherwise a non--1
+auxiliary UID searches entity list order with425210. First matching UID wins
+and contributes object+2c; absent UID leaves-1. This is an authored-UID lookup,
+not a slot/generation handle lookup. No deduplication or sorting is allowed.
+
+The helper takes a stable ordered UID/handle view and a resolved burn-source
+snapshot, without allocation or callbacks. Nonfinite health and invalid used
+list arguments are explicit output-preserving port guards. It does not create
+a burn effect, register entities, perform scoring or transition into death.
+
+verify_damage_credit.py compares4,096 original prefixes, with42f5a0 and425210
+executing unchanged and no intercepted calls, against PC/NXDK output. Cases
+cover duplicate/missing UIDs, source precedence, empty lists, burn ownership,
+positive health and signed zero. Two nonfinite guards bring each compiled
+suite to4,098 cases. Both builds,8,196 vitals cases and eight CTests pass.
+Generated evidence is artifacts/damage-credit.json; no native gameplay
+attribution claim is made until entity ownership and the full backend connect.
