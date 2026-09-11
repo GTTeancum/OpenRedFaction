@@ -164,3 +164,27 @@ The next integration still needs the real498e80 geometry path and ordered
 registered candidate ownership. The API does not automatically substitute
 an empty actor list or bypass ray checks. Full death-start/playback and the
 player/camera handoff remain open.
+
+## Retained geometry adapter
+
+`rf_geometry_death_clearance` now connects the shared clearance routine to
+`rf_geometry_collision_ray` with flags1 and no hit-detail output. Each query
+uses the retained moving-solid views followed by the static world. The
+caller supplies ordered actor candidates; there is no hidden empty-list
+fallback. The adapter allocates nothing and shares the existing serialized
+tree scratch. It preserves the caller's allowed value on failure, latches
+the first geometry error, and skips subsequent geometry queries after it.
+
+The PC npc_motion_residency CTest now includes a real collision-tree floor
+and a flat moving-door solid. It verifies forward/backward floor clearance,
+a nearby actor blocking only its relevant direction, a closed door rejecting
+clearance, translating that door away restoring clearance, removal of floor
+support rejecting clearance, malformed mover views propagating an error,
+and invalid actor input preserving the caller result. These fixtures invoke
+actual geometry code; ray outcomes are not supplied by a stub.
+
+PC Release and NXDK builds pass, and all12 CTests pass. The geometry fixtures
+run on PC; the NXDK build alone does not establish native emulator behavior
+for this new adapter. Prior16384-case original/PC/NXDK clearance comparisons
+remain component evidence. Live registered actor-list construction, retained
+extent/class fields and scene death-start/playback still require integration.

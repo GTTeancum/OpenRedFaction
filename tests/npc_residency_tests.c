@@ -398,6 +398,42 @@ static int pain_binding_check(void)
     free(bindings);campaign_base_motions.classes=NULL;campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     return 0;
 }
+static int death_geometry_check(void)
+{
+    rf_geometry_collision_world world={0};rf_geometry_collision_room room={0};rf_collision_room_view view={0};
+    rf_geometry_collision_movers movers={0};rf_collision_solid_view door={0};
+    rf_collision_face floor={0},wall={0};uint32_t primary=0,allowed=99,i;
+    float floor_vertices[4][3]={{-10,0,-10},{10,0,-10},{10,0,10},{-10,0,10}};
+    float wall_vertices[4][3]={{-2,0,1},{2,0,1},{2,4,1},{-2,4,1}};
+    rf_entity_death_clearance_state state={0};rf_entity_death_obstacle actor={{0,2,2},.5f,4};
+    floor.vertices=floor_vertices;floor.count=4;floor.plane[1]=1;
+    floor.minimum[0]=floor.minimum[2]=-10;floor.maximum[0]=floor.maximum[2]=10;
+    floor.minimum[1]=-.001f;floor.maximum[1]=.001f;
+    CHECK(rf_collision_tree_open(&floor,1,65536,&room.tree)==RF_OK);
+    view.tree=&room.tree;memcpy(view.minimum,floor.minimum,12);memcpy(view.maximum,floor.maximum,12);
+    world.rooms=&room;world.views=&view;world.room_count=1;world.primary=&primary;world.primary_count=1;
+    state.position[1]=2;state.height_78=2;state.extent_180=1;
+    for(i=0;i<3;i++)state.matrix[i][i]=1;
+    CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)==RF_OK && allowed==1);
+    CHECK(rf_geometry_death_clearance(&world,&movers,&state,0,NULL,0,&allowed)==RF_OK && allowed==1);
+    CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,&actor,1,&allowed)==RF_OK && allowed==0);
+    CHECK(rf_geometry_death_clearance(&world,&movers,&state,0,&actor,1,&allowed)==RF_OK && allowed==1);
+    wall.vertices=wall_vertices;wall.count=4;wall.plane[2]=-1;wall.plane[3]=1;
+    wall.minimum[0]=-2;wall.maximum[0]=2;wall.minimum[1]=0;wall.maximum[1]=4;
+    wall.minimum[2]=.999f;wall.maximum[2]=1.001f;
+    door.flat_faces=&wall;door.flat_count=1;memcpy(door.minimum,wall.minimum,12);memcpy(door.maximum,wall.maximum,12);
+    for(i=0;i<3;i++){door.input_matrix[i][i]=1;door.output_matrix[i][i]=1;}
+    movers.views=&door;movers.count=1;
+    CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)==RF_OK && allowed==0);
+    door.input_origin[0]=20;door.minimum[0]+=20;door.maximum[0]+=20;
+    CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)==RF_OK && allowed==1);
+    world.primary_count=0;
+    CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)==RF_OK && allowed==0);
+    allowed=99;movers.views=NULL;
+    CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)!=RF_OK && allowed==99);
+    CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,1,&allowed)==RF_RANGE && allowed==99);
+    rf_collision_tree_close(&room.tree);return 0;
+}
 int main(void)
 {
     rf_vpp archive={0};unsigned char payload[160]={0};
@@ -407,6 +443,7 @@ int main(void)
     uint32_t ids[3]={0,0,1};void *data[2]={0};uint32_t sizes[2]={0};
     rf_entity_pose pose={0};rf_entity_seed seed={0};rf_entity_motion_mapping mapping={0};
     uint32_t baseline=2*(sizeof(void*)+sizeof(uint32_t)),i;
+    CHECK(death_geometry_check()==0);
     archive.stream=tmpfile();CHECK(archive.stream);archive.length=sizeof(payload);
     payload[80]=1;CHECK(fwrite(payload,1,sizeof(payload),archive.stream)==sizeof(payload));
     for(i=0;i<3;++i){motions[i].file.archive=&archive;motions[i].file.entry.size=80;}

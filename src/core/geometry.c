@@ -745,3 +745,26 @@ int rf_geometry_collision_ray(const rf_geometry_collision_world *world,
     }
     *matched=hit;return RF_OK;
 }
+
+typedef struct death_geometry_context {
+    const rf_geometry_collision_world *world;
+    const rf_geometry_collision_movers *movers;
+    int status;
+} death_geometry_context;
+static uint32_t death_geometry_ray(void *context,const float start[3],const float end[3])
+{
+    death_geometry_context *c=context;uint32_t matched=0;
+    if(c->status)return 1;
+    c->status=rf_geometry_collision_ray(c->world,c->movers,start,end,1,NULL,&matched);
+    return c->status?1:matched;
+}
+int rf_geometry_death_clearance(const rf_geometry_collision_world *world,
+    const rf_geometry_collision_movers *movers,const rf_entity_death_clearance_state *state,
+    uint32_t direction,const rf_entity_death_obstacle *actors,uint32_t count,uint32_t *allowed)
+{
+    death_geometry_context context={world,movers,RF_OK};uint32_t value;
+    if(!world || !movers || !state || (!actors && count) || !allowed)return RF_RANGE;
+    value=rf_entity_death_clearance(state,direction,actors,count,death_geometry_ray,&context);
+    if(context.status)return context.status;
+    *allowed=value;return RF_OK;
+}

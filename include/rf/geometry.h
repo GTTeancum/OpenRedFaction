@@ -2,6 +2,7 @@
 #define RF_GEOMETRY_H
 #include "rf/level.h"
 #include "rf/collision.h"
+#include "rf/entity.h"
 
 typedef struct rf_geometry {
     unsigned char *data;
@@ -224,4 +225,12 @@ int rf_geometry_collision_body_sweep(const rf_geometry_collision_world *world,
 int rf_geometry_collision_ray(const rf_geometry_collision_world *world,
     const rf_geometry_collision_movers *movers,const float start[3],const float end[3],
     uint32_t flags,rf_collision_solid_hit *result,uint32_t *matched);
+/*420d00 using the retained moving/static498e80 geometry path. Actor candidates
+ * retain caller list order and lifetime. No allocation; shared tree scratch
+ * requires serialized use. Errors preserve allowed and stop further rays.
+ * State/candidates obey rf_entity_death_clearance's finite-input contract. */
+int rf_geometry_death_clearance(const rf_geometry_collision_world *world,
+    const rf_geometry_collision_movers *movers,const rf_entity_death_clearance_state *state,
+    uint32_t direction,const rf_entity_death_obstacle *actors,uint32_t count,uint32_t *allowed);
+
 #endif
