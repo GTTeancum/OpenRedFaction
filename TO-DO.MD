@@ -2243,4 +2243,5 @@ replacement with measured shared campaign budgets before L1S2 can run.
 2026-09-11: Coplanar thin-ray handling now matches original 4dec10 misses;
 all 14 L1S3 grid errors resolved with 8,572 other rays unchanged. PC/NXDK
 builds and original-vs-compiled collision regressions pass. L1S3 traversal
-and a fresh native XEMU replay of this correction remain open.
+remains open; native930-frame XEMU replay20260911-021158 now passes with
+PC state parity and nonzero DSP output on verified64MiB memory.

@@ -771,3 +771,24 @@ static-query errors deserve focused investigation before interpreting missing
 map connections as geometry gaps. No production collision behavior changes
 follow from this scan; original behavior and the precise failing guard remain
 unverified.
+
+## Coplanar correction and route retest
+
+The 14 grid errors above are resolved by the original-verified thin-ray miss
+correction documented in COLLISION.md. All8,572 prior successful queries are
+unchanged; the corrected grid has1,241 candidate cells and136 connected cells.
+Re-running the30/570/930/1530-frame PC route after this change produces the
+same positions and audio counters as before. Thus this static-ray correction
+does not resolve the observed descent.
+
+inspect_l1s3_audio_route.py --native now repeats the930-frame route in XEMU
+with APU capture and PC state comparison. Its purpose is to check Xbox
+execution of the current route, not to certify intended traversal or eviction.
+The PC observation report also records the executable hash.
+
+Native run replay-20260911-021158 passes930 frames after the correction.
+QMP verifies67,108,864 bytes of base memory; final movement and campaign
+state match PC. Five ambient starts/two stops complete without device errors;
+4,084 samples in the8,192-byte guest DSP snapshot are nonzero. Completion
+leaves9,535 available physical pages. The descent remains reproduced on both
+platforms, without a claim that the chosen route matches original gameplay.
