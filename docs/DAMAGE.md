@@ -1230,3 +1230,45 @@ matches all64 damage-test words over180 door frames: artifacts/xemu/replay-
 match PC; base RAM67108864, plugged memory0. The staged damage file is removed
 by restoration. This proves an explicit test hit on the registered owner, not
 live weapon/combat gameplay. No new visual capture was taken.
+
+
+## Pain-animation orchestration (2026-09-11)
+
+rf_entity_pain_react reconstructs full428740 with caller-owned query/effect
+boundaries. It queries selected-player mode only when needed, then cooldown830,
+excluded810 bit0, AI state, the idle-to-ready mapping and active fire actions2/3.
+A retained action828 wins; otherwise combat readiness byte exactly1 selects
+flinch_attack_stand23, and every other byte selects flinch_stand22. An unmapped
+action causes no effects. Bounds guards reject an invalid retained action.
+
+Disassembly and original execution exposed an important alias: entity+c14 is
+entity+a54+28*16, the idle_to_ready action mapping. It is not an independent
+fire-motion field. The C state reads motions[28] directly. AI-enabled query408e90
+reads entity+7d0 bit0; blocked query408ef0 reads its bit100. Other owner queries
+remain supplied, including408ec0's timer path and428d10's playback lookup.
+
+Accepted order is41ae70(handle,AI value), store chosen action828,
+428c90(entity,action,1,0,1), cooldown4fa3b0(1000,2000) at830, current mapped motion
+duration5033e0, then4fa360(trunc(duration*1000+0.5)+250) at744. The duration query
+rereads model and chosen mapping after the earlier callbacks; changing828 during
+start does not change the local chosen index. The backend owns actual AI reset,
+action/sound start, timer/RNG and duration lookup. The wrapper allocates nothing.
+
+verify_pain_reaction.py executes complete original428740 and real573528 integer
+conversion while supplying those owner query/effect boundaries. All2048 cases
+match PC and compiled NXDK, with871 accepted starts. Complete compact state and
+ordered query/effect arguments match, including short-circuiting, low-byte zero
+versus exact-one distinctions, custom/missing action mappings, fractional timing
+and state mutation during begin/start/cooldown/lock callbacks. Double duration
+preserves the original53-bit x87 timing calculation until integer conversion.
+Finite representable conversion guards are port behavior; errors after effects
+do not roll back earlier mutations.
+
+Both builds and all nine CTests pass. This wrapper is not yet invoked by the
+campaign damage callback, so no additional XEMU run or visual capture is claimed.
+The existing871 positive oracle cases are prepared owner conditions, not proof
+that a startup guard's real AI/cooldown gates currently permit a flinch. Connect
+those owners, action22/23 resource residency, rf_motion_start_action and sound
+ownership before enabling a visible pain reaction. The action tables and shared
+action-start helper already exist; they should be reused rather than selecting
+an animation directly and bypassing the recovered gates.

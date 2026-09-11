@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include "damage_effect_probe.h"
+#include "pain_probe.h"
 #include "burn_probe.h"
 #include "burn_body_probe.h"
 #include "burn_retirement_probe.h"
@@ -64,6 +65,7 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--pain"))return pain_probe();
     if(argc==2 && !strcmp(argv[1],"--impact-damage")) {
         struct {float speed;uint32_t falling;int32_t material;uint32_t kind,flags;} input;
         struct {int32_t status;float amount;uint32_t eligible;} output;

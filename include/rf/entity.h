@@ -301,4 +301,26 @@ typedef struct rf_entity_damage_state {
 int rf_entity_damage_sp(rf_entity_damage_state *state,float amount,int32_t kind,
     uint32_t source,int32_t auxiliary_uid,float multiplier,uint32_t clock_bits,
     const rf_damage_effect_backend *backend,float *result);
+typedef struct rf_entity_pain_state {
+    uint32_t handle,ai_value,model;int32_t selected_action,motions[45];
+} rf_entity_pain_state;
+enum rf_entity_pain_query {RF_PAIN_PLAYER,RF_PAIN_PLAYER_MODE,RF_PAIN_COOLDOWN,
+    RF_PAIN_EXCLUDED,RF_PAIN_AI_ENABLED,RF_PAIN_AI_BLOCKED,RF_PAIN_AI_TIMER,
+    RF_PAIN_FIRE_PRIMARY,RF_PAIN_FIRE_SECONDARY,RF_PAIN_COMBAT};
+enum rf_entity_pain_effect {RF_PAIN_BEGIN,RF_PAIN_START,RF_PAIN_RESET_COOLDOWN,RF_PAIN_SET_LOCK};
+typedef struct rf_entity_pain_backend {
+    uint32_t (*query)(void *context,uint32_t query);
+    /* BEGIN(handle,ai_value); START(action,0) means428c90 with1/0/1;
+     * RESET_COOLDOWN(1000,2000) targets830; SET_LOCK(ms,0) targets744. */
+    void (*effect)(void *context,uint32_t effect,uint32_t first,uint32_t second);
+    double (*duration)(void *context,uint32_t model,int32_t motion);
+    void *context;
+} rf_entity_pain_backend;
+/* Full428740 orchestration with supplied owner queries and effect boundaries.
+ * State/backend stay alive. Callbacks may mutate state; duration rereads the
+ * chosen motion and model after cooldown. Only PLAYER_MODE uses full word;
+ * remaining query bytes retain their original !=0 or ==1 distinctions.
+ * Finite representable lock duration required; post-effect errors do not roll
+ * back state. Timer/RNG, AI reset, playback and sound remain backend-owned. */
+int rf_entity_pain_react(rf_entity_pain_state *state,const rf_entity_pain_backend *backend);
 #endif
