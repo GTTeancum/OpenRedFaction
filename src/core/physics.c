@@ -258,6 +258,28 @@ int rf_physics_force_region_influence(const rf_physics_force_region *region,
     for(i=0;i<3;++i)if(!isfinite(value.direction[i]))return RF_RANGE;
     *result=value;return RF_OK;
 }
+int rf_physics_force_actor_carry(float support_velocity[3],uint32_t *body_flags,
+    const rf_physics_force_influence *influence,uint32_t mode,uint32_t class_kind,int32_t attachment)
+{
+    float value[3];uint32_t i;double length;
+    if(!support_velocity || !body_flags || !influence || !isfinite(influence->strength))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        volatile float increment;float direction=influence->direction[i];
+        if(!isfinite(support_velocity[i]) || !isfinite(direction))return RF_RANGE;
+        if(i==1 && (mode==1 || mode==2))direction=0;
+        increment=(float)((double)direction*influence->strength);
+        value[i]=(float)((double)support_velocity[i]+increment);
+    }
+    if(mode==3 || mode==8 || (class_kind==1 && attachment==-1)) {
+        length=sqrt((double)value[0]*value[0]+(double)value[1]*value[1]+(double)value[2]*value[2]);
+        if(length>influence->strength) {
+            volatile float scale=(float)((double)influence->strength/length);
+            for(i=0;i<3;++i)value[i]=(float)((double)value[i]*scale);
+        }
+    }
+    for(i=0;i<3;++i)if(!isfinite(value[i]))return RF_RANGE;
+    memcpy(support_velocity,value,sizeof(value));*body_flags|=0x80000000u;return RF_OK;
+}
 int rf_physics_force_region_select(const rf_physics_force_region *regions,uint32_t count,
     const float position[3],uint32_t *index)
 {

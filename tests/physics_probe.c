@@ -9,6 +9,14 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--force-carry")) {
+        struct {float support[3];uint32_t flags;rf_physics_force_influence influence;uint32_t mode,kind;int32_t attachment;} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(rf_physics_force_actor_carry(input.support,&input.flags,&input.influence,input.mode,input.kind,input.attachment) ||
+                fwrite(&input,16,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--force-influence")) {
         struct {rf_physics_force_region region;float position[3],radius,mass;} input;
         rf_physics_force_influence result;

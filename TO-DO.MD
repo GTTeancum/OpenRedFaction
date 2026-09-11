@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
-Force direction/strength matches original code in 4096 PC/NXDK cases;
-owned records and bounds pass. Actor mutations and registration remain.
+Ordinary actor force carry matches 2048 original PC/NXDK cases; direction,
+strength and bounds pass. Replacement velocity and integration remain.
 
 Immediate open items:
 - [ ] Register verified runtime force regions and connect force application plus alternate airborne speed-cap ownership.

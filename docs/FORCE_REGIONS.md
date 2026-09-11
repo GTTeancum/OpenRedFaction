@@ -56,3 +56,21 @@ an invented direction. PC failure tests check unchanged output for zero radial
 distance, zero falloff denominator and invalid mass. Eligibility, rotation,
 velocity application, falling transitions and alternate-cap ownership remain
 outside this API and are not established by these checks.
+
+`rf_physics_force_actor_carry` implements the non-`40` actor branch
+`486b73..486c1c`. Its destination is cached support velocity at `+8a0`, not
+actor velocity at `+144`. Modes 1/2 suppress the incoming direction's Y
+component; the existing carry Y remains. The scaled direction is added without
+dt. Modes 3/8, or class kind 1 with attachment field `+1380 == -1`, clamp the
+result's length to strength using the original signed comparison and scale.
+The body dirty flag `80000000` is set. Negative strength is not silently made
+positive; nonfinite results fail transactionally.
+
+`verify_force_carry.py` checks 2,048 original executions, retaining the actual
+mode/class predicates and vector callees. It checks the entire actor image:
+only `+8a0..+8ab` and the dirty bit change. PC/NXDK results match exactly across
+modes 0..9, class kinds 0..2, attachment presence and signed strengths. The
+original actor type is supplied as type 0 and the class pointer is prepared;
+selection, eligibility, rotation and the `40` replacement-velocity path remain
+outside this test. Campaign integration still requires these surrounding steps
+and their correct placement relative to support refresh and physics.

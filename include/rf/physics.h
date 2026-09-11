@@ -156,6 +156,13 @@ typedef struct rf_physics_force_influence {float direction[3],strength;} rf_phys
  * nonfinite results including the original radial-at-center singularity. */
 int rf_physics_force_region_influence(const rf_physics_force_region *region,
     const float physics_position[3],float body_radius,float mass,rf_physics_force_influence *result);
+/* Non-0x40 actor branch 486b73..486c1c. Updates cached support velocity (+8a0),
+ * NOT actor velocity. Modes 1/2 suppress incoming Y. Modes 3/8 or resolved
+ * class kind 1 with attachment +1380 == -1 clamp length to strength.
+ * Caller has selected an eligible actor; no dt scaling. Dirty bit is set.
+ * Finite results required; errors preserve support and flags. */
+int rf_physics_force_actor_carry(float support_velocity[3],uint32_t *body_flags,
+    const rf_physics_force_influence *influence,uint32_t mode,uint32_t class_kind,int32_t attachment);
 /* First enabled containing region in supplied creation order. Sphere boundary
  * is strict; boxes inclusive. Unknown shapes are skipped. UINT32_MAX means
  * no match. No allocation or force application; errors preserve index. */
