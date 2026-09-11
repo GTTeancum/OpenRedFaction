@@ -97,3 +97,33 @@ PC NPC vertex hashes, material/pose data and existing door/audio telemetry.
 The README's `pc-campaign-npcs.png` is frame 60 of that recorded door input
 sequence, rendered by PC at 640x480. It is a native renderer output conversion
 from PPM to PNG, with no visual editing or AI-generated content.
+
+## Simulation-driven NPC playback
+
+The campaign now applies each retained startup controller and advances/evaluates
+its playback once per simulation step, after the current rendered frame. Frame
+zero uses the original verified startup pose; a 180-frame replay advances 179
+times. Rendering and portal visibility do not trigger or suppress animation ticks.
+This is playback of the retained selection, not reconstructed AI decisions,
+weapon overlays, dynamic state selection or world movement. Marker bits remain
+sticky and observable; footstep consumption is still unimplemented.
+
+Currently active and controller-selected clips are copied once into a bounded
+1 MiB residency owner, deduplicated by the existing global cache identities.
+L1S1 uses 10,536 bytes including pointer/size tables. The catalog's resident file
+views borrow those bytes until campaign teardown. Changing selections will need
+an explicit residency/eviction policy. `rf_motion_file_bind_memory` checks the
+validated file size/header and all resident reads enforce entry bounds. The
+caller must supply the immutable original payload, not an unrelated byte buffer.
+
+Checks: 10,240 original playback updates across 160 consecutive-frame scenarios;
+320 original update/pose cases (8,000 bone matrices); 131,965 resident sampler
+checks with the archive pointer disabled, plus short-size/header rejection.
+The cached L1S1 replay matches the uncached playback/pose/draw telemetry and final
+framebuffer bytes. Both PC and NXDK build, and all nine CTest cases pass.
+
+Native verification: `artifacts/xemu/replay-20260911-092555/report.json` passes
+180 frames with 179 NPC playback updates, 78 actors and 1,689 bones. The final
+state/pose/marker/cache telemetry matches PC exactly, as does the emitted NPC
+vertex hash. The resident clip bytes are 10,536 on both targets; XEMU reports
+64 MiB base memory and no expansion. Existing door/audio checks also pass.

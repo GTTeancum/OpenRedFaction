@@ -89,11 +89,24 @@ static float get_float(const unsigned char *p)
     uint32_t bits=get32(p); float result;
     memcpy(&result,&bits,4); return result;
 }
+int rf_motion_file_bind_memory(rf_motion_file *file,const void *bytes,uint32_t size)
+{
+    uint32_t i;const uint8_t *p=bytes;
+    if(!file || !bytes || !file->archive || size!=file->entry.size || size<80)return RF_RANGE;
+    for(i=0;i<20;++i)if(get32(p+i*4)!=file->header[i])return RF_FORMAT;
+    file->resident=p;return RF_OK;
+}
+static int motion_read(const rf_motion_file *file,uint32_t offset,void *out,uint32_t size)
+{
+    if((uint64_t)offset+size>file->entry.size)return RF_RANGE;
+    if(file->resident){memcpy(out,file->resident+offset,size);return RF_OK;}
+    return rf_vpp_read(file->archive,&file->entry,offset,out,size);
+}
 static int validate_ticks(const rf_motion_file *file, uint32_t offset, uint32_t count, uint32_t stride)
 {
     unsigned char raw[4]; uint32_t i; int32_t previous=0,current; int status;
     for (i=0;i<count;++i) {
-        status=rf_vpp_read(file->archive,&file->entry,offset+i*stride,raw,4);
+        status=motion_read(file,offset+i*stride,raw,4);
         if (status!=RF_OK) return status;
         current=signed32(get32(raw));
         if (i && current<=previous) return RF_FORMAT;
@@ -104,15 +117,15 @@ static int validate_ticks(const rf_motion_file *file, uint32_t offset, uint32_t 
 int rf_motion_file_track(const rf_motion_file *file, uint32_t index, rf_motion_track *out)
 {
     unsigned char raw[8]; rf_motion_track track; uint32_t end; int status;
-    if (!file || !file->archive || !out || index>=file->header[6]) return RF_RANGE;
-    status=rf_vpp_read(file->archive,&file->entry,80+index*4,raw,index+1<file->header[6] ? 8 : 4);
+    if (!file || (!file->archive && !file->resident) || !out || index>=file->header[6]) return RF_RANGE;
+    status=motion_read(file,80+index*4,raw,index+1<file->header[6] ? 8 : 4);
     if (status!=RF_OK) return status;
     track.offset=get32(raw);
     end=index+1<file->header[6] ? get32(raw+4) : file->header[18];
     if (track.offset<80+file->header[6]*4 || end>file->header[18] || end<track.offset || end-track.offset<8)
         return RF_FORMAT;
     track.size=end-track.offset;
-    status=rf_vpp_read(file->archive,&file->entry,track.offset,raw,8);
+    status=motion_read(file,track.offset,raw,8);
     if (status!=RF_OK) return status;
     track.rotation_count=raw[4] | (uint32_t)raw[5]<<8;
     track.position_count=raw[6] | (uint32_t)raw[7]<<8;
@@ -159,7 +172,7 @@ static int find_pair(const rf_motion_file *file, uint32_t offset, uint32_t count
     if (count<2) { *first=0; return RF_OK; }
     while (low<high) {
         uint32_t middle=low+(high-low)/2;
-        status=rf_vpp_read(file->archive,&file->entry,offset+middle*stride,raw,4);
+        status=motion_read(file,offset+middle*stride,raw,4);
         if (status!=RF_OK) return status;
         if (signed32(get32(raw))<=tick) low=middle+1;
         else high=middle;
@@ -200,7 +213,7 @@ int rf_motion_file_rotation(const rf_motion_file *file, uint32_t index, uint32_t
     if (!out) return RF_RANGE;
     status=rf_motion_file_track(file,index,&track); if (status!=RF_OK) return status;
     if (key>=track.rotation_count) return RF_RANGE;
-    status=rf_vpp_read(file->archive,&file->entry,track.offset+8+key*16,raw,16); if (status!=RF_OK) return status;
+    status=motion_read(file,track.offset+8+key*16,raw,16); if (status!=RF_OK) return status;
     result.tick=signed32(get32(raw));
     for (i=0;i<4;++i) result.packed[i]=signed16(raw+4+i*2);
     if (raw[12]>127 || raw[13]>127) return RF_FORMAT;
@@ -214,7 +227,7 @@ int rf_motion_file_position(const rf_motion_file *file, uint32_t index, uint32_t
     if (!out) return RF_RANGE;
     status=rf_motion_file_track(file,index,&track); if (status!=RF_OK) return status;
     if (key>=track.position_count) return RF_RANGE;
-    status=rf_vpp_read(file->archive,&file->entry,track.offset+8+track.rotation_count*16+key*40,raw,40);
+    status=motion_read(file,track.offset+8+track.rotation_count*16+key*40,raw,40);
     if (status!=RF_OK) return status;
     result.tick=signed32(get32(raw));
     for (i=0;i<3;++i) {

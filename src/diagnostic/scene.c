@@ -461,6 +461,49 @@ static rf_entity_poses campaign_poses;
 static rf_entity_base_motions campaign_base_motions;
 static rf_entity_motion_catalog campaign_motion_catalog;
 static rf_entity_playback_resources campaign_playback_resources;
+static void **campaign_npc_motion_data;
+static uint32_t *campaign_npc_motion_sizes;
+static uint32_t campaign_npc_motion_count,campaign_npc_motion_bytes;
+static int campaign_npc_motion_residency(void)
+{
+    uint32_t actor,i,j;int status;
+    campaign_npc_motion_count=campaign_playback_resources.cache_count;
+    campaign_npc_motion_bytes=campaign_npc_motion_count*(sizeof(void*)+sizeof(uint32_t));
+    if(campaign_npc_motion_bytes>1024*1024)return RF_RANGE;
+    campaign_npc_motion_data=calloc(campaign_npc_motion_count,sizeof(void*));if(!campaign_npc_motion_data)return RF_IO;
+    campaign_npc_motion_sizes=calloc(campaign_npc_motion_count,sizeof(uint32_t));if(!campaign_npc_motion_sizes)return RF_IO;
+    for(actor=0;actor<campaign_poses.count;++actor) {
+        const rf_entity_pose *pose=campaign_poses.items+actor;
+        if(pose->skeleton==UINT32_MAX)continue;
+        for(i=0;i<pose->playback.completion.active.count+3;++i) {
+            uint32_t id;int32_t selected;
+            if(i<pose->playback.completion.active.count)selected=pose->playback.completion.active.slots[i].motion;
+            else {
+                uint32_t which=i-pose->playback.completion.active.count;
+                int32_t state=which==0?pose->controller.current:which==1?pose->controller.next:
+                    pose->controller.override_enabled?pose->controller.override_state:-1;
+                if(state<0)continue;if(state>=23)return RF_RANGE;
+                selected=campaign_motion_catalog.mappings[campaign_seeds.items[actor].class_index].states[state];
+            }
+            if(selected<0)continue;id=(uint32_t)selected;
+            if(id>=campaign_playback_resources.models[pose->skeleton].count)return RF_RANGE;
+            uint32_t cache=campaign_playback_resources.models[pose->skeleton].cache_ids[id];
+            const rf_motion_file *file=&campaign_motion_catalog.models[pose->skeleton].items[id].file;
+            if(campaign_npc_motion_data[cache])continue;
+            if(file->entry.size>1024*1024-campaign_npc_motion_bytes)return RF_RANGE;
+            campaign_npc_motion_data[cache]=malloc(file->entry.size);if(!campaign_npc_motion_data[cache])return RF_IO;
+            status=rf_vpp_read(file->archive,&file->entry,0,campaign_npc_motion_data[cache],file->entry.size);if(status)return status;
+            campaign_npc_motion_sizes[cache]=file->entry.size;campaign_npc_motion_bytes+=file->entry.size;
+        }
+    }
+    for(i=0;i<campaign_motion_catalog.model_count;++i)for(j=0;j<campaign_motion_catalog.models[i].count;++j) {
+        uint32_t cache=campaign_playback_resources.models[i].cache_ids[j];rf_motion_file *file=&campaign_motion_catalog.models[i].items[j].file;
+        if(campaign_npc_motion_data[cache]) {
+            status=rf_motion_file_bind_memory(file,campaign_npc_motion_data[cache],campaign_npc_motion_sizes[cache]);if(status)return status;
+        }
+    }
+    return RF_OK;
+}
 static rf_entity_render_models campaign_render_models;
 static rf_entity_appearances campaign_appearances;
 static rf_entity_materials campaign_npc_materials;
@@ -1097,6 +1140,9 @@ static void campaign_close_movers(void)
     }
     rf_entity_seeds_close(&campaign_seeds);
     rf_entity_poses_close(&campaign_poses);
+    if(campaign_npc_motion_data){uint32_t i;for(i=0;i<campaign_npc_motion_count;++i)free(campaign_npc_motion_data[i]);free(campaign_npc_motion_data);}
+    free(campaign_npc_motion_sizes);campaign_npc_motion_sizes=NULL;
+    campaign_npc_motion_data=NULL;campaign_npc_motion_count=campaign_npc_motion_bytes=0;
     rf_entity_materials_close(&campaign_npc_materials);
     rf_entity_appearances_close(&campaign_appearances);
     rf_entity_render_models_close(&campaign_render_models);
@@ -2143,9 +2189,33 @@ static int actor_room_refresh(const rf_geometry_collision_world *world,uint32_t 
     for(i=0;i<36;++i)d[4]=(d[4]^((const unsigned char*)r)[i])*16777619u;
     return RF_OK;
 }
-/* Initial-pose diagnostic submission. Highest-detail LOD per SUBM until the
+uint32_t rf_scene_npc_playback[7]; /* ticks, actors, bones, state hash, pose hash, sticky marker bits, clip bytes */
+/* Advance the existing startup selection once per simulation step. AI/state
+ * reselection and weapon overlays remain external; do not tick from drawing. */
+static int campaign_npc_playback_tick(float elapsed)
+{
+    uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0;int status;
+    for(i=0;i<campaign_poses.count;++i) {
+        rf_entity_pose *pose=campaign_poses.items+i;const rf_entity_motion_mapping *map;
+        rf_entity_playback_model *model;float displacement[3]={0};uint32_t class_index;
+        if(pose->skeleton==UINT32_MAX)continue;
+        class_index=campaign_seeds.items[i].class_index;
+        if(class_index>=campaign_motion_catalog.class_count || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
+        map=campaign_motion_catalog.mappings+class_index;model=campaign_playback_resources.models+pose->skeleton;
+        if(map->skeleton!=pose->skeleton || map->weapon!=-1)return RF_FORMAT;
+        status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return status;
+        status=rf_entity_pose_advance(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement);if(status)return status;
+        ++actors;bones+=pose->bone_count;
+        h=npc_hash_bytes(h,&pose->playback,sizeof(pose->playback));
+        p=npc_hash_bytes(p,pose->matrices,pose->bone_count*48);p=npc_hash_bytes(p,pose->generations,pose->bone_count*2);
+        markers|=pose->playback.event_mask;
+    }
+    ++rf_scene_npc_playback[0];rf_scene_npc_playback[1]=actors;rf_scene_npc_playback[2]=bones;
+    rf_scene_npc_playback[3]=h;rf_scene_npc_playback[4]=p;rf_scene_npc_playback[5]=markers;rf_scene_npc_playback[6]=campaign_npc_motion_bytes;return RF_OK;
+}
+/* Diagnostic submission. Highest-detail LOD per SUBM until the
  * original distance/actor draw gates are connected. Uses portal-room visibility.
- * Room membership is cached for these stationary poses. No AI tick. */
+ * Room membership is cached for these stationary actors. No AI tick. */
 uint32_t rf_scene_npc_draw_detail[6];
 uint32_t rf_scene_npc_draw[5]; /* frame, visible actors, vertices, vertex hash, scratch bytes */
 static int scene_npc_draw(scene_stream *stream,uint32_t frame)
@@ -2386,6 +2456,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++summary[0];summary[3]+=record[1]+record[4];summary[4]+=record[3];
                 summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
+            if(campaign_spawn){status=campaign_npc_playback_tick(scene_step_seconds);if(status)return status;}
         }
         profile_mark(7);
         return RF_OK;
@@ -2591,6 +2662,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              * Subsequent live selector scheduling/geometry submission is separate. */
             status=rf_entity_poses_start_initial(&campaign_seeds,&campaign_skeletons,&campaign_motion_catalog,
                 &campaign_playback_resources,&campaign_poses,1.0f/30.0f);if(status)goto done;
+            status=campaign_npc_motion_residency();if(status)goto done;
+            memset(rf_scene_npc_playback,0,sizeof(rf_scene_npc_playback));
             status=campaign_npc_geometry_digest();if(status)goto done;
             {
                 uint32_t actor,k;rf_scene_npc_startup[0]=rf_scene_npc_startup[1]=0;

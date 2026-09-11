@@ -1,8 +1,9 @@
 #include "rf/motion_file.h"
 #include <string.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <io.h>
-static int sample_mode;
+static int sample_mode,resident_mode;
 static uint32_t sample_count;
 static int verify_samples(rf_motion_file *file)
 {
@@ -43,7 +44,19 @@ static int visit(const rf_vpp_entry *entry, void *context)
     size_t length=strlen(entry->name);
     if (length<4 || strcmp(entry->name+length-4,".rfa")) return RF_OK;
     if (rf_motion_file_open(&file,(rf_vpp *)context,entry->name)!=RF_OK) return RF_FORMAT;
-    if (sample_mode) return verify_samples(&file);
+    if (sample_mode) {
+        uint8_t *memory=NULL;int status;
+        if(resident_mode) {
+            memory=malloc(file.entry.size);if(!memory)return RF_IO;
+            status=rf_vpp_read(file.archive,&file.entry,0,memory,file.entry.size);if(status){free(memory);return status;}
+            if(rf_motion_file_bind_memory(&file,memory,file.entry.size-1)!=RF_RANGE || file.resident){free(memory);return RF_FORMAT;}
+            memory[0]^=1;status=rf_motion_file_bind_memory(&file,memory,file.entry.size);memory[0]^=1;
+            if(status!=RF_FORMAT || file.resident){free(memory);return RF_FORMAT;}
+            status=rf_motion_file_bind_memory(&file,memory,file.entry.size);if(status){free(memory);return status;}
+            file.archive=NULL; /* Any accidental archive read now fails. */
+        }
+        status=verify_samples(&file);free(memory);return status;
+    }
     if (fwrite(entry->name,61,1,stdout)!=1 || fwrite(file.header,80,1,stdout)!=1) return RF_IO;
     for (i=0;i<file.header[6];++i) {
         if (rf_motion_file_track(&file,i,&track)!=RF_OK) return RF_FORMAT;
@@ -79,7 +92,7 @@ int main(int argc,char **argv)
     _Static_assert(sizeof(rf_motion_rotation_key)==16,"Rotation layout");
     _Static_assert(sizeof(rf_motion_position_key)==40,"Position layout");
     if (argc!=2 && argc!=3) return 1;
-    if (argc==3) { if (strcmp(argv[2],"--sample")) return 1; sample_mode=1; }
+    if (argc==3) { if (strcmp(argv[2],"--sample") && strcmp(argv[2],"--resident")) return 1; sample_mode=1;resident_mode=!strcmp(argv[2],"--resident"); }
     _setmode(_fileno(stdout),_O_BINARY);
     if (rf_vpp_open(&archive,argv[1])!=RF_OK) return 2;
     status=rf_vpp_visit(&archive,visit,&archive); rf_vpp_close(&archive);

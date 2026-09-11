@@ -1,12 +1,15 @@
 # Red Faction Xbox / PC - open work
 
-Campaign NPCs now draw at authored positions using verified starting poses and
-shared textures; PC/XEMU vertex output matches in the L1S1 door replay.
-This initial-pose pass still needs live animation, actor draw gates and lighting.
+Campaign NPCs now advance their startup-selected playback on simulation ticks
+using bounded resident clips; AI/state reselection, sound events and lighting remain.
+
+Stock 64 MiB XEMU matches all 179 playback ticks in the 180-frame L1S1 replay;
+78 actors share 10,536 bytes of resident motion data and cache metadata.
 
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
-- [ ] Connect per-frame NPC selection/pose updates, rendered geometry and footstep consumption; broaden startup beyond audited opening classes.
+- [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
+- [ ] Extend motion residency to changing selections and verify transition/eviction ownership.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.

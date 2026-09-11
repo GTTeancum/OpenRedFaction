@@ -22,6 +22,7 @@ int rf_motion_cache_acquire(rf_motion_cache_record *records,uint32_t capacity,
     const char *name,uint32_t *index);
 typedef struct rf_motion_file {
     rf_vpp *archive;
+    const uint8_t *resident; /* Optional borrowed immutable full entry payload. */
     rf_vpp_entry entry;
     uint32_t header[20]; /* Preserve unclassified fields and trailing regions. */
 } rf_motion_file;
@@ -36,6 +37,11 @@ typedef struct rf_motion_track {
 int rf_motion_compiled_filename(const char *authored,char compiled[64]);
 /* No allocations. Archive must remain open. Failure clears the file handle. */
 int rf_motion_file_open(rf_motion_file *file, rf_vpp *archive, const char *name);
+/* Bind a caller-owned copy of the validated entry. Size and header must match;
+ * remaining payload must be the same immutable archive bytes. No ownership
+ * transfer. Resident access is bounded and performs no archive I/O; keep bytes
+ * alive while the handle is sampled. Failure preserves the handle. */
+int rf_motion_file_bind_memory(rf_motion_file *file,const void *bytes,uint32_t size);
 /* Indexed access rereads archive metadata; outputs stay unchanged on failure. */
 int rf_motion_file_track(const rf_motion_file *file, uint32_t index, rf_motion_track *out);
 int rf_motion_file_rotation(const rf_motion_file *file, uint32_t track, uint32_t key, rf_motion_rotation_key *out);
