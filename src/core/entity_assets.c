@@ -1563,6 +1563,28 @@ int rf_entity_skeletons_open(const rf_entity_seeds *seeds,rf_vpp *meshes,uint32_
 done:
     free(payload);free(model);rf_entity_skeletons_close(&v);return status;
 }
+int rf_entity_pose_evaluate(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,float pending_displacement[3])
+{
+    rf_motion_playback_state compact;rf_motion_playback_resource resources[16]={0};
+    const rf_motion_file *files[16];const rf_entity_model_motions *model;
+    const rf_entity_skeleton *skeleton;uint32_t i,count;
+    if(!pose || !skeletons || !catalog || !pending_displacement || !skeletons->items || !catalog->models ||
+       pose->skeleton>=skeletons->count || pose->skeleton>=catalog->model_count || !pose->matrices || !pose->generations)return RF_RANGE;
+    skeleton=skeletons->items+pose->skeleton;model=catalog->models+pose->skeleton;
+    if(!skeleton->bones || !skeleton->count || skeleton->count>50 || pose->bone_count!=skeleton->count)return RF_RANGE;
+    compact=pose->playback;count=compact.completion.active.count;
+    if(count>16 || (count && !model->items))return RF_RANGE;
+    for(i=0;i<count;++i) {
+        int32_t id=compact.completion.active.slots[i].motion;const rf_entity_model_motion *motion;
+        if(id<0 || (uint32_t)id>=model->count)return RF_RANGE;
+        motion=model->items+id;files[i]=&motion->file;resources[i].comparison=motion->comparison;
+        resources[i].looping=motion->looping;resources[i].markers[0]=motion->markers[0];resources[i].markers[1]=motion->markers[1];
+        compact.completion.active.slots[i].motion=(int32_t)i;
+    }
+    return rf_model_evaluate_playback(skeleton->bones,skeleton->count,&compact,files,resources,count,
+        pending_displacement,pose->matrices,pose->generations,pose->bone_count);
+}
 void rf_entity_poses_close(rf_entity_poses *p)
 {
     if(!p)return;free(p->items);free(p->matrices);free(p->generations);memset(p,0,sizeof(*p));

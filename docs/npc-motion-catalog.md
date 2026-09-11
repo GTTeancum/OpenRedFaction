@@ -304,3 +304,21 @@ live ownership, rendering or subsequent per-frame scheduling. Controller and
 advance stages still execute and match NXDK in this combined run. Production
 code is unchanged. PC build, nine CTest checks and the existing320-case cached
 miner playback oracle pass (32000 matrices,1280 eye transforms,960 cache queries).
+
+## Actor pose/catalog bridge
+
+`rf_entity_pose_evaluate` now connects a loaded skeleton and shared catalog to
+an actor's owned playback/matrix/generation storage. It projects only active
+slots into16 bounded scratch entries for the existing evaluator, preserving
+slot order and selected slot indices. It does not allocate heap storage, mutate
+playback/catalog or change reference counts. Repeated resource IDs remain legal.
+The caller supplies pending root displacement and retains the motion archive.
+As in the underlying evaluator, an archive/sampling error can leave a partial
+pose; the caller must stop using that failed result.
+
+The first-pose probe now constructs sparse catalog resource IDs, invokes this
+production bridge, and verifies playback remains unchanged. All99 startup cases
+and1764 matrices/generation stamps still match complete original51b500. Both PC
+and NXDK builds pass, including the new bridge symbol in the Xbox link map, and
+all nine CTest checks pass. This does not yet execute the bridge inside XEMU or
+connect it to scene actor startup; scene poses still begin with inactive playback.

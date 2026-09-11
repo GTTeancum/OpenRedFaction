@@ -31,6 +31,9 @@ Connect pose evaluation and verify subsequent live scheduling and crossings.
 First bone poses now match99 original/PC startup cases across opening models:
 1764 matrices and cache generations match; live actor integration remains open.
 
+Actor pose/catalog bridge now evaluates owned matrices without heap allocation;
+99 original pose cases pass through it. Connect scene startup and live ownership.
+
 Immediate open items:
 - [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.

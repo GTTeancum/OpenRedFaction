@@ -1,4 +1,5 @@
 #include "rf/model.h"
+#include "rf/entity_assets.h"
 #include "rf/model_file.h"
 #include <stdlib.h>
 #include <fcntl.h>
@@ -45,7 +46,17 @@ int main(int argc,char **argv)
             if(fread(&looping,4,1,stdin)!=1)return 9;
             for(i=0;i<(uint32_t)argc-4;++i)resources[i].looping=(looping>>i)&1;
             memset(generations,0,sizeof(generations));memset(matrices,0,sizeof(matrices));
-            if(rf_model_evaluate_playback(bones,count,&state,handles,resources,(uint32_t)argc-4,displacement,matrices,generations,256))return 7;
+            {
+                rf_entity_model_motion items[32]={0};rf_entity_model_motions model_motions={items,32};
+                rf_motion_playback_state saved;
+                rf_entity_motion_catalog catalog={0};rf_entity_skeleton skeleton={0};rf_entity_skeletons skeletons={0};rf_entity_pose pose={0};
+                catalog.models=&model_motions;catalog.model_count=1;skeleton.bones=bones;skeleton.count=count;
+                skeletons.items=&skeleton;skeletons.count=1;pose.bone_count=count;pose.playback=state;pose.matrices=matrices;pose.generations=generations;
+                for(i=0;i<(uint32_t)argc-4;++i){items[2*i+1].file=files[i];items[2*i+1].comparison=resources[i].comparison;items[2*i+1].looping=(uint8_t)resources[i].looping;}
+                for(i=0;i<pose.playback.completion.active.count;++i)pose.playback.completion.active.slots[i].motion=2*pose.playback.completion.active.slots[i].motion+1;
+                saved=pose.playback;
+                if(rf_entity_pose_evaluate(&pose,&skeletons,&catalog,displacement) || memcmp(&saved,&pose.playback,sizeof(saved)))return 7;
+            }
             if(fwrite(&count,4,1,stdout)!=1 || fwrite(matrices,48,count,stdout)!=count || fwrite(generations,2,count,stdout)!=count)return 8;
         }
         rf_vpp_close(&meshes);rf_vpp_close(&motions);return ferror(stdin)?9:0;

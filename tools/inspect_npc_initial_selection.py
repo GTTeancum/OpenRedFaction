@@ -191,5 +191,5 @@ if advance_mode:
  (root/'artifacts/npc-initial-advance.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
 
 if pose_mode:
- report=dict(result='PASS',cases=len(pose_results),bone_matrices=sum(r['bones'] for r in pose_results),original_sha256=digest,scope='Complete original51b500 and callees after verified first startup advance versus PC archive-based evaluator. Real model parent trees and complete active motion bytes; matrices and cache generations match exactly. C fixture remaps active resource IDs densely without changing slot order. No live actor ownership, rendering or NXDK pose execution.',results=pose_results)
+ report=dict(result='PASS',cases=len(pose_results),bone_matrices=sum(r['bones'] for r in pose_results),original_sha256=digest,scope='Complete original51b500 and callees after verified first startup advance versus PC archive-based evaluator. Real model parent trees and complete active motion bytes; matrices and cache generations match exactly. C wire packs active files; the probe constructs sparse catalog IDs and calls rf_entity_pose_evaluate without changing slot order. No live actor ownership, rendering or NXDK pose execution.',results=pose_results)
  (root/'artifacts/npc-initial-pose.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})

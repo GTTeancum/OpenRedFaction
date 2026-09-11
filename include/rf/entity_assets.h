@@ -337,6 +337,16 @@ typedef struct rf_entity_motion_catalog {
 int rf_entity_motion_catalog_open(const rf_entity_skeletons *skeletons,
     const rf_entity_base_motions *bindings,uint32_t budget,rf_entity_motion_catalog *result);
 void rf_entity_motion_catalog_close(rf_entity_motion_catalog *catalog);
+/* Evaluate an actor's existing playback into its owned bone cache. Owners must
+ * share stable skeleton indices; motion archives remain open. At most16 active
+ * slots are projected into bounded stack scratch, with no heap allocation or
+ * reference changes. Playback and catalog are read-only. Pending displacement
+ * is consumed by evaluated roots. As with model_evaluate_playback, archive or
+ * sampling failures may leave partial matrices/generations; caller must stop
+ * using the failed pose. This does not select, advance or render an actor. */
+int rf_entity_pose_evaluate(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,float pending_displacement[3]);
+
 /* Compose a base catalog map and an optional already-resolved weapon map using
  * the42ab20 overlay rule. Inputs must share class/skeleton; base weapon is-1.
  * Result keeps base entries when weapon entries are-1. Does not choose a weapon,
