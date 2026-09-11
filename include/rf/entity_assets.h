@@ -148,6 +148,27 @@ int rf_entity_physics_config_load(rf_vpp *tables,const char *class_name,
  * or repeated required fields fail; FOV0..360 and finite numbers are the port
  * input domain. Loader owns one bounded scratch block. Outputs preserved on
  * error; this is a port parser, not execution of the full original loader. */
+typedef struct rf_entity_seed_class {
+    uint32_t record_index;
+    rf_entity_creation_vitals_class vitals;
+    rf_entity_class_physics physics;
+} rf_entity_seed_class;
+typedef struct rf_entity_seed {
+    uint32_t class_index;
+    rf_level_entity_spawn spawn;
+} rf_entity_seed;
+typedef struct rf_entity_seeds {
+    rf_level_owned_entities records;
+    rf_entity_seed *items;
+    rf_entity_seed_class *classes;
+    uint32_t class_count,resident_bytes,peak_bytes;
+} rf_entity_seeds;
+/* Port-owned construction inputs, not live actors. Empty destination required.
+ * Budget includes owner, retained allocations and peak table scratch, excluding
+ * stack/allocator overhead. Class names share owned records, compared ignoring
+ * ASCII case. Archives may close after success. Failure preserves destination. */
+int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf_entity_seeds *result);
+void rf_entity_seeds_close(rf_entity_seeds *seeds);
 int rf_entity_vitals_config_read(const void *text,uint32_t bytes,const char *class_name,
     rf_entity_creation_vitals_class *result);
 int rf_entity_vitals_config_load(rf_vpp *tables,const char *class_name,uint32_t scratch_budget,

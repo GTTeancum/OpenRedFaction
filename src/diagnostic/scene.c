@@ -454,6 +454,7 @@ uint32_t rf_scene_campaign_memberships[5]; /* groups, links, retained/peak bytes
 
 static uint32_t campaign_mover_count;
 static rf_entity_registry campaign_entities;
+static rf_entity_seeds campaign_seeds;
 static rf_entity_view campaign_player_view;
 static rf_registered_entity_view campaign_player_object;
 uint32_t rf_scene_campaign_player[4]; /* registered handle, kind, initial object flags, adapter bytes */
@@ -1023,6 +1024,7 @@ uint32_t rf_scene_actor_body_sweeps[5]; /* queries, hits, mover hits, status, re
 uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, registration bytes */
 static void campaign_close_movers(void)
 {
+    rf_entity_seeds_close(&campaign_seeds);
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
     rf_audio_mixer_init(&campaign_audio_mixer);rf_audio_bank_close(&campaign_audio_bank);
@@ -2310,6 +2312,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!status)campaign_jump_strength=(float)sqrt(2.0*(double)scene_gravity.acceleration*(double)height);
             for(mode=0;mode<16 && !status;++mode)status=rf_movement_descriptor_load(&tables,mode,65536,campaign_modes+mode);
         }
+        if(!status && collision && campaign_spawn)status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
         rf_vpp_close(&tables);if(status)goto done;
         if(campaign_spawn && collision) {
             rf_object_registry_init(&campaign_registry);

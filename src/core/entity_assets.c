@@ -1050,6 +1050,55 @@ int rf_explosion_definition_load(rf_vpp *tables,const char *name,uint32_t budget
     v.peak_bytes=v.resident_bytes+scratch_size;*result=v;return RF_OK;
 }
 
+void rf_entity_seeds_close(rf_entity_seeds *seeds)
+{
+    if(!seeds)return;
+    rf_level_owned_entities_close(&seeds->records);
+    free(seeds->items);free(seeds->classes);memset(seeds,0,sizeof(*seeds));
+}
+int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf_entity_seeds *result)
+{
+    rf_entity_seeds v={0};rf_vpp_entry entry;void *text=NULL;
+    uint64_t bytes;uint32_t i,j;int status;
+    if(!level || !tables || !result || result->records.storage || result->records.items ||
+       result->records.count || result->records.allocated_bytes || result->items || result->classes ||
+       result->class_count || result->resident_bytes || result->peak_bytes || budget<sizeof(v))return RF_RANGE;
+    status=rf_level_owned_entities_open(level,budget-(uint32_t)(sizeof(v)-sizeof(v.records)),&v.records);
+    if(status)return status;
+    bytes=sizeof(v)+(uint64_t)v.records.allocated_bytes-sizeof(v.records);
+    bytes+=(uint64_t)v.records.count*sizeof(*v.items);
+    if(bytes>budget){status=RF_RANGE;goto done;}
+    if(v.records.count) {
+        v.items=calloc(v.records.count,sizeof(*v.items));if(!v.items){status=RF_RANGE;goto done;}
+    }
+    for(i=0;i<v.records.count;++i) {
+        status=rf_level_entity_spawn_read(v.records.items+i,&v.items[i].spawn);if(status)goto done;
+        for(j=0;j<i;++j)if(same(v.records.items[j].record.class_name,v.records.items[i].record.class_name))break;
+        v.items[i].class_index=j<i?v.items[j].class_index:v.class_count++;
+    }
+    bytes+=(uint64_t)v.class_count*sizeof(*v.classes);
+    if(bytes>budget){status=RF_RANGE;goto done;}
+    v.resident_bytes=(uint32_t)bytes;v.peak_bytes=v.resident_bytes;
+    if(v.class_count) {
+        status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)goto done;
+        if(!entry.size || entry.size>budget-bytes){status=RF_RANGE;goto done;}
+        v.peak_bytes+=(uint32_t)entry.size;
+        v.classes=calloc(v.class_count,sizeof(*v.classes));text=malloc(entry.size);
+        if(!v.classes || !text){status=RF_RANGE;goto done;}
+        status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto done;
+        for(i=0,j=0;i<v.records.count;++i)if(v.items[i].class_index==j) {
+            const char *name=v.records.items[i].record.class_name;
+            v.classes[j].record_index=i;
+            status=rf_entity_vitals_config_read(text,entry.size,name,&v.classes[j].vitals);if(status)goto done;
+            status=rf_entity_class_physics_read(text,entry.size,name,&v.classes[j].physics);if(status)goto done;
+            ++j;
+        }
+    }
+    free(text);*result=v;return RF_OK;
+done:
+    free(text);rf_entity_seeds_close(&v);return status;
+}
+
 int rf_explosion_central_prepare(const rf_explosion_definition *definition,uint32_t slot,float size,
     rf_particle_definition *particle,float *random_extent)
 {

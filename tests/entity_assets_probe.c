@@ -6,6 +6,31 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==5 && !strcmp(argv[1],"--seeds")) {
+        rf_vpp levels,tables;rf_level level;rf_entity_seeds seeds={0},guard={0};uint32_t peak,count,classes;
+        if(rf_vpp_open(&levels,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_level_open(&level,&levels,argv[4]))return 2;
+        status=rf_entity_seeds_open(&level,&tables,4*1024*1024,&seeds);if(status){fprintf(stderr,"seed open %d\n",status);return 3;}
+        peak=seeds.peak_bytes;count=seeds.records.count;classes=seeds.class_count;
+        if(rf_entity_seeds_open(&level,&tables,peak-1,&guard)!=RF_RANGE || memcmp(&guard,&(rf_entity_seeds){0},sizeof(guard)))return 4;
+        if(rf_entity_seeds_open(&level,&tables,peak,&guard))return 5;
+        rf_entity_seeds_close(&guard);rf_entity_seeds_close(&guard);
+        for(i=0;i<classes;++i) {
+            rf_entity_creation_vitals_class expected;
+            if(seeds.classes[i].record_index>=count ||
+               rf_entity_vitals_config_load(&tables,seeds.records.items[seeds.classes[i].record_index].record.class_name,1024*1024,&expected) ||
+               memcmp(&expected,&seeds.classes[i].vitals,sizeof(expected)))return 7;
+        }
+        rf_vpp_close(&levels);rf_vpp_close(&tables);
+        for(i=0;i<count;++i) {
+            rf_level_entity_spawn spawn;
+            if(seeds.items[i].class_index>=classes || rf_level_entity_spawn_read(seeds.records.items+i,&spawn) ||
+               memcmp(&spawn,&seeds.items[i].spawn,sizeof(spawn)) ||
+               _stricmp(seeds.records.items[i].record.class_name,
+                   seeds.records.items[seeds.classes[seeds.items[i].class_index].record_index].record.class_name))return 6;
+        }
+        printf("SEEDS %u %u %u %u\n",count,classes,seeds.resident_bytes,peak);
+        rf_entity_seeds_close(&seeds);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--vitals-config")) {
         rf_entity_creation_vitals_class value,before;
         memset(&value,0xa5,sizeof(value));before=value;

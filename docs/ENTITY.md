@@ -115,3 +115,25 @@ Report:artifacts/entity-vitals-config.json. Both builds/nine CTests and the1,536
 factory-assignment cases pass. These values are ready for the persistent NPC
 constructor, which is still pending together with registration, model/physics
 ownership and live damage/burn scheduling. No new native XEMU gameplay is claimed.
+
+
+Persistent construction inputs (port ownership)
+rf_entity_seeds_open retains full validated v180 entity records, their recovered
+spawn projections, and one vitals/physics entry per ASCII-insensitive class.
+Class names borrow only owned record storage. It reads entity.tbl once, releases
+table scratch before return, and leaves no archive pointers in the result.
+The explicit budget covers owner, all retained bytes and peak table scratch;
+stack and allocator overhead are excluded. Errors preserve the empty destination
+and release provisional allocations. Close clears the owner and is repeatable.
+Campaign loading now opens this owner under a1MiB budget before closing tables;
+campaign cleanup releases it. These are construction inputs, not registered
+NPCs: model/material ownership, actor initialization and behavior remain open.
+
+PC --seeds probe checks exact-budget success, one-byte-short failure with empty
+output, repeatable close, class mappings/vitals and raw access after archives
+close. Installed L1S1/L1S2/L1S3 pass: records/classes/resident/peak bytes are
+78/5/103309/477949,39/3/51997/426637,28/6/37463/412103 respectively (PC ABI).
+Both builds and nine CTests pass. Native stock64MiB door/audio replay
+artifacts/xemu/replay-20260911-062422/report.json passes after integration.
+That replay verifies loading and existing scene/audio behavior, not an independent
+comparison of every retained class field or live NPC gameplay. No new visuals.

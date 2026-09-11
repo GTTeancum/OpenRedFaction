@@ -2547,3 +2547,8 @@ live damage/burn integration remain open.
 Current Xbox regression after7830833: replay-20260911-062100 PASS,180 staged
 L1S1 door/audio frames, stock64MiB, PC state parity and nonzero DSP output.
 Nine CTests pass; persistent NPC construction/ownership remains open.
+
+Persistent NPC construction inputs now survive archive close and share class
+vitals/physics under a1MiB campaign budget; three level lifetime/budget probes
+and native64MiB replay-20260911-062422 pass. Actual NPC construction, model
+ownership, registration and live damage/burn behavior remain open.
