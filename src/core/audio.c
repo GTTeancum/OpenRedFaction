@@ -288,6 +288,40 @@ void rf_audio_control_stop(rf_audio_control_voice voices[RF_AUDIO_VOICES],uint32
     stop_device(context,voice->device);
     audio_control_reset(voice);
 }
+static void audio_control_position(const float position[3],float volume,
+    const rf_audio_control_position_inputs *inputs,float result[2])
+{
+    const rf_audio_parameters *p=inputs->parameters;
+    rf_audio_position(position,inputs->listener,inputs->listener_right,
+        p->near_distance,p->far_distance,p->rolloff,volume,result);
+}
+int32_t rf_audio_control_start_position(rf_audio_control_voice voices[RF_AUDIO_VOICES],
+    uint32_t enabled,int32_t sample,uint32_t category,const float position[3],float volume,
+    const rf_audio_control_position_inputs *inputs,const uint8_t *looping,
+    const rf_audio_control_start_backend *backend,void *context)
+{
+    float spatial[2],copy[3];int32_t handle;rf_audio_control_voice *voice;
+    if(!(enabled&255u))return -1;
+    audio_control_position(position,volume,inputs,spatial);
+    handle=rf_audio_control_start(voices,enabled,sample,category,spatial[0],spatial[1]*volume,
+        inputs->category_gain,looping,backend,context);if(handle<0)return -1;
+    voice=&voices[(uint32_t)handle&255u];voice->volume=volume;
+    memcpy(copy,position,12);memcpy(voice->position,copy,12);
+    voice->positional=(voice->positional&~255u)|1u;return handle;
+}
+void rf_audio_control_refresh(rf_audio_control_voice voices[RF_AUDIO_VOICES],int32_t handle,
+    const float position[3],float volume,const rf_audio_control_position_inputs *inputs,
+    const rf_audio_control_refresh_backend *backend,void *context)
+{
+    uint32_t index=(uint32_t)handle&255u;int32_t generation;rf_audio_control_voice *voice;
+    float spatial[2],copy[3],gain;
+    if(index>=RF_AUDIO_VOICES)return;
+    generation=(int32_t)((uint32_t)handle>>8);if((uint32_t)handle&0x80000000u)generation-=0x1000000;
+    voice=&voices[index];if(voice->generation!=generation || !(voice->positional&255u))return;
+    voice->volume=volume;memcpy(copy,position,12);memcpy(voice->position,copy,12);
+    audio_control_position(position,volume,inputs,spatial);gain=spatial[1] * *inputs->category_gain;
+    backend->volume(context,voice->device,gain);backend->pan(context,voice->device,spatial[0]);
+}
 int rf_audio_voice_stop(rf_audio_mixer *mixer,uint32_t handle)
 {
     uint32_t i=handle&0xffff;

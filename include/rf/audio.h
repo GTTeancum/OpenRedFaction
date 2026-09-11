@@ -208,6 +208,32 @@ typedef struct rf_audio_control_start_backend {
 int32_t rf_audio_control_start(rf_audio_control_voice voices[RF_AUDIO_VOICES],uint32_t enabled,
     int32_t sample,uint32_t category,float pan,float volume,const float *category_gain,
     const uint8_t *looping,const rf_audio_control_start_backend *backend,void *context);
+typedef struct rf_audio_control_position_inputs {
+    const rf_audio_parameters *parameters;
+    const float *listener,*listener_right,*category_gain;
+} rf_audio_control_position_inputs;
+/*5056a0 with shared505740/505560. Metadata must match sample/category and stay
+ * borrowed across callbacks. Start applies requested volume to spatial gain
+ * a second time; only a nonnegative game handle receives positional fields.
+ * The original unused fourth argument is omitted. Source position is copied
+ * after playback callbacks, matching the original. Same finite-input contracts
+ * as rf_audio_position; no allocation in this wrapper. */
+int32_t rf_audio_control_start_position(rf_audio_control_voice voices[RF_AUDIO_VOICES],
+    uint32_t enabled,int32_t sample,uint32_t category,const float position[3],float volume,
+    const rf_audio_control_position_inputs *inputs,const uint8_t *looping,
+    const rf_audio_control_start_backend *backend,void *context);
+typedef struct rf_audio_control_refresh_backend {
+    void (*volume)(void *context,int32_t device,float volume);
+    void (*pan)(void *context,int32_t device,float pan);
+} rf_audio_control_refresh_backend;
+/*5058c0: generation/positional-low-byte gating, then position/volume commit,
+ * shared spatial calculation and category gain, then544390 and544450. No
+ * global-enable or nonnegative-device gate here. Device is re-read after the
+ * volume callback. Inputs must match the current voice's sample/category;
+ * setters retain table storage but may mutate fields. Velocity is unused. */
+void rf_audio_control_refresh(rf_audio_control_voice voices[RF_AUDIO_VOICES],int32_t handle,
+    const float position[3],float volume,const rf_audio_control_position_inputs *inputs,
+    const rf_audio_control_refresh_backend *backend,void *context);
 typedef struct rf_audio_voice {
     rf_wave_pcm pcm;uint32_t handle,frame,phase,left,right,loop,active;
 } rf_audio_voice;

@@ -2465,3 +2465,9 @@ generations only after successful playback;1,024 original/PC/NXDK comparisons
 pass. Positional start/refresh and real sample/device adapters remain. Both
 builds,2,500 stop regressions and eight CTests pass.
 Evidence: tools/verify_audio_control_start.py and docs/controller-audio.md.
+
+Positional voice start/refresh now compose shared spatial math and control
+allocation;1,024 start and2,048 refresh original/PC/NXDK cases pass, with prior
+control regressions and eight CTests. Both builds pass. Connect real sample/
+device adapters and persistent burn-owner scheduling next.
+Evidence: tools/verify_audio_control_position.py and verify_audio_control_refresh.py.

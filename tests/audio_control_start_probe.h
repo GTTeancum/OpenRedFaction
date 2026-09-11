@@ -2,6 +2,7 @@ typedef struct control_start_fixture {
     rf_audio_control_voice voices[30];uint32_t enabled;int32_t sample;uint32_t category;
     float pan,volume,gain;uint32_t looping;int32_t ready,device;uint32_t playing[30],mutation;
     uint32_t count,queried,trace[64][6];
+    float *position;
 } control_start_fixture;
 static void acs_trace(control_start_fixture *f,uint32_t kind,uint32_t a,uint32_t c,uint32_t d,uint32_t e)
 {uint32_t *row=f->trace[f->count++];row[0]=kind;row[1]=a;row[2]=c;row[3]=d;row[4]=e;row[5]=0;}
@@ -19,6 +20,7 @@ static int32_t acs_start(void *context,int32_t sample,float gain,float pan,uint3
 {
     control_start_fixture *f=context;uint32_t g,p,i;memcpy(&g,&gain,4);memcpy(&p,&pan,4);acs_trace(f,3,(uint32_t)sample,g,p,loop);
     if(f->mutation&2)for(i=0;i<30;++i)if(f->voices[i].sample<0){f->voices[i].generation=-1;break;}
+    if(f->mutation&4){f->position[0]=7;f->position[1]=8;f->position[2]=9;}
     return f->device;
 }
 static int audio_control_start_probe(void)
@@ -27,8 +29,22 @@ static int audio_control_start_probe(void)
     const rf_audio_control_start_backend backend={acs_prepare,acs_playing,acs_stop,acs_start};
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
     while(fread(&f,1480,1,stdin)==1) {
-        f.count=f.queried=0;memset(f.trace,0,sizeof(f.trace));
+        f.count=f.queried=0;f.position=NULL;memset(f.trace,0,sizeof(f.trace));
         handle=rf_audio_control_start(f.voices,f.enabled,f.sample,f.category,f.pan,f.volume,&f.gain,(const uint8_t *)&f.looping,&backend,&f);
+        fwrite(&handle,4,1,stdout);fwrite(f.voices,44,30,stdout);fwrite(&f.count,4,1,stdout);fwrite(f.trace,24,64,stdout);
+    }
+    return ferror(stdin)?2:0;
+}
+static int audio_control_position_probe(void)
+{
+    control_start_fixture f;int32_t handle;struct {rf_audio_parameters parameters;float position[3],listener[3],right[3];} spatial;
+    const rf_audio_control_start_backend backend={acs_prepare,acs_playing,acs_stop,acs_start};
+    rf_audio_control_position_inputs inputs={&spatial.parameters,spatial.listener,spatial.right,&f.gain};
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(&f,1480,1,stdin)==1) {
+        if(fread(&spatial,sizeof(spatial),1,stdin)!=1)return 3;
+        f.count=f.queried=0;f.position=spatial.position;memset(f.trace,0,sizeof(f.trace));
+        handle=rf_audio_control_start_position(f.voices,f.enabled,f.sample,f.category,spatial.position,f.volume,&inputs,(const uint8_t *)&f.looping,&backend,&f);
         fwrite(&handle,4,1,stdout);fwrite(f.voices,44,30,stdout);fwrite(&f.count,4,1,stdout);fwrite(f.trace,24,64,stdout);
     }
     return ferror(stdin)?2:0;

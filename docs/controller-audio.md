@@ -1192,3 +1192,30 @@ selected generation before subsequent original reads. Both full builds,
 2,500 control-stop regression cases and eight CTests pass. Evidence:
 artifacts/audio-control-start.json. Positional5056a0/5058c0 wrappers and real
 sample/device adapters still need connection before live burn-audio proof.
+
+
+## Positional control start and refresh
+
+rf_audio_control_start_position connects original5056a0 to shared505740 spatial
+math and505560 control allocation. It multiplies spatial gain by requested
+volume again before allocation. Only a nonnegative returned game handle receives
+positional volume, late-copied source position and a low-byte positional flag1.
+Callbacks may change the borrowed source before this copy; upper flag bytes
+survive. The unused original fourth argument is omitted.
+
+rf_audio_control_refresh reconstructs5058c0 with signed generation and positional
+low-byte gates, but no global enabled or device-positive gate. It commits source
+and volume first, computes shared spatial gain multiplied once by category gain,
+then calls volume followed by pan, re-reading the device after the volume callback.
+Velocity is unused. Callers resolve matching sample/category metadata and retain
+it across callbacks. Setters are still the downstream544390/544450 boundary.
+
+Original/PC/NXDK evidence:1,024 positional-start cases through actual505740 and
+505560, including source changes during playback;2,048 refresh cases with304
+accepted updates, source aliasing, negative devices and device changes between
+setters. Complete state and ordered float arguments match exactly. Existing
+1,024 control-start and2,500 control-stop regressions pass. Both builds and eight
+CTests pass. Reports: artifacts/audio-control-position.json and
+artifacts/audio-control-refresh.json. No live sample loading, final device
+conversion or native gameplay is claimed by these CPU tests. Connect sample/
+device adapters and persistent owner scheduling next.
