@@ -1060,3 +1060,26 @@ effects match exactly. Four additional guards bring each compiled suite to
 and eight CTests pass. The scene still reports this event as unsupported:
 actor ownership, the actual damage backend, loader-call inputs and repeated
 scheduling must be recovered before enabling gameplay health/death changes.
+
+## Continuous_Damage loader and cadence evidence
+
+The first two authored word reads at46228e/46229b transfer toESI/EBX.
+The type17 case46250f pushesEBX thenESI then position;4b8010 calls the
+generic factory with type17 and stores these words at+2b8/+2bc. Twenty-four
+executions of the actual read-transfer/case/helper blocks verify signed bits,
+kind values and allocation-failure preservation. Read-word returns and the
+generic allocation boundary are supplied; this is not full text/binary reader
+or world construction execution.
+
+Twelve sequences now use the actual5899fc vtable, full4b8b70 activation and
+full4b8ce0 tick. With delay0, mode1 acts immediately; with delay.25, a
+nonzero saved mode acts once at the deadline. Disabled activation does not
+act. Subsequent ticks through1000ms do not repeat damage. Timer clears after
+dispatch. Mode2 retains the known difference: immediate goes off, delayed
+nonzero goes on. No type17-specific repeat exists in this virtual tick.
+The global4b6720 loop calls virtual+12 for registered events; repeated
+damage requires upstream activations, whose contact/ownership cadence remains
+to be recovered. Do not install an autonomous repeating event timer.
+
+The complete1,984 PC/NXDK action cases still pass. No production source
+changed in this cadence checkpoint, and no new native gameplay claim is made.
