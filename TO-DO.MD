@@ -2332,3 +2332,8 @@ Burn pool evidence:8 records of64 bytes,432 original release cases plus
 complete initialization verify owner clearing and circular list recycling.
 Emitter absence is0;voice absence is-1. Corrected creation failures to0 and
 all576 cases pass. Implement shared pool and recover42ee80 update next.
+
+Burn owner update:4,096 original tail cases verify frame-scaled self damage,
+audio and fade dispatch;30 real timer cases verify225ms shared rearm/wrap.
+Shared pool implementation, full spread/emitter loop and fade42f2f0 remain
+open. See docs/DAMAGE.md and tools/verify_burn_tick_trace.py.

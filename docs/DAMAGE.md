@@ -367,3 +367,33 @@ argument behavior. The creation harness was corrected to use0 for supplied
 emitter allocation failures; all576 creation cases still pass. No shared pool
 implementation, actual emitter cleanup or per-frame42ee80 burn update is
 claimed yet. Those remain the next ownership work.
+
+## Burn owner update and spread timer
+
+verify_burn_tick_trace.py verifies4,096 original owner-tail paths at
+42f1dc..42f2a2, with427020 unchanged and supplied random/effect calls. It
+checks audio arguments, damage requests, elapsed time and action824;1,011
+paths issue damage and2,053 request fade processing. Thirty original timer
+epilogues execute4fa3f0,40a0d0 and4fa360 unchanged, covering cleared timers,
+expiration, future deadlines and wrap. Evidence is artifacts/burn-tick-trace.json.
+
+The tail always calls5058c0(voice,owner+3c,owner+144,scalar28), even voice-1.
+If the low byte at record2c is nonzero, it adds frame delta5a4014 to elapsed30
+and calls42f2f0. Otherwise, if427020's low byte is zero, it requests a random
+divisor in[5,8], then4892c0(owner_handle,dt*(class_health/divisor),-1,-1,4,0,-1,0).
+The quotient/product remain wide until the outgoing float argument is stored.
+This is an ordinary, non-forced damage request. It then calls rand and assigns
+action824 to5,14 or15 according to the nonnegative result modulo3. Delta0
+still issues the zero-amount request and advances that random action choice.
+
+The end-of-pass timer62f768 is rearmed for225ms only when expired or cleared.
+It does not gate the owner-damage tail. In the earlier raw42ee80 path it gates
+nearby-entity spread checks; that geometry and its mutation/iteration behavior
+remain unverified. The original per-frame path also skips records lacking any
+of their four emitter pointers, which makes partial creation failure relevant
+to lifetime behavior. Verify that whole-loop behavior before reproducing it.
+
+Raw42f2f0 handles fading and eventual release, including direct emitter-field
+scaling and an owner reaction. This helper and its time thresholds still need
+an executable comparison; the current owner-tail test intercepts it. Shared
+pool creation/release/update and actual particle attachment remain open.
