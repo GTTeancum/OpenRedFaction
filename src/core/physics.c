@@ -891,3 +891,20 @@ int rf_physics_climb_propose(rf_physics_body_state *state,float dt,float speed,f
     const float normal[3]={0};
     return driven_propose(state,dt,speed,acceleration,1,input,normal,support,1);
 }
+
+int rf_physics_publish_position(rf_physics_body_state *state,float published[3],uint32_t *object_flags)
+{
+    float minimum[3],maximum[3];uint32_t i;
+    if(!state || !published || !object_flags)return RF_RANGE;
+    if(!isfinite(state->bounds.radius))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        float p=state->position[i],r=state->bounds.radius;
+        if(!isfinite(p))return RF_RANGE;
+        minimum[i]=r>0?p-r:p;maximum[i]=r>0?p+r:p;
+        if(!isfinite(minimum[i]) || !isfinite(maximum[i]))return RF_RANGE;
+    }
+    memcpy(published,state->position,12);memcpy(state->next_position,state->position,12);
+    memcpy(state->bounds.minimum,minimum,12);memcpy(state->bounds.maximum,maximum,12);
+    *object_flags|=0x04000000u;state->flags&=~0x40000000u;
+    return RF_OK;
+}

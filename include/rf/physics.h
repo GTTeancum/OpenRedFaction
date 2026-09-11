@@ -86,6 +86,13 @@ typedef struct rf_physics_body_state {
     int32_t reference_15c;
     uint32_t word_164,word_168;
 } rf_physics_body_state;
+/* Original487962..487973, after a physics body finishes its substeps:
+ * publish current position, synchronize pending position, rebuild bounds,
+ * set object04000000 and clear body40000000. Scheduling/removal from the
+ * active-body list remain the caller's responsibility. Disjoint owners;
+ * finite position/radius/bounds required; errors preserve every output. */
+int rf_physics_publish_position(rf_physics_body_state *state,float published[3],uint32_t *object_flags);
+
 typedef struct rf_physics_body {
     rf_physics_body_state state;
     rf_physics_spheres spheres;

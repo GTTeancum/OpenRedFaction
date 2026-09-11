@@ -16,6 +16,17 @@ static void observe_force(void *context,const rf_player_force_state *state,const
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--publish-position")) {
+        struct {rf_physics_body_state state;float published[3];uint32_t flags;} input;int32_t status;
+        _Static_assert(sizeof(input)==324,"publish wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            status=rf_physics_publish_position(&input.state,input.published,&input.flags);
+            fwrite(&status,4,1,stdout);fwrite(&input,sizeof(input),1,stdout);
+        }
+        return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--surface-gates")) {
         struct {uint32_t phase;float field;uint32_t flags;int32_t surface;} input;
         int32_t action;

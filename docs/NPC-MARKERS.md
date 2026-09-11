@@ -623,8 +623,8 @@ object position+3c into previous position+6c and clear object flag01000000.
 The source is NOT body position+e4. Original487a40 completes this list pass
 before the next pass calls487cf0 (model/entity update), followed by physics,
 487e00 (movement check, entity update/footsteps, support), and4881a0.
-The final published-position update inside4881a0 still needs ownership audit
-before wiring this helper into retained NPC simulation. Snapshot every object
+Normal physics publishes via487962 before487e00. The later4881a0 pass
+resolves linked-object parents; it is not the normal publication step. Snapshot every object
 before updating any object; do not snapshot immediately before support checks.
 
 `tools/verify_entity_position_snapshot.py` executes the unchanged original
@@ -642,3 +642,31 @@ when incoming4000 is set. It initializes both+3c and+6c from supplied position.
 The existing rf_entity_creation_object_flags helper produces the earlier
 entity-specific input to this factory; it must not be mistaken for final
 registered-object flags. Preserve that distinction when adding NPC owners.
+
+
+### Completed physics position publication
+
+`rf_physics_publish_position` implements prepared487962..487973: the original
+calls48a230 with its own body position+e4, copying it to published+3c and
+pending+f0, rebuilding bounds190/19c using radius180, setting object04000000,
+and then clearing body40000000. Other body fields survive. Caller must first
+establish substep completion; removal from the active-body list follows at
+487976. This is inside487770, before the487e00 movement/footstep/support pass.
+Consequently support can change body positions after normal publication;
+do not add an unconditional second publication after support without evidence.
+
+`tools/verify_physics_publish_position.py` compares1024 cases against unchanged
+487962..487973, including complete48a230 and its vector/bounds callees. Debug
+name lookup is disabled. Both compiled PC and NXDK outputs match exactly,
+including positive/nonpositive radius and untouched body/public state.
+Four port finite-contract failures (nonfinite positions/radius and bounds
+overflow) preserve every output. Both builds and all9 CTests pass. This adds
+no live physics scheduling and no XEMU runtime claim.
+
+The Ghidra4881a0 export shows a distinct linked-parent traversal: skip objects
+already marked01000000, resolve+200, recursively visit the parent, propagate
+04000000 and call487630 only when the parent is dirty, then mark01000000.
+487630 computes attachment transforms and calls48a230; bone attachments have
+additional model dependencies. These linked-object branches are source-audited,
+not newly execution-verified by the publication harness. The earlier snapshot
+clears01000000 to allow this traversal on the next frame.

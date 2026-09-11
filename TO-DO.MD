@@ -2,7 +2,7 @@
 
 Shortlist:
 - Complete the single-player actor, AI, damage and mission runtime.
-- Connect retained NPC bodies to verified position snapshots, published positions, support scheduling and timed footsteps.
+- Connect retained NPC bodies to verified snapshot/publication phases, support scheduling and timed footsteps.
 - Complete moving NPC animation, room membership, LOD selection and lighting.
 - Finish controller/event interactions, traversal, particles and GeoMod.
 - Complete audio playback ownership, shared RNG ordering and level transitions.
