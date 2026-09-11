@@ -626,6 +626,38 @@ int rf_foley_open(const void *text,uint32_t bytes,uint32_t budget,
 }
 void rf_foley_close(rf_foley_owner *owner)
 {if(owner){free(owner->groups);memset(owner,0,sizeof(*owner));}}
+int rf_foley_find(const rf_foley_owner *owner,const char *name,int32_t *group)
+{
+    uint32_t i;int32_t value=-1;
+    if(!owner || !name || !group || owner->group_count>640 || (owner->group_count && !owner->groups))return RF_RANGE;
+    for(i=0;i<owner->group_count;++i)if(!memchr(owner->groups[i].name,0,32))return RF_FORMAT;
+    if(*name)for(i=0;i<owner->group_count;++i)if(same(owner->groups[i].name,name)){value=(int32_t)i;break;}
+    *group=value;return RF_OK;
+}
+int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t groups[2])
+{
+    lexer l={text,bytes,0};char t[256],name[64];int status,quoted,selected=0;
+    uint32_t seen=0,index;int32_t value[2]={-1,-1};
+    if(!text || !bytes || !class_name || !*class_name || !groups)return RF_RANGE;
+    status=rf_foley_find(owner,"",&value[0]);if(status)return status;
+    for(;;) {
+        status=token(&l,t,&quoted);if(status==RF_NOT_FOUND)break;if(status)return status;
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(selected)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            selected=same(t,class_name);
+        } else if(same(t,"#End"))break;
+        else if(selected && (same(t,"$Low_Pain") || same(t,"$Med_Pain"))) {
+            index=same(t,"$Low_Pain")?0:1;
+            if(seen&(1u<<index))return RF_FORMAT;seen|=1u<<index;
+            if(token(&l,t,&quoted) || quoted || !same(t,"Sounds:") || metadata_string(&l,name,sizeof(name)))return RF_FORMAT;
+            status=rf_foley_find(owner,name,value+index);if(status)return status;
+        }
+    }
+    if(!selected)return RF_NOT_FOUND;memcpy(groups,value,sizeof(value));return RF_OK;
+}
 int rf_foley_bind_materials(const rf_foley_owner *owner,const char (*names)[32],
     uint32_t count,int32_t slots[10])
 {

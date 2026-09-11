@@ -191,6 +191,14 @@ typedef struct rf_foley_owner {
 int rf_foley_open(const void *text,uint32_t bytes,uint32_t budget,
     rf_ambient_register registration,void *context,rf_foley_owner *result);
 void rf_foley_close(rf_foley_owner *owner);
+/*434cb0: first ASCII-insensitive group match; empty/unknown names yield-1.
+ * Malformed bounded owner names fail without changing the output. */
+int rf_foley_find(const rf_foley_owner *owner,const char *name,int32_t *group);
+/* Entity class16c/170 from Low_Pain/Med_Pain Sounds. Missing/unknown/empty
+ * names yield-1. Duplicate or malformed declarations fail transactionally.
+ * Port metadata reader for one class, not the full original class parser. */
+int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t groups[2]);
 
 /* Original41c781..41c7e8 footstep class binding and434cb0 lookup: initialize
  * ten slots to -1, resolve each nonempty name to the first case-insensitive

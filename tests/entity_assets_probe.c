@@ -1,4 +1,5 @@
 #include "rf/entity_assets.h"
+#include "rf/audio.h"
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
@@ -6,6 +7,18 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==4 && !strcmp(argv[1],"--pain-groups")) {
+        rf_foley_owner owner={0};int32_t groups[2]={123,456};FILE *f;long size;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        if(fread(&owner.group_count,4,1,stdin)!=1 || owner.group_count>640)return 2;
+        owner.groups=calloc(owner.group_count?owner.group_count:1,sizeof(*owner.groups));if(!owner.groups)return 2;
+        for(i=0;i<owner.group_count;++i)if(fread(owner.groups[i].name,32,1,stdin)!=1)return 2;
+        f=fopen(argv[2],"rb");if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);
+        if(size<0 || size>1024*1024)return 2;text=malloc((size_t)size+1);if(!text)return 2;
+        if(fread(text,1,(size_t)size,f)!=(size_t)size)return 2;fclose(f);
+        status=rf_entity_pain_groups_read(text,(uint32_t)size,argv[3],&owner,groups);
+        fwrite(&status,4,1,stdout);fwrite(groups,4,2,stdout);free(text);free(owner.groups);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--damage-factors")) {
         FILE *f=fopen(argv[2],"rb");long size;float factors[11];
         if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);

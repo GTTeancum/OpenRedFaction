@@ -1414,3 +1414,28 @@ comparison pass. Native stock64MiB XEMU matches all ten pain words and the
 existing64 damage words over180 frames: artifacts/xemu/replay-20260911-142837/
 report.json. No new capture was taken. Real weapon/event/fall callers, sound
 ownership, armed overlays and full AI/mission gameplay remain unfinished.
+
+## Pain sound group metadata (2026-09-11)
+
+rf_entity_pain_groups_read resolves Low_Pain Sounds and Med_Pain Sounds into
+the existing foley owner. Original class loading41ca59..41cad9 writes class16c
+and170 via434cb0; the missing-field sentinel ESI is set to-1 at41c45e. The shared
+rf_foley_find matches434cb0's first ASCII-insensitive match and successful-1 for
+empty/unknown names. The bounded reader rejects malformed/duplicate declarations
+without changing output. It is a port metadata reader, not the full original
+class parser, and allocates nothing.
+
+verify_pain_groups.py compares all63 installed classes on PC and linked NXDK
+against independent table-label extraction and actual original434cb0/57c130
+resolution over497 foley groups. Five synthetic cases cover absent fields,
+unknown/empty labels and malformed/duplicate declarations. Guard env_guard maps
+to115/116 (Grd Small Pain/Grd Large Pain); miner1 maps to18/19. Both builds and
+all ten CTests pass. Report: artifacts/pain-groups/report.json.
+
+Pain cries are separate from action sound labels. Original4196f0 reads the
+voice at entity808, not damage effects'854 handle, and reads sound classes from
+entity29c, which the ordinary NPC factory aliases to294 when no player-class
+override exists. The current damage fixture still observes PAIN_SOUND only.
+Retaining the pain-sound timer/808 voice and binding waveform reload, group RNG
+selection and positional voice playback remain open; no audio or XEMU playback
+claim is made for this metadata change.
