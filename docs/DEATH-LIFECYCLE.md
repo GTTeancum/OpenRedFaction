@@ -93,3 +93,50 @@ selector. Further outer work includes model overlay cleanup, motion mapping,
 428c90 playback and the base class294->724 bit200000 behavior, which sets
 entity810 bit02000000 instead of the usual post-play bit8. These details
 are traced dependencies, not yet a reconstructed complete death owner.
+
+## Clearance oracle for420d00
+
+The next C implementation can now be checked against
+`tools/verify_death_clearance_original.py`. This runs full original420d00,
+including real vector copies, scaling, distance and local-space transforms.
+Only498e80 is intercepted, recording both endpoint vectors and asserting
+flags1 and a null optional hit output. It supplies explicit return words.
+8192 fixtures pass; ray counts1/2/3/4 occur1429/942/580/5241 times,3091
+cases allow the direction and1776 are rejected by nearby actors after all
+four ray queries succeed. Full actor buffers remain unchanged.
+
+Verified endpoint construction uses position3c, forward60, extent180 and
+height-like field78. Direction's low byte equal1 selects extent180*3;
+all other bytes select extent180*(-3). Scale forward by that length to
+obtain the displacement. The ordered rays are:
+
+1. Position to position plus displacement.
+2. The same ray lowered by field78*0.5 on Y.
+3. At halfway along the displacement, downward by field78+1 on Y.
+4. At the full displacement, downward by field78+1 on Y.
+
+For the first two rays only a low-byte result exactly1 rejects clearance.
+For the two downward rays a zero low byte rejects; any nonzero byte passes.
+Each rejection returns immediately without remaining queries or actor scans.
+This distinction matters even though the normal498e80 return is boolean.
+
+After the rays, the original traverses the entity list at5c95ec until the
+5c9360 sentinel, following28c. It considers class294->74 bit4. The candidate
+must lie within a3D squared distance of (abs(length)+candidate180)^2. It
+transforms candidate position minus dying actor position into the actor's
+local orientation48. For direction byte1, local Z must be>=0; for byte0,
+Z must be<=0; other nonzero bytes do not apply the sign gate. It then rejects
+when abs(local X)<abs(local Z). Equal magnitudes do not reject. There is no
+explicit self-identity exclusion in this loop. Candidate payload is unchanged.
+
+The independent oracle uses finite dyadic coordinates and four exact yaw
+orientations. It covers noncanonical direction/result upper bytes, class
+filtering, early exits, existing nearby actors and both direction branches.
+It does not establish arbitrary floating-point edge behavior. The C port
+must retain intermediate float rounding and original transform operation
+ordering; this oracle should be extended to compare that compiled code.
+
+498e80 itself tests moving solids and the static world via4df1c0. The native
+ray implementation, actor-list owner and final animation playback must be
+connected before this can run as part of campaign death selection. Do not
+replace these checks with unconditional clearance or an empty actor list.
