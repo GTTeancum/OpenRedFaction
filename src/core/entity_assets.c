@@ -245,6 +245,31 @@ int rf_entity_weapon_groups_read(const void *text,uint32_t bytes,const char *cla
     if(!found)return RF_NOT_FOUND;
     memcpy(groups,masks,sizeof(masks));return RF_OK;
 }
+int rf_entity_default_weapons_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_weapon_names *weapons,rf_entity_default_weapons *result)
+{
+    lexer l={(const unsigned char*)text,bytes,0};char t[256];
+    rf_entity_default_weapons v={-1,-1};uint32_t mask=0;int status,q,selected=0,found=0;
+    if(!text || !class_name || !*class_name || !weapons || weapons->count>64 || !result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            selected=same(t,class_name);found=selected;
+        } else if(selected && same(t,"$Default")) {
+            uint32_t bit;int32_t id;
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            bit=same(t,"Primary:")?1:same(t,"Secondary:")?2:0;if(!bit)continue;
+            if(mask&bit || token(&l,t,&q) || !q)return RF_FORMAT;
+            id=*t?rf_weapon_name_find(weapons,t):-1;
+            if(bit==1)v.primary=id;else v.secondary=id;mask|=bit;
+        }
+    }
+    if(status!=RF_NOT_FOUND && status!=RF_OK)return status;
+    if(!found)return RF_NOT_FOUND;if(mask!=3)return RF_FORMAT;
+    *result=v;return RF_OK;
+}
 static int sphere_number(lexer *l,float *result)
 {
     char t[256];uint32_t at=0,digits=0;int quoted,status,negative=0,fraction=0,exponent=0,exp_negative=0;double value=0;
@@ -789,6 +814,8 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
         for(j=0;j<45;++j)v.classes[i].actions[j]=-1;
         if(c->record_index>=seeds->records.count || !seeds->records.items){status=RF_RANGE;goto done;}
         status=rf_entity_weapon_groups_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,&v.weapons,v.classes[i].weapon_groups);
+        if(status)goto done;
+        status=rf_entity_default_weapons_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,&v.weapons,&v.classes[i].default_weapons);
         if(status)goto done;
         if(c->model_kind!=2)continue;
         status=state_set_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,"",motions,v.classes+i);

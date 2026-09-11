@@ -10,6 +10,7 @@ state_rows={(r['entity_class'].lower(),r['state'].lower()):r['motion'] for r in 
 action_rows={(r['entity_class'].lower(),r['action'].lower()):r for r in actions if not r['weapon']}
 all_states={(r['entity_class'].lower(),r['weapon'].lower(),r['state'].lower()):r['motion'] for r in states}
 all_actions={(r['entity_class'].lower(),r['weapon'].lower(),r['action'].lower()):r for r in actions}
+defaults={r['entity_class'].lower():(r['primary'],r['secondary']) for r in json.loads((root/'artifacts/entity-default-weapons.json').read_text())['rows']}
 reports=[]
 assert subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--catalog-fixture'],text=True).strip()=='CATALOG_FIXTURE PASS'
 weapons=json.loads((root/'artifacts/weapon-names.json').read_text())['names']
@@ -32,6 +33,9 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  out=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--catalog',str(root/'Installed_Game/levels1.vpp'),str(root/'Installed_Game/tables.vpp'),str(root/'Installed_Game/motions.vpp'),str(root/'Installed_Game/meshes.vpp'),level],text=True)
  registries={};checked=0;group_registries={};group_slots=0;identity_count=0
  for line in out.splitlines():
+  if line.startswith('DEFAULT_WEAPONS\t'):
+   _,cls,primary,secondary=line.split('\t');assert (int(primary),int(secondary))==defaults[cls.lower()]
+   continue
   if line.startswith('IDENTITY\t'):
    _,cls,weapon,index,loop,authored=line.split('\t');cls=cls.lower();weapon=weapon.lower()
    cache={};resources=[]

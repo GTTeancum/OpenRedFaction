@@ -98,3 +98,31 @@ Catalog PC resident bytes are now65980/62792/65076, peak128719/128127/107755.
 The metadata comparison probe compares fields rather than indeterminate padding.
 
 Stock64MiB XEMU loading/door/audio regression: `artifacts/xemu/replay-20260911-073427/report.json` PASS, 180 frames. This does not verify live footstep playback or byte-for-byte native catalog contents.
+
+## Default weapons and startup ordering
+
+The class reader at0x41bf57..0x41bfe8 initializes primary/secondary IDs to-1,
+reads required quoted names and only calls4c81f0 when the name is nonempty.
+Unknown nonempty names also retain the lookup result-1; they are not parser
+errors. `rf_entity_default_weapons_read` now retains these fields in each class
+binding. All63 installed classes match an independent raw-table/name-order
+comparison, plus three lookup cases and four transactional input guards.
+Three-level owner checks confirm the retained IDs after loading. This is not
+yet actor inventory ownership or execution of the complete original parser.
+
+Factory422360 initializes the inventory through402c20, assigns class primary
+at422d19 onward and secondary afterward, before selector41f270. Ghidra and
+instructions identify42ab20 as the effective animation-map overlay: restore base
+records from+d24/+e94 into+8e4/+a54, then copy weapon-specific16-byte records
+only when their first word (motion ID) is not-1. It also remaps one special
+weapon via globals85cd00/85ccd8. This runtime fallback is separate from the
+exact-group table readers. Full overlay reconstruction and startup use remain
+open; merely storing the default weapon does not justify changing live maps.
+
+Other inspected constructor calls:4243c0 builds numbered interface prop-point
+metadata;424520 prepares class/model prop metadata. Neither is a replacement
+for running the actor selector. The existing initial-player-motion fixture
+covers selected creation fields and both player/nonplayer flags; it does not
+prove every authored NPC's initial state or complete factory execution.
+
+PC/NXDK builds and all nine CTest checks pass. Stock64MiB native loading/door/audio replay `artifacts/xemu/replay-20260911-073931/report.json` passes180 frames; it does not verify runtime NPC weapon choice.

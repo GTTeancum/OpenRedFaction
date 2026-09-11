@@ -270,11 +270,17 @@ typedef struct rf_entity_state_declaration {
  * pairs, missing/invalid numbers and duplicate selected states fail unchanged. */
 int rf_entity_state_declaration_read(const void *text,uint32_t bytes,const char *class_name,
     const char *weapon,const char *state,rf_entity_state_declaration *result);
+typedef struct rf_entity_default_weapons {int32_t primary,secondary;} rf_entity_default_weapons;
+/* Required quoted class defaults, resolved with weapon-name lookup. Empty and
+ * unknown names map to -1 as at41bf57..41bfe8. Duplicate/missing fields fail with
+ * unchanged output. Port metadata reader, not a complete original parser. */
+int rf_entity_default_weapons_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_weapon_names *weapons,rf_entity_default_weapons *result);
 typedef struct rf_entity_state_set {
     int32_t states[23];uint32_t count;
     rf_motion_cache_record cache[68];rf_motion_file files[68];
     uint32_t cache_indices[68];uint8_t looping[68];int32_t actions[45];char action_sounds[45][64];
-    uint32_t weapon_groups[2];
+    uint32_t weapon_groups[2];rf_entity_default_weapons default_weapons;
     uint32_t marker_counts[23];float marker_frames[23][2];
 } rf_entity_state_set;
 typedef struct rf_entity_weapon_motion_group {

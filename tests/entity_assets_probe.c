@@ -6,6 +6,19 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==4 && (!strcmp(argv[1],"--default-weapons") || !strcmp(argv[1],"--default-weapons-text"))) {
+        rf_weapon_names names;rf_entity_default_weapons result;char raw[8192];uint32_t size;
+        if(rf_vpp_open(&archive,argv[2]) || rf_weapon_names_load(&archive,256*1024,&names))return 2;
+        if(!strcmp(argv[1],"--default-weapons-text")) {
+            _setmode(_fileno(stdin),_O_BINARY);size=(uint32_t)fread(raw,1,sizeof(raw),stdin);text=raw;
+        } else {
+            if(rf_vpp_find(&archive,"entity.tbl",&entry))return 2;size=entry.size;text=malloc(size);
+            if(!text || rf_vpp_read(&archive,&entry,0,text,size))return 3;
+        }
+        memset(&result,0xa5,sizeof(result));status=rf_entity_default_weapons_read(text,size,argv[3],&names,&result);
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);fwrite(&result,sizeof(result),1,stdout);
+        if(text!=raw)free(text);rf_vpp_close(&archive);return 0;
+    }
     if(argc==5 && !strcmp(argv[1],"--state-text")) {
         char raw[8192];size_t size;rf_entity_state_declaration result;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
@@ -95,6 +108,8 @@ int main(int argc,char **argv)
         rf_entity_base_motions_close(&guard);rf_entity_base_motions_close(&guard);
         for(i=0;i<m.class_count;++i)printf("WEAPON_GROUPS\t%s\t%u\t%u\n",
             seeds.records.items[seeds.classes[i].record_index].record.class_name,m.classes[i].weapon_groups[0],m.classes[i].weapon_groups[1]);
+        for(i=0;i<m.class_count;++i)printf("DEFAULT_WEAPONS\t%s\t%d\t%d\n",
+            seeds.records.items[seeds.classes[i].record_index].record.class_name,m.classes[i].default_weapons.primary,m.classes[i].default_weapons.secondary);
         for(i=0;i<m.class_count;++i)if(seeds.classes[i].model_kind==2) {
             status=rf_entity_state_set_open(argv[3],seeds.records.items[seeds.classes[i].record_index].record.class_name,"",&motions,512*1024,expected);
             if(status || memcmp(expected->states,m.classes[i].states,sizeof(expected->states)))return 7;
