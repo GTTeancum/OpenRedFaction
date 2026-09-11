@@ -1,6 +1,31 @@
 /* Exercise the scene's private residency owner without adding runtime hooks. */
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do { if(!(x)){fprintf(stderr,"residency line %d\n",__LINE__);return 1;} } while(0)
+static int eye_binding_check(void)
+{
+    campaign_npc_body owner={0};campaign_npc_eye_class eye={0};rf_entity_pose pose={0};
+    rf_entity_seed seed={0};rf_entity_seed_class cls={0};rf_level_owned_entity record={0};
+    float matrix[1][12]={{1,0,0,0,1,0,0,0,1,0,3,0}};
+    campaign_npc_bodies=&owner;campaign_npc_body_count=1;campaign_npc_eyes=&eye;
+    campaign_poses.items=&pose;campaign_poses.count=1;pose.matrices=matrix;pose.bone_count=1;
+    campaign_seeds.items=&seed;campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
+    campaign_seeds.records.items=&record;campaign_seeds.records.count=1;
+    record.record.orientation[0][0]=record.record.orientation[1][1]=record.record.orientation[2][2]=1;
+    owner.published[0]=10;owner.published[1]=20;owner.published[2]=30;
+    eye.tag=-1;CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==20);
+    eye.tag=0;eye.parent=0;eye.offsets[1]=2;eye.offsets[4]=1;
+    CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==22);
+    pose.controller.current=8;pose.controller.next=0;pose.controller.duration=1;pose.controller.elapsed=.25f;
+    CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==21.25f);
+    cls.physics.flags2=0x20;CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==20);
+    cls.physics.flags2=0x40;eye.local[0]=eye.local[4]=eye.local[8]=1;eye.local[10]=.5f;
+    CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==23.5f);
+    matrix[0][10]=5;CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==25.5f);
+    eye.parent=-1;CHECK(campaign_npc_eye_update(0)==RF_RANGE && owner.eye_position[1]==25.5f);
+    CHECK(campaign_npc_eye_update(1)==RF_RANGE);
+    campaign_npc_eyes=NULL;campaign_npc_bodies=NULL;campaign_npc_body_count=0;
+    memset(&campaign_poses,0,sizeof(campaign_poses));memset(&campaign_seeds,0,sizeof(campaign_seeds));return 0;
+}
 static int pain_binding_check(void)
 {
     campaign_npc_body owner={0};rf_random_state random={1};uint32_t i;
@@ -110,6 +135,6 @@ int main(void)
     CHECK(campaign_npc_motion_require(0,0)==RF_IO && !data[0] && data[1]);
     CHECK(!motions[0].file.resident && !motions[1].file.resident && !sizes[0]);
     CHECK(campaign_npc_motion_bytes==1024*1024-80);
-    CHECK(pain_binding_check()==0);free(data[1]);
+    CHECK(pain_binding_check()==0);free(data[1]);CHECK(eye_binding_check()==0);
     puts("PASS: selection, aliases, pressure, reference protection, eviction, reload and failure recovery");return 0;
 }

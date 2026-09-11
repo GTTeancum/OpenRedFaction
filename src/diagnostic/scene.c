@@ -1268,12 +1268,36 @@ typedef struct campaign_npc_body {
     uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
     struct {int32_t ai_timer,animation_lock,cooldown,selected_action;} pain; /*514/744/830/828*/
     struct {int32_t deadline,voice;} pain_sound; /*1458/808; separate from damage.effects.voice(854)*/
+    float eye_position[3]; /* Original entity+7d4. */
     rf_movement_settings movement;rf_entity_view view;rf_registered_entity_view registration;
 } campaign_npc_body;
 static campaign_npc_body *campaign_npc_bodies;
 static rf_movement_config *campaign_npc_movement_configs;
 static rf_physics_stance_cache *campaign_npc_stances;
+typedef struct campaign_npc_eye_class {int32_t tag,parent;float local[12],offsets[6];} campaign_npc_eye_class;
+static campaign_npc_eye_class *campaign_npc_eyes;
+uint32_t rf_scene_npc_eyes[4]; /* refreshed actors, retained bytes, class hash, position hash */
 static uint32_t campaign_npc_body_count;
+static int campaign_npc_eye_update(uint32_t actor)
+{
+    rf_eye_input input={0};float tag[12],placed[12];int status;
+    const rf_entity_pose *pose;const campaign_npc_eye_class *eye;campaign_npc_body *owner;uint32_t cls;
+    if(actor>=campaign_npc_body_count || actor>=campaign_poses.count || !campaign_npc_eyes)return RF_RANGE;
+    owner=campaign_npc_bodies+actor;pose=campaign_poses.items+actor;cls=campaign_seeds.items[actor].class_index;
+    if(cls>=campaign_seeds.class_count)return RF_RANGE;eye=campaign_npc_eyes+cls;
+    memcpy(input.position,owner->published,12);
+    memcpy(input.orientation,campaign_seeds.records.items[actor].record.orientation,36);
+    memcpy(input.standing_offset,eye->offsets,12);memcpy(input.crouching_offset,eye->offsets+3,12);
+    input.flags=campaign_seeds.classes[cls].physics.flags2;input.eye_tag=eye->tag;
+    input.current_state=pose->controller.current;input.previous_state=pose->controller.next;
+    input.transition_duration=pose->controller.duration;input.transition_elapsed=pose->controller.elapsed;
+    status=rf_eye_position(&input,owner->eye_position);
+    if(status!=RF_NOT_FOUND)return status;
+    if(eye->parent<0 || (uint32_t)eye->parent>=pose->bone_count)return RF_RANGE;
+    status=rf_model_compose_transform(eye->local,pose->matrices[eye->parent],tag);
+    if(!status)status=rf_model_place_tag(tag,input.orientation[0],input.position,placed);
+    if(!status)memcpy(owner->eye_position,placed+9,12);return status;
+}
 uint32_t rf_scene_npc_support[12]; /* sampled, queries, skipped, misses, steep, static, moving, errors, hash, first error UID, first miss UID, corrected */
 uint32_t rf_scene_npc_support_first_miss[16];
 uint32_t rf_scene_npc_support_deep[8],rf_scene_npc_support_deep_first[20];
@@ -1294,19 +1318,20 @@ static void campaign_npc_bodies_close(void)
     free(campaign_npc_bodies);campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     free(campaign_npc_movement_configs);campaign_npc_movement_configs=NULL;
     free(campaign_npc_stances);campaign_npc_stances=NULL;
+    free(campaign_npc_eyes);campaign_npc_eyes=NULL;
 }
 static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_collision_world *world,int32_t now)
 {
     const uint32_t budget=512*1024;rf_vpp tables;rf_vpp_entry entity_table,materials;
     uint32_t cls,actor,first,scratch,hash=2166136261u;uint64_t bytes;int status;
-    if(campaign_npc_bodies || campaign_npc_body_count || campaign_npc_movement_configs || campaign_npc_stances ||
+    if(campaign_npc_bodies || campaign_npc_body_count || campaign_npc_movement_configs || campaign_npc_stances || campaign_npc_eyes ||
        now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     status=rf_vpp_open(&tables,tables_path);if(status)return status;
     status=rf_vpp_find(&tables,"entity.tbl",&entity_table);if(status)goto done;
     status=rf_vpp_find(&tables,"materials.tbl",&materials);if(status)goto done;
     scratch=entity_table.size>materials.size?entity_table.size:materials.size;
     bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_npc_bodies)+
-        (uint64_t)campaign_seeds.class_count*(sizeof(*campaign_npc_movement_configs)+sizeof(*campaign_npc_stances));
+        (uint64_t)campaign_seeds.class_count*(sizeof(*campaign_npc_movement_configs)+sizeof(*campaign_npc_stances)+sizeof(*campaign_npc_eyes));
     if(bytes+scratch>budget){status=RF_RANGE;goto done;}
     campaign_npc_bodies=calloc(campaign_poses.count,sizeof(*campaign_npc_bodies));
     if(campaign_poses.count && !campaign_npc_bodies){status=RF_RANGE;goto done;}
@@ -1314,6 +1339,10 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     if(campaign_seeds.class_count && !campaign_npc_movement_configs){status=RF_RANGE;goto done;}
     campaign_npc_stances=calloc(campaign_seeds.class_count,sizeof(*campaign_npc_stances));
     if(campaign_seeds.class_count && !campaign_npc_stances){status=RF_RANGE;goto done;}
+    campaign_npc_eyes=calloc(campaign_seeds.class_count,sizeof(*campaign_npc_eyes));
+    if(campaign_seeds.class_count && !campaign_npc_eyes){status=RF_RANGE;goto done;}
+    memset(rf_scene_npc_eyes,0,sizeof(rf_scene_npc_eyes));
+    rf_scene_npc_eyes[1]=campaign_poses.count*12+campaign_seeds.class_count*sizeof(*campaign_npc_eyes);
     campaign_npc_body_count=campaign_poses.count;memset(rf_scene_npc_bodies,0,sizeof(rf_scene_npc_bodies));
     memset(rf_scene_npc_support_deep,0,sizeof(rf_scene_npc_support_deep));rf_scene_npc_support_deep[6]=2166136261u;
     memset(rf_scene_npc_support_deep_first,0,sizeof(rf_scene_npc_support_deep_first));
@@ -1322,11 +1351,13 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     rf_scene_npc_support[9]=rf_scene_npc_support[10]=UINT32_MAX;
     rf_scene_npc_bodies[0]=campaign_poses.count;rf_scene_npc_bodies[3]=(uint32_t)bytes;
     for(cls=0;cls<campaign_seeds.class_count;++cls) {
+        campaign_npc_eye_class *eye_class=campaign_npc_eyes+cls;rf_model_attachment eye={0};uint32_t tag_index;
         rf_entity_physics_config config;rf_physics_sphere spheres[8];uint32_t count=0;
         rf_entity_movement_values movement_values;rf_movement_config *movement=campaign_npc_movement_configs+cls;
         const rf_entity_pose *pose;const rf_entity_render_model *model;
         for(first=0;first<campaign_poses.count;++first)if(campaign_seeds.items[first].class_index==cls)break;
         if(first==campaign_poses.count){status=RF_FORMAT;goto done;}
+        eye_class->tag=eye_class->parent=-1;
         pose=campaign_poses.items+first;if(pose->skeleton==UINT32_MAX)continue;
         if(pose->skeleton>=campaign_render_models.count){status=RF_RANGE;goto done;}
         model=campaign_render_models.items+pose->skeleton;
@@ -1341,6 +1372,20 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         movement->response=movement_values.acceleration; /* SP ignores network overrides. */
         /* Shared class geometry comes from the first authored startup actor. */
         status=rf_entity_class_spheres_build(&model->file,pose->matrices,pose->bone_count,&config,spheres,&count);if(status)goto done;
+        for(tag_index=0;tag_index<model->file.lods[0].attachment_count;++tag_index) {
+            status=rf_model_file_attachment(&model->file,0,tag_index,&eye);if(status)goto done;
+            if((eye.name[0]=='e' || eye.name[0]=='E') && (eye.name[1]=='y' || eye.name[1]=='Y') &&
+               (eye.name[2]=='e' || eye.name[2]=='E') && !eye.name[3]) {
+                float tag[12];
+                if(eye.parent<0 || (uint32_t)eye.parent>=pose->bone_count){status=RF_RANGE;goto done;}
+                eye_class->tag=(int32_t)tag_index;eye_class->parent=eye.parent;
+                status=rf_model_attachment_transform(eye.rotation,eye.position,eye_class->local);if(status)goto done;
+                status=rf_model_compose_transform(eye_class->local,pose->matrices[eye.parent],tag);if(status)goto done;
+                memcpy(eye_class->offsets,tag+9,12);
+                if(config.authored.flags&0x20000u)eye_class->offsets[0]=eye_class->offsets[2]=0;
+                break;
+            }
+        }
         /* Original428010: either crouch state8 or crouch-walk state9 exists. */
         if(campaign_motion_catalog.mappings[cls].states[8]!=-1 || campaign_motion_catalog.mappings[cls].states[9]!=-1) {
             const rf_entity_model_motions *motions=campaign_motion_catalog.models+pose->skeleton;
@@ -1357,7 +1402,8 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
             status=rf_entity_class_stance_build(&model->file,campaign_skeletons.items[pose->skeleton].bones,
                 pose->bone_count,&pose->playback,handles,playback->resources,playback->count,
                 campaign_motion_catalog.mappings[cls].states[8],&config,spheres,count,campaign_npc_stances+cls,
-                NULL,NULL,NULL,budget-(uint32_t)bytes-motions->count*(uint32_t)sizeof(*handles));
+                eye_class->tag==-1?NULL:&eye,eye_class->local,eye_class->tag==-1?NULL:eye_class->offsets,
+                budget-(uint32_t)bytes-motions->count*(uint32_t)sizeof(*handles));
             free(handles);if(status)goto done;
         }
         for(actor=first;actor<campaign_poses.count;++actor)if(campaign_seeds.items[actor].class_index==cls) {
@@ -1391,6 +1437,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 status=rf_movement_set_mode(&owner->movement,movement,1,-1,body->state.mass,0);if(status)goto done;
                 body->state.coefficients[1]=owner->movement.response;
                 memcpy(owner->published,record->position,12);memcpy(owner->previous,record->position,12);
+                status=campaign_npc_eye_update(actor);if(status)goto done;
             }
             campaign_npc_support_probe(world,campaign_npc_bodies+actor,&config,movement->base_speed,(uint32_t)record->uid);
             /* Constructor surface1380=0; support handle remains creation-zero.
@@ -1468,6 +1515,11 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     hash=npc_hash_bytes(hash,campaign_npc_movement_configs,campaign_seeds.class_count*sizeof(*campaign_npc_movement_configs));
     hash=npc_hash_bytes(hash,campaign_npc_stances,campaign_seeds.class_count*sizeof(*campaign_npc_stances));
     rf_scene_npc_bodies[5]=hash;status=RF_OK;
+    rf_scene_npc_eyes[2]=npc_hash_bytes(2166136261u,campaign_npc_eyes,campaign_seeds.class_count*sizeof(*campaign_npc_eyes));
+    rf_scene_npc_eyes[3]=2166136261u;
+    for(actor=0;actor<campaign_npc_body_count;++actor)if(campaign_npc_bodies[actor].registration.view) {
+        ++rf_scene_npc_eyes[0];rf_scene_npc_eyes[3]=npc_hash_bytes(rf_scene_npc_eyes[3],campaign_npc_bodies[actor].eye_position,12);
+    }
 done:
     rf_vpp_close(&tables);if(status)campaign_npc_bodies_close();return status;
 }
@@ -2913,12 +2965,17 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
                 status=rf_entity_pose_advance(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement);if(status)return status;
             }
         }
+        status=campaign_npc_eye_update(i);if(status)return status;
         ++actors;bones+=pose->bone_count;
         h=npc_hash_bytes(h,&pose->playback,sizeof(pose->playback));
         p=npc_hash_bytes(p,pose->matrices,pose->bone_count*48);p=npc_hash_bytes(p,pose->generations,pose->bone_count*2);
         markers|=pose->playback.event_mask;
     }
     rf_scene_npc_gate[3]=g;
+    rf_scene_npc_eyes[3]=2166136261u;rf_scene_npc_eyes[0]=0;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
+        ++rf_scene_npc_eyes[0];rf_scene_npc_eyes[3]=npc_hash_bytes(rf_scene_npc_eyes[3],campaign_npc_bodies[i].eye_position,12);
+    }
     ++rf_scene_npc_playback[0];rf_scene_npc_playback[1]=actors;rf_scene_npc_playback[2]=bones;
     rf_scene_npc_playback[3]=h;rf_scene_npc_playback[4]=p;rf_scene_npc_playback[5]=markers;rf_scene_npc_playback[6]=campaign_npc_motion_bytes;return RF_OK;
 }

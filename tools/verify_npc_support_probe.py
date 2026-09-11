@@ -2,9 +2,9 @@
 import json,os,struct,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];folder=root/'artifacts/npc-support-probe';folder.mkdir(exist_ok=True)
-fixtures=[('L1S1.rfl','door-audio-reference/inputs.bin','RF_REPLAY_DOOR_START',[78,78,191,47220,421860,1546073344]),
- ('L1S2.rfl','lift-cycle/inputs.bin','RF_REPLAY_LIFT_START',[39,38,114,24168,398160,1626689487]),
- ('L1S3.rfl','npc-bodies-start.bin',None,[28,25,48,17416,391120,3245065254])]
+fixtures=[('L1S1.rfl','door-audio-reference/inputs.bin','RF_REPLAY_DOOR_START',[78,78,191,48556,423196,1546073344]),
+ ('L1S2.rfl','lift-cycle/inputs.bin','RF_REPLAY_LIFT_START',[39,38,114,24876,398868,1626689487]),
+ ('L1S3.rfl','npc-bodies-start.bin',None,[28,25,48,18232,391936,3245065254])]
 reports=[]
 for level,inputs,staged,bodies in fixtures:
  env=os.environ.copy()
@@ -19,6 +19,10 @@ for level,inputs,staged,bodies in fixtures:
  # sphere, publication, movement or cached-class mutation by the diagnostic.
  # Residency now includes68 bytes of view/registration per actor slot.
  assert rows['NPC_BODIES']==bodies,(level,rows['NPC_BODIES'])
+ eyes=rows['NPC_EYES']
+ assert eyes=={'L1S1.rfl':[78,1336,2176128026,3785745230],
+  'L1S2.rfl':[38,708,2119802746,2223978436],
+  'L1S3.rfl':[25,816,3683663130,4137097811]}[level],(level,eyes)
  links=rows['NPC_LINKS']
  assert links=={'L1S1.rfl':[333,3996,15,152],'L1S2.rfl':[217,2604,4,43],'L1S3.rfl':[162,1944,4,44]}[level],(level,links)
  damage=rows['NPC_DAMAGE_OWNERS']

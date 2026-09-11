@@ -254,6 +254,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['npc_pain_owners']=npc_pain_owners
      npc_pain_sound_owners=words(monitor,symbol('rf_scene_npc_pain_sound_owners'),4)
      assert npc_pain_sound_owners==expected('NPC_PAIN_SOUND_OWNERS'),npc_pain_sound_owners
+     npc_eyes=words(monitor,symbol('rf_scene_npc_eyes'),4)
+     assert npc_eyes==expected('NPC_EYES') and npc_eyes[0]==npc_bodies[1],npc_eyes
+     report['npc_eyes']=npc_eyes
      assert npc_pain_sound_owners[0]==npc_bodies[1] and npc_pain_sound_owners[1]==npc_bodies[0]*8,npc_pain_sound_owners
      report['npc_pain_sound_owners']=npc_pain_sound_owners
      npc_pain_test=words(monitor,symbol('rf_scene_npc_pain_test_words'),10)

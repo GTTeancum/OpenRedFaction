@@ -1335,6 +1335,35 @@ native replay exercises ordinary residency without exhaustion. Live flinch/AI
 transitions and sustained campaign cache behavior remain to be verified.
 # Pain sound selection and dispatch evidence (2026-09-11)
 
+NPC owners now retain entity+7d4 eye positions, with a shared 80-byte eye
+record per authored class and 12 bytes per actor slot. Class startup resolves
+the installed skeletal models' eye attachment, retains its local transform and
+standing offset, and uses the existing private crouch sampler for crouching
+offsets. Class flag20000 centers the offset in X/Z. Missing attachments retain
+tag-1 and zero offsets. As with the existing collision stance cache, the pose
+comes from the first authored startup actor; original global first-user factory
+ordering remains unverified. Bone/virtual eye tags are not implemented here.
+
+Each skeletal NPC refreshes its eye from the retained body publication and
+authored orientation after the current animation update/gate. The recovered
+4194e0 helper selects body origin, cached stance offsets or animated-tag
+placement according to flags728 and controller state. Animated placement uses
+the evaluated pose and recovered5034f0 transform; it does not force an extra
+animation advance. NPC movement/orientation publication and original full-frame
+eye-update scheduling remain open. Pain playback has not yet consumed the eye.
+
+The private scene test covers origin fallback, standing/crouch transition,
+flag20, animated pose changes and invalid-parent output preservation. Existing
+original comparisons pass400 eye cases and1,000 cached tag-placement cases.
+Three opening-level replays preserve the previous body/stance content hashes;
+additional residency is1,336/708/816 bytes. PC and Xbox builds and all ten CTests
+pass. `NPC_EYES` exposes actor count, retained bytes, class hash and final position
+hash for the native replay comparison; these hashes prove agreement, not full
+original lifecycle fidelity.
+Stock64MiB XEMU replay `replay-20260911-145957` passes180 frames including the
+two-hit guard damage fixture, with exact PC class/eye-position hashes and
+unchanged pain deadlines, selected action and RNG state.
+
 Campaign audio startup now retains the low/medium pain group pair for every
 authored class alongside the footstep bindings, using the same loaded entity
 table and Foley owner. The pair consumes eight bytes per class, is included
