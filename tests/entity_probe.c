@@ -53,6 +53,15 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--support-contact-route")) {
+        struct {float fraction,dot;uint32_t resolved,type,flags,falling;} input;int32_t route;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            route=rf_entity_support_contact_route(input.fraction,(double)input.dot,input.resolved,input.type,input.flags,input.falling);
+            fwrite(&route,4,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--position-snapshot")) {
         struct {uint32_t flags;float previous[3],published[3];} input;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

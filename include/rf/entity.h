@@ -11,6 +11,15 @@
  * Disjoint flags/positions required; NULL inputs leave outputs unchanged. */
 void rf_entity_position_snapshot(uint32_t *flags,float previous[3],const float published[3]);
 
+enum {RF_ENTITY_CONTACT_NONE=0,RF_ENTITY_CONTACT_FALL=1,RF_ENTITY_CONTACT_STATIC=2,RF_ENTITY_CONTACT_MOVING=3};
+/* Original4a0a5c contact routing, after query and with resolved handle metadata.
+ * fraction>=1, unordered/too-small upward dot, or type3 with body high bit
+ * rejects. Rejection requests fall only when42a020's resolved low byte is0.
+ * No mutation, lookup, numeric commit or landing effects. Dot is computed by
+ * the caller from the query normal and original up vector, not assumed finite. */
+int rf_entity_support_contact_route(float fraction,double upward_dot,uint32_t resolved,
+    uint32_t object_type,uint32_t body_flags,uint32_t falling);
+
 /* Original487f20..487f67 before entity update: flag02000000 forces movement;
  * otherwise flag04000000 requires positive squared position difference.
  * A moved actor clears02000000 and sets04000000. Other bits and both positions

@@ -780,3 +780,29 @@ selection through9eab386. Base RAM67108864, plugged0. NPC_BODIES is
 [78,78,191,33912,408552,1465601968], matching PC; gate, playback and draw checksums
 also match. This native run does not exercise the still-unconnected support
 helper. No framebuffer capture was requested because there are no new visuals.
+
+
+### Ground-query contact acceptance
+
+rf_entity_support_contact_route reconstructs4a0a5c's post-query routing with
+resolved lookup metadata. A fraction>=1 rejects; a normal/up dot below0.5 or
+unordered rejects; a resolved type3 object with body high bit80000000 rejects.
+Rejected hits return FALL when the resolved42a020 low byte is zero, otherwise
+NONE. Other hits choose STATIC for absent/stale handles and MOVING for resolved
+objects. No mutation, lookup, fall transition or landing effects occur here.
+The caller computes the original normal/up dot and owns handle resolution.
+
+The original fraction comparison does not reject unordered values by itself;
+the dot comparison does. The helper preserves that distinction. Later numeric
+support_commit still enforces the port's finite-data contract, so a NaN fraction
+is not permission to mutate an actor. Do not replace the original fraction test
+with!(fraction<1), which changes its branch behavior.
+
+verify_entity_support_contact_route.py executes the original routing with real
+40a0b0 dot,40a0e0 handle lookup,4136d0 and42a020 callees. Hooks only stop at final
+route boundaries before effects.2304 cases include missing/valid/stale handles,
+modes1/3/8, type0/3, body high bit and threshold/infinity/NaN inputs. PC and
+compiled NXDK routes match:1008 NONE,504 FALL,576 STATIC,216 MOVING. Dot fixtures
+use normal(0,Y,0) and up(0,1,0); arbitrary vector-dot rounding is not claimed.
+Both builds and all9 CTests pass. This helper is not yet called by the NPC loop;
+query, contact-owner update and mode transitions must be connected together.

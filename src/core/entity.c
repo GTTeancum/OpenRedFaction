@@ -441,3 +441,11 @@ void rf_entity_position_snapshot(uint32_t *flags,float previous[3],const float p
     memmove(previous,published,12);
     *flags &= ~0x01000000u;
 }
+
+int rf_entity_support_contact_route(float fraction,double upward_dot,uint32_t resolved,
+    uint32_t object_type,uint32_t body_flags,uint32_t falling)
+{
+    if(fraction>=1 || !(upward_dot>=0.5) || (resolved && object_type==3 && (body_flags&0x80000000u)))
+        return (falling&255u)?RF_ENTITY_CONTACT_NONE:RF_ENTITY_CONTACT_FALL;
+    return resolved?RF_ENTITY_CONTACT_MOVING:RF_ENTITY_CONTACT_STATIC;
+}
