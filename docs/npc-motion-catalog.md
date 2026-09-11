@@ -557,3 +557,28 @@ close pass. L1S1/L1S2/L1S3 contain12/9/10 appearances over78/38/25 skeletal acto
 using6648/6024/5848 resident bytes and381288/380664/380488 peak bytes on PC.
 Both builds and nine CTest checks pass. This metadata owner is not yet connected
 to the scene; image residency and model material binding remain next.
+
+## Measured NPC texture residency
+
+`inspect_npc_texture_residency.py` reads each unique appearance's actual84-byte
+model material records, applies ordered primary replacements, and retains
+secondary map names. It resolves images in the campaign's map archive order
+(maps1/maps2/maps3/maps4/maps_en), decodes every unique image with the current
+static loader, and constructs every appearance with the existing model-material
+loader. All31 level/appearance bundles and59 unique images across the three
+levels succeed. Replacement counts match material counts; no texture fallback
+or silent frame substitution was used.
+
+L1S1:51 unique textures,3818496 decoded RGBA bytes; per-appearance copies would
+use8782848 bytes. Global deduplication saves4964352 bytes.
+L1S2:44 unique textures,2622464 decoded bytes versus7586816; saving4964352.
+L1S3:44 unique textures,2683904 decoded bytes versus6939648; saving4255744.
+
+The ignored report `artifacts/npc-texture-residency.json` contains every material
+binding, texture source/dimensions/content hash and per-appearance bundle
+resident/peak measurements. Decoded probe files stay under the ignored artifacts
+folder. These totals cover base-level RGBA pixels only, excluding shared material
+metadata, allocator overhead, extra mip/frame residency or GPU copies. The next
+loader should use a global image table across appearances while retaining local
+material offsets; reusing independent appearance bundles would waste4-5MiB.
+No production code or native allocation changed in this measurement turn.

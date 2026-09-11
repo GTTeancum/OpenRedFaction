@@ -9,6 +9,9 @@ opening geometry is176-308KiB on PC before textures/draw buffers.
 Authored NPC appearance maps now pass all141 opening actors; five L1S1 models
 need twelve appearances. Connect deduplicated texture/material residency.
 
+All59 unique opening NPC textures and31 appearance bundles load successfully;
+global image sharing saves4-5MiB versus separate appearance bundles.
+
 Immediate open items:
 - [ ] Connect per-frame NPC selection/pose updates, rendered geometry and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
