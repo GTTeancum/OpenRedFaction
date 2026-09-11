@@ -248,3 +248,35 @@ at+0xa8.56baa0 looks up a separate180-byte record. Recovering the writer of
 that metadata bit remains necessary before declaring authored samples looping;
 filename guesses and WAV-loop guesses are not evidence. No audible ambient
 integration has been added by these playback-boundary checks.
+
+
+## Authored loop metadata source
+
+56bbc0 loads bluebeard.bty (string5aac9e+2) and parses sound metadata.
+The loop block56bed8..56bf2b queries `+Looping Sound`; when present it sets
+bit30 of record+0xa8, requires `+Loop Start:`, and replaces the low27 bits
+with the parsed integer masked to0x07ffffff. Without the marker the word is
+unchanged. This block is now checked against original instructions rather
+than inferred from a sample filename or RIFF chunk. Other metadata fields
+include separate Ambient Sound, Music Track, Preload and Incidental markers.
+The preceding record initialization zeroes all180 bytes.
+
+inspect_sound_loops.py inventories installed bluebeard.bty and executes that
+original block for every authored row plus36 edge cases (2,748 total).
+Parser token/integer results are supplied, with token pointer/call-order checks;
+the original performs all writes, and all180 record bytes are compared.
+This does not yet implement or prove the whole parser or its name normalization.
+
+The installed file contains2,712 rows and263 looping declarations. All263
+loop offsets are zero, so this dataset does not require a nonzero loop-start
+playback adapter. A basename inventory join finds864 of877 ambient records
+unambiguously marked looping, no matched nonlooping ambients, and13 missing
+metadata records. Four duplicate basenames elsewhere are retained explicitly
+as ambiguous (GlassHit.wav, Hit_Metal.wav, Hit_Rock.wav, Respawn.wav); none
+are referenced by the ambient inventory. Do not collapse these duplicates by
+last-write-wins without recovering the original lookup/normalization order.
+
+Next: reconstruct the metadata reader and original name normalization, retain
+loop settings in registered sample ownership, and connect ambient voices with
+bounded PCM residency. These inventory matches do not establish runtime lookup
+parity or audible output, and no runtime audio behavior changed in this step.
