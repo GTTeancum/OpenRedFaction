@@ -1,6 +1,10 @@
 #ifndef RF_MOTION_H
 #define RF_MOTION_H
 #include "rf/vpp.h"
+/* Loaded character clip duration51c2e0: signed wrapping end-start, clamp at0,
+ * then the original two float constants promoted to double. Preserve double
+ * through the caller's timer conversion; this is not a rounded float duration. */
+double rf_motion_duration(int32_t start_tick,int32_t end_tick);
 
 typedef struct rf_motion_binding {int32_t motion;uint32_t fields[3];} rf_motion_binding;
 typedef struct rf_motion_bindings {rf_motion_binding states[23],actions[45];} rf_motion_bindings;

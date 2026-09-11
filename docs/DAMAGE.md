@@ -1354,3 +1354,23 @@ Native stock64MiB XEMU matches the new pain-owner summary and all64 existing
 damage fixture words over180 door frames: artifacts/xemu/replay-20260911-141850/
 report.json. Base memory67108864, plugged memory0. The damage staging file and
 ordinary build are restored by the harness. No new visual capture was taken.
+
+## Loaded clip duration for the pain lock (2026-09-11)
+
+rf_motion_duration supplies the loaded character duration used by5033e0 via
+501c60 and51c2e0. Original53a840/53a850 read start/end ticks from resident header
+offsets10/14. The caller subtracts with32-bit wrap, clamps the signed result to0,
+then multiplies by float constants0.0062500000931322575 and0.03333333507180214.
+The C helper preserves double precision through both multiplies; callers must
+keep the result double through the pain wrapper's millisecond conversion.
+Dividing by4800 or rounding the result to float is not equivalent.
+
+verify_motion_duration.py runs the entire original5033e0 call chain, including
+the loaded539df0 path and max helper, without substituted callees. All4096
+cases match exact double bytes on PC and compiled NXDK with x87 control027f.
+Coverage includes wrapped subtraction, nonpositive spans, tick boundaries and
+fractional durations;2269 cases differ from direct division by4800. Report:
+artifacts/motion-duration.json. Both builds and all ten CTests pass. Missing
+clips, lazy allocation and non-character model kinds are outside this helper's
+scope. The helper is ready for the pain duration backend but not yet connected
+to a live flinch; no new XEMU run or visual capture is claimed here.

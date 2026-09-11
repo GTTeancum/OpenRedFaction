@@ -11,6 +11,14 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--duration")) {
+        int32_t input[2];double seconds;
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            seconds=rf_motion_duration(input[0],input[1]);
+            if(fwrite(&seconds,sizeof(seconds),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--overlay-bindings")) {
         struct {uint32_t flags;rf_motion_bindings base,weapon;} input;rf_motion_bindings result;int status;
         _Static_assert(sizeof(result)==1088,"Mapping record wire layout");

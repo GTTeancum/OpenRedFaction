@@ -20,7 +20,7 @@ Immediate open items:
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Connect verified impact amount and force-region suppression to NPC contact ownership and the shared damage backend using registered skeletal owners.
 - [ ] Connect real event/fall/weapon damage sources to the registered NPC adapter, implement pain/death/burn/AI effects and broaden lethal/reentrant coverage.
-- [ ] Connect the retained NPC pain deadlines/action to primary-weapon reset, AI gates, action playback and sound.
+- [ ] Connect retained NPC pain state to weapon reset, AI gates, action playback/sound and the verified double-precision clip duration.
 - [ ] Wire NPC world/support callbacks into the shared standing transition and normal/slow landing, then special class effects.
 - [ ] Verify live NPC action transitions and sustained cache pressure on Xbox; selected clips load within budget and zero-reference payloads can now be evicted.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.

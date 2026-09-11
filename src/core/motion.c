@@ -1,4 +1,11 @@
 #include "rf/motion.h"
+double rf_motion_duration(int32_t start_tick,int32_t end_tick)
+{
+    uint32_t span=(uint32_t)end_tick-(uint32_t)start_tick;
+    double seconds=span<=INT32_MAX?(double)span:0.0;
+    seconds*=(double)0.00625f;
+    return seconds*(double)(1.0f/30.0f);
+}
 
 void rf_motion_playback_initialize(rf_motion_playback_state *state)
 {
