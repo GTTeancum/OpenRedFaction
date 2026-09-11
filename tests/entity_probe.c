@@ -59,6 +59,7 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--burn-owner"))return burn_owner_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-update"))return burn_update_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-fade"))return burn_fade_probe();
+    if(argc==2 && !strcmp(argv[1],"--burn-fade-resolved"))return burn_fade_resolved_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-create"))return burn_create_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-pool"))return burn_pool_probe();
     if(argc==2 && !strcmp(argv[1],"--damage-full"))return damage_full_probe();

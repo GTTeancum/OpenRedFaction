@@ -1047,3 +1047,25 @@ state. Reports: artifacts/burn-resolved-L1S1.rfl.json and L1S3.rfl.json.
 Both builds and all eight CTests pass. This is CPU integration evidence, not
 native XEMU gameplay: entity registration, burn resource creation/fade ownership,
 live scheduling and simulation/rendering of these particles remain open.
+
+
+## Fade writes into real particle runtime
+
+rf_burn_fade_resolved binds the original six float writes directly to emitter
+min/max velocity, min/max spawn delay and min/max radius. Original byte87 is
+the high alpha byte of spawn.color at84; original140 is the low enabled byte.
+Original4973d0 is exactly a single enabled-byte clear. The live adapter preserves
+RGB and all upper enabled bytes and requires four distinct active slot tokens.
+The old compact oracle API and live adapter now share one reference-based fade
+implementation. No staging copy occurs, so owner callbacks observe earlier
+writes and release can invalidate record and slots without a write afterward.
+No heap allocation is introduced. Owner lookup/reaction/release remain supplied.
+
+verify_burn_fade_resolved.py compares8,192 full original42f2f0 scenarios with
+actual4973d0 against PC and linked NXDK. All four complete compact runtimes,
+record, flags and owner callback order match exactly; untouched bytes are checked.
+The original trace has a separate actual-stop mode. Earlier8,198 compact fade
+checks and540 composed retirement scenarios (2,082 retired records) still pass.
+Both builds and eight CTests pass. Evidence: artifacts/burn-fade-resolved.json.
+This connects fade to runtime emitter state; real resource release, persistent
+NPC ownership and live scheduling still need integration before gameplay proof.

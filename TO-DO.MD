@@ -2441,3 +2441,9 @@ full emitter update with no allocation. Original/PC/NXDK match72 scenarios each
 on L1S1 and L1S3, including40 created particles per suite; both builds and eight
 CTests pass. Persistent NPC/resource ownership and live scheduling remain open.
 Evidence: tools/verify_burn_resolved.py and docs/DAMAGE.md.
+
+Burn fade now writes directly into active particle runtimes;8,192 original/PC/
+NXDK comparisons preserve packed color and enabled bytes. Prior fade and540
+retirement scenarios still pass, as do both builds and eight CTests. Connect
+actual emitter/audio release and persistent NPC ownership next.
+Evidence: tools/verify_burn_fade_resolved.py and docs/DAMAGE.md.

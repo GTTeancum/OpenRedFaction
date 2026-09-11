@@ -95,21 +95,21 @@ int rf_burn_create(rf_burn_pool *p,uint32_t target,uint32_t source,
     }
     r->next=0;r->previous=0;append(p,&p->active_head,index);*token=index;return RF_OK;
 }
-int rf_burn_fade(rf_burn_record *r,rf_burn_emitter_view *const e[4],
-    uint32_t token,int32_t deadline,int32_t now,const rf_burn_fade_backend *be)
+typedef struct burn_fade_fields {float *values[6];uint8_t *alpha,*enabled;} burn_fade_fields;
+static int burn_fade_fields_update(rf_burn_record *r,const burn_fade_fields e[4],
+    uint32_t token,int32_t deadline,int32_t now,const rf_burn_fade_owner_backend *be,
+    void (*stop)(void *,uint32_t),void *stop_context)
 {
     uint32_t i,j,*flags;int expired,status,release;
     static const uint32_t order[6]={4,5,2,3,0,1};
-    if(!r || !e || !be || !be->stop_emitter || !be->type7_flags || !be->entity_present ||
+    if(!r || !be || !be->type7_flags || !be->entity_present ||
        !be->reaction || !be->release || token<1 || token>RF_BURN_SLOTS)return RF_RANGE;
     if(!isfinite(r->elapsed) || !isfinite(r->volume))return RF_FORMAT;
     for(i=0;i<4;++i) {
-        if(!e[i])return RF_RANGE;
-        for(j=0;j<i;++j)if(e[i]==e[j])return RF_FORMAT;
-        for(j=0;j<6;++j)if(!isfinite(e[i]->values[j]))return RF_FORMAT;
+        for(j=0;j<6;++j)if(!isfinite(*e[i].values[j]))return RF_FORMAT;
     }
-    if(r->elapsed>12 && (e[0]->active_140 || e[1]->active_140 || e[2]->active_140)) {
-        for(i=0;i<3;++i)be->stop_emitter(be->context,r->emitters[i]);
+    if(r->elapsed>12 && (*e[0].enabled || *e[1].enabled || *e[2].enabled)) {
+        for(i=0;i<3;++i)stop(stop_context,r->emitters[i]);
         flags=be->type7_flags(be->context,r->target);if(!flags)return RF_NOT_FOUND;
         *flags=(*flags&0xfffffdff)|0x100;
     }
@@ -117,7 +117,7 @@ int rf_burn_fade(rf_burn_record *r,rf_burn_emitter_view *const e[4],
     if(!release) {
         status=rf_timer_expired(deadline,now,&expired);if(status)return status;
         if(!expired)return RF_OK;
-        if(r->elapsed>5){e[3]->counter_87=(uint8_t)(e[3]->counter_87-1);release=e[3]->counter_87==0;}
+        if(r->elapsed>5){*e[3].alpha=(uint8_t)(*e[3].alpha-1);release=*e[3].alpha==0;}
     }
     if(release) {
         if(be->entity_present(be->context,r->target))be->reaction(be->context,r->target);
@@ -127,10 +127,51 @@ int rf_burn_fade(rf_burn_record *r,rf_burn_emitter_view *const e[4],
         uint32_t field=order[j];
         for(i=0;i<4;++i) {
             if(i==3 && (field==2 || field==3))continue;
-            e[i]->values[field]*=i==3?.75f:field<2?.9f:.95f;
+            *e[i].values[field]*=i==3?.75f:field<2?.9f:.95f;
         }
     }
     r->volume*=.95f;return RF_OK;
+}
+int rf_burn_fade(rf_burn_record *r,rf_burn_emitter_view *const e[4],
+    uint32_t token,int32_t deadline,int32_t now,const rf_burn_fade_backend *be)
+{
+    burn_fade_fields fields[4];rf_burn_fade_owner_backend owner;uint32_t i,j;
+    if(!e || !be || !be->stop_emitter)return RF_RANGE;
+    for(i=0;i<4;++i) {
+        if(!e[i])return RF_RANGE;
+        for(j=0;j<i;++j)if(e[i]==e[j])return RF_FORMAT;
+        for(j=0;j<6;++j)fields[i].values[j]=&e[i]->values[j];
+        fields[i].alpha=&e[i]->counter_87;fields[i].enabled=&e[i]->active_140;
+    }
+    owner.type7_flags=be->type7_flags;owner.entity_present=be->entity_present;
+    owner.reaction=be->reaction;owner.release=be->release;owner.context=be->context;
+    return burn_fade_fields_update(r,fields,token,deadline,now,&owner,be->stop_emitter,be->context);
+}
+static void burn_stop_slot(void *context,uint32_t token)
+{
+    rf_emitter_pool *pool=context;
+    pool->slots[token-1].runtime.enabled&=~255u;
+}
+int rf_burn_fade_resolved(rf_burn_record *r,rf_emitter_pool *pool,
+    uint32_t token,int32_t deadline,int32_t now,const rf_burn_fade_owner_backend *be)
+{
+    burn_fade_fields fields[4];uint32_t i,j;
+    if(!r || !pool || !pool->slots)return RF_RANGE;
+    for(i=0;i<4;++i) {
+        rf_particle_emitter_runtime *runtime;rf_particle_emitter *emitter;
+        if(!r->emitters[i] || r->emitters[i]>RF_PARTICLE_EMITTER_CAPACITY ||
+           !pool->slots[r->emitters[i]-1].active)return RF_RANGE;
+        for(j=0;j<i;++j)if(r->emitters[i]==r->emitters[j])return RF_FORMAT;
+        runtime=&pool->slots[r->emitters[i]-1].runtime;emitter=&runtime->emitter;
+        fields[i].values[0]=&emitter->min_velocity;fields[i].values[1]=&emitter->max_velocity;
+        fields[i].values[2]=&emitter->min_spawn_delay;fields[i].values[3]=&emitter->max_spawn_delay;
+        fields[i].values[4]=&emitter->min_radius;fields[i].values[5]=&emitter->max_radius;
+        /* Both supported targets are little-endian x86. Original87 is the
+         * high byte of spawn.color at84, not a separate lifetime counter. */
+        fields[i].alpha=(uint8_t *)&emitter->spawn.color+3;
+        fields[i].enabled=(uint8_t *)&runtime->enabled;
+    }
+    return burn_fade_fields_update(r,fields,token,deadline,now,be,burn_stop_slot,pool);
 }
 int rf_burn_pool_update(rf_burn_pool *p,int32_t now,const rf_burn_update_backend *be)
 {

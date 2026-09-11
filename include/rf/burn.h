@@ -52,8 +52,9 @@ typedef struct rf_burn_create_backend {
  * Malformed rings/arguments fail before effects; no heap allocation here. */
 int rf_burn_create(rf_burn_pool *pool,uint32_t target,uint32_t source,
     const rf_burn_create_backend *backend,uint32_t *token);
-/* Borrowed fields from each particle owner, offsets24,28,30,34,44,48.
- * Meaningful particle names must come from particle ownership reconstruction. */
+/* Compact oracle view: min/max velocity, spawn delay and radius (original
+ *24,28,30,34,44,48); counter_87 is spawn-color alpha, active_140 is enabled.
+ * Live emitter storage is handled by rf_burn_fade_resolved below. */
 typedef struct rf_burn_emitter_view {
     float values[6];uint8_t counter_87,active_140,padding[2];
 } rf_burn_emitter_view;
@@ -73,6 +74,20 @@ typedef struct rf_burn_fade_backend {
  * Caller supplies current shared spread deadline and clock, not frame delta. */
 int rf_burn_fade(rf_burn_record *record,rf_burn_emitter_view *const emitters[4],
     uint32_t token,int32_t deadline,int32_t now,const rf_burn_fade_backend *backend);
+typedef struct rf_burn_fade_owner_backend {
+    uint32_t *(*type7_flags)(void *context,uint32_t target);
+    int (*entity_present)(void *context,uint32_t target);
+    void (*reaction)(void *context,uint32_t target);
+    void (*release)(void *context,uint32_t token);
+    void *context;
+} rf_burn_fade_owner_backend;
+/* Same fade sequence over four distinct active slot+1 emitter tokens. Writes
+ * real velocity/delay/radius bounds and spawn-color alpha;4973d0 clears only
+ * the enabled low byte. No staging copy: callbacks observe prior mutations.
+ * Owner callbacks retain the pool/slots until release, which may invalidate
+ * both record and slots. No allocation; previous fade callback contracts apply. */
+int rf_burn_fade_resolved(rf_burn_record *record,rf_emitter_pool *emitters,
+    uint32_t token,int32_t deadline,int32_t now,const rf_burn_fade_owner_backend *backend);
 typedef struct rf_burn_update_backend {
     int (*owner_present)(void *context,uint32_t target);
     int (*body)(void *context,uint32_t token,rf_burn_record *record);

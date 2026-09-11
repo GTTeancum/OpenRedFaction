@@ -73,6 +73,27 @@ static int burn_fade_probe(void)
 }
 
 static uint32_t bu_missing;
+static int burn_fade_resolved_probe(void)
+{
+    uint32_t wire[48],i;rf_burn_record record;rf_emitter_slot slots[4];rf_emitter_pool pool={0};int status;
+    rf_burn_fade_owner_backend backend={bf_owner,bf_present,bf_reaction,bf_release,NULL};pool.slots=slots;
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(wire,sizeof(wire),1,stdin)==1) {
+        memcpy(&record,wire,64);memset(slots,0xa5,sizeof(slots));
+        for(i=0;i<4;++i) {
+            rf_particle_emitter *e=&slots[i].runtime.emitter;const unsigned char *v=(const unsigned char *)(wire+16)+i*28;
+            memcpy(&e->min_velocity,v,8);memcpy(&e->min_spawn_delay,v+8,8);memcpy(&e->min_radius,v+16,8);
+            e->spawn.color=(e->spawn.color&0xffffffu)|((uint32_t)v[24]<<24);
+            slots[i].runtime.enabled=0xa5a5a500u|v[25];slots[i].active=1;record.emitters[i]=i+1;
+        }
+        bf_flags=wire[44];bf_entity=wire[47];bf_count=0;memset(bf_trace,0,96);
+        status=rf_burn_fade_resolved(&record,&pool,1,(int32_t)wire[45],(int32_t)wire[46],&backend);
+        fwrite(&status,4,1,stdout);fwrite(&record,64,1,stdout);
+        for(i=0;i<4;++i)fwrite(&slots[i].runtime,sizeof(slots[i].runtime),1,stdout);
+        fwrite(&bf_flags,4,1,stdout);fwrite(&bf_count,4,1,stdout);fwrite(bf_trace,96,1,stdout);
+    }
+    return ferror(stdin)?2:0;
+}
 static int bu_present(void *ctx,uint32_t target){(void)ctx;burn_record_call(0x40a0e0,target);return target!=bu_missing;}
 static int bu_body(void *ctx,uint32_t token,rf_burn_record *record){(void)ctx;(void)record;burn_record_call(0x42ef3e,token);return RF_OK;}
 static void bu_clear(void *ctx,uint32_t token){(void)ctx;burn_record_call(0x42ee13,token);}
