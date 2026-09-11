@@ -76,6 +76,48 @@ int rf_entity_state_motion_open(const char *tables_path,const char *class_name,
     status=rf_motion_file_open(&value,motions,compiled);if(status)return status;
     *file=value;return RF_OK;
 }
+int rf_entity_class_spheres_build(const rf_model_file *model,const float (*matrices)[12],uint32_t bone_count,
+    const rf_entity_physics_config *config,rf_physics_sphere spheres[8],uint32_t *sphere_count)
+{
+    rf_entity_class_sphere resolved[8]={0};uint32_t n=0,j;int status;
+    if(!model || !config || !spheres || !sphere_count || (bone_count && !matrices))return RF_RANGE;
+    for(j=0;j<8;++j) {
+        rf_model_collision_sphere sphere;float posed[4];
+        status=rf_model_file_collision_sphere(model,j,&sphere);
+        if(status==RF_NOT_FOUND)break;if(status)return status;
+        status=rf_model_collision_sphere_pose(&sphere,matrices,bone_count,posed);if(status)return status;
+        if(strlen(sphere.name)>=24)return RF_RANGE;
+        strcpy(resolved[j].name,sphere.name);memcpy(resolved[j].center,posed,12);
+        if(config->authored.flags&0x24000)resolved[j].center[0]=resolved[j].center[2]=0;
+        resolved[j].radius=posed[3];resolved[j].selected_scalar=1;resolved[j].parameter_10=-1;resolved[j].model_index=j;++n;
+    }
+    status=rf_entity_sphere_overrides(resolved,n,config->spheres.items,config->spheres.count,0);if(status)return status;
+    for(j=0;j<n;++j) {
+        memcpy(spheres[j].center,resolved[j].center,12);spheres[j].radius=resolved[j].radius;
+        spheres[j].parameter_10=resolved[j].parameter_10;spheres[j].opaque_14=resolved[j].opaque_14;
+    }
+    *sphere_count=n;return RF_OK;
+}
+int rf_entity_body_open(const rf_entity_physics_config *config,const rf_physics_sphere *spheres,
+    uint32_t count,const float position[3],const float orientation[9],uint32_t creation_flags,
+    uint32_t budget,rf_physics_body *result)
+{
+    rf_physics_body body={0};rf_physics_body_parameters parameters={0};int status;
+    if(!config || !position || !orientation || !result || count>8 || (count && !spheres) ||
+       result->allocated_bytes || result->spheres.items || result->spheres.count || result->spheres.allocated_bytes)return RF_RANGE;
+    if(!(config->authored.mass>0))return RF_FORMAT; /* Generated mass remains separate. */
+    parameters.mass=config->authored.mass;parameters.coefficients[0]=config->material.elasticity;
+    parameters.coefficients[1]=10;parameters.coefficients[2]=config->material.friction;
+    memcpy(parameters.position,position,12);memcpy(parameters.orientation,orientation,36);
+    /* 42256b zero tensor;49ec90's empty-sphere fallback installs identity. */
+    if(count==0)parameters.local_tensor[0]=parameters.local_tensor[4]=parameters.local_tensor[8]=1;
+    parameters.flags=rf_entity_creation_physics_flags(creation_flags,config->authored.flags,
+        config->authored.flags2,config->authored.use_kind,0);
+    status=rf_physics_body_open(&parameters,NULL,0,budget,&body);
+    if(!status)status=rf_physics_body_replace_spheres(&body,spheres,count,budget);
+    if(status){rf_physics_body_close(&body);return status;}
+    *result=body;return RF_OK;
+}
 typedef struct lexer {const unsigned char *text;uint32_t size,at;} lexer;
 static int same(const char *a,const char *b)
 {

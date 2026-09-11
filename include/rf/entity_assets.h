@@ -159,6 +159,21 @@ typedef struct rf_entity_physics_config {
  * Does not resolve model spheres/poses or construct a gameplay body. */
 int rf_entity_physics_config_load(rf_vpp *tables,const char *class_name,
     uint32_t scratch_budget,rf_entity_physics_config *result);
+/* Existing actor class geometry path shared with NPC setup: pose up to eight
+ * named CSPH records, apply class X/Z centering and authored overrides.
+ * Caller supplies the first class-initialization pose, not each actor's later
+ * animated pose. Outputs preserve on error; no allocation or class cache. */
+int rf_entity_class_spheres_build(const rf_model_file *model,const float (*matrices)[12],uint32_t bone_count,
+    const rf_entity_physics_config *config,rf_physics_sphere spheres[8],uint32_t *sphere_count);
+/* Positive authored-mass creation subset used by the current actor: prepare
+ * coefficients/flags, open fresh body, then install copied class spheres.
+ * Generated mass, class-pose initialization and entity registration are separate.
+ * Empty destination required; failure closes temporaries and preserves output.
+ * Budget includes body and copied records; stack/allocator metadata excluded. */
+int rf_entity_body_open(const rf_entity_physics_config *config,const rf_physics_sphere *spheres,
+    uint32_t count,const float position[3],const float orientation[9],uint32_t creation_flags,
+    uint32_t budget,rf_physics_body *result);
+
 typedef struct rf_entity_lod_distances {
     uint32_t count;float distances[4];
 } rf_entity_lod_distances;

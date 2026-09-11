@@ -90,27 +90,6 @@ static int stance_cache_build(const rf_model_file *model,const rf_model_bone *bo
  * First-user cache ownership is still supplied by the diagnostic fixture.
  * 423bd0 model spheres and table overrides, with the existing eight-sphere
  * diagnostic limit. This does not implement the original no-model fallback. */
-static int class_spheres_build(const rf_model_file *model,const float (*matrices)[12],uint32_t bone_count,
-    const rf_entity_physics_config *config,rf_physics_sphere spheres[8],uint32_t *sphere_count)
-{
-    rf_entity_class_sphere resolved[8]={0};uint32_t n=0,j;int status;
-    for(j=0;j<8;++j) {
-        rf_model_collision_sphere sphere;float posed[4];
-        status=rf_model_file_collision_sphere(model,j,&sphere);
-        if(status==RF_NOT_FOUND)break;if(status)return status;
-        status=rf_model_collision_sphere_pose(&sphere,matrices,bone_count,posed);if(status)return status;
-        if(strlen(sphere.name)>=24)return RF_RANGE;
-        strcpy(resolved[j].name,sphere.name);memcpy(resolved[j].center,posed,12);
-        if(config->authored.flags&0x24000)resolved[j].center[0]=resolved[j].center[2]=0;
-        resolved[j].radius=posed[3];resolved[j].selected_scalar=1;resolved[j].parameter_10=-1;resolved[j].model_index=j;++n;
-    }
-    status=rf_entity_sphere_overrides(resolved,n,config->spheres.items,config->spheres.count,0);if(status)return status;
-    for(j=0;j<n;++j) {
-        memcpy(spheres[j].center,resolved[j].center,12);spheres[j].radius=resolved[j].radius;
-        spheres[j].parameter_10=resolved[j].parameter_10;spheres[j].opaque_14=resolved[j].opaque_14;
-    }
-    *sphere_count=n;return RF_OK;
-}
 /* Live Mines loads an unarmed miner1 NPC before player creation. Materialize
  * that verified neutral first-controller pose on separate playback storage.
  * A campaign-wide class registry must eventually own this first-use operation. */
@@ -133,7 +112,7 @@ static int campaign_class_build(const rf_model_file *model,const rf_model_bone *
     status=rf_motion_apply_controller(&controller,motions,1.0f/30.0f,&state,copied,resource_count);
     if(!status)status=rf_motion_update(&state,copied,resource_count,1.0f/30.0f);
     if(!status)status=rf_model_evaluate_playback(bones,bone_count,&state,handles,copied,resource_count,displacement,matrices,generations,bone_count);
-    if(!status)status=class_spheres_build(model,matrices,bone_count,placement->physics_config,spheres,sphere_count);
+    if(!status)status=rf_entity_class_spheres_build(model,matrices,bone_count,placement->physics_config,spheres,sphere_count);
     if(!status)status=stance_cache_build(model,bones,bone_count,&state,handles,copied,resource_count,motions[8],
         placement->physics_config,spheres,*sphere_count,placement->stance_cache,eye,eye_transform,placement->initial_eye_offsets);
     free(matrices);return status;
@@ -404,30 +383,18 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             if(frame==0) {
                 const rf_entity_physics_config *config=placement->physics_config;
                 rf_physics_sphere spheres[8];
-                rf_physics_body_parameters parameters={0};uint32_t n=0;
+                uint32_t n=0;
                 if(placement->campaign_player) {
                     status=campaign_class_build(&model,bones,count,handles,resources,resource_count,motions,placement,&eye,local,spheres,&n);
-                } else status=class_spheres_build(&model,matrices,count,config,spheres,&n);
+                } else status=rf_entity_class_spheres_build(&model,matrices,count,config,spheres,&n);
                 if(status)goto done;
                 if(placement->stance_cache && !placement->campaign_player) {
                     status=stance_cache_build(&model,bones,count,&state,handles,resources,resource_count,motions[8],config,spheres,n,placement->stance_cache,
                         &eye,local,placement->initial_eye_offsets);
                     if(status)goto done;
                 }
-                parameters.mass=config->authored.mass;parameters.coefficients[0]=config->material.elasticity;
-                parameters.coefficients[1]=10;parameters.coefficients[2]=config->material.friction;
-                memcpy(parameters.position,placement->position,12);memcpy(parameters.orientation,placement->orientation,36);
-                /* 42256b clears the parameter tensor. Positive authored mass
-                 * bypasses generation in 49ec90; only its empty-sphere fallback
-                 * calls 4fce70 to install identity. The miner model has spheres. */
-                if(parameters.mass<=0) {status=RF_FORMAT;goto done;} /* Generated-mass creation remains separate. */
-                if(n==0)parameters.local_tensor[0]=parameters.local_tensor[4]=parameters.local_tensor[8]=1;
-                /* The campaign contact adapter now handles the distinct
-                 * flag-80 response selected by original player creation. */
-                parameters.flags=rf_entity_creation_physics_flags(placement->campaign_player?1:0,
-                    config->authored.flags,config->authored.flags2,config->authored.use_kind,0);
-                status=rf_physics_body_open(&parameters,NULL,0,4096,body);if(status)goto done;
-                status=rf_physics_body_replace_spheres(body,spheres,n,4096);if(status)goto done;
+                status=rf_entity_body_open(config,spheres,n,placement->position,placement->orientation,
+                    placement->campaign_player?1:0,4096,body);if(status)goto done;
             }
             if(placement->physics_diagnostic) {
                 uint32_t *d=placement->physics_diagnostic;

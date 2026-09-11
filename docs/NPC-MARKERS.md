@@ -507,3 +507,26 @@ available for callers not yet owning contact metadata.
 The owner has no archive pointers or allocation. It does not create per-NPC
 physics bodies, run queries, initialize contact history, apply landing effects
 or activate footsteps. Those remain the next integration requirements.
+
+## Shared class spheres and body creation
+
+The existing diagnostic actor's class sphere builder is now shared as
+`rf_entity_class_spheres_build`: it poses named CSPH records, applies class
+X/Z centering and authored sphere overrides, and returns up to eight records.
+Callers must provide the original class-initialization pose, not a later
+per-actor animation pose. It neither creates nor owns a class cache.
+
+`rf_entity_body_open` shares the existing positive-authored-mass creation
+subset: material elasticity/friction, coefficient10, cleared tensor with the
+empty-sphere identity fallback, creation flags, fresh body initialization and
+copied class sphere installation. It preserves the destination on failure and
+closes intermediate ownership. Generated mass and full factory/registry setup
+remain outside this helper. The player/miner path now calls both shared APIs.
+
+The PC body-owner probe checks exact versus one-byte-short budget, failed
+sphere installation, independent retained sphere copies after source poison,
+repeat close and rejection of unsupported generated mass. The180-frame PC
+door replay retains body follow hashes2974216416/1833998883 and NPC playback
+hashes962482953/1873909465. Xbox builds successfully; this refactor has not
+yet received a new native XEMU run. Per-NPC body arrays/class caching remain
+to be connected using these shared builders.

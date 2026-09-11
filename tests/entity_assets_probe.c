@@ -6,6 +6,28 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--body-owner-check")) {
+        rf_entity_physics_config config={0};rf_physics_body body={0},guard={0};
+        rf_physics_sphere spheres[2]={{{0,1,0},.5f,-1,0},{{0,2,0},.25f,-1,0}};
+        const float position[3]={2,3,4},orientation[9]={1,0,0,0,1,0,0,0,1};
+        uint32_t budget;rf_physics_sphere saved[2];
+        config.authored.mass=80;config.material.elasticity=.5f;config.material.friction=.2f;
+        if(rf_entity_body_open(&config,spheres,2,position,orientation,0,4096,&body))return 40;
+        budget=body.allocated_bytes;memcpy(saved,spheres,sizeof(saved));
+        if(rf_entity_body_open(&config,spheres,2,position,orientation,0,budget-1,&guard)!=RF_RANGE ||
+           memcmp(&guard,&(rf_physics_body){0},sizeof(guard)))return 41;
+        if(rf_entity_body_open(&config,spheres,2,position,orientation,0,budget,&guard))return 42;
+        rf_physics_body_close(&guard);
+        spheres[1].radius=-1;
+        if(rf_entity_body_open(&config,spheres,2,position,orientation,0,4096,&guard)!=RF_RANGE ||
+           memcmp(&guard,&(rf_physics_body){0},sizeof(guard)))return 43;
+        memset(spheres,0xa5,sizeof(spheres));
+        if(body.spheres.count!=2 || memcmp(body.spheres.items,saved,sizeof(saved)))return 44;
+        rf_physics_body_close(&body);rf_physics_body_close(&body);
+        config.authored.mass=0;
+        if(rf_entity_body_open(&config,NULL,0,position,orientation,0,4096,&guard)!=RF_FORMAT)return 45;
+        puts("BODY_OWNER PASS exact/short budgets, failed installation, copied spheres, repeat close, unsupported mass");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lod-distances")) {
         uint32_t size;char name[64];rf_entity_lod_distances value;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
