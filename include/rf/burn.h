@@ -84,4 +84,24 @@ typedef struct rf_burn_update_backend {
  * Invalid initial topology fails before callbacks; later failures do not roll
  * back earlier effects. Timer rearms225ms at successful end of pass only. */
 int rf_burn_pool_update(rf_burn_pool *pool,int32_t now,const rf_burn_update_backend *backend);
+typedef struct rf_burn_owner_view {
+    float class_health;uint32_t flags_810,action_824,handle;
+    float position[3],velocity[3];
+} rf_burn_owner_view;
+typedef struct rf_burn_owner_backend {
+    void (*audio)(void *context,uint32_t voice,const float position[3],const float velocity[3],float volume);
+    float (*random_divisor)(void *context,float minimum,float maximum);
+    /*4892c0(target,amount,-1,-1,4,0,-1,0). */
+    void (*damage)(void *context,uint32_t target,float amount);
+    uint32_t (*random_integer)(void *context);
+    void (*fade)(void *context,uint32_t token);
+    void *context;
+} rf_burn_owner_backend;
+/*42f1dc..42f2a2. Finite class/position/velocity/delta/record values required.
+ * Identity/class/frame inputs stay stable; audio may change record state and
+ * damage may change owner flags/action. Storage survives until fade returns;
+ * fade may release the record. Random integer must be nonnegative signed32.
+ * Errors after callbacks do not roll back. Does not perform attachment/spread. */
+int rf_burn_owner_tick(rf_burn_record *record,rf_burn_owner_view *owner,
+    uint32_t token,float frame_seconds,const rf_burn_owner_backend *backend);
 #endif

@@ -90,3 +90,29 @@ static int burn_update_probe(void)
     }
     return ferror(stdin)?2:0;
 }
+
+static uint32_t bo_trace[4][9],bo_count,bo_random;
+static float bo_divisor;
+static void bo_record(const uint32_t words[9]){if(bo_count<4)memcpy(bo_trace[bo_count],words,36);++bo_count;}
+static void bo_audio(void *ctx,uint32_t voice,const float position[3],const float velocity[3],float volume)
+{uint32_t row[9]={0x5058c0,voice};(void)ctx;memcpy(row+2,position,12);memcpy(row+5,velocity,12);memcpy(row+8,&volume,4);bo_record(row);}
+static float bo_divide(void *ctx,float minimum,float maximum)
+{uint32_t row[9]={0x504e40};(void)ctx;memcpy(row+1,&minimum,4);memcpy(row+2,&maximum,4);bo_record(row);return bo_divisor;}
+static void bo_damage(void *ctx,uint32_t target,float amount)
+{uint32_t row[9]={0x4892c0,target,0,UINT32_MAX,UINT32_MAX,4,0,UINT32_MAX,0};(void)ctx;memcpy(row+2,&amount,4);bo_record(row);}
+static uint32_t bo_rand(void *ctx){uint32_t row[9]={0x57312d};(void)ctx;bo_record(row);return bo_random;}
+static void bo_fade(void *ctx,uint32_t token){uint32_t row[9]={0x42f2f0,0x30000000};(void)ctx;(void)token;bo_record(row);}
+static int burn_owner_probe(void)
+{
+    uint32_t wire[29];rf_burn_record record;rf_burn_owner_view owner;float delta;int status;
+    rf_burn_owner_backend backend={bo_audio,bo_divide,bo_damage,bo_rand,bo_fade,NULL};
+    _Static_assert(sizeof(owner)==40,"Burn owner wire");
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(wire,sizeof(wire),1,stdin)==1) {
+        memcpy(&record,wire,64);memcpy(&owner,wire+16,40);memcpy(&delta,wire+26,4);memcpy(&bo_divisor,wire+27,4);bo_random=wire[28];bo_count=0;memset(bo_trace,0,144);
+        status=rf_burn_owner_tick(&record,&owner,1,delta,&backend);
+        if(bo_count>4)return 4;
+        fwrite(&status,4,1,stdout);fwrite(&record,64,1,stdout);fwrite(&owner,40,1,stdout);fwrite(&bo_count,4,1,stdout);fwrite(bo_trace,144,1,stdout);
+    }
+    return ferror(stdin)?2:0;
+}

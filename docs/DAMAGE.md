@@ -556,3 +556,30 @@ Remaining work is the full body, including normal fade-triggered current-record
 release in this traversal, attachment/emitter geometry and spread targets, plus
 live adapters. The existence of this traversal callback is not a completed
 per-frame burn simulation. Evidence is artifacts/burn-update.json.
+
+## Shared burn owner update
+
+rf_burn_owner_tick reconstructs42f1dc..42f2a2 in shared C. Positional audio
+receives the current voice, owner position/velocity and record volume first.
+An active burn on a living owner requests kind4 damage every frame, using
+frame_seconds * (class_health / random(5,8)), with the original float store
+and extended intermediate arithmetic. It then consumes one random integer
+and writes reaction5,14 or15. The225ms spread timer does not gate this damage.
+A fading record instead advances elapsed time by the frame delta and dispatches
+fade; the callback may release the record and no later record access occurs.
+
+verify_burn_owner.py compares4,096 original owner-tail cases against PC and
+actual NXDK-linked code, checking complete record/owner bytes and ordered
+audio vectors, damage arguments, random calls and fade requests. Six nonfinite
+input guards bring each compiled suite to4,102 cases. The original predicate
+427020 executes unchanged; random values and downstream audio/damage/fade
+calls are supplied. Callback mutation is permitted by the API in documented
+fields but is not covered by this oracle yet. Both builds and eight CTests pass.
+Evidence and executable hashes are in artifacts/burn-owner.json.
+
+This remains an isolated verified phase, not a live campaign burn effect.
+Attachment evaluation and spread targeting precede it in the original body;
+they must be reconstructed and connected with persistent particle/entity/audio
+ownership. Existing rf_particle_emitter_update already recovers4972f0 and
+should be reused when those adapters are connected. Full traversal with fade
+releasing its current record also remains an integration check.

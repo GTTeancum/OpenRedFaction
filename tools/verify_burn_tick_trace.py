@@ -24,11 +24,22 @@ def hook(m,address,size,context):
     m.reg_write(UC_X86_REG_EAX,result);m.reg_write(UC_X86_REG_ESP,sp+4);m.reg_write(UC_X86_REG_EIP,a[0])
 u.hook_add(UC_HOOK_CODE,hook)
 rng=random.Random(0x42f1dc);damage_calls=0;fade_calls=0
+wire_cases=[];wire_expected=[]
+def snapshot():
+    return bytes(u.mem_read(b,64))+bytes(u.mem_read(entity+0x2044,4))+bytes(u.mem_read(entity+0x810,4))+bytes(u.mem_read(entity+0x824,4))+bytes(u.mem_read(entity+0x2c,4))+bytes(u.mem_read(entity+0x3c,12))+bytes(u.mem_read(entity+0x144,12))
 for i in range(4096):
     delta=roundf(rng.choice([0,1/60,1/30,.1]));maximum=roundf(rng.uniform(1,1000));divisor=roundf(rng.uniform(5,8));elapsed=roundf(rng.uniform(0,15));fading=rng.choice([0,1,256,257]);flags=rng.choice([0,1,256,257]);random_integer=rng.randrange(32768)
+    u.mem_write(b,bytes(64));u.mem_write(entity+0x3c,f(1)+f(2)+f(3));u.mem_write(entity+0x144,f(-1)+f(-2)+f(-3))
     u.mem_write(b+0x24,w(0xffffffff,0x3f000000,fading));u.mem_write(b+0x30,f(elapsed));u.mem_write(entity+0x294,w(entity+0x2000));u.mem_write(entity+0x2044,f(maximum));u.mem_write(entity+0x810,w(flags));u.mem_write(entity+0x824,w(0xabcdef01));u.mem_write(entity+0x2c,w(0x12340001));u.mem_write(0x5a4014,f(delta));u.mem_write(b+0xf100,f(divisor))
     for reg,value in [(UC_X86_REG_ESP,stack),(UC_X86_REG_ESI,b),(UC_X86_REG_EBX,entity),(UC_X86_REG_FPCW,0x27f)]:u.reg_write(reg,value)
+    wire_cases.append(snapshot()+f(delta)+f(divisor)+w(random_integer))
     trace=[];u.emu_start(0x42f1dc,0x42f2a2,count=100000);assert u.reg_read(UC_X86_REG_EIP)==0x42f2a2
+    normalized=[]
+    for address,args in trace:
+        if address==0x5058c0:row=w(address,args[0])+bytes(u.mem_read(args[1],12))+bytes(u.mem_read(args[2],12))+w(args[3])
+        else:row=w(address,*args).ljust(36,b'\0')
+        normalized.append(row)
+    wire_expected.append(w(0)+snapshot()+w(len(trace))+b''.join(normalized)+bytes((4-len(trace))*36))
     want=[(0x5058c0,(0xffffffff,entity+0x3c,entity+0x144,0x3f000000))];action=0xabcdef01
     if fading&255:
         fade_calls+=1;elapsed=roundf(elapsed+delta);want.append((0x42f2f0,(b,)))

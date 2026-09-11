@@ -153,3 +153,27 @@ int rf_burn_pool_update(rf_burn_pool *p,int32_t now,const rf_burn_update_backend
     if(expired || p->spread_deadline==-1)return rf_timer_set(&p->spread_deadline,now,225);
     return RF_OK;
 }
+int rf_burn_owner_tick(rf_burn_record *r,rf_burn_owner_view *owner,
+    uint32_t token,float dt,const rf_burn_owner_backend *be)
+{
+    uint32_t i,choice;float divisor,amount,elapsed;
+    if(!r || !owner || !be || !be->audio || !be->random_divisor || !be->damage ||
+       !be->random_integer || !be->fade || token<1 || token>RF_BURN_SLOTS)return RF_RANGE;
+    if(!isfinite(dt) || !isfinite(owner->class_health) || !isfinite(r->elapsed) || !isfinite(r->volume))return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(owner->position[i]) || !isfinite(owner->velocity[i]))return RF_FORMAT;
+    be->audio(be->context,r->voice,owner->position,owner->velocity,r->volume);
+    if(r->fading) {
+        elapsed=r->elapsed+dt;if(!isfinite(elapsed))return RF_FORMAT;
+        r->elapsed=elapsed;be->fade(be->context,token);return RF_OK;
+    }
+    if(!(owner->flags_810&1)) {
+        divisor=be->random_divisor(be->context,5,8);
+        if(!isfinite(divisor) || divisor==0)return RF_FORMAT;
+        amount=(float)((double)dt*((double)owner->class_health/divisor));
+        if(!isfinite(amount))return RF_FORMAT;
+        be->damage(be->context,owner->handle,amount);
+        choice=be->random_integer(be->context);if(choice>INT32_MAX)return RF_RANGE;
+        owner->action_824=choice%3==0?5:choice%3==1?14:15;
+    }
+    return RF_OK;
+}

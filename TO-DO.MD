@@ -2367,3 +2367,6 @@ Shared burn traversal now fixes missing-owner cycling by resuming saved next
 active token.90 corrected-original paths plus two guards match PC/NXDK;
 both builds/eight CTests pass. Full body and fade-triggered release integration
 remain open; this is traversal infrastructure,not completed burn simulation.
+
+Shared burn owner audio/damage/fade dispatch passes4096 original cases on PC
+and NXDK plus6 input guards; full attachment/spread and live ownership remain.
