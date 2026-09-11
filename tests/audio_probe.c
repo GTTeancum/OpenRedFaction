@@ -15,6 +15,23 @@ static int32_t ambient_register(void *context,const char *name,float near_distan
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--sound-metadata")) {
+        rf_sound_metadata rows[RF_SOUND_METADATA_CAPACITY];uint16_t order[RF_SOUND_METADATA_CAPACITY];
+        uint32_t count,queries,i;char name[120];int status;
+        _Static_assert(sizeof(rf_sound_metadata)==128,"Compact sound metadata layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        if(fread(&count,4,1,stdin)!=1 || count>RF_SOUND_METADATA_CAPACITY ||
+           fread(rows,sizeof(*rows),count,stdin)!=count || fread(&queries,4,1,stdin)!=1)return 83;
+        memset(order,0x55,sizeof(order));status=rf_sound_metadata_order(rows,count,order);
+        if(fwrite(&status,4,1,stdout)!=1 || fwrite(order,sizeof(order),1,stdout)!=1)return 82;
+        for(i=0;i<queries;++i) {
+            const rf_sound_metadata *found;int32_t index=-1;
+            if(fread(name,1,sizeof(name),stdin)!=sizeof(name) || !memchr(name,0,sizeof(name)))return 81;
+            if(!status) { found=rf_sound_metadata_find(rows,order,name);if(found)index=(int32_t)(found-rows); }
+            if(fwrite(&index,4,1,stdout)!=1)return 80;
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ambient-schedule")) {
         struct {uint32_t enabled,initial;int32_t now;rf_ambient_instance items[4];rf_ambient_slot slots[RF_AMBIENT_SLOTS];} command;
         _Static_assert(sizeof(command)==788,"Ambient scheduling command layout");

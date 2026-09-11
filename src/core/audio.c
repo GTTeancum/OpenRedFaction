@@ -4,6 +4,82 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+
+/* Original comparator56bb80: only backslash separates path components. */
+static int metadata_compare(const char *a,const char *b)
+{
+    const char *p;unsigned char x,y;
+    for(p=a;*p;++p)if(*p=='\\')a=p+1;
+    for(p=b;*p;++p)if(*p=='\\')b=p+1;
+    do {
+        x=(unsigned char)*a++;y=(unsigned char)*b++;
+        if(x>='A' && x<='Z')x=(unsigned char)(x+('a'-'A'));
+        if(y>='A' && y<='Z')y=(unsigned char)(y+('a'-'A'));
+        if(x!=y)return x<y?-1:1;
+    } while(x);
+    return 0;
+}
+static const char *metadata_name(const rf_sound_metadata *rows,uint16_t index)
+{ return index==UINT16_MAX?"":rows[index].name; }
+static void metadata_swap(uint16_t *a,uint16_t *b)
+{ uint16_t temporary=*a;*a=*b;*b=temporary; }
+/* Preserve original5749fa midpoint pivot, <=/>= scans and574b4e short sort.
+ * Sort indexes instead of copying180-byte records. Recurse into the smaller
+ * partition and iterate the larger, bounding stack even for equal keys. */
+static void metadata_sort(const rf_sound_metadata *rows,uint16_t *order,int lo,int hi)
+{
+    while(lo<hi) {
+        int i,j,maximum;
+        if(hi-lo<8) {
+            for(;hi>lo;--hi) {
+                maximum=lo;
+                for(i=lo+1;i<=hi;++i)
+                    if(metadata_compare(metadata_name(rows,order[i]),metadata_name(rows,order[maximum]))>0)maximum=i;
+                metadata_swap(order+maximum,order+hi);
+            }
+            return;
+        }
+        metadata_swap(order+lo+(hi-lo+1)/2,order+lo);
+        i=lo;j=hi+1;
+        for(;;) {
+            do { ++i; } while(i<=hi && metadata_compare(metadata_name(rows,order[i]),metadata_name(rows,order[lo]))<=0);
+            do { --j; } while(j>lo && metadata_compare(metadata_name(rows,order[j]),metadata_name(rows,order[lo]))>=0);
+            if(i>j)break;
+            metadata_swap(order+i,order+j);
+        }
+        metadata_swap(order+lo,order+j);
+        if(j-lo<=hi-i) { metadata_sort(rows,order,lo,j-1);lo=i; }
+        else { metadata_sort(rows,order,i,hi);hi=j-1; }
+    }
+}
+int rf_sound_metadata_order(const rf_sound_metadata *rows,uint32_t count,uint16_t *order)
+{
+    uint32_t i,j;
+    if(!order || count>RF_SOUND_METADATA_CAPACITY || (count && !rows))return RF_RANGE;
+    for(i=0;i<count;++i) {
+        for(j=0;j<sizeof(rows[i].name) && rows[i].name[j];++j)
+            if((unsigned char)rows[i].name[j]>127)return RF_RANGE;
+        if(j==sizeof(rows[i].name))return RF_RANGE;
+    }
+    for(i=0;i<RF_SOUND_METADATA_CAPACITY;++i)order[i]=i<count?(uint16_t)i:UINT16_MAX;
+    metadata_sort(rows,order,0,RF_SOUND_METADATA_CAPACITY-1);
+    return RF_OK;
+}
+const rf_sound_metadata *rf_sound_metadata_find(const rf_sound_metadata *rows,const uint16_t *order,const char *name)
+{
+    uint32_t lo=0,count=RF_SOUND_METADATA_CAPACITY;
+    if(!order || !name)return NULL;
+    while(count) {
+        /* Original57772b uses the lower midpoint for even-sized ranges. */
+        uint32_t half=(count-1)/2,mid=lo+half;int comparison;
+        uint16_t index=order[mid];
+        comparison=metadata_compare(name,metadata_name(rows,index));
+        if(!comparison)return index!=UINT16_MAX && (rows[index].keyoff_flags&0x10000000u)?rows+index:NULL;
+        if(comparison<0)count=half;
+        else { lo=mid+1;count-=half+1; }
+    }
+    return NULL;
+}
 int rf_ambient_instances_open(const rf_level_owned_ambient *authored,uint32_t budget,
     rf_ambient_register registration,void *context,rf_ambient_instances *result)
 {

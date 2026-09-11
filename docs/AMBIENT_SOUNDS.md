@@ -309,3 +309,33 @@ this dataset and algorithm, not a general first/last-registration rule.
 Replacing the sort with an arbitrary platform qsort could change duplicate
 selection; preserve the original sorting/search behavior or prove an equivalent
 representation before connecting the runtime metadata owner.
+
+
+## Shared metadata ordering and search
+
+rf_sound_metadata_order and rf_sound_metadata_find now implement the verified
+sorted path in shared C. Rows keep a120-byte name and the original+a8/ac words
+in128 bytes. An8,192-byte uint16 index table represents all4,096 original
+positions, using UINT16_MAX for zero padding. Sorting indexes preserves the
+original permutation without moving180-byte records or allocating another
+full table. The caller owns rows and order; the functions allocate nothing.
+
+The sorter retains5749fa midpoint pivot/scans and574b4e short-sort tie behavior.
+It recurses into the smaller partition and iterates the larger to bound stack
+usage. Search retains57772b lower midpoint, backslash-only basename comparison
+and the returned record valid-bit check. ASCII/terminated-name and count
+preflight occurs before any index write. The runtime will need to keep the
+rows and order alive together; these helpers do not own or parse file text.
+
+verify_sound_metadata_port.py compares every index against the unhooked
+original across12 datasets, including all installed rows, empty/short/full
+tables, equal keys, duplicated names and invalid selected rows. All2,800
+lookups per backend match PC and compiled NXDK return identities. Three
+invalid-input cases verify preflight preservation (the count overflow case
+is checked directly on NXDK). Original full records and compact source rows
+remain unchanged. PC/NXDK builds and all eight CTests pass. This is compiled
+NXDK CPU execution evidence, not a new XEMU/device playback test.
+
+File parsing, budgeted owner construction/destruction, registration attachment
+and ambient PCM/device output remain open. No sound-bank layout or live audio
+behavior changed in this ordering/search increment.

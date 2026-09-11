@@ -1,6 +1,19 @@
 #ifndef RF_AUDIO_H
 #define RF_AUDIO_H
 #include "rf/vpp.h"
+#define RF_SOUND_METADATA_CAPACITY 4096u
+typedef struct rf_sound_metadata {
+    char name[120];uint32_t loop_flags,keyoff_flags;
+} rf_sound_metadata;
+/* Original56bb80/5749fa sorting and56baa0 sorted lookup. Compact rows retain
+ * original name and words+a8/ac. Order includes all4096 entries; UINT16_MAX
+ * represents an original zero padding record. No allocation or row mutation.
+ * ASCII, terminated names only; count<=4096. Errors preserve order. Caller
+ * keeps rows/order alive and unchanged together; no overlapping storage. */
+int rf_sound_metadata_order(const rf_sound_metadata *rows,uint32_t count,
+    uint16_t order[RF_SOUND_METADATA_CAPACITY]);
+const rf_sound_metadata *rf_sound_metadata_find(const rf_sound_metadata *rows,
+    const uint16_t order[RF_SOUND_METADATA_CAPACITY],const char *name);
 struct rf_level_owned_ambient;
 typedef struct rf_ambient_instance {
     uint32_t uid;int32_t sample,slot;float position[3];
