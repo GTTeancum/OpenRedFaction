@@ -208,3 +208,43 @@ device remain unfinished.
 Native64MiB L1S2 replay20260911-001906 also passes the full-table case at100ms:
 AMBIENT_SCHEDULE=[7,100,25,0,3414608215,1929861464], matching PC exactly.
 PC/NXDK builds and all eight CTests pass.
+
+
+## Audio-side playback flag evidence
+
+Original505ec0 processes occupied ambient slots after refreshing the listener.
+505f93 calls505740 for spatial pan/gain, then multiplies gain by the selected
+category scalar. It compares the unrounded x87 product with float0.1 (5893c4)
+after storing a rounded copy for playback arguments. Below threshold, an
+existing voice is stopped through5442b0 and reset to-1; an absent voice stays
+absent. At/above threshold an absent voice starts through5439d0 when sample
+byte+0x3e is zero, or543a80 otherwise. Both receive sample, scaled gain, pan,
+zero and zero. Start failure is stored back into the voice field. This loop
+does not free the ambient control slot.
+
+5439d0 and543a80 lazily load through543760 and call522530 with mode0 or1,
+respectively. Disassembly resolves a misleading decompiler stack alias:
+522644 reads the mode argument at[esp+0x20], and522668 invokes the buffer
+vtable+0x30 with Play flags equal to whether its low byte is nonzero.
+The local DirectSound header identifies flag1 as DSBPLAY_LOOPING. Internal
+voice flags at+0x28 set bit0 only for mode low byte exactly1 (5225dd), a
+slightly different condition outside the normal zero/one caller domain.
+
+verify_ambient_playback_flags.py executes original522530 in36 cases, with
+allocation/duplication, absent3D interface, gain conversion and DirectSound
+boundaries supplied. It observes ordered gain, SetVolume, SetPan and Play
+arguments, the returned voice handle, stored gain and internal flags. Pan
+conversion executes original code. This is not an actual-device output test.
+
+For an already active looping ambient,505fed calls543c20(sample,position,1)
+and505ffb sends its result to544390. These are gain updates, not pitch:
+543c20 computes attenuated default sample/category gain;544390 clamps it and
+calls522d30, which invokes buffer vtable+0x3c (SetVolume). Active nonlooping
+ambients skip this update. The different startup and refresh gain paths must
+be preserved rather than assuming every active sample receives the same update.
+
+543580 populates sample byte+0x3e from bit30 of the filesystem metadata word
+at+0xa8.56baa0 looks up a separate180-byte record. Recovering the writer of
+that metadata bit remains necessary before declaring authored samples looping;
+filename guesses and WAV-loop guesses are not evidence. No audible ambient
+integration has been added by these playback-boundary checks.
