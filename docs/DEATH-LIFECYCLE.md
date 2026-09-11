@@ -289,3 +289,21 @@ then executes original48a091..48a0c0 through the real kind2 pointer chain and
 vector norm routine. Every computed radius matches PC and NXDK machine code.
 Original file loading and native file I/O are not executed by that verifier.
 Both builds and all12 CTests pass. Campaign radius retention remains open.
+
+## Retained NPC model radius
+
+`campaign_npc_body` now retains the original object78 model radius separately
+from its physics bounds radius. During per-class construction the loader
+reads the first animated submesh sphere and computes its model-origin radius
+once, then stores it in each constructed actor of that class. Errors use the
+existing NPC cleanup path. The added4 bytes per actor slot are included in
+the existing sizeof-based512KiB owner budget and the final body content hash.
+There is no new allocation or per-frame file read. Both builds and all12
+CTests pass. Player radius retention and the actual death-candidate binding
+remain separate work.
+
+Native stock64MiB replay-20260911-175724 passes180 frames. NPC_BODIES is
+[78,78,191,48868,423508,1320800694], matching PC including the added radius
+in the hash. Base memory is67108864 with no expansion;8544 pages are available
+at completion. This exercises native file reading and retention during NPC
+construction, not live death-clearance or animation playback.

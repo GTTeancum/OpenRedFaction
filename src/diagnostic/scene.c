@@ -1360,6 +1360,7 @@ _Static_assert(sizeof(rf_entity_damage_state)==56,"Damage owner telemetry layout
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_entity_damage_state damage;uint32_t object_flags,field_840;
+    float model_radius_78; /* Original489fe0 model-origin radius. */
     float published[3],previous[3];uint32_t movement_slot;
     uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
     struct {int32_t ai_timer,animation_lock,cooldown,selected_action;} pain; /*514/744/830/828*/
@@ -1449,6 +1450,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     for(cls=0;cls<campaign_seeds.class_count;++cls) {
         campaign_npc_eye_class *eye_class=campaign_npc_eyes+cls;rf_model_attachment eye={0};uint32_t tag_index;
         rf_entity_physics_config config;rf_physics_sphere spheres[8];uint32_t count=0;
+        float model_sphere[4],model_radius;
         rf_entity_movement_values movement_values;rf_movement_config *movement=campaign_npc_movement_configs+cls;
         const rf_entity_pose *pose;const rf_entity_render_model *model;
         for(first=0;first<campaign_poses.count;++first)if(campaign_seeds.items[first].class_index==cls)break;
@@ -1457,6 +1459,8 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         pose=campaign_poses.items+first;if(pose->skeleton==UINT32_MAX)continue;
         if(pose->skeleton>=campaign_render_models.count){status=RF_RANGE;goto done;}
         model=campaign_render_models.items+pose->skeleton;
+        status=rf_model_file_bound_sphere(&model->file,model_sphere);if(status)goto done;
+        status=rf_model_origin_radius(model_sphere,&model_radius);if(status)goto done;
         if(bytes+scratch>budget){status=RF_RANGE;goto done;}
         if(bytes+scratch>rf_scene_npc_bodies[4])rf_scene_npc_bodies[4]=(uint32_t)bytes+scratch;
         status=rf_entity_physics_config_load(&tables,campaign_seeds.records.items[first].record.class_name,
@@ -1511,6 +1515,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 budget-(uint32_t)bytes+(uint32_t)sizeof(*body),body);if(status)goto done;
             {
                 campaign_npc_body *owner=campaign_npc_bodies+actor;
+                owner->model_radius_78=model_radius;
                 const rf_entity_seed_class *definition=campaign_seeds.classes+cls;
                 uint32_t flags=rf_entity_creation_object_flags(campaign_seeds.items[actor].spawn.creation_flags,definition->model_kind);
                 /* Generic486da0 factory, then422ba0 class flag and creation vitals.
@@ -1603,6 +1608,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
             rf_entity_creation_vitals_state vitals={owner->damage.effects.health,owner->damage.effects.armor,owner->object_flags,owner->field_840};
             hash=npc_hash_bytes(hash,&vitals,sizeof(vitals));
         }
+        hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].model_radius_78,4);
         hash=npc_hash_bytes(hash,campaign_npc_bodies[actor].published,12);
         hash=npc_hash_bytes(hash,campaign_npc_bodies[actor].previous,12);
         hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].movement_slot,4);
