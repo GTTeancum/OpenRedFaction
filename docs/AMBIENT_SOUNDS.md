@@ -631,3 +631,22 @@ Verification after integration:
 Automatic safe PCM eviction, category settings, broader moving-listener
 coverage, original handle lifecycle and the remaining25 record roles remain
 open. No full original audio-system or hardware-listening parity is claimed.
+
+
+## Explicit shared stop after natural completion
+
+The shared mixer previously rejected stop for an inactive voice, retaining its
+handle and PCM pointer after natural completion. Original522a20/522f30 stop
+dispatch resolves a matching handle without testing playback state; the device
+adapters already support release of completed voices. rf_audio_voice_stop now
+clears a matching nonzero record regardless of active state. Zero/stale handles
+remain rejected without mutation. Separate device borrowers must still be
+released before bank unload; shared cleanup alone does not authorize eviction.
+
+verify_audio_mixer.py now checks explicit stop after active and naturally
+completed playback on PC and compiled NXDK. The NXDK check compares the entire
+1564-byte mixer, requiring the selected52-byte voice to clear and all neighbors
+and generation to remain unchanged. Repeated and zero-handle stops must preserve
+that state. All144 cases and37008 reference stereo frames pass. PC/NXDK builds,
+all eight CTests and bank ownership/unload/reload checks pass. No native XEMU
+rerun or new device-output claim is made for this shared-state-only change.

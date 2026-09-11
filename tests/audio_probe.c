@@ -335,7 +335,7 @@ int main(int argc,char **argv)
             /* Chunked calls must produce the same stream as one render. */
             for(n=0;n<header[7];n+=17)if(rf_audio_mix(&mixer,out+n*2,header[7]-n<17?header[7]-n:17))return 12;
             if(fwrite(out,4,header[7],stdout)!=header[7])return 13;
-            if(mixer.voices[0].active && rf_audio_voice_stop(&mixer,handle))return 14;
+            if(rf_audio_voice_stop(&mixer,handle) || mixer.voices[0].pcm.samples || mixer.voices[0].handle)return 14;
             if(rf_audio_voice_stop(&mixer,handle)!=RF_NOT_FOUND)return 15;
             if(rf_audio_voice_start(&mixer,&pcm,32768,32768,0,&other) || other==handle || rf_audio_voice_stop(&mixer,handle)!=RF_NOT_FOUND)return 16;
         }

@@ -7,12 +7,12 @@ from unicorn import Uc,UC_ARCH_X86,UC_MODE_32
 from unicorn.x86_const import *
 p=pefile.PE(str(root/'build/xbox/main.exe'));im=p.get_memory_mapped_image();ib=p.OPTIONAL_HEADER.ImageBase
 x=Uc(UC_ARCH_X86,UC_MODE_32);x.mem_map(ib,(len(im)+4095)//4096*4096);x.mem_write(ib,im);b=0x30000000;x.mem_map(b,65536);stack=b+60000;stop=b+64000
-mapping=(root/'build/xbox/main.map').read_text();names=('rf_audio_mixer_init','rf_audio_voice_start','rf_audio_mix')
+mapping=(root/'build/xbox/main.map').read_text();names=('rf_audio_mixer_init','rf_audio_voice_start','rf_audio_mix','rf_audio_voice_stop')
 entries={n:int(re.search('_'+n+r'\s+([0-9a-fA-F]+)',mapping)[1],16) for n in names}
 w=lambda *v:struct.pack('<'+'I'*len(v),*(a&0xffffffff for a in v))
-def call(name,args):
+def call(name,args,expected=0):
  x.mem_write(stack,w(stop,*args));x.reg_write(UC_X86_REG_ESP,stack);x.emu_start(entries[name],stop,count=10000000);assert x.reg_read(UC_X86_REG_EIP)==stop
- if name!='rf_audio_mixer_init':assert x.reg_read(UC_X86_REG_EAX)==0,name
+ if name!='rf_audio_mixer_init':assert x.reg_read(UC_X86_REG_EAX)==(expected&0xffffffff),name
 trunc=lambda n,d:-(abs(n)//d) if n<0 else n//d
 rng=random.Random(48000);commands=bytearray();expected=bytearray();clipped=0
 for case in range(144):
@@ -33,6 +33,12 @@ for case in range(144):
  expected.extend(pcm);call('rf_audio_mixer_init',[b]);x.mem_write(b+4096,raw);x.mem_write(b+3000,w(b+4096,len(raw),frames,rate,channels,bits))
  for v in range(voices):call('rf_audio_voice_start',[b,b+3000,gain,32768,loop,b+3500])
  call('rf_audio_mix',[b,b+8192,count]);assert bytes(x.mem_read(b+8192,count*4))==pcm,case
+ before=bytes(x.mem_read(b,1564));handle=struct.unpack_from('<I',before,24)[0]
+ call('rf_audio_voice_stop',[b,handle]);after=bytes(x.mem_read(b,1564))
+ assert after==bytes(52)+before[52:],case
+ for stale in (0,handle):
+  call('rf_audio_voice_stop',[b,stale],-3);assert bytes(x.mem_read(b,1564))==after
+
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_audio_probe.exe'),'--mix'],input=commands);assert actual==expected
-report=dict(result='PASS',cases=144,stereo_frames=144*257,clipped_samples=clipped,mixer_bytes_x86=1564,scope='Independent integer reference equals PC chunked17-frame and NXDK single-call renders. PCM8/16 mono/stereo, six rates, gains, loops, natural completion and1/2/30 voices. PC additionally checks full-pool rejection and stale stop handles. Output adapter only; no original Miles equivalence, hardware playback, spatial attenuation or live thread ownership.')
+report=dict(result='PASS',cases=144,stereo_frames=144*257,clipped_samples=clipped,mixer_bytes_x86=1564,scope='Independent integer reference equals PC chunked17-frame and NXDK single-call renders. PCM8/16 mono/stereo, six rates, gains, loops, natural completion and1/2/30 voices. PC/NXDK check stop cleanup after active/natural completion and stale handles; NXDK checks complete borrower clearing and untouched neighbors. PC additionally checks full-pool rejection. Output adapter only; no original Miles equivalence, hardware playback, spatial attenuation or live thread ownership.')
 (root/'artifacts/audio-mixer-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

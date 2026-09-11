@@ -256,7 +256,7 @@ int rf_audio_voice_stop(rf_audio_mixer *mixer,uint32_t handle)
 {
     uint32_t i=handle&0xffff;
     if(!mixer)return RF_RANGE;
-    if(i>=RF_AUDIO_VOICES || !mixer->voices[i].active || mixer->voices[i].handle!=handle)return RF_NOT_FOUND;
+    if(i>=RF_AUDIO_VOICES || !handle || mixer->voices[i].handle!=handle)return RF_NOT_FOUND;
     memset(mixer->voices+i,0,sizeof(*mixer->voices));return RF_OK;
 }
 static int32_t voice_sample(const rf_audio_voice *v,uint32_t frame,uint32_t channel)

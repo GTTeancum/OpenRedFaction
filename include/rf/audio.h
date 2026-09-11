@@ -191,6 +191,9 @@ int rf_audio_voice_start(rf_audio_mixer *mixer,const rf_wave_pcm *pcm,
 /* Updates a live logical voice without changing sample/phase or restarting.
  * Stale handles and out-of-range Q15 gains leave the mixer unchanged. */
 int rf_audio_voice_gain(rf_audio_mixer *mixer,uint32_t handle,uint32_t left,uint32_t right);
+/* Releases a matching voice even after natural completion; clears its PCM
+ * borrower. Zero/stale handles leave the mixer unchanged. Device borrowers
+ * are separate and must also be released before bank PCM is unloaded. */
 int rf_audio_voice_stop(rf_audio_mixer *mixer,uint32_t handle);
 int rf_audio_mix(rf_audio_mixer *mixer,int16_t *stereo,uint32_t frames);
 #endif
