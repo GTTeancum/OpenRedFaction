@@ -1,4 +1,4 @@
-typedef struct dying_probe_context {uint32_t answers[15],count,trace[48],segment[10];} dying_probe_context;
+typedef struct dying_probe_context {uint32_t answers[14],count,trace[48],segment[10];} dying_probe_context;
 static uint32_t dying_probe_call(void *context,uint32_t op,uint32_t a,uint32_t b)
 {
     dying_probe_context *c=context;uint32_t n=c->count++;
@@ -8,8 +8,8 @@ static uint32_t dying_probe_call(void *context,uint32_t op,uint32_t a,uint32_t b
 static uint32_t dying_probe_segment(void *context,const float a[3],const float b[3],const float p[3],float radius)
 {
     dying_probe_context *c=context;
-    dying_probe_call(context,14,0,0);memcpy(c->segment,a,12);memcpy(c->segment+3,b,12);
-    memcpy(c->segment+6,p,12);memcpy(c->segment+9,&radius,4);return c->answers[14];
+    dying_probe_call(context,13,0,0);memcpy(c->segment,a,12);memcpy(c->segment+3,b,12);
+    memcpy(c->segment+6,p,12);memcpy(c->segment+9,&radius,4);return c->answers[13];
 }
 static int dying_probe_main(void)
 {

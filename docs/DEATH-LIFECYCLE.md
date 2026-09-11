@@ -412,3 +412,27 @@ radii including6, and varied low-byte query responses. Actual backend effects,
 reentrant mutation and native scene dispatch are not verified by this test.
 The runtime must still connect death-start and finalization before enabling
 this update for live actors.
+
+
+## Finalization lifetime and corrected empty call
+
+Direct inspection of42e3c0 proves its first instruction is C3 (ret). The
+original dying-update verifier now asserts that byte and executes the real
+function instead of supplying it. The shared backend no longer exposes the
+misleading REMOVE operation. No deletion or other effect belongs at that
+call. Both builds, all12 CTests and4096 original/PC/NXDK cases pass again.
+
+Ghidra exports of418f80,48ab40,4a6d50 and416940 identify the next ownership
+work; the following is static evidence, not complete execution verification.
+Finalization418f80 starts with48ab40, which only ORs object7c with2 and does
+not free storage. This matches the independently documented trigger path.
+It then handles attached actors, invokes4a6d50 on a resolved player, and can
+construct a corpse through416940. Burn ownership may transfer to that corpse
+through42f510 and corpse2d0; otherwise the finalizer releases the burn.
+Therefore replacing FINALIZE with immediate registry removal/free would lose
+these effects and invalidate the following endgame-name read.
+
+The ordinary SP branch of4a6d50 calls4a6e00 when player14 is not-1, then
+sets player14=-1 and clears playerfb0. Other mode branches are distinct.
+Recover4a6e00 camera/owner effects and the deferred object deletion pass,
+then complete corpse construction and burn transfer before live binding.

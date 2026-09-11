@@ -345,7 +345,7 @@ typedef struct rf_entity_dying_state {
 } rf_entity_dying_state;
 typedef struct rf_entity_dying_player {uint32_t handle,camera;float position[3];} rf_entity_dying_player;
 enum rf_entity_dying_call {
-    RF_DYING_REMOVE,RF_DYING_RELEASE_BURN,RF_DYING_ACTION_ACTIVE,
+    RF_DYING_RELEASE_BURN,RF_DYING_ACTION_ACTIVE,
     RF_DYING_WEAPON_ACTIVE,RF_DYING_RESET_WEAPON,RF_DYING_TIMER,
     RF_DYING_DAMAGE,RF_DYING_SHAKE,RF_DYING_FINALIZE,RF_DYING_ENDGAME_NAME,
     RF_DYING_LOOKUP_A,RF_DYING_ACTIVATE_A,RF_DYING_LOOKUP_B,RF_DYING_ACTIVATE_B
@@ -359,7 +359,7 @@ typedef struct rf_entity_dying_backend {
 /* Full41ee40 orchestration. State/backend/owners must remain alive through
  * FINALIZE and the following name/event calls. Class/identity/geometry stay
  * stable; effects may mutate burn and weapon state, which are reread.
- * Calls: REMOVE(handle,0)=42e3c0; RELEASE_BURN(token,0)=42ed20;
+ * 42e3c0 is a verified no-op. RELEASE_BURN(token,0)=42ed20;
  * ACTION_ACTIVE(action,0)=428d10; WEAPON_ACTIVE/RESET(handle,weapon)=41a830/41ae70;
  * TIMER(0,0)=4fa3f0 on actor4b8; DAMAGE(target,source)=4892c0 with1600,
  * kind/extra=-1,-1,0,-1,0; SHAKE(camera,gain bits)=40e0b0 with strength3b449ba6;

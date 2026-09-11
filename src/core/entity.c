@@ -519,7 +519,7 @@ int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backen
     uint32_t finish=0,token,i,gain;float end[3],offset,radius;
     if(!s || !b || !b->call || !b->segment)return RF_RANGE;
     if(s->flags_810&0x80u) {
-        finish=1;b->call(b->context,RF_DYING_REMOVE,s->handle,0);
+        finish=1; /* Original42e3c0 is a bare return. */
         if(s->burn_13d8) {
             b->call(b->context,RF_DYING_RELEASE_BURN,s->burn_13d8,0);s->burn_13d8=0;
         }

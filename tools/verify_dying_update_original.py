@@ -13,7 +13,8 @@ b=0x30000000;cls=b+0x2000;player=b+0x4000;owner=b+0x6000;event=b+0x7000;stack=b+
 u.mem_map(b,65536);u.mem_write(stop+16,b'\xd9\xee\xc3') # damage returns float zero
 w=lambda *v:struct.pack('<'+'I'*len(v),*(n&0xffffffff for n in v))
 read=lambda a,n:list(struct.unpack('<'+'I'*n,u.mem_read(a,4*n)))
-counts={0x42e3c0:1,0x42ed20:2,0x428d10:2,0x41a830:2,0x41ae70:2,
+assert p.get_data(0x42e3c0-p.OPTIONAL_HEADER.ImageBase,1)==b'\xc3'
+counts={0x42ed20:2,0x428d10:2,0x41a830:2,0x41ae70:2,
         0x4fa3f0:0,0x506ae0:5,0x4892c0:8,0x40e0b0:3,0x418f80:1,
         0x5001d0:2,0x4c0e00:1,0x4c0200:1,0x4be410:1,0x4b6760:3}
 trace=[];answers={};segment=[]
@@ -47,7 +48,6 @@ for case in range(4096):
     def call(a,*args):expected.append([a,list(args)])
     finish=bool(flags&0x80) or action==-1 or not playing&255
     if flags&0x80:
-        call(0x42e3c0,77)
         if burn:call(0x42ed20,burn,0);body[0x13d8:0x13dc]=w(0);burns+=1
     elif action!=-1:call(0x428d10,b,action&0xffffffff)
     call(0x41a830,77,9)

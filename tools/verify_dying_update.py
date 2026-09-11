@@ -19,11 +19,11 @@ def hook(m,a,size,data):
     if a==callback:
         _,op,v1,v2=read(sp+4,4);trace.extend((op,v1,v2));value=facts[op]
     else:
-        _,start,end,point,radius=read(sp+4,5);trace.extend((14,0,0))
-        segment[:]=read(start,3)+read(end,3)+read(point,3)+[radius];value=facts[14]
+        _,start,end,point,radius=read(sp+4,5);trace.extend((13,0,0))
+        segment[:]=read(start,3)+read(end,3)+read(point,3)+[radius];value=facts[13]
     m.reg_write(UC_X86_REG_EAX,value);m.reg_write(UC_X86_REG_ESP,sp+4);m.reg_write(UC_X86_REG_EIP,ret)
 x.hook_add(UC_HOOK_CODE,hook)
-opcodes=[0x42e3c0,0x42ed20,0x428d10,0x41a830,0x41ae70,0x4fa3f0,0x4892c0,0x40e0b0,0x418f80,0x5001d0,0x4c0e00,0x4c0200,0x4be410,0x4b6760,0x506ae0]
+opcodes=[0x42ed20,0x428d10,0x41a830,0x41ae70,0x4fa3f0,0x4892c0,0x40e0b0,0x418f80,0x5001d0,0x4c0e00,0x4c0200,0x4be410,0x4b6760,0x506ae0]
 def compare(c):
     global trace,segment,facts
     wire=w(77,c['flags'],c['action'],9,c['burn'],c['special'])+struct.pack('<7f',1,2,3,0,0,1,c['radius'])
@@ -33,12 +33,12 @@ def compare(c):
     expected=[]
     for address,args in c['trace']:
         op=opcodes.index(address)
-        if op in (0,1,3,4):pair=(args[0],args[1] if len(args)>1 else 0)
-        elif op==2:pair=(args[1],0)
+        if op in (0,2,3):pair=(args[0],args[1] if len(args)>1 else 0)
+        elif op==1:pair=(args[1],0)
+        elif op==5:pair=(args[0],args[2])
         elif op==6:pair=(args[0],args[2])
-        elif op==7:pair=(args[0],args[2])
-        elif op in (10,11,12):pair=(args[0],0)
-        elif op==13:pair=(c['found_b'],0)
+        elif op in (9,10,11):pair=(args[0],0)
+        elif op==12:pair=(c['found_b'],0)
         else:pair=(0,0)
         expected.extend((op,*pair))
     expected_segment=sum(c['segment'][:3],[])+[c['segment'][3]] if c['segment'] else [0]*10
