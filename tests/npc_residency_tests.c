@@ -2,6 +2,58 @@
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do { if(!(x)){fprintf(stderr,"residency line %d\n",__LINE__);return 1;} } while(0)
 static uint32_t event_damage_notifications;
+static uint32_t player_notifications[6];
+static void player_test_notify(void *context,uint32_t kind,uint32_t handle,float value,uint32_t source)
+{
+    (void)context;(void)handle;(void)value;(void)source;
+    if(kind<6)++player_notifications[kind];
+}
+static int player_damage_check(void)
+{
+    rf_registered_entity_view registration={0};rf_damage_request request={10,UINT32_MAX,2,0,UINT32_MAX,0};
+    rf_damage_effect_backend effects={campaign_damage_test_predicate,campaign_damage_test_uid,campaign_damage_test_source,
+        campaign_damage_test_burn,campaign_damage_test_random,player_test_notify,campaign_damage_test_playing,campaign_damage_test_play,NULL};
+    float result;uint32_t i;campaign_player_damage_owner saved;
+    rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
+    memset(&campaign_player_view,0,sizeof(campaign_player_view));campaign_player_view.flags_7c=8;
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&campaign_player_view,&registration)==RF_OK);
+    memset(&campaign_player_damage,0,sizeof(campaign_player_damage));
+    campaign_player_damage.state.effects.health=campaign_player_damage.state.effects.armor=100;
+    campaign_player_damage.state.effects.class_health=campaign_player_damage.state.effects.class_armor=100;
+    campaign_player_damage.state.effects.handle=registration.handle;
+    for(i=0;i<11;++i)campaign_player_damage.factors[i]=1;
+    campaign_player_damage.factors[2]=1.5f;memset(player_notifications,0,sizeof(player_notifications));
+    CHECK(rf_screen_flash_reset(&campaign_player_flash)==RF_OK);
+    CHECK(rf_scene_player_damage(registration.handle,&request,.5f,0x3f800000,&effects,&result)==RF_OK);
+    CHECK(result==7.5f && fabsf(campaign_player_damage.state.effects.health-96.4f)<.00001f);
+    CHECK(fabsf(campaign_player_damage.state.effects.armor-96.1f)<.00001f);
+    CHECK(campaign_player_flash.alpha==128 && campaign_player_flash.rgba[0]==255);
+    CHECK(campaign_player_view.flags_7c==(8|0x200000));
+    CHECK(player_notifications[RF_DAMAGE_PAIN_SOUND]==1 && player_notifications[RF_DAMAGE_PAIN_ANIMATION]==0);
+    CHECK(player_notifications[RF_DAMAGE_PLAYER_FEEDBACK]==0 && player_notifications[RF_DAMAGE_AI_REACTION]==0);
+    CHECK(rf_screen_flash_reset(&campaign_player_flash)==RF_OK);
+    request.kind=10;
+    CHECK(rf_scene_player_damage(registration.handle,&request,1,0x40000000,&effects,&result)==RF_OK && result==10);
+    CHECK(campaign_player_flash.alpha==0);
+    request.kind=-1;campaign_player_view.flags_7c|=4;saved=campaign_player_damage;
+    CHECK(rf_scene_player_damage(registration.handle,&request,1,0,&effects,&result)==RF_OK && result==0);
+    CHECK(campaign_player_damage.state.effects.health==saved.state.effects.health);
+    request.force=1;
+    CHECK(rf_scene_player_damage(registration.handle,&request,100,0,&effects,&result)==RF_OK && result==10);
+    CHECK(campaign_player_flash.alpha==128);
+    campaign_player_view.flags_7c=8;campaign_player_damage.state.effects.health=.75f;campaign_player_damage.state.effects.armor=0;
+    request.amount=.3f;request.force=0;
+    CHECK(rf_scene_player_damage(registration.handle,&request,1,0,&effects,&result)==RF_OK);
+    CHECK(campaign_player_damage.state.effects.health==-.1f); /* entity helper's half-point death sentinel */
+    CHECK(rf_screen_flash_reset(&campaign_player_flash)==RF_OK);
+    CHECK(rf_scene_player_damage(registration.handle,&request,1,0,&effects,&result)==RF_OK && campaign_player_flash.alpha==0);
+    saved=campaign_player_damage;result=123;
+    CHECK(rf_scene_player_damage(registration.handle^0x10000u,&request,1,0,&effects,&result)==RF_OK && result==0);
+    CHECK(!memcmp(&saved,&campaign_player_damage,sizeof(saved)));
+    request.kind=11;result=123;
+    CHECK(rf_scene_player_damage(registration.handle,&request,1,0,&effects,&result)==RF_RANGE && result==123);
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&registration)==RF_OK);return 0;
+}
 static void event_damage_notify(void *context,uint32_t kind,uint32_t target,float amount,uint32_t source)
 {(void)context;(void)kind;(void)target;(void)amount;(void)source;++event_damage_notifications;}
 static int event_damage_binding_check(void)
@@ -266,6 +318,6 @@ int main(void)
     CHECK(campaign_npc_motion_require(0,0)==RF_IO && !data[0] && data[1]);
     CHECK(!motions[0].file.resident && !motions[1].file.resident && !sizes[0]);
     CHECK(campaign_npc_motion_bytes==1024*1024-80);
-    CHECK(pain_binding_check()==0);free(data[1]);CHECK(eye_binding_check()==0);CHECK(event_damage_binding_check()==0);CHECK(player_feedback_check()==0);
+    CHECK(pain_binding_check()==0);free(data[1]);CHECK(eye_binding_check()==0);CHECK(event_damage_binding_check()==0);CHECK(player_feedback_check()==0);CHECK(player_damage_check()==0);
     puts("PASS: selection, aliases, pressure, reference protection, eviction, reload and failure recovery");return 0;
 }

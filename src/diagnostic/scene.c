@@ -1808,6 +1808,84 @@ typedef struct campaign_damage_context {
     rf_damage_object object;const rf_damage_effect_backend *effects;
     uint32_t clock_bits;int status;
 } campaign_damage_context;
+typedef struct campaign_player_damage_context {
+    const rf_damage_effect_backend *effects;rf_damage_object object;
+    uint32_t clock_bits;int status;
+} campaign_player_damage_context;
+static rf_damage_object *player_damage_lookup(void *context,uint32_t handle)
+{
+    campaign_player_damage_context *c=context;
+    return rf_entity_lookup(&campaign_entities,(int32_t)handle)==&campaign_player_view?&c->object:NULL;
+}
+static uint32_t player_damage_gate(void *context,uint32_t stage,uint32_t handle,const rf_damage_object *object)
+{
+    (void)context;(void)handle;
+    if(stage==0)return 1;
+    if(stage==1)return rf_entity_armor_immunity(campaign_player_damage.state.effects.armor,
+        campaign_player_damage.class_flags,campaign_player_damage.state.effects.flags_814);
+    return (object->flags&8)!=0;
+}
+static uint32_t player_damage_query(void *context,uint32_t predicate,uint32_t handle)
+{
+    campaign_player_damage_context *c=context;const rf_damage_effect_backend *b=c->effects;
+    if(handle==(uint32_t)campaign_player_view.handle) {
+        /* This retained local owner is the associated player for this entity.
+         * Other player/list families remain with the caller's resolver. */
+        if(predicate==RF_DAMAGE_PLAYER || predicate==RF_DAMAGE_OBJECT_PLAYER_FLAG)
+            return (campaign_player_view.flags_7c&8)!=0;
+        if(predicate==RF_DAMAGE_UNOWNED_PLAYER)return 0;
+    }
+    return b->predicate(b->context,predicate,handle);
+}
+static uint32_t player_damage_uid(void *context,int32_t uid)
+{const rf_damage_effect_backend *b=((campaign_player_damage_context *)context)->effects;return b->resolve_uid(b->context,uid);}
+static int player_damage_source(void *context,uint32_t handle,uint32_t *affiliation)
+{const rf_damage_effect_backend *b=((campaign_player_damage_context *)context)->effects;return b->source(b->context,handle,affiliation);}
+static uint32_t player_damage_burn(void *context,uint32_t target,uint32_t source)
+{const rf_damage_effect_backend *b=((campaign_player_damage_context *)context)->effects;return b->create_burn(b->context,target,source);}
+static float player_damage_random(void *context,float minimum,float maximum)
+{const rf_damage_effect_backend *b=((campaign_player_damage_context *)context)->effects;return b->random(b->context,minimum,maximum);}
+static uint32_t player_damage_playing(void *context,uint32_t voice)
+{const rf_damage_effect_backend *b=((campaign_player_damage_context *)context)->effects;return b->playing(b->context,voice);}
+static uint32_t player_damage_play(void *context,uint32_t target)
+{const rf_damage_effect_backend *b=((campaign_player_damage_context *)context)->effects;return b->play_kind6(b->context,target);}
+static void player_damage_notify(void *context,uint32_t kind,uint32_t target,float value,uint32_t source)
+{
+    campaign_player_damage_context *c=context;const rf_damage_effect_backend *b=c->effects;
+    if(kind==RF_DAMAGE_PLAYER_FEEDBACK) {int status=rf_scene_player_damage_flash(target);if(status && !c->status)c->status=status;}
+    else b->notify(b->context,kind,target,value,source);
+}
+static float player_damage_effect(void *context,rf_damage_object *object,float amount,uint32_t source,int32_t kind,uint32_t extra)
+{
+    campaign_player_damage_context *c=context;float result=0;int status;
+    rf_damage_effect_backend effects={player_damage_query,player_damage_uid,player_damage_source,player_damage_burn,
+        player_damage_random,player_damage_notify,player_damage_playing,player_damage_play,c};
+    campaign_player_damage.object_flags=object->flags;campaign_player_view.flags_7c=object->flags;
+    status=rf_entity_damage_sp(&campaign_player_damage.state,amount,kind,source,(int32_t)extra,
+        kind==-1?1:campaign_player_damage.factors[kind],c->clock_bits,&effects,&result);
+    if(status && !c->status)c->status=status;
+    object->health=campaign_player_damage.state.effects.health;object->flags=campaign_player_view.flags_7c;
+    campaign_player_view.flags_810=campaign_player_damage.state.effects.flags_810;return result;
+}
+int rf_scene_player_damage(uint32_t handle,const rf_damage_request *request,float difficulty,
+    uint32_t clock_bits,const rf_damage_effect_backend *effects,float *result)
+{
+    campaign_player_damage_context c={0};float value;int status;
+    rf_damage_backend backend={player_damage_lookup,player_damage_gate,player_damage_effect,&c};
+    if(!request || !effects || !result || request->kind < -1 || request->kind>10 ||
+        !effects->predicate || !effects->resolve_uid || !effects->source || !effects->create_burn ||
+        !effects->random || !effects->notify || !effects->playing || !effects->play_kind6)return RF_RANGE;
+    if(!isfinite(request->amount) || !isfinite(difficulty))return RF_FORMAT;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&campaign_player_view ||
+        campaign_player_damage.state.effects.handle!=handle){*result=0;return RF_OK;}
+    c.effects=effects;c.clock_bits=clock_bits;
+    c.object=(rf_damage_object){0,campaign_player_view.flags_7c,campaign_player_damage.state.effects.health};
+    campaign_player_damage.state.effects.flags_810=campaign_player_view.flags_810;
+    status=rf_damage_dispatch_sp(handle,request,difficulty,&backend,&value);
+    campaign_player_damage.state.effects.health=c.object.health;campaign_player_damage.object_flags=c.object.flags;
+    campaign_player_view.flags_7c=c.object.flags;
+    if(c.status)return c.status;if(status)return status;*result=value;return RF_OK;
+}
 static rf_damage_object *campaign_damage_lookup(void *context,uint32_t handle)
 {
     campaign_damage_context *c=context;

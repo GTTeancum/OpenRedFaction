@@ -3962,3 +3962,33 @@ The1536 original constructor-vitals comparisons,65 factor cases covering
 Stock64MiB XEMU replay-20260911-160409 passes180 frames and exact
 PLAYER_VITALS comparison, alongside the existing door/NPC damage checks.
 This verifies native initialization, not player damage or full startup.
+
+
+## Registered player damage adapter
+
+rf_scene_player_damage now routes a generation-checked local player through
+shared4892c0 eligibility/difficulty and41a350 vitals/effects, using retained
+class multipliers and immunity flags. The local retained player owner supplies
+its own associated-player predicates. Unknown/nonlocal/stale targets return
+successful zero. The adapter owns the PLAYER_FEEDBACK notification and
+starts the actual retained red128 flash; other effects and nonlocal queries
+are forwarded to the complete caller backend with its original context.
+Callbacks must preserve owners and cannot reenter damage. Missing required
+callbacks and invalid damage kinds fail before mutation. As with the core,
+errors after committed changes do not imply rollback.
+
+The PC scene tests cover real registration, health/armor changes, difficulty,
+flash activation, kind10 suppression, dead-player suppression, force bypass,
+stale handles and rejection guards. Fractional lethal health follows the
+original entity helper sentinel-0.1 rather than an invented zero clamp.
+verify_player_damage_binding.py executes the linked NXDK adapter and actual
+port registration routines for8 cases, recording external pain notifications.
+It also checks kind9 difficulty exemption and force256 low-byte rejection.
+This is linked-code execution under Unicorn, not a native XEMU gameplay hit.
+Both builds and all12 CTest checks pass. Shared original comparisons pass
+8194 dispatch cases (including2 port guards) and16384 full entity-damage
+cases,8192 of them with callback mutations.
+
+No authored hazard/weapon calls this adapter yet; player pain audio, weapon
+reset, death and complete lifecycle callbacks still need live implementations.
+No new XEMU campaign run or screenshot is claimed for this adapter-only change.

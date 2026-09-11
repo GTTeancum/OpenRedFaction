@@ -51,6 +51,13 @@ int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float 
  * Stale/nonlocal handles preserve outputs and return NOT_FOUND. */
 int rf_scene_player_damage_flash(uint32_t player_entity_handle);
 extern uint32_t rf_scene_player_vitals[6];
+/* Registered local-player damage routing through4892c0/41a350. Owns vitals,
+ * immunity, local-player predicates and red-flash notification. All other
+ * effects/predicates use the complete caller backend. Callbacks must preserve
+ * owner lifetime and must not reenter damage. Missing/nonlocal target is zero.
+ * This does not supply weapons, death, sound or authored hazard activation. */
+int rf_scene_player_damage(uint32_t handle,const rf_damage_request *request,float difficulty,
+    uint32_t clock_bits,const rf_damage_effect_backend *effects,float *result);
 int rf_scene_player_flash_step(uint32_t player_entity_handle,float seconds,uint32_t freeze,
     rf_screen_flash *draw,uint32_t *active);
 /* Registered skeletal NPC damage adapter. Effects must be synchronous and keep
