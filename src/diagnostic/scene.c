@@ -1477,9 +1477,10 @@ uint32_t rf_scene_campaign_triggers[2]; /* registered triggers, owner bytes */
 uint32_t rf_scene_campaign_links[4]; /* total, resolved, unresolved, ordered target hash */
 uint32_t rf_scene_campaign_event_links[4];
 uint32_t rf_scene_event_ticks[12]; /* ticks, clock ms, pending other types, cumulative action report */
+uint32_t rf_scene_npc_links[4]; /* UID objects, temporary bytes, trigger NPC links, event NPC links */
 static int campaign_resolve_trigger_links(void)
 {
-    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count;
+    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count+rf_scene_npc_registration[0];
     rf_level_uid_object *objects=n?malloc((size_t)n*sizeof(*objects)):NULL;int status;
     if(n && !objects)return RF_RANGE;
     for(i=0;i<campaign_events.count;++i) {
@@ -1493,8 +1494,27 @@ static int campaign_resolve_trigger_links(void)
     for(j=0;j<campaign_group_registration.count;++j,++i)
         objects[i]=campaign_group_registration.objects[j];
     for(j=0;j<campaign_mover_count;++j,++i)objects[i]=campaign_mover_objects[j];
-    /* Fixture order: events, triggers, controllers, then movers. Entity registration
-     * and original whole-world handle order remain incomplete. */
+    for(j=0;j<campaign_npc_body_count;++j)if(campaign_npc_bodies[j].registration.view) {
+        objects[i].uid=campaign_seeds.records.items[j].record.uid;
+        objects[i].handle=campaign_npc_bodies[j].registration.handle;
+        objects[i].flags=campaign_npc_bodies[j].view.flags_7c;++i;
+    }
+    if(i!=n){free(objects);return RF_FORMAT;}
+    /* Verify UID lookup reaches the exact registered owner, including generation.
+     * Duplicate authored IDs must not silently bind a different actor. */
+    for(j=0;j<campaign_npc_body_count;++j)if(campaign_npc_bodies[j].registration.view) {
+        rf_level_link_target target;
+        status=rf_level_link_resolve(campaign_seeds.records.items[j].record.uid,objects,n,
+            campaign_group_registration.keys,campaign_group_registration.key_count,&target);
+        if(status || target.kind!=1 || target.value!=campaign_npc_bodies[j].registration.handle ||
+           rf_entity_lookup(&campaign_entities,(int32_t)target.value)!=&campaign_npc_bodies[j].view) {
+            free(objects);return status?status:RF_FORMAT;
+        }
+    }
+    memset(rf_scene_npc_links,0,sizeof(rf_scene_npc_links));
+    rf_scene_npc_links[0]=n;rf_scene_npc_links[1]=n*sizeof(*objects);
+    /* Port setup order: events, triggers, controllers, movers, skeletal NPCs.
+     * Original whole-world factory order and non-skeletal owners remain open. */
     status=rf_runtime_triggers_resolve(&campaign_triggers,objects,n,
         campaign_group_registration.keys,campaign_group_registration.key_count);
     if(!status)status=rf_runtime_events_resolve(&campaign_events,objects,n,
@@ -1506,6 +1526,7 @@ static int campaign_resolve_trigger_links(void)
     rf_scene_campaign_event_links[3]=2166136261u;
     for(i=0;i<campaign_events.count;++i)for(j=0;j<campaign_events.items[i].authored->record.link_count;++j) {
         rf_level_link_target *target=campaign_events.items[i].links+j;
+        if(target->kind==1 && rf_entity_lookup(&campaign_entities,(int32_t)target->value))++rf_scene_npc_links[3];
         uint32_t k,words[4]={campaign_events.items[i].authored->links[j],target->value,target->kind,target->index};
         for(k=0;k<4;++k)rf_scene_campaign_event_links[3]=(rf_scene_campaign_event_links[3]^words[k])*16777619u;
         ++rf_scene_campaign_event_links[0];++rf_scene_campaign_event_links[target->kind?1:2];
@@ -1513,6 +1534,7 @@ static int campaign_resolve_trigger_links(void)
     rf_scene_campaign_links[3]=2166136261u;
     for(i=0;i<campaign_triggers.count;++i)for(j=0;j<campaign_triggers.items[i].authored->record.link_count;++j) {
         rf_level_link_target *target=campaign_triggers.items[i].links+j;
+        if(target->kind==1 && rf_entity_lookup(&campaign_entities,(int32_t)target->value))++rf_scene_npc_links[2];
         uint32_t k,words[4]={campaign_triggers.items[i].authored->links[j],target->value,target->kind,target->index};
         for(k=0;k<4;++k)rf_scene_campaign_links[3]=(rf_scene_campaign_links[3]^words[k])*16777619u;
         ++rf_scene_campaign_links[0];
@@ -2943,7 +2965,6 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_actor_body_sweeps[4]=(campaign_movers.count?campaign_movers.count:1)*sizeof(*campaign_sweep_scratch)+
                 (campaign_movers.count+1)*sizeof(*campaign_surface_sources)+sizeof(*campaign_surface_palette);
             status=campaign_bind_movers();if(status)goto done;
-            status=campaign_resolve_trigger_links();if(status)goto done;
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             memset(&campaign_climb,0,sizeof(campaign_climb));memset(rf_scene_player_climb,0,sizeof(rf_scene_player_climb));
@@ -3010,6 +3031,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=rf_entity_poses_start_initial(&campaign_seeds,&campaign_skeletons,&campaign_motion_catalog,
                 &campaign_playback_resources,&campaign_poses,campaign_modes,1.0f/30.0f);if(status)goto done;
             status=campaign_npc_bodies_open(tables_path,collision);if(status)goto done;
+            status=campaign_resolve_trigger_links();if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;
             memset(rf_scene_npc_playback,0,sizeof(rf_scene_npc_playback));
             memset(rf_scene_npc_gate,0,sizeof(rf_scene_npc_gate));

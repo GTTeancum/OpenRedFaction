@@ -1197,3 +1197,38 @@ NPC_REGISTRATION [78,5304,3278717895,16843008,21889357,78]. Base memory is
 67,108,864 bytes with zero plugged memory. No screenshot was requested because
 this change adds runtime ownership without a new visual result. Script/UID links,
 non-skeletal actor ownership, live damage delivery and NPC physics remain open.
+
+
+## Authored NPC event and trigger targets (2026-09-11)
+
+Campaign UID resolution now runs after skeletal NPC registration and before
+startup event dispatch. Its temporary ordered object list includes each NPC's
+authored UID, generation handle and constructor flags. It uses the existing
+rf_level_link_resolve implementation of original 48a4a0/46afc0; see
+TRIGGERS.md for source evidence and object-before-key precedence. Every NPC UID
+is checked to resolve to its exact registered view before event links are built.
+An ambiguous duplicate UID fails setup rather than silently selecting another
+actor; original whole-world duplicate ordering remains outside this fixture.
+
+| Opening level | Trigger NPC references | Event NPC references | Unresolved trigger/event references | Temporary UID table bytes |
+| --- | ---: | ---: | --- | ---: |
+| L1S1 | 15 | 152 | 0 / 0 | 3996 |
+| L1S2 | 4 | 43 | 7 / 16 | 2604 |
+| L1S3 | 4 | 44 | 13 / 9 | 1944 |
+
+NPC_LINKS reports total UID objects, temporary table bytes, trigger NPC references
+and event NPC references. No persistent UID table is added. The PC three-level
+verifier checks these totals alongside body ownership and support proposals.
+The 2,000-case original/PC/NXDK UID resolver comparison still passes.
+
+Resolution does not implement the referenced actor actions. Existing event
+routing continues reporting unsupported NPC targets; it does not cast them to
+controller/event owners or invent AI/damage effects. Trigger-bit-4 entity
+backlinks, script integration, non-skeletal actors and original world factory
+ordering remain open. The table contains no diagnostic player UID alias.
+
+Both builds and all nine CTests pass. Native stock 64 MiB XEMU matches PC over
+180 door-replay frames, including NPC_LINKS [333,3996,15,152] and both full
+ordered link digests: artifacts/xemu/replay-20260911-131408/report.json. Base RAM
+is 67,108,864 bytes with no plugged memory. The PC final framebuffer equals the
+previous registration-only replay byte for byte. No new screenshot was taken.

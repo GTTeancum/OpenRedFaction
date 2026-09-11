@@ -243,6 +243,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_registration==expected('NPC_REGISTRATION'),npc_registration
      assert npc_registration[0]==npc_registration[5]==npc_bodies[1],npc_registration
      report['npc_registration']=npc_registration
+     npc_links=words(monitor,symbol('rf_scene_npc_links'),4)
+     assert npc_links==expected('NPC_LINKS'),npc_links
+     report['npc_links']=npc_links
 
      npc_support=words(monitor,symbol('rf_scene_npc_support'),12)
      assert npc_support==expected('NPC_SUPPORT_PROBE'),npc_support
