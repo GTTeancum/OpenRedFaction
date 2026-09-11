@@ -158,3 +158,23 @@ access and the missing-name fatal boundary are supplied. All129 successful slot
 arrays match PC and NXDK;31 missing-name cases verify the port error result and
 unchanged output. The full entity-table reader and persistent class integration
 remain outstanding. Both builds and all nine existing CTest cases pass.
+
+
+## Authored class footstep reader
+
+`rf_entity_footstep_groups_read` scans the first case-insensitive class match in
+`entity.tbl`, reads its `$Footstep Sound:` declarations, and applies the verified
+material bindings. It allocates nothing, borrows no input after return and
+preserves output on missing classes/groups or malformed declarations. Unrelated
+class fields are skipped; this is a bounded field adapter, not the complete
+original entity parser or lifecycle.
+
+`tools/verify_foley_classes.py` independently inventories all63 installed classes
+and compares all ten slots for each against PC and NXDK machine code. Five more
+cases exercise a missing class, case-insensitive selection with commented-out
+text and material replacement, an empty class, a missing group and an overlong
+name. All68 cases pass. The source entity table SHA256 is
+`cc512c9213fc87908cd792ed318f14e66f820ff16ff07c5a312c8293ff6827ea`.
+Results are in `artifacts/foley-classes.json`. Both builds and all nine existing
+CTest cases pass. Persistent campaign class storage, original registration
+ordering, surface selection and footstep dispatch scheduling remain open.

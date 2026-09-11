@@ -1,28 +1,16 @@
 # Red Faction Xbox / PC - open work
 
-Campaign NPCs now advance their startup-selected playback on simulation ticks
-using bounded resident clips; AI/state reselection, sound events and lighting remain.
+Campaign NPCs advance startup-selected playback on simulation ticks with bounded
+resident clips; AI/state reselection, sound events and lighting remain.
 
-Stock 64 MiB XEMU matches all 179 playback ticks in the 180-frame L1S1 replay;
-78 actors share 10,536 bytes of resident motion data and cache metadata.
+Stock 64 MiB XEMU matches L1S1 playback/drawing and the L1S2 lift replay;
+78 L1S1 actors share 10,536 bytes of resident motion data/cache metadata.
 
-L1S2 now passes the 600-frame native lift replay with NPC playback/drawing;
-original named-marker consumption matches PC/NXDK, with sound dispatch still open.
+Original footstep requests and material binding are verified against PC/NXDK;
+the shared reader covers497 groups,1140 samples and all63 authored classes.
 
-Entity footstep request routing now matches640 original PC/NXDK cases;
-recover sound-group ownership, dispatch and the entity-update call schedule.
-
-Original Foley parser execution confirms two surplus samples are skipped in
-Default/Solid Footstep; preserve declared counts when recovering the group owner.
-
-Shared Foley reader matches497 groups/1140 declarations on PC and NXDK;
-connect bounded group ownership and original registration order next.
-
-Foley owner retains26452 bytes with113092-byte peak and verified cleanup;
-recover registration order and class bindings before live footstep hookup.
-
-Class footstep material binding matches160 original/PC/NXDK cases;
-load authored class declarations and verify global registration ordering next.
+Foley tables retain26,452 bytes with113,092-byte parsing peak; campaign ownership,
+registration ordering, surface selection and dispatch scheduling remain open.
 
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.

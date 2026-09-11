@@ -181,6 +181,13 @@ void rf_foley_close(rf_foley_owner *owner);
 int rf_foley_bind_materials(const rf_foley_owner *owner,const char (*names)[32],
     uint32_t count,int32_t slots[10]);
 
+/* Bounded entity.tbl adapter: read the first matching class's footstep names
+ * and apply verified material bindings. Unrelated fields are skipped. Class
+ * and group lookup are case-insensitive; errors preserve all ten output slots.
+ * No allocation or retained input pointers; owner only needs valid groups. */
+int rf_entity_footstep_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t slots[10]);
+
 typedef struct rf_audio_sample { char name[61];void *storage;rf_wave_pcm pcm;uint32_t bytes;rf_audio_parameters parameters; } rf_audio_sample;
 typedef struct rf_audio_bank {
     rf_vpp *archive;rf_audio_sample *samples;uint32_t count,capacity,bytes,budget;

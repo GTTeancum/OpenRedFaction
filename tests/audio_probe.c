@@ -84,8 +84,35 @@ static int foley_owner_probe(const char *path)
     rf_foley_close(&owner);rf_foley_close(&owner);if(memcmp(&owner,&empty,sizeof(owner)))return 114;
     free(groups);free(rows);return 0;
 }
+static void *foley_test_file(const char *path,uint32_t *size)
+{
+    FILE *f=fopen(path,"rb");long bytes;void *text;if(!f)return NULL;
+    fseek(f,0,SEEK_END);bytes=ftell(f);rewind(f);
+    if(bytes<=0 || bytes>1048576){fclose(f);return NULL;}
+    text=malloc((size_t)bytes);if(!text){fclose(f);return NULL;}
+    if(fread(text,1,(size_t)bytes,f)!=(size_t)bytes){free(text);fclose(f);return NULL;}
+    fclose(f);*size=(uint32_t)bytes;return text;
+}
+static int foley_classes_probe(const char *entity_path,const char *foley_path)
+{
+    uint32_t entity_size,foley_size,ns;void *entity=foley_test_file(entity_path,&entity_size);
+    void *foley=foley_test_file(foley_path,&foley_size);rf_foley_owner owner={0};
+    char name[64];int32_t slots[10];int status;
+    if(!entity || !foley)return 117;
+    if(rf_foley_table_read(foley,foley_size,NULL,0,NULL,0,&owner.group_count,&ns))return 118;
+    owner.groups=malloc(owner.group_count*sizeof(*owner.groups));if(!owner.groups)return 119;
+    if(rf_foley_table_read(foley,foley_size,owner.groups,owner.group_count,NULL,0,&owner.group_count,&ns))return 120;
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(name,1,64,stdin)==64) {
+        if(!memchr(name,0,64))return 121;memset(slots,0xa5,sizeof(slots));
+        status=rf_entity_footstep_groups_read(entity,entity_size,name,&owner,slots);
+        fwrite(&status,4,1,stdout);fwrite(slots,4,10,stdout);
+    }
+    free(owner.groups);free(foley);free(entity);return 0;
+}
 int main(int argc,char **argv)
 {
+    if(argc==4 && !strcmp(argv[1],"--foley-classes"))return foley_classes_probe(argv[2],argv[3]);
     if(argc==2 && !strcmp(argv[1],"--foley-bind")) {
         uint32_t counts[2];rf_foley_group groups[640];char names[640][32];int32_t slots[10];int status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

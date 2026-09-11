@@ -549,6 +549,31 @@ int rf_foley_bind_materials(const rf_foley_owner *owner,const char (*names)[32],
     }
     memcpy(slots,value,sizeof(value));return RF_OK;
 }
+int rf_entity_footstep_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t slots[10])
+{
+    lexer l={text,bytes,0};char t[256],name[1][32];int32_t value[10],binding[10];
+    int status,quoted,selected=0;uint32_t i;
+    if(!text || !bytes || !class_name || !*class_name || !slots)return RF_RANGE;
+    status=rf_foley_bind_materials(owner,NULL,0,value);if(status)return status;
+    for(;;) {
+        status=token(&l,t,&quoted);
+        if(status==RF_NOT_FOUND)break;if(status)return status;
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(selected)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            selected=same(t,class_name);
+        } else if(same(t,"#End"))break;
+        else if(selected && same(t,"$Footstep")) {
+            if(token(&l,t,&quoted) || quoted || !same(t,"Sound:") ||
+               metadata_string(&l,name[0],sizeof(name[0])))return RF_FORMAT;
+            status=rf_foley_bind_materials(owner,name,1,binding);if(status)return status;
+            for(i=0;i<10;++i)if(binding[i]>=0)value[i]=binding[i];
+        }
+    }
+    if(!selected)return RF_NOT_FOUND;memcpy(slots,value,sizeof(value));return RF_OK;
+}
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height)
 {
     static const char *words[]={"$Max","Entity","Jump","Height:"};
