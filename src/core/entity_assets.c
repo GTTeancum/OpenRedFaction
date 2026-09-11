@@ -98,6 +98,59 @@ int rf_entity_class_spheres_build(const rf_model_file *model,const float (*matri
     }
     *sphere_count=n;return RF_OK;
 }
+int rf_entity_class_stance_build(const rf_model_file *model,const rf_model_bone *bones,uint32_t bone_count,
+    const rf_motion_playback_state *initial,const rf_motion_file *const *handles,
+    const rf_motion_playback_resource *resources,uint32_t resource_count,int32_t crouch,
+    const rf_entity_physics_config *config,const rf_physics_sphere *standing,uint32_t sphere_count,rf_physics_stance_cache *result,
+    const rf_model_attachment *eye,const float eye_transform[12],float *eye_offsets,uint32_t scratch_budget)
+{
+    rf_motion_playback_state state;rf_motion_playback_resource *copied;
+    uint64_t scratch=(uint64_t)resource_count*sizeof(*copied)+(uint64_t)bone_count*48;
+    rf_physics_stance_cache value={0};uint16_t generations[256]={0};float displacement[3]={0};
+    float (*matrices)[12],offsets[6],crouch_eye[12];uint32_t i;int status;
+    if(!model || !initial || !config || !result || !bones || !bone_count || bone_count>256 ||
+       sphere_count>8 || (sphere_count && !standing) || (resource_count && (!resources || !handles)) ||
+       scratch>scratch_budget || (eye_offsets && (!eye || !eye_transform || (uint32_t)eye->parent>=bone_count)))return RF_RANGE;
+    state=*initial;
+    copied=resource_count?malloc(resource_count*sizeof(*copied)):NULL;
+    if(resource_count && !copied)return RF_IO;
+    if(resource_count)memcpy(copied,resources,resource_count*sizeof(*copied));
+    matrices=malloc(bone_count*48);if(!matrices){free(copied);return RF_IO;}
+    status=RF_OK;
+    if(eye_offsets) {
+        /* Class offsets use identity/zero placement, not the diagnostic's
+         * root displacement. Re-evaluate the initial pose in this workspace. */
+        for(i=0;i<bone_count;++i)generations[i]=(uint16_t)(state.generation-1);
+        status=rf_model_evaluate_playback(bones,bone_count,&state,handles,copied,resource_count,displacement,matrices,generations,bone_count);
+        if(!status)status=rf_model_compose_transform(eye_transform,matrices[eye->parent],crouch_eye);
+        if(!status)memcpy(offsets,crouch_eye+9,12);
+    }
+    if(!status)status=rf_motion_stop_looping(&state,copied,resource_count);
+    if(!status)status=rf_motion_set_weight(&state,copied,resource_count,crouch,1);
+    if(!status)status=rf_motion_update(&state,copied,resource_count,.2f);
+    for(i=0;i<bone_count;++i)generations[i]=(uint16_t)(state.generation-1);
+    if(!status)status=rf_model_evaluate_playback(bones,bone_count,&state,handles,copied,resource_count,displacement,matrices,generations,bone_count);
+    if(!status && eye_offsets) {
+        status=rf_model_compose_transform(eye_transform,matrices[eye->parent],crouch_eye);
+        if(!status) {
+            memcpy(offsets+3,crouch_eye+9,12);
+            /* 423bd0 / 40a150: class flag 20000 keeps only eye height. */
+            if(config->authored.flags&0x20000u)offsets[0]=offsets[2]=offsets[3]=offsets[5]=0;
+        }
+    }
+    value.count=sphere_count;
+    for(i=0;!status && i<value.count;++i) {
+        rf_model_collision_sphere sphere;float posed[4],difference;
+        status=rf_model_file_collision_sphere(model,i,&sphere);if(status)break;
+        status=rf_model_collision_sphere_pose(&sphere,matrices,bone_count,posed);if(status)break;
+        memcpy(value.centers[0][i],standing[i].center,12);
+        memcpy(value.centers[1][i],posed,12);
+        if(config->authored.flags&0x24000)value.centers[1][i][0]=value.centers[1][i][2]=0;
+        difference=(float)((double)value.centers[0][i][1]-value.centers[1][i][1]);
+        value.height_difference=fmaxf(value.height_difference,difference);
+    }
+    free(matrices);free(copied);if(!status) {*result=value;if(eye_offsets)memcpy(eye_offsets,offsets,sizeof(offsets));}return status;
+}
 int rf_entity_body_open(const rf_entity_physics_config *config,const rf_physics_sphere *spheres,
     uint32_t count,const float position[3],const float orientation[9],uint32_t creation_flags,
     uint32_t budget,rf_physics_body *result)

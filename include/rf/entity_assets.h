@@ -165,6 +165,20 @@ int rf_entity_physics_config_load(rf_vpp *tables,const char *class_name,
  * animated pose. Outputs preserve on error; no allocation or class cache. */
 int rf_entity_class_spheres_build(const rf_model_file *model,const float (*matrices)[12],uint32_t bone_count,
     const rf_entity_physics_config *config,rf_physics_sphere spheres[8],uint32_t *sphere_count);
+/* Crouch sampling from423bd0 on private playback/resource copies. The caller
+ * supplies the first class-initialization pose and its standing spheres; this
+ * does not select that pose or establish first-user cache ownership. Samples
+ * crouch after0.2 seconds at zero root displacement, applies class centering,
+ * and optionally returns standing/crouching eye offsets. Inputs remain intact;
+ * outputs preserve on failure. At most256 bones/eight spheres. Scratch budget
+ * counts copied resources and bone matrices, excluding stack/allocator metadata.
+ * Handles and resources use the same indices; archives must remain open. */
+int rf_entity_class_stance_build(const rf_model_file *model,const rf_model_bone *bones,uint32_t bone_count,
+    const rf_motion_playback_state *initial,const rf_motion_file *const *handles,
+    const rf_motion_playback_resource *resources,uint32_t resource_count,int32_t crouch,
+    const rf_entity_physics_config *config,const rf_physics_sphere *standing,uint32_t sphere_count,
+    rf_physics_stance_cache *result,const rf_model_attachment *eye,const float eye_transform[12],
+    float *eye_offsets,uint32_t scratch_budget);
 /* Positive authored-mass creation subset used by the current actor: prepare
  * coefficients/flags, open fresh body, then install copied class spheres.
  * Generated mass, class-pose initialization and entity registration are separate.

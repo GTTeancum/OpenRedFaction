@@ -923,3 +923,39 @@ L1S1 owner hash matching PC, base RAM67108864 and plugged0. Animation gate,
 playback and draw remain unchanged. No new framebuffer capture. These owners
 are ready for support-depth, force and landing settings; NPC physics/support
 calls still need live integration, so this does not demonstrate moving AI.
+
+
+## Retained class stance geometry (2026-09-11)
+
+The campaign now owns one200-byte standing/crouching center cache per class.
+Sampling moved from the player-only diagnostic into rf_entity_class_stance_build
+in shared entity_assets.c; the player also uses that implementation. Resource
+copies now have a heap budget instead of the diagnostic's23-motion stack limit.
+Matrices and copied resource counters are temporary; source playback, resource
+references and live bone caches remain untouched. Optional eye output retains
+the existing player path. Failure preserves outputs and releases scratch.
+
+NPC initialization uses the original428010 gate: actor motion slots at964/974
+(class state8/state9) are compared with-1, and sampling is skipped if both are
+absent. Eligible classes sample crouch after0.2 seconds using the existing
+423bd0 operation sequence and class24000 center policy. Archives remain open.
+First standing geometry still comes from the first authored startup actor;
+this does not prove the complete original class initializer, its standing
+selection/order or missing-model fallback. A selected crouch ID must satisfy
+the shared playback API. NPC eye offsets are not sampled yet.
+
+Caches join the512KiB owner cap, content hash and partial-failure cleanup. L1S1
+adds1000 bytes and reports[78,78,191,35988,410628,1546073344]. L1S2 lift reports
+[39,38,114,18552,392544,1626689487], and L1S3 startup reports
+[28,25,48,13384,387088,3245065254]. Across those three PC replays, every output
+row except NPC_BODIES and every framebuffer byte matches the preceding owner
+build. Thus sampling introduces no observed live animation/audio changes in
+these fixtures; this is regression evidence, not full original cache fidelity.
+
+Both builds and all9 CTests pass. The64-frame player stance replay and288
+original/PC/NXDK stance transition cases pass; those oracle cases exclude cache
+construction. Native180-frame stock64MiB XEMU door/audio report
+artifacts/xemu/replay-20260911-122446/report.json passes with the same owner
+hash as PC, base RAM67108864 and plugged0. No framebuffer capture was requested.
+Standing clearance, ground refresh and live NPC landing/physics still need to
+consume these retained caches; no moving AI or additional gameplay is claimed.
