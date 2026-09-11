@@ -155,3 +155,43 @@ arguments, health/flags and returned damage. Two nonfinite input guards bring
 each compiled suite to8,194 cases. Both builds and eight CTests pass. This
 establishes the shared entry point but does not yet connect campaign entity
 ownership or the remaining41a350 effects to Continuous_Damage.
+
+## Remaining entity effects: original trace evidence
+
+verify_damage_effects_trace.py executes41a505..41a7ab after the vitals/credit
+phases. All external effect functions, predicates, UID/entity lookups and
+random returns are supplied. Across8,192 cases it checks exact ordered calls,
+arguments and the original writes to burn pointer13d8, voice854 and flags814.
+Every intercepted function is reached. This establishes orchestration rules;
+it does not implement those callees or prove a live entity lifecycle.
+
+Incoming damage above5 requests428740 pain animation. Incoming damage divided
+by class health(+44), above binary64 .001, requests4196f0 except for kind10.
+The original stores a float quotient but compares the still-wide x87 value;
+only the argument sent to4196f0 is rounded to float. Class-scaled damage must
+not replace incoming damage in these two decisions.
+
+For kind4, an existing burn skips creation. Otherwise zero class armor, an
+armor ratio below .5, or flag814 bit8000 enters the burn eligibility path.
+Predicates429990,4290d0,42a8e0,429a80 reject in that order on nonzero low bytes.
+Source-1 plus a supplied auxiliary UID attempts425210; a found object supplies
+its handle.426fc0 then resolves the source entity. A missing source requests
+42e910(target_handle,-1). With a source, creation requires either its42a8e0
+selection with target bit2000 clear, or differing object fields1f8. The exact
+meaning of that field is not established by this trace.
+
+A successful burn allocation stores13d8 and, unless class flag728 bit10 is
+set, calls504e40(5,10) then4089f0(entity+2a0,random_float,0). When armor remains
+at least half, class armor is nonzero and bit8000 is clear, bit2000 instead
+requests504e40(3,5) then4085f0(entity+2a0,source,random_float). Kind4 always
+clears bits2000 and8000 afterward, including rejection and existing-burn paths.
+The harness covers388 creation requests,91 successful-burn reactions and143
+armor-protected reactions with a supplied random return. It does not establish
+the random distribution or downstream reaction implementation.
+
+Kind6 polls voice854 unless flags810 bit80000000 is set. If inactive, it calls
+5056a0(0x23,entity+3c,1,173c378,0) and stores the returned voice. Next42a8e0 is
+queried afresh; selection, positive pre-hit health and positive class-scaled
+damage request4a7520 except for kind10. Finally4895d0 is queried; a zero low
+byte and positive current health request407fb0(entity+2a0,source,incoming,0).
+Reconstruct these effect owners before claiming campaign damage support.

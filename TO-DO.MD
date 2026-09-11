@@ -2296,3 +2296,9 @@ Shared SP damage dispatch now reconstructs4892c0 for normal SP globals.
 8,192 original traces and two port guards match PC/NXDK state, return values
 and callback arguments. Both builds/eight CTests pass. Remaining work includes
 entity damage effects, owned registration and connecting Continuous_Damage.
+
+Remaining entity-effect order:8,192 original41a505..41a7ab traces verify burn
+creation gates/source resolution, pain thresholds, kind6 voice, player feedback
+and AI notification. External effects remain supplied; next reconstruct shared
+orchestration and effect ownership. See docs/DAMAGE.md and
+tools/verify_damage_effects_trace.py.
