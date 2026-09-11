@@ -1118,6 +1118,37 @@ int rf_entity_skeletons_open(const rf_entity_seeds *seeds,rf_vpp *meshes,uint32_
 done:
     free(payload);free(model);rf_entity_skeletons_close(&v);return status;
 }
+void rf_entity_poses_close(rf_entity_poses *p)
+{
+    if(!p)return;free(p->items);free(p->matrices);free(p->generations);memset(p,0,sizeof(*p));
+}
+int rf_entity_poses_open(const rf_entity_seeds *seeds,const rf_entity_skeletons *s,uint32_t budget,rf_entity_poses *result)
+{
+    rf_entity_poses v={0};uint64_t bones=0,bytes;uint32_t i,at=0;
+    if(!seeds || !s || !result || result->items || result->matrices || result->generations ||
+       result->count || result->bone_count || result->resident_bytes || s->class_count!=seeds->class_count ||
+       (seeds->records.count && !seeds->items) || (s->class_count && !s->class_indices) || (s->count && !s->items))return RF_RANGE;
+    v.count=seeds->records.count;
+    for(i=0;i<v.count;++i) {
+        uint32_t c=seeds->items[i].class_index,index;if(c>=s->class_count)return RF_RANGE;
+        index=s->class_indices[c];if(index==UINT32_MAX)continue;
+        if(index>=s->count || !s->items[index].count || s->items[index].count>50)return RF_RANGE;
+        bones+=s->items[index].count;
+    }
+    bytes=sizeof(v)+(uint64_t)v.count*sizeof(*v.items)+bones*(sizeof(*v.matrices)+sizeof(*v.generations));
+    if(bytes>budget || bones>UINT32_MAX)return RF_RANGE;
+    v.bone_count=(uint32_t)bones;v.resident_bytes=(uint32_t)bytes;
+    if(v.count)v.items=calloc(v.count,sizeof(*v.items));
+    if(bones){v.matrices=calloc((size_t)bones,sizeof(*v.matrices));v.generations=calloc((size_t)bones,sizeof(*v.generations));}
+    if((v.count && !v.items) || (bones && (!v.matrices || !v.generations))){rf_entity_poses_close(&v);return RF_RANGE;}
+    for(i=0;i<v.count;++i) {
+        rf_entity_pose *p=v.items+i;p->skeleton=s->class_indices[seeds->items[i].class_index];
+        if(p->skeleton==UINT32_MAX)continue;
+        p->bone_count=s->items[p->skeleton].count;p->matrices=v.matrices+at;p->generations=v.generations+at;
+        rf_motion_playback_initialize(&p->playback);at+=p->bone_count;
+    }
+    *result=v;return RF_OK;
+}
 int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf_entity_seeds *result)
 {
     rf_entity_seeds v={0};rf_vpp_entry entry;void *text=NULL;

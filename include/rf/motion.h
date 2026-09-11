@@ -60,6 +60,10 @@ typedef struct rf_motion_playback_state {
     float phase;
     uint32_t generation, event_mask;
 } rf_motion_playback_state;
+/* Playback-field projection of character instance constructor51ae90. New owner
+ * only: clears slots, selections=-1, generation1, phase/events0. Does not release
+ * live motion references or construct/register the complete original instance. */
+void rf_motion_playback_initialize(rf_motion_playback_state *state);
 typedef struct rf_motion_playback_resource {
     rf_motion_weight_envelope comparison;
     uint32_t looping;

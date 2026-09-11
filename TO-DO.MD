@@ -2562,3 +2562,8 @@ a256KiB budget. Three level lifetime/failure probes pass; per-NPC poses,
 animation/geometry/material ownership and actor registration remain open.
 Native64MiB replay-20260911-063337 passes600 L1S2 lift/audio frames after
 shared skeleton integration; no new visual behavior is claimed.
+
+Per-NPC inactive playback/pose storage now has distinct bounded arrays and
+original-verified constructor fields (128 cases). Three level owner probes pass;
+connect authored motion resources and initial state/action selection next.
+Native64MiB replay-20260911-064148 passes after per-NPC pose allocation.

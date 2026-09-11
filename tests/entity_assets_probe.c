@@ -12,6 +12,7 @@ int main(int argc,char **argv)
     }
     if(argc==6 && !strcmp(argv[1],"--skeletons")) {
         rf_vpp levels,tables,meshes;rf_level level;rf_entity_seeds seeds={0};rf_entity_skeletons s={0},guard={0};
+        rf_entity_poses poses={0},pose_guard={0};
         if(rf_vpp_open(&levels,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_vpp_open(&meshes,argv[4]) || rf_level_open(&level,&levels,argv[5]))return 2;
         if(rf_entity_seeds_open(&level,&tables,4*1024*1024,&seeds))return 3;
         status=rf_entity_skeletons_open(&seeds,&meshes,1024*1024,&s);if(status){fprintf(stderr,"skeleton open %d\n",status);return 4;}
@@ -28,6 +29,21 @@ int main(int argc,char **argv)
             char name[64];if(rf_entity_skeletal_filename(seeds.classes[i].model,name) || s.class_indices[i]>=s.count ||
                 _stricmp(name,s.items[s.class_indices[i]].model))return 7;
         } else if(s.class_indices[i]!=UINT32_MAX)return 8;
+        if(rf_entity_poses_open(&seeds,&s,1024*1024,&poses))return 11;
+        if(rf_entity_poses_open(&seeds,&s,poses.resident_bytes-1,&pose_guard)!=RF_RANGE ||
+           memcmp(&pose_guard,&(rf_entity_poses){0},sizeof(pose_guard)))return 12;
+        if(rf_entity_poses_open(&seeds,&s,poses.resident_bytes,&pose_guard))return 13;
+        rf_entity_poses_close(&pose_guard);rf_entity_poses_close(&pose_guard);
+        {uint32_t at=0;rf_motion_playback_state expected;rf_motion_playback_initialize(&expected);
+        for(i=0;i<poses.count;++i)if(poses.items[i].skeleton!=UINT32_MAX) {
+            rf_entity_pose *p=poses.items+i;
+            if(p->matrices!=poses.matrices+at || p->generations!=poses.generations+at ||
+               memcmp(&p->playback,&expected,sizeof(expected)))return 14;
+            at+=p->bone_count;
+        }
+        if(at!=poses.bone_count)return 15;}
+        printf("POSES %u %u %u\n",poses.count,poses.bone_count,poses.resident_bytes);
+        rf_entity_poses_close(&poses);
         rf_entity_seeds_close(&seeds);rf_vpp_close(&levels);rf_vpp_close(&tables);rf_vpp_close(&meshes);
         for(i=0;i<s.count;++i){uint8_t order[256];if(rf_model_bone_order(s.items[i].bones,s.items[i].count,order,256))return 9;}
         printf("SKELETONS %u %u %u %u\n",s.class_count,s.count,s.resident_bytes,s.peak_bytes);

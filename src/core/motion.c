@@ -1,4 +1,13 @@
 #include "rf/motion.h"
+
+void rf_motion_playback_initialize(rf_motion_playback_state *state)
+{
+    rf_motion_playback_state value={0};
+    value.completion.active.freeze_slot=-1;
+    value.completion.active.primary_slot=-1;
+    value.completion.active.dominant_slot=-1;
+    value.generation=1;*state=value;
+}
 #include <math.h>
 #include <string.h>
 int rf_motion_start_action(rf_motion_playback_state *state, rf_motion_playback_resource *resources,

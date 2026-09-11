@@ -456,6 +456,7 @@ static uint32_t campaign_mover_count;
 static rf_entity_registry campaign_entities;
 static rf_entity_seeds campaign_seeds;
 static rf_entity_skeletons campaign_skeletons;
+static rf_entity_poses campaign_poses;
 static rf_entity_view campaign_player_view;
 static rf_registered_entity_view campaign_player_object;
 uint32_t rf_scene_campaign_player[4]; /* registered handle, kind, initial object flags, adapter bytes */
@@ -1026,6 +1027,7 @@ uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, regi
 static void campaign_close_movers(void)
 {
     rf_entity_seeds_close(&campaign_seeds);
+    rf_entity_poses_close(&campaign_poses);
     rf_entity_skeletons_close(&campaign_skeletons);
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
@@ -2316,6 +2318,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         }
         if(!status && collision && campaign_spawn)status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
         if(!status && collision && campaign_spawn)status=rf_entity_skeletons_open(&campaign_seeds,&archive,256*1024,&campaign_skeletons);
+        if(!status && collision && campaign_spawn)status=rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses);
         rf_vpp_close(&tables);if(status)goto done;
         if(campaign_spawn && collision) {
             rf_object_registry_init(&campaign_registry);

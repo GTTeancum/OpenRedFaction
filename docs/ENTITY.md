@@ -181,3 +181,37 @@ source closure. Class/resource/resident/peak counts (PC ABI):5/5/5504/15236,
 Native stock64MiB L1S2 lift/audio replay-20260911-063337 passes600 frames
 with PC state parity and nonzero guest DSP output. This establishes successful
 loading and preserved replay behavior, not independent native bone-byte proof.
+
+
+Per-actor playback and pose storage
+Constructor chain:486da0 ->489fe0(kind2) ->5029c0 ->501050 ->51ae90. The
+skeletal factory strips the last extension before loading. 501050 obtains a
+shared descriptor through51d780 and separately allocates the1d5c-byte character
+instance. Full51ae90 clears state, sets motion selections at1cfc/1d00/1d48
+to-1, generation lowword1cf8 to1, phase1d04 to0 and no active slots/events.
+Its bone caches use50 entries. This precedes later entity motion registration;
+it does not establish a standing motion or bind-pose evaluation.
+
+rf_motion_playback_initialize reproduces the compact playback-field projection.
+verify_motion_initialize.py executes the complete original constructor and all
+its real callees, with an empty instance-list root and caller-supplied descriptor
+address.128 randomized prior buffers match PC/NXDK exactly. Original global
+instance-list ownership and full instance layout are not recreated by this helper.
+
+rf_entity_poses_open now retains distinct playback, matrix and generation storage
+per authored skeletal actor, indexed alongside seeds. Matrices/stamps start zero
+and therefore invalid against generation1. No active motions, pose evaluation
+or NPC rendering is claimed. Skeleton data stays shared and its index order must
+remain stable. More than50 bones rejects character construction. This owner is
+for new, inactive instances; releasing live motion references must precede array
+cleanup once playback is connected. Campaign uses a1MiB budget and releases
+pose arrays on exit. Budget excludes stack/allocator overhead.
+
+L1S1/L1S2/L1S3 budget and ownership probes pass, checking exact-budget success,
+one-byte-short failure, distinct matrix/stamp slices and playback initialization.
+PC actor/bone/resident-byte totals:78/1689/106002,39/950/58288,28/448/30152.
+Both builds and nine CTests pass. Authored motion/resource registration and
+original initial state/action selection remain open before any live NPC update.
+Native64MiB door/audio replay-20260911-064148 passes180 frames after pose
+ownership integration, with PC parity and nonzero guest DSP output. This is
+loading/regression evidence, not active NPC animation validation.

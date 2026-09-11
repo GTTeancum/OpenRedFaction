@@ -179,6 +179,22 @@ typedef struct rf_entity_skeletons {
  * seeds may close after success. Close clears storage and is repeatable. */
 int rf_entity_skeletons_open(const rf_entity_seeds *seeds,rf_vpp *meshes,uint32_t budget,rf_entity_skeletons *result);
 void rf_entity_skeletons_close(rf_entity_skeletons *skeletons);
+typedef struct rf_entity_pose {
+    uint32_t skeleton,bone_count;rf_motion_playback_state playback;
+    float (*matrices)[12];uint16_t *generations;
+} rf_entity_pose;
+typedef struct rf_entity_poses {
+    rf_entity_pose *items;float (*matrices)[12];uint16_t *generations;
+    uint32_t count,bone_count,resident_bytes;
+} rf_entity_poses;
+/* Separate playback/cache storage per authored skeletal actor; no active motions
+ * or valid cached matrices initially. Non-skeletal entries have UINT32_MAX.
+ * Skeleton index order must remain stable while using poses. Empty destination;
+ * budget covers owner/arrays, excluding stack/allocator overhead. New instances
+ * only, not a reset/release path for live motion references. Failure preserves
+ * destination; close releases arrays. Original character limit is50 bones. */
+int rf_entity_poses_open(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,uint32_t budget,rf_entity_poses *result);
+void rf_entity_poses_close(rf_entity_poses *poses);
 /* Original41ba4d classification of the last-dot extension: vfx=3,vcm=2,
  * otherwise1, ASCII-insensitive. Bounded port input; error preserves output. */
 int rf_entity_model_kind(const char *model,uint32_t *kind);
