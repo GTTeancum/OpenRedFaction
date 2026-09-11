@@ -1,14 +1,40 @@
 #include "rf/physics.h"
 #include "rf/level.h"
+#include "rf/player.h"
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+typedef struct force_observation {uint32_t count;float velocity[3];uint32_t flags;float cap;uint32_t selected;} force_observation;
+static void observe_force(void *context,const rf_player_force_state *state,const float position[3],uint32_t slot)
+{
+    force_observation *value=context;(void)position;
+    if(slot!=0x53)value->count=1000;
+    ++value->count;memcpy(value->velocity,state->velocity,12);value->flags=state->physics_flags;
+    value->cap=state->alternate_cap;value->selected=state->movement->index;
+}
 int main(int argc,char **argv)
 {
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--force-replace")) {
+        struct {rf_physics_force_influence influence;float position[3],speed;uint32_t class_flags,enabled,flags;float cap;} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_movement_descriptor table[16]={{0}};float identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
+            rf_player_force_input args={0};rf_player_force_state state={0};uint32_t selected=77,i;
+            struct {float velocity[3];uint32_t flags;float cap;uint32_t selected,identity;force_observation observed;} output={0};
+            for(i=0;i<16;++i) {table[i].enabled=input.enabled;table[i].index=i;}
+            args.influence=input.influence;memcpy(args.position,input.position,12);args.class_speed=input.speed;
+            args.class_flags=input.class_flags;args.descriptors=table;args.identity=identity;
+            state.physics_flags=input.flags;state.alternate_cap=input.cap;
+            if(rf_player_force_replace(&state,&args,&selected,observe_force,&output.observed))return 3;
+            memcpy(output.velocity,state.velocity,12);output.flags=state.physics_flags;output.cap=state.alternate_cap;
+            output.selected=selected;output.identity=state.orientation==identity;
+            if(fwrite(&output,sizeof(output),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--force-cap")) {
         struct {float velocity[3],speed,cap;uint32_t flags;} input;
         while(fread(&input,sizeof(input),1,stdin)==1) {

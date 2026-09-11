@@ -2,6 +2,25 @@
 #include "rf/collision.h"
 #include <string.h>
 #include <math.h>
+int rf_player_force_replace(rf_player_force_state *state,const rf_player_force_input *input,
+    uint32_t *selected_descriptor,rf_player_force_sound sound,void *context)
+{
+    float velocity[3],cap;uint32_t i,flags,selected;int status;
+    if(!state || !input || !selected_descriptor || !input->descriptors || !input->identity ||
+        (!(state->physics_flags&0x200000) && !sound) || !isfinite(input->influence.strength))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(input->influence.direction[i]) || !isfinite(input->position[i]))return RF_RANGE;
+        velocity[i]=(float)((double)input->influence.direction[i]*input->influence.strength);
+    }
+    flags=state->physics_flags|1;
+    status=rf_physics_force_air_cap(velocity,input->class_speed,&cap,&flags);if(status)return status;
+    selected=(input->class_flags&0x400)?8:3;
+    if(!(input->descriptors[selected].enabled&255))selected=0;
+    memcpy(state->velocity,velocity,sizeof(velocity));state->physics_flags|=1;
+    state->movement=input->descriptors+selected;state->orientation=input->identity;*selected_descriptor=selected;
+    if(!(state->physics_flags&0x200000))sound(context,state,input->position,0x53);
+    state->alternate_cap=cap;state->physics_flags=flags|0x80000000u;return RF_OK;
+}
 uint32_t rf_player_support_route(const rf_player_support_input *input)
 {
     if(!input)return RF_PLAYER_SUPPORT_NONE;

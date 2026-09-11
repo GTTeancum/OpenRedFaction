@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
-Force carry and alternate airborne cap each match 2048 original PC/NXDK cases;
-compose replacement/fall/audio ordering and integrate registered regions next.
+Replacement force/fall/sound-callback/cap sequence matches 512 original PC/NXDK
+cases. Query eligibility, rotation, registration and live integration remain.
 
 Immediate open items:
 - [ ] Register verified runtime force regions and connect force application plus alternate airborne speed-cap ownership.

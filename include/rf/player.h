@@ -2,6 +2,27 @@
 #define RF_PLAYER_H
 #include "rf/vpp.h"
 #include "rf/movement.h"
+#include "rf/physics.h"
+
+typedef struct rf_player_force_state {
+    float velocity[3];uint32_t physics_flags;float alternate_cap;
+    const rf_movement_descriptor *movement;const float (*orientation)[3];
+} rf_player_force_state;
+typedef struct rf_player_force_input {
+    rf_physics_force_influence influence;float position[3],class_speed;
+    uint32_t class_flags;const rf_movement_descriptor *descriptors;
+    const float (*identity)[3];
+} rf_player_force_input;
+/* 486ab0..486c1c actor replacement branch, including 4281a0 fall. Caller
+ * supplies selected eligible actor and post-rotation influence. Sound callback
+ * observes replacement velocity/fall descriptor, old cap and no newly-set
+ * 200000/dirty bit. It must not mutate state. It receives slot 0x53 and physics
+ * position for existing local/spatial playback policy. Descriptors/identity
+ * remain borrowed. Preflight failures preserve state/selection and emit no sound. */
+typedef void (*rf_player_force_sound)(void *context,const rf_player_force_state *state,
+    const float position[3],uint32_t slot);
+int rf_player_force_replace(rf_player_force_state *state,const rf_player_force_input *input,
+    uint32_t *selected_descriptor,rf_player_force_sound sound,void *context);
 
 typedef struct rf_player_sound_input {
     int32_t entity_type;uint32_t owner_present;int32_t camera_mode;
