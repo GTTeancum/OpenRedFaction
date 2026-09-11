@@ -424,3 +424,27 @@ All60 authored selector cases and180 downstream cases pass after these
 changes, with3789 exact bone matrices/generation stamps. NXDK controller and
 advance outputs also match. Scene startup remains unconnected while its full
 input projection and lifecycle are completed.
+
+## Combined advancement and actor release
+
+`rf_entity_pose_advance` now runs shared playback advancement followed by catalog
+pose evaluation against the actor's owned matrices/cache. Selection and weighting
+remain caller responsibilities. No per-frame allocation is introduced. Sampling
+failure can leave advanced playback and partial matrices, so the caller must
+stop the failed actor rather than render that result.
+
+`rf_entity_pose_release` validates the entire active slot list before decrementing
+exactly one reference per unique registration, resets playback and invalidates
+bone generation stamps. It rejects missing references and duplicate/out-of-range
+slots. Releasing empty playback is repeatable. This is port-owned teardown,
+not a claim to reproduce an entire original actor destructor or archive eviction.
+
+The opening pose probe now supplies the pre-advance state to this combined
+operation using sparse catalog IDs, then releases twice. It seeds one additional
+reference per active registration to represent another actor and checks that
+reference survives both advancement/removal and release. All180 authored cases
+pass against original final poses, including3789 matrices/generation stamps and
+the fish zero-delta removal case. Both builds and nine CTest checks pass. A first
+probe attempt ran before the PC rebuild completed and saw old generation output;
+rerunning after confirmed build completion passes. No native scene path calls
+these new lifecycle helpers yet; connecting selected startup controllers remains.

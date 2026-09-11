@@ -1610,6 +1610,33 @@ int rf_entity_playback_cache_references(const rf_entity_playback_resources *r,ui
     }
     *references=(uint32_t)total;return RF_OK;
 }
+int rf_entity_pose_release(rf_entity_pose *pose,rf_entity_playback_resources *resources)
+{
+    rf_entity_playback_model *model;rf_motion_slot_state *active;uint32_t i,j;
+    if(!pose || !resources || !resources->models || pose->skeleton>=resources->model_count ||
+       !pose->generations || !pose->bone_count || pose->bone_count>50)return RF_RANGE;
+    model=resources->models+pose->skeleton;active=&pose->playback.completion.active;
+    if(active->count>16 || (active->count && !model->resources))return RF_RANGE;
+    for(i=0;i<active->count;++i) {
+        int32_t id=active->slots[i].motion;
+        if(id<0 || (uint32_t)id>=model->count || model->resources[id].references<1)return RF_RANGE;
+        for(j=0;j<i;++j)if(active->slots[j].motion==id)return RF_RANGE;
+    }
+    for(i=0;i<active->count;++i)--model->resources[active->slots[i].motion].references;
+    rf_motion_playback_initialize(&pose->playback);memset(pose->generations,0,pose->bone_count*sizeof(*pose->generations));return RF_OK;
+}
+int rf_entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,float elapsed,float displacement[3])
+{
+    rf_entity_playback_model *model;int status;
+    if(!pose || !skeletons || !catalog || !resources || !resources->models || !catalog->models || !displacement ||
+       pose->skeleton>=resources->model_count || pose->skeleton>=catalog->model_count || pose->skeleton>=skeletons->count ||
+       !skeletons->items || !pose->matrices || !pose->generations || pose->bone_count!=skeletons->items[pose->skeleton].count)return RF_RANGE;
+    model=resources->models+pose->skeleton;
+    if(model->count!=catalog->models[pose->skeleton].count)return RF_RANGE;
+    status=rf_motion_update(&pose->playback,model->resources,model->count,elapsed);if(status)return status;
+    return rf_entity_pose_evaluate(pose,skeletons,catalog,displacement);
+}
 int rf_entity_pose_evaluate(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
     const rf_entity_motion_catalog *catalog,float pending_displacement[3])
 {

@@ -366,6 +366,16 @@ void rf_entity_playback_resources_close(rf_entity_playback_resources *resources)
  * Rejects negative counters/overflow without changing output. Does not release
  * any archive data; callers must not infer unloadability from a single slot. */
 int rf_entity_playback_cache_references(const rf_entity_playback_resources *resources,uint32_t cache_id,uint32_t *references);
+/* Advance existing actor playback, then refresh its owned pose cache. Shared
+ * owners must correspond to the same catalog. Selection/weighting is external.
+ * A sampling error can leave an advanced playback/partial pose; stop the actor
+ * and release its slots before destroying these owners. No heap allocation. */
+int rf_entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,float elapsed,float displacement[3]);
+/* Release exactly this actor's active references, reset playback and invalidate
+ * bone cache stamps. Other actors sharing registrations retain their counters.
+ * Empty playback is repeatable; invalid slots/counts preserve the owner/pose. */
+int rf_entity_pose_release(rf_entity_pose *pose,rf_entity_playback_resources *resources);
 /* Compose a base catalog map and an optional already-resolved weapon map using
  * the42ab20 overlay rule. Inputs must share class/skeleton; base weapon is-1.
  * Result keeps base entries when weapon entries are-1. Does not choose a weapon,

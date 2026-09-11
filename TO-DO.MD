@@ -46,6 +46,9 @@ Original factory spans now establish zero movement intent and opening AI flags;
 Original spans now establish link sentinels, generic flags and initial velocity;
 180 startup cases still pass. Complete scene input projection and lifecycle.
 
+Combined actor advance/pose and reference release now pass180 startup cases;
+shared references survive teardown. Connect selected controllers in the scene.
+
 Immediate open items:
 - [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.

@@ -200,15 +200,15 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
        order=bytes(sorted(range(bone_count),key=depth));put(desc+0x48,'<I',bone_count)
        for i,parent in enumerate(parents):put(desc+0x94+i*0x4c,'<i',parent)
        u.mem_write(desc+0x8000,order)
-       compact=bytearray(advanced);motion_names=[];loop_mask=0;cursor=pose_data
-       for slot in range(active):
-        index=struct.unpack_from('<i',advanced,4+slot*12)[0]
+       compact=bytearray(state);motion_names=[];loop_mask=0;cursor=pose_data
+       for slot in range(struct.unpack_from('<I',state)[0]):
+        index=struct.unpack_from('<i',state,4+slot*12)[0]
         loop,name,filename=resource_rows[skeleton,index];data=asset_bytes(filename)
         assert cursor+len(data)<=pose_data+0x1000000
         u.mem_write(cursor,data);put(motion_mem+cache_ids[index]*256+0x78,'<I',cursor);cursor+=(len(data)+4095)//4096*4096
         struct.pack_into('<i',compact,4+slot*12,slot);motion_names.append(filename);loop_mask|=loop<<slot
        if not motion_names:motion_names=[resource_rows[skeleton,0][2]]
-       pose_c=subprocess.check_output([str(root/'build/pc/Release/rf_skeleton_probe.exe'),str(game/'meshes.vpp'),str(game/'motions.vpp'),model_name,*motion_names],input=bytes(compact)+struct.pack('<I',loop_mask),env=pose_env)
+       pose_c=subprocess.check_output([str(root/'build/pc/Release/rf_skeleton_probe.exe'),str(game/'meshes.vpp'),str(game/'motions.vpp'),model_name,*motion_names],input=bytes(compact)+struct.pack('<If',loop_mask,delta),env=pose_env)
        assert struct.unpack_from('<I',pose_c)[0]==bone_count
        put(stack,'<4I',stop,bone_count,desc+0x8000,obj);u.reg_write(UC_X86_REG_ESP,stack);call(0x51b500)
        original_pose=bytes(u.mem_read(obj,bone_count*48))+b''.join(bytes(u.mem_read(obj+0x1394+i*48,2)) for i in range(bone_count))
@@ -228,5 +228,5 @@ if advance_mode:
  (root/('artifacts/npc-authored-advance.json' if authored_mode else 'artifacts/npc-initial-advance.json')).write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
 
 if pose_mode:
- report=dict(authored_creation_flags=authored_mode,result='PASS',cases=len(pose_results),bone_matrices=sum(r['bones'] for r in pose_results),original_sha256=digest,scope='Complete original51b500 and callees after verified first startup advance versus PC archive-based evaluator. Real model parent trees and complete active motion bytes; matrices and cache generations match exactly. C wire packs active files; the probe constructs sparse catalog IDs and calls rf_entity_pose_evaluate without changing slot order. No live actor ownership, rendering or NXDK pose execution.',results=pose_results)
+ report=dict(authored_creation_flags=authored_mode,result='PASS',cases=len(pose_results),bone_matrices=sum(r['bones'] for r in pose_results),original_sha256=digest,scope='Complete original51b500 and callees after verified first startup advance versus PC archive-based evaluator. Real model parent trees and complete active motion bytes; matrices and cache generations match exactly. C wire packs active files; the probe constructs sparse catalog IDs and calls rf_entity_pose_advance without changing slot order, then releases twice while preserving a sibling reference. No live actor ownership, rendering or NXDK pose execution.',results=pose_results)
  (root/('artifacts/npc-authored-pose.json' if authored_mode else 'artifacts/npc-initial-pose.json')).write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})
