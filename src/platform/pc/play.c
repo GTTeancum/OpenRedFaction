@@ -296,10 +296,11 @@ int main(int argc,char **argv)
             printf("NPC_SUPPORT_DEEP_FIRST");for(uint32_t k=0;k<20;++k)printf(" %u",rf_scene_npc_support_deep_first[k]);puts("");
             printf("NPC_DAMAGE_TEST");for(uint32_t k=0;k<64;++k)printf(" %u",rf_scene_npc_damage_test_words[k]);puts("");
             printf("PLAYER_VITALS");for(uint32_t k=0;k<6;++k)printf(" %u",rf_scene_player_vitals[k]);puts("");
-            {extern uint32_t rf_scene_player_pain_audio[9],rf_scene_player_pain_test[21],rf_scene_player_damage_audio_test[18];
+            {extern uint32_t rf_scene_player_pain_audio[9],rf_scene_player_pain_test[21],rf_scene_player_damage_audio_test[18],rf_scene_player_death_audio_test[18];
              printf("PLAYER_PAIN_AUDIO");for(uint32_t k=0;k<9;++k)printf(" %u",rf_scene_player_pain_audio[k]);puts("");
              printf("PLAYER_PAIN_TEST");for(uint32_t k=0;k<21;++k)printf(" %u",rf_scene_player_pain_test[k]);puts("");
-             printf("PLAYER_DAMAGE_AUDIO_TEST");for(uint32_t k=0;k<18;++k)printf(" %u",rf_scene_player_damage_audio_test[k]);puts("");}
+             printf("PLAYER_DAMAGE_AUDIO_TEST");for(uint32_t k=0;k<18;++k)printf(" %u",rf_scene_player_damage_audio_test[k]);puts("");
+             printf("PLAYER_DEATH_AUDIO_TEST");for(uint32_t k=0;k<18;++k)printf(" %u",rf_scene_player_death_audio_test[k]);puts("");}
             printf("NPC_DAMAGE_OWNERS");for(uint32_t k=0;k<3;++k)printf(" %u",rf_scene_npc_damage_owners[k]);puts("");
             printf("NPC_PAIN_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_owners[k]);puts("");
             printf("NPC_PAIN_SOUND_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_sound_owners[k]);puts("");

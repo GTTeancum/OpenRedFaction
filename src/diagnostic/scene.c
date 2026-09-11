@@ -416,7 +416,7 @@ typedef struct campaign_player_damage_owner {
     float factors[11];uint32_t class_flags,object_flags;
 } campaign_player_damage_owner;
 static campaign_player_damage_owner campaign_player_damage;
-static struct {int32_t groups[2],deadline,voice;} campaign_player_pain_sound;
+static struct {int32_t groups[3],deadline,voice;} campaign_player_pain_sound;
 uint32_t rf_scene_player_pain_audio[9]; /* same fields as NPC pain audio */
 uint32_t rf_scene_player_vitals[6]; /* health/armor/class health/class armor bits, owner bytes, factor hash */
 static int campaign_player_damage_open(rf_vpp *tables,const char *name,const rf_entity_class_physics *physics)
@@ -436,7 +436,7 @@ static int campaign_player_damage_open(rf_vpp *tables,const char *name,const rf_
     owner.state.effects.class_flags_728=physics->flags2;owner.class_flags=physics->flags;
     owner.state.effects.voice=UINT32_MAX;owner.state.responsible_handle=UINT32_MAX;owner.state.burn_source=UINT32_MAX;
     campaign_player_damage=owner;
-    campaign_player_pain_sound.groups[0]=campaign_player_pain_sound.groups[1]=-1;
+    campaign_player_pain_sound.groups[0]=campaign_player_pain_sound.groups[1]=campaign_player_pain_sound.groups[2]=-1;
     campaign_player_pain_sound.voice=-1;
     status=rf_timer_set(&campaign_player_pain_sound.deadline,0,0);if(status)return status;
     memset(rf_scene_player_pain_audio,0,sizeof(rf_scene_player_pain_audio));
@@ -973,7 +973,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
             if(status)goto audio_done;
         }
         if(player_class) {
-            status=rf_entity_pain_groups_read(entity_text,entity_entry.size,player_class,&campaign_foley,campaign_player_pain_sound.groups);
+            status=rf_entity_damage_sound_groups_read(entity_text,entity_entry.size,player_class,&campaign_foley,campaign_player_pain_sound.groups);
             if(status)goto audio_done;
         }
         free(entity_text);entity_text=NULL;
@@ -1895,8 +1895,7 @@ static void player_damage_notify(void *context,uint32_t kind,uint32_t target,flo
     if(kind==RF_DAMAGE_PAIN_ANIMATION && campaign_spawn && rf_scene_actor_eye_enabled &&
         target==(uint32_t)campaign_player_view.handle && (campaign_player_view.flags_7c&8))return;
     if(kind==RF_DAMAGE_PAIN_SOUND && c->pain_random && campaign_spawn && rf_scene_actor_eye_enabled &&
-        target==(uint32_t)campaign_player_view.handle && (campaign_player_view.flags_7c&8) &&
-        campaign_player_damage.state.effects.health>0) {
+        target==(uint32_t)campaign_player_view.handle && (campaign_player_view.flags_7c&8)) {
         int status=rf_scene_player_pain_sound(target,value,c->now_ms,c->pain_random);
         if(status && !c->status)c->status=status;return;
     }
@@ -2160,6 +2159,7 @@ static void campaign_pain_audio_play(void *context,const float position[3],int32
 {
     campaign_pain_audio_context *c=context;
     if(c->status)return;
+    if(sample==-1)return; /* Original playback rejects the absent sample without a voice. */
     if(sample<0 || (uint32_t)sample>=campaign_audio_bank.count){c->status=RF_RANGE;return;}
     {const unsigned char *name=(const unsigned char *)campaign_audio_bank.samples[sample].name;
      uint32_t hash=2166136261u;for(;*name;++name) {
@@ -2216,14 +2216,14 @@ int rf_scene_player_pain_sound(uint32_t handle,float fraction,int32_t now,rf_ran
     if(!campaign_spawn || !rf_scene_actor_eye_enabled ||
        rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&campaign_player_view ||
        campaign_player_damage.state.effects.handle!=handle || !(campaign_player_view.flags_7c&8))return RF_NOT_FOUND;
-    if(campaign_player_damage.state.effects.health<=0)return RF_NOT_FOUND; /* Death owns separate descriptors. */
     state.health=campaign_player_damage.state.effects.health;state.flags=campaign_player_view.flags_810;
-    state.death_descriptor=state.death_class=-1;
+    state.death_descriptor=state.death_class=campaign_player_pain_sound.groups[2]; /* Current base/effective class are the same. */
     state.light_class=campaign_player_pain_sound.groups[0];state.heavy_class=campaign_player_pain_sound.groups[1];
     state.action=campaign_player_view.action_520;state.deadline=campaign_player_pain_sound.deadline;state.voice=campaign_player_pain_sound.voice;
     /* Mode0 playback does not consume position; no fabricated entity eye owner. */
     ++rf_scene_player_pain_audio[0];
     status=rf_entity_damage_sound(&state,fraction,campaign_player_view.flags_810&1u,1,now,&backend);
+    campaign_player_view.flags_810=state.flags;campaign_player_damage.state.effects.flags_810=state.flags;
     campaign_player_pain_sound.deadline=state.deadline;rf_scene_player_pain_audio[6]=random->value;
     if(context.status || status)++rf_scene_player_pain_audio[7];
     return context.status?context.status:status;
@@ -2322,6 +2322,7 @@ static int campaign_npc_damage_fixture(void)
 static float campaign_jump_strength;
 uint32_t rf_scene_player_pain_test[21]; /* three deadline/voice/sample/RNG/play/group/flat-voice snapshots */
 uint32_t rf_scene_player_damage_audio_test[18]; /* health/armor/amount/flash/dispatches/unexpected notifications */
+uint32_t rf_scene_player_death_audio_test[18]; /* two health/armor/amount/flags/flash/plays/RNG/deadline/voice snapshots */
 static uint32_t campaign_player_fixture_notifications;
 static void campaign_player_fixture_notify(void *context,uint32_t kind,uint32_t target,float value,uint32_t source)
 {(void)context;(void)kind;(void)target;(void)value;(void)source;++campaign_player_fixture_notifications;}
@@ -2336,6 +2337,7 @@ static int campaign_player_pain_fixture(void)
     rf_startup_events_report report;
     memset(rf_scene_player_pain_test,0,sizeof(rf_scene_player_pain_test));
     memset(rf_scene_player_damage_audio_test,0,sizeof(rf_scene_player_damage_audio_test));campaign_player_fixture_notifications=0;
+    memset(rf_scene_player_death_audio_test,0,sizeof(rf_scene_player_death_audio_test));
     if(rf_scene_npc_damage_test_uid==UINT32_MAX)return RF_OK;
     status=rf_scene_event_damage_bind(&services,&damage_backend.effects);if(status)return status;
     damage_backend.frame_seconds=.25f;triggers.damage_backend=&damage_backend;
@@ -2356,6 +2358,18 @@ static int campaign_player_pain_fixture(void)
         words[5]=(uint32_t)campaign_player_pain_sound.groups[pass==2?1:0];
         for(i=0;i<RF_AUDIO_VOICES;++i)if(campaign_audio_mixer.voices[i].active &&
             campaign_spatial_voices[i].handle && !campaign_spatial_voices[i].positional)++words[6];
+    }
+    for(pass=0;!status && pass<2;++pass) {
+        uint32_t *death=rf_scene_player_death_audio_test+pass*9;
+        services.now_ms=pass?4000:3000;services.clock_bits=pass?0x40800000:0x40400000;
+        services.dispatches=0;authored.record.words[0]=1200;
+        status=rf_screen_flash_reset(&campaign_player_flash);if(status)break;
+        status=rf_runtime_event_fire(&triggers,event.handle,UINT32_MAX,UINT32_MAX,services.now_ms,&scene_gravity,NULL,NULL,&report);
+        if(!status)status=services.status;if(status)break;
+        memcpy(death,&campaign_player_damage.state.effects.health,8);memcpy(death+2,&services.last_amount,4);
+        death[3]=campaign_player_view.flags_810;death[4]=campaign_player_flash.alpha;
+        death[5]=rf_scene_player_pain_audio[2];death[6]=random.value;
+        death[7]=(uint32_t)campaign_player_pain_sound.deadline;death[8]=(uint32_t)campaign_player_pain_sound.voice;
     }
     {int removed=rf_object_registry_remove(&campaign_registry,event.handle);if(!status)status=removed;}
     /* Record damage flash above, then keep the existing movement replay's

@@ -634,11 +634,11 @@ int rf_foley_find(const rf_foley_owner *owner,const char *name,int32_t *group)
     if(*name)for(i=0;i<owner->group_count;++i)if(same(owner->groups[i].name,name)){value=(int32_t)i;break;}
     *group=value;return RF_OK;
 }
-int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class_name,
-    const rf_foley_owner *owner,int32_t groups[2])
+static int entity_damage_sound_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t *groups,uint32_t count)
 {
     lexer l={text,bytes,0};char t[256],name[64];int status,quoted,selected=0;
-    uint32_t seen=0,index;int32_t value[2]={-1,-1};
+    uint32_t seen=0,index;int32_t value[3]={-1,-1,-1};
     if(!text || !bytes || !class_name || !*class_name || !groups)return RF_RANGE;
     status=rf_foley_find(owner,"",&value[0]);if(status)return status;
     for(;;) {
@@ -649,15 +649,22 @@ int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class
             if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
             selected=same(t,class_name);
         } else if(same(t,"#End"))break;
-        else if(selected && (same(t,"$Low_Pain") || same(t,"$Med_Pain"))) {
-            index=same(t,"$Low_Pain")?0:1;
+        else if(selected && (same(t,"$Low_Pain") || same(t,"$Med_Pain") || (count==3 && same(t,"$DeathSnd:")))) {
+            index=same(t,"$Low_Pain")?0:same(t,"$Med_Pain")?1:2;
             if(seen&(1u<<index))return RF_FORMAT;seen|=1u<<index;
-            if(token(&l,t,&quoted) || quoted || !same(t,"Sounds:") || metadata_string(&l,name,sizeof(name)))return RF_FORMAT;
+            if(index<2 && (token(&l,t,&quoted) || quoted || !same(t,"Sounds:")))return RF_FORMAT;
+            if(metadata_string(&l,name,sizeof(name)))return RF_FORMAT;
             status=rf_foley_find(owner,name,value+index);if(status)return status;
         }
     }
-    if(!selected)return RF_NOT_FOUND;memcpy(groups,value,sizeof(value));return RF_OK;
+    if(!selected)return RF_NOT_FOUND;memcpy(groups,value,count*sizeof(*value));return RF_OK;
 }
+int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t groups[2])
+{return entity_damage_sound_groups_read(text,bytes,class_name,owner,groups,2);}
+int rf_entity_damage_sound_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t groups[3])
+{return entity_damage_sound_groups_read(text,bytes,class_name,owner,groups,3);}
 int rf_foley_bind_materials(const rf_foley_owner *owner,const char (*names)[32],
     uint32_t count,int32_t slots[10])
 {

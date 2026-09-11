@@ -62,7 +62,7 @@ static int sound_request_check(void)
         memset(&campaign_player_view,0,sizeof(campaign_player_view));campaign_player_view.flags_7c=8;
         CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&campaign_player_view,&registration)==RF_OK);
         campaign_player_damage.state.effects.handle=registration.handle;campaign_player_damage.state.effects.health=100;
-        campaign_player_pain_sound.groups[0]=0;campaign_player_pain_sound.groups[1]=1;
+        campaign_player_pain_sound.groups[0]=0;campaign_player_pain_sound.groups[1]=1;campaign_player_pain_sound.groups[2]=0;
         campaign_player_pain_sound.deadline=0;campaign_player_pain_sound.voice=-1;
         campaign_spawn=rf_scene_actor_eye_enabled=1;memset(rf_scene_player_pain_audio,0,sizeof(rf_scene_player_pain_audio));
         CHECK(rf_scene_player_pain_sound(registration.handle,.1f,1000,&random)==RF_OK);
@@ -101,7 +101,11 @@ static int sound_request_check(void)
         rf_scene_actor_eye_enabled=0;
         CHECK(rf_scene_player_pain_sound(registration.handle,1,3000,&random)==RF_NOT_FOUND);
         rf_scene_actor_eye_enabled=1;campaign_player_damage.state.effects.health=0;
-        CHECK(rf_scene_player_pain_sound(registration.handle,1,3000,&random)==RF_NOT_FOUND);
+        before=sound_starts;saved=random;campaign_player_view.action_520=17;campaign_player_view.flags_810=1;
+        CHECK(rf_scene_player_pain_sound(registration.handle,1,3000,&random)==RF_OK);
+        CHECK(sound_starts==before+1 && (campaign_player_view.flags_810&4) && campaign_player_damage.state.effects.flags_810==5);
+        CHECK(campaign_player_pain_sound.deadline==5000 && campaign_player_pain_sound.voice==-1 && random.value==saved.value);
+        CHECK(rf_scene_player_pain_sound(registration.handle,1,3000,&random)==RF_OK && sound_starts==before+1);
         CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&registration)==RF_OK);
         CHECK(rf_scene_player_pain_sound((uint32_t)campaign_player_view.handle,1,3000,&random)==RF_NOT_FOUND);
         campaign_spawn=rf_scene_actor_eye_enabled=0;memset(&campaign_foley,0,sizeof(campaign_foley));

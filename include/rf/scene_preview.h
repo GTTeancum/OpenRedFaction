@@ -15,10 +15,11 @@
  * Returns a port device voice ID; does not assign entity808 or load PCM.
  * Errors preserve the output ID. Listener updates affect positional voices only. */
 int rf_scene_sound_play_request(const rf_player_sound_request *request,int32_t *voice);
-/* Living registered campaign player in the current first-person eye profile.
+/* Registered campaign player damage sound in the current first-person profile.
  * Retains4196f0 cooldown/voice and class sound groups, shares caller RNG, lazily
  * loads bounded PCM and dispatches nonpositional playback. Does not update808.
- * Other camera profiles and death require their own owners and return NOT_FOUND.
+ * DeathSnd uses the retained same-class descriptor and marks flags810 bit4 once.
+ * Other camera profiles return NOT_FOUND. Full death transitions remain separate.
  * Caller supplies the pain fraction and current timer; not attached to hazards. */
 int rf_scene_player_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random);
 
@@ -78,9 +79,9 @@ extern uint32_t rf_scene_player_vitals[6];
  * This does not supply weapons, death, sound or authored hazard activation. */
 int rf_scene_player_damage(uint32_t handle,const rf_damage_request *request,float difficulty,
     uint32_t clock_bits,const rf_damage_effect_backend *effects,float *result);
-/* Also handles living first-person player pain audio with the caller's shared
+/* Also handles first-person player pain/death audio with the caller's shared
  * RNG and millisecond clock. Other reactions still use the complete backend.
- * Death/other profiles delegate; audio failure preserves committed damage. */
+ * Other profiles delegate; audio failure preserves committed damage. */
 int rf_scene_player_damage_audio(uint32_t handle,const rf_damage_request *request,float difficulty,
     uint32_t clock_bits,int32_t now_ms,rf_random_state *random,const rf_damage_effect_backend *effects,float *result);
 int rf_scene_player_flash_step(uint32_t player_entity_handle,float seconds,uint32_t freeze,

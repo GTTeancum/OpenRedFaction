@@ -273,7 +273,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert player_pain_audio==expected('PLAYER_PAIN_AUDIO') and player_pain_audio[7]==0,player_pain_audio
      assert player_pain_test==expected('PLAYER_PAIN_TEST'),player_pain_test
      if args.damage_uid==8456:
-      assert player_pain_audio[:3]==[3,2,2] and player_pain_audio[4]>0,player_pain_audio
+      assert player_pain_audio[:3]==[5,3,3] and player_pain_audio[4]>0,player_pain_audio
       assert player_pain_test[:7]==player_pain_test[7:14],player_pain_test
       assert [player_pain_test[i] for i in (0,7,14)]==[2000,2000,3000],player_pain_test
       assert [player_pain_test[i] for i in (1,8,15)]==[0xffffffff]*3,player_pain_test
@@ -287,6 +287,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
        actual=struct.unpack('<3f',struct.pack('<3I',*row[:3]))
        assert all(abs(a-b)<.0001 for a,b in zip(actual,(health,armor,amount))) and row[3:]==[128,1,0],row
      report['player_damage_audio_test']=player_damage_audio
+     player_death_audio=words(monitor,symbol('rf_scene_player_death_audio_test'),18)
+     assert player_death_audio==expected('PLAYER_DEATH_AUDIO_TEST'),player_death_audio
+     if args.damage_uid==8456:
+      for step,health in enumerate((-160,-460)):
+       row=player_death_audio[step*9:step*9+9]
+       actual=struct.unpack('<3f',struct.pack('<3I',*row[:3]))
+       assert all(abs(a-b)<.001 for a,b in zip(actual,(health,0,300))),row
+       assert row[3:6]==[4,0 if step else 128,3] and row[7:]==[3000,0xffffffff],row
+      assert player_death_audio[6]==player_death_audio[15],player_death_audio
+     report['player_death_audio_test']=player_death_audio
      npc_damage_test=words(monitor,symbol('rf_scene_npc_damage_test_words'),64)
      assert npc_damage_test==expected('NPC_DAMAGE_TEST'),npc_damage_test
      assert npc_damage_test[0]==npc_damage_test[63]==0,npc_damage_test

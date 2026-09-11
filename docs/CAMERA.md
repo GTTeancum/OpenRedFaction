@@ -4235,3 +4235,56 @@ native registered-event-to-player-damage-to-pain test. The DSP snapshot remains
 mixed audio, not isolated waveform parity or host audibility evidence. No
 framebuffer capture was taken; the fixture resets its recorded flash before
 the normal movement replay as described above.
+
+
+## Player lethal-damage sound branch
+
+Original41a350 requests4196f0 even after health crosses zero (subject to its
+incoming-fraction/kind gates).4196f0 checks base-class294->124, uses active
+class29c->124 for the death sound group, and ORs flags810 bit4 after attempting
+playback. With that bit already set it returns without selecting or playing
+again. The death branch precedes action, player suppression and cooldown checks.
+Disassembly41cb19..41cb51 shows the $DeathSnd: token at5955e8, name resolution
+through434cb0 and the result stored at class+124 by41cb4b.
+
+rf_entity_damage_sound_groups_read retains low/medium/death group IDs while
+preserving the old two-group reader's behavior. Missing/unknown/empty names
+resolve-1; malformed or duplicate requested fields reject without publishing
+results. verify_pain_groups.py --death checks all63 installed classes and7
+synthetic cases against independent label extraction and the original434cb0
+resolver, for both PC and linked NXDK. It does not execute the whole original
+class parser. Current miner1 resolves groups18/19/20 (Player Die is group20).
+
+The registered first-person player sound binding now retains this third group
+and lets the original-verified core handle lethal sound selection and the played
+flag. It commits flags810 to both damage and view owners so the outer adapter
+does not overwrite the bit. The current selected base/effective class is shared;
+alternate29c class ownership and other camera profiles remain open. Missing
+sample-1 is a silent lower-playback rejection; the core still sets its played
+flag, matching the original attempted-play order. Voice808 and the pain cooldown
+are not repurposed for death. The retained sound record grows16 to20 bytes,
+raising total campaign player ownership4296 to4300 bytes.
+
+PC checks verify death sound bypasses action17, flag810-bit1 and the unexpired
+pain cooldown, plays once, preserves voice/RNG for a single-sample group and
+retains the death flag in both owners. All12 tests and both builds pass. The
+4101-case original damage-sound comparison also passes. The event fixture adds
+two300-damage hits after its three living hits: health becomes-160 then-460,
+armor0, flags810=4, total sound plays3 and death RNG unchanged on the second
+hit. The lethal hit sets flash128; after clearing between fixtures, damage to
+an already-dead player sets no flash. Cooldown stays3000 and voice808 stays-1.
+PC loads sample145 for death, adding28770 bytes (49734 total player sound PCM).
+
+This implements the sound notification on lethal damage. It does not implement
+death animation, input disabling, camera transition, corpse handling, game-over,
+respawn or mission restart. The diagnostic intentionally continues its movement
+replay with a dead retained health owner; it is not finished death behavior.
+Native results follow; no new screenshot is claimed.
+
+
+Native replay-20260911-165622 passes180 frames with base RAM67108864 and
+plugged0, exact living/death sound snapshots and both lethal numeric checks.
+The guest DSP ring contains nonzero mixed output. Player audio telemetry is
+[5,3,3,3,49734,145,415139642,0,783005945]: five notifications, three selections,
+three plays/loads and zero errors. NPC audio and the normal replay checks pass.
+No isolated waveform, host listening or complete death lifecycle claim follows.

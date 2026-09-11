@@ -7,8 +7,9 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
-    if(argc==4 && !strcmp(argv[1],"--pain-groups")) {
-        rf_foley_owner owner={0};int32_t groups[2]={123,456};FILE *f;long size;
+    if(argc==4 && (!strcmp(argv[1],"--pain-groups") || !strcmp(argv[1],"--damage-sound-groups"))) {
+        uint32_t count=!strcmp(argv[1],"--pain-groups")?2:3;
+        rf_foley_owner owner={0};int32_t groups[3]={123,456,789};FILE *f;long size;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         if(fread(&owner.group_count,4,1,stdin)!=1 || owner.group_count>640)return 2;
         owner.groups=calloc(owner.group_count?owner.group_count:1,sizeof(*owner.groups));if(!owner.groups)return 2;
@@ -16,8 +17,9 @@ int main(int argc,char **argv)
         f=fopen(argv[2],"rb");if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);
         if(size<0 || size>1024*1024)return 2;text=malloc((size_t)size+1);if(!text)return 2;
         if(fread(text,1,(size_t)size,f)!=(size_t)size)return 2;fclose(f);
-        status=rf_entity_pain_groups_read(text,(uint32_t)size,argv[3],&owner,groups);
-        fwrite(&status,4,1,stdout);fwrite(groups,4,2,stdout);free(text);free(owner.groups);return 0;
+        status=count==2?rf_entity_pain_groups_read(text,(uint32_t)size,argv[3],&owner,groups):
+            rf_entity_damage_sound_groups_read(text,(uint32_t)size,argv[3],&owner,groups);
+        fwrite(&status,4,1,stdout);fwrite(groups,4,count,stdout);free(text);free(owner.groups);return 0;
     }
     if(argc==4 && !strcmp(argv[1],"--damage-factors")) {
         FILE *f=fopen(argv[2],"rb");long size;float factors[11];

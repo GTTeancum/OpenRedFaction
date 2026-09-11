@@ -199,6 +199,9 @@ int rf_foley_find(const rf_foley_owner *owner,const char *name,int32_t *group);
  * Port metadata reader for one class, not the full original class parser. */
 int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_foley_owner *owner,int32_t groups[2]);
+/* Same rules, with DeathSnd (class124) as the third result. */
+int rf_entity_damage_sound_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t groups[3]);
 
 /* Original41c781..41c7e8 footstep class binding and434cb0 lookup: initialize
  * ten slots to -1, resolve each nonempty name to the first case-insensitive

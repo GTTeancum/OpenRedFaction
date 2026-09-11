@@ -2,6 +2,7 @@
 import hashlib,json,re,struct,subprocess,sys
 from pathlib import Path
 import pefile
+death='--death' in sys.argv;count=3 if death else 2;sentinels=(123,456,789)[:count]
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32
 from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_EAX
@@ -25,23 +26,23 @@ def machine(path):
 exe=root/'Installed_Game/RF.exe'
 assert hashlib.sha256(exe.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
 u=machine(exe);x=machine(root/'build/xbox/main.exe')
-entry=int(re.search(r'\s_rf_entity_pain_groups_read\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+entry=int(re.search(r'\s_rf_entity_'+('damage_sound' if death else 'pain')+r'_groups_read\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
 for i,name in enumerate(names):
  row=name.ljust(32,b'\0')+bytes(12);u.mem_write(0x6300f8+i*44,row);x.mem_write(b+0x1000+i*44,row)
 u.mem_write(0x636ef8,w(len(names)));x.mem_write(b,w(b+0x1000,0,len(names),0,0,0))
 wire=w(len(names))+b''.join(n.ljust(32,b'\0') for n in names)
-folder=root/'artifacts/pain-groups';folder.mkdir(exist_ok=True);path=folder/'entity.tbl';path.write_bytes(entity)
+folder=root/('artifacts/damage-sound-groups' if death else 'artifacts/pain-groups');folder.mkdir(exist_ok=True);path=folder/'entity.tbl';path.write_bytes(entity)
 def original(name):
  u.mem_write(b+0x1000,name+b'\0');u.mem_write(stack,w(stop,b+0x1000));u.reg_write(UC_X86_REG_ESP,stack)
  u.emu_start(0x434cb0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop;return u.reg_read(UC_X86_REG_EAX)
 def check(text,name,expected):
  path.write_bytes(text)
- pc=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--pain-groups',str(path),name.decode()],input=wire)
- x.mem_write(b+0x10000,text);x.mem_write(b+0xe000,name+b'\0');x.mem_write(b+0xf000,w(123,456))
+ pc=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--damage-sound-groups' if death else '--pain-groups',str(path),name.decode()],input=wire)
+ x.mem_write(b+0x10000,text);x.mem_write(b+0xe000,name+b'\0');x.mem_write(b+0xf000,w(*sentinels))
  x.mem_write(stack,w(stop,b+0x10000,len(text),b+0xe000,b,b+0xf000));x.reg_write(UC_X86_REG_ESP,stack)
  x.emu_start(entry,stop,count=20000000);assert x.reg_read(UC_X86_REG_EIP)==stop
- result=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b+0xf000,8));assert result==pc
- if expected is None:assert pc[:4]!=bytes(4) and pc[4:]==w(123,456)
+ result=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b+0xf000,count*4));assert result==pc
+ if expected is None:assert pc[:4]!=bytes(4) and pc[4:]==w(*sentinels)
  else:assert pc==w(0,*expected),(name,pc,expected)
 rows=[]
 for i,match in enumerate(classes):
@@ -50,12 +51,18 @@ for i,match in enumerate(classes):
  for kind in (b'Low',b'Med'):
   found=re.findall(rb'^\s*\$'+kind+rb'_Pain\s+Sounds:\s*"([^"\r\n]*)"',block,re.M|re.I)
   assert len(found)<=1;labels.append(found[0] if found else b'')
+ if death:
+  found=re.findall(rb'^\s*\$DeathSnd:\s*"([^"\r\n]*)"',block,re.M|re.I)
+  assert len(found)<=1;labels.append(found[0] if found else b'')
  expected=list(map(original,labels));check(entity,match[1],expected)
  rows.append(dict(name=match[1].decode(),groups=expected))
 for text in (b'$Name: "fixture"\n#End',b'$Name: "fixture"\n$Low_Pain Sounds: "unknown"\n$Med_Pain Sounds: ""\n#End'):
- check(text,b'fixture',[0xffffffff,0xffffffff])
+ check(text,b'fixture',[0xffffffff]*count)
 for text in (b'$Name: "fixture"\n$Low_Pain Sounds: 3',b'$Name: "fixture"\n$Low_Pain Sounds: "a"\n$Low_Pain Sounds: "b"',b'$Name: "fixture"\n$Med_Pain bad "a"'):
  check(text,b'fixture',None)
-report=dict(result='PASS',installed_classes=len(rows),foley_groups=len(names),synthetic_cases=5,rows=rows,
+if death:
+ for text in (b'$Name: "fixture"\n$DeathSnd: 3',b'$Name: "fixture"\n$DeathSnd: "a"\n$DeathSnd: "b"'):
+  check(text,b'fixture',None)
+report=dict(result='PASS',installed_classes=len(rows),foley_groups=len(names),synthetic_cases=7 if death else 5,rows=rows,
  scope='PC and linked NXDK metadata reader agree with independent installed label extraction and actual original434cb0/57c130 resolution. Full original class parser not executed. Missing/empty/unknown resolve-1; malformed/duplicate guards preserve output. Playback/voice ownership remain separate.')
 (folder/'report.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='rows'})
