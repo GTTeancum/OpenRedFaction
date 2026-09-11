@@ -298,3 +298,38 @@ as do both builds and eight CTests. artifacts/damage-full.json records hashes.
 Next bind persistent class/entity/burn ownership and implemented downstream
 effects to this composed entry point, then connect the event damage callback.
 No live campaign death, burn animation or AI behavior is claimed by this test.
+
+## Burn creation and pool ownership evidence
+
+verify_burn_creation_trace.py executes complete42e910 for576 cases, including
+72 accepted allocations. It supplies descriptor construction/copy, target and
+eligibility results, attachment lookup, emitter allocation and sound calls.
+The original list operations and slot writes execute unchanged. Free and
+active circular lists of sizes0..3, every rejection stage, partial emitter
+failure and audio failure are checked. artifacts/burn-creation-trace.json
+records source identity and scope. This is original evidence, not shared C
+burn allocation or cleanup yet.
+
+42e910 first constructs a temporary132-byte particle descriptor. A null free
+head62f76c returns0. Otherwise it resolves the target via426fc0, requires
+40a1e0, rejects42cca0 immunity and rejects the class-name comparison against
+`masako`.42eb20 must resolve all four attachment slots. If it fails, the
+free record's14/18/1c/20 fields become-1 and the lists remain unchanged.
+
+On success it copies the particle template indexed by595f28, requests three
+497ca0 emitters, copies the595f2c template and requests a fourth. All four
+requests use(target_handle,descriptor,0,0,1); returned handles occupy00..0c.
+It stores target at10, resolves sound class595f24 and starts positional audio
+with(sample,entity+3c,1,173c378,0), storing the voice at24. Neither emitter
+failure nor sound failure aborts the record. The remaining initialized fields
+are float1 at28, byte0 at2c, word0 at30 and source handle at34; padding2d..2f
+is not cleared. Links38/3c remove the record from the free ring and append it
+before the active head62f770, leaving an existing active head unchanged.
+
+Raw42eb20 attachment lookup tries `lowerleg_l`, then `tech__leg_l_lower`;
+`lowerleg_r`, then `tech__leg_r_lower`; and `spine01`, `spine03`,
+`tech__1spine`, `tech__1spine01` in order. Its fourth name and42ec80 lookup
+semantics still need verification. These raw attachment findings were not
+executed by the allocation harness, which supplies the four results.
+Next recover actual pool initialization, release/update ownership, attachment
+resolution and particle templates before binding create_burn in gameplay.

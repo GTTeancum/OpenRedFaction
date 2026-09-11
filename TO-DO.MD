@@ -2322,3 +2322,8 @@ Composed SP entity damage now joins vitals, lethal credit and effects;16,384
 original paths match PC/NXDK state, return and call order. Effects-only suite,
 both builds and eight CTests pass. Next bind persistent entity/class/burn
 ownership and actual downstream effects, then connect event damage.
+
+Burn creation42e910:576 original traces verify rejection,64-byte record
+fields,free-to-active circular list transfer and non-aborting particle/audio
+failures. Actual pool initialization/release, attachment lookup and templates
+remain open before a gameplay burn owner; see docs/DAMAGE.md.
