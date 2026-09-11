@@ -909,3 +909,28 @@ Its4ce4a0 predicate excludes face flags0x0c. This is not yet a verified shared
 world traversal adapter. Recover and compare that query before connecting
 moving emitters to the position locator; always re-locating would change
 original cached-room behavior.
+
+## Complete original cached-room crossing traversal
+
+verify_room_crossing_trace.py now executes complete4cd9e0 and all geometry
+callees without replacements on synthetic cube geometry. It covers1,500
+queries over one-node/three-node trees, global root collection and explicit
+room-root selection, all three axes and directions, zero movement, and face
+flags0/4/8/12/16. All336 crossings agree with analytical off-face segment
+intersections and the selected face belongs to the expected axis.
+Evidence is artifacts/room-crossing-trace.json.
+
+The original collects nonnull roots from world9c room entries (room3c), then
+uses a stack; supplying a room skips collection and uses its root. Node/face
+bounds compare against segment bounds expanded by float0.0001, with an
+additional508b70 node segment test. Faces with flags0x0c are skipped. Plane
+intersection uses508570, not the movement collision506550 helper: a zero
+denominator rejects, otherwise a stored denominator feeds the plane fraction.
+The traversal requires abs(fraction)<=float1.0001 (589cf4), then constructs
+the point with separate multiply/add float stores and tests4e1f50 containment.
+It returns at the first accepted face. This must not be replaced with a
+generic nearest-hit segment query or different plane tolerance.
+
+Current executable geometry coverage excludes on-face endpoints, oblique
+planes, multiple room roots and real levels. Shared traversal implementation
+and those boundary checks remain the next steps before cached-room binding.

@@ -2414,3 +2414,7 @@ guards; actual room locator, parent synchronization and emission remain.
 
 Emitter cached-room policy verified across240 original paths; positive motion
 and face crossing gate fresh lookup. Recover4cd9e0 before live room binding.
+
+Complete original room-crossing traversal passes1500 geometry cases; distinct
+508570 plane rules and1.0001 fraction limit must be preserved in shared code.
+Boundary/oblique/real-level checks and cached-room binding remain open.
