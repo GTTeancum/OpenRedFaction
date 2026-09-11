@@ -1,6 +1,7 @@
 #include "rf/burn.h"
 #include "rf/timer.h"
 #include <math.h>
+#include <string.h>
 _Static_assert(sizeof(rf_burn_record)==64,"Burn record size");
 static int backend_valid(const rf_burn_release_backend *be)
 {return be && be->reset_emitter && be->free_emitter && be->stop_voice && be->clear_owner;}
@@ -268,4 +269,26 @@ int rf_burn_body(rf_burn_record *r,uint32_t token,const rf_burn_body_context *ct
         }
     }
     return rf_burn_owner_tick(r,ctx->owner,token,ctx->frame_seconds,&be->owner);
+}
+
+int rf_burn_resolve_bones(const rf_model_name *bones,uint32_t count,int32_t indices[4])
+{
+    static const char *const queries[4][4]={
+        {"lowerleg-l","tech- leg-l-lower",NULL,NULL},
+        {"lowerleg-r","tech- leg-r-lower",NULL,NULL},
+        {"spine01","spine03","tech- 1spine","tech- 1spine01"},
+        {"head",NULL,NULL,NULL}};
+    uint32_t group,query;int status,missing=0;
+    if(!indices || (count && !bones) || count>(uint32_t)INT32_MAX)return RF_RANGE;
+    for(group=0;group<4;++group) {
+        int32_t index=-1;
+        for(query=0;query<4 && queries[group][query];++query) {
+            rf_model_name name={queries[group][query],strlen(queries[group][query])};
+            status=rf_model_find_bone_substring(bones,count,name,&index);
+            if(status==RF_OK)break;
+            if(status!=RF_NOT_FOUND)return status;
+        }
+        indices[group]=index;if(index==-1)missing=1;
+    }
+    return missing?RF_NOT_FOUND:RF_OK;
 }

@@ -2397,3 +2397,7 @@ Persistent campaign resources and live owner-reference clearing remain open.
 Burn model binding needs bone-only case-sensitive substring search; shared
 lookup passes2048 PC/NXDK cases and fourth query is head. Live model resolution,
 fallback orchestration and persistent NPC damage owners remain to connect.
+
+Burn fallback bone resolution passes2048 PC/NXDK cases with byte-verified
+hyphen/space names; Ghidra symbol underscores were not literal query bytes.
+Live model owner, pose binding and persistent campaign damage remain open.

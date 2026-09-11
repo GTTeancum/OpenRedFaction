@@ -1,6 +1,7 @@
 #ifndef RF_BURN_H
 #define RF_BURN_H
 #include "rf/vpp.h"
+#include "rf/model.h"
 #define RF_BURN_SLOTS 8
 /* Original64-byte payload; links use1..8 slot tokens,0 means no head. */
 typedef struct rf_burn_record {
@@ -163,4 +164,9 @@ typedef struct rf_burn_body_backend {
  * fade may release record at the end. Outer traversal owns timer rearming. */
 int rf_burn_body(rf_burn_record *record,uint32_t token,
     const rf_burn_body_context *context,const rf_burn_body_backend *backend);
+/*42eb20 fallback order over a resolved model bone list, via51d690 substring
+ * lookup. Writes all four indices, retaining partial matches on NOT_FOUND.
+ * Malformed names can fail after earlier outputs; no allocation/model lookup.
+ * Caller42e910 resets all indices if any required bone is missing. */
+int rf_burn_resolve_bones(const rf_model_name *bones,uint32_t count,int32_t indices[4]);
 #endif

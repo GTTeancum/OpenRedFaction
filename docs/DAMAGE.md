@@ -326,9 +326,9 @@ are float1 at28, byte0 at2c, word0 at30 and source handle at34; padding2d..2f
 is not cleared. Links38/3c remove the record from the free ring and append it
 before the active head62f770, leaving an existing active head unchanged.
 
-Raw42eb20 attachment lookup tries `lowerleg_l`, then `tech__leg_l_lower`;
-`lowerleg_r`, then `tech__leg_r_lower`; and `spine01`, `spine03`,
-`tech__1spine`, `tech__1spine01` in order. Its fourth name and42ec80 lookup
+Raw42eb20 attachment lookup tries `lowerleg-l`, then `tech- leg-l-lower`;
+`lowerleg-r`, then `tech- leg-r-lower`; and `spine01`, `spine03`,
+`tech- 1spine`, `tech- 1spine01` in order. Its fourth name and42ec80 lookup
 semantics still need verification. These raw attachment findings were not
 executed by the allocation harness, which supplies the four results.
 Next recover actual pool initialization, release/update ownership, attachment
@@ -776,8 +776,8 @@ names at model4c with stride4c and calls573930 (strstr), returning the first
 case-sensitive substring match. Prefixes and suffixes are accepted; case is
 not folded. Empty query matches the first bone. Constant595fd4 is "head",
 resolving the fourth42eb20 burn attachment query. The other fallback query
-strings remain lowerleg_l/tech__leg_l_lower, lowerleg_r/tech__leg_r_lower,
-and spine01/spine03/tech__1spine/tech__1spine01.
+strings remain lowerleg-l/tech- leg-l-lower, lowerleg-r/tech- leg-r-lower,
+and spine01/spine03/tech- 1spine/tech- 1spine01.
 
 rf_model_find_bone_substring now provides the bounded shared lookup using
 caller-owned rf_model_name views. It preserves first-match order, leaves
@@ -789,3 +789,28 @@ Both builds and eight CTests pass; artifacts/bone-substring.json records
 evidence/hashes. Original42ec80 model resolution and42eb20 fallback orchestration
 still need integration with the live model owner; this helper alone does not
 bind burn emitters to a character.
+
+## Resolved burn bone fallback adapter
+
+rf_burn_resolve_bones now joins42eb20 fallback order with shared51d690 bone
+substring lookup over a resolved caller-owned bone-name list. It writes all
+four indices and reports RF_NOT_FOUND if any remains absent, preserving
+partial matches like original42eb20. The existing creation phase resets
+all four indices when its attachment callback fails. Model resolution and
+pose evaluation remain caller responsibilities; no allocation is introduced.
+
+Executing42eb20 exposed an earlier documentation error: Ghidra string SYMBOL
+labels had sanitized punctuation into underscores. The actual executable
+strings are "lowerleg-l", "tech- leg-l-lower", "lowerleg-r",
+"tech- leg-r-lower", "spine01", "spine03", "tech- 1spine",
+"tech- 1spine01" and "head". Earlier prose and the substring fixture now
+use these byte-verified literals. Never derive lookup strings from symbol names.
+
+verify_burn_bones.py runs original42eb20 plus real51d690/strstr, supplying
+string construction and the model resolution boundary. It covers all512
+subsets of nine names under four ordering/case/prefix/duplicate variants.
+All2,048 cases match PC and NXDK indices/success; every NXDK lookup query
+order also matches the original. Independent substring tests pass2,048 cases
+with corrected literal strings. Both builds and eight CTests pass. Evidence
+is artifacts/burn-bones.json and bone-substring.json. Live model owner lookup,
+attachment pose evaluation and persistent campaign damage ownership remain.

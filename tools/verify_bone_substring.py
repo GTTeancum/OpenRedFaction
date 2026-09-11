@@ -12,7 +12,7 @@ def machine(path):
 u=machine(original);x=machine(root/'build/xbox/main.exe');b=0x30000000;stack=b+0xe000;stop=b+0xf000
 entry=int(re.search(r'_rf_model_find_bone_substring\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
 rng=random.Random(0x51d690);cases=[];expected=[];specs=[]
-queries=[b'lowerleg_l',b'lowerleg_r',b'tech__leg_l_lower',b'tech__leg_r_lower',b'spine01',b'spine03',b'tech__1spine',b'tech__1spine01',b'head',b'',b'a',b'HEAD',b'aaa']
+queries=[b'lowerleg-l',b'lowerleg-r',b'tech- leg-l-lower',b'tech- leg-r-lower',b'spine01',b'spine03',b'tech- 1spine',b'tech- 1spine01',b'head',b'',b'a',b'HEAD',b'aaa']
 for i in range(2048):
     query=queries[i%len(queries)];names=[rng.choice([b'prefix_'+query,query+b'_suffix',query.upper(),b'other',b'',b'aaab',b'xheadx']) for _ in range(rng.randrange(17))]
     specs.append((names,query));wire=w(len(names),1,1)+b''.join(n.ljust(32,b'\0') for n in names).ljust(512,b'\0')+query.ljust(512,b'\0')*2+query.ljust(32,b'\0');assert len(wire)==1580;cases.append(wire)

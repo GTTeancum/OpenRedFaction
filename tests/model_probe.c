@@ -1,4 +1,5 @@
 #include "rf/model.h"
+#include "rf/burn.h"
 #include "rf/model_file.h"
 #include "rf/preview.h"
 #include <string.h>
@@ -411,6 +412,11 @@ int main(int argc,char **argv)
             }
         }
         if (!memchr(input.query, 0, 32)) return 2;
+        if(argc==2 && !strcmp(argv[1],"--burn-bones")) {
+            int32_t result[5]={0,-9,-9,-9,-9};
+            result[0]=rf_burn_resolve_bones(names[0],input.counts[0],result+1);
+            if(fwrite(result,sizeof(result),1,stdout)!=1)return 1;continue;
+        }
         {
             rf_model_name query = {input.query, strlen(input.query)};
             output.index = -1;
