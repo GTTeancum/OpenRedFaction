@@ -590,6 +590,29 @@ int rf_corpse_update(rf_corpse_update_state *s,float dt,int32_t now,
 
 static int corpse_link_valid(const rf_corpse_list_link *n)
 {return n->next && n->previous && n->next!=n && n->previous!=n && n->next->previous==n && n->previous->next==n;}
+void rf_corpse_pool_init(rf_corpse_pool *p)
+{
+    uint32_t i;if(!p)return;
+    for(i=0;i<RF_CORPSE_CAPACITY;i++)p->next[i]=i+1;
+    p->next[RF_CORPSE_CAPACITY-1]=UINT32_MAX;
+    p->free_head=p->live=p->peak=p->active_mask=0;
+}
+int rf_corpse_pool_acquire(rf_corpse_pool *p,uint32_t *index)
+{
+    uint32_t slot;
+    if(!p || !index)return RF_RANGE;
+    if(p->live==RF_CORPSE_CAPACITY)return RF_NOT_FOUND;
+    slot=p->free_head;
+    if(p->live>RF_CORPSE_CAPACITY || slot>=RF_CORPSE_CAPACITY || (p->active_mask&(1u<<slot)))return RF_RANGE;
+    p->free_head=p->next[slot];p->active_mask|=1u<<slot;++p->live;
+    if(p->live>p->peak)p->peak=p->live;
+    *index=slot;return RF_OK;
+}
+int rf_corpse_pool_release(rf_corpse_pool *p,uint32_t index)
+{
+    if(!p || index>=RF_CORPSE_CAPACITY || !p->live || p->live>RF_CORPSE_CAPACITY || !(p->active_mask&(1u<<index)))return RF_RANGE;
+    p->next[index]=p->free_head;p->free_head=index;--p->live;p->active_mask&=~(1u<<index);return RF_OK;
+}
 static void corpse_link_remove(rf_corpse_list_link *n)
 {
     rf_corpse_list_link *next=n->next,*previous=n->previous;

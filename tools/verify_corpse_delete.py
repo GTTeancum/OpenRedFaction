@@ -29,7 +29,9 @@ path=root/'build/xbox/main.exe';p=pefile.PE(str(path));im=p.get_memory_mapped_im
 x=Uc(UC_ARCH_X86,UC_MODE_32);x.mem_map(ib,(len(im)+4095)//4096*4096);x.mem_write(ib,im)
 b=0x30000000;x.mem_map(b,65536);state=b;update=b+0x100;ch=b+0x200;oh=b+0x220;emit=b+0x300;counts=b+0x400;sound=b+0x420
 backend=b+0x500;registry=b+0x1000;effect=b+0xb000;soundfn=b+0xb010;stack=b+0xe000;stop=b+0xf000
+pool=b+0x7000
 entry=int(re.search(r'_rf_corpse_delete\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+release=int(re.search(r'_rf_corpse_pool_release\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
 read=lambda a:struct.unpack('<I',x.mem_read(a,4))[0]
 def put(a,v):x.mem_write(a,w(v))
 trace=[];errors=0;found=0;recycled=False
@@ -51,7 +53,10 @@ def hook(machine,address,size,unused):
    machine.mem_write(e,bytes([0xdd])*8)
   if op==3 and (read(counts)!=12 or read(state+4)):errors+=1
   if op==7 and (read(counts+4)!=78 or read(state+12) or read(state+32)!=2):errors+=1
-  if op==7:recycled=True
+  if op==7:
+   recycled=True
+   # Tail-call the actual compiled pool release at the RECYCLE boundary.
+   machine.mem_write(esp+4,w(pool,7));machine.reg_write(UC_X86_REG_EIP,release);return
  machine.reg_write(UC_X86_REG_ESP,esp+4);machine.reg_write(UC_X86_REG_EIP,read(esp))
 x.hook_add(UC_HOOK_CODE,hook)
 for i,(row,want) in enumerate(zip(cases,expected)):
@@ -65,9 +70,12 @@ for i,(row,want) in enumerate(zip(cases,expected)):
  for j in range(1024):put(registry+8192+j*4,j)
  for j in range(8):x.mem_write(registry+j*8,w(state if j==7 else b+0x800+j*4,((j+1)<<16)|j))
  x.mem_write(registry+12288,w(8,1016,9))
+ x.mem_write(pool,w(*list(range(1,30)),0xffffffff,13,13,13,(1<<13)-1))
  x.mem_write(stack,w(stop,state,registry,counts,counts+4,4,backend));x.reg_write(UC_X86_REG_ESP,stack);x.emu_start(entry,stop,count=100000)
  assert x.reg_read(UC_X86_REG_EIP)==stop
+ assert read(pool+124)==(13 if mode else 12)
+ assert bool(read(pool+132)&(1<<7))==bool(mode)
  got=[x.reg_read(UC_X86_REG_EAX),read(update+36),read(sound),read(state+24),read(counts),read(counts+4),read(state+32),int(bool(read(registry+56))),read(registry+12292),read(registry+8192),int(bool(read(state+20))),int(bool(read(state+4))),int(bool(read(state+12))),errors,len(trace)//2,0]+trace
  got+=[0]*(40-len(got));assert got==want,('NXDK',i,got,want)
-report=dict(result='PASS',original_cases=original_count,guard_cases=len(cases)-original_count,nxdk_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),scope='Complete original type7 deletion traces compared to shared PC/NXDK orchestration, real shared registry removal and lists. Supplied resource/pool callbacks; stale/reentrant/broken-link/cycle guards. No live corpse allocator or native XEMU invocation.')
+report=dict(result='PASS',original_cases=original_count,guard_cases=len(cases)-original_count,nxdk_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),scope='Complete original type7 deletion traces compared to shared PC/NXDK orchestration, real shared registry removal, lists and30-slot pool release at RECYCLE. Supplied resource callbacks; stale/reentrant/broken-link/cycle guards. No live corpse construction or native XEMU invocation.')
 (root/'artifacts/corpse-delete-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

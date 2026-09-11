@@ -387,6 +387,20 @@ int rf_corpse_update(rf_corpse_update_state *state,float frame_seconds,int32_t n
 typedef struct rf_corpse_list_link {
     struct rf_corpse_list_link *next,*previous;
 } rf_corpse_list_link;
+enum {RF_CORPSE_CAPACITY=30};
+typedef struct rf_corpse_pool {
+    uint32_t next[RF_CORPSE_CAPACITY],free_head,live,peak,active_mask;
+} rf_corpse_pool;
+/*48b7b0/48b870/48b8f0 allocation order with487100's type7 limit30.
+ * Slots are caller-owned records indexed0..29; metadata is separate, so no
+ * payload bytes are initialized or overwritten. Fresh initialize only when
+ * no live resources remain. Acquire does not construct/register a corpse.
+ * Release belongs at the deletion RECYCLE boundary, after resource cleanup.
+ * Requires initialized intact metadata, never edited externally. Output must
+ * not alias pool; errors preserve metadata/output. No heap use. */
+void rf_corpse_pool_init(rf_corpse_pool *pool);
+int rf_corpse_pool_acquire(rf_corpse_pool *pool,uint32_t *index);
+int rf_corpse_pool_release(rf_corpse_pool *pool,uint32_t index);
 typedef struct rf_corpse_delete_emitter {
     struct rf_corpse_delete_emitter *next;uint32_t token;
 } rf_corpse_delete_emitter;

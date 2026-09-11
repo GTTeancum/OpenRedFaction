@@ -75,6 +75,18 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corpse-pool")) {
+        rf_corpse_pool pool;uint32_t input[2],index;int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);rf_corpse_pool_init(&pool);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            index=UINT32_MAX;
+            if(input[0]==0)status=rf_corpse_pool_acquire(&pool,&index);
+            else if(input[0]==1)status=rf_corpse_pool_release(&pool,input[1]);
+            else return 2;
+            fwrite(&status,4,1,stdout);fwrite(&index,4,1,stdout);fwrite(&pool,sizeof(pool),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--corpse-delete")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_delete_probe();
     }

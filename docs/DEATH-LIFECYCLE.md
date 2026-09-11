@@ -732,3 +732,32 @@ return. Both builds and all13 CTests pass. Resource/pool operations still use
 supplied backends in these tests; this is not native XEMU corpse gameplay.
 Live30-slot allocation, concrete model/physics/burn/sound cleanup binding and
 creation-to-deletion scene ownership remain open.
+
+
+## Shared bounded corpse slot allocation
+
+`rf_corpse_pool_init/acquire/release` reconstruct48b7b0/48b870/48b8f0 slot
+ordering under487100's type7 cap30. Fresh allocation uses indices0..29;
+release pushes a slot onto the free-list head. A full pool returnsRF_NOT_FOUND
+without changing output or metadata. Releasing an inactive/out-of-range slot
+returnsRF_RANGE. Peak occupancy is retained. Metadata is136 bytes, with free
+links and occupancy separate from caller-owned corpse records; no heap is used.
+The allocator does not initialize payload, construct actors or publish handles.
+This preserves reuse behavior without placing original pointer words into the
+reconstructed record's fields. Live creation must explicitly initialize owners.
+
+`python tools/verify_corpse_pool.py` compares5377 operations to original pool
+code and shared PC/NXDK code:223 saturation checks,2535 slot reuses, peak30,
+final live0. The original487100 gate rejects saturation even with its global
+heap fallback enabled. Original payload bytes remain unchanged except the free
+link words. Repeated full drain/refill, random release order and duplicate or
+invalid release guards pass. The shared implementation intentionally exposes
+only the bounded type7 path, not the generic pool's heap-overflow mechanism.
+
+The corpse deletion probes now invoke actual shared pool release at RECYCLE
+on PC and compiled NXDK, verify occupancy13->12 and slot7 becoming free, while
+registry ownership remains until the later removal. PC also rejects a second
+release. All1024 original cleanup traces and four guards still pass; both
+builds and all13 CTests pass. These are compiled-code harnesses, not native
+XEMU corpse gameplay. Live corpse records, constructor/model transfer and
+concrete resource cleanup binding remain open.
