@@ -5,6 +5,13 @@
 #include <io.h>
 #include <string.h>
 static uint32_t actions,mutation;
+static uint32_t switch_trace;
+static void switch_callback(void *context,const rf_switch_state *state,uint32_t effect)
+{
+    uint32_t words[5],i;(void)context;memcpy(words,state,sizeof(words));
+    switch_trace=(switch_trace^effect)*16777619u;
+    for(i=0;i<5;++i)switch_trace=(switch_trace^words[i])*16777619u;
+}
 static uint32_t auto_trace;
 static uint32_t explode_count,explode_hash;
 static void explode_callback(void *context,const rf_event_explode_request *request)
@@ -68,6 +75,16 @@ static void occupancy_wake(void *context,uint32_t handle)
 { (void)context;++occupancy_wakes;occupancy_hash=occupancy_hash*31+handle; }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--switch")) {
+        rf_switch_state state;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&state,sizeof(state),1,stdin)==1) {
+            switch_trace=2166136261u;
+            if(rf_event_switch_on(&state,switch_callback,NULL))return 130;
+            if(fwrite(&state,sizeof(state),1,stdout)!=1 || fwrite(&switch_trace,4,1,stdout)!=1)return 131;
+        }
+        return ferror(stdin)?132:0;
+    }
     struct {rf_event_state state;uint32_t tick,now,source,actor,mode;} in;
     struct {rf_event_state state;int32_t status;uint32_t actions;} out;
     if(argc==2 && !strcmp(argv[1],"--trigger-volume")) {

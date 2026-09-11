@@ -4,6 +4,18 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+int rf_event_switch_on(rf_switch_state *state,rf_switch_effect effect,void *context)
+{
+    if(!state || !effect)return RF_RANGE;
+    if(!(state->unlimited&255u) && state->limit<=(int32_t)state->activations)return RF_OK;
+    state->disabled=state->disabled==0;
+    if((state->mode==1 && state->disabled==1) || (state->mode==2 && state->disabled==0)) {
+        state->disabled=state->mode==2;
+        effect(context,state,2);return RF_OK;
+    }
+    effect(context,state,0);effect(context,state,1);++state->activations;
+    return RF_OK;
+}
 int rf_trigger_sphere_contact(const float center[3],float radius,
     const float actor_center[3],uint32_t *contact)
 {

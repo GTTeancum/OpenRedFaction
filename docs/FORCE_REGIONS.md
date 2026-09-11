@@ -307,3 +307,33 @@ and full-record hash after startup and each event tick. `CAMPAIGN_FORCES`
 continues to describe the initial owned array and budget. This establishes
 the authored delayed disable chain; Switch-driven reactivation, the wider
 campaign event surface, and real Xbox hardware remain open.
+
+
+### Switch on-action groundwork
+
+Factory4b69d0 case32 allocates0x2d8 and calls4be8e0, installing
+vtable589a9c: slot0=4bc330, on=4bc520, off=4b9f80, tick=4b8ce0.
+The generic on/off jump tables alone do not describe Switch. Slot0
+calls linked-update4bc340 with flag1; the accepted on-action calls it
+with flag0. Ordinary linked events are skipped when that flag is set.
+Its complete initialization lifecycle remains to be connected.
+
+`rf_event_switch_on` reconstructs4bc520. It checks the signed activation
+count against the signed limit unless the low unlimited byte is nonzero,
+normalizes/toggles the disabled word, applies mode1/mode2 restrictions,
+then invokes linked update and activation audio before incrementing the
+32-bit count. A rejected toggle restores the restricted state and invokes
+rejection audio without incrementing. An exhausted limit has no effects.
+
+`python tools/verify_event_switch.py` passes768 original/PC/NXDK cases.
+The complete original action executes; only linked-update and audio effect
+boundaries are substituted. Their original arguments and exact state/order
+at each call are checked; unchanged object bytes are checked too. There
+are360 accepted transitions,120 mode rejections, and288 limit rejections.
+This includes arbitrary nonzero disabled state, low-byte unlimited flags,
+signed counts/limits and counter wrap. Xbox build succeeds.
+
+Campaign Switch integration is still open: loader field mapping, linked
+target priority (trigger/controller/light/other/event/object), initialization
+and sound ownership must be preserved. The new primitive does not yet
+change campaign behavior or constitute native Switch reactivation proof.

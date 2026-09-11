@@ -10,6 +10,17 @@
  * unknown/NULL. Name must be NUL-terminated. Type recognition does not imply
  * that the corresponding runtime action has been reconstructed. */
 int32_t rf_event_type_id(const char *name);
+typedef struct rf_switch_state {
+    uint32_t disabled;int32_t limit;uint32_t unlimited,activations;int32_t mode;
+} rf_switch_state;
+/* Original 4bc520 on-action. Effects 0=linked update, 1=activation sound,
+ * 2=rejection sound. Successful effects see toggled state and old count;
+ * count increments afterward with 32-bit wrap. Mode1 forbids disabling,
+ * mode2 forbids enabling. Limit comparison is signed; unlimited uses its
+ * low byte. Callback must preserve state/lifetime. Off-action is a no-op.
+ * Link target lookup, audio ownership and initialization remain caller-owned. */
+typedef void (*rf_switch_effect)(void *context,const rf_switch_state *state,uint32_t effect);
+int rf_event_switch_on(rf_switch_state *state,rf_switch_effect effect,void *context);
 typedef struct rf_trigger_gate {
     uint32_t flags;int32_t activations,limit,deadline;
     uint32_t filter;int32_t attached;uint32_t allowed_count;
