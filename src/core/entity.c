@@ -221,6 +221,55 @@ int rf_entity_damage_credit_sp(rf_entity_damage_credit *state,int32_t kind,
     state->responsible_handle=responsible;return RF_OK;
 }
 
+int rf_entity_damage_effects(rf_damage_effect_state *s,const rf_damage_effect_input *in,
+    const rf_damage_effect_backend *be)
+{
+    double fraction;float duration;uint32_t source,affiliation;int exists,create;
+    if(!s || !in || !be || !be->predicate || !be->resolve_uid || !be->source ||
+       !be->create_burn || !be->random || !be->notify || !be->playing || !be->play_kind6)return RF_RANGE;
+    if(!isfinite(s->health) || !isfinite(s->armor) || !isfinite(s->class_health) ||
+       !isfinite(s->class_armor) || !isfinite(in->incoming) || !isfinite(in->scaled) ||
+       !isfinite(in->old_health) || s->class_health==0)return RF_FORMAT;
+    if(in->incoming>5)be->notify(be->context,RF_DAMAGE_PAIN_ANIMATION,s->handle,0,0);
+    fraction=(double)in->incoming/s->class_health;
+    if(fraction>.001 && in->kind!=10) {
+        float argument=(float)fraction;if(!isfinite(argument))return RF_FORMAT;
+        be->notify(be->context,RF_DAMAGE_PAIN_SOUND,s->handle,argument,0);
+    }
+    if(in->kind==4) {
+        if(!s->burn) {
+            if(s->class_armor==0 || (double)s->armor/s->class_armor<.5 || (s->flags_814&0x8000)) {
+                if(!(be->predicate(be->context,RF_DAMAGE_CLASS_ONE,s->handle)&255) &&
+                   !(be->predicate(be->context,RF_DAMAGE_LINKED_CLASS_ONE,s->handle)&255) &&
+                   !(be->predicate(be->context,RF_DAMAGE_PLAYER,s->handle)&255) &&
+                   !(be->predicate(be->context,RF_DAMAGE_UNOWNED_PLAYER,s->handle)&255)) {
+                    source=in->source;
+                    if(source==UINT32_MAX && in->auxiliary_uid!=-1)
+                        source=be->resolve_uid(be->context,in->auxiliary_uid);
+                    exists=be->source(be->context,source,&affiliation);create=!exists;
+                    if(exists)create=((be->predicate(be->context,RF_DAMAGE_PLAYER,source)&255) &&
+                        !(s->flags_814&0x2000)) || affiliation!=s->affiliation;
+                    if(create)s->burn=be->create_burn(be->context,s->handle,exists?source:UINT32_MAX);
+                    if(s->burn && !(s->class_flags_728&16)) {
+                        duration=be->random(be->context,5,10);if(!isfinite(duration))return RF_FORMAT;
+                        be->notify(be->context,RF_DAMAGE_BURN_REACTION,s->handle,duration,0);
+                    }
+                }
+            } else if(s->flags_814&0x2000) {
+                duration=be->random(be->context,3,5);if(!isfinite(duration))return RF_FORMAT;
+                be->notify(be->context,RF_DAMAGE_ARMOR_REACTION,s->handle,duration,in->source);
+            }
+        }
+        s->flags_814&=0xffff5fff;
+    }
+    if(!(s->flags_810&0x80000000) && in->kind==6 && !be->playing(be->context,s->voice))
+        s->voice=be->play_kind6(be->context,s->handle);
+    if((be->predicate(be->context,RF_DAMAGE_PLAYER,s->handle)&255) && in->old_health>0 && in->scaled>0 && in->kind!=10)
+        be->notify(be->context,RF_DAMAGE_PLAYER_FEEDBACK,s->handle,0,0);
+    if(!(be->predicate(be->context,RF_DAMAGE_OBJECT_PLAYER_FLAG,s->handle)&255) && s->health>0)
+        be->notify(be->context,RF_DAMAGE_AI_REACTION,s->handle,in->incoming,in->source);
+    return RF_OK;
+}
 uint32_t rf_entity_armor_immunity(float armor,uint32_t class_flags_724,uint32_t flags_814)
 {
     return (class_flags_724&0x02000000) && armor>0 && !(flags_814&0x20);

@@ -154,4 +154,37 @@ typedef struct rf_damage_backend {
  * do not roll back. No delegated lifecycle or alternate/global modes here. */
 int rf_damage_dispatch_sp(uint32_t target,const rf_damage_request *request,
     float difficulty_multiplier,const rf_damage_backend *backend,float *result);
+typedef struct rf_damage_effect_state {
+    float health,armor,class_health,class_armor;
+    uint32_t handle,flags_810,flags_814,class_flags_728,burn,voice,affiliation;
+} rf_damage_effect_state;
+typedef struct rf_damage_effect_input {
+    float incoming,scaled,old_health;int32_t kind;uint32_t source;int32_t auxiliary_uid;
+} rf_damage_effect_input;
+enum rf_damage_predicate {RF_DAMAGE_CLASS_ONE,RF_DAMAGE_LINKED_CLASS_ONE,
+    RF_DAMAGE_PLAYER,RF_DAMAGE_UNOWNED_PLAYER,RF_DAMAGE_OBJECT_PLAYER_FLAG};
+enum rf_damage_notification {RF_DAMAGE_PAIN_ANIMATION,RF_DAMAGE_PAIN_SOUND,
+    RF_DAMAGE_BURN_REACTION,RF_DAMAGE_ARMOR_REACTION,RF_DAMAGE_PLAYER_FEEDBACK,RF_DAMAGE_AI_REACTION};
+typedef struct rf_damage_effect_backend {
+    uint32_t (*predicate)(void *context,uint32_t predicate,uint32_t handle);
+    uint32_t (*resolve_uid)(void *context,int32_t uid);
+    int (*source)(void *context,uint32_t handle,uint32_t *affiliation);
+    uint32_t (*create_burn)(void *context,uint32_t target,uint32_t source);
+    float (*random)(void *context,float minimum,float maximum);
+    void (*notify)(void *context,uint32_t notification,uint32_t target,float value,uint32_t source);
+    uint32_t (*playing)(void *context,uint32_t voice);
+    /*5056a0(0x23,entity+3c,1,173c378,0), using current owned position. */
+    uint32_t (*play_kind6)(void *context,uint32_t target);
+    void *context;
+} rf_damage_effect_backend;
+/*41a505..41a7ab orchestration. State/input/backend remain alive. Input and
+ * class/identity fields stay stable; effect callbacks may change health,
+ * flags and burn/voice state. Predicates/lookups are read-only. Burn tokens
+ * use0 for absent; UID lookup usesUINT32_MAX for missing. Notification values:
+ * pain animation/feedback0, pain sound fraction, burn/armor reaction random
+ * duration, AI incoming damage. Only armor/AI notifications use source.
+ * Requires finite numeric state/input and nonzero class health; no rollback
+ * after callbacks. This does not implement downstream effects or ownership. */
+int rf_entity_damage_effects(rf_damage_effect_state *state,const rf_damage_effect_input *input,
+    const rf_damage_effect_backend *backend);
 #endif

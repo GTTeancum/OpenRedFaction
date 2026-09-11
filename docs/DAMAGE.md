@@ -219,3 +219,35 @@ of bit8, but its original predicate call order must still be preserved.
 These findings come from the exported original functions; the new compiled
 comparison here covers42cca0 only. Shared burn orchestration and live owned
 predicate adapters remain open.
+
+## Shared effect orchestration
+
+rf_entity_damage_effects now reconstructs41a505..41a7ab in shared C. The
+backend supplies owned predicate/lookup access, burn allocation, random values,
+notifications and kind6 audio. Separate input values retain incoming damage,
+class-scaled damage and pre-hit health. The state carries current health,
+armor, class limits, flags, affiliation field, burn token and voice handle.
+UID lookup returns a handle orUINT32_MAX; burn allocation returns a nonzero
+token or0. This layer allocates nothing itself.
+
+Notifications preserve the original order and value choice. Pain sound gets
+the float-rounded fraction after a double-precision threshold comparison;
+burn and armor reactions get the random duration; AI gets incoming damage.
+The kind6 playback adapter must implement the fixed5056a0 arguments and obtain
+the current entity position. Entity and backend storage must survive all
+callbacks. Stable identity/class inputs are required; effect callbacks may
+change health, flags and burn/voice state. The current comparison exercises
+stable callback state, so arbitrary callback mutation remains unverified.
+
+Nonfinite inputs/state, zero class health and nonfinite generated float
+arguments return explicit port errors. Errors after effects have begun do
+not roll back prior callbacks or writes. These guards are not original game
+behavior and must not be used to conceal invalid class/resource ownership.
+
+verify_damage_effects.py compares8,192 original traces against PC and actual
+NXDK-linked C, including exact state and ordered downstream arguments. Seven
+nonfinite guards bring each compiled suite to8,199 cases. Both builds and
+eight CTests pass. Generated artifacts/damage-effects.json records hashes.
+Next assemble vitals, attribution and this sequence, then connect actual
+burn/pain-animation/AI owners and campaign entity registration. The existence
+of this backend does not imply those downstream effects are implemented.

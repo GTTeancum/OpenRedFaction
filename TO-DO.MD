@@ -2307,3 +2307,8 @@ Armor immunity42cca0 is now shared C, with4,096 original/PC/NXDK cases
 including full flag words and floating boundaries. Damage dispatch8,194 cases
 and eight CTests still pass; PC/Xbox builds pass. Owned predicate adapters
 and shared burn/effect orchestration remain open; see docs/DAMAGE.md.
+
+Shared entity damage effects41a505..41a7ab now match8,192 original traces
+on PC/NXDK plus seven guards; both builds/eight CTests pass. Next assemble
+vitals, attribution and effect orchestration, then bind actual burn, animation,
+AI and entity owners. Callback mutation remains outside current trace coverage.
