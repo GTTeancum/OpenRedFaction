@@ -523,3 +523,34 @@ The original routing verifier now enters4bc330 for initialization1 cases,
 and all3,072 original/PC/NXDK traces still match. All eight CTests and the
 Xbox build pass. This is a runtime initialization entry, not a claim that
 live campaign resources or full original initialization ordering are wired.
+
+
+### Linked initialization caller audit
+
+The existence of Switch vtable slot0 at589a9c ->4bc330 ->4bc340(1)
+does not establish that the released PC game invokes it during startup.
+Keep the explicit runtime entry unattached until its caller is established;
+do not add an all-Switch startup sweep solely because this slot exists.
+
+In loader460820, the ordinary event-link pass46135b..4613c5 first tries
+object UID lookup48a4a0 and replaces successful links with object+2c.
+Otherwise it tries controller-key lookup46afc0 and replaces successful
+links with key+2c. Missing targets retain their authored UID. Eventtype69
+has a separate path; this observation does not cover that path.
+The sweep ends4613dc. The later4bd9b0 call only iterates type10 Explode
+and loads its effect via4c1ec0; it is not a linked-initialization sweep.
+Likewise4bd8d0 handles type12 custom-animation resources. The known
+per-frame sweep4b6720 invokes vtable+0xc, not slot0.
+
+Run `./tools/analyze.ps1 -SkipAnalysis -IndirectCalls` for an inventory of
+Ghidra-decoded computed calls with eight preceding contiguous instructions,
+containing-function entries and the original executable SHA256. The runner
+rejects missing/truncated exports and a mismatched fingerprint. The current
+database exports1,462 calls; generated disassembly stays in ignored artifacts.
+This avoids treating opcode-like bytes inside immediates or jump tables as
+call sites. It is not a complete control-flow proof: undecoded instructions,
+indirect runtime targets and code absent from the database remain outside
+its scope. For example, the independently observed4bb78c register call is
+not in this database inventory. No lifecycle placement is claimed from a
+negative search. Next tracing must account for these coverage gaps or use
+an original-process execution trace before enabling automatic initialization.
