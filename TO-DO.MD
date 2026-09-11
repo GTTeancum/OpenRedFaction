@@ -5,7 +5,7 @@ grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
-- [ ] Connect registered ambient instances to playback and recover light ownership for Switch target lookup.
+- [ ] Connect the verified ambient slot table to scheduling/playback and recover light ownership for Switch target lookup.
 - [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.

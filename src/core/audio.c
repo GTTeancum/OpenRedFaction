@@ -24,7 +24,7 @@ int rf_ambient_instances_open(const rf_level_owned_ambient *authored,uint32_t bu
         const rf_level_ambient_sound *row=authored->items+i;rf_ambient_instance *instance;
         int32_t sample=registration(context,row->name,row->near_distance,row->volume,row->rolloff);
         if(sample<0){++value.rejected;continue;}
-        instance=value.items+value.count++;instance->uid=row->uid;instance->sample=sample;instance->voice=-1;
+        instance=value.items+value.count++;instance->uid=row->uid;instance->sample=sample;instance->slot=-1;
         memcpy(instance->position,row->position,sizeof(instance->position));
         instance->near_distance=row->near_distance;instance->volume=row->volume;instance->rolloff=row->rolloff;
         instance->authored_word=row->flags;instance->deadline=-1;
@@ -42,6 +42,27 @@ rf_ambient_instance *rf_ambient_find(rf_ambient_instances *instances,uint32_t ui
     return NULL;
 }
 static uint32_t wave_u16(const uint8_t *p){return (uint32_t)p[0]|((uint32_t)p[1]<<8);}
+int32_t rf_ambient_slot_start(rf_ambient_slot slots[RF_AMBIENT_SLOTS],uint32_t enabled,
+    int32_t sample,const float position[3],float volume)
+{
+    uint32_t i;
+    if(!slots || !position || !(enabled&255u) || sample<0 || sample>=2600)return -1;
+    for(i=0;i<RF_AMBIENT_SLOTS;i++)if(slots[i].sample<0) {
+        slots[i].sample=sample;slots[i].voice=-1;
+        memcpy(slots[i].position,position,12);memcpy(&slots[i].volume,&volume,4);return (int32_t)i;
+    }
+    return -1;
+}
+void rf_ambient_slot_volume(rf_ambient_slot slots[RF_AMBIENT_SLOTS],uint32_t enabled,int32_t slot,float volume)
+{
+    if(slots && (enabled&255u) && slot>=0 && slot<(int32_t)RF_AMBIENT_SLOTS && slots[slot].sample>=0)
+        memcpy(&slots[slot].volume,&volume,4);
+}
+void rf_ambient_slot_position(rf_ambient_slot slots[RF_AMBIENT_SLOTS],uint32_t enabled,int32_t slot,const float position[3])
+{
+    if(slots && position && (enabled&255u) && slot>=0 && slot<(int32_t)RF_AMBIENT_SLOTS && slots[slot].sample>=0)
+        memcpy(slots[slot].position,position,12);
+}
 static uint32_t wave_u32(const uint8_t *p){return wave_u16(p)|(wave_u16(p+2)<<16);}
 int rf_wave_pcm_parse(const void *data,uint32_t size,rf_wave_pcm *result)
 {

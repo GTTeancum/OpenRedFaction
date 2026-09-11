@@ -3,7 +3,7 @@
 #include "rf/vpp.h"
 struct rf_level_owned_ambient;
 typedef struct rf_ambient_instance {
-    uint32_t uid;int32_t sample,voice;float position[3];
+    uint32_t uid;int32_t sample,slot;float position[3];
     float near_distance,volume,rolloff;uint32_t authored_word;int32_t deadline;
 } rf_ambient_instance;
 typedef struct rf_ambient_instances {
@@ -20,6 +20,18 @@ int rf_ambient_instances_open(const struct rf_level_owned_ambient *authored,uint
     rf_ambient_register registration,void *context,rf_ambient_instances *result);
 void rf_ambient_instances_close(rf_ambient_instances *instances);
 rf_ambient_instance *rf_ambient_find(rf_ambient_instances *instances,uint32_t uid);
+#define RF_AMBIENT_SLOTS 25u
+typedef struct rf_ambient_slot {
+    int32_t sample,voice;float position[3],volume;
+} rf_ambient_slot;
+/* Original505ac0/505b50/505b80 ambient control table, separate from mixer voices.
+ * enabled uses its low byte. Start returns first free index or -1; it does not
+ * load PCM or start a device voice. Invalid/inactive slots are unchanged.
+ * Position and volume are copied without normalization, as in the original. */
+int32_t rf_ambient_slot_start(rf_ambient_slot slots[RF_AMBIENT_SLOTS],uint32_t enabled,
+    int32_t sample,const float position[3],float volume);
+void rf_ambient_slot_volume(rf_ambient_slot slots[RF_AMBIENT_SLOTS],uint32_t enabled,int32_t slot,float volume);
+void rf_ambient_slot_position(rf_ambient_slot slots[RF_AMBIENT_SLOTS],uint32_t enabled,int32_t slot,const float position[3]);
 /* DirectSound hundredths-of-dB adapter to linear L/R amplitude.
  * Volume -10000..0, pan -10000..10000; errors preserve output. */
 int rf_audio_device_gains(int32_t volume,int32_t pan,float output[2]);

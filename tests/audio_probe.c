@@ -15,6 +15,21 @@ static int32_t ambient_register(void *context,const char *name,float near_distan
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--ambient-slots")) {
+        struct {uint32_t operation,enabled;int32_t handle;float position[3],volume;rf_ambient_slot slots[RF_AMBIENT_SLOTS];} command;
+        _Static_assert(sizeof(command)==628,"Ambient slot command layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        for(;;) {
+            int32_t result=0;size_t received=fread(&command,1,sizeof(command),stdin);
+            if(!received)break;if(received!=sizeof(command))return 87;
+            if(command.operation==0)result=rf_ambient_slot_start(command.slots,command.enabled,command.handle,command.position,command.volume);
+            else if(command.operation==1)rf_ambient_slot_volume(command.slots,command.enabled,command.handle,command.volume);
+            else if(command.operation==2)rf_ambient_slot_position(command.slots,command.enabled,command.handle,command.position);
+            else return 89;
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(command.slots,sizeof(command.slots),1,stdout)!=1)return 88;
+        }
+        return ferror(stdin)?87:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ambient-instances")) {
         uint32_t count,i,bytes;rf_level_ambient_sound rows[64];int32_t samples[64];
         rf_level_owned_ambient authored={rows,0,0};rf_ambient_instances owned={0},small={0},zero={0};

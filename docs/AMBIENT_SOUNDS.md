@@ -31,7 +31,7 @@ Unless global64ecbb equals1,461ff0 calls45aca0 with UID, filename, position,
 near distance, volume, rolloff and flags. When suppressed it still reads every
 record. Constructor45aca0 first calls505a90 for sound registration; a negative
 result returns-1 without allocating a runtime instance. Otherwise it allocates
-0x3c bytes, stores UID at+8, registered sample at+c, initial voice handle-1 at+10,
+0x3c bytes, stores UID at+8, registered sample at+c, initial ambient-slot index-1 at+10,
 position at+14, sound parameters at+28/+2c/+30 and flags at+34, and appends the
 instance to the circular list at644ec0. Lookup45afe0 searches that list in order
 and returns the first matching UID. Runtime playback and the final authored word
@@ -81,8 +81,8 @@ so routing priority remains correct across both families.
 ## Runtime registration and ordered lookup
 
 `rf_ambient_instances_open` reconstructs the45aca0 instance fields in44 bytes:
-UID, sample index, voice handle, position, three authored sound parameters,
-uninterpreted authored word and timer deadline. Voice and deadline start at-1.
+UID, sample index, ambient-slot index, position, three authored sound parameters,
+uninterpreted authored word and timer deadline. Slot and deadline start at-1.
 The name remains in the audio bank. Every negative registration result omits
 the instance; accepted instances retain order and duplicate UIDs. `rf_ambient_find`
 returns the first matching instance. Capacity is budgeted for all authored rows,
@@ -117,8 +117,8 @@ budget remains1MiB, with a separate64KiB runtime-instance ceiling.
 `AMBIENT_INSTANCES` reports accepted count, rejected count, owner bytes and state
 hash. Native64MiB L1S3 replay20260910-223214 matches PC[24,0,1072,2278460717].
 This proves native registration/state ownership for that replay, not live ambient
-audio or Switch volume changes. Original45b010/45b040 call505b50 with the voice
-handle and zero/authored volume respectively; they do not mutate a persistent
+audio or Switch volume changes. Original45b010/45b040 call505b50 with the ambient-slot
+index and zero/authored volume respectively; they do not mutate a persistent
 enabled flag in the instance. That playback connection is still pending.
 
 Native64MiB door replay20260910-223419 also passes180 frames with the updated
@@ -126,3 +126,39 @@ registration order. L1S1 instance state matches[9,0,412,3934104921]; door motion
 spatial output and PCM hash773011109 remain equal to PC. The door bank-count
 assertion now requires100 entries (previously92), while resident-waveform count
 stays4. No ambient voices are started by this change.
+
+
+## Separate ambient control slots
+
+Original505ac0 does not allocate a mixer/device voice. It allocates the first
+free entry in the25-slot table at1754170. Each24-byte slot contains a signed
+sample index, separate device-voice handle, position and volume. A negative
+sample marks the slot free. Sample indices0..2599 are accepted; disabled audio,
+invalid samples and a full table return-1. Allocation stores device voice-1 and
+copies position/volume. The shared runtime instance field has been renamed
+from `voice` to `slot` without changing its44-byte layout or values.
+
+Shared `rf_ambient_slot_start/volume/position` reconstruct505ac0,505b50 and505b80.
+Volume and position changes require enabled audio, a slot index0..24 and a
+nonnegative sample in that slot. They do not restart, mute by flag, free a slot,
+or alter a device voice. The audio-enabled argument uses its low byte. These
+helpers operate on caller-owned600-byte storage and do not initialize the whole
+table, preload PCM or perform device output. Finite positions and volumes are
+the tested domain; negative and greater-than-one volumes are copied unchanged.
+
+`verify_ambient_slots.py` executes the original functions and vector callee
+without hooks, comparing every byte of the table against PC and compiled NXDK.
+All3,072 cases pass:1,024 each for allocation, volume and position. Coverage
+includes first/last free slots, multiple free entries, a full table, signed
+sentinels, slot/sample bounds, low-byte gating and unchanged neighboring slots.
+The previous285 construction/lookup cases still pass after the field rename.
+
+Scheduling source leads:45ade0 tests slot exactly-1; a zero final authored word
+allocates a slot immediately, otherwise it passes that signed word to timer
+setter4fa360. This identifies a startup-delay path rather than a bit flag.
+45ae30 updates positions for nonnegative slots. For negative slots it requires
+a valid, expired timer before allocation and clears the timer afterward, even
+if allocation returns-1. Direct calls to45ade0 occur at436040 and45c4e0;45ae30
+is called at480ef7. Full caller lifecycle, scheduler execution proofs and the
+separate audio-side table processing remain the next steps. No ambient slot
+is allocated by the live campaign yet, so no new ambient playback is claimed.
