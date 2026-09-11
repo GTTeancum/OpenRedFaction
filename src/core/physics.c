@@ -802,6 +802,27 @@ int rf_physics_stand_endpoint(const float position[3],float height_difference,fl
     memcpy(end,value,12);return RF_OK;
 }
 
+int rf_physics_try_stand(rf_physics_spheres *spheres,const rf_physics_stance_cache *cache,
+    const float published[3],uint32_t *actor_flags,const rf_physics_stand_ops *ops,
+    void *context,int *stood)
+{
+    float end[3];uint32_t blocked,i,k,copy_flags=0;uint8_t *player;int status;
+    if(!spheres || !cache || !actor_flags || !ops || !ops->clearance || !ops->refresh_ground ||
+       !stood || spheres->count>8 || cache->count<spheres->count ||
+       (spheres->count && !spheres->items))return RF_RANGE;
+    for(i=0;i<spheres->count;++i)for(k=0;k<3;++k)
+        if(!isfinite(cache->centers[0][i][k]))return RF_RANGE;
+    status=rf_physics_stand_endpoint(published,cache->height_difference,end);if(status)return status;
+    status=ops->clearance(context,published,end,&blocked);if(status)return status;
+    if((uint8_t)blocked){*stood=0;return RF_OK;}
+    *actor_flags&=~0x400u;
+    player=ops->player_crouch?ops->player_crouch(context):NULL;
+    if(player)*player=0;
+    status=rf_physics_stance_centers(spheres,cache->centers[0],cache->count,&copy_flags,0);if(status)return status;
+    status=ops->refresh_ground(context);if(status)return status;
+    *stood=1;return RF_OK;
+}
+
 /* Preserve 49e4ab..49e4ea x87 transcendental rounding on NXDK. The caller
  * control word is restored; binary32 stores remain explicit below. */
 static float run_blend(float ratio,float traction,float dt)

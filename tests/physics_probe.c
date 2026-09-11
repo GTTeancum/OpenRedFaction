@@ -14,6 +14,30 @@ static void observe_force(void *context,const rf_player_force_state *state,const
     ++value->count;memcpy(value->velocity,state->velocity,12);value->flags=state->physics_flags;
     value->cap=state->alternate_cap;value->selected=state->movement->index;
 }
+typedef struct stand_fixture {
+    uint32_t blocked,has_player,flags,player,lookup_xor,ground_xor,count;
+    rf_physics_sphere spheres[8];float target[8][3],position[3],height;
+    uint32_t calls,trace[3][4];float endpoint[3];
+} stand_fixture;
+static void stand_trace(stand_fixture *s,uint32_t stage)
+{
+    uint32_t *t=s->trace[s->calls++];t[0]=stage;t[1]=s->flags;t[2]=s->player;
+    memcpy(t+3,s->spheres[0].center,4);
+}
+static int stand_clearance(void *context,const float start[3],const float end[3],uint32_t *blocked)
+{
+    stand_fixture *s=context;if(memcmp(start,s->position,12))return RF_FORMAT;
+    stand_trace(s,1);memcpy(s->endpoint,end,12);*blocked=s->blocked;return RF_OK;
+}
+static uint8_t *stand_player(void *context)
+{
+    stand_fixture *s=context;stand_trace(s,2);s->flags^=s->lookup_xor;
+    return s->has_player?(uint8_t*)&s->player:NULL;
+}
+static int stand_ground(void *context)
+{
+    stand_fixture *s=context;stand_trace(s,3);s->flags^=s->ground_xor;return RF_OK;
+}
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--publish-position")) {
@@ -214,6 +238,20 @@ int main(int argc,char **argv)
             if(!strcmp(argv[1],"--climb")) {if(rf_physics_climb_propose(&input.state,input.dt,input.speed,input.acceleration,input.input,input.support))return 3;}
             else if(rf_physics_run_propose(&input.state,input.dt,input.speed,input.acceleration,input.traction,input.input,input.normal,input.support))return 3;
             if(fwrite(&input.state,sizeof(input.state),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--try-stand")) {
+        stand_fixture s;
+        while(fread(&s,332,1,stdin)==1) {
+            rf_physics_stance_cache cache={0};rf_physics_spheres spheres={s.spheres,s.count,192};
+            const rf_physics_stand_ops ops={stand_clearance,stand_player,stand_ground};
+            int32_t status,stood=-99;
+            _Static_assert(sizeof(s)==396,"stand fixture");
+            memset((unsigned char*)&s+332,0,sizeof(s)-332);
+            cache.count=s.count;memcpy(cache.centers[0],s.target,96);cache.height_difference=s.height;
+            status=rf_physics_try_stand(&spheres,&cache,s.position,&s.flags,&ops,&s,&stood);
+            fwrite(&status,4,1,stdout);fwrite(&stood,4,1,stdout);fwrite(&s,sizeof(s),1,stdout);
         }
         return ferror(stdin)?1:0;
     }

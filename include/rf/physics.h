@@ -129,6 +129,22 @@ int rf_physics_stance_centers(rf_physics_spheres *spheres,const float (*centers)
  * standing/crouching height difference + .1 on Y, rounded after both adds.
  * Caller queries with the existing crouched body, not expanded spheres. */
 int rf_physics_stand_endpoint(const float position[3],float height_difference,float end[3]);
+typedef struct rf_physics_stand_ops {
+    int (*clearance)(void *context,const float start[3],const float end[3],uint32_t *blocked);
+    uint8_t *(*player_crouch)(void *context); /* Optional lookup; NULL means no player. */
+    int (*refresh_ground)(void *context);
+} rf_physics_stand_ops;
+/* Original428a60 orchestration. Query with the existing body and published
+ * position, then (if the result low byte is clear) clear actor400, resolve and
+ * clear optional player crouch byte, copy standing centers, refresh ground.
+ * Ground may re-enter stance/landing and mutate the actor. Do not reapply flags
+ * or centers afterwards. No speed/mode changes here. Required callbacks are
+ * clearance/refresh_ground. Invalid initial arguments preserve output; callback
+ * effects and mutations before a later error are not rolled back. Callbacks
+ * must retain valid sphere/cache storage. stood is written only on success. */
+int rf_physics_try_stand(rf_physics_spheres *spheres,const rf_physics_stance_cache *cache,
+    const float published[3],uint32_t *actor_flags,const rf_physics_stand_ops *ops,
+    void *context,int *stood);
 /* Run (descriptor 1) path 49e400, with already transformed input and resolved
  * surface traction. Preserves caller flags/force; updates velocity and next
  * position. Repeated-pass flag 0x1000000 bypasses velocity convergence. */

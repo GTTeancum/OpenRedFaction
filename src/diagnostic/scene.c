@@ -1754,6 +1754,20 @@ static int actor_stance_ground_commit(const rf_geometry_collision_world *world,u
     status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
     d[2]=rf_scene_actor_landing[1];memcpy(d+6,scene_actor_body.state.position,12);return RF_OK;
 }
+typedef struct actor_clearance_context {const rf_geometry_collision_world *world;int frame;} actor_clearance_context;
+static int actor_stand_clearance(void *context,const float start[3],const float end[3],uint32_t *blocked)
+{
+    actor_clearance_context *c=context;rf_physics_body_state probe=scene_actor_body.state;
+    float normal[3],fraction;uint32_t sphere;int status;
+    memcpy(probe.position,start,12);memcpy(probe.next_position,end,12);
+    status=actor_sweep(c->world,&probe,normal,&fraction,&sphere,probe.state_124|4);
+    if(!status)*blocked=sphere!=UINT32_MAX;return status;
+}
+static int actor_stand_ground(void *context)
+{
+    actor_clearance_context *c=context;
+    return c->frame<0?RF_OK:actor_stance_ground_commit(c->world,(uint32_t)c->frame);
+}
 static int actor_stance_update(const rf_geometry_collision_world *world,uint32_t request,int *blocked,int live_frame)
 {
     int status;*blocked=0;
@@ -1761,18 +1775,18 @@ static int actor_stance_update(const rf_geometry_collision_world *world,uint32_t
     int crouched=(rf_scene_actor_stance_flags&0x400)!=0;
     if(crouched!=(int)request) {
         if(!request) {
-            rf_physics_body_state probe=scene_actor_body.state;float normal[3],fraction;uint32_t sphere;
-            status=rf_physics_stand_endpoint(probe.position,rf_scene_actor_stance_cache.height_difference,probe.next_position);if(status)return status;
-            status=actor_sweep(world,&probe,normal,&fraction,&sphere,(probe.state_124|4));if(status)return status;
-            *blocked=sphere!=UINT32_MAX;
-        }
-        if(!*blocked) {
-            status=rf_physics_stance_centers(&scene_actor_body.spheres,rf_scene_actor_stance_cache.centers[request],
-                rf_scene_actor_stance_cache.count,&rf_scene_actor_stance_flags,request);if(status)return status;
-            /* 4289d0/428a60 query immediately after replacing centers. */
+            const rf_physics_stand_ops ops={actor_stand_clearance,NULL,actor_stand_ground};
+            actor_clearance_context context={world,live_frame};int stood;
+            /* This fixture has no separate published position or player byte owner. */
+            status=rf_physics_try_stand(&scene_actor_body.spheres,&rf_scene_actor_stance_cache,
+                scene_actor_body.state.position,&rf_scene_actor_stance_flags,&ops,&context,&stood);if(status)return status;
+            *blocked=!stood;
+        } else {
+            status=rf_physics_stance_centers(&scene_actor_body.spheres,rf_scene_actor_stance_cache.centers[1],
+                rf_scene_actor_stance_cache.count,&rf_scene_actor_stance_flags,1);if(status)return status;
             if(live_frame>=0) {status=actor_stance_ground_commit(world,(uint32_t)live_frame);if(status)return status;}
-            status=actor_set_speed_mode(request!=0);if(status)return status;
         }
+        if(!*blocked) {status=actor_set_speed_mode(request!=0);if(status)return status;}
     }
     return RF_OK;
 }

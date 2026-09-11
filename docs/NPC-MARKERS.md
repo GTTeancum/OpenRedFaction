@@ -959,3 +959,39 @@ artifacts/xemu/replay-20260911-122446/report.json passes with the same owner
 hash as PC, base RAM67108864 and plugged0. No framebuffer capture was requested.
 Standing clearance, ground refresh and live NPC landing/physics still need to
 consume these retained caches; no moving AI or additional gameplay is claimed.
+
+
+## Shared standing transition (2026-09-11)
+
+rf_physics_try_stand now sequences original428a60: prepare the endpoint from
+published position, query clearance against the current crouched body, test
+only the blocked result's low byte, clear actor400, resolve/clear the optional
+player crouch byte, restore standing centers, then refresh ground. Callbacks
+supply the existing world query, player registry and ground implementation.
+Ground may re-enter stance or landing; neither flags nor spheres are reapplied
+after it. Even a lookup callback's flag changes survive the center copy.
+Initial validation preserves outputs; later callback errors retain earlier
+effects and leave the success output untouched. No allocation or speed change.
+
+The player diagnostic uses this sequence with its existing sweep and ground
+callbacks. That fixture still supplies body position because it has no separate
+published-position/player-byte owner; full actor lifecycle remains open. Its
+caller still owns speed selection. NPCs retain their separate public position
+and class caches but have not yet connected world/support/landing callbacks.
+
+verify_try_stand.py compares576 executions of the full original428a60 with PC
+and NXDK, retaining the original endpoint/copy callees and supplying explicit
+499ed0 clearance,4a3740 player lookup and4a0840 ground boundaries. It checks
+all sphere records, flags, player-byte-only clearing, endpoint and callback
+order. Cases include zero through eight spheres, blocked values0/1/256/257,
+missing players and flag mutations during lookup/ground. The original return
+is interpreted as its low-byte boolean. Ten NXDK argument rejections and two
+callback errors check preservation and partial-effect behavior. These tests
+do not execute actual original world queries, cache construction or landing.
+
+Both builds and all9 CTests pass. The64-frame process-local player stance
+replay passes on PC and native stock64MiB XEMU, report
+artifacts/xemu/replay-20260911-123205/report.json. It presses crouch at8, moves
+at24 and stands after release at40; unobstructed clearance only. Base memory
+is67108864 with plugged0. No new framebuffer capture. Blocked geometry beyond
+the existing fixture and live NPC landing remain open.
