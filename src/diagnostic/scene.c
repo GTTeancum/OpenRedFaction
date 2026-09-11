@@ -1191,7 +1191,7 @@ static rf_movement_descriptor campaign_modes[16];
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_entity_creation_vitals_state vitals;float published[3],previous[3];uint32_t movement_slot;
-    rf_movement_settings movement;
+    rf_movement_settings movement;rf_entity_view view;rf_registered_entity_view registration;
 } campaign_npc_body;
 static campaign_npc_body *campaign_npc_bodies;
 static rf_movement_config *campaign_npc_movement_configs;
@@ -1202,10 +1202,15 @@ uint32_t rf_scene_npc_support_first_miss[16];
 uint32_t rf_scene_npc_support_deep[8],rf_scene_npc_support_deep_first[20];
 static void campaign_npc_support_probe(const rf_geometry_collision_world *world,const campaign_npc_body *owner,
     const rf_entity_physics_config *config,float class_speed,uint32_t uid);
+uint32_t rf_scene_npc_registration[6]; /* registered, view/wrapper bytes, hash, first/last handle, validated */
 uint32_t rf_scene_npc_bodies[6]; /* actors, bodies, spheres, resident, peak, content hash */
 static void campaign_npc_bodies_close(void)
 {
-    uint32_t i;for(i=0;i<campaign_npc_body_count;++i)rf_physics_body_close(&campaign_npc_bodies[i].body);
+    uint32_t i;for(i=0;i<campaign_npc_body_count;++i) {
+        if(campaign_npc_bodies[i].registration.view)
+            (void)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&campaign_npc_bodies[i].registration);
+        rf_physics_body_close(&campaign_npc_bodies[i].body);
+    }
     free(campaign_npc_bodies);campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     free(campaign_npc_movement_configs);campaign_npc_movement_configs=NULL;
     free(campaign_npc_stances);campaign_npc_stances=NULL;
@@ -1303,6 +1308,31 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
              * No contact has been queried or accepted for these bodies yet. */
             bytes+=(uint64_t)count*sizeof(*spheres);++rf_scene_npc_bodies[1];rf_scene_npc_bodies[2]+=count;
         }
+    }
+    /* Register after class sampling so handles follow serialized actor order,
+     * not the class-grouped allocation loop. This is the port registry's current
+     * setup order; original global factory ordering is still separate. */
+    memset(rf_scene_npc_registration,0,sizeof(rf_scene_npc_registration));rf_scene_npc_registration[2]=2166136261u;
+    rf_scene_npc_registration[3]=rf_scene_npc_registration[4]=UINT32_MAX;
+    rf_scene_npc_registration[1]=campaign_npc_body_count*(sizeof(rf_entity_view)+sizeof(rf_registered_entity_view));
+    for(actor=0;actor<campaign_npc_body_count;++actor)if(campaign_poses.items[actor].skeleton!=UINT32_MAX) {
+        campaign_npc_body *owner=campaign_npc_bodies+actor;rf_entity_view *view=&owner->view;
+        const rf_entity_seed_class *definition=campaign_seeds.classes+campaign_seeds.items[actor].class_index;
+        view->handle=-1;view->type=0;view->class_type=(int32_t)definition->physics.use_kind;
+        view->flags_7c=owner->vitals.object_flags;view->linked_handle=-1;
+        view->weapons[0]=view->weapons[1]=-1;view->base_speed=campaign_npc_movement_configs[campaign_seeds.items[actor].class_index].base_speed;
+        /* Action/810/7d0 start clear; weapon/attachment owners remain absent in
+         * this existing unarmed, unlinked startup projection. */
+        status=rf_entity_view_register(&campaign_registry,&campaign_entities,view,&owner->registration);if(status)goto done;
+        if(!rf_scene_npc_registration[0])rf_scene_npc_registration[3]=owner->registration.handle;
+        rf_scene_npc_registration[4]=owner->registration.handle;++rf_scene_npc_registration[0];
+        if(rf_object_registry_lookup(&campaign_registry,owner->registration.handle)!=&owner->registration ||
+           rf_entity_lookup(&campaign_entities,view->handle)!=view ||
+           rf_entity_lookup(&campaign_entities,(int32_t)(owner->registration.handle^0x10000u))){status=RF_FORMAT;goto done;}
+        ++rf_scene_npc_registration[5];
+        rf_scene_npc_registration[2]=npc_hash_bytes(rf_scene_npc_registration[2],&campaign_seeds.records.items[actor].record.uid,4);
+        rf_scene_npc_registration[2]=npc_hash_bytes(rf_scene_npc_registration[2],view,44);
+        rf_scene_npc_registration[2]=npc_hash_bytes(rf_scene_npc_registration[2],&owner->registration,8);
     }
     rf_scene_npc_bodies[3]=(uint32_t)bytes;
     if(bytes>rf_scene_npc_bodies[4])rf_scene_npc_bodies[4]=(uint32_t)bytes;
@@ -2488,6 +2518,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_poses.items[i].skeleton!=UINT32_MAX) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
         rf_entity_position_snapshot(&owner->vitals.object_flags,owner->previous,owner->published);
+        owner->view.flags_7c=owner->vitals.object_flags;
     }
     for(i=0;i<campaign_poses.count;++i) {
         rf_entity_pose *pose=campaign_poses.items+i;const rf_entity_motion_mapping *map;
@@ -2507,9 +2538,9 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
             gate.descriptor_present=room<stream->visibility.state.count;
             if(gate.descriptor_present)gate.descriptor_flag=stream->visibility.state.rooms[room].visible;
             /* Fixed startup actors:402d68 clears action520;422360 clears810/814.
-             * AI/action changes, death and script overrides need persistent actor
-             * ownership before they can replace these startup values. */
-            gate.action_520=0;gate.flags=0;gate.predicate=0;
+             * Action now comes from the registered owner;814 and the extra predicate
+             * still use startup values until AI/death ownership is connected. */
+            gate.action_520=campaign_npc_bodies[i].view.action_520;gate.flags=0;gate.predicate=0;
             gate.lod_distance_count=(int32_t)cls->lod.count;
             status=rf_model_lod_metric(0x66,campaign_npc_bodies[i].published,
                 camera->origin,camera->scale[2],camera->scale[0],&gate.distance);if(status)return status;

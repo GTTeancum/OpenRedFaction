@@ -1158,3 +1158,42 @@ run rf_entity_impact_damage, then query suppression only for an eligible amount
 at the actor's published position. Actual damage delivery, actor registration
 and settling/landing ownership remain integration work. Existing shared damage
 vitals, credit, sound and dispatcher APIs should be reused for that backend.
+
+
+## Persistent startup NPC registration (2026-09-11)
+
+Skeletal startup NPC body owners now retain an rf_entity_view and an
+rf_registered_entity_view. After class-grouped body allocation, a separate
+serialized actor-order pass registers them in both the shared typed object
+registry and compact entity registry. Cleanup unregisters each wrapper before
+freeing its body. This establishes persistent identities for later damage and
+link integration; it does not reproduce original global factory ordering.
+The current port creates the player and controller objects before this pass.
+
+The view retains class use-kind, constructor object flags and class base speed.
+Action 520 is now read by the animation gate from the persistent view; snapshot
+updates mirror object flags into it. Weapons and linked parents remain absent,
+with action/810/7d0 initially clear in the existing startup projection. Original
+inventory, attachments, AI and death-state initialization remain open.
+
+Registration adds 68 bytes per actor slot, including slots without skeletal
+bodies. Live Mines registers 78 actors for 5,304 added bytes; L1S2 registers 38
+for 2,652 bytes across 39 slots; L1S3 registers 25 for 1,904 bytes across 28 slots.
+Total body-owner residency is respectively 41,292, 21,204 and 15,288 bytes;
+peak setup residency stays below the existing 512 KiB budget. This budget covers
+these owners and their setup scratch, not total campaign memory.
+
+NPC_REGISTRATION reports registered count, view/wrapper bytes, a pointer-free
+UID/view/wrapper hash, first and last handles, and validated count. Every owner
+must resolve through both registries, while a mismatched generation must fail.
+verify_npc_support_probe.py checks all three opening levels and unchanged body
+content hashes. Prior support proposals, animation telemetry and framebuffer
+bytes remain unchanged. The existing entity-registration probe also passes
+1,025 registrations plus exhaustion, duplicate and stale-owner guards.
+
+Both builds and all nine CTests pass. Native stock 64 MiB XEMU matches PC over
+180 door-replay frames in artifacts/xemu/replay-20260911-130502/report.json:
+NPC_REGISTRATION [78,5304,3278717895,16843008,21889357,78]. Base memory is
+67,108,864 bytes with zero plugged memory. No screenshot was requested because
+this change adds runtime ownership without a new visual result. Script/UID links,
+non-skeletal actor ownership, live damage delivery and NPC physics remain open.
