@@ -30,6 +30,9 @@ the earlier object pass, then footsteps before the later entity support query.
 Conditional NPC model advance matches11520 original/PC/NXDK cases; connect
 resolved actor fields and distance ownership before gating live playback.
 
+Camera-scaled NPC animation gates match1200 combined original/PC/NXDK cases;
+retain double metric precision and recover remaining live actor inputs.
+
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.

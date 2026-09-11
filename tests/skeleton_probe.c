@@ -47,7 +47,7 @@ int main(int argc,char **argv)
             for(i=0;i<(uint32_t)argc-4;++i)resources[i].looping=(looping>>i)&1;
             memset(generations,0,sizeof(generations));memset(matrices,0,sizeof(matrices));
             {
-                rf_entity_model_motion items[32]={0};rf_entity_model_motions model_motions={items,32};
+                rf_entity_model_motion items[32]={0};rf_entity_model_motions model_motions={items,NULL,32};
                 rf_motion_playback_resource owned[32]={0};rf_entity_playback_model view={owned,NULL,32};rf_entity_playback_resources owner={0};
                 uint16_t saved_generations[256];
                 rf_entity_motion_catalog catalog={0};rf_entity_skeleton skeleton={0};rf_entity_skeletons skeletons={0};rf_entity_pose pose={0};

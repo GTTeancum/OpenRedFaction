@@ -345,3 +345,27 @@ and427020 predicate results and observes503360 dispatch. It does not execute
 alternate-view distance calculation, earlier actor-entry gates or animation
 advancement. The helper requires a resolved finite distance and remains outside
 the live campaign loop pending actor-field/distance ownership reconstruction.
+
+## Camera metric and gate input ownership
+
+Class loader41bad7 initializes +13b8 to zero. The loop41baff..41bb30
+counts up to four floats following `$LOD Distances:` (string594f78), storing
+them at +13bc. This field is the authored LOD-distance count, not a selected
+detail index; the helper now calls it `lod_distance_count`.
+
+The ordinary distance branch calls5182f0: render mode global17c7bcc other
+than66 returns zero; mode66 calls5479b0, taking Euclidean distance to camera
+1818680, multiplying by1818b50 and dividing by1818b48. The existing
+`rf_model_lod_metric` already reconstructs that calculation. Predicate427020
+returns entity+810 bit0 for non-null actors.
+
+The animation gate now accepts a double metric. Passing the metric through a
+float first loses decisions near45: position(45,.001,0), camera(0,0,0) and
+unit scale produce a metric just above45, which rounds to45 in binary32.
+`verify_npc_animation_camera.py` executes the complete original metric chain
+and actual flag predicate within41dbea..41dd49, intercepting only503360.
+All1200 finite fixtures match composed PC/NXDK metric and gate calls, including
+60 boundary regressions. The11520 prepared supplied-metric cases still pass.
+Double arithmetic remains an approximation to original x87 precision, not a
+universal equivalence proof. Alternate-view distance, descriptor flag ownership,
+actor entry scheduling and live gate integration remain open.

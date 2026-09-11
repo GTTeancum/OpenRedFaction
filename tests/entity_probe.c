@@ -55,7 +55,7 @@ int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--animation-gate")) {
         rf_entity_animation_gate input;int32_t result;
-        _Static_assert(sizeof(input)==36,"animation gate wire size");
+        _Static_assert(sizeof(input)==40,"animation gate wire size");
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(&input,sizeof(input),1,stdin)==1) {
             result=rf_entity_animation_should_advance(&input);fwrite(&result,4,1,stdout);
