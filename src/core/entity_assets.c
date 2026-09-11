@@ -1056,6 +1056,15 @@ void rf_entity_seeds_close(rf_entity_seeds *seeds)
     rf_level_owned_entities_close(&seeds->records);
     free(seeds->items);free(seeds->classes);memset(seeds,0,sizeof(*seeds));
 }
+int rf_entity_model_kind(const char *model,uint32_t *kind)
+{
+    const char *extension=NULL;uint32_t i;
+    if(!model || !kind)return RF_RANGE;
+    for(i=0;i<64 && model[i];++i)if(model[i]=='.')extension=model+i;
+    if(i==64)return RF_RANGE;
+    *kind=extension && same(extension,".vfx")?3u:extension && same(extension,".vcm")?2u:1u;
+    return RF_OK;
+}
 int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf_entity_seeds *result)
 {
     rf_entity_seeds v={0};rf_vpp_entry entry;void *text=NULL;
@@ -1087,10 +1096,14 @@ int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf
         if(!v.classes || !text){status=RF_RANGE;goto done;}
         status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto done;
         for(i=0,j=0;i<v.records.count;++i)if(v.items[i].class_index==j) {
+            rf_entity_assets assets;
             const char *name=v.records.items[i].record.class_name;
             v.classes[j].record_index=i;
             status=rf_entity_vitals_config_read(text,entry.size,name,&v.classes[j].vitals);if(status)goto done;
             status=rf_entity_class_physics_read(text,entry.size,name,&v.classes[j].physics);if(status)goto done;
+            status=rf_entity_assets_read(text,entry.size,name,"",&assets);if(status)goto done;
+            memcpy(v.classes[j].model,assets.model,sizeof(assets.model));
+            status=rf_entity_model_kind(assets.model,&v.classes[j].model_kind);if(status)goto done;
             ++j;
         }
     }

@@ -2552,3 +2552,7 @@ Persistent NPC construction inputs now survive archive close and share class
 vitals/physics under a1MiB campaign budget; three level lifetime/budget probes
 and native64MiB replay-20260911-062422 pass. Actual NPC construction, model
 ownership, registration and live damage/burn behavior remain open.
+
+Entity model-kind selection is original-verified across86 cases and retained
+with class model names; native64MiB replay-20260911-062852 passes. Actual
+model/resource loading and actor initialization remain the next NPC work.

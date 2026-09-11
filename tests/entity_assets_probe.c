@@ -6,6 +6,10 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==3 && !strcmp(argv[1],"--model-kind")) {
+        uint32_t kind=0xa5a5a5a5;status=rf_entity_model_kind(argv[2],&kind);
+        printf("%d %u\n",status,kind);return 0;
+    }
     if(argc==5 && !strcmp(argv[1],"--seeds")) {
         rf_vpp levels,tables;rf_level level;rf_entity_seeds seeds={0},guard={0};uint32_t peak,count,classes;
         if(rf_vpp_open(&levels,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_level_open(&level,&levels,argv[4]))return 2;

@@ -142,14 +142,9 @@ typedef struct rf_entity_physics_config {
  * Does not resolve model spheres/poses or construct a gameplay body. */
 int rf_entity_physics_config_load(rf_vpp *tables,const char *class_name,
     uint32_t scratch_budget,rf_entity_physics_config *result);
-/* Required entity.tbl $Life, $Envirosuit and $FOV metadata from41bcba.
- * field_764 contains binary32 cos(FOV * binary32(pi/180) *0.5).
- * Selected class only, ASCII-insensitive name, no allocation in read. Missing
- * or repeated required fields fail; FOV0..360 and finite numbers are the port
- * input domain. Loader owns one bounded scratch block. Outputs preserved on
- * error; this is a port parser, not execution of the full original loader. */
 typedef struct rf_entity_seed_class {
     uint32_t record_index;
+    char model[64];uint32_t model_kind;
     rf_entity_creation_vitals_class vitals;
     rf_entity_class_physics physics;
 } rf_entity_seed_class;
@@ -169,6 +164,15 @@ typedef struct rf_entity_seeds {
  * ASCII case. Archives may close after success. Failure preserves destination. */
 int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf_entity_seeds *result);
 void rf_entity_seeds_close(rf_entity_seeds *seeds);
+/* Original41ba4d classification of the last-dot extension: vfx=3,vcm=2,
+ * otherwise1, ASCII-insensitive. Bounded port input; error preserves output. */
+int rf_entity_model_kind(const char *model,uint32_t *kind);
+/* Required entity.tbl $Life, $Envirosuit and $FOV metadata from41bcba.
+ * field_764 contains binary32 cos(FOV * binary32(pi/180) *0.5).
+ * Selected class only, ASCII-insensitive name, no allocation in read. Missing
+ * or repeated required fields fail; FOV0..360 and finite numbers are the port
+ * input domain. Loader owns one bounded scratch block. Outputs preserved on
+ * error; this is a port parser, not execution of the full original loader. */
 int rf_entity_vitals_config_read(const void *text,uint32_t bytes,const char *class_name,
     rf_entity_creation_vitals_class *result);
 int rf_entity_vitals_config_load(rf_vpp *tables,const char *class_name,uint32_t scratch_budget,

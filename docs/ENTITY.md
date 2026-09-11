@@ -137,3 +137,23 @@ Both builds and nine CTests pass. Native stock64MiB door/audio replay
 artifacts/xemu/replay-20260911-062422/report.json passes after integration.
 That replay verifies loading and existing scene/audio behavior, not an independent
 comparison of every retained class field or live NPC gameplay. No new visuals.
+
+
+Model kind recovered and retained
+Original5143f0 returns the final-dot extension (even in a directory component),
+or the empty string when absent. Original41ba4d..41ba9b compares it through
+5001d0/57c130 against .vfx then .vcm, storing class+94 as3,2,or1 respectively.
+ASCII case is ignored. An empty model still classifies as1; it does not prove
+a model exists or that a loader should be invoked. Kind3 drives creation flag
+10000 in422360, and the kind is copied into its physics construction descriptor.
+rf_entity_model_kind uses bounded63-byte input and preserves output on failure.
+Each retained seed class now includes its authored model name and this kind.
+
+verify_entity_model_kind.py executes actual original extension extraction and
+comparison callees; only the intermediate rf_string wrapper is supplied. All86
+ASCII fixtures/installed names match PC and NXDK, with other descriptor bytes
+preserved. A64-byte name tests the port guard. This does not verify full model
+loading, texture/animation ownership, or live actor construction. Both builds,
+nine CTests and native64MiB replay-20260911-062852 pass.
+Updated PC seed resident/peak bytes: L1S1 103649/478289, L1S2 52201/426841,
+L1S3 37871/412511. All three lifetime/budget probes pass.
