@@ -108,6 +108,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--force-state")) {
+        struct {rf_physics_force_region regions[3];uint32_t uids[4],count,uid_count,action;} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            int status;
+            if(input.count>3 || input.uid_count>4)return 3;
+            status=rf_physics_forces_set_state(input.regions,input.count,input.uids,input.uid_count,input.action);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(input.regions,sizeof(input.regions),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--force-region")) {
         struct {rf_physics_force_region regions[3];float position[3];uint32_t count;} input;
         _Static_assert(sizeof(rf_physics_force_region)==108,"Force region layout");

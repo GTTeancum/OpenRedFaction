@@ -243,3 +243,21 @@ Native run `replay-20260910-211137` also passes360 frames, matching PC at ten
 replacement applications across later airborne returns and only one sound
 request. The cap remains6 and the entry flag remains active at the sampled
 checkpoints. This closes native airborne re-entry coverage, not grounded return.
+
+
+## Linked force activation
+
+Original handlers `4b9330` (on) and `4ba130` (off) iterate the authored
+UID array at event +0x29c. Each calls `45d6d0`, which returns the first
+matching UID in the ordered force collection; missing UIDs do nothing.
+Only byte +0x68 changes. The remaining three activation storage bytes
+and all other region bytes are preserved, even for duplicate links/UIDs.
+
+`rf_physics_forces_set_state` reconstructs this mutation with upfront
+argument validation. `python tools/verify_force_state.py` executes both
+complete original handlers with their actual list and lookup callees,
+then compares all region bytes against PC and NXDK in 1,024 cases.
+Coverage includes empty lists, duplicate/missing links, zero and
+UINT32_MAX IDs, and arbitrary activation padding. Both builds pass.
+This verifies the mutation primitive; campaign event dispatch, delayed
+actions, and native XEMU scripted activation still require integration.

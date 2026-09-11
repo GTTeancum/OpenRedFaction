@@ -159,6 +159,11 @@ typedef struct rf_physics_force_collection {
  * success. Errors preserve destination; source may close afterward. */
 int rf_physics_forces_open(const struct rf_level *level,uint32_t budget,rf_physics_force_collection *result);
 void rf_physics_forces_close(rf_physics_force_collection *forces);
+/* Original 4b9330/4ba130: ordered authored UID links change only the low
+ * activation byte of the first matching region. Missing UIDs are ignored.
+ * Action is 0 (off) or 1 (on); invalid arguments leave records unchanged. */
+int rf_physics_forces_set_state(rf_physics_force_region *regions,uint32_t count,
+    const uint32_t *uids,uint32_t uid_count,uint32_t action);
 typedef struct rf_physics_force_influence {float direction[3],strength;} rf_physics_force_influence;
 /* Original 486949..4869f6 after region selection/eligibility: displacement
  * uses physics position, not public query position; flags 8/4 scale by squared

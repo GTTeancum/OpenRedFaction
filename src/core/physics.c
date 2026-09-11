@@ -193,6 +193,16 @@ int rf_physics_player_contact(rf_physics_body_state *state,const float normal[3]
     for(i=0;i<3;++i)if(!isfinite(velocity[i]))return RF_RANGE;
     memcpy(state->velocity,velocity,sizeof(velocity));*impact_speed=impact;return RF_OK;
 }
+int rf_physics_forces_set_state(rf_physics_force_region *regions,uint32_t count,
+    const uint32_t *uids,uint32_t uid_count,uint32_t action)
+{
+    uint32_t i,j;
+    if((count && !regions) || (uid_count && !uids) || action>1)return RF_RANGE;
+    for(i=0;i<uid_count;++i)for(j=0;j<count;++j)if(regions[j].uid==uids[i]) {
+        regions[j].active=(regions[j].active&0xffffff00u)|action;break;
+    }
+    return RF_OK;
+}
 void rf_physics_forces_close(rf_physics_force_collection *forces)
 {
     if(forces) {free(forces->items);memset(forces,0,sizeof(*forces));}
