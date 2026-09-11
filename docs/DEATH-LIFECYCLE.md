@@ -567,3 +567,29 @@ transition under flags29c8, sound following through459a20/48ac70/48a230, and
 normal model advancement503360. These must follow the continuation gate
 even on a fade-expiry frame. Render alpha conversion and deferred object
 resource destruction also remain unimplemented for live corpses.
+
+
+## Complete original corpse-update trace
+
+`python tools/verify_corpse_update_original.py` executes full417290 across
+4096 cases with real timer expiry/invalidation, deletion/fade helpers and
+vector initialization/copy. Model, pose and sound effect boundaries are
+supplied; all actor/emitter/sound bytes and callback arguments/order are
+checked. Coverage includes953 animation transitions,481 model/motion changes
+during reset,1651 timer-triggered emitter shutdowns and699 sound follows.
+This is original-executable evidence, not a shared runtime comparison.
+
+After the fade prefix, timer2ac expiry invalidates that timer and clears
+only the low enabled byte140 on every linked emitter. Positive2b0 then
+decreases by dt * binary32(0.0020000000949949026) * class-table scalar, with
+no zero clamp. A nonnegative motion2b8 plus flags29c8 resets the model,
+rereads model/motion, plays at1 with flag1, queries duration, rounds that
+x87 result to binary32 and advances the model by that duration then0.3.
+It clears flags29c8 before calling4164c0. The reset callback mutation cases
+prove model/motion must not be cached across that call.
+
+Sound2cc=-1 skips lookup; a resolved459a20 record receives the48ac70 follow
+point at sound+f0, then48a230 is invoked. Finally, a nonzero current model
+advances by frame delta with the corpse position/orientation pointers.
+Health-negative early return skips all this; fade expiry does not. Shared
+full-update orchestration and actual model/sound effect binding remain next.
