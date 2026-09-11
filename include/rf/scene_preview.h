@@ -35,6 +35,10 @@ int rf_scene_npc_pain(uint32_t handle,int32_t now,rf_random_state *random,const 
  * waveform residency. Death/player override owners remain unsupported.
  * Errors after dispatch preserve prior timer/RNG/loading effects. */
 int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random);
+/* Damage's mode0 AI notification: missing/stale/self sources are verified
+ * original no-ops. A live different source requires the unfinished AI owner
+ * and returns NOT_FOUND. This does not implement forced mode1 alerts. */
+int rf_scene_npc_damage_ai(uint32_t handle,uint32_t source);
 /* Registered skeletal NPC damage adapter. Effects must be synchronous and keep
  * owners alive; callbacks mutate the retained damage state, not stale copies.
  * Does not supply gameplay effects. Unknown/stale target is successful zero.

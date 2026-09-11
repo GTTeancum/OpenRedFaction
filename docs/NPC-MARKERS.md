@@ -1335,6 +1335,30 @@ native replay exercises ordinary residency without exhaustion. Live flinch/AI
 transitions and sustained campaign cache behavior remain to be verified.
 # Pain sound selection and dispatch evidence (2026-09-11)
 
+Damage41a350 calls AI407fb0 with mode0. For that mode, a missing source or the
+actor's own handle returns before any effect or random draw, regardless of the
+action/class gates encountered earlier. `verify_ai_damage_noop.py` executes the
+original routine and its actual gate/lookups without substituted callees across
+4,096 cases: sentinel-1, absent slot, stale generation and self sources, varied
+actions, class/object/entity flags and amount bits. Entire entity/class bytes
+stay unchanged and effect/RNG entries are never reached. A valid different
+source reaches4091d0 in a positive control. The prepared attached-player list is
+empty; mode1 forced alerts and full hostile-source reactions are outside this
+test. Notably4270a0 checks player selection, entity810 bit10000 and class724
+bit10; it is not simply the AI flags7d0 enable bit used by the flinch gate.
+
+`rf_scene_npc_damage_ai` now handles this proven no-op family for registered
+NPC damage notifications and explicitly rejects a live different source until
+the full AI reaction is implemented. The two-hit event fixture invokes it
+instead of merely counting an unimplemented notification. This resolves the
+AI behavior for Continuous_Damage's missing-source links and self-source actor
+requests; it does not enable ordinary attacker targeting, chase or attack.
+PC integration guards, all11 CTests, both builds and damage/flinch comparisons
+pass with unchanged health, animation, audio and RNG results.
+Stock64MiB XEMU replay `replay-20260911-152544` passes180 frames through this
+handler with matching PC event/damage/flinch/pain-sound telemetry. No per-NPC
+storage was added.
+
 `rf_scene_npc_event_damage_bind` now supplies the runtime event backend with
 generation-checked registered NPC lookup and the retained damage adapter.
 Actor exclusions resolve linked entity+200/class1 (4290d0) and flag810 bit1
@@ -1358,7 +1382,8 @@ campaign attachment still needs player feedback and complete reactions/AI.
 Private scene tests also cover a stale linked handle followed by a live NPC,
 health/armor writes, actor-only exclusions, and rejecting a live non-owned
 entity. Both builds, all11 CTests, and the original damage/flinch comparisons
-pass. The fixture reaction backend continues to observe AI notification only.
+pass. AI was observed only at that milestone; the verified mode0 handler above
+now covers the fixture's missing source.
 Stock64MiB XEMU replay `replay-20260911-151855` passes180 frames through the
 new event/NPC route, including the pain sample and guest audio-device checks.
 PC health, animation, sound and RNG telemetry match. The temporary event is

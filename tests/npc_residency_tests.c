@@ -19,6 +19,10 @@ static int event_damage_binding_check(void)
     owner.damage.effects.class_health=owner.damage.effects.class_armor=100;
     CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);
     owner.damage.effects.handle=owner.registration.handle;
+    CHECK(rf_scene_npc_damage_ai(owner.registration.handle,UINT32_MAX)==RF_OK);
+    CHECK(rf_scene_npc_damage_ai(owner.registration.handle,owner.registration.handle)==RF_OK);
+    CHECK(rf_scene_npc_damage_ai(owner.registration.handle,owner.registration.handle^0x10000u)==RF_OK);
+    CHECK(rf_scene_npc_damage_ai(owner.registration.handle^0x10000u,UINT32_MAX)==RF_NOT_FOUND);
     CHECK(rf_scene_npc_event_damage_bind(&services,&backend.effects)==RF_OK);backend.frame_seconds=.25f;
     triggers.registry=&campaign_registry;triggers.damage_backend=&backend;
     event.object_kind=6;event.authored=&authored;event.links=links;event.state.type=17;event.state.deadline=-1;
@@ -36,6 +40,7 @@ static int event_damage_binding_check(void)
     CHECK(!services.status && !services.dispatches);owner.view.flags_810=0;
     {rf_entity_view linked={0};rf_registered_entity_view registration={0};
      linked.class_type=1;CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&linked,&registration)==RF_OK);
+     CHECK(rf_scene_npc_damage_ai(owner.registration.handle,registration.handle)==RF_NOT_FOUND);
      owner.view.linked_handle=(int32_t)registration.handle;
      CHECK(rf_runtime_event_fire(&triggers,event.handle,0,owner.registration.handle,1000,&gravity,NULL,NULL,&report)==RF_OK);
      CHECK(!services.status && !services.dispatches);

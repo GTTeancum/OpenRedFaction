@@ -1993,6 +1993,18 @@ int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random
     if(context.status || status)++rf_scene_npc_pain_audio[7];
     return context.status?context.status:status;
 }
+int rf_scene_npc_damage_ai(uint32_t handle,uint32_t source)
+{
+    uint32_t i;const rf_entity_view *view=rf_entity_lookup(&campaign_entities,(int32_t)handle);
+    if(!view)return RF_NOT_FOUND;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view==view &&
+        campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;
+    /* Damage41a350 always passes mode0 to407fb0. Every mode0 route returns
+     * before effects when the source is absent or the actor itself. */
+    if(source==handle || !rf_object_registry_lookup(&campaign_registry,source))return RF_OK;
+    return RF_NOT_FOUND; /* A live different source needs full AI reactions. */
+}
 static uint32_t campaign_damage_test_predicate(void *c,uint32_t kind,uint32_t handle)
 {(void)c;(void)kind;(void)handle;return 0;}
 static uint32_t campaign_damage_test_uid(void *c,int32_t uid)
@@ -2008,8 +2020,9 @@ static void campaign_damage_test_notify(void *c,uint32_t kind,uint32_t target,fl
     (void)value;(void)source;
     if(kind==RF_DAMAGE_PAIN_ANIMATION && rf_scene_npc_pain(target,1000,c,NULL))rf_scene_npc_damage_test_words[63]++;
     if(kind==RF_DAMAGE_PAIN_SOUND && rf_scene_npc_pain_sound(target,value,1000,c))rf_scene_npc_damage_test_words[63]++;
+    if(kind==RF_DAMAGE_AI_REACTION && rf_scene_npc_damage_ai(target,source))rf_scene_npc_damage_test_words[63]++;
     if(kind!=RF_DAMAGE_PAIN_ANIMATION && kind!=RF_DAMAGE_PAIN_SOUND && kind!=RF_DAMAGE_AI_REACTION)rf_scene_npc_damage_test_words[63]++;
-    ++rf_scene_npc_damage_test_words[3]; /* AI notification remains observed only. */
+    ++rf_scene_npc_damage_test_words[3];
 }
 static uint32_t campaign_damage_test_playing(void *c,uint32_t voice)
 {(void)c;(void)voice;rf_scene_npc_damage_test_words[63]++;return 0;}
