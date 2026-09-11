@@ -351,7 +351,7 @@ int rf_entity_death_select(const rf_entity_death_selection *state,
     rf_random_state *random,int32_t *result);
 
 typedef struct rf_entity_death_clearance_state {
-    float position[3],matrix[3][3],height_78,extent_180;
+    float position[3],matrix[3][3],model_radius_78,extent_180;
 } rf_entity_death_clearance_state;
 typedef struct rf_entity_death_obstacle {
     float position[3],extent_180;

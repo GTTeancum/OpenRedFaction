@@ -15,6 +15,14 @@ int main(int argc, char **argv)
     rf_model_file model;
     uint32_t i;
     int result;
+    if(argc==4 && !strcmp(argv[1],"--bound-sphere")) {
+        float values[5];
+        if(rf_vpp_open(&archive,argv[2]) || rf_model_file_open(&model,&archive,argv[3]))return 2;
+        result=rf_model_file_bound_sphere(&model,values);
+        if(!result)result=rf_model_origin_radius(values,values+4);
+        rf_vpp_close(&archive);if(result)return 3;
+        _setmode(_fileno(stdout),_O_BINARY);return fwrite(values,sizeof(values),1,stdout)==1?0:4;
+    }
     if(argc==2 && !strcmp(argv[1],"--bone-query")) {
         uint32_t count;int32_t index,status;float pose[256][12];rf_model_bone_query out;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

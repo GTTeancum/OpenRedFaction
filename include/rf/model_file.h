@@ -43,6 +43,12 @@ typedef struct rf_model_file {
 /* Structural V3C v0x40000 traversal; LOD payloads stay on disc. Caller retains
  * archive ownership. Result is cleared on failure. No mesh/animation decoding. */
 int rf_model_file_open(rf_model_file *model, rf_vpp *archive, const char *name);
+/* First animated submesh sphere (5032d0/501610/504510). Does not combine
+ * submeshes or collision spheres. Bounded16-byte read; errors preserve output. */
+int rf_model_file_bound_sphere(const rf_model_file *model,float sphere[4]);
+/*48a0b2..48a0c0: distance of sphere center from origin plus its radius.
+ * Finite center and nonnegative radius required; errors preserve result. */
+int rf_model_origin_radius(const float sphere[4],float *radius);
 /* Read one raw 100-byte attachment without loading its LOD blob. Fields remain
  * local to the referenced bone; parent validation needs the loaded skeleton. */
 int rf_model_file_attachment(const rf_model_file *model, uint32_t lod, uint32_t index, rf_model_attachment *attachment);

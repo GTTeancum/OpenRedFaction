@@ -553,14 +553,14 @@ uint32_t rf_entity_death_clearance(const rf_entity_death_clearance_state *s,
     length=(float)((double)s->extent_180*(direction==1?3.0:-3.0));
     for(j=0;j<3;j++) {offset[j]=(float)((double)s->matrix[2][j]*length);end[j]=(float)((double)s->position[j]+offset[j]);}
     if((ray(context,s->position,end)&255u)==1)return 0;
-    memcpy(start,s->position,sizeof(start));start[1]=(float)((double)start[1]-(double)s->height_78*.5);
+    memcpy(start,s->position,sizeof(start));start[1]=(float)((double)start[1]-(double)s->model_radius_78*.5);
     for(j=0;j<3;j++)end[j]=(float)((double)start[j]+offset[j]);
     if((ray(context,start,end)&255u)==1)return 0;
     for(j=0;j<3;j++) {float half=(float)((double)offset[j]*.5);start[j]=(float)((double)s->position[j]+half);}
-    memcpy(end,start,sizeof(end));end[1]=(float)((double)end[1]-((double)s->height_78+1.0));
+    memcpy(end,start,sizeof(end));end[1]=(float)((double)end[1]-((double)s->model_radius_78+1.0));
     if(!(ray(context,start,end)&255u))return 0;
     for(j=0;j<3;j++)start[j]=(float)((double)s->position[j]+offset[j]);
-    memcpy(end,start,sizeof(end));end[1]=(float)((double)end[1]-((double)s->height_78+1.0));
+    memcpy(end,start,sizeof(end));end[1]=(float)((double)end[1]-((double)s->model_radius_78+1.0));
     if(!(ray(context,start,end)&255u))return 0;
     for(i=0;i<count;i++) {
         const rf_entity_death_obstacle *a=actors+i;

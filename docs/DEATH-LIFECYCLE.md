@@ -265,3 +265,27 @@ player pain audio remains[5,3,3,3,49734,145,415139642,0,783005945]. This is
 native regression evidence for campaign loading/ownership, not a claim that
 the new death-clearance adapter was invoked by gameplay. No screenshot was
 captured because this metadata change adds no new visual.
+
+## Object radius provenance and model reader
+
+Object78 is the model-origin radius, distinct from body sphere radius180.
+The clearance field is renamed `model_radius_78` from `height_78`; geometry
+and wire layout are unchanged. Original489fe0 calls5032d0, then40a000 on the
+returned sphere center and adds the sphere radius before storing object78.
+For model kind2,5032d0/5015f0/501610 use the first submesh at animated19c0.
+504510 follows submesh90, then model8c, reading center1c and radius28. It does
+not union all animated submeshes or use the physics collision spheres.
+
+Original5696f0 reads LOD count/thresholds, then center into1c and radius28,
+followed by the AABB. `rf_model_file_bound_sphere` reads that16-byte sphere
+from the first SUBM payload at56+4*LOD-count, with section/entry bounds checks.
+`rf_model_origin_radius` computes sqrt((x*x+y*y)+z*z)+radius using double
+intermediates and a final float store; finite inputs and nonnegative radius
+are required. Errors preserve output. The reader allocates no memory.
+
+`python tools/verify_model_bound_sphere.py` passes all95 installed .v3c models.
+It compares PC streamed sphere bytes with independent serialized offsets,
+then executes original48a091..48a0c0 through the real kind2 pointer chain and
+vector norm routine. Every computed radius matches PC and NXDK machine code.
+Original file loading and native file I/O are not executed by that verifier.
+Both builds and all12 CTests pass. Campaign radius retention remains open.

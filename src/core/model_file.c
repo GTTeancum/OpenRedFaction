@@ -489,3 +489,30 @@ int rf_model_geometry_open(rf_model_geometry *g,const rf_model_file *model,uint3
 fail:
     rf_model_geometry_close(&next);return status;
 }
+
+int rf_model_origin_radius(const float sphere[4],float *radius)
+{
+    double x,y,z,value;float out;uint32_t i;
+    if(!sphere || !radius)return RF_RANGE;
+    for(i=0;i<4;i++)if(!isfinite(sphere[i]))return RF_RANGE;
+    if(sphere[3]<0)return RF_RANGE;
+    x=sphere[0];y=sphere[1];z=sphere[2];
+    value=sqrt((x*x+y*y)+z*z)+(double)sphere[3];out=(float)value;
+    if(!isfinite(out))return RF_RANGE;*radius=out;return RF_OK;
+}
+int rf_model_file_bound_sphere(const rf_model_file *model,float sphere[4])
+{
+    uint32_t i,lods,offset;unsigned char header[8];float value[4],radius;int status;
+    if(!model || !model->archive || !sphere || model->section_count>RF_MODEL_MAX_SECTIONS)return RF_RANGE;
+    for(i=0;i<model->section_count;i++)if(model->sections[i].type==0x5355424d) {
+        const rf_model_section *section=model->sections+i;
+        if(section->size<56 || section->offset>model->entry.size || section->size>model->entry.size-section->offset)return RF_FORMAT;
+        status=rf_vpp_read(model->archive,&model->entry,section->offset+48,header,8);if(status)return status;
+        memcpy(&lods,header+4,4);if(lods<1 || lods>3)return RF_FORMAT;
+        offset=56+lods*4;if(offset>section->size || section->size-offset<16)return RF_FORMAT;
+        status=rf_vpp_read(model->archive,&model->entry,section->offset+offset,value,16);if(status)return status;
+        if(rf_model_origin_radius(value,&radius))return RF_FORMAT;
+        memcpy(sphere,value,16);return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}

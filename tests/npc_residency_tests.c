@@ -412,7 +412,7 @@ static int death_geometry_check(void)
     CHECK(rf_collision_tree_open(&floor,1,65536,&room.tree)==RF_OK);
     view.tree=&room.tree;memcpy(view.minimum,floor.minimum,12);memcpy(view.maximum,floor.maximum,12);
     world.rooms=&room;world.views=&view;world.room_count=1;world.primary=&primary;world.primary_count=1;
-    state.position[1]=2;state.height_78=2;state.extent_180=1;
+    state.position[1]=2;state.model_radius_78=2;state.extent_180=1;
     for(i=0;i<3;i++)state.matrix[i][i]=1;
     CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)==RF_OK && allowed==1);
     CHECK(rf_geometry_death_clearance(&world,&movers,&state,0,NULL,0,&allowed)==RF_OK && allowed==1);
