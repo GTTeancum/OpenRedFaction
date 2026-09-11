@@ -792,3 +792,25 @@ state match PC. Five ambient starts/two stops complete without device errors;
 4,084 samples in the8,192-byte guest DSP snapshot are nonzero. Completion
 leaves9,535 available physical pages. The descent remains reproduced on both
 platforms, without a claim that the chosen route matches original gameplay.
+
+## Authored pit and return-transition evidence
+
+inspect_l1s3_route_links.py reads current installed trigger/event sections and
+uses the shared original-verified volume and box-contact routines. Positions
+at930 and1530 are inside trigger357; positions30 and570 are outside.
+Trigger357 has value_byte2 and links26/9488. Event9488 is Continuous_Damage
+with authored words100000,7. The current scene contact loop explicitly skips
+nonzero value_byte, so this hazard is not dispatched. The words are recorded
+without assigning unverified units or damage-type semantics. This supports
+rejecting the descent as a gameplay/pressure route, not changing its collision.
+Actual trigger-mode dispatch, health/death and original live behavior remain open.
+
+The nearby eastern trigger9322 links Load_Level9324 with text L1S2. It does
+not activate Door4. Consequently eastward movement from this spawn is evidence
+of a return transition, not a proven forward door route. Other unimplemented
+event actions and level transitions still prevent full campaign traversal.
+
+The route-links report rejects a stale PC executable hash. Box-contact tests
+pass8,192 PC/NXDK cases (8,031 original executions plus161 guards), and volume
+conversion matches original constructor blocks for all2,367 authored triggers.
+These validate geometry helpers, not missing trigger-mode or damage semantics.
