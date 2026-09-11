@@ -1063,6 +1063,24 @@ scheduling must be recovered before enabling gameplay health/death changes.
 
 ## Continuous_Damage loader and cadence evidence
 
+The shared runtime dispatcher now routes type17 through the verified damage
+request helper for immediate, recursive and delayed activation. Trigger owners
+may borrow an `rf_runtime_damage_backend`; its current simulation-frame duration
+and complete lookup/damage/feedback callbacks must remain valid during dispatch.
+Authored words0/1 supply the signed rate and damage kind. Resolved links execute
+in authored order, then the actor path executes separately, preserving duplicate
+linked/actor damage and post-damage feedback. Off remains a no-op. The adapter
+uses one borrowed handle at a time, with no temporary link allocation.
+
+Without callbacks, immediate requests remain reported as unsupported; delayed
+requests remain pending. With callbacks, the common timer dispatches once and
+clears its deadline. The new `damage_event_dispatch` CTest exercises these paths,
+changed frame duration at the delayed dispatch, missing links and rate-zero
+damage. All11 CTests pass, both builds pass, and the existing1,984 PC/NXDK
+request comparisons plus12 original schedule and24 loader cases pass. These
+checks do not attach a campaign health/AI/player-feedback backend yet, and no
+native XEMU damage-event activation is claimed.
+
 The first two authored word reads at46228e/46229b transfer toESI/EBX.
 The type17 case46250f pushesEBX thenESI then position;4b8010 calls the
 generic factory with type17 and stores these words at+2b8/+2bc. Twenty-four

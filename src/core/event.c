@@ -422,6 +422,11 @@ static void startup_switch_effect(void *context,const rf_switch_state *state,uin
     if(effect)c->status=b->sound(b->context,c->event,effect,c->now);
     else c->status=startup_switch_links(c,state,0);
 }
+static int startup_damage_ready(const rf_runtime_triggers *triggers)
+{
+    const rf_runtime_damage_backend *b=triggers->damage_backend;
+    return b && b->effects.lookup && b->effects.damage && b->effects.feedback;
+}
 static void startup_event_action(void *context,rf_event_state *state,uint32_t action,
     uint32_t source,uint32_t actor,uint32_t mode)
 {
@@ -440,6 +445,26 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             if(status)c->status=status;
         }
         return;
+    }
+    if(state->type==17) {
+        const rf_runtime_damage_backend *b=c->triggers->damage_backend;
+        rf_event_damage_state damage={0};
+        if(!action)return; /* Original4b9f80 off action. */
+        if(!startup_damage_ready(c->triggers)){++c->report->unsupported_actions;return;}
+        damage.rate=(int32_t)c->event->authored->record.words[0];
+        damage.kind=c->event->authored->record.words[1];damage.frame_seconds=b->frame_seconds;
+        damage.actor=UINT32_MAX;
+        /* Resolved targets are interleaved records, not a contiguous handle
+         * array. Dispatch each link without transient allocation, then actor.
+         * The documented stable-link contract preserves authored ordering. */
+        for(i=0;i<c->event->authored->record.link_count;++i) {
+            const rf_level_link_target *target=c->event->links+i;
+            if(target->kind!=1 && target->kind!=2)continue;
+            damage.links.handles=&target->value;damage.links.count=1;
+            c->status=rf_event_continuous_damage_action(&damage,1,&b->effects);if(c->status)return;
+        }
+        damage.links.handles=NULL;damage.links.count=0;damage.actor=actor;
+        c->status=rf_event_continuous_damage_action(&damage,1,&b->effects);return;
     }
     if(state->type==3) {
         /* 4b9930/4ba330: invert, discard actor, reread source per target.
@@ -622,6 +647,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
         if(event->state.type!=3 && event->state.type!=44 && event->state.type!=48 &&
            !(event->state.type==39 && particles && particles->state) &&
            !(event->state.type==51 && forces) &&
+           !(event->state.type==17 && startup_damage_ready(triggers)) &&
            !(event->state.type==32 && event->switch_state && startup_switch_ready(triggers))) {++*unsupported_pending;continue;}
         status=rf_timer_expired(event->state.deadline,now,&expired);if(status)return status;
         if(!expired)continue;

@@ -124,6 +124,37 @@ static void occupancy_wake(void *context,uint32_t handle)
 { (void)context;++occupancy_wakes;occupancy_hash=occupancy_hash*31+handle; }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--runtime-damage")) {
+        rf_object_registry registry;rf_runtime_triggers triggers={0};rf_runtime_events events={0};
+        rf_runtime_event event={0};rf_level_owned_event authored={0};rf_level_link_target links[3]={{0x12340001,1,0},{42,0,0},{0x23450002,1,0}};
+        rf_runtime_damage_backend backend={{damage_lookup,damage_request,damage_feedback,NULL},.25f};
+        rf_startup_events_report report;rf_physics_gravity gravity={0};uint32_t pending;
+        rf_object_registry_init(&registry);triggers.registry=&registry;events.registry=&registry;events.items=&event;events.count=1;
+        event.object_kind=6;event.authored=&authored;event.links=links;event.state.type=17;event.state.deadline=-1;
+        authored.record.link_count=3;authored.record.words[0]=40;authored.record.words[1]=0;
+        if(rf_object_registry_insert(&registry,&event,&event.handle))return 160;
+        damage_count=0;damage_mode=4;
+        if(rf_runtime_event_fire(&triggers,event.handle,7,0x23450002,100,&gravity,NULL,NULL,&report) ||
+           report.unsupported_actions!=1 || damage_count)return 161;
+        triggers.damage_backend=&backend;
+        if(rf_runtime_event_fire(&triggers,event.handle,7,0x23450002,100,&gravity,NULL,NULL,&report) ||
+           report.unsupported_actions || damage_count!=4)return 162;
+        if(damage_trace[0][1]!=0x12340001 || damage_trace[1][1]!=0x23450002 ||
+           damage_trace[2][1]!=0x23450002 || damage_trace[2][3]!=0x23450002 || damage_trace[3][0]!=1)return 163;
+        for(uint32_t i=0;i<3;++i)if(damage_trace[i][2]!=0x41200000)return 164;
+        damage_count=0;event.state.delay=.25f;
+        if(rf_runtime_event_fire(&triggers,event.handle,7,UINT32_MAX,100,&gravity,NULL,NULL,&report) || damage_count)return 165;
+        triggers.damage_backend=NULL;
+        if(rf_runtime_events_tick(&events,&triggers,&gravity,350,NULL,NULL,&report,&pending) || pending!=1 || event.state.deadline!=350)return 166;
+        triggers.damage_backend=&backend;backend.frame_seconds=.5f;
+        if(rf_runtime_events_tick(&events,&triggers,&gravity,350,NULL,NULL,&report,&pending) || pending || damage_count!=2 ||
+           damage_trace[0][2]!=0x41a00000 || event.state.deadline!=-1)return 167;
+        if(rf_runtime_events_tick(&events,&triggers,&gravity,1000,NULL,NULL,&report,&pending) || damage_count!=2)return 168;
+        damage_count=0;event.state.delay=0;authored.record.words[0]=0;
+        if(rf_runtime_event_fire(&triggers,event.handle,7,UINT32_MAX,1000,&gravity,NULL,NULL,&report) ||
+           damage_count!=2 || damage_trace[0][2]!=0x461c4000)return 169;
+        puts("PASS: runtime damage links, duplicate actor, feedback, missing backend, delayed frame step and no repeat");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--runtime-switch")) {
         rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
         rf_runtime_event items[3]={{0}};rf_level_owned_event authored[3]={{0}};rf_runtime_trigger target={0};

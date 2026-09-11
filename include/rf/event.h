@@ -264,12 +264,20 @@ typedef struct rf_runtime_switch_backend {
     int (*sound)(void *context,const rf_runtime_event *event,uint32_t effect,int32_t now);
     void *context;
 } rf_runtime_switch_backend;
+/* Borrowed Continuous_Damage services. The caller updates frame_seconds to
+ * the current simulation step before activation/tick. Callbacks and resolved
+ * event links stay alive and unchanged during dispatch; no automatic repeats. */
+typedef struct rf_runtime_damage_backend {
+    rf_event_damage_backend effects;
+    float frame_seconds;
+} rf_runtime_damage_backend;
 typedef struct rf_runtime_triggers {
     rf_level_owned_triggers decoded;
     rf_runtime_trigger *items;
     rf_object_registry *registry;
     uint32_t count,allocated_bytes;
     const rf_runtime_switch_backend *switch_backend;
+    const rf_runtime_damage_backend *damage_backend;
 } rf_runtime_triggers;
 /* Same ownership/budget/registry contract as rf_runtime_events_open. Retains
  * raw ordered UID links plus initially unresolved runtime targets. */
@@ -381,6 +389,8 @@ int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *
 /* Ordered delayed update for verified common-tick types Invert/Set_Gravity/Delay/Particle_State/Push_Region_State.
  * A NULL particle/force owner leaves its corresponding state events pending.
  * A complete attached Switch backend enables delayed type32 actions.
+ * A complete attached damage backend enables delayed type17 actions with the
+ * current frame_seconds; missing services leave the deadline pending.
  * Other scheduled types remain pending and are counted, not cleared. Reports
  * describe this call only. Owners share a live registry; no removal/reordering
  * during callbacks. Recursive dispatch has the same limit as startup. */

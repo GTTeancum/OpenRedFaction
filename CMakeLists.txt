@@ -171,6 +171,7 @@ add_executable(rf_event_probe tests/event_probe.c)
 target_link_libraries(rf_event_probe PRIVATE rf_core)
 add_test(NAME force_event_dispatch COMMAND rf_event_probe --force-events)
 add_test(NAME switch_event_dispatch COMMAND rf_event_probe --runtime-switch)
+add_test(NAME damage_event_dispatch COMMAND rf_event_probe --runtime-damage)
 add_executable(rf_unhide_probe tests/unhide_probe.c)
 target_link_libraries(rf_unhide_probe PRIVATE rf_core)
 
