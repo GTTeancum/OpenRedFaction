@@ -826,3 +826,29 @@ Both PC and compiled NXDK results match, and all9 CTests pass. Both platforms
 build successfully. Native runtime is not newly claimed by these comparisons.
 The NPC caller still needs query scheduling, fall descriptor/orientation owner
 installation and subsequent physics stepping connected together.
+
+
+### Post-velocity landing dispatch
+
+rf_entity_landing_finish reconstructs41993a's ordered requests after the
+landing velocity adjustment. Action4 requests normal4280b0 when actor810 bit
+100000 is set, otherwise slow428030(false), and does not clear body200000.
+Other actions first request the special419981..4199c5 branch when class724
+bit02000000 is set, then reread actor810 bit400 to choose forced crouch
+428030(true) versus normal4280b0. Body200000 is cleared AFTER the stance
+callback. Callbacks may modify retained flags; precomputing a complete request
+list before the special branch would lose that ordering. Callback effects,
+clearance, sound and velocity remain external; this is not full landing.
+
+verify_entity_landing_finish.py compares1024 prepared original41993a executions
+with PC/NXDK dispatch. Original40a130 runs unchanged; the special block and
+stance routines are explicit effect boundaries. Injected callback mutations
+verify request-time flags, rereads, and final state. Both builds and all9
+CTests pass. This helper is not yet installed in the campaign NPC loop.
+
+Source audit of428030 additionally confirms that its automatic slow branch
+calls428a60 when crouched but continues to speed/descriptor assignment even
+when standing is blocked. Normal4280b0's blocked-standing early return differs.
+Do not substitute the normal/climb-exit helper for this slow branch. Existing
+ordinary-player support code's direct vertical reset is still a restricted
+fixture; NPC landing must preserve these class/action-dependent transitions.

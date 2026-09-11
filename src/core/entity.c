@@ -449,3 +449,15 @@ int rf_entity_support_contact_route(float fraction,double upward_dot,uint32_t re
         return (falling&255u)?RF_ENTITY_CONTACT_NONE:RF_ENTITY_CONTACT_FALL;
     return resolved?RF_ENTITY_CONTACT_MOVING:RF_ENTITY_CONTACT_STATIC;
 }
+
+int rf_entity_landing_finish(rf_entity_landing_state *state,rf_entity_landing_effect effect,void *context)
+{
+    if(!state || !effect)return RF_RANGE;
+    if(state->action==4) {
+        effect(context,state,(state->actor_flags&0x100000u)?RF_ENTITY_LAND_NORMAL:RF_ENTITY_LAND_SLOW);
+        return RF_OK;
+    }
+    if(state->class_flags&0x02000000u)effect(context,state,RF_ENTITY_LAND_SPECIAL);
+    effect(context,state,(state->actor_flags&0x400u)?RF_ENTITY_LAND_CROUCH:RF_ENTITY_LAND_NORMAL);
+    state->body_flags&=~0x200000u;return RF_OK;
+}

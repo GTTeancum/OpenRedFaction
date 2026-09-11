@@ -51,8 +51,26 @@ static int climb_stand(void *context,uint32_t *stood)
 {uint32_t *v=context;++v[1];*stood=!v[0];return RF_OK;}
 static void jump_sound(void *context,const rf_player_jump_state *state,int32_t sound)
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
+typedef struct landing_trace {uint32_t special_xor,stance_xor,count,trace[6];} landing_trace;
+static void landing_effect(void *context,rf_entity_landing_state *state,uint32_t request)
+{
+    landing_trace *t=context;uint32_t *v=t->trace+3*t->count++;
+    v[0]=request;v[1]=state->actor_flags;v[2]=state->body_flags;
+    if(request==RF_ENTITY_LAND_SPECIAL)state->actor_flags^=t->special_xor;
+    else state->body_flags^=t->stance_xor;
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--landing-finish")) {
+        struct {rf_entity_landing_state state;uint32_t special_xor,stance_xor;} input;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            landing_trace t={0};int32_t status;t.special_xor=input.special_xor;t.stance_xor=input.stance_xor;
+            status=rf_entity_landing_finish(&input.state,landing_effect,&t);
+            fwrite(&status,4,1,stdout);fwrite(&input.state,16,1,stdout);fwrite(&t.count,28,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--support-contact-route")) {
         struct {float fraction,dot;uint32_t resolved,type,flags,falling;} input;int32_t route;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

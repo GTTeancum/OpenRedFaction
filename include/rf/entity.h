@@ -11,6 +11,17 @@
  * Disjoint flags/positions required; NULL inputs leave outputs unchanged. */
 void rf_entity_position_snapshot(uint32_t *flags,float previous[3],const float published[3]);
 
+typedef struct rf_entity_landing_state {
+    uint32_t actor_flags,class_flags,body_flags;int32_t action;
+} rf_entity_landing_state;
+enum {RF_ENTITY_LAND_NORMAL=0,RF_ENTITY_LAND_SLOW=1,RF_ENTITY_LAND_CROUCH=2,RF_ENTITY_LAND_SPECIAL=3};
+/* Post-velocity41993a dispatch. SPECIAL owns419981..4199c5; other requests
+ * invoke4280b0 or428030(false/true). Callback may mutate retained flags.
+ * Ordinary paths clear body200000 AFTER stance; action4 paths preserve it.
+ * Does not implement callback effects, sound or landing velocity. */
+typedef void (*rf_entity_landing_effect)(void *context,rf_entity_landing_state *state,uint32_t request);
+int rf_entity_landing_finish(rf_entity_landing_state *state,rf_entity_landing_effect effect,void *context);
+
 enum {RF_ENTITY_CONTACT_NONE=0,RF_ENTITY_CONTACT_FALL=1,RF_ENTITY_CONTACT_STATIC=2,RF_ENTITY_CONTACT_MOVING=3};
 /* Original4a0a5c contact routing, after query and with resolved handle metadata.
  * fraction>=1, unordered/too-small upward dot, or type3 with body high bit
