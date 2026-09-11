@@ -62,3 +62,33 @@ int rf_burn_pool_initialize(rf_burn_pool *p,const rf_burn_release_backend *be)
     for(i=0;i<RF_BURN_SLOTS;++i){reset_record(&p->records[i],i+1,be);append(p,&p->free_head,i+1);}
     p->spread_deadline=-1;return RF_OK;
 }
+int rf_burn_create(rf_burn_pool *p,uint32_t target,uint32_t source,
+    const rf_burn_create_backend *be,uint32_t *token)
+{
+    rf_burn_record *r;uint32_t seen=0,index,i,sample;
+    if(!p || !be || !be->prepare || !be->predicate || !be->attachments ||
+       !be->emitter || !be->sound_sample || !be->play || !token)return RF_RANGE;
+    if(!ring_valid(p,p->free_head,&seen) || !ring_valid(p,p->active_head,&seen))return RF_FORMAT;
+    be->prepare(be->context,-1);index=p->free_head;
+    if(!index){*token=0;return RF_OK;}
+    if(!be->predicate(be->context,0,target) || !(be->predicate(be->context,1,target)&255) ||
+       (be->predicate(be->context,2,target)&255) || (be->predicate(be->context,3,target)&255)) {
+        *token=0;return RF_OK;
+    }
+    r=&p->records[index-1];
+    if(!(be->attachments(be->context,target,r->attachments)&255)) {
+        for(i=0;i<4;++i)r->attachments[i]=-1;
+        *token=0;return RF_OK;
+    }
+    be->prepare(be->context,0);
+    for(i=0;i<3;++i)r->emitters[i]=be->emitter(be->context,target);
+    be->prepare(be->context,1);r->emitters[3]=be->emitter(be->context,target);
+    r->target=target;sample=be->sound_sample(be->context);r->voice=be->play(be->context,target,sample);
+    r->volume=1;r->fading=0;r->elapsed=0;r->source=source;
+    if(r->next==index)p->free_head=0;
+    else {
+        p->free_head=r->next;
+        p->records[r->previous-1].next=r->next;p->records[r->next-1].previous=r->previous;
+    }
+    r->next=0;r->previous=0;append(p,&p->active_head,index);*token=index;return RF_OK;
+}

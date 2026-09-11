@@ -424,3 +424,27 @@ It checks every record byte, both rings, deadline, owner references and call
 order. Four malformed-input guards bring each compiled suite to437 cases.
 Both builds and eight CTests pass; artifacts/burn-pool.json records hashes.
 Burn allocation, real emitter/audio adapters and per-frame update remain open.
+
+## Shared burn creation
+
+rf_burn_create now reconstructs42e910 on the fixed pool. It prepares the
+temporary descriptor even on exhaustion, preserves ordered target/class/bone
+gates, requests three emitters from the first template and one from the second,
+then requests sound and transfers the accepted record into the active ring.
+The backend owns the temporary descriptor and may change it between emitter
+calls; pool records and links must stay stable during callbacks. It supplies
+ordered attachment results and fixed original emitter/audio call semantics.
+
+Rejection/exhaustion returns successful token0. Accepted allocations return
+1..8; zero emitter results and voice-1 remain valid stored failure results.
+Malformed or overlapping rings return errors before backend effects. This
+does not introduce a fallback emitter, sound, heap pool or altered capacity.
+
+verify_burn_create.py compares612 original cases on PC and actual NXDK code,
+including an all-eight-free ring, pool exhaustion, every eligibility failure,
+attachment failure and partial emitter/audio failure. Two ring guards bring
+each compiled suite to614 cases. All payload bytes, links, return tokens and
+callback order match; callback arguments/template selection are also checked.
+The437 release/init cases, both builds and eight CTests pass. Generated
+artifacts/burn-create.json records executable hashes. Next implement update/
+fade and bind actual attachment, particle, audio and entity ownership adapters.

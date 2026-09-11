@@ -39,17 +39,33 @@ def ring(nodes):
 def verify_ring(head,nodes):
     assert head==(nodes[0] if nodes else 0),(head,nodes)
     for i,node in enumerate(nodes):assert bytes(u.mem_read(node+0x38,8))==w(nodes[(i+1)%len(nodes)],nodes[i-1]),(node,nodes)
+wire_cases=[];wire_expected=[]
+slots=[b,b+64,b+128,b+0x1000,b+0x1040,b+0x1080,b+0x10c0,b+0x1100]
+slot_map={ptr:i+1 for i,ptr in enumerate(slots)}
+def snapshot():
+    data=bytearray()
+    for ptr in slots:
+        record=bytearray(u.mem_read(ptr,64))
+        for off in (56,60):
+            link=struct.unpack('<I',record[off:off+4])[0];record[off:off+4]=w(slot_map.get(link,link))
+        data+=record
+    heads=struct.unpack('<2I',u.mem_read(0x62f76c,8))
+    return bytes(data)+w(*[slot_map.get(ptr,ptr) for ptr in heads])+w(123)
 cases=0;successes=0
-for free_count in range(4):
+for free_count in (0,1,2,3,8):
  for active_count in range(4):
+  if free_count+active_count>8:continue
   for gate in range(6):
    for failure_mask in (0,1,15,16,32,63):
     cases+=1;free=[b+i*64 for i in range(free_count)];active=[b+0x1000+i*64 for i in range(active_count)]
+    slots=(free+active+[b+0x1800+j*64 for j in range(8)])[:8];slot_map={ptr:j+1 for j,ptr in enumerate(slots)}
     u.mem_write(b,bytes([0xa5])*0x2000);ring(free);ring(active)
     u.mem_write(0x62f76c,w(free[0] if free else 0));u.mem_write(0x62f770,w(active[0] if active else 0))
     u.mem_write(entity+0x2c,w(0x12340001));u.mem_write(entity+0x294,w(entity+0x2000));u.mem_write(0x595f28,w(0,1));u.mem_write(0x7b2770,w(b+0x8000,b+0x9000));u.mem_write(0x595f24,w(27))
+    wire_cases.append(snapshot()+w(gate,failure_mask))
     before=bytes(u.mem_read(b,0x2000));calls=[];particles=[];descriptor=0
     u.mem_write(stack,w(stop,0x12340001,0x23450002));u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(0x42e910,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
+    wire_expected.append(w(0)+snapshot()+w(slot_map.get(u.reg_read(UC_X86_REG_EAX),u.reg_read(UC_X86_REG_EAX)),len(calls))+w(*calls).ljust(64,b"\0"))
     success=free_count>0 and gate==0
     expected_calls=[0x42f810]
     if free_count:
@@ -70,5 +86,5 @@ for free_count in range(4):
         verify_ring(struct.unpack('<I',u.mem_read(0x62f770,4))[0],active)
     assert calls==expected_calls,(cases,calls,expected_calls)
     assert u.reg_read(UC_X86_REG_EAX)==(b if success else 0),cases
-report=dict(result='PASS',cases=cases,successful_allocations=successes,original_sha256=digest,scope='Complete42e910 with supplied descriptor setup/copy, target/type/immunity/class/bone predicates, particle allocation and audio. Exact rejection order, slot fields, circular free/active lists and return; free/active counts0..3, partial particle and audio failures. No bone resolver, actual particle/audio implementation, pool initialization or cleanup.')
+report=dict(result='PASS',cases=cases,successful_allocations=successes,original_sha256=digest,scope='Complete42e910 with supplied descriptor setup/copy, target/type/immunity/class/bone predicates, particle allocation and audio. Exact rejection order, slot fields, circular free/active lists and return; free/active counts0..3 plus all8 slots free, partial particle and audio failures. No bone resolver, actual particle/audio implementation, pool initialization or cleanup.')
 (root/'artifacts/burn-creation-trace.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

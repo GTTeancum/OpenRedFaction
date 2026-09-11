@@ -28,4 +28,25 @@ int rf_burn_release(rf_burn_pool *pool,uint32_t token,uint32_t reset_only,const 
  * clear spread deadline. New storage must be zero-initialized before first
  * call; subsequent calls release existing resources. Source/padding survive. */
 int rf_burn_pool_initialize(rf_burn_pool *pool,const rf_burn_release_backend *backend);
+typedef struct rf_burn_create_backend {
+    /*-1 constructs temporary descriptor;0/1 copy first/second template. */
+    void (*prepare)(void *context,int32_t template_index);
+    /*0: target entity exists (full word);1:40a1e0;2:immunity;3:masako.
+     * Stages1..3 use the low byte. */
+    uint32_t (*predicate)(void *context,uint32_t stage,uint32_t target);
+    uint32_t (*attachments)(void *context,uint32_t target,int32_t indices[4]);
+    /*497ca0(target,current_descriptor,0,0,1), reusing prepared descriptor. */
+    uint32_t (*emitter)(void *context,uint32_t target);
+    uint32_t (*sound_sample)(void *context);
+    /*5056a0(sample,target position,1,173c378,0). */
+    uint32_t (*play)(void *context,uint32_t target,uint32_t sample);
+    void *context;
+} rf_burn_create_backend;
+/*42e910 orchestration. Reject/exhaustion succeeds with token0. Callback
+ * storage and target identity remain stable; callbacks may modify their
+ * temporary descriptor, but must not mutate pool records/links. Success
+ * returns1..8; emitter0 and voiceUINT32_MAX do not abort allocation.
+ * Malformed rings/arguments fail before effects; no heap allocation here. */
+int rf_burn_create(rf_burn_pool *pool,uint32_t target,uint32_t source,
+    const rf_burn_create_backend *backend,uint32_t *token);
 #endif

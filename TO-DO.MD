@@ -2342,3 +2342,8 @@ Shared burn pool initialization/release now preserves8x64-byte records,
 slot-index rings and owner cleanup order.437 PC/NXDK cases pass; both builds
 and eight CTests pass. Pool storage is524 bytes excluding effects. Next add
 creation and per-frame update, then bind actual emitter/audio/owner adapters.
+
+Shared burn creation now matches612 original cases on PC/NXDK plus two
+ring guards,including full-capacity free ring and partial emitter/audio failure.
+Release/init437 cases,both builds and eight CTests pass. Next implement
+update/fade and bind actual attachment/particle/audio/entity ownership.
