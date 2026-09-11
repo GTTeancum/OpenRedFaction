@@ -13,6 +13,45 @@ int main(int argc, char **argv)
     rf_materials materials;
     uint32_t count, i;
     int result;
+    if(argc>=8 && argc<=23 && !strcmp(argv[1],"--entities")) {
+        rf_vpp tables,meshes;rf_entity_seeds seeds={0};rf_entity_skeletons skeletons={0};
+        rf_entity_render_models models={0};rf_entity_appearances appearances={0};rf_entity_materials bundle={0},guard={0};
+        uint32_t j,k,peak;
+        if(rf_vpp_open(&level_archive,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_vpp_open(&meshes,argv[4]) ||
+            rf_level_open(&level,&level_archive,argv[5]) || rf_entity_seeds_open(&level,&tables,4*1024*1024,&seeds) ||
+            rf_entity_skeletons_open(&seeds,&meshes,1024*1024,&skeletons) ||
+            rf_entity_render_models_open(&skeletons,&meshes,4*1024*1024,&models) ||
+            rf_entity_appearances_open(&seeds,&skeletons,&tables,1024*1024,&appearances))return 4;
+        count=(uint32_t)argc-7;
+        for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+7]))return 4;
+        result=rf_entity_materials_open(&bundle,&appearances,&models,archives,count,(uint32_t)strtoul(argv[6],NULL,10));
+        if(result){fprintf(stderr,"entity materials %d\n",result);return 5;}
+        peak=bundle.peak_bytes;
+        if(rf_entity_materials_open(&guard,&appearances,&models,archives,count,peak-1)!=RF_RANGE ||
+            memcmp(&guard,&(rf_entity_materials){0},sizeof(guard)))return 6;
+        if(rf_entity_materials_open(&guard,&appearances,&models,archives,count,peak) || guard.peak_bytes!=peak ||
+            guard.resident_bytes!=bundle.resident_bytes || memcmp(guard.offsets,bundle.offsets,(bundle.count+1)*4))return 7;
+        rf_entity_materials_close(&guard);rf_entity_materials_close(&guard);
+        if(rf_entity_materials_open(&guard,&appearances,&models,NULL,0,peak)!=RF_NOT_FOUND ||
+            memcmp(&guard,&(rf_entity_materials){0},sizeof(guard)))return 8;
+        rf_entity_appearances_close(&appearances);rf_entity_render_models_close(&models);
+        rf_entity_skeletons_close(&skeletons);rf_entity_seeds_close(&seeds);
+        rf_vpp_close(&meshes);rf_vpp_close(&tables);rf_vpp_close(&level_archive);
+        for(i=0;i<count;++i)rf_vpp_close(archives+i);
+        printf("E %u %u %u %u %u\n",bundle.count,bundle.materials.count,bundle.materials.textures.count,bundle.resident_bytes,bundle.peak_bytes);
+        for(i=0;i<bundle.count;++i)printf("A %u %u %u\n",i,bundle.offsets[i],bundle.offsets[i+1]);
+        for(i=0;i<bundle.materials.count;++i) {
+            rf_model_material_instance *item=bundle.materials.items+i;
+            printf("M ");for(j=0;j<200;++j)printf("%02x",item->record.bytes[j]);printf(" %u\n",item->arrays[1][0]);
+        }
+        for(i=0;i<bundle.materials.textures.count;++i) {
+            rf_image *image=&bundle.materials.textures.items[i].image;uint32_t hash=2166136261u;
+            for(k=0;k<image->bytes;++k)hash=(hash^image->rgba[k])*16777619u;
+            printf("T %u %u %u %u %u\n",i,image->width,image->height,image->bytes,hash);
+        }
+        rf_entity_materials_close(&bundle);rf_entity_materials_close(&bundle);
+        return memcmp(&bundle,&(rf_entity_materials){0},sizeof(bundle))?9:0;
+    }
     if(argc>=5 && argc<=20 && !strcmp(argv[1],"--particle-animation")) {
         rf_particle_definition definition={0};rf_particle_animation animation={0},empty={0};
         uint32_t budget=(uint32_t)strtoul(argv[3],NULL,10),f;

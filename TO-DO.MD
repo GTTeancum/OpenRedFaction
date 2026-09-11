@@ -12,7 +12,11 @@ need twelve appearances. Connect deduplicated texture/material residency.
 All59 unique opening NPC textures and31 appearance bundles load successfully;
 global image sharing saves4-5MiB versus separate appearance bundles.
 
+Shared NPC materials now pass all 31 opening appearances with deduplicated
+primary/secondary images; connect campaign ownership and verify native residency.
+
 Immediate open items:
+- [ ] Connect shared NPC appearance/material residency to campaign loading and verify Xbox memory and drawing.
 - [ ] Connect per-frame NPC selection/pose updates, rendered geometry and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.

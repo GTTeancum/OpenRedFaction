@@ -95,6 +95,21 @@ int rf_model_materials_open_skin(rf_model_materials *materials,const rf_model_fi
     const char *const *primary_names,uint32_t primary_count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_model_materials_close(rf_model_materials *materials);
+typedef struct rf_entity_materials {
+    rf_model_materials materials;
+    uint32_t *offsets;uint32_t count,resident_bytes,peak_bytes;
+} rf_entity_materials;
+/* Port ownership for authored NPC appearances. Appearance i uses flat material
+ * indices [offsets[i], offsets[i+1]); primary/secondary handles index the single
+ * shared image table. Deduplicates case-insensitively across all appearances.
+ * Budget includes owner, retained arrays/pixels and temporary records; excludes
+ * allocator metadata, decoder stack and caller-owned inputs. Static base mips
+ * only. Inputs/archives may close after success. Zero-initialize; close before
+ * reuse. Failure preserves output and releases partial state. */
+int rf_entity_materials_open(rf_entity_materials *materials,const rf_entity_appearances *appearances,
+    const rf_entity_render_models *models,rf_vpp *archives,uint32_t archive_count,uint32_t budget);
+void rf_entity_materials_close(rf_entity_materials *materials);
+
 typedef struct rf_geometry_materials {
     rf_materials textures;
     uint32_t *offsets, *slots;

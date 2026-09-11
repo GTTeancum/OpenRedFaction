@@ -333,3 +333,85 @@ int rf_model_materials_open(rf_model_materials *m,const rf_model_file *model,
 {
     return rf_model_materials_open_skin(m,model,NULL,0,archives,archive_count,budget);
 }
+
+void rf_entity_materials_close(rf_entity_materials *m)
+{
+    if(!m)return;
+    rf_model_materials_close(&m->materials);free(m->offsets);memset(m,0,sizeof(*m));
+}
+int rf_entity_materials_open(rf_entity_materials *m,const rf_entity_appearances *appearances,
+    const rf_entity_render_models *models,rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{
+    rf_entity_materials next={0};uint8_t *raw=NULL;const char **names=NULL;int32_t *mapping=NULL;
+    uint64_t count=0,base,scratch,used;uint32_t a,i,j,k,at=0,unique=0;int status=RF_OK;
+    if(!m || !appearances || !models || (appearances->count && !appearances->items) ||
+        (models->count && !models->items) || (!archives && archive_count) ||
+        m->materials.items || m->materials.textures.items || m->offsets || m->resident_bytes)return RF_RANGE;
+    for(a=0;a<appearances->count;++a) {
+        const rf_entity_appearance *appearance=appearances->items+a;const rf_model_file *model;uint64_t n=0;
+        if(appearance->skeleton>=models->count)return RF_RANGE;
+        model=&models->items[appearance->skeleton].file;
+        if(!model->archive || model->section_count>RF_MODEL_MAX_SECTIONS)return RF_RANGE;
+        for(i=0;i<model->section_count;++i)if(model->sections[i].type==0x5355424d)n+=model->sections[i].material_count;
+        if(appearance->texture_count && (!appearance->textures || appearance->texture_count!=n))return RF_RANGE;
+        for(i=0;i<appearance->texture_count;++i) {
+            const char *name=appearance->textures[i];
+            if(!name[0] || !memchr(name,0,32))return RF_RANGE;
+        }
+        count+=n;if(count>INT32_MAX/2)return RF_RANGE;
+    }
+    base=sizeof(next)+((uint64_t)appearances->count+1)*sizeof(*next.offsets)+count*sizeof(*next.materials.items);
+    scratch=count*(84+2*sizeof(*names)+2*sizeof(*mapping));used=base+scratch;
+    if(count>INT32_MAX/2 || used>budget || used>SIZE_MAX)return RF_RANGE;
+    next.offsets=calloc((size_t)appearances->count+1,sizeof(*next.offsets));
+    if(!next.offsets)return RF_IO;
+    next.count=appearances->count;
+    if(count) {
+        next.materials.items=calloc((size_t)count,sizeof(*next.materials.items));raw=malloc((size_t)count*84);
+        names=malloc((size_t)count*2*sizeof(*names));mapping=malloc((size_t)count*2*sizeof(*mapping));
+        if(!next.materials.items || !raw || !names || !mapping){status=RF_IO;goto done;}
+    }
+    next.materials.count=(uint32_t)count;
+    for(a=0;a<appearances->count;++a) {
+        const rf_entity_appearance *appearance=appearances->items+a;
+        const rf_model_file *model=&models->items[appearance->skeleton].file;uint32_t mesh=0,local=0;
+        next.offsets[a]=at;
+        for(i=0;i<model->section_count;++i)if(model->sections[i].type==0x5355424d) {
+            for(j=0;j<model->sections[i].material_count;++j,++at,++local) {
+                uint8_t *record=raw+(size_t)at*84;
+                status=rf_model_file_material(model,mesh,j,record);if(status)goto done;
+                if(!record[0] || !memchr(record,0,32) || !memchr(record+48,0,32)){status=RF_FORMAT;goto done;}
+                if(appearance->texture_count) {
+                    memset(record,0,32);memcpy(record,appearance->textures[local],strlen(appearance->textures[local]));
+                }
+                for(k=0;k<2;++k) {
+                    const char *name=(const char *)record+(k?48:0);uint32_t slot;
+                    mapping[at*2+k]=-1;if(!*name)continue;
+                    for(slot=0;slot<unique;++slot)if(equal_texture_name(name,names[slot]))break;
+                    if(slot==unique)names[unique++]=name;
+                    mapping[at*2+k]=(int32_t)slot;
+                }
+            }
+            ++mesh;
+        }
+    }
+    next.offsets[next.count]=at;
+    status=rf_materials_open_names(&next.materials.textures,names,unique,archives,archive_count,budget-(uint32_t)used);
+    if(status)goto done;
+    if(next.materials.textures.missing){status=RF_NOT_FOUND;goto done;}
+    used+=next.materials.textures.allocated_bytes;
+    for(i=0;i<next.materials.count;++i) {
+        rf_model_material_instance *item=next.materials.items+i;
+        uint32_t alpha=(uint32_t)rf_image_format_has_alpha(next.materials.textures.items[mapping[i*2]].image.source_format);
+        status=rf_model_material_from_disk(item,raw+(size_t)i*84,84,mapping[i*2],mapping[i*2+1],alpha,
+            budget-(uint32_t)used+(uint32_t)sizeof(*item));if(status)goto done;
+        used+=item->accounted_bytes-sizeof(*item);
+    }
+    next.peak_bytes=(uint32_t)used;next.resident_bytes=(uint32_t)(used-scratch);
+    next.materials.resident_bytes=next.resident_bytes-(uint32_t)(base-count*sizeof(*next.materials.items))+sizeof(next.materials);
+    next.materials.peak_bytes=next.materials.resident_bytes+(uint32_t)scratch;
+ done:
+    free(raw);free(names);free(mapping);
+    if(status)rf_entity_materials_close(&next);else *m=next;
+    return status;
+}
