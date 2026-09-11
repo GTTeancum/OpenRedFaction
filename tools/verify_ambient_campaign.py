@@ -25,10 +25,11 @@ for archive,name in [('levels1.vpp','L1S1.rfl'),('levels1.vpp','L1S3.rfl'),('lev
  run=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(root/'Installed_Game'),str(source),str(folder/(name+'.ppm'))],env=env,capture_output=True,text=True)
  (folder/(name+'.txt')).write_text(run.stdout+run.stderr);run.check_returncode()
  def words(label):return list(map(int,next(s for s in run.stdout.splitlines() if s.startswith(label+' ')).split()[1:]))
- actual=words('AMBIENT_INSTANCES');audio=words('LIVE_AUDIO');bank=words('SOUND_BANK')
+ actual=words('AMBIENT_INSTANCES');audio=words('LIVE_AUDIO');bank=words('SOUND_BANK');ambient_audio=words('AMBIENT_AUDIO')
  assert actual==expected,(name,actual,expected)
+ assert ambient_audio[0]==2 and ambient_audio[1]>0 and ambient_audio[4]==0,ambient_audio
  assert audio[3]==0 and bank[2]+bank[3]==audio[1]<=1024*1024,(name,audio,bank)
- if name=='L1S1.rfl':assert bank[1:3]==[4,111904] and audio[0]==100,bank
- results.append(dict(level=name,instances=actual,sound_bank=bank,registered_samples=audio[0]))
-report=dict(result='PASS',results=results,scope='Actual PC campaign metadata registration in authored order. Independent sample indices/state hash, omitted missing resources and retained1MiB bank budget. L1S1 controller PCM residency unchanged. No ambient voice scheduling or playback.')
+ if name=='L1S1.rfl':assert bank[1]>=4 and bank[2]==111904+ambient_audio[5] and audio[0]==100,bank
+ results.append(dict(level=name,instances=actual,sound_bank=bank,registered_samples=audio[0],ambient_audio=ambient_audio))
+report=dict(result='PASS',results=results,scope='Actual PC campaign metadata registration in authored order. Independent sample indices/state hash, omitted missing resources and retained1MiB bank budget. L1S1 controller PCM plus independently accounted lazy ambient bytes. Ambient playback telemetry retained; no original device-output comparison.')
 (folder/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))

@@ -493,3 +493,51 @@ The isolated probe build now includes timer.c because shared audio.c references
 the reconstructed ambient scheduler. Production PC/NXDK builds and all eight
 CTests pass. Live campaign ambient PCM loading/playback is still unconnected;
 this increment establishes the device capability its backend needs.
+
+
+## Connected campaign ambient playback
+
+The campaign now processes its25 ambient slots once per owned frame after
+listener refresh and before45ae30 scheduling, matching the recovered ordering.
+It supplies505740 spatial gain/pan, metadata loop selection (zero loop/music
+bits for missing metadata's original fallback), and unity category settings to
+the verified decision backend. Starts apply543a60 default gain, refreshes use
+543c20, and544390-style clamping/device conversion drives both shared ambient
+mixing and device gains. Refresh retains the pan set at start. Existing regular
+voice tracking is cleared when an ambient claims its logical mixer slot.
+
+The audio archive stays open for lazy PCM loads when a sound first exceeds the
+threshold. PCM is loaded through the existing1MiB bank limit; no archive-sized
+allocation or unconditional ambient preload occurs. The separate metadata owner
+remains bounded at512KiB. Start succeeds only when logical/device start succeeds;
+failed loads/starts leave a negative ambient voice and are counted for retry.
+Unsupported nonzero loop offsets are explicitly rejected (installed offsets
+are all zero). Stop does not free PCM: buffers remain owned until synchronous
+device reset during campaign close, then bank/archive/metadata owners close.
+
+AMBIENT_AUDIO exposes sweeps, starts, stops, refreshes, failures, lazy-loaded
+PCM bytes, currently active logical ambient voices and an effect hash. Sound
+bank/LIVE_AUDIO resident accounting now includes lazy ambient files. The door
+harness retains exact original controller PCM accounting plus measured lazy
+ambient bytes rather than expecting the old four-file-only bank.
+
+Four PC campaign checks now require successful ambient starts without failures:
+L1S1 one voice/45,130 lazy bytes; L1S3 five voices/144,048 bytes; L2S1 one voice/
+38,632 bytes; ctf01 one voice/132,964 bytes. Metadata/registration checks remain
+unchanged. L1S2 scheduling checks also pass with eight active ambients and a
+916,438-byte bank. The25-control-slot limit remains separate from device voices.
+
+Native64MiB XEMU replay20260911-010237 (L1S3,31 frames, APU enabled) passes:
+AMBIENT_AUDIO=[31,5,0,150,0,144048,5,921872857], bank614,512 bytes and mixed
+PCM hash199146079 match PC. Five device voices start with no errors and the
+guest DMA snapshot contains4,009 nonzero samples;9,536 pages remain available.
+This is actual campaign APU/DSP output evidence, not host listening or original
+end-to-end audible parity. The earlier L4S2 capture attempt010153 had no sounds
+in range and failed the harness's required-nonzero-output assertion; its state
+comparison passed, so L1S3 provided the relevant audible test location.
+
+Native180-frame door replay20260911-010328 also passes with APU capture,
+matching PC ambient/controller state and PCM. Production PC/NXDK builds and
+all eight CTests pass. Automatic safe PCM eviction, original55-voice allocation
+(the port still has16 shared/device voices), category settings, broader moving
+listener stop/restart coverage and actual-hardware listening remain open.

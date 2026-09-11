@@ -15,5 +15,5 @@ for level,frames,occupied,pending in [('L4S2.rfl',30,6,1),('L4S2.rfl',31,7,0),('
  results.append(dict(level=level,frames=frames,state=state))
 assert results[0]['state'][4:]!=results[1]['state'][4:]
 assert results[2]['state'][4]!=results[3]['state'][4] and results[2]['state'][5]==results[3]['state'][5]
-report=dict(result='PASS',results=results,scope='Authored L4S2 UID1519 starts at500ms, after483ms pending checkpoint. L1S2 UID9925 expires at100ms into a full25-slot table, clears its timer and leaves the table unchanged. No staged input or device playback; no audio-side slot recycling yet.')
+report=dict(result='PASS',results=results,scope='Authored L4S2 UID1519 starts at500ms, after483ms pending checkpoint. L1S2 UID9925 expires at100ms into a full25-slot table, clears its timer and leaves the table unchanged. No staged input; shared ambient playback is active, without device capture or control-slot recycling.')
 (folder/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))

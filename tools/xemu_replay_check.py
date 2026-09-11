@@ -199,6 +199,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      metadata=words(monitor,symbol('rf_scene_sound_metadata'),8)
      assert metadata==expected('SOUND_METADATA') and metadata[:3]==[2712,355344,263],metadata
      report['sound_metadata']=metadata
+     ambient_audio=words(monitor,symbol('rf_scene_ambient_audio'),8)
+     assert ambient_audio==expected('AMBIENT_AUDIO'),ambient_audio
+     report['ambient_audio']=ambient_audio
      ambient_schedule=words(monitor,symbol('rf_scene_ambient_schedule'),6)
      assert ambient_schedule==expected('AMBIENT_SCHEDULE') and ambient_schedule[2]<=25,ambient_schedule
      report['ambient_schedule']=ambient_schedule
@@ -234,7 +237,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['live_audio']=audio
      bank=words(monitor,symbol('rf_scene_sound_bank'),4)
      assert bank==expected('SOUND_BANK') and bank[2]+bank[3]==audio[1],bank
-     if args.door:assert bank[0]==88 and bank[1]==4 and audio[0]==100,bank
+     if args.door:assert bank[0]==88 and bank[1]>=4 and bank[2]==111904+ambient_audio[5] and audio[0]==100,bank
      report['sound_bank']=bank
      switch_audio=words(monitor,symbol('rf_scene_switch_audio'),4)
      assert switch_audio==expected('SWITCH_AUDIO') and switch_audio[0]==switches[0],switch_audio

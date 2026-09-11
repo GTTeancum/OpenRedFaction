@@ -464,6 +464,9 @@ typedef struct campaign_controller_effects {
 } campaign_controller_effects;
 static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
+static rf_vpp campaign_audio_archive;
+static int32_t campaign_ambient_pan[RF_AMBIENT_SLOTS];
+uint32_t rf_scene_ambient_audio[8]; /* sweeps, starts, stops, refreshes, failures, lazy PCM bytes, active, effect hash */
 static rf_sound_metadata_owner campaign_audio_metadata;
 /* Authored count/owner bytes/loop count; registered matched/looping/missing;
  * registered packed-word hash; full compact rows+order byte hash. */
@@ -555,6 +558,82 @@ static int32_t campaign_ambient_register(void *context,const char *name,float ne
     if(status==RF_NOT_FOUND)++rf_scene_live_audio[2];else ++rf_scene_live_audio[3];
     return -1;
 }
+static int campaign_ambient_gains(float volume,int32_t pan,float gains[2])
+{
+    if(volume<0)volume=0;if(volume>1)volume=1;
+    return rf_audio_device_gains(rf_audio_device_volume(volume,0),pan,gains);
+}
+static int32_t campaign_ambient_start_voice(void *context,int32_t sample,float gain,float pan,uint32_t looping)
+{
+    rf_ambient_slot *slot=context;uint32_t handle;float gains[2];int32_t device_pan;
+    const rf_wave_pcm *pcm;const rf_audio_parameters *parameters=rf_audio_bank_parameters(&campaign_audio_bank,(uint32_t)sample);
+    const rf_sound_metadata *metadata=rf_sound_metadata_find(campaign_audio_metadata.rows,
+        campaign_audio_metadata.order,campaign_audio_bank.samples[sample].name);
+    /* Installed loop starts are zero. Reject unsupported offsets explicitly. */
+    if(!parameters || (looping && metadata && (metadata->loop_flags&0x07ffffffu)))goto failed;
+    pcm=rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
+    if(!pcm) {
+        if(rf_audio_bank_reload(&campaign_audio_bank,&campaign_audio_archive,(uint32_t)sample))goto failed;
+        pcm=rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
+        ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[sample].bytes;
+        rf_scene_live_audio[1]=campaign_audio_bank.bytes;
+        rf_scene_ambient_audio[5]+=campaign_audio_bank.samples[sample].bytes;
+    }
+    gain=rf_audio_sample_gain(parameters->volume,1,gain);
+    if(pan< -1)pan=-1;if(pan>1)pan=1;device_pan=(int32_t)((double)pan*1000);
+    if(campaign_ambient_gains(gain,device_pan,gains) ||
+       rf_audio_voice_start(&campaign_audio_mixer,pcm,(uint32_t)(gains[0]*32768),(uint32_t)(gains[1]*32768),looping,&handle))goto failed;
+    if((int32_t)handle<0 || (campaign_audio_events.play && !campaign_audio_events.play_mode) ||
+       (campaign_audio_events.play_mode && campaign_audio_events.play_mode(campaign_audio_events_context,handle,pcm,gains[0],gains[1],looping))) {
+        rf_audio_voice_stop(&campaign_audio_mixer,handle);goto failed;
+    }
+    memset(campaign_spatial_voices+(handle&0xffff),0,sizeof(*campaign_spatial_voices));
+    campaign_ambient_pan[slot-campaign_ambient_slots]=device_pan;
+    ++rf_scene_ambient_audio[1];++rf_scene_live_audio[4];
+    rf_scene_ambient_audio[7]=(rf_scene_ambient_audio[7]^(uint32_t)sample)*16777619u;
+    return (int32_t)handle;
+failed:
+    ++rf_scene_ambient_audio[4];return -1;
+}
+static void campaign_ambient_stop_voice(void *context,int32_t voice)
+{
+    (void)context;rf_audio_voice_stop(&campaign_audio_mixer,(uint32_t)voice);
+    if(campaign_audio_events.stop)campaign_audio_events.stop(campaign_audio_events_context,(uint32_t)voice);
+    ++rf_scene_ambient_audio[2];rf_scene_ambient_audio[7]=(rf_scene_ambient_audio[7]^(uint32_t)voice)*16777619u;
+    /* PCM stays owned until reset; asynchronous stop cannot authorize unloading. */
+}
+static void campaign_ambient_refresh_voice(void *context,int32_t voice,int32_t sample,const float position[3])
+{
+    rf_ambient_slot *slot=context;float gain,gains[2];int32_t volume;
+    const rf_audio_parameters *parameters=rf_audio_bank_parameters(&campaign_audio_bank,(uint32_t)sample);
+    gain=rf_audio_ambient_gain(parameters,position,campaign_listener_position,1,1,1);
+    if(campaign_ambient_gains(gain,campaign_ambient_pan[slot-campaign_ambient_slots],gains)) {++rf_scene_ambient_audio[4];return;}
+    rf_audio_voice_gain(&campaign_audio_mixer,(uint32_t)voice,(uint32_t)(gains[0]*32768),(uint32_t)(gains[1]*32768));
+    if(campaign_audio_events.gain)campaign_audio_events.gain(campaign_audio_events_context,(uint32_t)voice,gains[0],gains[1]);
+    ++rf_scene_ambient_audio[3];volume=rf_audio_device_volume(gain,0);
+    rf_scene_ambient_audio[7]=(rf_scene_ambient_audio[7]^(uint32_t)volume)*16777619u;
+}
+static void campaign_ambient_process(void)
+{
+    static const rf_ambient_voice_backend backend={campaign_ambient_start_voice,campaign_ambient_stop_voice,campaign_ambient_refresh_voice};
+    uint32_t i;rf_scene_ambient_audio[6]=0;++rf_scene_ambient_audio[0];
+    for(i=0;i<RF_AMBIENT_SLOTS;++i) {
+        rf_ambient_slot *slot=campaign_ambient_slots+i;const rf_audio_parameters *parameters;
+        const rf_sound_metadata *metadata;float spatial[2];uint32_t looping,handle,index;
+        if(slot->sample<0)continue;
+        parameters=rf_audio_bank_parameters(&campaign_audio_bank,(uint32_t)slot->sample);
+        if(!parameters){++rf_scene_ambient_audio[4];continue;}
+        metadata=rf_sound_metadata_find(campaign_audio_metadata.rows,campaign_audio_metadata.order,campaign_audio_bank.samples[slot->sample].name);
+        /* Original543580 static fallback5a7c60 has loop/music bits zero. */
+        looping=metadata?(metadata->loop_flags>>30)&1:0;
+        rf_audio_position(slot->position,campaign_listener_position,campaign_listener_right,
+            parameters->near_distance,parameters->far_distance,parameters->rolloff,slot->volume,spatial);
+        rf_ambient_voice_update(slot,spatial[1],spatial[0],1,looping,&backend,slot);
+        handle=(uint32_t)slot->voice;index=handle&0xffff;
+        if(slot->voice>=0 && index<RF_AUDIO_VOICES && campaign_audio_mixer.voices[index].active &&
+           campaign_audio_mixer.voices[index].handle==handle)++rf_scene_ambient_audio[6];
+    }
+}
 static int campaign_ambient_schedule(int32_t now,uint32_t initial)
 {
     uint32_t i;int status=rf_ambient_schedule(&campaign_ambient_instances,campaign_ambient_slots,1,now,initial);
@@ -582,6 +661,8 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
     memset(rf_scene_live_audio,0,sizeof(rf_scene_live_audio));rf_scene_live_audio[7]=2166136261u;
     memset(rf_scene_sound_bank,0,sizeof(rf_scene_sound_bank));
     memset(rf_scene_switch_audio,0,sizeof(rf_scene_switch_audio));
+    memset(rf_scene_ambient_audio,0,sizeof(rf_scene_ambient_audio));rf_scene_ambient_audio[7]=2166136261u;
+    memset(campaign_ambient_pan,0,sizeof(campaign_ambient_pan));
     rf_audio_mixer_init(&campaign_audio_mixer);
     for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
         campaign_controller_requests[i].sounds.samples[j]=-1;
@@ -682,7 +763,11 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
     }
 audio_done:
     free(declarations);rf_vpp_close(&tables);
-    rf_vpp_close(&archive);campaign_audio_bank.archive=NULL; /* All loading is complete. */
+    if(!status) {
+        campaign_audio_archive=archive;memset(&archive,0,sizeof(archive));
+        campaign_audio_bank.archive=&campaign_audio_archive;
+    } else campaign_audio_bank.archive=NULL;
+    rf_vpp_close(&archive);
     return status;
 }
 static int32_t campaign_sound_play(void *context,int32_t sample,const float position[3],float volume,uint32_t flags)
@@ -876,6 +961,7 @@ static void campaign_close_movers(void)
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
     rf_audio_mixer_init(&campaign_audio_mixer);rf_audio_bank_close(&campaign_audio_bank);
+    rf_vpp_close(&campaign_audio_archive);
     rf_sound_metadata_close(&campaign_audio_metadata);
     rf_ambient_instances_close(&campaign_ambient_instances);
     if(campaign_player_object.view)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&campaign_player_object);
@@ -1824,6 +1910,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         if(campaign_ambient_frame!=frame) {
             uint64_t elapsed=(uint64_t)frame*1000/60;
             int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
+            campaign_ambient_process();
             status=campaign_ambient_schedule(now,0);if(status)return status;
             campaign_ambient_frame=frame;
         }
