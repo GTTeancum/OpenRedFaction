@@ -2393,3 +2393,7 @@ Pool fade/release composition and persistent campaign adapters remain open.
 Pool -> owner tail -> fade -> release passes540 PC/NXDK patterns and2082
 record retirements, including all-eight removal, exact rings and timer rearm.
 Persistent campaign resources and live owner-reference clearing remain open.
+
+Burn model binding needs bone-only case-sensitive substring search; shared
+lookup passes2048 PC/NXDK cases and fourth query is head. Live model resolution,
+fallback orchestration and persistent NPC damage owners remain to connect.

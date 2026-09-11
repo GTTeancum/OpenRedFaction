@@ -72,6 +72,11 @@ typedef struct rf_model_name_group {
  * RF_RANGE invalid arguments or a combined index exceeding signed 32 bits. */
 int rf_model_find_tag(const rf_model_name_group groups[3],
                       rf_model_name query, int32_t *index);
+/*51d690: first case-sensitive substring match in the bone group only.
+ * Empty query matches the first bone. Unlike find_tag, no case folding or
+ * attachment/miscellaneous groups. Same bounded-name/error contracts. */
+int rf_model_find_bone_substring(const rf_model_name *bones,uint32_t count,
+    rf_model_name query,int32_t *index);
 /* Raw BONE payload fields, before the original quaternion conversion.
  * Caller locates the section and owns output storage; no allocation is made.
  * Input/output storage must not overlap. Error returns leave output untouched. */

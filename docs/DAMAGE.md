@@ -760,3 +760,32 @@ This closes normal fade-triggered current-record removal at the traversal
 boundary under the stated fixtures. It does not yet combine active emitter
 updates, live owner-reference clearing or campaign resources with this path;
 persistent model/particle/audio/entity adapters remain the next work.
+
+## Live adapter audit: burn bone lookup
+
+The campaign currently registers compact predicate views, not persistent NPC
+damage/burn owners. Its level-particle state owns an emitter pool, but the
+model, entity and damage bindings needed by burn callbacks are not yet joined.
+Do not connect burns by inventing temporary NPC owners or silently borrowing
+level emitter identities.
+
+An additional model distinction was recovered from42ec80: it resolves the
+owner model through503c00, requires positive model48 bone count, then invokes
+51d690. This is not the existing51d5b0 tag lookup.51d690 searches only bone
+names at model4c with stride4c and calls573930 (strstr), returning the first
+case-sensitive substring match. Prefixes and suffixes are accepted; case is
+not folded. Empty query matches the first bone. Constant595fd4 is "head",
+resolving the fourth42eb20 burn attachment query. The other fallback query
+strings remain lowerleg_l/tech__leg_l_lower, lowerleg_r/tech__leg_r_lower,
+and spine01/spine03/tech__1spine/tech__1spine01.
+
+rf_model_find_bone_substring now provides the bounded shared lookup using
+caller-owned rf_model_name views. It preserves first-match order, leaves
+output unchanged on absence/error and performs no allocation.
+verify_bone_substring.py runs unchanged51d690 and real573930 against PC and
+actual NXDK code in2,048 cases, including actual burn strings, duplicates,
+prefix/suffix, case mismatch, empty names/query and missing bones. All match.
+Both builds and eight CTests pass; artifacts/bone-substring.json records
+evidence/hashes. Original42ec80 model resolution and42eb20 fallback orchestration
+still need integration with the live model owner; this helper alone does not
+bind burn emitters to a character.

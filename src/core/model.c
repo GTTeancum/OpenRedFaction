@@ -640,6 +640,23 @@ static int valid_name(rf_model_name name)
     return 1;
 }
 
+int rf_model_find_bone_substring(const rf_model_name *bones,uint32_t count,
+    rf_model_name query,int32_t *index)
+{
+    uint32_t n;size_t start,i;
+    if(!index || (count && !bones) || count>(uint32_t)INT32_MAX)return RF_RANGE;
+    if(!valid_name(query))return RF_FORMAT;
+    for(n=0;n<count;++n) {
+        rf_model_name name=bones[n];
+        if(!valid_name(name))return RF_FORMAT;
+        if(query.length>name.length)continue;
+        for(start=0;start<=name.length-query.length;++start) {
+            for(i=0;i<query.length;++i)if(name.data[start+i]!=query.data[i])break;
+            if(i==query.length){*index=(int32_t)n;return RF_OK;}
+        }
+    }
+    return RF_NOT_FOUND;
+}
 static unsigned char fold(unsigned char c)
 {
     return c >= 'A' && c <= 'Z' ? (unsigned char)(c + ('a' - 'A')) : c;

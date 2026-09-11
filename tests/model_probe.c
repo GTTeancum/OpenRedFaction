@@ -414,7 +414,9 @@ int main(int argc,char **argv)
         {
             rf_model_name query = {input.query, strlen(input.query)};
             output.index = -1;
-            output.status = rf_model_find_tag(groups, query, &output.index);
+            output.status = argc==2 && !strcmp(argv[1],"--bone-substring") ?
+                rf_model_find_bone_substring(names[0],input.counts[0],query,&output.index) :
+                rf_model_find_tag(groups, query, &output.index);
         }
         if (fwrite(&output, sizeof(output), 1, stdout) != 1) return 1;
     }
