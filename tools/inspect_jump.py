@@ -49,6 +49,7 @@ for mode,crouch,waterflag,vehicle,sub,velocity,strength,dt,enabled in itertools.
   wanted[0x858:0x85c]=w(0x62fe50+selected*32);wanted[0x85c:0x860]=w(0x73a858);wanted[0x7b4:0x7b8]=w(777)
   assert events==[['sound_lookup',[456,0,0,0,0x3f800000]],['sound_play',123]]
  else:assert events==[]
+ assert bytes(u.mem_read(base+0x8a0,16))==seed[0x8a0:0x8b0], "Jump changed support velocity/handle"
  actual=bytes(u.mem_read(base,len(seed)));assert actual==wanted,(mode,crouch,waterflag,vehicle,sub,velocity,[(i,actual[i],wanted[i]) for i in range(len(seed)) if actual[i]!=wanted[i]])
  assert read(0x630050)==(selected if accepted else 77)
  results.append(dict(mode=mode,crouch=crouch,waterflag=waterflag,parent_block=vehicle,alternate_fall=sub,frame_dt=real(0x5a4014),descriptor_enabled=enabled,velocity=velocity,accepted=accepted,jump_strength=strength,output_velocity=real(base+0x148),actor_flags=flags,physics_flags=struct.unpack_from("<I",seed,0x1a8)[0],old_time=struct.unpack_from("<I",seed,0x7b4)[0],final_actor_flags=read(base+0x810),final_physics_flags=read(base+0x1a8),final_time=read(base+0x7b4),events=list(events)))
@@ -56,5 +57,5 @@ for mode,crouch,waterflag,vehicle,sub,velocity,strength,dt,enabled in itertools.
 u.mem_write(0x630050,w(77));u.mem_write(stack,w(stop,0));u.reg_write(UC_X86_REG_ESP,stack);events.clear()
 u.emu_start(0x4288b0,stop,count=100)
 assert u.reg_read(UC_X86_REG_EIP)==stop and u.reg_read(UC_X86_REG_ESP)==stack+4 and not events and read(0x630050)==77
-report=dict(result='PASS',null_entity_preserved=True,original_sha256=sha,shipped_height=height,shipped_strength=shipped_strength,cases=len(results),accepted=sum(r['accepted'] for r in results),climb_rejected=all(not r['accepted'] for r in results if r['mode']==2),scope='Original jump and fall transition. Parent-kind predicate, alternate-fall predicate and audio boundaries supplied. No input dispatch, shared-C jump or live jumping claim.',results=results)
+report=dict(result='PASS',null_entity_preserved=True,support_velocity_and_handle_preserved=True,original_sha256=sha,shipped_height=height,shipped_strength=shipped_strength,cases=len(results),accepted=sum(r['accepted'] for r in results),climb_rejected=all(not r['accepted'] for r in results if r['mode']==2),scope='Original jump and fall transition. Parent-kind predicate, alternate-fall predicate and audio boundaries supplied. No input dispatch, shared-C jump or live jumping claim.',results=results)
 out=root/'artifacts/jump-original';out.mkdir(exist_ok=True);(out/'report.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='results'})

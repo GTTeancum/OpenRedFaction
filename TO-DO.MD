@@ -1,7 +1,8 @@
 # Red Faction Xbox / PC — open work
 
 Immediate open items:
-- [ ] Verify per-frame lift support, stepping/jumping off, use-input scheduling and linked-object use interactions.
+- [ ] Recover airborne steering and speed limiting before validating horizontal lift dismounts.
+- [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
 - [ ] Implement sound metadata persistence across level transitions and recover automatic PCM residency policy.
 - [ ] Complete controller audio groups/loop metadata and validate interactive PC/Xbox playback.

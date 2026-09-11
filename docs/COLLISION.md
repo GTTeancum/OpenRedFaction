@@ -2907,3 +2907,34 @@ Stock64MiB XEMU replay-20260910-200702 passes600 frames with PC-equivalent
 final body, controller and diagnostic state. Upper dwell180/360 and lower
 dwell540/600 positions match within0.0001; final player velocity is zero.
 The existing rise fixture is preserved without --cycle.
+
+
+## Jumping from moving lift and returning
+
+`python tools/replay_lift_jump.py` covers a jump at frame90 during ascent and
+one at430 during descent, with no horizontal input. The player becomes airborne
+and lands at152/492 respectively,62 ticks later in both cases. Every retained
+frame from takeoff through the final210/540-frame state checks the expected
+airborne/grounded mode, strictly decreasing airborne vertical velocity, no
+repeated jump and zero vertical velocity after landing. Final X/Z remain on
+the lift and Y matches its upper/lower stopped height. These checks do not
+prove every-frame support identity, a horizontal dismount or original full-arc
+equivalence.
+
+Original4288b0 jump and4281a0 fall transition preserve entity+8a0..8af (cached
+support velocity and handle). inspect_jump.py now explicitly asserts this in
+all6144 cases (144 accepted), in addition to its existing full-entity byte
+comparison. Parent-kind/alternate-fall/audio boundaries are supplied as before.
+Do not clear support on takeoff merely from a physical intuition about jumping.
+No movement implementation change was needed for these two replays.
+
+Stock64MiB XEMU replay-20260910-201052 passes the540-frame descending jump,
+including exact PC jump ring and final body/controller comparison.
+
+Exploratory forward/backward jump-off inputs at90..149 produced unchanged X/Z.
+Source inspection identifies a concrete missing phase: actor_tick transforms
+commands for run/climb, but falling calls rf_physics_fall_propose directly.
+That helper begins at49e8b7 after the original steering/speed-limiting phase;
+its contract explicitly excludes those earlier operations. Recover and connect
+that phase before interpreting these probes as blocked geometry or claiming
+horizontal dismount support. Probe outputs remain under artifacts/lift-dismount.
