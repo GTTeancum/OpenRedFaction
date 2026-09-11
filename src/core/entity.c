@@ -417,3 +417,20 @@ int rf_entity_support_route(const rf_entity_support_gate *input)
         return RF_ENTITY_SUPPORT_QUERY;
     return RF_ENTITY_SUPPORT_NONE;
 }
+
+int rf_entity_support_moved(uint32_t *flags,const float previous[3],const float current[3])
+{
+    int moved;uint32_t i;double distance=0;
+    if(!flags)return 0;
+    moved=(*flags&0x02000000u)!=0;
+    if(!moved && (*flags&0x04000000u)) {
+        if(!previous || !current)return 0;
+        for(i=0;i<3;++i) {
+            volatile float delta=(float)((double)previous[i]-current[i]);
+            distance+=(double)delta*delta;
+        }
+        moved=distance>0;
+    }
+    if(moved)*flags=(*flags&~0x02000000u)|0x04000000u;
+    return moved;
+}

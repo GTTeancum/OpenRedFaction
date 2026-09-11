@@ -590,3 +590,27 @@ The preceding487f20..487f67 computes movement from object flags02000000/
 body position+e4, then updates those flags before41e4b0. That phase, predicate
 ownership and accepted-contact filtering remain to be connected. A retained
 body alone is not evidence that an actor is eligible for a support update.
+
+## Movement flags before entity update
+
+`rf_entity_support_moved` implements487f20..487f67. Object flag02000000
+forces a moved result; otherwise flag04000000 requires positive squared
+distance from previous object position+6c to current body position+e4.
+Moved actors clear02000000 and set04000000 while preserving other bits.
+Neither position is written here: history snapshot ownership is separate.
+Float component stores match409fa0 before wider squared-distance arithmetic;
+the comparison is strictly greater than zero, with no epsilon dead zone.
+
+`verify_entity_support_moved.py` executes the original span and actual4faf00,
+409fa0 and40a180 without hooks. All1600 cases match PC and NXDK moved-byte/
+flag results and preserve both input positions;1151 report moved. Coverage
+includes forcing/bypassing flags, equal and signed-zero positions, subnormal
+movement, overflowing differences, infinities and NaNs. This supplies the
+pre-update moved input to the already verified post-update support decision,
+but does not itself schedule41e4b0 or update position history.
+
+Existing predicate evidence is in XEMU-MEMORY.md and
+`verify_actor_support_gate.py`: unchanged42a020/429990/486c90/4895d0
+show modes3/8 or category1 with material-1 entering the broad support
+predicate;4895d0 reads actor flag8. Do not reduce42a020 to mode3 alone.
+Those facts should be reused when wiring retained actor inputs.

@@ -5,6 +5,13 @@
 #include "rf/object_registry.h"
 #include "rf/motion.h"
 
+/* Original487f20..487f67 before entity update: flag02000000 forces movement;
+ * otherwise flag04000000 requires positive squared position difference.
+ * A moved actor clears02000000 and sets04000000. Other bits and both positions
+ * survive. Positions are previous object+6c and current body+e4; no history
+ * update occurs here. NULL flags or required positions return0 unchanged. */
+int rf_entity_support_moved(uint32_t *flags,const float previous[3],const float current[3]);
+
 typedef struct rf_entity_support_gate {
     uint32_t flags_810,falling;int32_t movement_mode,linked_handle;
     uint32_t moved,body_flags,special;
