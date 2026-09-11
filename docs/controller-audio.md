@@ -949,3 +949,33 @@ for Switch_01.wav. It resolves index37 with table near6/volume0.9 despite the
 controller's near5/volume1 request; only that sample becomes resident. It does
 not validate L14S3 gameplay. The native door test covers actual table-file I/O
 and campaign wiring; it remains a staged L1S1 fixture.
+
+
+### Bulk release order and device reference counts
+
+verify_audio_bulk_lifetime.py executes the complete5439b0 ->544310 ->522d10
+stop dispatch and543980 ->543930 ->522270 sample-release chain. Only final
+voice destruction521930 and resource destruction521a60 are supplied.48 bulk
+fixtures verify ordered callbacks, all2600 registry records, registration count,
+device references and live-resource count across low-byte enabled/keep gates
+and backend selection.28 additional522270 cases cover negative handles, positive
+references and unsigned wrap edges in the original instructions. All pass.
+
+When audio is enabled and backend1 is selected,522d10 invokes521930 for each
+ordinary slot0..29 before any sample-release attempt. The keep argument does
+not suppress these voice releases; only its low byte controls whether543980
+runs afterward. This differs from retaining active playback.543930 still skips
+retained samples (byte+63) and invalid device handles, as previously verified.
+
+522270 decrements the device sample reference at18875d4+index*592 for every
+nonnegative index. Only a decrement to exactly zero invokes521a60 and decrements
+the live-resource count at1aed35c. Zero underflows without destruction in the
+original; this is observed behavior, not permission to underflow port ownership.
+This device reference is distinct from the registry retention counter at+56.
+
+New raw521a60 output suggests cleanup of16 auxiliary records, allocated blocks
+and DirectSound interfaces before clearing sample identity. Those destructor
+internals and reference acquisition still require execution verification.
+Automatic campaign eviction remains unimplemented; current retained PCM is
+released only after the port's synchronous device reset. No runtime change or
+full transition fidelity is claimed by these dispatch/reference tests.
