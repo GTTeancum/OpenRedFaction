@@ -103,3 +103,35 @@ mutation during playback. Five nonfinite guards bring each compiled suite to
 4,101 cases. Exact state and ordered sound arguments match; generated evidence
 in artifacts/damage-sound.json records original and NXDK hashes. This verifies
 routing, not audible playback or the remaining damage/death lifecycle.
+
+## Outer single-player eligibility and object dispatch
+
+verify_damage_wrapper_trace.py executes complete original4892c0 for8,192
+cases, with SP globals64ecb9/ba and6fc4d8 zero. Lookup, immunity/player
+predicates and delegated effects are supplied; exact call order, arguments,
+health, flags and return value are checked. This is original behavior evidence,
+not yet a reconstructed C wrapper or end-to-end damage test.
+
+Missing targets and amounts below binary32 .001 return zero without setting
+flags. Otherwise object+7c gains0x200000 before any subsequent rejection.
+A nonzero low byte in the eighth argument bypasses immunity and difficulty
+checks; Continuous_Damage supplies1 here. With a zero low byte, object flag4
+rejects; an entity resolved by426fc0 also rejects when42cca0 returns a nonzero
+low byte. For damage kinds other than9,48aaf0-selected targets scale damage by
+the selected593dd4 table entry: .1f,.25f,.4f,.55f. Kind9 bypasses this scaling.
+The meaning of6fc4d8 and its alternate path remains outside this SP fixture.
+
+Object kind0 calls41a350(object,amount,source,damage_kind,auxiliary_uid) and
+returns its float-rounded result. Kind4 calls410270 with argument6 forwarded
+as the fifth argument; kind7 calls417c60 with four arguments. Kind2 subtracts
+health directly; kind3 does so only for amount strictly above100. Other object
+kinds have no delegated effect. All eligible routes then query48aaf0 again;
+selected targets with health in(0,.5] become zero, including after a delegated
+effect modifies health. Non-entity routes return zero regardless of health
+change. Argument4 is unused in this verified SP path. Keep these distinctions
+when connecting the event backend; direct subtraction is not entity damage.
+
+The trace covers all object kinds0..9, threshold boundaries, all four
+difficulty entries, low-byte predicates, forced hits and mutations performed
+by the supplied effect callback. It records3,257 accepted routes. Generated
+artifacts/damage-wrapper-trace.json includes the checked original SHA256.

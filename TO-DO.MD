@@ -2286,3 +2286,8 @@ Damage sound routing: complete4196f0 now matches4,096 original cases on PC/NXDK
 plus five nonfinite guards, including original timers, sound call order and
 callback flag mutation. See docs/DAMAGE.md and tools/verify_damage_sound.py.
 Live damage playback, pain animation and entity/death ownership remain open.
+
+Outer damage evidence:8,192 original4892c0 SP traces verify eligibility,
+force bypass, difficulty scaling, object dispatch and post-effect health
+cleanup. Implement the C wrapper next; delegated effects and the alternate
+6fc4d8 path remain open. See docs/DAMAGE.md and verify_damage_wrapper_trace.py.
