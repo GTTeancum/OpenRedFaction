@@ -2337,3 +2337,8 @@ Burn owner update:4,096 original tail cases verify frame-scaled self damage,
 audio and fade dispatch;30 real timer cases verify225ms shared rearm/wrap.
 Shared pool implementation, full spread/emitter loop and fade42f2f0 remain
 open. See docs/DAMAGE.md and tools/verify_burn_tick_trace.py.
+
+Shared burn pool initialization/release now preserves8x64-byte records,
+slot-index rings and owner cleanup order.437 PC/NXDK cases pass; both builds
+and eight CTests pass. Pool storage is524 bytes excluding effects. Next add
+creation and per-frame update, then bind actual emitter/audio/owner adapters.

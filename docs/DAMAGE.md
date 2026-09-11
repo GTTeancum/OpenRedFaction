@@ -397,3 +397,30 @@ Raw42f2f0 handles fading and eventual release, including direct emitter-field
 scaling and an owner reaction. This helper and its time thresholds still need
 an executable comparison; the current owner-tail test intercepts it. Shared
 pool creation/release/update and actual particle attachment remain open.
+
+## Shared fixed burn pool
+
+include/rf/burn.h and src/core/burn.c now implement42ed20 release and42e8a0
+initialization. Eight64-byte records retain source/padding semantics; circular
+links are1..8 slot tokens with0 for an absent head. Heads and the spread
+deadline bring pool storage to524 bytes. There is no heap allocation here.
+Particle and voice tokens remain owned by external backends.
+
+Release preserves reset/free/stop ordering and invokes the owner adapter after
+clearing payload fields. The adapter must search entity references first,
+then other references only on an entity miss, clearing the first match only.
+Callbacks must retain storage and must not mutate pool records or links.
+New pool storage must be zero-initialized before its first initialization;
+later initialization cleans existing resources before rebuilding list order.
+
+Normal release validates ring links, membership and disjoint active/free
+lists before effects. Malformed topology or invalid tokens return explicit
+port errors without mutations. The nonzero-low-byte reset mode leaves links
+unchanged. Validation does not add rollback semantics to external callbacks.
+
+verify_burn_pool.py normalizes original pointers into slot tokens and compares
+432 original release cases plus complete initialization on PC and NXDK.
+It checks every record byte, both rings, deadline, owner references and call
+order. Four malformed-input guards bring each compiled suite to437 cases.
+Both builds and eight CTests pass; artifacts/burn-pool.json records hashes.
+Burn allocation, real emitter/audio adapters and per-frame update remain open.

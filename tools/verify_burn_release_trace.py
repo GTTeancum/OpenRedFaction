@@ -29,6 +29,19 @@ def calls(data):
         if emitter:out.extend([(0x4973d0,emitter),(0x497d80,emitter)])
     if values[9]!=0xffffffff:out.append((0x505a40,values[9]))
     return out
+wire_cases=[];wire_expected=[]
+def snapshot(nodes,refs):
+    mapping={node:i+1 for i,node in enumerate(nodes)}
+    data=bytearray()
+    for node in nodes:
+        record=bytearray(u.mem_read(node,64))
+        for off in (56,60):
+            ptr=struct.unpack('<I',record[off:off+4])[0];record[off:off+4]=w(mapping.get(ptr,ptr))
+        data+=record
+    free_head,active_head=struct.unpack('<2I',u.mem_read(0x62f76c,8))
+    return bytes(data)+w(mapping.get(free_head,free_head),mapping.get(active_head,active_head))+bytes(u.mem_read(0x62f768,4))+w(*[mapping.get(ref,ref) for ref in refs])
+def result_wire(nodes,refs):
+    return w(0)+snapshot(nodes,refs)+w(len(trace))+b''.join(w(*row) for row in trace)+bytes((72-len(trace))*8)
 cases=0
 for active_count in (1,2,3):
  for index in range(active_count):
@@ -47,6 +60,9 @@ for active_count in (1,2,3):
      u.mem_write(0x5cb2ec,w(entities[0]));u.mem_write(0x5cae44,w(others[0]))
      for nodes,refs,offset,sentinel in [(entities,entity_refs,0x13d8,0x5cb060),(others,other_refs,0x2d0,0x5cabb8)]:
       for j,node in enumerate(nodes):u.mem_write(node+0x28c,w(nodes[j+1] if j+1<len(nodes) else sentinel));u.mem_write(node+offset,w(refs[j]))
+     pool_nodes=[b,b+64,b+128,b+0x1000,b+0x1040,b+0x1080,b+0x10c0,b+0x1100]
+     u.mem_write(0x62f768,w(123))
+     wire_cases.append(snapshot(pool_nodes,entity_refs+other_refs)+w(pool_nodes.index(target)+1,mode,0))
      before=bytes(u.mem_read(target,64));trace=[];u.mem_write(stack,w(stop,target,mode));u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(0x42ed20,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
      assert trace==calls(before),cases
      assert bytes(u.mem_read(target,56))==clean(before)[:56],cases
@@ -54,6 +70,7 @@ for active_count in (1,2,3):
      elif target in other_refs:other_refs[other_refs.index(target)]=0
      for nodes,refs,offset in [(entities,entity_refs,0x13d8),(others,other_refs,0x2d0)]:
       for node,ref in zip(nodes,refs):assert bytes(u.mem_read(node+offset,4))==w(ref),cases
+     wire_expected.append(result_wire(pool_nodes,entity_refs+other_refs))
      if mode&255:
       check_ring(active[0],active);check_ring(free[0] if free else 0,free)
       assert bytes(u.mem_read(target+56,8))==before[56:]
@@ -65,9 +82,10 @@ for active_count in (1,2,3):
 slots=[0x62f778+i*64 for i in range(8)];u.mem_write(0x5cb2ec,w(0x5cb060));u.mem_write(0x5cae44,w(0x5cabb8));wanted=[];before=[]
 for i,node in enumerate(slots):
  data=bytearray([0xa5]*64);data[:16]=w(i,0,0,0);data[36:40]=w(-1 if i%2 else i);u.mem_write(node,bytes(data));before.append(data);wanted+=calls(data)
-u.mem_write(0x62f768,w(123));trace=[];u.mem_write(stack,w(stop));u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(0x42e8a0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
+u.mem_write(0x62f768,w(123));wire_cases.append(snapshot(slots,[0]*4)+w(1,1,1));trace=[];u.mem_write(stack,w(stop));u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(0x42e8a0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
 assert trace==wanted;assert bytes(u.mem_read(0x62f768,4))==w(-1);assert bytes(u.mem_read(0x62f770,4))==w(0)
 check_ring(struct.unpack('<I',u.mem_read(0x62f76c,4))[0],slots)
 for node,data in zip(slots,before):assert bytes(u.mem_read(node,56))==clean(data)[:56]
+wire_expected.append(result_wire(slots,[0]*4))
 report=dict(result='PASS',release_cases=cases,initialization_cases=1,pool_slots=8,pool_record_bytes=64,original_sha256=digest,scope='Complete42ed20 release and42e8a0 initialization; only emitter reset/free and sound stop intercepted. Actual ordered owner lists, circular free/active lists and timer clear. Duplicate-owner first-match behavior, low-byte reset mode, missing emitter/voice conventions and preserved source/padding verified. No actual particle/audio release implementation or per-frame burn update.')
 (root/'artifacts/burn-release-trace.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

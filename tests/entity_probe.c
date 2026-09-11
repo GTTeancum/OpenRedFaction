@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include "damage_effect_probe.h"
+#include "burn_probe.h"
 static rf_damage_object dispatch_object;
 static uint32_t dispatch_facts[3],dispatch_present,dispatch_trace[8],dispatch_count,dispatch_effect[6];
 static float dispatch_after;
@@ -49,6 +50,7 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--burn-pool"))return burn_pool_probe();
     if(argc==2 && !strcmp(argv[1],"--damage-full"))return damage_full_probe();
     if(argc==2 && !strcmp(argv[1],"--damage-effects"))return damage_effect_probe();
     if(argc==2 && !strcmp(argv[1],"--armor-immunity")) {
