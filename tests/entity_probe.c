@@ -53,6 +53,16 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--position-snapshot")) {
+        struct {uint32_t flags;float previous[3],published[3];} input;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_entity_position_snapshot(&input.flags,input.previous,input.published);
+            fwrite(&input,sizeof(input),1,stdout);
+        }
+        return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--support-moved")) {
         struct {uint32_t flags;float previous[3],current[3];} input;int32_t moved;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

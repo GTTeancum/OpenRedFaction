@@ -434,3 +434,10 @@ int rf_entity_support_moved(uint32_t *flags,const float previous[3],const float 
     if(moved)*flags=(*flags&~0x02000000u)|0x04000000u;
     return moved;
 }
+
+void rf_entity_position_snapshot(uint32_t *flags,float previous[3],const float published[3])
+{
+    if(!flags || !previous || !published)return;
+    memmove(previous,published,12);
+    *flags &= ~0x01000000u;
+}

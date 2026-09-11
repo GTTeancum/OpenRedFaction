@@ -5,6 +5,12 @@
 #include "rf/object_registry.h"
 #include "rf/motion.h"
 
+/* Original487b11..487b2f: snapshot published object+3c into previous+6c
+ * and clear object flag01000000 before model/physics updates. Does not read
+ * the physics position. Call for every retained object before updating any.
+ * Disjoint flags/positions required; NULL inputs leave outputs unchanged. */
+void rf_entity_position_snapshot(uint32_t *flags,float previous[3],const float published[3]);
+
 /* Original487f20..487f67 before entity update: flag02000000 forces movement;
  * otherwise flag04000000 requires positive squared position difference.
  * A moved actor clears02000000 and sets04000000. Other bits and both positions

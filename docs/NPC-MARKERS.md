@@ -614,3 +614,31 @@ Existing predicate evidence is in XEMU-MEMORY.md and
 show modes3/8 or category1 with material-1 entering the broad support
 predicate;4895d0 reads actor flag8. Do not reduce42a020 to mode3 alone.
 Those facts should be reused when wiring retained actor inputs.
+
+
+### Frame position history (487a40)
+
+`rf_entity_position_snapshot` reproduces487b11..487b2f: copy published
+object position+3c into previous position+6c and clear object flag01000000.
+The source is NOT body position+e4. Original487a40 completes this list pass
+before the next pass calls487cf0 (model/entity update), followed by physics,
+487e00 (movement check, entity update/footsteps, support), and4881a0.
+The final published-position update inside4881a0 still needs ownership audit
+before wiring this helper into retained NPC simulation. Snapshot every object
+before updating any object; do not snapshot immediately before support checks.
+
+`tools/verify_entity_position_snapshot.py` executes the unchanged original
+487aff..487b45 traversal with real409f40/409f70 vector copies, no hooks.
+128 lists contain988 objects, including empty lists and arbitrary float bits.
+All0x280 bytes of each original object are checked: only+6c and flag01000000
+change. Body positions deliberately differ from published positions. PC and
+NXDK helper results match exactly. Type8's separate469770 callback is excluded;
+types0..7 are covered. This verifies the snapshot phase, not a full frame.
+Both platform builds and all9 CTests pass; no live behavior or new visuals.
+
+Creation audit (Ghidra486da0, exports486ede; instructions486f45..486f60)
+shows the generic object factory adds06000000 to object flags, and adds8000
+when incoming4000 is set. It initializes both+3c and+6c from supplied position.
+The existing rf_entity_creation_object_flags helper produces the earlier
+entity-specific input to this factory; it must not be mistaken for final
+registered-object flags. Preserve that distinction when adding NPC owners.
