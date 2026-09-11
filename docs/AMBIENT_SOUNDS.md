@@ -677,3 +677,25 @@ and are not used as evidence of stop/restart behavior.
 Native run20260911-014404 passes all780 frames on64MiB XEMU, matching PC
 movement/ambient state and producing nonzero guest DSP output. No screenshot
 was captured because this test adds audio evidence, not a new visual feature.
+
+
+## Re-entry restarts resident ambient PCM
+
+The --restart option on replay_ambient_walk.py adds360 forward and30 neutral
+frames after the earlier return, ending at1170. PC reaches approximately
+(-90.83,-3.78,46.11), with AMBIENT_AUDIO
+[1170,5,2,2306,0,116632,3,4066007866]. This adds two successful starts after
+the two earlier stops, restoring three active voices with zero failures.
+The bank remains[88,7,228536,13128], and cumulative ambient load bytes remain
+116632: the re-entry reuses resident waveforms. This does not force eviction.
+
+An installed-data inventory identifies L1S3 as the strongest SP pressure
+candidate:24 authored ambient records reference13 distinct present waveforms
+totaling1195496 file bytes, exceeding1MiB before metadata/preloads. L12S1
+has10 distinct waveforms totaling1018268 bytes. These totals establish potential
+residency pressure, not simultaneous audibility or a traversable route. The
+ignored artifact ambient-pressure-candidates.json records all levels and scope.
+
+Native1170-frame run20260911-014717 passes on64MiB XEMU with exact PC
+movement/ambient state and nonzero guest DSP output. Resident stop/restart
+coverage is established for this route; campaign pressure eviction remains open.
