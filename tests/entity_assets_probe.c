@@ -442,6 +442,10 @@ int main(int argc,char **argv)
         }
         for(i=0;i<count;++i)printf("SEED_FLAGS\t%s\t%u\n",seeds.records.items[i].record.class_name,seeds.items[i].spawn.creation_flags);
         for(i=0;i<classes;++i) {
+            uint32_t eye_words[6];memcpy(eye_words,&seeds.classes[i].eye_limits,24);
+            printf("SEED_EYE\t%s\t%u\t%u\t%u\t%u\t%u\t%u\n",
+                seeds.records.items[seeds.classes[i].record_index].record.class_name,
+                eye_words[0],eye_words[1],eye_words[2],eye_words[3],eye_words[4],eye_words[5]);
             const rf_entity_lod_distances *lod=&seeds.classes[i].lod;
             printf("SEED_LOD\t%s\t%u\t%.9g\t%.9g\t%.9g\t%.9g\n",
                 seeds.records.items[seeds.classes[i].record_index].record.class_name,

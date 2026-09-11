@@ -240,3 +240,28 @@ about initial metadata, not authorization to hardcode zero or omit the
 candidate scan: runtime class changes and other input tables must preserve
 the same raw-word behavior. Campaign class retention and candidate-owner
 integration remain open. Both builds and all12 CTests pass.
+
+## Retained campaign eye limits
+
+`rf_entity_seed_class` now owns the24-byte eye-limit record. The seed loader
+reads it while entity.tbl scratch is alive, propagates parse errors through
+its existing cleanup path, and releases the table only after class setup.
+Existing sizeof-based resident and peak accounting includes the added data;
+class-array cleanup owns its lifetime without another allocation.
+
+The extended eye-limit verifier checks retained values after closing both
+archives, comparing them with direct reader output. L1S1 retains5 classes
+(+120 bytes), L1S2 retains3 (+72), and L1S3 retains6 (+144). Their resident/
+peak totals are104089/478729,52465/427105 and38399/413039 bytes on the PC
+probe. Existing exact-peak success, peak-minus-one rejection with untouched
+output, repeated cleanup and retained record checks all run in that probe.
+Both builds and all12 CTests pass. Death candidate construction still needs
+to bind this metadata to registered actor position and body/model extents.
+
+Stock64MiB XEMU replay-20260911-174754 passes180 frames with base-memory
+67108864 and no plugged memory after this retention change. Existing door,
+NPC, player damage and pain/death-audio telemetry remains matched to PC;
+player pain audio remains[5,3,3,3,49734,145,415139642,0,783005945]. This is
+native regression evidence for campaign loading/ownership, not a claim that
+the new death-clearance adapter was invoked by gameplay. No screenshot was
+captured because this metadata change adds no new visual.

@@ -2214,6 +2214,7 @@ int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf
             const char *name=v.records.items[i].record.class_name;
             v.classes[j].record_index=i;
             status=rf_entity_vitals_config_read(text,entry.size,name,&v.classes[j].vitals);if(status)goto done;
+            status=rf_entity_eye_limits_read(text,entry.size,name,&v.classes[j].eye_limits);if(status)goto done;
             status=rf_entity_damage_factors_read(text,entry.size,name,v.classes[j].damage_factors);if(status)goto done;
             status=rf_entity_class_physics_read(text,entry.size,name,&v.classes[j].physics);if(status)goto done;
             status=rf_entity_lod_distances_read(text,entry.size,name,&v.classes[j].lod);if(status)goto done;

@@ -202,6 +202,8 @@ int rf_entity_lod_distances_read(const void *text,uint32_t bytes,const char *nam
  * Selected class only, finite numbers, unknown names fail without output writes. */
 int rf_entity_damage_factors_read(const void *text,uint32_t bytes,const char *name,float factors[11]);
 
+typedef struct rf_entity_eye_limits {float minimum[3],maximum[3];} rf_entity_eye_limits;
+
 typedef struct rf_entity_seed_class {
     uint32_t record_index;
     char model[64];uint32_t model_kind;
@@ -209,6 +211,7 @@ typedef struct rf_entity_seed_class {
     rf_entity_class_physics physics;
     rf_entity_lod_distances lod;
     float damage_factors[11];
+    rf_entity_eye_limits eye_limits;
 } rf_entity_seed_class;
 typedef struct rf_entity_seed {
     uint32_t class_index;
@@ -526,7 +529,6 @@ int rf_entity_skeletal_assets_load(const char *tables_path,const char *class_nam
  * archives. table_budget caps temporary table bytes; output unchanged on error. */
 int rf_level_actor_assets_load(const rf_level *level,int32_t uid,const char *tables_path,
     rf_vpp *meshes,uint32_t table_budget,rf_level_actor_assets *result);
-typedef struct rf_entity_eye_limits {float minimum[3],maximum[3];} rf_entity_eye_limits;
 /*41bd7c..41be39: optional paired relative-eye PHB degrees converted to radians.
  * Absent pair defaults to(-pi/2,0,0)/(pi/2,0,0). Finite decimal vectors only;
  * malformed/duplicate pairs fail with output unchanged. Minimum bank bits

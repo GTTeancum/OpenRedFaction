@@ -38,5 +38,15 @@ for body,name,values,status in cases:
   assert pc[4:]==bytes(u.mem_read(b+0x6c,24)),(name,'original stores')
   if count<len(names):bits_set+=bool(struct.unpack('<I',pc[12:16])[0]&4)
  count+=1
-report=dict(result='PASS',classes=len(names),authored_pairs=authored,installed_clearance_bit_set=bits_set,cases=count,original_sha256=sha,nxdk_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),scope='PC/NXDK metadata reader exact agreement, original numeric conversion/default instructions. Original parser itself not executed. Malformed input preserves output. Campaign owner retention remains open.')
+retained=[]
+for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
+ output=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--seeds',str(root/'Installed_Game/levels1.vpp'),str(root/'Installed_Game/tables.vpp'),level],text=True)
+ rows=[line.split('\t') for line in output.splitlines() if line.startswith('SEED_EYE\t')]
+ fixture.write_bytes(table)
+ for row in rows:
+  direct=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--eye-limits',str(fixture),row[1]])
+  assert direct==w(0,*map(int,row[2:])),(level,row)
+ assert rows
+ retained.append(dict(level=level,classes=len(rows),added_bytes=24*len(rows),summary=next(line for line in output.splitlines() if line.startswith('SEEDS '))))
+report=dict(retained_levels=retained,result='PASS',classes=len(names),authored_pairs=authored,installed_clearance_bit_set=bits_set,cases=count,original_sha256=sha,nxdk_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),scope='PC/NXDK metadata reader exact agreement, original numeric conversion/default instructions. Original parser itself not executed. Malformed input preserves output. Retained PC class values checked after archive closure on L1S1/L1S2/L1S3, including existing exact-budget and undersized-budget checks. Live death actor binding remains open.')
 (outdir/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))

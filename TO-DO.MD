@@ -15,7 +15,6 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Retain verified eye-limit reader output in campaign class owners for death obstacle class_word_74; all63 installed classes have its raw bit4 clear.
 - [ ] Connect death clearance to registered campaign actor ownership; the real moving/static geometry adapter passes floor, door, actor and error fixtures.
 - [ ] Reconstruct death-start41fdc0, dying-update41ee40 and their player/camera handoff; dead/dying queries, death-entry state, collision-pair retirement and death-action selection are verified; live clearance integration, playback and remaining death effects are open.
 - [ ] Extend integrated player damage/pain/death audio to authored callers and recover death animation, camera, game-over and respawn ownership.
