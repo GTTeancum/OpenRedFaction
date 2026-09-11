@@ -526,4 +526,11 @@ int rf_entity_skeletal_assets_load(const char *tables_path,const char *class_nam
  * archives. table_budget caps temporary table bytes; output unchanged on error. */
 int rf_level_actor_assets_load(const rf_level *level,int32_t uid,const char *tables_path,
     rf_vpp *meshes,uint32_t table_budget,rf_level_actor_assets *result);
+typedef struct rf_entity_eye_limits {float minimum[3],maximum[3];} rf_entity_eye_limits;
+/*41bd7c..41be39: optional paired relative-eye PHB degrees converted to radians.
+ * Absent pair defaults to(-pi/2,0,0)/(pi/2,0,0). Finite decimal vectors only;
+ * malformed/duplicate pairs fail with output unchanged. Minimum bank bits
+ * are the raw class74 word consumed by original death clearance. */
+int rf_entity_eye_limits_read(const void *text,uint32_t bytes,const char *name,rf_entity_eye_limits *result);
+
 #endif

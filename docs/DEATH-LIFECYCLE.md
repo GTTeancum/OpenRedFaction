@@ -214,3 +214,29 @@ must retain the actual authored/default minimum eye bank bits. Existing
 collision fixture words deliberately exercise the bit test and are not
 claims about ordinary miner class values. Live integration remains open
 until this metadata is read and retained faithfully.
+
+## Authored eye-limit reader
+
+`rf_entity_eye_limits_read` reads the optional paired minimum/maximum relative
+eye PHB vectors and converts their binary32 degree values with the original
+binary32 radians factor. The absent pair uses exact default words
+bfc90fdb/0/0 and3fc90fdb/0/0, verified through41be17..41be34 and real42d840.
+It uses the bounded decimal parser, avoiding NXDK strtod assertion stubs.
+Unrelated Min/Max tags are ignored; malformed, duplicate and incomplete
+pairs reject without publishing output. The first table sweep caught overly
+broad matching of unrelated Min/Max tags, which was corrected.
+
+`python tools/verify_eye_limits.py` passes63 installed classes and5 synthetic
+cases against both compiled readers. Ten installed classes have authored
+pairs; the rest take defaults. All successful results match the original
+numeric conversion/default instruction blocks. The original whole parser
+is not executed; parsed degree vectors are the supplied boundary. The
+synthetic cases include a bank word with bit4 set and malformed/missing
+pair rejection with output preservation. The NXDK emulation budget was
+raised for larger class records; execution completes normally.
+
+All63 installed classes initially have class74 bit4 clear. This is evidence
+about initial metadata, not authorization to hardcode zero or omit the
+candidate scan: runtime class changes and other input tables must preserve
+the same raw-word behavior. Campaign class retention and candidate-owner
+integration remain open. Both builds and all12 CTests pass.

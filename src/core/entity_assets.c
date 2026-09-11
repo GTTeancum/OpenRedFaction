@@ -831,6 +831,41 @@ int rf_entity_damage_factors_read(const void *text,uint32_t bytes,const char *na
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found)return RF_NOT_FOUND;memcpy(factors,value,sizeof(value));return RF_OK;
 }
+static int eye_limit_vector(lexer *l,float result[3])
+{
+    uint32_t i,start;char t[256];int quoted;float degrees;lexer number;
+    while(l->at<l->size && l->text[l->at]<=32)++l->at;
+    if(l->at==l->size || l->text[l->at++]!='<')return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        start=l->at;while(l->at<l->size && l->text[l->at]!=(i==2?'>':','))++l->at;
+        if(l->at==l->size)return RF_FORMAT;
+        number=(lexer){l->text+start,l->at-start,0};
+        if(sphere_number(&number,&degrees) || token(&number,t,&quoted)!=RF_NOT_FOUND)return RF_FORMAT;
+        result[i]=(float)((double)degrees*(double)0.01745329238474369f);++l->at;
+    }
+    return RF_OK;
+}
+int rf_entity_eye_limits_read(const void *text,uint32_t bytes,const char *name,rf_entity_eye_limits *result)
+{
+    lexer l={(const unsigned char*)text,bytes,0};rf_entity_eye_limits value={{-1.5707963705062866f,0,0},{1.5707963705062866f,0,0}};
+    char t[256];int status,quoted,found=0,seen=0;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            found=same(t,name);
+        } else if(found && same(t,"$Min")) {
+            if(!metadata_tag(&l,"Relative Eye PHB:"))continue;
+            if(seen++)return RF_FORMAT;
+            if(eye_limit_vector(&l,value.minimum) || !metadata_tag(&l,"$Max Relative Eye PHB:") ||
+               eye_limit_vector(&l,value.maximum))return RF_FORMAT;
+        } else if(found && same(t,"$Max") && metadata_tag(&l,"Relative Eye PHB:"))return RF_FORMAT;
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;*result=value;return RF_OK;
+}
 int rf_entity_vitals_config_read(const void *text,uint32_t bytes,const char *name,
     rf_entity_creation_vitals_class *result)
 {
