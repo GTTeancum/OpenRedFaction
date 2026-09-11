@@ -659,3 +659,45 @@ position bits. Six additional invalid-index/nonfinite guards preserve output.
 Both builds and all13 CTests pass. The helper allocates nothing. This does
 not yet bind live corpse sound owners or implement lazy/virtual bone queries,
 and the compiled Xbox comparison is not a native XEMU gameplay test.
+
+
+## Corpse ownership and complete original deletion
+
+Static constructor416940 inspection distinguishes two model paths. Class+18
+is the replacement model string. The zero-initialized globals5caed4/5caed8
+are empty-string comparison operands:5001d0 tests equality and500290 tests
+inequality. With an empty replacement string the constructor sets source
+object7c bit400 before allocation, then reuses source model80 for the corpse.
+With a replacement string it loads a separate model through502880(name,1,-1).
+The source model pointer itself is not cleared in this constructor. The shared
+model destructor489fc0 skips release whenever object7c bit400 is set; otherwise
+it calls502b10 for a nonnull model. Allocation failure occurs after the early
+source flag/deletion marking; do not silently assume those changes roll back.
+These construction branches still need execution-level verification and live
+resource binding.
+
+The allocator487100 rejects type7 when global70e430 exceeds29: the original
+has a30-corpse allocation ceiling in addition to the five-eligible-body fade
+policy. The corpse pool at708748 has318-byte slots;48b870/48b8f0 manage its
+free chain and occupancy counters. Protected/fading bodies still occupy slots.
+This ceiling is statically recovered, not yet an integrated Xbox pool limit.
+
+`python tools/verify_corpse_delete_original.py` executes complete486670 for
+type7, with real416ff0,489fc0,4867b0,48b8f0 and48ab40. Resource backends are
+supplied, while actual list, flag, registry and pool writes execute original
+code. All1024 cases pass, including326 model releases and2046 emitter releases.
+The verified order is collision-pair retirement; corpse string cleanup; sound
+lookup/deferred deletion marking; optional burn release; corpse-list unlink;
+physics cleanup; conditional model release; linked emitter cleanup; object
+string cleanup; object-list unlink and corpse-pool return; registry slot clear
+and free-slot insertion. Each resource callback still sees the registered
+object. Emitter next is saved before release: the harness poisons freed emitter
+storage to verify traversal does not read it afterward. A missing sound leaves
+the corpse sound id unchanged; a found sound is marked object7c bit2 and the
+corpse sound id becomes-1. The burn release backend remains responsible for
+any owner-field clearing. Model80 is not nulled by489fc0.
+
+This is original-executable evidence, not shared C/C++ deletion implementation
+or native XEMU gameplay. Next: bind this ownership order to the corpse allocator,
+registered model/physics resources and existing burn/sound owners, then integrate
+creation/update/deletion as one lifecycle.

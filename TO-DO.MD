@@ -16,7 +16,7 @@ Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
 - [ ] Bind verified corpse sphere refresh and sound-follow points to live owned model poses and sounds.
-- [ ] Bind verified corpse retention/fade progression to live creation, bind the verified full corpse timer/animation/sound update and reconstruct resource deletion; protected corpses are outside the five-body threshold.
+- [ ] Bind verified corpse retention/fade/update to live creation and implement the traced resource deletion order; five eligible bodies trigger fading, while the original total allocation limit is30.
 - [ ] Connect native-verified burn retarget/release to live corpse inheritance after corpse ownership is reconstructed.
 - [ ] Recover finalization418f80 corpse creation/owner transfer and deferred deletion, then bind verified burn retargeting, ordinary-SP player detach and live death completion.
 - [ ] Connect the native-verified registered NPC/player death-clearance query to complete death-start and moving-NPC orientation ownership.
