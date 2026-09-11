@@ -727,6 +727,28 @@ Animation gate/playback and rendered geometry remain unchanged. Both builds and
 all9 CTests pass. The compiled NXDK helper is execution-verified in Unicorn;
 this specific slot addition has not yet received a fresh native XEMU replay.
 The previous e2bde86 native run remains the latest complete runtime evidence.
-Initial animation selection still uses the earlier authored-index projection;
-connect that caller to the retained descriptor when its startup ordering is
-reworked, including disabled-mode coverage. Live support/physics remain open.
+Initial animation selection now uses the same loaded descriptor resolution as
+retained body startup (see below). Live support/physics remain open.
+
+
+### Startup animation uses resolved movement descriptors
+
+rf_entity_poses_start_initial now requires the16 loaded descriptors and calls
+rf_movement_start before priority/movement animation selection. It reads the
+resolved descriptor mode, not the authored slot index. Creation physics flags
+also use the class use_kind and the mode10 adjustment, matching retained-body
+startup inputs. The campaign and archive probe supply actual movement.tbl data.
+No additional resident allocation is introduced. The body still follows the
+first startup pose because class spheres depend on that pose.
+
+verify_npc_startup.py passes against the original authored fixture reports for
+78/38/25 skeletal actors in L1S1/L1S2/L1S3 (3087 total bone matrices), including
+exact playback and bone/cache bytes and balanced release. The new PC regression
+verify_npc_startup_fallback.py disables all nonzero slots using enabled256 and
+sets slot0's mode to3: all78 full startup rows match direct selection ofslot0,
+and74 differ from normal startup. This specifically detects the old authored
+index shortcut; it is a synthetic integration comparison, not a full original
+factory execution. The1536 original/PC/NXDK descriptor cases pass again.
+Both builds and all9 CTests pass. Fresh native XEMU validation remains pending
+for this change and the preceding movement-slot owner addition; the last native
+run remains replay-20260911-114140. No new visual capture is warranted.

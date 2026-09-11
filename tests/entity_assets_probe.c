@@ -213,9 +213,20 @@ int main(int argc,char **argv)
                 printf("PLAYBACK_OWNER\t%u\t%u\t%u\t%u\n",playback.resource_count,playback.cache_count,playback.resident_bytes,playback.peak_bytes);
                 {
                     rf_entity_poses poses={0};uint32_t actor,k;
+                    rf_movement_descriptor descriptors[16];rf_vpp descriptor_archive;const char *fallback=getenv("RF_TEST_START_FALLBACK");
+                    if(rf_vpp_open(&descriptor_archive,argv[3]))return 40;
+                    for(k=0;k<16;++k)if(rf_movement_descriptor_load(&descriptor_archive,k,65536,descriptors+k))return 40;
+                    rf_vpp_close(&descriptor_archive);
+                    if(fallback) {
+                        descriptors[0].enabled=1;descriptors[0].index=3;
+                        if(!strcmp(fallback,"disabled"))for(k=1;k<16;++k)descriptors[k].enabled=256;
+                        else if(!strcmp(fallback,"direct"))for(k=0;k<seeds.class_count;++k)seeds.classes[k].physics.movement_index=0;
+                        else return 40;
+                    }
+
                     for(k=0;k<playback.resource_count;++k)playback.resources[k].references=0;
                     if(rf_entity_poses_open(&seeds,&skeletons,1024*1024,&poses) ||
-                       rf_entity_poses_start_initial(&seeds,&skeletons,&catalog,&playback,&poses,1.0f/30.0f))return 37;
+                       rf_entity_poses_start_initial(&seeds,&skeletons,&catalog,&playback,&poses,descriptors,1.0f/30.0f))return 37;
                     for(actor=0;actor<poses.count;++actor)if(poses.items[actor].skeleton!=UINT32_MAX) {
                         const rf_entity_pose *p=poses.items+actor;const unsigned char *bytes;
                         printf("STARTUP_POSE\t%s\t%u\t",seeds.records.items[actor].record.class_name,seeds.items[actor].spawn.creation_flags);

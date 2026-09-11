@@ -2831,7 +2831,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             /* Diagnostic startup delta matches the existing first-class pose query.
              * Subsequent live selector scheduling/geometry submission is separate. */
             status=rf_entity_poses_start_initial(&campaign_seeds,&campaign_skeletons,&campaign_motion_catalog,
-                &campaign_playback_resources,&campaign_poses,1.0f/30.0f);if(status)goto done;
+                &campaign_playback_resources,&campaign_poses,campaign_modes,1.0f/30.0f);if(status)goto done;
             status=campaign_npc_bodies_open(tables_path);if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;
             memset(rf_scene_npc_playback,0,sizeof(rf_scene_npc_playback));

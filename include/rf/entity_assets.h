@@ -436,10 +436,12 @@ int rf_entity_pose_release(rf_entity_pose *pose,rf_entity_playback_resources *re
 /* Initial unlinked, nonplayer actor selection from creation-cleared intent and
  * velocity, action0 and flags0. Uses base bindings before later weapon overlay.
  * Verified opening-class startup composition, not a complete actor constructor.
+ * Resolves authored movement through the supplied16 loaded descriptors, using
+ * the same creation mode/physics flags as retained bodies.
  * All poses must be fresh. On failure callers must release any active poses
  * before freeing shared resources; earlier actors may already be initialized. */
 int rf_entity_poses_start_initial(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,
-    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,rf_entity_poses *poses,float elapsed);
+    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,rf_entity_poses *poses,const rf_movement_descriptor descriptors[16],float elapsed);
 /* Compose a base catalog map and an optional already-resolved weapon map using
  * the42ab20 overlay rule. Inputs must share class/skeleton; base weapon is-1.
  * Result keeps base entries when weapon entries are-1. Does not choose a weapon,

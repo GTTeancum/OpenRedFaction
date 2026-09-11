@@ -1912,10 +1912,10 @@ fail:
     rf_entity_render_models_close(&v);return status;
 }
 int rf_entity_poses_start_initial(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,
-    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,rf_entity_poses *poses,float elapsed)
+    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,rf_entity_poses *poses,const rf_movement_descriptor descriptors[16],float elapsed)
 {
     uint32_t i;int status,handled;
-    if(!seeds || !skeletons || !catalog || !resources || !poses || !isfinite(elapsed) || elapsed<0 ||
+    if(!seeds || !skeletons || !catalog || !resources || !poses || !descriptors || !isfinite(elapsed) || elapsed<0 ||
        poses->count!=seeds->records.count || catalog->class_count!=seeds->class_count ||
        (poses->count && (!poses->items || !seeds->items)) || (seeds->class_count && (!seeds->classes || !catalog->mappings)))return RF_RANGE;
     for(i=0;i<poses->count;++i)if(poses->items[i].skeleton!=UINT32_MAX) {
@@ -1931,8 +1931,12 @@ int rf_entity_poses_start_initial(const rf_entity_seeds *seeds,const rf_entity_s
         cls=seeds->classes+class_index;map=catalog->mappings+class_index;model=resources->models+pose->skeleton;
         if(map->weapon!=-1 || map->skeleton!=pose->skeleton)return RF_RANGE;
         pose->controller=(rf_motion_controller){0,-1,0,0,0,0};
-        priority.forced_state=-1;priority.mode=(int32_t)cls->physics.movement_index;
-        priority.physics_flags=rf_entity_creation_physics_flags(seeds->items[i].spawn.creation_flags,cls->physics.flags,cls->physics.flags2,0,0);
+        priority.forced_state=-1;
+        priority.physics_flags=rf_entity_creation_physics_flags(seeds->items[i].spawn.creation_flags,cls->physics.flags,cls->physics.flags2,cls->physics.use_kind,0);
+        {
+            uint32_t selected=rf_movement_start(descriptors,(int32_t)cls->physics.movement_index,&priority.physics_flags);
+            priority.mode=(int32_t)descriptors[selected].index;
+        }
         priority.linked_occupant_handle=-1;priority.entity_handle=-1;
         status=rf_motion_select_priority(&pose->controller,map->states,&priority,&handled);if(status)return status;
         if(!handled) {
