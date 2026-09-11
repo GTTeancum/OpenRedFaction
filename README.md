@@ -4,6 +4,15 @@ Work in progress: shared C/C++ reconstruction targeting a stock 64 MiB Xbox
 through NXDK, with a maintained 32-bit PC build. Single-player comes first and
 visual quality must meet the PS2 version. **There is no playable port yet.**
 
+![PC reconstruction: a miner and mining robot in Live Mines](docs/images/pc-campaign-npcs.png)
+
+**PC capture, rendered at 640 x 480 from the recorded campaign diagnostic replay.**
+A miner and mining robot in their authored Live Mines positions, using
+reconstructed starting poses and shared model/texture resources. This capture
+predates animation updates; startup-selected animation now advances in the shared
+PC/Xbox runtime. NPC AI and final lighting remain unfinished. The image is a PC
+diagnostic capture, not Xbox footage or finished campaign gameplay.
+
 ![PC reconstruction: miner beside the partly open Live Mines guard-station door](docs/images/pc-live-mines-door.png)
 
 **PC capture, rendered at 1920 × 1440 using the shared reconstruction code.**
@@ -11,14 +20,6 @@ A staged Live Mines scene with the original miner model, textures and lightmaps,
 and door panels placed halfway along their authored travel. This is a diagnostic
 scene, not playable campaign footage. The Xbox target remains stock 64 MiB;
 this higher-resolution image is not an Xbox capture.
-
-![PC reconstruction: a human NPC and mining robot in Live Mines](docs/images/pc-campaign-npcs.png)
-
-**PC capture, rendered at 640 x 480 from the recorded campaign diagnostic replay.**
-The human NPC and mining robot use authored positions, reconstructed starting
-poses and shared model/texture resources. This initial NPC drawing pass holds
-those poses; live NPC behavior, animation updates and final lighting remain
-unimplemented. This is not an Xbox screenshot or finished campaign gameplay.
 
 Current outputs include archive/level diagnostics, a shared static geometry,
 texture and lightmap preview for PC and Xbox, and reconstructed filename checksum,
