@@ -226,6 +226,38 @@ int rf_physics_force_region_build(const rf_level_force_region *source,rf_physics
     for(i=0;i<3;++i)if(!isfinite(value.minimum[i]) || !isfinite(value.maximum[i]))return RF_RANGE;
     *result=value;return RF_OK;
 }
+int rf_physics_force_region_influence(const rf_physics_force_region *region,
+    const float physics_position[3],float body_radius,float mass,rf_physics_force_influence *result)
+{
+    rf_physics_force_influence value;float delta[3];double squared,ratio;uint32_t i;
+    if(!region || !physics_position || !result || !isfinite(region->strength))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(physics_position[i]) || !isfinite(region->center[i]))return RF_RANGE;
+        delta[i]=(float)((double)physics_position[i]-region->center[i]);
+        if(!isfinite(delta[i]))return RF_RANGE;
+    }
+    squared=(double)delta[0]*delta[0]+(double)delta[1]*delta[1]+(double)delta[2]*delta[2];
+    if(region->flags&0x10) {
+        if(squared==0)return RF_RANGE;
+        ratio=1/sqrt(squared);
+        for(i=0;i<3;++i)value.direction[i]=(float)(ratio*delta[i]);
+    } else for(i=0;i<3;++i)value.direction[i]=region->matrix[6+i];
+    value.strength=region->strength;
+    if(region->flags&12) {
+        if(!isfinite(region->radius_squared) || region->radius_squared==0)return RF_RANGE;
+        ratio=squared/region->radius_squared;
+        if(!(region->flags&8))ratio=1-ratio;
+        value.strength=(float)(ratio*value.strength);
+    }
+    if(!(region->flags&3)) {
+        if(!isfinite(body_radius) || !isfinite(mass) || mass<=0)return RF_RANGE;
+        ratio=(double)body_radius*body_radius/mass;
+        if(ratio<1)value.strength=(float)(ratio*value.strength);
+    }
+    if(!isfinite(value.strength))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(value.direction[i]))return RF_RANGE;
+    *result=value;return RF_OK;
+}
 int rf_physics_force_region_select(const rf_physics_force_region *regions,uint32_t count,
     const float position[3],uint32_t *index)
 {

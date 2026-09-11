@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
-Owned reader and runtime construction pass all 142 authored force regions;
-PC/NXDK construction matches original blocks. Registration/application remain.
+Force direction/strength matches original code in 4096 PC/NXDK cases;
+owned records and bounds pass. Actor mutations and registration remain.
 
 Immediate open items:
 - [ ] Register verified runtime force regions and connect force application plus alternate airborne speed-cap ownership.

@@ -148,6 +148,14 @@ struct rf_level_force_region;
  * registration. Finite representable geometry required; errors preserve output. */
 int rf_physics_force_region_build(const struct rf_level_force_region *source,
     rf_physics_force_region *result);
+typedef struct rf_physics_force_influence {float direction[3],strength;} rf_physics_force_influence;
+/* Original 486949..4869f6 after region selection/eligibility: displacement
+ * uses physics position, not public query position; flags 8/4 scale by squared
+ * distance, with 8 taking precedence. Flags &3 bypass body radius^2/mass.
+ * No rotation, velocity, mode or cap mutation. Errors preserve output; rejects
+ * nonfinite results including the original radial-at-center singularity. */
+int rf_physics_force_region_influence(const rf_physics_force_region *region,
+    const float physics_position[3],float body_radius,float mass,rf_physics_force_influence *result);
 /* First enabled containing region in supplied creation order. Sphere boundary
  * is strict; boxes inclusive. Unknown shapes are skipped. UINT32_MAX means
  * no match. No allocation or force application; errors preserve index. */

@@ -9,6 +9,29 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--force-influence")) {
+        struct {rf_physics_force_region region;float position[3],radius,mass;} input;
+        rf_physics_force_influence result;
+        {
+            rf_physics_force_region region={0};float position[3]={0};
+            rf_physics_force_influence saved;
+            memset(&result,0xa5,sizeof(result));saved=result;
+            region.flags=0x10;region.strength=1;
+            if(rf_physics_force_region_influence(&region,position,1,1,&result)!=RF_RANGE ||
+                memcmp(&result,&saved,sizeof(result)))return 4;
+            region.flags=4;
+            if(rf_physics_force_region_influence(&region,position,1,1,&result)!=RF_RANGE ||
+                memcmp(&result,&saved,sizeof(result)))return 4;
+            region.flags=0;
+            if(rf_physics_force_region_influence(&region,position,1,0,&result)!=RF_RANGE ||
+                memcmp(&result,&saved,sizeof(result)))return 4;
+        }
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(rf_physics_force_region_influence(&input.region,input.position,input.radius,input.mass,&result) ||
+                fwrite(&result,sizeof(result),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--force-build")) {
         rf_level_force_region source;rf_physics_force_region result;
         while(fread(&source,sizeof(source),1,stdin)==1) {

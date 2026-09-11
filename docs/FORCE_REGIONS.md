@@ -37,3 +37,22 @@ bounds callees. All 108 output bytes match PC and NXDK for all 142 authored
 records (1 sphere, 2 axis boxes, 139 oriented boxes). File reads and prior field
 writes are supplied at the boundary; this is not a complete loader execution.
 World registration and force application remain open.
+
+`rf_physics_force_region_influence` reconstructs direction and strength from
+`486949..4869f6`. Displacement uses body physics position `+e4`, whereas the
+earlier selector uses public position `+3c`. Flag `10` normalizes displacement;
+otherwise direction is runtime matrix row 2. Flag `8` scales by squared
+distance divided by region radius squared; flag `4` uses one minus that ratio,
+and `8` wins when both are set. When flags `&3` are zero, a factor below one
+from **body radius (`+180`) squared / mass (`+98`)** further scales strength.
+This is not region radius divided by mass. Negative strengths and factors
+beyond the selected region are not clamped.
+
+`verify_force_influence.py` executes the original block and all vector callees
+for 4,096 cases covering every low-five-bit flag combination. All direction
+and strength bytes match PC/NXDK. The shared API rejects nonfinite results;
+in particular it reports the radial-at-center singularity rather than choosing
+an invented direction. PC failure tests check unchanged output for zero radial
+distance, zero falloff denominator and invalid mass. Eligibility, rotation,
+velocity application, falling transitions and alternate-cap ownership remain
+outside this API and are not established by these checks.
