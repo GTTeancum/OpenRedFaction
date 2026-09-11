@@ -9,6 +9,7 @@
 #include "burn_probe.h"
 #include "burn_body_probe.h"
 #include "burn_retirement_probe.h"
+#include "burn_resource_probe.h"
 static rf_damage_object dispatch_object;
 static uint32_t dispatch_facts[3],dispatch_present,dispatch_trace[8],dispatch_count,dispatch_effect[6];
 static float dispatch_after;
@@ -60,6 +61,7 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--burn-update"))return burn_update_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-fade"))return burn_fade_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-fade-resolved"))return burn_fade_resolved_probe();
+    if(argc==2 && !strcmp(argv[1],"--burn-resource-release"))return burn_resource_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-create"))return burn_create_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-pool"))return burn_pool_probe();
     if(argc==2 && !strcmp(argv[1],"--damage-full"))return damage_full_probe();

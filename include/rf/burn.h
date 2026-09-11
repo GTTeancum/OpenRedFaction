@@ -27,6 +27,18 @@ typedef struct rf_burn_release_backend {
  * pool remain alive; callbacks must not mutate pool records/links. Invalid
  * arguments/list topology fail before any callbacks or mutations. */
 int rf_burn_release(rf_burn_pool *pool,uint32_t token,uint32_t reset_only,const rf_burn_release_backend *backend);
+typedef struct rf_burn_release_owner_backend {
+    void (*stop_voice)(void *context,uint32_t voice);
+    void (*clear_owner)(void *context,uint32_t token);
+    void *context;
+} rf_burn_release_owner_backend;
+/*42ed20 with actual4973d0/497d80 resource handling: clear enable low byte,
+ * detach surviving particles, return emitter slots to free tail, then stop
+ * voice and clear owner. Nonzero emitter tokens are distinct active slot+1.
+ * Requires intact caller-owned particle/emitter lists as for pool_release;
+ * external callbacks cannot mutate these pools or burn links. No allocation. */
+int rf_burn_release_resolved(rf_burn_pool *pool,uint32_t token,uint32_t reset_only,
+    rf_emitter_pool *emitters,const rf_burn_release_owner_backend *backend);
 /*42e8a0: clean all8 existing payloads, rebuild free list in array order and
  * clear spread deadline. New storage must be zero-initialized before first
  * call; subsequent calls release existing resources. Source/padding survive. */

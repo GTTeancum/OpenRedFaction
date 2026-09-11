@@ -195,6 +195,48 @@ int rf_burn_pool_update(rf_burn_pool *p,int32_t now,const rf_burn_update_backend
     if(expired || p->spread_deadline==-1)return rf_timer_set(&p->spread_deadline,now,225);
     return RF_OK;
 }
+typedef struct burn_release_runtime {
+    rf_emitter_pool *emitters;const rf_burn_release_owner_backend *owner;
+} burn_release_runtime;
+static void burn_release_stop(void *context,uint32_t token)
+{
+    burn_release_runtime *runtime=context;
+    runtime->emitters->slots[token-1].runtime.enabled&=~255u;
+}
+static void burn_release_free(void *context,uint32_t token)
+{
+    burn_release_runtime *runtime=context;
+    /* The public adapter checks every status-producing precondition before
+     * any callback. Distinct tokens and intact lists keep release valid. */
+    (void)rf_emitter_pool_release(runtime->emitters,token-1);
+}
+static void burn_release_voice(void *context,uint32_t voice)
+{
+    burn_release_runtime *runtime=context;runtime->owner->stop_voice(runtime->owner->context,voice);
+}
+static void burn_release_owner(void *context,uint32_t token)
+{
+    burn_release_runtime *runtime=context;runtime->owner->clear_owner(runtime->owner->context,token);
+}
+int rf_burn_release_resolved(rf_burn_pool *p,uint32_t token,uint32_t reset_only,
+    rf_emitter_pool *emitters,const rf_burn_release_owner_backend *be)
+{
+    burn_release_runtime runtime;rf_burn_release_backend backend;uint32_t i,j,count=0;
+    if(!p || token<1 || token>RF_BURN_SLOTS || !be || !be->stop_voice || !be->clear_owner ||
+       !emitters || !emitters->slots || !emitters->particles || !emitters->particles->particles ||
+       !emitters->particles->lists || emitters->particles->list_count<133)return RF_RANGE;
+    for(i=0;i<4;++i) {
+        uint32_t emitter=p->records[token-1].emitters[i];if(!emitter)continue;
+        if(emitter>RF_PARTICLE_EMITTER_CAPACITY || !emitters->slots[emitter-1].active)return RF_RANGE;
+        for(j=0;j<i;++j)if(emitter==p->records[token-1].emitters[j])return RF_FORMAT;
+        ++count;
+    }
+    if(count>emitters->live)return RF_FORMAT;
+    runtime.emitters=emitters;runtime.owner=be;
+    backend.reset_emitter=burn_release_stop;backend.free_emitter=burn_release_free;
+    backend.stop_voice=burn_release_voice;backend.clear_owner=burn_release_owner;backend.context=&runtime;
+    return rf_burn_release(p,token,reset_only,&backend);
+}
 int rf_burn_owner_tick(rf_burn_record *r,rf_burn_owner_view *owner,
     uint32_t token,float dt,const rf_burn_owner_backend *be)
 {

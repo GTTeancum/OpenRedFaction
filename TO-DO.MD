@@ -2447,3 +2447,9 @@ NXDK comparisons preserve packed color and enabled bytes. Prior fade and540
 retirement scenarios still pass, as do both builds and eight CTests. Connect
 actual emitter/audio release and persistent NPC ownership next.
 Evidence: tools/verify_burn_fade_resolved.py and docs/DAMAGE.md.
+
+Burn resource release now stops/frees actual emitter slots and detaches surviving
+particles;256 original/PC/NXDK cases verify list order and unchanged particle
+counts. Both builds,437 prior pool checks and eight CTests pass. Audio backend
+and persistent NPC ownership/scheduling remain open.
+Evidence: tools/verify_burn_resource_release.py and docs/DAMAGE.md.

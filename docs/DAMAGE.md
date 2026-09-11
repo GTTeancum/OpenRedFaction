@@ -1069,3 +1069,27 @@ checks and540 composed retirement scenarios (2,082 retired records) still pass.
 Both builds and eight CTests pass. Evidence: artifacts/burn-fade-resolved.json.
 This connects fade to runtime emitter state; real resource release, persistent
 NPC ownership and live scheduling still need integration before gameplay proof.
+
+
+## Burn emitter resource release
+
+rf_burn_release_resolved connects42ed20 to actual shared emitter stop/release.
+It clears only the enable low byte, detaches existing particles in list order,
+returns each emitter slot to the free-list tail, then continues the existing
+voice-stop, payload-clear, owner-clear and burn-ring sequence. Zero emitter
+slots are skipped; nonzero slot+1 tokens must be distinct and active. The adapter
+checks status-producing pool/token preconditions before callbacks and inherits
+the emitter pool's intact-list ownership contract. No allocation is introduced.
+Audio stop and owner-reference clearing remain external callbacks.
+
+verify_burn_resource_release.py executes complete original42ed20,4973d0,497d80
+and497230 against PC/NXDK across256 emitter-subset/rotation/reset-mode scenarios.
+Each starts with eight attached particles and one already detached particle.
+Complete particle payloads, ordered detached lists, all128 emitter link/enable/
+active states, burn payload/rings and particle/emitter counts match. Surviving
+particles remain alive; emitter release is not particle destruction. Audio stop
+is supplied and the original entity/other owner lists are empty sentinels;
+shared owner-clear invocation is observed. Existing437 pool checks and eight
+CTests pass, as do both full builds. Evidence: artifacts/burn-resource-release.json.
+Real audio backend and persistent NPC ownership/scheduling remain open before
+this resource path can be exercised in live XEMU campaign gameplay.
