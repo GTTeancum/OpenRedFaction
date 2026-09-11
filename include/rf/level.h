@@ -90,6 +90,24 @@ typedef struct rf_level_group_key {
 typedef struct rf_level_group_reader {
     const rf_level *level;rf_level_section section;uint32_t cursor,count,index;
 } rf_level_group_reader;
+typedef struct rf_level_ambient_sound {
+    uint32_t uid,header_byte,flags,offset,bytes;
+    float position[3];char name[256];float near_distance,volume,rolloff;
+} rf_level_ambient_sound;
+typedef rf_level_group_reader rf_level_ambient_reader;
+typedef struct rf_level_owned_ambient {
+    rf_level_ambient_sound *items;uint32_t count,allocated_bytes;
+} rf_level_owned_ambient;
+/* v180 section500 / original461ff0 read order. Header byte is retained raw;
+ * its normalized return is ignored by the original loader. Finite floats,
+ * bounded names and exact section exhaustion required. Errors preserve outputs.
+ * This owns authored records, not successful runtime sound registrations. */
+int rf_level_ambient_begin(const rf_level *level,rf_level_ambient_reader *reader);
+int rf_level_ambient_next(rf_level_ambient_reader *reader,rf_level_ambient_sound *record);
+/* Budget includes owner and records; caller supplies an empty owner. The
+ * successful owner outlives the archive; missing section returns RF_NOT_FOUND. */
+int rf_level_owned_ambient_open(const rf_level *level,uint32_t budget,rf_level_owned_ambient *result);
+void rf_level_owned_ambient_close(rf_level_owned_ambient *sounds);
 typedef rf_level_group_reader rf_level_emitter_reader;
 typedef struct rf_level_emitter {
     uint32_t offset,bytes,uid;

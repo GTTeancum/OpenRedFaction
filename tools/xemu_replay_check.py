@@ -189,6 +189,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      switches=words(monitor,symbol('rf_scene_switch_state'),3)
      assert switches==expected('SWITCH_STATE'),switches
      report['switch_state']=switches
+     ambient=words(monitor,symbol('rf_scene_ambient_records'),3)
+     assert ambient==expected('AMBIENT_RECORDS') and ambient[1]<=65536,ambient
+     report['ambient_records']=ambient
      triggers=words(monitor,symbol('rf_scene_campaign_triggers'),2)
      assert triggers[0]==expected('CAMPAIGN_TRIGGERS')[0] and triggers[1]<=1024*1024
      report['campaign_triggers']=triggers

@@ -358,6 +358,54 @@ static int trigger_byte(rf_level_trigger_reader *r,uint32_t *out)
 {
     unsigned char byte;int status=group_read(r,&byte,1);if(!status)*out=byte;return status;
 }
+int rf_level_ambient_begin(const rf_level *level,rf_level_ambient_reader *reader)
+{
+    rf_level_ambient_reader next={0};const rf_level_section *section;int status;
+    if(!level || !reader)return RF_RANGE;
+    if(level->version!=180)return RF_FORMAT;
+    section=rf_level_find(level,0x500);if(!section)return RF_NOT_FOUND;
+    next.level=level;next.section=*section;
+    status=group_number(&next,&next.count);if(status)return status;
+    if((uint64_t)next.count*35>section->size-next.cursor ||
+        (!next.count && next.cursor!=section->size))return RF_FORMAT;
+    *reader=next;return RF_OK;
+}
+int rf_level_ambient_next(rf_level_ambient_reader *reader,rf_level_ambient_sound *record)
+{
+    rf_level_ambient_reader next;rf_level_ambient_sound value={0};int status;
+    if(!reader || !record || !reader->level || reader->section.type!=0x500)return RF_RANGE;
+    if(reader->index>=reader->count)return reader->index==reader->count && reader->cursor==reader->section.size?RF_NOT_FOUND:RF_FORMAT;
+    next=*reader;value.offset=next.cursor;
+    if((status=group_number(&next,&value.uid)) || (status=group_floats(&next,value.position,3)) ||
+        (status=trigger_byte(&next,&value.header_byte)) || (status=group_string(&next,value.name)) ||
+        (status=group_floats(&next,&value.near_distance,1)) || (status=group_floats(&next,&value.volume,1)) ||
+        (status=group_floats(&next,&value.rolloff,1)) || (status=group_number(&next,&value.flags)))return status;
+    value.bytes=next.cursor-value.offset;++next.index;
+    if(next.index==next.count && next.cursor!=next.section.size)return RF_FORMAT;
+    *reader=next;*record=value;return RF_OK;
+}
+void rf_level_owned_ambient_close(rf_level_owned_ambient *sounds)
+{
+    if(sounds){free(sounds->items);memset(sounds,0,sizeof(*sounds));}
+}
+int rf_level_owned_ambient_open(const rf_level *level,uint32_t budget,rf_level_owned_ambient *result)
+{
+    rf_level_owned_ambient value={0};rf_level_ambient_reader reader;
+    uint64_t bytes;uint32_t i;int status;
+    if(!level || !result || result->items || result->count || result->allocated_bytes)return RF_RANGE;
+    status=rf_level_ambient_begin(level,&reader);if(status)return status;
+    value.count=reader.count;bytes=sizeof(value)+(uint64_t)value.count*sizeof(*value.items);
+    if(bytes>budget)return RF_RANGE;
+    value.allocated_bytes=(uint32_t)bytes;
+    if(value.count) {
+        value.items=calloc(value.count,sizeof(*value.items));if(!value.items)return RF_RANGE;
+        for(i=0;i<value.count;++i) {
+            status=rf_level_ambient_next(&reader,value.items+i);
+            if(status){rf_level_owned_ambient_close(&value);return status;}
+        }
+    }
+    *result=value;return RF_OK;
+}
 int rf_level_forces_begin(const rf_level *level,rf_level_force_reader *reader)
 {
     rf_level_force_reader next={0};const rf_level_section *section;int status;

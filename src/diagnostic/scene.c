@@ -422,6 +422,8 @@ static void campaign_force_snapshot(void)
 }
 static rf_object_registry campaign_registry;
 static rf_runtime_events campaign_events;
+static rf_level_owned_ambient campaign_ambient;
+uint32_t rf_scene_ambient_records[3]; /* authored count, owner bytes, ordered record hash */
 uint32_t rf_scene_switch_state[3]; /* count, enabled count, ordered persistent state hash */
 static void campaign_switch_snapshot(void)
 {
@@ -2070,6 +2072,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_object_registry_init(&campaign_registry);
             status=rf_runtime_events_open(level,&campaign_registry,1024*1024,&campaign_events);
             if(status)goto done;
+            status=rf_level_owned_ambient_open(level,65536,&campaign_ambient);
+            if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
+            rf_scene_ambient_records[0]=campaign_ambient.count;
+            rf_scene_ambient_records[1]=campaign_ambient.allocated_bytes;
+            rf_scene_ambient_records[2]=2166136261u;
+            for(i=0;i<campaign_ambient.count*sizeof(*campaign_ambient.items);++i)
+                rf_scene_ambient_records[2]=(rf_scene_ambient_records[2]^((unsigned char *)campaign_ambient.items)[i])*16777619u;
             rf_scene_campaign_events[0]=campaign_events.count;
             rf_scene_campaign_events[1]=campaign_events.allocated_bytes;
             rf_scene_campaign_events[2]=sizeof(campaign_registry);
@@ -2253,6 +2262,7 @@ done:
     rf_level_owned_groups_close(&campaign_groups);
     rf_runtime_triggers_close(&campaign_triggers);
     rf_runtime_events_close(&campaign_events);
+    rf_level_owned_ambient_close(&campaign_ambient);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
