@@ -350,4 +350,19 @@ int rf_entity_death_select(const rf_entity_death_selection *state,
     uint32_t (*clearance)(void *context,uint32_t direction),void *context,
     rf_random_state *random,int32_t *result);
 
+typedef struct rf_entity_death_clearance_state {
+    float position[3],matrix[3][3],height_78,extent_180;
+} rf_entity_death_clearance_state;
+typedef struct rf_entity_death_obstacle {
+    float position[3],extent_180;uint32_t class_flags_74;
+} rf_entity_death_obstacle;
+/* Full420d00 with ordered borrowed actor candidates and498e80 ray boundary.
+ * Ray callback represents flags1/null optional hit output. Inputs must remain
+ * valid and stable during queries, with finite representable intermediates.
+ * No allocation or actor mutation.
+ * Original ray low-byte distinctions and direction low-byte are retained. */
+uint32_t rf_entity_death_clearance(const rf_entity_death_clearance_state *state,
+    uint32_t direction,const rf_entity_death_obstacle *actors,uint32_t count,
+    uint32_t (*ray)(void *context,const float start[3],const float end[3]),void *context);
+
 #endif

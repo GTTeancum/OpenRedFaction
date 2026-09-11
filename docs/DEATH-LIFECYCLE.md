@@ -140,3 +140,27 @@ ordering; this oracle should be extended to compare that compiled code.
 ray implementation, actor-list owner and final animation playback must be
 connected before this can run as part of campaign death selection. Do not
 replace these checks with unconditional clearance or an empty actor list.
+
+## Shared C clearance implementation
+
+`rf_entity_death_clearance` now implements the complete420d00 decision path
+with borrowed ordered actor candidates and a498e80 ray callback. It retains
+float storage boundaries and double intermediate arithmetic for the original
+53-bit x87 precision setting, including Z/Y/X transform accumulation order.
+The callback provides flags1/null-output ray semantics. Inputs must remain
+stable, with finite representable intermediate values. Neither actor owners
+nor candidate buffers are mutated; no allocation occurs.
+
+`python tools/verify_death_clearance.py` compares exact ray endpoint bytes,
+query counts and final decisions against the original and both compiled
+PC/NXDK implementations. All16384 cases pass: the prior8192 independent
+dyadic fixtures plus8192 finite float fixtures with continuously varied yaw,
+positions, extents and nearby actors. This extends coverage beyond the
+original-only oracle; NaN, infinity and overflow are outside the contract.
+PC Release and NXDK builds and all12 CTests pass. This is machine-code
+comparison, not an XEMU live gameplay claim.
+
+The next integration still needs the real498e80 geometry path and ordered
+registered candidate ownership. The API does not automatically substitute
+an empty actor list or bypass ray checks. Full death-start/playback and the
+player/camera handoff remain open.

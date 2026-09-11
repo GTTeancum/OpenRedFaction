@@ -14,6 +14,9 @@
 #include "burn_resource_probe.h"
 static uint32_t death_clearance(void *context,uint32_t direction)
 {uint32_t *v=context;++v[2];v[3]=direction;return v[direction];}
+typedef struct death_ray_trace {uint32_t responses[4],count,points[24];} death_ray_trace;
+static uint32_t death_ray(void *context,const float start[3],const float end[3])
+{death_ray_trace *t=context;uint32_t i=t->count++;memcpy(t->points+6*i,start,12);memcpy(t->points+6*i+3,end,12);return t->responses[i];}
 static rf_damage_object dispatch_object;
 static uint32_t dispatch_facts[3],dispatch_present,dispatch_trace[8],dispatch_count,dispatch_effect[6];
 static float dispatch_after;
@@ -358,6 +361,17 @@ int main(int argc,char **argv)
             memcpy(&state,words,sizeof(state));random.value=words[49];facts[0]=words[50];facts[1]=words[51];facts[2]=0;facts[3]=UINT32_MAX;
             selected=12345;out[0]=(uint32_t)rf_entity_death_select(&state,death_clearance,facts,&random,&selected);
             out[1]=(uint32_t)selected;out[2]=random.value;out[3]=facts[2];out[4]=facts[3];
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--death-clearance")) {
+        uint32_t words[39],out[26];rf_entity_death_clearance_state state;rf_entity_death_obstacle actors[4];death_ray_trace trace;
+        _Static_assert(sizeof(state)==56 && sizeof(actors)==80,"Death clearance wire layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(words,sizeof(words),1,stdin)==1) {
+            memcpy(&state,words,56);memcpy(actors,words+15,80);memset(&trace,0,sizeof(trace));memcpy(trace.responses,words+35,16);
+            out[0]=rf_entity_death_clearance(&state,words[14],actors,4,death_ray,&trace);out[1]=trace.count;memcpy(out+2,trace.points,96);
             if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;

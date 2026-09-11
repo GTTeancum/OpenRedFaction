@@ -542,3 +542,37 @@ int rf_entity_death_select(const rf_entity_death_selection *state,
     *result=action;
     return RF_OK;
 }
+
+uint32_t rf_entity_death_clearance(const rf_entity_death_clearance_state *s,
+    uint32_t direction,const rf_entity_death_obstacle *actors,uint32_t count,
+    uint32_t (*ray)(void *context,const float start[3],const float end[3]),void *context)
+{
+    float length,offset[3],start[3],end[3],delta[3],reach,local_x,local_z;
+    uint32_t i,j;double distance;
+    direction&=255u;
+    length=(float)((double)s->extent_180*(direction==1?3.0:-3.0));
+    for(j=0;j<3;j++) {offset[j]=(float)((double)s->matrix[2][j]*length);end[j]=(float)((double)s->position[j]+offset[j]);}
+    if((ray(context,s->position,end)&255u)==1)return 0;
+    memcpy(start,s->position,sizeof(start));start[1]=(float)((double)start[1]-(double)s->height_78*.5);
+    for(j=0;j<3;j++)end[j]=(float)((double)start[j]+offset[j]);
+    if((ray(context,start,end)&255u)==1)return 0;
+    for(j=0;j<3;j++) {float half=(float)((double)offset[j]*.5);start[j]=(float)((double)s->position[j]+half);}
+    memcpy(end,start,sizeof(end));end[1]=(float)((double)end[1]-((double)s->height_78+1.0));
+    if(!(ray(context,start,end)&255u))return 0;
+    for(j=0;j<3;j++)start[j]=(float)((double)s->position[j]+offset[j]);
+    memcpy(end,start,sizeof(end));end[1]=(float)((double)end[1]-((double)s->height_78+1.0));
+    if(!(ray(context,start,end)&255u))return 0;
+    for(i=0;i<count;i++) {
+        const rf_entity_death_obstacle *a=actors+i;
+        if(!(a->class_flags_74&4u))continue;
+        reach=(float)(fabs((double)length)+(double)a->extent_180);
+        for(j=0;j<3;j++)delta[j]=(float)((double)a->position[j]-s->position[j]);
+        distance=((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2];
+        if(distance>(double)reach*reach)continue;
+        local_z=(float)(((double)delta[2]*s->matrix[2][2]+(double)delta[1]*s->matrix[2][1])+(double)delta[0]*s->matrix[2][0]);
+        if((direction==1 && local_z<0) || (direction==0 && local_z>0))continue;
+        local_x=(float)(((double)delta[2]*s->matrix[0][2]+(double)delta[1]*s->matrix[0][1])+(double)delta[0]*s->matrix[0][0]);
+        if(fabs((double)local_x)<fabs((double)local_z))return 0;
+    }
+    return 1;
+}
