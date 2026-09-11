@@ -32,6 +32,18 @@ int rf_xbox_audio_release_voice(uint32_t handle)
     }
     return RF_NOT_FOUND;
 }
+int rf_xbox_audio_release_idle_sample(const uint8_t *samples)
+{
+    uint32_t i;
+    if(!samples)return RF_RANGE;
+    if(!initialized)return RF_OK;
+    for(i=0;i<VOICES;i++)if(slots[i].created && slots[i].buffer.buffer==samples &&
+        (slots[i].voice.looping || nxAudioVoiceGetState(&slots[i].voice)!=NX_STOPPED))return RF_RANGE;
+    for(i=0;i<VOICES;i++)if(slots[i].created && slots[i].buffer.buffer==samples) {
+        nxAudioVoiceDestroy(&slots[i].voice);memset(slots+i,0,sizeof(slots[i]));
+    }
+    return RF_OK;
+}
 void rf_xbox_audio_close(void)
 {
     uint32_t i,j;int drained=1;

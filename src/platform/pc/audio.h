@@ -7,6 +7,12 @@ void rf_pc_audio_close(void);
  * queued output contains copied PCM and may still play. Other voices continue.
  * Returns RF_NOT_FOUND for a stale handle; release every borrower before unload. */
 int rf_pc_audio_release_voice(unsigned int handle);
+/* Port ownership operation, serialized with play/reset. RF_RANGE means null
+ * samples or a matching active/looping voice; no borrowers are changed.
+ * RF_OK releases all completed borrowers with this exact PCM base pointer
+ * (also succeeds if none). Other voices remain untouched. Bank-owned sample
+ * views must use one consistent base, not overlapping/subrange aliases. */
+int rf_pc_audio_release_idle_sample(const uint8_t *samples);
 extern const rf_scene_audio_events rf_pc_audio_events;
 /* Read after close: open, blocks, frames, nonzero samples, plays, rejected, bytes, device error. */
 extern unsigned int rf_pc_audio_diagnostic[8];

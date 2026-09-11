@@ -1061,3 +1061,29 @@ as permission for arbitrary live PCM eviction in the port.
 Next ownership work must reconcile actual release scheduling and device borrower
 completion. The bounded Xbox bank must preserve stable registration identities
 and avoid freeing referenced PCM; no automatic eviction follows from these tests.
+
+
+### Release completed device borrowers by sample
+
+The PC and Xbox adapters now expose rf_*_audio_release_idle_sample(samples).
+This is a port ownership operation, not reconstruction of an original eviction
+policy. It preflights all records matching the bank PCM base pointer. Any
+active or looping record returns RF_RANGE without changing any borrowers.
+Otherwise it clears/destroys every matching completed record and returns RF_OK.
+Absent borrowers (including a closed backend) also succeed; null is rejected.
+PC holds the refill lock for both passes; Xbox calls must be serialized with
+play/reset and require NX_STOPPED before destruction. Other voices continue.
+
+This exact-pointer contract assumes each bank sample uses a consistent base
+pointer, with no overlapping subrange aliases. A successful device operation
+only releases device borrowers; the campaign must separately clear its logical
+mixer references before bank unload. Automatic eviction is not yet connected.
+
+PC checks prove busy refusal preserves completed handles, then idle release
+removes all matching handles. PAGE_NOACCESS on released source pages does not
+interrupt unrelated looping playback. Stock64MiB APU run20260911-013355 passes
+the corresponding completed-plus-looping borrower case, stale-handle checks,
+unrelated nonzero guest output and exact available-page restoration on reset.
+Existing APU overlap, loop, gain, lifetime and failure cases also pass. Production
+PC/NXDK builds and all eight CTests pass. Native tests do not claim host listening
+or arbitrary alias-safe reclamation.

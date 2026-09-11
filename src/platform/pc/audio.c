@@ -97,6 +97,19 @@ int rf_pc_audio_release_voice(unsigned int handle)
     }
     LeaveCriticalSection(&lock);return status;
 }
+int rf_pc_audio_release_idle_sample(const uint8_t *samples)
+{
+    unsigned i;int status=RF_OK;
+    if(!samples)return RF_RANGE;
+    if(!device)return RF_OK;
+    EnterCriticalSection(&lock);
+    for(i=0;i<RF_AUDIO_VOICES;i++)if(mixer.voices[i].handle && mixer.voices[i].pcm.samples==samples &&
+        (mixer.voices[i].active || mixer.voices[i].loop)){status=RF_RANGE;break;}
+    if(status==RF_OK)for(i=0;i<RF_AUDIO_VOICES;i++)if(mixer.voices[i].handle && mixer.voices[i].pcm.samples==samples) {
+        memset(mixer.voices+i,0,sizeof(mixer.voices[i]));handles[i]=0;
+    }
+    LeaveCriticalSection(&lock);return status;
+}
 static void gain(void *context,uint32_t handle,float left,float right)
 {
     unsigned i;(void)context;if(!device)return;

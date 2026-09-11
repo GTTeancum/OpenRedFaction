@@ -56,5 +56,21 @@ int main(void)
      rf_pc_audio_close();VirtualFree(borrowed,0,MEM_RELEASE);
      if(rf_pc_audio_diagnostic[4]!=1 || rf_pc_audio_diagnostic[5]!=1 || rf_pc_audio_diagnostic[7])return 15;
      puts("PASS static loop beyond endpoint, stop releases protected source, explicit mode errors");}
+    {uint8_t *borrowed=VirtualAlloc(NULL,4096,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);DWORD old;
+     rf_wave_pcm a={borrowed,128,64,48000,1,16};
+     rf_wave_pcm b={(const uint8_t *)pcm,sizeof(pcm),24000,48000,1,16};uint32_t before;
+     if(!borrowed || rf_pc_audio_release_idle_sample(NULL)!=RF_RANGE || rf_pc_audio_release_idle_sample(borrowed) || rf_pc_audio_open())return 18;
+     if(rf_pc_audio_events.play_mode(NULL,3001,&a,0,0,0) || rf_pc_audio_events.play_mode(NULL,3002,&a,0,0,1) ||
+        rf_pc_audio_events.play_mode(NULL,3004,&b,.5f,.5f,1))return 19;
+     Sleep(150);
+     if(rf_pc_audio_release_idle_sample(borrowed)!=RF_RANGE || rf_pc_audio_release_voice(3001))return 20;
+     if(rf_pc_audio_events.play_mode(NULL,3003,&a,0,0,0) || rf_pc_audio_release_voice(3002))return 21;
+     Sleep(150);
+     if(rf_pc_audio_release_idle_sample(borrowed) || rf_pc_audio_release_idle_sample(borrowed) || rf_pc_audio_release_voice(3003)!=RF_NOT_FOUND)return 22;
+     if(!VirtualProtect(borrowed,4096,PAGE_NOACCESS,&old))return 23;
+     before=rf_pc_audio_diagnostic[3];Sleep(100);
+     if(rf_pc_audio_diagnostic[3]<=before)return 24;
+     rf_pc_audio_close();VirtualFree(borrowed,0,MEM_RELEASE);
+     puts("PASS idle sample release, atomic busy rejection and unrelated playback with protected source");}
     return 0;
 }

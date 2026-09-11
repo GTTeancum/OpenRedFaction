@@ -68,6 +68,9 @@ try:
                 loop_address=int(re.search(r'_rf_apu_loop\s+([0-9a-fA-F]+)',mapping)[1],16)
                 loop=words(monitor,loop_address,4);report['static_loop']=loop
                 assert loop[0]>0 and loop[1]>0 and loop[2:]==[0,state[3]],loop
+                idle_address=int(re.search(r'_rf_apu_idle_release\s+([0-9a-fA-F]+)',mapping)[1],16)
+                idle=words(monitor,idle_address,3);report['idle_sample_release']=idle
+                assert idle[0]==1 and idle[1]>0 and idle[2]==state[3],idle
                 residency_address=int(re.search(r'_rf_apu_residency\s+([0-9a-fA-F]+)',mapping)[1],16)
                 residency=words(monitor,residency_address,5);report['residency']=residency
                 release_address=int(re.search(r'_rf_apu_single_release\s+([0-9a-fA-F]+)',mapping)[1],16)
