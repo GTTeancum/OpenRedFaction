@@ -482,8 +482,8 @@ typedef struct rf_corpse_create_backend {
     rf_corpse_delete_emitter *(*emitter)(void *context,rf_corpse_create_source *source,rf_corpse *corpse);
     void *context;
 } rf_corpse_create_backend;
-/*416940 reconstruction, PC/NXDK fields and multi-corpse retention verified;
- * full resource trace comparison and live dispatch pending.
+/*416940 reconstruction, PC/NXDK fields, resource-call order and multi-corpse
+ * retention verified; concrete resource cleanup and live dispatch pending.
  * List is an intact sentinel ring of rf_corpse owners, max30. Request/source,
  * class data and list membership stay stable during callbacks except the
  * specified source ownership fields. Motion callbacks return -1 or0..44.

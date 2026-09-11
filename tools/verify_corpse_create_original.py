@@ -19,6 +19,8 @@ trace=[];descriptors=[];replacement=False;fail=False;model_fail=False;emit_found
 # arithmetic, timers, retention and all constructor field writes stay original.
 hooks={0x40eeb0:(1,4),0x57360e:(1,0),0x486da0:(6,0),0x4cb520:(2,0),0x502880:(3,0),0x428fe0:(2,0),0x4164c0:(1,0),0x503390:(3,0),0x4ffa80:(1,4),0x497ca0:(5,0),0x48c9a0:(1,0)}
 def hook(machine,address,size,unused):
+ if address==0x42dc00:
+  trace.append((address,(read(machine.reg_read(UC_X86_REG_ESP)+4),)));return
  if address not in hooks:return
  argc,pop=hooks[address];esp=machine.reg_read(UC_X86_REG_ESP);ecx=machine.reg_read(UC_X86_REG_ECX);args=tuple(read(esp+4+j*4) for j in range(argc));trace.append((address,args))
  result=0

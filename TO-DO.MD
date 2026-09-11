@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Verify full constructor resource call ordering and guard cleanup, then connect live allocation/resource backends; PC/NXDK fields and multiple-body retention pass.
+- [ ] Connect corpse creation to live allocation/model/physics owners and implement partial-construction cleanup; PC/NXDK resource-call ordering, fields, retention and guard exposure pass.
 - [ ] Bind verified corpse sphere refresh and sound-follow points to live owned model poses and sounds.
 - [ ] Bind verified corpse retention/fade/update/deletion and30-slot allocation to live creation and owned resource backends; five eligible bodies trigger fading.
 - [ ] Connect native-verified burn retarget/release to live corpse inheritance after corpse ownership is reconstructed.

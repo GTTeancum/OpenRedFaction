@@ -3,7 +3,7 @@ import json,random,runpy,struct,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 base=runpy.run_path(str(root/'tools/verify_corpse_create.py'))
-base['cases'].clear();base['expected'].clear();before=[];after=[];mapped=False;fades=0;new_fades=0
+base['cases'].clear();base['expected'].clear();base['traces'].clear();before=[];after=[];mapped=False;fades=0;new_fades=0
 w=base['w'];node_base=0x30010000
 def prepare(g):
  global mapped

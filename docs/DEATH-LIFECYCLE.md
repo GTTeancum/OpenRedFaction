@@ -861,3 +861,33 @@ CTests pass after rebuilding the PC probe.
 No gameplay source behavior changed in this verification step. The constructor
 remains disconnected from the live scene while full resource-call ordering,
 guard cleanup and concrete model/physics/emitter/sound ownership are completed.
+
+
+## Constructor resource calls and partial-owner guards
+
+The constructor verifier now compares7431 normalized resource calls across
+1024 original/PC/NXDK cases. It checks allocation type/source handle, snapshot
+and pose owners, model-load mode, motion names/order, playback model/motion/rate,
+owned-name assignment, emitter handle/argument, collision registration and final
+source effects. Actual callback source/owner pointers and string contents are
+validated before normalizing addresses/names. Source42dc00 executes original
+code while its entry is recorded. Temporary vector reserve/free are explicitly
+excluded because the shared constructor uses caller-provided bounded scratch.
+The1024 multiple-body cases still match all14796 prior owners and their fades.
+
+`python tools/verify_corpse_create_guards.py` verifies five PC/NXDK rejection
+paths: insufficient scratch, invalid clock, nonfinite creation time, broken
+list head and a full30-body list. None dispatches resource callbacks. Full-list
+failure retains source deletion/model-retention marks, while preflight failures
+leave those marks untouched. Three invalid motion callback results exercise
+errors after allocation. All expose the partial owner; the death-motion error
+occurs before corpse-list insertion, while drop/carry errors occur afterward.
+No later source-effect callback is dispatched after those errors.
+
+This establishes the error boundary; it does not implement concrete resource
+unwind. A live allocator must track construction progress and release acquired
+resources appropriately. The normal corpse deleter requires a valid corpse-list
+entry and must not be called blindly for the pre-insertion partial owner.
+Actual resource binding and cleanup remain open. These are compiled-code tests,
+not native XEMU gameplay; no game-runtime behavior changed in this step. All13
+CTests pass, and the updated PC probe compiles successfully.
