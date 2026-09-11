@@ -399,6 +399,26 @@ typedef struct rf_level_trigger {
 /* Shared bounded section cursor; fields have the same meanings as the group
  * reader. Trigger APIs accept only a trigger-section cursor (0x60000). */
 typedef rf_level_group_reader rf_level_trigger_reader;
+typedef struct rf_level_force_region {
+    uint32_t uid,offset,bytes,header_byte,shape,flags;
+    char name[256],label[256];
+    float position[3],orientation_disk[9],extent[3],strength;
+} rf_level_force_region;
+typedef rf_level_group_reader rf_level_force_reader;
+/* v180 section 0x1100, original 462f60 read sequence. Disk matrix order;
+ * sphere extent[0] is radius, remaining extents zero. Box extents are sizes.
+ * Finite floats, strings <=255 bytes. Errors preserve cursor/output; exact
+ * end is NOT_FOUND. No runtime bounds construction or force application. */
+int rf_level_forces_begin(const rf_level *level,rf_level_force_reader *reader);
+int rf_level_force_next(rf_level_force_reader *reader,rf_level_force_region *record);
+typedef struct rf_level_owned_forces {
+    rf_level_force_region *items;uint32_t count,allocated_bytes;
+} rf_level_owned_forces;
+/* Empty destination required. One allocation; budget includes owner and
+ * records, excluding allocator overhead. Source may close after success.
+ * Errors preserve output; close is repeatable. Authored order retained. */
+int rf_level_owned_forces_open(const rf_level *level,uint32_t budget,rf_level_owned_forces *result);
+void rf_level_owned_forces_close(rf_level_owned_forces *forces);
 /* Original v180 read sequence 465510. Raw configuration fields only: byte
  * names, timing conversion, flags and runtime meaning remain provisional.
  * Shape 0 is sphere, 1 box; unused shape fields are zero. Matrix/dimensions

@@ -6,6 +6,33 @@ int main(int argc,char **argv)
 {
     rf_vpp archive;rf_level level;rf_level_entity_reader reader;rf_level_entity entity;int status;
     _Static_assert(sizeof(entity)==1084,"Entity probe wire layout");
+    if(argc==4 && !strcmp(argv[3],"--forces")) {
+        rf_level_owned_forces owned={0},small={0},zero={0};rf_level_force_reader cursor;
+        rf_level_force_region record;uint32_t i,bytes;
+        _Static_assert(sizeof(record)==600,"Force wire layout");
+        _setmode(_fileno(stdout),_O_BINARY);
+        if(rf_vpp_open(&archive,argv[1]) || rf_level_open(&level,&archive,argv[2]) ||
+            rf_level_owned_forces_open(&level,1024*1024,&owned) || rf_level_forces_begin(&level,&cursor))return 2;
+        bytes=owned.allocated_bytes;
+        if(rf_level_owned_forces_open(&level,bytes-1,&small)!=RF_RANGE || memcmp(&small,&zero,sizeof(small)))return 4;
+        if(rf_level_owned_forces_open(&level,bytes,&owned)!=RF_RANGE)return 4;
+        for(i=0;i<owned.count;++i) {
+            rf_level_force_reader cut=cursor,saved;rf_level_force_region sentinel,expected;
+            if(rf_level_force_next(&cursor,&record) || memcmp(&record,owned.items+i,sizeof(record)))return 4;
+            cut.section.size=record.offset+record.bytes-1;saved=cut;
+            memset(&sentinel,0xa5,sizeof(sentinel));expected=sentinel;
+            if(rf_level_force_next(&cut,&sentinel)!=RF_FORMAT || memcmp(&cut,&saved,sizeof(cut)) ||
+                memcmp(&sentinel,&expected,sizeof(sentinel)))return 4;
+        }
+        if(rf_level_force_next(&cursor,&record)!=RF_NOT_FOUND)return 4;
+        rf_level_owned_forces_close(&owned);
+        if(rf_level_owned_forces_open(&level,bytes,&owned))return 4;
+        rf_vpp_close(&archive);memset(&level,0xa5,sizeof(level));
+        if(fwrite(&owned.count,4,1,stdout)!=1 || fwrite(owned.items,sizeof(record),owned.count,stdout)!=owned.count)return 3;
+        fprintf(stderr,"%u\n",bytes);
+        rf_level_owned_forces_close(&owned);rf_level_owned_forces_close(&owned);
+        return memcmp(&owned,&zero,sizeof(owned))?4:0;
+    }
     if(argc==4 && (!strcmp(argv[3],"--owned-entities") || !strcmp(argv[3],"--entity-spawn"))) {
         rf_level_owned_entities owned={0},small={0},saved={0};uint32_t i,bytes;
         int spawn=!strcmp(argv[3],"--entity-spawn");
