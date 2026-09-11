@@ -163,6 +163,12 @@ int rf_physics_force_region_influence(const rf_physics_force_region *region,
  * Finite results required; errors preserve support and flags. */
 int rf_physics_force_actor_carry(float support_velocity[3],uint32_t *body_flags,
     const rf_physics_force_influence *influence,uint32_t mode,uint32_t class_kind,int32_t attachment);
+/* 486b1c..486b6a, after replacement velocity, fall transition and first-entry
+ * effect. Stores class speed unless horizontal speed exceeds it, then speed+1;
+ * sets flag 200000. No velocity mutation. Finite inputs/nonnegative class cap;
+ * errors preserve cap and flags. Velocity/output storage must not overlap. */
+int rf_physics_force_air_cap(const float velocity[3],float class_speed,
+    float *alternate_cap,uint32_t *body_flags);
 /* First enabled containing region in supplied creation order. Sphere boundary
  * is strict; boxes inclusive. Unknown shapes are skipped. UINT32_MAX means
  * no match. No allocation or force application; errors preserve index. */

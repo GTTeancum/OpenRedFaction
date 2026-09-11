@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
-Ordinary actor force carry matches 2048 original PC/NXDK cases; direction,
-strength and bounds pass. Replacement velocity and integration remain.
+Force carry and alternate airborne cap each match 2048 original PC/NXDK cases;
+compose replacement/fall/audio ordering and integrate registered regions next.
 
 Immediate open items:
 - [ ] Register verified runtime force regions and connect force application plus alternate airborne speed-cap ownership.

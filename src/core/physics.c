@@ -280,6 +280,17 @@ int rf_physics_force_actor_carry(float support_velocity[3],uint32_t *body_flags,
     for(i=0;i<3;++i)if(!isfinite(value[i]))return RF_RANGE;
     memcpy(support_velocity,value,sizeof(value));*body_flags|=0x80000000u;return RF_OK;
 }
+int rf_physics_force_air_cap(const float velocity[3],float class_speed,
+    float *alternate_cap,uint32_t *body_flags)
+{
+    double speed;float cap;
+    if(!velocity || !alternate_cap || !body_flags || !isfinite(class_speed) || class_speed<0 ||
+        !isfinite(velocity[0]) || !isfinite(velocity[1]) || !isfinite(velocity[2]))return RF_RANGE;
+    speed=sqrt((double)velocity[0]*velocity[0]+(double)velocity[2]*velocity[2]);
+    cap=speed>class_speed?(float)(speed+1):class_speed;
+    if(!isfinite(cap))return RF_RANGE;
+    *alternate_cap=cap;*body_flags|=0x200000;return RF_OK;
+}
 int rf_physics_force_region_select(const rf_physics_force_region *regions,uint32_t count,
     const float position[3],uint32_t *index)
 {

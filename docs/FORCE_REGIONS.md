@@ -74,3 +74,19 @@ original actor type is supplied as type 0 and the class pointer is prepared;
 selection, eligibility, rotation and the `40` replacement-velocity path remain
 outside this test. Campaign integration still requires these surrounding steps
 and their correct placement relative to support refresh and physics.
+
+`rf_physics_force_air_cap` reconstructs `486b1c..486b6a`. It stores class
+horizontal speed unless the replacement velocity's horizontal norm is greater;
+in that case it stores norm plus one. It sets body flag `200000` and preserves
+velocity. `verify_force_cap.py` checks 2,048 original/PC/NXDK cases, including
+exact equality, differing vertical speed and an already-set flag. Whole-actor
+comparison permits only the cap at `+1488` and that flag to change.
+
+The preceding replacement branch still needs composition. Its order is:
+write direction times strength to `+144`, call fall transition `4281a0`, play
+the first-entry sound through `48a930` if `200000` was clear, then update the
+cap. Fall's alternate descriptor predicate `40a270` reads class flags `+724`
+bit `400`; descriptor 8 is selected when set, otherwise 3, subject to the
+existing descriptor-enabled fallback. The sound call supplies slot `0x53`
+and physics position; `48a930` chooses local or spatial playback. These call
+details are disassembly/decompile evidence, not yet verified shared composition.
