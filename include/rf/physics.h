@@ -235,6 +235,13 @@ int rf_physics_force_turbulence(rf_physics_force_influence *influence,uint32_t f
  * no match. No allocation or force application; errors preserve index. */
 int rf_physics_force_region_select(const rf_physics_force_region *regions,uint32_t count,
     const float position[3],uint32_t *index);
+/* Original45ce50 impact suppression: search every region until one contains
+ * the public position AND has activation low byte exactly1 and flags&0x40.
+ * An earlier ordinary region does not mask a later suppressing region. Uses
+ * the same strict sphere/inclusive box bounds as force selection. No allocation
+ * or region mutation; finite-query contract; errors preserve suppressed. */
+int rf_physics_force_suppresses_damage(const rf_physics_force_region *regions,uint32_t count,
+    const float position[3],uint32_t *suppressed);
 /* 49dc1d..49dcf1 velocity response: stationary non-liquid contact, flags&0x80
  * clear, non-rotating actor predicate. Normal is used as supplied. Returns
  * signed impact speed for the later damage path; does not apply damage or

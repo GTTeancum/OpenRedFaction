@@ -165,13 +165,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
-    if(argc==2 && !strcmp(argv[1],"--force-region")) {
+    if(argc==2 && (!strcmp(argv[1],"--force-region") || !strcmp(argv[1],"--force-damage"))) {
         struct {rf_physics_force_region regions[3];float position[3];uint32_t count;} input;
         _Static_assert(sizeof(rf_physics_force_region)==108,"Force region layout");
         while(fread(&input,sizeof(input),1,stdin)==1) {
             uint32_t index=0xa5a5a5a5;int status;
             if(input.count>3)return 3;
-            status=rf_physics_force_region_select(input.regions,input.count,input.position,&index);
+            status=!strcmp(argv[1],"--force-damage")?
+                rf_physics_force_suppresses_damage(input.regions,input.count,input.position,&index):
+                rf_physics_force_region_select(input.regions,input.count,input.position,&index);
             if(fwrite(&status,4,1,stdout)!=1 || fwrite(&index,4,1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;

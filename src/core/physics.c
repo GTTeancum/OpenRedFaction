@@ -405,6 +405,19 @@ int rf_physics_force_region_select(const rf_physics_force_region *regions,uint32
     }
     *index=UINT32_MAX;return RF_OK;
 }
+int rf_physics_force_suppresses_damage(const rf_physics_force_region *regions,uint32_t count,
+    const float position[3],uint32_t *suppressed)
+{
+    uint32_t i,index;int status;
+    if((count && !regions) || !position || !suppressed)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(position[i]))return RF_RANGE;
+    for(i=0;i<count;++i) {
+        if((regions[i].active&255u)!=1 || !(regions[i].flags&0x40u))continue;
+        status=rf_physics_force_region_select(regions+i,1,position,&index);if(status)return status;
+        if(index==0){*suppressed=1;return RF_OK;}
+    }
+    *suppressed=0;return RF_OK;
+}
 int rf_physics_air_steer(rf_physics_body_state *state,float dt,float air_control,
     float acceleration_limit,float speed_limit,const float world_acceleration[3])
 {

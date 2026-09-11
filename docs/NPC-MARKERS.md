@@ -1128,3 +1128,33 @@ death/pain sound and player camera effects still require integration. Neither
 the deep diagnostic's geometric drop nor this numeric gate proves actual NPC
 impact velocity or landing timing. Live NPC settling remains the next runtime
 integration task, with collision material and region suppression kept explicit.
+
+
+## Force-region impact suppression (2026-09-11)
+
+rf_physics_force_suppresses_damage reconstructs the complete 45ce50 query over
+the existing 108-byte runtime force-region records. It requires activation's
+low byte to equal exactly 1 and flag 0x40, then checks the supplied published
+position. Sphere bounds are strict; axis and oriented box boundaries follow
+the shared force-selection geometry. Unknown shapes are skipped. It scans
+past earlier overlapping unflagged regions rather than testing only the first
+region returned by ordinary force selection. No new allocation or owner.
+
+verify_force_damage_suppression.py executes all original collection and shape
+callees for 1,536 cases with no replacement hooks. PC/NXDK agree on 62 positive
+and 1,474 negative results. Coverage includes activation 0/1/255/256/257, flag
+filtering, overlaps, empty lists, unknown shapes, rotated boxes and boundaries.
+Explicit overlapping fixtures prove that an ordinary first match cannot mask
+a later suppressing region and that byte 255 is ignored here. Four additional
+port cases check malformed geometry/output preservation, inactive invalid
+geometry and short-circuiting before a later malformed region. All records
+remain unchanged. Only initialized OBB scratch avoids CRT exit registration.
+
+Both builds and all nine CTests pass; the existing 768-case ordinary force
+selection comparison also passes unchanged. NXDK code is tested directly in
+Unicorn, not through a new XEMU gameplay invocation. The campaign already owns
+the compatible campaign_forces.items/count array. The impact caller must first
+run rf_entity_impact_damage, then query suppression only for an eligible amount
+at the actor's published position. Actual damage delivery, actor registration
+and settling/landing ownership remain integration work. Existing shared damage
+vitals, credit, sound and dispatcher APIs should be reused for that backend.

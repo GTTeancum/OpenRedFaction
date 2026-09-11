@@ -18,7 +18,7 @@ Immediate open items:
 - [ ] Connect and verify NPC settling/fall/landing; deeper diagnostic sweeps find walkable floors below all24 opening-level short-probe misses.
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
-- [ ] Connect verified impact-damage amount/gate to contact material, force-region suppression and damage delivery.
+- [ ] Connect verified impact amount and force-region suppression to NPC contact ownership, registration and the shared damage backend.
 - [ ] Wire NPC world/support callbacks into the shared standing transition and normal/slow landing, then special class effects.
 - [ ] Extend motion residency to changing selections and verify transition/eviction ownership.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
