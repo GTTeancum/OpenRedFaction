@@ -196,6 +196,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert ambient_instances==expected('AMBIENT_INSTANCES') and ambient_instances[2]<=65536,ambient_instances
      assert ambient_instances[0]+ambient_instances[1]==ambient[0],ambient_instances
      report['ambient_instances']=ambient_instances
+     metadata=words(monitor,symbol('rf_scene_sound_metadata'),8)
+     assert metadata==expected('SOUND_METADATA') and metadata[:3]==[2712,355344,263],metadata
+     report['sound_metadata']=metadata
      ambient_schedule=words(monitor,symbol('rf_scene_ambient_schedule'),6)
      assert ambient_schedule==expected('AMBIENT_SCHEDULE') and ambient_schedule[2]<=25,ambient_schedule
      report['ambient_schedule']=ambient_schedule

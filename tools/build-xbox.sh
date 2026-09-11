@@ -7,6 +7,10 @@ mkdir -p "$root/build/xbox"
 # The scene streams authored controller samples from the local original archive.
 # Disc data remains ignored; the archive is never loaded wholesale into RAM.
 mkdir -p "$root/build/xbox/disc"
+if [[ "$root/Installed_Game/bluebeard.bty" -nt "$root/build/xbox/disc/bluebeard.bty" ]]; then
+    cp "$root/Installed_Game/bluebeard.bty" "$root/build/xbox/disc/bluebeard.bty"
+    rm -f "$root/build/xbox/redfaction-diagnostic.iso"
+fi
 if [[ "$root/Installed_Game/audio.vpp" -nt "$root/build/xbox/disc/audio.vpp" ]]; then
     cp "$root/Installed_Game/audio.vpp" "$root/build/xbox/disc/audio.vpp"
     rm -f "$root/build/xbox/redfaction-diagnostic.iso"

@@ -26,6 +26,7 @@ extern uint32_t rf_scene_switch_state[3],rf_scene_campaign_events[3],rf_scene_ca
 extern uint32_t rf_scene_campaign_event_links[4],rf_scene_campaign_groups[5],rf_scene_campaign_movers[3],rf_scene_campaign_memberships[5];
 extern uint32_t rf_scene_campaign_forces[3],rf_scene_force_state[3];
 extern uint32_t rf_scene_ambient_records[3],rf_scene_ambient_instances[4];
+extern uint32_t rf_scene_sound_metadata[8];
 extern uint32_t rf_scene_ambient_schedule[6];
 extern uint32_t rf_scene_force_ticks[12];
 extern uint32_t rf_scene_event_ticks[12];
@@ -279,6 +280,7 @@ int main(int argc,char **argv)
             printf("SWITCH_STATE %u %u %u\n",rf_scene_switch_state[0],rf_scene_switch_state[1],rf_scene_switch_state[2]);
             printf("AMBIENT_RECORDS %u %u %u\n",rf_scene_ambient_records[0],rf_scene_ambient_records[1],rf_scene_ambient_records[2]);
             printf("AMBIENT_INSTANCES %u %u %u %u\n",rf_scene_ambient_instances[0],rf_scene_ambient_instances[1],rf_scene_ambient_instances[2],rf_scene_ambient_instances[3]);
+            printf("SOUND_METADATA %u %u %u %u %u %u %u %u\n",rf_scene_sound_metadata[0],rf_scene_sound_metadata[1],rf_scene_sound_metadata[2],rf_scene_sound_metadata[3],rf_scene_sound_metadata[4],rf_scene_sound_metadata[5],rf_scene_sound_metadata[6],rf_scene_sound_metadata[7]);
             {uint32_t k;printf("AMBIENT_SCHEDULE");for(k=0;k<6;k++)printf(" %u",rf_scene_ambient_schedule[k]);printf("\n");}
             printf("CAMPAIGN_EVENTS %u %u %u\n",rf_scene_campaign_events[0],rf_scene_campaign_events[1],rf_scene_campaign_events[2]);
             const void *records[7]={rf_scene_actor_initial_animation,rf_scene_actor_initial_eye_offsets,&rf_scene_actor_stance_cache,rf_scene_actor_selector_frames,rf_scene_actor_locomotion_frames,rf_scene_player_climb,rf_scene_player_climb_frames};

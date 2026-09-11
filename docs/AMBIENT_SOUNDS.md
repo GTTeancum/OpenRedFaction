@@ -372,3 +372,41 @@ errors, rejection of a populated owner, use after input text release, and
 repeated close. Exact owner budget succeeds; one byte less fails cleanly.
 PC/NXDK builds and all eight CTests pass. Native XEMU file I/O, campaign metadata
 attachment and ambient device playback are still unconnected and unverified.
+
+
+## Campaign metadata file integration
+
+Campaign audio startup now opens sibling bluebeard.bty before sound registration,
+retains the compact owner and closes it with campaign audio ownership. File text
+is capped at512KiB and freed immediately after parsing; the owner has a separate
+512KiB limit. Actual installed text plus owner peaks at724,487 accounted bytes,
+excluding allocator/stdio overhead. The existing1MiB sound bank/PCM budget is
+unchanged and separately reported. Xbox disc staging copies the original file
+locally into ignored output and repacks when it changes.
+
+SOUND_METADATA reports authored count, owner bytes, total looping records,
+registered matches, registered looping matches, missing metadata count,
+registered packed-word hash, and full compact-row/index byte hash. Registration
+lookups resolve through the retained owner, but device voices do not yet use
+these flags. No looping behavior or PCM residency changed in this increment.
+
+verify_campaign_sound_metadata.py checks four actual PC campaign logs against
+independent packed fields, original sort permutation and authored registration
+order. L1S1 has67 matched/15 looping registered entries; L1S3 has77/22; L2S1
+has67/11; ctf01 has61/11. All four have33 missing metadata entries, explicitly
+counted rather than pretending a lookup succeeded. Every owner hashes to
+155846133 and occupies355344 bytes. Existing ambient registration and PCM
+bank checks pass unchanged.
+
+Native64MiB XEMU replay20260911-004700 (L4S2,31 frames) reads the staged file,
+allocates/parses/sorts it through NXDK, and matches PC:
+SOUND_METADATA=[2712,355344,263,69,13,33,1084496309,155846133].
+Ambient scheduling and all other checked campaign state also pass;8,481 pages
+remain available at completion. PC/NXDK builds and all eight CTests pass.
+This proves native file/owner integration, not audible ambient output.
+
+Fallback lead: original543580 uses the static180-byte record at5a7c60 when
+56baa0 returns NULL. Its+a8 word is0; its+ac word is0x100003e8 (valid bit plus
+keyoff1000). Thus its loop/music selection bits are both zero. This is static
+binary evidence alongside the exported registration branch; fallback attachment
+to the campaign sample metadata remains to be implemented and verified.
