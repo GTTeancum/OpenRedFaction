@@ -430,6 +430,77 @@ int rf_sound_table_load(rf_vpp *tables,uint32_t scratch_budget,
     if(!status)status=rf_sound_table_read(text,entry.size,rows,capacity,count);
     free(text);return status;
 }
+/* Unlike token(), original forward search skips comments only at its initial
+ * cursor, then performs a literal substring search across remaining bytes. */
+static int foley_skip(lexer *l)
+{
+    for(;;) {
+        while(l->at<l->size && (l->text[l->at]==' ' ||
+              (l->text[l->at]>=9 && l->text[l->at]<=13)))++l->at;
+        if(l->at+1>=l->size || l->text[l->at]!='/')return RF_OK;
+        if(l->text[l->at+1]=='/') {
+            l->at+=2;while(l->at<l->size && l->text[l->at]!='\r')++l->at;
+        } else if(l->text[l->at+1]=='*') {
+            l->at+=2;
+            while(l->at+1<l->size && !(l->text[l->at]=='*' && l->text[l->at+1]=='/'))++l->at;
+            if(l->at+1>=l->size)return RF_FORMAT;l->at+=2;
+        } else return RF_OK;
+    }
+}
+static int foley_search(lexer *l,const char *word)
+{
+    uint32_t at,n=(uint32_t)strlen(word);int status=foley_skip(l);if(status)return status;
+    for(at=l->at;at<=l->size && n<=l->size-at;++at)
+        if(!memcmp(l->text+at,word,n)) {l->at=at;return RF_OK;}
+    return RF_NOT_FOUND;
+}
+static int foley_pass(const void *text,uint32_t bytes,rf_foley_group *groups,
+    rf_audio_declaration *samples,uint32_t *group_count,uint32_t *sample_count)
+{
+    static const char *materials[]={"default","rock","metal","flesh","water","laval",
+        "solid","sand","ice","glass","ladder","chain fence"};
+    lexer l={text,bytes,0};uint32_t ng=0,ns=0,i,j;int status;
+    if(!metadata_tag(&l,"#Entity Sounds"))return RF_FORMAT;
+    for(;;) {
+        rf_foley_group group={0};group.count=1;group.first=ns;
+        status=foley_search(&l,"$Name:");
+        if(status==RF_NOT_FOUND) {
+            if(foley_search(&l,"#End"))return RF_FORMAT;
+            *group_count=ng;*sample_count=ns;return RF_OK;
+        }
+        if(status || ng==640 || !metadata_tag(&l,"$Name:") ||
+           metadata_string(&l,group.name,sizeof(group.name)))return RF_FORMAT;
+        if(metadata_tag(&l,"$Sounds:") && metadata_integer(&l,&group.count))return RF_FORMAT;
+        if(group.count>4096-ns)return RF_RANGE;
+        if(metadata_tag(&l,"$Material:")) {
+            char material[32];if(metadata_string(&l,material,sizeof(material)))return RF_FORMAT;
+            for(j=0;j<12;++j)if(same(material,materials[j]))break;
+            if(j==12)return RF_FORMAT;group.material=j==10?1:j==11?2:j;
+        }
+        for(i=0;i<group.count;++i) {
+            rf_audio_declaration sample={0};sample.rolloff=1;
+            if(!metadata_tag(&l,"$Sound:") || metadata_string(&l,sample.name,sizeof(sample.name)))return RF_FORMAT;
+            if(sample.name[0] && (sphere_number(&l,&sample.near_distance) ||
+               sphere_number(&l,&sample.volume) || sample.volume<0))return RF_FORMAT;
+            if(samples)samples[ns]=sample;++ns;
+        }
+        if(groups)groups[ng]=group;++ng;
+    }
+}
+int rf_foley_table_read(const void *text,uint32_t bytes,
+    rf_foley_group *groups,uint32_t group_capacity,
+    rf_audio_declaration *samples,uint32_t sample_capacity,
+    uint32_t *group_count,uint32_t *sample_count)
+{
+    uint32_t ng,ns,i;int status;
+    if(!text || !bytes || !group_count || !sample_count ||
+       (!groups && group_capacity) || (!samples && sample_capacity))return RF_RANGE;
+    for(i=0;i<bytes;++i)if(!((const unsigned char *)text)[i])return RF_FORMAT;
+    status=foley_pass(text,bytes,NULL,NULL,&ng,&ns);if(status)return status;
+    if((groups && ng>group_capacity) || (samples && ns>sample_capacity))return RF_RANGE;
+    if(groups || samples) {status=foley_pass(text,bytes,groups,samples,&ng,&ns);if(status)return status;}
+    *group_count=ng;*sample_count=ns;return RF_OK;
+}
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height)
 {
     static const char *words[]={"$Max","Entity","Jump","Height:"};

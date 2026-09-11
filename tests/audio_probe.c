@@ -52,6 +52,20 @@ static void control_stop(void *context,int32_t device)
 }
 int main(int argc,char **argv)
 {
+    if(argc==3 && !strcmp(argv[1],"--foley")) {
+        FILE *f=fopen(argv[2],"rb");long bytes;void *text;
+        rf_foley_group groups[640];rf_audio_declaration samples[4096];
+        uint32_t ng=0,ns=0,qg=0,qs=0;int status;
+        if(!f)return 90;fseek(f,0,SEEK_END);bytes=ftell(f);rewind(f);
+        if(bytes<=0 || bytes>1048576)return 91;text=malloc((size_t)bytes);if(!text)return 92;
+        if(fread(text,1,(size_t)bytes,f)!=(size_t)bytes)return 93;fclose(f);
+        status=rf_foley_table_read(text,(uint32_t)bytes,groups,640,samples,4096,&ng,&ns);
+        if(!status && (rf_foley_table_read(text,(uint32_t)bytes,NULL,0,NULL,0,&qg,&qs) || qg!=ng || qs!=ns))return 94;
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);fwrite(&ng,4,1,stdout);fwrite(&ns,4,1,stdout);
+        if(!status){fwrite(groups,sizeof(*groups),ng,stdout);fwrite(samples,sizeof(*samples),ns,stdout);}
+        free(text);return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--control-start"))return audio_control_start_probe();
     if(argc==2 && !strcmp(argv[1],"--control-position"))return audio_control_position_probe();
     if(argc==2 && !strcmp(argv[1],"--control-refresh"))return audio_control_refresh_probe();

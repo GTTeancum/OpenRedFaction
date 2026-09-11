@@ -143,6 +143,20 @@ int rf_sound_table_read(const void *text,uint32_t bytes,rf_audio_declaration *ro
  * contract as read, with no retained archive/text pointers. */
 int rf_sound_table_load(rf_vpp *tables,uint32_t scratch_budget,
     rf_audio_declaration *rows,uint32_t capacity,uint32_t *count);
+/* Bounded adapter for original434960 entity groups in foley.tbl. Names are
+ * 31 characters maximum; material defaults to zero for a fresh owner. Retains
+ * declared sample counts, including odd/zero counts, and skips surplus rows
+ * through the original case-sensitive forward $Name: search. Empty sample
+ * names retain an empty declaration (registration must yield -1). No audio I/O.
+ * Two-pass validation preserves all outputs on error; NULL arrays/capacity0
+ * query counts. Arrays, counts and input must not overlap. Limits:640 groups,
+ * 4096 declarations. This is not the separate lowercase collision-sound table. */
+typedef struct rf_foley_group {char name[32];uint32_t material,count,first;} rf_foley_group;
+int rf_foley_table_read(const void *text,uint32_t bytes,
+    rf_foley_group *groups,uint32_t group_capacity,
+    rf_audio_declaration *samples,uint32_t sample_capacity,
+    uint32_t *group_count,uint32_t *sample_count);
+
 typedef struct rf_audio_sample { char name[61];void *storage;rf_wave_pcm pcm;uint32_t bytes;rf_audio_parameters parameters; } rf_audio_sample;
 typedef struct rf_audio_bank {
     rf_vpp *archive;rf_audio_sample *samples;uint32_t count,capacity,bytes,budget;

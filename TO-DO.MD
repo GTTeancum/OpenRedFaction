@@ -15,6 +15,9 @@ recover sound-group ownership, dispatch and the entity-update call schedule.
 Original Foley parser execution confirms two surplus samples are skipped in
 Default/Solid Footstep; preserve declared counts when recovering the group owner.
 
+Shared Foley reader matches497 groups/1140 declarations on PC and NXDK;
+connect bounded group ownership and original registration order next.
+
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.

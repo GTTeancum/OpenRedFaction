@@ -93,3 +93,26 @@ above. This verifier covers parser primitives and real table tails, not the full
 `434620` reads a quoted filename, returns -1 for an empty name, otherwise reads
 two floats and calls `5054b0` with an additional 1.0 scalar. Registration argument
 semantics and runtime ownership still require direct verification before hookup.
+
+
+## Shared Foley declaration reader
+
+`rf_foley_table_read` now retains entity-group names, material IDs, declared
+counts, contiguous declaration offsets and sample filename/near/volume/rolloff.
+It uses fresh zero-initialized material fields, preserves empty sample names,
+and permits odd and zero counts. Roll-off is 1.0 for Foley declarations, matching
+the `434620` call site and the already verified `5054b0` registration signature.
+Negative counts, overlong names and invalid numbers are rejected as bounded-port
+validation. This is a declaration adapter, not yet a persistent group owner or
+live registration/footstep hookup. It does not parse the separate lowercase
+collision-sound section.
+
+`tools/verify_foley_table.py` compares all 497 groups and 1,140 retained samples
+against a separate table inventory on PC and NXDK machine code. Eleven groups
+list surplus samples. Eight inputs cover the installed table, odd/zero counts,
+empty filenames, overlong names, negative counts, nonfinite volume, missing end,
+embedded NUL and an empty table (some combined in one input). Two additional
+NXDK checks reject group/sample capacities one short while preserving outputs.
+PC and NXDK builds and all nine CTest cases pass. This adds no PCM residency and
+does not establish original registration order or full parser fidelity outside
+the bounded adapter's accepted grammar.
