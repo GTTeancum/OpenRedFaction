@@ -814,3 +814,25 @@ order also matches the original. Independent substring tests pass2,048 cases
 with corrected literal strings. Both builds and eight CTests pass. Evidence
 is artifacts/burn-bones.json and bone-substring.json. Live model owner lookup,
 attachment pose evaluation and persistent campaign damage ownership remain.
+
+## Installed-model burn bone binding coverage
+
+verify_burn_model_assets.py structurally walks every installed V3C BONE
+section from the inventory and checks the actual names against original
+51d690 search with verified fallback priority. The PC path uses the shared
+BONE payload decoder followed by rf_burn_resolve_bones; the NXDK path runs
+the actual linked resolver over the same names. All95 model bone sets match.
+Thirty-one contain all four required bones;64 return the expected missing-bone
+result. These are model-binding outcomes, not gameplay eligibility: creation
+still has character/immunity/class gates, including the masako exclusion.
+
+miner.v3c has25 bones and resolves indices11,12,15,8 respectively:
+park-bdbn-lowerleg-l, park-bdbn-lowerleg-r, park-bdbn-spine03 and park-bdbn-head.
+This validates the substring requirement against real prefixed names and the
+spine03 fallback used by the current diagnostic miner. The report records all
+model names, matched indices/names and payload hashes in
+artifacts/burn-model-assets/report.json. Game assets remain untracked.
+
+The file probe now supports --burn-bones after its payload path for repeatable
+real-asset checking. This does not yet bind a live model owner or evaluate
+animated burn positions; those remain separate integration requirements.

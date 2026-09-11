@@ -2401,3 +2401,7 @@ fallback orchestration and persistent NPC damage owners remain to connect.
 Burn fallback bone resolution passes2048 PC/NXDK cases with byte-verified
 hyphen/space names; Ghidra symbol underscores were not literal query bytes.
 Live model owner, pose binding and persistent campaign damage remain open.
+
+Installed burn bone binding passes95 model sets on PC/NXDK;31 resolve all
+four bones, and miner resolves11/12/15/8 including spine03 fallback.
+Live owner/animated pose integration and gameplay eligibility remain open.
