@@ -837,3 +837,27 @@ compiled NXDK execution comparison, constructor retention with several bodies,
 and guard/cleanup failure coverage remain to be added. This is not live scene
 creation: the concrete allocator/model/physics/emitter/sound owners are still
 external backends, and live dispatch remains disabled.
+
+
+## Xbox constructor fields and integrated retention verification
+
+`python tools/verify_corpse_create.py` now also executes the compiled NXDK
+rf_corpse_create with supplied resource callbacks and compares the same1024
+full original cases to PC and Xbox owner/source outputs. Copied physics seed
+position/basis, sphere bytes/count, flags and original scalar sources are
+checked at the allocator callback. This is Xbox machine-code execution in
+Unicorn, not native XEMU invocation.
+
+`python tools/verify_corpse_create_list.py` adds1024 full-constructor runs
+with0..29 existing corpses, totaling14796 existing owners. Complete original
+416940 performs retention through its real416f20/416f80/4174f0 callees; PC
+and NXDK creation must match every existing body's flags/fade and the new
+owner's fields. Cases cover equal timestamps, newer existing bodies, mixed
+protected/already-fading flags, null sources and allocation failures. Results:
+6339 existing corpses begin fading, and70 new corpses must themselves fade.
+The caller's list head/tail and new-node neighbours are checked too. All13
+CTests pass after rebuilding the PC probe.
+
+No gameplay source behavior changed in this verification step. The constructor
+remains disconnected from the live scene while full resource-call ordering,
+guard cleanup and concrete model/physics/emitter/sound ownership are completed.

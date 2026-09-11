@@ -77,7 +77,10 @@ static int slow_stand(void *context,uint32_t *stood)
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--corpse-create")) {
-        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_create_probe();
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_create_probe(0);
+    }
+    if(argc==2 && !strcmp(argv[1],"--corpse-create-list")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_create_probe(1);
     }
     if(argc==2 && !strcmp(argv[1],"--corpse-pool")) {
         rf_corpse_pool pool;uint32_t input[2],index;int status;

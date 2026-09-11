@@ -63,6 +63,8 @@ for case in range(1024):
  for offset,value in [(0,0),(0x2c,0x12340008),(0x7c,0),(0x80,0),(0x180,0x40200000),(0x1a8,0x20 if case%2 else 0),(0x268,0)]:put(corpse+offset,value)
  u.mem_write(corpse+0x3c,bytes(u.mem_read(position,12)))
  put(0x5caed0,0);put(0x5cae44,0x5cabb8);put(0x5cae48,0x5cabb8)
+ if 'prepare_list' in globals():prepare_list(globals())
+ prior_count=read(0x5caed0);prior_head=read(0x5cae44);prior_tail=read(0x5cae48)
  before_actor=bytes(u.mem_read(actor,0x1494));before_corpse=bytes(u.mem_read(corpse,0x318))
  u.mem_write(stack,w(stop,0 if null else actor,name,position,orientation,keep,seek));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x37f)
  u.emu_start(0x416940,stop,count=1000000);assert u.reg_read(UC_X86_REG_EIP)==stop
@@ -79,7 +81,7 @@ for case in range(1024):
  assert struct.unpack_from('<I',desc,132)[0]==0x40200000 and struct.unpack_from('<I',desc,148)[0]==(0x73 if flags724&0x80000 else 0x33)
  assert struct.unpack_from('<I',desc,136)[0]==num_spheres and bytes(u.mem_read(cloned_spheres,len(raw)))==raw
  if fail:
-  assert result==0 and read(0x5caed0)==0 and bytes(u.mem_read(corpse,0x318))==before_corpse
+  assert result==0 and read(0x5caed0)==prior_count and bytes(u.mem_read(corpse,0x318))==before_corpse
   assert bytes(u.mem_read(actor,0x1494))==bytes(expected_actor);failures+=1
   if 'observe_case' in globals():observe_case(globals())
   continue
@@ -88,7 +90,8 @@ for case in range(1024):
  transition=source_model!=0 and kind==2 and motion_indices[0]!=-1 and not flags724&0x200000
  if transition and seek==1:expected_flags|=8
  if flags724&0x200000:expected_flags|=4
- assert read(corpse+0x29c)==expected_flags
+ assert read(corpse+0x29c)&~1==expected_flags
+ if not prior_count:assert read(corpse+0x29c)==expected_flags
  assert read(corpse+0x80)==((0 if model_fail else 0x12340080) if replacement else source_model)
  assert read(corpse+0x2b8)==(111 if transition else 0xffffffff)
  assert read(corpse+0x78)==(0x40600000 if transition else 0x40200000)
@@ -103,9 +106,11 @@ for case in range(1024):
  assert read(corpse+0x2ac)==(now+int(life*1000+0.5) if emitter_kind>0 else 0xffffffff)
  for offset,value in [(0x20,99),(0x26c,11),(0x1fc,123),(0x294,0x447a0000),(0x2a0,class_index),(0x34,0x42c80000),(0x2b0,0x40a00000),(0x2b4,7),(0x2d0,0),(0x2d4,0xffffffff),(0x2d8,55)]:assert read(corpse+offset)==value,(case,hex(offset),read(corpse+offset),value)
  assert bytes(u.mem_read(corpse+0x144,24))==bytes(24)
- assert read(0x5caed0)==1 and read(0x5cae44)==corpse and read(0x5cae48)==corpse and read(corpse+0x28c)==read(corpse+0x290)==0x5cabb8
+ assert read(0x5caed0)==prior_count+1 and read(0x5cae44)==(prior_head if prior_count else corpse) and read(0x5cae48)==corpse
+ assert read(corpse+0x28c)==0x5cabb8 and read(corpse+0x290)==prior_tail
  assert read(corpse+0x2cc)==0xa5a5a5a5,'416940 preserves incoming sound id'
  if len(examples)<8:examples.append(dict(case=case,replacement=replacement,flags_29c=expected_flags,model=read(corpse+0x80),calls=[hex(a) for a,args in trace],writes=[hex(j) for j in range(0,0x318,4) if bytes(u.mem_read(corpse+j,4))!=before_corpse[j:j+4]]))
  if 'observe_case' in globals():observe_case(globals())
 report=dict(result='PASS',cases=1024,successes=successes,allocation_failures=failures,null_sources=nulls,extra_model_transfers=transfers,null_replacement_models=failed_models,original_sha256=digest,scope='Full original416940. Supplied allocation/model/pose/emitter/string-assignment/list-reserve/collision callbacks; real predicates, string comparisons, sphere copies, timers, constructor writes and single-corpse list insertion. No shared constructor, live resources or native XEMU invocation.',examples=examples)
-(root/'artifacts/corpse-create-original.json').write_text(json.dumps(report,indent=2)+'\n');print({k:v for k,v in report.items() if k!='examples'})
+if globals().get('write_report',True):
+ (root/'artifacts/corpse-create-original.json').write_text(json.dumps(report,indent=2)+'\n');print({k:v for k,v in report.items() if k!='examples'})

@@ -27,15 +27,23 @@ static void cc_effect(void *ctx,uint32_t op,rf_corpse_create_source *s,rf_corpse
 static rf_corpse_delete_emitter *cc_emitter(void *ctx,rf_corpse_create_source *s,rf_corpse *o)
 {corpse_create_probe_context *c=ctx;(void)s;(void)o;return c->input[17]?&c->emitter:NULL;}
 static uint32_t cc_bits(float v){uint32_t bits;memcpy(&bits,&v,4);return bits;}
-static int corpse_create_probe(void)
+static int corpse_create_probe(uint32_t multiple)
 {
     corpse_create_probe_context c;rf_corpse_create_source s;rf_corpse_create_request r;rf_corpse *o;
-    rf_physics_sphere spheres[4],scratch[4];rf_corpse_list_link head;uint32_t count,out[40],i;int status;
+    rf_physics_sphere spheres[4],scratch[4];rf_corpse_list_link head;uint32_t count,out[40],i,old_count=0,old[29][4];int status;
+    rf_corpse existing[29];
     const char *names[4]={"death_forward","death_front","death_back","death_side"};
     rf_corpse_create_backend backend={cc_allocate,cc_model,cc_motion,cc_effect,cc_emitter,&c};
     while(fread(c.input,sizeof(c.input),1,stdin)==1) {
+        if(multiple && (fread(&old_count,4,1,stdin)!=1 || old_count>29 || fread(old,16,old_count,stdin)!=old_count))return 2;
         if(c.input[6]>4 || c.input[19]>3 || fread(spheres,24,c.input[6],stdin)!=c.input[6])return 2;
         memset(&s,0,sizeof(s));memset(&r,0,sizeof(r));c.errors=0;count=0;head.next=head.previous=&head;
+        for(i=0;i<old_count;i++) {
+            rf_corpse *e=existing+i;memset(e,0,sizeof(*e));e->update.fade.object_flags_7c=old[i][0];e->update.fade.flags_29c=old[i][1];
+            memcpy(&e->created_seconds,old[i]+2,4);memcpy(&e->update.fade.fade_298,old[i]+3,4);
+            e->deletion.corpse_link.previous=head.previous;e->deletion.corpse_link.next=&head;
+            head.previous->next=&e->deletion.corpse_link;head.previous=&e->deletion.corpse_link;++count;
+        }
         s.class_flags_724=c.input[0];s.class_flags_728=c.input[1];s.flags_814=c.input[2];s.flags_810=c.input[3];s.object_flags=c.input[4];s.class_index=c.input[5];
         s.model_kind=c.input[9];s.model=c.input[10];s.extra_model=c.input[11];s.emitter_kind=(int32_t)c.input[12];memcpy(&s.emitter_lifetime,c.input+13,4);
         s.replacement_model=c.input[14]?"corpse.v3c":"";s.handle=0x12340007;s.uid=99;s.word_8c=77;s.word_98=88;s.attachment_index=11;s.word_1fc=123;s.word_2d8=55;
@@ -49,11 +57,15 @@ static int corpse_create_probe(void)
             uint32_t values[34]={o->uid,o->attachment_index,o->class_index,o->word_1fc,o->word_2d8,o->extra_model,(uint32_t)o->weapon,(uint32_t)o->drop_motion,(uint32_t)o->carry_motion,(uint32_t)o->direction,(uint32_t)o->word_2d4,
                 cc_bits(o->model_radius),cc_bits(o->physics_radius),cc_bits(o->created_seconds),o->update.fade.flags_29c,cc_bits(o->update.fade.health_34),o->update.model,(uint32_t)o->update.motion_2b8,(uint32_t)o->update.sound_2cc,
                 (uint32_t)o->update.emitter_deadline_2ac,cc_bits(o->update.value_2b0),cc_bits(o->update.class_value),o->deletion.burn,o->presentation[0],o->presentation[1],o->deletion.emitters!=NULL,
-                o->deletion.corpse_link.next==&head && o->deletion.corpse_link.previous==&head && head.next==&o->deletion.corpse_link && head.previous==&o->deletion.corpse_link,
+                o->deletion.corpse_link.next==&head && o->deletion.corpse_link.previous==(old_count?&existing[old_count-1].deletion.corpse_link:&head) && head.next==(old_count?&existing[0].deletion.corpse_link:&o->deletion.corpse_link) && head.previous==&o->deletion.corpse_link,
                 o->deletion.update==&o->update,cc_bits(o->velocity[0]),cc_bits(o->velocity[1]),cc_bits(o->velocity[2]),cc_bits(o->vector_150[0]),cc_bits(o->vector_150[1]),cc_bits(o->vector_150[2])};
             memcpy(out+6,values,sizeof(values));
         }
         fwrite(out,sizeof(out),1,stdout);
+        if(multiple) {
+            for(i=0;i<old_count;i++){uint32_t pair[2]={existing[i].update.fade.flags_29c,cc_bits(existing[i].update.fade.fade_298)};fwrite(pair,8,1,stdout);}
+            i=o?cc_bits(o->update.fade.fade_298):0;fwrite(&i,4,1,stdout);
+        }
     }
     return ferror(stdin)?1:0;
 }
