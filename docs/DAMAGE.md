@@ -1306,3 +1306,25 @@ The existing unarmed startup view has index-1, for which original41ae70 returns
 before entity lookup; that does not establish the armed campaign path. The pain
 oracle now varies indices-1,0,1,63,64,INT32_MIN and an arbitrary positive word,
 checking exact forwarding while still supplying the weapon-reset boundary.
+
+## Constructor values for pain gates (2026-09-11)
+
+verify_pain_initialization.py executes original402c33..402d68, including the
+actual EBX clear and timer callees, on poisoned actor memory. AI+274/entity514
+and AI+4a4/entity744 are set with offset0, so each equals the construction clock.
+They are initially expired, not disabled. The later423318..4233a8 factory span
+clears EBP at42331e before using it as the zero offset for cooldown830 and timer
+136c; action828 becomes-1. Both class sound branches are covered with explicit
+434d00/5056a0 boundaries. Sound side effects themselves are not reconstructed
+by this test. The complete post-factory object bytes match expected writes.
+
+All512 constructor cases pass, covering clock boundaries and varied clocks with
+poisoned EBP/EBX. Another1536 PC setter/expiry/pending checks agree with the
+observed values: an initial deadline is expired and does not block AI. This
+confirms the values to use when adding persistent NPC pain owners; it does not
+execute the full factory or establish later script/AI mutations. Existing
+403040..403080 evidence in npc-motion-catalog.md establishes initial7d0 flags0
+for the audited opening classes. Thus an available idle_to_ready mapping can
+still reject a flinch until AI state changes, even when the timers permit it.
+Report: artifacts/pain-initialization.json. No runtime changes or new native
+visual claim accompany this constructor audit.
