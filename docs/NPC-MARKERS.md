@@ -256,3 +256,27 @@ are supplied, and auxiliary sound handles are inactive. This does not establish
 the internals of those callees, ordering relative to model advancement, or the
 writer of entity+1380 used for surface selection. Do not trigger footsteps from
 the render loop or assume the entire entity update has been reconstructed.
+
+
+## Ground-contact material source
+
+The footstep surface selector at entity+1380 is populated by accepted support
+contacts. In original4a0840, the499ed0 contact result begins at stack+48; its
+material at contact+1c is stack+64. After numeric support position/bounds commit,
+4a0bfa reads that word and4a0bff writes entity+1380, before the42a020 landing
+predicate at4a0c05. This is the contact's material value, not its texture index.
+
+`tools/verify_support_commit.py` now executes through4a0c05 for all2048 static and
+resolved-moving support cases, varying the material across0..9 and poisoning the
+prior entity field. Every original transfer matches. Existing PC/NXDK numeric
+position/flag/support-handle checks still pass with their original scope through
+4a0bfa; the new material assertion is original-code evidence, not an added C
+contact/lifecycle owner. Query acceptance, lookup and landing effects remain
+outside that fixture.
+
+Additional decompile/disassembly candidates identify creation422360 setting the
+field to zero,49fe40 clearing it on one zero-distance path, and4a03b0 clearing it
+for negative entity+10c or updating it from a successful contact. These paths
+need their own behavioral verification before defining persistent airborne or
+miss behavior. The current NPC preview has no per-NPC support update, so it
+must not assume the player's material applies to every actor.

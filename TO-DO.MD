@@ -18,6 +18,9 @@ footstep dispatch; verify persistent registration across level transitions.
 Original entity-update prefix now passes256 scheduling/gate cases; trace model
 advancement and surface selection before enabling live marker consumption.
 
+Accepted-support material transfer into the footstep surface field is verified
+in2048 original cases; recover per-NPC support updates and airborne retention.
+
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.

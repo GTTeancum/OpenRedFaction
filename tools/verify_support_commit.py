@@ -22,9 +22,10 @@ for n in range(2048):
  fraction=f(rng.random());moving=n%2;contact_y=f([-2,0,2,1e-8][(n//2)%4]);handle=n+100
  command=bytes(state)+bytes(probe)+fraction+w(moving)+contact_y+w(handle);commands.extend(command)
  u.mem_write(b,bytes(0x4000));u.mem_write(b+0xf0,position);u.mem_write(b+0x144,bytes(state[184:196]));u.mem_write(b+0x180,bytes(state[244:248]));u.mem_write(b+0x1a8,bytes(state[272:276]));u.mem_write(b+0x302c,w(handle))
- u.mem_write(stack,bytes(256));u.mem_write(stack+0xc,bytes(probe[:24]));u.mem_write(stack+0x60,fraction);u.mem_write(stack+0x70,contact_y)
+ u.mem_write(stack,bytes(256));u.mem_write(stack+0xc,bytes(probe[:24]));u.mem_write(stack+0x60,fraction);u.mem_write(stack+0x70,contact_y);u.mem_write(stack+0x64,w(n%10));u.mem_write(b+0x1380,w(0xa5a5a5a5))
  u.reg_write(UC_X86_REG_ESI,b);u.reg_write(UC_X86_REG_EDI,b+0x3000);u.reg_write(UC_X86_REG_EBX,b+0xf0);u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x37f)
- u.emu_start(0x4a0ae3 if moving else 0x4a0b31,0x4a0bfa,count=10000);assert u.reg_read(UC_X86_REG_EIP)==0x4a0bfa
+ u.emu_start(0x4a0ae3 if moving else 0x4a0b31,0x4a0c05,count=10000);assert u.reg_read(UC_X86_REG_EIP)==0x4a0c05
+ assert bytes(u.mem_read(b+0x1380,4))==w(n%10), ("ground material",n)
  value=bytearray(state)
  for dst,src,size in [(88,0xe4,12),(100,0xf0,12),(248,0x190,24),(272,0x1a8,4)]:value[dst:dst+size]=bytes(u.mem_read(b+src,size))
  raised+=struct.unpack_from('<f',value,104)[0]>y
@@ -35,5 +36,5 @@ for n in range(2048):
  got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,308))+bytes(x.mem_read(b+0x3000,4));assert got==want,('NXDK',n)
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_physics_probe.exe'),'--support-commit'],input=commands)
 assert actual==expected,'PC support differs'
-report=dict(result='PASS',cases=2048,raised=raised,scope='Original4a0ae3/4a0b31 through4a0bfa, unchanged vector/bounds/min callees. PC/NXDK exact state and support handle for static and resolved mover contacts including positive/nonpositive Y. Lookup, entity rejection, contact-record copy and landing effects excluded.')
+report=dict(result='PASS',cases=2048,raised=raised,material_transfers=2048,scope='Original4a0ae3/4a0b31 through4a0c05 verifies contact material transfer to entity+1380 before landing predicate. Existing PC/NXDK numeric support comparison remains limited to4a0bfa; unchanged vector/bounds/min callees. PC/NXDK exact state and support handle for static and resolved mover contacts including positive/nonpositive Y. Lookup, entity rejection, contact-record copy and landing effects excluded.')
 (root/'artifacts/support-commit-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
