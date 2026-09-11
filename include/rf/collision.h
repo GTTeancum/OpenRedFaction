@@ -298,4 +298,20 @@ int rf_collision_body_sweep(const rf_collision_body_query *body,
 int rf_collision_flat_faces(const rf_collision_face *faces,uint32_t count,uint32_t flags,
     const float start[3],const float delta[3],const float origin[3],const float matrix[3][3],
     float radius,float limit,rf_collision_sweep_tree_hit *result,uint32_t *matched);
+/* Intrusive collision-pair header. Additional pair payload is owner-defined
+ * and untouched by retirement. Actor identities are resolved object pointers. */
+typedef struct rf_collision_pair {
+    struct rf_collision_pair *next;
+    const void *first,*second;
+} rf_collision_pair;
+typedef struct rf_collision_pair_list {
+    rf_collision_pair *head;
+    uint32_t count;
+} rf_collision_pair_list;
+/* Full48c9f0: unlink either-endpoint matches, prepend each to the free list.
+ * Lists must be disjoint, finite, valid and exclusively owned during this
+ * call. Counts use original uint32 wrap semantics. Payload is preserved. */
+void rf_collision_pairs_retire(rf_collision_pair_list *active,
+    rf_collision_pair_list *available,const void *actor);
+
 #endif

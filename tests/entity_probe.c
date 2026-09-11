@@ -1,4 +1,5 @@
 #include "rf/entity.h"
+#include "rf/collision.h"
 #include "rf/player.h"
 #include "rf/level.h"
 #include <stdio.h>
@@ -325,6 +326,25 @@ int main(int argc,char **argv)
             out[8]=state.movement-descriptors;out[9]=state.orientation==region.matrix;
             out[10]=state.speed.mode;out[11]=selected;
             if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--collision-retire")) {
+        uint32_t words[101],i;rf_collision_pair nodes[32];rf_collision_pair_list active,available;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(words,sizeof(words),1,stdin)==1) {
+            for(i=0;i<32;i++) {
+                nodes[i].next=words[5+i*3]==UINT32_MAX?NULL:&nodes[words[5+i*3]];
+                nodes[i].first=(const void *)(uintptr_t)words[6+i*3];
+                nodes[i].second=(const void *)(uintptr_t)words[7+i*3];
+            }
+            active.head=words[0]==UINT32_MAX?NULL:&nodes[words[0]];active.count=words[1];
+            available.head=words[2]==UINT32_MAX?NULL:&nodes[words[2]];available.count=words[3];
+            rf_collision_pairs_retire(&active,&available,(const void *)(uintptr_t)words[4]);
+            words[0]=active.head?(uint32_t)(active.head-nodes):UINT32_MAX;words[1]=active.count;
+            words[2]=available.head?(uint32_t)(available.head-nodes):UINT32_MAX;words[3]=available.count;
+            for(i=0;i<32;i++)words[5+i*3]=nodes[i].next?(uint32_t)(nodes[i].next-nodes):UINT32_MAX;
+            if(fwrite(words,sizeof(words),1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;
     }

@@ -25,9 +25,38 @@ vector words include arbitrary floating-point representations; supplied
 predicate words cover zero low bytes with nonzero upper bytes.
 
 The helper is intentionally not called by the live scene yet. Next work is
-48c9f0 collision-link cleanup and the remaining41fdc0 side effects, followed
+integration of the verified48c9f0 cleanup and remaining41fdc0 side effects, followed
 by41ee40 dying-update and the player/camera handoff. This isolated instruction
 comparison is not an XEMU gameplay or complete lifecycle claim.
 
 Validation: PC Release and NXDK builds pass; all12 CTests pass. Original
 RF.exe SHA256:b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836.
+
+## Collision-pair retirement
+
+`rf_collision_pairs_retire` reconstructs full48c9f0. The original active
+list lives at73db28 and the available list at75db30. Each has a head pointer
+and a32-bit count. Node offsets0/4/8 are next/first actor/second actor; the
+remaining payload is untouched. The runtime supplies resolved actor identity,
+not an authored UID or registry slot number.
+
+Traversal saves next before removal. Matches on either endpoint decrement
+the active count, repair the head or previous link, and prepend the node to
+the available list while incrementing its count. Previous remains unchanged
+after removal, preserving consecutive-removal behavior. Thus removed nodes
+appear in reverse traversal order ahead of the existing available list.
+48cc70 is a free-list push, not a heap free. No allocation occurs here.
+
+`python tools/verify_collision_retire.py` passes4096 fixtures and43750
+retirements. It executes the complete original48c9f0 with its unmodified
+40a490/48ccf0/48cc90/48ccb0/48cc70 helpers, without substituted callees.
+Fixtures include empty lists, arbitrary node order, either endpoint and both
+endpoints matching, existing available lists, consecutive removals, and
+32-bit counter wrap. PC and NXDK agree with the original on all resulting
+links, identities and counters. Original and NXDK full node buffers also
+match, including untouched payload. Both builds and all12 CTests pass.
+
+The reconstructed API requires valid disjoint finite lists and exclusive
+ownership. The64-byte fixture stride is test storage, not a recovered full
+original pair size. Live pair creation, payload layout and ownership remain
+to be connected; this component does not independently enable player death.

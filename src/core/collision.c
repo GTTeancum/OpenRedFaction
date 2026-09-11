@@ -1801,3 +1801,21 @@ int rf_collision_cross_rooms(const rf_collision_room_view *rooms,uint32_t room_c
     }
     *out=value;return RF_OK;
 }
+
+void rf_collision_pairs_retire(rf_collision_pair_list *active,
+    rf_collision_pair_list *available,const void *actor)
+{
+    rf_collision_pair *node=active->head,*previous=NULL;
+    while(node) {
+        rf_collision_pair *next=node->next;
+        if(node->first==actor || node->second==actor) {
+            if(previous)previous->next=next;
+            else active->head=next;
+            --active->count;
+            node->next=available->head;
+            available->head=node;
+            ++available->count;
+        } else previous=node;
+        node=next;
+    }
+}
