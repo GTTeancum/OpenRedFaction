@@ -97,4 +97,11 @@ typedef void (*rf_entity_room_notify)(void *context,const char *name);
  * Callbacks must not mutate state/position; name is borrowed during notification. */
 int rf_entity_room_refresh(rf_entity_room_state *state,const float position[3],
     int local_player,rf_entity_room_locator locate,rf_entity_room_notify notify,void *context);
+typedef struct rf_entity_damage_vitals {float health,armor;uint32_t last_damage_time;} rf_entity_damage_vitals;
+/* SP numeric prefix41a350..41a44d, with complete armor helper41a7c0.
+ * Caller supplies class multiplier for kind (ignored for -1) and game clock
+ * bits6460f0. Preserves outputs on nonfinite/overflow guards. No wrapper
+ * eligibility, kill credit, burn/audio/AI effects or multiplayer behavior. */
+int rf_entity_damage_vitals_sp(rf_entity_damage_vitals *state,float amount,
+    int32_t kind,float multiplier,uint32_t clock_bits,float *scaled_amount);
 #endif

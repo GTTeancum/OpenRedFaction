@@ -30,6 +30,16 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--damage-vitals")) {
+        uint32_t wire[7];rf_entity_damage_vitals state;float amount,multiplier,scaled;int32_t kind,status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            memcpy(&state,wire,12);memcpy(&amount,wire+3,4);memcpy(&kind,wire+4,4);memcpy(&multiplier,wire+5,4);
+            memset(&scaled,0xa5,4);status=rf_entity_damage_vitals_sp(&state,amount,kind,multiplier,wire[6],&scaled);
+            fwrite(&status,4,1,stdout);fwrite(&state,12,1,stdout);fwrite(&scaled,4,1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--support-route")) {
         rf_player_support_input input;uint32_t result;
         _Static_assert(sizeof(input)==32,"Support route wire layout");

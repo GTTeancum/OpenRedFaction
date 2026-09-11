@@ -2273,3 +2273,7 @@ integration awaits damage backend, actor ownership and scheduling evidence.
 2026-09-11: Verified24 original loader/helper cases and12 real-vtable
 Continuous_Damage activation/tick sequences. Authored words map to amount/kind;
 each activation dispatches once. Upstream repeated activation remains open.
+
+2026-09-11: Shared SP health/armor numeric phase matches8,192 original
+41a350 prefixes plus four port guards on PC/NXDK; builds/eight CTests pass.
+Recover kill attribution/effects and outer4892c0 routing before live damage.

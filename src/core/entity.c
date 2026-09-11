@@ -179,3 +179,26 @@ int rf_entity_controller_alert(const rf_entity_registry *registry,int32_t actor,
     *request=!restricted || !(gate_7cabd4&255) || (gate_7cabb0&255)==1;
     return RF_OK;
 }
+
+int rf_entity_damage_vitals_sp(rf_entity_damage_vitals *state,float amount,
+    int32_t kind,float multiplier,uint32_t clock_bits,float *scaled_amount)
+{
+    rf_entity_damage_vitals value;float scaled;long double absorbed=0;
+    if(!state || !scaled_amount)return RF_RANGE;
+    if(!isfinite(state->health) || !isfinite(state->armor) || !isfinite(amount) ||
+       (kind!=-1 && !isfinite(multiplier)))return RF_FORMAT;
+    value=*state;scaled=kind==-1?amount:(float)((long double)amount*multiplier);
+    if(!isfinite(scaled))return RF_FORMAT;
+    if(value.armor>0) {
+        if(kind!=5 && kind!=6) {
+            absorbed=kind==4?(long double)scaled:(long double)scaled*.52f;
+            if((long double)value.armor-absorbed<=0)absorbed=value.armor;
+        }
+        value.armor=(float)((long double)value.armor-absorbed);
+    }
+    value.health=(float)((long double)value.health-((long double)scaled-absorbed));
+    value.last_damage_time=clock_bits;
+    if(!isfinite(value.health) || !isfinite(value.armor))return RF_FORMAT;
+    if(value.health>=0 && value.health<=.5f)value.health=-.1f;
+    *state=value;*scaled_amount=scaled;return RF_OK;
+}
