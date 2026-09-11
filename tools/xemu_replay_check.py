@@ -147,6 +147,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     for value in step_expected:step_hash=((step_hash^value)*16777619)&0xffffffff
     assert step_state==[1,len(step_expected)//128,step_hash,192000],step_state
     report['particle_steps']=step_state
+    burn_retarget=words(monitor,symbol('rf_burn_retarget_diagnostic'),8)
+    burn_expected=list(map(int,subprocess.check_output([str(root/'build/pc/Release/rf_burn_retarget_tests.exe')],text=True).split()))
+    assert burn_retarget==burn_expected and burn_retarget[7]==1,burn_retarget
+    report['burn_retarget_resources']=burn_retarget
     print('Native x87 control:',[hex(v) for v in fp_control],flush=True)
     resources=words(monitor,symbol('rf_particle_resource_diagnostic'),7)
     assert resources[0:2]==[1,6] and resources[4]>0 and resources[5]<resources[4] and resources[6]>=resources[4],resources

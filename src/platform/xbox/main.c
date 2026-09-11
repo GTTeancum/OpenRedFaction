@@ -1,4 +1,5 @@
 #include "../../../tests/campaign_particle_fixture.h"
+#include "../../../tests/burn_retarget_fixture.h"
 #include "rf/resource_budget.h"
 #include "rf/vpp.h"
 #include "rf/object_registry.h"
@@ -714,12 +715,14 @@ static int particle_step_check(void)
     rf_particle_step_diagnostic[0]=status?(uint32_t)status:1;return status;
 }
 /* Replay-only resource lifetime check; no host input or rendering. */
+uint32_t rf_burn_retarget_diagnostic[8];
 volatile uint32_t rf_particle_resource_diagnostic[7]; /* status, loads, hash, peak bytes, pages before/min/after */
 static void particle_resource_check(void)
 {
     FILE *flag=fopen("D:\\player-replay.bin","rb");rf_vpp maps;int status;unsigned round,i;
     MM_STATISTICS memory={0};uint32_t hash=2166136261u;
     if(!flag)return;fclose(flag);rf_particle_resource_diagnostic[0]=2;
+    status=burn_retarget_fixture(rf_burn_retarget_diagnostic);if(status){rf_particle_resource_diagnostic[0]=(uint32_t)status;return;}
     status=particle_step_check();if(status){rf_particle_resource_diagnostic[0]=(uint32_t)status;return;}
     status=explosion_loading_check();if(status){rf_particle_resource_diagnostic[0]=(uint32_t)status;return;}
     status=rf_vpp_open(&maps,"D:\\maps2.vpp");if(status){rf_particle_resource_diagnostic[0]=(uint32_t)status;return;}

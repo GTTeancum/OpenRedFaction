@@ -499,3 +499,22 @@ emitters return to the pool. Both builds and all13 CTests pass, as does the
 4096-case original/PC/NXDK core retarget verifier. The resolved adapter has
 PC resource coverage, not native XEMU invocation yet. Live corpse ownership
 and dispatch remain open.
+
+
+## Native burn resource transfer/release
+
+The shared burn_retarget_fixture now runs in PC CTest and inside Xbox replay
+startup. Its444496-byte test/snapshot storage is allocated temporarily and
+freed before campaign loading, including failure paths. It adds no permanent
+particle/emitter pools to campaign memory. The fixture performs the resolved
+transfer and missing-target release against actual pool implementations;
+voice and owner callbacks record calls without playing a test sound.
+
+Stock64MiB XEMU replay-20260911-183144 passes180 frames and reads native
+telemetry[0,444496,4,88,0,4,2,1], exactly matching PC: success, temporary bytes,
+four emitters retargeted to88, zero emitters after release, four particles
+still alive, two cleanup callbacks and completed checks. The fixture also
+checks partial bones, both ownership copies, preservation of particle/list
+bytes on transfer and duplicate/inactive-token rejection. Both builds and
+all13 CTests pass. This verifies native resource handling in a synthetic
+fixture, not authored corpse creation or visible burning-corpse gameplay.
