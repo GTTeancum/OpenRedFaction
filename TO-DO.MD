@@ -4,6 +4,7 @@ Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
 grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
+- [ ] Extend the independent door PCM oracle to cover current ambient scheduling and mixing.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
 - [ ] Complete NPC actor/link registration, the damage backend and upstream repeated activation; Continuous_Damage itself does not automatically repeat.
@@ -2503,3 +2504,15 @@ PC1170-frame ambient restart and native64MiB replay20260911-054619 pass with PC
 parity/nonzero DSP. Both builds pass. Controller/game-control device ownership,
 native status integration, sample loading/category wiring and persistent NPC burn
 ownership remain open; see docs/controller-audio.md.
+
+
+Controller playback now routes metadata loop mode to the mixer and native device,
+reports device start failures, and shares nonnegative device identities with ambient
+voices. Arrival stops resolve full unsigned handles and clear spatial tracking.
+Native64MiB lift-cycle replay20260911-055316 and PC600-frame replay pass with two
+loop-mode starts/two stops,243 mixed loop voice blocks and zero observed wraps
+(trips end before sample endpoint). PC/Xbox state and DSP checks pass, as do both
+builds/nine CTests, door traversal and1170-frame ambient restart. The historical
+two-track door PCM oracle fails on newly included ambient starts; independent
+full-mix reference coverage remains open. Game control-table/category/native-status
+integration and persistent NPC burn ownership remain pending.

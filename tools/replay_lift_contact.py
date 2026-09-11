@@ -76,6 +76,10 @@ assert all(b['position'][1] >= a['position'][1] for a, b in zip(checkpoints[:6],
 assert all(abs(c['position'][0] - position[0]) < 0.0001 and
            abs(c['position'][2] - position[2]) < 0.0001 for c in checkpoints)
 assert checkpoints[1]['position'][1] < checkpoints[2]['position'][1] < checkpoints[3]['position'][1]
+controller_audio = row('CONTROLLER_AUDIO')
+assert controller_audio[:2] == ([2, 2] if args.cycle else [1, 1]), controller_audio
+assert controller_audio[2] > 0, 'Authored controller loop never reached the mixer'
+report['controller_audio'] = controller_audio
 report['checkpoints'] = checkpoints
 (folder / 'report.json').write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))

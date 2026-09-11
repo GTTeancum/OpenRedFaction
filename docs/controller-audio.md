@@ -1318,3 +1318,49 @@ telemetry; DSP output is nonzero and checked device errors are zero. The harness
 restores the normal disc configuration and rebuilds its ISO. This covers the live
 ambient mapping under ordinary handles; the sign/wrap boundaries are covered by
 the explicit CTest and original/NXDK CPU verifier described above.
+
+
+Controller loop routing and shared device identities (2026-09-11)
+----------------------------------------------------------------
+
+campaign_sound_play now obtains loop mode from the same verified Bluebeard
+metadata lookup used by ambient playback (bit30; missing metadata means zero).
+The callback's final argument remains a category index, with category gains
+currently unity. It no longer hardcodes one-shot mode. Both the deterministic
+mixer and native play_mode receive the selected mode; a native start failure is
+reported as failure and the provisional mixer/spatial owner is cleared. Unsupported
+nonzero loop-start offsets are rejected, as for ambient playback. No fallback
+inference is made from the sample filename.
+
+Controllers now share the244-byte nonnegative identity map with ambient voices.
+The moving sound retained by the controller is resolved to its full unsigned
+source before stopping on arrival. Its spatial tracking slot is then cleared.
+This prevents valid high-bit mixer handles from becoming failure-like controller
+identities. These remain port device identities: the separate505560 game control
+table, category settings, sample loading and native status cleanup are not yet
+connected to this scene path.
+
+CONTROLLER_AUDIO reports loop starts, explicit loop stops, mixed controller-loop
+voice blocks and observed backward cursor transitions across each800-frame mix.
+It excludes ambient loops. A backward transition is evidence of a wrap, not a
+complete wrap counter for samples shorter than a mix block. Native replay now
+compares all four words to the PC reference.
+
+The staged authored L1S2 lift cycle (600 frames, use pulse at30) passes with
+CONTROLLER_AUDIO[2,2,243,0]: a loop-mode start/arrival stop for ascent and return.
+The sample is stopped before its endpoint on each trip, so this fixture does not
+claim sustained playback past a loop boundary. Existing native static-loop APU
+coverage establishes that lower-level capability separately. Native report
+artifacts/xemu/replay-20260911-055316/report.json passes on verified64MiB with
+8858 available pages at completion, matching checked PC state and nonzero DSP
+output; native audio error counters are zero. Normal disc flags/ISO are restored.
+PC/NXDK builds, nine CTests, the180-frame door traversal and1170-frame ambient
+restart regression pass. No new visual behavior is claimed.
+
+Coverage gap found during verification: verify_live_door_audio.py is the historical
+two-track, pre-ambient PCM oracle. It rejects the current door report at its
+expected start count (expects2, sees4); current scene audio includes ambient
+tracks, which that oracle never synthesizes. It is not a passing check for this
+build and has not been relaxed. Extend its independent reference to current
+ambient scheduling/gain/mixing before claiming independent full-door PCM parity.
+The PC/Xbox replay comparisons remain shared-code parity checks.

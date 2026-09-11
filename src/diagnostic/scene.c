@@ -520,11 +520,13 @@ typedef struct campaign_spatial_voice {
     uint32_t handle,sample;float position[3],volume;int32_t last_volume,last_pan;
 } campaign_spatial_voice;
 static campaign_spatial_voice campaign_spatial_voices[RF_AUDIO_VOICES];
-static rf_audio_voice_ids campaign_ambient_voice_ids;
+static rf_audio_voice_ids campaign_device_voice_ids;
 static float campaign_listener_position[3],campaign_listener_right[3];
 /* Initial updates, refresh updates, integer gain/pan hash, noncenter updates,
  * changed settings, fixed tracking bytes. Unity PCM diagnostic is separate. */
 uint32_t rf_scene_spatial_audio[6];
+/* Controller loop starts, explicit stops, mixed voice blocks, observed cursor wraps. */
+uint32_t rf_scene_controller_audio[4];
 static void campaign_spatial_update(campaign_spatial_voice *voice,int initial)
 {
     const rf_audio_parameters *parameters=rf_audio_bank_parameters(&campaign_audio_bank,voice->sample);
@@ -604,7 +606,7 @@ static int32_t campaign_ambient_start_voice(void *context,int32_t sample,float g
     }
     /* Successful mixer handles may have their sign bit set. Ambient slots
      * retain an independent nonnegative device identity, including zero. */
-    if(rf_audio_voice_ids_bind(&campaign_ambient_voice_ids,handle,&id)) {
+    if(rf_audio_voice_ids_bind(&campaign_device_voice_ids,handle,&id)) {
         if(campaign_audio_events.stop)campaign_audio_events.stop(campaign_audio_events_context,handle);
         rf_audio_voice_stop(&campaign_audio_mixer,handle);goto failed;
     }
@@ -619,7 +621,7 @@ failed:
 static void campaign_ambient_stop_voice(void *context,int32_t voice)
 {
     uint32_t handle;(void)context;
-    if(!rf_audio_voice_ids_resolve(&campaign_ambient_voice_ids,&campaign_audio_mixer,voice,&handle)) {
+    if(!rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,voice,&handle)) {
         rf_audio_voice_stop(&campaign_audio_mixer,handle);
         if(campaign_audio_events.stop)campaign_audio_events.stop(campaign_audio_events_context,handle);
     }
@@ -632,7 +634,7 @@ static void campaign_ambient_refresh_voice(void *context,int32_t voice,int32_t s
     const rf_audio_parameters *parameters=rf_audio_bank_parameters(&campaign_audio_bank,(uint32_t)sample);
     gain=rf_audio_ambient_gain(parameters,position,campaign_listener_position,1,1,1);
     if(campaign_ambient_gains(gain,campaign_ambient_pan[slot-campaign_ambient_slots],gains)) {++rf_scene_ambient_audio[4];return;}
-    if(!rf_audio_voice_ids_resolve(&campaign_ambient_voice_ids,&campaign_audio_mixer,voice,&handle)) {
+    if(!rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,voice,&handle)) {
         rf_audio_voice_gain(&campaign_audio_mixer,handle,(uint32_t)(gains[0]*32768),(uint32_t)(gains[1]*32768));
         if(campaign_audio_events.gain)campaign_audio_events.gain(campaign_audio_events_context,handle,gains[0],gains[1]);
     }
@@ -655,7 +657,7 @@ static void campaign_ambient_process(void)
         rf_audio_position(slot->position,campaign_listener_position,campaign_listener_right,
             parameters->near_distance,parameters->far_distance,parameters->rolloff,slot->volume,spatial);
         rf_ambient_voice_update(slot,spatial[1],spatial[0],1,looping,&backend,slot);
-        if(!rf_audio_voice_ids_resolve(&campaign_ambient_voice_ids,&campaign_audio_mixer,slot->voice,&handle)) {
+        if(!rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,slot->voice,&handle)) {
             index=handle&0xffff;
             if(campaign_audio_mixer.voices[index].active)++rf_scene_ambient_audio[6];
         }
@@ -688,9 +690,10 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
     memset(rf_scene_live_audio,0,sizeof(rf_scene_live_audio));rf_scene_live_audio[7]=2166136261u;
     memset(rf_scene_sound_bank,0,sizeof(rf_scene_sound_bank));
     memset(rf_scene_switch_audio,0,sizeof(rf_scene_switch_audio));
+    memset(rf_scene_controller_audio,0,sizeof(rf_scene_controller_audio));
     memset(rf_scene_ambient_audio,0,sizeof(rf_scene_ambient_audio));rf_scene_ambient_audio[7]=2166136261u;
     memset(campaign_ambient_pan,0,sizeof(campaign_ambient_pan));
-    rf_audio_voice_ids_init(&campaign_ambient_voice_ids);
+    rf_audio_voice_ids_init(&campaign_device_voice_ids);
     rf_audio_mixer_init(&campaign_audio_mixer);
     for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
         campaign_controller_requests[i].sounds.samples[j]=-1;
@@ -798,24 +801,38 @@ audio_done:
     rf_vpp_close(&archive);
     return status;
 }
-static int32_t campaign_sound_play(void *context,int32_t sample,const float position[3],float volume,uint32_t flags)
+static int32_t campaign_sound_play(void *context,int32_t sample,const float position[3],float volume,uint32_t category)
 {
-    const rf_wave_pcm *pcm;uint32_t handle;
-    (void)context;(void)flags;
-    /* The deterministic PCM diagnostic remains unity/nonspatial. Device
-     * output receives the separate listener-driven gain path below. */
+    const rf_wave_pcm *pcm;const rf_sound_metadata *metadata;uint32_t handle,looping;int32_t id;
+    float gains[2];campaign_spatial_voice *voice;
+    (void)context;(void)category; /* Category settings still default to unity. */
     pcm=sample<0?NULL:rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
-    if(!pcm || rf_audio_voice_start(&campaign_audio_mixer,pcm,32768,32768,0,&handle)) {
-        ++rf_scene_live_audio[5];return -1;
+    if(!pcm)goto failed;
+    metadata=rf_sound_metadata_find(campaign_audio_metadata.rows,campaign_audio_metadata.order,
+        campaign_audio_bank.samples[sample].name);
+    looping=metadata?(metadata->loop_flags>>30)&1u:0;
+    /* Same installed static-buffer support as ambient playback. */
+    if(looping && metadata && (metadata->loop_flags&0x07ffffffu))goto failed;
+    /* Deterministic PCM stays unity/nonspatial, with authored loop mode.
+     * The device receives the separate listener-driven gain calculation. */
+    if(rf_audio_voice_start(&campaign_audio_mixer,pcm,32768,32768,looping,&handle))goto failed;
+    voice=campaign_spatial_voices+(handle&0xffff);
+    voice->handle=handle;voice->sample=(uint32_t)sample;voice->volume=volume;
+    memcpy(voice->position,position,12);voice->last_volume=INT32_MIN;voice->last_pan=INT32_MIN;
+    campaign_spatial_update(voice,1);
+    if(rf_audio_device_gains(voice->last_volume,voice->last_pan,gains) ||
+       (campaign_audio_events.play && !campaign_audio_events.play_mode) ||
+       (campaign_audio_events.play_mode && campaign_audio_events.play_mode(campaign_audio_events_context,
+            handle,pcm,gains[0],gains[1],looping))) {
+        rf_audio_voice_stop(&campaign_audio_mixer,handle);memset(voice,0,sizeof(*voice));goto failed;
     }
-    ++rf_scene_live_audio[4];
-    {campaign_spatial_voice *voice=campaign_spatial_voices+(handle&0xffff);
-     voice->handle=handle;voice->sample=(uint32_t)sample;voice->volume=volume;
-     memcpy(voice->position,position,12);voice->last_volume=INT32_MIN;voice->last_pan=INT32_MIN;
-     float gains[2];campaign_spatial_update(voice,1);
-     if(!rf_audio_device_gains(voice->last_volume,voice->last_pan,gains) && campaign_audio_events.play)
-        campaign_audio_events.play(campaign_audio_events_context,handle,pcm,gains[0],gains[1]);}
-    return (int32_t)handle;
+    if(rf_audio_voice_ids_bind(&campaign_device_voice_ids,handle,&id)) {
+        if(campaign_audio_events.stop)campaign_audio_events.stop(campaign_audio_events_context,handle);
+        rf_audio_voice_stop(&campaign_audio_mixer,handle);memset(voice,0,sizeof(*voice));goto failed;
+    }
+    ++rf_scene_live_audio[4];rf_scene_controller_audio[0]+=looping;return id;
+failed:
+    ++rf_scene_live_audio[5];return -1;
 }
 static void campaign_sound_request(rf_group_runtime_entry *entry,campaign_controller_effects *request,uint32_t effects)
 {
@@ -824,8 +841,13 @@ static void campaign_sound_request(rf_group_runtime_entry *entry,campaign_contro
     if(effects&RF_GROUP_SOUND_END) {
         /* Original 46a0d0: stop retained moving voice, then play arrival slot. */
         if(request->sounds.handles[1]!=-1) {
-            rf_audio_voice_stop(&campaign_audio_mixer,(uint32_t)request->sounds.handles[1]);
-            if(campaign_audio_events.stop)campaign_audio_events.stop(campaign_audio_events_context,(uint32_t)request->sounds.handles[1]);
+            uint32_t source;
+            if(!rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,request->sounds.handles[1],&source)) {
+                rf_scene_controller_audio[1]+=campaign_audio_mixer.voices[source&0xffff].loop!=0;
+                rf_audio_voice_stop(&campaign_audio_mixer,source);
+                if(campaign_audio_events.stop)campaign_audio_events.stop(campaign_audio_events_context,source);
+                memset(campaign_spatial_voices+(source&0xffff),0,sizeof(*campaign_spatial_voices));
+            }
             request->sounds.handles[1]=-1;
         }
         request->sounds.handles[2]=campaign_sound_play(NULL,request->sounds.samples[2],entry->pose.public_position,1,0);
@@ -972,7 +994,16 @@ static int campaign_controller_commit(void)
         if(campaign_movers.uids[i]==8543)memcpy(rf_scene_live_door_positions,campaign_movers.poses[i].position,12);
         if(campaign_movers.uids[i]==8544)memcpy(rf_scene_live_door_positions+3,campaign_movers.poses[i].position,12);
     }
-    status=rf_audio_mix(&campaign_audio_mixer,campaign_audio_frame,800);if(status)return status;
+    {uint32_t before[RF_AUDIO_VOICES];
+     for(i=0;i<RF_AUDIO_VOICES;i++) {
+        const rf_audio_voice *voice=campaign_audio_mixer.voices+i;
+        before[i]=(voice->active && voice->loop && campaign_spatial_voices[i].handle==voice->handle)?voice->frame:UINT32_MAX;
+     }
+     status=rf_audio_mix(&campaign_audio_mixer,campaign_audio_frame,800);if(status)return status;
+     for(i=0;i<RF_AUDIO_VOICES;i++)if(before[i]!=UINT32_MAX) {
+        ++rf_scene_controller_audio[2];
+        rf_scene_controller_audio[3]+=campaign_audio_mixer.voices[i].frame<before[i];
+     }}
     for(i=0;i<sizeof(campaign_audio_frame);i++)rf_scene_live_audio[7]=(rf_scene_live_audio[7]^((const uint8_t *)campaign_audio_frame)[i])*16777619u;
     rf_scene_live_audio[6]+=800;
     if(campaign_audio_sink)campaign_audio_sink(campaign_audio_context,campaign_audio_frame,800);

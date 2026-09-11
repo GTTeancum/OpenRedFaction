@@ -253,9 +253,10 @@ int main(int argc,char **argv)
             printf("BODY_SWEEPS %u %u %u %u %u\n",rf_scene_actor_body_sweeps[0],rf_scene_actor_body_sweeps[1],rf_scene_actor_body_sweeps[2],rf_scene_actor_body_sweeps[3],rf_scene_actor_body_sweeps[4]);}
             {extern uint32_t rf_scene_actor_ground_queries[4];
             printf("GROUND_QUERIES %u %u %u %u\n",rf_scene_actor_ground_queries[0],rf_scene_actor_ground_queries[1],rf_scene_actor_ground_queries[2],rf_scene_actor_ground_queries[3]);}
-            {extern uint32_t rf_scene_live_audio[8],rf_scene_spatial_audio[6],rf_scene_sound_bank[4],rf_scene_switch_audio[4];uint32_t k;
+            {extern uint32_t rf_scene_live_audio[8],rf_scene_spatial_audio[6],rf_scene_sound_bank[4],rf_scene_switch_audio[4],rf_scene_controller_audio[4];uint32_t k;
             printf("SWITCH_AUDIO");for(k=0;k<4;k++)printf(" %u",rf_scene_switch_audio[k]);printf("\n");
             printf("SOUND_BANK");for(k=0;k<4;k++)printf(" %u",rf_scene_sound_bank[k]);printf("\n");
+            printf("CONTROLLER_AUDIO");for(k=0;k<4;k++)printf(" %u",rf_scene_controller_audio[k]);printf("\n");
             printf("SPATIAL_AUDIO");for(k=0;k<6;k++)printf(" %u",rf_scene_spatial_audio[k]);printf("\n");
             printf("LIVE_AUDIO");for(k=0;k<8;k++)printf(" %u",rf_scene_live_audio[k]);printf("\n");}
             {extern uint32_t rf_scene_live_motion[8];extern float rf_scene_live_door_positions[6];uint32_t k;
