@@ -971,3 +971,36 @@ rf_trigger_links_dispatch implements4c0320 SP typed-handle routing over an order
 python tools/verify_trigger_links.py passes1024 original/PC/NXDK comparisons with real original handle/array callees, recording only downstream46aba0/4b6760 calls. Tests compare ordered kind/handle/source/actor arguments for four-target kind combinations and suppression0/1/256/257. Both builds and six CTests pass.
 
 Authored lower L1S1 trigger8542 links8593,8591,9826 in that order. Controllers8593 (Door Out01b) and8591 (Door Out01a) own movers8543 and8544 respectively. The scene currently does not poll player contacts through rf_runtime_trigger_contact, and startup_target counts kind8 as other_targets. This new helper is not yet wired to combined controller activation or scene motion ticks; no opening claim.
+
+## Authored actor filters in campaign contacts
+
+rf_trigger_contact_filter_authored builds filters0..4 from value_byte and the
+current resolved link values. Filter2 checks full actor-handle membership and
+borrows the matching word as a one-entry list; no allocation or copied cache
+is needed. It is rebuilt per actor/contact so rebinding is visible. Missing
+link storage returns RF_RANGE; filter5 and larger values return RF_NOT_FOUND
+without changing output. Filter5 uses original4c0050 point-event processing,
+which is separate from this actor-contact path.
+
+Campaign polling now prepares these filters rather than skipping every nonzero
+selector. Existing key/script/attachment and special ownership gates remain
+explicitly deferred. Caller actor facts and resolved link identities must use
+the same namespace. NPC registration is incomplete: this does not activate
+the unregistered APC or implement Continuous_Damage.
+
+The --authored-trigger-contact integration probe covers filters0..4 through
+registered runtime contacts, linked/unlisted actors, generation mismatch,
+link rebinding and output-preserving unsupported/missing-storage cases. It
+runs in verify_runtime_startup.py alongside93-level graph checks. Both builds
+and eight CTests pass. Original filter semantics remain covered by4,096
+original/PC/NXDK comparisons, including eight explicit linked-actor cases.
+
+On the930-frame L1S3 route, PC contact attempts rise36,438->43,870 and
+explicitly skipped contacts fall8,361->929. Activations remain6, controller
+starts0 and event calls12; ambient state and bank residency are unchanged.
+The formerly skipped filters are now evaluated, without allowing the unlisted
+player to fire the APC-only pit trigger. This does not validate NPC traversal.
+
+Native930-frame replay20260911-022235 passes on QMP-verified64MiB XEMU,
+including PC contact/activation state parity and nonzero guest DSP output.
+The shared authored-filter preparation is now exercised by both platforms.

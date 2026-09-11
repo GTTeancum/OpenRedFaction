@@ -5,6 +5,7 @@ root=Path(__file__).resolve().parents[1];probe=root/'build/pc/Release/rf_event_p
 assert subprocess.check_output([str(probe),'--startup-recursion'],text=True).strip()=='PASS 5 startup recursion fixtures'
 assert subprocess.check_output([str(probe),'--event-ticks'],text=True).strip()=='PASS 4 delayed event fixtures'
 assert subprocess.check_output([str(probe),'--particle-events'],text=True).strip()=='PASS 4 scheduled Particle_State modes and immediate startup activation'
+assert subprocess.check_output([str(probe),'--authored-trigger-contact'],text=True).strip()=='PASS authored actor filters, linked membership and rebinding'
 assert subprocess.check_output([str(probe),'--runtime-trigger-fire'],text=True).strip()=='PASS runtime trigger dispatch, self-disable, gravity and limit mark'
 events=json.loads((root/'artifacts/events.json').read_text())['results'];triggers=json.loads((root/'artifacts/triggers.json').read_text())['results'];results=[]
 for level in triggers:

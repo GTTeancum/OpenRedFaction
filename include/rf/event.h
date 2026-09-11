@@ -302,6 +302,13 @@ typedef struct rf_startup_events_report {
 typedef struct rf_trigger_contact_filter {
     uint32_t kind;int32_t attached;uint32_t allowed_count;const uint32_t *allowed_handles;
 } rf_trigger_contact_filter;
+/* Prepare actor filters0..4 from the authored selector and current resolved
+ * link values. Filter2 borrows at most one matching word: eligibility asks only
+ * membership of this actor. Rebuild for each actor; keep links stable through
+ * contact. Caller resolves attached_handle and other actor/key/script gates.
+ * Filter5 uses a separate point-event path and returns RF_NOT_FOUND. */
+int rf_trigger_contact_filter_authored(const rf_runtime_trigger *trigger,
+    uint32_t actor_handle,int32_t attached_handle,rf_trigger_contact_filter *result);
 /* Poll an owned trigger's current volume, activation state and persistent
  * contact timer. Filter handles and actor facts must describe one resolved
  * snapshot in the same namespace. No automatic dispatch or key-gate bypass. */

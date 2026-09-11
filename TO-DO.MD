@@ -5,7 +5,7 @@ grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
-- [ ] Connect authored actor filters and recover APC-linked Continuous_Damage dispatch; L1S3 trigger357 does not establish a player hazard.
+- [ ] Complete NPC actor/link registration and recover APC-linked Continuous_Damage dispatch after connecting authored contact filters0..4.
 - [ ] Resolve the L1S3 pressure-test route after fixing its 14 static ray errors, complete audio category settings, and recover light ownership.
 - [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
@@ -2256,3 +2256,8 @@ mode/damage behavior before treating the descent as valid campaign traversal.
 UID26 is APC; original eligibility rejects an unlisted player. Eight explicit
 filter cases pass original/PC/NXDK. Prior pit-volume evidence must not be
 used to implement unconditional player damage or death.
+
+2026-09-11: Authored actor contact filters0..4 are connected. Runtime link
+membership/rebinding tests,93-level startup graphs and original filter
+comparisons pass. Native930-frame replay20260911-022235 matches PC on64MiB.
+NPC registration, point-event filter5 and special ownership gates remain open.

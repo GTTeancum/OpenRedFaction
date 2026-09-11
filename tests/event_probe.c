@@ -288,6 +288,42 @@ int main(int argc,char **argv)
         if(rf_runtime_trigger_fire_links(&owner,trigger.handle,123,100,0,0,0,live_link_effect,&trigger,&fired)!=RF_FORMAT || !fired || live_link_calls!=1 || trigger.state.count!=1)return 107;
         puts("PASS runtime ordered controller/event activation, suppression, blocking, bookkeeping and backend error");return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--authored-trigger-contact")) {
+        rf_object_registry registry;rf_runtime_triggers owner={0};rf_runtime_trigger trigger={0};
+        rf_level_owned_trigger authored={0};rf_level_link_target links[2]={{0x12340001,1,0},{0x23450002,1,1}};
+        rf_trigger_actor_facts actor={0};rf_trigger_contact_filter filter,saved;
+        float positions[3][3]={{0}};uint32_t kind,ready;const uint32_t expected[5]={1,1,0,0,1};
+        rf_object_registry_init(&registry);owner.registry=&registry;trigger.object_kind=5;
+        trigger.authored=&authored;trigger.links=links;trigger.activation.limit=-1;
+        trigger.state.deadline=0;trigger.volume.radius=2;trigger.contact_timer.deadline=-1;
+        authored.record.link_count=2;actor.handle=0x34560003;actor.kind=1;
+        actor.test_4895d0=actor.test_48aaf0=actor.entity_present=actor.test_429990=1;
+        if(rf_object_registry_insert(&registry,&trigger,&trigger.handle))return 4;
+        for(kind=0;kind<5;++kind) {
+            authored.record.value_byte=kind;
+            if(rf_trigger_contact_filter_authored(&trigger,actor.handle,-1,&filter) ||
+               rf_runtime_trigger_contact(&owner,trigger.handle,&actor,positions,&filter,100,0,&ready) || ready!=expected[kind])return 4;
+        }
+        authored.record.value_byte=2;actor.handle=links[0].value;
+        if(rf_trigger_contact_filter_authored(&trigger,actor.handle,-1,&filter) ||
+           filter.allowed_count!=1 || filter.allowed_handles!=&links[0].value ||
+           rf_runtime_trigger_contact(&owner,trigger.handle,&actor,positions,&filter,100,0,&ready) || !ready)return 4;
+        /* Rebinding removes prior eligibility even when the low slot is unchanged. */
+        links[0].value=0x99990001;
+        if(rf_trigger_contact_filter_authored(&trigger,actor.handle,-1,&filter) || filter.allowed_count ||
+           rf_runtime_trigger_contact(&owner,trigger.handle,&actor,positions,&filter,100,0,&ready) || ready)return 4;
+        actor.handle=links[0].value;
+        if(rf_trigger_contact_filter_authored(&trigger,actor.handle,-1,&filter) ||
+           rf_runtime_trigger_contact(&owner,trigger.handle,&actor,positions,&filter,100,0,&ready) || !ready)return 4;
+        authored.record.value_byte=3;actor.test_48aaf0=0;
+        if(rf_trigger_contact_filter_authored(&trigger,actor.handle,-1,&filter) ||
+           rf_runtime_trigger_contact(&owner,trigger.handle,&actor,positions,&filter,100,0,&ready) || !ready)return 4;
+        memset(&filter,0xa5,sizeof(filter));saved=filter;authored.record.value_byte=5;
+        if(rf_trigger_contact_filter_authored(&trigger,actor.handle,-1,&filter)!=RF_NOT_FOUND || memcmp(&filter,&saved,sizeof(filter)))return 4;
+        authored.record.value_byte=2;trigger.links=NULL;
+        if(rf_trigger_contact_filter_authored(&trigger,actor.handle,-1,&filter)!=RF_RANGE || memcmp(&filter,&saved,sizeof(filter)))return 4;
+        puts("PASS authored actor filters, linked membership and rebinding");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--runtime-trigger-fire")) {
         static rf_object_registry registry;rf_runtime_triggers owner={0};rf_runtime_trigger trigger={0};
         rf_runtime_event events[2]={{0}};rf_level_owned_trigger authored={0};rf_level_owned_event records[2]={{0}};

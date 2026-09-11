@@ -871,9 +871,10 @@ static int campaign_trigger_contacts(const rf_group_attached_pose *pose,int32_t 
         const rf_level_trigger *record=&trigger->authored->record;uint32_t ready=0,fired=0;
         trigger->state.flags&=~64u; /* 4bf740 per-frame fired reset; deferred trigger stages remain open. */
         if(trigger->activation.object_flags&2)continue;
-        if(record->value_byte || record->fields[2]!=UINT32_MAX || record->fields[0]!=UINT32_MAX ||
+        if(record->value_byte>4 || record->fields[2]!=UINT32_MAX || record->fields[0]!=UINT32_MAX ||
            record->fields[1]!=UINT32_MAX || record->script[0] ||
            (trigger->state.flags&(2u|128u))) {++rf_scene_trigger_contacts[4];continue;}
+        status=rf_trigger_contact_filter_authored(trigger,facts.handle,-1,&filter);if(status)return status;
         status=rf_runtime_trigger_contact(&campaign_triggers,trigger->handle,&facts,positions,&filter,now,use,&ready);
         ++rf_scene_trigger_contacts[0];rf_scene_trigger_contacts[5]=(uint32_t)status;if(status)return status;
         if(ready) {++rf_scene_trigger_contacts[1];rf_scene_trigger_contacts[2]=record->uid;

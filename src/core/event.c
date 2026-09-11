@@ -477,6 +477,24 @@ static void startup_trigger_dispatch(void *context,const rf_auto_trigger_state *
         startup_target(c,c->trigger->links+i,state->handle,actor,1);
     }
 }
+int rf_trigger_contact_filter_authored(const rf_runtime_trigger *trigger,
+    uint32_t actor_handle,int32_t attached_handle,rf_trigger_contact_filter *result)
+{
+    rf_trigger_contact_filter value={0};uint32_t i;
+    if(!trigger || !trigger->authored || !result)return RF_RANGE;
+    value.kind=trigger->authored->record.value_byte;value.attached=attached_handle;
+    if(value.kind>4)return RF_NOT_FOUND;
+    if(value.kind==2) {
+        if(trigger->authored->record.link_count && !trigger->links)return RF_RANGE;
+        /* Original 4c06d0 compares the actor against the current +2d4 list.
+         * This borrowed singleton preserves that decision without a copy. */
+        for(i=0;i<trigger->authored->record.link_count;++i)
+            if(trigger->links[i].value==actor_handle) {
+                value.allowed_count=1;value.allowed_handles=&trigger->links[i].value;break;
+            }
+    }
+    *result=value;return RF_OK;
+}
 int rf_runtime_trigger_contact(rf_runtime_triggers *triggers,uint32_t handle,
     const rf_trigger_actor_facts *actor,const float pose[3][3],
     const rf_trigger_contact_filter *filter,int32_t now,uint32_t input,uint32_t *ready)
