@@ -699,3 +699,22 @@ ignored artifact ambient-pressure-candidates.json records all levels and scope.
 Native1170-frame run20260911-014717 passes on64MiB XEMU with exact PC
 movement/ambient state and nonzero guest DSP output. Resident stop/restart
 coverage is established for this route; campaign pressure eviction remains open.
+
+
+## L1S3 pressure-route reconnaissance
+
+inspect_l1s3_audio_route.py records normal-spawn process-local movement without
+asserting route correctness.30 neutral frames followed by diagonal move(1,0,1)
+reaches(52.46,36.02,-34.68) at570, then(35.83,-37.89,-10.56) at930 and
+(29.70,-37.93,-9.80) at1530. Continuing to2130 in the exploratory run did not
+change that position. Forward and alternate diagonal branches after570 also
+descend. These are observations, not proof of a collision defect: intended
+level routing, lifts/platforms and required interactions have not been resolved.
+
+No pressure occurs on these routes. The bank stays at14 samples,596568 PCM
+bytes plus17944 metadata bytes; ambient cumulative load remains144048 bytes.
+The long route yields five starts/two stops and zero audio failures. Most target
+sounds lie near Y=22..34 or Y=169..171, so the descended route does not provide
+coverage of them. The harness report is marked OBSERVED, not a passing
+traversal or eviction regression. Native pressure testing should wait until an
+intended route or explicitly scoped listener fixture is established.
