@@ -394,3 +394,16 @@ int rf_entity_plan_footsteps(const rf_entity_footstep_input *input,rf_motion_pla
     }
     *plan=next;return RF_OK;
 }
+
+int rf_entity_animation_should_advance(const rf_entity_animation_gate *input)
+{
+    int allowed;
+    if(!input || !input->model_present || input->model_kind!=2)return 0;
+    allowed=input->descriptor_present!=0;
+    if(allowed && !(input->flags&0x80000000u)) {
+        if(!(input->descriptor_flag&255u) &&
+           (input->state==1 || input->state==2 || input->state==13))allowed=0;
+        else if(input->detail>2 && input->distance>45.0f)allowed=0;
+    }
+    return (input->predicate&255u)==1 || allowed;
+}

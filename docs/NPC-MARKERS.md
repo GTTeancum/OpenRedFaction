@@ -325,3 +325,23 @@ Keep model advancement, entity update and accepted-support writes as separate
 ordered phases when connecting NPC lifecycle. Current preview playback still
 advances every skeletal actor; conditional skip/state logic and the full
 per-actor support lifecycle remain outstanding.
+
+## Conditional main-model advancement
+
+`rf_entity_animation_should_advance` reconstructs the decision in original
+41dbea..41dd49. A present kind-2 model is required. A missing descriptor
+disables the ordinary path. With a descriptor, entity flags +814 bit80000000
+bypasses the state/distance restrictions; otherwise descriptor +160 byte zero
+rejects states1/2/13, and signed class +13b8 values above2 reject distances
+greater than45. Predicate427020 returning low byte exactly1 forces advancement
+after the model-kind gate. The descriptor is returned by40a490 from entity[0];
+it is distinct from the class pointer at entity+294.
+
+`python tools/verify_npc_animation_gate.py` executes the original prepared block
+with actual descriptor/model-kind getters across11520 cases (1956 advances),
+including binary32 neighbors of45, signed detail values and low-byte semantics.
+PC and NXDK machine-code decisions match. The harness supplies5182f0 distance
+and427020 predicate results and observes503360 dispatch. It does not execute
+alternate-view distance calculation, earlier actor-entry gates or animation
+advancement. The helper requires a resolved finite distance and remains outside
+the live campaign loop pending actor-field/distance ownership reconstruction.

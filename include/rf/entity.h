@@ -5,6 +5,17 @@
 #include "rf/object_registry.h"
 #include "rf/motion.h"
 
+typedef struct rf_entity_animation_gate {
+    uint32_t model_present,model_kind,descriptor_present,descriptor_flag,flags;
+    int32_t state,detail;uint32_t predicate;float distance;
+} rf_entity_animation_gate;
+/* Original41dbea..41dd49 decision, after caller resolves descriptor/fields and
+ * distance. Only kind2 models advance here. Descriptor flag and predicate use
+ * their low byte; predicate must equal1 to force advance. Finite distance is a
+ * caller precondition; original distance computation/actor entry gates remain
+ * external. No playback mutation; NULL returns false. */
+int rf_entity_animation_should_advance(const rf_entity_animation_gate *input);
+
 typedef struct rf_entity_footstep_input {
     int32_t linked_handle;uint32_t object_flags,player_present;int32_t view_mode;
     uint32_t surface;float position[3],vertical_offset,side_value;int32_t groups[10];

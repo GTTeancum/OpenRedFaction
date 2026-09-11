@@ -27,6 +27,9 @@ resources pass, with7956 additional resident bytes in L1S1.
 Original call-chain and prepared gates establish conditional model advance in
 the earlier object pass, then footsteps before the later entity support query.
 
+Conditional NPC model advance matches11520 original/PC/NXDK cases; connect
+resolved actor fields and distance ownership before gating live playback.
+
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
