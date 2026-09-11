@@ -1333,3 +1333,19 @@ boundary; it is not a representative campaign working-set measurement. Both
 builds and all ten CTests pass. No new XEMU pressure run is claimed; the preceding
 native replay exercises ordinary residency without exhaustion. Live flinch/AI
 transitions and sustained campaign cache behavior remain to be verified.
+# Pain sound selection and dispatch evidence (2026-09-11)
+
+`tools/verify_pain_sound_dispatch.py` executes the original `434da0` selector
+with the real CRT random routine, supplying only its thread-storage address.
+Across 1,024 cases, invalid group IDs return -1 without drawing; signed counts
+at or below one select slot zero without drawing; larger counts consume one
+draw modulo the count. Valid selections and resulting RNG state match the
+linked NXDK `rf_audio_group_choose` helper. No new selector is necessary.
+
+The same harness executes the complete original `48a9c0` wrapper in 256 cases,
+supplying its predicates and terminal audio-device calls. It verifies exact
+flat/spatial arguments, including spatial unity volume, and compares all entity
+bytes before and after. The wrapper does not save the returned voice ID into
+entity+808. The live pain adapter must not invent that store. This does not
+verify downstream device ownership or NPC eye-position refresh; both remain
+integration work. Local evidence is `artifacts/pain-sound-dispatch.json`.
