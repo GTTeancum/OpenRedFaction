@@ -343,6 +343,16 @@ typedef struct rf_corpse_retention_node {
  * traversal and rejects cycles/oversize lists before writes. No destruction
  * or allocation; finite creation timestamps required. */
 int rf_corpse_retention_apply(rf_corpse_retention_node *head,uint32_t visit_limit,uint32_t *faded);
+typedef struct rf_corpse_fade_state {
+    float health_34,fade_298;uint32_t object_flags_7c,flags_29c;
+} rf_corpse_fade_state;
+/*417290 prefix through4172ea, real4174e0 and48ab40 semantics. Negative
+ * health marks deletion and returns continue_tick=0. Otherwise a fading
+ * corpse decrements its timer and marks deletion at <=0, but continue_tick
+ * stays1: remaining animation/timer/sound work still runs that frame.
+ * Finite health; active fade requires finite nonnegative dt and finite
+ * representable remainder. Errors preserve state/output. No clamp/free. */
+int rf_corpse_fade_step(rf_corpse_fade_state *state,float frame_seconds,uint32_t *continue_tick);
 /* SP41fdc0 state prefix through41fe59, before collision-link teardown.
  * Requires a live state; falling is the resolved42a020 low byte.
  * Returns1 on entry,0 if already dying (all fields then remain untouched).

@@ -543,3 +543,27 @@ marks, including27 in the32-eligible case, protection/already-fading flags
 and tied/negative finite timestamps. Three additional NXDK preflight guards
 pass. Both builds and all13 CTests pass. Full corpse creation, live list
 ownership, fade progression and eventual resource deletion remain open.
+
+
+## Corpse fade progression and continuation gate
+
+`rf_corpse_fade_step` reconstructs417290 through4172ea, including the early
+return for negative health. Negative health marks object7c bit2 and returns
+continue_tick=0. Otherwise, flags29c bit1 decrements fade298 by frame delta;
+a remainder <=0 marks bit2 but still returns continue_tick=1. Fade is not
+clamped. The original FST stores binary32 but compares its remaining x87
+value; the helper preserves that order using a double intermediate.
+
+`python tools/verify_corpse_fade.py` passes8192 original/PC/NXDK cases with
+real4174e0 and48ab40, no replaced callees. It checks signed zero, subnormals,
+zero crossings, unused NaNs and finite active inputs:2088 early returns,4471
+deletion marks,2383 marked corpses that must continue the rest of the tick.
+Three PC/NXDK guards preserve state/output for invalid active inputs. Both
+builds and all13 CTests pass. This helper is not the complete corpse tick.
+
+Static examination of the remaining417290 body identifies timer2ac expiry
+and linked emitter disable, class-dependent2b0 decay, a one-shot animation
+transition under flags29c8, sound following through459a20/48ac70/48a230, and
+normal model advancement503360. These must follow the continuation gate
+even on a fade-expiry frame. Render alpha conversion and deferred object
+resource destruction also remain unimplemented for live corpses.

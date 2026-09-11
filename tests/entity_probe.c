@@ -73,6 +73,15 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corpse-fade")) {
+        struct {rf_corpse_fade_state state;float dt;} s;uint32_t next;int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&s,sizeof(s),1,stdin)==1) {
+            next=0xaaaaaaaa;status=rf_corpse_fade_step(&s.state,s.dt,&next);
+            fwrite(&status,4,1,stdout);fwrite(&s.state,sizeof(s.state),1,stdout);fwrite(&next,4,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--corpse-retention")) {
         uint32_t count,i,faded;rf_corpse_retention_node nodes[32];int status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

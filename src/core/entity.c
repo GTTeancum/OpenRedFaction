@@ -516,6 +516,19 @@ uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t fa
 
 static int corpse_retention_eligible(const rf_corpse_retention_node *n)
 {return !(n->flags_29c&0x43u) && !(n->object_flags_7c&0x4000u);}
+int rf_corpse_fade_step(rf_corpse_fade_state *s,float dt,uint32_t *continue_tick)
+{
+    double remaining;
+    if(!s || !continue_tick || !isfinite(s->health_34))return RF_RANGE;
+    if(s->health_34<0) {s->object_flags_7c|=2u;*continue_tick=0;return RF_OK;}
+    if(s->flags_29c&1u) {
+        if(!isfinite(dt) || dt<0 || !isfinite(s->fade_298))return RF_RANGE;
+        remaining=(double)s->fade_298-dt;if(!isfinite((float)remaining))return RF_RANGE;
+        s->fade_298=(float)remaining;
+        if(remaining<=0)s->object_flags_7c|=2u;
+    }
+    *continue_tick=1;return RF_OK;
+}
 int rf_corpse_retention_apply(rf_corpse_retention_node *head,uint32_t limit,uint32_t *faded)
 {
     rf_corpse_retention_node *n,*oldest;uint32_t visits=0,count=0,total,i;
