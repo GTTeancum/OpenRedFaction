@@ -337,3 +337,26 @@ Campaign Switch integration is still open: loader field mapping, linked
 target priority (trigger/controller/light/other/event/object), initialization
 and sound ownership must be preserved. The new primitive does not yet
 change campaign behavior or constitute native Switch reactivation proof.
+
+
+### Authored Switch initialization
+
+Loader block462626 calls4b83e0 with words[0] as the disabled word,
+words[1] as the signed limit, truncated values[0] as mode, texts[0] as
+the sound name and flags[0] as the unlimited byte. Setter4b83e0 starts
+the activation count at0. `rf_event_switch_init` reconstructs these
+state fields and preserves output for invalid mode input.
+
+`python tools/verify_event_switch_init.py` passes all83 authored Switch
+records and360 synthetic edge cases against both PC and NXDK. The
+prepared original loader block and entire setter execute, including the
+actual573528 float-to-integer helper. Factory, string and audio boundaries
+are supplied. Original audio load arguments (name,5.0,1.0,1.0) and the
+conditional preload after a successful load are observed and checked.
+Five additional invalid floating-point modes preserve PC output. Original
+activation-byte padding stays unchanged; the shared representation
+zero-extends the meaningful byte. The Xbox build passes.
+
+This verifies field mapping and initialization, not original full-file
+parsing or sound residency. Switch owner integration, linked initialization
+and ordered target dispatch remain open.

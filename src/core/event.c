@@ -4,6 +4,14 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+int rf_event_switch_init(rf_switch_state *state,uint32_t disabled,int32_t limit,
+    float mode,uint32_t unlimited)
+{
+    rf_switch_state value;
+    if(!state || !isfinite(mode) || (double)mode< -2147483648.0 || (double)mode>=2147483648.0)return RF_RANGE;
+    value.disabled=disabled;value.limit=limit;value.unlimited=unlimited&255u;
+    value.activations=0;value.mode=(int32_t)mode;*state=value;return RF_OK;
+}
 int rf_event_switch_on(rf_switch_state *state,rf_switch_effect effect,void *context)
 {
     if(!state || !effect)return RF_RANGE;

@@ -75,6 +75,16 @@ static void occupancy_wake(void *context,uint32_t handle)
 { (void)context;++occupancy_wakes;occupancy_hash=occupancy_hash*31+handle; }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--switch-init")) {
+        struct {uint32_t disabled;int32_t limit;float mode;uint32_t unlimited;} input;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_switch_state state;int status;memset(&state,0xa5,sizeof(state));
+            status=rf_event_switch_init(&state,input.disabled,input.limit,input.mode,input.unlimited);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&state,sizeof(state),1,stdout)!=1)return 133;
+        }
+        return ferror(stdin)?134:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--switch")) {
         rf_switch_state state;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

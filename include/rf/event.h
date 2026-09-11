@@ -13,6 +13,12 @@ int32_t rf_event_type_id(const char *name);
 typedef struct rf_switch_state {
     uint32_t disabled;int32_t limit;uint32_t unlimited,activations;int32_t mode;
 } rf_switch_state;
+/* 462626 -> 4b83e0: authored words[0:2] are disabled/limit, values[0]
+ * truncates toward zero to mode, flags[0] supplies unlimited. Count starts
+ * at zero. Nonfinite/out-of-range mode leaves output unchanged. This does
+ * not allocate/load the authored texts[0] sound or initialize link targets. */
+int rf_event_switch_init(rf_switch_state *state,uint32_t disabled,int32_t limit,
+    float mode,uint32_t unlimited);
 /* Original 4bc520 on-action. Effects 0=linked update, 1=activation sound,
  * 2=rejection sound. Successful effects see toggled state and old count;
  * count increments afterward with 32-bit wrap. Mode1 forbids disabling,
