@@ -392,6 +392,8 @@ uint32_t rf_scene_actor_eye_enabled;
 uint32_t rf_scene_actor_turn_enabled,rf_scene_actor_look_enabled,rf_scene_actor_look_frames[64][33];
 static rf_look_pose actor_look;
 static rf_level_owned_regions campaign_regions;
+static rf_physics_force_collection campaign_forces;
+uint32_t rf_scene_campaign_forces[3]; /* count, owned bytes, ordered runtime record hash */
 static rf_object_registry campaign_registry;
 static rf_runtime_events campaign_events;
 static rf_runtime_triggers campaign_triggers;
@@ -1942,6 +1944,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;
             status=rf_level_owned_groups_open(level,1024*1024,&campaign_groups);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
+            status=rf_physics_forces_open(level,65536,&campaign_forces);if(status)goto done;
+            rf_scene_campaign_forces[0]=campaign_forces.count;
+            rf_scene_campaign_forces[1]=campaign_forces.allocated_bytes;
+            rf_scene_campaign_forces[2]=2166136261u;
+            for(i=0;i<campaign_forces.count*sizeof(*campaign_forces.items);++i)
+                rf_scene_campaign_forces[2]=(rf_scene_campaign_forces[2]^((unsigned char *)campaign_forces.items)[i])*16777619u;
+            if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             status=rf_group_runtime_open(&campaign_groups,0,256*1024,&campaign_group_runtime);
             if(status)goto done;
             status=rf_group_registration_open(&campaign_group_runtime,&campaign_registry,65536,&campaign_group_registration);
@@ -2102,6 +2111,7 @@ done:
     rf_level_particles_close(&stream.particles);
     free(stream.particle_workspace);particle_draw_stream=NULL;
     campaign_close_movers();
+    rf_physics_forces_close(&campaign_forces);
     rf_group_registration_close(&campaign_group_registration);
     rf_group_runtime_close(&campaign_group_runtime);
     rf_level_owned_groups_close(&campaign_groups);

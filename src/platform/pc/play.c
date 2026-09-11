@@ -24,6 +24,7 @@ extern rf_startup_events_report rf_scene_startup_events;
 extern uint32_t rf_scene_startup_gravity[4];
 extern uint32_t rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
 extern uint32_t rf_scene_campaign_event_links[4],rf_scene_campaign_groups[5],rf_scene_campaign_movers[3],rf_scene_campaign_memberships[5];
+extern uint32_t rf_scene_campaign_forces[3];
 extern uint32_t rf_scene_event_ticks[12];
 extern uint32_t rf_scene_actor_initial_animation[12],rf_scene_player_climb[8],rf_scene_player_climb_frames[128][9];
 extern float rf_scene_actor_initial_eye_offsets[6];
@@ -259,6 +260,7 @@ int main(int argc,char **argv)
             memcpy(words,&rf_scene_actor_body_contact,sizeof(words));printf("BODY_CONTACT");
             for(j=0;j<23;j++)printf(" %u",words[j]);printf("\n");}
             printf("CAMPAIGN_GROUPS %u %u %u %u %u\n",rf_scene_campaign_groups[0],rf_scene_campaign_groups[1],rf_scene_campaign_groups[2],rf_scene_campaign_groups[3],rf_scene_campaign_groups[4]);
+            printf("CAMPAIGN_FORCES %u %u %u\n",rf_scene_campaign_forces[0],rf_scene_campaign_forces[1],rf_scene_campaign_forces[2]);
             printf("CAMPAIGN_LINKS %u %u %u %u\n",rf_scene_campaign_links[0],rf_scene_campaign_links[1],rf_scene_campaign_links[2],rf_scene_campaign_links[3]);
             printf("CAMPAIGN_EVENT_LINKS %u %u %u %u\n",rf_scene_campaign_event_links[0],rf_scene_campaign_event_links[1],rf_scene_campaign_event_links[2],rf_scene_campaign_event_links[3]);
             printf("CAMPAIGN_EVENT_TICKS");for(uint32_t tick_word=0;tick_word<12;++tick_word)printf(" %u",rf_scene_event_ticks[tick_word]);puts("");

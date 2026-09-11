@@ -139,3 +139,25 @@ Cases cover all nibble values, zero dt/strength, signed strength, clamp limits
 and vertical/nonunit axes. This reuses `rf_particle_cone_oriented` rather than
 creating a second approximation. View shake after `486a72`, shared campaign
 RNG ordering and integrated force application remain open.
+
+`rf_physics_forces_open` owns compact runtime records directly from the bounded
+reader, without retaining name strings or a second authored-record array. It
+keeps authored order, uses one budgeted allocation and returns an empty
+collection for an absent section. Failures release temporary storage and
+preserve the destination; close is repeatable. `verify_force_owner.py` checks
+all 142 records across 27 levels against the original-verified constructor,
+including exact/short budgets, truncated-section rollback and use after archive
+closure. The largest retained collection occupies 1,956 bytes including its
+owner, excluding allocator overhead and stack scratch.
+
+Campaign load/exit now opens/closes this owner under a 64 KiB budget.
+`CAMPAIGN_FORCES` records count, retained bytes and ordered runtime-record hash;
+the native replay checker compares all three with PC. This establishes owned
+level data, not live force application: per-frame queries, view shake and
+application scheduling are still to be connected.
+
+Native run `replay-20260910-205549` passes the 360-frame staged L1S2 lift replay
+on stock 64 MiB XEMU. Guest `CAMPAIGN_FORCES` is `[5, 552, 2519048547]`,
+matching PC. The existing actor/controller checks also pass. This confirms
+native loading/construction/retention of all five records in that level; it
+still does not claim they influence gameplay or cover native level transitions.

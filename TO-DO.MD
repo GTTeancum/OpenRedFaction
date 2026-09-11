@@ -1,10 +1,10 @@
 # Red Faction Xbox / PC — open work
 
-Force turbulence matches 2048 original PC/NXDK cases with exact RNG draws;
-view shake, ownership/registration and live force integration remain.
+Campaign force ownership passes stock64MiB XEMU: five L1S2 regions/552 bytes
+and matching PC hash. View shake and live per-frame application remain.
 
 Immediate open items:
-- [ ] Register verified runtime force regions and connect force application plus alternate airborne speed-cap ownership.
+- [ ] Connect owned campaign force regions to per-frame application, view shake and alternate airborne speed-cap state.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
 - [ ] Implement sound metadata persistence across level transitions and recover automatic PCM residency policy.

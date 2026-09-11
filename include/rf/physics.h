@@ -149,6 +149,16 @@ struct rf_level_force_region;
  * registration. Finite representable geometry required; errors preserve output. */
 int rf_physics_force_region_build(const struct rf_level_force_region *source,
     rf_physics_force_region *result);
+struct rf_level;
+typedef struct rf_physics_force_collection {
+    rf_physics_force_region *items;uint32_t count,allocated_bytes;
+} rf_physics_force_collection;
+/* One compact owned runtime array in authored order; no retained names or disk
+ * records. Empty destination required. Budget includes owner and records,
+ * excludes allocator overhead/stack scratch. Absent section yields empty
+ * success. Errors preserve destination; source may close afterward. */
+int rf_physics_forces_open(const struct rf_level *level,uint32_t budget,rf_physics_force_collection *result);
+void rf_physics_forces_close(rf_physics_force_collection *forces);
 typedef struct rf_physics_force_influence {float direction[3],strength;} rf_physics_force_influence;
 /* Original 486949..4869f6 after region selection/eligibility: displacement
  * uses physics position, not public query position; flags 8/4 scale by squared

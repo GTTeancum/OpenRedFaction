@@ -6,6 +6,25 @@ int main(int argc,char **argv)
 {
     rf_vpp archive;rf_level level;rf_level_entity_reader reader;rf_level_entity entity;int status;
     _Static_assert(sizeof(entity)==1084,"Entity probe wire layout");
+    if(argc==4 && !strcmp(argv[3],"--runtime-forces")) {
+        rf_physics_force_collection owned={0},small={0},zero={0};uint32_t bytes,i;
+        _setmode(_fileno(stdout),_O_BINARY);
+        if(rf_vpp_open(&archive,argv[1]) || rf_level_open(&level,&archive,argv[2]) ||
+            rf_physics_forces_open(&level,65536,&owned))return 2;
+        bytes=owned.allocated_bytes;
+        if(rf_physics_forces_open(&level,bytes-1,&small)!=RF_RANGE || memcmp(&small,&zero,sizeof(small)))return 4;
+        if(rf_physics_forces_open(&level,bytes,&owned)!=RF_RANGE)return 4;
+        for(i=0;i<level.section_count;++i)if(level.sections[i].type==0x1100) {
+            --level.sections[i].size;
+            if(rf_physics_forces_open(&level,65536,&small)!=RF_FORMAT || memcmp(&small,&zero,sizeof(small)))return 4;
+            ++level.sections[i].size;
+        }
+        rf_physics_forces_close(&owned);if(rf_physics_forces_open(&level,bytes,&owned))return 4;
+        rf_vpp_close(&archive);memset(&level,0xa5,sizeof(level));
+        if(fwrite(&owned.count,4,1,stdout)!=1 || fwrite(owned.items,sizeof(*owned.items),owned.count,stdout)!=owned.count)return 3;
+        fprintf(stderr,"%u\n",bytes);rf_physics_forces_close(&owned);rf_physics_forces_close(&owned);
+        return memcmp(&owned,&zero,sizeof(owned))?4:0;
+    }
     if(argc==4 && !strcmp(argv[3],"--forces")) {
         rf_level_owned_forces owned={0},small={0},zero={0};rf_level_force_reader cursor;
         rf_level_force_region record;uint32_t i,bytes;

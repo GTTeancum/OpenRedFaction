@@ -193,6 +193,29 @@ int rf_physics_player_contact(rf_physics_body_state *state,const float normal[3]
     for(i=0;i<3;++i)if(!isfinite(velocity[i]))return RF_RANGE;
     memcpy(state->velocity,velocity,sizeof(velocity));*impact_speed=impact;return RF_OK;
 }
+void rf_physics_forces_close(rf_physics_force_collection *forces)
+{
+    if(forces) {free(forces->items);memset(forces,0,sizeof(*forces));}
+}
+int rf_physics_forces_open(const rf_level *level,uint32_t budget,rf_physics_force_collection *result)
+{
+    rf_physics_force_collection value={0};rf_level_force_reader reader;rf_level_force_region record;
+    uint64_t bytes;uint32_t i;int status;
+    if(!level || !result || result->items || result->count || result->allocated_bytes)return RF_RANGE;
+    status=rf_level_forces_begin(level,&reader);
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    value.count=status==RF_NOT_FOUND?0:reader.count;
+    bytes=sizeof(value)+(uint64_t)value.count*sizeof(*value.items);if(bytes>budget)return RF_RANGE;
+    value.allocated_bytes=(uint32_t)bytes;
+    if(value.count) {
+        value.items=calloc(value.count,sizeof(*value.items));if(!value.items)return RF_RANGE;
+        for(i=0;i<value.count;++i) {
+            status=rf_level_force_next(&reader,&record);if(!status)status=rf_physics_force_region_build(&record,value.items+i);
+            if(status) {rf_physics_forces_close(&value);return status;}
+        }
+    }
+    *result=value;return RF_OK;
+}
 int rf_physics_force_region_build(const rf_level_force_region *source,rf_physics_force_region *result)
 {
     rf_physics_force_region value={0};float half[3];uint32_t i,j;

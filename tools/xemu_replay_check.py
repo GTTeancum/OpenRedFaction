@@ -169,6 +169,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     for name,label,count in [('rf_scene_actor_follow_summary','ACTOR_FOLLOW_SUMMARY',5),('rf_scene_player_input_frames','ACTOR_PLAYER_INPUT',448),('scene_actor_body','PC_PLAY_BODY',77)]:
      got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
     if args.campaign_spawn:
+     forces=words(monitor,symbol('rf_scene_campaign_forces'),3)
+     assert forces==expected('CAMPAIGN_FORCES') and forces[1]<=65536,forces
+     report['campaign_forces']=forces
      owned=words(monitor,symbol('rf_scene_campaign_events'),3)
      assert owned[0]==expected('CAMPAIGN_EVENTS')[0] and owned[1]<=1024*1024
      report['campaign_events']=owned
