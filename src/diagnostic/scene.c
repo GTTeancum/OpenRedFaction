@@ -1189,6 +1189,7 @@ static int campaign_npc_geometry_digest(void)
 }
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
+    rf_entity_creation_vitals_state vitals;float published[3],previous[3];
 } campaign_npc_body;
 static campaign_npc_body *campaign_npc_bodies;
 static uint32_t campaign_npc_body_count;
@@ -1234,6 +1235,18 @@ static int campaign_npc_bodies_open(const char *tables_path)
             status=rf_entity_body_open(&config,spheres,count,record->position,record->orientation[0],
                 campaign_seeds.items[actor].spawn.creation_flags,
                 budget-(uint32_t)bytes+(uint32_t)sizeof(*body),body);if(status)goto done;
+            {
+                campaign_npc_body *owner=campaign_npc_bodies+actor;
+                const rf_entity_seed_class *definition=campaign_seeds.classes+cls;
+                uint32_t flags=rf_entity_creation_object_flags(campaign_seeds.items[actor].spawn.creation_flags,definition->model_kind);
+                /* Generic486da0 factory, then422ba0 class flag and creation vitals.
+                 * Later script/AI mutations are not synthesized here. */
+                if(flags&0x4000u)flags|=0x8000u;
+                flags|=0x06000000u;if(!(config.authored.flags2&1u))flags|=0x20000u;
+                owner->vitals.object_flags=flags;
+                rf_entity_creation_vitals(&owner->vitals,&definition->vitals,0);
+                memcpy(owner->published,record->position,12);memcpy(owner->previous,record->position,12);
+            }
             /* Constructor surface1380=0; support handle remains creation-zero.
              * No contact has been queried or accepted for these bodies yet. */
             bytes+=(uint64_t)count*sizeof(*spheres);++rf_scene_npc_bodies[1];rf_scene_npc_bodies[2]+=count;
@@ -1246,6 +1259,9 @@ static int campaign_npc_bodies_open(const char *tables_path)
         hash=npc_hash_bytes(hash,&body->state,sizeof(body->state));
         hash=npc_hash_bytes(hash,body->spheres.items,body->spheres.count*sizeof(*body->spheres.items));
         hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].support,sizeof(campaign_npc_bodies[actor].support));
+        hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].vitals,sizeof(campaign_npc_bodies[actor].vitals));
+        hash=npc_hash_bytes(hash,campaign_npc_bodies[actor].published,12);
+        hash=npc_hash_bytes(hash,campaign_npc_bodies[actor].previous,12);
     }
     rf_scene_npc_bodies[5]=hash;status=RF_OK;
 done:
@@ -2318,6 +2334,12 @@ uint32_t rf_scene_npc_gate[4]; /* cumulative considered, advanced, skipped; last
 static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
 {
     uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0,g=2166136261u;int status;
+    if(campaign_npc_body_count!=campaign_poses.count)return RF_RANGE;
+    /* Original snapshot list completes before any model/controller update. */
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_poses.items[i].skeleton!=UINT32_MAX) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;
+        rf_entity_position_snapshot(&owner->vitals.object_flags,owner->previous,owner->published);
+    }
     for(i=0;i<campaign_poses.count;++i) {
         rf_entity_pose *pose=campaign_poses.items+i;const rf_entity_motion_mapping *map;
         rf_entity_playback_model *model;float displacement[3]={0};uint32_t class_index;
@@ -2340,7 +2362,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
              * ownership before they can replace these startup values. */
             gate.action_520=0;gate.flags=0;gate.predicate=0;
             gate.lod_distance_count=(int32_t)cls->lod.count;
-            status=rf_model_lod_metric(0x66,campaign_seeds.records.items[i].record.position,
+            status=rf_model_lod_metric(0x66,campaign_npc_bodies[i].published,
                 camera->origin,camera->scale[2],camera->scale[0],&gate.distance);if(status)return status;
             advance=rf_entity_animation_should_advance(&gate);
             ++rf_scene_npc_gate[0];++rf_scene_npc_gate[advance?1:2];
@@ -2391,7 +2413,7 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
         model=campaign_render_models.items+pose->skeleton;entity=&campaign_seeds.records.items[actor].record;
         memset(prepared,0,sizeof(prepared));memset(generations,0,sizeof(generations));
         status=rf_model_prepare_skinning(model->stored,pose->matrices,pose->bone_count,(uint16_t)pose->playback.generation,prepared,generations,50);if(status)return status;
-        status=rf_model_local_view(&stream->npc_view,entity->position,entity->orientation[0],&view);if(status)return status;
+        status=rf_model_local_view(&stream->npc_view,campaign_npc_bodies[actor].published,entity->orientation[0],&view);if(status)return status;
         for(lod=0;lod<model->file.lod_count;++lod) {
             const rf_model_geometry *geometry=model->lods+lod;uint32_t previous;
             for(previous=0;previous<lod;++previous)if(model->file.lods[previous].section_index==model->file.lods[lod].section_index)break;

@@ -670,3 +670,36 @@ already marked01000000, resolve+200, recursively visit the parent, propagate
 additional model dependencies. These linked-object branches are source-audited,
 not newly execution-verified by the publication harness. The earlier snapshot
 clears01000000 to allow this traversal on the next frame.
+
+
+### Live retained NPC position and vitals owners
+
+Campaign body slots now retain published and previous positions plus creation
+health, armor, object flags and opaque840. Both positions start at the authored
+position; all skeletal NPCs snapshot published positions before any NPC model
+update. Distance gating and rendering now read retained published positions.
+Orientation and room membership remain stationary startup inputs. No physics
+publication, support query, damage or AI update is connected by this change.
+
+Startup flags use the verified entity input conversion (class model kind94),
+generic486da0 additions06000000 and conditional8000, class728 bit0 fallback
+20000 at422b9a, and existing creation-vitals helper. Later script/AI/attachment
+mutations and the full factory call chain are not synthesized. The new
+verify_npc_factory_object_flags.py executes2048 original generic/class cases;
+existing1152 creation-flag and1536 vitals PC/NXDK checks pass again. This is
+partial retained startup ownership, not proof of complete actor creation.
+
+The extra40 bytes per slot participate in the existing512KiB allocation budget
+and startup content hash. Empty nonskeletal slots stay zero. Failure cleanup
+and close free them with the body array. L1S1 now reports NPC_BODIES
+[78,78,191,33600,408240,2142580035], an increase of3120 resident/peak bytes.
+PC L1S2 reports[39,38,114,17244,391236,1148085170].
+
+Native stock64MiB XEMU report artifacts/xemu/replay-20260911-114140/report.json
+passes the180-frame door/audio replay with identical PC body ownership,
+playback, animation gate and rendered-geometry checksums. Base RAM67108864,
+plugged RAM0. L1S2's600-frame lift replay passes on PC with unchanged animation
+gate/playback. Both builds and all9 CTests pass. No framebuffer capture was
+requested because this change has no new visual result. The startup body hash
+does not measure per-frame position mutations; full moving-body integration
+will require dynamic telemetry and original-game comparisons.
