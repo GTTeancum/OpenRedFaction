@@ -31,6 +31,19 @@ static int player_damage_check(void)
     CHECK(campaign_player_view.flags_7c==(8|0x200000));
     CHECK(player_notifications[RF_DAMAGE_PAIN_SOUND]==1 && player_notifications[RF_DAMAGE_PAIN_ANIMATION]==0);
     CHECK(player_notifications[RF_DAMAGE_PLAYER_FEEDBACK]==0 && player_notifications[RF_DAMAGE_AI_REACTION]==0);
+    {
+        uint32_t eye=rf_scene_actor_eye_enabled,spawn=campaign_spawn;
+        campaign_spawn=1;rf_scene_actor_eye_enabled=1;
+        CHECK(rf_scene_player_damage(registration.handle,&request,1,0,&effects,&result)==RF_OK);
+        CHECK(player_notifications[RF_DAMAGE_PAIN_ANIMATION]==0 && player_notifications[RF_DAMAGE_PAIN_SOUND]==2);
+        rf_scene_actor_eye_enabled=0;
+        CHECK(rf_scene_player_damage(registration.handle,&request,1,0,&effects,&result)==RF_OK);
+        CHECK(player_notifications[RF_DAMAGE_PAIN_ANIMATION]==1 && player_notifications[RF_DAMAGE_PAIN_SOUND]==3);
+        campaign_spawn=0;rf_scene_actor_eye_enabled=1;
+        CHECK(rf_scene_player_damage(registration.handle,&request,1,0,&effects,&result)==RF_OK);
+        CHECK(player_notifications[RF_DAMAGE_PAIN_ANIMATION]==2);
+        rf_scene_actor_eye_enabled=eye;campaign_spawn=spawn;
+    }
     CHECK(rf_screen_flash_reset(&campaign_player_flash)==RF_OK);
     request.kind=10;
     CHECK(rf_scene_player_damage(registration.handle,&request,1,0x40000000,&effects,&result)==RF_OK && result==10);

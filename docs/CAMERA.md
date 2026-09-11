@@ -4038,3 +4038,30 @@ Next player-reaction evidence:428740 returns immediately for an associated
 player when40d740(player+c4) is zero;40d740 simply reads view+8. This
 provides a candidate original no-flinch path, but the live view mode and
 its lifecycle must be verified before treating every player flinch as a no-op.
+
+
+## First-person player pain-animation gate
+
+Original428740 exits before cooldown query4fa3f0 when42a8e0 finds an
+associated player and40d740 reads camera mode0 at view+8. Predicate4895d0
+checks object flag8; the association is entity+1430, with view at player+c4.
+Original40ddf0 writes mode0 on entry to its first-person camera path.
+verify_player_pain_gate.py executes the complete original early-return path
+with the real predicates for2048 randomized actor/player/view owners. All
+owner bytes remain unchanged. Five positive controls (three nonzero full-word
+modes, absent association and absent player flag) reach the cooldown query.
+
+The scene damage adapter now consumes PAIN_ANIMATION only for its registered
+local player while campaign_spawn and rf_scene_actor_eye_enabled select the
+existing first-person eye profile. This profile-to-mode0 mapping is scoped to
+the reconstructed first-person path; it is not a recovered general camera-mode
+owner or proof of cutscene/death/third-person transitions. Other profiles still
+forward the notification to the supplied reaction backend. Pain sound remains
+forwarded in every profile; this change does not silence player audio.
+
+PC owner tests cover suppression and delegation. The linked NXDK verifier
+passes all four campaign/eye flag combinations, preserving pain sound, in
+addition to8 direct damage and4 event cases. All12 CTest checks pass. This is
+original-executable and linked-NXDK execution under Unicorn, not a new native
+XEMU player-hit test. Player pain audio, death, camera lifecycle and authored
+hazard activation remain open. No new visual result is claimed.

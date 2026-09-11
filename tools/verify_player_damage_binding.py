@@ -68,5 +68,11 @@ for kind,flags,count,deadline in ((0,0,2,1500),(2,0,2,0),(0,1,1,0),(5,0,2,1500))
     assert struct.unpack('<i',u.mem_read(camera+8,4))[0]==deadline
     assert struct.unpack('<I',u.mem_read(flash+4,4))[0]==128
     assert not notifications  # Each tiny hit is below both pain thresholds.
-report=dict(result='PASS',cases=len(cases),event_cases=4,scope='Linked NXDK player damage plus Continuous_Damage binding with real port registration and retained health, flash and camera owners. Four event cases check duplicate link/actor hits, actor exclusion, kind-gated camera feedback and separate millisecond clock. Eight direct cases cover scaling, force, death and flash gates. External pain notifications recorded; no game audio/death or authored hazard activation. Original core equivalence is separately covered by damage verifiers.')
+for campaign,eye in ((0,0),(0,1),(1,0),(1,1)):
+    u.mem_write(symbol('campaign_spawn'),w(campaign));u.mem_write(symbol('rf_scene_actor_eye_enabled'),w(eye))
+    u.mem_write(owner,struct.pack('<4f',100,100,100,100));u.mem_write(view+12,w(8,0))
+    u.mem_write(base+0x200,struct.pack('<fIiIII',10,0xffffffff,2,0,0xffffffff,0));notifications.clear()
+    assert call('rf_scene_player_damage',handle,base+0x200,0x3f800000,0,base+0x400,base+0x300)==0
+    assert [item[1] for item in notifications]==([1] if campaign and eye else [0,1])
+report=dict(result='PASS',cases=len(cases),event_cases=4,pain_profile_cases=4,scope='Linked NXDK player damage and Continuous_Damage binding with real registration and retained health/flash/camera. Four profile cases suppress flinch only for campaign first-person eye mode while preserving pain sound. Event cases check duplicate hits, exclusion, kind gates and clocks. Direct cases cover scaling, force, death and flash gates. External reactions recorded; no game audio/death or authored hazard activation. Original core equivalence is separately verified.')
 (root/'artifacts/player-damage-binding.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))

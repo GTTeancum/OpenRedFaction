@@ -55,8 +55,9 @@ int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float 
 int rf_scene_player_damage_flash(uint32_t player_entity_handle);
 extern uint32_t rf_scene_player_vitals[6];
 /* Registered local-player damage routing through4892c0/41a350. Owns vitals,
- * immunity, local-player predicates and red-flash notification. All other
- * effects/predicates use the complete caller backend. Callbacks must preserve
+ * immunity, local-player predicates, red flash and original no-flinch behavior
+ * for the campaign first-person eye profile. Other camera profiles delegate.
+ * All other effects/predicates use the complete caller backend. Callbacks must preserve
  * owner lifetime and must not reenter damage. Missing/nonlocal target is zero.
  * This does not supply weapons, death, sound or authored hazard activation. */
 int rf_scene_player_damage(uint32_t handle,const rf_damage_request *request,float difficulty,

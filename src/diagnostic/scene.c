@@ -1852,6 +1852,11 @@ static uint32_t player_damage_play(void *context,uint32_t target)
 static void player_damage_notify(void *context,uint32_t kind,uint32_t target,float value,uint32_t source)
 {
     campaign_player_damage_context *c=context;const rf_damage_effect_backend *b=c->effects;
+    /*428740 exits for an associated mode0 player before all timer/effect work.
+     * The current campaign eye profile is the reconstructed first-person path;
+     * body/unknown camera profiles must still use the supplied reaction owner. */
+    if(kind==RF_DAMAGE_PAIN_ANIMATION && campaign_spawn && rf_scene_actor_eye_enabled &&
+        target==(uint32_t)campaign_player_view.handle && (campaign_player_view.flags_7c&8))return;
     if(kind==RF_DAMAGE_PLAYER_FEEDBACK) {int status=rf_scene_player_damage_flash(target);if(status && !c->status)c->status=status;}
     else b->notify(b->context,kind,target,value,source);
 }
