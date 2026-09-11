@@ -200,3 +200,39 @@ retains near15/volume0.8 rather than near10/volume0.9. The inventory stores exac
 binary32 parameters for integration comparison. It does not establish presence
 in audio.vpp or successful registration; actual metadata-bank hookup still
 needs that check, and PCM must remain separately resident on demand.
+
+
+## Campaign Foley registration and class storage
+
+Campaign startup now registers global sound declarations, then Foley metadata,
+then ambient/controller/event sounds. Foley registration uses directory-backed
+`rf_audio_bank_declare`; it neither loads PCM nor changes the bank's allocation
+size. Startup checks both that allocation size stays unchanged during Foley
+registration and that all88 global parameter records retain their hash. One
+installed Foley declaration, `fp_shotgun_reload.wav`, is absent from audio.vpp;
+its stored ID is -1. Other registration failures abort startup for cleanup.
+
+The campaign retains Foley tables and one ten-slot binding array per seed class.
+Temporary Foley/entity text and declarations are freed before playback. Closing
+campaign state frees class bindings and Foley tables before the audio bank.
+The `FOLEY` telemetry reports group/sample/missing counts, retained and peak
+owner/table bytes, bank count after Foley, global parameter hash, sample-ID hash,
+class count and class-binding hash. Peak excludes the preallocated audio bank,
+archive directory storage and allocator overhead; it is not total game memory.
+
+Stock64MiB XEMU `replay-20260911-101516` passes the180-frame door/APU replay.
+Native and PC Foley words match
+`[497,1140,1,26652,401292,1135,1274782420,3317977305,5,4209518190]`.
+The independent archive inventory predicts1135 successful distinct names and
+sample-ID hash3317977305. The bank ends with1147 entries and140808 metadata bytes;
+its six resident waveforms total284918 bytes, unchanged from the prior replay.
+Additional retained storage is127680 bytes of bank capacity plus26652 bytes of
+Foley/class tables. The final PC framebuffer SHA256 remains
+`3f008e45b98484177e9b17e467477908a7a27300df0e68507e0f565641933c82`.
+
+The600-frame L1S2 PC lift replay also passes, retaining26572 Foley/class bytes
+for three classes with class hash1050328222. This latest L1S2 check is PC-only;
+it is not an updated native proof. Both builds and all nine CTest cases pass.
+Marker-name residency, entity-update scheduling, live surface selection and
+footstep sound dispatch remain unconnected. Global registry persistence across
+level transitions remains separate work.

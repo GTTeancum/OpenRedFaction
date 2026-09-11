@@ -520,6 +520,10 @@ typedef struct campaign_controller_effects {
 } campaign_controller_effects;
 static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
+static rf_foley_owner campaign_foley;
+static int32_t (*campaign_footstep_groups)[10];
+uint32_t rf_scene_foley[10]; /* groups,samples,missing,resident,peak,bank count,global hash,ID hash,classes,class hash */
+static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes);
 static rf_vpp campaign_audio_archive;
 /* Only lazily loaded ambient PCM is eligible; preload users cannot yet reload. */
 static uint8_t campaign_audio_evictable[2600];
@@ -621,6 +625,15 @@ static int32_t campaign_ambient_register(void *context,const char *name,float ne
     status=rf_audio_bank_declare(bank,name,near_distance,volume,rolloff,&index);
     if(!status)return (int32_t)index;
     if(status==RF_NOT_FOUND)++rf_scene_live_audio[2];else ++rf_scene_live_audio[3];
+    return -1;
+}
+typedef struct campaign_foley_registration {int error;uint32_t missing;} campaign_foley_registration;
+static int32_t campaign_foley_register(void *context,const char *name,float near_distance,float volume,float rolloff)
+{
+    campaign_foley_registration *result=context;uint32_t index;int status;
+    status=rf_audio_bank_declare(&campaign_audio_bank,name,near_distance,volume,rolloff,&index);
+    if(!status)return (int32_t)index;
+    if(status==RF_NOT_FOUND)++result->missing;else if(!result->error)result->error=status;
     return -1;
 }
 static int campaign_ambient_gains(float volume,int32_t pan,float gains[2])
@@ -741,7 +754,10 @@ static int campaign_ambient_schedule(int32_t now,uint32_t initial)
 static int campaign_audio_open(const char *tables_path,const char *level_name)
 {
     char path[1024];size_t prefix=0,n;uint32_t i,j,index,capacity;
-    rf_vpp archive={0},tables={0};rf_audio_declaration *declarations=NULL;uint32_t declared=0;int status;
+    rf_vpp archive={0},tables={0};rf_audio_declaration *declarations=NULL;uint32_t declared=0,foley_groups,foley_samples,foley_bank_bytes,global_hash=2166136261u;
+    rf_vpp_entry foley_entry,entity_entry;void *foley_text=NULL,*entity_text=NULL;
+    campaign_foley_registration foley_registration={0};int status;
+    memset(rf_scene_foley,0,sizeof(rf_scene_foley));
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     memset(campaign_listener_position,0,sizeof(campaign_listener_position));
     memset(campaign_listener_right,0,sizeof(campaign_listener_right));campaign_listener_right[0]=-1;
@@ -771,7 +787,12 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
         declarations=malloc((size_t)declared*sizeof(*declarations));if(!declarations){status=RF_RANGE;goto audio_done;}
         status=rf_sound_table_load(&tables,65536,declarations,declared,&declared);if(status)goto audio_done;
     }
-    capacity=declared+campaign_group_runtime.count*4+campaign_ambient.count;
+    status=rf_vpp_find(&tables,"foley.tbl",&foley_entry);if(status)goto audio_done;
+    if(!foley_entry.size || foley_entry.size>256*1024){status=RF_RANGE;goto audio_done;}
+    foley_text=malloc(foley_entry.size);if(!foley_text){status=RF_RANGE;goto audio_done;}
+    status=rf_vpp_read(&tables,&foley_entry,0,foley_text,foley_entry.size);if(status)goto audio_done;
+    status=rf_foley_table_read(foley_text,foley_entry.size,NULL,0,NULL,0,&foley_groups,&foley_samples);if(status)goto audio_done;
+    capacity=declared+foley_samples+campaign_group_runtime.count*4+campaign_ambient.count;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state) {
         ++rf_scene_switch_audio[0];
         if(campaign_events.items[i].authored->record.texts[0][0])++capacity;
@@ -787,6 +808,39 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
         if(index!=i){status=RF_FORMAT;goto audio_done;}
     }
     rf_scene_sound_bank[0]=declared;
+    free(declarations);declarations=NULL;
+    for(i=0;i<declared;++i)global_hash=npc_hash_bytes(global_hash,&campaign_audio_bank.samples[i].parameters,sizeof(rf_audio_parameters));
+    foley_bank_bytes=campaign_audio_bank.bytes;
+    status=rf_foley_open(foley_text,foley_entry.size,256*1024,campaign_foley_register,&foley_registration,&campaign_foley);
+    if(!status)status=foley_registration.error;if(status)goto audio_done;
+    if(campaign_audio_bank.bytes!=foley_bank_bytes){status=RF_FORMAT;goto audio_done;}
+    rf_scene_foley[0]=campaign_foley.group_count;rf_scene_foley[1]=campaign_foley.sample_count;
+    rf_scene_foley[2]=foley_registration.missing;rf_scene_foley[3]=campaign_foley.resident_bytes;
+    rf_scene_foley[4]=campaign_foley.peak_bytes+foley_entry.size;
+    rf_scene_foley[5]=campaign_audio_bank.count;rf_scene_foley[6]=2166136261u;
+    for(i=0;i<declared;++i)rf_scene_foley[6]=npc_hash_bytes(rf_scene_foley[6],&campaign_audio_bank.samples[i].parameters,sizeof(rf_audio_parameters));
+    if(global_hash!=rf_scene_foley[6]){status=RF_FORMAT;goto audio_done;}
+    rf_scene_foley[7]=npc_hash_bytes(2166136261u,campaign_foley.samples,campaign_foley.sample_count*4);
+    free(foley_text);foley_text=NULL;
+    if(campaign_seeds.class_count) {
+        if(campaign_seeds.class_count>640){status=RF_RANGE;goto audio_done;}
+        campaign_footstep_groups=malloc(campaign_seeds.class_count*sizeof(*campaign_footstep_groups));
+        if(!campaign_footstep_groups){status=RF_RANGE;goto audio_done;}
+        status=rf_vpp_find(&tables,"entity.tbl",&entity_entry);if(status)goto audio_done;
+        if(!entity_entry.size || entity_entry.size>1024*1024){status=RF_RANGE;goto audio_done;}
+        entity_text=malloc(entity_entry.size);if(!entity_text){status=RF_RANGE;goto audio_done;}
+        status=rf_vpp_read(&tables,&entity_entry,0,entity_text,entity_entry.size);if(status)goto audio_done;
+        for(i=0;i<campaign_seeds.class_count;++i) {
+            const char *name=campaign_seeds.records.items[campaign_seeds.classes[i].record_index].record.class_name;
+            status=rf_entity_footstep_groups_read(entity_text,entity_entry.size,name,&campaign_foley,campaign_footstep_groups[i]);
+            if(status)goto audio_done;
+        }
+        free(entity_text);entity_text=NULL;
+        rf_scene_foley[8]=campaign_seeds.class_count;
+        rf_scene_foley[9]=npc_hash_bytes(2166136261u,campaign_footstep_groups,campaign_seeds.class_count*sizeof(*campaign_footstep_groups));
+        rf_scene_foley[3]+=campaign_seeds.class_count*sizeof(*campaign_footstep_groups);
+        if(rf_scene_foley[3]+entity_entry.size>rf_scene_foley[4])rf_scene_foley[4]=rf_scene_foley[3]+entity_entry.size;
+    }
     free(declarations);declarations=NULL;rf_vpp_close(&tables);
     /* All installed section500 records precede section3000 controllers. Their
      * first successful metadata registration must retain parameter precedence.
@@ -853,6 +907,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
         rf_scene_sound_metadata[6]=(rf_scene_sound_metadata[6]^b)*16777619u;
     }
 audio_done:
+    free(foley_text);free(entity_text);
     free(declarations);rf_vpp_close(&tables);
     if(!status) {
         campaign_audio_archive=archive;memset(&archive,0,sizeof(archive));
@@ -1152,7 +1207,9 @@ static void campaign_close_movers(void)
     rf_entity_skeletons_close(&campaign_skeletons);
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
-    rf_audio_mixer_init(&campaign_audio_mixer);rf_audio_bank_close(&campaign_audio_bank);
+    rf_audio_mixer_init(&campaign_audio_mixer);
+    free(campaign_footstep_groups);campaign_footstep_groups=NULL;rf_foley_close(&campaign_foley);
+    rf_audio_bank_close(&campaign_audio_bank);
     memset(campaign_audio_evictable,0,sizeof(campaign_audio_evictable));
     rf_vpp_close(&campaign_audio_archive);
     rf_sound_metadata_close(&campaign_audio_metadata);

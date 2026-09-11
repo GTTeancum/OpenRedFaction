@@ -9,11 +9,11 @@ Stock 64 MiB XEMU matches L1S1 playback/drawing and the L1S2 lift replay;
 Original footstep requests and material binding are verified against PC/NXDK;
 the shared reader covers497 groups,1140 samples and all63 authored classes.
 
-Foley tables retain26,452 bytes with113,092-byte parsing peak; campaign ownership,
-level-transition ordering, surface selection and dispatch scheduling remain open.
+Campaign Foley metadata and per-class bindings now match PC/stock64MiB XEMU;
+L1S1 retains26,652 table bytes plus127,680 additional bank bytes without new PCM.
 
-Original startup confirms global sounds precede Foley and entity initialization;
-verify1136 distinct declarations and seven global overlaps in the live bank.
+Connect marker-name residency, entity-update scheduling, surface selection and
+footstep dispatch; verify persistent registration across level transitions.
 
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
