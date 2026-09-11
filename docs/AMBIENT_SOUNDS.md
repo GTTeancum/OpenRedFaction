@@ -569,3 +569,35 @@ unchanged input records. There are867 status calls and299 release callbacks.
 This proves allocation decisions, not521930 release effects or live integration.
 PC/NXDK builds and all eight CTests pass. The port device/mixer limit remains16
 until this policy is connected with the original buffer/flag lifecycle.
+
+
+## Explicit stops release ordinary buffers
+
+Original5442b0 gates the audio-enabled low byte, handle!=-1 and backend1,
+then522a20 resolves the handle through522f30 and invokes521930 for a match.
+522f30 scans only the first30 handle fields, rejects every negative handle,
+and selects the first duplicate. This confirms that explicit ordinary stop
+requests release, rather than leaving a stopped loop's buffer indefinitely
+protected from allocation. The special521930 flag8 guard and other record
+families still require lifecycle integration.
+
+verify_audio_stop_dispatch.py executes5442b0/522a20/522f30 unchanged with the
+final521930 effect supplied. All324 cases pass (20 release calls), covering
+gates, negatives/stale handles, duplicates and exclusion of records30..54.
+It proves dispatch, not full release internals or platform handle equivalence.
+
+PC and Xbox stop adapters now use their existing selective-release paths. PC
+clears the borrowing mixer voice/handle while holding the refill lock. Xbox
+stops, observes stopped state, destroys the voice and clears the adapter slot.
+An Xbox observation failure retains ownership and increments its error counter;
+void stop is not sufficient authorization to unload a sample shared elsewhere.
+Campaign PCM remains owned until reset pending a complete borrower-aware policy.
+
+PC tests protect a looping source with PAGE_NOACCESS immediately after stop,
+then keep device refill running: no access occurs, output becomes silent and
+a subsequent selective release reports the stale handle. Previous independent
+voice/protected-source tests also pass. Stock64MiB APU run20260911-011146 passes
+loop output, silence after stop, already-released handle detection and exact
+available-page restoration, plus the previous lifetime/failure checks. PC/NXDK
+builds and all eight CTests pass. The live30-slot allocator and safe PCM eviction
+remain open; this increment connects the explicit-stop cleanup prerequisite.

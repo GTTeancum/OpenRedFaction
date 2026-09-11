@@ -95,10 +95,10 @@ static void play(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left
 {(void)play_mode(context,handle,pcm,left,right,0);}
 static void stop(void *context,uint32_t handle)
 {
-    uint32_t i;(void)context;if(!initialized)return;
-    for(i=0;i<VOICES;i++)if(slots[i].created && slots[i].handle==handle) {
-        nxAudioVoiceStop(&slots[i].voice);++rf_xbox_audio_diagnostic[2];break;
-    }
+    int status;(void)context;
+    status=rf_xbox_audio_release_voice(handle);
+    if(status==RF_OK)++rf_xbox_audio_diagnostic[2];
+    else if(status!=RF_NOT_FOUND)++rf_xbox_audio_diagnostic[3];
 }
 static void poll(void *context)
 {

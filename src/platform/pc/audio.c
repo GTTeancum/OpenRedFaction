@@ -85,10 +85,7 @@ static void play(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left
 {(void)play_mode(context,handle,pcm,left,right,0);}
 static void stop(void *context,uint32_t handle)
 {
-    unsigned i;(void)context;if(!device)return;EnterCriticalSection(&lock);
-    for(i=0;i<RF_AUDIO_VOICES;i++)if(handles[i]==handle && mixer.voices[i].active)
-        rf_audio_voice_stop(&mixer,mixer.voices[i].handle);
-    LeaveCriticalSection(&lock);
+    (void)context;(void)rf_pc_audio_release_voice(handle);
 }
 int rf_pc_audio_release_voice(unsigned int handle)
 {

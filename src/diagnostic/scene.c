@@ -600,7 +600,7 @@ static void campaign_ambient_stop_voice(void *context,int32_t voice)
     (void)context;rf_audio_voice_stop(&campaign_audio_mixer,(uint32_t)voice);
     if(campaign_audio_events.stop)campaign_audio_events.stop(campaign_audio_events_context,(uint32_t)voice);
     ++rf_scene_ambient_audio[2];rf_scene_ambient_audio[7]=(rf_scene_ambient_audio[7]^(uint32_t)voice)*16777619u;
-    /* PCM stays owned until reset; asynchronous stop cannot authorize unloading. */
+    /* PCM stays owned until reset; a void stop callback cannot certify all borrowers released. */
 }
 static void campaign_ambient_refresh_voice(void *context,int32_t voice,int32_t sample,const float position[3])
 {

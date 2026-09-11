@@ -180,7 +180,7 @@ int main(void)
      rf_xbox_audio_events.stop(NULL,0x90000u);Sleep(150);
      {const volatile int16_t *output=g_hw_ac97_buffer;
       for(uint32_t n=0;n<4096;n++)rf_apu_loop[2]+=output[n]!=0;}
-     if(rf_apu_loop[2] || rf_xbox_audio_release_voice(0x90000u))goto fail;
+     if(rf_apu_loop[2] || rf_xbox_audio_release_voice(0x90000u)!=RF_NOT_FOUND)goto fail;
      if(rf_xbox_audio_events.play_mode(NULL,0x90001u,&short_loop,1,1,2)!=RF_RANGE)goto fail;
      rf_xbox_audio_events.reset(NULL);rf_apu_loop[3]=available();
      if(rf_xbox_audio_diagnostic[1]!=1 || rf_xbox_audio_diagnostic[3]!=1 || rf_xbox_audio_diagnostic[11] || rf_apu_loop[3]!=rf_apu_probe[3])goto fail;}
