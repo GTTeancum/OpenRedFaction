@@ -29,5 +29,22 @@ repeated close and reading retained data after closing inputs.
 | L1S2 | 9 | 108 | 44 | 2,649,276 | 2,660,076 |
 | L1S3 | 10 | 101 | 44 | 2,709,068 | 2,719,168 |
 
-These are PC probe measurements; native runtime accounting remains to verify.
-The loader is not yet connected to campaign ownership or NPC rendering.
+These are standalone PC probe measurements. The L1S1 campaign/native check below also includes retained appearance metadata.
+The loader is connected to campaign ownership; NPC rendering remains open.
+
+## Campaign / native verification
+
+Campaign startup retains appearances and shared materials with a 4 MiB material
+load budget, then releases both in campaign teardown. `rf_scene_npc_materials`
+records appearance/material/image counts, resident/peak bytes including the
+retained appearance maps, binding hash, pixel bytes and logical pixel hash.
+The pixel walk uses `rf_image_pixel`, so swizzled Xbox storage is compared with
+PC row-major storage in identical logical order. Binding hashes include actor
+appearance indices, material offsets, all material record bytes and owned arrays.
+
+`artifacts/xemu/replay-20260911-090328/report.json` passes the 180-frame L1S1
+door/audio replay on 64 MiB XEMU. All eight telemetry words match PC:
+`12, 143, 51, 3860424, 3874724, 60337271, 3818496, 4177010851`.
+The existing NPC startup/geometry and door/audio checks also pass. These totals
+cover NPC appearance/material ownership, not the entire game memory footprint.
+No new rendered NPCs are claimed by this residency verification.

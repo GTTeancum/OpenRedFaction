@@ -15,8 +15,11 @@ global image sharing saves4-5MiB versus separate appearance bundles.
 Shared NPC materials now pass all 31 opening appearances with deduplicated
 primary/secondary images; connect campaign ownership and verify native residency.
 
+Campaign NPC materials now match PC in stock 64 MiB XEMU: all 51 L1S1 images
+and 143 material records verified; drawing integration remains.
+
 Immediate open items:
-- [ ] Connect shared NPC appearance/material residency to campaign loading and verify Xbox memory and drawing.
+- [ ] Connect shared NPC materials to drawing and complete per-frame actor rendering.
 - [ ] Connect per-frame NPC selection/pose updates, rendered geometry and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.

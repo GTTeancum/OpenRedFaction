@@ -461,6 +461,9 @@ static rf_entity_base_motions campaign_base_motions;
 static rf_entity_motion_catalog campaign_motion_catalog;
 static rf_entity_playback_resources campaign_playback_resources;
 static rf_entity_render_models campaign_render_models;
+static rf_entity_appearances campaign_appearances;
+static rf_entity_materials campaign_npc_materials;
+uint32_t rf_scene_npc_materials[8]; /* appearances, materials, images, resident, peak, binding hash, pixel bytes, pixel hash */
 uint32_t rf_scene_npc_geometry[7]; /* models, LODs, vertices, triangles, bytes, geometry hash, prepared skin hash */
 uint32_t rf_scene_npc_startup[4]; /* actors, bones, playback hash, matrix/cache hash */
 static rf_entity_view campaign_player_view;
@@ -1034,6 +1037,29 @@ static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes)
 {
     const unsigned char *p=data;while(bytes--)hash=(hash^*p++)*16777619u;return hash;
 }
+static void campaign_npc_materials_digest(void)
+{
+    const rf_entity_materials *owner=&campaign_npc_materials;uint32_t i,j,x,y,h=2166136261u,p=2166136261u,bytes=0;
+    memset(rf_scene_npc_materials,0,sizeof(rf_scene_npc_materials));
+    rf_scene_npc_materials[0]=owner->count;rf_scene_npc_materials[1]=owner->materials.count;
+    rf_scene_npc_materials[2]=owner->materials.textures.count;
+    rf_scene_npc_materials[3]=owner->resident_bytes+campaign_appearances.resident_bytes;
+    rf_scene_npc_materials[4]=owner->peak_bytes+campaign_appearances.resident_bytes;
+    h=npc_hash_bytes(h,owner->offsets,(owner->count+1)*4);
+    h=npc_hash_bytes(h,campaign_appearances.actor_indices,campaign_appearances.actor_count*4);
+    for(i=0;i<owner->materials.count;++i) {
+        const rf_model_material_instance *item=owner->materials.items+i;
+        h=npc_hash_bytes(h,item->record.bytes,200);
+        for(j=0;j<3;++j)h=npc_hash_bytes(h,item->arrays[j],item->counts[j]*4);
+    }
+    for(i=0;i<owner->materials.textures.count;++i) {
+        const rf_image *image=&owner->materials.textures.items[i].image;
+        p=npc_hash_bytes(p,&image->width,4);p=npc_hash_bytes(p,&image->height,4);
+        for(y=0;y<image->height;++y)for(x=0;x<image->width;++x)p=npc_hash_bytes(p,rf_image_pixel(image,x,y),4);
+        bytes+=image->bytes;
+    }
+    rf_scene_npc_materials[5]=h;rf_scene_npc_materials[6]=bytes;rf_scene_npc_materials[7]=p;
+}
 static int campaign_npc_geometry_digest(void)
 {
     uint32_t i,j;float prepared[50][12];uint16_t generations[50];int status;
@@ -1070,6 +1096,8 @@ static void campaign_close_movers(void)
     }
     rf_entity_seeds_close(&campaign_seeds);
     rf_entity_poses_close(&campaign_poses);
+    rf_entity_materials_close(&campaign_npc_materials);
+    rf_entity_appearances_close(&campaign_appearances);
     rf_entity_render_models_close(&campaign_render_models);
     rf_entity_playback_resources_close(&campaign_playback_resources);
     rf_entity_motion_catalog_close(&campaign_motion_catalog);
@@ -2366,6 +2394,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && campaign_spawn)status=rf_entity_skeletons_open(&campaign_seeds,&archive,256*1024,&campaign_skeletons);
         if(!status && collision && campaign_spawn)status=rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses);
         if(!status && collision && campaign_spawn)status=rf_entity_render_models_open(&campaign_skeletons,&archive,1024*1024,&campaign_render_models);
+        if(!status && collision && campaign_spawn)status=rf_entity_appearances_open(&campaign_seeds,&campaign_skeletons,&tables,1024*1024,&campaign_appearances);
+        if(!status && collision && campaign_spawn)status=rf_entity_materials_open(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024);
+        if(!status && collision && campaign_spawn)campaign_npc_materials_digest();
         rf_vpp_close(&tables);if(status)goto done;
         if(campaign_spawn && collision) {
             rf_object_registry_init(&campaign_registry);
