@@ -2411,3 +2411,6 @@ miner pose queries plus26 guards; live emitter/owner adapters remain open.
 
 Burn emitter movement boundary passes1024 PC/NXDK original cases plus4
 guards; actual room locator, parent synchronization and emission remain.
+
+Emitter cached-room policy verified across240 original paths; positive motion
+and face crossing gate fresh lookup. Recover4cd9e0 before live room binding.

@@ -883,3 +883,29 @@ nonfinite/callback-failure guards also pass. Both builds and eight CTests pass.
 Evidence is artifacts/emitter-move.json. Actual world-room traversal, parent
 room synchronization and emitter emission still need to be joined to the
 model/burn adapter under persistent campaign ownership.
+
+## Cached room policy required by emitter movement
+
+The existing geometry-world position locator covers4e1630, but it cannot
+replace the complete4cd970 movement query indiscriminately. A null previous
+room calls4e1630 immediately. Otherwise4cd970 computes squared displacement
+through4faf00 and compares it to0. Only positive displacement invokes
+4cd9e0(world,0,previous_position,position). A nonzero low-byte result then
+permits4e1630; otherwise the cached room pointer is retained. The fourth
+4cd970 argument is unused, and the crossing helper receives a null cached
+tree even when a previous room exists. A fresh locator miss returns0.
+
+verify_room_tracking_trace.py executes complete4cd970 with actual distance
+code and supplied crossing/locator outcomes. All240 scenarios pass, covering
+zero, unit, minimum-positive-float and NaN displacement; return words0,1,2,256,
+257; missing/present old room; ignored flag values; and located/missing output.
+There are156 full position queries and60 crossing queries. NaN retains the
+old room in the original; the shared emitter move already rejects nonfinite
+inputs explicitly. Evidence is artifacts/room-tracking-trace.json.
+
+Disassembly of4cd9e0 shows a separate face-crossing traversal, including
+node/face bounds, segment tests, plane fraction and point-in-face checks.
+Its4ce4a0 predicate excludes face flags0x0c. This is not yet a verified shared
+world traversal adapter. Recover and compare that query before connecting
+moving emitters to the position locator; always re-locating would change
+original cached-room behavior.
