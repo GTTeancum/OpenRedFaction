@@ -74,6 +74,16 @@ int rf_physics_support_commit(rf_physics_body_state *state,const rf_physics_grou
     if(moving)value.flags|=0x400000u;else value.flags&=~0x400000u;
     *state=value;*support_handle=moving?object_handle:0;return RF_OK;
 }
+int rf_physics_support_accept(rf_physics_body_state *state,const rf_physics_ground_probe *probe,
+    float fraction,uint32_t moving,float contact_y,uint32_t object_handle,int32_t material,
+    rf_physics_support_contact *support)
+{
+    rf_physics_support_contact value;int status;
+    if(!support)return RF_RANGE;
+    status=rf_physics_support_commit(state,probe,fraction,moving,contact_y,object_handle,&value.handle);
+    if(status)return status;
+    value.material=material;*support=value;return RF_OK;
+}
 void rf_physics_support_refresh(uint32_t mode,const float resolved_velocity[3],
     float cached_velocity[3],uint32_t *body_flags,uint32_t *object_flags)
 {

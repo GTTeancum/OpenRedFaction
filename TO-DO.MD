@@ -1,50 +1,18 @@
 # Red Faction Xbox / PC - open work
 
-Campaign NPCs gate startup-selected playback using retained room/LOD/camera data;
-AI/action ownership, sound events and lighting remain.
+Shortlist:
+- Complete the single-player actor, AI, damage and mission runtime.
+- Connect per-NPC bodies, contact history, surface materials and timed footsteps.
+- Complete moving NPC animation, room membership, LOD selection and lighting.
+- Finish controller/event interactions, traversal, particles and GeoMod.
+- Complete audio playback ownership, shared RNG ordering and level transitions.
+- Keep shared PC/Xbox behavior verified within the stock64MiB memory budget.
+- USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
+- USER: Review the interactive PC movement and audio items listed below.
 
-Stock 64 MiB XEMU matches L1S1 playback/drawing and the L1S2 lift replay;
-78 L1S1 actors share 10,536 bytes of resident motion data/cache metadata.
-
-Original footstep requests and material binding are verified against PC/NXDK;
-the shared reader covers497 groups,1140 samples and all63 authored classes.
-
-Campaign Foley metadata and per-class bindings now match PC/stock64MiB XEMU;
-L1S1 retains26,652 table bytes plus127,680 additional bank bytes without new PCM.
-
-Connect resident marker names to entity-update scheduling, surface selection and
-footstep dispatch; verify persistent registration across level transitions.
-
-Original entity-update prefix now passes256 scheduling/gate cases; trace model
-advancement and surface selection before enabling live marker consumption.
-
-Accepted-support material transfer into the footstep surface field is verified
-in2048 original cases; recover per-NPC support updates and airborne retention.
-
-Motion catalogs retain indexed marker names after loading; all728 opening-level
-resources pass, with7956 additional resident bytes in L1S1.
-
-Original call-chain and prepared gates establish conditional model advance in
-the earlier object pass, then footsteps before the later entity support query.
-
-Conditional NPC model advance matches11520 original/PC/NXDK cases; connect
-resolved actor fields and distance ownership before gating live playback.
-
-Camera-scaled NPC animation gates match1200 combined original/PC/NXDK cases;
-retain double metric precision and recover remaining live actor inputs.
-
-NPC seed classes retain verified authored LOD distances for all63 classes;
-connect room/frame state; stock64MiB XEMU validates the expanded seed layout.
-
-Stationary startup actors use the animation gate with exact PC/XEMU results;
-extend action/flag
-ownership and moving room membership before dynamic NPC behavior.
-
-Footstep sample choice and audio routing match1025 original/PC/NXDK cases;
-connect support surfaces, marker timing, shared RNG and backend playback.
-
-Surface clear/retain/probe gates match1008 original/PC/NXDK cases; connect
-per-NPC contacts and accepted-hit material ownership before live footsteps.
+The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
+footstep selection and support-material helpers are verified but not live.
+Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.

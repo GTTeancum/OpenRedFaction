@@ -14,7 +14,8 @@ def machine(path):
 source=root/'Installed_Game/RF.exe';assert hashlib.sha256(source.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
 u=machine(source);x=machine(root/'build/xbox/main.exe')
 entry=int(re.search(r'_rf_physics_support_commit\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
-rng=random.Random(0x4a0ae3);commands=bytearray();expected=bytearray();raised=0
+rng=random.Random(0x4a0ae3);commands=bytearray();expected=bytearray();raised=0;contact_commands=bytearray();contact_expected=bytearray()
+contact_entry=int(re.search(r"\s_rf_physics_support_accept\s+([0-9a-fA-F]+)",(root/"build/xbox/main.map").read_text())[1],16)
 for n in range(2048):
  state=bytearray(308);position=f(*(rng.uniform(-100,100) for _ in range(3)))
  state[100:112]=position;state[184:196]=f(1,-2,3);state[244:248]=f(.5);state[272:276]=w(rng.getrandbits(32))
@@ -22,10 +23,11 @@ for n in range(2048):
  fraction=f(rng.random());moving=n%2;contact_y=f([-2,0,2,1e-8][(n//2)%4]);handle=n+100
  command=bytes(state)+bytes(probe)+fraction+w(moving)+contact_y+w(handle);commands.extend(command)
  u.mem_write(b,bytes(0x4000));u.mem_write(b+0xf0,position);u.mem_write(b+0x144,bytes(state[184:196]));u.mem_write(b+0x180,bytes(state[244:248]));u.mem_write(b+0x1a8,bytes(state[272:276]));u.mem_write(b+0x302c,w(handle))
- u.mem_write(stack,bytes(256));u.mem_write(stack+0xc,bytes(probe[:24]));u.mem_write(stack+0x60,fraction);u.mem_write(stack+0x70,contact_y);u.mem_write(stack+0x64,w(n%10));u.mem_write(b+0x1380,w(0xa5a5a5a5))
+ material=[n%10,-1,-2,0x7fffffff][n%4]
+ u.mem_write(stack,bytes(256));u.mem_write(stack+0xc,bytes(probe[:24]));u.mem_write(stack+0x60,fraction);u.mem_write(stack+0x70,contact_y);u.mem_write(stack+0x64,w(material));u.mem_write(b+0x1380,w(0xa5a5a5a5))
  u.reg_write(UC_X86_REG_ESI,b);u.reg_write(UC_X86_REG_EDI,b+0x3000);u.reg_write(UC_X86_REG_EBX,b+0xf0);u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x37f)
  u.emu_start(0x4a0ae3 if moving else 0x4a0b31,0x4a0c05,count=10000);assert u.reg_read(UC_X86_REG_EIP)==0x4a0c05
- assert bytes(u.mem_read(b+0x1380,4))==w(n%10), ("ground material",n)
+ assert bytes(u.mem_read(b+0x1380,4))==w(material), ("ground material",n)
  value=bytearray(state)
  for dst,src,size in [(88,0xe4,12),(100,0xf0,12),(248,0x190,24),(272,0x1a8,4)]:value[dst:dst+size]=bytes(u.mem_read(b+src,size))
  raised+=struct.unpack_from('<f',value,104)[0]>y
@@ -34,7 +36,25 @@ for n in range(2048):
  x.mem_write(stack,w(stop,b,b+0x2000)+fraction+w(moving)+contact_y+w(handle,b+0x3000));x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x27f)
  x.emu_start(entry,stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop,(n,hex(x.reg_read(UC_X86_REG_EIP)))
  got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,308))+bytes(x.mem_read(b+0x3000,4));assert got==want,('NXDK',n)
+ contact_commands.extend(command+w(material));contact_expected.extend(want+w(material))
+ x.mem_write(b,bytes(state));x.mem_write(b+0x3000,w(0xa5a5a5a5,0xa5a5a5a5))
+ x.mem_write(stack,w(stop,b,b+0x2000)+fraction+w(moving)+contact_y+w(handle,material,b+0x3000));x.reg_write(UC_X86_REG_ESP,stack)
+ x.emu_start(contact_entry,stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop
+ got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,308))+bytes(x.mem_read(b+0x3000,8));assert got==want+w(material),('NXDK contact',n)
+
+# Port preflight failures preserve both retained records, including late bounds overflow.
+failures=0;valid_contact=bytes(contact_commands[-412:])
+for offset,value in [(392,-1.),(392,1.),(392,float('nan')),(400,float('nan')),(244,-1.),(104,float('nan')),(244,3.4e38)]:
+ raw=bytearray(valid_contact);raw[offset:offset+4]=f(value)
+ if offset==244 and value>0:raw[100:104]=f(3.4e38)
+ want=w(-4)+bytes(raw[:308])+w(0xa5a5a5a5,0xa5a5a5a5)
+ x.mem_write(b,bytes(raw[:308]));x.mem_write(b+0x2000,bytes(raw[308:392]));x.mem_write(b+0x3000,w(0xa5a5a5a5,0xa5a5a5a5))
+ x.mem_write(stack,w(stop,b,b+0x2000)+bytes(raw[392:412])+w(b+0x3000));x.reg_write(UC_X86_REG_ESP,stack)
+ x.emu_start(contact_entry,stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop
+ got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,308))+bytes(x.mem_read(b+0x3000,8));assert got==want,('failure',offset,value)
+ contact_commands.extend(raw);contact_expected.extend(want);failures+=1
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_physics_probe.exe'),'--support-commit'],input=commands)
 assert actual==expected,'PC support differs'
-report=dict(result='PASS',cases=2048,raised=raised,material_transfers=2048,scope='Original4a0ae3/4a0b31 through4a0c05 verifies contact material transfer to entity+1380 before landing predicate. Existing PC/NXDK numeric support comparison remains limited to4a0bfa; unchanged vector/bounds/min callees. PC/NXDK exact state and support handle for static and resolved mover contacts including positive/nonpositive Y. Lookup, entity rejection, contact-record copy and landing effects excluded.')
+assert subprocess.check_output([str(root/'build/pc/Release/rf_physics_probe.exe'),'--support-contact'],input=contact_commands)==contact_expected,'PC contact differs'
+report=dict(result='PASS',cases=2048,port_failures=failures,raised=raised,material_transfers=2048,scope='Original4a0ae3/4a0b31 through4a0c05 verifies contact material transfer to entity+1380 before landing predicate. PC/NXDK support_accept additionally matches retained handle/material; legacy numeric comparison ends at4a0bfa; unchanged vector/bounds/min callees. PC/NXDK exact state and support handle for static and resolved mover contacts including positive/nonpositive Y. Lookup, entity rejection, contact-record copy and landing effects excluded.')
 (root/'artifacts/support-commit-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

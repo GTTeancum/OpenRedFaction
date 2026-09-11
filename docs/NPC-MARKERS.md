@@ -487,3 +487,23 @@ pass, including signed zeros, .85 neighbors, signed material values, flag
 combinations, infinities and quiet/signaling NaNs. There are136 probe requests
 and90 reset requests; surface values actually change180/75 times respectively.
 These gates do not execute contact queries or supply live NPC support owners.
+
+## Accepted support contact owner
+
+`rf_physics_support_contact` retains the support handle and signed material in
+eight bytes. `rf_physics_support_accept` extends the numeric commit through
+original4a0c05: after support position/bounds/flag/handle updates succeed, it
+transfers the accepted contact material into that retained record. Static
+support clears the handle but still copies material; resolved movers retain
+their supplied handle. Negative material values are transferred unchanged.
+
+`verify_support_commit.py` now compares the material on PC/NXDK as well as in
+the original, across2048 static/rising/falling support cases. Seven additional
+port validation cases verify that body and support both survive bad fractions,
+non-finite inputs, negative radius and late bounds overflow unchanged. Each
+failure fixture starts from a fresh valid input. The legacy numeric API remains
+available for callers not yet owning contact metadata.
+
+The owner has no archive pointers or allocation. It does not create per-NPC
+physics bodies, run queries, initialize contact history, apply landing effects
+or activate footsteps. Those remain the next integration requirements.

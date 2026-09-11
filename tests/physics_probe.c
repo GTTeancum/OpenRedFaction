@@ -169,6 +169,16 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--support-contact")) {
+        struct {rf_physics_body_state state;rf_physics_ground_probe probe;float fraction;uint32_t moving;float contact_y;uint32_t handle;int32_t material;} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            struct {int status;rf_physics_body_state state;rf_physics_support_contact support;} output;
+            output.state=input.state;memset(&output.support,0xa5,sizeof(output.support));
+            output.status=rf_physics_support_accept(&output.state,&input.probe,input.fraction,input.moving,input.contact_y,input.handle,input.material,&output.support);
+            fwrite(&output,sizeof(output),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--support-commit")) {
         struct {rf_physics_body_state state;rf_physics_ground_probe probe;float fraction;uint32_t moving;float contact_y;uint32_t handle;} input;
         while(fread(&input,sizeof(input),1,stdin)==1) {

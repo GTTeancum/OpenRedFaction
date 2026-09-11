@@ -261,6 +261,17 @@ int rf_physics_static_support(rf_physics_body_state *state,const rf_physics_grou
  * contact-record ownership or landing transition. Errors preserve outputs. */
 int rf_physics_support_commit(rf_physics_body_state *state,const rf_physics_ground_probe *probe,
     float fraction,uint32_t moving,float contact_y,uint32_t object_handle,uint32_t *support_handle);
+typedef struct rf_physics_support_contact {
+    uint32_t handle;int32_t material;
+} rf_physics_support_contact;
+/* Accepted contact commit through4a0c05: numeric support update, then raw
+ * material transfer to entity1380. Compact retained owner; no archive pointer.
+ * Caller has accepted/resolved contact and owns material semantics. Does not
+ * run landing predicates or clear material on a failed query. Outputs must be
+ * disjoint; errors preserve body and support together. */
+int rf_physics_support_accept(rf_physics_body_state *state,const rf_physics_ground_probe *probe,
+    float fraction,uint32_t moving,float contact_y,uint32_t object_handle,int32_t material,
+    rf_physics_support_contact *support);
 /* 41e370/40a420 after caller resolves the support handle. Modes 1/3 copy
  * current support velocity and set body/object wake flags. NULL resolved
  * velocity means lookup failed: preserve all outputs. Output pointers must
