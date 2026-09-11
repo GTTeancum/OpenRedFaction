@@ -20,7 +20,7 @@ def hook(m,address,size,context):
     if address==0x42ed20:
         sp=m.reg_read(UC_X86_REG_ESP);releases.append(struct.unpack('<I',m.mem_read(sp+4,4))[0]);return
     if address==0x42ef3e:
-        trace.append((0x42ef3e,slot_map[m.reg_read(UC_X86_REG_ESI)]));body.append(m.reg_read(UC_X86_REG_ESI));m.reg_write(UC_X86_REG_EIP,0x42f2a2);return
+        trace.append((0x42ef3e,slot_map[m.reg_read(UC_X86_REG_ESI)]));body.append(m.reg_read(UC_X86_REG_ESI));m.reg_write(UC_X86_REG_EIP,globals().get('body_entry',0x42f2a2));return
     if address not in (0x40a0e0,0x4973d0,0x497d80,0x505a40):return
     sp=m.reg_read(UC_X86_REG_ESP);ret,arg=struct.unpack('<2I',m.mem_read(sp,8));result=0
     trace.append((address,m.reg_read(UC_X86_REG_ECX) if address==0x4973d0 else arg))

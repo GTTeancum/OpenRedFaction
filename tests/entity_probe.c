@@ -8,6 +8,7 @@
 #include "damage_effect_probe.h"
 #include "burn_probe.h"
 #include "burn_body_probe.h"
+#include "burn_retirement_probe.h"
 static rf_damage_object dispatch_object;
 static uint32_t dispatch_facts[3],dispatch_present,dispatch_trace[8],dispatch_count,dispatch_effect[6];
 static float dispatch_after;
@@ -54,6 +55,7 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--burn-attachments"))return burn_attachment_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-spread"))return burn_spread_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-body"))return burn_body_probe();
+    if(argc==2 && !strcmp(argv[1],"--burn-retirement"))return burn_retirement_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-owner"))return burn_owner_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-update"))return burn_update_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-fade"))return burn_fade_probe();

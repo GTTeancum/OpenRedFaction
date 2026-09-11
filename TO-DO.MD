@@ -2389,3 +2389,7 @@ Compose shared phases against this oracle before persistent live integration.
 Composed shared burn body passes54 complete original scenarios on PC/NXDK,
 including timer/world transform and mutation-visible spread/owner ordering.
 Pool fade/release composition and persistent campaign adapters remain open.
+
+Pool -> owner tail -> fade -> release passes540 PC/NXDK patterns and2082
+record retirements, including all-eight removal, exact rings and timer rearm.
+Persistent campaign resources and live owner-reference clearing remain open.

@@ -731,3 +731,32 @@ callbacks, not native gameplay. The next integration boundary is pool traversal
 with real shared fade/release, followed by persistent campaign adapters. The
 standalone phases remain reusable; they are now joined by a concrete shared
 body rather than requiring each platform to reproduce the ordering.
+
+## Pool traversal through real fade and release
+
+verify_burn_retirement_trace.py executes original42ee80 traversal, owner tail
+42f1dc, full42f2f0 fade and actual42ed20 release across540 retirement patterns.
+Every subset of active counts1,2,3,8 is tested with cleared and expired shared
+deadlines, including removal of head/interior/tail and all eight records.
+The attachment/spread portion is skipped; non-retiring owners have flag810
+bit1 set, while retiring records fade past17 seconds. Emitter fields are zero
+and inactive, and entity reaction/owner lists are absent. External lookup,
+audio and resource callbacks are supplied. The normal fade path needs no
+branch correction: the original resumes the saved next active record.
+
+Across2,082 record retirements, every original pass visits the initial active
+records once, appends released records to the free ring in traversal order,
+preserves remaining active order, and rearms the deadline to1225. This is
+distinct from the previously documented missing-owner branch defect.
+
+verify_burn_retirement.py compares the same cases through shared
+rf_burn_pool_update -> rf_burn_owner_tick -> rf_burn_fade -> rf_burn_release.
+PC uses actual C callback adapters; NXDK uses callback thunks that invoke the
+actual linked functions without emulating their implementations. Complete
+pool bytes, heads, ring links, deadline and ordered external calls match
+exactly in all540 cases. Evidence is artifacts/burn-retirement.json.
+
+This closes normal fade-triggered current-record removal at the traversal
+boundary under the stated fixtures. It does not yet combine active emitter
+updates, live owner-reference clearing or campaign resources with this path;
+persistent model/particle/audio/entity adapters remain the next work.
