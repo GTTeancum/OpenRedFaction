@@ -2573,3 +2573,8 @@ NPC base state mappings and borrowed motion descriptors now persist by class;
 three level owner probes and181 installed group checks pass. Weapon/actions,
 alternate clips and original startup selector inputs remain open.
 Native64MiB replay-20260911-064631 passes after retained base motion loading.
+
+Base45 action mappings and sound labels now persist with class state bindings;
+1168 action declarations and495 installed action slots verify. Weapon-specific
+mappings, numeric sound IDs, alternate clips and live initial selection remain.
+Native64MiB replay-20260911-065339 passes with retained base action bindings.

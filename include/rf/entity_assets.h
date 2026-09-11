@@ -233,6 +233,13 @@ int rf_entity_assets_load(const char *tables_path,const char *class_name,
  * zero-filled 64-byte name on success and unchanged on failure. */
 int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *class_name,
     const char *weapon,const char *state,char motion[64]);
+typedef struct rf_entity_action_declaration {char motion[64],sound[64];} rf_entity_action_declaration;
+/* Selected +Action name, motion and sound-class label. Exact base/weapon group,
+ * ASCII-insensitive selection, no fallback. Empty quoted values are retained.
+ * Port parser, no allocation, errors preserve output; sound ID resolution and
+ * one-shot registration are separate. */
+int rf_entity_action_read(const void *text,uint32_t bytes,const char *class_name,
+    const char *weapon,const char *action,rf_entity_action_declaration *result);
 int rf_entity_state_motion_load(const char *tables_path,const char *class_name,
     const char *weapon,const char *state,char motion[64],uint32_t table_budget);
 /* Port binding of one exact table declaration to a validated compiled motion.
@@ -242,14 +249,17 @@ int rf_entity_state_motion_open(const char *tables_path,const char *class_name,
     const char *weapon,const char *state,rf_vpp *motions,uint32_t table_budget,rf_motion_file *file);
 typedef struct rf_entity_state_set {
     int32_t states[23];uint32_t count;
-    rf_motion_cache_record cache[23];rf_motion_file files[23];
+    rf_motion_cache_record cache[68];rf_motion_file files[68];
+    uint8_t looping[68];int32_t actions[45];char action_sounds[45][64];
 } rf_entity_state_set;
 typedef struct rf_entity_base_motions {
     rf_entity_state_set *classes;uint32_t class_count,resident_bytes,peak_bytes;
 } rf_entity_base_motions;
-/* Retain canonical base state mappings once per skeletal class, reading the
+/* Retain canonical base state and action mappings per skeletal class, reading the
  * table once. Motion files borrow the caller's open immutable motions archive.
- * No weapon/action mappings, alternate clips, initial selection or playback.
+ * Sound labels retained; no sound-ID resolution. No weapon mappings, alternate
+ * clips, initial selection or playback. States/actions share local indices;
+ * identical files with different looping flags register distinct entries.
  * Budget includes owner/arrays/table scratch; errors preserve empty output.
  * Port ownership and local motion indices, not the original global registry. */
 int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_vpp *motions,uint32_t budget,rf_entity_base_motions *result);

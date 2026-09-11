@@ -6,6 +6,21 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==5 && !strcmp(argv[1],"--action-text")) {
+        char raw[8192];size_t size;rf_entity_action_declaration result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        size=fread(raw,1,sizeof(raw),stdin);memset(&result,0xa5,sizeof(result));
+        status=rf_entity_action_read(raw,(uint32_t)size,argv[2],argv[3],argv[4],&result);
+        fwrite(&status,4,1,stdout);fwrite(&result,sizeof(result),1,stdout);return 0;
+    }
+    if(argc==6 && !strcmp(argv[1],"--action")) {
+        rf_entity_action_declaration result;memset(&result,0xa5,sizeof(result));
+        if(rf_vpp_open(&archive,argv[2]) || rf_vpp_find(&archive,"entity.tbl",&entry))return 2;
+        text=malloc(entry.size);if(!text || rf_vpp_read(&archive,&entry,0,text,entry.size))return 3;
+        status=rf_entity_action_read(text,entry.size,argv[3],argv[4],argv[5],&result);
+        free(text);rf_vpp_close(&archive);_setmode(_fileno(stdout),_O_BINARY);
+        fwrite(&status,4,1,stdout);fwrite(&result,sizeof(result),1,stdout);return 0;
+    }
     if(argc==6 && !strcmp(argv[1],"--base-motions")) {
         rf_vpp levels,tables,motions;rf_level level;rf_entity_seeds seeds={0};
         rf_entity_base_motions m={0},guard={0};uint32_t files=0,j;
@@ -19,7 +34,14 @@ int main(int argc,char **argv)
         rf_entity_base_motions_close(&guard);rf_entity_base_motions_close(&guard);
         for(i=0;i<m.class_count;++i)if(seeds.classes[i].model_kind==2) {
             if(rf_entity_state_set_open(argv[3],seeds.records.items[seeds.classes[i].record_index].record.class_name,"",&motions,512*1024,expected) ||
-               memcmp(expected,m.classes+i,sizeof(*expected)))return 7;
+               memcmp(expected->states,m.classes[i].states,sizeof(expected->states)) ||
+               memcmp(expected->files,m.classes[i].files,expected->count*sizeof(*expected->files)))return 7;
+            for(j=0;j<45;++j) {
+                int32_t index=m.classes[i].actions[j];
+                if(index<-1 || (index>=0 && ((uint32_t)index>=m.classes[i].count || m.classes[i].looping[index])))return 9;
+                printf("ACTION\t%s\t%u\t%d\t%s\t%s\n",seeds.records.items[seeds.classes[i].record_index].record.class_name,j,index,
+                    index<0?"":m.classes[i].files[index].entry.name,m.classes[i].action_sounds[j]);
+            }
         }
         rf_entity_seeds_close(&seeds);rf_vpp_close(&levels);rf_vpp_close(&tables);
         for(i=0;i<m.class_count;++i)for(j=0;j<m.classes[i].count;++j) {

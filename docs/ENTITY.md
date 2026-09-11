@@ -247,3 +247,35 @@ and disk-free runtime sampling remain unverified.
 Native64MiB door/audio replay-20260911-064631 passes180 frames after base
 motion-owner integration, with PC state parity and nonzero DSP output. This
 proves loading/regression coverage, not live NPC animation.
+
+
+Base action motion mappings and sound labels
+rf_entity_action_read parses exact +Action triples (name,motion,sound label)
+within a base or weapon group, ignoring ASCII case for selection. Empty quoted
+fields are retained; missing groups do not fall back. Duplicate selected actions,
+missing sound fields and overlong retained names fail without publishing output.
+This is a selected-field port reader, not original table-parser equivalence.
+verify_entity_actions.py independently extracts1168 installed declarations and
+compares PC full-table and NXDK class-block reads, plus malformed/group guards.
+
+Retained campaign class sets now contain23 base state and45 base action mappings.
+Canonical action order is4181d0/table5caee0. Local registries first contain the
+base states (loop byte1), then actions (loop byte0). They deduplicate on cache
+identity AND loop byte, matching the recovered51cc10 registration key; a shared
+filename in both roles has distinct local entries. Sound labels remain strings;
+numeric sound-class lookup is still pending. rf_entity_state_set_open continues
+to return only its requested state group, with action mappings absent. Internal
+capacity is68 resources, enough for23 states plus45 actions. Motion payloads
+remain archive-backed; disk-free sampling is separate.
+
+verify_base_action_sets.py independently computes canonical local indices,
+filenames and sound labels for495 action slots across L1S1/L1S2/L1S3. Budget
+and post-table-close probes pass. Updated PC class/resource/resident/peak totals:
+5/100/111336/485976,3/89/66808/441448,6/95/133600/508240. Existing181 group
+state checks still pass (180 resolved, known edf_ship missing resource retained).
+Both builds and nine CTests pass. Original weapon-first/global registration order,
+weapon actions/states, alternates, sound IDs and initial selector remain open;
+no active NPC playback or new visual result is claimed.
+Native stock64MiB replay-20260911-065339 passes180 door/audio frames after
+base action integration, with PC state parity and nonzero DSP output. This is
+loading/regression evidence, not live NPC action playback verification.

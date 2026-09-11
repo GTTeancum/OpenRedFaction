@@ -622,6 +622,7 @@ static int state_set_read(const void *text,uint32_t size,const char *class_name,
     uint8_t flags[23]={0};int status,added;int32_t index;
     rf_model_motion_registry registry={identities,flags,0,23};
     status=state_group_exists(text,size,class_name,weapon);if(status)return status;
+    for(i=0;i<45;++i)value->actions[i]=-1;
     for(i=0;i<23;++i) {
         value->states[i]=-1;
         status=rf_entity_state_motion_read(text,size,class_name,weapon,names[i],authored);
@@ -631,6 +632,7 @@ static int state_set_read(const void *text,uint32_t size,const char *class_name,
         status=rf_motion_cache_acquire(value->cache,23,authored,&identity);if(status)return status;
         status=rf_model_register_motion(&registry,identity+1,1,&index,&added);if(status)return status;
         if(added) {
+            value->looping[index]=1;
             status=rf_motion_compiled_filename((const char*)value->cache[identity].bytes,compiled);if(status)return status;
             status=rf_motion_file_open(value->files+index,motions,compiled);if(status)return status;
         }
@@ -652,6 +654,32 @@ int rf_entity_state_set_open(const char *path,const char *class_name,const char 
     if(!status)*result=*value;
 done:
     free(value);rf_vpp_close(&archive);return status;
+}
+static int action_set_extend(const void *text,uint32_t size,const char *name,rf_vpp *motions,rf_entity_state_set *v)
+{
+    static const char *names[45]={"corpse_drop","corpse_carry","fire_stand","alt_fire_stand","fire_crouch","death_generic","death_blast_forward","death_blast_backward","death_head_forward","death_head_backward","death_head_neutral","death_chest_forward","death_chest_backward","death_chest_neutral","death_leg_left","death_leg_right","death_crouch","sidestep_left","sidestep_right","roll_left","roll_right","land","flinch_stand","flinch_attack_stand","flinch_chest","flinch_back","flinch_leg_left","flinch_leg_right","idle_to_ready","ready_to_idle","idle_1","idle_2","idle_3","idle_4","rock_drop","rock_pickup","death_still_1","death_still_2","death_still_3","reload","unholster","speak","speak_short","heal_light_1","hit_alarm"};
+    uint32_t identities[68]={0},i,identity;uint8_t flags[68]={0};int status,added;int32_t index;char compiled[64];
+    rf_model_motion_registry registry={identities,flags,0,68};
+    /* Called immediately after base states: their cache and registry indices coincide. */
+    if(v->count>23)return RF_RANGE;
+    registry.count=v->count;
+    for(i=0;i<v->count;++i){identities[i]=i+1;flags[i]=1;}
+    for(i=0;i<45;++i) {
+        rf_entity_action_declaration action;
+        status=rf_entity_action_read(text,size,name,"",names[i],&action);
+        if(status==RF_NOT_FOUND)continue;if(status)return status;
+        memcpy(v->action_sounds[i],action.sound,64);
+        if(!*action.motion)continue;
+        status=rf_motion_cache_acquire(v->cache,68,action.motion,&identity);if(status)return status;
+        status=rf_model_register_motion(&registry,identity+1,0,&index,&added);if(status)return status;
+        if(added) {
+            status=rf_motion_compiled_filename((const char*)v->cache[identity].bytes,compiled);if(status)return status;
+            status=rf_motion_file_open(v->files+index,motions,compiled);if(status)return status;
+            v->looping[index]=0;
+        }
+        v->actions[i]=index;
+    }
+    v->count=registry.count;return RF_OK;
 }
 void rf_entity_base_motions_close(rf_entity_base_motions *m)
 {
@@ -677,9 +705,12 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
     for(i=0;i<v.class_count;++i) {
         const rf_entity_seed_class *c=seeds->classes+i;
         for(j=0;j<23;++j)v.classes[i].states[j]=-1;
+        for(j=0;j<45;++j)v.classes[i].actions[j]=-1;
         if(c->model_kind!=2)continue;
         if(c->record_index>=seeds->records.count || !seeds->records.items){status=RF_RANGE;goto done;}
         status=state_set_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,"",motions,v.classes+i);
+        if(status)goto done;
+        status=action_set_extend(text,entry.size,seeds->records.items[c->record_index].record.class_name,motions,v.classes+i);
         if(status)goto done;
     }
     free(text);*result=v;return RF_OK;
@@ -718,6 +749,36 @@ int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *clas
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found || !matched)return RF_NOT_FOUND;
     memcpy(motion,value,64);return RF_OK;
+}
+int rf_entity_action_read(const void *text,uint32_t bytes,const char *class_name,
+    const char *weapon,const char *action,rf_entity_action_declaration *result)
+{
+    lexer l={(const unsigned char*)text,bytes,0};char t[256];rf_entity_action_declaration value={0};
+    int quoted,status,selected=0,found=0,group,matched=0;
+    if(!text || !class_name || !*class_name || !weapon || !action || !*action || !result)return RF_RANGE;
+    group=!*weapon;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
+            selected=same(t,class_name);found=selected;
+        } else if(selected && same(t,"+Weapon")) {
+            status=token(&l,t,&quoted);if(status || quoted || !same(t,"Specific:"))return RF_FORMAT;
+            status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
+            group=*weapon && same(t,weapon);
+        } else if(selected && same(t,"+Action:")) {
+            int use;
+            status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;use=group && same(t,action);
+            status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
+            if(use){if(matched)return RF_FORMAT;if(*t){status=asset(value.motion,t);if(status)return status;}}
+            status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
+            if(use){if(*t){status=asset(value.sound,t);if(status)return status;}matched=1;}
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found || !matched)return RF_NOT_FOUND;
+    *result=value;return RF_OK;
 }
 int rf_entity_state_motion_load(const char *path,const char *class_name,
     const char *weapon,const char *state,char motion[64],uint32_t budget)
