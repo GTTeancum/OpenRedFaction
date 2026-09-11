@@ -8,6 +8,7 @@ int rf_scene_stage_climb(rf_level *level,uint32_t mode);
 /* Explicit L1S1 lower-door collision fixture, not an authored spawn. */
 int rf_scene_stage_door(rf_level *level);
 int rf_scene_stage_lift(rf_level *level);
+int rf_scene_stage_force(rf_level *level,uint32_t uid);
 /* Follow fixture: 1 MiB world projection plus 1 MiB actor output. */
 #define RF_SCENE_FOLLOW_CAPACITY (2u*1024u*1024u)
 /* Optional port-owned profiling clock in milliseconds; NULL disables. Counts

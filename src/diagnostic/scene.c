@@ -46,6 +46,19 @@ int rf_scene_stage_lift(rf_level *level)
     }
     rf_geometry_movers_close(&movers);return status;
 }
+int rf_scene_stage_force(rf_level *level,uint32_t uid)
+{
+    rf_level_force_reader reader;rf_level_force_region record;int status;
+    if(!level)return RF_RANGE;
+    status=rf_level_forces_begin(level,&reader);if(status)return status;
+    while((status=rf_level_force_next(&reader,&record))==RF_OK)if(record.uid==uid) {
+        memcpy(level->player_position,record.position,12);level->player_position[0]+=.125f;
+        memset(level->player_orientation,0,36);
+        level->player_orientation[0][0]=level->player_orientation[1][1]=level->player_orientation[2][2]=1;
+        return RF_OK;
+    }
+    return status;
+}
 int rf_scene_stage_climb(rf_level *level,uint32_t mode)
 {
     rf_level_entity_reader reader;rf_player_movement_region region;float position[3];uint32_t i;int status;
@@ -393,6 +406,10 @@ uint32_t rf_scene_actor_turn_enabled,rf_scene_actor_look_enabled,rf_scene_actor_
 static rf_look_pose actor_look;
 static rf_level_owned_regions campaign_regions;
 static rf_physics_force_collection campaign_forces;
+static uint32_t campaign_force_class_flags,campaign_force_class_kind;
+static float campaign_force_air_limit;
+static rf_camera_effect_state campaign_force_shake;
+uint32_t rf_scene_force_ticks[12]; /* ticks, matches, eligible, carry, replace, turbulence, shakes, sounds, UID, RNG, cap, status */
 uint32_t rf_scene_campaign_forces[3]; /* count, owned bytes, ordered runtime record hash */
 static rf_object_registry campaign_registry;
 static rf_runtime_events campaign_events;
@@ -522,6 +539,11 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
         else ++rf_scene_live_audio[3];
     }
     rf_scene_live_audio[0]=campaign_audio_bank.count;rf_scene_live_audio[1]=campaign_audio_bank.bytes;
+    for(i=0;i<campaign_forces.count;i++)if(campaign_forces.items[i].flags&0x40) {
+        status=rf_audio_bank_reload(&campaign_audio_bank,&archive,0x53);if(status)goto audio_done;
+        break;
+    }
+    rf_scene_live_audio[1]=campaign_audio_bank.bytes;
     for(i=0;i<campaign_audio_bank.count;i++)if(rf_audio_bank_sample(&campaign_audio_bank,i)) {
         ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[i].bytes;
     }
@@ -892,6 +914,7 @@ actor_ground_record rf_scene_actor_ground_records[64];
 rf_geometry_body_hit rf_scene_actor_ground_contacts[64];
 static float campaign_support_velocity[3];
 static uint32_t campaign_support_handle;
+
 uint32_t rf_scene_actor_ground_queries[4]; /* queries, hits, mover hits, status */
 uint32_t rf_scene_actor_ground_stats[8]; /* magic, records, hits, walkable, first walkable frame, hash, stride, status */
 uint32_t rf_scene_actor_landing[8]; /* magic, descriptor index, frame, landings, grounded ticks, status, support commits, support losses */
@@ -1400,6 +1423,55 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
     out[0]=0x5246464c;out[1]=1;out[2]=step;out[3]=sphere;memcpy(out+4,&fraction,4);out[5]=hash;
     memcpy(out+6,current.position+1,4);memcpy(out+7,current.velocity+1,4);return RF_OK;
 }
+static void campaign_force_sound(void *context,const rf_player_force_state *state,const float position[3],uint32_t slot)
+{
+    const rf_wave_pcm *pcm=rf_audio_bank_sample(&campaign_audio_bank,slot);uint32_t handle;
+    (void)context;(void)state;(void)position;
+    ++rf_scene_force_ticks[7];
+    /* Owned first-person player uses the local 505560 route. The diagnostic
+     * mixer/device backend retains its existing unity-gain policy. */
+    if(!pcm || rf_audio_voice_start(&campaign_audio_mixer,pcm,32768,32768,0,&handle)) {
+        ++rf_scene_live_audio[5];return;
+    }
+    ++rf_scene_live_audio[4];
+    if(campaign_audio_events.play)campaign_audio_events.play(campaign_audio_events_context,handle,pcm,1,1);
+}
+static int campaign_force_tick(rf_physics_body_state *body,rf_level_particles *particles,int32_t now)
+{
+    uint32_t index;rf_physics_force_region *region;rf_physics_force_influence influence;int status;float amplitude;
+    ++rf_scene_force_ticks[0];
+    if(!(body->flags&8))return RF_OK;
+    status=rf_physics_force_region_select(campaign_forces.items,campaign_forces.count,rf_scene_actor_pose.public_position,&index);
+    if(status)return status;if(index==UINT32_MAX)return RF_OK;
+    ++rf_scene_force_ticks[1];region=campaign_forces.items+index;rf_scene_force_ticks[8]=region->uid;
+    /* This owner is the registered type-0 local player (object flag8), with no
+     * parent/attachment. General actor and player-list ownership remain external. */
+    if(!rf_physics_force_eligible(body->flags,1,region->flags,1,1,rf_scene_actor_landing[1]))return RF_OK;
+    ++rf_scene_force_ticks[2];
+    status=rf_physics_force_region_influence(region,body->position,body->bounds.radius,body->mass,&influence);if(status)return status;
+    if(region->flags&0xf0000) {
+        if(!particles || !particles->state)return RF_FORMAT;
+        status=rf_physics_force_turbulence(&influence,region->flags,scene_step_seconds,&particles->state->random,&amplitude);if(status)return status;
+        ++rf_scene_force_ticks[5];rf_scene_force_ticks[9]=particles->state->random.value;
+        status=rf_camera_effect_start(&campaign_force_shake,amplitude,.05f,now);if(status)return status;
+        ++rf_scene_force_ticks[6];
+    }
+    if(region->flags&0x40) {
+        uint32_t selected;rf_player_force_state value={0};rf_player_force_input input={0};
+        memcpy(value.velocity,body->velocity,12);value.physics_flags=body->flags;value.alternate_cap=campaign_force_air_limit;
+        value.movement=campaign_modes+rf_scene_actor_landing[1];value.orientation=campaign_identity;
+        input.influence=influence;memcpy(input.position,body->position,12);input.class_speed=rf_scene_actor_movement_values.speed;
+        input.class_flags=campaign_force_class_flags;input.descriptors=campaign_modes;input.identity=campaign_identity;
+        status=rf_player_force_replace(&value,&input,&selected,campaign_force_sound,NULL);if(status)return status;
+        memcpy(body->velocity,value.velocity,12);body->flags=value.physics_flags;campaign_force_air_limit=value.alternate_cap;
+        rf_scene_actor_landing[1]=selected;memcpy(rf_scene_force_ticks+10,&campaign_force_air_limit,4);++rf_scene_force_ticks[4];
+    } else {
+        status=rf_physics_force_actor_carry(campaign_support_velocity,&body->flags,&influence,
+            rf_scene_actor_landing[1],campaign_force_class_kind,-1);if(status)return status;
+        ++rf_scene_force_ticks[3];
+    }
+    return RF_OK;
+}
 static int actor_trace_contacts=1;
 static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state,const float command[3],const float ground_normal[3])
 {
@@ -1425,16 +1497,13 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
         } else {
             if(campaign_spawn && !(state->flags&0x1000000)) {
                 float scaled[3],input[3];uint32_t axis;
-                /* 49e780..49e8b7: class acceleration precedes the transform.
-                 * 4868c0 force-region ownership of the alternate cap is not
-                 * connected; do not silently substitute class speed for it. */
-                if(state->flags&0x200000)return RF_FORMAT;
+                /* 49e780..49e8b7: class acceleration precedes the transform. */
                 for(axis=0;axis<3;axis++)scaled[axis]=(float)((double)command[axis]*rf_scene_actor_movement_values.acceleration);
                 status=rf_movement_transform(campaign_modes[rf_scene_actor_landing[1]].translation,scaled,
                     actor_look.eye_orientation,state->next_orientation,(const float *)campaign_identity,input);if(status)return status;
                 /* Original initialized air-control scalar at 5a00e0 is .5. */
                 status=rf_physics_air_steer(state,remaining,.5f,rf_scene_actor_movement_values.acceleration,
-                    rf_scene_actor_movement_values.speed,input);if(status)return status;
+                    (state->flags&0x200000)?campaign_force_air_limit:rf_scene_actor_movement_values.speed,input);if(status)return status;
             }
             status=rf_physics_fall_propose(state,remaining,scene_gravity.acceleration,support);
         }
@@ -1608,6 +1677,12 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
     profile_mark(1);
     status=actor_listener_pose(stream,frame,controller,position,orientation);if(status)return status;
+    if(campaign_spawn && stream->particles.state) {
+        uint32_t active;uint64_t elapsed=(uint64_t)frame*1000/60;
+        int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
+        status=rf_camera_effect_apply_random(&campaign_force_shake,now,&stream->particles.state->random,(float *)orientation,&active);
+        if(status)return status;
+    }
     if(campaign_spawn)campaign_audio_listener(position,orientation[0]);
     if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
         memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);
@@ -1791,6 +1866,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 /* 433520 -> 433260: input, physics, then 487e00 support.
                  * The owned local-player fixture has object bit 8 and no parent. */
                 rf_group_registered_mover *support;
+                status=campaign_force_tick(&next,&stream->particles,particle_now);
+                rf_scene_force_ticks[11]=(uint32_t)status;if(status)return status;
                 status=campaign_controller_tick(particle_now,&stream->particles,next.position);
                 rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
                 support=rf_object_registry_lookup(&campaign_registry,campaign_support_handle);
@@ -1920,6 +1997,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(sink) {
         rf_vpp tables;status=rf_vpp_open(&tables,tables_path);if(status)goto done;
         status=rf_entity_physics_config_load(&tables,binding.entity.class_name,512*1024,&physics_config);
+        if(!status && campaign_spawn) {
+            campaign_force_class_flags=physics_config.authored.flags;campaign_force_class_kind=physics_config.authored.use_kind;
+            campaign_force_air_limit=0;memset(rf_scene_force_ticks,0,sizeof(rf_scene_force_ticks));
+            status=rf_camera_effect_reset(&campaign_force_shake,0);
+        }
         if(!status && collision)status=rf_movement_descriptor_load(&tables,physics_config.authored.movement_index,65536,rf_scene_actor_movement);
         if(!status && collision)status=rf_movement_descriptor_load(&tables,3,65536,rf_scene_actor_movement+1);
         if(!status && collision)status=rf_entity_movement_load(&tables,binding.entity.class_name,512*1024,&rf_scene_actor_movement_values);

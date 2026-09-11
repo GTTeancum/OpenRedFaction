@@ -1,5 +1,12 @@
 # Authored force regions
 
+Current campaign status: the owned local-player path queries and applies force
+regions before controller propagation/support refresh and physics. Ordinary
+carry, replacement/fall/cap, turbulence and camera shake use the verified shared
+functions. Turbulence and rendered camera effects consume the particle runtime's
+owned RNG stream. This is integrated reconstructed behavior, not proof of the
+original game's entire frame trajectory or global object/RNG scheduling.
+
 The v180 section `0x1100` reader follows original PC function `462f60`
 (RF.exe SHA256 `b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836`).
 Each record contains UID, name, position, disk-order matrix, label, one header
@@ -180,3 +187,33 @@ force application belongs BEFORE controller propagation/support refresh and
 physics, not after `actor_tick`. The later `487e00` pass performs support work.
 Campaign integration must retain that order and share RNG consumption with
 particles/camera effects. These surrounding integrations remain open.
+
+## Campaign connection
+
+The local player's public pose selects the first enabled region; physics position,
+body radius and mass determine influence. Eligibility uses the registered type-0
+player fixture with object flag8 and no parent. Authored class flags/use-kind
+feed falling and carry predicates. Ordinary carry precedes the existing support
+refresh; replacement stores its alternate cap for subsequent airborne steering.
+The force's 0.05-second shake activates the existing camera effect, applied to
+the rendered view without changing aim/body orientation. Other actor and dynamic
+object force ownership is still open.
+
+Levels containing replacement regions preload global sound slot0x53 while audio
+archive access is available. First entry takes the owned first-person local
+playback route through the existing diagnostic audio backend. Its unity gains
+remain diagnostic policy, not full original sound-volume/residency parity.
+
+`replay_force_region.py` stages the player at authored L1S2 UID3705 plus a small
+X offset, with zero command input for120 frames. This is explicit fixture staging,
+not an authored player start. It records four eligible carry/turbulence/shake
+activations before the player leaves the volume. Native stock64MiB XEMU run
+`replay-20260910-210520` passes with matching PC actor/controller/RNG evidence and
+`FORCE_TICKS [119,4,4,4,0,4,4,0,3705,3250303071,0,0]`. The existing360-frame PC
+lift carry regression also passes. No new screenshot is claimed: this check is
+about physical/RNG integration, not a new rendered asset.
+
+The native checker supports `--level L1S2.rfl --force-uid 3705`, saving/restoring
+the dedicated staging file. PC uses `RF_REPLAY_FORCE_UID`. Native replacement
+force/sound and repeated-entry coverage, other object types, event-driven force
+activation and complete original-frame/RNG scheduling remain open.

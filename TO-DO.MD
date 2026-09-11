@@ -1,10 +1,10 @@
 # Red Faction Xbox / PC — open work
 
-Force ownership passes native XEMU; shake activation matches 1024 PC/NXDK
-cases. Integrate forces before controller/support refresh and movement physics.
+Live L1S2 force/carry/turbulence/shake passes stock64MiB XEMU and PC;
+replacement-force native/re-entry and full object/RNG ordering remain open.
 
 Immediate open items:
-- [ ] Connect owned campaign force regions to per-frame application, view shake and alternate airborne speed-cap state.
+- [ ] Validate native replacement-force/sound and repeated entry, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
 - [ ] Implement sound metadata persistence across level transitions and recover automatic PCM residency policy.

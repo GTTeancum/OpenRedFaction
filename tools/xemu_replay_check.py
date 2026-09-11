@@ -4,7 +4,8 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');args=p.parse_args()
+if args.force_uid is not None and (not args.level or args.climb or args.door or args.lift or not 0<=args.force_uid<=0xffffffff):p.error('--force-uid requires --level and no other staging')
 if args.lift:
  if args.door or args.climb or args.approach or args.level:p.error('--lift requires its own L1S2 fixture')
  args.level='L1S2.rfl';args.campaign_spawn=True
@@ -18,8 +19,9 @@ if args.level:
  args.campaign_spawn=True
 elif args.archive!='levels1.vpp':p.error('--archive requires --level')
 replay_env=dict(os.environ)
-for key in ('RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_REPLAY_DOOR_START','RF_REPLAY_LIFT_START'):replay_env.pop(key,None)
+for key in ('RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_REPLAY_DOOR_START','RF_REPLAY_LIFT_START','RF_REPLAY_FORCE_UID'):replay_env.pop(key,None)
 replay_env.update(RF_REPLAY_LEVEL=args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),RF_REPLAY_ARCHIVE=args.archive)
+if args.force_uid is not None:replay_env['RF_REPLAY_FORCE_UID']=str(args.force_uid)
 if args.lift:replay_env['RF_REPLAY_LIFT_START']='1'
 if args.door:replay_env['RF_REPLAY_DOOR_START']='1'
 if args.climb:replay_env['RF_REPLAY_REGION_START']='2' if args.approach else '1'
@@ -34,7 +36,7 @@ source=run/'inputs.bin';source.write_bytes(payload)
 pc=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay' if args.campaign_spawn else '--replay',str(root/'Installed_Game'),str(source),str(run/'pc-final.ppm')],capture_output=True,text=True,check=True,env=replay_env)
 (run/'pc-reference.txt').write_text(pc.stdout)
 def expected(label):return list(map(int,next(x for x in pc.stdout.splitlines() if x.startswith(label+' ')).split()[1:]))
-if args.campaign_spawn and not args.climb and not args.door and not args.lift:
+if args.campaign_spawn and not args.climb and not args.door and not args.lift and args.force_uid is None:
  starts=json.loads((root/'artifacts/player-start-verification.json').read_text())
  look=json.loads((root/'artifacts/player-spawn-look.json').read_text())
  original='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
@@ -53,6 +55,7 @@ lift_flag=root/'build/xbox/disc/campaign-lift.flag';saved_lift=lift_flag.read_by
 door_flag=root/'build/xbox/disc/campaign-door.flag';saved_door=door_flag.read_bytes() if door_flag.exists() else None
 climb_flag=root/'build/xbox/disc/campaign-climb.flag';saved_climb=climb_flag.read_bytes() if climb_flag.exists() else None
 selection_file=root/'build/xbox/disc/campaign-level.bin';saved_selection=selection_file.read_bytes() if selection_file.exists() else None
+force_file=root/'build/xbox/disc/campaign-force.bin';saved_force=force_file.read_bytes() if force_file.exists() else None
 step_file=root/'build/xbox/disc/particle-step-fixtures.bin';saved_steps=step_file.read_bytes() if step_file.exists() else None
 process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),'archive':args.archive,'frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True)
@@ -67,6 +70,8 @@ try:
   report['archive_sha256']=archive_sha
  if args.level:selection_file.write_bytes(args.archive.encode().ljust(64,b'\0')+args.level.encode().ljust(64,b'\0'))
  else:selection_file.unlink(missing_ok=True)
+ if args.force_uid is not None:force_file.write_bytes(args.force_uid.to_bytes(4,'little'))
+ else:force_file.unlink(missing_ok=True)
  if args.climb:climb_flag.write_bytes(b'2' if args.approach else b'')
  else:climb_flag.unlink(missing_ok=True)
  if args.lift:lift_flag.write_bytes(b'1')
@@ -172,6 +177,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      forces=words(monitor,symbol('rf_scene_campaign_forces'),3)
      assert forces==expected('CAMPAIGN_FORCES') and forces[1]<=65536,forces
      report['campaign_forces']=forces
+     force_ticks=words(monitor,symbol('rf_scene_force_ticks'),12)
+     assert force_ticks==expected('FORCE_TICKS'),force_ticks
+     report['force_ticks']=force_ticks
      owned=words(monitor,symbol('rf_scene_campaign_events'),3)
      assert owned[0]==expected('CAMPAIGN_EVENTS')[0] and owned[1]<=1024*1024
      report['campaign_events']=owned
@@ -305,6 +313,8 @@ finally:
  except Exception as capture_error:
   report['result']='FAIL';report['capture_error']=repr(capture_error)
  try:
+  if saved_force is None:force_file.unlink(missing_ok=True)
+  else:force_file.write_bytes(saved_force)
   if saved_audio is None:audio_flag.unlink(missing_ok=True)
   else:audio_flag.write_bytes(saved_audio)
   if saved_steps is None:step_file.unlink(missing_ok=True)

@@ -847,6 +847,15 @@ int main(void)
             }
             if(result==RF_OK && staged_lift)result=staged_door || staged_climb?RF_FORMAT:rf_scene_stage_lift(&level);
             if(result==RF_OK && staged_door)result=selected || staged_climb?RF_FORMAT:rf_scene_stage_door(&level);
+            if(result==RF_OK) {
+                FILE *force_file=fopen("D:\\campaign-force.bin","rb");
+                if(force_file) {
+                    uint32_t uid;
+                    if(staged_door || staged_climb || staged_lift || fread(&uid,4,1,force_file)!=1 || fgetc(force_file)!=EOF)result=RF_FORMAT;
+                    else result=rf_scene_stage_force(&level,uid);
+                    fclose(force_file);
+                }
+            }
             if (result == RF_OK) {
                 const rf_level_section *geometry = rf_level_find(&level, 0x100);
                 const rf_level_section *lightmaps = rf_level_find(&level, 0x1200);
