@@ -747,3 +747,27 @@ and intended path are not established by these exploratory attempts.
 No collision runtime change is justified by this evidence yet. Resolve an
 alternate authored route around the low area before calling this a physics
 defect or using it to validate campaign audio pressure.
+
+
+## Coarse floor map and ray-error leads
+
+inspect_l1s3_floor_map.py records8586 downward rays on a two-unit grid, from
+Y45 with displacement(0,-100,0) and flags0x460. The heuristic graph keeps
+Y20..40 and normalY>=0.6, joining four neighbors with height difference<=2.
+It finds1231 candidate cells, of which129 connect to the nearest spawn cell.
+These are reconnaissance thresholds, not reconstructed navigation rules; narrow
+passages, headroom and multiple floor layers can invalidate graph conclusions.
+
+The map suggests an eastern corridor beyond Door4 near(80.75,31.5,-67.625).
+However600-frame reverse-movement replays, with and without use pulses every30
+frames, both stop at(80.025,30.832,-68.252). Trigger telemetry is identical.
+This does not establish that the door should open or that this is the intended
+route. The western descent remains unresolved.
+
+14 grid queries return RF_FORMAT and are explicitly recorded as errors, not
+misses: X10 with Z=-20,-18,-16,-14,-12; X12 with Z=-20,-12; and X82..94
+(step2) with Z=-76. Their input coordinates are finite. These reproducible
+static-query errors deserve focused investigation before interpreting missing
+map connections as geometry gaps. No production collision behavior changes
+follow from this scan; original behavior and the precise failing guard remain
+unverified.
