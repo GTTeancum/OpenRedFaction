@@ -280,3 +280,32 @@ Next: reconstruct the metadata reader and original name normalization, retain
 loop settings in registered sample ownership, and connect ambient voices with
 bounded PCM residency. These inventory matches do not establish runtime lookup
 parity or audible output, and no runtime audio behavior changed in this step.
+
+
+## Original metadata lookup and duplicate selection
+
+56bb80 compares the suffix after the final backslash in each argument through
+original case-insensitive57c130. Forward slashes are ordinary characters. The
+loader56bbc0 sorts all4,096180-byte records using5749fa and this comparator,
+including zero unused entries, then sets sorted flag1fce720. Sorted56baa0 uses
+57772b binary search with the same comparator and rejects a result whose
+record+0xac valid bit28 is clear. Its unsorted branch instead walks valid
+records using full-string57c130; it does not strip path prefixes.
+
+verify_sound_metadata_lookup.py populates names/loop fields from the inventory,
+then executes the actual sort, comparator, search and CRT callees without hooks.
+The complete table permutation preserves every input identity, and comparison
+keys are sorted. Eight comparator edge cases and5,429 lookups pass, including
+case changes, arbitrary backslash prefixes, literal forward slashes, absent
+names, empty-name rejection and the distinct unsorted behavior. Full Bluebeard
+text parsing remains supplied, so this does not prove parser behavior.
+
+For the installed source order plus zero padding to4,096 entries, original
+sort/search selects these duplicate records (zero-based source indexes):
+GlassHit.wav -> weapons/index627; Hit_Metal.wav -> weapons/index817;
+Hit_Rock.wav -> weapons/index820; Respawn.wav -> music/game/index2199.
+All four selected loop bits are false. These selections are evidence about
+this dataset and algorithm, not a general first/last-registration rule.
+Replacing the sort with an arbitrary platform qsort could change duplicate
+selection; preserve the original sorting/search behavior or prove an equivalent
+representation before connecting the runtime metadata owner.
