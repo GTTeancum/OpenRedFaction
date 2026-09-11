@@ -1057,6 +1057,9 @@ int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     if(!hit) {*matched=0;return RF_OK;}
     status=rf_collision_segment_plane(start,displacement,face->plane,&value.fraction,&hit);if(status)return status;
     if(!hit) {*matched=0;return RF_OK;}
+    /* Original 4dec10 rejects the NaN intersection from a coplanar ray.
+     * Keep the 506550 primitive result, but do not pass NaNs to polygon guards. */
+    if(isnan(value.fraction)){*matched=0;return RF_OK;}
     if(!isfinite(value.fraction))return RF_FORMAT;
     for(j=0;j<3;j++) {volatile float scaled=displacement[j]*value.fraction;value.point[j]=start[j]+scaled;value.normal[j]=face->plane[j];}
     if(value.fraction>limit) {*matched=0;return RF_OK;}

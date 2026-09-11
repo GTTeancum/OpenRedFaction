@@ -5,7 +5,7 @@ grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
-- [ ] Diagnose the 14 L1S3 static ray errors and resolve its pressure-test route, complete audio category settings, and recover light ownership.
+- [ ] Resolve the L1S3 pressure-test route after fixing its 14 static ray errors, complete audio category settings, and recover light ownership.
 - [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
@@ -2239,3 +2239,8 @@ The earlier run 002039 has 10891 available pages versus 9798 in the previous
 benchmark. Final native framebuffer comparison and pixel tests are recorded
 in docs/PROVENANCE.md. The 4-MiB material and 8-MiB GPU-image guards still need
 replacement with measured shared campaign budgets before L1S2 can run.
+
+2026-09-11: Coplanar thin-ray handling now matches original 4dec10 misses;
+all 14 L1S3 grid errors resolved with 8,572 other rays unchanged. PC/NXDK
+builds and original-vs-compiled collision regressions pass. L1S3 traversal
+and a fresh native XEMU replay of this correction remain open.

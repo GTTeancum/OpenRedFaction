@@ -159,10 +159,10 @@ The crouch-visibility external mask `0x27` converts through original `0x499190`
 to internal `0x461`; this supported mode does not invoke later texture sampling.
 Other texture-check flags `0x80/0x100` return RF_NOT_FOUND after filtering until
 that branch is recovered. Swept radii are outside this API. Nonfinite or
-out-of-range fraction limits and a coplanar NaN fraction return RF_FORMAT;
-these are explicit port guards, not claims of original degenerate-ray behavior.
+out-of-range fraction limits return RF_FORMAT. Coplanar NaN fractions return
+a miss, matching complete original 4dec10 calls (see the correction below).
 
-`python tools/verify_collision_thin.py` compares 6,000 complete original
+`python tools/verify_collision_thin.py` compares 6,060 complete original
 `0x4dec10` calls with zero radius and flags `0x461`: 126 accepted hits, matching
 every fraction/point/normal byte. All original geometric and filter callees run
 unchanged; the fixture starts with original static scratch initialization marked
@@ -170,8 +170,10 @@ complete to avoid process-exit registration. The original output count starts
 at zero and the fraction limit varies among 0.25, 0.5 and 1. Faces use rectangles
 on each signed axis with varied filters and rays. This does not prove arbitrary
 polygon integration beyond the separately tested containment primitive.
-Three port guards check unsupported flags, a NaN limit and coplanar input with
-unchanged output. All 6,003 cases also run the NXDK-linked routine in Unicorn.
+Sixty additional finite coplanar cases cover all axes, both normal signs,
+interior/boundary starts and zero-length rays: the original returns a miss.
+Two port guards check unsupported flags and a NaN limit with unchanged output.
+All 6,062 cases also run the NXDK-linked routine in Unicorn.
 Report: `artifacts/collision-thin-verification.json`. PC/NXDK builds and four
 CTest checks pass. Real level-face binding and traversal are the next integration
 steps; this function is not yet used by the running diagnostic scene.
@@ -3013,3 +3015,20 @@ Both selectors preserve region records and agree on every index/no-match.
 Both builds and six CTests pass. The authored reader, force application and
 scene ownership are not yet connected; no new XEMU behavior is claimed.
 Generated report: artifacts/force-region-select.json.
+
+## Coplanar thin-ray correction (2026-09-11)
+
+The L1S3 downward grid exposed 14 RF_FORMAT results from finite rays.
+506550 returns hit=1 with a NaN fraction for a coplanar parallel segment;
+the complete original 4dec10 rejects these intersections. The shared thin-face
+wrapper now returns a miss before constructing nonfinite polygon coordinates,
+while preserving the primitive and invalid-input guards. Sixty original
+coplanar fixtures reproduce this behavior on PC and NXDK machine code.
+
+The same 8,586-ray grid now has zero errors; all 8,572 previously successful
+query results are unchanged. Heuristic walkable cells rise from 1,231 to 1,241
+and spawn-connected cells from 129 to 136. This does not prove player clearance,
+dynamic door behavior or the intended L1S3 route. Both builds, eight CTests,
+12,000 plane cases, 6,062 thin-face cases and 7,418 original initialized L1S1
+face comparisons pass. NXDK checks here execute linked code in Unicorn; this
+correction has not yet received a new full native XEMU replay.
