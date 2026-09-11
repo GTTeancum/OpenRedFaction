@@ -2312,3 +2312,8 @@ Shared entity damage effects41a505..41a7ab now match8,192 original traces
 on PC/NXDK plus seven guards; both builds/eight CTests pass. Next assemble
 vitals, attribution and effect orchestration, then bind actual burn, animation,
 AI and entity owners. Callback mutation remains outside current trace coverage.
+
+Damage effect callback mutation coverage now passes16,384 original/PC/NXDK
+cases plus seven guards. All nine effect boundaries exercise mutations
+(1,251 actual callback mutations); no core correction needed. Assemble the
+damage phases next; real effect/lifetime ownership remains open.

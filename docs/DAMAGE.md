@@ -236,8 +236,9 @@ burn and armor reactions get the random duration; AI gets incoming damage.
 The kind6 playback adapter must implement the fixed5056a0 arguments and obtain
 the current entity position. Entity and backend storage must survive all
 callbacks. Stable identity/class inputs are required; effect callbacks may
-change health, flags and burn/voice state. The current comparison exercises
-stable callback state, so arbitrary callback mutation remains unverified.
+change health, flags and burn/voice state. The comparison now includes mutations at all nine effect callback boundaries;
+coverage is described below. Arbitrary ownership/lifetime changes remain outside
+the supported contract.
 
 Nonfinite inputs/state, zero class health and nonfinite generated float
 arguments return explicit port errors. Errors after effects have begun do
@@ -251,3 +252,20 @@ eight CTests pass. Generated artifacts/damage-effects.json records hashes.
 Next assemble vitals, attribution and this sequence, then connect actual
 burn/pain-animation/AI owners and campaign entity registration. The existence
 of this backend does not imply those downstream effects are implemented.
+
+## Effect callback mutation coverage
+
+The effect comparison now includes8,192 stable-state cases plus8,192 mutation
+scenarios. A chosen callback replaces health and XORs selected flags810/814,
+burn token and voice bits. In1,251 exercised callback mutations, PC and actual
+NXDK code preserve the original final state and subsequent callback sequence.
+All nine boundaries are exercised: pain animation369, pain sound401, burn
+creation45, random26, burn reaction12, armor reaction13, kind6 playback22,
+player feedback62 and AI reaction301. Cases whose selected callback is gated
+out also check that no mutation occurs. The suite totals16,391 compiled cases
+including seven nonfinite guards; no core changes were needed.
+
+This verifies reads/writes around callbacks, including overwriting a callback's
+burn/voice mutation with its return value and observing changed health before
+AI notification. It does not verify destroying entities during callbacks,
+changing class/identity fields or running the actual downstream effect code.

@@ -1,7 +1,10 @@
 /* Binary oracle bridge for the shared effect orchestrator. */
+static rf_damage_effect_state *de_state;
+static uint32_t de_mutation[6];
 static uint32_t de_facts[11],de_trace[16][6],de_count;
 static void de_record(uint32_t fn,uint32_t a,uint32_t b,uint32_t c,uint32_t d,uint32_t e)
-{uint32_t row[6]={fn,a,b,c,d,e};if(de_count<16)memcpy(de_trace[de_count],row,24);++de_count;}
+{uint32_t row[6]={fn,a,b,c,d,e};if(de_count<16)memcpy(de_trace[de_count],row,24);++de_count;
+ if(fn==de_mutation[0]){memcpy(&de_state->health,de_mutation+1,4);de_state->flags_810^=de_mutation[2];de_state->flags_814^=de_mutation[3];de_state->burn^=de_mutation[4];de_state->voice^=de_mutation[5];}}
 static uint32_t de_bits(float x){uint32_t v;memcpy(&v,&x,4);return v;}
 static uint32_t de_predicate(void *ctx,uint32_t id,uint32_t handle)
 {
@@ -35,13 +38,13 @@ static uint32_t de_play(void *ctx,uint32_t target)
 {(void)ctx;(void)target;de_record(0x5056a0,0x23,0x3000003c,0x3f800000,0x173c378,0);return 0x76540001;}
 static int damage_effect_probe(void)
 {
-    uint32_t wire[28];rf_damage_effect_state state;rf_damage_effect_input input;int status;
+    uint32_t wire[34];rf_damage_effect_state state;rf_damage_effect_input input;int status;
     rf_damage_effect_backend backend={de_predicate,de_uid,de_source,de_create,de_random,de_notify,de_playing,de_play,NULL};
     _Static_assert(sizeof(state)==44 && sizeof(input)==24,"Damage effect wire");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
     while(fread(wire,sizeof(wire),1,stdin)==1) {
         memcpy(&state,wire,44);memcpy(&input,wire+11,24);memcpy(de_facts,wire+17,44);
-        de_count=0;memset(de_trace,0,sizeof(de_trace));status=rf_entity_damage_effects(&state,&input,&backend);
+        memcpy(de_mutation,wire+28,24);de_state=&state;de_count=0;memset(de_trace,0,sizeof(de_trace));status=rf_entity_damage_effects(&state,&input,&backend);
         if(de_count>16)return 4;
         fwrite(&status,4,1,stdout);fwrite(&state,44,1,stdout);fwrite(&de_count,4,1,stdout);fwrite(de_trace,384,1,stdout);
     }

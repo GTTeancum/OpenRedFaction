@@ -12,7 +12,13 @@ b=0x30000000;stack=b+0xe000;stop=b+0xf000;x.mem_map(b,65536)
 entry=int(re.search(r'_rf_entity_damage_effects\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
 x.mem_write(b+0x3100,b'\xd9\x05'+w(b+0x3200)+b'\xc3');x.mem_write(b+0x3200,struct.pack('<f',4))
 trace=[];current=None
-def record(address,*args):trace.append(w(address,*args).ljust(24,b'\0'))
+def record(address,*args):
+    trace.append(w(address,*args).ljust(24,b'\0'))
+    mutation=current[28:]
+    if address==mutation[0]:
+        x.mem_write(b,w(mutation[1]))
+        for off,mask in zip((20,24,32,36),mutation[2:]):
+            x.mem_write(b+off,w(struct.unpack('<I',x.mem_read(b+off,4))[0]^mask))
 def hook(m,address,size,context):
     if address<b+0x3000 or address>b+0x3070 or (address-b)%16:return
     kind=(address-b-0x3000)//16;sp=m.reg_read(UC_X86_REG_ESP);a=struct.unpack('<7I',m.mem_read(sp,28));result=0;facts=current[17:]
@@ -42,9 +48,9 @@ for offset in (0,4,8,12,44,48,52):
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_entity_probe.exe'),'--damage-effects'],input=b''.join(cases));assert len(actual)==len(cases)*436
 for i,(wire,want) in enumerate(zip(cases,expected)):
     assert actual[i*436:(i+1)*436]==want,('PC',i,actual[i*436:(i+1)*436].hex(),want.hex())
-    current=struct.unpack('<28I',wire);trace=[];x.mem_write(b,wire[:44]);x.mem_write(b+0x1000,wire[44:68]);x.mem_write(b+0x2000,w(*[b+0x3000+j*16 for j in range(8)],0))
+    current=struct.unpack('<34I',wire);trace=[];x.mem_write(b,wire[:44]);x.mem_write(b+0x1000,wire[44:68]);x.mem_write(b+0x2000,w(*[b+0x3000+j*16 for j in range(8)],0))
     x.mem_write(stack,w(stop,b,b+0x1000,b+0x2000));x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x27f);x.emu_start(entry,stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop
     got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(b,44))+w(len(trace))+b''.join(trace)+bytes((16-len(trace))*24)
     assert got==want,('NXDK',i,got.hex(),want.hex())
-report=dict(result='PASS',original_cases=8192,port_guards=7,pc_nxdk_cases=len(cases),original_sha256=ev['digest'],nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Complete effect orchestration41a505..41a7ab: exact state and ordered calls against original. Supplied predicates/lookups/random and downstream effects, stable callback state. No live ownership or implemented burn/AI reaction.')
+report=dict(result='PASS',original_cases=16384,mutation_cases=8192,port_guards=7,pc_nxdk_cases=len(cases),original_sha256=ev['digest'],nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Complete effect orchestration41a505..41a7ab: exact state and ordered calls against original. Supplied predicates/lookups/random and downstream effects, including8192 mutation scenarios for health/flags/burn/voice during effect callbacks. No live ownership or implemented burn/AI reaction.')
 (root/'artifacts/damage-effects.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
