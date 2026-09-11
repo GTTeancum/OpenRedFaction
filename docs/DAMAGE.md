@@ -502,3 +502,28 @@ callbacks. Six nonfinite guards bring each compiled suite to8,198 cases.
 Creation614 cases, pool437 cases, both builds and eight CTests also pass.
 artifacts/burn-fade.json records hashes. Next implement the full per-frame
 loop and bind actual particle, model-attachment, audio and entity ownership.
+
+## Missing-owner iteration defect in the original
+
+verify_burn_iteration.py audits90 synthetic traversal scenarios in original
+42ee80, with real42ed20 release, constructors and timer epilogue. The valid
+owner body is skipped at42ef3e to isolate list traversal; lookup and external
+emitter/audio release are supplied. Of these,72 missing-emitter paths complete
+normally, but all18 missing-owner paths with four nonzero emitters enter a
+cycle through the free ring after releasing the selected record.
+
+At42eee1 the original saves the next active record inEBP. Normal completion
+uses42f2a2 (`mov esi,ebp`) before the loop test. Missing-owner release instead
+jumps from42ef39 directly to42f2a4, retainingESI as the released record. That
+record now belongs to the free ring; its zero emitter fields skip work, and
+subsequent iteration follows the free ring without reaching a null next or
+the active head. The audit bounds execution to10,000 instructions and verifies
+repeated zero-emitter free records, exactly one release, and an unrearmed timer.
+It does not hang a live game or prove this state occurs in normal campaign play.
+
+The shared update loop must deliberately resume the saved next active token
+after missing-owner release, matching normal traversal's rule. Do not reproduce
+this original branch's infinite loop. This is an explicit defect correction,
+not a claim of byte-for-byte behavior in the invalid-owner case. Confirm the
+corrected traversal with head/interior/tail removal before live integration.
+The current shared pool functions do not yet implement that update loop.

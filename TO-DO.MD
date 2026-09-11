@@ -2357,3 +2357,8 @@ Shared burn fade now matches8,192 original cases plus six guards on PC/NXDK.
 Creation614,pool437,both builds and eight CTests pass. Full per-frame loop
 and live particle/model/audio/entity ownership remain open; type7 transition
 cannot be replaced by a missing-owner guard. See docs/DAMAGE.md.
+
+Original burn traversal audit:90 cases confirm18 missing-owner free-ring
+cycles after release and72 terminating missing-emitter paths. Shared update
+must resume saved next active token after release,an explicit defect correction;
+verify head/interior/tail removal before integration. See docs/DAMAGE.md.
