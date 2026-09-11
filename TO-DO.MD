@@ -17,7 +17,7 @@ Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
-- [ ] Connect NPC landing stance callbacks, including standing clearance and special class effects.
+- [ ] Connect verified NPC normal/slow landing transitions to standing clearance and special class effects.
 - [ ] Extend motion residency to changing selections and verify transition/eviction ownership.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.

@@ -71,13 +71,13 @@ int rf_player_climb_exit(rf_player_climb_state *state,const rf_player_climb_exit
     if(walk && (!input->descriptors || !input->identity || !selected_descriptor ||
         input->default_index < -1 || input->default_index>=16 || input->crouched>1 ||
         (input->crouched && !stand)))return RF_RANGE;
-    speed=state->speed;
-    status=rf_movement_set_mode(&speed,input->config,1,input->forced_action,input->entity_scale,input->override_enabled);
-    if(status)return status;
     if(walk && input->crouched) {
         stood=0;status=stand(context,&stood);if(status)return status;
         if(stood>1)return RF_FORMAT;if(!stood)return RF_OK;
     }
+    speed=state->speed;
+    status=rf_movement_set_mode(&speed,input->config,1,input->forced_action,input->entity_scale,input->override_enabled);
+    if(status)return status;
     if(!walk){state->speed=speed;return RF_OK;}
     state->previous_region=NULL;state->speed=speed;
     if(input->default_index>=0) {

@@ -64,7 +64,7 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
-    if(argc==2 && !strcmp(argv[1],"--slow-enter")) {
+    if(argc==2 && (!strcmp(argv[1],"--slow-enter") || !strcmp(argv[1],"--normal-enter"))) {
         uint32_t v[7];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(v,sizeof(v),1,stdin)==1) {
             rf_movement_descriptor table[16]={0};rf_player_movement_region region={0};float identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
@@ -73,7 +73,10 @@ int main(int argc,char **argv)
             uint32_t flags=v[1],selected=77,out[12];slow_context context={&state,&flags,v[3],0};
             rf_player_slow_input input={&config,table,identity,(int32_t)v[5],1,v[2],(uint8_t)v[6]};
             table[0].index=0;table[1].index=1;table[1].enabled=v[4];table[2].index=2;
-            out[0]=(uint32_t)rf_player_slow_enter(&state,&flags,&input,&selected,slow_stand,&context);
+            if(!strcmp(argv[1],"--normal-enter")) {
+                rf_player_climb_exit_input normal={&config,table,identity,1,(int32_t)v[5],1,!!(flags&0x400u),(uint8_t)v[6]};
+                out[0]=(uint32_t)rf_player_climb_exit(&state,&normal,&selected,slow_stand,&context);
+            } else out[0]=(uint32_t)rf_player_slow_enter(&state,&flags,&input,&selected,slow_stand,&context);
             out[1]=state.previous_region==&region;out[2]=state.region==&region;out[3]=state.movement->index;out[4]=state.orientation==identity;
             out[5]=flags;out[6]=selected;out[7]=context.calls;memcpy(out+8,&state.speed,12);memcpy(out+11,&state.vertical_velocity,4);
             fwrite(out,sizeof(out),1,stdout);

@@ -80,7 +80,8 @@ typedef struct rf_player_climb_exit_input {
 } rf_player_climb_exit_input;
 typedef int (*rf_player_try_stand)(void *context,uint32_t *stood);
 /* 4280b0 after resolving the class's named movement. Standing callback performs
- * clearance/stance effects and returns a boolean; blocked exit preserves state.
+ * clearance/stance effects and returns a boolean. Speed is computed afterwards;
+ * blocked exit performs no further writes. Callback effects are not rolled back.
  * Walk-disabled classes only restore speed. Keeps current region/contact handle.
  * No world query or name lookup here; borrowed descriptors/identity stay alive. */
 int rf_player_climb_exit(rf_player_climb_state *state,const rf_player_climb_exit_input *input,

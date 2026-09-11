@@ -875,3 +875,21 @@ Descriptor, actor flags, speed, vertical velocity and callback count match;
 original region pointers and shared region references remain unchanged.
 Both builds and all9 CTests pass. This does not implement clearance or install
 NPC landing callbacks in the campaign. No new visual or native replay claim.
+
+
+### Normal restore reads post-standing speed state
+
+The existing rf_player_climb_exit (normal4280b0 restore) computed a temporary
+speed before invoking the standing callback. That could overwrite response
+changes made by standing's nested support/landing update. It now computes speed
+after a successful stand, matching the original ordering. A blocked callback
+returns before speed calculation and leaves its own effects in place. The API
+comment now distinguishes no subsequent writes from rollback of callback effects.
+
+verify_normal_enter.py runs128 complete original4280b0 cases with actual class/
+crouch predicates, speed setter and named descriptor lookup. Standing alone is
+supplied at a boundary and changes response from2 to9. Shared PC/NXDK output
+matches, including blocked/successful attempts, enabled fallback, forced action,
+network overrides, region fields and callback counts. This catches the previous
+successful-standing overwrite. Existing128 climb-exit and512 slow-enter cases
+also pass; both builds and all9 CTests pass. Native gameplay is not newly claimed.
