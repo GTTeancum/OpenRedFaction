@@ -598,7 +598,7 @@ static int campaign_link_effect(void *context,uint32_t kind,uint32_t handle,uint
     campaign_activation_context *c=context;int status;
     if(kind==6) {
         rf_startup_events_report report={0};++rf_scene_live_activation[3];
-        status=rf_runtime_event_fire(&campaign_triggers,handle,source,actor,c->now,&scene_gravity,c->particles,&report);
+        status=rf_runtime_event_fire(&campaign_triggers,handle,source,actor,c->now,&scene_gravity,c->particles, &campaign_forces,&report);
         rf_scene_live_activation[4]+=report.unsupported_actions+report.other_targets+report.unresolved_targets;return status;
     } else {
         rf_group_registered_controller *controller=rf_object_registry_lookup(&campaign_registry,handle);
@@ -692,7 +692,7 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
                         for(j=0;j<campaign_events.count;++j)if(campaign_events.items[j].authored->record.uid==key->links[0]) {
                             rf_startup_events_report report={0};uint32_t handle=UINT32_MAX,k;
                             for(k=0;k<campaign_group_registration.count;++k)if(campaign_group_registration.controllers[k].runtime==entry)handle=campaign_group_registration.controllers[k].handle;
-                            status=rf_runtime_event_fire(&campaign_triggers,campaign_events.items[j].handle,handle,UINT32_MAX,now,&scene_gravity,particles,&report);if(status)return status;
+                            status=rf_runtime_event_fire(&campaign_triggers,campaign_events.items[j].handle,handle,UINT32_MAX,now,&scene_gravity,particles, &campaign_forces,&report);if(status)return status;
                             rf_scene_live_motion[6]+=report.unsupported_actions+report.unresolved_targets+report.other_targets;break;
                         }
                         if(j==campaign_events.count)++rf_scene_live_motion[6];
@@ -1922,7 +1922,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 /* Owned 60-Hz replay clock. Original 4333ea calls event tick
                  * after physics; full wall-clock/whole-frame parity is open. */
                 status=campaign_trigger_contacts(&rf_scene_actor_pose,now,frame,&stream->particles,player_poll?player_input.use:0);if(status)return status;
-                status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles,&tick_report,&pending);
+                status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles, &campaign_forces,&tick_report,&pending);
                 if(status)return status;
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;
                 memcpy(words,&tick_report,sizeof(words));
@@ -2180,7 +2180,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
-            status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles,&rf_scene_startup_events);
+            status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles, &campaign_forces,&rf_scene_startup_events);
             if(status)goto done;
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
         }

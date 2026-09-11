@@ -210,20 +210,20 @@ int main(int argc,char **argv)
         if(rf_runtime_trigger_contact(&owner,trigger.handle,&actor,pose,&filter,800,0,&ready) || !ready ||
             trigger.contact_timer.deadline!=-1 || trigger.state.count)return 79;
 
-        if(rf_runtime_trigger_fire(&owner,trigger.handle,123,800,0x42c80000,1,0,&gravity,NULL,&report,&fired) ||
+        if(rf_runtime_trigger_fire(&owner,trigger.handle,123,800,0x42c80000,1,0,&gravity,NULL,NULL,&report,&fired) ||
             fired || trigger.state.count || report.triggers)return 72;
-        if(rf_runtime_trigger_fire(&owner,trigger.handle,123,800,0x42c80000,0,0,&gravity,NULL,&report,&fired) ||
+        if(rf_runtime_trigger_fire(&owner,trigger.handle,123,800,0x42c80000,0,0,&gravity,NULL,NULL,&report,&fired) ||
             !fired || trigger.state.count!=1 || trigger.state.flags!=80 || trigger.activation.object_flags!=2 ||
             trigger.state.deadline!=850 || trigger.state.activation_time_bits!=0x42c80000 ||
             gravity.acceleration!=12.5f || report.triggers!=1 || report.events!=2 || report.gravity_actions!=1 ||
             report.other_targets!=1 || report.unresolved_targets!=1 ||
             events[1].state.actor!=123 || events[1].state.source!=trigger.handle)return 73;
-        if(rf_runtime_trigger_fire(&owner,events[0].handle,123,100,0,0,0,&gravity,NULL,&report,&fired)!=RF_NOT_FOUND)return 74;
+        if(rf_runtime_trigger_fire(&owner,events[0].handle,123,100,0,0,0,&gravity,NULL,NULL,&report,&fired)!=RF_NOT_FOUND)return 74;
         events[1].state.flags=0;events[1].state.deadline=-1;records[1].record.values[0]=15;
-        if(rf_runtime_event_fire(&owner,events[1].handle,77,88,900,&gravity,NULL,&report) ||
+        if(rf_runtime_event_fire(&owner,events[1].handle,77,88,900,&gravity,NULL, NULL,&report) ||
             gravity.acceleration!=15 || report.events!=1 || report.gravity_actions!=1 ||
             events[1].state.source!=77 || events[1].state.actor!=88)return 112;
-        if(rf_runtime_event_fire(&owner,trigger.handle,77,88,900,&gravity,NULL,&report)!=RF_NOT_FOUND)return 113;
+        if(rf_runtime_event_fire(&owner,trigger.handle,77,88,900,&gravity,NULL, NULL,&report)!=RF_NOT_FOUND)return 113;
         puts("PASS runtime trigger dispatch, self-disable, gravity and limit mark");return 0;
     }
     if(argc==2 && !strcmp(argv[1],"--trigger-fire")) {
@@ -282,6 +282,40 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--force-events")) {
+        uint32_t mode,pending;
+        for(mode=0;mode<4;++mode) {
+            rf_runtime_event item={0};rf_level_owned_event authored={0};rf_runtime_events events={0};
+            rf_runtime_triggers triggers={0};rf_object_registry registry;rf_physics_gravity gravity={0};
+            rf_startup_events_report report;rf_physics_force_region regions[3]={{0}};
+            rf_physics_force_collection forces={regions,3,0};
+            uint32_t ids[3]={92,999,92};rf_level_link_target unresolved[3]={{0}};
+            regions[0].uid=91;regions[1].uid=regions[2].uid=92;
+            regions[0].active=regions[1].active=regions[2].active=0xaabbcc02;
+            rf_object_registry_init(&registry);events.registry=triggers.registry=&registry;events.items=&item;events.count=1;
+            item.object_kind=6;item.authored=&authored;item.links=unresolved;item.state.type=51;
+            authored.links=ids;authored.record.link_count=3;item.state.deadline=100;item.state.mode=mode;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,99,NULL,&forces,&report,&pending) || report.events || pending)return 120;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,100,NULL,NULL,&report,&pending) || pending!=1 || item.state.deadline!=100)return 121;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,100,NULL,&forces,&report,&pending) || pending || report.events!=1 ||
+                report.unsupported_actions || report.unresolved_targets!=3 || item.state.deadline!=-1)return 122;
+            if(regions[0].active!=0xaabbcc02 || regions[2].active!=0xaabbcc02 ||
+                regions[1].active!=(mode?0xaabbcc01u:0xaabbcc00u))return 123;
+            if(rf_object_registry_insert(&registry,&item,&item.handle))return 124;
+            item.state.delay=.1f;regions[1].active=0xaabbcc00;
+            if(rf_runtime_event_fire(&triggers,item.handle,77,88,200,&gravity,NULL,&forces,&report) ||
+                item.state.deadline!=300 || regions[1].active!=0xaabbcc00)return 125;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,300,NULL,&forces,&report,&pending) || regions[1].active!=0xaabbcc01)return 126;
+            {
+                rf_runtime_trigger trigger={0};rf_level_owned_trigger raw={0};rf_level_link_target root={item.handle,1,0};
+                trigger.authored=&raw;trigger.links=&root;trigger.state.flags=8;raw.record.link_count=1;
+                triggers.items=&trigger;triggers.count=1;item.state.delay=0;regions[1].active=0xaabbcc00;
+                if(rf_runtime_startup_events(&triggers,&gravity,400,0,NULL,&forces,&report) ||
+                    report.events!=1 || report.unsupported_actions || regions[1].active!=0xaabbcc01)return 127;
+            }
+        }
+        puts("PASS force events: delayed on/off modes, missing owner, UID order, scheduling and startup");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-events")) {
         static rf_level_particle_state state;uint32_t mode,pending,i;
         for(mode=0;mode<4;mode++) {
@@ -296,15 +330,15 @@ int main(int argc,char **argv)
             rf_object_registry_init(&registry);events.registry=triggers.registry=&registry;events.items=&item;events.count=1;
             item.object_kind=6;item.authored=&authored;item.links=unresolved;item.state.type=39;
             authored.links=ids;authored.record.link_count=3;item.state.deadline=100;item.state.mode=mode;
-            if(rf_runtime_events_tick(&events,&triggers,&gravity,99,&particles,&report,&pending) || report.events || pending)return 40;
-            if(rf_runtime_events_tick(&events,&triggers,&gravity,100,NULL,&report,&pending) || pending!=1 || item.state.deadline!=100)return 41;
-            if(rf_runtime_events_tick(&events,&triggers,&gravity,100,&particles,&report,&pending) || pending || report.events!=1 ||
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,99,&particles, NULL,&report,&pending) || report.events || pending)return 40;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,100,NULL, NULL,&report,&pending) || pending!=1 || item.state.deadline!=100)return 41;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,100,&particles, NULL,&report,&pending) || pending || report.events!=1 ||
                 report.unsupported_actions || report.unresolved_targets!=3 || item.state.deadline!=-1)return 42;
             if(state.slots[0].runtime.enabled!=0xaabbcc02 || state.slots[0].runtime.emitter.deadline!=77 ||
                 state.slots[1].runtime.enabled!=(mode?0xaabbcc01u:0xaabbcc00u) ||
                 state.slots[1].runtime.emitter.deadline!=(mode?100:77))return 43;
             item.state.deadline=101;
-            if(rf_runtime_events_tick(&events,&triggers,&gravity,101,&particles,&report,&pending) ||
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,101,&particles, NULL,&report,&pending) ||
                 state.slots[1].runtime.emitter.deadline!=(mode?100:77))return 44;
         }
         {
@@ -319,7 +353,7 @@ int main(int argc,char **argv)
             if(rf_object_registry_insert(&registry,&item,&item.handle))return 45;
             root.kind=1;root.value=item.handle;raw.record.link_count=1;trigger.authored=&raw;trigger.links=&root;trigger.state.flags=8;
             triggers.registry=&registry;triggers.items=&trigger;triggers.count=1;
-            if(rf_runtime_startup_events(&triggers,&gravity,200,0,&particles,&report) || report.events!=1 || report.unsupported_actions ||
+            if(rf_runtime_startup_events(&triggers,&gravity,200,0,&particles, NULL,&report) || report.events!=1 || report.unsupported_actions ||
                 state.slots[0].runtime.enabled!=1 || state.slots[0].runtime.emitter.deadline!=200)return 46;
         }
         puts("PASS 4 scheduled Particle_State modes and immediate startup activation");return 0;
@@ -352,15 +386,15 @@ int main(int argc,char **argv)
             if(mode==3) {items[0].state.type=48;items[0].state.mode=1;}
             items[1].state.delay=.001f;
             rf_physics_gravity_set(&gravity,9.8f);
-            if(rf_runtime_events_tick(&events,&triggers,&gravity,99,NULL,&report,&pending) || report.events || pending!=1)return 31;
-            if(rf_runtime_events_tick(&events,&triggers,&gravity,100,NULL,&report,&pending) || report.events!=2 ||
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,99,NULL, NULL,&report,&pending) || report.events || pending!=1)return 31;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,100,NULL, NULL,&report,&pending) || report.events!=2 ||
                report.gravity_actions!=((mode==1 || mode==2)?1u:0u) || items[0].state.deadline!=-1 || items[1].state.deadline!=101)return 32;
             if(items[1].state.source!=((mode==1 || mode==3)?7u:8u) || items[1].state.actor!=8)return 33;
-            if(rf_runtime_events_tick(&events,&triggers,&gravity,101,NULL,&report,&pending) || report.events!=1 ||
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,101,NULL, NULL,&report,&pending) || report.events!=1 ||
                report.gravity_actions!=((mode==1 || mode==3)?1u:0u) || items[1].state.deadline!=-1 || items[2].state.deadline!=100)return 34;
             rf_physics_gravity_set(&expected,(mode==1 || mode==3)?3.0f:mode==2?4.0f:9.8f);
             if(memcmp(&gravity,&expected,sizeof(gravity)))return 35;
-            if(rf_runtime_events_tick(&events,&triggers,&gravity,102,NULL,&report,&pending) || report.events || pending!=1)return 36;
+            if(rf_runtime_events_tick(&events,&triggers,&gravity,102,NULL, NULL,&report,&pending) || report.events || pending!=1)return 36;
         }
         puts("PASS 4 delayed event fixtures");return 0;
     }
@@ -392,7 +426,7 @@ int main(int argc,char **argv)
             if(scenario==4) {events[1].state.type=3;authored[1].record.link_count=1;
                 events[1].links=links+2;links[2].value=events[2].handle;}
             rf_physics_gravity_set(&gravity,9.8f);
-            status=rf_runtime_startup_events(&owner,&gravity,12345,0x41400000,NULL,&report);
+            status=rf_runtime_startup_events(&owner,&gravity,12345,0x41400000,NULL, NULL,&report);
             if(scenario==2) {if(status!=RF_RANGE || report.events!=64)return 22;continue;}
             if(scenario>=3) {
                 rf_physics_gravity expected;
@@ -465,7 +499,7 @@ int main(int argc,char **argv)
         if(!strcmp(argv[1],"--startup-events")) {
             rf_physics_gravity gravity;rf_startup_events_report report;uint32_t words[13];
             rf_physics_gravity_set(&gravity,9.8f);
-            if(rf_runtime_startup_events(&triggers,&gravity,12345,0x41400000,NULL,&report))return 15;
+            if(rf_runtime_startup_events(&triggers,&gravity,12345,0x41400000,NULL, NULL,&report))return 15;
             memcpy(words,&report,sizeof(report));memcpy(words+9,&gravity,sizeof(gravity));
             printf("STARTUP");for(i=0;i<13;++i)printf(" %u",words[i]);puts("");
         }

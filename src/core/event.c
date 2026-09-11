@@ -271,7 +271,7 @@ int rf_trigger_links_dispatch(const rf_object_registry *registry,rf_event_links 
 typedef struct startup_context {
     rf_runtime_triggers *triggers;rf_runtime_trigger *trigger;rf_runtime_event *event;
     rf_physics_gravity *gravity;rf_startup_events_report *report;int32_t now;int status;
-    uint32_t depth;rf_level_particles *particles;
+    uint32_t depth;rf_level_particles *particles;rf_physics_force_collection *forces;
 } startup_context;
 static void startup_target(startup_context *c,const rf_level_link_target *target,
     uint32_t source,uint32_t actor,uint32_t on);
@@ -291,6 +291,12 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
          * and auxiliary target effects remain unimplemented below. */
         for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
             startup_target(c,c->event->links+i,state->source,UINT32_MAX,action==0);
+        return;
+    }
+    if(state->type==51) {
+        if(!c->forces){++c->report->unsupported_actions;return;}
+        c->status=rf_physics_forces_set_state(c->forces->items,c->forces->count,
+            c->event->authored->links,c->event->authored->record.link_count,action);
         return;
     }
     if(state->type==39) {
@@ -329,13 +335,13 @@ static void startup_target(startup_context *c,const rf_level_link_target *target
 }
 int rf_runtime_event_fire(rf_runtime_triggers *triggers,uint32_t handle,
     uint32_t source,uint32_t actor,int32_t now,rf_physics_gravity *gravity,
-    rf_level_particles *particles,rf_startup_events_report *report)
+    rf_level_particles *particles, rf_physics_force_collection *forces,rf_startup_events_report *report)
 {
     startup_context c={0};rf_level_link_target target={handle,1,0};void *object;uint32_t kind;
     if(!triggers || !triggers->registry || !gravity || !report)return RF_RANGE;
     object=rf_object_registry_lookup(triggers->registry,handle);if(!object)return RF_NOT_FOUND;
     memcpy(&kind,object,4);if(kind!=6)return RF_NOT_FOUND;
-    memset(report,0,sizeof(*report));c.triggers=triggers;c.gravity=gravity;c.particles=particles;c.report=report;c.now=now;
+    memset(report,0,sizeof(*report));c.triggers=triggers;c.gravity=gravity;c.particles=particles;c.forces=forces;c.report=report;c.now=now;
     startup_target(&c,&target,source,actor,1);return c.status;
 }
 static void startup_trigger_dispatch(void *context,const rf_auto_trigger_state *state,
@@ -368,14 +374,14 @@ static void runtime_trigger_dispatch(void *context,rf_trigger_activation *trigge
 int rf_runtime_trigger_fire(rf_runtime_triggers *triggers,uint32_t handle,
     uint32_t actor,int32_t now,uint32_t clock_bits,uint32_t blocked,uint32_t suppress_movers,
     rf_physics_gravity *gravity,rf_level_particles *particles,
-    rf_startup_events_report *report,uint32_t *fired)
+    rf_physics_force_collection *forces,rf_startup_events_report *report,uint32_t *fired)
 {
     startup_context context={0};rf_runtime_trigger *trigger;uint32_t kind;int status;
     if(!triggers || !triggers->registry || !gravity || !report || !fired)return RF_RANGE;
     trigger=rf_object_registry_lookup(triggers->registry,handle);if(!trigger)return RF_NOT_FOUND;
     memcpy(&kind,trigger,4);if(kind!=5)return RF_NOT_FOUND;
     memset(report,0,sizeof(*report));context.triggers=triggers;context.trigger=trigger;
-    context.gravity=gravity;context.particles=particles;context.report=report;context.now=now;
+    context.gravity=gravity;context.particles=particles;context.forces=forces;context.report=report;context.now=now;
     status=rf_trigger_fire_sp(&trigger->activation,now,clock_bits,blocked,actor,suppress_movers,
         runtime_trigger_dispatch,&context,fired);
     return status?status:context.status;
@@ -412,11 +418,11 @@ int rf_runtime_trigger_fire_links(rf_runtime_triggers *triggers,uint32_t handle,
     return status?status:c.status;
 }
 int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *gravity,
-    int32_t now,uint32_t clock_bits,rf_level_particles *particles,rf_startup_events_report *report)
+    int32_t now,uint32_t clock_bits,rf_level_particles *particles, rf_physics_force_collection *forces,rf_startup_events_report *report)
 {
     startup_context context={0};uint32_t i;int status;
     if(!triggers || !gravity || !report || !triggers->registry || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
-    memset(report,0,sizeof(*report));context.particles=particles;context.triggers=triggers;context.gravity=gravity;context.report=report;context.now=now;
+    memset(report,0,sizeof(*report));context.particles=particles;context.forces=forces;context.triggers=triggers;context.gravity=gravity;context.report=report;context.now=now;
     for(i=0;i<triggers->count;++i) {
         rf_runtime_trigger *trigger=triggers->items+i;context.trigger=trigger;
         if(!(trigger->state.flags&8) || (trigger->state.flags&16))continue;
@@ -428,19 +434,20 @@ int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *
     return RF_OK;
 }
 int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *triggers,
-    rf_physics_gravity *gravity,int32_t now,rf_level_particles *particles,rf_startup_events_report *report,
+    rf_physics_gravity *gravity,int32_t now,rf_level_particles *particles, rf_physics_force_collection *forces,rf_startup_events_report *report,
     uint32_t *unsupported_pending)
 {
     startup_context context={0};uint32_t i;int status,expired;
     if(!events || !triggers || !gravity || !report || !unsupported_pending ||
        !events->registry || events->registry!=triggers->registry || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     memset(report,0,sizeof(*report));*unsupported_pending=0;
-    context.particles=particles;context.triggers=triggers;context.gravity=gravity;context.report=report;context.now=now;context.depth=1;
+    context.particles=particles;context.forces=forces;context.triggers=triggers;context.gravity=gravity;context.report=report;context.now=now;context.depth=1;
     for(i=0;i<events->count;++i) {
         rf_runtime_event *event=events->items+i;
         if(event->state.deadline<0)continue;
         if(event->state.type!=3 && event->state.type!=44 && event->state.type!=48 &&
-           !(event->state.type==39 && particles && particles->state)) {++*unsupported_pending;continue;}
+           !(event->state.type==39 && particles && particles->state) &&
+           !(event->state.type==51 && forces)) {++*unsupported_pending;continue;}
         status=rf_timer_expired(event->state.deadline,now,&expired);if(status)return status;
         if(!expired)continue;
         context.event=event;++report->events;

@@ -261,3 +261,23 @@ Coverage includes empty lists, duplicate/missing links, zero and
 UINT32_MAX IDs, and arbitrary activation padding. Both builds pass.
 This verifies the mutation primitive; campaign event dispatch, delayed
 actions, and native XEMU scripted activation still require integration.
+
+
+### Campaign event connection
+
+The verifier now enters original common on/off dispatch at `4b9070` /
+`4b9f80` with event type51, establishing the dispatch to the reconstructed
+handlers in all 1,024 cases. Campaign startup, trigger/event activation,
+recursive propagation and delayed ticking now receive the force owner
+explicitly. Type51 actions use authored UID links, independently of object
+handle resolution. A missing force owner reports unsupported immediate
+actions and leaves delayed actions pending. An empty owner is valid.
+
+`rf_event_probe --force-events` covers all four delayed mode values,
+pre-deadline preservation, absent-owner pending state, missing and duplicate
+UIDs, first-match preservation, live scheduling and immediate startup.
+This is a shared-runtime integration test, not original full-campaign
+trajectory proof. Existing Particle_State integration and all six prior
+CTests pass; the new force test is also registered with CTest. Full PC
+and NXDK builds pass, and the 120-frame L1S2 force replay is unchanged.
+Authored scripted sequences still need native64MiB XEMU validation.

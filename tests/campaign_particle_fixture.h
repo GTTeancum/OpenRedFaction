@@ -63,10 +63,10 @@ static int campaign_particle_events(const rf_level *level,rf_level_particles *pa
         status=campaign_contact_ready(&triggers,&trigger);if(status)goto done;
         for(j=0;j<particles->materials.count;j++)if(particles->state->slots[j].runtime.enabled&255u){status=RF_FORMAT;goto done;}
 
-        status=rf_runtime_trigger_fire(&triggers,trigger.handle,123,100,0x42c80000,1,0,&gravity,particles,&report,&fired);
+        status=rf_runtime_trigger_fire(&triggers,trigger.handle,123,100,0x42c80000,1,0,&gravity,particles,NULL,&report,&fired);
         if(status)goto done;
         if(fired || trigger.state.count || report.triggers){status=RF_FORMAT;goto done;}
-        status=rf_runtime_trigger_fire(&triggers,trigger.handle,123,100,0x42c80000,0,0,&gravity,particles,&report,&fired);
+        status=rf_runtime_trigger_fire(&triggers,trigger.handle,123,100,0x42c80000,0,0,&gravity,particles,NULL,&report,&fired);
         if(status)goto done;
         if(!fired || trigger.state.count!=1 || trigger.state.flags!=64 || trigger.activation.object_flags!=2 ||
             trigger.state.deadline!=150 || trigger.state.activation_time_bits!=0x42c80000 ||
@@ -76,9 +76,9 @@ static int campaign_particle_events(const rf_level *level,rf_level_particles *pa
         deadline=event->state.deadline;
         if(deadline>=0) {
             for(j=0;j<particles->materials.count;j++)if(particles->state->slots[j].runtime.enabled&255u){status=RF_FORMAT;goto done;}
-            status=rf_runtime_events_tick(&events,&triggers,&gravity,deadline-1,particles,&report,&pending);if(status)goto done;
+            status=rf_runtime_events_tick(&events,&triggers,&gravity,deadline-1,particles, NULL,&report,&pending);if(status)goto done;
             for(j=0;j<particles->materials.count;j++)if(particles->state->slots[j].runtime.enabled&255u){status=RF_FORMAT;goto done;}
-            fire_time=deadline;status=rf_runtime_events_tick(&events,&triggers,&gravity,deadline,particles,&report,&pending);if(status)goto done;
+            fire_time=deadline;status=rf_runtime_events_tick(&events,&triggers,&gravity,deadline,particles, NULL,&report,&pending);if(status)goto done;
         }
         if(event->state.deadline!=-1){status=RF_FORMAT;goto done;}
         campaign_trace("EVENT %u %d %d\n",event->authored->record.uid,deadline,fire_time);
