@@ -142,4 +142,6 @@ static void gain(void *context,uint32_t handle,float left,float right)
     }
 }
 static void reset(void *context){(void)context;rf_xbox_audio_close();}
-const rf_scene_audio_events rf_xbox_audio_events={play,stop,poll,reset,gain,play_mode};
+static int release_idle_sample(void *context,const uint8_t *samples)
+{(void)context;return rf_xbox_audio_release_idle_sample(samples);}
+const rf_scene_audio_events rf_xbox_audio_events={play,stop,poll,reset,gain,play_mode,release_idle_sample};

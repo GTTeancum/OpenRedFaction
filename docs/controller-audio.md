@@ -1087,3 +1087,37 @@ unrelated nonzero guest output and exact available-page restoration on reset.
 Existing APU overlap, loop, gain, lifetime and failure cases also pass. Production
 PC/NXDK builds and all eight CTests pass. Native tests do not claim host listening
 or arbitrary alias-safe reclamation.
+
+
+### Campaign ambient PCM pressure retry
+
+rf_audio_bank_release_idle now bridges shared and device ownership. It rejects
+active/looping logical borrowers before touching the device; device failure
+preserves shared voices and bank PCM. Device success permits clearing completed
+logical references and unloading the waveform while retaining registration.
+rf_audio_bank_reload_idle first tries the ordinary load, then retries range
+failures after reclaiming caller-eligible idle samples in registration order.
+Missing archives and individually oversized requests do not trigger eviction.
+Reclaimed counts/bytes remain reported if a later load fails. This is a bounded
+port policy, not a claim about original automatic eviction order.
+
+Campaign ambient reload now uses that helper and the device event callback.
+A2600-byte static eligibility map marks only samples lazily loaded by ambient
+playback; existing controller/rejection/jump preloads remain pinned because
+their current paths still expect residency. The map resets with the bank.
+Resident sample/byte telemetry decreases on eviction, while ambient lazy-load
+bytes remain cumulative. The audio bank retains its1MiB cap; eligibility storage
+is separate fixed scene state. Legacy devices without release certification
+continue ordinary loading without eviction.
+
+The PC bank probe exercises actual waveform allocations: active-borrower denial,
+device-failure preservation, completed-reference removal, exact freed bytes,
+idempotence and pressure-triggered replacement under a one-byte-short budget.
+Four campaign startup checks, PC/NXDK builds and all eight CTests pass. Native
+campaign startup validation is recorded below; startup does not exhaust the
+bank. A native moving-listener pressure/reload run remains required before
+claiming end-to-end eviction coverage or audible parity.
+
+Final native L1S3 run20260911-013910 passes31 frames with PC state parity and
+nonzero guest DSP output under64MiB. The earlier013726 pass preceded moving
+the retry loop into the tested shared helper. Neither run forces eviction.

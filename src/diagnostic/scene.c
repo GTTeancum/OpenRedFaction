@@ -465,6 +465,8 @@ typedef struct campaign_controller_effects {
 static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
 static rf_vpp campaign_audio_archive;
+/* Only lazily loaded ambient PCM is eligible; preload users cannot yet reload. */
+static uint8_t campaign_audio_evictable[2600];
 static int32_t campaign_ambient_pan[RF_AMBIENT_SLOTS];
 uint32_t rf_scene_ambient_audio[8]; /* sweeps, starts, stops, refreshes, failures, lazy PCM bytes, active, effect hash */
 static rf_sound_metadata_owner campaign_audio_metadata;
@@ -563,6 +565,17 @@ static int campaign_ambient_gains(float volume,int32_t pan,float gains[2])
     if(volume<0)volume=0;if(volume>1)volume=1;
     return rf_audio_device_gains(rf_audio_device_volume(volume,0),pan,gains);
 }
+static int campaign_ambient_reload(uint32_t sample)
+{
+    uint32_t released[2];int status;
+    if((campaign_audio_events.play || campaign_audio_events.play_mode) && !campaign_audio_events.release_idle_sample)
+        return rf_audio_bank_reload(&campaign_audio_bank,&campaign_audio_archive,sample);
+    status=rf_audio_bank_reload_idle(&campaign_audio_bank,&campaign_audio_mixer,&campaign_audio_archive,sample,
+        campaign_audio_evictable,sizeof(campaign_audio_evictable),campaign_audio_events.release_idle_sample,
+        campaign_audio_events_context,released);
+    rf_scene_sound_bank[1]-=released[0];rf_scene_sound_bank[2]-=released[1];rf_scene_live_audio[1]=campaign_audio_bank.bytes;
+    return status;
+}
 static int32_t campaign_ambient_start_voice(void *context,int32_t sample,float gain,float pan,uint32_t looping)
 {
     rf_ambient_slot *slot=context;uint32_t handle;float gains[2];int32_t device_pan;
@@ -573,7 +586,8 @@ static int32_t campaign_ambient_start_voice(void *context,int32_t sample,float g
     if(!parameters || (looping && metadata && (metadata->loop_flags&0x07ffffffu)))goto failed;
     pcm=rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
     if(!pcm) {
-        if(rf_audio_bank_reload(&campaign_audio_bank,&campaign_audio_archive,(uint32_t)sample))goto failed;
+        if(campaign_ambient_reload((uint32_t)sample))goto failed;
+        if((uint32_t)sample<sizeof(campaign_audio_evictable))campaign_audio_evictable[sample]=1;
         pcm=rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
         ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[sample].bytes;
         rf_scene_live_audio[1]=campaign_audio_bank.bytes;
@@ -961,6 +975,7 @@ static void campaign_close_movers(void)
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
     rf_audio_mixer_init(&campaign_audio_mixer);rf_audio_bank_close(&campaign_audio_bank);
+    memset(campaign_audio_evictable,0,sizeof(campaign_audio_evictable));
     rf_vpp_close(&campaign_audio_archive);
     rf_sound_metadata_close(&campaign_audio_metadata);
     rf_ambient_instances_close(&campaign_ambient_instances);

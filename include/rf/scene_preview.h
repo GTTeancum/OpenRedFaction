@@ -51,6 +51,8 @@ typedef struct rf_scene_audio_events {
     /* Explicit static-buffer loop mode; RF_OK only after device start succeeds.
      * Whole-buffer looping; PCM remains borrowed under the same reset contract. */
     int (*play_mode)(void *context,uint32_t handle,const struct rf_wave_pcm *pcm,float left,float right,uint32_t looping);
+    /* RF_OK certifies no device borrowers remain for this PCM base. */
+    int (*release_idle_sample)(void *context,const uint8_t *samples);
 } rf_scene_audio_events;
 /* Device event adapter: PCM is borrowed until reset, which MUST synchronously
  * release all device references before returning. Events use logical mixer

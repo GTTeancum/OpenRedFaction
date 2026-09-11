@@ -195,5 +195,18 @@ int rf_audio_voice_gain(rf_audio_mixer *mixer,uint32_t handle,uint32_t left,uint
  * borrower. Zero/stale handles leave the mixer unchanged. Device borrowers
  * are separate and must also be released before bank PCM is unloaded. */
 int rf_audio_voice_stop(rf_audio_mixer *mixer,uint32_t handle);
+/* Port residency bridge. Caller serializes all borrowers. Rejects active or
+ * looping shared voices, then asks release_device to release idle device
+ * borrowers; failure preserves shared/bank ownership. NULL callback means no
+ * device borrowers exist. Exact PCM base pointers only; no overlapping aliases.
+ * Success clears completed shared voices and unloads PCM, preserving metadata. */
+int rf_audio_bank_release_idle(rf_audio_bank *bank,rf_audio_mixer *mixer,uint32_t index,
+    int (*release_device)(void *context,const uint8_t *samples),void *context);
+/* Budget-pressure retry over caller-selected resident candidates in index
+ * order. released[0/1] reports reclaimed sample count/bytes even on failure.
+ * Same borrower contract as release_idle; original eviction order unverified. */
+int rf_audio_bank_reload_idle(rf_audio_bank *bank,rf_audio_mixer *mixer,rf_vpp *archive,uint32_t index,
+    const uint8_t *eligible,uint32_t eligible_count,int (*release_device)(void *,const uint8_t *),
+    void *context,uint32_t released[2]);
 int rf_audio_mix(rf_audio_mixer *mixer,int16_t *stereo,uint32_t frames);
 #endif

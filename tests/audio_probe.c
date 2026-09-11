@@ -36,6 +36,9 @@ static int32_t ambient_register(void *context,const char *name,float near_distan
         memcmp(&volume,&row->volume,4) || memcmp(&rolloff,&row->rolloff,4))exit(98);
     return fixture->samples[i];
 }
+static int idle_release_status,idle_release_calls;
+static int bank_idle_device(void *context,const uint8_t *samples)
+{++idle_release_calls;return samples==context?idle_release_status:RF_FORMAT;}
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--audio-allocation")) {
@@ -304,6 +307,20 @@ int main(int argc,char **argv)
             rf_audio_voice_gain(&mixer,handle,32769,0)!=RF_RANGE || memcmp(&mixer,&before,sizeof(mixer)))return 41;
          if(rf_audio_mix(&reference,full,1) || rf_audio_mix(&mixer,scaled,1) || scaled[0]!=0 || scaled[1]!=full[1]/2)return 42;}
         if(rf_audio_voice_stop(&mixer,handle))return 28;
+        {uint32_t idle_handle;const rf_wave_pcm *resident=rf_audio_bank_sample(&bank,first);
+         const uint8_t *pointer=resident->samples;rf_audio_mixer before;
+         if(rf_audio_voice_start(&mixer,resident,0,0,0,&idle_handle))return 54;
+         idle_release_calls=0;idle_release_status=RF_IO;
+         if(rf_audio_bank_release_idle(&bank,&mixer,first,bank_idle_device,(void *)pointer)!=RF_RANGE || idle_release_calls)return 55;
+         while(mixer.voices[idle_handle&0xffff].active)if(rf_audio_mix(&mixer,output,256))return 56;
+         before=mixer;
+         if(rf_audio_bank_release_idle(&bank,&mixer,first,bank_idle_device,(void *)pointer)!=RF_IO || idle_release_calls!=1 ||
+            memcmp(&before,&mixer,sizeof(mixer)) || bank.bytes!=bytes || rf_audio_bank_sample(&bank,first)->samples!=pointer)return 57;
+         idle_release_status=RF_OK;
+         if(rf_audio_bank_release_idle(&bank,&mixer,first,bank_idle_device,(void *)pointer) || idle_release_calls!=2 ||
+            mixer.voices[idle_handle&0xffff].handle || mixer.voices[idle_handle&0xffff].pcm.samples || bank.bytes!=bytes-a.size ||
+            rf_audio_bank_release_idle(&bank,&mixer,first,bank_idle_device,(void *)pointer) || idle_release_calls!=2)return 58;}
+
         {rf_audio_parameters retained=*rf_audio_bank_parameters(&bank,first);uint32_t rehash=2166136261u;
          if(rf_audio_bank_unload(&bank,first) || rf_audio_bank_unload(&bank,first) ||
             bank.bytes!=bytes-a.size || bank.count!=2 || rf_audio_bank_sample(&bank,first) ||
@@ -319,6 +336,22 @@ int main(int argc,char **argv)
          if(rf_audio_voice_start(&mixer,rf_audio_bank_sample(&bank,first),32768,32768,0,&handle) || rf_audio_mix(&mixer,output,256))return 48;
          for(i=0;i<sizeof(output);i++)rehash=(rehash^((unsigned char *)output)[i])*16777619u;
          if(rehash!=hash || rf_audio_voice_stop(&mixer,handle))return 49;}
+        {uint8_t eligible[2]={1,0};uint32_t released[2];
+         const rf_wave_pcm *resident=rf_audio_bank_sample(&bank,first);const uint8_t *pointer=resident->samples;
+         if(rf_audio_bank_unload(&bank,1) || rf_audio_voice_start(&mixer,resident,0,0,0,&handle))return 59;
+         if(rf_vpp_open(&archive,argv[2]))return 60;
+         bank.budget=bytes-1;idle_release_calls=0;idle_release_status=RF_OK;
+         if(rf_audio_bank_reload_idle(&bank,&mixer,&archive,1,eligible,2,bank_idle_device,(void *)pointer,released)!=RF_RANGE ||
+            released[0] || released[1] || idle_release_calls)return 61;
+         while(mixer.voices[handle&0xffff].active)if(rf_audio_mix(&mixer,output,256))return 62;
+         idle_release_status=RF_IO;
+         if(rf_audio_bank_reload_idle(&bank,&mixer,&archive,1,eligible,2,bank_idle_device,(void *)pointer,released)!=RF_RANGE ||
+            released[0] || released[1] || idle_release_calls!=1 || !rf_audio_bank_sample(&bank,first))return 63;
+         idle_release_status=RF_OK;
+         if(rf_audio_bank_reload_idle(&bank,&mixer,&archive,1,eligible,2,bank_idle_device,(void *)pointer,released) ||
+            released[0]!=1 || released[1]!=a.size || bank.bytes!=bytes-a.size || bank.bytes>bank.budget ||
+            rf_audio_bank_sample(&bank,first) || !rf_audio_bank_sample(&bank,1) || bank.count!=2)return 64;
+         rf_vpp_close(&archive);}
         rf_audio_bank_close(&bank);rf_audio_bank_close(&bank);
         if(bank.samples || bank.count || bank.bytes || bank.archive)return 29;
         printf("PASS audio bank bytes=%u pcm_after_archive_close_hash=%u\n",bytes,hash);return 0;

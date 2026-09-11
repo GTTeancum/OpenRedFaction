@@ -376,6 +376,38 @@ int rf_audio_bank_reload(rf_audio_bank *bank,rf_vpp *archive,uint32_t index)
     if(status){free(storage);return status;}
     sample->storage=storage;sample->pcm=pcm;sample->bytes=entry.size;bank->bytes+=entry.size;return RF_OK;
 }
+int rf_audio_bank_release_idle(rf_audio_bank *bank,rf_audio_mixer *mixer,uint32_t index,
+    int (*release_device)(void *context,const uint8_t *samples),void *context)
+{
+    const rf_wave_pcm *pcm;uint32_t i;int status;
+    if(!bank || !bank->samples || index>=bank->count || !mixer)return RF_RANGE;
+    pcm=rf_audio_bank_sample(bank,index);if(!pcm)return RF_OK;
+    for(i=0;i<RF_AUDIO_VOICES;i++)if(mixer->voices[i].handle && mixer->voices[i].pcm.samples==pcm->samples &&
+        (mixer->voices[i].active || mixer->voices[i].loop))return RF_RANGE;
+    if(release_device && (status=release_device(context,pcm->samples))!=RF_OK)return status;
+    for(i=0;i<RF_AUDIO_VOICES;i++)if(mixer->voices[i].handle && mixer->voices[i].pcm.samples==pcm->samples)
+        memset(mixer->voices+i,0,sizeof(mixer->voices[i]));
+    return rf_audio_bank_unload(bank,index);
+}
+int rf_audio_bank_reload_idle(rf_audio_bank *bank,rf_audio_mixer *mixer,rf_vpp *archive,uint32_t index,
+    const uint8_t *eligible,uint32_t eligible_count,int (*release_device)(void *,const uint8_t *),
+    void *context,uint32_t released[2])
+{
+    rf_vpp_entry entry;uint32_t i,metadata;int status;
+    if(!released)return RF_RANGE;released[0]=released[1]=0;
+    if(!bank || !bank->samples || !mixer || index>=bank->count || (!eligible && eligible_count))return RF_RANGE;
+    status=rf_audio_bank_reload(bank,archive,index);if(status!=RF_RANGE)return status;
+    if(!archive || !archive->stream || rf_vpp_find(archive,bank->samples[index].name,&entry))return status;
+    metadata=bank->bytes;for(i=0;i<bank->count;i++)metadata-=bank->samples[i].bytes;
+    if((uint64_t)metadata+entry.size>bank->budget)return status;
+    for(i=0;i<bank->count && i<eligible_count;i++)if(i!=index && eligible[i]) {
+        uint32_t bytes=bank->samples[i].bytes;
+        if(!bytes || rf_audio_bank_release_idle(bank,mixer,i,release_device,context))continue;
+        ++released[0];released[1]+=bytes;
+        status=rf_audio_bank_reload(bank,archive,index);if(status!=RF_RANGE)return status;
+    }
+    return status;
+}
 void rf_audio_bank_close(rf_audio_bank *bank)
 {
     uint32_t i;if(!bank)return;
