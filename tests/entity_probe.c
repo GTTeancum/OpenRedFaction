@@ -72,6 +72,14 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--player-detach")) {
+        struct {rf_player_entity_link link;uint32_t activity_word;} s;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&s,sizeof(s),1,stdin)==1) {
+            rf_player_detach_sp(&s.link,(uint8_t *)&s.activity_word);fwrite(&s,sizeof(s),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--dying-update")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return dying_probe_main();
     }

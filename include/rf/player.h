@@ -12,6 +12,11 @@ typedef struct rf_player_entity_link {int32_t entity_handle;} rf_player_entity_l
  * link represents the player+14 field, not the original player layout. */
 uint32_t rf_player_is_dead(const rf_entity_registry *registry,const rf_player_entity_link *link);
 uint32_t rf_player_is_dying(const rf_entity_registry *registry,const rf_player_entity_link *link);
+/* Full4a6d50 with original globals64ecb9=0 and6fc4d8=0 (ordinary SP).
+ * The real4a6e00 helper has no effect in this mode. Requires live pointers;
+ * clears only player14 and bytefb0. Does not remove/free the actor, clear
+ * other cached pointers, or change camera state. Other modes are separate. */
+void rf_player_detach_sp(rf_player_entity_link *link,uint8_t *activity_fb0);
 
 typedef struct rf_player_force_state {
     float velocity[3];uint32_t physics_flags;float alternate_cap;

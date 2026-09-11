@@ -436,3 +436,23 @@ The ordinary SP branch of4a6d50 calls4a6e00 when player14 is not-1, then
 sets player14=-1 and clears playerfb0. Other mode branches are distinct.
 Recover4a6e00 camera/owner effects and the deferred object deletion pass,
 then complete corpse construction and burn transfer before live binding.
+
+
+## Ordinary single-player detach
+
+`rf_player_detach_sp` reconstructs full4a6d50 with globals64ecb9 and6fc4d8
+both zero. Its only writes are player14=-1 and bytefb0=0. The conditional
+4a6e00 call has no effect in this mode: that helper records a multiplayer
+handle/client-byte history ring only when64ecb9 is nonzero. It does not
+provide a single-player camera handoff. This resolves the preceding static
+follow-up without inventing a camera operation. Other mode branches remain
+separate work.
+
+`python tools/verify_player_detach.py` passes4096 original/PC/NXDK cases,
+executing real4a6e00 and original dead/dying queries without replaced callees.
+It compares whole original player storage, preserves adjacent bytes atfb0,
+and proves both retained actor bytes and registry entries remain unchanged.
+After detach the player link reports dead/not dying even while the actor
+still exists in the registry. This distinction must survive finalization
+integration: detachment is not actor destruction. Both builds and all12
+CTests pass; this helper is not yet called by live finalization.

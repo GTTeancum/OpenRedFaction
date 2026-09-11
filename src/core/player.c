@@ -1,4 +1,7 @@
 #include "rf/player.h"
+
+void rf_player_detach_sp(rf_player_entity_link *link,uint8_t *activity_fb0)
+{link->entity_handle=-1;*activity_fb0=0;}
 #include "rf/collision.h"
 #include <string.h>
 #include <math.h>
