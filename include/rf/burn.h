@@ -10,6 +10,20 @@ typedef struct rf_burn_record {
     uint32_t emitters[4],target;int32_t attachments[4];uint32_t voice;
     float volume;uint8_t fading,padding[3];float elapsed;uint32_t source,next,previous;
 } rf_burn_record;
+typedef struct rf_burn_retarget_backend {
+    int (*attachments)(void *context,uint32_t target,int32_t indices[4]);
+    void (*release)(void *context,uint32_t token);
+    void *context;
+} rf_burn_retarget_backend;
+/*42f510 after40a0e0 resolution. NULL target_flags means missing object and
+ * releases token without inspecting emitters. Otherwise the caller provides
+ * four distinct emitter owner fields and object29c flags, all stable/disjoint.
+ * Attachment refresh sees the new target; RF_NOT_FOUND retains partial bone
+ * indices, unlike burn creation. Other errors return after the target commit.
+ * Success retargets emitters, starts fading and sets target flag200. No actor
+ * owner-field transfer or allocation. Release may invalidate the record. */
+int rf_burn_retarget(rf_burn_record *record,uint32_t token,uint32_t target,
+    uint32_t *target_flags,int32_t *const emitter_owners[4],const rf_burn_retarget_backend *backend);
 typedef struct rf_burn_pool {
     rf_burn_record records[RF_BURN_SLOTS];uint32_t free_head,active_head;int32_t spread_deadline;
 } rf_burn_pool;

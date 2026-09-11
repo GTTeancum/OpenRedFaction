@@ -1,4 +1,21 @@
 #include "rf/burn.h"
+
+int rf_burn_retarget(rf_burn_record *r,uint32_t token,uint32_t target,
+    uint32_t *flags,int32_t *const owners[4],const rf_burn_retarget_backend *be)
+{
+    uint32_t i,j;int status;
+    if(!r || !be || !be->release || !be->attachments)return RF_RANGE;
+    if(!flags) {be->release(be->context,token);return RF_OK;}
+    if(!owners)return RF_RANGE;
+    for(i=0;i<4;i++) {
+        if(!owners[i])return RF_RANGE;
+        for(j=0;j<i;j++)if(owners[i]==owners[j])return RF_RANGE;
+    }
+    r->target=target;status=be->attachments(be->context,target,r->attachments);
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    for(i=0;i<4;i++)*owners[i]=(int32_t)target;
+    r->fading=1;r->elapsed=0;*flags|=0x200u;return RF_OK;
+}
 #include "rf/timer.h"
 #include <math.h>
 #include <string.h>

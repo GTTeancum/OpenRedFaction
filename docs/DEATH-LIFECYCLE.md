@@ -456,3 +456,24 @@ After detach the player link reports dead/not dying even while the actor
 still exists in the registry. This distinction must survive finalization
 integration: detachment is not actor destruction. Both builds and all12
 CTests pass; this helper is not yet called by live finalization.
+
+
+## Burn retargeting for corpse inheritance
+
+`rf_burn_retarget` reconstructs42f510 after general-object40a0e0 resolution.
+A missing target releases the burn through the backend. A valid target first
+commits record.target, refreshes attachment indices, then changes all four
+emitter owner fields, sets the fading byte to1, clears elapsed and ORs
+object29c with200. Other burn bytes, including padding/voice/source/ring
+links, survive. Unlike42e910 creation, this function ignores the original
+bone helper boolean and retains partial matches. RF_NOT_FOUND from the shared
+bone resolver therefore does not abort transfer or reset every index.
+
+`python tools/verify_burn_retarget.py` compares full42f510 with PC/NXDK across
+4096 cases using real handle lookup and supplied bone/release boundaries.
+It verifies2071 missing-target releases and1378 partial-bone transfers,
+normalized burn bytes, whole target/emitter storage, and attachment callback
+observation of the committed target. Both builds and all12 CTests pass.
+No allocation is introduced. The caller must still resolve live emitter
+owner fields and attach the verified bone/release implementations. Corpse
+creation and transfer of the actor/corpse burn-owner fields remain separate.

@@ -12,6 +12,7 @@
 #include "burn_body_probe.h"
 #include "burn_retirement_probe.h"
 #include "burn_resource_probe.h"
+#include "burn_retarget_probe.h"
 #include "dying_probe.h"
 static uint32_t death_clearance(void *context,uint32_t direction)
 {uint32_t *v=context;++v[2];v[3]=direction;return v[direction];}
@@ -72,6 +73,9 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--burn-retarget")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return burn_retarget_probe();
+    }
     if(argc==2 && !strcmp(argv[1],"--player-detach")) {
         struct {rf_player_entity_link link;uint32_t activity_word;} s;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
