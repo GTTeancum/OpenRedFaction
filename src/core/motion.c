@@ -787,3 +787,21 @@ int rf_motion_interpolate_position(const rf_motion_position_key *previous, const
     memcpy(out, result, sizeof(result));
     return RF_OK;
 }
+
+int rf_motion_consume_marker(rf_motion_playback_state *state,const rf_motion_marker_names *resources,
+    uint32_t count,const char *name,uint32_t *fired)
+{
+    int32_t slot,motion;uint32_t i,length=0;
+    if(!state || !name || !fired || state->completion.active.count>16)return RF_RANGE;
+    while(length<16 && name[length])++length;if(length==16)return RF_RANGE;
+    slot=state->completion.active.dominant_slot;
+    if(slot<0){*fired=0;return RF_OK;}
+    if((uint32_t)slot>=state->completion.active.count)return RF_RANGE;
+    motion=state->completion.active.slots[slot].motion;
+    if(motion<0 || (uint32_t)motion>=count || !resources)return RF_RANGE;
+    for(i=0;i<2;++i)if(!memchr(resources[motion].names[i],0,16))return RF_RANGE;
+    for(i=0;i<2;++i)if(resources[motion].names[i][0] && !strcmp(resources[motion].names[i],name)) {
+        *fired=(state->event_mask>>i)&1u;state->event_mask&=~(1u<<i);return RF_OK;
+    }
+    *fired=0;return RF_OK;
+}

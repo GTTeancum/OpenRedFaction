@@ -70,6 +70,14 @@ typedef struct rf_motion_playback_state {
     float phase;
     uint32_t generation, event_mask;
 } rf_motion_playback_state;
+typedef struct rf_motion_marker_names {char names[2][16];} rf_motion_marker_names;
+/* Original51c420: resolve the dominant active motion, find the first exact
+ * case-sensitive nonempty marker name, report and clear only that event bit.
+ * An absent dominant slot/name leaves sticky events unchanged. Names describe
+ * resource IDs, not active-slot order. No audio dispatch. Port bounds failures
+ * preserve state and fired; names/request must terminate within 16 bytes. */
+int rf_motion_consume_marker(rf_motion_playback_state *state,const rf_motion_marker_names *resources,
+    uint32_t count,const char *name,uint32_t *fired);
 /* Playback-field projection of character instance constructor51ae90. New owner
  * only: clears slots, selections=-1, generation1, phase/events0. Does not release
  * live motion references or construct/register the complete original instance. */

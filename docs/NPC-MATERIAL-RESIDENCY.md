@@ -127,3 +127,14 @@ Native verification: `artifacts/xemu/replay-20260911-092555/report.json` passes
 state/pose/marker/cache telemetry matches PC exactly, as does the emitted NPC
 vertex hash. The resident clip bytes are 10,536 on both targets; XEMU reports
 64 MiB base memory and no expansion. Existing door/audio checks also pass.
+
+L1S2 follow-up: `artifacts/xemu/replay-20260911-092810/report.json` passes the
+600-frame lift cycle with integrated NPC playback and drawing on stock 64 MiB.
+All eight PC camera/movement capacity sweeps also pass (480 frames each), covering
+both diagnostic and campaign modes with the 3 MiB combined vertex allocation.
+
+The L1S2 final view contains no submitted NPC vertices, so that run proves
+38-actor playback/resource parity and the integrated lift replay, not a nonempty
+L1S2 final NPC rendering comparison. It advances 599 ticks and retains 5,108
+bytes of selected motion data/metadata. A visible L1S2 NPC draw comparison remains
+useful follow-up coverage.

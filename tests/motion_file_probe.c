@@ -78,6 +78,15 @@ static int visit(const rf_vpp_entry *entry, void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--consume-marker")) {
+        struct {rf_motion_playback_state state;rf_motion_marker_names names[4];char request[16];} input;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            uint32_t fired=0xdeadbeef;int status=rf_motion_consume_marker(&input.state,input.names,4,input.request,&fired);
+            fwrite(&status,4,1,stdout);fwrite(&fired,4,1,stdout);fwrite(&input.state,sizeof(input.state),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--marker-register")) {
         struct {rf_motion_cache_record record;char name[16];float frame;} input;int status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
