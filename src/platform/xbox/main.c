@@ -125,7 +125,16 @@ static int logic_storage_open(const rf_level *level)
 {
     uint32_t i;int status=rf_level_owned_triggers_open(level,512u*1024u,&resident_triggers);
     if(!status)status=rf_level_owned_events_open(level,512u*1024u-resident_triggers.allocated_bytes,&resident_events);
-    if(!status)status=rf_level_owned_entities_open(level,512u*1024u-resident_triggers.allocated_bytes-resident_events.allocated_bytes,&resident_entities);
+    if(!status) {
+        uint32_t remaining=512u*1024u-resident_triggers.allocated_bytes-resident_events.allocated_bytes;
+        status=rf_level_owned_entities_open(level,remaining,&resident_entities);
+        /* Valid levels can omit entity records. The diagnostic owner is then
+         * empty; campaign player creation is a separate runtime operation. */
+        if(status==RF_NOT_FOUND && !rf_level_find(level,0x30000)) {
+            if(remaining<sizeof(resident_entities))status=RF_RANGE;
+            else {resident_entities.allocated_bytes=sizeof(resident_entities);status=RF_OK;}
+        }
+    }
     if(status) {
         rf_level_owned_triggers_close(&resident_triggers);rf_level_owned_events_close(&resident_events);
         rf_level_owned_entities_close(&resident_entities);

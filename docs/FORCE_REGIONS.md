@@ -217,3 +217,29 @@ The native checker supports `--level L1S2.rfl --force-uid 3705`, saving/restorin
 the dedicated staging file. PC uses `RF_REPLAY_FORCE_UID`. Native replacement
 force/sound and repeated-entry coverage, other object types, event-driven force
 activation and complete original-frame/RNG scheduling remain open.
+
+## Native replacement fixture
+
+`replay_force_replace.py` uses authored ctf01 UID11113 through the existing
+single-player actor runtime. The map is a physics fixture; this does not add
+multiplayer gameplay. Checkpoints verify vertical launch, the alternate cap,
+and one sound request during seven consecutive force applications. The extended
+`--cycle` replay checks a no-force interval followed by return into the region
+while still airborne. The entry flag remains set and sound does not repeat;
+grounded re-entry/flag clearing is not covered by this fixture.
+
+Native stock64MiB XEMU run `replay-20260910-210958` passes120 frames with
+`FORCE_TICKS [119,7,7,0,7,0,0,1,11113,0,1086324736,0]`, matching PC. The force
+collection contains12 records in1,308 bytes. With APU output enabled the guest
+DSP snapshot contains4,084 nonzero samples in8,192 bytes. That confirms device
+output data, not host audibility or an isolated linear sound recording.
+
+The first native attempt exposed an Xbox diagnostic-loader assumption: ctf01
+omits entity section0x30000. `logic_storage_open` now accepts that absent
+optional section as an empty owned collection with budget accounting, matching
+the campaign's separately created player. Malformed or other errors still fail.
+
+Native run `replay-20260910-211137` also passes360 frames, matching PC at ten
+replacement applications across later airborne returns and only one sound
+request. The cap remains6 and the entry flag remains active at the sampled
+checkpoints. This closes native airborne re-entry coverage, not grounded return.

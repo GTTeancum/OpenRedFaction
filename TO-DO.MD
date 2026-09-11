@@ -1,10 +1,10 @@
 # Red Faction Xbox / PC — open work
 
-Live L1S2 force/carry/turbulence/shake passes stock64MiB XEMU and PC;
-replacement-force native/re-entry and full object/RNG ordering remain open.
+Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
+grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
-- [ ] Validate native replacement-force/sound and repeated entry, extend force ownership beyond the player and recover full frame/RNG ordering.
+- [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
 - [ ] Implement sound metadata persistence across level transitions and recover automatic PCM residency policy.
