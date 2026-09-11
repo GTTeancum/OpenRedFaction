@@ -217,3 +217,32 @@ int rf_burn_attachments(rf_burn_record *r,const rf_burn_attachment_backend *be,r
     }
     *out=result;return RF_OK;
 }
+
+int rf_burn_spread(rf_burn_spread_target *head,const rf_burn_spread_target *owner,
+    const float spine[3],const rf_burn_record *record,uint32_t owner_uid,
+    uint32_t global_value,uint32_t limit,const rf_burn_spread_backend *be)
+{
+    rf_burn_spread_target *target;uint32_t visits=0,stage,i;
+    if(!owner || !spine || !record || !limit || !be || !be->predicate || !be->random_divisor || !be->damage)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(spine[i]))return RF_FORMAT;
+    for(target=head;target;target=target->next) {
+        float delta[3],divisor,amount;double distance;
+        if(visits++>=limit)return RF_RANGE;
+        if(target==owner)continue;
+        for(stage=0;stage<4;++stage)if((be->predicate(be->context,stage,target)&255)==1)break;
+        if(stage!=4)continue;
+        for(i=0;i<3;++i) {
+            if(!isfinite(target->position[i]))return RF_FORMAT;
+            delta[i]=target->position[i]-spine[i];
+        }
+        distance=((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2];
+        if(distance>4)continue;
+        target->flags_814|=0x2000;
+        divisor=be->random_divisor(be->context,5,8);
+        if(!isfinite(divisor) || divisor==0 || !isfinite(target->class_health))return RF_FORMAT;
+        amount=(float)(((double)target->class_health/divisor)*.25);
+        if(!isfinite(amount))return RF_FORMAT;
+        be->damage(be->context,target,amount,record->target,global_value,owner_uid);
+    }
+    return RF_OK;
+}

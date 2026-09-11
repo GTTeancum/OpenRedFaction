@@ -645,3 +645,29 @@ eight CTests pass. Evidence is artifacts/burn-attachments.json. Callback mutatio
 room relocation and emission remain untested at this combined boundary.
 Next connect spread selection and world transformation, then assemble the
 complete per-record update with persistent model/particle/audio/entity adapters.
+
+## Shared burn spread loop
+
+rf_burn_spread reconstructs42f0f7..42f1dc using a caller-owned linked list of
+persistent target views. It excludes the owner by identity, calls the four
+predicates in original order, rejects only low-byte1, and compares squared
+distance to4 using individually stored float differences and double products.
+Qualifying targets gain flags814 bit2000 before random(5,8); the damage
+callback receives the original source/global/UID values and quarter-health
+formula. It reads the current target next link after callbacks rather than
+saving it before damage. No allocation or frame-delta scaling occurs.
+
+The list ends atNULL and a caller-provided visit limit bounds corrupt cycles.
+Current target storage must survive callbacks until its next link is read;
+the caller must synchronize these views with actual damage/entity state.
+World spine, global value and UID are stable inputs. Nonfinite consumed fields
+or an invalid divisor return an error without rollback; bit2000 can already
+be set. These guards do not establish a complete campaign ownership lifecycle.
+
+verify_burn_spread.py passes3,128 PC and actual NXDK cases:3,125 original
+stable-list paths plus nonfinite-world-point and two visit-limit guards.
+Target flags, predicate order, random arguments and complete damage arguments
+match exactly. Both builds and eight CTests pass. Evidence and hashes are in
+artifacts/burn-spread.json. Live callback mutation, multi-target damage changes,
+world transformation, timer/age gating and actual campaign adapters remain
+to verify and connect before this becomes a full per-record burn update.

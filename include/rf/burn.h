@@ -119,4 +119,27 @@ typedef struct rf_burn_attachment_result {float spine[3];uint32_t spread_age_eli
  * is committed only on success. No timer, world transform or spread here. */
 int rf_burn_attachments(rf_burn_record *record,const rf_burn_attachment_backend *backend,
     rf_burn_attachment_result *result);
+typedef struct rf_burn_spread_target {
+    struct rf_burn_spread_target *next;
+    float position[3],class_health;
+    uint32_t flags_814,handle;
+} rf_burn_spread_target;
+typedef struct rf_burn_spread_backend {
+    /* Stages0..3:429990,427020,40a110,4290d0; only low byte1 rejects. */
+    uint32_t (*predicate)(void *context,uint32_t stage,rf_burn_spread_target *target);
+    float (*random_divisor)(void *context,float minimum,float maximum);
+    /*4892c0(target.handle,amount,source,global_value,4,0,owner_uid,0). */
+    void (*damage)(void *context,rf_burn_spread_target *target,float amount,
+        uint32_t source,uint32_t global_value,uint32_t owner_uid);
+    void *context;
+} rf_burn_spread_backend;
+/*42f0f7..42f1dc. NULL ends the caller-owned live list; owner excluded by identity.
+ * World spine/global/UID inputs are stable. Callbacks may mutate target fields
+ * and links but cannot invalidate current storage before its next link is read.
+ * visit_limit bounds corrupt cycles; no rollback on errors. Class and position
+ * must be finite when consumed. Caller supplies original timer/age gating and
+ * synchronizes persistent views with damage; this does not own entity storage. */
+int rf_burn_spread(rf_burn_spread_target *head,const rf_burn_spread_target *owner,
+    const float world_spine[3],const rf_burn_record *record,uint32_t owner_uid,
+    uint32_t global_value,uint32_t visit_limit,const rf_burn_spread_backend *backend);
 #endif

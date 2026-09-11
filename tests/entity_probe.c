@@ -51,6 +51,7 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--burn-attachments"))return burn_attachment_probe();
+    if(argc==2 && !strcmp(argv[1],"--burn-spread"))return burn_spread_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-owner"))return burn_owner_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-update"))return burn_update_probe();
     if(argc==2 && !strcmp(argv[1],"--burn-fade"))return burn_fade_probe();

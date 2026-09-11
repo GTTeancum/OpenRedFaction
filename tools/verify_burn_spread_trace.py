@@ -28,7 +28,7 @@ def hook(m,address,size,context):
         trace.append((address,*a[1:9]));m.reg_write(UC_X86_REG_EIP,tramp+16);return
     m.reg_write(UC_X86_REG_EAX,result);m.reg_write(UC_X86_REG_ESP,sp+4);m.reg_write(UC_X86_REG_EIP,a[0])
 u.hook_add(UC_HOOK_CODE,hook)
-cases=hits=0
+cases=hits=0;wire_cases=[];wire_expected=[]
 for gates in itertools.product((0,1,2,256,257),repeat=4):
  for distance_bits in (bits(0),bits(2)-1,bits(2),bits(2)+1,bits(3)):
     distance=struct.unpack('<f',w(distance_bits))[0];health=100.;divisor=6.5;initial_flags=0x800001
@@ -47,6 +47,8 @@ for gates in itertools.product((0,1,2,256,257),repeat=4):
         hits+=1;want.extend([(0x504e40,bits(5),bits(8)),(0x4892c0,0x12340001,bits((health/divisor)*.25),0x76540001,0xabcdef01,4,0,0x4321,0)])
     assert trace==want,(gates,distance,trace,want)
     assert struct.unpack('<I',u.mem_read(target+0x814,4))[0]==initial_flags|(0x2000 if eligible else 0)
+    wire_cases.append(w(*gates,distance_bits,0,0,bits(health),initial_flags,0x12340001,0,0,0,0x76540001,0x4321,0xabcdef01,bits(divisor),2,0,0))
+    wire_expected.append(w(0,initial_flags|(0x2000 if eligible else 0),len(trace))+b''.join(w(*row).ljust(36,b'\0') for row in trace)+bytes((6-len(trace))*36))
     cases+=1
 report=dict(result='PASS',cases=cases,damage_requests=hits,original_sha256=digest,scope='Unchanged42f0f7..42f1dc with real squared-distance helpers4faf00/40a180. Owner self-exclusion, ordered low-byte predicate gates, radius2 boundary, flag-before-random and full damage arguments verified. Predicates/random/damage supplied; stable list, world spine supplied; excludes attachments, timer gate, callback mutation and live integration.')
 (root/'artifacts/burn-spread-trace.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

@@ -2378,3 +2378,6 @@ Shared attachment/spread implementation and persistent ownership remain open.
 Shared burn attachment placement passes1025 PC/NXDK cases with zero measured
 position error; coincident tags return an explicit error before NaN emission.
 Spread, world transform and full live burn ownership remain to be connected.
+
+Shared burn spread passes3128 PC/NXDK checks with original filter/range/damage
+ordering; world transform, timer gating and persistent live adapters remain.

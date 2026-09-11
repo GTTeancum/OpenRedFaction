@@ -134,3 +134,27 @@ static int burn_attachment_probe(void)
     }
     return ferror(stdin)?2:0;
 }
+
+static uint32_t bs_gates[4],bs_trace[6][9],bs_count;static float bs_divisor;
+static void bs_row(const uint32_t row[9]){if(bs_count<6)memcpy(bs_trace[bs_count],row,36);++bs_count;}
+static uint32_t bs_predicate(void *ctx,uint32_t stage,rf_burn_spread_target *target)
+{static const uint32_t ids[4]={0x429990,0x427020,0x40a110,0x4290d0};uint32_t row[9]={0};(void)ctx;(void)target;row[0]=ids[stage];row[1]=0x30003000;bs_row(row);return bs_gates[stage];}
+static float bs_random(void *ctx,float minimum,float maximum)
+{uint32_t row[9]={0x504e40};rf_burn_spread_target *target=ctx;if(!(target->flags_814&0x2000))return 0;memcpy(row+1,&minimum,4);memcpy(row+2,&maximum,4);bs_row(row);return bs_divisor;}
+static void bs_damage(void *ctx,rf_burn_spread_target *target,float amount,uint32_t source,uint32_t global_value,uint32_t uid)
+{uint32_t row[9]={0x4892c0,target->handle,0,source,global_value,4,0,uid,0};(void)ctx;memcpy(row+2,&amount,4);bs_row(row);}
+static int burn_spread_probe(void)
+{
+    uint32_t wire[20];rf_burn_record record={0};rf_burn_spread_target owner={0},target={0};float spine[3];int status;
+    rf_burn_spread_backend be={bs_predicate,bs_random,bs_damage,&target};
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(wire,sizeof(wire),1,stdin)==1) {
+        memcpy(bs_gates,wire,16);memcpy(target.position,wire+4,12);memcpy(&target.class_health,wire+7,4);target.flags_814=wire[8];target.handle=wire[9];
+        memcpy(spine,wire+10,12);record.target=wire[13];memcpy(&bs_divisor,wire+16,4);owner.next=&target;target.next=NULL;
+        bs_count=0;memset(bs_trace,0,sizeof(bs_trace));
+        status=rf_burn_spread(&owner,&owner,spine,&record,wire[14],wire[15],wire[17],&be);
+        if(bs_count>6)return 4;
+        fwrite(&status,4,1,stdout);fwrite(&target.flags_814,4,1,stdout);fwrite(&bs_count,4,1,stdout);fwrite(bs_trace,216,1,stdout);
+    }
+    return ferror(stdin)?2:0;
+}
