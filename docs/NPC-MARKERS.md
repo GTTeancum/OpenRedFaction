@@ -1044,3 +1044,53 @@ and first-miss words, base RAM67108864/plugged0. No framebuffer capture.
 Next: establish the first misses' original class pose/placement and floor
 relationship, then connect the actual NPC physics/support/landing lifecycle.
 Do not convert this diagnostic into unconditional per-frame ground commits.
+
+
+## Floors below the short startup probes (2026-09-11)
+
+Each short-probe miss now receives a separate diagnostic sweep with its endpoint
+extended downward by 16 units. It uses the same sphere, flags and world/mover
+geometry. The ordinary query is unchanged; this extension must never replace
+its original depth. Numeric support is proposed on private state only.
+
+All 24 misses across the three opening fixtures find walkable geometry:
+
+| Level | Short misses | Deeper walkable hits | First UID | Proposed drop |
+| --- | ---: | ---: | ---: | ---: |
+| L1S1 | 17 | 17 | 8456 (env_guard) | 0.467772 |
+| L1S2 | 5 | 5 | 9695 (env_guard) | 0.532832 |
+| L1S3 | 2 | 2 | 8213 (miner1) | 0.351269 |
+
+For guard 8456, the lowest sphere has center Y -0.392215 and radius 0.432211.
+The deeper sweep contacts the floor at Y 0.5 and proposes body Y 1.374426,
+below its authored Y 1.842198. The ordinary query ends at Y 1.558865 before
+reaching that contact. The PC verifier checks the first deeper contact in each
+level lies beyond the short query's reach. No deeper query reports an error.
+This establishes that these shared collision queries can find floors below
+all short misses; it does not independently establish original spawn settling,
+class pose fidelity, moving-object acceptance or the correct fall/landing time.
+
+The standing-pose hypothesis was checked against the existing original-code
+setup slices: inspect_eye_setup.py passes all eight cases. Standing setup
+raises standing weight but performs no animation update before sampling the
+eye. The 0.2-second advance belongs to crouch and later standing restoration.
+No extra advance was added to initial class sampling. Full first-user cache
+lifecycle remains outside that prepared trace's proof.
+
+The deeper diagnostic adds 112 global bytes: eight summary words and twenty
+first-result words. No heap allocation, live-body writes or gameplay changes.
+Summary: attempts, hits, walkable hits, errors, first error UID/status, record
+hash, changed numeric proposals. First record: UID, matched, status, solid,
+face, material, sphere center/radius, query start/end Y, fraction, normal,
+contact point and proposed body Y. Contact fields require a successful hit.
+
+verify_npc_support_probe.py now includes those details and proposed drops in
+its JSON report. Existing body hashes, telemetry and framebuffer bytes remain
+unchanged for all three replays. Both builds and all nine CTests pass. This
+narrows the next task to faithful NPC settling/landing instead of extending
+gameplay probe depth or treating the misses as missing floors.
+
+Native stock 64 MiB XEMU also matches the PC deeper summary and first-result
+words over 180 door-replay frames: artifacts/xemu/replay-20260911-124440/report.json.
+Deep summary is [17,17,17,0,0,0,3049653555,17], with base RAM 67108864 and
+plugged memory 0. No framebuffer capture was requested.

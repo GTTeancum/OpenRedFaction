@@ -1199,6 +1199,7 @@ static rf_physics_stance_cache *campaign_npc_stances;
 static uint32_t campaign_npc_body_count;
 uint32_t rf_scene_npc_support[12]; /* sampled, queries, skipped, misses, steep, static, moving, errors, hash, first error UID, first miss UID, corrected */
 uint32_t rf_scene_npc_support_first_miss[16];
+uint32_t rf_scene_npc_support_deep[8],rf_scene_npc_support_deep_first[20];
 static void campaign_npc_support_probe(const rf_geometry_collision_world *world,const campaign_npc_body *owner,
     const rf_entity_physics_config *config,float class_speed,uint32_t uid);
 uint32_t rf_scene_npc_bodies[6]; /* actors, bodies, spheres, resident, peak, content hash */
@@ -1228,6 +1229,8 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     campaign_npc_stances=calloc(campaign_seeds.class_count,sizeof(*campaign_npc_stances));
     if(campaign_seeds.class_count && !campaign_npc_stances){status=RF_RANGE;goto done;}
     campaign_npc_body_count=campaign_poses.count;memset(rf_scene_npc_bodies,0,sizeof(rf_scene_npc_bodies));
+    memset(rf_scene_npc_support_deep,0,sizeof(rf_scene_npc_support_deep));rf_scene_npc_support_deep[6]=2166136261u;
+    memset(rf_scene_npc_support_deep_first,0,sizeof(rf_scene_npc_support_deep_first));
     memset(rf_scene_npc_support_first_miss,0,sizeof(rf_scene_npc_support_first_miss));
     memset(rf_scene_npc_support,0,sizeof(rf_scene_npc_support));rf_scene_npc_support[8]=2166136261u;
     rf_scene_npc_support[9]=rf_scene_npc_support[10]=UINT32_MAX;
@@ -1626,6 +1629,37 @@ static int campaign_body_query(const rf_geometry_collision_world *world,const rf
     return rf_geometry_collision_body_sweep(world,&campaign_movers,query,campaign_sweep_scratch,
         campaign_movers.count,rf_geometry_body_surface,&surfaces,contact,matched);
 }
+/* Diagnostic follow-up to short misses, never a substitute for4a0840 depth.
+ * Extend only the endpoint by16 units and propose contact on private storage. */
+static void campaign_npc_deep_probe(const rf_geometry_collision_world *world,const campaign_npc_body *owner,
+    const rf_physics_ground_probe *original,uint32_t uid)
+{
+    rf_physics_ground_probe probe=*original;rf_collision_body_query query={0};rf_collision_body_sphere sphere;
+    rf_geometry_body_hit hit={0};rf_physics_body_state state=owner->body.state;
+    rf_physics_support_contact support=owner->support;float published[3];uint32_t record[20]={0},matched=0,i;int status;
+    record[0]=uid;memcpy(record+6,probe.sphere.center,12);memcpy(record+9,&probe.sphere.radius,4);
+    memcpy(published,owner->published,12);probe.end[1]-=16;
+    memcpy(record+10,&probe.start[1],4);memcpy(record+11,&probe.end[1],4);
+    memcpy(sphere.center,probe.sphere.center,12);sphere.radius=probe.sphere.radius;
+    memcpy(query.start,probe.start,12);memcpy(query.end,probe.end,12);
+    for(i=0;i<3;++i)query.matrix[i][i]=1;
+    query.radius=probe.bounds.radius;query.flags=probe.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
+    status=campaign_body_query(world,&query,&hit,&matched);if(status)goto done;
+    record[1]=matched;if(!matched)goto done;
+    ++rf_scene_npc_support_deep[1];record[3]=hit.solid;record[4]=hit.face;record[5]=hit.contact.material;
+    memcpy(record+12,&hit.contact.fraction,4);memcpy(record+13,hit.contact.normal,12);memcpy(record+16,hit.contact.point,12);
+    if(hit.contact.fraction<1 && hit.contact.normal[1]>=.5f) {
+        ++rf_scene_npc_support_deep[2];
+        status=rf_physics_support_accept(&state,&probe,hit.contact.fraction,hit.solid!=UINT32_MAX,
+            hit.contact.velocity[1],hit.contact.object_id,(int32_t)hit.contact.material,&support,published);
+        if(!status){memcpy(record+19,&state.position[1],4);if(memcmp(state.position,owner->body.state.position,12))++rf_scene_npc_support_deep[7];}
+    }
+done:
+    record[2]=(uint32_t)status;
+    if(status){++rf_scene_npc_support_deep[3];if(rf_scene_npc_support_deep[3]==1){rf_scene_npc_support_deep[4]=uid;rf_scene_npc_support_deep[5]=(uint32_t)status;}}
+    if(!rf_scene_npc_support_deep[0])memcpy(rf_scene_npc_support_deep_first,record,sizeof(record));
+    ++rf_scene_npc_support_deep[0];rf_scene_npc_support_deep[6]=npc_hash_bytes(rf_scene_npc_support_deep[6],record,sizeof(record));
+}
 /* Startup diagnostic only: query actual NPC shapes, commit only to a private
  * body copy. The unlinked/cleared actor intent is the existing startup fixture;
  * this is not the post-physics487e00 phase or an AI/landing implementation. */
@@ -1658,7 +1692,7 @@ static void campaign_npc_support_probe(const rf_geometry_collision_world *world,
     memcpy(record+12,&probe.start[1],4);memcpy(record+13,&probe.end[1],4);memcpy(record+14,&state.position[1],4);
     if(!matched || hit.contact.fraction>=1) {
         if(!rf_scene_npc_support[3]) {rf_scene_npc_support[10]=uid;memcpy(rf_scene_npc_support_first_miss,record,sizeof(record));}
-        ++rf_scene_npc_support[3];goto done;
+        ++rf_scene_npc_support[3];campaign_npc_deep_probe(world,owner,&probe,uid);goto done;
     }
     if(!(hit.contact.normal[1]>=.5f)){++rf_scene_npc_support[4];goto done;}
     ++rf_scene_npc_support[hit.solid==UINT32_MAX?5:6];

@@ -28,6 +28,16 @@ for level,inputs,staged,bodies in fixtures:
   record=next(data[i:i+1084] for i in range(0,len(data),1084) if struct.unpack_from('<I',data,i)[0]==miss[0])
   first=dict(uid=miss[0],class_name=record[52:308].split(b'\0')[0].decode('cp1252'),position=struct.unpack_from('<3f',record,4),
    probe_start_y=struct.unpack('<f',struct.pack('<I',miss[12]))[0],probe_end_y=struct.unpack('<f',struct.pack('<I',miss[13]))[0])
- reports.append(dict(level=level,summary=summary,first_miss=first))
-report=dict(result='PASS',scope='Startup fixture only, cleared actor intent and unlinked parents. Actual shared world/mover queries; numeric support proposal on private state. Owner hashes match c560fea. Does not prove original first-use pose, live scheduling, moving-object acceptance, AI, fall or landing.',levels=reports)
+ deep=rows['NPC_SUPPORT_DEEP'];detail=rows['NPC_SUPPORT_DEEP_FIRST']
+ assert deep[0]==summary[3] and deep[1]==deep[2]==deep[0] and deep[3]==0,(level,deep)
+ if summary[3]:
+  assert detail[0]==miss[0] and detail[1:3]==[1,0]
+  value=lambda n:struct.unpack('<f',struct.pack('<I',detail[n]))[0]
+  contact_origin_y=value(10)+(value(11)-value(10))*value(12)
+  assert contact_origin_y<first['probe_end_y'],(level,contact_origin_y,first)
+  first.update(sphere_center=[value(n) for n in range(6,9)],sphere_radius=value(9),
+   deep_contact_point=[value(n) for n in range(16,19)],deep_contact_normal=[value(n) for n in range(13,16)],
+   proposed_supported_y=value(19),proposed_drop=first['position'][1]-value(19))
+ reports.append(dict(level=level,summary=summary,deep_summary=deep,first_miss=first))
+report=dict(result='PASS',scope='Startup fixture only, cleared actor intent and unlinked parents. Actual shared world/mover queries; numeric support proposal on private state. Misses receive an explicitly diagnostic16-unit extension; gameplay depth remains unchanged. Owner hashes match c560fea. Does not prove original first-use pose, live scheduling, moving-object acceptance, AI, fall or landing.',levels=reports)
 (folder/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
