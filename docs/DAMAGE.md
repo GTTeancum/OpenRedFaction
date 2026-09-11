@@ -583,3 +583,39 @@ they must be reconstructed and connected with persistent particle/entity/audio
 ownership. Existing rf_particle_emitter_update already recovers4972f0 and
 should be reused when those adapters are connected. Full traversal with fade
 releasing its current record also remains an integration check.
+
+## Burn attachment and spread body evidence
+
+verify_burn_attachment_trace.py executes original42ef3e through42f0bd, or
+the age skip to42f1dc, across1,024 scenarios. Model tag vectors and emitter
+position/update calls are supplied; original vector helpers execute unchanged.
+Attachment index2 (record1c, spine) positions and updates emitter3 first at
+every age. Through elapsed12 inclusive, it then evaluates attachments0,1,3
+and updates emitter0 at the leg midpoint, emitter1 at the spine, emitter2 at
+attachment3. Older records skip those three updates and spread. Ordinary
+midpoints differ from direct averaging by at most1.1920928955078125e-6 in
+this suite because the original subtracts, normalizes, computes distance,
+scales twice, then adds. Coincident leg tags produce NaN in all three midpoint
+components: the original normalizes a zero vector. A future port guard must
+be identified as a deliberate correction; do not claim a simple average is
+bit-identical original behavior. Room relocation4972a0 and emission4972f0
+are intercepted, so this does not verify their ownership integration.
+
+verify_burn_spread_trace.py executes original42f0f7..42f1dc across3,125
+scenarios with243 damage requests. It traverses owner then target, verifying
+self-exclusion before predicates. Ordered predicates429990,427020,40a110,
+4290d0 reject only a low-byte result exactly1 (not any nonzero value).
+The supplied predicate words include0,1,2,256,257 in every combination.
+Real4faf00/40a180 calculate squared distance from the supplied world spine.
+Constant589418 is4.0, so the inclusive spread radius is2 world units, not4;
+positions immediately below, at and above2 verify the boundary.
+
+A qualifying target gains flags814 bit2000 before random(5,8). Damage is
+float((target class health / random value) *0.25), where5893d4 is0.25; it
+is not frame-delta-scaled. The complete4892c0 arguments are target handle,
+amount, burn record target, global87243c, kind4,0, owner UID,0. The exact
+arguments and flags match. Predicates, random and damage are supplied; the
+list is stable and world spine already transformed. Timer gating, world
+transform, callback mutation and live integration remain outside this trace.
+Evidence is artifacts/burn-attachment-trace.json and burn-spread-trace.json.
+These traces establish the body behavior for the next shared implementation.

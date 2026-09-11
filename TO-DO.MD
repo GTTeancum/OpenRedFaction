@@ -2370,3 +2370,7 @@ remain open; this is traversal infrastructure,not completed burn simulation.
 
 Shared burn owner audio/damage/fade dispatch passes4096 original cases on PC
 and NXDK plus6 input guards; full attachment/spread and live ownership remain.
+
+Burn attachment1024 and spread3125 original traces pass; radius is2 units
+(squared limit4), while coincident leg tags expose original NaN normalization.
+Shared attachment/spread implementation and persistent ownership remain open.
