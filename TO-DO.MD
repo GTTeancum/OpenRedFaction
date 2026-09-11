@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
-Campaign force ownership passes stock64MiB XEMU: five L1S2 regions/552 bytes
-and matching PC hash. View shake and live per-frame application remain.
+Force ownership passes native XEMU; shake activation matches 1024 PC/NXDK
+cases. Integrate forces before controller/support refresh and movement physics.
 
 Immediate open items:
 - [ ] Connect owned campaign force regions to per-frame application, view shake and alternate airborne speed-cap state.

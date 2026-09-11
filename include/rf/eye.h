@@ -22,6 +22,10 @@ typedef struct rf_first_person_pose {
 int rf_first_person_pose_copy(const float eye[3],const float body_orientation[3][3],
     const float eye_orientation[3][3],rf_first_person_pose *result);
 typedef struct rf_camera_effect_state {float strength,duration;int32_t deadline;} rf_camera_effect_state;
+/* Resolved actor portion of 40e0b0: stores strength/duration and sets deadline
+ * from trunc(duration*1000). Signed duration supported within one timer period.
+ * Caller resolves view/player/actor ownership. Errors preserve state. */
+int rf_camera_effect_start(rf_camera_effect_state *state,float strength,float duration,int32_t now_ms);
 /* 41d980 per-player reset: deadline=now, not disabled (-1). */
 int rf_camera_effect_reset(rf_camera_effect_state *state,int32_t now_ms);
 /* 40db70 before 4fae00/4fc960. Returns the cone cosine from PRE-decay strength.

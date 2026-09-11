@@ -110,6 +110,16 @@ int rf_first_person_pose_copy(const float eye[3],const float body_orientation[3]
     memcpy(value.eye_orientation,eye_orientation,36);*result=value;return RF_OK;
 }
 
+int rf_camera_effect_start(rf_camera_effect_state *state,float strength,float duration,int32_t now_ms)
+{
+    rf_camera_effect_state value;double milliseconds;int status;
+    if(!state || !isfinite(strength) || !isfinite(duration))return RF_RANGE;
+    milliseconds=(double)duration*1000.0;
+    if(milliseconds < -RF_TIMER_PERIOD || milliseconds > RF_TIMER_PERIOD)return RF_RANGE;
+    value.strength=strength;value.duration=duration;
+    status=rf_timer_set(&value.deadline,now_ms,(int32_t)milliseconds);if(status)return status;
+    *state=value;return RF_OK;
+}
 int rf_camera_effect_reset(rf_camera_effect_state *state,int32_t now_ms)
 {
     rf_camera_effect_state value={0};int status;

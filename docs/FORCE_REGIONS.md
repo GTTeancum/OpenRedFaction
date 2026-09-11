@@ -161,3 +161,22 @@ on stock 64 MiB XEMU. Guest `CAMPAIGN_FORCES` is `[5, 552, 2519048547]`,
 matching PC. The existing actor/controller checks also pass. This confirms
 native loading/construction/retention of all five records in that level; it
 still does not claim they influence gameplay or cover native level transitions.
+
+`rf_camera_effect_start` supplies the missing resolved-actor `40e0b0` setter:
+strength at `+8b4`, duration at `+8b8`, and deadline at `+8bc` after truncating
+duration times 1000 to milliseconds. Force turbulence supplies duration 0.05.
+`verify_camera_start.py` executes the complete original setter with actual
+registry lookup, float-to-integer conversion and timer calls. All 1,024 PC/NXDK
+cases agree, including signed duration, fractional milliseconds and timer wrap;
+whole-actor comparisons permit only those three fields to change. The existing
+camera-effect application and shared-random adapter can consume this state.
+
+Frame placement is established by `487a40` (export `487c33`) and `487cf0`
+(export `487d43`). The object gameplay pass calls actor logic `41daf0`, then
+force application `4868c0`. After all objects, `46bbe0` propagates controllers,
+`41e370` refreshes support velocity, and `487770` executes movement physics.
+Thus actor gameplay update must not be confused with the later physics pass:
+force application belongs BEFORE controller propagation/support refresh and
+physics, not after `actor_tick`. The later `487e00` pass performs support work.
+Campaign integration must retain that order and share RNG consumption with
+particles/camera effects. These surrounding integrations remain open.

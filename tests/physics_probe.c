@@ -1,6 +1,7 @@
 #include "rf/physics.h"
 #include "rf/level.h"
 #include "rf/player.h"
+#include "rf/eye.h"
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -18,6 +19,14 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--camera-start")) {
+        struct {float strength,duration;int32_t now;} input;rf_camera_effect_state result;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(rf_camera_effect_start(&result,input.strength,input.duration,input.now) ||
+                fwrite(&result,sizeof(result),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--force-turbulence")) {
         struct {rf_physics_force_influence influence;uint32_t flags;float dt;rf_random_state random;} input;
         struct {rf_physics_force_influence influence;rf_random_state random;float amplitude;} output;
