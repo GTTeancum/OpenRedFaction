@@ -460,6 +460,7 @@ static rf_entity_poses campaign_poses;
 static rf_entity_base_motions campaign_base_motions;
 static rf_entity_motion_catalog campaign_motion_catalog;
 static rf_entity_playback_resources campaign_playback_resources;
+uint32_t rf_scene_npc_startup[4]; /* actors, bones, playback hash, matrix/cache hash */
 static rf_entity_view campaign_player_view;
 static rf_registered_entity_view campaign_player_object;
 uint32_t rf_scene_campaign_player[4]; /* registered handle, kind, initial object flags, adapter bytes */
@@ -1029,6 +1030,10 @@ uint32_t rf_scene_actor_body_sweeps[5]; /* queries, hits, mover hits, status, re
 uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, registration bytes */
 static void campaign_close_movers(void)
 {
+    if(campaign_playback_resources.models) {
+        uint32_t actor;for(actor=0;actor<campaign_poses.count;++actor)if(campaign_poses.items[actor].skeleton!=UINT32_MAX)
+            (void)rf_entity_pose_release(campaign_poses.items+actor,&campaign_playback_resources);
+    }
     rf_entity_seeds_close(&campaign_seeds);
     rf_entity_poses_close(&campaign_poses);
     rf_entity_playback_resources_close(&campaign_playback_resources);
@@ -2453,6 +2458,23 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=rf_entity_motion_catalog_open(&campaign_skeletons,&campaign_base_motions,512*1024,&campaign_motion_catalog);
             if(status)goto done;
             status=rf_entity_playback_resources_open(&campaign_motion_catalog,256*1024,&campaign_playback_resources);if(status)goto done;
+            /* Diagnostic startup delta matches the existing first-class pose query.
+             * Subsequent live selector scheduling/geometry submission is separate. */
+            status=rf_entity_poses_start_initial(&campaign_seeds,&campaign_skeletons,&campaign_motion_catalog,
+                &campaign_playback_resources,&campaign_poses,1.0f/30.0f);if(status)goto done;
+            {
+                uint32_t actor,k;rf_scene_npc_startup[0]=rf_scene_npc_startup[1]=0;
+                rf_scene_npc_startup[2]=rf_scene_npc_startup[3]=2166136261u;
+                for(actor=0;actor<campaign_poses.count;++actor)if(campaign_poses.items[actor].skeleton!=UINT32_MAX) {
+                    const rf_entity_pose *p=campaign_poses.items+actor;const unsigned char *bytes=(const unsigned char*)&p->playback;
+                    ++rf_scene_npc_startup[0];rf_scene_npc_startup[1]+=p->bone_count;
+                    for(k=0;k<sizeof(p->playback);++k)rf_scene_npc_startup[2]=(rf_scene_npc_startup[2]^bytes[k])*16777619u;
+                    bytes=(const unsigned char*)p->matrices;
+                    for(k=0;k<p->bone_count*48;++k)rf_scene_npc_startup[3]=(rf_scene_npc_startup[3]^bytes[k])*16777619u;
+                    bytes=(const unsigned char*)p->generations;
+                    for(k=0;k<p->bone_count*2;++k)rf_scene_npc_startup[3]=(rf_scene_npc_startup[3]^bytes[k])*16777619u;
+                }
+            }
         }
     }
     if(state_mode) {

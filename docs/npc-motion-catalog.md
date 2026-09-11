@@ -448,3 +448,37 @@ the fish zero-delta removal case. Both builds and nine CTest checks pass. A firs
 probe attempt ran before the PC rebuild completed and saw old generation output;
 rerunning after confirmed build completion passes. No native scene path calls
 these new lifecycle helpers yet; connecting selected startup controllers remains.
+
+## Campaign initial pose integration
+
+Campaign load now invokes `rf_entity_poses_start_initial` after shared resources
+are ready. It retains each actor's controller, selects from base mappings with
+the observed unlinked/nonplayer/action0/zero-intent initial inputs, applies
+weighting, advances playback, and evaluates its bone cache. The scene supplies
+1/30 second, matching its existing first-class pose diagnostic; recovering
+actual global startup time scheduling remains separate. Runtime weapon overlays
+are not moved ahead of this first base selection.
+
+This implements the verified opening-class composition, not full402c20/422360
+construction or an unrestricted general per-frame selector. Authored creation
+flags feed class physics flags. Class-kind0 and initial neutral candidate choices
+remain within the audited opening scope. No AI, damage actor registration,
+per-frame NPC advance, footstep sound consumption or NPC geometry submission
+is added. The previously displayed diagnostic miner is still a separate path.
+
+All141 authored skeletal actors pass `verify_npc_startup.py`:78/38/25 actors
+with1689/950/448 matrices on L1S1/L1S2/L1S3. Entire playback bytes and matrix/cache
+hashes match original authored startup reports. The probe releases every pose
+and confirms all shared registration counters return to zero. Scene teardown
+likewise releases slots before discarding pose/resource owners, including after
+partial startup failures. Each pose now also retains its24-byte controller.
+
+`rf_scene_npc_startup` exposes actor count, bone count, playback FNV and combined
+matrix/cache FNV. PC emits `NPC_STARTUP`; the native replay harness compares all
+four words through QMP memory, in addition to existing door/audio checks.
+Both builds and nine CTest checks pass.
+
+Stock64MiB XEMU replay `artifacts/xemu/replay-20260911-083746/report.json`
+passes180 frames. Its NPC startup digest matches PC for78 actors and1689 bones,
+including playback and matrix/cache hashes. Existing door/audio behavior passes.
+This is the first native campaign execution of owned NPC startup pose evaluation.

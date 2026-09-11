@@ -190,7 +190,7 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
       active=struct.unpack_from('<I',advanced)[0]
       advance_results.append(dict(level=level,entity_class=cls,delta=delta,prior_action=prior,creation_flags=creation,object_flags=object_flags,
        slots=[list(struct.unpack_from('<iif',advanced,4+i*12)) for i in range(active)],
-       phase=struct.unpack_from('<f',advanced,248)[0],generation=struct.unpack_from('<I',advanced,252)[0],events=struct.unpack_from('<I',advanced,256)[0]))
+       state_hex=advanced.hex(),phase=struct.unpack_from('<f',advanced,248)[0],generation=struct.unpack_from('<I',advanced,252)[0],events=struct.unpack_from('<I',advanced,256)[0]))
       if pose_mode:
        model_name=models[cls];raw_model=asset_bytes(model_name)
        section=next(q for q in inspect(raw_model)['sections'] if q['type']=='0x424f4e45');begin=section['offset']+8

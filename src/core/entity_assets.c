@@ -1610,6 +1610,39 @@ int rf_entity_playback_cache_references(const rf_entity_playback_resources *r,ui
     }
     *references=(uint32_t)total;return RF_OK;
 }
+int rf_entity_poses_start_initial(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,rf_entity_poses *poses,float elapsed)
+{
+    uint32_t i;int status,handled;
+    if(!seeds || !skeletons || !catalog || !resources || !poses || !isfinite(elapsed) || elapsed<0 ||
+       poses->count!=seeds->records.count || catalog->class_count!=seeds->class_count ||
+       (poses->count && (!poses->items || !seeds->items)) || (seeds->class_count && (!seeds->classes || !catalog->mappings)))return RF_RANGE;
+    for(i=0;i<poses->count;++i)if(poses->items[i].skeleton!=UINT32_MAX) {
+        rf_motion_playback_state initial;rf_motion_playback_initialize(&initial);
+        if(memcmp(&poses->items[i].playback,&initial,sizeof(initial)))return RF_RANGE;
+    }
+    for(i=0;i<poses->count;++i) {
+        rf_entity_pose *pose=poses->items+i;const rf_entity_seed_class *cls;const rf_entity_motion_mapping *map;
+        rf_motion_priority priority={0};rf_motion_movement movement={0};rf_entity_playback_model *model;float displacement[3]={0};
+        uint32_t class_index=seeds->items[i].class_index;
+        if(pose->skeleton==UINT32_MAX)continue;
+        if(class_index>=seeds->class_count || pose->skeleton>=resources->model_count || !resources->models)return RF_RANGE;
+        cls=seeds->classes+class_index;map=catalog->mappings+class_index;model=resources->models+pose->skeleton;
+        if(map->weapon!=-1 || map->skeleton!=pose->skeleton)return RF_RANGE;
+        pose->controller=(rf_motion_controller){0,-1,0,0,0,0};
+        priority.forced_state=-1;priority.mode=(int32_t)cls->physics.movement_index;
+        priority.physics_flags=rf_entity_creation_physics_flags(seeds->items[i].spawn.creation_flags,cls->physics.flags,cls->physics.flags2,0,0);
+        priority.linked_occupant_handle=-1;priority.entity_handle=-1;
+        status=rf_motion_select_priority(&pose->controller,map->states,&priority,&handled);if(status)return status;
+        if(!handled) {
+            movement.mode=priority.mode;movement.idle_state=0;movement.move_state=2;movement.alternate_state=4;
+            status=rf_motion_select_movement(&pose->controller,map->states,&movement);if(status)return status;
+        }
+        status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return status;
+        status=rf_entity_pose_advance(pose,skeletons,catalog,resources,elapsed,displacement);if(status)return status;
+    }
+    return RF_OK;
+}
 int rf_entity_pose_release(rf_entity_pose *pose,rf_entity_playback_resources *resources)
 {
     rf_entity_playback_model *model;rf_motion_slot_state *active;uint32_t i,j;

@@ -178,6 +178,22 @@ int main(int argc,char **argv)
                     if(rf_entity_playback_cache_references(&playback,playback.cache_ids[0],&total)!=RF_RANGE || total!=123)return 36;
                 }
                 printf("PLAYBACK_OWNER\t%u\t%u\t%u\t%u\n",playback.resource_count,playback.cache_count,playback.resident_bytes,playback.peak_bytes);
+                {
+                    rf_entity_poses poses={0};uint32_t actor,k;
+                    for(k=0;k<playback.resource_count;++k)playback.resources[k].references=0;
+                    if(rf_entity_poses_open(&seeds,&skeletons,1024*1024,&poses) ||
+                       rf_entity_poses_start_initial(&seeds,&skeletons,&catalog,&playback,&poses,1.0f/30.0f))return 37;
+                    for(actor=0;actor<poses.count;++actor)if(poses.items[actor].skeleton!=UINT32_MAX) {
+                        const rf_entity_pose *p=poses.items+actor;const unsigned char *bytes;
+                        printf("STARTUP_POSE\t%s\t%u\t",seeds.records.items[actor].record.class_name,seeds.items[actor].spawn.creation_flags);
+                        bytes=(const unsigned char*)&p->playback;for(k=0;k<sizeof(p->playback);++k)printf("%02x",bytes[k]);putchar('\t');
+                        bytes=(const unsigned char*)p->matrices;for(k=0;k<p->bone_count*48;++k)printf("%02x",bytes[k]);
+                        bytes=(const unsigned char*)p->generations;for(k=0;k<p->bone_count*2;++k)printf("%02x",bytes[k]);putchar('\n');
+                    }
+                    for(actor=0;actor<poses.count;++actor)if(poses.items[actor].skeleton!=UINT32_MAX && rf_entity_pose_release(poses.items+actor,&playback))return 38;
+                    for(k=0;k<playback.resource_count;++k)if(playback.resources[k].references)return 39;
+                    rf_entity_poses_close(&poses);
+                }
                 rf_entity_playback_resources_close(&playback);rf_entity_playback_resources_close(&playback);
             }
             for(i=0;i<catalog.mapping_count;++i) {

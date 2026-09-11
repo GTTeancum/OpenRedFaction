@@ -196,6 +196,7 @@ int rf_entity_skeletons_open(const rf_entity_seeds *seeds,rf_vpp *meshes,uint32_
 void rf_entity_skeletons_close(rf_entity_skeletons *skeletons);
 typedef struct rf_entity_pose {
     uint32_t skeleton,bone_count;rf_motion_playback_state playback;
+    rf_motion_controller controller;
     float (*matrices)[12];uint16_t *generations;
 } rf_entity_pose;
 typedef struct rf_entity_poses {
@@ -376,6 +377,13 @@ int rf_entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skele
  * bone cache stamps. Other actors sharing registrations retain their counters.
  * Empty playback is repeatable; invalid slots/counts preserve the owner/pose. */
 int rf_entity_pose_release(rf_entity_pose *pose,rf_entity_playback_resources *resources);
+/* Initial unlinked, nonplayer actor selection from creation-cleared intent and
+ * velocity, action0 and flags0. Uses base bindings before later weapon overlay.
+ * Verified opening-class startup composition, not a complete actor constructor.
+ * All poses must be fresh. On failure callers must release any active poses
+ * before freeing shared resources; earlier actors may already be initialized. */
+int rf_entity_poses_start_initial(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,rf_entity_poses *poses,float elapsed);
 /* Compose a base catalog map and an optional already-resolved weapon map using
  * the42ab20 overlay rule. Inputs must share class/skeleton; base weapon is-1.
  * Result keeps base entries when weapon entries are-1. Does not choose a weapon,

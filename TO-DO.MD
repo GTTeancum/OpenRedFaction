@@ -1,56 +1,10 @@
 # Red Faction Xbox / PC — open work
 
-Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
-grounded re-entry, broader object ownership and full RNG ordering remain.
-
-NPC base/weapon mappings now share stable per-model motion IDs; three opening
-levels and identity/loop alias guards pass. Authored footstep markers are bound;
-initial selection and live pose evaluation remain open.
-
-Original51cd30 is named timing-marker registration, not alternate clips; the
-PC/NXDK helper matches1500 cases plus5 guards. All153 authored footstep pairs
-pass parser checks; shared marker times pass on L1S1/L1S2/L1S3.
-
-Class default primary/secondary weapon IDs are now retained; all63 classes pass.
-Effective weapon animation overlays now pass original/PC/NXDK comparison;
-weapon-ID lookup, alias and sound-label selection pass484 combinations.
-Recover exact startup ordering and initialize the live selector.
-
-Opening NPC selector fixtures now match33 original/PC cases: fish transition
-to swim_stand, while other tested classes retain state0. Full construction and
-first pose/weight update remain open; no live NPC animation is claimed.
-
-First selector/weighting now matches99 original/PC cases with real envelopes;
-NXDK controller outputs also match. Connect first playback advance and pose
-evaluation, with shared cache lifetime counts across aliased registrations.
-
-First playback advance now matches99 original/PC/NXDK startup cases, including
-cursor, phase and reference totals; all first-frame marker flags are zero.
-Connect pose evaluation and verify subsequent live scheduling and crossings.
-
-First bone poses now match99 original/PC startup cases across opening models:
-1764 matrices and cache generations match; live actor integration remains open.
-
-Actor pose/catalog bridge now evaluates owned matrices without heap allocation;
-99 original pose cases pass through it. Connect scene startup and live ownership.
-
-Campaign now owns shared playback counters and cross-model clip alias IDs;
-three-level metadata/budget/reference checks pass. Connect actor startup next.
-
-Authored opening creation flags now pass180 original startup/pose cases;
-3789 matrices match. Finish attributing constructor fields for scene startup.
-
-Original factory spans now establish zero movement intent and opening AI flags;
-180 authored startup cases still pass. Resolve remaining link/physics inputs.
-
-Original spans now establish link sentinels, generic flags and initial velocity;
-180 startup cases still pass. Complete scene input projection and lifecycle.
-
-Combined actor advance/pose and reference release now pass180 startup cases;
-shared references survive teardown. Connect selected controllers in the scene.
+Campaign startup now selects and evaluates owned NPC poses; PC matches all141
+authored opening actors and3087 bone matrices. Per-frame AI/rendering remains.
 
 Immediate open items:
-- [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
+- [ ] Connect per-frame NPC selection/pose updates, rendered geometry and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
