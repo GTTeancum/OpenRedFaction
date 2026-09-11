@@ -761,3 +761,48 @@ release. All1024 original cleanup traces and four guards still pass; both
 builds and all13 CTests pass. These are compiled-code harnesses, not native
 XEMU corpse gameplay. Live corpse records, constructor/model transfer and
 concrete resource cleanup binding remain open.
+
+
+## Full original corpse construction trace
+
+`python tools/verify_corpse_create_original.py` now executes complete416940
+across1024 cases:848 successful constructions,142 allocation failures and34
+null sources. Allocation, model loading, pose refresh, emitter creation,
+collision registration, string assignment and temporary-list reserve/free are
+supplied backends. Class predicates, string comparisons/search, physical sphere
+copies, timers, object field writes and list insertion execute original code.
+The harness checks descriptor sources, source-object mutation, class/transition
+flags, animation identifiers, model inheritance, timer behavior, list links and
+334 extra-model transfers. Eight example call traces/write sets are retained.
+There is one corpse in each list fixture; multi-corpse retention is covered by
+the separate retention verifier, not this constructor fixture.
+
+Confirmed details for the shared constructor:
+- Empty class replacement-model string sets source7c400 before allocation and
+  reuses source80. All nonnull sources are marked7c2 before allocation. Failure
+  does not roll those marks back. The source model pointer is not cleared.
+- A named replacement is loaded with502880(name,1,-1).38 successful constructor
+  cases deliberately receive a null replacement model; the constructor does
+  not convert that into allocation failure.
+- The physical descriptor retains source8c at+0c, source98 at+14, caller position
+  at+3c, caller basis at+48, source180 at+84 and cloned24-byte spheres at+88.
+  Flags+94 are33 or73 according to class72480000. All0..4 spheres copy exactly.
+- Transition motion requires nonnull source model, class model kind2, a found
+  action and no class724200000. Seek argument must equal1 to set corpse29c8.
+  Pose refresh follows transition assignment; object78 receives refreshed180.
+- class724200000 with a valid sourcea44 selects503390(model,motion,1) and bit4.
+  corpse_drop/corpse_carry lookup results populate2bc/2c0; substring search in
+  the supplied death name gives direction0 for forward/front,1 for back,2 else.
+- Class emitter index0 creates an emitter without setting a deadline; positive
+  indices set the deadline even when emitter creation fails. The delay uses
+  truncation of class lifetime*1000+0.5, then the real timer helper.
+- Source810200000 transfers nonnull1410 into corpse2c8 and clears source1410.
+  The rest of the source bytes are unchanged apart from7c.
+- Sound id2cc is untouched by416940, and the inspected487100/486da0 allocation
+  path does not initialize it either. Do not infer a forced-1 default. Its
+  incoming storage value and subsequent sound-owner publication require care.
+
+This is original executable evidence, not shared constructor code or native
+XEMU gameplay. Runtime source/build outputs are unchanged by this evidence
+commit. Next implement the constructor against the retained pool and resource
+owners, using these verified ordering and failure semantics.
