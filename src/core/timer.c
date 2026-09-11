@@ -53,3 +53,22 @@ int rf_timer_remaining(int32_t deadline, int32_t now_ms, int32_t *remaining_ms)
     else if (delta < -RF_TIMER_PERIOD/2) delta+=RF_TIMER_PERIOD;
     *remaining_ms=delta; return RF_OK;
 }
+
+int rf_timer_pending(int32_t deadline,int32_t now_ms,int *pending)
+{
+    int expired,status;if(!pending)return RF_RANGE;
+    status=rf_timer_expired(deadline,now_ms,&expired);if(status)return status;
+    *pending=deadline>=0 && !expired;return RF_OK;
+}
+int rf_timer_set_random(int32_t *deadline,int32_t now_ms,int32_t minimum,
+    int32_t maximum,rf_random_state *random)
+{
+    rf_random_state next;uint32_t draw,span;int32_t value,offset;int status;
+    if(!deadline || !random || (void*)deadline==(void*)random || !valid_time(now_ms) ||
+       minimum < -RF_TIMER_PERIOD || maximum>RF_TIMER_PERIOD || minimum>maximum)return RF_RANGE;
+    next=*random;status=rf_random_next(&next,&draw);if(status)return status;
+    span=(uint32_t)((int64_t)maximum-minimum+1);
+    offset=(int32_t)((int64_t)minimum+draw%span);
+    status=rf_timer_set(&value,now_ms,offset);if(status)return status;
+    *deadline=value;*random=next;return RF_OK;
+}

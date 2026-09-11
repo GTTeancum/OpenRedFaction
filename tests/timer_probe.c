@@ -15,6 +15,12 @@ int main(void)
         case 3: output.status=rf_timer_set(&output.deadline,input.clock.game_ms,input.value); break;
         case 4: output.status=rf_timer_expired(input.deadline,input.clock.game_ms,&output.result); break;
         case 5: output.status=rf_timer_remaining(input.deadline,input.clock.game_ms,&output.result); break;
+        case 7: output.status=rf_timer_pending(input.deadline,input.clock.game_ms,&output.result);break;
+        case 8: {
+            rf_random_state random={(uint32_t)input.value};
+            output.status=rf_timer_set_random(&output.deadline,input.clock.game_ms,input.clock.real_ms,input.clock.pause_depth,&random);
+            output.result=(int32_t)random.value;break;
+        }
         case 6: rf_timer_clear(&output.deadline); output.status=RF_OK; break;
         default: return 2;
         }

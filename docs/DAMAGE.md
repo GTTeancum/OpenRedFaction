@@ -1272,3 +1272,26 @@ those owners, action22/23 resource residency, rf_motion_start_action and sound
 ownership before enabling a visible pain reaction. The action tables and shared
 action-start helper already exist; they should be reused rather than selecting
 an animation directly and bypassing the recovered gates.
+
+## Pain timer prerequisites (2026-09-11)
+
+rf_timer_pending reconstructs408ec0 with the existing expiry helper: a disabled
+deadline never blocks AI, while an active, unexpired deadline does. This belongs
+to AI+274 (entity+514), separately from pain cooldown830 and animation lock744.
+rf_timer_set_random reconstructs4fa3b0 using one shared CRT RNG draw, an inclusive
+integer modulo range, and the existing4fa360 timer setter. Equal endpoints still
+consume a draw. Both helpers allocate nothing; callers own deadlines and RNG
+ordering. Invalid inputs preserve output and RNG state.
+
+verify_pain_timers.py compares2048 pending checks and2048 random timer resets
+against the original executable and both PC and linked NXDK code. Original
+40a0d0/4fa3f0 and57312d/4fa360 execute directly; only the CRT thread-storage
+address is supplied. Complete original object bytes are checked for unexpected
+writes. Coverage includes disabled timers, wraparound, half-period boundaries,
+equal endpoints and negative ranges. Eight range/clock guards pass on both
+targets; four null/alias pointer guards additionally pass on linked NXDK code.
+Report: artifacts/pain-timers.json. Both builds and all nine CTests pass.
+
+These are prerequisites for the live pain backend, not evidence of a campaign
+flinch or established shared RNG call ordering. No additional XEMU run or visual
+capture is claimed for these currently unconnected routines.
