@@ -19,6 +19,18 @@ static int metadata_compare(const char *a,const char *b)
     } while(x);
     return 0;
 }
+void rf_ambient_voice_update(rf_ambient_slot *slot,float spatial_gain,float pan,float category_gain,
+    uint32_t looping,const rf_ambient_voice_backend *backend,void *context)
+{
+    double gain;
+    if(slot->sample<0)return;
+    gain=(double)spatial_gain*(double)category_gain;
+    if(gain<(double).1f) {
+        if(slot->voice>=0) {backend->stop(context,slot->voice);slot->voice=-1;}
+    } else if(slot->voice<0) {
+        slot->voice=backend->start(context,slot->sample,(float)gain,pan,(looping&255u)!=0);
+    } else if(looping&255u)backend->refresh(context,slot->voice,slot->sample,slot->position);
+}
 static const char *metadata_name(const rf_sound_metadata *rows,uint16_t index)
 { return index==UINT16_MAX?"":rows[index].name; }
 static void metadata_swap(uint16_t *a,uint16_t *b)

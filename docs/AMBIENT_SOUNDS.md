@@ -410,3 +410,32 @@ Fallback lead: original543580 uses the static180-byte record at5a7c60 when
 keyoff1000). Thus its loop/music selection bits are both zero. This is static
 binary evidence alongside the exported registration branch; fallback attachment
 to the campaign sample metadata remains to be implemented and verified.
+
+
+## Shared ambient voice decision
+
+rf_ambient_voice_update now reconstructs one505f75..50603c slot decision with
+spatial gain, pan, category gain and loop selection supplied by the caller.
+Negative sample slots do nothing. The gain product remains double precision
+for comparison with binary32(.1); only the start argument is rounded to float.
+Below threshold, an existing voice is stopped and then set to-1. At/above the
+threshold an absent voice starts, storing every signed backend return including
+failure. Existing looping voices request the separate543c20/544390 refresh
+path; existing nonlooping voices do nothing. Loop selection uses the low byte.
+Callbacks observe the old slot state; they must not mutate it themselves.
+
+The backend separates start, stop and refresh so gain recomputation is not
+mistaken for pan/pitch updates or forced through the initial gain path. This
+helper owns neither PCM nor device voices and is not yet attached to campaign
+listener updates. The caller must provide finite floats and valid callbacks.
+
+verify_ambient_voice.py executes the original instruction range with spatial,
+gain and device boundaries supplied, comparing all24 slot bytes and normalized
+callback traces with PC and compiled NXDK. All4,096 cases pass:2,624 no-ops,
+361 starts,877 stops and234 refreshes. Coverage includes negative sentinels,
+zero handles, failed starts, low-byte loop gating, category gains and100 cases
+where the product rounds to the threshold but is actually below it. Original
+refresh calls also verify sample/position/scale1 followed by the returned gain
+at544390. Callback-state visibility and unchanged slot fields are checked.
+PC/NXDK builds and all eight CTests pass. Actual refresh math, bounded PCM
+residency and native ambient playback remain the next integration work.

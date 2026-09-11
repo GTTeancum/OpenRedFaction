@@ -52,6 +52,20 @@ rf_ambient_instance *rf_ambient_find(rf_ambient_instances *instances,uint32_t ui
 typedef struct rf_ambient_slot {
     int32_t sample,voice;float position[3],volume;
 } rf_ambient_slot;
+typedef struct rf_ambient_voice_backend {
+    int32_t (*start)(void *context,int32_t sample,float gain,float pan,uint32_t looping);
+    void (*stop)(void *context,int32_t voice);
+    void (*refresh)(void *context,int32_t voice,int32_t sample,const float position[3]);
+} rf_ambient_voice_backend;
+/* Original505f75..50603c decision for one control slot. Spatial calculation and
+ * gain/category ownership are supplied; finite floats are required. Compare
+ * the unrounded product to binary32(.1), round only the start argument. Loop
+ * selection uses the low byte. Start stores any returned signed handle; stop
+ * clears it after callback. Active loops refresh through the backend's separate
+ * original543c20/544390 gain path; active one-shots do not refresh. Callbacks
+ * must not mutate the slot; all three functions must be valid. No PCM ownership. */
+void rf_ambient_voice_update(rf_ambient_slot *slot,float spatial_gain,float pan,float category_gain,
+    uint32_t looping,const rf_ambient_voice_backend *backend,void *context);
 /* Original505ac0/505b50/505b80 ambient control table, separate from mixer voices.
  * enabled uses its low byte. Start returns first free index or -1; it does not
  * load PCM or start a device voice. Invalid/inactive slots are unchanged.

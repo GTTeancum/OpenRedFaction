@@ -5,7 +5,7 @@ grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
-- [ ] Connect loaded Bluebeard metadata/fallbacks to ambient PCM/device playback and recover light ownership for Switch targets.
+- [ ] Connect verified ambient voice decisions, refresh gain and Bluebeard fallbacks to PCM/device playback; recover light ownership for Switch targets.
 - [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.

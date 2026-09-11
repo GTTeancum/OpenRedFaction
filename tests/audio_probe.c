@@ -4,6 +4,21 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+typedef struct ambient_voice_fixture {rf_ambient_slot *slot;int32_t result;uint32_t trace[7];} ambient_voice_fixture;
+static int32_t ambient_voice_start(void *context,int32_t sample,float gain,float pan,uint32_t loop)
+{
+    ambient_voice_fixture *f=context;f->trace[0]=1;f->trace[1]=(uint32_t)f->slot->voice;f->trace[2]=(uint32_t)sample;
+    memcpy(f->trace+3,&gain,4);memcpy(f->trace+4,&pan,4);f->trace[5]=loop;f->trace[6]=(uint32_t)f->slot->voice;return f->result;
+}
+static void ambient_voice_stop(void *context,int32_t voice)
+{
+    ambient_voice_fixture *f=context;f->trace[0]=2;f->trace[1]=(uint32_t)voice;f->trace[6]=(uint32_t)f->slot->voice;
+}
+static void ambient_voice_refresh(void *context,int32_t voice,int32_t sample,const float position[3])
+{
+    ambient_voice_fixture *f=context;if(memcmp(position,f->slot->position,12))exit(70);
+    f->trace[0]=3;f->trace[1]=(uint32_t)voice;f->trace[2]=(uint32_t)sample;f->trace[5]=1;f->trace[6]=(uint32_t)f->slot->voice;
+}
 typedef struct ambient_fixture {const rf_level_owned_ambient *rows;const int32_t *samples;uint32_t calls;} ambient_fixture;
 static int32_t ambient_register(void *context,const char *name,float near_distance,float volume,float rolloff)
 {
@@ -15,6 +30,20 @@ static int32_t ambient_register(void *context,const char *name,float near_distan
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--ambient-voice")) {
+        struct {rf_ambient_slot slot;float gain,pan,category;uint32_t loop;int32_t result;} command;
+        const rf_ambient_voice_backend backend={ambient_voice_start,ambient_voice_stop,ambient_voice_refresh};
+        _Static_assert(sizeof(command)==44,"Ambient voice command layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        for(;;) {
+            size_t received=fread(&command,1,sizeof(command),stdin);
+            ambient_voice_fixture fixture={&command.slot,command.result,{0}};
+            if(!received)break;if(received!=sizeof(command))return 69;
+            rf_ambient_voice_update(&command.slot,command.gain,command.pan,command.category,command.loop,&backend,&fixture);
+            if(fwrite(&command.slot,24,1,stdout)!=1 || fwrite(fixture.trace,28,1,stdout)!=1)return 68;
+        }
+        return ferror(stdin)?67:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--sound-metadata-read")) {
         uint32_t bytes,budget,count=0x55555555u,i;void *text;int status,read_status;
         rf_sound_metadata_owner owner={0};rf_sound_metadata *scratch;
