@@ -538,6 +538,34 @@ comparison passed, so L1S3 provided the relevant audible test location.
 
 Native180-frame door replay20260911-010328 also passes with APU capture,
 matching PC ambient/controller state and PCM. Production PC/NXDK builds and
-all eight CTests pass. Automatic safe PCM eviction, original55-voice allocation
-(the port still has16 shared/device voices), category settings, broader moving
+all eight CTests pass. Automatic safe PCM eviction, original allocation partitioning
+(the port still has16 shared/device voices; see the30-slot evidence below), category settings, broader moving
 listener stop/restart coverage and actual-hardware listening remain open.
+
+
+## Ordinary voice allocation is a30-slot partition
+
+522470 starts at record1ad7520 and tests flag pointers1ad7548 through1ad7a44,
+ending before1ad7a70: exactly30 records of44 bytes. Earlier references to55
+as the ordinary playback capacity conflated the full cleanup table with this
+partition. The remaining25 records are not eligible through522470. Their
+allocation roles still need tracing before claiming a complete55-voice design.
+
+rf_audio_select_ordinary reconstructs this policy using compact present/flags
+facts plus status/release callbacks. It returns the first absent slot without
+querying/releasing it. For present slots, flags&5 skip the status call; otherwise
+5224d0 calls DirectSound GetStatus and treats a failing HRESULT as not playing,
+while a successful status bit0 means playing. Once not playing, flags&2 still
+prevents reuse. An eligible present slot calls521930 before being returned.
+The allocator does not steal active voices or search for an absent slot in
+preference to an earlier reusable stopped one. The extra argument callers push
+to522470 is not read by its instructions.
+
+verify_audio_allocation.py executes original522470 and5224d0/522500, supplying
+only the DirectSound boundary and release effect. All4,096 cases match PC and
+compiled NXDK selected indices and ordered callbacks. Tests cover every ordinary
+index, excluded indexes30..54, full status scans, HRESULT failures, flags and
+unchanged input records. There are867 status calls and299 release callbacks.
+This proves allocation decisions, not521930 release effects or live integration.
+PC/NXDK builds and all eight CTests pass. The port device/mixer limit remains16
+until this policy is connected with the original buffer/flag lifecycle.

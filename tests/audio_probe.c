@@ -4,6 +4,14 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+typedef struct allocation_fixture {uint32_t input[55][4],count,trace[62];} allocation_fixture;
+static int32_t allocation_status(void *context,uint32_t slot,uint32_t *bits)
+{
+    allocation_fixture *f=context;f->trace[f->count*2]=1;f->trace[f->count*2+1]=slot;++f->count;
+    *bits=f->input[slot][3];return (int32_t)f->input[slot][2];
+}
+static void allocation_release(void *context,uint32_t slot)
+{allocation_fixture *f=context;f->trace[f->count*2]=2;f->trace[f->count*2+1]=slot;++f->count;}
 typedef struct ambient_voice_fixture {rf_ambient_slot *slot;int32_t result;uint32_t trace[7];} ambient_voice_fixture;
 static int32_t ambient_voice_start(void *context,int32_t sample,float gain,float pan,uint32_t loop)
 {
@@ -30,6 +38,20 @@ static int32_t ambient_register(void *context,const char *name,float near_distan
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--audio-allocation")) {
+        allocation_fixture fixture;rf_audio_allocation_slot slots[55];uint32_t i;
+        const rf_audio_allocation_backend backend={allocation_status,allocation_release};
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        for(;;) {
+            size_t received=fread(fixture.input,1,sizeof(fixture.input),stdin);int32_t result;
+            if(!received)break;if(received!=sizeof(fixture.input))return 63;
+            fixture.count=0;memset(fixture.trace,0,sizeof(fixture.trace));
+            for(i=0;i<55;++i) {slots[i].present=fixture.input[i][0];slots[i].flags=fixture.input[i][1];}
+            result=rf_audio_select_ordinary(slots,&backend,&fixture);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(&fixture.count,4,1,stdout)!=1 || fwrite(fixture.trace,sizeof(fixture.trace),1,stdout)!=1)return 62;
+        }
+        return ferror(stdin)?61:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ambient-gain")) {
         struct {rf_audio_parameters parameters;float position[3],listener[3],category,scale;uint32_t enabled;} command;
         _Static_assert(sizeof(command)==52,"Ambient gain command layout");

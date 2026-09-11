@@ -2,6 +2,20 @@
 #define RF_AUDIO_H
 #include "rf/vpp.h"
 #define RF_SOUND_METADATA_CAPACITY 4096u
+#define RF_AUDIO_ORDINARY_SLOTS 30u
+typedef struct rf_audio_allocation_slot {uint32_t present,flags;} rf_audio_allocation_slot;
+typedef struct rf_audio_allocation_backend {
+    int32_t (*status)(void *context,uint32_t slot,uint32_t *bits);
+    void (*release)(void *context,uint32_t slot);
+} rf_audio_allocation_backend;
+/* Original522470 ordinary allocator over the first30 records, not the entire
+ * 55-record cleanup table. First absent slot returns immediately. Present
+ * flags&5 skip status; otherwise status failure counts as not playing, status
+ * bit0 means playing, and flags&2 prevents reuse. Reusable present slots call
+ * release before return. No active-voice stealing. Caller supplies valid
+ * callbacks and owns release effects; this helper never mutates slot facts. */
+int32_t rf_audio_select_ordinary(const rf_audio_allocation_slot slots[RF_AUDIO_ORDINARY_SLOTS],
+    const rf_audio_allocation_backend *backend,void *context);
 typedef struct rf_sound_metadata {
     char name[120];uint32_t loop_flags,keyoff_flags;
 } rf_sound_metadata;

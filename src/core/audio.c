@@ -4,6 +4,20 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+int32_t rf_audio_select_ordinary(const rf_audio_allocation_slot *slots,
+    const rf_audio_allocation_backend *backend,void *context)
+{
+    uint32_t i,bits;
+    for(i=0;i<RF_AUDIO_ORDINARY_SLOTS;++i) {
+        int32_t status;
+        if(!slots[i].present)return (int32_t)i;
+        if(slots[i].flags&5u)continue;
+        bits=0;status=backend->status(context,i,&bits);
+        if((status>=0 && (bits&1u)) || (slots[i].flags&2u))continue;
+        backend->release(context,i);return (int32_t)i;
+    }
+    return -1;
+}
 
 /* Original comparator56bb80: only backslash separates path components. */
 static int metadata_compare(const char *a,const char *b)
