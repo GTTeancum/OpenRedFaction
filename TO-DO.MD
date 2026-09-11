@@ -2381,3 +2381,7 @@ Spread, world transform and full live burn ownership remain to be connected.
 
 Shared burn spread passes3128 PC/NXDK checks with original filter/range/damage
 ordering; world transform, timer gating and persistent live adapters remain.
+
+Complete original burn body passes54 ordering/mutation scenarios; spread
+damage can reject a later target or switch the owner tail to fading.
+Compose shared phases against this oracle before persistent live integration.

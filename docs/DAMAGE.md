@@ -671,3 +671,33 @@ match exactly. Both builds and eight CTests pass. Evidence and hashes are in
 artifacts/burn-spread.json. Live callback mutation, multi-target damage changes,
 world transformation, timer/age gating and actual campaign adapters remain
 to verify and connect before this becomes a full per-record burn update.
+
+## Complete original burn-body ordering and mutation
+
+verify_burn_body_trace.py executes the full live-owner body42ef3e..42f2a2
+without skipping its attachment, timer, world-transform, spread or owner-tail
+phases. Across54 scenarios it varies age0/12/above12, disabled/expired/future
+spread deadline, identity/quarter-turn owner basis, and two damage mutation
+modes. Real vector helpers,4facb0/40a350 world placement,4fa3f0 timer and
+427020/40a110 flag predicates execute. Tag vectors, room/emitter update,
+class/link predicates, random, audio, damage and fade implementations are
+supplied. The list contains the owner and two targets, with the second target
+at the inclusive two-unit boundary. Twenty spread hits and four fade calls
+are observed; complete ordered calls, elapsed time, reaction and target flags
+match expectations. The shared deadline is unchanged by this body; rearming
+belongs to the outer traversal.
+
+In one mutation mode the first target's damage callback sets the second
+target's810 bit1. Its subsequent real427020 rejects it before distance/random/
+damage. In another mode that callback sets the burn record fading byte; the
+later owner tail dispatches fade and advances elapsed instead of applying
+owner damage and consuming reaction RNG. Positional audio still precedes that
+tail decision. These are executable original-code evidence that composed
+phases must read persistent mutable target/record state at the original
+boundaries. Precomputed eligibility or stale owner snapshots would be wrong.
+
+Evidence is artifacts/burn-body-trace.json. This is original-body verification,
+not a compiled shared composition or live campaign test. Next join the shared
+attachment, timer/world-transform, spread and owner phases under this same
+mutation-aware oracle, then verify traversal with actual fade release and
+connect persistent model/particle/audio/entity adapters.
