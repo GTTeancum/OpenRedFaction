@@ -1954,14 +1954,18 @@ static int campaign_event_damage_lookup(void *context,uint32_t handle,uint32_t s
     }
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view==view &&
         campaign_npc_bodies[i].registration.handle==handle)break;
-    if(i==campaign_npc_body_count)return c->status=RF_NOT_FOUND;
+    if(i==campaign_npc_body_count && (view!=&campaign_player_view ||
+        campaign_player_damage.state.effects.handle!=handle))return c->status=RF_NOT_FOUND;
     target->present=1;target->entity_handle=handle;
     if(stage==1) {
         linked=rf_entity_lookup(&campaign_entities,view->linked_handle);
         target->exclude_a=linked && linked->class_type==1; /*4290d0*/
         target->exclude_b=(view->flags_810&1u)!=0; /*427020*/
     }
-    /*48acf0: these NPC owners have no player association, so no feedback. */
+    /*48acf0: retained local type0 owner has a player association; NPCs do not. */
+    if(stage==2 && view==&campaign_player_view && view->type==0) {
+        target->feedback=1;target->feedback_handle=handle;
+    }
     return RF_OK;
 }
 static void campaign_event_damage_apply(void *context,const rf_event_damage_request *input)
@@ -1970,23 +1974,28 @@ static void campaign_event_damage_apply(void *context,const rf_event_damage_requ
     if(c->status)return;
     request.amount=input->amount;request.source=input->source;request.kind=(int32_t)input->kind;
     request.argument6=input->flags;request.auxiliary_uid=input->other;request.force=input->enabled;
-    c->status=rf_scene_npc_damage(input->target,&request,c->difficulty,c->clock_bits,c->effects,&c->last_amount);
+    if(rf_entity_lookup(&campaign_entities,(int32_t)input->target)==&campaign_player_view)
+        c->status=rf_scene_player_damage(input->target,&request,c->difficulty,c->clock_bits,c->effects,&c->last_amount);
+    else c->status=rf_scene_npc_damage(input->target,&request,c->difficulty,c->clock_bits,c->effects,&c->last_amount);
     ++c->dispatches;
 }
 static void campaign_event_damage_feedback(void *context,uint32_t handle,float first,float second)
 {
-    rf_scene_npc_event_damage_services *c=context;(void)handle;(void)first;(void)second;
-    c->status=RF_NOT_FOUND; /* A player feedback owner must be supplied separately. */
+    rf_scene_event_damage_services *c=context;
+    if(!c->status)c->status=rf_scene_player_feedback(handle,first,second,c->now_ms);
 }
-int rf_scene_npc_event_damage_bind(rf_scene_npc_event_damage_services *services,rf_event_damage_backend *backend)
+int rf_scene_event_damage_bind(rf_scene_event_damage_services *services,rf_event_damage_backend *backend)
 {
     const rf_damage_effect_backend *e;
     if(!services || !backend || !(e=services->effects) || !isfinite(services->difficulty) ||
+       services->now_ms<0 || services->now_ms>RF_TIMER_PERIOD ||
        !e->predicate || !e->resolve_uid || !e->source || !e->create_burn || !e->random ||
        !e->notify || !e->playing || !e->play_kind6)return RF_RANGE;
     *backend=(rf_event_damage_backend){campaign_event_damage_lookup,campaign_event_damage_apply,
         campaign_event_damage_feedback,services};return RF_OK;
 }
+int rf_scene_npc_event_damage_bind(rf_scene_npc_event_damage_services *services,rf_event_damage_backend *backend)
+{return rf_scene_event_damage_bind(services,backend);}
 uint32_t rf_scene_npc_pain_test_words[10]; /* Two post-hit pain records plus RNG state. */
 typedef struct campaign_pain_context {
     campaign_npc_body *owner;rf_entity_pose *pose;rf_entity_pain_state state;
@@ -2195,7 +2204,7 @@ static int campaign_npc_damage_fixture(void)
     }
     /* Explicit diagnostic event, not an authored level event. Exercise the
      * registered type17 runtime path before broad campaign backend attachment. */
-    rf_scene_npc_event_damage_services services={&effects,1,0x3f800000,0,0,0};
+    rf_scene_npc_event_damage_services services={&effects,1,0x3f800000,0,0,0,1000};
     status=rf_scene_npc_event_damage_bind(&services,&damage_backend.effects);if(status)return status;
     damage_backend.frame_seconds=.25f;triggers.damage_backend=&damage_backend;
     event.object_kind=6;event.authored=&authored;event.links=&link;event.state.type=17;event.state.deadline=-1;

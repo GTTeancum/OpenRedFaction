@@ -3992,3 +3992,49 @@ cases,8192 of them with callback mutations.
 No authored hazard/weapon calls this adapter yet; player pain audio, weapon
 reset, death and complete lifecycle callbacks still need live implementations.
 No new XEMU campaign run or screenshot is claimed for this adapter-only change.
+
+
+## Damage-event binding reaches player vitals and camera
+
+rf_scene_event_damage_bind now supports the retained local player and
+registered skeletal NPCs through the same runtime event services. The old
+NPC-named typedef/function remain aliases for source callers. Player lookup
+requires the registered view and matching retained damage handle; unrelated
+live target families still fail explicitly. Actor exclusions use linked
+class1 and flags810 bit1 as before. Post-damage lookup identifies the local
+type0 associated owner for48acf0 feedback. Damage reaches
+rf_scene_player_damage, which also owns the red flash; event camera feedback
+uses rf_scene_player_feedback and its shared force/camera-effect owner.
+
+Services now carry now_ms separately from clock_bits. The former feeds the
+camera timer; the latter remains original floating-time bits for vitals.
+The caller must refresh both clocks and frame_seconds at dispatch. The
+record grows from24 to28 bytes. Camera feedback remains gated by original
+kinds0/3/5/6 and runs only for the actor branch after the refreshed lookup.
+Linked and actor hits are not deduplicated.
+
+PC tests register an actual type17 runtime event targeting the player as
+both link and actor; rate1 at.05 seconds applies two separate.05 hits,
+ignores supplied difficulty100 because the event forces damage, sets flash
+alpha128 and camera deadline1500 from now1000. Actor exclusion still permits
+the linked hit but suppresses actor damage/camera. Kind2 damages without
+camera, and a later now2000 dispatch sets deadline2500. Linked NXDK code
+passes four composed event cases with actual registration and retained
+health/flash/camera owners, plus the eight direct player-damage cases.
+The1984 original event comparisons and all12 CTest checks pass; both builds
+succeed. Native regression evidence follows.
+
+Broad attachment to authored campaign hazards remains open until complete
+player reactions and activation scheduling are supplied. This is a verified
+event-to-player binding, not proof of an operational mission hazard or
+finished pain/death/audio behavior.
+
+Stock64MiB XEMU replay-20260911-161500 passes180 frames with the enlarged
+event service record and existing NPC event/door checks. Active player event
+effects are covered by the PC and linked-NXDK composed tests above, not by
+this native regression route. No new screenshot was captured.
+
+Next player-reaction evidence:428740 returns immediately for an associated
+player when40d740(player+c4) is zero;40d740 simply reads view+8. This
+provides a candidate original no-flinch path, but the live view mode and
+its lifecycle must be verified before treating every player flinch as a no-op.

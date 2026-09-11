@@ -52,6 +52,35 @@ static int player_damage_check(void)
     CHECK(!memcmp(&saved,&campaign_player_damage,sizeof(saved)));
     request.kind=11;result=123;
     CHECK(rf_scene_player_damage(registration.handle,&request,1,0,&effects,&result)==RF_RANGE && result==123);
+    {
+        rf_runtime_event event={0};rf_level_owned_event authored={0};rf_level_link_target link={registration.handle,1,0};
+        rf_runtime_damage_backend backend={0};rf_runtime_triggers triggers={0};rf_physics_gravity gravity={0};
+        rf_scene_event_damage_services services={&effects,100,0x3f800000,0,0,0,1000};rf_startup_events_report report;
+        campaign_player_damage.state.effects.health=campaign_player_damage.state.effects.armor=100;
+        CHECK(rf_scene_event_damage_bind(&services,&backend.effects)==RF_OK);backend.frame_seconds=.05f;
+        triggers.registry=&campaign_registry;triggers.damage_backend=&backend;
+        event.object_kind=6;event.authored=&authored;event.links=&link;event.state.type=17;event.state.deadline=-1;
+        authored.record.words[0]=1;authored.record.words[1]=0;authored.record.link_count=1;
+        CHECK(rf_object_registry_insert(&campaign_registry,&event,&event.handle)==RF_OK);
+        CHECK(rf_camera_effect_reset(&campaign_camera_effect,0)==RF_OK);
+        CHECK(rf_screen_flash_reset(&campaign_player_flash)==RF_OK);
+        CHECK(rf_runtime_event_fire(&triggers,event.handle,0,registration.handle,1000,&gravity,NULL,NULL,&report)==RF_OK);
+        CHECK(!services.status && services.dispatches==2 && services.last_amount==.05f);
+        CHECK(fabsf(campaign_player_damage.state.effects.health-99.952f)<.00002f);
+        CHECK(fabsf(campaign_player_damage.state.effects.armor-99.948f)<.00002f);
+        CHECK(campaign_player_flash.alpha==128 && campaign_camera_effect.strength==.01f && campaign_camera_effect.deadline==1500);
+        campaign_player_view.flags_810=1;services.dispatches=0;
+        CHECK(rf_camera_effect_reset(&campaign_camera_effect,0)==RF_OK);
+        CHECK(rf_runtime_event_fire(&triggers,event.handle,0,registration.handle,1000,&gravity,NULL,NULL,&report)==RF_OK);
+        CHECK(!services.status && services.dispatches==1 && campaign_camera_effect.deadline==0);
+        campaign_player_view.flags_810=0;services.dispatches=0;authored.record.link_count=0;authored.record.words[1]=2;
+        CHECK(rf_runtime_event_fire(&triggers,event.handle,0,registration.handle,1000,&gravity,NULL,NULL,&report)==RF_OK);
+        CHECK(!services.status && services.dispatches==1 && campaign_camera_effect.deadline==0);
+        authored.record.words[1]=0;services.now_ms=2000;
+        CHECK(rf_runtime_event_fire(&triggers,event.handle,0,registration.handle,2000,&gravity,NULL,NULL,&report)==RF_OK);
+        CHECK(!services.status && campaign_camera_effect.deadline==2500);
+        CHECK(rf_object_registry_remove(&campaign_registry,event.handle)==RF_OK);
+    }
     CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&registration)==RF_OK);return 0;
 }
 static void event_damage_notify(void *context,uint32_t kind,uint32_t target,float amount,uint32_t source)
@@ -63,7 +92,7 @@ static int event_damage_binding_check(void)
     rf_runtime_damage_backend backend={0};rf_runtime_triggers triggers={0};rf_physics_gravity gravity={0};
     rf_damage_effect_backend effects={campaign_damage_test_predicate,campaign_damage_test_uid,campaign_damage_test_source,
         campaign_damage_test_burn,campaign_damage_test_random,event_damage_notify,campaign_damage_test_playing,campaign_damage_test_play,NULL};
-    rf_scene_npc_event_damage_services services={&effects,1,0x3f800000,0,0,0};rf_startup_events_report report;
+    rf_scene_npc_event_damage_services services={&effects,1,0x3f800000,0,0,0,1000};rf_startup_events_report report;
     rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
     campaign_npc_bodies=&owner;campaign_npc_body_count=1;campaign_seeds.items=&seed;
     campaign_seeds.classes=&cls;campaign_seeds.class_count=1;

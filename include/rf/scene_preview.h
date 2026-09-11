@@ -7,17 +7,20 @@
 #include "rf/event.h"
 #include "rf/eye.h"
 
-/* Borrowed services for runtime damage events targeting registered NPCs.
+/* Borrowed services for runtime damage events targeting registered NPCs/player.
  * Caller updates clock/difficulty and supplies complete synchronous reactions.
  * A fresh status/dispatch count is required for each outer dispatch. The first
  * failure is retained; subsequent lookups stop dispatch. Check services.status
- * after every outer dispatch because damage callbacks return void. Player/non-NPC health
- * and feedback owners are explicitly unsupported. No owner removal in callbacks. */
-typedef struct rf_scene_npc_event_damage_services {
+ * after every outer dispatch because damage callbacks return void. now_ms is
+ * the camera timer clock, distinct from the float-time bits used by damage.
+ * Other target families remain unsupported. No owner removal in callbacks. */
+typedef struct rf_scene_event_damage_services {
     const rf_damage_effect_backend *effects;
     float difficulty;uint32_t clock_bits;
-    int status;uint32_t dispatches;float last_amount;
-} rf_scene_npc_event_damage_services;
+    int status;uint32_t dispatches;float last_amount;int32_t now_ms;
+} rf_scene_event_damage_services;
+typedef rf_scene_event_damage_services rf_scene_npc_event_damage_services;
+int rf_scene_event_damage_bind(rf_scene_event_damage_services *services,rf_event_damage_backend *backend);
 int rf_scene_npc_event_damage_bind(rf_scene_npc_event_damage_services *services,rf_event_damage_backend *backend);
 typedef struct rf_scene_npc_pain_ops {
     int (*reset_weapon)(void *context,uint32_t handle,int32_t weapon);

@@ -52,5 +52,21 @@ for case in cases:
     assert all(abs(a-b)<.00002 for a,b in zip((*actual,actual_result),(next_health,next_armor,result))),(case,actual,actual_result)
     assert struct.unpack('<I',u.mem_read(flash+4,4))[0]==alpha
     assert all(item[0]==0xabc and item[1] in (0,1) and item[2]==handle for item in notifications),notifications
-report=dict(result='PASS',cases=len(cases),scope='Linked NXDK rf_scene_player_damage with real registry initialization/registration, retained vitals and flash. External pain notifications recorded; no game audio/death execution. Difficulty, kind9 exception, force low byte, blocked flags, class multipliers, half-point death and flash gates. Original core equivalence is separately covered by damage verifiers.')
+camera=symbol('campaign_camera_effect')
+for kind,flags,count,deadline in ((0,0,2,1500),(2,0,2,0),(0,1,1,0),(5,0,2,1500)):
+    u.mem_write(owner,struct.pack('<4f',100,100,100,100));u.mem_write(view+12,w(8,flags))
+    assert call('rf_screen_flash_reset',flash)==0
+    assert call('rf_camera_effect_reset',camera,0)==0
+    # Effects pointer, difficulty, damage clock bits, status/count/amount, camera clock.
+    u.mem_write(base+0x500,struct.pack('<IfIIIfi',base+0x400,100,0x3f800000,0,0,0,1000))
+    assert call('rf_scene_event_damage_bind',base+0x500,base+0x600)==0
+    u.mem_write(base+0x700,w(handle))
+    u.mem_write(base+0x800,struct.pack('<IIiIIf',1,base+0x700,1,kind,handle,.05))
+    notifications.clear()
+    assert call('rf_event_continuous_damage_action',base+0x800,1,base+0x600)==0
+    assert struct.unpack('<II',u.mem_read(base+0x50c,8))==(0,count)
+    assert struct.unpack('<i',u.mem_read(camera+8,4))[0]==deadline
+    assert struct.unpack('<I',u.mem_read(flash+4,4))[0]==128
+    assert not notifications  # Each tiny hit is below both pain thresholds.
+report=dict(result='PASS',cases=len(cases),event_cases=4,scope='Linked NXDK player damage plus Continuous_Damage binding with real port registration and retained health, flash and camera owners. Four event cases check duplicate link/actor hits, actor exclusion, kind-gated camera feedback and separate millisecond clock. Eight direct cases cover scaling, force, death and flash gates. External pain notifications recorded; no game audio/death or authored hazard activation. Original core equivalence is separately covered by damage verifiers.')
 (root/'artifacts/player-damage-binding.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))

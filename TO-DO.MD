@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Connect authored hazards/weapons to the registered player damage adapter, implement remaining player reactions/lifecycle, and verify HUD/pause timing with matching PC/Xbox presentations.
+- [ ] Attach the verified event-to-player damage/flash/camera binding to authored activation with complete player reactions; add weapon damage and verify HUD/pause presentation timing.
 - [ ] Connect and verify NPC settling/fall/landing; deeper diagnostic sweeps find walkable floors below all24 opening-level short-probe misses.
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
@@ -27,7 +27,7 @@ Immediate open items:
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
-- [ ] Extend the verified Continuous_Damage-to-NPC path to authored activation, complete reactions, player health/HUD feedback and non-skeletal targets, using the shared player camera-feedback owner; implement hostile-source AI separately.
+- [ ] Extend the verified Continuous_Damage-to-NPC/player path to authored activation, complete reactions and other target families; implement hostile-source AI separately.
 - [ ] Resolve the L1S3 pressure-test route after fixing its 14 static ray errors, complete audio category settings, and recover light ownership.
 - [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
