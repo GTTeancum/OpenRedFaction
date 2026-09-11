@@ -1328,3 +1328,29 @@ for the audited opening classes. Thus an available idle_to_ready mapping can
 still reject a flinch until AI state changes, even when the timers permit it.
 Report: artifacts/pain-initialization.json. No runtime changes or new native
 visual claim accompany this constructor audit.
+
+## Persistent NPC pain fields (2026-09-11)
+
+Each registered skeletal NPC now retains three int32 deadlines (AI514,
+animation lock744 and cooldown830) and selected action828 in its existing body
+allocation. Initialization calls the shared timer setter with offset0 and sets
+action-1, using the constructor values verified above. The owner setup accepts
+an explicit construction clock; this diagnostic starts its simulation at0.
+These fields survive startup alongside health and playback rather than being
+recreated for each hit. Pain effects and later AI writes are not yet connected.
+
+This adds16 bytes per actor slot, with no additional heap allocation or copied
+motion map. Existing body residency and peak accounting include the new fields.
+NPC_PAIN_OWNERS reports registered count, added bytes, initial-state hash and
+construction clock. The three-level PC verifier independently computes the
+expected hash of all initialized records. Live Mines reports
+[78,1248,3490813901,0], with body residency46596 and peak421236 bytes. L1S2 uses
+624 additional bytes; L1S3 uses448. Existing body content hashes remain unchanged.
+Both builds and all ten CTests pass, along with three-level support, four-level
+backlink and the two-hit registered damage comparison. These checks establish
+storage/initialization, not a visible flinch or completed damage effects.
+
+Native stock64MiB XEMU matches the new pain-owner summary and all64 existing
+damage fixture words over180 door frames: artifacts/xemu/replay-20260911-141850/
+report.json. Base memory67108864, plugged memory0. The damage staging file and
+ordinary build are restored by the harness. No new visual capture was taken.

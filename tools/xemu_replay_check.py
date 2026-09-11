@@ -248,6 +248,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      npc_damage_owners=words(monitor,symbol('rf_scene_npc_damage_owners'),3)
      assert npc_damage_owners==expected('NPC_DAMAGE_OWNERS'),npc_damage_owners
      report['npc_damage_owners']=npc_damage_owners
+     npc_pain_owners=words(monitor,symbol('rf_scene_npc_pain_owners'),4)
+     assert npc_pain_owners==expected('NPC_PAIN_OWNERS'),npc_pain_owners
+     assert npc_pain_owners[0]==npc_bodies[1] and npc_pain_owners[1]==npc_bodies[0]*16,npc_pain_owners
+     report['npc_pain_owners']=npc_pain_owners
      npc_damage_test=words(monitor,symbol('rf_scene_npc_damage_test_words'),64)
      assert npc_damage_test==expected('NPC_DAMAGE_TEST'),npc_damage_test
      assert npc_damage_test[0]==npc_damage_test[63]==0,npc_damage_test
