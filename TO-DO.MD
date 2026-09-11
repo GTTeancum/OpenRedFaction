@@ -34,7 +34,7 @@ Camera-scaled NPC animation gates match1200 combined original/PC/NXDK cases;
 retain double metric precision and recover remaining live actor inputs.
 
 NPC seed classes retain verified authored LOD distances for all63 classes;
-connect room/frame state and validate the expanded seed layout in XEMU.
+connect room/frame state; stock64MiB XEMU validates the expanded seed layout.
 
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.

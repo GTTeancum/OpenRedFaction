@@ -402,7 +402,7 @@ int rf_entity_animation_should_advance(const rf_entity_animation_gate *input)
     allowed=input->descriptor_present!=0;
     if(allowed && !(input->flags&0x80000000u)) {
         if(!(input->descriptor_flag&255u) &&
-           (input->state==1 || input->state==2 || input->state==13))allowed=0;
+           (input->action_520==1 || input->action_520==2 || input->action_520==13))allowed=0;
         else if(input->lod_distance_count>2 && input->distance>45.0f)allowed=0;
     }
     return (input->predicate&255u)==1 || allowed;

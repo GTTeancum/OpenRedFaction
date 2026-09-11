@@ -396,3 +396,19 @@ playback continues advancing all skeletal actors.
 Both full builds and nine CTest checks pass. The180-frame PC door replay
 retains playback179/78/1689 and Foley metadata checksums; final PPM SHA256
 remains3f008e45b98484177e9b17e467477908a7a27300df0e68507e0f565641933c82.
+
+## Native validation and remaining actor input
+
+Stock64MiB XEMU replay-20260911-105003 passes180 frames after the retained
+marker-name and class-LOD layout changes. Guest memory reports67108864 base
+bytes and zero plugged memory. NPC playback remains179 ticks/78 actors/1689
+bones, state hash1023684323, pose hash1674115745 and10536 clip bytes.
+Foley/class metadata and APU checks pass; no new framebuffer was requested.
+This validates the diagnostic's use of the expanded seed layout, not direct
+guest inspection of every LOD value or live application of the animation gate.
+
+The gate field is now explicitly named `action_520`: it is the entity action,
+not `rf_motion_controller.current`. Existing creation evidence402d68..402dac
+clears this action and behavior554; see CAMERA.md. Mapping the controller's
+selected idle/locomotion state into this field would be incorrect. The field
+rename does not change the wire layout or gate behavior.

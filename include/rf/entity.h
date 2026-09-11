@@ -7,10 +7,11 @@
 
 typedef struct rf_entity_animation_gate {
     uint32_t model_present,model_kind,descriptor_present,descriptor_flag,flags;
-    int32_t state,lod_distance_count;uint32_t predicate;double distance;
+    int32_t action_520,lod_distance_count;uint32_t predicate;double distance;
 } rf_entity_animation_gate;
 /* Original41dbea..41dd49 decision, after caller resolves descriptor/fields and
  * camera-scaled LOD metric (double avoids premature float rounding).
+ * action_520 is the entity action, not the motion controller state.
  * Only kind2 models advance here. Descriptor flag and predicate use
  * their low byte; predicate must equal1 to force advance. Finite distance is a
  * caller precondition; original distance computation/actor entry gates remain
