@@ -39,8 +39,29 @@ static int32_t ambient_register(void *context,const char *name,float near_distan
 static int idle_release_status,idle_release_calls;
 static int bank_idle_device(void *context,const uint8_t *samples)
 {++idle_release_calls;return samples==context?idle_release_status:RF_FORMAT;}
+static uint32_t control_stop_trace[2],control_stop_mutation;
+static rf_audio_control_voice *control_stop_slot;
+static void control_stop(void *context,int32_t device)
+{
+    unsigned char *bytes=(unsigned char *)control_stop_slot;unsigned i;(void)context;
+    control_stop_trace[0]++;control_stop_trace[1]=(uint32_t)device;
+    if(control_stop_mutation)for(i=0;i<44;++i)bytes[i]^=0x5a;
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--control-stop")) {
+        uint32_t wire[14],index;rf_audio_control_voice voices[RF_AUDIO_VOICES];
+        _Static_assert(sizeof(rf_audio_control_voice)==44,"Original control voice size");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            memset(voices,0xa5,sizeof(voices));index=wire[12]&255u;
+            control_stop_slot=&voices[index<RF_AUDIO_VOICES?index:0];memcpy(control_stop_slot,wire,44);
+            control_stop_mutation=wire[13];memset(control_stop_trace,0,sizeof(control_stop_trace));
+            rf_audio_control_stop(voices,wire[11],(int32_t)wire[12],control_stop,NULL);
+            fwrite(control_stop_slot,44,1,stdout);fwrite(control_stop_trace,8,1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--audio-allocation")) {
         allocation_fixture fixture;rf_audio_allocation_slot slots[55];uint32_t i;
         const rf_audio_allocation_backend backend={allocation_status,allocation_release};

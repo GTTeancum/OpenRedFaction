@@ -177,6 +177,20 @@ int rf_audio_bank_reload(rf_audio_bank *bank,rf_vpp *archive,uint32_t index);
 void rf_audio_bank_close(rf_audio_bank *bank);
 #define RF_AUDIO_VOICES RF_AUDIO_ORDINARY_SLOTS
 #define RF_AUDIO_RATE 48000u
+/* Original1753c38 control records, separate from port mixer/device voices.
+ * Game handles encode signed generation<<8 | slot, not mixer handles.
+ * fields10/14 await recovery of their producers. */
+typedef struct rf_audio_control_voice {
+    int32_t device,sample;uint32_t category;int32_t generation;
+    float field10,field14,position[3],volume;uint32_t positional;
+} rf_audio_control_voice;
+/*505a40 -> supplied5442b0 ->505680. Disabled low byte, invalid slot, negative
+ * device or stale generation do nothing. Handle zero is valid. Stop precedes
+ * reset; generation, position and positional marking survive reset.
+ * Table/callback must be valid when a matching voice can be stopped. Callback
+ * may mutate fields but must retain table storage. No allocation. */
+void rf_audio_control_stop(rf_audio_control_voice voices[RF_AUDIO_VOICES],uint32_t enabled,
+    int32_t handle,void (*stop_device)(void *context,int32_t device),void *context);
 typedef struct rf_audio_voice {
     rf_wave_pcm pcm;uint32_t handle,frame,phase,left,right,loop,active;
 } rf_audio_voice;

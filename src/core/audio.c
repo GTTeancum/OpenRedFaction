@@ -252,6 +252,18 @@ int rf_audio_voice_gain(rf_audio_mixer *mixer,uint32_t handle,uint32_t left,uint
     if(i>=RF_AUDIO_VOICES || !mixer->voices[i].active || mixer->voices[i].handle!=handle)return RF_NOT_FOUND;
     mixer->voices[i].left=left;mixer->voices[i].right=right;return RF_OK;
 }
+void rf_audio_control_stop(rf_audio_control_voice voices[RF_AUDIO_VOICES],uint32_t enabled,
+    int32_t handle,void (*stop_device)(void *context,int32_t device),void *context)
+{
+    uint32_t index=(uint32_t)handle&255u;int32_t generation;rf_audio_control_voice *voice;
+    if(!(enabled&255u) || index>=RF_AUDIO_VOICES)return;
+    generation=(int32_t)((uint32_t)handle>>8);
+    if((uint32_t)handle&0x80000000u)generation-=0x1000000;
+    voice=&voices[index];if(voice->device<0 || voice->generation!=generation)return;
+    stop_device(context,voice->device);
+    voice->device=voice->sample=-1;voice->category=0;
+    voice->field10=voice->field14=0;voice->volume=0;
+}
 int rf_audio_voice_stop(rf_audio_mixer *mixer,uint32_t handle)
 {
     uint32_t i=handle&0xffff;

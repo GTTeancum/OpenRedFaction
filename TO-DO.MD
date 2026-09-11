@@ -2453,3 +2453,9 @@ particles;256 original/PC/NXDK cases verify list order and unchanged particle
 counts. Both builds,437 prior pool checks and eight CTests pass. Audio backend
 and persistent NPC ownership/scheduling remain open.
 Evidence: tools/verify_burn_resource_release.py and docs/DAMAGE.md.
+
+Original audio control-stop now preserves signed generation/8-bit slot semantics
+separately from mixer handles;2,500 original/PC/NXDK cases pass, including zero
+and stale handles. Recover control-voice allocation/refresh before connecting
+burn audio to device adapters. Both builds and eight CTests pass.
+Evidence: tools/verify_audio_control_stop.py and docs/controller-audio.md.

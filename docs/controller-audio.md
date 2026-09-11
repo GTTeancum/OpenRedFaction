@@ -1145,3 +1145,24 @@ available pages, exactly matching the pre-open measurement. The native report
 records budget_pressure=[1,1,1,57014,1,15796,15796]; all earlier APU tests pass.
 This closes native shared-helper/device reclamation coverage, not full campaign
 moving-listener traversal, repeated eviction cycling or host-listening parity.
+
+
+## Original game voice stop control
+
+rf_audio_control_voice models the original44-byte table at1753c38, separate
+from the port PCM mixer's handle format. rf_audio_control_stop reconstructs
+505a40 and505680: the low8 handle bits select one of30 slots, with arithmetic
+signed generation in the upper24 bits. Enabled uses its low byte. Negative
+device values and generation mismatches do nothing; handle zero is valid.
+The supplied device stop runs before reset. Reset clears device/sample to-1,
+category, fields10/14 and volume to zero; generation, position and positional
+marking survive. The retained positional byte must not be silently cleared.
+
+verify_audio_control_stop.py matches2,500 original/PC/NXDK scenarios, including
+270 device stops, signed generation extremes, invalid slots, stale generations,
+negative devices, zero handles and callback mutations. NXDK compares all30
+records, checking unrelated entries remain untouched. Original5442b0 is supplied;
+the original reset executes. Both builds and eight CTests pass. Evidence:
+artifacts/audio-control-stop.json. Allocation/refresh must populate this original
+control layer and translate to the existing device/mixer adapters before burn
+voice lifetime can be connected end to end; this is not native audio evidence.
