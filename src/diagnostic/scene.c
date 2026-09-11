@@ -1188,9 +1188,11 @@ static int campaign_npc_geometry_digest(void)
     return RF_OK;
 }
 static rf_movement_descriptor campaign_modes[16];
+_Static_assert(sizeof(rf_entity_damage_state)==56,"Damage owner telemetry layout");
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
-    rf_entity_creation_vitals_state vitals;float published[3],previous[3];uint32_t movement_slot;
+    rf_entity_damage_state damage;uint32_t object_flags,field_840;
+    float published[3],previous[3];uint32_t movement_slot;
     uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
     rf_movement_settings movement;rf_entity_view view;rf_registered_entity_view registration;
 } campaign_npc_body;
@@ -1203,6 +1205,7 @@ uint32_t rf_scene_npc_support_first_miss[16];
 uint32_t rf_scene_npc_support_deep[8],rf_scene_npc_support_deep_first[20];
 static void campaign_npc_support_probe(const rf_geometry_collision_world *world,const campaign_npc_body *owner,
     const rf_entity_physics_config *config,float class_speed,uint32_t uid);
+uint32_t rf_scene_npc_damage_owners[3]; /* registered damage records, added owner bytes, state hash */
 uint32_t rf_scene_npc_registration[6]; /* registered, view/wrapper bytes, hash, first/last handle, validated */
 uint32_t rf_scene_npc_bodies[6]; /* actors, bodies, spheres, resident, peak, content hash */
 static void campaign_npc_bodies_close(void)
@@ -1295,8 +1298,16 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                  * Later script/AI mutations are not synthesized here. */
                 if(flags&0x4000u)flags|=0x8000u;
                 flags|=0x06000000u;if(!(config.authored.flags2&1u))flags|=0x20000u;
-                owner->vitals.object_flags=flags;
-                rf_entity_creation_vitals(&owner->vitals,&definition->vitals,0);
+                rf_entity_creation_vitals_state vitals={0};vitals.object_flags=flags;
+                rf_entity_creation_vitals(&vitals,&definition->vitals,0);
+                owner->object_flags=vitals.object_flags;owner->field_840=vitals.field_840;
+                owner->damage.effects.health=vitals.health;owner->damage.effects.armor=vitals.armor;
+                owner->damage.effects.class_health=definition->vitals.health;
+                owner->damage.effects.class_armor=definition->vitals.armor;
+                owner->damage.effects.class_flags_728=definition->physics.flags2;
+                owner->damage.effects.affiliation=campaign_seeds.items[actor].spawn.friendliness;
+                owner->damage.effects.voice=UINT32_MAX;owner->damage.responsible_handle=UINT32_MAX;
+                owner->damage.burn_source=UINT32_MAX; /* Absent burn; source unused until installed. */
                 owner->movement_slot=rf_movement_start(campaign_modes,(int32_t)config.authored.movement_index,&body->state.flags);
                 owner->movement.response=body->state.coefficients[1];
                 /* Constructor422e19 requests normal speed via427450. */
@@ -1321,11 +1332,12 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         const rf_entity_seed_class *definition=campaign_seeds.classes+campaign_seeds.items[actor].class_index;
         owner->trigger_handle=UINT32_MAX;
         view->handle=-1;view->type=0;view->class_type=(int32_t)definition->physics.use_kind;
-        view->flags_7c=owner->vitals.object_flags;view->linked_handle=-1;
+        view->flags_7c=owner->object_flags;view->linked_handle=-1;
         view->weapons[0]=view->weapons[1]=-1;view->base_speed=campaign_npc_movement_configs[campaign_seeds.items[actor].class_index].base_speed;
         /* Action/810/7d0 start clear; weapon/attachment owners remain absent in
          * this existing unarmed, unlinked startup projection. */
         status=rf_entity_view_register(&campaign_registry,&campaign_entities,view,&owner->registration);if(status)goto done;
+        owner->damage.effects.handle=owner->registration.handle;
         if(!rf_scene_npc_registration[0])rf_scene_npc_registration[3]=owner->registration.handle;
         rf_scene_npc_registration[4]=owner->registration.handle;++rf_scene_npc_registration[0];
         if(rf_object_registry_lookup(&campaign_registry,owner->registration.handle)!=&owner->registration ||
@@ -1336,6 +1348,13 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         rf_scene_npc_registration[2]=npc_hash_bytes(rf_scene_npc_registration[2],view,44);
         rf_scene_npc_registration[2]=npc_hash_bytes(rf_scene_npc_registration[2],&owner->registration,8);
     }
+    rf_scene_npc_damage_owners[0]=0;rf_scene_npc_damage_owners[1]=campaign_npc_body_count*48;
+    rf_scene_npc_damage_owners[2]=2166136261u;
+    for(actor=0;actor<campaign_npc_body_count;++actor)if(campaign_npc_bodies[actor].registration.view) {
+        campaign_npc_body *owner=campaign_npc_bodies+actor;
+        rf_scene_npc_damage_owners[2]=npc_hash_bytes(rf_scene_npc_damage_owners[2],&owner->damage,sizeof(owner->damage));
+        ++rf_scene_npc_damage_owners[0];
+    }
     rf_scene_npc_bodies[3]=(uint32_t)bytes;
     if(bytes>rf_scene_npc_bodies[4])rf_scene_npc_bodies[4]=(uint32_t)bytes;
     for(actor=0;actor<campaign_npc_body_count;++actor) {
@@ -1343,7 +1362,11 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         hash=npc_hash_bytes(hash,&body->state,sizeof(body->state));
         hash=npc_hash_bytes(hash,body->spheres.items,body->spheres.count*sizeof(*body->spheres.items));
         hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].support,sizeof(campaign_npc_bodies[actor].support));
-        hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].vitals,sizeof(campaign_npc_bodies[actor].vitals));
+        { /* Preserve the existing constructor-vitals digest across ownership changes. */
+            const campaign_npc_body *owner=campaign_npc_bodies+actor;
+            rf_entity_creation_vitals_state vitals={owner->damage.effects.health,owner->damage.effects.armor,owner->object_flags,owner->field_840};
+            hash=npc_hash_bytes(hash,&vitals,sizeof(vitals));
+        }
         hash=npc_hash_bytes(hash,campaign_npc_bodies[actor].published,12);
         hash=npc_hash_bytes(hash,campaign_npc_bodies[actor].previous,12);
         hash=npc_hash_bytes(hash,&campaign_npc_bodies[actor].movement_slot,4);
@@ -1751,7 +1774,7 @@ static void campaign_npc_support_probe(const rf_geometry_collision_world *world,
     rf_physics_body_state state=owner->body.state;rf_physics_support_contact support=owner->support;
     rf_physics_ground_probe probe;rf_collision_body_query query={0};rf_collision_body_sphere sphere;
     rf_geometry_body_hit hit={0};rf_entity_support_gate gate={0};float published[3];
-    uint32_t record[16]={0},matched=0,i,flags=owner->vitals.object_flags;int status;
+    uint32_t record[16]={0},matched=0,i,flags=owner->object_flags;int status;
     memcpy(published,owner->published,12);record[0]=uid;++rf_scene_npc_support[0];
     gate.movement_mode=campaign_modes[owner->movement_slot].index;gate.linked_handle=-1;
     gate.falling=gate.movement_mode==3 || gate.movement_mode==8 ||
@@ -2569,8 +2592,8 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     /* Original snapshot list completes before any model/controller update. */
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_poses.items[i].skeleton!=UINT32_MAX) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
-        rf_entity_position_snapshot(&owner->vitals.object_flags,owner->previous,owner->published);
-        owner->view.flags_7c=owner->vitals.object_flags;
+        rf_entity_position_snapshot(&owner->object_flags,owner->previous,owner->published);
+        owner->view.flags_7c=owner->object_flags;
     }
     for(i=0;i<campaign_poses.count;++i) {
         rf_entity_pose *pose=campaign_poses.items+i;const rf_entity_motion_mapping *map;

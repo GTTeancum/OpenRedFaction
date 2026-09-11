@@ -2,9 +2,9 @@
 import json,os,struct,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];folder=root/'artifacts/npc-support-probe';folder.mkdir(exist_ok=True)
-fixtures=[('L1S1.rfl','door-audio-reference/inputs.bin','RF_REPLAY_DOOR_START',[78,78,191,41604,416244,1546073344]),
- ('L1S2.rfl','lift-cycle/inputs.bin','RF_REPLAY_LIFT_START',[39,38,114,21360,395352,1626689487]),
- ('L1S3.rfl','npc-bodies-start.bin',None,[28,25,48,15400,389104,3245065254])]
+fixtures=[('L1S1.rfl','door-audio-reference/inputs.bin','RF_REPLAY_DOOR_START',[78,78,191,45348,419988,1546073344]),
+ ('L1S2.rfl','lift-cycle/inputs.bin','RF_REPLAY_LIFT_START',[39,38,114,23232,397224,1626689487]),
+ ('L1S3.rfl','npc-bodies-start.bin',None,[28,25,48,16744,390448,3245065254])]
 reports=[]
 for level,inputs,staged,bodies in fixtures:
  env=os.environ.copy()
@@ -21,6 +21,8 @@ for level,inputs,staged,bodies in fixtures:
  assert rows['NPC_BODIES']==bodies,(level,rows['NPC_BODIES'])
  links=rows['NPC_LINKS']
  assert links=={'L1S1.rfl':[333,3996,15,152],'L1S2.rfl':[217,2604,4,43],'L1S3.rfl':[162,1944,4,44]}[level],(level,links)
+ damage=rows['NPC_DAMAGE_OWNERS']
+ assert damage[0]==bodies[1] and damage[1]==48*bodies[0],(level,damage)
  registration=rows['NPC_REGISTRATION']
  assert registration[0]==registration[5]==bodies[1] and registration[1]==68*bodies[0],registration
  assert registration[4]-registration[3]==(bodies[1]-1)*65537,registration
@@ -44,6 +46,6 @@ for level,inputs,staged,bodies in fixtures:
   first.update(sphere_center=[value(n) for n in range(6,9)],sphere_radius=value(9),
    deep_contact_point=[value(n) for n in range(16,19)],deep_contact_normal=[value(n) for n in range(13,16)],
    proposed_supported_y=value(19),proposed_drop=first['position'][1]-value(19))
- reports.append(dict(level=level,registration=registration,npc_links=links,summary=summary,deep_summary=deep,first_miss=first))
+ reports.append(dict(level=level,damage_owners=damage,registration=registration,npc_links=links,summary=summary,deep_summary=deep,first_miss=first))
 report=dict(result='PASS',scope='Startup fixture only, cleared actor intent and unlinked parents. Actual shared world/mover queries; numeric support proposal on private state. Misses receive an explicitly diagnostic16-unit extension; gameplay depth remains unchanged. Owner hashes match c560fea. Does not prove original first-use pose, live scheduling, moving-object acceptance, AI, fall or landing.',levels=reports)
 (folder/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))

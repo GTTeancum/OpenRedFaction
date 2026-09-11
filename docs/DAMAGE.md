@@ -1134,3 +1134,44 @@ the direct NXDK oracle checks every factor value. No new visual capture.
 Actual NPC damage dispatch still needs persistent damage-state ownership and
 pain/death/burn/AI effects. The retained factors should feed rf_entity_damage_sp
 rather than an assumed1.0 multiplier; loading them alone does not change health.
+
+
+## Persistent NPC damage state (2026-09-11)
+
+Skeletal campaign owners now retain rf_entity_damage_state directly. Health and
+armor have moved out of the temporary creation-vitals projection into this one
+persistent record. Object flags and opaque840 remain separately owned; a local
+creation-vitals value is used only during initialization and legacy digesting.
+The previous health/armor copy is not retained. This gives future synchronous
+damage callbacks the same persistent record consumed by rf_entity_damage_sp.
+
+The state retains class health/armor, class728 flags from physics.flags2, the
+registered generation handle and authored friendliness as affiliation. The latter
+is loader4647ef..46483c's entity1f8 overlay, the field compared in the burn path.
+Voice854 and responsible144c start atUINT32_MAX as assigned by422360; burn13d8
+starts absent. burn_source is a port sentinel until a burn owner is installed.
+Damage time and810/814 remain zero in this prepared startup projection; complete
+factory/AI initialization is not newly proven here. No damage request is fired
+by constructing this record, and no effect backend has been replaced by a stub.
+
+Replacing the16-byte vitals member with56-byte damage state plus8 bytes for
+object flags/840 adds48 bytes per actor slot. Live Mines adds3744 bytes, L1S2
+1872 and L1S3 1344. Body-owner resident/peak values are45348/419988,
+23232/397224 and16744/390448, within the existing512KiB owner setup budget.
+A three-word diagnostic records count, added bytes and complete56-byte state
+hash. The opening hashes are199578601,3714119201 and3553662776. These are port
+startup ownership checks, not an original full-constructor equivalence claim.
+
+The three-level support verifier still matches all prior body-content hashes,
+which include the original creation health/armor/flags/840 digest. Independent
+original/PC/NXDK factory-vitals tests pass1536 cases; the original authored scalar
+overlay test passes200 cases. Both builds and all nine CTests pass. The next
+integration must resolve the registered owner, supply retained class factors,
+keep predicate flag views coherent during callbacks and connect real pain,
+death, burn, sound and AI effects before claiming live campaign damage.
+
+Stock64MiB XEMU also matches all78 Live Mines damage records through their full
+state digest over180 door-replay frames: [78,3744,199578601]. Evidence is
+artifacts/xemu/replay-20260911-133623/report.json, base RAM67108864 and plugged
+memory0. This is persistent-state/layout evidence; it does not exercise a hit.
+No new screenshot was taken because rendering behavior is unchanged.

@@ -25,6 +25,7 @@ extern rf_startup_events_report rf_scene_startup_events;
 extern uint32_t rf_scene_startup_gravity[4];
 extern uint32_t rf_scene_switch_state[3],rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
 extern uint32_t rf_scene_npc_startup[4],rf_scene_npc_geometry[7],rf_scene_npc_materials[8],rf_scene_npc_draw[5],rf_scene_npc_draw_detail[6],rf_scene_npc_playback[7],rf_scene_npc_gate[4],rf_scene_npc_bodies[6],rf_scene_npc_registration[6],rf_scene_npc_support[12],rf_scene_npc_support_first_miss[16],rf_scene_npc_support_deep[8],rf_scene_npc_support_deep_first[20];
+extern uint32_t rf_scene_npc_damage_owners[3];
 extern uint32_t rf_scene_npc_links[4],rf_scene_npc_backlinks[4];
 extern int rf_scene_npc_backlink_row(uint32_t index,uint32_t row[3]);
 extern uint32_t rf_scene_campaign_event_links[4],rf_scene_campaign_groups[5],rf_scene_campaign_movers[3],rf_scene_campaign_memberships[5];
@@ -285,6 +286,7 @@ int main(int argc,char **argv)
             printf("NPC_SUPPORT_FIRST_MISS");for(uint32_t k=0;k<16;++k)printf(" %u",rf_scene_npc_support_first_miss[k]);puts("");
             printf("NPC_SUPPORT_DEEP");for(uint32_t k=0;k<8;++k)printf(" %u",rf_scene_npc_support_deep[k]);puts("");
             printf("NPC_SUPPORT_DEEP_FIRST");for(uint32_t k=0;k<20;++k)printf(" %u",rf_scene_npc_support_deep_first[k]);puts("");
+            printf("NPC_DAMAGE_OWNERS");for(uint32_t k=0;k<3;++k)printf(" %u",rf_scene_npc_damage_owners[k]);puts("");
             printf("NPC_BACKLINKS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_backlinks[k]);puts("");
             printf("NPC_LINKS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_links[k]);puts("");
             printf("NPC_REGISTRATION");for(uint32_t k=0;k<6;++k)printf(" %u",rf_scene_npc_registration[k]);puts("");
