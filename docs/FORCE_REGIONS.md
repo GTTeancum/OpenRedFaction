@@ -121,3 +121,21 @@ and circular player-list traversal. All 4,320 PC/NXDK decisions agree, with
 752 eligible cases and no actor mutations. The shared function consumes the
 resolved predicates; this does not yet implement player-list ownership or
 campaign force-region registration. Rotation and integrated application remain.
+
+The previously described rotation branch is **force turbulence**: it randomizes
+the force direction, not the actor orientation. Sixteen authored regions enable
+it, including two in L1S2. `rf_physics_force_turbulence` reads the nibble at
+bits 16..19, computes `abs((nibble / (150 / dt)) * strength)` and stores that
+amplitude as binary32. It clamps `1 - amplitude` to [-1,1] for the existing
+original-oriented cone sampler. The unclamped amplitude is retained for the
+later player-view shake call. An enabled nibble consumes two shared CRT draws
+even at zero dt or strength; a zero nibble consumes none.
+
+`verify_force_turbulence.py` checks 2,048 original/PC/NXDK cases through
+`4869f6..486a72`, retaining clamp, cone, basis, vector rotation and CRT random
+code. Only the thread-data pointer is supplied. The test uses explicit 53-bit
+x87 precision and checks all direction, strength, RNG and amplitude bytes.
+Cases cover all nibble values, zero dt/strength, signed strength, clamp limits
+and vertical/nonunit axes. This reuses `rf_particle_cone_oriented` rather than
+creating a second approximation. View shake after `486a72`, shared campaign
+RNG ordering and integrated force application remain open.

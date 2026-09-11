@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC — open work
 
-Force eligibility matches 4320 original PC/NXDK cases; carry and replacement
-sequences pass. Rotation, ownership/registration and live integration remain.
+Force turbulence matches 2048 original PC/NXDK cases with exact RNG draws;
+view shake, ownership/registration and live force integration remain.
 
 Immediate open items:
 - [ ] Register verified runtime force regions and connect force application plus alternate airborne speed-cap ownership.

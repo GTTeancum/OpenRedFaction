@@ -1,6 +1,7 @@
 #include "rf/physics.h"
 #include "rf/collision.h"
 #include "rf/level.h"
+#include "rf/effect.h"
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
@@ -290,6 +291,19 @@ int rf_physics_force_air_cap(const float velocity[3],float class_speed,
     cap=speed>class_speed?(float)(speed+1):class_speed;
     if(!isfinite(cap))return RF_RANGE;
     *alternate_cap=cap;*body_flags|=0x200000;return RF_OK;
+}
+int rf_physics_force_turbulence(rf_physics_force_influence *influence,uint32_t flags,
+    float dt,rf_random_state *random,float *shake_amplitude)
+{
+    uint32_t amount=(flags>>16)&15;float amplitude,cosine,direction[3];rf_random_state next;int status;
+    if(!influence || !random || !shake_amplitude)return RF_RANGE;
+    if(!amount) {*shake_amplitude=0;return RF_OK;}
+    if(!isfinite(dt) || dt<0 || !isfinite(influence->strength))return RF_RANGE;
+    amplitude=dt==0?0:(float)fabs(((double)amount/(150.0/dt))*influence->strength);
+    if(!isfinite(amplitude))return RF_RANGE;
+    cosine=(float)(1.0-amplitude);if(cosine < -1)cosine=-1;if(cosine>1)cosine=1;
+    next=*random;status=rf_particle_cone_oriented(influence->direction,cosine,&next,direction);if(status)return status;
+    memcpy(influence->direction,direction,sizeof(direction));*random=next;*shake_amplitude=amplitude;return RF_OK;
 }
 uint32_t rf_physics_force_eligible(uint32_t body_flags,uint32_t region_present,
     uint32_t region_flags,uint32_t local_related,uint32_t actor_present,uint32_t actor_mode)

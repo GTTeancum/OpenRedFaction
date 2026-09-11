@@ -18,6 +18,16 @@ int main(int argc,char **argv)
     float in[3];struct {rf_physics_fallback value;int32_t status;} out;
     _Static_assert(sizeof(out)==28,"Physics probe wire format");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--force-turbulence")) {
+        struct {rf_physics_force_influence influence;uint32_t flags;float dt;rf_random_state random;} input;
+        struct {rf_physics_force_influence influence;rf_random_state random;float amplitude;} output;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            output.influence=input.influence;output.random=input.random;
+            if(rf_physics_force_turbulence(&output.influence,input.flags,input.dt,&output.random,&output.amplitude) ||
+                fwrite(&output,sizeof(output),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--force-eligible")) {
         uint32_t input[6],output;
         while(fread(input,sizeof(input),1,stdin)==1) {

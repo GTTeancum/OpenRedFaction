@@ -1,6 +1,7 @@
 #ifndef RF_PHYSICS_H
 #define RF_PHYSICS_H
 #include "rf/vpp.h"
+#include "rf/random.h"
 typedef struct rf_physics_gravity {float acceleration,vector[3];} rf_physics_gravity;
 /* Original 4a0e20: updates 5a00dc and vector 7c7058=(0,-gravity,0).
  * Does not recompute the separately initialized jump impulse. Finite signed
@@ -175,6 +176,13 @@ int rf_physics_force_air_cap(const float velocity[3],float class_speed,
  * Presence/predicate arguments must be 0/1. Returns boolean; no mutations. */
 uint32_t rf_physics_force_eligible(uint32_t body_flags,uint32_t region_present,
     uint32_t region_flags,uint32_t local_related,uint32_t actor_present,uint32_t actor_mode);
+/* 4869f6..486a72: flags bits16..19 randomize force direction in a cone.
+ * Uses two shared CRT draws even at zero strength/dt if nibble is nonzero.
+ * Returns unclamped shake amplitude for the later player-view effect. Zero
+ * nibble leaves influence/RNG unchanged and reports zero amplitude. Finite
+ * nonnegative dt required; failures preserve all outputs. No view mutation. */
+int rf_physics_force_turbulence(rf_physics_force_influence *influence,uint32_t flags,
+    float dt,rf_random_state *random,float *shake_amplitude);
 /* First enabled containing region in supplied creation order. Sphere boundary
  * is strict; boxes inclusive. Unknown shapes are skipped. UINT32_MAX means
  * no match. No allocation or force application; errors preserve index. */
