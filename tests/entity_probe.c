@@ -76,6 +76,36 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corpse-owners")) {
+        static rf_corpse_owners owners;rf_corpse_physics_seed seed={0};rf_physics_sphere sphere={{1,2,3},1,-1,7};
+        uint32_t cycle,i,index=99,base=sizeof(owners);float mass=3,response=10;
+        seed.flags=0x33;seed.radius=1;seed.basis[0]=seed.basis[4]=seed.basis[8]=1;
+        memcpy(&seed.word_0c,&response,4);memcpy(&seed.word_14,&mass,4);seed.spheres=&sphere;seed.sphere_count=1;
+        if(rf_corpse_owners_init(&owners,base+30*24))return 2;
+        for(cycle=0;cycle<64;cycle++) {
+            for(i=0;i<30;i++) {
+                if(rf_corpse_owners_acquire(&owners,&seed,.25f,.5f,2,&index) || index!=i)return 3;
+                if(memcmp(owners.slots[i].body.spheres.items,&sphere,24))return 4;
+                owners.slots[i].corpse.uid=cycle*30+i;
+            }
+            index=99;if(rf_corpse_owners_acquire(&owners,&seed,.25f,.5f,2,&index)!=RF_NOT_FOUND || index!=99)return 5;
+            if(owners.allocated_bytes!=base+720)return 6;
+            for(i=30;i--;) {
+                if(rf_corpse_owners_recycle(&owners,i) || owners.slots[i].corpse.uid!=cycle*30+i)return 7;
+                if(rf_corpse_owners_recycle(&owners,i)!=RF_RANGE)return 8;
+            }
+            if(owners.allocated_bytes!=base || owners.pool.live || owners.pool.active_mask)return 9;
+        }
+        owners.budget=base+23;index=99;
+        if(rf_corpse_owners_acquire(&owners,&seed,.25f,.5f,2,&index)!=RF_RANGE || index!=99 || owners.pool.live)return 10;
+        owners.budget=base+24;seed.flags=0;
+        if(rf_corpse_owners_acquire(&owners,&seed,.25f,.5f,2,&index)!=RF_RANGE || index!=99 || owners.pool.live)return 11;
+        seed.flags=0x33;
+        if(rf_corpse_owners_acquire(&owners,&seed,.25f,.5f,2,&index) || index)return 12;
+        memset(&sphere,0xa5,sizeof(sphere));if(owners.slots[0].body.spheres.items[0].opaque_14!=7)return 13;
+        if(rf_corpse_owners_recycle(&owners,0) || owners.allocated_bytes!=base)return 14;
+        printf("PASS 1921 owned corpse acquisitions; 64 full pools; payload retention and budget recovery\n");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--corpse-body")) {
         uint32_t input[20];rf_physics_sphere spheres[8];rf_corpse_physics_seed seed;rf_physics_body body;float material[3];int status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

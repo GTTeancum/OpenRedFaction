@@ -675,6 +675,36 @@ int rf_corpse_body_open(const rf_corpse_physics_seed *seed,float elasticity,floa
     }
     return rf_physics_body_open(&parameters,spheres,count,budget,result);
 }
+int rf_corpse_owners_init(rf_corpse_owners *owners,uint32_t budget)
+{
+    if(!owners || budget<sizeof(*owners))return RF_RANGE;
+    memset(owners,0,sizeof(*owners));rf_corpse_pool_init(&owners->pool);
+    owners->allocated_bytes=sizeof(*owners);owners->budget=budget;return RF_OK;
+}
+int rf_corpse_owners_acquire(rf_corpse_owners *owners,const rf_corpse_physics_seed *seed,
+    float elasticity,float friction,float density,uint32_t *index)
+{
+    uint32_t slot,remaining;int status;rf_physics_body *body;
+    if(!owners || !index || owners->allocated_bytes<sizeof(*owners) ||
+       owners->allocated_bytes>owners->budget)return RF_RANGE;
+    remaining=owners->budget-owners->allocated_bytes;
+    /* The body record is already accounted for in owners, not another heap allocation. */
+    if(remaining>UINT32_MAX-sizeof(rf_physics_body))remaining=UINT32_MAX-sizeof(rf_physics_body);
+    status=rf_corpse_pool_acquire(&owners->pool,&slot);if(status)return status;
+    body=&owners->slots[slot].body;
+    status=rf_corpse_body_open(seed,elasticity,friction,density,remaining+sizeof(*body),body);
+    if(status) {rf_corpse_pool_release(&owners->pool,slot);return status;}
+    owners->allocated_bytes+=body->spheres.count*sizeof(rf_physics_sphere);
+    *index=slot;return RF_OK;
+}
+int rf_corpse_owners_recycle(rf_corpse_owners *owners,uint32_t index)
+{
+    rf_physics_body *body;
+    if(!owners || index>=RF_CORPSE_CAPACITY || !(owners->pool.active_mask&(1u<<index)))return RF_RANGE;
+    body=&owners->slots[index].body;
+    owners->allocated_bytes-=body->spheres.count*sizeof(rf_physics_sphere);
+    rf_physics_body_close(body);return rf_corpse_pool_release(&owners->pool,index);
+}
 static int corpse_owner_eligible(const rf_corpse *c)
 {return !(c->update.fade.flags_29c&0x43u) && !(c->update.fade.object_flags_7c&0x4000u);}
 int rf_corpse_create(rf_corpse_create_source *s,const rf_corpse_create_request *r,

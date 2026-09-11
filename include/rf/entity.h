@@ -466,6 +466,26 @@ typedef struct rf_corpse_physics_seed {
  * is zeroed because the original does not define that word. */
 int rf_corpse_body_open(const rf_corpse_physics_seed *seed,float elasticity,float friction,
     float density,uint32_t budget,rf_physics_body *result);
+/* Concrete storage for the verified 30-slot allocator and owned body adapter.
+ * Initialize fresh caller-owned storage. Budget includes this entire pool plus
+ * live sphere payloads, excluding allocator overhead. Corpse records retain
+ * payload across recycle, like the original pool; the constructor's allocator
+ * callback must initialize/register its base fields before publishing it.
+ * Recycle only after all other resources and list memberships are retired.
+ * Does not register objects, load models, or dispatch scene death by itself. */
+typedef struct rf_corpse_owned {
+    rf_corpse corpse;rf_physics_body body;
+} rf_corpse_owned;
+typedef struct rf_corpse_owners {
+    rf_corpse_pool pool;rf_corpse_owned slots[RF_CORPSE_CAPACITY];
+    uint32_t allocated_bytes,budget;
+} rf_corpse_owners;
+int rf_corpse_owners_init(rf_corpse_owners *owners,uint32_t budget);
+/* Error preserves output. Failed preparation returns the slot to the pool. */
+int rf_corpse_owners_acquire(rf_corpse_owners *owners,const rf_corpse_physics_seed *seed,
+    float elasticity,float friction,float density,uint32_t *index);
+int rf_corpse_owners_recycle(rf_corpse_owners *owners,uint32_t index);
+
 typedef struct rf_corpse_create_request {
     const char *death_name;float position[3],basis[9],created_seconds;
     int32_t now_ms;uint8_t protected_body,seek_motion;

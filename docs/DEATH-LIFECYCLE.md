@@ -926,3 +926,34 @@ nonfinite guards pass against the current binary. PC and Xbox builds succeed,
 and all 13 CTests pass. Live corpse allocation/model ownership, partial-owner
 cleanup and finalization dispatch remain open; this adapter is not yet bound
 to the scene.
+
+
+## Concrete corpse/body storage
+
+rf_corpse_owners combines the existing 30-slot allocation metadata with actual
+corpse records and owned physics bodies. Fresh initialization requires a budget
+covering the entire caller-owned container. Acquisition reserves a slot and
+opens its copied sphere allocation; failed body preparation returns the slot
+without publishing an index or charging sphere bytes. Recycle closes that body
+and returns its slot in LIFO order. Corpse payload is deliberately retained,
+matching the original pool's storage behavior. The allocator callback still
+must initialize/register the base owner; recycling requires all other resources
+and list memberships to have already been retired. Initialized pool internals
+must remain intact, and caller outputs must not alias owner storage.
+
+Xbox fixed storage is 18144 bytes for metadata, 30 corpse/body records and
+accounting. Additional live sphere payload costs 24 bytes per sphere; allocator
+overhead is excluded. This accounts for embedded bodies once, rather than
+charging their size again on each acquisition. No scene reserves this container
+yet, so this is a storage implementation, not a claim of live corpse support.
+
+python tools/verify_corpse_owners.py runs 64 fill/drain cycles and 1921 successful
+acquisitions in both PC and compiled NXDK code. It checks full-pool rejection,
+slot order, retained corpse payload, independent sphere ownership, exact/short
+budgets, repeated-release rejection and reuse after failure. The Xbox harness
+supplies malloc/free, checks every live allocation and injects allocation
+failure. One-sphere peak accounting is 18864 bytes and returns to 18144 after
+all releases. The 640 original/PC/NXDK body comparisons still pass. Both builds
+succeed and all 13 CTests pass; existing unrelated PC compiler warnings remain.
+No native XEMU run or visual change is claimed for this step. Base registration,
+model ownership and cleanup after later constructor effects remain open.
