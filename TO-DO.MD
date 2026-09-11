@@ -2,7 +2,7 @@
 
 Shortlist:
 - Complete the single-player actor, AI, damage and mission runtime.
-- Allocate per-NPC bodies through the shared builders, then connect contact history and timed footsteps.
+- Connect retained NPC bodies to contact history, movement and timed footsteps.
 - Complete moving NPC animation, room membership, LOD selection and lighting.
 - Finish controller/event interactions, traversal, particles and GeoMod.
 - Complete audio playback ownership, shared RNG ordering and level transitions.

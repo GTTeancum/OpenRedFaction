@@ -6,11 +6,11 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
-int rf_physics_surface_probe_gate(float contact_y,uint32_t flags,int32_t *surface)
+int rf_physics_surface_probe_gate(float up_y,uint32_t flags,int32_t *surface)
 {
     if(!surface)return 0;
-    if(!(contact_y>=0)){*surface=-1;return 0;}
-    return contact_y>=.85f && (*surface!=-1 || (flags&0x18000000u)!=0);
+    if(!(up_y>=0)){*surface=-1;return 0;}
+    return up_y>=.85f && (*surface!=-1 || (flags&0x18000000u)!=0);
 }
 int rf_physics_surface_reset_gate(float field_1b0,uint32_t flags,int32_t *surface)
 {

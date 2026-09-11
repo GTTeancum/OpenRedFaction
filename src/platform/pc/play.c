@@ -24,7 +24,7 @@ extern rf_physics_body scene_actor_body;
 extern rf_startup_events_report rf_scene_startup_events;
 extern uint32_t rf_scene_startup_gravity[4];
 extern uint32_t rf_scene_switch_state[3],rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
-extern uint32_t rf_scene_npc_startup[4],rf_scene_npc_geometry[7],rf_scene_npc_materials[8],rf_scene_npc_draw[5],rf_scene_npc_draw_detail[6],rf_scene_npc_playback[7],rf_scene_npc_gate[4];
+extern uint32_t rf_scene_npc_startup[4],rf_scene_npc_geometry[7],rf_scene_npc_materials[8],rf_scene_npc_draw[5],rf_scene_npc_draw_detail[6],rf_scene_npc_playback[7],rf_scene_npc_gate[4],rf_scene_npc_bodies[6];
 extern uint32_t rf_scene_campaign_event_links[4],rf_scene_campaign_groups[5],rf_scene_campaign_movers[3],rf_scene_campaign_memberships[5];
 extern uint32_t rf_scene_campaign_forces[3],rf_scene_force_state[3];
 extern uint32_t rf_scene_ambient_records[3],rf_scene_ambient_instances[4];
@@ -275,6 +275,7 @@ int main(int argc,char **argv)
              memcpy(words+9,rf_scene_startup_gravity,16);printf("CAMPAIGN_STARTUP");
              for(k=0;k<13;++k)printf(" %u",words[k]);puts("");}
             printf("CAMPAIGN_MEMBERSHIPS %u %u %u %u %u\n",rf_scene_campaign_memberships[0],rf_scene_campaign_memberships[1],rf_scene_campaign_memberships[2],rf_scene_campaign_memberships[3],rf_scene_campaign_memberships[4]);
+            printf("NPC_BODIES %u %u %u %u %u %u\n",rf_scene_npc_bodies[0],rf_scene_npc_bodies[1],rf_scene_npc_bodies[2],rf_scene_npc_bodies[3],rf_scene_npc_bodies[4],rf_scene_npc_bodies[5]);
             printf("NPC_GATE %u %u %u %u\n",rf_scene_npc_gate[0],rf_scene_npc_gate[1],rf_scene_npc_gate[2],rf_scene_npc_gate[3]);
             printf("NPC_PLAYBACK %u %u %u %u %u %u %u\n",rf_scene_npc_playback[0],rf_scene_npc_playback[1],rf_scene_npc_playback[2],rf_scene_npc_playback[3],rf_scene_npc_playback[4],rf_scene_npc_playback[5],rf_scene_npc_playback[6]);
             printf("NPC_DRAW %u %u %u %u %u\n",rf_scene_npc_draw[0],rf_scene_npc_draw[1],rf_scene_npc_draw[2],rf_scene_npc_draw[3],rf_scene_npc_draw[4]);

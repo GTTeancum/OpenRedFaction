@@ -469,11 +469,11 @@ backend playback remain open. Both builds and nine CTest checks pass.
 ## Surface clear/retain/probe gates
 
 `rf_physics_surface_probe_gate` executes the decision from4a0406..4a046e.
-Negative or unordered contact field+10c clears surface+1380 to-1. Values in
+Negative or unordered orientation up-Y+10c clears surface+1380 to-1. Values in
 [0,.85) retain the existing surface and do not probe. At or above the exact
 binary32 threshold0.8500000238418579, an existing surface other than-1 or
 flags1a8 mask18000000 permits probing. Otherwise the old surface survives.
-The API does not assign unverified velocity semantics to field+10c.
+Field+10c is orientation[4], the actor up-vector Y component.
 
 `rf_physics_surface_reset_gate` covers49feb6..49fedf only, after the earlier
 flag4000 branch and its preceding updates. A zero or unordered field+1b0
@@ -530,3 +530,43 @@ door replay retains body follow hashes2974216416/1833998883 and NPC playback
 hashes962482953/1873909465. Xbox builds successfully; this refactor has not
 yet received a new native XEMU run. Per-NPC body arrays/class caching remain
 to be connected using these shared builders.
+
+## Retained startup NPC bodies
+
+The campaign now allocates one indexed body/support slot per startup actor.
+For each skeletal class, it loads physics metadata once, derives class spheres
+from that class's first authored startup pose and installs independent copied
+sphere records for each instance. Body transforms come from each authored
+entity and flags from its retained creation flags. Support handle8ac and
+material1380 start at their constructor zero values. No support query or
+physics simulation has run on these NPC bodies yet. Non-skeletal entries
+remain empty; generated-mass classes still fail explicitly.
+
+Allocation is capped at512KiB including temporary table text. Telemetry
+`rf_scene_npc_bodies` records actor slots, initialized bodies, spheres, resident
+bytes, peak bytes and a hash of body state/sphere values/support fields.
+Residency includes body/support arrays plus owned sphere records, excluding
+stack/global diagnostics/allocator overhead. Class config scratch is released
+before instance construction; every partial failure and level teardown closes
+all initialized bodies and frees the slot array. Per-instance transforms are
+retained, but moving class/stance changes and future-spawn class caching remain.
+
+PC L1S1 door180:78 slots/78 bodies/191 spheres,30480 resident/405120 peak,
+hash3142020550. L1S2 lift600:39/38/114,15684/389676,hash613443426.
+L1S3 startup1:28/25/48,10448/384152,hash262082589. The first two
+replays retain their animation gate/playback results; the third checks only
+startup, not traversal or collision fidelity. XEMU now compares body telemetry
+with PC and checks initialized-body count against skeletal startup actors.
+
+Native XEMU replay-20260911-111650 passes the180-frame door replay on
+67108864 base bytes with zero plugged RAM: body counters/hash match PC
+exactly, NPC animation and Foley/APU checks remain unchanged. Completion
+reports8570 available pages; this single diagnostic is not a whole-game RAM
+budget guarantee. L1S2/L1S3 body validation remains PC-only.
+
+The body-layout mapping also resolves the surface-probe gate's input: generic
+body base is entity+88, its orientation starts at body+74 (entity+fc), and
+orientation[4] is entity+10c. Thus the0.85 threshold is actor uprightness,
+not a contact normal or velocity. `verify_physics_body.py` already compares
+the retained original fresh-body fields and copied orientations; the
+parameter is now named up_y without changing its tested arithmetic.
