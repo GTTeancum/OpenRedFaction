@@ -8,7 +8,7 @@ fixtures=[('L1S1.rfl','door-audio-reference/inputs.bin','RF_REPLAY_DOOR_START',[
 reports=[]
 for level,inputs,staged,bodies in fixtures:
  env=os.environ.copy()
- for key in ['RF_REPLAY_DOOR_START','RF_REPLAY_LIFT_START']:env.pop(key,None)
+ for key in ['RF_REPLAY_DOOR_START','RF_REPLAY_LIFT_START','RF_REPLAY_DAMAGE_UID']:env.pop(key,None)
  env.update(RF_REPLAY_LEVEL=level,RF_REPLAY_ARCHIVE='levels1.vpp')
  if staged:env[staged]='1'
  run=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(root/'Installed_Game'),

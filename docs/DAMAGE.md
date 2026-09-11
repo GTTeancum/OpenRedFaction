@@ -1175,3 +1175,58 @@ state digest over180 door-replay frames: [78,3744,199578601]. Evidence is
 artifacts/xemu/replay-20260911-133623/report.json, base RAM67108864 and plugged
 memory0. This is persistent-state/layout evidence; it does not exercise a hit.
 No new screenshot was taken because rendering behavior is unchanged.
+
+
+## Registered NPC damage dispatch (2026-09-11)
+
+rf_scene_npc_damage now connects a generation-checked skeletal NPC owner to
+rf_damage_dispatch_sp (original4892c0) and rf_entity_damage_sp (41a350). It uses
+the retained class factor for kinds0..10 and bypasses it for-1. Class724 flags,
+current armor and814 feed armor immunity. Player selection uses the current
+single-player list and linked actor, refreshed after delegated effects. The
+outer dispatch's touched flag is committed to object/predicate ownership before
+callbacks; inner health and810 changes are refreshed before final outer cleanup.
+Health is retained in one damage record. A transient generic-object projection
+exists only for the outer dispatcher and is committed synchronously.
+
+The API requires a complete synchronous effect backend and stable owners.
+Unknown/stale targets succeed with zero result and no owner mutation. Invalid
+kind/backend/nonfinite request guards precede damage; errors after callbacks do
+not roll back committed state. It does not create pain/death/burn/AI effects.
+General callback/reentrant actor lifetime remains constrained by the existing
+shared damage APIs; no callback may destroy the active owner.
+
+An explicit two-hit fixture targets authored guard8456 in Live Mines. It first
+checks a mismatched generation leaves the complete damage record and object
+flags intact. Then it submits amount10/kind2 and amount10/kind-1, with source and
+auxiliary UID absent, force0 and clock bits3f800000. The first hit scales to15;
+the second remains10. Health/armor change from100/100 to92.800003/92.199997,
+then88/87. Six pain-animation, pain-sound and AI notification boundaries are
+counted only. Other downstream callback attempts fail the fixture; no fake
+sound, burn owner or AI reaction is installed. Ordinary runs do not fire hits.
+
+PC enables this only with RF_REPLAY_DAMAGE_UID. The Xbox replay harness accepts
+--damage-uid and stages a four-byte campaign-damage.bin, restoring the previous
+file afterward. The shared fixture records64 words: status, UID, handle,
+notification count, initial14-word damage record, object/class flags,11 factors,
+two16-word post-hit records (damage state/flags/result), and unexpected-callback
+count. It adds260 static bytes including the disabled-by-default UID; no heap
+allocation or persistent second health copy. These diagnostics are test input,
+not a weapon, collision, event or campaign damage source.
+
+verify_npc_damage_binding.py executes full original4892c0 and41a350 on the
+observed class/actor state, with real object lookup, typed entity lookup, armor
+immunity and armor arithmetic. Only unselected-player predicates and downstream
+pain/AI calls are supplied. Both complete post-hit damage records, flags and
+float results match PC. It observes six original notification calls; ordering
+inside the shared effect helper is covered by its existing independent oracle.
+This fixture does not prove lethal, burn, electrical, selected-player or general
+callback mutation behavior of the scene adapter.
+
+Both builds and all nine CTests pass. Ordinary three-level support and four-level
+backlink checks also pass with the fixture disabled. Native stock64MiB XEMU
+matches all64 damage-test words over180 door frames: artifacts/xemu/replay-
+20260911-134509/report.json. Final health88/armor87 and six notification boundaries
+match PC; base RAM67108864, plugged memory0. The staged damage file is removed
+by restoration. This proves an explicit test hit on the registered owner, not
+live weapon/combat gameplay. No new visual capture was taken.

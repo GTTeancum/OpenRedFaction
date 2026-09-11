@@ -840,6 +840,14 @@ int main(void)
         }
         if (result == RF_OK) {
             rf_level level;
+            FILE *damage_file=fopen("D:\\campaign-damage.bin","rb");
+            rf_scene_npc_damage_test_uid=UINT32_MAX;
+            if(damage_file) {
+                if(fread(&rf_scene_npc_damage_test_uid,4,1,damage_file)!=1 || fgetc(damage_file)!=EOF) {
+                    fclose(damage_file);return RF_FORMAT;
+                }
+                fclose(damage_file);
+            }
             FILE *climb_flag=fopen("D:\\campaign-climb.flag","rb");
             int staged_climb=climb_flag!=NULL;
             FILE *door_flag=fopen("D:\\campaign-door.flag","rb");

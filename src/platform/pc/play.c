@@ -224,6 +224,10 @@ int main(int argc,char **argv)
         if(getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START"))CHECK(RF_RANGE);
         CHECK(rf_scene_stage_lift(&level));
     }
+    if(spawn_profile && p.headless && getenv("RF_REPLAY_DAMAGE_UID")) {
+        char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_DAMAGE_UID"),&end,10);
+        if(*end)CHECK(RF_RANGE);rf_scene_npc_damage_test_uid=(uint32_t)uid;
+    }
     if(spawn_profile && p.headless && getenv("RF_REPLAY_FORCE_UID")) {
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_FORCE_UID"),&end,10);
         if(*end || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_LIFT_START"))CHECK(RF_RANGE);
@@ -286,6 +290,7 @@ int main(int argc,char **argv)
             printf("NPC_SUPPORT_FIRST_MISS");for(uint32_t k=0;k<16;++k)printf(" %u",rf_scene_npc_support_first_miss[k]);puts("");
             printf("NPC_SUPPORT_DEEP");for(uint32_t k=0;k<8;++k)printf(" %u",rf_scene_npc_support_deep[k]);puts("");
             printf("NPC_SUPPORT_DEEP_FIRST");for(uint32_t k=0;k<20;++k)printf(" %u",rf_scene_npc_support_deep_first[k]);puts("");
+            printf("NPC_DAMAGE_TEST");for(uint32_t k=0;k<64;++k)printf(" %u",rf_scene_npc_damage_test_words[k]);puts("");
             printf("NPC_DAMAGE_OWNERS");for(uint32_t k=0;k<3;++k)printf(" %u",rf_scene_npc_damage_owners[k]);puts("");
             printf("NPC_BACKLINKS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_backlinks[k]);puts("");
             printf("NPC_LINKS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_links[k]);puts("");

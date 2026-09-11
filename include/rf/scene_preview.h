@@ -2,6 +2,14 @@
 #define RF_SCENE_PREVIEW_H
 #include "rf/material.h"
 #include "rf/preview.h"
+#include "rf/entity.h"
+/* Registered skeletal NPC damage adapter. Effects must be synchronous and keep
+ * owners alive; callbacks mutate the retained damage state, not stale copies.
+ * Does not supply gameplay effects. Unknown/stale target is successful zero.
+ * kind must be-1..10. Caller supplies real clock and difficulty settings. */
+int rf_scene_npc_damage(uint32_t handle,const rf_damage_request *request,float difficulty,
+    uint32_t clock_bits,const rf_damage_effect_backend *effects,float *result);
+extern uint32_t rf_scene_npc_damage_test_uid,rf_scene_npc_damage_test_words[64];
 /* Replay-only first movement-region fixture: 1=center, 2=outside near base.
  * Does not establish ground clearance or replace the authored spawn. */
 int rf_scene_stage_climb(rf_level *level,uint32_t mode);

@@ -1597,6 +1597,117 @@ static int campaign_resolve_trigger_links(void)
 }
 uint32_t rf_scene_campaign_events[3]; /* registered events, owner bytes, registry bytes */
 
+typedef struct campaign_damage_context {
+    campaign_npc_body *owner;const rf_entity_seed_class *definition;
+    rf_damage_object object;const rf_damage_effect_backend *effects;
+    uint32_t clock_bits;int status;
+} campaign_damage_context;
+static rf_damage_object *campaign_damage_lookup(void *context,uint32_t handle)
+{
+    campaign_damage_context *c=context;
+    return rf_entity_lookup(&campaign_entities,(int32_t)handle)==&c->owner->view?&c->object:NULL;
+}
+static void campaign_damage_flags(campaign_damage_context *c)
+{
+    c->owner->object_flags=c->object.flags;c->owner->view.flags_7c=c->object.flags;
+    c->owner->view.flags_810=c->owner->damage.effects.flags_810;
+}
+static uint32_t campaign_damage_predicate(void *context,uint32_t stage,uint32_t handle,const rf_damage_object *object)
+{
+    campaign_damage_context *c=context;const rf_entity_view *view;int32_t player=campaign_player_view.handle;
+    (void)object;campaign_damage_flags(c);view=rf_entity_lookup(&campaign_entities,(int32_t)handle);
+    if(stage==0)return view!=NULL;
+    if(stage==1)return rf_entity_armor_immunity(c->owner->damage.effects.armor,c->definition->physics.flags,c->owner->damage.effects.flags_814);
+    /*48aaf0: object player bit or a player's linked actor. Same current
+     * single-player list as trigger actor resolution, refreshed after effects. */
+    if(view && (view->flags_7c&8))return 1;
+    view=rf_entity_lookup(&campaign_entities,player);
+    return view && view->linked_handle==(int32_t)handle;
+}
+static float campaign_damage_effect(void *context,rf_damage_object *object,float amount,uint32_t source,int32_t kind,uint32_t extra)
+{
+    campaign_damage_context *c=context;float result=0;
+    campaign_damage_flags(c);
+    c->status=rf_entity_damage_sp(&c->owner->damage,amount,kind,source,(int32_t)extra,
+        kind==-1?1:c->definition->damage_factors[kind],c->clock_bits,c->effects,&result);
+    object->health=c->owner->damage.effects.health;object->flags=c->owner->object_flags;
+    c->owner->view.flags_7c=object->flags;c->owner->view.flags_810=c->owner->damage.effects.flags_810;
+    return result;
+}
+int rf_scene_npc_damage(uint32_t handle,const rf_damage_request *request,float difficulty,
+    uint32_t clock_bits,const rf_damage_effect_backend *effects,float *result)
+{
+    campaign_damage_context c={0};rf_damage_backend backend={campaign_damage_lookup,campaign_damage_predicate,campaign_damage_effect,&c};
+    uint32_t i;float value;int status;
+    if(!request || !effects || !result || request->kind < -1 || request->kind>10 ||
+       !effects->predicate || !effects->resolve_uid || !effects->source || !effects->create_burn ||
+       !effects->random || !effects->notify || !effects->playing || !effects->play_kind6)return RF_RANGE;
+    if(!isfinite(request->amount) || !isfinite(difficulty))return RF_FORMAT;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
+       campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count){*result=0;return RF_OK;}
+    c.owner=campaign_npc_bodies+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&c.owner->view){*result=0;return RF_OK;}
+    c.owner->damage.effects.flags_810=c.owner->view.flags_810;
+    c.definition=campaign_seeds.classes+campaign_seeds.items[i].class_index;
+    c.object=(rf_damage_object){0,c.owner->object_flags,c.owner->damage.effects.health};c.effects=effects;c.clock_bits=clock_bits;
+    status=rf_damage_dispatch_sp(handle,request,difficulty,&backend,&value);
+    c.owner->damage.effects.health=c.object.health;campaign_damage_flags(&c);
+    if(c.status)return c.status;if(status)return status;*result=value;return RF_OK;
+}
+uint32_t rf_scene_npc_damage_test_uid=UINT32_MAX,rf_scene_npc_damage_test_words[64];
+static uint32_t campaign_damage_test_predicate(void *c,uint32_t kind,uint32_t handle)
+{(void)c;(void)kind;(void)handle;return 0;}
+static uint32_t campaign_damage_test_uid(void *c,int32_t uid)
+{(void)c;(void)uid;rf_scene_npc_damage_test_words[63]++;return UINT32_MAX;}
+static int campaign_damage_test_source(void *c,uint32_t handle,uint32_t *affiliation)
+{(void)c;(void)handle;*affiliation=0;rf_scene_npc_damage_test_words[63]++;return 0;}
+static uint32_t campaign_damage_test_burn(void *c,uint32_t target,uint32_t source)
+{(void)c;(void)target;(void)source;rf_scene_npc_damage_test_words[63]++;return 0;}
+static float campaign_damage_test_random(void *c,float low,float high)
+{(void)c;(void)low;(void)high;rf_scene_npc_damage_test_words[63]++;return 0;}
+static void campaign_damage_test_notify(void *c,uint32_t kind,uint32_t target,float value,uint32_t source)
+{
+    (void)c;(void)target;(void)value;(void)source;
+    if(kind!=RF_DAMAGE_PAIN_ANIMATION && kind!=RF_DAMAGE_PAIN_SOUND && kind!=RF_DAMAGE_AI_REACTION)rf_scene_npc_damage_test_words[63]++;
+    ++rf_scene_npc_damage_test_words[3]; /* Observed boundaries; no simulated sound/AI. */
+}
+static uint32_t campaign_damage_test_playing(void *c,uint32_t voice)
+{(void)c;(void)voice;rf_scene_npc_damage_test_words[63]++;return 0;}
+static uint32_t campaign_damage_test_play(void *c,uint32_t target)
+{(void)c;(void)target;rf_scene_npc_damage_test_words[63]++;return UINT32_MAX;}
+static int campaign_npc_damage_fixture(void)
+{
+    uint32_t i,pass;campaign_npc_body *owner;const rf_entity_seed_class *definition;
+    rf_damage_effect_backend effects={campaign_damage_test_predicate,campaign_damage_test_uid,campaign_damage_test_source,
+        campaign_damage_test_burn,campaign_damage_test_random,campaign_damage_test_notify,campaign_damage_test_playing,campaign_damage_test_play,NULL};
+    memset(rf_scene_npc_damage_test_words,0,sizeof(rf_scene_npc_damage_test_words));
+    if(rf_scene_npc_damage_test_uid==UINT32_MAX)return RF_OK;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
+        (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_npc_damage_test_uid)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;
+    owner=campaign_npc_bodies+i;definition=campaign_seeds.classes+campaign_seeds.items[i].class_index;
+    rf_scene_npc_damage_test_words[1]=rf_scene_npc_damage_test_uid;rf_scene_npc_damage_test_words[2]=owner->registration.handle;
+    memcpy(rf_scene_npc_damage_test_words+4,&owner->damage,56);
+    rf_scene_npc_damage_test_words[18]=owner->object_flags;rf_scene_npc_damage_test_words[19]=definition->physics.flags;
+    memcpy(rf_scene_npc_damage_test_words+20,definition->damage_factors,44);
+    { /* Stale generation must neither hit nor rewrite the retained owner. */
+        rf_entity_damage_state saved=owner->damage;uint32_t flags=owner->object_flags;
+        rf_damage_request request={10,UINT32_MAX,2,0,UINT32_MAX,0};float result=1;
+        int status=rf_scene_npc_damage(owner->registration.handle^0x10000u,&request,1,0x3f800000,&effects,&result);
+        if(status || result!=0 || flags!=owner->object_flags || memcmp(&saved,&owner->damage,sizeof(saved)))return RF_FORMAT;
+    }
+    for(pass=0;pass<2;++pass) {
+        rf_damage_request request={10,UINT32_MAX,pass?-1:2,0,UINT32_MAX,0};float result;int status;
+        status=rf_scene_npc_damage(owner->registration.handle,&request,1,0x3f800000,&effects,&result);
+        rf_scene_npc_damage_test_words[0]=(uint32_t)status;if(status)return status;
+        memcpy(rf_scene_npc_damage_test_words+(pass?47:31),&owner->damage,56);
+        rf_scene_npc_damage_test_words[pass?61:45]=owner->object_flags;
+        memcpy(rf_scene_npc_damage_test_words+(pass?62:46),&result,4);
+    }
+    return rf_scene_npc_damage_test_words[63]?RF_FORMAT:RF_OK;
+}
+
 static float campaign_jump_strength;
 static rf_player_climb_state campaign_climb;
 static const float campaign_identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
@@ -3085,6 +3196,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 &campaign_playback_resources,&campaign_poses,campaign_modes,1.0f/30.0f);if(status)goto done;
             status=campaign_npc_bodies_open(tables_path,collision);if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;
+            status=campaign_npc_damage_fixture();if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;
             memset(rf_scene_npc_playback,0,sizeof(rf_scene_npc_playback));
             memset(rf_scene_npc_gate,0,sizeof(rf_scene_npc_gate));
