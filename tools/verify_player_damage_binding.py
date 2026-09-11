@@ -58,7 +58,7 @@ for kind,flags,count,deadline in ((0,0,2,1500),(2,0,2,0),(0,1,1,0),(5,0,2,1500))
     assert call('rf_screen_flash_reset',flash)==0
     assert call('rf_camera_effect_reset',camera,0)==0
     # Effects pointer, difficulty, damage clock bits, status/count/amount, camera clock.
-    u.mem_write(base+0x500,struct.pack('<IfIIIfi',base+0x400,100,0x3f800000,0,0,0,1000))
+    u.mem_write(base+0x500,struct.pack('<IfIIIfiI',base+0x400,100,0x3f800000,0,0,0,1000,0))
     assert call('rf_scene_event_damage_bind',base+0x500,base+0x600)==0
     u.mem_write(base+0x700,w(handle))
     u.mem_write(base+0x800,struct.pack('<IIiIIf',1,base+0x700,1,kind,handle,.05))

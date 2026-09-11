@@ -33,6 +33,7 @@ typedef struct rf_scene_event_damage_services {
     const rf_damage_effect_backend *effects;
     float difficulty;uint32_t clock_bits;
     int status;uint32_t dispatches;float last_amount;int32_t now_ms;
+    rf_random_state *player_pain_random; /* Optional borrowed shared RNG for live player pain. */
 } rf_scene_event_damage_services;
 typedef rf_scene_event_damage_services rf_scene_npc_event_damage_services;
 int rf_scene_event_damage_bind(rf_scene_event_damage_services *services,rf_event_damage_backend *backend);
@@ -77,6 +78,11 @@ extern uint32_t rf_scene_player_vitals[6];
  * This does not supply weapons, death, sound or authored hazard activation. */
 int rf_scene_player_damage(uint32_t handle,const rf_damage_request *request,float difficulty,
     uint32_t clock_bits,const rf_damage_effect_backend *effects,float *result);
+/* Also handles living first-person player pain audio with the caller's shared
+ * RNG and millisecond clock. Other reactions still use the complete backend.
+ * Death/other profiles delegate; audio failure preserves committed damage. */
+int rf_scene_player_damage_audio(uint32_t handle,const rf_damage_request *request,float difficulty,
+    uint32_t clock_bits,int32_t now_ms,rf_random_state *random,const rf_damage_effect_backend *effects,float *result);
 int rf_scene_player_flash_step(uint32_t player_entity_handle,float seconds,uint32_t freeze,
     rf_screen_flash *draw,uint32_t *active);
 /* Registered skeletal NPC damage adapter. Effects must be synchronous and keep

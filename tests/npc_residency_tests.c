@@ -78,7 +78,27 @@ static int sound_request_check(void)
         CHECK(random.value==saved.value && sound_starts==before+2 && campaign_player_pain_sound.deadline==3000);
         campaign_player_view.flags_810=0;campaign_player_view.action_520=17;
         CHECK(rf_scene_player_pain_sound(registration.handle,1,3000,&random)==RF_OK && sound_starts==before+2);
-        campaign_player_view.action_520=0;rf_scene_actor_eye_enabled=0;
+        campaign_player_view.action_520=0;
+        {
+            rf_damage_request request={10,UINT32_MAX,-1,0,UINT32_MAX,0};float result=777;uint32_t k;
+            rf_damage_effect_backend effects={campaign_damage_test_predicate,campaign_damage_test_uid,campaign_damage_test_source,
+                campaign_damage_test_burn,campaign_damage_test_random,campaign_player_fixture_notify,campaign_damage_test_playing,campaign_damage_test_play,&random};
+            campaign_player_damage.state.effects.health=campaign_player_damage.state.effects.armor=100;
+            campaign_player_damage.state.effects.class_health=campaign_player_damage.state.effects.class_armor=100;
+            for(k=0;k<11;++k)campaign_player_damage.factors[k]=1;
+            campaign_player_fixture_notifications=0;
+            CHECK(rf_scene_player_damage_audio(registration.handle,&request,1,0x40400000,3000,&random,&effects,&result)==RF_OK);
+            CHECK(result==10 && fabsf(campaign_player_damage.state.effects.health-95.2f)<.0001f);
+            CHECK(campaign_player_pain_sound.deadline==4000 && campaign_player_pain_sound.voice==-1);
+            CHECK(!campaign_player_fixture_notifications && campaign_player_flash.alpha==128);
+            result=777;sound_fail=1;
+            CHECK(rf_scene_player_damage_audio(registration.handle,&request,1,0x40800000,4000,&random,&effects,&result)==RF_IO);
+            CHECK(result==777 && fabsf(campaign_player_damage.state.effects.health-90.4f)<.0001f);
+            CHECK(campaign_player_pain_sound.deadline==5000);
+            CHECK(rf_scene_player_damage_audio(registration.handle,&request,1,0,0,NULL,&effects,&result)==RF_RANGE && result==777);
+            sound_fail=0;
+        }
+        rf_scene_actor_eye_enabled=0;
         CHECK(rf_scene_player_pain_sound(registration.handle,1,3000,&random)==RF_NOT_FOUND);
         rf_scene_actor_eye_enabled=1;campaign_player_damage.state.effects.health=0;
         CHECK(rf_scene_player_pain_sound(registration.handle,1,3000,&random)==RF_NOT_FOUND);
@@ -155,7 +175,7 @@ static int player_damage_check(void)
     {
         rf_runtime_event event={0};rf_level_owned_event authored={0};rf_level_link_target link={registration.handle,1,0};
         rf_runtime_damage_backend backend={0};rf_runtime_triggers triggers={0};rf_physics_gravity gravity={0};
-        rf_scene_event_damage_services services={&effects,100,0x3f800000,0,0,0,1000};rf_startup_events_report report;
+        rf_scene_event_damage_services services={&effects,100,0x3f800000,0,0,0,1000,NULL};rf_startup_events_report report;
         campaign_player_damage.state.effects.health=campaign_player_damage.state.effects.armor=100;
         CHECK(rf_scene_event_damage_bind(&services,&backend.effects)==RF_OK);backend.frame_seconds=.05f;
         triggers.registry=&campaign_registry;triggers.damage_backend=&backend;
@@ -192,7 +212,7 @@ static int event_damage_binding_check(void)
     rf_runtime_damage_backend backend={0};rf_runtime_triggers triggers={0};rf_physics_gravity gravity={0};
     rf_damage_effect_backend effects={campaign_damage_test_predicate,campaign_damage_test_uid,campaign_damage_test_source,
         campaign_damage_test_burn,campaign_damage_test_random,event_damage_notify,campaign_damage_test_playing,campaign_damage_test_play,NULL};
-    rf_scene_npc_event_damage_services services={&effects,1,0x3f800000,0,0,0,1000};rf_startup_events_report report;
+    rf_scene_npc_event_damage_services services={&effects,1,0x3f800000,0,0,0,1000,NULL};rf_startup_events_report report;
     rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
     campaign_npc_bodies=&owner;campaign_npc_body_count=1;campaign_seeds.items=&seed;
     campaign_seeds.classes=&cls;campaign_seeds.class_count=1;

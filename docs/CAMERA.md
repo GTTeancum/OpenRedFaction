@@ -4186,3 +4186,52 @@ The captured guest DSP ring contains nonzero samples; this is mixed output,
 not isolated player waveform equivalence or a claim about host audibility.
 The sound bank retains9 PCM files totaling322140 bytes plus140808 metadata
 bytes. Existing NPC pain telemetry is unchanged. No framebuffer was captured.
+
+
+## Damage notifications invoke retained player pain audio
+
+rf_scene_player_damage_audio adds explicit now_ms and borrowed shared RNG to
+the existing player damage adapter. During the living first-person pain-sound
+notification it invokes rf_scene_player_pain_sound; other reactions, death and
+other profiles remain with the complete caller backend. The legacy damage API
+keeps forwarding sound notifications. The context holds the caller RNG pointer,
+not a copied or newly seeded stream. Audio errors propagate while already
+committed health/armor and original cooldown/RNG mutations remain committed.
+
+rf_scene_event_damage_services now has optional player_pain_random, growing
+from28 to32 bytes on both targets. A non-null pointer selects this integrated
+path for local player hits using the existing separate damage/camera clocks.
+NPC dispatch is unchanged. Callers must initialize this new member and keep the
+same RNG alive for their complete effect backend. Existing non-audio fixtures
+explicitly initialize it to NULL; NXDK's missing-field warning caught the
+initial omitted initializer and the complete rebuild passes after correction.
+
+The native replay fixture now creates a registered type17 event linked to the
+player and dispatches three actual hits at1000/1000/2000 milliseconds. Rate40,
+40,160 with dt.25 yields damage10,10,40 of kind-1. Health/armor becomes
+95.2/94.8,90.4/89.6,71.2/68.8. Each hit sets flash128 and dispatch count1;
+no unexpected external reaction notification is accepted. Sound snapshots
+remain identical to the previous direct-sound fixture (samples134/140, two
+plays, second request suppressed). After recording flash activation, this
+pre-frame fixture explicitly resets the flash to preserve the existing movement
+replay's presentation schedule. It does not prove multi-frame flash decay or
+an authored campaign hazard.
+
+PC owner tests also exercise damage-to-audio success and device failure. Failed
+playback returns RF_IO without overwriting the caller result or rolling back
+health/cooldown; NULL RNG fails before mutation. All12 CTest checks and both
+builds pass. The legacy linked-NXDK adapter check still passes8 direct,4 event
+and4 profile cases with the updated32-byte service layout. Native integrated
+results follow. Full death, weapon/burn/AI reactions, camera lifecycle and
+broad attachment to authored activation remain open.
+
+
+Replay-20260911-164631 reached180 frames with matching damage/sound data but
+the added numeric assertion raised NameError because struct was not imported.
+After correcting the harness import, replay-20260911-164820 passes all180
+frames, integrated health/armor/amount/flash assertions, original pain snapshots,
+stock base RAM67108864/plugged0 and nonzero guest DSP output. This is now a
+native registered-event-to-player-damage-to-pain test. The DSP snapshot remains
+mixed audio, not isolated waveform parity or host audibility evidence. No
+framebuffer capture was taken; the fixture resets its recorded flash before
+the normal movement replay as described above.

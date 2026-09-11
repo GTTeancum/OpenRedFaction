@@ -1,5 +1,5 @@
 """Replay a bounded command file inside Xbox and compare native guest state to PC."""
-import argparse,datetime,hashlib,json,os,re,shutil,socket,subprocess,sys,time
+import argparse,datetime,hashlib,json,os,re,shutil,socket,struct,subprocess,sys,time
 from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
@@ -279,6 +279,14 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       assert [player_pain_test[i] for i in (1,8,15)]==[0xffffffff]*3,player_pain_test
       assert [player_pain_test[i] for i in (6,13,20)]==[1,1,2],player_pain_test
      report['player_pain_audio']=player_pain_audio;report['player_pain_test']=player_pain_test
+     player_damage_audio=words(monitor,symbol('rf_scene_player_damage_audio_test'),18)
+     assert player_damage_audio==expected('PLAYER_DAMAGE_AUDIO_TEST'),player_damage_audio
+     if args.damage_uid==8456:
+      for step,(health,armor,amount) in enumerate(((95.2,94.8,10),(90.4,89.6,10),(71.2,68.8,40))):
+       row=player_damage_audio[step*6:step*6+6]
+       actual=struct.unpack('<3f',struct.pack('<3I',*row[:3]))
+       assert all(abs(a-b)<.0001 for a,b in zip(actual,(health,armor,amount))) and row[3:]==[128,1,0],row
+     report['player_damage_audio_test']=player_damage_audio
      npc_damage_test=words(monitor,symbol('rf_scene_npc_damage_test_words'),64)
      assert npc_damage_test==expected('NPC_DAMAGE_TEST'),npc_damage_test
      assert npc_damage_test[0]==npc_damage_test[63]==0,npc_damage_test

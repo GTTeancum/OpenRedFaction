@@ -1847,6 +1847,7 @@ typedef struct campaign_damage_context {
 typedef struct campaign_player_damage_context {
     const rf_damage_effect_backend *effects;rf_damage_object object;
     uint32_t clock_bits;int status;
+    int32_t now_ms;rf_random_state *pain_random;
 } campaign_player_damage_context;
 static rf_damage_object *player_damage_lookup(void *context,uint32_t handle)
 {
@@ -1893,6 +1894,12 @@ static void player_damage_notify(void *context,uint32_t kind,uint32_t target,flo
      * body/unknown camera profiles must still use the supplied reaction owner. */
     if(kind==RF_DAMAGE_PAIN_ANIMATION && campaign_spawn && rf_scene_actor_eye_enabled &&
         target==(uint32_t)campaign_player_view.handle && (campaign_player_view.flags_7c&8))return;
+    if(kind==RF_DAMAGE_PAIN_SOUND && c->pain_random && campaign_spawn && rf_scene_actor_eye_enabled &&
+        target==(uint32_t)campaign_player_view.handle && (campaign_player_view.flags_7c&8) &&
+        campaign_player_damage.state.effects.health>0) {
+        int status=rf_scene_player_pain_sound(target,value,c->now_ms,c->pain_random);
+        if(status && !c->status)c->status=status;return;
+    }
     if(kind==RF_DAMAGE_PLAYER_FEEDBACK) {int status=rf_scene_player_damage_flash(target);if(status && !c->status)c->status=status;}
     else b->notify(b->context,kind,target,value,source);
 }
@@ -1908,8 +1915,8 @@ static float player_damage_effect(void *context,rf_damage_object *object,float a
     object->health=campaign_player_damage.state.effects.health;object->flags=campaign_player_view.flags_7c;
     campaign_player_view.flags_810=campaign_player_damage.state.effects.flags_810;return result;
 }
-int rf_scene_player_damage(uint32_t handle,const rf_damage_request *request,float difficulty,
-    uint32_t clock_bits,const rf_damage_effect_backend *effects,float *result)
+static int campaign_player_damage_apply(uint32_t handle,const rf_damage_request *request,float difficulty,
+    uint32_t clock_bits,int32_t now_ms,rf_random_state *random,const rf_damage_effect_backend *effects,float *result)
 {
     campaign_player_damage_context c={0};float value;int status;
     rf_damage_backend backend={player_damage_lookup,player_damage_gate,player_damage_effect,&c};
@@ -1919,13 +1926,22 @@ int rf_scene_player_damage(uint32_t handle,const rf_damage_request *request,floa
     if(!isfinite(request->amount) || !isfinite(difficulty))return RF_FORMAT;
     if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&campaign_player_view ||
         campaign_player_damage.state.effects.handle!=handle){*result=0;return RF_OK;}
-    c.effects=effects;c.clock_bits=clock_bits;
+    c.effects=effects;c.clock_bits=clock_bits;c.now_ms=now_ms;c.pain_random=random;
     c.object=(rf_damage_object){0,campaign_player_view.flags_7c,campaign_player_damage.state.effects.health};
     campaign_player_damage.state.effects.flags_810=campaign_player_view.flags_810;
     status=rf_damage_dispatch_sp(handle,request,difficulty,&backend,&value);
     campaign_player_damage.state.effects.health=c.object.health;campaign_player_damage.object_flags=c.object.flags;
     campaign_player_view.flags_7c=c.object.flags;
     if(c.status)return c.status;if(status)return status;*result=value;return RF_OK;
+}
+int rf_scene_player_damage(uint32_t handle,const rf_damage_request *request,float difficulty,
+    uint32_t clock_bits,const rf_damage_effect_backend *effects,float *result)
+{return campaign_player_damage_apply(handle,request,difficulty,clock_bits,0,NULL,effects,result);}
+int rf_scene_player_damage_audio(uint32_t handle,const rf_damage_request *request,float difficulty,
+    uint32_t clock_bits,int32_t now_ms,rf_random_state *random,const rf_damage_effect_backend *effects,float *result)
+{
+    if(!random || now_ms<0 || now_ms>RF_TIMER_PERIOD)return RF_RANGE;
+    return campaign_player_damage_apply(handle,request,difficulty,clock_bits,now_ms,random,effects,result);
 }
 static rf_damage_object *campaign_damage_lookup(void *context,uint32_t handle)
 {
@@ -2015,8 +2031,11 @@ static void campaign_event_damage_apply(void *context,const rf_event_damage_requ
     if(c->status)return;
     request.amount=input->amount;request.source=input->source;request.kind=(int32_t)input->kind;
     request.argument6=input->flags;request.auxiliary_uid=input->other;request.force=input->enabled;
-    if(rf_entity_lookup(&campaign_entities,(int32_t)input->target)==&campaign_player_view)
-        c->status=rf_scene_player_damage(input->target,&request,c->difficulty,c->clock_bits,c->effects,&c->last_amount);
+    if(rf_entity_lookup(&campaign_entities,(int32_t)input->target)==&campaign_player_view) {
+        if(c->player_pain_random)c->status=rf_scene_player_damage_audio(input->target,&request,c->difficulty,
+            c->clock_bits,c->now_ms,c->player_pain_random,c->effects,&c->last_amount);
+        else c->status=rf_scene_player_damage(input->target,&request,c->difficulty,c->clock_bits,c->effects,&c->last_amount);
+    }
     else c->status=rf_scene_npc_damage(input->target,&request,c->difficulty,c->clock_bits,c->effects,&c->last_amount);
     ++c->dispatches;
 }
@@ -2273,7 +2292,7 @@ static int campaign_npc_damage_fixture(void)
     }
     /* Explicit diagnostic event, not an authored level event. Exercise the
      * registered type17 runtime path before broad campaign backend attachment. */
-    rf_scene_npc_event_damage_services services={&effects,1,0x3f800000,0,0,0,1000};
+    rf_scene_npc_event_damage_services services={&effects,1,0x3f800000,0,0,0,1000,NULL};
     status=rf_scene_npc_event_damage_bind(&services,&damage_backend.effects);if(status)return status;
     damage_backend.frame_seconds=.25f;triggers.damage_backend=&damage_backend;
     event.object_kind=6;event.authored=&authored;event.links=&link;event.state.type=17;event.state.deadline=-1;
@@ -2302,22 +2321,47 @@ static int campaign_npc_damage_fixture(void)
 
 static float campaign_jump_strength;
 uint32_t rf_scene_player_pain_test[21]; /* three deadline/voice/sample/RNG/play/group/flat-voice snapshots */
+uint32_t rf_scene_player_damage_audio_test[18]; /* health/armor/amount/flash/dispatches/unexpected notifications */
+static uint32_t campaign_player_fixture_notifications;
+static void campaign_player_fixture_notify(void *context,uint32_t kind,uint32_t target,float value,uint32_t source)
+{(void)context;(void)kind;(void)target;(void)value;(void)source;++campaign_player_fixture_notifications;}
 static int campaign_player_pain_fixture(void)
 {
-    rf_random_state random={1};uint32_t pass,i;int status;
+    rf_random_state random={1};uint32_t pass,i;int status=RF_OK;
+    rf_runtime_event event={0};rf_level_owned_event authored={0};rf_level_link_target link;
+    rf_runtime_triggers triggers=campaign_triggers;rf_runtime_damage_backend damage_backend={0};
+    rf_damage_effect_backend effects={campaign_damage_test_predicate,campaign_damage_test_uid,campaign_damage_test_source,
+        campaign_damage_test_burn,campaign_damage_test_random,campaign_player_fixture_notify,campaign_damage_test_playing,campaign_damage_test_play,&random};
+    rf_scene_event_damage_services services={&effects,1,0x3f800000,0,0,0,1000,&random};
+    rf_startup_events_report report;
     memset(rf_scene_player_pain_test,0,sizeof(rf_scene_player_pain_test));
+    memset(rf_scene_player_damage_audio_test,0,sizeof(rf_scene_player_damage_audio_test));campaign_player_fixture_notifications=0;
     if(rf_scene_npc_damage_test_uid==UINT32_MAX)return RF_OK;
+    status=rf_scene_event_damage_bind(&services,&damage_backend.effects);if(status)return status;
+    damage_backend.frame_seconds=.25f;triggers.damage_backend=&damage_backend;
+    event.object_kind=6;event.authored=&authored;event.links=&link;event.state.type=17;event.state.deadline=-1;
+    authored.record.link_count=1;authored.record.words[1]=UINT32_MAX;
+    link=(rf_level_link_target){(uint32_t)campaign_player_view.handle,1,0};
+    status=rf_object_registry_insert(&campaign_registry,&event,&event.handle);if(status)return status;
     for(pass=0;pass<3;++pass) {
-        uint32_t *words=rf_scene_player_pain_test+pass*7;
-        status=rf_scene_player_pain_sound((uint32_t)campaign_player_view.handle,pass?1:.1f,pass==2?2000:1000,&random);
-        if(status)return status;
+        uint32_t *words=rf_scene_player_pain_test+pass*7,*damage=rf_scene_player_damage_audio_test+pass*6;
+        services.now_ms=pass==2?2000:1000;services.clock_bits=pass==2?0x40000000:0x3f800000;
+        services.dispatches=0;authored.record.words[0]=pass==2?160:40;
+        status=rf_runtime_event_fire(&triggers,event.handle,UINT32_MAX,UINT32_MAX,services.now_ms,&scene_gravity,NULL,NULL,&report);
+        if(!status)status=services.status;if(status)break;
+        memcpy(damage,&campaign_player_damage.state.effects.health,8);memcpy(damage+2,&services.last_amount,4);
+        damage[3]=campaign_player_flash.alpha;damage[4]=services.dispatches;damage[5]=campaign_player_fixture_notifications;
         words[0]=(uint32_t)campaign_player_pain_sound.deadline;words[1]=(uint32_t)campaign_player_pain_sound.voice;
         words[2]=rf_scene_player_pain_audio[5];words[3]=random.value;words[4]=rf_scene_player_pain_audio[2];
         words[5]=(uint32_t)campaign_player_pain_sound.groups[pass==2?1:0];
         for(i=0;i<RF_AUDIO_VOICES;++i)if(campaign_audio_mixer.voices[i].active &&
             campaign_spatial_voices[i].handle && !campaign_spatial_voices[i].positional)++words[6];
     }
-    return RF_OK;
+    {int removed=rf_object_registry_remove(&campaign_registry,event.handle);if(!status)status=removed;}
+    /* Record damage flash above, then keep the existing movement replay's
+     * presentation schedule independent of this pre-frame fixture. */
+    if(!status)status=rf_screen_flash_reset(&campaign_player_flash);
+    return status?status:campaign_player_fixture_notifications?RF_FORMAT:RF_OK;
 }
 static rf_player_climb_state campaign_climb;
 static const float campaign_identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
