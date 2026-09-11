@@ -197,6 +197,27 @@ typedef struct rf_audio_control_start_backend {
     void (*stop)(void *context,int32_t device); /*5442b0. */
     int32_t (*start)(void *context,int32_t sample,float gain,float pan,uint32_t looping);
 } rf_audio_control_start_backend;
+/*5054d0: any nonzero prepared byte succeeds; otherwise543760(sample,0,0)
+ * runs and a nonnegative result stamps1. Disabled uses its low byte. The
+ * loader may mutate prepared storage, which must remain alive. */
+int32_t rf_audio_sample_prepare(uint32_t enabled,int32_t sample,uint8_t *prepared,
+    int32_t (*load)(void *context,int32_t sample),void *context);
+typedef struct rf_audio_playback_sample {
+    int32_t buffer;float volume;const float *category_gain;
+} rf_audio_playback_sample;
+typedef struct rf_audio_sample_start_backend {
+    int32_t (*load)(void *context,int32_t sample); /*543760(sample,0,0). */
+    int32_t (*play)(void *context,int32_t buffer,float volume,float pan,uint32_t loop,uint32_t extra);
+} rf_audio_sample_start_backend;
+/*5439d0/543a80 ->522530. loop=0/1 chooses the original entry. Sample-1 or
+ * disabled low byte rejects before load; only load result-1 rejects afterward.
+ * One-shot bypass accepts any nonzero low byte, looping bypass only byte1.
+ * Otherwise applies sample category/default gain before checking mode==1.
+ * Loader may update the borrowed sample/category/mode state. Finite gains
+ * and intact pointers are caller preconditions; resources remain backend-owned. */
+int32_t rf_audio_sample_start(uint32_t enabled,const uint32_t *device_mode,
+    int32_t sample,float volume,float pan,uint32_t extra,uint32_t bypass,uint32_t loop,
+    const rf_audio_playback_sample *state,const rf_audio_sample_start_backend *backend,void *context);
 /*505560: prepare sample, sweep all30 voices, select first negative sample,
  * then5439d0/543a80 playback and generation assignment. Device failure stores
  * the negative result but does not finish assignment. Category gain/loop byte

@@ -1219,3 +1219,28 @@ CTests pass. Reports: artifacts/audio-control-position.json and
 artifacts/audio-control-refresh.json. No live sample loading, final device
 conversion or native gameplay is claimed by these CPU tests. Connect sample/
 device adapters and persistent owner scheduling next.
+
+
+## Sample preparation and playback dispatch
+
+rf_audio_sample_prepare reconstructs5054d0: disabled low byte returns-1; any
+nonzero prepared byte returns0; otherwise543760(sample,0,0) runs, and only a
+nonnegative result stamps prepared=1. Loader mutations survive a failed call.
+rf_audio_sample_start reconstructs5439d0/543a80 through the522530 boundary.
+Disabled/sample-1 rejects before load; after load only-1 rejects. One-shot
+bypass accepts any nonzero low byte, while looping bypass requires exactly1.
+Otherwise543a60 applies the sample's separate category and default volume.
+Device mode must equal1, checked after loading and gain calculation. The
+sample buffer, category/default gain and mode remain live across load callbacks.
+This category at1cd3b94 is distinct from the game voice category at1753c18.
+
+verify_audio_sample_start.py matches5,400 playback-dispatch scenarios (2,160
+loads,1,152 playback calls) and600 prepare scenarios (90 loads) on original,
+PC and NXDK. Original543a60 executes; only543760 loading and522530 device start
+are supplied. Low-byte differences, load return distinctions, mode failure and
+loader mutations are covered with exact state and ordered arguments. Both full
+builds and eight CTests pass. Evidence: artifacts/audio-sample-start.json.
+Archive loading/decoding and actual device allocation still need adapters.
+Do not cast the port mixer's uint32 handles to original signed device handles:
+its65534-generation cycle can set the sign bit. Any shared control/device bridge
+must preserve separate handle ownership and account for native playback status.

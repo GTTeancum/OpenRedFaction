@@ -257,6 +257,28 @@ static void audio_control_reset(rf_audio_control_voice *voice)
     voice->device=voice->sample=-1;voice->category=0;
     voice->requested_volume=voice->pan=0;voice->volume=0;
 }
+int32_t rf_audio_sample_prepare(uint32_t enabled,int32_t sample,uint8_t *prepared,
+    int32_t (*load)(void *context,int32_t sample),void *context)
+{
+    if(!(enabled&255u))return -1;
+    if(!*prepared) {
+        if(load(context,sample)<0)return -1;
+        *prepared=1;
+    }
+    return 0;
+}
+int32_t rf_audio_sample_start(uint32_t enabled,const uint32_t *device_mode,
+    int32_t sample,float volume,float pan,uint32_t extra,uint32_t bypass,uint32_t loop,
+    const rf_audio_playback_sample *state,const rf_audio_sample_start_backend *be,void *context)
+{
+    float gain;
+    if(!(enabled&255u) || sample==-1)return -1;
+    if(be->load(context,sample)==-1)return -1;
+    gain=(loop?(bypass&255u)==1:(bypass&255u)!=0)?volume:
+        rf_audio_sample_gain(state->volume,*state->category_gain,volume);
+    if(*device_mode!=1)return -1;
+    return be->play(context,state->buffer,gain,pan,loop,extra);
+}
 int32_t rf_audio_control_start(rf_audio_control_voice voices[RF_AUDIO_VOICES],uint32_t enabled,
     int32_t sample,uint32_t category,float pan,float volume,const float *category_gain,
     const uint8_t *looping,const rf_audio_control_start_backend *be,void *context)

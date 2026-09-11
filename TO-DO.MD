@@ -2471,3 +2471,9 @@ allocation;1,024 start and2,048 refresh original/PC/NXDK cases pass, with prior
 control regressions and eight CTests. Both builds pass. Connect real sample/
 device adapters and persistent burn-owner scheduling next.
 Evidence: tools/verify_audio_control_position.py and verify_audio_control_refresh.py.
+
+Sample prepare/playback dispatch now preserve the separate sample gain category
+and looping bypass rules;6,000 original/PC/NXDK cases pass. Actual543760 loading
+and522530 device adapters, signed-device/mixer handle mapping and native status
+ownership remain. Both builds and eight CTests pass.
+Evidence: tools/verify_audio_sample_start.py and docs/controller-audio.md.
