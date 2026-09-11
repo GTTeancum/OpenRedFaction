@@ -126,3 +126,34 @@ covers selected creation fields and both player/nonplayer flags; it does not
 prove every authored NPC's initial state or complete factory execution.
 
 PC/NXDK builds and all nine CTest checks pass. Stock64MiB native loading/door/audio replay `artifacts/xemu/replay-20260911-073931/report.json` passes180 frames; it does not verify runtime NPC weapon choice.
+
+## Effective weapon mapping overlay
+
+`rf_motion_overlay_bindings` reconstructs the record-copy portion of42ab20:
+copy all23 base states and45 base actions, then replace each complete16-byte
+record when its weapon motion ID is not exactly-1. The auxiliary words remain
+opaque and are copied with their motion ID. A NULL state/action group represents
+the original nonpositive declared-count path. No playback cursor is changed.
+The caller must first handle entity/model gating and the weapon alias.
+
+`verify_motion_binding_overlay.py` executes full original42ab20 and its real
+40a1e0 predicate, with valid skeletal fixtures and the original alias globals.
+All1024 cases match PC/NXDK record bytes; the entire actor buffer is checked for
+unexpected writes. Cases include negative and zero declared counts, independent
+missing groups, arbitrary auxiliary words, non--1 negative motion words and
+in-place output/base alias in the port helper.
+
+`rf_entity_motion_mapping_overlay` applies that rule to compact shared catalog
+IDs. It validates matching class/skeleton ownership, accepts a missing weapon
+map, preserves output on malformed input and allows output to alias either map.
+The installed independent verifier checks21 effective groups per opening level
+(63 total). Action sound labels must come from the same selected source group as
+the action record; numeric sound resolution and live switching are still absent.
+
+The weapon initializer at4c65ff..4c6622 establishes85ccd8 from `machine pistol`
+and85cd00 from `machine pistol special`. Thus42ab20 maps the special variant to
+the ordinary machine-pistol animation group. This identity is now traced, but
+runtime alias selection is not yet connected to catalog lookup.
+
+PC and NXDK builds, the1024-case CPU comparison and all nine CTest checks pass.
+No new emulator gameplay behavior or visual change is claimed for these helpers.

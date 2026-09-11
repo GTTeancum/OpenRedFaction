@@ -336,6 +336,14 @@ typedef struct rf_entity_motion_catalog {
 int rf_entity_motion_catalog_open(const rf_entity_skeletons *skeletons,
     const rf_entity_base_motions *bindings,uint32_t budget,rf_entity_motion_catalog *result);
 void rf_entity_motion_catalog_close(rf_entity_motion_catalog *catalog);
+/* Compose a base catalog map and an optional already-resolved weapon map using
+ * the42ab20 overlay rule. Inputs must share class/skeleton; base weapon is-1.
+ * Result keeps base entries when weapon entries are-1. Does not choose a weapon,
+ * resolve its alias, alter playback or resolve sound labels. For an overridden
+ * action use its weapon-group sound label; otherwise retain the base label.
+ * Output may alias either input; invalid input leaves it unchanged. */
+int rf_entity_motion_mapping_overlay(const rf_entity_motion_mapping *base,
+    const rf_entity_motion_mapping *weapon,rf_entity_motion_mapping *result);
 /* Register the 23 canonical state names (0x418030 order) from one exact base
  * or weapon block. Missing/empty declarations map to -1; missing referenced
  * files fail the whole operation. Distinct cache identities register once as

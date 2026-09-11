@@ -1,6 +1,16 @@
 #ifndef RF_MOTION_H
 #define RF_MOTION_H
 #include "rf/vpp.h"
+
+typedef struct rf_motion_binding {int32_t motion;uint32_t fields[3];} rf_motion_binding;
+typedef struct rf_motion_bindings {rf_motion_binding states[23],actions[45];} rf_motion_bindings;
+/* Mapping portion of42ab20 after entity/model gating and weapon alias resolution.
+ * Restore all base records, then replace records whose weapon motion is !=-1.
+ * NULL weapon states/actions means that corresponding declared group is absent.
+ * All16 bytes move together, including declaration/sound/unclassified fields.
+ * No playback changes. Output may alias base; errors preserve output. */
+int rf_motion_overlay_bindings(rf_motion_bindings *result,const rf_motion_bindings *base,
+    const rf_motion_binding weapon_states[23],const rf_motion_binding weapon_actions[45]);
 typedef struct rf_motion_active_slot { int32_t motion, tick; float weight; } rf_motion_active_slot;
 typedef struct rf_motion_slot_state {
     uint32_t count;

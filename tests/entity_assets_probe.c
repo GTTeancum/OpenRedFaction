@@ -161,6 +161,18 @@ int main(int argc,char **argv)
                 printf("CATALOG_MAP\t%s\t%s\t%u",cls,map->weapon<0?"":m.weapons.names[map->weapon],map->skeleton);
                 for(j=0;j<23;++j)printf("\t%d",map->states[j]);for(j=0;j<45;++j)printf("\t%d",map->actions[j]);puts("");
             }
+            for(i=catalog.class_count;i<catalog.mapping_count;++i) {
+                rf_entity_motion_mapping effective=catalog.mappings[i],bad=catalog.mappings[i],before;
+                const rf_entity_motion_mapping *base=catalog.mappings+effective.class_index;
+                const char *cls=seeds.records.items[seeds.classes[effective.class_index].record_index].record.class_name;
+                bad.skeleton=UINT32_MAX;before=effective;
+                if(rf_entity_motion_mapping_overlay(base,&bad,&effective)!=RF_RANGE || memcmp(&effective,&before,sizeof(before)))return 21;
+                if(rf_entity_motion_mapping_overlay(base,NULL,&effective) || memcmp(&effective,base,sizeof(effective)))return 22;
+                effective=catalog.mappings[i];
+                if(rf_entity_motion_mapping_overlay(base,&effective,&effective))return 23;
+                printf("EFFECTIVE_MAP\t%s\t%s\t%u",cls,m.weapons.names[effective.weapon],effective.skeleton);
+                for(j=0;j<23;++j)printf("\t%d",effective.states[j]);for(j=0;j<45;++j)printf("\t%d",effective.actions[j]);puts("");
+            }
             rf_entity_skeletons_close(&skeletons);rf_vpp_close(&meshes);
         }
 

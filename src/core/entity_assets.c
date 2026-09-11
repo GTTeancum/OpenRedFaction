@@ -900,6 +900,25 @@ void rf_entity_motion_catalog_close(rf_entity_motion_catalog *v)
     for(i=0;i<v->model_count;++i)free(v->models[i].items);
     free(v->models);free(v->mappings);memset(v,0,sizeof(*v));
 }
+int rf_entity_motion_mapping_overlay(const rf_entity_motion_mapping *base,
+    const rf_entity_motion_mapping *weapon,rf_entity_motion_mapping *result)
+{
+    rf_motion_bindings a={0},b={0};rf_entity_motion_mapping v;uint32_t i;
+    if(!base || !result || base->weapon!=-1 || (weapon && (weapon->weapon<0 ||
+       weapon->class_index!=base->class_index || weapon->skeleton!=base->skeleton)))return RF_RANGE;
+    for(i=0;i<68;++i) {
+        int32_t x=i<23?base->states[i]:base->actions[i-23];
+        int32_t y=!weapon?-1:i<23?weapon->states[i]:weapon->actions[i-23];
+        if(x<-1 || y<-1)return RF_RANGE;
+        if(i<23){a.states[i].motion=x;b.states[i].motion=y;}
+        else {a.actions[i-23].motion=x;b.actions[i-23].motion=y;}
+    }
+    rf_motion_overlay_bindings(&a,&a,b.states,b.actions);v=*base;
+    if(weapon)v.weapon=weapon->weapon;
+    for(i=0;i<23;++i)v.states[i]=a.states[i].motion;
+    for(i=0;i<45;++i)v.actions[i]=a.actions[i].motion;
+    *result=v;return RF_OK;
+}
 static int catalog_markers(const rf_entity_skeletons *s,const rf_entity_base_motions *b,
     rf_entity_motion_catalog *v,uint32_t budget)
 {

@@ -116,6 +116,16 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
      mapping.append(keys.index(key))
    expected_maps[cls,weapon]=mapping
  assert catalog_maps==expected_maps,(level,'shared mappings')
+ effective_count=0
+ for line in out.splitlines():
+  if not line.startswith('EFFECTIVE_MAP\t'):continue
+  fields=line.split('\t');cls,weapon=fields[1].lower(),fields[2].lower()
+  base_map=expected_maps[cls,''];weapon_map=expected_maps[cls,weapon]
+  want=[b if w==-1 else w for b,w in zip(base_map,weapon_map)]
+  assert list(map(int,fields[4:]))==want and int(fields[3])==model_for[cls]
+  effective_count+=1
+ assert effective_count==len(group_registries)
+
  assert catalog_resources==expected_resources,(level,'shared resources')
  shared_markers={}
  for cls in class_order:
@@ -139,6 +149,6 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  assert group_slots==len(group_registries)*68
  assert identity_count==sum(map(len,registries.values()))+sum(map(len,group_registries.values()))
  assert int(next(line for line in out.splitlines() if line.startswith('BOUND_GROUPS ')).split()[1])==len(group_registries)
- reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary,catalog_summary=catalog_summary,shared_resources=len(catalog_resources),marked_resources=marked))
+ reports.append(dict(level=level,action_slots=checked,retained_identities=identity_count,weapon_groups=len(group_registries),weapon_slots=group_slots,summary=summary,catalog_summary=catalog_summary,shared_resources=len(catalog_resources),marked_resources=marked,effective_groups=effective_count))
 report=dict(result='PASS',levels=reports,scope='Installed base and weapon-group canonical states then45 actions, local deduplication includes looping flag, filenames, retained first-authored cache names and sound labels exact. Shared per-model maps independently checked against authored declarations in weapon-before-base order. Shared base-state footstep masks/ticks checked independently across models and loop registrations. Original global cache order and live playback excluded.')
 (root/'artifacts/base-action-sets.json').write_text(json.dumps(report,indent=2));print(report)

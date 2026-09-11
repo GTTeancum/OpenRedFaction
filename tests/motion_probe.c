@@ -11,6 +11,16 @@ int main(int argc, char **argv)
     struct { int32_t status; float value[3]; } output;
     _Static_assert(sizeof(rf_motion_position_key) == 40, "Key wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--overlay-bindings")) {
+        struct {uint32_t flags;rf_motion_bindings base,weapon;} input;rf_motion_bindings result;int status;
+        _Static_assert(sizeof(result)==1088,"Mapping record wire layout");
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            result=input.base;
+            status=rf_motion_overlay_bindings(&result,&result,(input.flags&1)?input.weapon.states:NULL,(input.flags&2)?input.weapon.actions:NULL);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&result,sizeof(result),1,stdout)!=1)return 1;
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--initialize")) {
         rf_motion_playback_state state;
         while(fread(&state,sizeof(state),1,stdin)==1) {

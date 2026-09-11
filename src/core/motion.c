@@ -10,6 +10,16 @@ void rf_motion_playback_initialize(rf_motion_playback_state *state)
 }
 #include <math.h>
 #include <string.h>
+int rf_motion_overlay_bindings(rf_motion_bindings *result,const rf_motion_bindings *base,
+    const rf_motion_binding weapon_states[23],const rf_motion_binding weapon_actions[45])
+{
+    rf_motion_bindings value;uint32_t i;
+    if(!result || !base)return RF_RANGE;
+    value=*base;
+    if(weapon_states)for(i=0;i<23;++i)if(weapon_states[i].motion!=-1)value.states[i]=weapon_states[i];
+    if(weapon_actions)for(i=0;i<45;++i)if(weapon_actions[i].motion!=-1)value.actions[i]=weapon_actions[i];
+    *result=value;return RF_OK;
+}
 int rf_motion_start_action(rf_motion_playback_state *state, rf_motion_playback_resource *resources,
                            uint32_t resource_count, const int32_t actions[45], const int32_t sounds[45],
                            int32_t action, float weight, int freeze, int play_sound, int32_t *sound_class)

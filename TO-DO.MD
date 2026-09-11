@@ -12,7 +12,8 @@ PC/NXDK helper matches1500 cases plus5 guards. All153 authored footstep pairs
 pass parser checks; shared marker times pass on L1S1/L1S2/L1S3.
 
 Class default primary/secondary weapon IDs are now retained; all63 classes pass.
-Recover effective weapon animation overlays and initialize the live selector.
+Effective weapon animation overlays now pass original/PC/NXDK comparison;
+resolve runtime selection and initialize the live selector.
 
 Immediate open items:
 - [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
