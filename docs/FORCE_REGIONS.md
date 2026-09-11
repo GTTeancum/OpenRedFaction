@@ -281,3 +281,29 @@ trajectory proof. Existing Particle_State integration and all six prior
 CTests pass; the new force test is also registered with CTest. Full PC
 and NXDK builds pass, and the 120-frame L1S2 force replay is unchanged.
 Authored scripted sequences still need native64MiB XEMU validation.
+
+
+### Authored startup sequence in 64 MiB XEMU
+
+L3S3 auto trigger9806 activates Delay9807 (0.5 seconds), which activates
+Invert9808, then Push_Region_State9809 turns region9805 off. The level has
+one force region. This replay uses the authored player spawn with zero
+command input and no forced event activation or position staging.
+
+`python tools/replay_force_events.py` checks frames2/29/30/31/60. The
+region remains enabled through frame30 (483 ms), switches off at frame31
+(500 ms), and stays off at frame60 (983 ms). The ordered full-record hash
+changes from2774602839 to1429525830. Three events dispatch at500 ms.
+Two other unsupported delayed events remain pending, reported explicitly.
+
+Native XEMU runs `replay-20260910-212652` (frame30) and
+`replay-20260910-212619` (frame31) both PASS on the stock64MiB guest.
+Guest force-state, event counters, player/body and existing campaign
+telemetry match the corresponding PC checkpoint. No screenshots were
+needed; this is a scripting/state change with no new visual milestone.
+
+`FORCE_STATE` / `rf_scene_force_state` expose current count, enabled count,
+and full-record hash after startup and each event tick. `CAMPAIGN_FORCES`
+continues to describe the initial owned array and budget. This establishes
+the authored delayed disable chain; Switch-driven reactivation, the wider
+campaign event surface, and real Xbox hardware remain open.

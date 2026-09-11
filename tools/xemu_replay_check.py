@@ -177,6 +177,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      forces=words(monitor,symbol('rf_scene_campaign_forces'),3)
      assert forces==expected('CAMPAIGN_FORCES') and forces[1]<=65536,forces
      report['campaign_forces']=forces
+     force_state=words(monitor,symbol('rf_scene_force_state'),3)
+     assert force_state==expected('FORCE_STATE'),force_state
+     report['force_state']=force_state
      force_ticks=words(monitor,symbol('rf_scene_force_ticks'),12)
      assert force_ticks==expected('FORCE_TICKS'),force_ticks
      report['force_ticks']=force_ticks

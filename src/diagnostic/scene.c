@@ -411,6 +411,15 @@ static float campaign_force_air_limit;
 static rf_camera_effect_state campaign_force_shake;
 uint32_t rf_scene_force_ticks[12]; /* ticks, matches, eligible, carry, replace, turbulence, shakes, sounds, UID, RNG, cap, status */
 uint32_t rf_scene_campaign_forces[3]; /* count, owned bytes, ordered runtime record hash */
+uint32_t rf_scene_force_state[3]; /* current count, enabled count, full record hash */
+static void campaign_force_snapshot(void)
+{
+    uint32_t i,hash=2166136261u,enabled=0;
+    for(i=0;i<campaign_forces.count;++i)if(campaign_forces.items[i].active&255u)++enabled;
+    for(i=0;i<campaign_forces.count*sizeof(*campaign_forces.items);++i)
+        hash=(hash^((const unsigned char *)campaign_forces.items)[i])*16777619u;
+    rf_scene_force_state[0]=campaign_forces.count;rf_scene_force_state[1]=enabled;rf_scene_force_state[2]=hash;
+}
 static rf_object_registry campaign_registry;
 static rf_runtime_events campaign_events;
 static rf_runtime_triggers campaign_triggers;
@@ -1924,6 +1933,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_trigger_contacts(&rf_scene_actor_pose,now,frame,&stream->particles,player_poll?player_input.use:0);if(status)return status;
                 status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles, &campaign_forces,&tick_report,&pending);
                 if(status)return status;
+                campaign_force_snapshot();
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;
                 memcpy(words,&tick_report,sizeof(words));
                 for(j=0;j<9;++j)rf_scene_event_ticks[3+j]+=words[j];
@@ -2182,6 +2192,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
             status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles, &campaign_forces,&rf_scene_startup_events);
             if(status)goto done;
+            campaign_force_snapshot();
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
         }
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,&stream);
