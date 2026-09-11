@@ -718,3 +718,32 @@ sounds lie near Y=22..34 or Y=169..171, so the descended route does not provide
 coverage of them. The harness report is marked OBSERVED, not a passing
 traversal or eviction regression. Native pressure testing should wait until an
 intended route or explicitly scoped listener fixture is established.
+
+
+## Static geometry beneath the L1S3 descent
+
+The collision probe now accepts --world-ray-at <archive> <level>, with text
+startXYZ/deltaXYZ/flags queries on stdin. It reports the actual shared static
+world hit, face/room identity, normal, flags and portal.
+inspect_l1s3_floor.py runs nine downward rays from Y40 and inventories moving
+group key positions. These are initial static-world observations, not original
+player collision traces or intended-route validation.
+
+At(50.46,-26.74) in X/Z, face3751 in room69 is at Y=-38.759; nearby(48,-25)
+and(52,-25) also reach that depth. Farther ahead(50,-20) and(35.826,-10.562)
+hit horizontal surfaces at Y=27.701. The authored Lift001/member6813 lies at
+X=-67.004,Z=28.004, with Y keys168.219/29.25, away from this departure.
+Other moving groups are doors; no nearby lift is established by these records.
+
+Shorter movement checkpoints show the descent beginning earlier: at600 the
+player is(50.81,35.10,-32.23), at660(50.46,26.56,-26.74), at720
+(48.23,8.25,-21.20), and at780(45.07,-19.85,-16.10). Thus the player can
+approach later upper surfaces from beneath; final position alone cannot prove
+that those surfaces were tunneled through. Single jump pulses at530/560 delay
+the descent and load another ambient waveform, but do not clear the tested
+route by930. A590 pulse has no observed effect on the endpoint. Jump eligibility
+and intended path are not established by these exploratory attempts.
+
+No collision runtime change is justified by this evidence yet. Resolve an
+alternate authored route around the low area before calling this a physics
+defect or using it to validate campaign audio pressure.

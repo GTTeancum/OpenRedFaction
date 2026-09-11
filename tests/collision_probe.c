@@ -1200,6 +1200,23 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==4 && !strcmp(argv[1],"--world-ray-at")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};
+        float start[3],delta[3];unsigned flags;int fields;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) ||
+           rf_geometry_open(&geometry,&level,8u*1024u*1024u) ||
+           rf_geometry_collision_world_open(&geometry,8u*1024u*1024u,&world))return 3;
+        while((fields=scanf("%f %f %f %f %f %f %u",start,start+1,start+2,delta,delta+1,delta+2,&flags))==7) {
+            rf_geometry_world_hit hit={0};rf_geometry_face face={0};uint32_t matched=0;
+            int status=rf_geometry_collision_world_ray(&world,flags,start,delta,1,&hit,&matched);
+            if(!status && matched && rf_geometry_get_face(&geometry,hit.face,&face))return 4;
+            printf("%d %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g %u %u\n",
+                status,matched,hit.face,hit.room,hit.hit.fraction,hit.hit.point[0],hit.hit.point[1],hit.hit.point[2],
+                hit.hit.normal[0],hit.hit.normal[1],hit.hit.normal[2],face.flags,face.portal);
+        }
+        rf_geometry_collision_world_close(&world);rf_geometry_close(&geometry);rf_vpp_close(&archive);
+        return fields==EOF?0:5;
+    }
     if(argc==4 && !strcmp(argv[1],"--world")) {
         rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0},guard,sentinel;
         uint32_t i,j,k,pass,faces=0,queries=0,hits=0,errors=0,hashes[2]={2166136261u,2166136261u},geometry_bytes;void *poison=NULL;
