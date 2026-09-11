@@ -300,6 +300,19 @@ int main(int argc,char **argv)
         if(at!=poses.bone_count)return 15;}
         for(i=0;i<s.class_count;++i)if(s.class_indices[i]!=UINT32_MAX)
             printf("SKELETON_CLASS\t%s\t%s\n",seeds.records.items[seeds.classes[i].record_index].record.class_name,s.items[s.class_indices[i]].model);
+        {
+            rf_entity_render_models render={0},guard={0};uint32_t j,k;
+            if(rf_entity_render_models_open(&s,&meshes,4*1024*1024,&render))return 16;
+            if(rf_entity_render_models_open(&s,&meshes,render.resident_bytes-1,&guard)!=RF_RANGE || memcmp(&guard,&(rf_entity_render_models){0},sizeof(guard)))return 17;
+            if(rf_entity_render_models_open(&s,&meshes,render.resident_bytes,&guard))return 18;
+            rf_entity_render_models_close(&guard);rf_entity_render_models_close(&guard);
+            for(j=0;j<render.count;++j)for(k=0;k<render.items[j].file.lod_count;++k) {
+                rf_model_geometry *g=render.items[j].lods+k;
+                printf("RENDER_LOD\t%s\t%u\t%u\t%u\t%u\n",s.items[j].model,k,g->batch_count,g->vertex_count,g->triangle_count);
+            }
+            printf("RENDER_MODELS %u %u\n",render.count,render.resident_bytes);
+            rf_entity_render_models_close(&render);rf_entity_render_models_close(&render);
+        }
         printf("POSES %u %u %u\n",poses.count,poses.bone_count,poses.resident_bytes);
         rf_entity_poses_close(&poses);
         rf_entity_seeds_close(&seeds);rf_vpp_close(&levels);rf_vpp_close(&tables);rf_vpp_close(&meshes);

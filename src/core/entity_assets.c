@@ -1610,6 +1610,44 @@ int rf_entity_playback_cache_references(const rf_entity_playback_resources *r,ui
     }
     *references=(uint32_t)total;return RF_OK;
 }
+void rf_entity_render_models_close(rf_entity_render_models *models)
+{
+    uint32_t i,j;if(!models)return;
+    if(models->items)for(i=0;i<models->count;++i) {
+        rf_entity_render_model *m=models->items+i;
+        if(m->lods)for(j=0;j<m->file.lod_count;++j)rf_model_geometry_close(m->lods+j);
+        free(m->lods);free(m->stored);
+    }
+    free(models->items);memset(models,0,sizeof(*models));
+}
+int rf_entity_render_models_open(const rf_entity_skeletons *skeletons,rf_vpp *meshes,uint32_t budget,rf_entity_render_models *result)
+{
+    rf_entity_render_models v={0};uint64_t bytes;uint32_t i,j;int status=RF_RANGE;
+    if(!skeletons || !meshes || !result || result->items || result->count || result->resident_bytes ||
+       (skeletons->count && !skeletons->items))return RF_RANGE;
+    bytes=sizeof(v)+(uint64_t)skeletons->count*sizeof(*v.items);if(bytes>budget)return RF_RANGE;
+    v.count=skeletons->count;if(v.count){v.items=calloc(v.count,sizeof(*v.items));if(!v.items)return RF_RANGE;}
+    for(i=0;i<v.count;++i) {
+        rf_entity_render_model *m=v.items+i;const rf_entity_skeleton *s=skeletons->items+i;
+        if(!s->bones || !s->count || s->count>50){status=RF_RANGE;goto fail;}
+        status=rf_model_file_open(&m->file,meshes,s->model);if(status)goto fail;
+        m->bone_count=s->count;
+        bytes+=(uint64_t)s->count*sizeof(*m->stored)+(uint64_t)m->file.lod_count*sizeof(*m->lods);
+        if(bytes>budget){status=RF_RANGE;goto fail;}
+        m->stored=calloc(s->count,sizeof(*m->stored));
+        if(m->file.lod_count)m->lods=calloc(m->file.lod_count,sizeof(*m->lods));
+        if(!m->stored || (m->file.lod_count && !m->lods)){status=RF_RANGE;goto fail;}
+        for(j=0;j<s->count;++j){status=rf_model_bone_transform(s->bones[j].rotation,s->bones[j].position,m->stored[j]);if(status)goto fail;}
+        for(j=0;j<m->file.lod_count;++j) {
+            uint64_t available=(uint64_t)budget-bytes+sizeof(*m->lods);
+            status=rf_model_geometry_open(m->lods+j,&m->file,j,available>UINT32_MAX?UINT32_MAX:(uint32_t)available);if(status)goto fail;
+            bytes+=m->lods[j].accounted_bytes-sizeof(*m->lods);
+        }
+    }
+    v.resident_bytes=(uint32_t)bytes;*result=v;return RF_OK;
+fail:
+    rf_entity_render_models_close(&v);return status;
+}
 int rf_entity_poses_start_initial(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,
     const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,rf_entity_poses *poses,float elapsed)
 {

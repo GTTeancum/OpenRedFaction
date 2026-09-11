@@ -482,3 +482,30 @@ Stock64MiB XEMU replay `artifacts/xemu/replay-20260911-083746/report.json`
 passes180 frames. Its NPC startup digest matches PC for78 actors and1689 bones,
 including playback and matrix/cache hashes. Existing door/audio behavior passes.
 This is the first native campaign execution of owned NPC startup pose evaluation.
+
+## Shared render-model geometry
+
+`rf_entity_render_models_open` retains one model descriptor, all decoded LOD
+geometries and stored bind transforms per shared skeleton. Geometry/material
+indices remain as decoded by the existing model loader; no actor receives its
+own copy of immutable mesh data. File metadata borrows the mesh archive for
+future material queries. Pose-dependent skinning, textures, render scratch and
+GPU submission are excluded. This owner is not yet allocated by the scene.
+
+The owner has a single explicit budget covering its arrays, model descriptors,
+LOD geometry and stored transforms. Already embedded geometry structs are not
+counted twice. Failure closes partially loaded LODs and preserves empty output;
+close is repeatable. `verify_npc_render_models.py` compares all model/LOD batch,
+vertex and triangle counts to independently parsed V3C archive directories. The
+probe exercises exact and one-byte-short budgets for each level.
+
+L1S1:5 models,13 LODs,5115 vertices,5081 triangles,315036 resident bytes.
+L1S2:2 models,6 LODs,3051 vertices,3161 triangles,180224 resident bytes.
+L1S3:4 models,9 LODs,3214 vertices,3289 triangles,206712 resident bytes.
+These are PC allocation-layout figures, excluding textures and draw buffers;
+stock Xbox residency must be measured when the owner is integrated natively.
+PC build and nine CTest checks pass. The independent model inspector now also
+reports aggregate vertex/triangle counts per LOD from its serialized batch infos.
+
+NXDK build also passes with the new render owner compiled; no new native
+replay was run because the scene does not call this loader yet.

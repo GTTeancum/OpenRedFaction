@@ -5,6 +5,7 @@
 #include "rf/motion_file.h"
 #include "rf/entity.h"
 #include "rf/model.h"
+#include "rf/model_file.h"
 #include "rf/movement.h"
 #include "rf/effect.h"
 typedef struct rf_weapon_names {
@@ -194,6 +195,19 @@ typedef struct rf_entity_skeletons {
  * seeds may close after success. Close clears storage and is repeatable. */
 int rf_entity_skeletons_open(const rf_entity_seeds *seeds,rf_vpp *meshes,uint32_t budget,rf_entity_skeletons *result);
 void rf_entity_skeletons_close(rf_entity_skeletons *skeletons);
+typedef struct rf_entity_render_model {
+    rf_model_file file;rf_model_geometry *lods;float (*stored)[12];uint32_t bone_count;
+} rf_entity_render_model;
+typedef struct rf_entity_render_models {
+    rf_entity_render_model *items;uint32_t count,resident_bytes;
+} rf_entity_render_models;
+/* One immutable copy of every model LOD and bind transform per shared skeleton.
+ * Bone/skeleton index order must stay stable; file metadata borrows meshes for
+ * later material reads. Geometry itself is resident. No textures, posed vertices
+ * or render scratch. Budget includes owner/arrays, excludes allocator/stack.
+ * Empty output required; failure preserves it. Close is repeatable. */
+int rf_entity_render_models_open(const rf_entity_skeletons *skeletons,rf_vpp *meshes,uint32_t budget,rf_entity_render_models *result);
+void rf_entity_render_models_close(rf_entity_render_models *models);
 typedef struct rf_entity_pose {
     uint32_t skeleton,bone_count;rf_motion_playback_state playback;
     rf_motion_controller controller;

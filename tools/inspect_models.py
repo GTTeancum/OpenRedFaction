@@ -60,6 +60,7 @@ def inspect(data):
                 for _ in range(textures):
                     slot = take(1)[0]; texture_names.append(dict(slot=slot, name=cstring()))
                 section['lods'].append(dict(flags=flags, unknown=unknown, batches=batches,
+                                           vertices=sum(info[0] for info in infos),triangles=sum(info[1] for info in infos),
                                            data_offset=blob, data_bytes=size, after_blob=after_blob,
                                            props=props, attachment_offset=blob + relative, textures=texture_names))
             materials = u32(); section['material_offset'] = cursor; take(materials * 84)

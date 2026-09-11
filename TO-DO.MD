@@ -3,6 +3,9 @@
 Campaign startup now selects and evaluates owned NPC poses; PC matches all141
 authored opening actors and3087 bone matrices. Per-frame AI/rendering remains.
 
+Shared NPC geometry owner now retains all model LODs and bind transforms;
+opening geometry is176-308KiB on PC before textures/draw buffers.
+
 Immediate open items:
 - [ ] Connect per-frame NPC selection/pose updates, rendered geometry and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
