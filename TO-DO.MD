@@ -4,6 +4,7 @@ Native64MiB replacement launch/audio and airborne re-entry pass with PC parity;
 grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
+- [ ] Complete NPC weapon/action motion mappings, initial animation selection and live pose evaluation.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
 - [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
@@ -2567,3 +2568,8 @@ Per-NPC inactive playback/pose storage now has distinct bounded arrays and
 original-verified constructor fields (128 cases). Three level owner probes pass;
 connect authored motion resources and initial state/action selection next.
 Native64MiB replay-20260911-064148 passes after per-NPC pose allocation.
+
+NPC base state mappings and borrowed motion descriptors now persist by class;
+three level owner probes and181 installed group checks pass. Weapon/actions,
+alternate clips and original startup selector inputs remain open.
+Native64MiB replay-20260911-064631 passes after retained base motion loading.

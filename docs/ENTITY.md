@@ -215,3 +215,35 @@ original initial state/action selection remain open before any live NPC update.
 Native64MiB door/audio replay-20260911-064148 passes180 frames after pose
 ownership integration, with PC parity and nonzero guest DSP output. This is
 loading/regression evidence, not active NPC animation validation.
+
+
+Retained base state motion bindings
+rf_entity_base_motions_open reads entity.tbl once and retains canonical23-state
+mappings/file descriptors for each skeletal class. It shares the exact parser
+and local registration path with rf_entity_state_set_open. Files borrow the
+caller-owned motions archive, which campaign loading now holds until cleanup.
+No table/seed pointers remain. Budget includes owner, class arrays and temporary
+table text; no entire motion payload is loaded. Exact/insufficient budget probes
+and post-table-close track reads pass for L1S1/L1S2/L1S3. PC class/local-file/
+resident/peak values:5/38/32696/407336,3/31/19624/394264,6/36/39232/413872.
+
+This is port-owned base binding, not complete original registration. 422360
+first registers weapon-specific state/action maps across64 groups, then skeletal
+base23 states and45 actions;51cc10 deduplicates on resource pointer AND looping
+byte. Base alternate clips additionally go through51cd30. Our per-class local
+indices are not asserted equal to original shared descriptor indices. Weapon
+mappings, actions, alternate clips and global registration ordering remain open.
+
+After registration,4231d1 calls5034d0, initializes current state0,next-1 and
+blend duration/age0, calls41f270 (which runs selector41f400 or vehicle logic),
+then503360. Therefore state0 alone does not establish the first visible standing
+pose; initial selector inputs still need a complete actor. Playback stays inactive
+in the port owner. No newly animated/rendered NPCs are claimed.
+
+Both builds/nine CTests pass. verify_entity_state_sets.py checks181 groups,
+180 resolved,972 local motions and1137 state references; edf_ship retains its
+known missing-resource failure. Full original registration-loop equivalence
+and disk-free runtime sampling remain unverified.
+Native64MiB door/audio replay-20260911-064631 passes180 frames after base
+motion-owner integration, with PC state parity and nonzero DSP output. This
+proves loading/regression coverage, not live NPC animation.

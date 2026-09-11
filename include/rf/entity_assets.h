@@ -244,6 +244,16 @@ typedef struct rf_entity_state_set {
     int32_t states[23];uint32_t count;
     rf_motion_cache_record cache[23];rf_motion_file files[23];
 } rf_entity_state_set;
+typedef struct rf_entity_base_motions {
+    rf_entity_state_set *classes;uint32_t class_count,resident_bytes,peak_bytes;
+} rf_entity_base_motions;
+/* Retain canonical base state mappings once per skeletal class, reading the
+ * table once. Motion files borrow the caller's open immutable motions archive.
+ * No weapon/action mappings, alternate clips, initial selection or playback.
+ * Budget includes owner/arrays/table scratch; errors preserve empty output.
+ * Port ownership and local motion indices, not the original global registry. */
+int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_vpp *motions,uint32_t budget,rf_entity_base_motions *result);
+void rf_entity_base_motions_close(rf_entity_base_motions *motions);
 /* Register the 23 canonical state names (0x418030 order) from one exact base
  * or weapon block. Missing/empty declarations map to -1; missing referenced
  * files fail the whole operation. Distinct cache identities register once as

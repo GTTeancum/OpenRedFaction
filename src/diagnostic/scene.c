@@ -457,6 +457,7 @@ static rf_entity_registry campaign_entities;
 static rf_entity_seeds campaign_seeds;
 static rf_entity_skeletons campaign_skeletons;
 static rf_entity_poses campaign_poses;
+static rf_entity_base_motions campaign_base_motions;
 static rf_entity_view campaign_player_view;
 static rf_registered_entity_view campaign_player_object;
 uint32_t rf_scene_campaign_player[4]; /* registered handle, kind, initial object flags, adapter bytes */
@@ -1028,6 +1029,7 @@ static void campaign_close_movers(void)
 {
     rf_entity_seeds_close(&campaign_seeds);
     rf_entity_poses_close(&campaign_poses);
+    rf_entity_base_motions_close(&campaign_base_motions);
     rf_entity_skeletons_close(&campaign_skeletons);
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
@@ -2438,9 +2440,16 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_actor_movement_settings.mode=1;
         }
     }
+    if(state_mode || campaign_spawn) {
+        status=rf_vpp_open(&motions,motions_path);if(status)goto done;motions_opened=1;
+        if(campaign_spawn) {
+            rf_vpp tables;status=rf_vpp_open(&tables,tables_path);if(status)goto done;
+            status=rf_entity_base_motions_open(&campaign_seeds,&tables,&motions,1024*1024,&campaign_base_motions);
+            rf_vpp_close(&tables);if(status)goto done;
+        }
+    }
     if(state_mode) {
         states=malloc(sizeof(*states));if(!states) {status=RF_IO;goto done;}
-        status=rf_vpp_open(&motions,motions_path);if(status)goto done;motions_opened=1;
         status=rf_entity_state_set_open(tables_path,binding.entity.class_name,"",&motions,512*1024,states);if(status)goto done;
     } else {
         status=rf_animation_preview_placed(meshes_path,motions_path,&placement,0,&actor,1024*1024);if(status)goto done;

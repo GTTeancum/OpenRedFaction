@@ -6,6 +6,29 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==6 && !strcmp(argv[1],"--base-motions")) {
+        rf_vpp levels,tables,motions;rf_level level;rf_entity_seeds seeds={0};
+        rf_entity_base_motions m={0},guard={0};uint32_t files=0,j;
+        rf_entity_state_set *expected=malloc(sizeof(*expected));if(!expected)return 1;
+        if(rf_vpp_open(&levels,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_vpp_open(&motions,argv[4]) || rf_level_open(&level,&levels,argv[5]))return 2;
+        if(rf_entity_seeds_open(&level,&tables,4*1024*1024,&seeds))return 3;
+        status=rf_entity_base_motions_open(&seeds,&tables,&motions,1024*1024,&m);
+        if(status){fprintf(stderr,"base motions %d\n",status);return 4;}
+        if(rf_entity_base_motions_open(&seeds,&tables,&motions,m.peak_bytes-1,&guard)!=RF_RANGE || memcmp(&guard,&(rf_entity_base_motions){0},sizeof(guard)))return 5;
+        if(rf_entity_base_motions_open(&seeds,&tables,&motions,m.peak_bytes,&guard))return 6;
+        rf_entity_base_motions_close(&guard);rf_entity_base_motions_close(&guard);
+        for(i=0;i<m.class_count;++i)if(seeds.classes[i].model_kind==2) {
+            if(rf_entity_state_set_open(argv[3],seeds.records.items[seeds.classes[i].record_index].record.class_name,"",&motions,512*1024,expected) ||
+               memcmp(expected,m.classes+i,sizeof(*expected)))return 7;
+        }
+        rf_entity_seeds_close(&seeds);rf_vpp_close(&levels);rf_vpp_close(&tables);
+        for(i=0;i<m.class_count;++i)for(j=0;j<m.classes[i].count;++j) {
+            rf_motion_file *f=m.classes[i].files+j;rf_motion_track track;
+            if(f->header[6] && rf_motion_file_track(f,0,&track))return 8;++files;
+        }
+        printf("BASE_MOTIONS %u %u %u %u\n",m.class_count,files,m.resident_bytes,m.peak_bytes);
+        rf_entity_base_motions_close(&m);rf_vpp_close(&motions);free(expected);return 0;
+    }
     if(argc==3 && !strcmp(argv[1],"--model-kind")) {
         uint32_t kind=0xa5a5a5a5;status=rf_entity_model_kind(argv[2],&kind);
         printf("%d %u\n",status,kind);return 0;

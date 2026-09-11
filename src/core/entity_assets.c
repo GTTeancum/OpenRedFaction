@@ -611,40 +611,80 @@ static int state_group_exists(const void *text,uint32_t bytes,const char *class_
     }
     return status;
 }
-int rf_entity_state_set_open(const char *path,const char *class_name,const char *weapon,
-    rf_vpp *motions,uint32_t budget,rf_entity_state_set *result)
+static int state_set_read(const void *text,uint32_t size,const char *class_name,const char *weapon,
+    rf_vpp *motions,rf_entity_state_set *value)
 {
     static const char *names[23]={"stand","attack_stand","walk","attack_walk","run","attack_run",
         "flee_run","flail_run","crouch","attack_crouch","attack_crouch_walk","attack_lean_left",
         "attack_lean_right","cower","freefall","on_turret","corpse_carry_stand","corpse_carry_walk",
         "swim_stand","swim_walk","jeep_drive","jeep_gun","custom"};
-    rf_vpp archive;rf_vpp_entry entry;rf_entity_state_set *value=NULL;char *text,authored[64],compiled[64];
-    uint32_t identities[23]={0},i,identity;uint8_t flags[23]={0};int status,added;int32_t index;
+    char authored[64],compiled[64];uint32_t identities[23]={0},i,identity;
+    uint8_t flags[23]={0};int status,added;int32_t index;
     rf_model_motion_registry registry={identities,flags,0,23};
-    if(!path || !class_name || !*class_name || !weapon || !motions || !result)return RF_RANGE;
-    status=rf_vpp_open(&archive,path);if(status)return status;
-    status=rf_vpp_find(&archive,"entity.tbl",&entry);if(status)goto done;
-    if(!entry.size || (uint64_t)entry.size+sizeof(*value)>budget) {status=RF_RANGE;goto done;}
-    value=calloc(1,sizeof(*value)+entry.size);if(!value) {status=RF_IO;goto done;}
-    text=(char*)(value+1);status=rf_vpp_read(&archive,&entry,0,text,entry.size);if(status)goto done;
-    status=state_group_exists(text,entry.size,class_name,weapon);if(status)goto done;
+    status=state_group_exists(text,size,class_name,weapon);if(status)return status;
     for(i=0;i<23;++i) {
         value->states[i]=-1;
-        status=rf_entity_state_motion_read(text,entry.size,class_name,weapon,names[i],authored);
+        status=rf_entity_state_motion_read(text,size,class_name,weapon,names[i],authored);
         if(status==RF_NOT_FOUND) {status=RF_OK;continue;}
-        if(status)goto done;
+        if(status)return status;
         if(!*authored)continue;
-        status=rf_motion_cache_acquire(value->cache,23,authored,&identity);if(status)goto done;
-        status=rf_model_register_motion(&registry,identity+1,1,&index,&added);if(status)goto done;
+        status=rf_motion_cache_acquire(value->cache,23,authored,&identity);if(status)return status;
+        status=rf_model_register_motion(&registry,identity+1,1,&index,&added);if(status)return status;
         if(added) {
-            status=rf_motion_compiled_filename((const char*)value->cache[identity].bytes,compiled);if(status)goto done;
-            status=rf_motion_file_open(value->files+index,motions,compiled);if(status)goto done;
+            status=rf_motion_compiled_filename((const char*)value->cache[identity].bytes,compiled);if(status)return status;
+            status=rf_motion_file_open(value->files+index,motions,compiled);if(status)return status;
         }
         value->states[i]=index;
     }
-    value->count=registry.count;*result=*value;
+    value->count=registry.count;return RF_OK;
+}
+int rf_entity_state_set_open(const char *path,const char *class_name,const char *weapon,
+    rf_vpp *motions,uint32_t budget,rf_entity_state_set *result)
+{
+    rf_vpp archive;rf_vpp_entry entry;rf_entity_state_set *value=NULL;char *text;int status;
+    if(!path || !class_name || !*class_name || !weapon || !motions || !result)return RF_RANGE;
+    status=rf_vpp_open(&archive,path);if(status)return status;
+    status=rf_vpp_find(&archive,"entity.tbl",&entry);if(status)goto done;
+    if(!entry.size || (uint64_t)entry.size+sizeof(*value)>budget){status=RF_RANGE;goto done;}
+    value=calloc(1,sizeof(*value)+entry.size);if(!value){status=RF_IO;goto done;}
+    text=(char*)(value+1);status=rf_vpp_read(&archive,&entry,0,text,entry.size);
+    if(!status)status=state_set_read(text,entry.size,class_name,weapon,motions,value);
+    if(!status)*result=*value;
 done:
     free(value);rf_vpp_close(&archive);return status;
+}
+void rf_entity_base_motions_close(rf_entity_base_motions *m)
+{
+    if(!m)return;free(m->classes);memset(m,0,sizeof(*m));
+}
+int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_vpp *motions,
+    uint32_t budget,rf_entity_base_motions *result)
+{
+    rf_entity_base_motions v={0};rf_vpp_entry entry;void *text=NULL;
+    uint64_t bytes;uint32_t i,j;int status;
+    if(!seeds || !tables || !motions || !result || result->classes || result->class_count ||
+       result->resident_bytes || result->peak_bytes || (seeds->class_count && !seeds->classes))return RF_RANGE;
+    v.class_count=seeds->class_count;bytes=sizeof(v)+(uint64_t)v.class_count*sizeof(*v.classes);
+    if(bytes>budget)return RF_RANGE;
+    v.resident_bytes=v.peak_bytes=(uint32_t)bytes;
+    if(!v.class_count){*result=v;return RF_OK;}
+    status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)return status;
+    if(!entry.size || bytes+entry.size>budget)return RF_RANGE;
+    v.peak_bytes+=(uint32_t)entry.size;
+    v.classes=calloc(v.class_count,sizeof(*v.classes));text=malloc(entry.size);
+    if(!v.classes || !text){status=RF_RANGE;goto done;}
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto done;
+    for(i=0;i<v.class_count;++i) {
+        const rf_entity_seed_class *c=seeds->classes+i;
+        for(j=0;j<23;++j)v.classes[i].states[j]=-1;
+        if(c->model_kind!=2)continue;
+        if(c->record_index>=seeds->records.count || !seeds->records.items){status=RF_RANGE;goto done;}
+        status=state_set_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,"",motions,v.classes+i);
+        if(status)goto done;
+    }
+    free(text);*result=v;return RF_OK;
+done:
+    free(text);rf_entity_base_motions_close(&v);return status;
 }
 int rf_entity_state_motion_read(const void *text,uint32_t bytes,const char *class_name,
     const char *weapon,const char *state,char motion[64])
