@@ -1033,3 +1033,31 @@ queries3D state, while format2 uses a conversion buffer and codec context.
 Their actual failure cleanup and global cache initialization remain unverified;
 raw decompilation is not taken as proof of reference initialization. Automatic
 PCM eviction and level-transition retention remain open.
+
+
+### Cache reset and count-based lookup limitation
+
+verify_audio_cache_reset.py executes original5215f0 against three patterned
+4096-record images, checking every byte plus boundary canaries. It clears
+record offsets512,524,528,536,544,588, marks hash+516 asFFFFFFFF and clears
+the first name/path bytes at0/256. Other bytes and global count1aed35c are
+preserved. This establishes zero initial references after reset; the reset
+is not a general memory wipe or a device-resource destructor.
+
+Two lifecycle sequences run original acquisition and522270/521a60 release
+together, supplying only successful521d30 with no actual resources. Duplicate
+acquisition raises one record to2 references; two releases clear identity and
+return the count to0; reacquisition uses slot0 with one reference. External
+destructor branches remain excluded because supplied records own no resources.
+
+The second sequence loads A/B/C into0/1/2, then releases A. The count becomes2
+while C remains at2, outside the lookup range. Acquiring C invokes loading again
+at2 and increments that record's existing reference to2. This directly verifies
+that count-based lookup plus selective release is not a general hole-aware cache.
+It does not prove this sequence occurs in original gameplay or that original
+transition scheduling is faulty. It prevents treating the isolated mechanism
+as permission for arbitrary live PCM eviction in the port.
+
+Next ownership work must reconcile actual release scheduling and device borrower
+completion. The bounded Xbox bank must preserve stable registration identities
+and avoid freeing referenced PCM; no automatic eviction follows from these tests.

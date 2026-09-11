@@ -9,7 +9,7 @@ Immediate open items:
 - [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
-- [ ] Implement sound metadata persistence across level transitions and reconcile cache initialization/destruction and retention scheduling after verified reference and loader-dispatch behavior.
+- [ ] Implement sound metadata persistence across level transitions and reconcile release scheduling and borrower completion after verifying cache reset and its count-based lookup limitation.
 - [ ] Complete controller audio groups/loop metadata and validate interactive PC/Xbox playback.
 - [ ] USER: Listen to the PC --campaign diagnostic and report dropouts or unexpected volume/pan changes.
 - [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
