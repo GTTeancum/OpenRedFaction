@@ -173,6 +173,14 @@ int rf_foley_open(const void *text,uint32_t bytes,uint32_t budget,
     rf_ambient_register registration,void *context,rf_foley_owner *result);
 void rf_foley_close(rf_foley_owner *owner);
 
+/* Original41c781..41c7e8 footstep class binding and434cb0 lookup: initialize
+ * ten slots to -1, resolve each nonempty name to the first case-insensitive
+ * group match, then replace that group's material slot. Later bindings win.
+ * Bounded names[32], valid groups/materials required. Missing name returns
+ * RF_NOT_FOUND instead of original fatal error; errors preserve output. */
+int rf_foley_bind_materials(const rf_foley_owner *owner,const char (*names)[32],
+    uint32_t count,int32_t slots[10]);
+
 typedef struct rf_audio_sample { char name[61];void *storage;rf_wave_pcm pcm;uint32_t bytes;rf_audio_parameters parameters; } rf_audio_sample;
 typedef struct rf_audio_bank {
     rf_vpp *archive;rf_audio_sample *samples;uint32_t count,capacity,bytes,budget;

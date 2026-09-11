@@ -138,3 +138,23 @@ and checks no leaks or callbacks; malformed input also fails before allocation.
 The harness supplies allocation/free and registration boundaries; shared owner
 and parser machine code execute directly. This is not an XEMU/device audio test.
 Both builds and all nine existing CTest cases pass.
+
+
+## Class footstep material bindings
+
+Original `41c781..41c7e8` initializes ten class slots at +178 to -1, then loops
+on `$Footstep Sound:` (string59539c). `434cb0` resolves each name through a linear,
+case-insensitive first match among 44-byte group records; an empty name or absent
+match returns -1. `434d70` returns the group's material. The loader writes the
+index to class+178+material*4, replacing any earlier binding for that material.
+This is material-based selection, not the order of the class's sound lines.
+
+`rf_foley_bind_materials` reconstructs that assignment with bounded owner/names
+and ten output slots. Missing groups return RF_NOT_FOUND and preserve output
+instead of entering the original fatal branch; malformed names/materials are
+rejected. `tools/verify_foley_binding.py` executes the original assignment block,
+lookup, material accessor and CRT comparison across160 cases; only parser/string
+access and the missing-name fatal boundary are supplied. All129 successful slot
+arrays match PC and NXDK;31 missing-name cases verify the port error result and
+unchanged output. The full entity-table reader and persistent class integration
+remain outstanding. Both builds and all nine existing CTest cases pass.

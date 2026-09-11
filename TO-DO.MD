@@ -21,6 +21,9 @@ connect bounded group ownership and original registration order next.
 Foley owner retains26452 bytes with113092-byte peak and verified cleanup;
 recover registration order and class bindings before live footstep hookup.
 
+Class footstep material binding matches160 original/PC/NXDK cases;
+load authored class declarations and verify global registration ordering next.
+
 Immediate open items:
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.

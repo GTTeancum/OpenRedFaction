@@ -86,6 +86,19 @@ static int foley_owner_probe(const char *path)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--foley-bind")) {
+        uint32_t counts[2];rf_foley_group groups[640];char names[640][32];int32_t slots[10];int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(counts,4,2,stdin)==2) {
+            rf_foley_owner owner={0};if(counts[0]>640 || counts[1]>640)return 115;
+            if(fread(groups,44,counts[0],stdin)!=counts[0] || fread(names,32,counts[1],stdin)!=counts[1])return 116;
+            owner.groups=groups;owner.group_count=counts[0];memset(slots,0xa5,sizeof(slots));
+            status=rf_foley_bind_materials(&owner,names,counts[1],slots);
+            fwrite(&status,4,1,stdout);fwrite(slots,4,10,stdout);
+        }
+        return 0;
+    }
+
     if(argc==3 && !strcmp(argv[1],"--foley-owner"))return foley_owner_probe(argv[2]);
     if(argc==3 && !strcmp(argv[1],"--foley")) {
         FILE *f=fopen(argv[2],"rb");long bytes;void *text;

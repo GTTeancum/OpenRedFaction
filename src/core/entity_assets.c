@@ -531,6 +531,24 @@ int rf_foley_open(const void *text,uint32_t bytes,uint32_t budget,
 }
 void rf_foley_close(rf_foley_owner *owner)
 {if(owner){free(owner->groups);memset(owner,0,sizeof(*owner));}}
+int rf_foley_bind_materials(const rf_foley_owner *owner,const char (*names)[32],
+    uint32_t count,int32_t slots[10])
+{
+    int32_t value[10];uint32_t i,j;
+    if(!owner || !slots || (count && !names) || owner->group_count>640 ||
+       (owner->group_count && !owner->groups))return RF_RANGE;
+    for(i=0;i<owner->group_count;++i)
+        if(!memchr(owner->groups[i].name,0,32) || owner->groups[i].material>=10)return RF_FORMAT;
+    for(i=0;i<10;++i)value[i]=-1;
+    for(i=0;i<count;++i) {
+        if(!memchr(names[i],0,32))return RF_FORMAT;
+        if(!names[i][0])return RF_NOT_FOUND;
+        for(j=0;j<owner->group_count;++j)if(same(owner->groups[j].name,names[i]))break;
+        if(j==owner->group_count)return RF_NOT_FOUND;
+        value[owner->groups[j].material]=(int32_t)j;
+    }
+    memcpy(slots,value,sizeof(value));return RF_OK;
+}
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height)
 {
     static const char *words[]={"$Max","Entity","Jump","Height:"};
