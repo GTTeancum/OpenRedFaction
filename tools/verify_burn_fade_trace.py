@@ -25,6 +25,12 @@ u.hook_add(UC_HOOK_CODE,hook)
 scales={a:struct.unpack('<f',u.mem_read(a,4))[0] for a in (0x589444,0x5894d0,0x58952c)}
 offsets=(0x24,0x28,0x30,0x34,0x44,0x48);rng=random.Random(0x42f2f0);released=scaled=reset=0
 elapsed_values=[0,5,12,17,18]+[struct.unpack('<f',w(bits))[0] for bits in (0x40a00001,0x41400001,0x41880001)]
+wire_cases=[];wire_expected=[]
+def snapshot():
+    data=bytes(u.mem_read(b,64))
+    for ptr in emitters:
+        data+=b''.join(bytes(u.mem_read(ptr+off,4)) for off in offsets)+bytes(u.mem_read(ptr+0x87,1))+bytes(u.mem_read(ptr+0x140,1))+bytes(2)
+    return data+bytes(u.mem_read(owner+0x29c,4))
 for i in range(8192):
     elapsed=elapsed_values[i%len(elapsed_values)];now=rng.choice([0,1000,1072799900]);deadline=rng.choice([-1,now,now+1,0]);entity_present=rng.choice([0,1]);countdown=rng.choice([0,1,2,128,255]);active=[rng.choice([0,0,1,2,255]) for _ in range(3)];flags=rng.getrandbits(32);volume=roundf(rng.uniform(0,1))
     expected_emitters=[]
@@ -33,8 +39,11 @@ for i in range(8192):
         for offset in offsets:data[offset:offset+4]=f(rng.uniform(.001,1000))
         data[0x140]=active[index] if index<3 else 0;data[0x87]=countdown if index==3 else 17
         u.mem_write(ptr,bytes(data));expected_emitters.append(data)
+    u.mem_write(b,bytes(64))
     u.mem_write(b,w(*emitters,0x12340001));u.mem_write(b+0x28,f(volume));u.mem_write(b+0x30,f(elapsed));u.mem_write(owner+0x29c,w(flags));u.mem_write(0x5a3ed8,w(now));u.mem_write(0x62f768,w(deadline))
+    wire_cases.append(snapshot()+w(deadline,now,entity_present))
     trace=[];u.mem_write(stack,w(stop,b));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x27f);u.emu_start(0x42f2f0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
+    wire_expected.append(w(0)+snapshot()+w(len(trace))+b"".join(w(address,*args).ljust(12,b"\0") for address,args in trace)+bytes((8-len(trace))*12))
     want=[]
     if elapsed>12 and any(active):
         reset+=1;want.extend([(0x4973d0,(ptr,)) for ptr in emitters[:3]]);want.append((0x4174c0,(0x12340001,)));flags=(flags&0xfffffdff)|0x100

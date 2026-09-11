@@ -2352,3 +2352,8 @@ Burn fade42f2f0:8,192 original traces verify5/12/17-second boundaries,
 byte87 wrap/scaling and release order.4174c0 requires type7 owner before
 flags29c writes;actual owner conversion remains required. Implement shared
 fade/update and reconcile particle fields next;see docs/DAMAGE.md.
+
+Shared burn fade now matches8,192 original cases plus six guards on PC/NXDK.
+Creation614,pool437,both builds and eight CTests pass. Full per-frame loop
+and live particle/model/audio/entity ownership remain open; type7 transition
+cannot be replaced by a missing-owner guard. See docs/DAMAGE.md.

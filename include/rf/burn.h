@@ -49,4 +49,25 @@ typedef struct rf_burn_create_backend {
  * Malformed rings/arguments fail before effects; no heap allocation here. */
 int rf_burn_create(rf_burn_pool *pool,uint32_t target,uint32_t source,
     const rf_burn_create_backend *backend,uint32_t *token);
+/* Borrowed fields from each particle owner, offsets24,28,30,34,44,48.
+ * Meaningful particle names must come from particle ownership reconstruction. */
+typedef struct rf_burn_emitter_view {
+    float values[6];uint8_t counter_87,active_140,padding[2];
+} rf_burn_emitter_view;
+typedef struct rf_burn_fade_backend {
+    void (*stop_emitter)(void *context,uint32_t emitter);
+    uint32_t *(*type7_flags)(void *context,uint32_t target);
+    int (*entity_present)(void *context,uint32_t target);
+    void (*reaction)(void *context,uint32_t target);
+    void (*release)(void *context,uint32_t token);
+    void *context;
+} rf_burn_fade_backend;
+/*42f2f0: requires four distinct valid emitter views and finite fields.
+ * Calls type7_flags only after the three stop callbacks; a missing type7
+ * returnsRF_NOT_FOUND instead of the original null dereference. Effects are
+ * not rolled back. Stop callbacks may update emitter views; identity/storage
+ * must survive until release. release may invalidate record/views on return.
+ * Caller supplies current shared spread deadline and clock, not frame delta. */
+int rf_burn_fade(rf_burn_record *record,rf_burn_emitter_view *const emitters[4],
+    uint32_t token,int32_t deadline,int32_t now,const rf_burn_fade_backend *backend);
 #endif

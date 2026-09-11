@@ -1,4 +1,6 @@
 #include "rf/burn.h"
+#include "rf/timer.h"
+#include <math.h>
 _Static_assert(sizeof(rf_burn_record)==64,"Burn record size");
 static int backend_valid(const rf_burn_release_backend *be)
 {return be && be->reset_emitter && be->free_emitter && be->stop_voice && be->clear_owner;}
@@ -91,4 +93,41 @@ int rf_burn_create(rf_burn_pool *p,uint32_t target,uint32_t source,
         p->records[r->previous-1].next=r->next;p->records[r->next-1].previous=r->previous;
     }
     r->next=0;r->previous=0;append(p,&p->active_head,index);*token=index;return RF_OK;
+}
+int rf_burn_fade(rf_burn_record *r,rf_burn_emitter_view *const e[4],
+    uint32_t token,int32_t deadline,int32_t now,const rf_burn_fade_backend *be)
+{
+    uint32_t i,j,*flags;int expired,status,release;
+    static const uint32_t order[6]={4,5,2,3,0,1};
+    if(!r || !e || !be || !be->stop_emitter || !be->type7_flags || !be->entity_present ||
+       !be->reaction || !be->release || token<1 || token>RF_BURN_SLOTS)return RF_RANGE;
+    if(!isfinite(r->elapsed) || !isfinite(r->volume))return RF_FORMAT;
+    for(i=0;i<4;++i) {
+        if(!e[i])return RF_RANGE;
+        for(j=0;j<i;++j)if(e[i]==e[j])return RF_FORMAT;
+        for(j=0;j<6;++j)if(!isfinite(e[i]->values[j]))return RF_FORMAT;
+    }
+    if(r->elapsed>12 && (e[0]->active_140 || e[1]->active_140 || e[2]->active_140)) {
+        for(i=0;i<3;++i)be->stop_emitter(be->context,r->emitters[i]);
+        flags=be->type7_flags(be->context,r->target);if(!flags)return RF_NOT_FOUND;
+        *flags=(*flags&0xfffffdff)|0x100;
+    }
+    release=r->elapsed>17;
+    if(!release) {
+        status=rf_timer_expired(deadline,now,&expired);if(status)return status;
+        if(!expired)return RF_OK;
+        if(r->elapsed>5){e[3]->counter_87=(uint8_t)(e[3]->counter_87-1);release=e[3]->counter_87==0;}
+    }
+    if(release) {
+        if(be->entity_present(be->context,r->target))be->reaction(be->context,r->target);
+        be->release(be->context,token);return RF_OK;
+    }
+    for(j=0;j<6;++j) {
+        uint32_t field=order[j];
+        for(i=0;i<4;++i) {
+            if(i==3 && (field==2 || field==3))continue;
+            e[i]->values[field]*=i==3?.75f:field<2?.9f:.95f;
+        }
+    }
+    r->volume*=.95f;return RF_OK;
 }

@@ -48,3 +48,26 @@ static int burn_create_probe(void)
     }
     return ferror(stdin)?2:0;
 }
+
+static uint32_t bf_flags,bf_entity,bf_trace[8][3],bf_count;
+static void bf_record(uint32_t fn,uint32_t a,uint32_t b){if(bf_count<8){bf_trace[bf_count][0]=fn;bf_trace[bf_count][1]=a;bf_trace[bf_count][2]=b;}++bf_count;}
+static void bf_stop(void *ctx,uint32_t emitter){(void)ctx;bf_record(0x4973d0,emitter,0);}
+static uint32_t *bf_owner(void *ctx,uint32_t target){(void)ctx;bf_record(0x4174c0,target,0);return &bf_flags;}
+static int bf_present(void *ctx,uint32_t target){(void)ctx;bf_record(0x426fc0,target,0);return bf_entity!=0;}
+static void bf_reaction(void *ctx,uint32_t target){(void)ctx;(void)target;bf_record(0x407ee0,0x300042a0,0);}
+static void bf_release(void *ctx,uint32_t token){(void)ctx;(void)token;bf_record(0x42ed20,0x30000000,0);}
+static int burn_fade_probe(void)
+{
+    uint32_t wire[48];rf_burn_record record;rf_burn_emitter_view values[4],*views[4];uint32_t i;int status;
+    rf_burn_fade_backend backend={bf_stop,bf_owner,bf_present,bf_reaction,bf_release,NULL};
+    _Static_assert(sizeof(values)==112,"Fade emitter wire");
+    for(i=0;i<4;++i)views[i]=&values[i];
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(wire,sizeof(wire),1,stdin)==1) {
+        memcpy(&record,wire,64);memcpy(values,wire+16,112);bf_flags=wire[44];bf_entity=wire[47];bf_count=0;memset(bf_trace,0,96);
+        status=rf_burn_fade(&record,views,1,(int32_t)wire[45],(int32_t)wire[46],&backend);
+        if(bf_count>8)return 4;
+        fwrite(&status,4,1,stdout);fwrite(&record,64,1,stdout);fwrite(values,112,1,stdout);fwrite(&bf_flags,4,1,stdout);fwrite(&bf_count,4,1,stdout);fwrite(bf_trace,96,1,stdout);
+    }
+    return ferror(stdin)?2:0;
+}

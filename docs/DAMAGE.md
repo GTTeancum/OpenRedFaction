@@ -478,3 +478,27 @@ by .95f. The semantic names of these emitter fields still need reconciliation
 with the reconstructed particle owner. Their exact offsets and arithmetic are
 verified, not a guessed visual interpretation. Original stop/release callees
 and owner conversion remain outside this fixture; shared fade is still open.
+
+## Shared fade routine
+
+rf_burn_fade now implements42f2f0 using four borrowed emitter views and the
+shared timer. It preserves the six field updates in original field/emitter
+order, the byte87 wrap, owner flags, volume scaling and early release paths.
+The backend supplies emitter stop, type7 flag access, optional entity reaction
+and release. Release may invalidate storage; the function returns immediately
+after it. Stop callbacks may update emitter views, but identity/storage must
+remain valid until release. Current oracle coverage uses stable callbacks.
+
+The function requires four distinct finite emitter views. Nonfinite values,
+missing views and aliases are explicit port guards. Missing type7 owner returns
+RF_NOT_FOUND after the stop calls instead of the original null dereference;
+this does not replace the required owner lifecycle transition. Earlier effects
+are not rolled back. The caller still owns particle-field synchronization and
+must not use detached snapshots as a substitute for persistent emitter state.
+
+verify_burn_fade.py compares8,192 original cases to PC and actual NXDK code,
+checking compact emitter fields/bytes, complete record, type7 flags and ordered
+callbacks. Six nonfinite guards bring each compiled suite to8,198 cases.
+Creation614 cases, pool437 cases, both builds and eight CTests also pass.
+artifacts/burn-fade.json records hashes. Next implement the full per-frame
+loop and bind actual particle, model-attachment, audio and entity ownership.
