@@ -159,11 +159,21 @@ typedef struct rf_entity_physics_config {
  * Does not resolve model spheres/poses or construct a gameplay body. */
 int rf_entity_physics_config_load(rf_vpp *tables,const char *class_name,
     uint32_t scratch_budget,rf_entity_physics_config *result);
+typedef struct rf_entity_lod_distances {
+    uint32_t count;float distances[4];
+} rf_entity_lod_distances;
+/* Authored $LOD Distances from41bad7..41bb30; retain first four, consume
+ * surplus numbers. Missing list is empty; no sorting or runtime selection.
+ * Bounded grammar rejects malformed/duplicate lists; errors preserve output. */
+int rf_entity_lod_distances_read(const void *text,uint32_t bytes,const char *name,
+    rf_entity_lod_distances *result);
+
 typedef struct rf_entity_seed_class {
     uint32_t record_index;
     char model[64];uint32_t model_kind;
     rf_entity_creation_vitals_class vitals;
     rf_entity_class_physics physics;
+    rf_entity_lod_distances lod;
 } rf_entity_seed_class;
 typedef struct rf_entity_seed {
     uint32_t class_index;

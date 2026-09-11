@@ -369,3 +369,30 @@ All1200 finite fixtures match composed PC/NXDK metric and gate calls, including
 Double arithmetic remains an approximation to original x87 precision, not a
 universal equivalence proof. Alternate-view distance, descriptor flag ownership,
 actor entry scheduling and live gate integration remain open.
+
+## Retained class LOD declarations
+
+`rf_entity_lod_distances_read` reads the selected class's authored list, retaining
+the first four values in order and consuming surplus values, as the count/store
+loop41bad7..41bb30 does. Absent lists yield count0. Bounded parser errors preserve
+output; duplicate/malformed lists are rejected as port validation. This is a
+bounded adapter, not the complete original entity.tbl parser.
+
+Seed classes now own the20-byte count/threshold record, loaded while their
+existing entity.tbl scratch is available. Allocation/peak accounting uses the
+expanded class size. No additional table allocation or archive pointer survives.
+`verify_entity_lod_distances.py` passes all63 installed classes plus14 fixtures
+on PC and NXDK machine code. The first three levels retain5/3/6 classes, adding
+100/60/120 bytes; the PC probe verifies exact-budget success, one-byte-short
+failure and retained fields after archive closure. Native XEMU has not yet
+validated this expanded seed layout.
+
+Room +160 is the shared room eligibility/visibility byte already traced in
+LEVEL-PARTICLES.md:4d2f80 clears it before player-view processing and4d4860
+sets it on accepted visits. Connecting the NPC gate still requires the correct
+frame's room state, actor state/flags and camera values; current campaign
+playback continues advancing all skeletal actors.
+
+Both full builds and nine CTest checks pass. The180-frame PC door replay
+retains playback179/78/1689 and Foley metadata checksums; final PPM SHA256
+remains3f008e45b98484177e9b17e467477908a7a27300df0e68507e0f565641933c82.

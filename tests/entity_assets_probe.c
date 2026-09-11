@@ -6,6 +6,17 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--lod-distances")) {
+        uint32_t size;char name[64];rf_entity_lod_distances value;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&size,4,1,stdin)==1) {
+            if(!size || size>1024*1024 || fread(name,64,1,stdin)!=1 || !memchr(name,0,64))return 2;
+            text=malloc(size);if(!text || fread(text,size,1,stdin)!=1)return 3;
+            memset(&value,0xa5,sizeof(value));status=rf_entity_lod_distances_read(text,size,name,&value);
+            free(text);fwrite(&status,4,1,stdout);fwrite(&value,sizeof(value),1,stdout);
+        }
+        return 0;
+    }
     if(argc==4 && (!strcmp(argv[1],"--default-weapons") || !strcmp(argv[1],"--default-weapons-text"))) {
         rf_weapon_names names;rf_entity_default_weapons result;char raw[8192];uint32_t size;
         if(rf_vpp_open(&archive,argv[2]) || rf_weapon_names_load(&archive,256*1024,&names))return 2;
@@ -364,6 +375,12 @@ int main(int argc,char **argv)
                    seeds.records.items[seeds.classes[seeds.items[i].class_index].record_index].record.class_name))return 6;
         }
         for(i=0;i<count;++i)printf("SEED_FLAGS\t%s\t%u\n",seeds.records.items[i].record.class_name,seeds.items[i].spawn.creation_flags);
+        for(i=0;i<classes;++i) {
+            const rf_entity_lod_distances *lod=&seeds.classes[i].lod;
+            printf("SEED_LOD\t%s\t%u\t%.9g\t%.9g\t%.9g\t%.9g\n",
+                seeds.records.items[seeds.classes[i].record_index].record.class_name,
+                lod->count,lod->distances[0],lod->distances[1],lod->distances[2],lod->distances[3]);
+        }
         printf("SEEDS %u %u %u %u\n",count,classes,seeds.resident_bytes,peak);
         rf_entity_seeds_close(&seeds);return 0;
     }

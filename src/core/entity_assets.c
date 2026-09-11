@@ -574,6 +574,34 @@ int rf_entity_footstep_groups_read(const void *text,uint32_t bytes,const char *c
     }
     if(!selected)return RF_NOT_FOUND;memcpy(slots,value,sizeof(value));return RF_OK;
 }
+int rf_entity_lod_distances_read(const void *text,uint32_t bytes,const char *name,
+    rf_entity_lod_distances *result)
+{
+    lexer l={text,bytes,0};char t[256];rf_entity_lod_distances value={0};
+    int status,quoted,selected=0,found=0;
+    if(!text || !bytes || !name || !*name || !result)return RF_RANGE;
+    for(;;) {
+        status=token(&l,t,&quoted);if(status==RF_NOT_FOUND)break;if(status)return status;
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(selected)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            selected=same(t,name);
+        } else if(same(t,"#End"))break;
+        else if(selected && same(t,"$LOD")) {
+            if(found++ || token(&l,t,&quoted) || quoted || !same(t,"Distances:") ||
+               token(&l,t,&quoted) || quoted || strcmp(t,"{"))return RF_FORMAT;
+            for(;;) {
+                lexer saved=l;float number;
+                if(token(&l,t,&quoted))return RF_FORMAT;
+                if(!quoted && !strcmp(t,"}"))break;
+                l=saved;status=sphere_number(&l,&number);if(status)return status;
+                if(value.count<4)value.distances[value.count++]=number;
+            }
+        }
+    }
+    if(!selected)return RF_NOT_FOUND;*result=value;return RF_OK;
+}
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height)
 {
     static const char *words[]={"$Max","Entity","Jump","Height:"};
@@ -1990,6 +2018,7 @@ int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf
             v.classes[j].record_index=i;
             status=rf_entity_vitals_config_read(text,entry.size,name,&v.classes[j].vitals);if(status)goto done;
             status=rf_entity_class_physics_read(text,entry.size,name,&v.classes[j].physics);if(status)goto done;
+            status=rf_entity_lod_distances_read(text,entry.size,name,&v.classes[j].lod);if(status)goto done;
             status=rf_entity_assets_read(text,entry.size,name,"",&assets);if(status)goto done;
             memcpy(v.classes[j].model,assets.model,sizeof(assets.model));
             status=rf_entity_model_kind(assets.model,&v.classes[j].model_kind);if(status)goto done;
