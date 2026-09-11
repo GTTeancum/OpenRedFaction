@@ -2327,3 +2327,8 @@ Burn creation42e910:576 original traces verify rejection,64-byte record
 fields,free-to-active circular list transfer and non-aborting particle/audio
 failures. Actual pool initialization/release, attachment lookup and templates
 remain open before a gameplay burn owner; see docs/DAMAGE.md.
+
+Burn pool evidence:8 records of64 bytes,432 original release cases plus
+complete initialization verify owner clearing and circular list recycling.
+Emitter absence is0;voice absence is-1. Corrected creation failures to0 and
+all576 cases pass. Implement shared pool and recover42ee80 update next.

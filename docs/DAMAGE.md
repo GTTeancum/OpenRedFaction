@@ -333,3 +333,37 @@ semantics still need verification. These raw attachment findings were not
 executed by the allocation harness, which supplies the four results.
 Next recover actual pool initialization, release/update ownership, attachment
 resolution and particle templates before binding create_burn in gameplay.
+
+## Burn pool initialization and release
+
+Complete42e8a0 initializes exactly eight64-byte records at62f778..62f978,
+clears active head62f770, builds the free ring62f76c in array order and clears
+timer62f768 through4fa3e0. The512-byte figure covers records only; emitter,
+texture and audio memory are separate. Initialization calls42ed20(record,1)
+for each existing slot rather than blindly clearing all bytes.
+
+42ed20 handles each nonzero emitter in00/04/08/0c in order:4973d0 with the
+emitter inECX, then497d80(emitter), then zeroes its slot. Emitter absence is0;
+voice absence is-1. Voice24 is stopped via505a40 unless-1, including voice0.
+It resets target and attachment indices10..20 to-1, voice24 to-1, scalar28
+and word30 to0, and byte2c to0. Padding2d..2f and source34 remain unchanged.
+
+Cleanup searches the entity list5cb2ec for the first13d8 pointer matching
+this record. It clears that pointer and stops searching. Only if no entity
+matches does it search list5cae44 for the first matching2d0 pointer. Duplicate
+references are not all cleared; the owner adapter must preserve this order
+and must not create duplicate ownership accidentally.
+
+A nonzero low byte in argument2 resets fields/ownership without changing
+the pool lists. A zero low byte removes the record from the active ring and
+appends it before the free head. Existing heads are retained except when
+removing the active head, which advances or becomes null for the last record.
+
+verify_burn_release_trace.py verifies432 release cases and complete eight-slot
+initialization, executing original list traversal and timer clear unchanged.
+Only emitter reset/free and voice stop are supplied. It covers head/interior/
+tail release, empty/populated free rings, duplicate owner matches and low-byte
+argument behavior. The creation harness was corrected to use0 for supplied
+emitter allocation failures; all576 creation cases still pass. No shared pool
+implementation, actual emitter cleanup or per-frame42ee80 burn update is
+claimed yet. Those remain the next ownership work.

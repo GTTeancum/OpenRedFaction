@@ -26,7 +26,7 @@ def hook(m,address,size,context):
     elif address==0x497ca0:
         assert a[1]==0x12340001 and a[3:6]==(0,0,1),a
         assert descriptor==(b+0x8000 if len(particles)<3 else b+0x9000)
-        result=0xffffffff if failure_mask&(1<<len(particles)) else 0x45670000+len(particles)
+        result=0 if failure_mask&(1<<len(particles)) else 0x45670000+len(particles)
         particles.append(result)
     elif address==0x434da0:assert a[1]==27;result=0xffffffff if failure_mask&16 else 28
     else:
