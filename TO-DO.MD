@@ -1,10 +1,10 @@
 # Red Faction Xbox / PC — open work
 
-Owned force-region reader passes all 142 records across 27 levels; PC and NXDK
-compile it. Runtime construction and force application remain open.
+Owned reader and runtime construction pass all 142 authored force regions;
+PC/NXDK construction matches original blocks. Registration/application remain.
 
 Immediate open items:
-- [ ] Construct runtime force regions from verified owned records and connect force application plus alternate airborne speed-cap ownership.
+- [ ] Register verified runtime force regions and connect force application plus alternate airborne speed-cap ownership.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
 - [ ] Complete APU failure cleanup auditing and real-hardware validation.
 - [ ] Implement sound metadata persistence across level transitions and recover automatic PCM residency policy.

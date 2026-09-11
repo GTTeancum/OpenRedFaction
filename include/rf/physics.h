@@ -142,6 +142,12 @@ typedef struct rf_physics_force_region {
     float center[3],matrix[9],radius_squared,minimum[3],maximum[3],size[3],strength;
     uint32_t active; /* Original activation byte is the low eight bits. */
 } rf_physics_force_region;
+struct rf_level_force_region;
+/* Original 462f60 construction after authored reads. Reorders disk matrix,
+ * builds bounds/radius squared and enables the region. No allocation or world
+ * registration. Finite representable geometry required; errors preserve output. */
+int rf_physics_force_region_build(const struct rf_level_force_region *source,
+    rf_physics_force_region *result);
 /* First enabled containing region in supplied creation order. Sphere boundary
  * is strict; boxes inclusive. Unknown shapes are skipped. UINT32_MAX means
  * no match. No allocation or force application; errors preserve index. */

@@ -21,6 +21,19 @@ including the owner and excluding allocator overhead. NXDK compiles and links
 the reader; this does not establish native Xbox execution of its ownership API.
 
 Runtime selection was independently verified by `verify_force_region_select.py`.
-Authored-to-runtime bounds construction, force application and alternate
-airborne speed-cap ownership remain to be connected and verified. The reader
+Force application and alternate airborne speed-cap ownership remain to be
+connected and verified. The reader
 comparison is not execution of the original parser or a gameplay fidelity test.
+
+`rf_physics_force_region_build` now converts an authored record to the 108-byte
+runtime layout. It rotates the disk matrix rows into runtime order, computes
+bounds and squared radius, preserves flags/strength and sets activation to one.
+The apparent vector operation at `40a3f0` is negation, confirmed by disassembly;
+the oriented-box path passes negative and positive half extents to `539a40`.
+
+`verify_force_build.py` executes original prepared construction blocks
+`46306a`, `4630d8` and `463167` through `4631b1`, retaining their vector and
+bounds callees. All 108 output bytes match PC and NXDK for all 142 authored
+records (1 sphere, 2 axis boxes, 139 oriented boxes). File reads and prior field
+writes are supplied at the boundary; this is not a complete loader execution.
+World registration and force application remain open.

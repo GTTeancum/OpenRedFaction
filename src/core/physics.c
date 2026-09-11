@@ -1,5 +1,6 @@
 #include "rf/physics.h"
 #include "rf/collision.h"
+#include "rf/level.h"
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
@@ -190,6 +191,40 @@ int rf_physics_player_contact(rf_physics_body_state *state,const float normal[3]
     if(!isfinite(impact))return RF_RANGE;
     for(i=0;i<3;++i)if(!isfinite(velocity[i]))return RF_RANGE;
     memcpy(state->velocity,velocity,sizeof(velocity));*impact_speed=impact;return RF_OK;
+}
+int rf_physics_force_region_build(const rf_level_force_region *source,rf_physics_force_region *result)
+{
+    rf_physics_force_region value={0};float half[3];uint32_t i,j;
+    if(!source || !result || source->shape<1 || source->shape>3 || !isfinite(source->strength))return RF_RANGE;
+    value.shape=source->shape;value.uid=source->uid;value.flags=source->flags;
+    value.strength=source->strength;value.active=1;
+    for(i=0;i<9;++i) {
+        if(!isfinite(source->orientation_disk[i]))return RF_RANGE;
+        value.matrix[((i/3+2)%3)*3+i%3]=source->orientation_disk[i];
+    }
+    for(i=0;i<3;++i) {
+        if(!isfinite(source->position[i]) || !isfinite(source->extent[source->shape==1?0:i]))return RF_RANGE;
+        value.center[i]=source->position[i];
+        half[i]=source->shape==1?source->extent[0]:(float)((double)source->extent[i]*.5);
+        if(source->shape!=1)value.size[i]=source->extent[i];
+        value.minimum[i]=(float)((double)value.center[i]-half[i]);
+        value.maximum[i]=(float)((double)value.center[i]+half[i]);
+    }
+    value.radius_squared=source->shape==1?(float)((double)half[0]*half[0]):
+        (float)((double)half[0]*half[0]+(double)half[1]*half[1]+(double)half[2]*half[2]);
+    if(source->shape==3)for(i=0;i<3;++i) {
+        value.minimum[i]=value.maximum[i]=value.center[i];
+        for(j=0;j<3;++j) {
+            volatile float low=(float)((double)value.matrix[i*3+j]*-half[j]);
+            double high=(double)value.matrix[i*3+j]*half[j];
+            double minimum=high<=low?high:low,maximum=high<=low?low:high;
+            value.minimum[i]=(float)((double)value.minimum[i]+minimum);
+            value.maximum[i]=(float)((double)value.maximum[i]+maximum);
+        }
+    }
+    if(!isfinite(value.radius_squared))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(value.minimum[i]) || !isfinite(value.maximum[i]))return RF_RANGE;
+    *result=value;return RF_OK;
 }
 int rf_physics_force_region_select(const rf_physics_force_region *regions,uint32_t count,
     const float position[3],uint32_t *index)
