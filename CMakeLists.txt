@@ -183,3 +183,7 @@ if(WIN32)
     target_include_directories(rf_pc_audio_check PRIVATE src/platform/pc)
     target_link_libraries(rf_pc_audio_check PRIVATE rf_core winmm)
 endif()
+
+add_executable(rf_audio_identity_tests tests/audio_identity_tests.c)
+target_link_libraries(rf_audio_identity_tests PRIVATE rf_core)
+add_test(NAME audio_device_identity COMMAND rf_audio_identity_tests)

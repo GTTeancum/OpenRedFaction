@@ -19,6 +19,31 @@ int32_t rf_audio_select_ordinary(const rf_audio_allocation_slot *slots,
     return -1;
 }
 
+void rf_audio_voice_ids_init(rf_audio_voice_ids *map)
+{
+    uint32_t i;memset(map,0,sizeof(*map));
+    for(i=0;i<RF_AUDIO_VOICES;i++)map->ids[i]=-1;
+}
+int rf_audio_voice_ids_bind(rf_audio_voice_ids *map,uint32_t source,int32_t *id)
+{
+    uint32_t slot=source&0xffffu;
+    if(!map || !id || !source || slot>=RF_AUDIO_VOICES || map->next>INT32_MAX)return RF_RANGE;
+    *id=(int32_t)map->next;map->ids[slot]=*id;map->sources[slot]=source;
+    map->next=(map->next+1u)&0x7fffffffu;return RF_OK;
+}
+int rf_audio_voice_ids_resolve(const rf_audio_voice_ids *map,const rf_audio_mixer *mixer,
+    int32_t id,uint32_t *source)
+{
+    uint32_t i;
+    if(!map || !mixer || !source)return RF_RANGE;
+    if(id<0)return RF_NOT_FOUND;
+    for(i=0;i<RF_AUDIO_VOICES;i++)if(map->ids[i]==id) {
+        if(!map->sources[i] || map->sources[i]!=mixer->voices[i].handle)return RF_NOT_FOUND;
+        *source=map->sources[i];return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
+
 /* Original comparator56bb80: only backslash separates path components. */
 static int metadata_compare(const char *a,const char *b)
 {

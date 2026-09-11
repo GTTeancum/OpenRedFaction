@@ -259,6 +259,20 @@ typedef struct rf_audio_voice {
     rf_wave_pcm pcm;uint32_t handle,frame,phase,left,right,loop,active;
 } rf_audio_voice;
 typedef struct rf_audio_mixer { rf_audio_voice voices[RF_AUDIO_VOICES];uint32_t generation; } rf_audio_mixer;
+/* Port bridge from nonnegative device identities to unsigned mixer handles.
+ * Identity sequence follows522683..5226a6 (zero through INT32_MAX, then zero).
+ * This is separate from505560 game control generations. No allocation.
+ * Initialize before binding; bind only a successfully started source. Resolve
+ * checks the full current mixer handle, including its generation, but permits
+ * naturally completed sources so explicit release can still find their PCM.
+ * Errors preserve output. Caller serializes mixer/map and resets them together. */
+typedef struct rf_audio_voice_ids {
+    int32_t ids[RF_AUDIO_VOICES];uint32_t sources[RF_AUDIO_VOICES],next;
+} rf_audio_voice_ids;
+void rf_audio_voice_ids_init(rf_audio_voice_ids *map);
+int rf_audio_voice_ids_bind(rf_audio_voice_ids *map,uint32_t source,int32_t *id);
+int rf_audio_voice_ids_resolve(const rf_audio_voice_ids *map,const rf_audio_mixer *mixer,
+    int32_t id,uint32_t *source);
 /* Xbox/PC output adapter, not original Miles mixer reconstruction. Caller
  * serializes access and retains PCM until the voice ends/stops. No heap, FPU,
  * callbacks or OS input. PCM rates1..192000, gain0..32768 (unity), stereo48kHz

@@ -18,7 +18,7 @@ for frames in checkpoints:
     audio=row('AMBIENT_AUDIO');bank=row('SOUND_BANK');body=row('PC_PLAY_BODY');spawn=row('PLAYER_SPAWN')
     assert audio[0]==frames and audio[4]==0 and sum(bank[2:])<=1024*1024
     rows.append(dict(frames=frames,audio=audio,bank=bank,position=list(struct.unpack('<3f',struct.pack('<3I',*body[22:25]))),spawn=list(struct.unpack('<3f',struct.pack('<3I',*spawn[1:4])))))
-assert rows[2]['audio']==[780,3,2,1483,0,116632,1,2828698778],rows
+assert rows[2]['audio']==[780,3,2,1483,0,116632,1,1873249434],rows
 assert rows[1]['position']!=rows[0]['position'] and rows[2]['position']!=rows[1]['position']
 assert rows[-1]['bank']==[88,7,228536,13128]
 if args.restart:

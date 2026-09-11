@@ -1271,3 +1271,50 @@ APU report artifacts/xemu/apu-20260911-054025/report.json passes the same checks
 the existing allocation/lifecycle/bank pressure suite. PC/NXDK builds and eight CTests
 pass. This adds the device-status boundary required for original control-table
 integration; signed device-handle mapping and sample loader wiring remain open.
+
+
+Ambient device identities (2026-09-11)
+-------------------------------------
+
+Live ambient starts no longer cast the unsigned PCM mixer handle to int32_t.
+The mixer's generation32768 sets the sign bit and the old code incorrectly
+rejected a successfully allocated voice. A fixed244-byte rf_audio_voice_ids map
+now retains independent nonnegative identities and the complete unsigned source
+handle. Ambient stop, gain refresh and active-source telemetry resolve through
+this map. Zero is a valid identity; -1 remains failure. A replaced/released mixer
+source fails resolution by its full generation, including when a controller
+reuses a previously ambient slot. Natural completion alone does not invalidate
+the mapping, so explicit release can still resolve the retained borrower.
+
+The identity counter follows actual original522683..5226a6 after successful
+522530 playback: store current1aed358 in slot+10, increment, replace a negative
+increment with zero. For a valid nonnegative counter this cycles0..INT32_MAX.
+verify_audio_device_identity.py executes that exact original success block and
+NXDK-linked binding for720 combinations of all30 slots, counter boundaries and
+mixer generations spanning the sign bit. Device creation and full522530 are not
+executed by this verifier. The map/unsigned source binding is a port adapter,
+not a reconstruction of the complete original device table. Its current identity
+stream belongs to ambient playback; controller game handles remain separate.
+
+The audio_device_identity CTest starts the actual shared mixer at generation32767
+and verifies the resulting high-bit handle remains usable through identity0,
+natural completion, release, unbound slot reuse and subsequent binding. It also
+checks identity wrap and rejected-input preservation. All nine CTests and both
+full builds pass. Four campaign registration fixtures still pass within the1MiB
+bank budget. The L1S1 walk/restart PC replay preserves starts/stops, refresh counts,
+active voice counts, positions and resident sample bytes. The frame780 diagnostic
+hash changes2828698778 ->1873249434 because stop hashing now records the signed
+identity rather than the encoded mixer source; the regression fixture is updated.
+
+This mapping does not prove device completion from deterministic mixer time. It
+neither releases native borrowers nor changes the existing release/reset contract.
+Original game-control integration still needs a common device owner using native
+source status where appropriate, loader wiring and category ownership. Persistent
+NPC burn ownership remains open. No new visuals accompany this internal change.
+
+Native L1S1 replay20260911-054619 passes1170 frames with audio enabled on
+QMP-verified64MiB. All checked guest state matches PC, including ambient restart
+telemetry; DSP output is nonzero and checked device errors are zero. The harness
+restores the normal disc configuration and rebuilds its ISO. This covers the live
+ambient mapping under ordinary handles; the sign/wrap boundaries are covered by
+the explicit CTest and original/NXDK CPU verifier described above.

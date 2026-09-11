@@ -2493,3 +2493,13 @@ one-shot, muted loop, unrelated voice, unknown handle and closed-device cases.
 Queries do not release PCM or certify speaker completion. Both builds/eight CTests
 pass. Connect signed control-device ownership and sample loading next; persistent
 NPC/burn ownership remains open. See docs/controller-audio.md.
+
+
+Live ambient playback now uses a fixed244-byte signed identity map instead of
+casting unsigned mixer handles; generation32768 no longer becomes a false failure.
+Zero identity, stopped/reused source guards and original nonnegative counter wrap
+pass nine CTests and720 original/NXDK comparisons. Four campaign startup fixtures,
+PC1170-frame ambient restart and native64MiB replay20260911-054619 pass with PC
+parity/nonzero DSP. Both builds pass. Controller/game-control device ownership,
+native status integration, sample loading/category wiring and persistent NPC burn
+ownership remain open; see docs/controller-audio.md.
