@@ -360,3 +360,31 @@ zero-extends the meaningful byte. The Xbox build passes.
 This verifies field mapping and initialization, not original full-file
 parsing or sound residency. Switch owner integration, linked initialization
 and ordered target dispatch remain open.
+
+
+### Switch target routing reference
+
+`python tools/verify_switch_link_routing.py` executes original4bc340
+with actual ordered-array callees and supplied resolver/effect boundaries.
+All3,072 combinations pass, checking the entire lookup/effect trace:
+
+- First match among trigger4c08e0, controller46afa0, ambient-sound45afe0
+  and light45d5e0 suppresses all subsequent families for that link.
+- Trigger enable/disable uses4c0200/4c0210. Controller enable uses
+ 46aba0(handle,source,actor); disable uses46b5b0(handle).
+- Ambient sound uses45b040/45b010 with target+8 identifier. These route
+  through505b50 with authored volume/zero respectively.
+- Light45fb90 receives1 for disabled0 and0 for disabled1; other disabled
+  values cause no action, while still suppressing later lookup families.
+- Otherwise event4b6800 lookup runs, followed independently by general
+  object40a0e0 lookup. An event match does not suppress the object effect.
+- Type17 Continuous_Damage changes flag bit1 via4bd8b0/4bd8a0 even during
+  initialization. Other event types call4b8b70(source,actor,on) only when
+  the initialization argument low byte is zero.
+- General objects only dispatch48a660/48a570 if their+0x80 field is nonzero.
+
+Fixtures combine independent target-family availability, both linked IDs,
+disabled0/1/2, initialization0/1/256/257, type17/ordinary events and
+renderable/nonrenderable objects. Resolver internals and downstream effects
+are outside this proof; ordered routing and argument selection are covered.
+The shared C routing backend and campaign ownership remain unfinished.
