@@ -30,6 +30,14 @@ assert len(volume)==72 and struct.unpack_from('<i',volume)[0]==0
 v=struct.unpack('<II16f',volume);center=v[2:5];matrix=v[6:15];size=v[15:18]
 route=json.loads((root/'artifacts/l1s3-route-observation/report.json').read_text())
 assert route['pc_sha256']==hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(), 'Regenerate route observation for current PC build'
+entities=subprocess.check_output([str(root/'build/pc/Release/rf_level_entity_probe.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S3.rfl'])
+assert len(entities)%1084==0
+linked_entities=[]
+for i in range(0,len(entities),1084):
+    r=entities[i:i+1084];uid=struct.unpack_from('<I',r)[0]
+    if uid in pit['links']:
+        linked_entities.append(dict(uid=uid,name=r[52:308].split(b'\0')[0].decode('cp1252'),script=r[308:564].split(b'\0')[0].decode('cp1252'),position=struct.unpack_from('<3f',r,4)))
+assert [r['uid'] for r in linked_entities]==[26] and linked_entities[0]['name']=='APC'
 observations=[]
 for row in route['checkpoints']:
     pos=row['position'];wire=struct.pack('<15fI9f',*center,*matrix,*size,0,*pos,*pos,*pos)
@@ -37,6 +45,6 @@ for row in route['checkpoints']:
     status,inside=struct.unpack('<iI',result);assert status==0
     observations.append(dict(frame=row['frames'],position=pos,inside_pit=inside))
 assert next(r for r in observations if r['frame']==930)['inside_pit']==1
-report=dict(status='OBSERVED',level_sha256=hashlib.sha256(raw).hexdigest(),pc_sha256=hashlib.sha256((root/'build/pc/Release/rf_event_probe.exe').read_bytes()).hexdigest(),links=selected,checkpoint_contact=observations,scope='Fresh installed L1S3 section parsing, authored trigger volume conversion and ordinary box point contact. At930 the observed player position lies in trigger357 linked to Continuous_Damage9488 (words100000,7). Trigger value_byte2 is skipped by current scene contact integration. Actual damage dispatch, actor filtering, timing, health/death and original gameplay traversal are not verified. Door4 has no proven activation route; nearby trigger9322 requests L1S2, not door activation.')
+report=dict(status='OBSERVED',level_sha256=hashlib.sha256(raw).hexdigest(),pc_sha256=hashlib.sha256((root/'build/pc/Release/rf_event_probe.exe').read_bytes()).hexdigest(),links=selected,linked_entities=linked_entities,checkpoint_contact=observations,scope='Fresh installed L1S3 section parsing, authored trigger volume conversion and ordinary box point contact. At930 the observed player position lies in trigger357 linked to Continuous_Damage9488 (words100000,7). Trigger value_byte2 is an allowed-linked-actor filter, not an unconditional hazard; actor26 is APC. Current scene skips this filter. Actual damage dispatch, actor filtering, timing, health/death and original gameplay traversal are not verified. Door4 has no proven activation route; nearby trigger9322 requests L1S2, not door activation.')
 (root/'artifacts/l1s3-route-links.json').write_text(json.dumps(report,indent=2)+'\n')
-print(json.dumps(dict(status=report['status'],checkpoint_contact=observations,pit_links=pit['links'],pit_damage=events_by_uid[9488]['words'],east_target=events_by_uid[9324]['texts']),indent=2))
+print(json.dumps(dict(status=report['status'],checkpoint_contact=observations,linked_entities=linked_entities,pit_links=pit['links'],pit_damage=events_by_uid[9488]['words'],east_target=events_by_uid[9324]['texts']),indent=2))

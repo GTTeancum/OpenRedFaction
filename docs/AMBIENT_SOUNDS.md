@@ -801,9 +801,9 @@ at930 and1530 are inside trigger357; positions30 and570 are outside.
 Trigger357 has value_byte2 and links26/9488. Event9488 is Continuous_Damage
 with authored words100000,7. The current scene contact loop explicitly skips
 nonzero value_byte, so this hazard is not dispatched. The words are recorded
-without assigning unverified units or damage-type semantics. This supports
-rejecting the descent as a gameplay/pressure route, not changing its collision.
-Actual trigger-mode dispatch, health/death and original live behavior remain open.
+without assigning unverified units or damage-type semantics. Volume membership alone
+does not establish activation: the filter correction below identifies the
+linked APC restriction. Actual damage dispatch and live behavior remain open.
 
 The nearby eastern trigger9322 links Load_Level9324 with text L1S2. It does
 not activate Door4. Consequently eastward movement from this spawn is evidence
@@ -814,3 +814,20 @@ The route-links report rejects a stale PC executable hash. Box-contact tests
 pass8,192 PC/NXDK cases (8,031 original executions plus161 guards), and volume
 conversion matches original constructor blocks for all2,367 authored triggers.
 These validate geometry helpers, not missing trigger-mode or damage semantics.
+
+## Linked-actor filter correction
+
+The earlier pit interpretation was too broad. Loader465510 stores value_byte
+in factory+68, constructor4bf970 copies it to runtime+2c4, and original
+4c06d0 treats value2 as a restriction to actor handles in trigger+2d4.
+It is not an unconditional damage-volume mode. The installed entity reader
+identifies UID26 as class/script APC at(62.7841,28.9013,-15.3722).
+Trigger357 links APC26 and Continuous_Damage9488; the unlisted player must
+not activate it merely by entering the volume. No new player-death behavior
+is justified by this trigger. The overall descent route remains unverified.
+
+Eight deterministic cases added to verify_trigger_eligibility.py check linked
+actor acceptance, unlisted-player rejection and same-slot/different-generation
+rejection, with use input both off/on. All4,096 cases match original4c06d0
+and PC/NXDK code. Handles are synthetic resolved identities; this proves the
+filter, not actual scene entity/link registration or Continuous_Damage effects.

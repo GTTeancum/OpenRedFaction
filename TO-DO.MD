@@ -5,7 +5,7 @@ grounded re-entry, broader object ownership and full RNG ordering remain.
 
 Immediate open items:
 - [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
-- [ ] Recover nonzero trigger activation modes and Continuous_Damage dispatch for the authored L1S3 pit before implementing health/death.
+- [ ] Connect authored actor filters and recover APC-linked Continuous_Damage dispatch; L1S3 trigger357 does not establish a player hazard.
 - [ ] Resolve the L1S3 pressure-test route after fixing its 14 static ray errors, complete audio category settings, and recover light ownership.
 - [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
 - [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
@@ -2251,3 +2251,8 @@ PC state parity and nonzero DSP output on verified64MiB memory.
 trigger357, linked to Continuous_Damage9488; scene skips its value_byte2 mode.
 Eastward trigger9322 links a return to L1S2, not Door4. Recover missing trigger
 mode/damage behavior before treating the descent as valid campaign traversal.
+
+2026-09-11 correction: Trigger357 value2 is an allowed-linked-actor filter.
+UID26 is APC; original eligibility rejects an unlisted player. Eight explicit
+filter cases pass original/PC/NXDK. Prior pit-volume evidence must not be
+used to implement unconditional player damage or death.

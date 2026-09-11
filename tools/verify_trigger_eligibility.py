@@ -27,6 +27,13 @@ for case in range(4096):
  filter_=(case//11)%6;attached=rng.choice([-1,0,123]);n=case%9
  handles=[rng.randrange(4) for i in range(8)];facts=[rng.randrange(4),rng.choice([0,1,2,3])]+[rng.choice([0,1,2,255,256,257]) for i in range(7)]
  facts[4]=case%2;facts[8]=(case//2)%2;input_=rng.choice([0,1,2,255,256,257])
+ if case<8:
+  # L1S3 trigger357 shape-independent eligibility: APC/event linked, player absent.
+  # Synthetic resolved handles preserve identity and generation checks.
+  flags=0;count=0;limit=1;now=100;deadline=0;filter_=2;attached=-1
+  handles=[0x12340001,0x23450002]+[0]*6;n=2
+  actor_handle=[0x12340001,0x34560003,0x99990001,0x23450002][case%4]
+  facts=[actor_handle,1,1,1,1,1,0,0,0];input_=case//4
  command=w(flags,count,limit,deadline,filter_,attached,n,*facts,now,input_,*handles);commands.extend(command)
  original=bytearray(0x400);struct.pack_into('<i',original,0x298,deadline);struct.pack_into('<ii',original,0x2a0,count,limit)
  struct.pack_into('<I',original,0x2b0,flags);struct.pack_into('<I',original,0x2c4,filter_);struct.pack_into('<i',original,0x304,attached);original[0x2d4:0x2e0]=w(n,8,base+0x800)
@@ -35,6 +42,7 @@ for case in range(4096):
  u.mem_write(stack,w(stop,base,base+0x1000,input_));u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(0x4c06d0,stop,count=100000)
  assert u.reg_read(UC_X86_REG_EIP)==stop
  result=u.reg_read(UC_X86_REG_EAX)&255;assert result in (0,1);accepted+=result;results.extend(w(0,result))
+ if case<8:assert result==int(case%4 in (0,3)), ('linked actor filter',case,result)
  assert bytes(u.mem_read(base,0x400))==original and bytes(u.mem_read(base+0x1000,0x100))==actor
  x.mem_write(base,command[:28]+w(base+0x800));x.mem_write(base+0x100,command[28:64]);x.mem_write(base+0x800,w(*handles));x.mem_write(base+0x400,w(0xa5a5a5a5))
  x.mem_write(stack,w(stop,base,base+0x100,now,input_,base+0x400));x.reg_write(UC_X86_REG_ESP,stack);x.emu_start(entry,stop,count=100000)
@@ -42,5 +50,5 @@ for case in range(4096):
  assert w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(base+0x400,4))==w(0,result),case
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_event_probe.exe'),'--trigger-eligible'],input=commands)
 assert actual==results
-report=dict(result='PASS',cases=4096,accepted=accepted,scope='Full original 4c06d0 with timer and allowed-handle array helpers unchanged. Seven actor/registry predicates supplied; stable input snapshots. Exact decisions on PC/NXDK, untouched original trigger/actor storage. Flags, signed counts, cooldown endpoints, filters, missing entities, handle lists, low-byte inputs. Live actor resolution, contact geometry and firing excluded.')
+report=dict(result='PASS',cases=4096,linked_actor_fixtures=8,accepted=accepted,scope='Full original 4c06d0 with timer and allowed-handle array helpers unchanged. Seven actor/registry predicates supplied; stable input snapshots. Exact decisions on PC/NXDK, untouched original trigger/actor storage. Flags, signed counts, cooldown endpoints, filters, missing entities, handle lists, low-byte inputs. Live actor resolution, contact geometry and firing excluded.')
 (root/'artifacts/trigger-eligibility-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
