@@ -2261,3 +2261,7 @@ used to implement unconditional player damage or death.
 membership/rebinding tests,93-level startup graphs and original filter
 comparisons pass. Native930-frame replay20260911-022235 matches PC on64MiB.
 NPC registration, point-event filter5 and special ownership gates remain open.
+
+2026-09-11: Continuous_Damage original on/off trace passes450 cases each,
+including1080 damage requests and72 secondary effects. Next reconstruct
+target dispatch and verify loader inputs/repeat scheduling before integration.

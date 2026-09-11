@@ -1004,3 +1004,32 @@ player to fire the APC-only pit trigger. This does not validate NPC traversal.
 Native930-frame replay20260911-022235 passes on QMP-verified64MiB XEMU,
 including PC contact/activation state parity and nonzero guest DSP output.
 The shared authored-filter preparation is now exercised by both platforms.
+
+## Continuous_Damage original action trace
+
+Type17 allocates0x2c0 bytes via4b69d0 and constructor4be6e0 installs
+vtable5899fc: on4bb4d0, off4b9f80. Loader helper4b8010 places its two
+arguments at+2b8/+2bc. Exact mapping from all loader call-site inputs and
+repeated scheduling still need verification before runtime integration.
+
+The on-action iterates event links at+29c with generation-checked40a0e0
+lookup, skipping absent/stale objects. For each valid link it calls4892c0
+with target,amount,-1,-1,kind,0,-1,1. A zero signed amount at+2b8 gives
+10000.0f; otherwise the signed integer multiplies binary32 frame duration
+at5a4014 and is stored tofloat under53-bit x87 precision. Negative rates
+are passed through; their later damage semantics are not established here.
+
+An actor other than-1 at+2a8 is additionally looked up through426fc0 and
+excluded when4290d0 or427020 returns exactly1. Otherwise4892c0 receives
+the actor again, this time with the entity handle as source. A target present
+in both event links and actor receives both calls: no deduplication. After
+this actor call,48acf0 can enable secondary40e0b0 feedback for kinds0,3,5,6
+with raw float arguments0x3c23d70a and0x3f000000. Type17 off is a no-op.
+
+verify_continuous_damage_trace.py executes450 on/450 off original actions,
+recording1080 damage and72 feedback requests. It supplies entity lookup and
+three predicate results, intercepts the damage/feedback backends and provides
+the ignored damage float return. Real array and object-handle lookup run.
+This establishes request ordering/arithmetic; it does not implement health,
+death, backend effects, missing-entity behavior or event scheduling, and does
+not yet compare a reconstructed C action. Report:continuous-damage-trace.json.
