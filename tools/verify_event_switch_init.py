@@ -29,6 +29,8 @@ def hook(m,address,size,context):
   assert m.reg_read(UC_X86_REG_ECX)==base+0x2c0 and read(m,sp+4)==sound;pop=4
  elif address==0x5054b0:
   assert bytes(m.mem_read(sp+4,16))==w(sound,0x40a00000,0x3f800000,0x3f800000)
+  if bytes(m.mem_read(sound,1))==b'\0':
+   calls.append('empty-load');return # Execute actual5054b0 ->543580 empty-name path.
   m.reg_write(UC_X86_REG_EAX,audio_handle);calls.append('load')
  else:
   assert read(m,sp+4)==audio_handle;calls.append('preload')
@@ -53,10 +55,17 @@ for index,(disabled,limit,mode,unlimited) in enumerate(cases):
  x.mem_write(base,b'\xa5'*20);x.mem_write(stack,w(stop,base,disabled,limit)+f(mode)+w(unlimited));x.reg_write(UC_X86_REG_ESP,stack)
  x.emu_start(entry,stop,count=10000);assert x.reg_read(UC_X86_REG_EIP)==stop and x.reg_read(UC_X86_REG_EAX)==0
  assert bytes(x.mem_read(base,20))==result,index
+assert all(not row['texts'][0] for _,row in authored)
+u.mem_write(sound,b'\0');u.mem_write(base,b'\xa5'*0x2d8)
+u.mem_write(frame,bytes(256));u.mem_write(frame+0x10,w(1)+f(0))
+u.reg_write(UC_X86_REG_ESI,0);u.reg_write(UC_X86_REG_EBX,1);u.reg_write(UC_X86_REG_ESP,frame);calls=[]
+u.emu_start(0x462626,0x46264b,count=10000)
+assert u.reg_read(UC_X86_REG_EIP)==0x46264b and read(u,base+0x2d0)==0xffffffff
+assert calls==['empty-load'],calls
 for mode in (float('nan'),float('inf'),-float('inf'),2147483648.,-2147483904.):
  commands.extend(w(1,1)+f(mode)+w(1));expected.extend(w(0xfffffffc)+b'\xa5'*20)
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_event_probe.exe'),'--switch-init'],input=commands)
 assert actual==expected,[(i,actual[i:i+24].hex(),expected[i:i+24].hex()) for i in range(0,len(expected),24) if actual[i:i+24]!=expected[i:i+24]][:3]
-report=dict(result='PASS',authored=len(authored),cases=len(cases),original_sha256=digest,scope='Prepared loader block462626 through setter4b83e0 with actual573528 float conversion. Factory, string access/copy and audio ownership supplied at boundaries; sound arguments and optional preload verified. All authored Switch field sets plus truncation/low-byte edge cases exact PC/NXDK. Five invalid mode PC cases preserve output. No full RFL loader, sound ownership or linked initialization.')
+report=dict(result='PASS',authored=len(authored),cases=len(cases),original_empty_sound=True,original_sha256=digest,scope='Prepared loader block462626 through setter4b83e0 with actual573528 float conversion. Factory, string access/copy and nonempty audio ownership supplied at boundaries; sound arguments and optional preload verified. All83 authored names are empty; an additional actual5054b0 ->543580 run returns -1 and skips preload. All authored Switch field sets plus truncation/low-byte edge cases exact PC/NXDK. Five invalid mode PC cases preserve output. No full RFL loader, nonempty sound ownership or linked initialization.')
 (root/'artifacts/event-switch-init.json').write_text(json.dumps(report,indent=2));print(report)
 

@@ -554,3 +554,35 @@ its scope. For example, the independently observed4bb78c register call is
 not in this database inventory. No lifecycle placement is claimed from a
 negative search. Next tracing must account for these coverage gaps or use
 an original-process execution trace before enabling automatic initialization.
+
+
+### Campaign Switch sound residency
+
+All83 authored Switch records have empty activation-sound names. The loader
+verifier now executes actual5054b0 ->543580 for an empty name, through the
+prepared462626/4b83e0 path: it stores sample index-1 and does not call5054d0.
+The existing443 field cases and five invalid-mode output-preservation cases
+still pass. Nonempty registration remains a supplied boundary in that proof.
+
+The campaign audio bank now processes Switch activation names with parameters
+5/1/1 and reserves slots only for nonempty names. This is the existing bounded
+archive/PCM adapter, not a reconstruction of all original fallback/loading
+semantics. No named Switch activation PCM is allocated in these93 levels.
+The two mode2 Switches in L1S3, two mode1 Switches in L4S5, and one mode2
+Switch in L9S3 can request original4bc520's shared rejection sound slot2.
+Those levels now preload that waveform before closing the loading archive.
+This is an explicit port residency policy within the existing1MiB sound-bank
+budget, not a claim that the original preloads rejection audio at this point.
+
+SWITCH_AUDIO records Switch count, ready named activations, rejection-slot
+residency and added waveform-file bytes. The PC campaign residency verifier
+checks all three rejection-mode levels and L1S2 as a control. Results are
+[2,0,1,5878], [2,0,1,5878], [9,0,1,5878] and [1,0,0,0], respectively.
+No separate per-Switch sound array or empty-name bank slots are allocated.
+
+NXDK build and native64MiB L1S3 replay-20260910-221630 pass, including exact
+PC/Xbox SWITCH_AUDIO, bank, event, physics and replay-state comparisons.
+At completion9,702 pages remain available; L1S3 retains452,520 waveform-file
+bytes and15,256 metadata bytes. This is a two-command authored-spawn residency
+check. It does not prove a live Switch activation or audible rejection: the
+live Switch target backend and nonspatial playback connection remain open.

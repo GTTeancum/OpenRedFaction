@@ -474,6 +474,8 @@ void rf_scene_set_audio(rf_scene_audio_sink sink,void *context)
  * unavailable requests, rendered frames, PCM byte hash. No device output yet. */
 uint32_t rf_scene_live_audio[8];
 uint32_t rf_scene_sound_bank[4]; /* global declarations, resident samples, PCM file bytes, metadata bytes */
+/* Switch count, resident named activations, rejection-slot residency, added PCM bytes. */
+uint32_t rf_scene_switch_audio[4];
 typedef struct campaign_spatial_voice {
     uint32_t handle,sample;float position[3],volume;int32_t last_volume,last_pan;
 } campaign_spatial_voice;
@@ -521,6 +523,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
     rf_scene_spatial_audio[5]=sizeof(campaign_spatial_voices)+sizeof(campaign_listener_position)+sizeof(campaign_listener_right);
     memset(rf_scene_live_audio,0,sizeof(rf_scene_live_audio));rf_scene_live_audio[7]=2166136261u;
     memset(rf_scene_sound_bank,0,sizeof(rf_scene_sound_bank));
+    memset(rf_scene_switch_audio,0,sizeof(rf_scene_switch_audio));
     rf_audio_mixer_init(&campaign_audio_mixer);
     for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
         campaign_controller_requests[i].sounds.samples[j]=-1;
@@ -536,7 +539,12 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
         declarations=malloc((size_t)declared*sizeof(*declarations));if(!declarations){status=RF_RANGE;goto audio_done;}
         status=rf_sound_table_load(&tables,65536,declarations,declared,&declared);if(status)goto audio_done;
     }
-    capacity=declared+campaign_group_runtime.count*4;if(!capacity)capacity=1;if(capacity>2600)capacity=2600;
+    capacity=declared+campaign_group_runtime.count*4;
+    for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state) {
+        ++rf_scene_switch_audio[0];
+        if(campaign_events.items[i].authored->record.texts[0][0])++capacity;
+    }
+    if(!capacity)capacity=1;if(capacity>2600)capacity=2600;
     status=rf_audio_bank_open(&archive,capacity,1024*1024,&campaign_audio_bank);
     if(status)goto audio_done;
     for(i=0;i<declared;i++) {
@@ -558,6 +566,29 @@ static int campaign_audio_open(const char *tables_path,const char *level_name)
         if(!loaded)campaign_controller_requests[i].sounds.samples[j]=(int32_t)index;
         else if(loaded==RF_NOT_FOUND)++rf_scene_live_audio[2];
         else ++rf_scene_live_audio[3];
+    }
+    {
+        uint32_t before=campaign_audio_bank.bytes,rejection=0;
+        for(i=0;i<campaign_events.count;i++) {
+            const rf_runtime_event *event=campaign_events.items+i;int loaded;
+            if(!event->switch_state)continue;
+            if(event->switch_state->mode==1 || event->switch_state->mode==2)rejection=1;
+            /* Original4b83e0 ->5054b0(name,5,1,1), then5054d0(index).
+             * Empty names return -1 in543580 and do not preload. */
+            if(!event->authored->record.texts[0][0])continue;
+            loaded=rf_audio_bank_declare(&campaign_audio_bank,event->authored->record.texts[0],5,1,1,&index);
+            if(!loaded)loaded=rf_audio_bank_reload(&campaign_audio_bank,&archive,index);
+            if(!loaded)++rf_scene_switch_audio[1];
+            else if(loaded==RF_NOT_FOUND)++rf_scene_live_audio[2];
+            else ++rf_scene_live_audio[3];
+        }
+        /* Bounded port residency policy: prepare original4bc520's shared
+         * nonspatial rejection slot2 before closing the loading archive. */
+        if(rejection) {
+            status=rf_audio_bank_reload(&campaign_audio_bank,&archive,2);if(status)goto audio_done;
+            rf_scene_switch_audio[2]=1;
+        }
+        rf_scene_switch_audio[3]=campaign_audio_bank.bytes-before;
     }
     rf_scene_live_audio[0]=campaign_audio_bank.count;rf_scene_live_audio[1]=campaign_audio_bank.bytes;
     for(i=0;i<campaign_forces.count;i++)if(campaign_forces.items[i].flags&0x40) {
