@@ -979,3 +979,32 @@ internals and reference acquisition still require execution verification.
 Automatic campaign eviction remains unimplemented; current retained PCM is
 released only after the port's synchronous device reset. No runtime change or
 full transition fidelity is claimed by these dispatch/reference tests.
+
+
+### Device cache acquisition and identity
+
+verify_audio_acquisition.py executes521c10 with original522210 lookup,5221e0
+hash and57c130 comparison. Only resource loading521d30 is supplied.72 cases
+check complete six-record cache images, returned index, load calls and count;
+eight separate hash cases include null and signed high-byte input. All pass.
+
+The592-byte device record starts at1887388.5221e0 rotates the hash left6 and
+XORs each sign-extended character. Lookup checks that hash before ASCII-insensitive
+name comparison, scanning only indices below1aed35c and returning the first
+match. Consequently ordinary case-only changes can fail the hash gate despite
+the case-insensitive comparator. Null hashes toFFFFFFFF; an empty name to0.
+
+521c10 reuses a valid matched entry by incrementing its reference at+588, without
+calling the loader or changing the global count. Otherwise it writes the name,
+path, offset and parameter into the entry at the global count and calls521d30.
+Failure clears the first name/path bytes and returns-1 without count/reference
+increments. Success stores the hash and increments both reference and count.
+Loader mode is forwarded unchanged; its interpretation remains inside521d30.
+The harness supplies no loader mutations, so these tests prove wrapper changes,
+not the initialized reference state of a newly loaded real resource.
+
+Together with522270 this identifies reference acquisition/release, but arbitrary
+cache-hole reuse is not established: acquisition uses the current count while
+release decrements it. Selective-release ordering, loading/destruction internals
+and registry retention scheduling must be reconciled before transplanting this
+policy into the bounded port bank. No automatic eviction is added by this test.
