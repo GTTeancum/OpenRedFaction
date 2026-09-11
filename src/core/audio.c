@@ -384,6 +384,25 @@ void rf_audio_position(const float position[3],const float listener[3],
     output[0]=(float)((double)right[2]*v[2]+(double)right[1]*v[1]+(double)right[0]*v[0]);
 }
 
+float rf_audio_sample_gain(float default_volume,float category_gain,float scale)
+{ return (float)(((double)category_gain*default_volume)*scale); }
+float rf_audio_ambient_gain(const rf_audio_parameters *parameters,const float position[3],
+    const float listener[3],float category_gain,float scale,uint32_t enabled)
+{
+    float delta[3],distance,result;double gain,denominator;uint32_t i;
+    if(!(enabled&255u))return 0;
+    if(position[0]==listener[0] && position[1]==listener[1] && position[2]==listener[2])
+        return rf_audio_sample_gain(parameters->volume,category_gain,scale);
+    for(i=0;i<3;++i)delta[i]=position[i]-listener[i];
+    distance=(float)sqrt(((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2]);
+    gain=parameters->volume;if(scale<1)gain*=scale;
+    if(distance>parameters->far_distance)return 0;
+    if(distance>parameters->near_distance) {
+        denominator=((double)distance/parameters->near_distance-1)*parameters->rolloff+1;
+        gain=denominator==0?0:gain/denominator;
+    }
+    result=(float)(gain*category_gain);return result<1?result:1;
+}
 float rf_audio_far_distance(float near_distance,float rolloff,float default_volume)
 {
     return (float)((1-1/(double)rolloff)*near_distance+

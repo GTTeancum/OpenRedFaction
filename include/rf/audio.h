@@ -108,6 +108,15 @@ typedef struct rf_wave_pcm {
  * RIFF extent must equal supplied size. Errors preserve output. */
 int rf_wave_pcm_parse(const void *data,uint32_t size,rf_wave_pcm *result);
 typedef struct rf_audio_parameters {float near_distance,far_distance,volume,rolloff;} rf_audio_parameters;
+/* Original543a60 category/default/input multiplication, rounded at the caller. */
+float rf_audio_sample_gain(float default_volume,float category_gain,float scale);
+/* Original543c20 ambient refresh, including exact-position fast path, low-byte
+ * enabled gate, rounded distance, unrounded attenuation and upper-only clamp.
+ * Finite inputs/positive near distance are required. Equal positions apply
+ * scale without clamping; elsewhere only scale<1 affects gain. Device544390
+ * performs its own later0..1 clamp. No pan update or slot volume is applied. */
+float rf_audio_ambient_gain(const rf_audio_parameters *parameters,const float position[3],
+    const float listener[3],float category_gain,float scale,uint32_t enabled);
 typedef struct rf_audio_declaration {char name[61];float near_distance,volume,rolloff;} rf_audio_declaration;
 /* Port table adapter: bounded #Sounds Start/End, quoted archive names and three
  * finite decimal values per row. No allocation; max2048 rows. Errors preserve

@@ -439,3 +439,31 @@ refresh calls also verify sample/position/scale1 followed by the returned gain
 at544390. Callback-state visibility and unchanged slot fields are checked.
 PC/NXDK builds and all eight CTests pass. Actual refresh math, bounded PCM
 residency and native ambient playback remain the next integration work.
+
+
+## Shared initial and refresh gain
+
+rf_audio_sample_gain reconstructs543a60: category gain times sample default
+volume times input scale, retaining double intermediates before the caller's
+binary32 result. rf_audio_ambient_gain reconstructs543c20 and its actual
+vector/equality/distance/minimum callees. Disabled low-byte audio returns0.
+When source equals listener exactly, it uses the sample-gain product directly,
+without distance cutoff or the ordinary upper clamp, and applies all scales.
+
+For distinct positions, vector differences are rounded to binary32 and the
+x/y/z squared sum produces a rounded binary32 distance. Only scales below1
+multiply the default volume. Distance greater than far returns0; greater than
+near applies the unrounded attenuation denominator. A zero denominator gives0.
+Category multiplication is rounded to binary32 before the upper-only minimum
+with1. Negative values can survive this helper;544390 clamps0..1 later. Slot
+volume is not an input to the refresh helper, and it does not update pan.
+These differences from505740 and the initial gain path are intentional.
+
+verify_ambient_gain.py executes unhooked543a60 and543c20 including original
+comparison, vector, distance and clamp callees. All4,096 cases for both functions
+match exact caller-rounded results on PC and compiled NXDK with53-bit x87
+precision. Coverage includes308 enabled equal-position cases,1,639 disabled
+cases, scale/category/default variations, near/far boundaries, random positions
+and the zero-denominator branch. No device hooks or supplied arithmetic are
+used. PC/NXDK builds and all eight CTests pass. These helpers are ready for the
+ambient backend; PCM ownership and native ambient output remain unfinished.

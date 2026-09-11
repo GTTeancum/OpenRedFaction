@@ -30,6 +30,19 @@ static int32_t ambient_register(void *context,const char *name,float near_distan
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--ambient-gain")) {
+        struct {rf_audio_parameters parameters;float position[3],listener[3],category,scale;uint32_t enabled;} command;
+        _Static_assert(sizeof(command)==52,"Ambient gain command layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        for(;;) {
+            size_t received=fread(&command,1,sizeof(command),stdin);float output[2];
+            if(!received)break;if(received!=sizeof(command))return 66;
+            output[0]=rf_audio_sample_gain(command.parameters.volume,command.category,command.scale);
+            output[1]=rf_audio_ambient_gain(&command.parameters,command.position,command.listener,command.category,command.scale,command.enabled);
+            if(fwrite(output,sizeof(output),1,stdout)!=1)return 65;
+        }
+        return ferror(stdin)?64:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ambient-voice")) {
         struct {rf_ambient_slot slot;float gain,pan,category;uint32_t loop;int32_t result;} command;
         const rf_ambient_voice_backend backend={ambient_voice_start,ambient_voice_stop,ambient_voice_refresh};
