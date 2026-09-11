@@ -1,4 +1,5 @@
 #include "rf/entity.h"
+#include "rf/timer.h"
 #include <math.h>
 #include <string.h>
 int rf_entity_sphere_overrides(rf_entity_class_sphere *spheres,uint32_t count,
@@ -218,4 +219,32 @@ int rf_entity_damage_credit_sp(rf_entity_damage_credit *state,int32_t kind,
         }
     }
     state->responsible_handle=responsible;return RF_OK;
+}
+
+int rf_entity_damage_sound(rf_entity_damage_sound_state *state,float fraction,
+    uint32_t predicate_a,uint32_t predicate_b,int32_t now,const rf_entity_damage_sound_backend *backend)
+{
+    int32_t sample,deadline;int expired,status;uint32_t i;
+    if(!state || !backend || !backend->resolve || !backend->playing || !backend->play)return RF_RANGE;
+    if(!isfinite(state->health) || !isfinite(fraction))return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(state->position[i]))return RF_FORMAT;
+    if(state->health<=0 && state->death_descriptor!=-1) {
+        if(!(state->flags&4)) {
+            sample=backend->resolve(backend->context,state->death_class);
+            backend->play(backend->context,state->position,sample);
+            state->flags|=4;
+        }
+        return RF_OK;
+    }
+    if((predicate_a&255) && (predicate_b&255))return RF_OK;
+    if(state->action==1 || state->action==17)return RF_OK;
+    status=rf_timer_expired(state->deadline,now,&expired);if(status)return status;
+    if(!expired)return RF_OK;
+    status=rf_timer_set(&deadline,now,1000);if(status)return status;
+    state->deadline=deadline;
+    /* Original compares the float input to binary64 .3, not .3f. */
+    sample=backend->resolve(backend->context,(double)fraction>.3?state->heavy_class:state->light_class);
+    if(sample!=-1 && !backend->playing(backend->context,state->voice))
+        backend->play(backend->context,state->position,sample);
+    return RF_OK;
 }

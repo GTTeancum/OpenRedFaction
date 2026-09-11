@@ -114,4 +114,20 @@ typedef struct rf_entity_damage_uid {int32_t uid;uint32_t handle;} rf_entity_dam
  * entity-list order and burn42f5a0(+34) snapshot. Positive health is unchanged. */
 int rf_entity_damage_credit_sp(rf_entity_damage_credit *state,int32_t kind,
     uint32_t source,int32_t auxiliary_uid,const rf_entity_damage_uid *entities,uint32_t count);
+typedef struct rf_entity_damage_sound_state {
+    float health;uint32_t flags;int32_t death_descriptor,death_class,light_class,heavy_class;
+    int32_t action,deadline,voice;float position[3];
+} rf_entity_damage_sound_state;
+typedef struct rf_entity_damage_sound_backend {
+    int32_t (*resolve)(void *context,int32_t sound_class);
+    int32_t (*playing)(void *context,int32_t voice);
+    void (*play)(void *context,const float position[3],int32_t sample);
+    void *context;
+} rf_entity_damage_sound_backend;
+/* Complete4196f0 routing with supplied427020/42a8e0 predicate bytes. play
+ * represents48a9c0(entity,position,sample,1,0); actor routing belongs to caller.
+ * State/backend remain alive; callbacks may alter flags (death flag is ORed
+ * after playback). Other fields remain stable. No sample loading here. */
+int rf_entity_damage_sound(rf_entity_damage_sound_state *state,float fraction,
+    uint32_t predicate_a,uint32_t predicate_b,int32_t now,const rf_entity_damage_sound_backend *backend);
 #endif

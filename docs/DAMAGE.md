@@ -74,3 +74,32 @@ positive health and signed zero. Two nonfinite guards bring each compiled
 suite to4,098 cases. Both builds,8,196 vitals cases and eight CTests pass.
 Generated evidence is artifacts/damage-credit.json; no native gameplay
 attribution claim is made until entity ownership and the full backend connect.
+
+## Pain and death sound routing
+
+rf_entity_damage_sound reconstructs complete4196f0. Nonpositive health with a
+death descriptor other than -1 resolves the death class and requests playback
+once, then ORs flag4 after the callback. This preserves callback flag changes;
+the original requests death playback even if resolution returns -1.
+
+The other path rejects the combined427020/42a8e0 predicate, actions1/17 and an
+unexpired timer. It sets a 1000ms deadline before resolving the pain class,
+even when the sample is missing or a voice is already playing. Fraction above
+binary64 .3 chooses the heavy class; binary32 .3f is above that threshold.
+A valid sample plays only when the existing voice is not playing.
+
+The backend supplies resolution, voice status and entity-owned positional
+playback corresponding to48a9c0(entity,position,sample,1,0). Predicate bytes
+are supplied snapshots. Nonfinite health, fraction or position is an explicit
+port guard. State/backend storage must remain alive during callbacks; only
+flags may change through playback. This helper does not load sounds or own
+entities, and is not yet connected to the campaign damage backend.
+
+verify_damage_sound.py executes complete4196f0 with original timers and vector
+copy, intercepting only predicates and external sound calls. It compares
+4,096 cases against PC and actual NXDK-linked code, including timer wrap,
+signed zero, byte predicates, threshold boundaries, missing samples and flag
+mutation during playback. Five nonfinite guards bring each compiled suite to
+4,101 cases. Exact state and ordered sound arguments match; generated evidence
+in artifacts/damage-sound.json records original and NXDK hashes. This verifies
+routing, not audible playback or the remaining damage/death lifecycle.

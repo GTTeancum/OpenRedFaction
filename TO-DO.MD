@@ -2281,3 +2281,8 @@ Recover kill attribution/effects and outer4892c0 routing before live damage.
 2026-09-11: Shared SP lethal attribution matches4,096 original prefixes
 plus two guards on PC/NXDK. Burn-source and first authored-UID lookup order
 are verified. Remaining damage effects, outer routing and ownership stay open.
+
+Damage sound routing: complete4196f0 now matches4,096 original cases on PC/NXDK
+plus five nonfinite guards, including original timers, sound call order and
+callback flag mutation. See docs/DAMAGE.md and tools/verify_damage_sound.py.
+Live damage playback, pain animation and entity/death ownership remain open.

@@ -5,6 +5,15 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+static uint32_t damage_sound_trace[3][8],damage_sound_count,damage_sound_mutation;
+static int32_t damage_sound_sample,damage_sound_playing;
+static rf_entity_damage_sound_state *damage_sound_state;
+static int32_t damage_sound_resolve(void *context,int32_t sound_class)
+{(void)context;if(damage_sound_count<3){damage_sound_trace[damage_sound_count][0]=0;damage_sound_trace[damage_sound_count][1]=(uint32_t)sound_class;}++damage_sound_count;return damage_sound_sample;}
+static int32_t damage_sound_poll(void *context,int32_t voice)
+{(void)context;if(damage_sound_count<3){damage_sound_trace[damage_sound_count][0]=1;damage_sound_trace[damage_sound_count][1]=(uint32_t)voice;}++damage_sound_count;return damage_sound_playing;}
+static void damage_sound_play(void *context,const float position[3],int32_t sample)
+{(void)context;if(damage_sound_count<3){uint32_t *r=damage_sound_trace[damage_sound_count];r[0]=2;memcpy(r+1,position,12);r[4]=(uint32_t)sample;r[5]=0x3f800000;}++damage_sound_count;damage_sound_state->flags^=damage_sound_mutation;}
 static rf_entity_room_result room_result;
 static uint32_t room_queries,room_notices,room_notice_kind;
 static void binding_select(void *context,rf_player_local_binding *local,int32_t weapon)
@@ -30,6 +39,21 @@ static void jump_sound(void *context,const rf_player_jump_state *state,int32_t s
 {uint32_t *out=context;++out[7];out[8]=state->jump_time;out[9]=(uint32_t)sound;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--damage-sound")) {
+        uint32_t wire[19];rf_entity_damage_sound_state state;float fraction;int32_t now,status;
+        rf_entity_damage_sound_backend backend={damage_sound_resolve,damage_sound_poll,damage_sound_play,NULL};
+        _Static_assert(sizeof(state)==48,"Damage sound wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            memcpy(&state,wire,48);memcpy(&fraction,wire+12,4);memcpy(&now,wire+15,4);
+            memcpy(&damage_sound_sample,wire+16,4);memcpy(&damage_sound_playing,wire+17,4);damage_sound_mutation=wire[18];
+            damage_sound_count=0;memset(damage_sound_trace,0,sizeof(damage_sound_trace));damage_sound_state=&state;
+            status=rf_entity_damage_sound(&state,fraction,wire[13],wire[14],now,&backend);
+            if(damage_sound_count>3)return 4;
+            fwrite(&status,4,1,stdout);fwrite(&state,48,1,stdout);fwrite(&damage_sound_count,4,1,stdout);fwrite(damage_sound_trace,sizeof(damage_sound_trace),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--damage-credit")) {
         uint32_t wire[16];rf_entity_damage_credit state;rf_entity_damage_uid entities[4];int32_t kind,uid,status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
