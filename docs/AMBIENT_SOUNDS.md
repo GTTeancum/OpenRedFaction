@@ -650,3 +650,30 @@ and generation to remain unchanged. Repeated and zero-handle stops must preserve
 that state. All144 cases and37008 reference stereo frames pass. PC/NXDK builds,
 all eight CTests and bank ownership/unload/reload checks pass. No native XEMU
 rerun or new device-output claim is made for this shared-state-only change.
+
+
+## Campaign movement across ambient audibility boundaries
+
+tools/replay_ambient_walk.py starts at the authored L1S1 player spawn and uses
+30 neutral,360 forward,360 backward and30 neutral input frames. There is no
+teleport or listener override. PC checkpoints at30/390/780 verify player position,
+ambient decisions and resident bank bytes. The optional --native flag runs the
+same780-frame input through the existing64MiB XEMU memory/DSP harness.
+
+At frame30 the player is near(-119.19,0.32,59.44), with one ambient start and
+one active voice. At390 the player is(-93.65,-3.08,46.88), with three starts
+and three active voices. At780 the player returns near(-117.77,0.34,61.02):
+three cumulative starts, two stops, one active voice and zero failures. Final
+AMBIENT_AUDIO is[780,3,2,1483,0,116632,1,2828698778]. The bank retains seven
+samples using228536 PCM bytes plus13128 metadata bytes. The outward route
+loads two additional ambient samples; the return crosses their stop thresholds.
+
+This covers campaign listener movement and stop decisions. It does not exhaust
+the1MiB budget or establish restart of the stopped samples. Repeated passes,
+actual campaign eviction/reload and original end-to-end audible parity remain
+open. Exploratory L1S3 forward/backward routes did not cross an audible boundary
+and are not used as evidence of stop/restart behavior.
+
+Native run20260911-014404 passes all780 frames on64MiB XEMU, matching PC
+movement/ambient state and producing nonzero guest DSP output. No screenshot
+was captured because this test adds audio evidence, not a new visual feature.
