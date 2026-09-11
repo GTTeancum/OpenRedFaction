@@ -322,3 +322,33 @@ and1764 matrices/generation stamps still match complete original51b500. Both PC
 and NXDK builds pass, including the new bridge symbol in the Xbox link map, and
 all nine CTest checks pass. This does not yet execute the bridge inside XEMU or
 connect it to scene actor startup; scene poses still begin with inactive playback.
+
+## Shared playback resource owner
+
+`rf_entity_playback_resources_open` now retains one mutable playback-resource
+array per catalog model, with all counters initially zero. Model views borrow
+one contiguous resource allocation. A parallel cache-ID array joins identities
+across models and loop/nonloop registrations using the existing original-derived
+last-dot/case-insensitive key helper. Its temporary identity workspace is freed
+once the owner is built. The helper retains the original800-identity limit.
+
+`rf_entity_playback_cache_references` sums runtime counters for one identity
+across all registrations, rejecting negative counters and uint32 overflow. It
+is a query, not an automatic unload decision. The catalog still holds archive
+handles; individual clip release and actor teardown scheduling remain open.
+Level teardown frees this owner after discarding actor poses and before closing
+the catalog/archive. Campaign loading now constructs the owner with a256KiB
+budget, ready for shared counters when actor startup is connected.
+
+`verify_playback_resources.py` independently groups actual catalog names and
+checks all728 resource rows across the three opening levels. Each has76 alias
+registrations. Unique identity counts are172/161/167. PC resident bytes are
+10012/9536/9800; peak bytes including construction scratch are40764/38924/39932.
+The probe also checks metadata copies, exact and one-byte-short budgets, zero
+initial references, synthetic nonzero aggregate counts, invalid-ID and negative
+counter output preservation, and repeated close. Both builds and nine CTest
+checks pass. No live NPC animation is enabled by this allocation step.
+
+Stock64MiB XEMU replay `artifacts/xemu/replay-20260911-081913/report.json`
+passes180 frames with the new campaign allocation; coverage remains startup
+and existing door/audio behavior, not active NPC reference changes.

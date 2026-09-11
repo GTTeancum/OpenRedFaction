@@ -34,6 +34,9 @@ First bone poses now match99 original/PC startup cases across opening models:
 Actor pose/catalog bridge now evaluates owned matrices without heap allocation;
 99 original pose cases pass through it. Connect scene startup and live ownership.
 
+Campaign now owns shared playback counters and cross-model clip alias IDs;
+three-level metadata/budget/reference checks pass. Connect actor startup next.
+
 Immediate open items:
 - [ ] Resolve initial NPC state/weapon selection, then enable live pose evaluation and footstep consumption using shared motion IDs.
 - [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.

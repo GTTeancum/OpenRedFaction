@@ -1563,6 +1563,53 @@ int rf_entity_skeletons_open(const rf_entity_seeds *seeds,rf_vpp *meshes,uint32_
 done:
     free(payload);free(model);rf_entity_skeletons_close(&v);return status;
 }
+void rf_entity_playback_resources_close(rf_entity_playback_resources *r)
+{
+    if(!r)return;free(r->models);free(r->resources);free(r->cache_ids);memset(r,0,sizeof(*r));
+}
+int rf_entity_playback_resources_open(const rf_entity_motion_catalog *catalog,uint32_t budget,rf_entity_playback_resources *result)
+{
+    rf_entity_playback_resources v={0};rf_motion_cache_record *cache=NULL;
+    uint64_t total=0,bytes,peak;uint32_t i,j,at=0,capacity;int status=RF_RANGE;
+    if(!catalog || !result || result->models || result->resources || result->cache_ids || result->model_count ||
+       result->resource_count || result->cache_count || result->resident_bytes || result->peak_bytes ||
+       (catalog->model_count && !catalog->models))return RF_RANGE;
+    for(i=0;i<catalog->model_count;++i) {
+        if(catalog->models[i].count && !catalog->models[i].items)return RF_RANGE;
+        total+=catalog->models[i].count;
+    }
+    if(total>UINT32_MAX)return RF_RANGE;capacity=total>800?800:(uint32_t)total;
+    bytes=sizeof(v)+(uint64_t)catalog->model_count*sizeof(*v.models)+total*(sizeof(*v.resources)+sizeof(*v.cache_ids));
+    peak=bytes+(uint64_t)capacity*sizeof(*cache);if(peak>budget)return RF_RANGE;
+    v.model_count=catalog->model_count;v.resource_count=(uint32_t)total;v.resident_bytes=(uint32_t)bytes;v.peak_bytes=(uint32_t)peak;
+    if(v.model_count)v.models=calloc(v.model_count,sizeof(*v.models));
+    if(total){v.resources=calloc((size_t)total,sizeof(*v.resources));v.cache_ids=calloc((size_t)total,sizeof(*v.cache_ids));cache=calloc(capacity,sizeof(*cache));}
+    if((v.model_count && !v.models) || (total && (!v.resources || !v.cache_ids || !cache)))goto done;
+    for(i=0;i<v.model_count;++i) {
+        rf_entity_playback_model *m=v.models+i;m->count=catalog->models[i].count;
+        if(m->count){m->resources=v.resources+at;m->cache_ids=v.cache_ids+at;}
+        for(j=0;j<m->count;++j,++at) {
+            const rf_entity_model_motion *source=catalog->models[i].items+j;uint32_t id;
+            status=rf_motion_cache_acquire(cache,capacity,source->identity,&id);if(status)goto done;
+            v.cache_ids[at]=id;if(id>=v.cache_count)v.cache_count=id+1;
+            v.resources[at].comparison=source->comparison;v.resources[at].looping=source->looping;
+            memcpy(v.resources[at].markers,source->markers,sizeof(source->markers));
+        }
+    }
+    free(cache);*result=v;return RF_OK;
+done:
+    free(cache);rf_entity_playback_resources_close(&v);return status;
+}
+int rf_entity_playback_cache_references(const rf_entity_playback_resources *r,uint32_t cache_id,uint32_t *references)
+{
+    uint64_t total=0;uint32_t i;
+    if(!r || !references || cache_id>=r->cache_count || (r->resource_count && (!r->resources || !r->cache_ids)))return RF_RANGE;
+    for(i=0;i<r->resource_count;++i)if(r->cache_ids[i]==cache_id) {
+        if(r->resources[i].references<0)return RF_RANGE;
+        total+=(uint32_t)r->resources[i].references;if(total>UINT32_MAX)return RF_RANGE;
+    }
+    *references=(uint32_t)total;return RF_OK;
+}
 int rf_entity_pose_evaluate(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
     const rf_entity_motion_catalog *catalog,float pending_displacement[3])
 {

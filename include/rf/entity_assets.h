@@ -347,6 +347,25 @@ void rf_entity_motion_catalog_close(rf_entity_motion_catalog *catalog);
 int rf_entity_pose_evaluate(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
     const rf_entity_motion_catalog *catalog,float pending_displacement[3]);
 
+typedef struct rf_entity_playback_model {
+    rf_motion_playback_resource *resources;uint32_t *cache_ids;uint32_t count;
+} rf_entity_playback_model;
+typedef struct rf_entity_playback_resources {
+    rf_entity_playback_model *models;rf_motion_playback_resource *resources;uint32_t *cache_ids;
+    uint32_t model_count,resource_count,cache_count,resident_bytes,peak_bytes;
+} rf_entity_playback_resources;
+/* Shared mutable reference counters per catalog registration, initially zero.
+ * Cache IDs join last-dot/case aliases across models and loop flags, using the
+ * original cache key helper (at most800 unique identities). No lazy load/unload.
+ * Budget includes retained arrays and temporary identity cache; excludes stack
+ * and allocator overhead. Empty output required; errors preserve it. */
+int rf_entity_playback_resources_open(const rf_entity_motion_catalog *catalog,uint32_t budget,rf_entity_playback_resources *result);
+/* Level teardown only, after all actors using these counters have stopped. */
+void rf_entity_playback_resources_close(rf_entity_playback_resources *resources);
+/* Sum runtime references across all registrations of one cache identity.
+ * Rejects negative counters/overflow without changing output. Does not release
+ * any archive data; callers must not infer unloadability from a single slot. */
+int rf_entity_playback_cache_references(const rf_entity_playback_resources *resources,uint32_t cache_id,uint32_t *references);
 /* Compose a base catalog map and an optional already-resolved weapon map using
  * the42ab20 overlay rule. Inputs must share class/skeleton; base weapon is-1.
  * Result keeps base entries when weapon entries are-1. Does not choose a weapon,

@@ -155,6 +155,31 @@ int main(int argc,char **argv)
                 memcmp(&catalog_guard,&(rf_entity_motion_catalog){0},sizeof(catalog_guard)))return 18;
             if(rf_entity_motion_catalog_open(&skeletons,&m,catalog.peak_bytes,&catalog_guard))return 19;
             rf_entity_motion_catalog_close(&catalog_guard);rf_entity_motion_catalog_close(&catalog_guard);
+            {
+                rf_entity_playback_resources playback={0},guard={0};uint32_t at=0,id,total;
+                if(rf_entity_playback_resources_open(&catalog,256*1024,&playback))return 30;
+                if(rf_entity_playback_resources_open(&catalog,playback.peak_bytes-1,&guard)!=RF_RANGE || memcmp(&guard,&(rf_entity_playback_resources){0},sizeof(guard)))return 31;
+                if(rf_entity_playback_resources_open(&catalog,playback.peak_bytes,&guard))return 32;
+                rf_entity_playback_resources_close(&guard);rf_entity_playback_resources_close(&guard);
+                for(i=0;i<playback.model_count;++i)for(j=0;j<playback.models[i].count;++j,++at) {
+                    rf_motion_playback_resource *r=playback.models[i].resources+j;const rf_entity_model_motion *m=catalog.models[i].items+j;
+                    if(r!=playback.resources+at || r->references || memcmp(&r->comparison,&m->comparison,sizeof(r->comparison)) ||
+                       r->looping!=m->looping || memcmp(r->markers,m->markers,sizeof(r->markers)))return 33;
+                    r->references=(int32_t)(at%3+1);
+                    printf("PLAYBACK_ALIAS\t%u\t%u\t%u\t%d\n",i,j,playback.models[i].cache_ids[j],r->references);
+                }
+                for(id=0;id<playback.cache_count;++id) {
+                    if(rf_entity_playback_cache_references(&playback,id,&total))return 34;
+                    printf("PLAYBACK_REFERENCES\t%u\t%u\n",id,total);
+                }
+                total=123;if(rf_entity_playback_cache_references(&playback,playback.cache_count,&total)!=RF_RANGE || total!=123)return 35;
+                if(playback.resource_count) {
+                    playback.resources[0].references=-1;
+                    if(rf_entity_playback_cache_references(&playback,playback.cache_ids[0],&total)!=RF_RANGE || total!=123)return 36;
+                }
+                printf("PLAYBACK_OWNER\t%u\t%u\t%u\t%u\n",playback.resource_count,playback.cache_count,playback.resident_bytes,playback.peak_bytes);
+                rf_entity_playback_resources_close(&playback);rf_entity_playback_resources_close(&playback);
+            }
             for(i=0;i<catalog.mapping_count;++i) {
                 const rf_entity_motion_mapping *map=catalog.mappings+i;
                 const char *cls=seeds.records.items[seeds.classes[map->class_index].record_index].record.class_name;
