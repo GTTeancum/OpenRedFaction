@@ -22,6 +22,9 @@ int rf_xbox_scene_stream_frame_sized(const rf_preview_mesh *mesh,const rf_materi
  * initialized pbkit back buffer. CPU vertices and native image remain owned
  * by caller. Synchronous completion permits immediate resource release.
  * Default ordinary/glow particle modes, optionally no-Z, are supported.
+ * Also supports untextured HUD mode0x18000 with image=NULL and fog disabled;
+ * this uses diffuse RGBA directly, alpha blending, no depth test/writes and
+ * no texture allocation. Vertices may describe the full viewport.
  * depth = bias + scale * reconstructed_depth explicitly adapts the target
  * buffer; this is not an assertion that the diagnostic world uses RF depth.
  * Sets its own shader/texture/depth/blend state; caller restores later passes.

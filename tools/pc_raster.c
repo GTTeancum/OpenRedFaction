@@ -107,18 +107,19 @@ int rf_pc_raster_particle(rf_pc_raster *r,const rf_particle_draw_vertex *vertice
     uint32_t fog_enabled,uint32_t fog_rgb)
 {
     float positions[12][2],colors[12][4],fog[12],xmin=INFINITY,xmax=-INFINITY,ymin=INFINITY,ymax=-INFINITY;
-    uint32_t i,j,base_mode=mode&~(31u<<20),depth_mode=(mode>>20)&31u,glow;
+    uint32_t i,j,base_mode=mode&~(31u<<20),depth_mode=(mode>>20)&31u,glow,solid=mode==0x18000u;
     int x,y,x0,x1,y0,y1;
     if(!r || !r->rgb || !r->depth || !r->width || !r->height || !vertices || count<3 || count>12 ||
-       !image || !image->rgba || !image->width || !image->height ||
+       (!solid && (!image || !image->rgba || !image->width || !image->height)) ||
        !isfinite(depth_scale) || !isfinite(depth_bias))return RF_RANGE;
-    if((base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) && base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20))) || depth_mode>1)return RF_NOT_FOUND;
-    if((image->width&(image->width-1)) || (image->height&(image->height-1)) ||
-       (uint64_t)image->width*image->height*4>image->bytes)return RF_FORMAT;
+    if((base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) && base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20)) && !solid) || depth_mode>1)return RF_NOT_FOUND;
+    if(!solid && ((image->width&(image->width-1)) || (image->height&(image->height-1)) ||
+       (uint64_t)image->width*image->height*4>image->bytes))return RF_FORMAT;
     glow=base_mode==(RF_PARTICLE_GLOW_MODE&~(31u<<20));
+    if(solid && (fog_enabled&255u))return RF_NOT_FOUND;
     for(i=0;i<count;i++) {
         if(!isfinite(vertices[i].depth) || !isfinite(vertices[i].reciprocal_w) || !isfinite(depth_bias+depth_scale*vertices[i].depth))return RF_RANGE;
-        fog[i]=(!glow && (fog_enabled&255u))?(float)(vertices[i].fog>>24)/255.0f:1;
+        fog[i]=(!solid && !glow && (fog_enabled&255u))?(float)(vertices[i].fog>>24)/255.0f:1;
         for(j=0;j<2;j++) {
             positions[i][j]=vertices[i].screen[j]*r->scale;
             if(!isfinite(positions[i][j]) || !isfinite(vertices[i].uv[j]) || !isfinite(vertices[i].uv[j]*vertices[i].reciprocal_w))return RF_RANGE;
@@ -151,7 +152,8 @@ int rf_pc_raster_particle(rf_pc_raster *r,const rf_particle_draw_vertex *vertice
             pixel=(uint32_t)y*r->width+(uint32_t)x;
             if(depth_mode && depth_bias+depth_scale*z>r->depth[pixel])break;
             if(q==0 || !isfinite(q))break;
-            sample(image,uv[0]/q,uv[1]/q,1,texel);
+            if(solid)for(k=0;k<4;k++)texel[k]=1;
+            else sample(image,uv[0]/q,uv[1]/q,1,texel);
             for(k=0;k<3;k++) {
                 float alpha=texel[3]*color[3];
                 float source=fminf(1,fmaxf(0,texel[k]*color[k]+(float)((fog_rgb>>(k*8))&255u)/255.0f*(1-f)));

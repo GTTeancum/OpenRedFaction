@@ -41,8 +41,31 @@ static int stretch_test(void)
     }
     rf_pc_raster_close(&raster);return 0;
 }
+static int flash_test(void)
+{
+    const uint32_t colors[4]={0x00ff0000,0x80ff0000,0xffff0000,0x804080c0};
+    const uint32_t points[5][2]={{0,0},{639,0},{0,479},{639,479},{320,240}};
+    rf_pc_raster r={0};rf_particle_draw_vertex v[4];uint32_t i,j,k;
+    if(rf_pc_raster_open(&r,1))return 1;
+    for(i=0;i<4;++i) {
+        for(j=0;j<r.pixels;++j){r.rgb[j*3]=32;r.rgb[j*3+1]=64;r.rgb[j*3+2]=96;r.depth[j]=0;}
+        memset(v,0,sizeof(v));
+        for(j=0;j<4;++j){v[j].screen[0]=(j==1 || j==2)?640:0;v[j].screen[1]=j>=2?480:0;
+            v[j].reciprocal_w=1;v[j].depth=16777215;v[j].argb=colors[i];}
+        if(rf_pc_raster_particle(&r,v,4,NULL,0x18000,1,0,0,0))return 2;
+        for(j=0;j<r.pixels;++j) {
+            if(r.depth[j]!=0)return 3;
+            for(k=0;k<3;++k){int source=(colors[i]>>(16-k*8))&255,alpha=colors[i]>>24;
+                int ref=(source*alpha+(32+32*k)*(255-alpha)+127)/255;
+                int delta=(int)r.rgb[j*3+k]-ref;if(delta < -1 || delta > 1)return 4;}
+        }
+        for(j=0;j<5;++j){k=(points[j][1]*r.width+points[j][0])*3;printf("%u %u %u\n",r.rgb[k],r.rgb[k+1],r.rgb[k+2]);}
+    }
+    rf_pc_raster_close(&r);return 0;
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--flash"))return flash_test();
     if(argc==2 && !strcmp(argv[1],"--stretch"))return stretch_test();
     if(argc==3 && !strcmp(argv[1],"--textures"))return texture_test(argv[2]);
     static const unsigned char expected[12][3]={{144,32,48},{160,64,96},{16,160,48},{88,48,72},{255,0,0},{127,0,0},{127,0,0},{63,128,0},{80,96,48},{24,48,80},{32,64,96},{255,0,0}};

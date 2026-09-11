@@ -85,12 +85,21 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   assert max(errors)<=2,report['stretch']['max_channel_error']
   assert all(rgb==(32,64,96) for rgb in actual[768:1024])
   assert all(any(rgb!=(32,64,96) for rgb in actual[i*256:(i+1)*256]) for i in (0,1,2,4,5))
+  flash_address=int(re.search(r'\s_rf_flash_pixel_diagnostic\s+([0-9a-fA-F]+)',mapping)[1],16)
+  flash=words(monitor,flash_address,22)
+  flash_pc=[tuple(map(int,line.split())) for line in subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe'),'--flash'],text=True).splitlines()]
+  flash_rgb=[((p>>16)&255,(p>>8)&255,p&255) for p in flash[2:]]
+  assert flash[:2]==[0x5246464c,2] and len(flash_pc)==20
+  errors=[abs(a-b) for rgb,ref in zip(flash_rgb,flash_pc) for a,b in zip(rgb,ref)]
+  report['flash']=dict(actual_rgb=flash_rgb,pc_rgb=flash_pc,max_channel_error=max(errors))
+  assert max(errors)<=2,report['flash']
   report['result']='PASS'
 finally:
  if monitor:
   try:monitor.command('quit')
   except (OSError,RuntimeError):pass
-  monitor.close()
+  try:monitor.close()
+  except (OSError,RuntimeError):pass
  if process:
   try:process.wait(timeout=10)
   except subprocess.TimeoutExpired:process.kill();process.wait()

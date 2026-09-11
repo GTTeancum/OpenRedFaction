@@ -3864,3 +3864,35 @@ passes180 frames with existing NPC damage/door state; CAMPAIGN_PLAYER is
 [16777471,0,8,4172]. The inactive flash owner is constructed, but no
 compositor or real player-health caller is attached; this replay does not
 prove visible flash behavior. No screenshot was captured.
+
+
+## Untextured flash compositor backend
+
+PC and Xbox convex-polygon backends now accept exact mode0x18000 with
+no image and fog disabled. This emits diffuse color/alpha directly, with
+SRCALPHA/INVSRCALPHA blending and no depth test or writes. The Xbox path
+uses a texture-free fragment shader, disables texture sampling explicitly,
+and does not upload a placeholder image. Fog-enabled use is rejected.
+The APIs retain their particle names but this mode is an untextured HUD pass.
+
+verify_flash_render_state.py executes full original54f160 with prepared
+empty-batch state and initialized stage-owner indices. Actual55cad0/55d250
+unbind both texture stages at the fake COM device; diffuse color/alpha
+selection and blend/depth/fog settings match this mode. Three LOD-bias
+values verify the otherwise irrelevant inherited sampler-state write.
+Original device pixels are not emulated by that verifier.
+
+Native particle-pixels-20260911-155435 passes on stock64MiB XEMU, including
+all existing particle/animated-texture/stretched-geometry checks. New
+fullscreen cases use transparent red, half-alpha red, opaque red and a
+half-alpha nonprimary color, over RGB(32,64,96). All four corners and
+center match PC exactly (maximum channel error0). The PC test checks
+every pixel and unchanged depth, even with foreground depth0. Both builds
+and all12 CTest checks pass. The first native attempt exposed inherited
+texture-shader state; explicitly disabling that state fixed the emulator
+assertion. Harness cleanup now tolerates a disconnected monitor so flag
+restoration and repacking still run after an emulator failure.
+
+This verifies backend pixels only. The retained player flash still needs
+the campaign render callback and real player-damage dispatch connected.
+No new campaign screenshot or full HUD fidelity is claimed.

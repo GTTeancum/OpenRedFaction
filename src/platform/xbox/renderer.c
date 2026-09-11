@@ -252,12 +252,13 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
 #include "particle_vertex.inl"
     };
     gpu_texture texture={0};uint32_t *p,i,j,base_mode=mode&~(31u<<20);
-    uint32_t depth_mode=(mode>>20)&31u,glow;int status;
-    if(!vertices || !image || !image->rgba || count<3 || count>12 ||
+    uint32_t depth_mode=(mode>>20)&31u,glow,solid=mode==0x18000u;int status;
+    if(!vertices || (!solid && (!image || !image->rgba)) || count<3 || count>12 ||
        !isfinite(depth_scale) || !isfinite(depth_bias))return RF_RANGE;
     if((base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) &&
-        base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20))) || depth_mode>1)return RF_NOT_FOUND;
+        base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20)) && !solid) || depth_mode>1)return RF_NOT_FOUND;
     glow=base_mode==(RF_PARTICLE_GLOW_MODE&~(31u<<20));
+    if(solid && (fog_enabled&255u))return RF_NOT_FOUND;
     /* Avoid submitting invalid values to the GPU; original infinity behavior
      * stays in the reconstructed core, outside this finite backend domain. */
     for(i=0;i<count;i++) {
@@ -266,7 +267,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         for(j=0;j<2;j++)if(!isfinite(vertices[i].screen[j]) || !isfinite(vertices[i].uv[j]) ||
             !isfinite(vertices[i].uv[j]*vertices[i].reciprocal_w))return RF_RANGE;
     }
-    status=upload(&texture,image,0);if(status!=RF_OK)return status;
+    if(!solid){status=upload(&texture,image,0);if(status!=RF_OK)return status;}
     p=pb_begin();
     p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_START,0);
     p=pb_push1(p,NV097_SET_TRANSFORM_EXECUTION_MODE,
@@ -279,7 +280,12 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         memcpy(p,program+i,16);p+=4;pb_end(p);
     }
     p=pb_begin();
+    if(solid) {
+        p=pb_push1(p,NV097_SET_SHADER_STAGE_PROGRAM,0);
+#include "solid_fragment.inl"
+    } else {
 #include "particle_fragment.inl"
+    }
     p=pb_push1(p,NV097_SET_SPECULAR_ENABLE,1);
     p=pb_push1(p,NV097_SET_CONTROL0,NV097_SET_CONTROL0_Z_FORMAT_FIXED|NV097_SET_CONTROL0_TEXTURE_PERSPECTIVE_ENABLE);
     p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,0);
@@ -292,17 +298,19 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     p=pb_push1(p,NV097_SET_BLEND_ENABLE,1);
     p=pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
     p=pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,glow?NV097_SET_BLEND_FUNC_DFACTOR_V_ONE:NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
-    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture.pixels&0x03ffffff);
-    p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture.format);
+    if(!solid) {
+        p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture.pixels&0x03ffffff);
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture.format);
+    }
     p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00030303);
-    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,NV097_SET_TEXTURE_CONTROL0_ENABLE);
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,solid?0:NV097_SET_TEXTURE_CONTROL0_ENABLE);
     p=pb_push1(p,NV097_SET_TEXTURE_FILTER,0x02020000);
     for(i=1;i<4;i++)p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+i*0x40,0);
     for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+i*4,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
     p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLE_FAN);pb_end(p);
     for(i=0;i<count;i++) {
         const rf_particle_draw_vertex *v=vertices+i;
-        float f=(!glow && (fog_enabled&255u))?(float)(v->fog>>24)/255.0f:1.0f;
+        float f=(!solid && !glow && (fog_enabled&255u))?(float)(v->fog>>24)/255.0f:1.0f;
         p=pb_begin();
         p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M+3*16,
             (float)((v->argb>>16)&255u)/255.0f*f,(float)((v->argb>>8)&255u)/255.0f*f,
@@ -378,6 +386,26 @@ static int particle_stretch_test(void)
     rf_image_close(&image);rf_particle_stretch_diagnostic[1]=status?(uint32_t)status:2;return status;
 }
 uint32_t rf_particle_pixel_diagnostic[20];
+uint32_t rf_flash_pixel_diagnostic[22];
+static int flash_pixel_test(void)
+{
+    const uint32_t colors[4]={0x00ff0000,0x80ff0000,0xffff0000,0x804080c0};
+    const uint32_t points[5][2]={{0,0},{639,0},{0,479},{639,479},{320,240}};
+    rf_particle_draw_vertex v[4];uint32_t i,j;int status;
+    rf_flash_pixel_diagnostic[0]=0x5246464c;
+    for(i=0;i<4;++i) {
+        pb_fill(0,0,640,480,0xff204060);while(pb_busy()) {}
+        memset(v,0,sizeof(v));
+        for(j=0;j<4;++j) {
+            v[j].screen[0]=(j==1 || j==2)?640:0;v[j].screen[1]=j>=2?480:0;
+            v[j].reciprocal_w=1;v[j].depth=16777215;v[j].argb=colors[i];
+        }
+        status=rf_xbox_particle_draw(v,4,NULL,0x18000,1,0,0,0);if(status)return status;
+        for(j=0;j<5;++j)rf_flash_pixel_diagnostic[2+i*5+j]=*(volatile uint32_t *)
+            ((unsigned char *)pb_back_buffer()+points[j][1]*pb_back_buffer_pitch()+points[j][0]*4);
+    }
+    rf_flash_pixel_diagnostic[1]=2;return RF_OK;
+}
 void rf_xbox_particle_pixel_test(void)
 {
     uint32_t *pixels,*p,i,j;rf_image image={1,1,4,0,NULL};
@@ -438,6 +466,7 @@ failed:
     MmFreeContiguousMemory(pixels);
     status=particle_texture_test();
     if(!status)status=particle_stretch_test();
+    if(!status)status=flash_pixel_test();
     rf_particle_pixel_diagnostic[1]=status?0x80000000u|(uint32_t)(-status):2;
 
 }
