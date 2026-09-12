@@ -7491,3 +7491,24 @@ All five sampled x87 control words remain0x27f. Existing scene replay checks
 pass and21 CTests pass; harness restored its flags and completed its final
 build. This verifies native decode/swizzled access and co-residency, not
 visual glare fidelity, frame selection or actual-hardware behavior.
+
+### Reusable clutter corona/glare factory stage
+
+rf_clutter_create_glares extracts the existing4104a0 stage without duplicating
+its control flow. Full rf_clutter_create now invokes it in the original place:
+after emitter/timer initialization, before rods/lights/screens/explosions.
+For glare!=-1 and class flag0x400 clear, query corona_1 onward until the first
+negative tag, retaining at most four indices while still scanning to the
+first miss. Set0x400 only after successful completion. Issue GLARE for every
+cached tag, including existing caches when glare==-1; the glare constructor
+handles invalid class indices. TAG requests use the parent model, GLARE uses
+parent handle/tag/class/flag0. Failures preserve prior cache/effect progress.
+No allocate callback is needed by this stage and no rollback is invented.
+
+verify_clutter_factory.py --shared still matches full original4104a0 across
+512 cases on PC and compiled NXDK, plus10 NXDK errors. The new direct
+verify_clutter_glare_stage.py passes251 compiled cases for zero/multiple tags,
+four-entry saturation, cached class reuse, glare-1 requests and failure at
+every TAG/GLARE callback, checking exact class/state write footprints. Both
+builds and21 CTests pass. Scene instance creation remains to bind, including
+skin glare reassignment and retirement before parents and shared resources.

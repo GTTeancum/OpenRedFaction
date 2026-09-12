@@ -214,6 +214,14 @@ typedef struct rf_clutter_create_backend {
         const rf_clutter_create_request *request,int32_t *result);
     void *context;
 } rf_clutter_create_backend;
+/*4104a0 corona cache and parented-glare stage, also used by full factory.
+ * Query corona_1 onward until the first negative tag, retaining at most four
+ * indices; class flag0x400 prevents rescanning. Then call GLARE for each
+ * cached index, even when glare class is-1. Only TAG/GLARE callbacks are used.
+ * Earlier cache updates and created effects survive a later callback error;
+ * caller owns retirement. No skin override, rod, light, or family setup. */
+int rf_clutter_create_glares(rf_clutter_class *definition,rf_clutter_state *state,
+    const rf_clutter_create_backend *backend);
 /* Full4104a0 control flow with caller-owned class/name/resource storage.
  * allocate supplies generic type4 object with handle-1 and final0, including
  * world position/model/flags and an unlinked link. NULL success means no object.
