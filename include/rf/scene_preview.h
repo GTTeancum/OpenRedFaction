@@ -253,6 +253,22 @@ int rf_scene_death_clearance(const rf_geometry_collision_world *world,uint32_t h
 int rf_scene_npc_damage(uint32_t handle,const rf_damage_request *request,float difficulty,
     uint32_t clock_bits,const rf_damage_effect_backend *effects,float *result);
 extern uint32_t rf_scene_npc_damage_test_uid,rf_scene_npc_damage_test_words[64];
+typedef struct rf_scene_npc_impact_services {
+    const rf_damage_effect_backend *effects;rf_random_state *random;
+    float difficulty;uint32_t clock_bits;
+    /* Complete49cedf..49cf31 for the resolved local player's entity. */
+    int (*player_feedback)(void *,uint32_t player_entity,float amount);
+    void *context;
+} rf_scene_npc_impact_services;
+/*49cd80 SP scene binding: retained body/class/support, current force regions,
+ * registered damage adapter and impact audio. Damage effects must preserve
+ * actor lifetime and publish retained mutations synchronously. Linked-player
+ * feedback requires its callback; unassociated NPCs have no such effect.
+ * Errors stop after already-applied effects. Does not schedule collisions. */
+int rf_scene_npc_impact(uint32_t handle,float speed,const rf_scene_npc_impact_services *services);
+extern uint32_t rf_scene_npc_impact_dispatch[6]; /* calls,suppressed,damage,sound,player lookup,errors */
+extern uint32_t rf_scene_npc_impact_test[4]; /* cases,health before/after,errors */
+
 /* Replay-only first movement-region fixture: 1=center, 2=outside near base.
  * Does not establish ground clearance or replace the authored spawn. */
 int rf_scene_stage_climb(rf_level *level,uint32_t mode);

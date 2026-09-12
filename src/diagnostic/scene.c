@@ -3016,6 +3016,51 @@ int rf_scene_npc_impact_sound(uint32_t handle,rf_random_state *random)
     rf_scene_npc_impact_audio[6]=random->value;
     if(audio.status)++rf_scene_npc_impact_audio[7];return audio.status;
 }
+uint32_t rf_scene_npc_impact_dispatch[6],rf_scene_npc_impact_test[4];
+static int campaign_npc_impact_load(uint32_t handle,rf_entity_impact_actor *a)
+{
+    campaign_npc_body *o;uint32_t i,cls;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;o=campaign_npc_bodies+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&o->view)return RF_NOT_FOUND;
+    if(!campaign_seeds.items || !campaign_seeds.classes || !campaign_impact_groups || i>=campaign_seeds.records.count || o->movement_slot>=16)return RF_RANGE;
+    cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
+    a->handle=handle;a->object_flags=o->object_flags;a->movement_mode=campaign_modes[o->movement_slot].index;
+    a->use_kind=campaign_seeds.classes[cls].physics.use_kind;a->contact_material=o->collision_contact.material;
+    a->support_material=o->support.material;a->sound_set=(uint32_t)campaign_impact_groups[cls];a->health=o->damage.effects.health;
+    memcpy(a->published,o->published,12);memcpy(a->position,o->body.state.position,12);return RF_OK;
+}
+static int campaign_npc_impact_suppressed(void *context,rf_entity_impact_actor *a,uint32_t *suppressed)
+{
+    int status;(void)context;status=rf_physics_force_suppresses_damage(campaign_forces.items,campaign_forces.count,a->published,suppressed);
+    if(!status && (*suppressed&255u))++rf_scene_npc_impact_dispatch[1];return status;
+}
+static int campaign_npc_impact_damage(void *context,rf_entity_impact_actor *a,const rf_damage_request *request)
+{
+    const rf_scene_npc_impact_services *c=context;float amount;int status;uint32_t handle=a->handle;
+    ++rf_scene_npc_impact_dispatch[2];status=rf_scene_npc_damage(handle,request,c->difficulty,c->clock_bits,c->effects,&amount);
+    if(status)return status;return campaign_npc_impact_load(handle,a);
+}
+static int campaign_npc_impact_sound(void *context,rf_entity_impact_actor *a)
+{
+    const rf_scene_npc_impact_services *c=context;++rf_scene_npc_impact_dispatch[3];return rf_scene_npc_impact_sound(a->handle,c->random);
+}
+static int campaign_npc_impact_feedback(void *context,rf_entity_impact_actor *a,float amount)
+{
+    const rf_scene_npc_impact_services *c=context;const rf_entity_view *player;
+    ++rf_scene_npc_impact_dispatch[4];player=rf_entity_lookup(&campaign_entities,campaign_player_view.handle);
+    if(!player || (player->handle!=(int32_t)a->handle && player->linked_handle!=(int32_t)a->handle))return RF_OK;
+    return c->player_feedback?c->player_feedback(c->context,(uint32_t)player->handle,amount):RF_NOT_FOUND;
+}
+int rf_scene_npc_impact(uint32_t handle,float speed,const rf_scene_npc_impact_services *services)
+{
+    rf_entity_impact_actor actor;int status;
+    rf_entity_impact_backend backend={campaign_npc_impact_suppressed,campaign_npc_impact_damage,campaign_npc_impact_sound,campaign_npc_impact_feedback,(void *)services};
+    if(!services || !services->effects || !services->random || !isfinite(services->difficulty))return RF_RANGE;
+    status=campaign_npc_impact_load(handle,&actor);if(status)return status;
+    ++rf_scene_npc_impact_dispatch[0];status=rf_entity_impact_process_sp(&actor,speed,&backend);
+    if(status)++rf_scene_npc_impact_dispatch[5];return status;
+}
 int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random)
 {
     uint32_t i,cls;int status;campaign_npc_body *owner;
@@ -3108,6 +3153,7 @@ static int campaign_npc_damage_fixture(void)
     memset(rf_scene_npc_pain_test_words,0,sizeof(rf_scene_npc_pain_test_words));
     memset(rf_scene_npc_pain_sound_test,0,sizeof(rf_scene_npc_pain_sound_test));
     memset(rf_scene_npc_impact_audio,0,sizeof(rf_scene_npc_impact_audio));rf_scene_npc_impact_audio[5]=UINT32_MAX;
+    memset(rf_scene_npc_impact_dispatch,0,sizeof(rf_scene_npc_impact_dispatch));memset(rf_scene_npc_impact_test,0,sizeof(rf_scene_npc_impact_test));
     memset(rf_scene_npc_pain_audio,0,sizeof(rf_scene_npc_pain_audio));rf_scene_npc_pain_audio[5]=UINT32_MAX;
     if(rf_scene_npc_damage_test_uid==UINT32_MAX)return RF_OK;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
@@ -3160,6 +3206,29 @@ static int campaign_npc_damage_fixture(void)
         if(!status)status=rf_scene_npc_impact_sound(owner->registration.handle,&impact_random);
         if(!status && memcmp(rf_scene_npc_impact_audio+9,owner->body.state.position,12))status=RF_FORMAT;
         memcpy(owner->body.state.position,position,12);
+    }
+    if(!status) {
+        rf_scene_npc_impact_services impact={&effects,&random,1,0x3f800000,NULL,NULL};
+        campaign_npc_body saved=*owner;rf_physics_force_collection forces=campaign_forces;
+        rf_physics_force_region region={0};uint32_t before[6];rf_random_state rng_before=random;
+        memcpy(before,rf_scene_npc_impact_dispatch,sizeof(before));
+        if(rf_scene_npc_impact(owner->registration.handle^0x10000,11,&impact)!=RF_NOT_FOUND ||
+           memcmp(&saved,owner,sizeof(saved)) || memcmp(before,rf_scene_npc_impact_dispatch,sizeof(before)) || random.value!=rng_before.value)status=RF_FORMAT;
+        else ++rf_scene_npc_impact_test[0];
+        if(!status)status=rf_scene_npc_impact(owner->registration.handle,0,&impact);
+        if(!status && memcmp(&saved,owner,sizeof(saved)))status=RF_FORMAT;
+        if(!status)++rf_scene_npc_impact_test[0];
+        region.shape=1;region.radius_squared=100;region.active=1;region.flags=0x40;memcpy(region.center,owner->published,12);
+        campaign_forces.items=&region;campaign_forces.count=1;campaign_forces.allocated_bytes=0;
+        if(!status)status=rf_scene_npc_impact(owner->registration.handle,11,&impact);
+        campaign_forces=forces;
+        if(!status && (memcmp(&saved,owner,sizeof(saved)) || rf_scene_npc_impact_dispatch[1]!=1))status=RF_FORMAT;
+        if(!status)++rf_scene_npc_impact_test[0];
+        memcpy(rf_scene_npc_impact_test+1,&owner->damage.effects.health,4);
+        if(!status)status=rf_scene_npc_impact(owner->registration.handle,11,&impact);
+        memcpy(rf_scene_npc_impact_test+2,&owner->damage.effects.health,4);
+        if(!status && !(owner->damage.effects.health<saved.damage.effects.health && owner->damage.effects.health>0))status=RF_FORMAT;
+        if(!status)++rf_scene_npc_impact_test[0];else ++rf_scene_npc_impact_test[3];
     }
     return status?status:rf_scene_npc_damage_test_words[63]?RF_FORMAT:RF_OK;
 }

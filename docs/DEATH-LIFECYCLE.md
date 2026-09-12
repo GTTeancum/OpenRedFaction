@@ -6035,3 +6035,43 @@ requests/state and residency; listening quality is not inferred from counters.
 Tested XBE SHA256:7f22e42a624fb72b5b766e008fe81471d7a43ce43a3c834a54cfd79ef07ecf6d.
 Compose impact orchestration with real force suppression/damage and associated
 player feedback, then connect ground acceptance, landing and NPC scheduling.
+
+
+## Registered NPC impact dispatch (2026-09-12)
+
+rf_scene_npc_impact composes the verified49cd80 SP sequence with retained
+NPC body/contact/class/support facts, current campaign force regions, the
+registered NPC damage adapter and class128 impact sound playback. It reloads
+retained actor facts after synchronous damage effects before the core chooses
+its post-damage branch. Callers supply difficulty, clock, shared RNG and the
+real damage-effect backend, preserving actor lifetime through reentry. No new
+shadow health owner or alternate damage calculation is introduced.
+
+48aa90's current single-player lookup checks the player's entity and its
+linked actor200. The scene binding resolves that retained player view after
+damage; an unassociated NPC returns without a player effect. A matched player
+requires the supplied full49cedf..49cf31 feedback callback. Missing feedback
+then reports NOT_FOUND instead of pretending the effect ran. Scheduling,
+additional player owners and the complete feedback callback remain external.
+
+The --damage-uid8456 fixture adds four cases: stale generation preserves actor/
+RNG/counters, speed0 preserves the entire NPC owner, a temporary containing
+sphere with activation1/flag40 suppresses speed11, and speed11 with the actual
+campaign force collection dispatches kind9 damage. The first fixture attempt
+used shape0 (unknown), which correctly did not suppress; corrected to original
+sphere kind1. The temporary force collection is restored before subsequent
+queries. Nonlethal damage runs the existing pain animation/sound/AI callbacks;
+health falls88 to80.31999969482422 after class/vitals scaling. This diagnostic
+keeps that damage effect; it does not claim automatic collision scheduling.
+
+Both builds and19 CTests pass. Stock64MiB XEMU180 frames PASS:
+artifacts/xemu/replay-20260912-102732/report.json.
+NPC_IMPACT_DISPATCH=[3,1,1,0,1,0]; NPC_IMPACT_TEST=[4,1118830592,1117823959,0],
+exactly equal to PC. One suppressed call, one damage dispatch, no lethal sound
+branch and one no-player lookup. The separate impact audio fixture still
+passes. Pain sound receives a third request; cooldown keeps selection/play
+counts at1, matching original behavior. Tested XBE SHA256:
+ec4238376b5e562e20f5320bf39a661fd0bea9333ae5cd21528c533983dd80bc.
+Lethal impact integration with complete damage effects and associated-player
+feedback still require coverage. Connect landing/relative contact and then
+NPC support/physics scheduling; no new visible gameplay claim is made.

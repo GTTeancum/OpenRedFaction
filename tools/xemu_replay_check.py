@@ -349,6 +349,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['npc_pain_test']=npc_pain_test
      death_animation=words(monitor,symbol('rf_scene_death_animation_test'),8)
      action_audio=words(monitor,symbol('rf_scene_npc_action_audio'),9)
+     impact_dispatch=words(monitor,symbol('rf_scene_npc_impact_dispatch'),6)
+     impact_test=words(monitor,symbol('rf_scene_npc_impact_test'),4)
+     assert impact_dispatch==expected('NPC_IMPACT_DISPATCH') and impact_dispatch[5]==0,impact_dispatch
+     assert impact_test==expected('NPC_IMPACT_TEST') and impact_test[3]==0,impact_test
+     if args.damage_uid==8456:assert impact_dispatch==[3,1,1,0,1,0] and impact_test[0]==4,(impact_dispatch,impact_test)
+     report['npc_impact_dispatch']=impact_dispatch;report['npc_impact_test']=impact_test
      impact_audio=words(monitor,symbol('rf_scene_npc_impact_audio'),12)
      assert impact_audio==expected('NPC_IMPACT_AUDIO') and impact_audio[7]==0,impact_audio
      if args.damage_uid==8456:assert impact_audio[:4]==[1,1,1,1] and impact_audio[4]>0,impact_audio
@@ -362,7 +368,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      pain_sound_test=words(monitor,symbol('rf_scene_npc_pain_sound_test'),10)
      assert pain_audio==expected('NPC_PAIN_AUDIO') and pain_audio[7]==0,pain_audio
      assert pain_sound_test==expected('NPC_PAIN_SOUND_TEST'),pain_sound_test
-     if args.damage_uid==8456:assert pain_audio[:4]==[2,1,1,1] and pain_audio[4]>0,pain_audio
+     if args.damage_uid==8456:assert pain_audio[:4]==[3,1,1,1] and pain_audio[4]>0,pain_audio
      report['npc_pain_audio']=pain_audio;report['npc_pain_sound_test']=pain_sound_test
      player_pain_audio=words(monitor,symbol('rf_scene_player_pain_audio'),9)
      player_pain_test=words(monitor,symbol('rf_scene_player_pain_test'),21)
