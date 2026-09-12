@@ -4,6 +4,7 @@
 #include "npc_death_entry_binding.h"
 #include "npc_collision_binding.h"
 #include "player_collision_binding.h"
+#include "actor_pair_binding.h"
 #include "npc_death_tail_binding.h"
 #include "model_death_reset_binding.h"
 #include "npc_death_play_binding.h"
@@ -900,6 +901,7 @@ int main(int argc,char **argv)
     CHECK(death_entry_binding_check()==0);
     CHECK(npc_collision_binding_check()==0);
     CHECK(player_collision_binding_check()==0);
+    CHECK(actor_pair_binding_check()==0);
     CHECK(death_tail_binding_check()==0);
     CHECK(death_geometry_check()==0);
     archive.stream=tmpfile();CHECK(archive.stream);archive.length=sizeof(payload);

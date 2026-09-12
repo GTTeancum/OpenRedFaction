@@ -3226,6 +3226,26 @@ int rf_scene_player_collision_publish(uint32_t handle,uint32_t body_flags,const 
     if(!status)scene_actor_body.state.flags=body_flags;return status;
 }
 uint32_t rf_scene_collision_views[8]; /* frames, player hash, NPC hash/count, player model, NPC models, status, last frame */
+int rf_scene_actor_pair_response(uint32_t first,uint32_t second,uint32_t normal_mode,uint32_t *changed)
+{
+    rf_collision_actor_general_response actors[2];uint32_t handles[2]={first,second},player[2],i,value;int status;
+    if(!changed || first==second || normal_mode>1)return RF_RANGE;
+    /* Validate both owners before any response mutation. The only callback is
+     * our read-only actor velocity resolver; owners stay stable through commit. */
+    for(i=0;i<2;++i) {
+        player[i]=campaign_spawn && campaign_player_object.view && campaign_player_object.handle==handles[i];
+        status=player[i]?rf_scene_player_collision_response(handles[i],actors+i):rf_scene_npc_collision_response(handles[i],actors+i);
+        if(status)return status;
+    }
+    value=normal_mode?rf_collision_actors_normal_response(&actors[0].actor,&actors[1].actor,rf_scene_collision_extra_velocity,NULL):
+        rf_collision_actors_general_response(actors,actors+1,rf_scene_collision_extra_velocity,NULL);
+    for(i=0;i<2;++i) {
+        status=player[i]?rf_scene_player_collision_publish(handles[i],actors[i].actor.body_flags,&actors[i].actor.contact):
+            rf_scene_npc_collision_publish(handles[i],actors[i].actor.body_flags,&actors[i].actor.contact);
+        if(status)return status;
+    }
+    *changed=value;return RF_OK;
+}
 uint32_t rf_scene_collision_responses[6]; /* frames, player hash, NPC hash/count, status, last frame */
 static uint32_t collision_response_hash(uint32_t hash,const rf_collision_actor_general_response *view,const float *extra_velocity)
 {

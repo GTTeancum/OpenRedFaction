@@ -4504,3 +4504,23 @@ constructor-zero NPC vectors. This does not connect NPC support refresh or
 response dispatch. Existing rf_physics_support_refresh already reconstructs
 41e370/40a420 numerical copy/wake behavior; its scheduler must be connected
 to the NPC support handle and resolved moving support before claiming motion.
+
+## Bound actor-pair response execution
+
+rf_scene_actor_pair_response resolves both registered player/NPC snapshots
+before mutation, calls49ab00 or49a420 through the verified shared response,
+uses registered actor8a0 lookup, and publishes both contact states and body
+flags regardless of response return. Caller selects normal_mode0/1 from its
+48ca60 dispatch decision; the adapter does not classify, create or schedule
+pairs. It also does not apply impulses or damage. Stable owners and finite
+geometry/positive masses retain the response routines' preconditions.
+
+actor_pair_binding_check covers18 combinations: NPC/NPC, player/NPC and
+NPC/player; normal/general; ordinary contact, strict bounds rejection and
+one-sided deferral. Full response snapshots match the separately executed
+shared routines; contacts target opposite registered handles. General
+deferral explicitly returns0 while publishing body60000000 and time0.
+Stale second handles, self-pairs, invalid mode and NULL result preserve
+retained bodies/contact extensions and the result. PC/NXDK builds and all19
+CTests pass. No new XEMU execution is claimed for this adapter; native
+publication and automatic48ca60 dispatch remain open.

@@ -100,6 +100,13 @@ int rf_scene_player_collision_publish(uint32_t handle,uint32_t body_flags,const 
  * publication is not required. Other actor families and stale handles return
  * NULL. Context is unused; no mutation or support refresh is performed. */
 const float *rf_scene_collision_extra_velocity(void *context,uint32_t handle);
+/* Execute one already-classified registered actor pair and publish both
+ * contacts/flags, including deferrals returning changed=0. normal_mode is
+ * exactly0 (49a420) or1 (49ab00), selected by the caller's48ca60 dispatch.
+ * Stable distinct owners, finite geometry and positive masses as required by
+ * the response functions. No pair creation, impulse, damage or scheduling.
+ * Invalid owners/arguments preserve changed and both live owners. */
+int rf_scene_actor_pair_response(uint32_t first,uint32_t second,uint32_t normal_mode,uint32_t *changed);
 extern uint32_t rf_scene_collision_views[8]; /* Pointer-free live actor snapshot replay evidence. */
 extern uint32_t rf_scene_collision_responses[6]; /* Live body/contact snapshot replay evidence. */
 
