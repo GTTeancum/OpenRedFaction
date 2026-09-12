@@ -132,3 +132,14 @@ static int corpse_surface_collect_probe(void)
     }
     return ferror(stdin)||ferror(stdout)?5:0;
 }
+
+static int corpse_surface_draw_probe(void)
+{
+    struct {rf_corpse_surface_effect effect;rf_visibility_camera camera;rf_particle_vertex_environment environment;} input;
+    struct {int32_t status;uint32_t count;rf_particle_draw_vertex vertices[12];} output;
+    while(fread(&input,sizeof(input),1,stdin)==1) {
+        memset(&output,0,sizeof(output));output.status=rf_corpse_surface_prepare_draw(&input.effect,&input.camera,&input.environment,output.vertices,&output.count);
+        fwrite(&input.effect,sizeof(input.effect),1,stdout);fwrite(&output,sizeof(output),1,stdout);
+    }
+    return ferror(stdin)||ferror(stdout)?2:0;
+}

@@ -829,3 +829,18 @@ int rf_corpse_surface_collect_room(const rf_corpse_surface_pool *pool,uint32_t d
     }
     return RF_OK;
 }
+
+int rf_corpse_surface_prepare_draw(rf_corpse_surface_effect *effect,const rf_visibility_camera *camera,
+    const rf_particle_vertex_environment *environment,rf_particle_draw_vertex *vertices,uint32_t *count)
+{
+    rf_corpse_surface_quad quad;rf_particle_billboard_vertex world[4];
+    rf_particle_screen_polygon polygon;rf_particle_draw_vertex result[12];
+    rf_particle_vertex_environment color;uint32_t i;int status;
+    if(!effect || !camera || !environment || !vertices || !count)return RF_RANGE;
+    status=rf_corpse_surface_build_quad(effect,&quad);if(status)return status;
+    for(i=0;i<4;++i){memcpy(world[i].position,quad.vertices[i],12);memcpy(world[i].uv,quad.uv[i],8);}
+    status=rf_particle_world_quad(camera,world,&polygon);if(status)return status;
+    color=*environment;color.rgba=quad.color;
+    for(i=0;i<polygon.count;++i){status=rf_particle_vertex_encode(&color,polygon.vertices+i,result+i);if(status)return status;}
+    memcpy(vertices,result,polygon.count*sizeof(*vertices));*count=polygon.count;return RF_OK;
+}

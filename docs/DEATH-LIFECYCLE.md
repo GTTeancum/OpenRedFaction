@@ -2602,3 +2602,27 @@ missing asset and archive index/order. The probe closes archives before
 pixel inspection and repeats close. Both builds and19 CTests pass.
 Native GPU upload, live scene residency and composed blood-pool drawing
 remain open; this change does not add a new screenshot.
+
+## Composed surface draw preparation
+
+rf_corpse_surface_prepare_draw now composes growth/quad construction, world
+transform/clipping/projection and final renderer vertex encoding. The caller
+supplies the resolved camera and vertex environment plus12 output slots.
+Effect RGB with forced opaque alpha replaces the environment RGBA value.
+No heap allocation, texture binding or GPU call occurs. Extent updates before
+projection, including subsequently rejected polygons; count/vertex outputs
+commit only on success. This preserves the original draw-time growth order.
+
+verify_corpse_surface_draw.py executes full original42df20,517110,558d40
+and551900 through GPU vertex conversion. Only550850 state binding,559e80
+index submission and559d90 GPU batch flush are supplied.551900 is observed
+without replacement. The harness reads each32-byte primary vertex from its
+original40-byte stride, excluding untouched secondary UV storage.
+
+1024 PC/NXDK cases match exact effect state and encoded vertices:543 produce
+four vertices,443 reject and38 clip to five vertices. Both authored growth
+parameters, boundary ages, camera transforms, clipping/far/perspective flags
+and input colors vary. Ordinary vertex color/alpha, depth/UV scales and no
+color transform/fog are resolved fixture inputs. Both builds and19 CTests
+pass. Universal sine bit-equivalence, actual rasterization, texture upload,
+room scheduling and live death/effect dispatch are not established by this test.

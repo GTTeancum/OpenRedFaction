@@ -43,6 +43,15 @@ typedef struct rf_corpse_surface_quad {
  * Finite nonnegative elapsed/rate/extent and positive growth time required.
  * Updates effect extent; no allocation, texture selection or GPU submission. */
 int rf_corpse_surface_build_quad(rf_corpse_surface_effect *,rf_corpse_surface_quad *);
+struct rf_visibility_camera;
+struct rf_particle_vertex_environment;
+struct rf_particle_draw_vertex;
+/* Compose growth, world projection/clipping and renderer vertex encoding.
+ * Caller provides12 vertex slots and resolved renderer environment; RGBA is
+ * replaced by the effect color with opaque alpha. Extent updates before
+ * projection, even if later work rejects/fails. No allocation or GPU call. */
+int rf_corpse_surface_prepare_draw(rf_corpse_surface_effect *,const struct rf_visibility_camera *,
+    const struct rf_particle_vertex_environment *,struct rf_particle_draw_vertex *,uint32_t *count);
 
 typedef struct rf_corpse_surface_source {
     uint32_t descriptor,model;
