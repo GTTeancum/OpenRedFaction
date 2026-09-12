@@ -7216,3 +7216,38 @@ PC float/RGB convergence remains an open item, not an exact-parity claim.
 Both builds and all19 CTests pass; existing600 clipped-polygon emission
 comparisons remain passing. Report: artifacts/model-static-emission.json.
 No native XEMU or new-visual claim.
+
+
+## Owned static render resources
+
+rf_static_render_resource_open retains all static LOD geometry, stored
+triangle planes,48-byte part views, LOD thresholds, raw84-byte material
+rows and the whole-model bound. Geometry and its embedded owner are counted
+once. The44-byte32-bit resource header and all arrays count against an
+explicit budget; the caller-owned8792-byte file directory/archive, textures
+and allocator metadata are excluded. No archive or file-directory pointer
+is retained. Close releases every LOD/plane array, clears the owner and is
+repeatable. Failure cleans partial ownership before publication. Existing
+110c21 rendering rejection remains unchanged; animated LODs reject because
+they lack the static stored-plane flag. This owns file data, not converted
+runtime materials, shared cache handles, textures or device buffers.
+
+verify_static_render_resource.py checks all415 supported static models/733
+LODs against serialized part/material/threshold/plane hashes and the existing
+independently archive-verified geometry probe. Every resource loads at its
+exact retained budget and rejects one byte below with an empty owner. The
+probe closes the archive before hashing retained data. Maximum individual
+resource is133996 bytes. Twelve alternate-format models explicitly reject
+with FORMAT; all95 animated models reject with NOT_FOUND.
+
+verify_static_render_resource_nxdk.py runs the compiled file decoder and
+resource composition for the opening12 unique clutter models, supplying
+only VPP find/read and heap primitives. All retained hashes and accounting
+match PC, with90904 bytes combined, excluding shared cache keys, textures
+and caller inputs. The35 cases include exact/short budgets, all eight
+first-model allocation failures and three read failures at early/middle/
+final positions. Heap liveness and cleared owners are checked after repeat
+close. Both builds and all19 CTests pass. Reports:
+artifacts/static-render-resource.json and
+artifacts/static-render-resource-nxdk.json. Scene cache/instance binding,
+runtime material/texture conversion, native XEMU and visuals remain open.

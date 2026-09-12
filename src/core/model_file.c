@@ -738,6 +738,63 @@ fail:
     rf_model_geometry_close(&next);return status;
 }
 
+void rf_static_render_resource_close(rf_static_render_resource *resource)
+{
+    uint32_t i;if(!resource)return;
+    if(resource->lods)for(i=0;i<resource->lod_count;++i) {
+        rf_model_geometry_close(&resource->lods[i].geometry);free(resource->lods[i].planes);
+    }
+    free(resource->parts);free(resource->lods);free(resource->materials);memset(resource,0,sizeof(*resource));
+}
+int rf_static_render_resource_open(const rf_model_file *model,uint32_t budget,rf_static_render_resource *resource)
+{
+    rf_static_render_resource next={0};uint64_t bytes;uint32_t i,j,k,part=0,material=0;int status;
+    if(!model || !model->archive || !resource || resource->parts || resource->lods || resource->materials ||
+       resource->part_count || resource->lod_count || resource->material_count || resource->allocated_bytes ||
+       !model->submeshes || model->section_count>RF_MODEL_MAX_SECTIONS || !model->lod_count || model->lod_count>RF_MODEL_MAX_LODS)return RF_RANGE;
+    for(i=0;i<model->lod_count;++i)if(!(model->lods[i].flags&32))return RF_NOT_FOUND;
+    for(i=0;i<model->section_count;++i)if(model->sections[i].type==0x5355424d) {
+        if(model->sections[i].material_count>UINT32_MAX-next.material_count)return RF_RANGE;
+        ++part;next.material_count+=model->sections[i].material_count;
+    }
+    if(part!=model->submeshes)return RF_FORMAT;
+    next.part_count=part;next.lod_count=model->lod_count;
+    bytes=sizeof(next)+(uint64_t)part*sizeof(*next.parts)+(uint64_t)next.lod_count*sizeof(*next.lods)+(uint64_t)next.material_count*sizeof(*next.materials);
+    if(bytes>budget || bytes>SIZE_MAX)return RF_RANGE;
+    next.parts=calloc(part,sizeof(*next.parts));next.lods=calloc(next.lod_count,sizeof(*next.lods));
+    if(next.material_count)next.materials=malloc((size_t)next.material_count*sizeof(*next.materials));
+    if(!next.parts || !next.lods || (next.material_count && !next.materials)){status=RF_IO;goto fail;}
+    status=rf_model_file_static_bound_sphere(model,next.bound);if(status)goto fail;
+    for(i=0;i<part;++i){status=rf_model_file_part_metadata(model,i,next.parts+i);if(status)goto fail;}
+    part=0;
+    for(i=0;i<model->section_count;++i)if(model->sections[i].type==0x5355424d) {
+        for(j=0;j<model->sections[i].material_count;++j) {
+            status=rf_model_file_material(model,part,j,next.materials[material++]);if(status)goto fail;
+        }
+        ++part;
+    }
+    for(i=0;i<next.lod_count;++i) {
+        rf_static_render_lod *lod=next.lods+i;uint64_t allowance=(uint64_t)budget-bytes+sizeof(lod->geometry);
+        status=rf_model_geometry_open(&lod->geometry,model,i,(uint32_t)(allowance>UINT32_MAX?UINT32_MAX:allowance));if(status)goto fail;
+        bytes+=lod->geometry.accounted_bytes-sizeof(lod->geometry);
+        bytes+=(uint64_t)lod->geometry.triangle_count*16;
+        if(bytes>budget || bytes>SIZE_MAX){status=RF_RANGE;goto fail;}
+        if(lod->geometry.triangle_count)lod->planes=malloc((size_t)lod->geometry.triangle_count*16);
+        if(lod->geometry.triangle_count && !lod->planes){status=RF_IO;goto fail;}
+        lod->threshold=model->lods[i].threshold;
+        for(j=0;j<lod->geometry.batch_count;++j) {
+            rf_model_batch batch;const rf_model_draw_batch *draw=lod->geometry.batches+j;
+            status=rf_model_file_batch(model,i,j,&batch);if(status)goto fail;
+            for(k=0;k<batch.triangles;++k) {
+                status=rf_model_file_triangle_plane(model,&batch,k,lod->planes[draw->first_triangle+k]);if(status)goto fail;
+            }
+        }
+    }
+    next.allocated_bytes=(uint32_t)bytes;*resource=next;return RF_OK;
+ fail:
+    rf_static_render_resource_close(&next);return status;
+}
+
 int rf_model_origin_radius(const float sphere[4],float *radius)
 {
     double x,y,z,value;float out;uint32_t i;

@@ -185,6 +185,21 @@ typedef struct rf_model_geometry {
  * archive/model/texture state. Zero-initialize; close before reuse. */
 int rf_model_geometry_open(rf_model_geometry *geometry,const rf_model_file *model,uint32_t lod,uint32_t budget);
 void rf_model_geometry_close(rf_model_geometry *geometry);
+typedef struct rf_static_render_lod {
+    rf_model_geometry geometry;float (*planes)[4];float threshold;
+} rf_static_render_lod;
+typedef struct rf_static_render_resource {
+    rf_model_part_metadata *parts;rf_static_render_lod *lods;uint8_t (*materials)[84];
+    uint32_t part_count,lod_count,material_count,allocated_bytes;float bound[4];
+} rf_static_render_resource;
+/* Retain all static LOD geometry, stored planes, part metadata, thresholds and
+ * serialized material rows. Budget counts this owner and retained arrays once;
+ * caller-owned file directory/archive, textures and allocator metadata excluded.
+ * No archive borrowing after success. Unsupported render formats still reject.
+ * Zero-initialize, close before reuse; errors free partial state without publish. */
+int rf_static_render_resource_open(const rf_model_file *model,uint32_t budget,rf_static_render_resource *resource);
+void rf_static_render_resource_close(rf_static_render_resource *resource);
+
 typedef struct rf_model_render_buffers {
     rf_model_render_cache *cache;float (*clip)[3],(*second)[3];uint8_t (*vertices)[40];uint32_t capacity;
 } rf_model_render_buffers;

@@ -141,7 +141,7 @@ int main(int argc, char **argv)
         }
         return ferror(stdin)?1:0;
     }
-    if ((argc != 3 && argc != 4) || rf_vpp_open(&archive, argv[1])) return 2;
+    if ((argc != 3 && argc != 4 && !(argc==5 && !strcmp(argv[3],"--static-resource"))) || rf_vpp_open(&archive, argv[1])) return 2;
     result = rf_model_file_open(&model, &archive, argv[2]);
     if(!result && argc==4 && !strcmp(argv[3],"--skin-selection")) {
         rf_entity_render_model inputs[2]={{0}};rf_entity_render_models models={0};rf_entity_collision_models owner={0};uint32_t budget;
@@ -268,6 +268,28 @@ int main(int argc, char **argv)
         i=99;
         if(rf_model_file_select_lod(&model,model.submeshes,0,0,0,0,0,0,&i)!=RF_RANGE || i!=99)result=RF_FORMAT;
         rf_vpp_close(&archive);return result?3:0;
+    }
+    if(!result && argc==5 && !strcmp(argv[3],"--static-resource")) {
+        rf_static_render_resource r={0};uint32_t budget=(uint32_t)strtoul(argv[4],NULL,10),n;
+        result=rf_static_render_resource_open(&model,budget,&r);rf_vpp_close(&archive);
+        printf("R %d %u %u %u %u\n",result,r.part_count,r.lod_count,r.material_count,r.allocated_bytes);
+        if(!result) {
+            printf("H %u %u\n",hash_bytes(2166136261u,r.parts,r.part_count*sizeof(*r.parts)),hash_bytes(2166136261u,r.materials,r.material_count*84));
+            for(i=0;i<r.lod_count;++i) {
+                const rf_model_geometry *g=&r.lods[i].geometry;uint32_t threshold;
+                memcpy(&threshold,&r.lods[i].threshold,4);
+                printf("P %u %u %u\n",i,threshold,hash_bytes(2166136261u,r.lods[i].planes,g->triangle_count*16));
+                printf("G %u %u %u %u %u\n",i,g->batch_count,g->vertex_count,g->triangle_count,g->accounted_bytes);
+                for(n=0;n<g->batch_count;++n) {
+                    const rf_model_draw_batch *b=g->batches+n;
+                    printf("V %u %u %u %u %u\n",i,n,hash_bytes(2166136261u,g->vertices+b->first_vertex,b->vertices*40),hash_bytes(2166136261u,g->triangles+b->first_triangle,b->triangles*8),hash_bytes(2166136261u,g->reuse+b->first_vertex,b->vertices*4));
+                    printf("M %u %u %u\n",i,n,b->material);
+                }
+            }
+        } else {rf_static_render_resource empty={0};if(memcmp(&r,&empty,sizeof(r)))return 4;}
+        rf_static_render_resource_close(&r);rf_static_render_resource_close(&r);
+        {rf_static_render_resource empty={0};if(memcmp(&r,&empty,sizeof(r)))return 4;}
+        return 0;
     }
     if(!result && argc==4 && !strcmp(argv[3],"--geometry")) {
         uint32_t n;
