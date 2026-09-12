@@ -1749,3 +1749,35 @@ callees; the harness explicitly sets original C locale. Original SHA256:
 b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836.
 Report: artifacts/action-name-verification.json. No live corpse/XEMU claim.
 Both complete builds and all18 CTests pass after the lookup addition.
+
+
+## Retained declaration availability and corpse motion callback
+
+The original422360 action initialization loop keeps the
+419a00 declaration index in actor+a58 separately from the51cc10 clip result
+in actor+a54.419a00 returns a matched declaration even when its motion filename
+is empty. Thus clip index-1 is not proof that the name lookup should fail.
+
+Base and weapon-group action loaders now retain two32-bit declaration masks,
+set when a canonical action declaration is read, before checking its motion
+filename. This adds8 bytes per retained class/group and no heap allocation
+per action. Names reuse the45 verified initializer labels. The canonical mask
+lookup feeds rf_entity_action_name_lookup; it does not claim to retain arbitrary
+noncanonical declarations or weapon-switched original declaration indices.
+
+rf_scene_corpse_motion resolves the current base class mask, rejects unbound
+class/weapon mappings and returns the original action slot. The PC owned-corpse
+fixture now calls it for death_generic, corpse_drop and corpse_carry, including
+empty-filename declarations. Model pose/sound/collision effects remain supplied
+fixtures. Live death dispatch and those resource effects still need integration.
+
+tools/verify_action_declarations.py passes90 original419a00 declaration
+selections with reversed table order and empty/nonempty filenames, and compares
+the resulting canonical actor slot with NXDK mask lookup. Real500150/string
+comparison executes; only4ffa20 string assignment is supplied/observed. It also
+reruns the814-case original/PC/NXDK name verifier.
+Report: artifacts/action-declaration-verification.json.
+tools/verify_base_action_sets.py now independently checks retained masks against
+authored declarations for base/weapon groups across L1S1/L1S2/L1S3, in addition
+to its existing clip, cache, sound and budget checks; all pass.
+Both complete builds and all18 CTests pass; no new native XEMU run is claimed.

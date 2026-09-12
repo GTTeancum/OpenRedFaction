@@ -33,6 +33,9 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
  out=subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--catalog',str(root/'Installed_Game/levels1.vpp'),str(root/'Installed_Game/tables.vpp'),str(root/'Installed_Game/motions.vpp'),str(root/'Installed_Game/meshes.vpp'),level],text=True)
  registries={};checked=0;group_registries={};group_slots=0;identity_count=0
  for line in out.splitlines():
+  if line.startswith('ACTION_DECLARATIONS\t'):
+   _,cls,weapon,low,high=line.split('\t');expected_mask=sum(1<<i for i,name in enumerate(action_names) if (cls.lower(),weapon.lower(),name.lower()) in all_actions)
+   assert int(low)+(int(high)<<32)==expected_mask,(cls,weapon,low,high,expected_mask)
   if line.startswith('DEFAULT_WEAPONS\t'):
    _,cls,primary,secondary=line.split('\t');assert (int(primary),int(secondary))==defaults[cls.lower()]
    continue

@@ -615,6 +615,18 @@ int rf_scene_corpse_bind_model(void *context,rf_corpse_create_source *source,rf_
        (source->replacement_model && source->replacement_model[0]))return RF_FORMAT;
     return rf_scene_model_detach(corpse->update.model-1,corpse->update.position,corpse->update.basis,*(const uint32_t*)context);
 }
+/* Current campaign startup uses base action mappings. Weapon remapping must
+ * supply its original declaration view before enabling this callback there. */
+int32_t rf_scene_corpse_motion(void *context,rf_corpse_create_source *source,const char *name)
+{
+    uint32_t cls;(void)context;if(!source)return -2;
+    if(!source->model || source->model_kind!=2 || !name)return -1;
+    cls=source->class_index;
+    if(cls>=campaign_base_motions.class_count || !campaign_base_motions.classes ||
+       cls>=campaign_motion_catalog.class_count || !campaign_motion_catalog.mappings ||
+       campaign_motion_catalog.mappings[cls].weapon!=-1)return -2;
+    return rf_entity_declared_action_lookup(campaign_base_motions.classes[cls].action_declarations,source->model,source->model_kind,name);
+}
 /* An actor loses access when its model storage is handed off. Model rendering
  * and eventual corpse updates continue through campaign_model_pose. */
 static int campaign_actor_pose(uint32_t slot,rf_entity_pose **result)

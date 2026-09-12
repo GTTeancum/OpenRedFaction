@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Retain actor action-declaration mappings for verified428fe0 name lookup, then replace the corpse motion callback placeholder.
+- [ ] Bind verified base corpse-motion lookup to live creation and recover weapon-switched declaration views; canonical availability masks are retained.
 - [ ] Connect the tested owned-corpse/model bridge to live death dispatch and resource effects; bind corpse updates, replacement materials and moving room lookup.
 - [ ] Bind verified corpse sphere refresh and sound-follow points to live owned model poses and sounds.
 - [ ] Bind verified corpse retention/fade/update/deletion and30-slot allocation to live creation and owned resource backends; five eligible bodies trigger fading.

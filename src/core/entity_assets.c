@@ -1114,9 +1114,27 @@ int rf_entity_state_set_open(const char *path,const char *class_name,const char 
 done:
     free(value);rf_vpp_close(&archive);return status;
 }
+static const char *const entity_action_names[45]={"corpse_drop","corpse_carry","fire_stand","alt_fire_stand","fire_crouch","death_generic","death_blast_forward","death_blast_backward","death_head_forward","death_head_backward","death_head_neutral","death_chest_forward","death_chest_backward","death_chest_neutral","death_leg_left","death_leg_right","death_crouch","sidestep_left","sidestep_right","roll_left","roll_right","land","flinch_stand","flinch_attack_stand","flinch_chest","flinch_back","flinch_leg_left","flinch_leg_right","idle_to_ready","ready_to_idle","idle_1","idle_2","idle_3","idle_4","rock_drop","rock_pickup","death_still_1","death_still_2","death_still_3","reload","unholster","speak","speak_short","heal_light_1","hit_alarm"};
+int32_t rf_entity_declared_action_lookup(const uint32_t declarations[2],uint32_t model,uint32_t model_kind,const char *name)
+{
+    const char *names[45];uint32_t i;if(!declarations)return -1;
+    for(i=0;i<45;++i)names[i]=(declarations[i/32]&(1u<<(i%32)))?entity_action_names[i]:NULL;
+    return rf_entity_action_name_lookup(model,model_kind,names,name);
+}
+int rf_entity_action_declarations_read(const void *text,uint32_t bytes,const char *class_name,const char *weapon,uint32_t result[2])
+{
+    uint32_t bits[2]={0},i;int status;rf_entity_action_declaration action;
+    if(!text || !class_name || !*class_name || !weapon || !result)return RF_RANGE;
+    for(i=0;i<45;++i) {
+        status=rf_entity_action_read(text,bytes,class_name,weapon,entity_action_names[i],&action);
+        if(status==RF_NOT_FOUND)continue;if(status)return status;bits[i/32]|=1u<<(i%32);
+    }
+    memcpy(result,bits,sizeof(bits));return RF_OK;
+}
 static int action_set_extend(const void *text,uint32_t size,const char *name,const char *weapon,rf_vpp *motions,rf_entity_state_set *v)
 {
-    static const char *names[45]={"corpse_drop","corpse_carry","fire_stand","alt_fire_stand","fire_crouch","death_generic","death_blast_forward","death_blast_backward","death_head_forward","death_head_backward","death_head_neutral","death_chest_forward","death_chest_backward","death_chest_neutral","death_leg_left","death_leg_right","death_crouch","sidestep_left","sidestep_right","roll_left","roll_right","land","flinch_stand","flinch_attack_stand","flinch_chest","flinch_back","flinch_leg_left","flinch_leg_right","idle_to_ready","ready_to_idle","idle_1","idle_2","idle_3","idle_4","rock_drop","rock_pickup","death_still_1","death_still_2","death_still_3","reload","unholster","speak","speak_short","heal_light_1","hit_alarm"};
+    const char *const *names=entity_action_names;
+
     uint32_t identities[68]={0},i,identity;uint8_t flags[68]={0};int status,added;int32_t index;char compiled[64];
     rf_model_motion_registry registry={identities,flags,0,68};
     /* Reconstruct registration keys from retained state cache identities. */
@@ -1127,6 +1145,7 @@ static int action_set_extend(const void *text,uint32_t size,const char *name,con
         rf_entity_action_declaration action;
         status=rf_entity_action_read(text,size,name,weapon,names[i],&action);
         if(status==RF_NOT_FOUND)continue;if(status)return status;
+        v->action_declarations[i/32]|=1u<<(i%32);
         memcpy(v->action_sounds[i],action.sound,64);
         if(!*action.motion)continue;
         status=rf_motion_cache_acquire(v->cache,68,action.motion,&identity);if(status)return status;
@@ -1208,6 +1227,7 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
             g=v.groups+at++;g->class_index=i;g->weapon=j;g->count=working->count;
             memcpy(g->states,working->states,sizeof(g->states));memcpy(g->actions,working->actions,sizeof(g->actions));
             memcpy(g->action_sounds,working->action_sounds,sizeof(g->action_sounds));
+            memcpy(g->action_declarations,working->action_declarations,sizeof(g->action_declarations));
             if(resource_bytes) {
                 g->files=malloc((size_t)resource_bytes);if(!g->files){status=RF_RANGE;goto done;}
                 g->looping=(uint8_t*)(g->files+g->count);

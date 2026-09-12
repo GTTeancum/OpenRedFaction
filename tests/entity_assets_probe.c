@@ -186,6 +186,8 @@ int main(int argc,char **argv)
         if(rf_entity_base_motions_open(&seeds,&tables,&motions,m.peak_bytes-1,&guard)!=RF_RANGE || memcmp(&guard,&(rf_entity_base_motions){0},sizeof(guard)))return 5;
         if(rf_entity_base_motions_open(&seeds,&tables,&motions,m.peak_bytes,&guard))return 6;
         rf_entity_base_motions_close(&guard);rf_entity_base_motions_close(&guard);
+        for(i=0;i<m.class_count;++i)printf("ACTION_DECLARATIONS\t%s\t\t%u\t%u\n",seeds.records.items[seeds.classes[i].record_index].record.class_name,m.classes[i].action_declarations[0],m.classes[i].action_declarations[1]);
+        for(i=0;i<m.group_count;++i)printf("ACTION_DECLARATIONS\t%s\t%s\t%u\t%u\n",seeds.records.items[seeds.classes[m.groups[i].class_index].record_index].record.class_name,m.weapons.names[m.groups[i].weapon],m.groups[i].action_declarations[0],m.groups[i].action_declarations[1]);
         for(i=0;i<m.class_count;++i)printf("WEAPON_GROUPS\t%s\t%u\t%u\n",
             seeds.records.items[seeds.classes[i].record_index].record.class_name,m.classes[i].weapon_groups[0],m.classes[i].weapon_groups[1]);
         for(i=0;i<m.class_count;++i)printf("DEFAULT_WEAPONS\t%s\t%d\t%d\n",

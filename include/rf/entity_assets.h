@@ -372,12 +372,18 @@ typedef struct rf_entity_state_set {
     uint32_t cache_indices[68];uint8_t looping[68];int32_t actions[45];char action_sounds[45][64];
     uint32_t weapon_groups[2];rf_entity_default_weapons default_weapons;
     uint32_t marker_counts[23];float marker_frames[23][2];
+    uint32_t action_declarations[2]; /* Present even when the declared motion is empty. */
 } rf_entity_state_set;
 typedef struct rf_entity_weapon_motion_group {
     uint32_t class_index,weapon,count;
     int32_t states[23],actions[45];char action_sounds[45][64];
     rf_motion_file *files;uint8_t *looping;char (*identities)[64];
+    uint32_t action_declarations[2];
 } rf_entity_weapon_motion_group;
+/* Startup canonical declaration-name lookup; clip availability is separate.
+ * Masks come from successful action declarations in the selected class/group. */
+int rf_entity_action_declarations_read(const void *text,uint32_t bytes,const char *class_name,const char *weapon,uint32_t result[2]);
+int32_t rf_entity_declared_action_lookup(const uint32_t declarations[2],uint32_t model,uint32_t model_kind,const char *name);
 typedef struct rf_entity_base_motions {
     rf_entity_state_set *classes;uint32_t class_count,resident_bytes,peak_bytes;
     rf_weapon_names weapons;
