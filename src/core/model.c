@@ -7,6 +7,29 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_object_model_attach(rf_object_model_attachment *state,const char *name,
+    uint32_t kind,const rf_object_model_backend *backend)
+{
+    char stem[64],*dot;size_t length;uint32_t model;float center[3]={0};int status;
+    if(!state || !name || !backend || !backend->load || !backend->bounds ||
+       !backend->animate || !backend->property)return RF_RANGE;
+    for(length=0;length<sizeof(stem) && name[length];++length){}
+    if(length==sizeof(stem))return RF_RANGE;
+    memcpy(stem,name,length+1);dot=strrchr(stem,'.');if(dot)*dot=0;
+    if(kind>=1 && kind<=3) {
+        status=backend->load(backend->context,kind,kind==2?stem:name,
+            kind==1?1:kind==3?9999999:0,kind==1?UINT32_MAX:0,&model);
+        if(status)return status;
+        state->model=model;
+    }
+    state->model_index=-1;if(!state->model)return RF_OK;
+    status=backend->bounds(backend->context,state->model,center,&state->radius);if(status)return status;
+    if(!isfinite(center[0]) || !isfinite(center[1]) || !isfinite(center[2]) || !isfinite(state->radius))return RF_RANGE;
+    state->radius=(float)(sqrt(((double)center[0]*center[0]+(double)center[1]*center[1])+(double)center[2]*center[2])+(double)state->radius);
+    if(!isfinite(state->radius))return RF_RANGE;
+    if(kind==3){status=backend->animate(backend->context,state->model,0,1);if(status)return status;}
+    return backend->property(backend->context,state->model,&state->model_property);
+}
 static int clutter_skin_name_equal(const char *first,const char *second)
 {
     unsigned char a,b;

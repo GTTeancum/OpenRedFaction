@@ -102,6 +102,25 @@ int rf_clutter_classes_open_source(rf_clutter_class_fetch fetch,void *context,
 int rf_clutter_classes_load(rf_vpp *tables,const rf_clutter_resource_names *resources,
     uint32_t budget,rf_clutter_classes *owner,uint32_t *peak_bytes);
 void rf_clutter_classes_close(rf_clutter_classes *owner);
+typedef struct rf_object_model_attachment {
+    uint32_t model;int32_t model_index;float radius;int32_t model_property;
+} rf_object_model_attachment;
+typedef struct rf_object_model_backend {
+    int (*load)(void *context,uint32_t kind,const char *name,uint32_t first,uint32_t second,uint32_t *model);
+    int (*bounds)(void *context,uint32_t model,float center[3],float *radius);
+    int (*animate)(void *context,uint32_t model,int32_t motion,float speed);
+    int (*property)(void *context,uint32_t model,int32_t *value);
+    void *context;
+} rf_object_model_backend;
+/*489fe0: load kind1(name,1,-1),2(stem,0,0),3(name,9999999), set index-1,
+ * expand model radius by center length, start kind3 motion0 at speed1, query
+ *503210 property. Other kinds retain the incoming model.48a100 is a bare ret.
+ * Callback errors retain partial state for caller-owned resource cleanup.
+ * A zero model is a successful missing result and preserves radius/property.
+ * Bounded port filenames <=63 bytes; original local buffer was only32 bytes.
+ * Resource ownership stays with caller/backend. No allocation or release here. */
+int rf_object_model_attach(rf_object_model_attachment *state,const char *name,
+    uint32_t kind,const rf_object_model_backend *backend);
 typedef struct rf_clutter_state {
     uint32_t token,first_word,handle,model,flags,physics_flags;
     float position[3],health,armor;
