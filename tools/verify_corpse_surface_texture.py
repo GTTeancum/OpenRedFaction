@@ -24,4 +24,11 @@ assert run(resident-1,archives)==[-4,owner]
 assert run(1024*1024,['tables.vpp'])==[-3,owner]
 first=run(resident,['maps_en.vpp','tables.vpp']);assert first[:7]==info[:7] and first[7]==0 and first[8:]==info[8:]
 report=dict(result='PASS',cases=5,pc_sha256=hashlib.sha256(probe.read_bytes()).hexdigest(),width=width,height=height,pixel_bytes=len(pixels),resident_bytes=resident,pixel_fnv1a=checksum,source_format=source_format,alpha_min=min(pixels[3::4]),alpha_max=max(pixels[3::4]),scope='PC dedicated surface texture loader using existing bitmap owner. Independently decoded uncompressed32-bit TGA orientation/BGRA converted to RGBA checksum; exact and one-byte-short budget, missing asset, archive index/order, archive closure before inspection and repeated cleanup. NXDK compile only; no native GPU upload or live scene residency claim.')
+raster_probe=root/'build/pc/Release/rf_particle_pixel_probe.exe'
+raster_rows=[list(map(int,line.split())) for line in subprocess.check_output([str(raster_probe),'--corpse-texture',str(root/'Installed_Game/maps_en.vpp')],text=True).splitlines()]
+assert len(raster_rows)==5 and all(len(row)==3 and row[0]==i for i,row in enumerate(raster_rows))
+assert raster_rows[0][1]==raster_rows[4][1]==0 and 0<raster_rows[1][1]<=raster_rows[2][1]
+assert raster_rows[2][1:]==raster_rows[3][1:] and raster_rows[0][2]==raster_rows[4][2]
+report['raster_rows']=raster_rows
+report['raster_scope']='PC rasterizer through composed growth/projection/encoding and synchronous sink, using authored RGBA texture. Zero/mid/mature/repeated mature and fully occluded draws; all depth values preserved. Behind-camera polygons skip sink while retaining growth; sink errors propagate with extent retained. Behavioral integration, not an original GPU image comparison. Xbox callback compatibility/build only, no XEMU raster test.'
 (root/'artifacts/corpse-surface-texture.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

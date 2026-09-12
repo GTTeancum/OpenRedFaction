@@ -2,6 +2,50 @@
 #include "pc_raster.h"
 #include <stdio.h>
 #include <string.h>
+#include "rf/corpse_effect.h"
+typedef struct corpse_pixel_sink {rf_pc_raster *raster;const rf_image *image;uint32_t calls;int fail;} corpse_pixel_sink;
+static int corpse_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
+{
+    corpse_pixel_sink *sink=context;++sink->calls;
+    if(image!=sink->image || mode!=RF_PARTICLE_NORMAL_MODE || count<3 || count>12)return RF_FORMAT;
+    if(sink->fail)return RF_IO;
+    return rf_pc_raster_particle(sink->raster,vertices,count,image,mode,RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);
+}
+static int corpse_texture_test(const char *path)
+{
+    rf_pc_raster raster={0};rf_vpp archive;rf_particle_bitmap texture={0};rf_visibility_camera camera={0};
+    rf_particle_vertex_environment environment={0};rf_corpse_surface_effect effect={0};
+    corpse_pixel_sink sink;uint32_t i,j,changed[5],depth,hash,calls;int status;
+    if(rf_pc_raster_open(&raster,1) || rf_vpp_open(&archive,path))return 1;
+    status=rf_corpse_surface_texture_open(&texture,&archive,1,16420);rf_vpp_close(&archive);if(status)return 2;
+    sink.raster=&raster;sink.image=&texture.image;sink.calls=0;sink.fail=0;
+    camera.projection.matrix[0]=camera.projection.matrix[4]=camera.projection.matrix[8]=1;
+    camera.projection.perspective=1;camera.projection.clip.enabled=1;camera.projection.clip.depth_enabled=1;
+    camera.projection.clip.far_distance=10;camera.projection.projection.clamp=1;
+    camera.projection.projection.half_width=320;camera.projection.projection.half_height=240;
+    environment.vertex_color=environment.vertex_alpha=1;environment.depth_scale=environment.reciprocal_scale=1;
+    environment.uv_scale[0]=environment.uv_scale[1]=1;
+    effect.position[2]=4;effect.basis[0]=effect.basis[4]=effect.basis[8]=1;
+    effect.growth_time=5;effect.max_extent=.5f;effect.growth_rate=1.5707963705062866f/5;effect.color=0x00ffffff;
+    for(i=0;i<5;++i) {
+        depth=i==4?0:16777215;changed[i]=0;hash=2166136261u;
+        for(j=0;j<raster.pixels;++j){raster.rgb[j*3]=32;raster.rgb[j*3+1]=64;raster.rgb[j*3+2]=96;raster.depth[j]=depth;}
+        effect.elapsed=i==0?0:i==1?2.5f:5;
+        status=rf_corpse_surface_draw(&effect,&camera,&environment,&texture.image,RF_PARTICLE_NORMAL_MODE,corpse_present,&sink);if(status)return 3;
+        for(j=0;j<raster.pixels;++j) {
+            if(raster.depth[j]!=depth)return 4;
+            if(raster.rgb[j*3]!=32 || raster.rgb[j*3+1]!=64 || raster.rgb[j*3+2]!=96)++changed[i];
+            hash=(hash^raster.rgb[j*3])*16777619u;hash=(hash^raster.rgb[j*3+1])*16777619u;hash=(hash^raster.rgb[j*3+2])*16777619u;
+        }
+        printf("%u %u %u\n",i,changed[i],hash);
+    }
+    if(changed[0] || !changed[1] || changed[2]<changed[1] || changed[2]!=changed[3] || changed[4])return 5;
+    calls=sink.calls;effect.position[2]=-4;effect.extent=-999;
+    if(rf_corpse_surface_draw(&effect,&camera,&environment,&texture.image,RF_PARTICLE_NORMAL_MODE,corpse_present,&sink) || sink.calls!=calls || effect.extent!=.5f)return 6;
+    effect.position[2]=4;effect.extent=-999;sink.fail=1;
+    if(rf_corpse_surface_draw(&effect,&camera,&environment,&texture.image,RF_PARTICLE_NORMAL_MODE,corpse_present,&sink)!=RF_IO || effect.extent!=.5f || sink.calls!=calls+1)return 7;
+    rf_particle_bitmap_close(&texture);rf_pc_raster_close(&raster);return 0;
+}
 static int texture_test(const char *path)
 {
     rf_pc_raster r={0};rf_vpp archive;rf_particle_definition definition={0};rf_particle_animation animation={0};rf_particle particle={0};
@@ -65,6 +109,7 @@ static int flash_test(void)
 }
 int main(int argc,char **argv)
 {
+    if(argc==3 && !strcmp(argv[1],"--corpse-texture"))return corpse_texture_test(argv[2]);
     if(argc==2 && !strcmp(argv[1],"--flash"))return flash_test();
     if(argc==2 && !strcmp(argv[1],"--stretch"))return stretch_test();
     if(argc==3 && !strcmp(argv[1],"--textures"))return texture_test(argv[2]);

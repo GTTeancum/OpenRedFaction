@@ -2626,3 +2626,27 @@ and input colors vary. Ordinary vertex color/alpha, depth/UV scales and no
 color transform/fog are resolved fixture inputs. Both builds and19 CTests
 pass. Universal sine bit-equivalence, actual rasterization, texture upload,
 room scheduling and live death/effect dispatch are not established by this test.
+
+## Synchronous renderer sink and authored PC raster integration
+
+rf_corpse_surface_draw now sends prepared vertices, the borrowed texture and
+caller-selected mode to a synchronous callback compatible with the existing
+PC/Xbox scene particle sink. Image validity and sink are checked before growth.
+Rejected polygons skip the sink. Sink errors propagate without rolling back
+the earlier extent update. Texture ownership stays with the caller; no copy
+or additional persistent allocation is introduced.
+
+tests/particle_pixel_probe.c --corpse-texture maps_en.vpp exercises the actual
+PC rasterizer from the authored texture owner through growth, projection,
+vertex encoding and sink dispatch. Five cleared640x480 passes cover zero,
+half-grown, mature, repeated mature and mature behind nearer depth. Changed
+pixel counts are0,1926,3859,3859,0. Mature image hashes match217397337;
+all depth-buffer values survive each pass. Behind-camera rejection skips
+the callback while updating extent. An injected sink failure returns RF_IO
+and also preserves the updated extent. Archives close before drawing.
+
+verify_corpse_surface_texture.py records these results alongside independent
+texture decoding/budget checks. Both builds and19 CTests pass. This is a
+PC rendering integration test, not an original GPU image comparison or an
+XEMU render. Live campaign creation/queue dispatch and Xbox raster validation
+remain open. No meaningful new gameplay screenshot is available yet.

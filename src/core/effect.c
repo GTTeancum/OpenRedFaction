@@ -1,6 +1,7 @@
 #include <string.h>
 #include "rf/effect.h"
 #include "rf/visibility.h"
+#include "rf/image.h"
 #include <math.h>
 #include <float.h>
 int rf_particle_cone_sample(float cosine_min,rf_random_state *random,float direction[3])
@@ -843,4 +844,15 @@ int rf_corpse_surface_prepare_draw(rf_corpse_surface_effect *effect,const rf_vis
     color=*environment;color.rgba=quad.color;
     for(i=0;i<polygon.count;++i){status=rf_particle_vertex_encode(&color,polygon.vertices+i,result+i);if(status)return status;}
     memcpy(vertices,result,polygon.count*sizeof(*vertices));*count=polygon.count;return RF_OK;
+}
+
+int rf_corpse_surface_draw(rf_corpse_surface_effect *effect,const rf_visibility_camera *camera,
+    const rf_particle_vertex_environment *environment,const rf_image *image,uint32_t mode,
+    rf_corpse_surface_draw_sink sink,void *context)
+{
+    rf_particle_draw_vertex vertices[12];uint32_t count;int status;
+    if(!sink || !image || !image->rgba || !image->width || !image->height)return RF_RANGE;
+    status=rf_corpse_surface_prepare_draw(effect,camera,environment,vertices,&count);if(status)return status;
+    if(!count)return RF_OK;
+    return sink(context,vertices,count,image,mode);
 }

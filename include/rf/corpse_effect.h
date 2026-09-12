@@ -53,6 +53,16 @@ struct rf_particle_draw_vertex;
 int rf_corpse_surface_prepare_draw(rf_corpse_surface_effect *,const struct rf_visibility_camera *,
     const struct rf_particle_vertex_environment *,struct rf_particle_draw_vertex *,uint32_t *count);
 
+struct rf_image;
+typedef int (*rf_corpse_surface_draw_sink)(void *,const struct rf_particle_draw_vertex *,
+    uint32_t count,const struct rf_image *,uint32_t mode);
+/* Borrowed texture and synchronous renderer callback, compatible with the
+ * scene particle sink used by PC and Xbox. Empty projected polygons skip the
+ * callback. Renderer errors propagate; preceding extent update is retained. */
+int rf_corpse_surface_draw(rf_corpse_surface_effect *,const struct rf_visibility_camera *,
+    const struct rf_particle_vertex_environment *,const struct rf_image *,uint32_t mode,
+    rf_corpse_surface_draw_sink,void *context);
+
 typedef struct rf_corpse_surface_source {
     uint32_t descriptor,model;
     float position[3],basis[9];
