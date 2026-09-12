@@ -426,6 +426,23 @@ static int corpse_scene_binding_check(void)
                         CHECK(moved->playback.completion.active.slots[0].tick==1200 && moved->playback.generation==generation+1);
                         CHECK(!clips[0].references && clips[1].references==1 && !memcmp(saved,moved->matrices[0],sizeof(saved)));
                         CHECK(campaign_model_owners[0].position[1]==10);
+                        {
+                            rf_model_bone bone={0};rf_entity_skeleton skeleton={0};float pending[3]={4,5,6},point[3];
+                            bone.parent=-1;skeleton.bones=&bone;skeleton.count=1;
+                            campaign_skeletons.items=&skeleton;campaign_skeletons.count=1;
+                            CHECK(rf_motion_stop_slot(&moved->playback,1)==RF_OK);
+                            CHECK(rf_scene_corpse_advance(corpse,0)==RF_OK && !clips[1].references);
+                            CHECK(rf_scene_corpse_evaluate(corpse,pending)==RF_OK);
+                            CHECK(moved->matrices[0][9]==4 && moved->matrices[0][10]==5 && moved->matrices[0][11]==6);
+                            CHECK(!pending[0] && moved->generations[0]==moved->playback.generation);
+                            CHECK(rf_scene_corpse_pose(&pool.slots[0])==RF_OK && pool.slots[0].body.spheres.items[0].center[0]==5);
+                            corpse->attachment_index=0;CHECK(rf_scene_corpse_follow_point(corpse,point)==RF_OK);
+                            CHECK(point[0]==4 && point[1]==15 && point[2]==6);
+                            pending[0]=9;CHECK(rf_scene_corpse_evaluate(corpse,pending)==RF_OK && pending[0]==9);
+                            CHECK(moved->matrices[0][9]==4);
+                            campaign_skeletons.items=NULL;campaign_skeletons.count=0;
+                            moved->matrices[0][11]=0;
+                        }
                     }
                     campaign_motion_catalog.models=NULL;campaign_motion_catalog.model_count=0;
                     campaign_npc_motion_data=NULL;campaign_npc_motion_sizes=NULL;campaign_npc_motion_count=0;model.cache_ids=NULL;

@@ -759,6 +759,21 @@ int rf_scene_corpse_advance(const rf_corpse *corpse,float elapsed)
     model=campaign_playback_resources.models+pose->skeleton;
     return rf_motion_update(&pose->playback,model->resources,model->count,elapsed);
 }
+/* Explicit demand evaluation after timing advancement; callers supply pending
+ * root displacement. Failed sampling can leave a partial cache, as in the
+ * shared evaluator, and must prevent subsequent pose consumers. */
+int rf_scene_corpse_evaluate(const rf_corpse *corpse,float pending_displacement[3])
+{
+    rf_entity_pose *pose;uint32_t slot,i;int status;
+    if(!corpse || !corpse->update.model || !pending_displacement)return RF_RANGE;
+    slot=corpse->update.model-1;status=campaign_model_pose(slot,&pose);if(status)return status;
+    if(!pose || !campaign_model_owners[slot].owned || pose->playback.completion.active.count>16)return RF_RANGE;
+    for(i=0;i<pose->playback.completion.active.count;++i) {
+        int32_t motion=pose->playback.completion.active.slots[i].motion;if(motion<0)return RF_RANGE;
+        status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)return status;
+    }
+    return rf_entity_pose_evaluate(pose,&campaign_skeletons,&campaign_motion_catalog,pending_displacement);
+}
 int rf_scene_corpse_duration(const rf_corpse *corpse,int32_t motion,double *seconds)
 {
     rf_entity_pose *pose;const rf_motion_file *file;uint32_t slot;int status;

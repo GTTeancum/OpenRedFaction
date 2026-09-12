@@ -1923,3 +1923,22 @@ final deletion releases the remaining reference. Both builds and all18 CTests
 pass. The underlying original playback comparison passes160 scenarios across
 64 consecutive frames each (10240 updates); adapter coverage is PC fixture
 evidence, not a native XEMU corpse tick. Live dispatch remains open.
+
+
+## Explicit transferred corpse pose evaluation
+
+rf_scene_corpse_evaluate resolves the transferred owner, requires each active
+clip through bounded residency and invokes rf_entity_pose_evaluate with the
+caller-provided pending root displacement. It does not advance playback again.
+The shared generation cache controls recomputation; sampling failure may leave
+a partial cache and must prevent subsequent sphere/sound/render consumption.
+The adapter is explicit: existing cached sphere/follow queries do not silently
+invoke evaluation. Live update orchestration still needs that connection.
+
+The PC constructor/finalizer fixture retires its last motion, evaluates one
+root with pending displacement4/5/6, checks the new generation stamp, then
+checks physical sphere centerX5 and world sound point4/15/6. Re-evaluation in
+the same generation leaves matrices and newly pending displacement intact.
+Both builds and all18 CTests pass. This fixture exercises the empty-motion
+evaluation path; authored active-clip evaluation through the corpse adapter
+and native XEMU corpse visuals remain unverified.
