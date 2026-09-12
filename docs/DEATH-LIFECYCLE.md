@@ -7058,3 +7058,31 @@ The model metadata load occurs after generic registration, matching established 
 Verification: tools/verify_clutter_static_base.py compares actual PC archive-created owners against compiled NXDK full composition with only preverified file directory/bounds/CSPH readers supplied. All427 static models pass at generous budgets with physics20 and exact peak budgets with physics0, plus one-byte-short rejection. Additional cases cover all6 allocations, missing model, bound failure and sphere read failure. All owned bytes, retained metadata/spheres, registration generations/counts and cleanup results match across1290 cases; poisoned frees leave no live allocation. The maximum tested retained base+metadata+physics is1348 bytes and peak9900 bytes. Both builds and all19 CTests pass. Evidence: artifacts/clutter-static-base.json.
 
 This is a real archive-backed base/physics adapter, not complete render resources or full4104a0 effects. Geometry, textures, shared render handles, family lists, persistent slot effects, room search and live scene creation still need integration. No native XEMU or new visual claim is made here.
+
+
+## Static render geometry readiness audit
+
+verify_model_vertices.py --static exercises the existing decoded rendering
+owner against archive bytes for415 of427 installed V3M models:733 LODs,
+1081 batches,55485 vertices and45110 triangles. Direct streamed decoding
+and retained geometry agree on complete vertex/triangle/reuse hashes and
+material mappings. Exact32-bit retained budgets succeed and one byte below
+fails for each included LOD; maximum individual retained LOD is56624 bytes.
+All12 static model names used by the resolved opening clutter placements
+are in this supported set. This is PC archive/ownership evidence, not a
+static draw or native XEMU verification.
+
+The report explicitly lists12 excluded models containing23 alternate
+110c21 batches, with submesh/local LOD/batch identifiers. Their complete
+models are excluded, including otherwise supported batches; they are not
+counted as passes. Alternate rendering semantics remain unresolved. Static
+files can carry bone-link regions without a skeleton (2PartSwitch.v3m
+starts with eight zero bytes), so the audit preserves those bytes without
+applying animated bone-index validity checks. This does not establish their
+render-time meaning or permit passing them through the skeletal draw path.
+Nonfinite normals are preserved and reported. The unchanged animated mode
+still passes all95 installed V3C models. No runtime decoder was changed.
+Reports: artifacts/static-model-vertices-verification.json and
+artifacts/static-model-link-audit.json. Next: recover static draw dispatch
+and its transform/material interpretation, then bind shared geometry and
+textures to concrete scene owners.
