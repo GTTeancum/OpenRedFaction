@@ -527,6 +527,17 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--rotating-contact")) {
+        struct {rf_physics_body_state body;float point[3],normal[3],support[3],contact[3];int32_t count;} input;
+        float impact;
+        _Static_assert(sizeof(input)==360,"rotating contact wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(rf_physics_rotating_contact(&input.body,input.point,input.normal,input.support,input.contact,input.count,&impact))return 3;
+            if(fwrite(&input.body,308,1,stdout)!=1 || fwrite(&impact,4,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--contact-select")) {
         struct {rf_physics_body_state body;rf_physics_contact_context context;} input;
         rf_physics_contact_route route;float impact;

@@ -5724,3 +5724,33 @@ This is not complete49d7e0: subsequent stance/crush effects, rotating response
 and damage-tail dispatch remain open. Existing dynamic/static/flag80 numeric
 helpers must be composed at their correct boundaries. No live scene binding
 or new XEMU execution is claimed for this isolated compiled-NXDK comparison.
+
+
+### Rotating-body contact response (2026-09-12)
+
+rf_physics_rotating_contact implements49db7d..49dcf1 when429990 is true
+(resolved486c90 use-kind1), flag80 is clear and contact inverse mass is not
+positive. Contact offset is point minus body position. The stored angular
+vector150 is copied, local X negated, and transformed with the current body
+orientation using original Z/Y/X addition order. Angular cross offset adds
+to linear velocity, then support velocity, preserving intermediate stores.
+
+The signed impact is contact normal speed minus combined actor normal speed.
+A1.1-scaled normal correction is applied only when its normal dot is positive.
+On that path, signed sphere count>1 halves the stored angular vector; counts
+<=1 preserve it. This differs from the nonrotating path, which clears angular
+velocity after correction. Normal is retained without normalization.
+
+tools/verify_rotating_contact.py runs original49d7e0 through49ddef with real
+429990/486c90, cross product, transform and arithmetic helpers, no hooks.
+4096 cases match complete PC/NXDK body bytes and impact:1926 velocity changes
+and965 angular-damping cases. Counts-1/0/1/2/3/32, identity/arbitrary finite
+orientations and zero/nonunit normals are covered. Original unrelated bytes,
+NXDK source/guards and30 nonfinite rejection cases are checked. Both builds
+and19 CTests pass. Report:artifacts/rotating-contact-verification.json.
+
+This supplies the remaining numeric nonpositive-inverse-mass response branch,
+not complete contact scheduling. Compose the verified entry router, numeric
+responses and crush/stance effects with the damage tail before claiming full
+49d7e0. No live scene binding or new XEMU execution is claimed for this
+isolated compiled-NXDK comparison.

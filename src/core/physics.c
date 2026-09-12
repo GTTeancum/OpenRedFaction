@@ -184,6 +184,37 @@ int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3]
 }
 static long double player_contact_dot(const float a[3],const float b[3])
 {return ((long double)a[2]*b[2]+(long double)a[1]*b[1])+(long double)a[0]*b[0];}
+int rf_physics_rotating_contact(rf_physics_body_state *state,const float point[3],
+    const float normal[3],const float support_velocity[3],const float contact_velocity[3],
+    int32_t sphere_count,float *impact_speed)
+{
+    float offset[3],local[3],angular[3],combined[3],correction[3],velocity[3],impact,scale,contact_dot;uint32_t i;
+    if(!state || !point || !normal || !support_velocity || !contact_velocity || !impact_speed || (state->flags&0x80))return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(state->orientation[i]))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(point[i]) || !isfinite(state->position[i]) || !isfinite(state->velocity[i]) ||
+            !isfinite(state->vector_c8[i]) || !isfinite(normal[i]) || !isfinite(support_velocity[i]) || !isfinite(contact_velocity[i]))return RF_RANGE;
+        offset[i]=(float)((long double)point[i]-state->position[i]);local[i]=state->vector_c8[i];
+    }
+    local[0]=(float)((long double)local[0]*-1.0f);
+    for(i=0;i<3;++i)angular[i]=(float)(((long double)local[2]*state->orientation[6+i]+(long double)local[1]*state->orientation[3+i])+(long double)local[0]*state->orientation[i]);
+    for(i=0;i<3;++i) {
+        uint32_t j=(i+1)%3,k=(i+2)%3;
+        float spin=(float)((long double)angular[j]*offset[k]-(long double)angular[k]*offset[j]);
+        float sum=(float)((long double)spin+state->velocity[i]);combined[i]=(float)((long double)sum+support_velocity[i]);
+        if(!isfinite(combined[i]))return RF_RANGE;
+    }
+    contact_dot=(float)player_contact_dot(contact_velocity,normal);
+    impact=(float)((long double)contact_dot-player_contact_dot(combined,normal));scale=(float)((long double)impact*1.100000023841858f);
+    if(!isfinite(impact) || !isfinite(scale))return RF_RANGE;
+    for(i=0;i<3;++i){correction[i]=(float)((long double)scale*normal[i]);if(!isfinite(correction[i]))return RF_RANGE;}
+    if(player_contact_dot(correction,normal)>0) {
+        for(i=0;i<3;++i){velocity[i]=(float)((long double)state->velocity[i]+correction[i]);if(!isfinite(velocity[i]))return RF_RANGE;}
+        memcpy(state->velocity,velocity,12);
+        if(sphere_count>1)for(i=0;i<3;++i)state->vector_c8[i]=(float)((long double)state->vector_c8[i]*.5f);
+    }
+    *impact_speed=impact;return RF_OK;
+}
 int rf_physics_contact_select(rf_physics_body_state *state,
     const rf_physics_contact_context *context,rf_physics_contact_route *route,float *impact)
 {

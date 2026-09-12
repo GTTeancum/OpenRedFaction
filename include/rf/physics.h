@@ -259,6 +259,15 @@ int rf_physics_force_suppresses_damage(const rf_physics_force_region *regions,ui
  * select movement modes. Finite inputs required; errors preserve outputs. */
 int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3],
     const float support_velocity[3],const float contact_velocity[3],float *impact_speed);
+/*49db7d..49dcf1 with original429990 true (resolved use-kind1), flag80
+ * clear and nonpositive contact inverse mass. Adds angular contact-point
+ * velocity before projection, flips local angular X before world transform,
+ * and halves stored angular velocity after a positive correction only when
+ * signed sphere count>1. No normal normalization, damage or route selection.
+ * Finite inputs required; errors preserve body and impact. */
+int rf_physics_rotating_contact(rf_physics_body_state *state,const float point[3],
+    const float normal[3],const float support_velocity[3],const float contact_velocity[3],
+    int32_t sphere_count,float *impact_speed);
 /* 49d94c..49db78: flag-80 response for prepared non-liquid, zero-inverse-mass
  * contacts. free_tangent is the resolved 42a020 predicate; mode 1 additionally
  * clamps grounded tangential Y. direction is entity +714 in body coordinates.
