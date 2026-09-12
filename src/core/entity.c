@@ -1,4 +1,5 @@
 #include "rf/entity.h"
+#include "rf/collision.h"
 #include "rf/timer.h"
 #include <math.h>
 #include <string.h>
@@ -1497,4 +1498,41 @@ int rf_entity_navigation_basis(const float direction[3],float matrix[3][3])
         value[1][2]=(float)((double)value[2][0]*value[0][1]-(double)value[2][1]*value[0][0]);
     }
     memcpy(matrix,value,sizeof(value));return RF_OK;
+}
+
+int rf_entity_navigation_pair(const float position[3],float radius,
+    const rf_entity_navigation_candidate *first,const rf_entity_navigation_candidate *second,
+    float *squared_distance,uint32_t *classification)
+{
+    float center[3],direction[3],matrix[3][3],size[3],closest[3],along,score;volatile float sum;
+    float minimum;uint32_t i,inside=0;int status;
+    if(!position || !first || !second || !squared_distance || !classification)return RF_RANGE;
+    if(!isfinite(radius) || !isfinite(first->radius) || !isfinite(second->radius) || !isfinite(first->height) || !isfinite(second->height))return RF_FORMAT;
+    for(i=0;i<3;++i) {
+        if(!isfinite(position[i]) || !isfinite(first->position[i]) || !isfinite(second->position[i]))return RF_FORMAT;
+        sum=(float)((double)first->position[i]+second->position[i]);center[i]=(float)((double)sum*.5);
+        direction[i]=(float)((double)first->position[i]-second->position[i]);
+        if(!isfinite(center[i]) || !isfinite(direction[i]))return RF_FORMAT;
+    }
+    if(direction[0]==0 && direction[1]==0 && direction[2]==0){*classification=2;return RF_OK;}
+    status=rf_entity_navigation_basis(direction,matrix);if(status)return status;
+    minimum=first->radius<second->radius?first->radius:second->radius;
+    size[0]=(float)(((double)minimum+minimum)-((double)radius+radius));
+    size[1]=first->height<second->height?first->height:second->height;
+    size[2]=(float)sqrt(navigation_distance_squared(first->position,second->position));
+    for(i=0;i<3;++i)if(!isfinite(size[i]))return RF_FORMAT;
+    if(size[0]>=0 && size[1]>=0) {
+        status=rf_collision_point_oriented_box(position,center,matrix,size,&inside);if(status)return status;
+        if(inside){*classification=0;return RF_OK;}
+    }
+    size[0]=(float)((double)radius*4+size[0]);if(!isfinite(size[0]))return RF_FORMAT;
+    if(size[0]>=0 && size[1]>=0) {
+        status=rf_collision_point_oriented_box(position,center,matrix,size,&inside);if(status)return status;
+        if(inside) {
+            status=rf_entity_navigation_closest_point(position,first->position,second->position,closest,&along);if(status)return status;
+            score=(float)navigation_distance_squared(position,closest);if(!isfinite(score))return RF_FORMAT;
+            *squared_distance=score;*classification=1;return RF_OK;
+        }
+    }
+    *classification=2;return RF_OK;
 }

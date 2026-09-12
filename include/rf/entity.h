@@ -969,4 +969,11 @@ int rf_entity_navigation_closest_point(const float point[3],const float start[3]
  * matrix unchanged; zero-direction original NaNs are not synthesized here. */
 int rf_entity_navigation_basis(const float direction[3],float matrix[3][3]);
 
+/*40b3d0 pair geometry:0=direct box,1=widened box with score,2=outside.
+ * Only classification1 writes squared_distance. Coincident centers reject.
+ * Finite geometry required; errors preserve both outputs and both candidates. */
+int rf_entity_navigation_pair(const float position[3],float radius,
+    const rf_entity_navigation_candidate *first,const rf_entity_navigation_candidate *second,
+    float *squared_distance,uint32_t *classification);
+
 #endif
