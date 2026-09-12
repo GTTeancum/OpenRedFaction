@@ -475,7 +475,9 @@ int main(int argc,char **argv)
         {
             rf_model_name query = {input.query, strlen(input.query)};
             output.index = -1;
-            output.status = argc==2 && !strcmp(argv[1],"--bone-substring") ?
+            output.status = argc==2 && !strcmp(argv[1],"--static-tag") ?
+                rf_model_find_static_tag(names[0],input.counts[0],query,&output.index) :
+                argc==2 && !strcmp(argv[1],"--bone-substring") ?
                 rf_model_find_bone_substring(names[0],input.counts[0],query,&output.index) :
                 rf_model_find_tag(groups, query, &output.index);
         }

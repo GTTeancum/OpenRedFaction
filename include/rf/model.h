@@ -134,6 +134,11 @@ typedef struct rf_model_name_group {
  * RF_RANGE invalid arguments or a combined index exceeding signed 32 bits. */
 int rf_model_find_tag(const rf_model_name_group groups[3],
                       rf_model_name query, int32_t *index);
+/*53c23f static lookup: first ASCII-insensitive query-prefix match among
+ * first-submesh attachment names only. Empty query matches first entry;
+ * NULL query denotes absence. Same bounded-name/error contracts as above. */
+int rf_model_find_static_tag(const rf_model_name *names,uint32_t count,
+    rf_model_name query,int32_t *index);
 /*51d690: first case-sensitive substring match in the bone group only.
  * Empty query matches the first bone. Unlike find_tag, no case folding or
  * attachment/miscellaneous groups. Same bounded-name/error contracts. */

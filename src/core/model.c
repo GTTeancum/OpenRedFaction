@@ -1226,6 +1226,23 @@ static unsigned char fold(unsigned char c)
     return c >= 'A' && c <= 'Z' ? (unsigned char)(c + ('a' - 'A')) : c;
 }
 
+int rf_model_find_static_tag(const rf_model_name *names,uint32_t count,
+    rf_model_name query,int32_t *index)
+{
+    uint32_t n;size_t i;
+    if(!index || (count && !names) || count>(uint32_t)INT32_MAX)return RF_RANGE;
+    if(!query.data && !query.length)return RF_NOT_FOUND;
+    if(!valid_name(query))return RF_FORMAT;
+    for(n=0;n<count;++n) {
+        if(!valid_name(names[n]))return RF_FORMAT;
+        if(query.length>names[n].length)continue;
+        for(i=0;i<query.length;++i)
+            if(fold((unsigned char)names[n].data[i])!=fold((unsigned char)query.data[i]))break;
+        if(i==query.length){*index=(int32_t)n;return RF_OK;}
+    }
+    return RF_NOT_FOUND;
+}
+
 int rf_model_find_tag(const rf_model_name_group groups[3],
                       rf_model_name query, int32_t *index)
 {
