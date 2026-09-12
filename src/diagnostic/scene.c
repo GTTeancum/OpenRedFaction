@@ -499,11 +499,12 @@ static rf_entity_motion_catalog campaign_motion_catalog;
 static rf_entity_playback_resources campaign_playback_resources;
 typedef struct campaign_model_owner {
     rf_model_skeletal_registration registration;rf_entity_pose *pose;
-    float position[3],basis[9];uint32_t appearance,room;
+    float position[3],basis[9];uint32_t appearance,room;rf_entity_owned_pose *owned;
 } campaign_model_owner;
 static campaign_model_owner *campaign_model_owners;
 static rf_model_skeletal_registration *campaign_model_head;
 static uint32_t campaign_model_owner_count;
+static uint32_t campaign_model_owned_bytes,campaign_model_owned_count;
 uint32_t rf_scene_npc_models[4]; /* published, peak owner bytes, retired, errors */
 static void campaign_models_close(void)
 {
@@ -514,7 +515,14 @@ static void campaign_models_close(void)
             else {
                 rf_entity_playback_model *model=campaign_playback_resources.models+pose->skeleton;
                 if(rf_model_skeletal_retire(&owner->registration,&campaign_model_head,campaign_model_owner_count,model->resources,model->count))++rf_scene_npc_models[3];
-                else ++rf_scene_npc_models[2];
+                else {
+                    ++rf_scene_npc_models[2];
+                    if(owner->owned) {
+                        uint32_t bytes=owner->owned->allocated_bytes;
+                        if(rf_entity_owned_pose_close(owner->owned,&campaign_playback_resources))++rf_scene_npc_models[3];
+                        else {free(owner->owned);owner->owned=NULL;campaign_model_owned_bytes-=bytes;--campaign_model_owned_count;}
+                    }
+                }
             }
         }
     }
@@ -565,6 +573,33 @@ static int campaign_model_place(uint32_t slot,const float position[3],const floa
     owner=campaign_model_owners+slot;
     memcpy(owner->position,position,12);memcpy(owner->basis,basis,36);
     owner->appearance=appearance;owner->room=room;return RF_OK;
+}
+/* Bounded campaign ownership handoff. The caller must have accepted corpse
+ * placement before this operation. No corpse/actor state is published here. */
+int rf_scene_model_detach(uint32_t slot,const float position[3],const float basis[9],uint32_t room)
+{
+    rf_entity_pose *pose;rf_entity_owned_pose *owned;campaign_model_owner *owner;uint32_t i;int status;
+    if(!position || !basis)return RF_RANGE;
+    status=campaign_model_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    owner=campaign_model_owners+slot;
+    if(owner->owned || campaign_model_owned_count>=RF_CORPSE_CAPACITY || campaign_model_owned_bytes>96*1024)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(position[i]))return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_RANGE;
+    owned=calloc(1,sizeof(*owned));if(!owned)return RF_RANGE;
+    status=rf_entity_registered_pose_take(&owner->registration,&owner->pose,&campaign_playback_resources,
+        96*1024-campaign_model_owned_bytes,owned);
+    if(status){free(owned);return status;}
+    owner->owned=owned;campaign_model_owned_bytes+=owned->allocated_bytes;++campaign_model_owned_count;
+    memcpy(owner->position,position,12);memcpy(owner->basis,basis,36);owner->room=room;
+    return RF_OK;
+}
+/* An actor loses access when its model storage is handed off. Model rendering
+ * and eventual corpse updates continue through campaign_model_pose. */
+static int campaign_actor_pose(uint32_t slot,rf_entity_pose **result)
+{
+    int status=campaign_model_pose(slot,result);if(status)return status;
+    if(campaign_model_owners[slot].owned)*result=NULL;
+    return RF_OK;
 }
 static void **campaign_npc_motion_data;
 static uint32_t *campaign_npc_motion_sizes;
@@ -1451,7 +1486,7 @@ static int campaign_npc_eye_update(uint32_t actor)
     rf_eye_input input={0};float tag[12],placed[12];int status;
     rf_entity_pose *pose;const campaign_npc_eye_class *eye;campaign_npc_body *owner;uint32_t cls;
     if(actor>=campaign_npc_body_count || actor>=campaign_poses.count || !campaign_npc_eyes)return RF_RANGE;
-    status=campaign_model_pose(actor,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    status=campaign_actor_pose(actor,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     owner=campaign_npc_bodies+actor;cls=campaign_seeds.items[actor].class_index;
     if(cls>=campaign_seeds.class_count)return RF_RANGE;eye=campaign_npc_eyes+cls;
     memcpy(input.position,owner->published,12);
@@ -2199,7 +2234,7 @@ int rf_scene_npc_pain(uint32_t handle,int32_t now,rf_random_state *random,const 
     if(!random || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
     if(i==campaign_npc_body_count)return RF_NOT_FOUND;
-    c.owner=campaign_npc_bodies+i;status=campaign_model_pose(i,&c.pose);if(status)return status;if(!c.pose)return RF_NOT_FOUND;
+    c.owner=campaign_npc_bodies+i;status=campaign_actor_pose(i,&c.pose);if(status)return status;if(!c.pose)return RF_NOT_FOUND;
     if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&c.owner->view)return RF_NOT_FOUND;
     cls=campaign_seeds.items[i].class_index;
     if(cls>=campaign_motion_catalog.class_count || cls>=campaign_base_motions.class_count ||
@@ -3502,7 +3537,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     if(campaign_npc_body_count!=campaign_poses.count)return RF_RANGE;
     /* Original snapshot list completes before any model/controller update. */
     for(i=0;i<campaign_npc_body_count;++i) {
-        rf_entity_pose *pose;status=campaign_model_pose(i,&pose);if(status)return status;if(!pose)continue;
+        rf_entity_pose *pose;status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)continue;
         campaign_npc_body *owner=campaign_npc_bodies+i;
         rf_entity_position_snapshot(&owner->object_flags,owner->previous,owner->published);
         owner->view.flags_7c=owner->object_flags;
@@ -3511,7 +3546,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     for(i=0;i<campaign_poses.count;++i) {
         rf_entity_pose *pose;const rf_entity_motion_mapping *map;
         rf_entity_playback_model *model;float displacement[3]={0};uint32_t class_index;
-        status=campaign_model_pose(i,&pose);if(status)return status;if(!pose)continue;
+        status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)continue;
         class_index=campaign_seeds.items[i].class_index;
         if(class_index>=campaign_motion_catalog.class_count || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
         map=campaign_motion_catalog.mappings+class_index;model=campaign_playback_resources.models+pose->skeleton;

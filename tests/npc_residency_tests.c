@@ -353,13 +353,24 @@ static int eye_binding_check(void)
     eye.parent=-1;CHECK(campaign_npc_eye_update(0)==RF_RANGE && owner.eye_position[1]==25.5f);
     CHECK(campaign_npc_eye_update(1)==RF_RANGE);
     {
-        rf_entity_owned_pose owned={0};uint16_t stamps[1]={0};eye.parent=0;
-        pose.generations=stamps;rf_motion_playback_initialize(&pose.playback);
-        CHECK(rf_entity_registered_pose_take(&campaign_model_owners[0].registration,
-            &campaign_model_owners[0].pose,&campaign_playback_resources,sizeof(owned)+50,&owned)==RF_OK);
-        memset(matrix,0xdd,sizeof(matrix));
-        CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==25.5f);
-        campaign_models_close();CHECK(rf_entity_owned_pose_close(&owned,&campaign_playback_resources)==RF_OK);
+        uint16_t stamps[1]={0};rf_entity_pose *resolved;campaign_model_owner saved;
+        float position[3]={50,60,70},basis[9]={1,0,0,0,1,0,0,0,1};eye.parent=0;
+        pose.generations=stamps;rf_motion_playback_initialize(&pose.playback);saved=campaign_model_owners[0];
+        campaign_model_owned_count=RF_CORPSE_CAPACITY;
+        CHECK(rf_scene_model_detach(0,position,basis,10)==RF_RANGE);campaign_model_owned_count=0;
+        campaign_model_owned_bytes=96*1024;
+        CHECK(rf_scene_model_detach(0,position,basis,10)==RF_RANGE);campaign_model_owned_bytes=0;
+        CHECK(!memcmp(&saved,campaign_model_owners,sizeof(saved)) && pose.skeleton==0);
+        CHECK(rf_scene_model_detach(0,position,basis,10)==RF_OK);
+        CHECK(campaign_model_owned_count==1 && campaign_model_owned_bytes==sizeof(rf_entity_owned_pose)+50);
+        CHECK(rf_scene_model_detach(0,position,basis,10)==RF_RANGE);
+        memset(matrix,0xdd,sizeof(matrix));memset(position,0xdd,sizeof(position));memset(basis,0xdd,sizeof(basis));
+        CHECK(campaign_model_pose(0,&resolved)==RF_OK && resolved && resolved->matrices[0][10]==5);
+        CHECK(campaign_model_owners[0].position[1]==60 && campaign_model_owners[0].basis[4]==1 &&
+            campaign_model_owners[0].appearance==7 && campaign_model_owners[0].room==10);
+        CHECK(campaign_actor_pose(0,&resolved)==RF_OK && !resolved);
+        CHECK(campaign_npc_eye_update(0)==RF_NOT_FOUND);
+        campaign_models_close();CHECK(!campaign_model_owned_count && !campaign_model_owned_bytes && !rf_scene_npc_models[3]);
         CHECK(campaign_npc_eye_update(0)==RF_RANGE);
     }
     campaign_npc_eyes=NULL;campaign_npc_bodies=NULL;campaign_npc_body_count=0;

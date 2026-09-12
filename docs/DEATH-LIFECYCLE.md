@@ -1633,3 +1633,36 @@ render scratch telemetry falls445192 to444880 bytes. No visible change expected.
 Native XEMU replay-20260911-215423 passes180 frames on stock67108864-byte
 RAM with matching door/damage/audio and registry telemetry [78,5928,78,0].
 This verifies model-owned placement for existing actors, not live corpses.
+
+
+## Campaign model handoff and actor separation
+
+rf_scene_model_detach now owns the campaign transfer allocation: one empty
+308-byte owner plus the existing bounded matrix/stamp allocation. It limits
+transfers to30 models and96KiB aggregate owner/cache bytes, excluding allocator
+overhead. Budget failure, allocation failure, duplicate transfer and nonfinite
+placement preserve the registered source. Successful transfer preserves model
+identity/appearance, copies accepted corpse placement and consumes the source
+pose. Model slots grow76 to80 bytes to retain the owned-pose pointer.
+
+Actor playback/snapshot, eye and pain paths now use campaign_actor_pose and lose
+access after transfer. Model rendering/residency retains campaign_model_pose.
+Level teardown retires the registration, drains references, closes the moved
+pose cache and frees its owner, updating aggregate accounting. Individual
+corpse model retirement is still needed; the function is not called by live
+death dispatch yet. Transferred models must receive the corpse update path
+before enabling gameplay handoff. This is port storage integration, not a new
+claim of original-executable behavior.
+
+The PC fixture verifies preserved model pose/placement after poisoning source
+storage, blocked actor access, count/budget rejection and zero accounting after
+teardown. tools/verify_campaign_model_detach.py executes compiled NXDK detach
+and campaign cleanup for150 combinations of1..50 bones and0/8/16 clips, with
+300 injected allocation failures,150 capacity rejections and150 repeats. It
+checks exact ring/pointer ownership, reference counts and both freed allocations.
+Report: artifacts/campaign-model-detach.json. Both builds and all18 CTests pass.
+
+Three PC level replays pass with6240/3120/2240 registry bytes. Native XEMU
+replay-20260911-220054 passes180 door/damage/audio frames on stock64MiB with
+[78,6240,78,0] registry telemetry. Native campaign replay contains no transferred
+model; detached ownership itself is tested in the PC fixture and NXDK harness.
