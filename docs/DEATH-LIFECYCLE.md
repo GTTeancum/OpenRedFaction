@@ -7792,3 +7792,39 @@ existing collision harness x87 control0x37f; no native gameplay claim.
 Both builds,21 CTests and1537 glare-search checks pass. Next bind stable
 scene face identity and reconstruct texture-sensitive query behavior; do not
 drop preferred-face semantics when composing scene collision callbacks.
+
+
+Glare dependency: texture-alpha thin collision (2026-09-12)
+--------------------------------------------------------
+Original4def23..4def9e samples texture only after a polygon hit and retained
+fraction gate. Bitmap face30 must be >=0 and either query80/face40 or
+query100/face80 must both be set. The predicates4d4db0/4d7d60 read those
+face flags directly.4e1ad0 resolves UV at the hit point;50e330 samples the
+bitmap. Its return value is ignored; sampled color high byte below128
+rejects the hit, otherwise the ordinary fraction/point/normal is committed.
+Negative bitmap IDs or unmatched flags bypass sampling.50cc00 constructor
+is a no-op, so the sampling service must actually supply its color.
+
+rf_collision_thin_face_textured composes full existing zero-radius geometry
+with this post-polygon alpha gate. It borrows an unchanged72-byte face view,
+separate bitmap identity and an8-byte sample backend. The backend receives
+original face view, bitmap and computed hit point, and returns packed color;
+it will compose actual UV interpolation and bitmap sampling later. No heap
+allocation or face-owner layout change. Missing backend reports NOT_FOUND
+only when a real hit requires sampling. Callback failure preserves result
+and matched; rejected alpha preserves result and sets matched0. Existing
+non-textured entry behavior remains unchanged for compatibility.
+
+verify_collision_textured_thin.py passes6060 PC/compiled NXDK cases against
+full original4dec10, using actual filter, box, plane, polygon and constructor
+code. Only UV4e1ad0 and bitmap50e330 are supplied. Checks exact output and
+sampler call/hit point, all flag pairings, signed bitmap bypass, alpha127/128
+boundary, geometry misses and60 coplanar misses.282 sampling paths include
+155 transparent original outcomes;66 port callback failures and67 missing
+backend cases preserve outputs. Original bitmap return alternates without
+changing the alpha decision. Harness follows collision control0x37f.
+
+Both builds,21 CTests,6062 existing thin checks and2406 preferred-flat checks
+pass. Actual UV interpolation, bitmap decoding/sampling, swept edge behavior
+and propagation through preferred/room/flat scene queries remain open. No
+native gameplay or new visible effect is claimed by this helper milestone.

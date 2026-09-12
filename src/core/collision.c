@@ -1279,6 +1279,24 @@ int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     *matched=hit;return RF_OK;
 }
 
+int rf_collision_thin_face_textured(const rf_collision_face *face,int32_t bitmap,
+    const float start[3],const float displacement[3],float limit,
+    const rf_collision_texture_backend *texture,rf_collision_ray_hit *result,uint32_t *matched)
+{
+    rf_collision_face geometry;rf_collision_ray_hit value;uint32_t hit,color,flags;int status;
+    if(!face || !result || !matched)return RF_RANGE;
+    geometry=*face;flags=face->filter.query_flags;geometry.filter.query_flags&=~0x180u;
+    status=rf_collision_thin_face(&geometry,start,displacement,limit,&value,&hit);if(status)return status;
+    if(!hit){*matched=0;return RF_OK;}
+    if(bitmap>=0 && (((flags&0x80) && (face->filter.face_flags&0x40)) ||
+       ((flags&0x100) && (face->filter.face_flags&0x80)))) {
+        if(!texture || !texture->sample)return RF_NOT_FOUND;
+        status=texture->sample(texture->context,face,bitmap,value.point,&color);if(status)return status;
+        if((color>>24)<128){*matched=0;return RF_OK;}
+    }
+    *result=value;*matched=1;return RF_OK;
+}
+
 /* 4faaf0: reciprocal length remains extended through component stores. */
 static void sweep_normalize(float normal[3])
 {

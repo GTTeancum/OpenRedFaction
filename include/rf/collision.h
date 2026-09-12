@@ -155,6 +155,20 @@ int rf_collision_mover_contact(const rf_collision_ray_hit *local,const float ori
 /* Finite nonnegative fraction limit; FLT_MAX is an original caller input. */
 int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     const float displacement[3],float limit,rf_collision_ray_hit *result,uint32_t *matched);
+typedef struct rf_collision_texture_backend {
+    int (*sample)(void *,const rf_collision_face *,int32_t,const float[3],uint32_t *);
+    void *context;
+} rf_collision_texture_backend;
+/* Full zero-radius4dec10 with its post-polygon texture alpha gate.
+ * Query80/face40 or query100/face80, and bitmap>=0, require sample at the hit
+ * point; packed color high byte must be >=128. Callback supplies original
+ * UV resolution4e1ad0 and bitmap sampling50e330 together; original sample
+ * return value is ignored, but port callback errors preserve both outputs.
+ * Missing backend returns NOT_FOUND only when sampling is actually needed.
+ * Bitmap identity/UV ownership remains separate from the unchanged face view. */
+int rf_collision_thin_face_textured(const rf_collision_face *face,int32_t bitmap,
+    const float start[3],const float displacement[3],float limit,
+    const rf_collision_texture_backend *texture,rf_collision_ray_hit *result,uint32_t *matched);
 typedef struct rf_collision_sweep_hit {
     rf_collision_ray_hit hit;uint32_t edge,hits;
 } rf_collision_sweep_hit;

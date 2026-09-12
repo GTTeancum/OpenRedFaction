@@ -14,6 +14,12 @@
 #include "burn_resolved_probe.h"
 #include "visibility_probe.h"
 #include "clutter_skin_probe.h"
+typedef struct collision_texture_fixture {uint32_t input[4],calls;float point[3];} collision_texture_fixture;
+static int collision_texture_sample(void *context,const rf_collision_face *face,int32_t bitmap,const float point[3],uint32_t *color)
+{
+    collision_texture_fixture *f=context;(void)face;if((uint32_t)bitmap!=f->input[0])return RF_RANGE;
+    ++f->calls;memcpy(f->point,point,12);if(f->input[2])return RF_IO;*color=f->input[1];return RF_OK;
+}
 static int32_t group_sound_probe(void *context,int32_t sample,const float position[3],float volume,uint32_t flags)
 {
     uint32_t *trace=context,words[6],i;memcpy(words,&sample,4);memcpy(words+1,position,12);
@@ -1677,7 +1683,8 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
-    if(argc==2 && !strcmp(argv[1],"--thin")) {
+    if(argc==2 && (!strcmp(argv[1],"--thin") || !strcmp(argv[1],"--thin-textured"))) {
+        uint32_t textured=!strcmp(argv[1],"--thin-textured");
         struct {float plane[4],lo[3],hi[3],vertices[8][3],start[3],delta[3],limit;rf_collision_face_filter filter;uint32_t count;} in;
         struct {int32_t status;uint32_t matched;rf_collision_ray_hit hit;} out;
         while(fread(&in,sizeof(in),1,stdin)==1) {
@@ -1685,6 +1692,14 @@ int main(int argc,char **argv)
             memcpy(face.plane,in.plane,16);memcpy(face.minimum,in.lo,12);memcpy(face.maximum,in.hi,12);
             face.vertices=in.vertices;face.count=in.count;face.filter=in.filter;
             memset(&out.hit,0xa5,sizeof(out.hit));out.matched=0xa5a5a5a5;
+            if(textured) {
+                collision_texture_fixture fixture;rf_collision_texture_backend backend={collision_texture_sample,&fixture};
+                if(fread(fixture.input,4,4,stdin)!=4)return 2;fixture.calls=0;memset(fixture.point,0xa5,12);
+                out.status=in.count>8?RF_RANGE:rf_collision_thin_face_textured(&face,(int32_t)fixture.input[0],in.start,in.delta,in.limit,
+                    fixture.input[3]?&backend:NULL,&out.hit,&out.matched);
+                if(fwrite(&out,sizeof(out),1,stdout)!=1 || fwrite(&fixture.calls,4,1,stdout)!=1 || fwrite(fixture.point,12,1,stdout)!=1)return 2;
+                continue;
+            }
             out.status=in.count>8?RF_RANGE:rf_collision_thin_face(&face,in.start,in.delta,in.limit,&out.hit,&out.matched);
             if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
         }
