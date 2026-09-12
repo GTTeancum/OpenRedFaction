@@ -6309,3 +6309,39 @@ ownership, older formats, original filesystem/allocator behavior, navigation
 visibility4991c0, live AI408ac0, or native Xbox execution. Next implement shared
 owned node/tag/adjacency storage, retaining collection and original-relative
 node order for the verified40c2c0 query, then bind actual visibility and AI.
+
+
+### Shared owned navigation records (2026-09-12)
+
+`rf_level_owned_navigation_open/close` now implement the audited version180
+section20000 layout in shared C. Two bounded streaming passes measure and load
+nodes, tags and directed adjacency into one stable allocation; no section-sized
+staging buffer is allocated. Budget includes the20-byte x86 owner,120-byte node,
+16-byte query reference and4 bytes per serialized tag/edge. Invalid/duplicate
+edges are filtered in original order; reserved capacity remains within budget.
+Opening L1S1 uses48360 bytes, also the maximum among the94 installed sections.
+
+The owner retains UID, optional orientation, unknown024/040 values and all tag
+words. Query references point to stable candidate prefixes and ordered neighbor
+indices. Keys follow the port's contiguous node-address order; equivalence to
+an arbitrary original heap allocation history is not claimed. Scratch fields,
+uninterpreted prefix bytes and absent matrices initialize deterministically to
+zero in the port; this is not an original constructor write-footprint claim.
+Close invalidates all borrowed references, frees storage and clears the owner.
+
+`tools/verify_navigation_owned.py` compares all94 authored sections/4752 nodes
+on PC and compiled NXDK against the original-audited record reader, including
+complete68-byte candidate prefixes, orientation, UID, tags, query-reference
+identity/order and adjacency. PC closes the source archive before exporting
+retained records. Both paths check exact/insufficient budgets, nonempty-owner
+rejection, truncation and repeat close. NXDK additionally tests allocation
+failure, post-allocation I/O failure cleanup, empty sections, duplicate/self/
+invalid edges, duplicate tags and noncanonical orientation boolean values.
+NXDK executes actual compiled loader and level bounds with only rf_vpp_read,
+calloc and free supplied. PC/NXDK builds and all19 CTests pass.
+
+These owners are not yet retained by the live campaign scene. Next add scene
+creation/retirement and budget telemetry, verify stock64MiB XEMU, then compose
+route/query ownership with actual4991c0 visibility and408ac0 AI. Native XEMU
+navigation behavior, original heap-relative ordering across arbitrary lifetimes,
+older RFL versions and continuous NPC navigation remain unverified.

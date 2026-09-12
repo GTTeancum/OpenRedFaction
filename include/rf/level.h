@@ -26,6 +26,29 @@ int rf_level_open(rf_level *level, rf_vpp *archive, const char *name);
 const rf_level_section *rf_level_find(const rf_level *level, uint32_t type);
 int rf_level_read(const rf_level *level, const rf_level_section *section,
                   uint32_t offset, void *data, uint32_t size);
+
+typedef struct rf_level_navigation_node {
+    rf_entity_navigation_candidate candidate;
+    uint32_t uid,oriented;float orientation[3][3];
+    const uint32_t *tags;uint32_t tag_count;
+} rf_level_navigation_node;
+typedef struct rf_level_owned_navigation {
+    void *storage;rf_level_navigation_node *nodes;
+    rf_entity_navigation_reference *references;
+    uint32_t count,allocated_bytes;
+} rf_level_owned_navigation;
+/* v180 section20000 / original463d50 and40e9e0. Two bounded streaming passes;
+ * one allocation owns nodes, references, tags and ordered unique neighbors.
+ * Budget includes owner and allocation, excluding allocator overhead/stack.
+ * Empty destination required; failures preserve it. Keep source stable during
+ * open; it may close afterward. Close clears owner and invalidates borrowers.
+ * Unknown/query scratch and absent matrices start at deterministic zero in the
+ * port; original constructor preserves those bytes. order_key follows the
+ * port's contiguous node addresses, not an assumed original heap ordering.
+ * This does not initialize routes, run visibility, or dispatch AI. */
+int rf_level_owned_navigation_open(const rf_level *level,uint32_t budget,
+    rf_level_owned_navigation *result);
+void rf_level_owned_navigation_close(rf_level_owned_navigation *navigation);
 typedef struct rf_level_entity {
     int32_t uid;float position[3],orientation[3][3];
     char class_name[256],script_name[256],state_animation[256],skin[256];

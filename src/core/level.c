@@ -336,6 +336,88 @@ static int group_number(rf_level_group_reader *r,uint32_t *out)
 {
     unsigned char raw[4];int status=group_read(r,raw,4);if(!status)*out=le32(raw);return status;
 }
+static int navigation_scan(rf_level_group_reader r,uint32_t count,
+    rf_level_owned_navigation *out,uint32_t *words,uint32_t capacity)
+{
+    uint32_t i,j,k,n,value,total=0,used=0;uint8_t byte,ignored[3];int status;
+    uint32_t *pool=out?(uint32_t *)(out->references+count):NULL;
+    for(i=0;i<count;++i) {
+        rf_level_navigation_node node={0};float radius,height,extra;
+        if((status=group_number(&r,&node.uid)) || (status=group_read(&r,&byte,1)) ||
+            (status=group_read(&r,&height,4)) || (status=group_read(&r,node.candidate.position,12)) ||
+            (status=group_read(&r,&radius,4)) || (status=group_number(&r,&node.candidate.word_040)) ||
+            (status=group_read(&r,&byte,1)))return status;
+        node.oriented=byte!=0;
+        if(node.oriented && (status=group_read(&r,node.orientation,36)))return status;
+        if((status=group_read(&r,ignored,3)) || (status=group_read(&r,&extra,4)) ||
+            (status=group_number(&r,&n)))return status;
+        if(n>(r.section.size-r.cursor)/4 || n>UINT32_MAX-total)return RF_FORMAT;
+        total+=n;if(out && total>capacity)return RF_FORMAT;
+        node.candidate.radius=radius;node.candidate.height=height;
+        memcpy(&node.candidate.retained_018,&radius,4);
+        memcpy(node.candidate.retained_024,&extra,4);
+        node.tag_count=n;node.tags=out && n?pool+used:NULL;
+        for(j=0;j<n;++j) {
+            if((status=group_number(&r,&value)))return status;
+            if(out)pool[used++]=value;
+        }
+        if(out) {
+            out->nodes[i]=node;out->references[i].candidate=&out->nodes[i].candidate;
+            out->references[i].order_key=i;
+        }
+    }
+    for(i=0;i<count;++i) {
+        uint32_t begin=used;
+        if((status=group_read(&r,&byte,1)))return status;
+        n=byte;if(n>UINT32_MAX-total)return RF_FORMAT;
+        total+=n;if(out && total>capacity)return RF_FORMAT;
+        for(j=0;j<n;++j) {
+            if((status=group_number(&r,&value)))return status;
+            if(out && value<count) {
+                for(k=begin;k<used && pool[k]!=value;++k) {}
+                if(k==used)pool[used++]=value;
+            }
+        }
+        if(out) {
+            out->references[i].neighbor_count=used-begin;
+            out->references[i].neighbors=used!=begin?pool+begin:NULL;
+        }
+    }
+    if(r.cursor!=r.section.size)return RF_FORMAT;
+    *words=total;return RF_OK;
+}
+void rf_level_owned_navigation_close(rf_level_owned_navigation *navigation)
+{
+    if(navigation){free(navigation->storage);memset(navigation,0,sizeof(*navigation));}
+}
+int rf_level_owned_navigation_open(const rf_level *level,uint32_t budget,
+    rf_level_owned_navigation *result)
+{
+    rf_level_owned_navigation next={0};rf_level_group_reader reader={0};
+    const rf_level_section *section;uint32_t words,second_words;uint64_t bytes;int status;
+    if(!level || !result || result->storage || result->nodes || result->references ||
+        result->count || result->allocated_bytes)return RF_RANGE;
+    if(level->version!=180)return RF_FORMAT;
+    section=rf_level_find(level,0x20000);if(!section)return RF_NOT_FOUND;
+    reader.level=level;reader.section=*section;
+    if((status=group_number(&reader,&next.count)))return status;
+    if(next.count>(section->size-reader.cursor)/42)return RF_FORMAT;
+    if((status=navigation_scan(reader,next.count,NULL,&words,0)))return status;
+    bytes=sizeof(next)+(uint64_t)next.count*(sizeof(*next.nodes)+sizeof(*next.references))+
+        (uint64_t)words*4;
+    if(bytes>budget)return RF_RANGE;
+    next.allocated_bytes=(uint32_t)bytes;
+    if(next.count) {
+        next.storage=calloc(1,(size_t)(bytes-sizeof(next)));
+        if(!next.storage)return RF_RANGE;
+        next.nodes=next.storage;next.references=(rf_entity_navigation_reference *)(next.nodes+next.count);
+        status=navigation_scan(reader,next.count,&next,&second_words,words);
+        if(status || second_words!=words) {
+            rf_level_owned_navigation_close(&next);return status?status:RF_FORMAT;
+        }
+    }
+    *result=next;return RF_OK;
+}
 static int group_string(rf_level_group_reader *r,char out[256])
 {
     unsigned char raw[2];uint32_t size;int status=group_read(r,raw,2);if(status)return status;
