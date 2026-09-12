@@ -47,7 +47,7 @@ def hook(cpu,address,size,context):
   result=0 if fail else OBJ
  cpu.reg_write(UC_X86_REG_EAX,result);cpu.reg_write(UC_X86_REG_ESP,sp+4);cpu.reg_write(UC_X86_REG_EIP,r(sp))
 for a in (0x40a4a0,0x40a0e0,0x5034f0,0x486da0):u.hook_add(UC_HOOK_CODE,hook,begin=a,end=a)
-cases=0
+cases=0;records=[]
 for cls in (-1,0,1,2,3):
  for flag in (0,1,2,255,256,257):
   for fail in (False,True):
@@ -68,6 +68,10 @@ for cls in (-1,0,1,2,3):
      expected[0x2c0:0x2cc]=struct.pack('<3f',-1000,-1000,-1000);expected[0x2cc:0x2d0]=w(0);expected[0x2d0]=0;expected[0x2d4:0x2ec]=bytes(24)
      assert actual==expected,[(hex(i),a,b) for i,(a,b) in enumerate(zip(actual,expected)) if a!=b][:20]
      assert u.reg_read(UC_X86_REG_EAX)==OBJ and r(NODE+0x2b8)==OBJ and r(0x5c9e64)==OBJ
+   canonical=bytearray(actual[0x200:0x208]+actual[0x28c:0x2ec])
+   created=0<=cls<3 and not fail
+   canonical[52:60]=w(1,2) if created else bytes(8)
+   records.append(dict(index=cls,flag=flag,fail=int(fail),created=int(created),trace=123 if 0<=cls<3 else 0,state=canonical.hex()))
    cases+=1
-report=dict(result='PASS',cases=cases,scope='Full original413d20 with actual descriptor/vector initialization and destruction; supplied random-radius, parent lookup, tag pose and generic allocation boundaries. Complete object write footprint, ordered calls, descriptor fields, low-byte flag, class bounds, allocation failure and tail linkage. No shared constructor, resource lifetime or native Xbox claim.')
-(ROOT/'artifacts/glare-create-original.json').write_text(json.dumps(report,indent=2));print(report)
+report=dict(result='PASS',cases=cases,records=records,scope='Full original413d20 with actual descriptor/vector initialization and destruction; supplied random-radius, parent lookup, tag pose and generic allocation boundaries. Complete object write footprint, ordered calls, descriptor fields, low-byte flag, class bounds, allocation failure and tail linkage. No shared constructor, resource lifetime or native Xbox claim.')
+(ROOT/'artifacts/glare-create-original.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='records'})

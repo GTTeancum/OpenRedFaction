@@ -1,6 +1,7 @@
 #include "rf/model.h"
 #include "rf/model_file.h"
 #include "rf/clutter.h"
+#include "rf/glare.h"
 #include "rf/timer.h"
 #include <stdio.h>
 #include <limits.h>
@@ -8,6 +9,33 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
+    uint32_t parent,int32_t tag,uint32_t flag,rf_object_list *list,
+    const rf_glare_create_backend *backend,rf_glare_state **out)
+{
+    rf_glare_create_descriptor descriptor={0};rf_glare_state *state=NULL;
+    const rf_glare_class *definition;float pose[12];uint32_t i;int status;
+    if(!out || count>INT32_MAX)return RF_RANGE;
+    if(index<0 || (uint32_t)index>=count){*out=NULL;return RF_OK;}
+    if(!classes || !list || !backend || !backend->radius || !backend->tag_pose || !backend->allocate)return RF_RANGE;
+    definition=classes+index;
+    if(!isfinite(definition->radius_minimum) || !isfinite(definition->radius_maximum))return RF_FORMAT;
+    descriptor.parent=parent;
+    status=backend->radius(backend->context,definition->radius_minimum,definition->radius_maximum,&descriptor.radius);if(status)return status;
+    if(!isfinite(descriptor.radius))return RF_FORMAT;
+    status=backend->tag_pose(backend->context,parent,tag,pose);if(status)return status;
+    for(i=0;i<12;++i)if(!isfinite(pose[i]))return RF_FORMAT;
+    memcpy(descriptor.matrix,pose,36);memcpy(descriptor.position,pose+9,12);
+    status=backend->allocate(backend->context,&descriptor,&state);if(status)return status;
+    *out=state;if(!state)return RF_OK;
+    state->definition=definition->definition;state->class_index=index;state->timer=-1;
+    memset(state->samples,0,sizeof(state->samples));state->word_2cc=0;
+    state->parent=parent;state->tag=tag;state->flags=(flag&255u)?2:0;state->active=1;
+    rf_object_list_append(list,&state->link);
+    for(i=0;i<3;++i)state->last_position[i]=-1000;
+    state->byte_2d0=0;memset(state->vectors,0,sizeof(state->vectors));return RF_OK;
+}
+
 int rf_object_model_attach(rf_object_model_attachment *state,const char *name,
     uint32_t kind,const rf_object_model_backend *backend)
 {

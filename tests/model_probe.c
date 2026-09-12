@@ -8,6 +8,7 @@
 #include <math.h>
 #include "model_release_probe.h"
 #include "skeletal_release_probe.h"
+#include "glare_create_probe.h"
 int main(int argc,char **argv)
 {
     struct { uint32_t counts[3]; char names[3][16][32]; char query[32]; } input;
@@ -17,6 +18,7 @@ int main(int argc,char **argv)
     uint32_t g, n;
     _Static_assert(sizeof(input) == 1580, "Probe wire layout");
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--glare-create"))return glare_create_probe();
     if(argc==2 && !strcmp(argv[1],"--static-tag-place")) {
         float data[19];struct {int32_t status;float pose[12];} out;
         rf_model_attachment tag={0};rf_static_model_tags owner={&tag,1,0};
