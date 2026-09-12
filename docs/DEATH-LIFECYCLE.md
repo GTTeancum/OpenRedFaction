@@ -1854,3 +1854,16 @@ create/delete cycles and two budget-failure boundaries with supplied external
 resource callbacks. Report: artifacts/finalize-owned-create-verification.json.
 This preserves the existing NULL-boundary adapter coverage; the real scene
 model-bound finalizer connection above is exercised by the PC fixture.
+
+
+## Transferred corpse model reset
+
+rf_scene_corpse_reset resolves a detached model token and its retained playback
+resources, then invokes rf_motion_stop_looping (5033f0/501ca0/51c340). It clears
+freeze state and zeroes only loop-byte1 weights, preserving active slots and
+references for subsequent advancement. No allocation or actor access occurs.
+The constructor/finalizer PC fixture tests mixed loop/nonloop playback after
+transfer and verifies both references retire exactly once on corpse deletion.
+Both builds and all18 CTests pass; the original motion-stop comparison passes
+1800 cases. This is an adapter test, not live corpse update dispatch. Duration,
+start/advance, sound ownership and the complete update binding remain open.

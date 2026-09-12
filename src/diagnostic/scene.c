@@ -645,6 +645,16 @@ int rf_scene_corpse_pose(rf_corpse_owned *corpse)
     if(status)return status;
     corpse->corpse.physics_radius=radius;corpse->corpse.model_radius=radius;return RF_OK;
 }
+/*5033f0: stop only looping weights; retain slots and references for advance. */
+int rf_scene_corpse_reset(const rf_corpse *corpse)
+{
+    rf_entity_pose *pose;rf_entity_playback_model *model;uint32_t slot;int status;
+    if(!corpse || !corpse->update.model)return RF_RANGE;
+    slot=corpse->update.model-1;status=campaign_model_pose(slot,&pose);if(status)return status;
+    if(!pose || !campaign_model_owners[slot].owned || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
+    model=campaign_playback_resources.models+pose->skeleton;
+    return rf_motion_stop_looping(&pose->playback,model->resources,model->count);
+}
 /*48ac70 from the corpse's own object transform and transferred skeletal pose.
  * The no-attachment path intentionally does not inspect the model. */
 int rf_scene_corpse_follow_point(const rf_corpse *corpse,float point[3])

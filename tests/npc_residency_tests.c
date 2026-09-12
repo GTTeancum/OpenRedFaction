@@ -360,7 +360,7 @@ static int corpse_scene_binding_check(void)
     for(iteration=0;iteration<6;++iteration) {
         mode=iteration%3;
         corpse_scene_fixture fixture={0};rf_entity_pose pose={0};float matrices[1][12]={{1,0,0,0,1,0,0,0,1,0,0,0}};
-        uint16_t stamps[1]={0};rf_entity_playback_model model={0};rf_corpse_create_source source={0};rf_corpse_create_request request={0};
+        uint16_t stamps[1]={0};rf_motion_playback_resource clips[2]={{0}};rf_entity_playback_model model={0};rf_corpse_create_source source={0};rf_corpse_create_request request={0};
         rf_corpse_list_link object_head,corpse_head;uint32_t object_count=0,corpse_count=0;rf_corpse *corpse=NULL;int status;
         rf_corpse_create_ownership ownership={&pool,&registry,&object_head,&object_count,9,.25f,.5f,2};
         rf_corpse_create_backend backend={NULL,csf_load,csf_motion,csf_effect,csf_emitter,&fixture};
@@ -395,6 +395,15 @@ static int corpse_scene_binding_check(void)
             CHECK(campaign_model_owners[0].position[1]==10 && campaign_model_owners[0].room==9 && pose.skeleton==UINT32_MAX);
             {
                 float point[3]={-99,-99,-99};rf_entity_pose *moved=campaign_model_owners[0].pose;
+                model.resources=clips;model.count=2;clips[0].looping=1;clips[0].references=clips[1].references=1;
+                moved->playback.completion.active.count=2;
+                moved->playback.completion.active.slots[0].motion=0;moved->playback.completion.active.slots[0].weight=1;
+                moved->playback.completion.active.slots[1].motion=1;moved->playback.completion.active.slots[1].weight=.5f;
+                moved->playback.completion.active.freeze_slot=1;moved->playback.completion.frozen=1;
+                CHECK(rf_scene_corpse_reset(corpse)==RF_OK);
+                CHECK(moved->playback.completion.active.count==2 && !moved->playback.completion.active.slots[0].weight);
+                CHECK(moved->playback.completion.active.slots[1].weight==.5f && moved->playback.completion.active.freeze_slot==-1);
+                CHECK(!moved->playback.completion.frozen && clips[0].references==1 && clips[1].references==1);
                 moved->matrices[0][9]=2;moved->matrices[0][10]=3;
                 corpse->attachment_index=0;
                 corpse->update.basis[0]=corpse->update.basis[4]=0;corpse->update.basis[1]=1;corpse->update.basis[3]=-1;
@@ -405,6 +414,7 @@ static int corpse_scene_binding_check(void)
                 corpse->update.model=1;
             }
             CHECK(rf_corpse_owned_delete(&pool,0,&registry,&corpse_count,&object_count,4,&deletion)==RF_OK);
+            CHECK(!clips[0].references && !clips[1].references);
         } else {
             CHECK(status==RF_RANGE && !corpse_count && fixture.effects==(mode==2) && fixture.motions==(mode==2));
             if(iteration<3) {
