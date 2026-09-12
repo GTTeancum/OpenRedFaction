@@ -640,6 +640,22 @@ typedef struct rf_entity_death_motion_backend {
 int rf_entity_death_motion_sp(rf_entity_death_motion_state *,uint32_t player,
     const rf_entity_death_motion_backend *);
 
+typedef struct rf_entity_death_player_view {uint32_t token;uint8_t field_fb0,reserved[3];} rf_entity_death_player_view;
+typedef struct rf_entity_death_early_state {
+    uint32_t actor,local_actor;rf_entity_death_player_view *player;
+    int32_t now_ms,deadline_62fd48,deadline_62fd44;
+} rf_entity_death_early_state;
+enum rf_entity_death_early_call {RF_DEATH_EARLY_COLLISION,RF_DEATH_EARLY_MODE,RF_DEATH_EARLY_STOP};
+typedef struct rf_entity_death_early_backend {
+    uint32_t (*call)(void *,uint32_t operation,uint32_t token);void *context;
+} rf_entity_death_early_backend;
+/* SP41fe5f..41feed, after entry flag writes. Calls48c9f0(actor),4ace90(player)
+ * low-byte predicate and4ad8a0(player). Recheck local identity and player after
+ * callbacks before clearing fb0. Both global timers run for all SP deaths.
+ * Actors/player views remain alive; callbacks may change local actor/player
+ * and clock. Timer errors retain preceding effects. */
+int rf_entity_death_early_sp(rf_entity_death_early_state *,const rf_entity_death_early_backend *);
+
 typedef struct rf_entity_death_tail_state {
     uint32_t action_520,class_flags_728;float radius_78;int32_t deadline_4b8;
     uint32_t flags_810,model_148c,name;

@@ -1326,3 +1326,24 @@ int rf_entity_death_tail_sp(rf_entity_death_tail_state *s,const rf_entity_death_
     }
     return RF_OK;
 }
+
+int rf_entity_death_early_sp(rf_entity_death_early_state *s,const rf_entity_death_early_backend *b)
+{
+    rf_entity_death_player_view *player;uint32_t active;int status;
+    if(!s || !b || !b->call)return RF_RANGE;
+    b->call(b->context,RF_DEATH_EARLY_COLLISION,s->actor);
+    if(s->actor==s->local_actor) {
+        player=s->player;
+        if(player) {
+            active=b->call(b->context,RF_DEATH_EARLY_MODE,player->token);
+            player=s->player;
+            if(active&255u) {
+                b->call(b->context,RF_DEATH_EARLY_STOP,player?player->token:0);
+                player=s->player;
+            }
+        }
+        if(s->actor==s->local_actor && player)player->field_fb0=0;
+    }
+    status=rf_timer_set(&s->deadline_62fd48,s->now_ms,1500);if(status)return status;
+    return rf_timer_set(&s->deadline_62fd44,s->now_ms,750);
+}

@@ -3222,3 +3222,33 @@ dispatch or XEMU gameplay is claimed. Report: artifacts/death-tail.json.
 
 Next: recover the early player/camera side effects between death-entry and
 animation, then compose the verified stages using live resource ownership.
+
+
+## Shared early SP death player/timer stage (2026-09-12)
+
+rf_entity_death_early_sp reconstructs41fe5f..41feed after the entry flag writes.
+Collision retirement48c9f0 runs first. Only if actor identity matches the
+current local actor does it inspect the current player, call4ace90's low-byte
+predicate and optionally4ad8a0. Player pointers are reloaded after both calls;
+local actor identity is checked again before clearing bytefb0. The adapted
+player view preserves the three neighboring bytes. Borrowed owners stay alive.
+
+Both SP timers run independently of local actor identity:62fd48 is set1500ms
+from the current game clock and62fd44 is set750ms. Shared rf_timer_set retains
+the original strict wrap behavior. Invalid clock errors retain earlier effects.
+The player mode callbacks remain external to this orchestration. Disassembly
+shows4ace90 reads bytef94;4ad8a0 clears bytesf94/f95 and wordf98. These field
+owners still need mapping to live player state; no specific camera-mode name
+has been inferred from those offsets alone.
+
+verify_death_early.py passes1024 exact original/PC/compiled-NXDK cases including
+210 mode stops. Original timer helpers run unchanged. The fixture covers
+collision-driven local identity changes, predicate-driven player replacement
+or removal, identity changes, stop-driven player replacement, null players,
+high-byte-only predicate results and clock-wrap boundaries. Only the intended
+fb0 byte changes in original player storage. Both builds and all19 CTests pass.
+Resource callbacks are supplied; this does not enable full death dispatch or
+claim XEMU gameplay. Report: artifacts/death-early.json.
+
+Next: map the small player-mode field handlers, audit remaining SP branches
+between the reconstructed stages, and compose them with live resource owners.
