@@ -6855,3 +6855,32 @@ CTests pass. This is port-owned storage, not original allocator equivalence or
 native XEMU residency proof. Resource resolution, generic model/body allocation,
 complete class metadata, skin/effect owners and live level integration remain.
 No new visual is claimed.
+
+
+Clutter resource-name lookup (2026-09-12)
+---------------------------------------
+Shared rf_clutter_material_index reproduces4686c0's ten fixed names and default0
+fallback using ASCII-insensitive comparison. rf_glare_name_lookup reproduces
+415430's first exact bytewise match: glare names are CASE-SENSITIVE. Shared
+rf_emitter_name_lookup reproduces497550's first ASCII-insensitive match. These
+helpers perform no allocation, registration or resource loading. Original glare
+records have52-byte stride at5c9e98, count5cab98; original emitter name string
+records are8 bytes at7b2870, count7bd99c. Glare comparison is inlined bytewise;
+material/emitter comparison uses the existing original string/CRT helpers.
+
+verify_clutter_resource_lookup.py executes all three unmodified original lookup
+functions against supplied authored/synthetic name storage.510 cases match PC
+and compiled NXDK, including case variants, duplicate first match, empty names,
+unknown names and the last slot. Seven additional NXDK guards cover invalid
+arrays/counts/null queries and material null fallback. Fixtures use56 effects.tbl
+glare names,52 emitter names, the ten original material names and94 clutter glare
+references. One distinct clutter glare reference, CoolWedge02_SmallCone_NoVolume,
+is absent from the authored glare table; original lookup returns-1, which is
+preserved. No reference fails solely due to case. Do not silently correct or
+substitute this missing resource while binding classes.
+
+PC/NXDK builds and all19 CTests pass. Authored names are supplied storage here;
+this does not prove the original table loader or native XEMU behavior. Sound and
+vclip lookup already have separate verified helpers; composing these lookups
+with class binding, complete effect owners and actual resource loading remains
+open. No new visual is claimed.

@@ -18,6 +18,25 @@ static int clutter_skin_name_equal(const char *first,const char *second)
     } while(a);
     return 1;
 }
+uint32_t rf_clutter_material_index(const char *name)
+{
+    static const char *const names[]={"Default","Rock","Metal","Flesh","Water","Lava","Solid","Sand","Ice","Glass"};
+    uint32_t i;if(!name)return 0;
+    for(i=0;i<10;++i)if(clutter_skin_name_equal(names[i],name))return i;
+    return 0;
+}
+int32_t rf_glare_name_lookup(const char *const *names,uint32_t count,const char *name)
+{
+    uint32_t i;if(!name || (count && !names) || count>INT_MAX)return -1;
+    for(i=0;i<count;++i)if(!strcmp(names[i]?names[i]:"",name))return (int32_t)i;
+    return -1;
+}
+int32_t rf_emitter_name_lookup(const char *const *names,uint32_t count,const char *name)
+{
+    uint32_t i;if(!name || (count && !names) || count>INT_MAX)return -1;
+    for(i=0;i<count;++i)if(clutter_skin_name_equal(names[i]?names[i]:"",name))return (int32_t)i;
+    return -1;
+}
 int rf_clutter_classes_open(const rf_clutter_definition *definitions,
     const rf_clutter_class_binding *bindings,uint32_t count,uint32_t budget,rf_clutter_classes *owner)
 {

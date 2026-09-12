@@ -1,6 +1,14 @@
 #ifndef RF_CLUTTER_H
 #define RF_CLUTTER_H
 #include "rf/object_registry.h"
+/*4686c0: ten fixed material names, ASCII-insensitive, unknown -> default0.
+ *415430: first exact bytewise glare name;497550: first ASCII-insensitive emitter
+ * name. Empty names may match an empty slot. NULL slots are empty; NULL query
+ * and invalid arrays/counts return-1 for the port, without dereferencing them.
+ * These are pure name lookups, not table loading or resource registration. */
+uint32_t rf_clutter_material_index(const char *name);
+int32_t rf_glare_name_lookup(const char *const *names,uint32_t count,const char *name);
+int32_t rf_emitter_name_lookup(const char *const *names,uint32_t count,const char *name);
 /* Original513020 with40f4f0's nine-entry flag vocabulary. Read one quoted
  * parenthesized list; consumed stops immediately after its closing parenthesis.
  * ASCII-insensitive names, duplicate flags OR together; comments allowed.

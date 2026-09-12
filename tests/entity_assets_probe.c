@@ -13,6 +13,18 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--clutter-create"))return clutter_create_probe();
     if(argc==2 && !strcmp(argv[1],"--clutter-classes"))return clutter_classes_probe();
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--clutter-resource-lookup")) {
+        uint32_t count;char names[256][64],query[64];const char *pointers[256];int32_t result[3];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&count,4,1,stdin)==1) {
+            if(count>256 || fread(names,64,count,stdin)!=count || fread(query,64,1,stdin)!=1 || !memchr(query,0,64))return 2;
+            for(i=0;i<count;++i){if(!memchr(names[i],0,64))return 2;pointers[i]=names[i];}
+            result[0]=(int32_t)rf_clutter_material_index(query);
+            result[1]=rf_glare_name_lookup(pointers,count,query);result[2]=rf_emitter_name_lookup(pointers,count,query);
+            fwrite(result,4,3,stdout);
+        }
+        return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--clutter-definition")) {
         FILE *f=fopen(argv[2],"rb");long size;rf_clutter_definition value,before;
         if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);
