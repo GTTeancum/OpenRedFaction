@@ -364,6 +364,12 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
  * conversion, full40f4f0 parser or4104a0 factory equivalence is claimed. */
 int rf_clutter_assets_read(const void *text,uint32_t bytes,const char *class_name,
     const char *skin,rf_entity_assets *assets);
+/* Same selection with the optional +Glare immediately following the skin's
+ * replacement list. First case-insensitive class/skin wins; absent override
+ * publishes empty name/present0. All three outputs preserved on failure.
+ * Name is owned metadata, not a resolved runtime glare class ID. */
+int rf_clutter_skin_assets_read(const void *text,uint32_t bytes,const char *class_name,
+    const char *skin,rf_entity_assets *assets,char glare[64],uint32_t *present);
 /* Load entity.tbl into temporary storage capped by table_budget; release it
  * before return. Output unchanged on failure. Port-owned archive integration. */
 int rf_entity_assets_load(const char *tables_path,const char *class_name,

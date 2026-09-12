@@ -1538,9 +1538,9 @@ int rf_entity_state_motion_load(const char *path,const char *class_name,
     if(!status)status=rf_entity_state_motion_read(text,entry.size,class_name,weapon,state,motion);
     free(text);rf_vpp_close(&archive);return status;
 }
-static int class_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets,int clutter)
+static int class_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets,int clutter,char *glare_out,uint32_t *glare_present)
 {
-    lexer l={(const unsigned char*)text,bytes,0};rf_entity_assets value={0};char t[256];
+    lexer l={(const unsigned char*)text,bytes,0};rf_entity_assets value={0};char t[256],glare[64]={0};uint32_t present=0;
     int quoted,status,selected=0,found=0,skin_found;
     if(!text || !class_name || !*class_name || !skin || !assets)return RF_RANGE;
     skin_found=!*skin;
@@ -1565,12 +1565,19 @@ static int class_assets_read(const void *text,uint32_t bytes,const char *class_n
                 if(!quoted)return RF_FORMAT;
                 if(use) {if(value.texture_count==64)return RF_RANGE;status=asset(value.textures[value.texture_count++],t);if(status)return status;}
             }
+            if(clutter && glare_out && metadata_tag(&l,"+Glare:")) {
+                status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
+                if(use) {
+                    if(strlen(t)>=sizeof(glare))return RF_RANGE;
+                    strcpy(glare,t);present=1;
+                }
+            }
             if(use)skin_found=1;
         }
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found || !skin_found)return RF_NOT_FOUND;
-    *assets=value;return RF_OK;
+    *assets=value;if(glare_out){memcpy(glare_out,glare,64);*glare_present=present;}return RF_OK;
 }
 int rf_clutter_flags_read(const void *text,uint32_t bytes,uint32_t *flags,uint32_t *consumed)
 {
@@ -1589,9 +1596,15 @@ int rf_clutter_flags_read(const void *text,uint32_t bytes,uint32_t *flags,uint32
     *flags=value;*consumed=l.at;return RF_OK;
 }
 int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
-{return class_assets_read(text,bytes,class_name,skin,assets,0);}
+{return class_assets_read(text,bytes,class_name,skin,assets,0,NULL,NULL);}
 int rf_clutter_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
-{return class_assets_read(text,bytes,class_name,skin,assets,1);}
+{return class_assets_read(text,bytes,class_name,skin,assets,1,NULL,NULL);}
+int rf_clutter_skin_assets_read(const void *text,uint32_t bytes,const char *class_name,
+    const char *skin,rf_entity_assets *assets,char glare[64],uint32_t *present)
+{
+    if(!glare || !present)return RF_RANGE;
+    return class_assets_read(text,bytes,class_name,skin,assets,1,glare,present);
+}
 static int glare_definition_read_selection(const void *text,uint32_t bytes,const char *name,uint32_t ordinal,rf_glare_definition *result)
 {
     lexer l={(const unsigned char *)text,bytes,0};rf_glare_definition v={0};

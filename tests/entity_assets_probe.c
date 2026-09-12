@@ -98,6 +98,18 @@ int main(int argc,char **argv)
         status=rf_clutter_flags_read(text,(uint32_t)size,&flags,&consumed);free(text);
         _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);fwrite(&flags,4,1,stdout);fwrite(&consumed,4,1,stdout);return 0;
     }
+    if(argc==5 && !strcmp(argv[1],"--clutter-skin-assets")) {
+        FILE *f=fopen(argv[2],"rb");long size;rf_entity_assets before;char glare[64],old_glare[64];uint32_t present=0xa5a5a5a5;
+        if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);
+        if(size<0 || size>1024*1024){fclose(f);return 2;}
+        text=malloc((size_t)size+1);if(!text){fclose(f);return 2;}
+        if(fread(text,1,(size_t)size,f)!=(size_t)size){free(text);fclose(f);return 2;}fclose(f);
+        memset(&assets,0xa5,sizeof(assets));before=assets;memset(glare,0xa5,64);memcpy(old_glare,glare,64);
+        status=rf_clutter_skin_assets_read(text,(uint32_t)size,argv[3],argv[4],&assets,glare,&present);free(text);
+        if(status && (memcmp(&assets,&before,sizeof(assets)) || memcmp(glare,old_glare,64) || present!=0xa5a5a5a5))return 3;
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);fwrite(&assets,sizeof(assets),1,stdout);
+        fwrite(glare,64,1,stdout);fwrite(&present,4,1,stdout);return 0;
+    }
     if(argc==5 && !strcmp(argv[1],"--clutter-assets")) {
         FILE *f=fopen(argv[2],"rb");long size;rf_entity_assets before;
         if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);

@@ -7512,3 +7512,29 @@ four-entry saturation, cached class reuse, glare-1 requests and failure at
 every TAG/GLARE callback, checking exact class/state write footprints. Both
 builds and21 CTests pass. Scene instance creation remains to bind, including
 skin glare reassignment and retirement before parents and shared resources.
+
+### Authored skin glare metadata
+
+The existing rf_clutter_assets_read exposes model/replacement names only; it
+did not retain +Glare. rf_clutter_skin_assets_read now extends the same
+internal class/skin parser with a64-byte owned override name and presence
+flag. It reads the optional +Glare immediately following the skin replacement
+list, keeps first case-insensitive class/skin selection, and commits all
+outputs only on success. An absent override publishes empty name/present0;
+an explicitly empty override publishes empty name/present1. Existing public
+entity/clutter texture-reader behavior and struct layout remain unchanged.
+Name-to-class resolution and applying the override to created glares remain
+separate from metadata reading.
+
+verify_clutter_skin_glare.py passes504 cases on PC and actual compiled NXDK
+with only mapped-stack growth supplied:429 selectable classes,494 authored
+base/skin selections and10 synthetic cases. Independent table extraction
+compares every model, texture and glare-name byte, including16 authored
++Glare overrides, first duplicate selection and output preservation on errors.
+The existing verify_clutter_assets.py also passes494 authored selections,
+6 guards and430 original lookup cases. Both builds and21 CTests pass.
+
+RunwayLight01_Larger/Yellowish selects WarmWedge01_NoVolume; its Blue skin
+selects CoolWedge01_NoVolume_Small. The existing opening appearance audit
+contains67 Yellowish placements. Preserve these after base glare creation
+when binding live instances. No native instance or rendered override claim.
