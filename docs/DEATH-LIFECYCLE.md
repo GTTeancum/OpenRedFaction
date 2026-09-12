@@ -5791,3 +5791,38 @@ provides the shared PC wire/callback fixture. This completes orchestration
 at explicit backend boundaries, not callback internals or live NPC stepping.
 Bind retained scene stance, player flag and damage backends and validate the
 composition in XEMU next. No new native run or visual change is claimed here.
+
+
+### Registered NPC speed and animation requests (2026-09-12)
+
+rf_scene_npc_set_speed and rf_scene_npc_request_motion bind427450/42a580 to
+registered active NPC owners. Speed reads retained class settings and body
+mass, updates movement settings and mirrors response into body coefficient8c.
+Caller supplies resolved actor75c forced_action (-1 absent), because its live
+attachment lifecycle is not yet retained here. SP mode is explicit. Animation
+requests use the current registered pose controller and authored class motion
+mapping, preserving original missing-state fallback and transition retargeting.
+Neither binding performs AI selection, pose evaluation or physics stepping.
+Stale/non-NPC/transferred-corpse owners fail without actor mutation.
+
+The actor-pairs fixture runs all78 opening NPCs through eight speed cases
+(requests0/1/2/-7 with absent/present forced action) and four motion requests
+(0/9/23/-1 at.25 seconds). It compares retained output to the independently
+assembled class/helper inputs and restores settings, body coefficient and
+controller. Stale handles and invalid-duration preservation are also checked.
+The first PC harness attempt093513 caught a wrong expected error code in the
+new test (negative duration returns RF_FORMAT); correcting that assertion
+allowed the full rerun. No game behavior was changed to satisfy the assertion.
+
+Both builds and19 CTests pass. Native stock64MiB XEMU replay-20260912-093543
+passes180 frames with npc_motion_request=[78,624,312,1993876021,0]. The PC
+reference differs from090528 only by the new NPC_MOTION_REQUEST row. XBE:
+930b506172543b9537babfdb5871864cd235c3000419781053778865dc6cca8d.
+
+Crouch4289d0 must still copy retained stance centers, execute reentrant4a0840
+ground/landing, then publish clock6460f0 into actor7b4. Its ground call must
+not be replaced with a no-op when binding contact effects. Actor964/974 are
+already identified as authored logical crouch8/crouch-walk9 motion slots in
+NPC initialization; contact adapters can source them from the retained mapping.
+Full contact effect binding remains open; these requests alone do not make
+NPCs move or change visible playback in the restored test scene.

@@ -76,6 +76,14 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered);
  * authored NPC orientation. No allocation, pair scheduling or response effects.
  * Caller refreshes after mutations. Failure preserves output. */
 int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result);
+/* Registered active NPC427450 speed request and42a580 animation request.
+ * Speed uses retained class settings/mass; caller resolves actor75c forced_action
+ * (-1 means absent). SP only. Motion uses the retained authored mapping and
+ * controller, including original fallback/retarget behavior. Neither ticks AI,
+ * animation or physics. Stale/corpse owners and errors preserve actor state. */
+int rf_scene_npc_set_speed(uint32_t handle,int32_t requested,int32_t forced_action);
+int rf_scene_npc_request_motion(uint32_t handle,int32_t requested,float duration);
+
 /*41e370 support refresh for one registered NPC: modes1/3 resolve retained
  * NPC/player/mover body velocity and update support velocity plus wake flags.
  * Missing/unsupported support preserves the cached velocity and wake flags.
