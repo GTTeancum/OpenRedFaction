@@ -7469,3 +7469,25 @@ supplies animation-loader/heap boundaries with audited PC sizes and accounts
 for compiler-inlined cleanup; it does not verify Xbox image residency or
 swizzling. Both builds and21 CTests pass. Native Xbox resource residency and
 campaign binding remain required before claiming integrated glare support.
+
+### Native campaign glare resource residency
+
+Campaign startup now owns all56 authored glare classes and38 shared animated
+textures/62 frames, under a combined2MiB budget. Class parsing releases its
+table scratch before image loading; retained and peak1803012 bytes. Shutdown
+closes materials then class definitions. No glare instances or drawing yet;
+future instance teardown must precede these borrowed resources.
+
+rf_scene_glare_resources records class/texture/frame counts, retained/peak
+bytes, complete definition hash, binding/name/frame-header hash, decoded
+pixel bytes and pixel hash. Image hashes walk rf_image_pixel so Xbox swizzled
+storage compares in logical pixel order. verify_glare_scene_resources.py
+derives the reference from standalone owners and direct archive decodes.
+
+PC and native stock64MiB XEMU replay20260912-173935 pass180 actor-pair frames:
+[56,38,62,1803012,1803012,838438285,822613702,1769472,2493138017].
+Guest memory base67108864, plugged0; available pages7941 at completion.
+All five sampled x87 control words remain0x27f. Existing scene replay checks
+pass and21 CTests pass; harness restored its flags and completed its final
+build. This verifies native decode/swizzled access and co-residency, not
+visual glare fidelity, frame selection or actual-hardware behavior.

@@ -120,6 +120,7 @@ extern uint32_t rf_scene_clutter_bodies[10];
 extern uint32_t rf_scene_clutter_collision[9];
 extern uint32_t rf_scene_clutter_tags[4];
 extern uint32_t rf_scene_clutter_tag_queries[5];
+extern uint32_t rf_scene_glare_resources[9];
 /* Registered prop tag services; placement consumes current owned pose.
  * Output preserved for missing/stale handle, missing tag or invalid geometry. */
 int rf_scene_clutter_tag_find(uint32_t handle,rf_model_name query,int32_t *index);

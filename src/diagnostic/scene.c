@@ -1174,6 +1174,9 @@ static rf_audio_bank campaign_audio_bank;
 static rf_foley_owner campaign_foley;
 static rf_clutter_catalogs campaign_clutter_catalogs;
 static rf_clutter_classes campaign_clutter_classes;
+static rf_glare_classes campaign_glare_classes;
+static rf_glare_materials campaign_glare_materials;
+uint32_t rf_scene_glare_resources[9]; /* classes, textures, frames, retained, peak, definitions hash, mapping/header hash, pixel bytes, pixel hash */
 static rf_level_owned_clutter campaign_clutter_records;
 uint32_t rf_scene_clutter[8]; /* classes, records, unmatched, class bytes, record bytes, retained, load peak, hash */
 uint32_t rf_scene_clutter_render[8]; /* models, bindings, unmatched, nonstatic, retained, peak, materials, hash */
@@ -2119,6 +2122,37 @@ static int campaign_clutter_render_open(rf_vpp *archive)
  fail:
     free(file);campaign_clutter_render_close();return status;
 }
+static int campaign_glare_resources_open(const char *tables_path,rf_vpp *archives,uint32_t archive_count)
+{
+    rf_vpp tables;uint32_t i,f,x,y,h=2166136261u,p=2166136261u,budget=2*1024*1024;int status;
+    memset(rf_scene_glare_resources,0,sizeof(rf_scene_glare_resources));
+    status=rf_vpp_open(&tables,tables_path);if(status)return status;
+    status=rf_glare_classes_open(&tables,budget,&campaign_glare_classes);rf_vpp_close(&tables);if(status)return status;
+    status=rf_glare_materials_open(&campaign_glare_materials,campaign_glare_classes.definitions,
+        campaign_glare_classes.count,archives,archive_count,budget-campaign_glare_classes.allocated_bytes);
+    if(status){rf_glare_classes_close(&campaign_glare_classes);return status;}
+    rf_scene_glare_resources[0]=campaign_glare_classes.count;
+    rf_scene_glare_resources[1]=campaign_glare_materials.texture_count;
+    rf_scene_glare_resources[3]=campaign_glare_classes.allocated_bytes+campaign_glare_materials.resident_bytes;
+    rf_scene_glare_resources[4]=rf_scene_glare_resources[3];
+    if(campaign_glare_classes.peak_bytes>rf_scene_glare_resources[4])rf_scene_glare_resources[4]=campaign_glare_classes.peak_bytes;
+    rf_scene_glare_resources[5]=npc_hash_bytes(h,campaign_glare_classes.definitions,campaign_glare_classes.count*sizeof(*campaign_glare_classes.definitions));
+    h=npc_hash_bytes(h,campaign_glare_materials.bindings,campaign_glare_materials.count*sizeof(*campaign_glare_materials.bindings));
+    for(i=0;i<campaign_glare_materials.texture_count;++i) {
+        const rf_level_particle_texture *texture=campaign_glare_materials.textures+i;
+        const rf_particle_animation *animation=&texture->animation;
+        h=npc_hash_bytes(h,texture->name,64);h=npc_hash_bytes(h,&animation->count,4);h=npc_hash_bytes(h,&animation->rate,4);
+        rf_scene_glare_resources[2]+=animation->count;
+        for(f=0;f<animation->count;++f) {
+            const rf_image *image=animation->images+f;uint32_t pixel_bytes=rf_image_is_packed_1555(image)?2:4;
+            h=npc_hash_bytes(h,&image->width,4);h=npc_hash_bytes(h,&image->height,4);
+            h=npc_hash_bytes(h,&image->bytes,4);h=npc_hash_bytes(h,&image->source_format,4);
+            for(y=0;y<image->height;++y)for(x=0;x<image->width;++x)p=npc_hash_bytes(p,rf_image_pixel(image,x,y),pixel_bytes);
+            rf_scene_glare_resources[7]+=image->bytes;
+        }
+    }
+    rf_scene_glare_resources[6]=h;rf_scene_glare_resources[8]=p;return RF_OK;
+}
 static int campaign_clutter_materials_open(const char *tables_path,rf_vpp *archives,uint32_t archive_count)
 {
     const uint32_t budget=1024*1024;uint8_t (*records)[84]=NULL;
@@ -2611,6 +2645,8 @@ done:
 }
 static void campaign_close_movers(void)
 {
+    rf_glare_materials_close(&campaign_glare_materials);
+    rf_glare_classes_close(&campaign_glare_classes);
     campaign_clutter_render_close();
     rf_level_owned_clutter_close(&campaign_clutter_records);
     rf_clutter_classes_close(&campaign_clutter_classes);
@@ -6173,6 +6209,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_clutter_open(tables_path,level);if(status)goto done;
             status=campaign_clutter_render_open(&archive);if(status)goto done;
             status=campaign_clutter_materials_open(tables_path,maps,map_count);if(status)goto done;
+            status=campaign_glare_resources_open(tables_path,maps,map_count);if(status)goto done;
             status=campaign_clutter_bodies_open(collision);if(status)goto done;
             memset(rf_scene_live_activation,0,sizeof(rf_scene_live_activation));campaign_actor_controller=UINT32_MAX;
             memset(rf_scene_trigger_contacts,0,sizeof(rf_scene_trigger_contacts));
