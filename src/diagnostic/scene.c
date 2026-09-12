@@ -519,11 +519,13 @@ int rf_scene_model_retire(uint32_t slot)
     if(!pose || !campaign_playback_resources.models || pose->skeleton>=campaign_playback_resources.model_count ||
        owner->registration.active!=&pose->playback.completion.active)return RF_RANGE;
     if(owner->owned) {
+        uint32_t override_bytes=pose->overrides?pose->bone_count*sizeof(*pose->overrides):0;
         bytes=owner->owned->allocated_bytes;
         if(pose!=&owner->owned->pose || !pose->bone_count || pose->bone_count>50 ||
            !owner->owned->storage || pose->matrices!=owner->owned->storage ||
-           (void*)pose->generations!=(unsigned char*)owner->owned->storage+pose->bone_count*48 ||
-           bytes!=sizeof(*owner->owned)+pose->bone_count*50 || !campaign_model_owned_count ||
+           (pose->overrides && (void*)pose->overrides!=(unsigned char*)owner->owned->storage+pose->bone_count*48) ||
+           (void*)pose->generations!=(unsigned char*)owner->owned->storage+pose->bone_count*48+override_bytes ||
+           bytes!=sizeof(*owner->owned)+pose->bone_count*50+override_bytes || !campaign_model_owned_count ||
            bytes>campaign_model_owned_bytes)return RF_RANGE;
     }
     model=campaign_playback_resources.models+pose->skeleton;
@@ -573,6 +575,14 @@ static int campaign_model_pose(uint32_t slot,rf_entity_pose **result)
     if(!owner->pose || owner->pose->skeleton==UINT32_MAX || !owner->registration.next || !owner->registration.previous ||
        owner->registration.active!=&owner->pose->playback.completion.active)return RF_RANGE;
     *result=owner->pose;return RF_OK;
+}
+int rf_scene_model_clear_bone_override(uint32_t slot,uint32_t bone)
+{
+    rf_entity_pose *pose;int status=campaign_model_pose(slot,&pose);
+    if(status)return status;if(!pose)return RF_NOT_FOUND;
+    if(bone>=pose->bone_count)return RF_RANGE;
+    if(!pose->overrides)return RF_NOT_FOUND;
+    pose->overrides[bone].enabled=0;return RF_OK;
 }
 int rf_scene_model_stop_nonlooping(uint32_t slot)
 {

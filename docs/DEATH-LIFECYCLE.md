@@ -3516,3 +3516,28 @@ completion. Existing PC/guest playback, movement and audio comparisons pass.
 This validates the new allocation and disabled-override baseline, not live
 enabled overrides or death transitions. Bind CLEAR_BONE and original override
 producers next; full SP death composition remains open.
+
+
+## Registered model death bone clearing (2026-09-12)
+
+rf_scene_model_clear_bone_override resolves the currently published actor or
+transferred corpse pose through the model registry, bounds the bone index
+and clears only that record's enabled byte. It preserves basis, weight,
+record padding, playback, matrices and generation stamps. Missing/retired
+poses or missing override storage fail without fabricating a record. The
+full death dispatcher still supplies model identity and the selected bones.
+
+The registered-model fixture checks repeated clearing, invalid model/bone,
+missing storage and retired models. It transfers an enabled override to
+owned storage, poisons the original actor record, then verifies the clear
+reaches only the published corpse pose with its cached matrix/stamp intact.
+The subsequent retirement exposed an old-layout preflight in scene.c; it
+now validates override placement, shifted stamps and expanded allocation
+size before retiring and freeing the owned model. Reference counts drain
+once and the scene-owned allocation is released normally.
+
+Both builds and all19 CTests pass. The320-case full original/PC override
+evaluation comparison remains passing. These new binding/retirement checks
+run on PC; NXDK compiles the adapters. The preceding stock64MiB replay covers
+baseline allocation, not this new death-clear call or transferred retirement
+in XEMU. Full death composition and enabled-override gameplay remain open.

@@ -15,8 +15,8 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Bind death bone clearing and original override producers to retained actor/corpse pose records, then verify enabled overrides in XEMU; baseline stock64MiB replay passes with the new storage.
-- [ ] Compose the verified ordinary-SP death stages using the retained NPC death fields and tested registered-NPC tail, base unarmed death playback and registered-model non-looping reset adapters, completing remaining shared field ownership, accounting for the 6fc4d8 alternate-mode gate and remaining live resource callbacks.
+- [ ] Connect the tested registered-model bone-clear adapter to full death dispatch and recover original override producers, then verify enabled overrides in XEMU; baseline stock64MiB replay passes with the new storage.
+- [ ] Compose the verified ordinary-SP death stages using the retained NPC death fields and tested registered-NPC tail, base unarmed death playback and registered-model reset/bone-clear adapters, completing remaining shared field ownership, accounting for the 6fc4d8 alternate-mode gate and remaining live resource callbacks.
 - [ ] Reconstruct riot-shield impact-mark allocation/clipping/rendering and bind verified player-slot cleanup to the original-audited 50-mark/150-polygon/500-vertex pools.
 - [ ] Connect the authored-tested file-tag/room-query/shared-lightmap source composition to death dispatch and bind room queue scheduling; isolated authored texture/growth draws now pass PC and stock64MiB XEMU, while campaign source ownership and queue scheduling remain open.
 - [ ] Recover generic cached CSPH tag parent initialization/placement; the95-model original audit clears cached-tag precedence for all190 corpse eye/spine queries.
