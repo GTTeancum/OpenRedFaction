@@ -15,6 +15,21 @@ int rf_physics_body_prepare_contact(rf_physics_body_state *state)
     state->flags|=0x01000000u;
     return RF_OK;
 }
+int rf_physics_body_prepare_sweep(rf_physics_body_state *state)
+{
+    float minimum[3],maximum[3],radius;uint32_t i;
+    if(!state || !isfinite(state->bounds.radius))return RF_RANGE;
+    radius=state->bounds.radius;
+    for(i=0;i<3;++i) {
+        float a=state->position[i],b=state->next_position[i],low,high;
+        if(!isfinite(a) || !isfinite(b))return RF_RANGE;
+        low=a<b?a:b;high=a<b?b:a;
+        minimum[i]=(float)((double)low-radius);maximum[i]=(float)((double)radius+high);
+        if(!isfinite(minimum[i]) || !isfinite(maximum[i]))return RF_RANGE;
+    }
+    memcpy(state->bounds.minimum,minimum,12);memcpy(state->bounds.maximum,maximum,12);
+    return rf_physics_body_prepare_contact(state);
+}
 int rf_physics_surface_probe_gate(float up_y,uint32_t flags,int32_t *surface)
 {
     if(!surface)return 0;

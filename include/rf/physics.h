@@ -92,6 +92,11 @@ typedef struct rf_physics_body_state {
  * including prior contact normal and face, remain unchanged. No scheduling
  * or bounds update. NULL returns RF_RANGE. */
 int rf_physics_body_prepare_contact(rf_physics_body_state *state);
+/*49f8aa..49f925 /49fd84..49fdf9: rebuild swept AABB from current and
+ * predicted position, expand by radius, then prepare contact. Finite bounds
+ * required; errors preserve the body. Equal endpoints retain original operand
+ * selection and signed-zero behavior. No movement prediction or rotation. */
+int rf_physics_body_prepare_sweep(rf_physics_body_state *state);
 /* Original487962..487973, after a physics body finishes its substeps:
  * publish current position, synchronize pending position, rebuild bounds,
  * set object04000000 and clear body40000000. Scheduling/removal from the

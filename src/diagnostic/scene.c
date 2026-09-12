@@ -4319,8 +4319,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
             status=rf_physics_fall_propose(state,remaining,scene_gravity.acceleration,support);
         }
         if(status)return status;
-        memset(state->vector_e0,0,sizeof(state->vector_e0)); /* full 49f3c0 clears force after proposal */
-        state->flags|=0x1000000;
+        status=rf_physics_body_prepare_sweep(state);if(status)return status;
         status=actor_sweep(world,state,normal,&fraction,&sphere,0x460);if(status)return status;
         if(sphere==UINT32_MAX) {
             memcpy(state->position,state->next_position,sizeof(state->position));state->scalar_144=1;remaining=0;

@@ -5570,3 +5570,30 @@ not prove the field always remains zero. Preserve explicit displacement
 consumption where callers supply it; require real producer evidence before
 adding movement-driven accumulation. Collision scheduling and NPC body
 stepping can be pursued without inventing that missing write.
+
+
+### Live player swept bounds and contact preparation (2026-09-12)
+
+rf_physics_body_prepare_sweep reconstructs both49f8aa..49f925 and
+49fd84..49fdf9: min/max of current and predicted positions, radius expansion,
+then contact preparation (time1, handle-1, both force accumulators cleared,
+flag01000000 set). Equal coordinates preserve original operand selection,
+including signed zero. Nonfinite input/result returns RF_RANGE without body
+mutation; finite signed radius is retained rather than silently clamped.
+
+tools/verify_physics_prepare_sweep.py checks2048 cases against both original
+instruction spans with actual539460/465ee0/465ec0/4fad00 helpers and no hooks.
+All retained PC/NXDK body bytes match; original surrounding bytes, NXDK guard
+bytes, repeated calls and invalid-input preservation are checked. Movement
+prediction and complete physics scheduling are outside this isolated test.
+
+The live player actor_tick now invokes this stage after movement prediction
+and before each sweep, replacing the partial force/flag reset. Both builds
+and19 CTests pass. Native stock64MiB replay-20260912-085053 passes180 frames;
+the complete pc-reference.txt is byte-identical to replay-20260912-083938.
+The existing replay verifies guest command submissions, world/camera hashes
+and final body; the isolated verifier proves the new preparation fields.
+Completion has8728 available pages and sampled GPU mesh peak1339632 bytes.
+XBE SHA256:6a6c01207069ed4eb12aeb3d0682b102b2d5721d37c070b627f6a8311992c570.
+NPC stepping, discovered pair scheduling and complete actor-family response
+integration remain open. No new visible gameplay is claimed.
