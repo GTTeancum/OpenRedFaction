@@ -2074,3 +2074,19 @@ The item publication search is incomplete: bounded disassembly of416000..
 of a new handle. Broader displacement matches belong to other object layouts
 or need further classification; linear disassembly is not proof of absence.
 No forced default, automatic item spawn or corpse handle publication is added.
+
+
+## Authored actor-class sphere inputs in corpse transitions
+
+The authored harness now loads all16 movement descriptors and runs the shared
+initial actor pose selection/advance before model transfer. It loads each
+selected actor class physics configuration and builds its class spheres from
+that startup pose, then carries those spheres into the transition fixture.
+The former uniform radius1 fixture is replaced with actual class geometry.
+
+Across L1S1/L1S2/L1S3, miner1 radii0.6/0.4/0.15 and env_guard radii
+0.432211/0.382409/0.177864 remain unchanged through corpse pose refresh.
+Final bounds radii are1.554366 miner and1.564534 guard. All720 animation frames
+still pass with unchanged hashes and zero motion references after teardown.
+This strengthens constructor-input evidence but does not yet construct the
+complete live corpse from an actor or assign its optional item handle.
