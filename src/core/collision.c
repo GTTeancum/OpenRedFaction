@@ -1,4 +1,5 @@
 #include "rf/collision.h"
+#include "rf/physics.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1996,4 +1997,52 @@ uint32_t rf_collision_ray_sphere(const float ray[6],float length,const float cen
     if(hit>length)return 0;
     for(i=0;i<3;++i){scaled=(float)((double)ray[i+3]*distance);point[i]=(float)((double)ray[i]+scaled);}
     *fraction=(float)((double)*fraction/length);return 1;
+}
+
+static double response_length(const float v[3])
+{
+    double squared=(double)v[0]*v[0];squared+=(double)v[1]*v[1];squared+=(double)v[2]*v[2];return sqrt(squared);
+}
+uint32_t rf_collision_actors_normal_response(rf_collision_actor_response *a,rf_collision_actor_response *b,
+    const float *(*extra_velocity)(void *,uint32_t),void *context)
+{
+    float ray[6],next[3],hit[3],radii[2]={0},length,fraction,delta,scaled,normal[3];
+    const float zero[3]={0},*extra;double magnitude,inverse,dot,time;uint32_t i;int32_t j;
+    for(i=0;i<3;++i)if(!(a->minimum[i]<b->maximum[i]))return 0;
+    for(i=0;i<3;++i)if(!(b->minimum[i]<a->maximum[i]))return 0;
+    for(j=0;j<a->sphere_count;++j)if(radii[0]<a->spheres[j].radius)radii[0]=a->spheres[j].radius;
+    for(j=0;j<b->sphere_count;++j)if(radii[1]<b->spheres[j].radius)radii[1]=b->spheres[j].radius;
+    for(i=0;i<3;++i){ray[i]=(float)((double)b->position[i]-a->position[i]);next[i]=(float)((double)b->next_position[i]-a->next_position[i]);}
+    ray[1]=next[1]=0;
+    for(i=0;i<3;++i)ray[i+3]=(float)((double)next[i]-ray[i]);
+    magnitude=response_length(ray+3);length=(float)magnitude;
+    /* Original4fab30 produces NaNs for a zero vector;508e40 then rejects its
+     * zero length without reading them. No externally visible vector write. */
+    if(length==0)return 0;
+    inverse=1.0/magnitude;for(i=0;i<3;++i)ray[i+3]=(float)((double)ray[i+3]*inverse);
+    if(!rf_collision_ray_sphere(ray,length,zero,(float)((double)radii[0]+radii[1]),hit,&fraction) || fraction<0)return 0;
+    if(fraction==0){dot=(double)ray[5]*hit[2];dot+=(double)ray[4]*hit[1];dot+=(double)ray[3]*hit[0];if(dot>=0)return 0;}
+    time=(double)fraction/length;fraction=(float)time;
+    if(time>=a->contact.time && fraction>=b->contact.time)return 0;
+    if(!(fraction<a->contact.time)) {
+        if(!(b->body_flags&0x40000000u))return 0;
+        b->body_flags|=0x20000000u;b->contact.time=a->contact.time;return 1;
+    }
+    if(!(fraction<b->contact.time)) {
+        if(!(a->body_flags&0x40000000u))return 0;
+        a->body_flags|=0x20000000u;a->contact.time=b->contact.time;return 1;
+    }
+    a->contact.time=fraction;magnitude=response_length(hit);
+    if(magnitude>0){inverse=1.0/magnitude;for(i=0;i<3;++i)normal[i]=(float)((double)hit[i]*inverse);}
+    else {normal[0]=1;normal[1]=normal[2]=0;}
+    for(i=0;i<3;++i)a->contact.normal[i]=-normal[i];
+    for(i=0;i<3;++i){delta=(float)((double)a->next_position[i]-a->position[i]);scaled=(float)((double)delta*fraction);a->contact.point[i]=(float)((double)a->position[i]+scaled);}
+    for(i=0;i<3;++i){scaled=(float)((double)a->contact.normal[i]*radii[0]);a->contact.point[i]=(float)((double)a->contact.point[i]-scaled);}
+    a->contact.material=b->material;a->contact.inverse_mass=(float)(1.0/b->mass);memcpy(a->contact.velocity,b->velocity,12);
+    extra=extra_velocity(context,b->handle);if(extra)for(i=0;i<3;++i)a->contact.velocity[i]=(float)((double)a->contact.velocity[i]+extra[i]);
+    a->contact.word_1f0=a->contact.word_1f4=0;a->contact.handle=b->handle;a->contact.reference=UINT32_MAX;
+    b->contact.time=fraction;for(i=0;i<3;++i)b->contact.normal[i]=-a->contact.normal[i];memcpy(b->contact.point,a->contact.point,12);
+    b->contact.material=a->material;b->contact.inverse_mass=(float)(1.0/a->mass);memcpy(b->contact.velocity,a->velocity,12);
+    extra=extra_velocity(context,a->handle);if(extra)for(i=0;i<3;++i)b->contact.velocity[i]=(float)((double)b->contact.velocity[i]+extra[i]);
+    b->contact.reference=UINT32_MAX;b->contact.handle=a->handle;b->contact.word_1f0=b->contact.word_1f4=0;return 1;
 }

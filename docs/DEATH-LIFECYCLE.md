@@ -4199,3 +4199,42 @@ and adjacent float boundaries under x87 control027f. Report is local
 artifacts/collision-ray-sphere.json. PC/NXDK builds and all19 CTests pass.
 The helper is not yet called by a reconstructed actor response or native XEMU
 gameplay; contact state updates and their live owners remain open.
+
+
+### Complete normal-mode actor response49ab00 (2026-09-12)
+
+rf_collision_actors_normal_response reconstructs49ab00: strict AABB overlap,
+ordered maximum-radius scans over24-byte sphere records, relative current/next
+positions flattened on Y, original normalization and actual508e40 ray query.
+It preserves the original additional division of the returned fraction by ray
+length, including the first comparison before rounding that division to float.
+Initial-overlap hits are rejected when relative direction dot hit is nonnegative.
+
+If both stored times are later, the routine writes first contact time, negative
+normalized relative hit, interpolated first-body contact point minus normal times
+first radius, other material/inverse mass/velocity and handle. Original426fc0
+resolves the other actor's optional8a0 velocity, which is added before handling
+the second actor. The second gets opposite normal and the same contact point.
+Both reference1e8 fields become-1 and1f0/1f4 become zero;1ec stays untouched.
+When only one time can advance, the active body40000000 gate controls whether
+to set20000000 and copy the other stored time, without overwriting contact data.
+
+The callback supplies only a stable optional8a0 vector by handle. Current
+finite/disjoint-state contract excludes reentrant mutations and invalid masses.
+Zero relative motion returns no contact; the original creates unused local NaNs
+then rejects zero ray length. Floating-point exception status is not modeled.
+The static zero vector/atexit setup is represented by a constant local zero.
+
+verify_actor_response.py passes4096 original/PC/NXDK cases:2976 no response,
+671 both-contact updates,186 first-body deferrals and263 second-body deferrals.
+All1342 velocity lookups match order. Original vector, normalization, AABB,
+sphere-list and508e40 callees execute without substitution;426fc0 is the only
+supplied lookup, and the static vector is preinitialized. All contact fields,
+body flags, inputs and surrounding original object bytes are compared. Local
+report: artifacts/actor-response.json. PC/NXDK builds and all19 CTests pass.
+
+Live dispatch is still open. The new152-byte x86 response view is borrowed
+state, not yet allocated per actor. Existing body vector138/scalar144 correspond
+to original actor1c0/1cc; the rest of1b4..1f4 and actor8a0 need explicit shared
+ownership before binding this routine. General49a420, model49afe0 and solid
+49b570 responses remain unreconstructed. No new native-XEMU response claim.

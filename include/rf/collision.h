@@ -376,6 +376,25 @@ uint32_t rf_collision_pair_create(rf_collision_pair_list *active,rf_collision_pa
  * returns zero only after the original forward-projection gates. No allocation. */
 uint32_t rf_collision_ray_sphere(const float ray[6],float length,const float center[3],float radius,
     float point[3],float *fraction);
+struct rf_physics_sphere;
+typedef struct rf_collision_actor_contact {
+    float point[3],normal[3],time;
+    uint32_t material;float inverse_mass,velocity[3];
+    uint32_t handle,reference,reserved_1ec,word_1f0,word_1f4;
+} rf_collision_actor_contact;
+typedef struct rf_collision_actor_response {
+    float minimum[3],maximum[3],position[3],next_position[3],velocity[3],mass;
+    uint32_t handle,material,body_flags;int32_t sphere_count;
+    const struct rf_physics_sphere *spheres;
+    rf_collision_actor_contact contact;
+} rf_collision_actor_response;
+/* Original49ab00 normal-mode actor response, including actual508e40 query.
+ * Borrowed stable/disjoint actors and sphere arrays; finite geometry, positive
+ * masses, 53-bit arithmetic. Resolver returns optional actor8a0 velocity for a
+ * handle and must not mutate state. Contact writes retain original ordering.
+ * No pair scheduling or subsequent impulse/damage dispatch. */
+uint32_t rf_collision_actors_normal_response(rf_collision_actor_response *first,rf_collision_actor_response *second,
+    const float *(*extra_velocity)(void *,uint32_t),void *context);
 typedef struct rf_collision_pair_actor_state {
     uint32_t kind,body_flags,model,movement_mode,handle,parent_handle,object_flags;
     uint32_t trigger_filter;int32_t allowed_count;const uint32_t *allowed_handles;
