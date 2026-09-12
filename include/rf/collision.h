@@ -317,6 +317,14 @@ int rf_collision_transformed_rooms(const rf_collision_room_view *rooms,uint32_t 
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
     uint32_t query_flags,const float start[3],const float displacement[3],const float origin[3],
     const float matrix[3][3],float radius,float limit,rf_collision_sweep_room_hit *result,uint32_t *matched);
+/* Transformed query with room_count indexed texture backends. Sampler
+ * receives solid-local contacts and tree-local face indices. Retains the
+ * original untransformed displacement for edge normal calculation. */
+int rf_collision_transformed_rooms_textured(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],const float origin[3],
+    const float matrix[3][3],float radius,float limit,const rf_collision_indexed_texture_backend *textures,
+    rf_collision_sweep_room_hit *result,uint32_t *matched);
 /* 499fef..49a0c9: rotate body-local sphere center, then form both endpoints
  * relative to mover committed origin before its input-matrix transform.
  * Delta is the difference of stored local endpoints. This differs from adding

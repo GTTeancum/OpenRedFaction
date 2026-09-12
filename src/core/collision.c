@@ -1798,16 +1798,34 @@ int rf_collision_sweep_rooms(const rf_collision_room_view *rooms,uint32_t room_c
     return sweep_rooms_prepared(rooms,room_count,primary,primary_count,children,child_count,
         query_flags,start,displacement,displacement,active,radius,limit,NULL,result,matched);
 }
-int rf_collision_transformed_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
+static int collision_transformed_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
     uint32_t query_flags,const float start[3],const float displacement[3],const float origin[3],
-    const float matrix[3][3],float radius,float limit,rf_collision_sweep_room_hit *result,uint32_t *matched)
+    const float matrix[3][3],float radius,float limit,const rf_collision_indexed_texture_backend *textures,rf_collision_sweep_room_hit *result,uint32_t *matched)
 {
     float local_start[3],local_delta[3];uint32_t active;int status;
     status=rf_collision_query_local(start,displacement,origin,matrix,query_flags,local_start,local_delta,&active);if(status)return status;
     if(!active) {memcpy(local_start,start,12);memcpy(local_delta,displacement,12);}
     return sweep_rooms_prepared(rooms,room_count,primary,primary_count,children,child_count,
-        query_flags,local_start,local_delta,displacement,active,radius,limit,NULL,result,matched);
+        query_flags,local_start,local_delta,displacement,active,radius,limit,textures,result,matched);
+}
+int rf_collision_transformed_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],const float origin[3],
+    const float matrix[3][3],float radius,float limit,rf_collision_sweep_room_hit *result,uint32_t *matched)
+{
+    return collision_transformed_rooms(rooms,room_count,primary,primary_count,children,child_count,
+        query_flags,start,displacement,origin,matrix,radius,limit,NULL,result,matched);
+}
+int rf_collision_transformed_rooms_textured(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],const float origin[3],
+    const float matrix[3][3],float radius,float limit,const rf_collision_indexed_texture_backend *textures,
+    rf_collision_sweep_room_hit *result,uint32_t *matched)
+{
+    if(!textures)return RF_RANGE;
+    return collision_transformed_rooms(rooms,room_count,primary,primary_count,children,child_count,
+        query_flags,start,displacement,origin,matrix,radius,limit,textures,result,matched);
 }
 int rf_collision_sweep_rooms_textured(const rf_collision_room_view *rooms,uint32_t room_count,
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,

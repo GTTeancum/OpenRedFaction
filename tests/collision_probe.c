@@ -1459,7 +1459,7 @@ int main(int argc,char **argv)
         printf("%u %u %u %u %u %u %u %u %u %u %u\n",world.room_count,faces,world.primary_count,world.child_count,world.allocated_bytes,world.peak_bytes,queries,hits,errors,hashes[0],edge_hits);
         free(poison);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return 0;
     }
-    if(argc==2 && (!strcmp(argv[1],"--transformed-rooms") || !strcmp(argv[1],"--preferred-rooms"))) {
+    if(argc==2 && (!strcmp(argv[1],"--transformed-rooms") || !strcmp(argv[1],"--transformed-rooms-textured") || !strcmp(argv[1],"--preferred-rooms"))) {
         uint32_t preferred_mode=!strcmp(argv[1],"--preferred-rooms"),preferred_index;
         struct {struct {float bounds[6],z;uint32_t skip,first,count;} rooms[4];uint32_t primary[2],children[4];float start[3],delta[3],limit;uint32_t flags;float radius,origin[3],matrix[3][3];} in;
         while(fread(&in,sizeof(in),1,stdin)==1) {
@@ -1476,6 +1476,16 @@ int main(int argc,char **argv)
                 for(j=0;j<4;j++) {vertices[i][j][0]=(j==0 || j==3)?-2:2;vertices[i][j][1]=j<2?-2:2;vertices[i][j][2]=z;}
             }
             memset(&out,0xa5,sizeof(out));
+            if(!strcmp(argv[1],"--transformed-rooms-textured")) {
+                int32_t bitmaps[4]={0,1,2,3};collision_room_texture_fixture fixture;
+                rf_collision_indexed_texture_backend backends[4];
+                if(fread(fixture.input,4,6,stdin)!=6)return 2;fixture.calls=0;fixture.hash=2166136261u;
+                for(i=0;i<4;++i) {faces[i].filter.face_flags=0xc0;backends[i].bitmaps=bitmaps+i;
+                    backends[i].sample=fixture.input[5]?NULL:collision_room_texture_sample;backends[i].context=&fixture;}
+                out.status=rf_collision_transformed_rooms_textured(rooms,4,in.primary,2,in.children,4,in.flags,in.start,in.delta,in.origin,in.matrix,in.radius,in.limit,backends,&out.hit,&out.matched);
+                if(fwrite(&out,sizeof(out),1,stdout)!=1 || fwrite(&fixture.calls,4,1,stdout)!=1 || fwrite(&fixture.hash,4,1,stdout)!=1)return 2;
+                continue;
+            }
             if(preferred_mode) {
                 rf_collision_solid_view solid={0};rf_collision_preferred_face preferred;
                 if(fread(&preferred_index,4,1,stdin)!=1)return 2;

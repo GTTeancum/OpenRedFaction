@@ -8151,3 +8151,23 @@ collapsed coplanar thin query. Current shared thin handling returns a miss,
 matching the executed original, as established by the earlier coplanar audit.
 Removed that obsolete override; all5004 original transformed-room cases and
 10 port guards now pass. No collision implementation change was necessary.
+
+
+Texture-alpha transformed room queries (2026-09-12)
+-------------------------------------------------
+rf_collision_transformed_rooms_textured shares the existing input transform
+and prepared room walk. Its room_count texture backends receive solid-local
+contact points and tree-local face indices, with original input displacement
+retained separately for edge normal calculations. Direct-local flag4,
+zero-motion inactivity and non-textured API behavior are unchanged. No new
+allocation, retained transform cache or scene global is introduced.
+
+verify_collision_textured_transformed.py passes5000 original/PC/compiled
+NXDK cases plus8 guards. Full4df1c0 executes with only UV/bitmap services
+supplied, translated/rotated inputs and direct-local bypass.1782 samples,
+305 multiple updates and597 final edge hits match, including sampler order/
+local-contact hashes.32 callback and44 missing-sampler errors preserve
+outputs, with15 errors after earlier samples. Existing5014 transformed-room
+and5008 textured local-room checks plus21 CTests pass; both builds pass.
+Preferred-face/flat propagation and live scene resource binding remain next;
+this is compiled NXDK function evidence, not native scene alpha-query proof.
