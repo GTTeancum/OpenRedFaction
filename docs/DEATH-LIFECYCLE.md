@@ -3621,3 +3621,40 @@ skeleton access. tools/verify_class_death_bones.py passes; its source model
 comparison reruns1119 original/PC/NXDK cases. All19 CTests and both builds
 pass. Class binding is tested on PC and compiled into NXDK, not live XEMU
 death. Effective view ownership and full stage composition remain open.
+
+
+## Registered NPC death-animation composition (2026-09-12)
+
+rf_scene_npc_death_motion now composes the verified ordinary-SP animation
+stage with registered NPC/model ownership: loaded class bone selection,
+non-looping reset, exact bone-byte clearing (including index-1 cursor effect),
+and actual mapped death-action loading/playback. The current base/unarmed
+view supplies both base and effective bone indices; armed mappings and
+transferred-away actors are rejected. This is an explicit current-view
+restriction, not proof that effective declarations always equal base.
+
+Before each operation, retained flags/action/request and actor1464/1468 words
+are published. After callbacks, mutable owner fields are reloaded and damage
+flags synchronized, preserving changes before subsequent operations and the
+ordinary post-play bit8. Selected action and sound services remain supplied;
+missing selection is rejected before model mutation. First service failure
+stops later resource operations and final publication; preceding effects
+remain. This error policy is a port boundary, not original exception behavior.
+
+Two retained words add8 bytes per NPC (624 for78 actors). Current allocation
+zeroes them; constructor4235f0 explicitly clears1464, while1468 producer/
+initialization semantics still need recovery. Humanoid death clears both
+through the verified stage before later use. No other consumer is added.
+
+The registered-NPC fixture checks a mapped action through the real motion
+cache, base/effective bone clears, word resets, slot15 cursor bytes, ordinary
+freeze/bit8 and special no-freeze/02000000 flags, sound callback mutations,
+selection success/failure, stale handles and armed rejection. All19 CTests
+and both builds pass. The separate2048-case original/PC/NXDK death-motion
+stage comparison remains passing. New composed ownership execution is on
+PC; NXDK compiles it, with no new live XEMU death test.
+
+Complete death dispatch remains open: entry/collision retirement, early
+player/timers, drops, linked actor, tail and dying updates must share owners
+and resource scheduling. Selection/clearance/RNG and audio callbacks need
+actual campaign callers; alternate-mode and effective-view paths remain.

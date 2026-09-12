@@ -15,9 +15,9 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Connect the tested loaded-class death-bone binding to base/effective death-stage views and trace class reachability; the registered clear adapter now preserves the original index-1 slot15 cursor-byte effect.
+- [ ] Extend the composed base/unarmed NPC death-animation binding to effective class views and live selection/audio callers; the registered clear adapter now preserves the original index-1 slot15 cursor-byte effect.
 - [ ] Connect the tested registered-model bone-clear adapter to full death dispatch and recover original override producers, then verify enabled overrides in XEMU; baseline stock64MiB replay passes with the new storage.
-- [ ] Compose the verified ordinary-SP death stages using the retained NPC death fields and tested registered-NPC tail, base unarmed death playback and registered-model reset/bone-clear adapters, completing remaining shared field ownership, accounting for the 6fc4d8 alternate-mode gate and remaining live resource callbacks.
+- [ ] Compose the verified ordinary-SP death stages using the retained NPC death fields, composed base/unarmed animation stage and tested registered-NPC tail adapter, completing remaining shared field ownership, accounting for the 6fc4d8 alternate-mode gate and remaining live resource callbacks.
 - [ ] Reconstruct riot-shield impact-mark allocation/clipping/rendering and bind verified player-slot cleanup to the original-audited 50-mark/150-polygon/500-vertex pools.
 - [ ] Connect the authored-tested file-tag/room-query/shared-lightmap source composition to death dispatch and bind room queue scheduling; isolated authored texture/growth draws now pass PC and stock64MiB XEMU, while campaign source ownership and queue scheduling remain open.
 - [ ] Recover generic cached CSPH tag parent initialization/placement; the95-model original audit clears cached-tag precedence for all190 corpse eye/spine queries.

@@ -1787,6 +1787,7 @@ typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_entity_damage_state damage;uint32_t object_flags,field_840;
     struct {int32_t item_82c,requested_83c,action_824,linked_146c,deadline_4b8;uint32_t model_148c;} death;
+    uint32_t death_bone_words[2]; /* actor1464/1468 */
     float model_radius_78; /* Original489fe0 model-origin radius. */
     float published[3],previous[3];uint32_t movement_slot;
     uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
@@ -2638,6 +2639,64 @@ int rf_scene_npc_death_play(uint32_t handle,int32_t action,uint32_t freeze,
     if(status)return status;
     if(sound>=0)return play_sound?play_sound(context,handle,bindings->action_sounds[sound]):RF_NOT_FOUND;
     return RF_OK;
+}
+
+typedef struct campaign_death_motion_context {
+    campaign_npc_body *owner;rf_entity_death_motion_state state;
+    const rf_scene_death_motion_ops *ops;uint32_t slot,handle;int status;
+} campaign_death_motion_context;
+static void campaign_death_motion_publish(campaign_death_motion_context *c)
+{
+    c->owner->view.flags_810=c->state.flags_810;c->owner->damage.effects.flags_810=c->state.flags_810;
+    c->owner->death.action_824=c->state.action_824;c->owner->death.requested_83c=c->state.requested_83c;
+    c->owner->death_bone_words[0]=c->state.word_1464;c->owner->death_bone_words[1]=c->state.word_1468;
+}
+static void campaign_death_motion_reload(campaign_death_motion_context *c)
+{
+    c->state.flags_810=c->owner->view.flags_810;c->state.action_824=c->owner->death.action_824;
+    c->owner->damage.effects.flags_810=c->owner->view.flags_810;
+    c->state.requested_83c=c->owner->death.requested_83c;
+    c->state.word_1464=c->owner->death_bone_words[0];c->state.word_1468=c->owner->death_bone_words[1];
+}
+static uint32_t campaign_death_motion_call(void *context,uint32_t op,uint32_t first,uint32_t second)
+{
+    campaign_death_motion_context *c=context;uint32_t result=0;int32_t action=-1;
+    if(c->status)return 0;campaign_death_motion_publish(c);
+    switch(op) {
+    case RF_DEATH_MOTION_SELECT:
+        c->status=c->ops->select(c->ops->context,c->handle,&action);result=(uint32_t)action;break;
+    case RF_DEATH_MOTION_SKELETAL:result=1;break;
+    case RF_DEATH_MOTION_RESET:c->status=rf_scene_model_stop_nonlooping(c->slot);break;
+    case RF_DEATH_MOTION_POSE:result=c->slot+1;break;
+    case RF_DEATH_MOTION_CLEAR_BONE:c->status=rf_scene_model_clear_bone_override(c->slot,second);break;
+    case RF_DEATH_MOTION_PLAY:
+        c->status=rf_scene_npc_death_play(c->handle,(int32_t)first,second,c->ops?c->ops->sound:NULL,c->ops?c->ops->context:NULL);break;
+    default:c->status=RF_RANGE;break;
+    }
+    campaign_death_motion_reload(c);return result;
+}
+int rf_scene_npc_death_motion(uint32_t handle,const rf_scene_death_motion_ops *ops)
+{
+    campaign_death_motion_context c={0};rf_entity_pose *pose;uint32_t i,cls;int status;
+    rf_entity_death_motion_backend backend={campaign_death_motion_call,&c};
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;
+    c.owner=campaign_npc_bodies+i;c.slot=i;c.handle=handle;c.ops=ops;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&c.owner->view)return RF_NOT_FOUND;
+    if(c.owner->view.flags_810&0x80u)return RF_OK;
+    if(c.owner->view.weapons[0]!=-1)return RF_NOT_FOUND;
+    if(c.owner->death.requested_83c==-1 && (!ops || !ops->select))return RF_NOT_FOUND;
+    status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    if(!campaign_seeds.items || i>=campaign_seeds.records.count)return RF_RANGE;
+    cls=campaign_seeds.items[i].class_index;
+    if(!campaign_motion_catalog.mappings || cls>=campaign_motion_catalog.mapping_count)return RF_RANGE;
+    if(campaign_motion_catalog.mappings[cls].weapon!=-1 || campaign_motion_catalog.mappings[cls].skeleton!=pose->skeleton)return RF_NOT_FOUND;
+    status=rf_entity_class_death_bones(&campaign_seeds,&campaign_skeletons,cls,c.state.base_bones);if(status)return status;
+    memcpy(c.state.effective_bones,c.state.base_bones,sizeof(c.state.effective_bones));
+    memcpy(c.state.motions,campaign_motion_catalog.mappings[cls].actions,sizeof(c.state.motions));
+    c.state.model=i+1;c.state.class_flags_724=campaign_seeds.classes[cls].physics.flags;
+    campaign_death_motion_reload(&c);status=rf_entity_death_motion_sp(&c.state,0,&backend);
+    if(c.status)return c.status;campaign_death_motion_publish(&c);return status;
 }
 
 uint32_t rf_scene_npc_pain_audio[9]; /* calls, selections, plays, loads, PCM bytes, last sample, RNG, errors, name hash */

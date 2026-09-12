@@ -81,6 +81,16 @@ int rf_scene_model_clear_bone_override(uint32_t model_slot,uint32_t bone);
  * and missing mappings do not start playback. Audio is caller-owned. */
 int rf_scene_npc_death_play(uint32_t handle,int32_t action,uint32_t freeze,
     int (*sound)(void *,uint32_t,const char *),void *context);
+/* Ordinary-SP NPC animation stage for the current base/unarmed class view.
+ * Supplied selection and sound callbacks keep registrations/resources alive.
+ * Includes reset, bone clears and playback; not complete death dispatch. */
+typedef struct rf_scene_death_motion_ops {
+    int (*select)(void *,uint32_t,int32_t *);
+    int (*sound)(void *,uint32_t,const char *);
+    void *context;
+} rf_scene_death_motion_ops;
+int rf_scene_npc_death_motion(uint32_t handle,const rf_scene_death_motion_ops *ops);
+
 
 
 
