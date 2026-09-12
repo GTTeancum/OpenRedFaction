@@ -2529,3 +2529,30 @@ cases still match original output. Both builds and19 CTests pass.
 This makes the verified projection path reusable by surface quads; it does
 not yet bind their room queue, texture residency, color backend or live
 submission. No new GPU output or XEMU screenshot is claimed.
+
+## Original room collector and deferred growth ordering
+
+verify_corpse_room_queue_original.py executes complete42e140 with unchanged
+4d3560,5186a0 and vector helpers, without hooks. Across288 cases it compares
+all2048 queue slots, accepted counts and all eight effect payload/link records.
+Active counts0..8, requested descriptors0..3, initial queue counts0/2046/2048,
+world offsets and an optional x-plane are supplied. Results:206 appends,
+15 sphere rejections,864 room mismatches and67 full-queue rejections.
+The first independent plane expectation used the opposite normal convention;
+inspection of the existing verified sphere implementation resolved it to
+dot(normal,position)+distance > radius, with tangency accepted.
+
+Only matching descriptor44 effects are submitted. Queue object is the effect
+pointer; position and cull source both use effect14. Radius is the EXISTING
+extent04, even when elapsed00 is1000 and growth_time08 is5. The collector
+does not call the growth/quad builder;42df20 is queued for later execution.
+Growing extent before queue culling would change original frame ordering.
+
+Queue fields are sorted1, drawn0, grouped0, lighting0, lighting_flag1,
+plane/minimum/maximum0 and callback42df20. Existing reserved and distance
+bytes survive. Queue rejection does not stop traversal or mutate effects.
+Room identifier0 is compared normally, without an extra absence gate here.
+
+This establishes original collector behavior for the next shared binding.
+No new C collector is introduced in this change; instance transforms, live
+queue integration and deferred draw execution remain open. No GPU run.
