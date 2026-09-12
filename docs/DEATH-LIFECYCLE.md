@@ -3410,3 +3410,26 @@ Do not replace death's CLEAR_BONE callback with a cache invalidation or a
 no-op. Implement retained override storage, original conversion/blending and
 owned-pose transfer before binding it. This audit proves original behavior
 only; it is not a PC/Xbox implementation comparison or live death test.
+
+
+## Override basis conversion (2026-09-12)
+
+rf_model_basis_rotation reconstructs518e10, the non-normalizing matrix-to-
+quaternion conversion used by the override branch. It covers nonnegative
+trace and largest X/Y/Z diagonal branches, including their strict tie order.
+Instruction inspection shows that the X branch reloads a float-rounded
+Y+Z diagonal sum; the trace comparison and Y/Z branches retain intermediate
+precision. The shared helper preserves that distinction using explicit
+float/double operations. Finite inputs are required; failures preserve output,
+and aliased output is supported by computing the quaternion locally first.
+
+tools/verify_basis_rotation.py compares all four quaternion components byte
+for byte against unhooked518e10 for4101 cases: identity, principal half-turns,
+zero basis and4096 seeded general finite bases. Branch counts are
+2023/668/704/706. Both PC and NXDK-compiled C match. NXDK instructions execute
+in the isolated instruction harness, not XEMU. No normalized-input assumption
+or corrective normalization is introduced. Both builds and all19 CTests pass.
+
+This supplies one prerequisite for override evaluation. Retained records,
+override interpolation/matrix reconstruction, pose transfer and death-stage
+clearing still require integration and an end-to-end original comparison.

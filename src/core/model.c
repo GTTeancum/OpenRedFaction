@@ -878,6 +878,43 @@ int rf_model_bone_order(const rf_model_bone *bones, uint32_t count, uint8_t *ord
     if (count) memcpy(order, sorted, count);
     return RF_OK;
 }
+/* 518e10: basis conversion without quaternion normalization. */
+int rf_model_basis_rotation(const float basis[9],float out[4])
+{
+    float q[4],diagonal_pair;double trace,root,scale;unsigned i,axis;
+    if(!basis || !out)return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_FORMAT;
+    diagonal_pair=(float)((double)basis[4]+basis[8]);
+    trace=((double)basis[4]+basis[8])+basis[0];
+    if(trace>=0) {
+        root=sqrt(trace+1);q[3]=(float)(root*.5);scale=.5/root;
+        q[0]=(float)(((double)basis[7]-basis[5])*scale);
+        q[1]=(float)(((double)basis[2]-basis[6])*scale);
+        q[2]=(float)(((double)basis[3]-basis[1])*scale);
+    } else {
+        axis=basis[0]<basis[4]?1:0;if(basis[axis*4]<basis[8])axis=2;
+        /* Only the X branch reloads the rounded diagonal-pair spill. */
+        if(axis==0)root=sqrt(((double)basis[0]-diagonal_pair)+1);
+        else if(axis==1)root=sqrt(((double)basis[4]-((double)basis[0]+basis[8]))+1);
+        else root=sqrt(((double)basis[8]-((double)basis[4]+basis[0]))+1);
+        q[axis]=(float)(root*.5);scale=.5/root;
+        if(axis==0) {
+            q[1]=(float)(((double)basis[3]+basis[1])*scale);
+            q[2]=(float)(((double)basis[6]+basis[2])*scale);
+            q[3]=(float)(((double)basis[7]-basis[5])*scale);
+        } else if(axis==1) {
+            q[2]=(float)(((double)basis[7]+basis[5])*scale);
+            q[0]=(float)(((double)basis[3]+basis[1])*scale);
+            q[3]=(float)(((double)basis[2]-basis[6])*scale);
+        } else {
+            q[0]=(float)(((double)basis[6]+basis[2])*scale);
+            q[1]=(float)(((double)basis[7]+basis[5])*scale);
+            q[3]=(float)(((double)basis[3]-basis[1])*scale);
+        }
+    }
+    for(i=0;i<4;++i)if(!isfinite(q[i]))return RF_RANGE;
+    memcpy(out,q,sizeof(q));return RF_OK;
+}
 /* Float quaternion path 0x519da0, distinct from packed key interpolation. */
 static double pose_dot(const float a[4], const float b[4])
 {

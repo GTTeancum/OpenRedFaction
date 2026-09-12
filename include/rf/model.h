@@ -135,6 +135,9 @@ int rf_model_bone_transform(const float rotation[4], const float position[3], fl
 /* Attachment setup calls 0x4fe900 without bone normalization. Zero quaternions
  * therefore produce an identity rotation; non-finite/overflow results fail. */
 int rf_model_attachment_transform(const float rotation[4], const float position[3], float transform[12]);
+/* 518e10: basis to quaternion, without normalization. Aliased output allowed;
+ * non-finite input/result fails without changing output. */
+int rf_model_basis_rotation(const float basis[9],float out[4]);
 /* Reconstructed 0x51c620: row-vector local * parent, with implicit final column
  * (0,0,0,1). Aliased output is supported; errors leave it unchanged. */
 int rf_model_compose_transform(const float local[12], const float parent[12], float result[12]);
