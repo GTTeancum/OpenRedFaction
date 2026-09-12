@@ -3948,3 +3948,28 @@ The general classification switch still needs integration for projectile
 object pairs. Its eligibility mode1 and retirement48cc10 mode0 must remain
 distinct. Recover48bbe0 plane production and registered projectile/owner
 state before connecting these checks to live discovery and physics.
+
+
+Existing projectile pair expiration - 2026-09-12
+
+rf_collision_pair_expired reconstructs48cc10 using the same forward-axis
+calculation as projectile eligibility. Pair flags mask1 enables the test.
+The first endpoint is chosen if its kind is2; otherwise the second must be
+kind2, or the pair remains. If both are projectiles the first wins. Original
+48c7f0 is called with mode0, so only the float-stored target-minus-projectile
+displacement and forward dot decide expiration. Negative dot retires; zero
+retains. No owner resolution, definition flags or global planes participate.
+The shared60-byte resolved view is read-only and does not remove list nodes.
+
+verify_collision_expiration.py passes4096 original/PC/NXDK cases:3341 retain,
+755 expire. It executes full original48cc10 and48c7f0 with all actual callees
+and no hooks. Both-projectile precedence, either endpoint, neither endpoint,
+flag gates, zero boundary and finite cancellation are checked under027f.
+Owner/definition fields are poisoned and every original actor/pair byte
+is checked unchanged. The existing8192 eligibility cases still pass after
+factoring the shared directional calculation. Both builds and all19 CTests
+pass; no native XEMU run is claimed.
+
+This predicate is ready for the48ca60 pair processor, whose response
+selection and mutable-list traversal still need composition. Pair expiration
+is not the actor-specific48c9f0 death cleanup: keep their triggers separate.

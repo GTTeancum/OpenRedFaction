@@ -335,6 +335,16 @@ typedef struct rf_collision_projectile_eligibility {
     float planes[4][4];
 } rf_collision_projectile_eligibility;
 uint32_t rf_collision_projectile_eligible(const rf_collision_projectile_eligibility *state);
+/*48cc10 resolved pair view. Only flags mask1 enables expiration;
+ * first kind2 endpoint wins when both are projectiles. Existing-pair mode0
+ * uses positions3c and the chosen projectile forward60, never owner/planes.
+ * Finite geometry required. Returns1 to retire; does not alter the lists. */
+typedef struct rf_collision_pair_expiration {
+    uint32_t flags,first_kind,second_kind;
+    float first_position[3],first_forward[3],second_position[3],second_forward[3];
+} rf_collision_pair_expiration;
+uint32_t rf_collision_pair_expired(const rf_collision_pair_expiration *state);
+
 typedef struct rf_collision_discovery_state {uint32_t actor,kind,definition_flags,head,sentinel;} rf_collision_discovery_state;
 enum rf_collision_discovery_call {RF_COLLISION_DISCOVERY_PREPARE,RF_COLLISION_DISCOVERY_CREATE,RF_COLLISION_DISCOVERY_NEXT};
 /*48c9a0: kind2/definition268 bit20 prepares first, then rereads global head.

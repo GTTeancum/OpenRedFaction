@@ -1883,12 +1883,17 @@ void rf_collision_pairs_discover(rf_collision_discovery_state *state,
     }
 }
 
+static uint32_t projectile_forward_eligible(const float position[3],const float forward[3],const float target[3])
+{
+    float delta[3];double dot;uint32_t i;
+    for(i=0;i<3;++i)delta[i]=(float)((double)target[i]-(double)position[i]);
+    dot=(double)delta[2]*forward[2];dot+=(double)delta[1]*forward[1];dot+=(double)delta[0]*forward[0];
+    return !(dot<0);
+}
 uint32_t rf_collision_projectile_eligible(const rf_collision_projectile_eligibility *s)
 {
-    float delta[3];double dot,threshold;uint32_t i;
-    for(i=0;i<3;++i)delta[i]=(float)((double)s->target_position[i]-(double)s->projectile_position[i]);
-    dot=(double)delta[2]*s->projectile_forward[2];dot+=(double)delta[1]*s->projectile_forward[1];dot+=(double)delta[0]*s->projectile_forward[0];
-    if(dot<0)return 0;
+    double dot,threshold;uint32_t i;
+    if(!projectile_forward_eligible(s->projectile_position,s->projectile_forward,s->target_position))return 0;
     if(!(s->mode&255u))return 1;
     if(s->owner_present && !s->owner_field_1f8 && !s->target_field_1f8 &&
        s->owner_target_560!=s->target_handle && s->target_kind==0)return 0;
@@ -1902,4 +1907,12 @@ uint32_t rf_collision_projectile_eligible(const rf_collision_projectile_eligibil
         }
     }
     return 1;
+}
+
+uint32_t rf_collision_pair_expired(const rf_collision_pair_expiration *s)
+{
+    if(!(s->flags&1u))return 0;
+    if(s->first_kind==2)return !projectile_forward_eligible(s->first_position,s->first_forward,s->second_position);
+    if(s->second_kind==2)return !projectile_forward_eligible(s->second_position,s->second_forward,s->first_position);
+    return 0;
 }

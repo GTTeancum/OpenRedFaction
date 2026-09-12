@@ -620,6 +620,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--pair-expired")) {
+        rf_collision_pair_expiration state;uint32_t result;
+        _Static_assert(sizeof(state)==60,"Pair expiration wire layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&state,sizeof(state),1,stdin)==1) {
+            result=rf_collision_pair_expired(&state);if(fwrite(&result,4,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--collision-create")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return collision_pool_probe();
     }
