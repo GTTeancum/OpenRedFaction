@@ -7903,3 +7903,38 @@ Next adapt the already-owned decoded/swizzled rf_image storage without
 keeping a second texture copy, preserve source-format channel quantization,
 and compose actual authored corner UV and sampled alpha into scene queries.
 No native glare-rendering or renderer-lock integration is claimed yet.
+
+
+Glare dependency: owned image sampler (2026-09-12)
+------------------------------------------------
+rf_image_sample_owned adapts55cfa0 sampling to existing rf_image owners.
+It uses logical addressing, then rf_image_pixel to reach PC row-major or
+Xbox swizzled pixels. No allocation, copy or additional texture residency.
+The retained source_format controls sampling: normalized4444 channels are
+reduced to their original high nibbles; normalized1555 RGB to high5 bits,
+alpha to0/255. Packed1555 storage is decoded directly. RGBA8888 is unchanged
+and alpha8 yields white RGB. Unsupported original formats remain transparent
+white, matching the verified original sampler. Texture bytes are immutable.
+
+Original wrap/round addressing can produce x==width. The adapter preserves
+the corresponding next-row read when its logical index remains in the image;
+indices beyond all logical pixels return RANGE. It does not apply physical
+linear addressing to swizzled Xbox memory. Both targets require the same
+power-of-two dimensions up to4096 and valid owned byte count. Missing data,
+invalid dimensions and nonfinite UV fail without changing the color.
+
+verify_image_sample_owned.py:2048 fixtures compare PC decoded row-major
+and actual compiled NXDK swizzled storage against full original55cfa0
+locked source-format pixels. Only original lock/release supplied; actual
+original remainder/conversion/color logic executes.1484 safe original
+reads match,564 out-of-logical-image reads are rejected without executing
+unsafe original accesses,168 packed1555 fixtures. Source formats2/4/5/7
+and transparent fallback, rectangular power-of-two sizes, normalized and
+packed representations, row crossings and unchanged pixel buffers covered.
+Four port dimension/nonfinite guards supplement the fixtures. Original37f
+and NXDK27f controls stay unchanged. This is compiled-code verification,
+not a native XEMU scene run or an authored asset composition check.
+
+Next compose authored face UV records, this owned sampler and the verified
+alpha gate into preferred/room/flat collision services, then validate actual
+scene queries in stock64MiB XEMU before enabling visible glare rendering.

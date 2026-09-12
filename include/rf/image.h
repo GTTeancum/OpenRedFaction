@@ -46,4 +46,9 @@ typedef struct rf_image_sample_surface {
  * never clamp or read beyond bytes. Errors preserve color. No lock/allocation,
  * swizzle conversion, animation selection or renderer-mode fallback here. */
 int rf_image_sample_locked(const rf_image_sample_surface *surface,float u,float v,uint32_t *color);
+/* Sample existing decoded/swizzled storage with55cfa0 addressing and source
+ * channel precision. No allocation. Packed1555 and RGBA owners supported;
+ * Power-of-two dimensions up to4096 on both targets. Logical row crossings
+ * are preserved, reads beyond logical pixels rejected. */
+int rf_image_sample_owned(const rf_image *image,float u,float v,uint32_t *color);
 #endif

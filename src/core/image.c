@@ -229,3 +229,27 @@ int rf_image_sample_locked(const rf_image_sample_surface *surface,float u,float 
     }
     *color=r|(g<<8)|(b<<16)|(a<<24);return RF_OK;
 }
+
+int rf_image_sample_owned(const rf_image *image,float u,float v,uint32_t *color)
+{
+    double x,y;uint32_t ix,iy,packed,r,g,b,a,word;uint64_t index,total;const unsigned char *pixel;
+    if(!image || !color || !image->rgba || !image->width || !image->height || image->width>4096 || image->height>4096)return RF_RANGE;
+    packed=rf_image_is_packed_1555(image);total=(uint64_t)image->width*image->height;
+    if(image->bytes!=total*(packed?2u:4u))return RF_RANGE;
+    if((image->width&(image->width-1)) || (image->height&(image->height-1)))return RF_FORMAT;
+    if(!isfinite(u) || !isfinite(v))return RF_FORMAT;
+    x=fmod((double)u,1);y=fmod((double)v,1);if(x<0)x+=1;if(y<0)y+=1;
+    ix=(uint32_t)(x*image->width+.5);iy=(uint32_t)(y*image->height+.5);
+    if(image->source_format!=2 && image->source_format!=4 && image->source_format!=5 && image->source_format!=7){*color=0x00ffffff;return RF_OK;}
+    index=(uint64_t)iy*image->width+ix;if(index>=total)return RF_RANGE;
+    pixel=rf_image_pixel(image,(uint32_t)index%image->width,(uint32_t)index/image->width);
+    if(packed) {
+        word=pixel[0]|(uint32_t)pixel[1]<<8;r=((word>>10)&31)<<3;g=((word>>5)&31)<<3;b=(word&31)<<3;a=(word&0x8000)?255:0;
+    } else {
+        r=pixel[0];g=pixel[1];b=pixel[2];a=pixel[3];
+        if(image->source_format==2)r=g=b=255;
+        else if(image->source_format==4){r&=0xf0;g&=0xf0;b&=0xf0;a&=0xf0;}
+        else if(image->source_format==5){r&=0xf8;g&=0xf8;b&=0xf8;a=(a&128)?255:0;}
+    }
+    *color=r|(g<<8)|(b<<16)|(a<<24);return RF_OK;
+}

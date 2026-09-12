@@ -10,6 +10,17 @@ int main(int argc, char **argv)
     rf_image image;
     FILE *output;
     int result;
+    if(argc==2 && !strcmp(argv[1],"--sample-owned")) {
+        struct {uint32_t width,height,format,packed;float u,v;unsigned char pixels[256];} in;
+        struct {int32_t status;uint32_t color;} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_image image={in.width,in.height,in.width*in.height*(in.packed?2u:4u),in.format,in.pixels};
+            out.color=0xa5a5a5a5;out.status=image.bytes>256?RF_RANGE:rf_image_sample_owned(&image,in.u,in.v,&out.color);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--sample-locked")) {
         struct {uint32_t width,height,pitch,format,bytes;float u,v;unsigned char pixels[512];} in;
         struct {int32_t status;uint32_t color;} out;
