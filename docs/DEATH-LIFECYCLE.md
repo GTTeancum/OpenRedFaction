@@ -1125,3 +1125,44 @@ remain supplied test backends. This does not enable live scene death or claim
 native XEMU gameplay. Real resource backends, room lookup and partial cleanup
 remain open before finalization can use this path.
 The256 owned PC/NXDK cycles, both builds and all15 CTests pass.
+
+
+## Staged construction recovery
+
+Owned construction now records progress outside the original corpse payload:
+base, allocated, model assigned, tail initialized, corpse linked, complete.
+The existing generic constructor receives no progress callback, preserving its
+original output and callback order. rf_corpse_owned_abort accepts only an active
+incomplete owned construction. It validates the registered owner, object link,
+phase-appropriate corpse link and bounded emitter traversal before effects.
+
+Recovery clears the death name, releases any newly initialized burn owner,
+unlinks the corpse only if insertion occurred, closes physics, releases the
+assigned model and acquired emitters, clears the object name, unlinks the base
+object, recycles storage and finally removes the registry handle. The same
+resource backend contract applies: model/burn/emitter cleanup is infallible
+and must preserve the remaining owner/list/registry state until recycle.
+
+An early invalid death-motion result can leave an old burn token in reused
+storage because416940 has not reset that field yet. Recovery checks the stage
+and does not release that stale token. Incomplete construction has not assigned
+a corpse-follow sound or reached collision registration, so it does not mark
+that incoming sound or retire nonexistent pairs. Existing source deletion/
+model-retention marks and fades applied to other corpses are not rolled back.
+This is port error recovery, not a recovered original gameplay function.
+
+The corpse_owned_abort CTest and compiled NXDK harness cover256 cases spanning
+invalid death-motion lookup, failed name budget, invalid drop/carry lookup and
+rejection of abort on a completed owner. Acquired model/emitter callbacks,
+exact heap frees, registry-after-recycle ordering and final accounting are
+checked. Stale handles and repeated/reentrant cleanup reject; old burn/sound
+fields are preserved when not acquired. The Xbox memory hook rejects owner
+reads after recycling. The earlier PC name-budget test now uses this real
+abort API instead of manual fixture teardown.
+
+Current Xbox fixed owner storage is19344 bytes (640 per slot plus metadata),
+120 bytes more than the prior layout. Names and sphere payload remain charged
+separately. The1024 original/PC/NXDK constructor cases and7431 resource calls
+still match. Both builds and all16 CTests pass. Model/burn/emitter resources
+remain supplied test backends; real resource integration and room lookup are
+still required before live scene death or native XEMU gameplay is enabled.

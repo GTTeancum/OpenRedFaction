@@ -30,7 +30,7 @@ static int corpse_owned_create_probe(void)
         ownership.owners=&v.deletion.owners;ownership.registry=&v.deletion.registry;ownership.object_head=&v.deletion.object_head;
         ownership.object_count=&v.deletion.object_count;ownership.room=2;ownership.elasticity=.25f;ownership.friction=.5f;ownership.density=2;
         source.word_8c=0x41200000;source.word_98=0x40400000;source.physics_radius=1;source.class_health=100;source.class_value=1;
-        source.model=i%3?77:0;source.model_kind=2;source.emitter_kind=-1;source.motion_a44=-1;
+        source.model=i<256 && i%3?77:0;source.model_kind=2;source.emitter_kind=-1;source.motion_a44=-1;
         request.death_name="death_front";request.basis[0]=request.basis[4]=request.basis[8]=1;
         if(i==257)v.deletion.owners.budget=sizeof(v.deletion.owners)+23;
         status=rf_corpse_owned_create(&ownership,&source,&request,&v.deletion.corpse_head,&v.deletion.corpse_count,&backend,&c);
@@ -39,9 +39,8 @@ static int corpse_owned_create_probe(void)
                v.events!=(i==256?1u<<RF_CORPSE_CREATE_SNAPSHOT:0))return 10;
             if(i==256) {
                 if(!c || v.deletion.object_count!=1 || v.deletion.owners.pool.live!=1 || c->deletion.corpse_link.next)return 11;
-                /* Fixture teardown only. General partial-owner unwind remains separate. */
-                v.deletion.object_head.next=v.deletion.object_head.previous=&v.deletion.object_head;
-                rf_object_registry_remove(&v.deletion.registry,c->deletion.handle);rf_corpse_owners_recycle(&v.deletion.owners,0);
+                if(rf_corpse_owned_abort(&v.deletion.owners,0,&v.deletion.registry,&v.deletion.corpse_count,
+                    &v.deletion.object_count,4,&deletion) || v.deletion.owners.pool.live || v.deletion.object_count)return 13;
             } else if(c || v.deletion.object_count || v.deletion.owners.pool.live)return 12;
             continue;
         }

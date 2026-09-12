@@ -76,8 +76,10 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 #include "corpse_owned_delete_probe.h"
 #include "corpse_owned_create_probe.h"
+#include "corpse_owned_abort_probe.h"
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corpse-owned-abort"))return corpse_owned_abort_probe();
     if(argc==2 && !strcmp(argv[1],"--corpse-owned-create"))return corpse_owned_create_probe();
     if(argc==2 && !strcmp(argv[1],"--corpse-owned-delete"))return corpse_owned_delete_probe();
     if(argc==2 && !strcmp(argv[1],"--corpse-name")) {

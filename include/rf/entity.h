@@ -475,8 +475,11 @@ int rf_corpse_body_open(const rf_corpse_physics_seed *seed,float elasticity,floa
  * Does not register objects, load models, or dispatch scene death by itself. */
 typedef struct rf_corpse_name {uint32_t length;char *bytes;} rf_corpse_name;
 enum {RF_CORPSE_OBJECT_NAME,RF_CORPSE_DEATH_NAME,RF_CORPSE_NAME_COUNT};
+enum {RF_CORPSE_CONSTRUCT_BASE,RF_CORPSE_CONSTRUCT_ALLOCATED,RF_CORPSE_CONSTRUCT_MODEL,
+    RF_CORPSE_CONSTRUCT_TAIL,RF_CORPSE_CONSTRUCT_LINKED,RF_CORPSE_CONSTRUCT_COMPLETE};
 typedef struct rf_corpse_owned {
     rf_corpse corpse;rf_physics_body body;rf_entity_room_state room;rf_corpse_name names[RF_CORPSE_NAME_COUNT];
+    uint32_t construction; /* Internal owned-constructor progress, not original object data. */
 } rf_corpse_owned;
 typedef struct rf_corpse_owners {
     rf_corpse_pool pool;rf_corpse_owned slots[RF_CORPSE_CAPACITY];
@@ -503,6 +506,16 @@ int rf_corpse_name_assign(rf_corpse_owners *owners,uint32_t index,uint32_t kind,
  * Requires a registered, fully constructed live owner with intact resources.
  * No owner access follows recycle. Pre-construction failure cleanup is separate. */
 int rf_corpse_owned_delete(rf_corpse_owners *owners,uint32_t index,rf_object_registry *registry,
+    uint32_t *corpse_count,uint32_t *object_count,uint32_t emitter_limit,const rf_corpse_delete_backend *backend);
+
+/* Recover a failed rf_corpse_owned_create, before COMPLETE. Releases only
+ * resources reached in this construction, unlinks whichever lists were joined,
+ * and retires the registry handle after recycling. Backend handles acquired
+ * model/burn/emitter resources only; no corpse sound or collision pair was
+ * installed by incomplete construction. Old source marks/retention fades are
+ * not rolled back. Rejects broken/stale/reentrant or complete owners before
+ * effects. This is port error recovery, not an original gameplay routine. */
+int rf_corpse_owned_abort(rf_corpse_owners *owners,uint32_t index,rf_object_registry *registry,
     uint32_t *corpse_count,uint32_t *object_count,uint32_t emitter_limit,const rf_corpse_delete_backend *backend);
 
 /* Type7 base-owner subset of486da0/487100: caller has accepted room placement,
@@ -567,8 +580,8 @@ typedef struct rf_corpse_create_ownership {
  * original contract and must not mutate the pool/registry/accounting.
  * Resource allocation failures return their status. If a name allocation or
  * later guard fails, result exposes the partial owner; no later constructor
- * effects run. Partial cleanup is caller-owned and must respect which links
- * and resources have been acquired. Original source deletion marks persist. */
+ * effects run. Use rf_corpse_owned_abort for the partial owner with matching
+ * resource backends. Original source deletion marks persist. */
 int rf_corpse_owned_create(const rf_corpse_create_ownership *ownership,
     rf_corpse_create_source *source,const rf_corpse_create_request *request,
     rf_corpse_list_link *corpse_head,uint32_t *corpse_count,

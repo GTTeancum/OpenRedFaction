@@ -764,6 +764,36 @@ int rf_corpse_owned_delete(rf_corpse_owners *owners,uint32_t index,rf_object_reg
     bridge.effect=corpse_owned_delete_effect;bridge.sound_flags=corpse_owned_delete_sound;bridge.context=&context;
     return rf_corpse_delete(&corpse->deletion,registry,corpse_count,object_count,limit,&bridge);
 }
+int rf_corpse_owned_abort(rf_corpse_owners *owners,uint32_t index,rf_object_registry *registry,
+    uint32_t *corpse_count,uint32_t *object_count,uint32_t limit,const rf_corpse_delete_backend *backend)
+{
+    rf_corpse_owned *owner;rf_corpse *c;rf_corpse_delete_emitter *e,*next;uint32_t stage,visits=0,handle;
+    if(!owners || index>=RF_CORPSE_CAPACITY || !(owners->pool.active_mask&(1u<<index)) ||
+       !corpse_count || !object_count || corpse_count==object_count || !*object_count ||
+       !backend || !backend->effect || owners->allocated_bytes<sizeof(*owners) || owners->allocated_bytes>owners->budget)return RF_RANGE;
+    owner=&owners->slots[index];c=&owner->corpse;stage=owner->construction;
+    if(stage<RF_CORPSE_CONSTRUCT_ALLOCATED || stage>=RF_CORPSE_CONSTRUCT_COMPLETE || c->deletion.lifecycle ||
+       c->deletion.registered_object!=c || c->deletion.update!=&c->update || !corpse_link_valid(&c->deletion.object_link))return RF_RANGE;
+    if(rf_object_registry_lookup(registry,c->deletion.handle)!=c)return RF_NOT_FOUND;
+    if(stage>=RF_CORPSE_CONSTRUCT_LINKED) {
+        if(!*corpse_count || !corpse_link_valid(&c->deletion.corpse_link))return RF_RANGE;
+    } else if(c->deletion.corpse_link.next || c->deletion.corpse_link.previous)return RF_RANGE;
+    for(e=c->deletion.emitters;e;e=e->next) {if(visits==limit)return RF_RANGE;++visits;}
+    handle=c->deletion.handle;c->deletion.lifecycle=1;
+    rf_corpse_name_assign(owners,index,RF_CORPSE_DEATH_NAME,NULL);
+    if(stage>=RF_CORPSE_CONSTRUCT_TAIL && c->deletion.burn)backend->effect(backend->context,RF_CORPSE_DELETE_BURN,c->deletion.burn);
+    if(stage>=RF_CORPSE_CONSTRUCT_LINKED) {corpse_link_remove(&c->deletion.corpse_link);--*corpse_count;}
+    owners->allocated_bytes-=owner->body.spheres.count*sizeof(rf_physics_sphere);rf_physics_body_close(&owner->body);
+    if(stage>=RF_CORPSE_CONSTRUCT_MODEL && !(c->update.fade.object_flags_7c&0x400u) && c->update.model)
+        backend->effect(backend->context,RF_CORPSE_DELETE_MODEL,c->update.model);
+    while((e=c->deletion.emitters)!=NULL) {
+        next=e->next;backend->effect(backend->context,RF_CORPSE_DELETE_EMITTER,e->token);c->deletion.emitters=next;
+    }
+    rf_corpse_name_assign(owners,index,RF_CORPSE_OBJECT_NAME,NULL);
+    corpse_link_remove(&c->deletion.object_link);--*object_count;c->deletion.lifecycle=2;
+    rf_corpse_owners_recycle(owners,index);
+    return rf_object_registry_remove(registry,handle);
+}
 int rf_corpse_base_acquire(rf_corpse_owners *owners,rf_object_registry *registry,
     rf_corpse_list_link *head,uint32_t *object_count,const rf_corpse_physics_seed *seed,
     float elasticity,float friction,float density,uint32_t room,uint32_t *index)
@@ -775,7 +805,7 @@ int rf_corpse_base_acquire(rf_corpse_owners *owners,rf_object_registry *registry
     if(!registry->count)return RF_NOT_FOUND;
     prepared=*seed;if(prepared.radius<0)prepared.radius=1;
     status=rf_corpse_owners_acquire(owners,&prepared,elasticity,friction,density,&slot);if(status)return status;
-    c=&owners->slots[slot].corpse;body=&owners->slots[slot].body;
+    c=&owners->slots[slot].corpse;body=&owners->slots[slot].body;owners->slots[slot].construction=RF_CORPSE_CONSTRUCT_BASE;
     status=rf_object_registry_insert(registry,c,&handle);
     if(status) {rf_corpse_owners_recycle(owners,slot);return status;}
     c->update.fade.health_34=100;c->update.fade.object_flags_7c=0x6400000u;c->update.model=0;
@@ -796,7 +826,7 @@ static int corpse_owner_eligible(const rf_corpse *c)
 {return !(c->update.fade.flags_29c&0x43u) && !(c->update.fade.object_flags_7c&0x4000u);}
 static int corpse_create_with_name(rf_corpse_create_source *s,const rf_corpse_create_request *r,
     rf_corpse_list_link *head,uint32_t *count,const rf_corpse_create_backend *b,rf_corpse **result,
-    int (*assign_name)(void *,rf_corpse *,const char *))
+    int (*assign_name)(void *,rf_corpse *,const char *),void (*progress)(void *,uint32_t))
 {
     rf_corpse_physics_seed seed;rf_corpse *c,*oldest,*candidate;rf_corpse_list_link *n,*previous;
     rf_corpse_delete_emitter *emitter;uint32_t visits=0,eligible=0;int32_t motion,offset=0;double delay;int status;
@@ -835,6 +865,7 @@ static int corpse_create_with_name(rf_corpse_create_source *s,const rf_corpse_cr
     if(s->class_flags_728&0x20u)c->update.fade.flags_29c|=0x400u;
     c->uid=s->uid;c->weapon=s->weapon;c->update.motion_2b8=-1;c->word_2d8=s->word_2d8;
     c->update.model=(s->replacement_model && s->replacement_model[0])?b->load_model(b->context,s->replacement_model):s->model;
+    if(progress)progress(b->context,RF_CORPSE_CONSTRUCT_MODEL);
     if(s->model && s->model_kind==2) {
         motion=b->motion(b->context,s,r->death_name);
         if(motion<-1 || motion>=45)return RF_RANGE;
@@ -850,6 +881,7 @@ static int corpse_create_with_name(rf_corpse_create_source *s,const rf_corpse_cr
     c->created_seconds=r->created_seconds;
     c->class_index=s->class_index;c->update.fade.health_34=s->class_health;
     c->deletion.burn=0;c->word_2d4=-1;memset(c->velocity,0,sizeof(c->velocity));memset(c->vector_150,0,sizeof(c->vector_150));
+    if(progress)progress(b->context,RF_CORPSE_CONSTRUCT_TAIL);
     if(assign_name) {status=assign_name(b->context,c,r->death_name);if(status)return status;}
     else b->effect(b->context,RF_CORPSE_CREATE_NAME,s,c,r->death_name);
     rf_timer_clear(&c->update.emitter_deadline_2ac);
@@ -862,6 +894,7 @@ static int corpse_create_with_name(rf_corpse_create_source *s,const rf_corpse_cr
     if(r->protected_body==1)c->update.fade.flags_29c|=0x40u;
     c->deletion.corpse_link.previous=head->previous;c->deletion.corpse_link.next=head;
     head->previous->next=&c->deletion.corpse_link;head->previous=&c->deletion.corpse_link;++*count;
+    if(progress)progress(b->context,RF_CORPSE_CONSTRUCT_LINKED);
     for(n=head->next;n!=head;n=n->next)if(corpse_owner_eligible(corpse_from_link(n)))++eligible;
     while(eligible>5) {
         oldest=NULL;
@@ -880,12 +913,13 @@ static int corpse_create_with_name(rf_corpse_create_source *s,const rf_corpse_cr
     c->extra_model=0;if((s->flags_810&0x200000u) && s->extra_model){c->extra_model=s->extra_model;s->extra_model=0;}
     if((c->physics_flags&0x20u) && !(c->update.fade.object_flags_7c&0x8000u))b->effect(b->context,RF_CORPSE_CREATE_COLLISION,s,c,NULL);
     b->effect(b->context,RF_CORPSE_CREATE_SOURCE_EFFECTS,s,c,NULL);
+    if(progress)progress(b->context,RF_CORPSE_CONSTRUCT_COMPLETE);
     *result=c;return RF_OK;
 }
 
 int rf_corpse_create(rf_corpse_create_source *s,const rf_corpse_create_request *r,
     rf_corpse_list_link *head,uint32_t *count,const rf_corpse_create_backend *backend,rf_corpse **result)
-{return corpse_create_with_name(s,r,head,count,backend,result,NULL);}
+{return corpse_create_with_name(s,r,head,count,backend,result,NULL,NULL);}
 
 typedef struct corpse_owned_create_context {
     const rf_corpse_create_ownership *ownership;const rf_corpse_create_backend *backend;
@@ -896,7 +930,9 @@ static rf_corpse *corpse_owned_allocate(void *context,rf_corpse_create_source *s
     corpse_owned_create_context *c=context;const rf_corpse_create_ownership *o=c->ownership;(void)source;
     c->allocation_status=rf_corpse_base_acquire(o->owners,o->registry,o->object_head,o->object_count,seed,
         o->elasticity,o->friction,o->density,o->room,&c->index);
-    return c->allocation_status?NULL:&o->owners->slots[c->index].corpse;
+    if(c->allocation_status)return NULL;
+    o->owners->slots[c->index].construction=RF_CORPSE_CONSTRUCT_ALLOCATED;
+    return &o->owners->slots[c->index].corpse;
 }
 static uint32_t corpse_owned_load_model(void *context,const char *name)
 {corpse_owned_create_context *c=context;return c->backend->load_model(c->backend->context,name);}
@@ -906,6 +942,8 @@ static void corpse_owned_create_effect(void *context,uint32_t operation,rf_corps
 {corpse_owned_create_context *c=context;c->backend->effect(c->backend->context,operation,source,corpse,name);}
 static rf_corpse_delete_emitter *corpse_owned_emitter(void *context,rf_corpse_create_source *source,rf_corpse *corpse)
 {corpse_owned_create_context *c=context;return c->backend->emitter(c->backend->context,source,corpse);}
+static void corpse_owned_progress(void *context,uint32_t stage)
+{corpse_owned_create_context *c=context;c->ownership->owners->slots[c->index].construction=stage;}
 static int corpse_owned_assign_name(void *context,rf_corpse *corpse,const char *name)
 {
     corpse_owned_create_context *c=context;(void)corpse;
@@ -923,7 +961,7 @@ int rf_corpse_owned_create(const rf_corpse_create_ownership *o,rf_corpse_create_
     context.ownership=o;context.backend=backend;context.index=0;context.allocation_status=0;
     bridge.allocate=corpse_owned_allocate;bridge.load_model=corpse_owned_load_model;bridge.motion=corpse_owned_motion;
     bridge.effect=corpse_owned_create_effect;bridge.emitter=corpse_owned_emitter;bridge.context=&context;
-    status=corpse_create_with_name(source,request,head,count,&bridge,result,corpse_owned_assign_name);
+    status=corpse_create_with_name(source,request,head,count,&bridge,result,corpse_owned_assign_name,corpse_owned_progress);
     return context.allocation_status?context.allocation_status:status;
 }
 

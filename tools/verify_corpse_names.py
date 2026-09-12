@@ -45,7 +45,7 @@ for i in range(1024):
 for kind in (0,1):call(u,0x4ffa80,(0,),b+kind*8)
 assert not live
 pc=subprocess.check_output([str(root/'build/pc/Release/rf_entity_probe.exe'),'--corpse-name'],input=b''.join(commands));assert pc==b''.join(expected),'PC name mismatch'
-init=sym('rf_corpse_owners_init');acquire=sym('rf_corpse_owners_acquire');assign=sym('rf_corpse_name_assign');recycle=sym('rf_corpse_owners_recycle');base=19224;seed=b+0x5000;out=seed+128;names=b+136+620
+init=sym('rf_corpse_owners_init');acquire=sym('rf_corpse_owners_acquire');assign=sym('rf_corpse_name_assign');recycle=sym('rf_corpse_owners_recycle');base=19344;seed=b+0x5000;out=seed+128;names=b+136+620
 assert call(x,init,(b,base+1024))==0
 x.mem_write(seed,f(10,3,0,0,0,1,0,0,0,1,0,0,0,1,1)+w(0,0,0x33))
 material=struct.unpack('<3I',f(.25,.5,2));assert call(x,acquire,(b,seed,*material,out))==0
