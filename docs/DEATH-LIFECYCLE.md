@@ -4547,3 +4547,29 @@ and action-audio summaries match replay054555. This proves bound contact
 publication under explicit test inputs, not automatic gameplay collision
 scheduling. Connecting48ca60 dispatch and subsequent impulse/damage handling
 remains required. No new visual capture was warranted.
+
+## Original model query dispatcher contract
+
+verify_model_query_dispatch.py executes original503120 and wrapper5031f0
+with only geometry54e000/54daa0/54e140 supplied.4096 cases pass:2058 wrapper
+calls,1174 reset cases,2730 no-geometry rejections,683 type2 calls,416 type1
+whole-model calls and267 type1 selected-part calls. Local report:
+artifacts/model-query-dispatch.json. Original RF.exe SHA is checked.
+
+Reset occurs only when lowbyte(reset)==1, before any type branch: result
+time becomes1 and word1c becomes0; remaining hit bytes are preserved.
+Type1 uses model+4 as ECX: part=-1 calls54e000(query,hit,reset), otherwise
+54daa0(part,query,hit,reset). Type2 ignores part, uses owner=model+8 and
+ECX=owner+19c0+(owner[19bc]-1)*148, and calls54e140(model[4],query,hit,reset).
+This hidden pose receiver is missing from raw Ghidra output. Positive pose
+counts1..4 are covered; invalid count semantics are not reconstructed.
+
+Type3 reads part metadata (including an optional scan of flags at114 in
+124-byte records) but always returns lowbyte0 and never calls geometry.
+Other types also return lowbyte0. Rejection upper EAX bits are incidental;
+real callers use AL. Geometry callback return is forwarded in full.
+Wrapper5031f0 supplies part=-1. Tests verify receiver/stack arguments,
+reset-before-callback, modified hit fields, untouched query/model/pose/part
+bytes and callee cleanup. Geometry and port dispatcher remain unimplemented;
+this audit avoids guessing their ABI or synthesizing type3 collisions.
+No source build or XEMU run was needed for this original-executable audit.
