@@ -27,11 +27,16 @@ def hook(cpu,address,size,data):
  cpu.reg_write(UC_X86_REG_EAX,allocation);cpu.reg_write(UC_X86_REG_ESP,sp+4);cpu.reg_write(UC_X86_REG_EIP,read(sp))
 u.hook_add(UC_HOOK_CODE,hook)
 constructor_cases=allocator_cases=0
+preserved_movement_fields=(0x75c,0x7b4)
+preserved_movement_checks=0
 for fill in (0,0xa5,0x5a):
  u.mem_write(base,bytes([fill])*0x1494);u.mem_write(0,pack(0));u.mem_write(stack,pack(stop))
  u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_ECX,base);u.emu_start(0x40e380,stop,count=100000)
  assert u.reg_read(UC_X86_REG_EIP)==stop and u.reg_read(UC_X86_REG_EAX)==base and read(0)==0
  assert bytes(u.mem_read(base,0x1494))==constructor_expected(fill)
+ for offset in preserved_movement_fields:
+  assert read(base+offset)==int.from_bytes(bytes([fill])*4,"little")
+  preserved_movement_checks+=1
  constructor_cases+=1
  for allocation in (0,base):
   for count,peak in ((0,0),(7,10)):
@@ -45,6 +50,9 @@ for fill in (0,0xa5,0x5a):
    assert bytes(u.mem_read(base,0x1494))==expected,(fill,allocation)
    assert read(0x73a850)==count+bool(allocation) and read(0x73db0c)==max(peak,count+bool(allocation))
    assert read(sentinel+0x10)==(base if allocation else sentinel) and read(sentinel+0x14)==(base if allocation else sentinel)
+   for offset in preserved_movement_fields:
+    assert read(base+offset)==int.from_bytes(bytes([fill])*4,"little")
+    preserved_movement_checks+=1
    allocator_cases+=1
 u.mem_write(sentinel+0x10,pack(sentinel,sentinel));u.mem_write(0x73a850,pack(0));u.mem_write(0x73db0c,pack(0))
 objects=[]
@@ -58,5 +66,5 @@ for allocation in (base,base+0x2000,base+0x4000):
   expected=constructor_expected(0xa5)
   for offset,value in ((0,0),(0x10,objects[index+1] if index+1<len(objects) else sentinel),(0x14,objects[index-1] if index else sentinel),(0x268,0),(0x27c,0)):expected[offset:offset+4]=pack(value)
   assert bytes(u.mem_read(address,0x1494))==expected,(index,len(objects))
-report=dict(result='PASS',constructor_cases=constructor_cases,allocator_cases=allocator_cases,insertion_steps=len(objects),bytes=0x1494,zero_ranges=zero_ranges,inactive_ranges=inactive_ranges,scope='Complete original 40e380 and type-0 487100 path, original callees unchanged except heap boundary 573619. Full object-byte comparisons, sequential tail insertion and count/high-water updates; failures preserve state. No generic 486da0 initialization, class/asset factory remainder, registry-handle assignment or gameplay creation.')
+report=dict(result='PASS',preserved_movement_fields=[hex(v) for v in preserved_movement_fields],preserved_movement_checks=preserved_movement_checks,constructor_cases=constructor_cases,allocator_cases=allocator_cases,insertion_steps=len(objects),bytes=0x1494,zero_ranges=zero_ranges,inactive_ranges=inactive_ranges,scope='Complete original 40e380 and type-0 487100 path, original callees unchanged except heap boundary 573619. Full object-byte comparisons, sequential tail insertion and count/high-water updates; failures preserve state. No generic 486da0 initialization, class/asset factory remainder, registry-handle assignment or gameplay creation.')
 (root/'artifacts/entity-construction-verification.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if not k.endswith('_ranges')})

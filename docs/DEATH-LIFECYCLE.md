@@ -6191,3 +6191,9 @@ PC reference adds only the new crouch row and312 owner/total bytes compared
 with104055; the existing body-state hash and all other rows are unchanged.
 Connect normal/slow transitions and remaining landing callbacks, complete
 ground/relative services, then enable NPC physics scheduling.
+
+
+NPC movement constructor audit (2026-09-12)
+------------------------------------------
+The complete original40e380 constructor and type0 path487100 preserve actor75c and actor7b4, including A5/5A incoming heap patterns. verify_entity_construction.py explicitly checks both fields at these boundaries (30 checks), alongside its existing full5268-byte comparisons, allocation failures and list insertion checks. The allocation hook supplies raw storage, not a zeroing allocator. This disproves constructor-based zero initialization; it does not establish the first gameplay write in the complete422360 factory/callees. Retained port calloc zero must remain a provisional value until that lifecycle is established.
+A direct-displacement executable scan identifies actor clock stores4256a4 (425280),4289bd (jump4288b0),428a45 (crouch4289d0),430cbf (player-associated input), and read428c5b. This is a candidate reference inventory, not proof against indirect accesses. The same displacement at4a342f belongs to another allocated owner and cannot justify NPC initialization. Further first-write/caller ordering remains open; no pre-write clock consumer has been enabled.
