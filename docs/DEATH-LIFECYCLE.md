@@ -3281,3 +3281,29 @@ local player/timers, death motion, configured item, linked actor, weapon reset
 needs one coherent actor field owner across all adapted views and callbacks,
 plus real model, world, registry, item, inventory, event and player owners.
 Per-stage comparisons do not establish full41fdc0 equivalence or live gameplay.
+
+
+## Retained campaign NPC death fields (2026-09-12)
+
+campaign_npc_body now owns24 bytes for item82c, requested death action83c,
+active death action824, linked actor146c, deadline4b8 and auxiliary model148c.
+The first five initialize to-1; the model initializes to0. Source evidence is
+423367..423385 for item/actions/link,40e380 for the inactive timer, and423af2
+for the auxiliary model before its MP-only respawn visual branch. These fields
+are distinct from the existing actor action520 and pain selected action828.
+This supplies persistent storage for composition; it does not start dying
+updates or replace the existing health/flags, physics and model-pose owners.
+
+NPC_DEATH_OWNERS telemetry reports registered count, added bytes and initial
+state hash. The XEMU replay harness compares PC/guest values and independently
+checks the five-absent/one-zero initializer pattern. Existing NPC body budget
+accounting includes the enlarged records. The Live Mines replay has78 owned
+records,1872 added bytes and hash3974211757. PC/Xbox builds and all19 CTests
+pass. The180-frame stock64MiB XEMU door/damage/audio replay also passes with
+8715 available pages at completion and unchanged movement/audio comparison
+results. NPC body accounting is50740 resident bytes and425380 peak bytes.
+Evidence: artifacts/xemu/replay-20260912-023602/report.json.
+
+This is live storage and memory validation, not live death behavior. Connect
+the stage views to these retained fields and existing shared owners, then
+bind resource callbacks before enabling complete death dispatch.

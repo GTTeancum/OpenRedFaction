@@ -1762,6 +1762,7 @@ _Static_assert(sizeof(rf_entity_damage_state)==56,"Damage owner telemetry layout
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_entity_damage_state damage;uint32_t object_flags,field_840;
+    struct {int32_t item_82c,requested_83c,action_824,linked_146c,deadline_4b8;uint32_t model_148c;} death;
     float model_radius_78; /* Original489fe0 model-origin radius. */
     float published[3],previous[3];uint32_t movement_slot;
     uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
@@ -1804,6 +1805,7 @@ uint32_t rf_scene_npc_support_deep[8],rf_scene_npc_support_deep_first[20];
 static void campaign_npc_support_probe(const rf_geometry_collision_world *world,const campaign_npc_body *owner,
     const rf_entity_physics_config *config,float class_speed,uint32_t uid);
 uint32_t rf_scene_npc_damage_owners[3]; /* registered damage records, added owner bytes, state hash */
+uint32_t rf_scene_npc_death_owners[3]; /* registered, added bytes, initial state hash */
 uint32_t rf_scene_npc_pain_owners[4]; /* registered, added bytes, initial state hash, construction clock */
 uint32_t rf_scene_npc_pain_sound_owners[4]; /* registered, added bytes, initial state hash, construction clock */
 uint32_t rf_scene_npc_registration[6]; /* registered, view/wrapper bytes, hash, first/last handle, validated */
@@ -1959,6 +1961,9 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         campaign_npc_body *owner=campaign_npc_bodies+actor;rf_entity_view *view=&owner->view;
         const rf_entity_seed_class *definition=campaign_seeds.classes+campaign_seeds.items[actor].class_index;
         owner->trigger_handle=UINT32_MAX;
+        /*423367..423385, constructor40e380 timer, and SP423af2. */
+        owner->death.item_82c=owner->death.requested_83c=owner->death.action_824=-1;
+        owner->death.linked_146c=owner->death.deadline_4b8=-1;owner->death.model_148c=0;
         /* Original402c33..402d68 and423318..4233a8: expired at creation,
          * not disabled. Later AI/pain code owns changes to these deadlines. */
         status=rf_timer_set(&owner->pain.ai_timer,now,0);if(status)goto done;
@@ -1984,6 +1989,8 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         rf_scene_npc_registration[2]=npc_hash_bytes(rf_scene_npc_registration[2],view,44);
         rf_scene_npc_registration[2]=npc_hash_bytes(rf_scene_npc_registration[2],&owner->registration,8);
     }
+    rf_scene_npc_death_owners[0]=0;rf_scene_npc_death_owners[1]=campaign_npc_body_count*sizeof(campaign_npc_bodies[0].death);
+    rf_scene_npc_death_owners[2]=2166136261u;
     rf_scene_npc_damage_owners[0]=0;rf_scene_npc_damage_owners[1]=campaign_npc_body_count*48;
     rf_scene_npc_damage_owners[2]=2166136261u;
     rf_scene_npc_pain_owners[0]=0;rf_scene_npc_pain_owners[1]=campaign_npc_body_count*sizeof(campaign_npc_bodies[0].pain);
@@ -1992,6 +1999,8 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     rf_scene_npc_pain_sound_owners[2]=2166136261u;rf_scene_npc_pain_sound_owners[3]=(uint32_t)now;
     for(actor=0;actor<campaign_npc_body_count;++actor)if(campaign_npc_bodies[actor].registration.view) {
         campaign_npc_body *owner=campaign_npc_bodies+actor;
+        rf_scene_npc_death_owners[2]=npc_hash_bytes(rf_scene_npc_death_owners[2],&owner->death,sizeof(owner->death));
+        ++rf_scene_npc_death_owners[0];
         rf_scene_npc_damage_owners[2]=npc_hash_bytes(rf_scene_npc_damage_owners[2],&owner->damage,sizeof(owner->damage));
         ++rf_scene_npc_damage_owners[0];
         rf_scene_npc_pain_owners[2]=npc_hash_bytes(rf_scene_npc_pain_owners[2],&owner->pain,sizeof(owner->pain));
