@@ -202,6 +202,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--prepare-static-clip")) {
+        struct {rf_model_vertex vertices[4];int32_t reuse[4];rf_model_render_cache cache[4];float clip[4][3];uint16_t indices[3],pad;uint32_t use_colors;uint8_t colors[4][3];} data;
+        _Static_assert(sizeof(data)==376,"Clip input wire layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            int32_t status;uint8_t records[3][48];memset(records,0xa5,sizeof(records));
+            status=rf_model_prepare_static_clip_triangle(data.vertices,data.reuse,data.cache,data.clip,4,data.indices,data.use_colors?data.colors:NULL,records);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(records,sizeof(records),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--prepare-clip")) {
         struct {rf_model_vertex vertices[4];int32_t reuse[4];rf_model_render_cache cache[4];float clip[4][3];uint16_t indices[3],pad;rf_model_render_output output;} data;
         _Static_assert(sizeof(data)==376,"Clip input wire layout");
@@ -209,6 +219,16 @@ int main(int argc,char **argv)
             int32_t status;uint8_t records[3][48];memset(records,0xa5,sizeof(records));
             status=rf_model_prepare_clip_triangle(data.vertices,data.reuse,data.cache,data.clip,4,data.indices,&data.output,records);
             if(fwrite(&status,4,1,stdout)!=1 || fwrite(records,sizeof(records),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--static-triangle-route")) {
+        struct {rf_model_render_cache cache[3];rf_model_projection view;uint16_t indices[3],flags;float plane[4];} data;
+        _Static_assert(sizeof(data)==232,"Static triangle route wire layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            struct {int32_t status;uint32_t route;} result={0,99};
+            result.status=rf_model_route_static_triangle(data.cache,3,data.indices,data.flags,data.plane,&data.view,&result.route);
+            if(fwrite(&result,8,1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;
     }

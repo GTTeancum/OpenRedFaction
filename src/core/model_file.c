@@ -184,6 +184,18 @@ int rf_model_prepare_clip_triangle(const rf_model_vertex *vertices,const int32_t
     return RF_OK;
 }
 
+int rf_model_prepare_static_clip_triangle(const rf_model_vertex *vertices,const int32_t *reuse,
+    const rf_model_render_cache *cache,const float (*clip)[3],uint32_t count,
+    const uint16_t indices[3],const uint8_t (*colors)[3],uint8_t records[3][48])
+{
+    rf_model_render_output attributes={0};uint32_t i;int status;
+    attributes.lighting=1;
+    status=rf_model_prepare_clip_triangle(vertices,reuse,cache,clip,count,indices,&attributes,records);
+    if(status)return status;
+    if(colors)for(i=0;i<3;++i)memcpy(records[i]+44,colors[indices[i]],3);
+    return RF_OK;
+}
+
 int rf_model_geometry_render_batch(const rf_model_geometry *geometry,uint32_t batch,
     const float (*matrices)[12],uint32_t bones,const rf_model_projection *view,
     const rf_model_lighting *lights,const rf_model_render_output *output,rf_model_render_buffers *buffers)

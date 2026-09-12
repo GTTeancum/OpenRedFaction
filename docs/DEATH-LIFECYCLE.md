@@ -7148,3 +7148,37 @@ guards preserve every output byte; NXDK inputs also remain intact.
 PC/NXDK builds and all19 CTests pass; the existing250 skeletal-batch and
 4000 static-projection comparisons remain passing. No native XEMU or visual
 claim. Report: artifacts/model-static-render-batch.json.
+
+
+## Static triangle routing and clipping inputs
+
+rf_model_route_static_triangle reconstructs52e49a through the direct/clip
+branches using the stored triangle plane and actual547960 facing semantics.
+Perspective accepts plane(camera)>0; orthographic accepts when the plane
+normal dot the view forward vector is not positive. Consequently unordered
+perspective planes reject and unordered orthographic dots accept. Flag20
+bypasses facing only; screen/common clip-mask rejection still runs first.
+The skeletal route remains unchanged and continues deriving face normals
+from transformed vertices. Stored static planes must be supplied by the
+resource owner; they are not silently recomputed from decoded vertices.
+
+rf_model_prepare_static_clip_triangle reconstructs52e560..52e62c using
+shared validated signed-reuse mapping. Each corner reads the reused clip
+position and its own mask/UV/ordinal. RGB comes from the reused cache unless
+a batch-local color array supplies the current vertex color. Unrelated
+record bytes remain untouched. This composes the already verified record
+layout without assuming the skeletal constant-color policy.
+
+verify_model_static_triangle_route.py compares4096 original/PC/NXDK cases:
+2369 rejected,894 direct and833 clipping, including arbitrary stored planes,
+zero planes and authored-pattern ffc00000 planes. Actual547960/vector
+callees execute unchanged. verify_model_static_clip_inputs.py compares all
+144 clipping-record bytes in2000 original/PC/NXDK cases (6000 records),
+including supplied RGB and bounded negative reuse. Both suites check three
+PC and three NXDK invalid-index/reuse guards with output preservation;
+NXDK input bytes also stay intact. Existing3000 skeletal-route and2000
+skeletal-clipping-input cases remain passing. Both builds and all19 CTests
+pass. Reports: artifacts/model-static-triangle-route.json and
+artifacts/model-static-clip-inputs.json. Static polygon generation, capacity
+checks, submission, view ownership and native scene use are still open;
+this is not an XEMU or new-visual claim.

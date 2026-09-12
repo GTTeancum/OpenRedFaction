@@ -250,6 +250,12 @@ typedef enum rf_model_triangle_route { RF_MODEL_TRIANGLE_REJECT=0,RF_MODEL_TRIAN
  * clipped polygon. All indices must fit original signed-short cache addressing. */
 int rf_model_route_triangle(const rf_model_render_cache *cache,uint32_t count,const uint16_t indices[3],
     uint16_t flags,const rf_model_projection *view,uint32_t *route);
+/* Static52e49a..52e545 uses stored plane547960 rather than derived vertices.
+ * Unordered perspective planes reject; unordered orthographic dots accept.
+ * Flags0x20 bypass facing, but not the clip-mask rejection gates. */
+int rf_model_route_static_triangle(const rf_model_render_cache *cache,uint32_t count,const uint16_t indices[3],
+    uint16_t flags,const float plane[4],const rf_model_projection *view,uint32_t *route);
+
 /* 0x54954c..0x549626: interpolate UV0 (bit1), UV1 (bit2), RGB (bit4).
  * Original model clipping passes flags=5. Caller supplies intersection factor
  * in [0,1]; position, clip flags and alpha are untouched. Aliasing supported. */

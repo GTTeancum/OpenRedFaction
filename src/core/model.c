@@ -681,6 +681,27 @@ int rf_model_route_triangle(const rf_model_render_cache *cache,uint32_t count,co
     return RF_OK;
 }
 
+int rf_model_route_static_triangle(const rf_model_render_cache *cache,uint32_t count,const uint16_t indices[3],
+    uint16_t flags,const float plane[4],const rf_model_projection *view,uint32_t *route)
+{
+    uint8_t any,common;uint32_t i,facing=1;double dot;
+    if(!cache || !indices || !plane || !view || !route)return RF_RANGE;
+    for(i=0;i<3;++i)if(indices[i]>=count || indices[i]>INT16_MAX)return RF_RANGE;
+    any=cache[indices[0]].clip|cache[indices[1]].clip|cache[indices[2]].clip;
+    common=cache[indices[0]].clip&cache[indices[1]].clip&cache[indices[2]].clip;
+    if((view->screen_clip && any) || (!view->screen_clip && view->compute_clip && common)) {
+        *route=RF_MODEL_TRIANGLE_REJECT;return RF_OK;
+    }
+    if(!(flags&0x20)) {
+        const float *direction=view->perspective?view->camera:view->rotation+6;
+        dot=((double)plane[0]*direction[0]+(double)plane[1]*direction[1])+(double)plane[2]*direction[2];
+        if(view->perspective)dot+=plane[3];
+        facing=view->perspective?(dot>0):!(dot>0);
+    }
+    *route=!facing?RF_MODEL_TRIANGLE_REJECT:view->compute_clip && any?RF_MODEL_TRIANGLE_CLIP:RF_MODEL_TRIANGLE_DIRECT;
+    return RF_OK;
+}
+
 int rf_model_triangle_facing(const float a[3],const float b[3],const float c[3],uint16_t flags,
     uint32_t perspective,const float camera[3],const float forward[3],uint32_t *accepted)
 {

@@ -217,6 +217,12 @@ int rf_model_geometry_render_static_batch(const rf_model_geometry *geometry,uint
 int rf_model_prepare_clip_triangle(const rf_model_vertex *vertices,const int32_t *reuse,
     const rf_model_render_cache *cache,const float (*clip)[3],uint32_t count,
     const uint16_t indices[3],const rf_model_render_output *output,uint8_t records[3][48]);
+/* Static52e560..52e62c: same signed reuse/source mapping; RGB comes from
+ * the source cache unless optional batch-local colors provides this vertex. */
+int rf_model_prepare_static_clip_triangle(const rf_model_vertex *vertices,const int32_t *reuse,
+    const rf_model_render_cache *cache,const float (*clip)[3],uint32_t count,
+    const uint16_t indices[3],const uint8_t (*colors)[3],uint8_t records[3][48]);
+
 /* Assemble recovered triangle routing/clipping/emission for one resident batch.
  * Output already contains this batch's processed vertices; indices are local
  * plus base. Caller owns initialized pool/output storage. No allocation or I/O.
