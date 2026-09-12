@@ -496,6 +496,15 @@ int rf_corpse_owners_recycle(rf_corpse_owners *owners,uint32_t index);
  * retained. Invoke for each name at its construction/deletion effect boundary. */
 int rf_corpse_name_assign(rf_corpse_owners *owners,uint32_t index,uint32_t kind,const char *name);
 
+/* Concrete resource bridge for rf_corpse_delete. Releases the death name,
+ * physics spheres, object name and pool slot at their verified boundaries.
+ * The supplied backend handles only PAIRS/BURN/MODEL/EMITTER and sound lookup;
+ * it must not release names/body/storage or mutate accounting/registry/lists.
+ * Requires a registered, fully constructed live owner with intact resources.
+ * No owner access follows recycle. Pre-construction failure cleanup is separate. */
+int rf_corpse_owned_delete(rf_corpse_owners *owners,uint32_t index,rf_object_registry *registry,
+    uint32_t *corpse_count,uint32_t *object_count,uint32_t emitter_limit,const rf_corpse_delete_backend *backend);
+
 /* Type7 base-owner subset of486da0/487100: caller has accepted room placement,
  * no model descriptor, object flags argument0. Registers the acquired corpse
  * and appends its object link, but not its corpse link. Initializes represented

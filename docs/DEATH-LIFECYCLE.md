@@ -1056,3 +1056,37 @@ The64 fill/drain cycles and1921 acquisitions pass with this layout. Names are
 owned storage now; binding them to real constructor and deletion effects,
 models, live room lookup and complete failure cleanup remain open.
 The256 registered-base comparisons, both builds and all13 CTests pass.
+
+
+## Concrete deletion resource bridge
+
+rf_corpse_owned_delete now connects the registered owner container to the
+existing verified rf_corpse_delete sequence. It frees the death name at STRING,
+closes and uncharges sphere storage at PHYSICS, frees the object name at
+OBJECT_STRING, and returns the pool slot at RECYCLE. Embedded body records
+remain included in fixed storage. External backends handle only collision
+pairs, burn, model, emitter and sound resources; they must not also free the
+intercepted resources or mutate owner accounting, registry or lists.
+
+The bridge validates the selected live slot and its registered/update owner
+references before dispatch. It does not access the corpse after recycling.
+This applies to fully constructed owners; partial-construction unwind remains
+separate because a corpse link may not yet exist. Required name clearing is
+allocation-free, and the intact-owner budget invariant makes those callbacks
+infallible during deletion.
+
+The PC fixture uses actual base registration, owned body and both name
+allocations. It checks256 deletion variants, resource visibility at forwarded
+callbacks, reentrant rejection, model retention, saved-next emitter traversal,
+registry removal, repeated rejection and restoration of fixed memory accounting.
+It is now registered as the corpse_owned_deletion CTest.
+
+The compiled NXDK harness records actual heap frees alongside external effects,
+then watches the pool live-count write that recycles the slot. A memory hook
+rejects any subsequent read of that owner's storage. It checks handle removal
+only after recycling, poisoned released emitter records, stale-handle rejection,
+sound marking and exact final accounting. Model/burn/emitter/pair/sound resource
+backends are supplied. The original1024-case complete deletion verifier also
+passes, independently establishing the ordering used by this bridge. No live
+scene dispatch or native XEMU gameplay is claimed.
+The256 PC/NXDK owned-deletion cases, both builds and all14 CTests pass.

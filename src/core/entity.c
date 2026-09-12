@@ -727,6 +727,43 @@ int rf_corpse_name_assign(rf_corpse_owners *owners,uint32_t index,uint32_t kind,
     memcpy(copy,name,new_bytes);target->bytes=copy;target->length=(uint32_t)length;
     owners->allocated_bytes+=new_bytes;return RF_OK;
 }
+typedef struct corpse_owned_delete_context {
+    rf_corpse_owners *owners;uint32_t index;const rf_corpse_delete_backend *backend;
+} corpse_owned_delete_context;
+static void corpse_owned_delete_effect(void *context,uint32_t operation,uint32_t token)
+{
+    corpse_owned_delete_context *c=context;rf_physics_body *body;
+    switch(operation) {
+    case RF_CORPSE_DELETE_STRING:
+        rf_corpse_name_assign(c->owners,c->index,RF_CORPSE_DEATH_NAME,NULL);break;
+    case RF_CORPSE_DELETE_PHYSICS:
+        body=&c->owners->slots[c->index].body;
+        c->owners->allocated_bytes-=body->spheres.count*sizeof(rf_physics_sphere);
+        rf_physics_body_close(body);break;
+    case RF_CORPSE_DELETE_OBJECT_STRING:
+        rf_corpse_name_assign(c->owners,c->index,RF_CORPSE_OBJECT_NAME,NULL);break;
+    case RF_CORPSE_DELETE_RECYCLE:
+        rf_corpse_owners_recycle(c->owners,c->index);break;
+    default:c->backend->effect(c->backend->context,operation,token);break;
+    }
+}
+static uint32_t *corpse_owned_delete_sound(void *context,int32_t id)
+{
+    corpse_owned_delete_context *c=context;return c->backend->sound_flags(c->backend->context,id);
+}
+int rf_corpse_owned_delete(rf_corpse_owners *owners,uint32_t index,rf_object_registry *registry,
+    uint32_t *corpse_count,uint32_t *object_count,uint32_t limit,const rf_corpse_delete_backend *backend)
+{
+    rf_corpse *corpse;corpse_owned_delete_context context;rf_corpse_delete_backend bridge;
+    if(!owners || index>=RF_CORPSE_CAPACITY || !(owners->pool.active_mask&(1u<<index)) ||
+       owners->allocated_bytes<sizeof(*owners) || owners->allocated_bytes>owners->budget ||
+       !backend || !backend->effect || !backend->sound_flags)return RF_RANGE;
+    corpse=&owners->slots[index].corpse;
+    if(corpse->deletion.registered_object!=corpse || corpse->deletion.update!=&corpse->update)return RF_RANGE;
+    context.owners=owners;context.index=index;context.backend=backend;
+    bridge.effect=corpse_owned_delete_effect;bridge.sound_flags=corpse_owned_delete_sound;bridge.context=&context;
+    return rf_corpse_delete(&corpse->deletion,registry,corpse_count,object_count,limit,&bridge);
+}
 int rf_corpse_base_acquire(rf_corpse_owners *owners,rf_object_registry *registry,
     rf_corpse_list_link *head,uint32_t *object_count,const rf_corpse_physics_seed *seed,
     float elasticity,float friction,float density,uint32_t room,uint32_t *index)
