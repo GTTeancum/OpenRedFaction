@@ -2057,3 +2057,20 @@ Validation after correction: both builds,18 CTests,720 authored frames,
 comparisons plus6 guards pass. Historical verifier filenames/output keys
 containing sound remain for compatibility; their item semantics are clarified
 here. No new live item owner or audio behavior is claimed.
+
+
+## Attached item world-pose assignment
+
+rf_scene_corpse_item_position delegates to the already verified48a230 position
+assignment. The authored item callback now owns a retained world-pose record
+and applies the actual helper, checking public/current/pending positions,
+positive-radius min/max bounds, dirty04000000, and unchanged velocity/base
+position. All three authored level runs and18 CTests pass with both builds.
+The underlying position verifier passes8030 original/PC/NXDK assignments and
+3 guards. Registry/type/lifetime resolution remains external to this helper.
+
+The item publication search is incomplete: bounded disassembly of416000..
+419000 finds2cc reads in update/deletion and the deletion clear, not assignment
+of a new handle. Broader displacement matches belong to other object layouts
+or need further classification; linear disassembly is not proof of absence.
+No forced default, automatic item spawn or corpse handle publication is added.

@@ -651,7 +651,7 @@ static int death_geometry_check(void)
     rf_collision_tree_close(&room.tree);return 0;
 }
 typedef struct corpse_authored_item {
-    rf_corpse_item_view view;uint32_t lookups,moves;int fail;
+    rf_corpse_item_view view;rf_group_attached_pose pose;uint32_t lookups,moves;int fail;
 } corpse_authored_item;
 static rf_corpse_item_view *corpse_authored_lookup(void *context,int32_t id)
 {corpse_authored_item *s=context;++s->lookups;return id==7?&s->view:NULL;}
@@ -659,7 +659,8 @@ static int corpse_authored_move(void *context,rf_corpse_item_view *view,const fl
 {
     corpse_authored_item *s=context;++s->moves;
     if(view!=&s->view || memcmp(view->position,point,12) || !isfinite(point[0]) || !isfinite(point[1]) || !isfinite(point[2]))return RF_FORMAT;
-    return s->fail;
+    if(s->fail)return s->fail;
+    return rf_scene_corpse_item_position(&s->pose,point);
 }
 /* Opt-in authored-asset harness; ordinary CTest fixtures require no game data. */
 static int corpse_authored_check(char **argv)
@@ -711,6 +712,7 @@ static int corpse_authored_check(char **argv)
             rf_physics_sphere spheres[8]={{0}};uint32_t enabled=0xaabbccff,visits;
             rf_corpse_emitter_link emitter={NULL,&enabled};corpse_authored_item sound={0};
             rf_scene_corpse_item_ops ops={corpse_authored_lookup,corpse_authored_move,&sound};
+            sound.pose.radius=.5f;sound.pose.velocity[0]=17;sound.pose.base_position[1]=19;
             owned.body.spheres.items=spheres;owned.body.spheres.count=campaign_render_models.items[skeleton].collision_sphere_count;
             CHECK(owned.body.spheres.count>0 && owned.body.spheres.count<=8);
             for(visits=0;visits<owned.body.spheres.count;++visits)spheres[visits].radius=1;
@@ -725,6 +727,9 @@ static int corpse_authored_check(char **argv)
             CHECK(corpse->model_radius==owned.body.state.bounds.radius && corpse->physics_radius==corpse->model_radius);
             for(visits=0;visits<owned.body.spheres.count;++visits)CHECK(spheres[visits].radius==1);
             CHECK(rf_scene_corpse_follow_point(corpse,point)==RF_OK && !memcmp(point,sound.view.position,12));
+            CHECK(!memcmp(sound.pose.position,point,12) && !memcmp(sound.pose.public_position,point,12) && !memcmp(sound.pose.pending,point,12));
+            CHECK((sound.pose.flags&0x4000000) && sound.pose.velocity[0]==17 && sound.pose.base_position[1]==19);
+            for(visits=0;visits<3;++visits)CHECK(sound.pose.minimum[visits]==point[visits]-.5f && sound.pose.maximum[visits]==point[visits]+.5f);
             sound.fail=RF_IO;CHECK(rf_scene_corpse_update(&owned,0,4001,NULL,0,pending,&ops)==RF_IO);
             CHECK(sound.moves==2 && sound.lookups==2);
             owned.body.spheres.items=NULL;owned.body.spheres.count=0;

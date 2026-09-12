@@ -786,6 +786,10 @@ int rf_scene_corpse_duration(const rf_corpse *corpse,int32_t motion,double *seco
     file=&campaign_motion_catalog.models[pose->skeleton].items[motion].file;
     *seconds=rf_motion_duration((int32_t)file->header[4],(int32_t)file->header[5]);return RF_OK;
 }
+/*48a230 for the resolved attached item. Registry/type/lifetime validation is
+ * the item owner's responsibility; this bridge updates its retained world pose. */
+int rf_scene_corpse_item_position(rf_group_attached_pose *pose,const float point[3])
+{return rf_group_pose_set_position(pose,point);}
 typedef struct rf_scene_corpse_item_ops {
     rf_corpse_item_view *(*lookup)(void *,int32_t);
     int (*move)(void *,rf_corpse_item_view *,const float[3]);void *context;
