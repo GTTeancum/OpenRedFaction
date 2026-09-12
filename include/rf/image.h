@@ -35,4 +35,15 @@ void rf_image_close(rf_image *image);
 uint32_t rf_image_tga_format(uint32_t bits);
 /* Original 51071d after texture-handle resolution: formats 4,5,7 only. */
 int rf_image_format_has_alpha(uint32_t format);
+typedef struct rf_image_sample_surface {
+    uint32_t width,height,pitch,format,bytes;const unsigned char *pixels;
+} rf_image_sample_surface;
+/* Original55cfa0 after a successful surface lock. Linear pitched source,
+ * formats2 alpha8,4 ARGB4444,5 ARGB1555,7 ARGB8888. Output is packed RGBA
+ * (red low byte). Other original formats return white with alpha0. UV wraps
+ * by remainder1, negative remainders add1, then texel coordinates round via
+ * trunc(value*dimension+.5). Preserve row/padding crossings when in bytes;
+ * never clamp or read beyond bytes. Errors preserve color. No lock/allocation,
+ * swizzle conversion, animation selection or renderer-mode fallback here. */
+int rf_image_sample_locked(const rf_image_sample_surface *surface,float u,float v,uint32_t *color);
 #endif

@@ -7863,3 +7863,43 @@ Both builds,6060 texture-alpha regression cases and21 CTests pass. Next
 resolve authored corner UV ownership into the sampler and reconstruct50e330
 bitmap addressing/alpha sampling, then propagate the composed service into
 scene solid queries. This is not yet an authored/native visibility binding.
+
+
+Glare dependency: bitmap sample55cfa0 (2026-09-12)
+------------------------------------------------
+Original50e330 dispatches to55cfa0 only for renderer mode66; other modes
+produce opaque white.55cfa0 locks through55ce00, with lock failure also
+producing opaque white. Successful lock supplies format+8, pixels+c,
+width10, height14 and byte pitch18. After sampling it releases via50e310.
+The new primitive models the successful locked-surface path only; it does
+not invent renderer selection, locking or lock-failure policy for Xbox.
+
+rf_image_sample_locked uses a borrowed24-byte pitched surface view and
+packed RGBA output (red low byte). UV remainder modulo1 is adjusted by+1
+when negative, multiplied by dimensions, then rounded via trunc(value+.5).
+The original does NOT clamp a coordinate equal to width/height afterward.
+The port preserves row/padding crossings when within supplied bytes and
+returns RANGE beyond the supplied byte span. It does not read unrelated
+allocation memory or silently change edge samples to clamped/wrapped ones.
+
+Formats2(alpha8),4(ARGB4444),5(ARGB1555),7(ARGB8888) follow the original
+color switch.4444 channels expand by shift4 (maximum240);1555 RGB by
+shift3 (maximum248), alpha0/255.8888 swaps source BGRA into RGBA. Other
+format IDs produce transparent white. The original unconditionally loads
+both16/32-bit candidate pixels before its switch; unused loads are omitted
+in C. Bounds apply to the actual selected format read. No heap allocation.
+
+verify_image_sample_locked.py passes3072 full original55cfa0 comparisons,
+with actual remainder5776fa, conversion573528 and color extraction; only
+lock/release services supplied. PC/compiled NXDK outputs match exactly over
+formats0..9, repeated/negative/integer/large UVs, varied dimensions/pitches
+and1265 rounded dimension crossings. Both source pixel buffers remain
+unchanged. Seven invalid dimension/pitch/span/nonfinite guards preserve
+color; unsafe original out-of-span reads are not executed. Original37f and
+NXDK27f controls are preserved. Both builds,21 CTests,8198 UV checks and
+6060 alpha-gate checks pass.
+
+Next adapt the already-owned decoded/swizzled rf_image storage without
+keeping a second texture copy, preserve source-format channel quantization,
+and compose actual authored corner UV and sampled alpha into scene queries.
+No native glare-rendering or renderer-lock integration is claimed yet.

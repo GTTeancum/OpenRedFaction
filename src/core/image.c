@@ -1,6 +1,8 @@
 #include "rf/image.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include <limits.h>
 #ifdef RF_IMAGE_XBOX_NATIVE
 #include <xboxkrnl/xboxkrnl.h>
 #endif
@@ -205,4 +207,25 @@ int rf_image_open(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint
     status=rf_vpp_read(archive,entry,0,magic,4);if(status)return status;
     return !memcmp(magic,".vbm",4)?rf_image_vbm(image,archive,entry,budget):
         rf_image_tga(image,archive,entry,budget);
+}
+
+int rf_image_sample_locked(const rf_image_sample_surface *surface,float u,float v,uint32_t *color)
+{
+    double x,y;uint32_t ix,iy,bpp,r,g,b,a,word;uint64_t offset;const unsigned char *pixel;
+    if(!surface || !color || !surface->width || !surface->height || surface->width>INT32_MAX || surface->height>INT32_MAX)return RF_RANGE;
+    if(!isfinite(u) || !isfinite(v))return RF_FORMAT;
+    x=fmod((double)u,1);y=fmod((double)v,1);if(x<0)x+=1;if(y<0)y+=1;
+    ix=(uint32_t)(x*surface->width+.5);iy=(uint32_t)(y*surface->height+.5);
+    switch(surface->format){case 2:bpp=1;break;case 4:case 5:bpp=2;break;case 7:bpp=4;break;default:*color=0x00ffffff;return RF_OK;}
+    if(!surface->pixels || (uint64_t)surface->width*bpp>surface->pitch)return RF_RANGE;
+    offset=(uint64_t)iy*surface->pitch+(uint64_t)ix*bpp;
+    if(offset+bpp>surface->bytes)return RF_RANGE;pixel=surface->pixels+(uint32_t)offset;
+    if(surface->format==2){r=g=b=255;a=pixel[0];}
+    else if(surface->format==7){r=pixel[2];g=pixel[1];b=pixel[0];a=pixel[3];}
+    else {
+        word=pixel[0]|(uint32_t)pixel[1]<<8;
+        if(surface->format==4){r=((word>>8)&15)<<4;g=((word>>4)&15)<<4;b=(word&15)<<4;a=((word>>12)&15)<<4;}
+        else {r=((word>>10)&31)<<3;g=((word>>5)&31)<<3;b=(word&31)<<3;a=(word&0x8000)?255:0;}
+    }
+    *color=r|(g<<8)|(b<<16)|(a<<24);return RF_OK;
 }
