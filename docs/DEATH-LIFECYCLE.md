@@ -3433,3 +3433,28 @@ or corrective normalization is introduced. Both builds and all19 CTests pass.
 This supplies one prerequisite for override evaluation. Retained records,
 override interpolation/matrix reconstruction, pose transfer and death-stage
 clearing still require integration and an end-to-end original comparison.
+
+
+## Complete override rotation blend (2026-09-12)
+
+rf_model_override_pose reconstructs51b94c..51b9db: convert override basis and
+composed bone rotation with518e10, interpolate current toward override with
+519da0, reconstruct the rotation with5193f0 semantics, and preserve all three
+translation floats. Caller owns enabled-byte and generation gates. No
+allocation or retained record is added by this helper.
+
+The first original comparison exposed missing weight wrapping in the shared
+interpolator. Original519da0 repeatedly adds float1 while negative and
+subtracts float1 while greater than1; endpoints0 and1 remain distinct.
+The shared path now does the same, rejecting non-finite weights and steps
+that make no float progress rather than hanging on malformed huge values.
+This is wrapping, not clamping or extrapolation.
+
+tools/verify_override_pose.py executes the full original override block
+without replacing its callees and compares all48 matrix bytes with PC and
+NXDK-compiled C. All1024 cases pass, covering seeded rotations, equal bases,
+translations and weights -2/-1/-.25/0/.25/.5/1/1.25/2/3. Original translations
+are independently checked against input. NXDK runs in the instruction
+harness, not XEMU. Existing1600 pose-blend comparisons and all19 CTests pass;
+both builds succeed. Retained overrides, evaluation/transfer integration
+and death clearing remain open; no live gameplay change is claimed.

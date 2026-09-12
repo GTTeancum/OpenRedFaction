@@ -9,6 +9,15 @@ int main(int argc, char **argv)
     _Static_assert(sizeof(output) == 52, "Probe wire layout");
     (void)argv;
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc>1 && !strcmp(argv[1],"--override")) {
+        float values[22];
+        while(fread(values,sizeof(values),1,stdin)==1) {
+            memcpy(output.transform,values,48);
+            output.status=rf_model_override_pose(output.transform,values+12,values[21]);
+            if(fwrite(&output,sizeof(output),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc>1 && !strcmp(argv[1],"--basis-rotation")) {
         float basis[9];struct {int32_t status;float rotation[4];} result;
         while(fread(basis,sizeof(basis),1,stdin)==1) {

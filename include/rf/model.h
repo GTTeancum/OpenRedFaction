@@ -138,6 +138,10 @@ int rf_model_attachment_transform(const float rotation[4], const float position[
 /* 518e10: basis to quaternion, without normalization. Aliased output allowed;
  * non-finite input/result fails without changing output. */
 int rf_model_basis_rotation(const float basis[9],float out[4]);
+/* 51b950..51b9db: blend composed rotation toward override basis, preserving
+ * translation. Caller owns enabled/generation gates. Weights wrap by float unit steps, without
+ * quaternion normalization; invalid input/result preserves the matrix. */
+int rf_model_override_pose(float matrix[12],const float basis[9],float weight);
 /* Reconstructed 0x51c620: row-vector local * parent, with implicit final column
  * (0,0,0,1). Aliased output is supported; errors leave it unchanged. */
 int rf_model_compose_transform(const float local[12], const float parent[12], float result[12]);

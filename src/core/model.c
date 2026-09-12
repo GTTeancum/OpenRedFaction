@@ -924,6 +924,10 @@ static int pose_interpolate(const float a[4], const float b[4], float t, float o
 {
     float difference[4], sum[4], second[4], dot;
     double wa, wb, value; unsigned i; int opposite;
+    if(!isfinite(t))return RF_FORMAT;
+    while(t<0) {float next=t+1;if(next==t)return RF_RANGE;t=next;}
+    while(t>1) {float next=t-1;if(next==t)return RF_RANGE;t=next;}
+
     for (i=0;i<4;++i) { difference[i]=a[i]-b[i]; sum[i]=a[i]+b[i]; second[i]=b[i]; }
     if (pose_dot(sum,sum)<=(float)pose_dot(difference,difference))
         for (i=0;i<4;++i) second[i]=-second[i];
@@ -945,6 +949,18 @@ static int pose_interpolate(const float a[4], const float b[4], float t, float o
         if (i==3 && value==0) out[i]=1.0e-6f;
     }
     return RF_OK;
+}
+int rf_model_override_pose(float matrix[12],const float basis[9],float weight)
+{
+    float target[4],current[4],blended[4],result[12];int status;unsigned i;
+    if(!matrix || !basis)return RF_RANGE;
+    if(!isfinite(weight))return RF_FORMAT;
+    for(i=0;i<12;++i)if(!isfinite(matrix[i]))return RF_FORMAT;
+    status=rf_model_basis_rotation(basis,target);if(status)return status;
+    status=rf_model_basis_rotation(matrix,current);if(status)return status;
+    status=pose_interpolate(current,target,weight,blended);if(status)return status;
+    status=rf_model_attachment_transform(blended,matrix+9,result);if(status)return status;
+    memcpy(matrix,result,sizeof(result));return RF_OK;
 }
 int rf_model_blend_pose(const float (*rotations)[4], const float (*positions)[3], const float *weights,
                         uint32_t count, float out[12])
