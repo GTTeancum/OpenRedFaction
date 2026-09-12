@@ -8072,3 +8072,27 @@ The harness compares scene telemetry against the matching PC reference.
 No claim of later runtime USERBMAP replacement or texture-alpha collision
 integration is implied. The constructor/loader and live startup allocation
 are now connected; visibility/collision callback propagation remains next.
+
+
+Texture-alpha swept-face composition (2026-09-12)
+------------------------------------------------
+rf_collision_sweep_face_textured carries the verified thin alpha service
+through complete4dec10 finite-radius geometry. At sphere/face interior
+contact it applies the same bitmap>=0 and query80/face40 or query100/face80
+pairs as the thin path; alpha<128 rejects that face without falling back to
+edges. Edge-only contacts do not sample alpha. Callback errors/missing
+required backend preserve result and matched; geometric/alpha misses set
+matched0. Existing non-textured API keeps its unsupported-alpha contract.
+Both share one geometry implementation; no retained storage or allocation.
+
+verify_collision_textured_sweep.py compares12000 original/PC/compiled NXDK
+cases, running original filters, sphere/plane, polygon, edge and normal code.
+Only UV/bitmap callbacks are supplied in the original, and the port receives
+the corresponding sample callback. There are201 original samples,157 on
+finite-radius interior contacts,117 transparent rejections,342 edge hits
+with zero samples,20 multiple improving edge-hit cases, plus5 callback and
+7 missing-backend failures. Exact output/call/contact comparisons pass.
+The existing12005 sweep and6060 textured-thin cases plus21 CTests pass; both
+builds pass. This composes single-face behavior, not tree/room traversal or
+live scene alpha callbacks. Carry bitmap IDs/source-face ownership through
+those paths next, then bind the authored material sampler.

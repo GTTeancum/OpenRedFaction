@@ -1441,21 +1441,23 @@ static void sweep_normalize(float normal[3])
 #endif
 }
 
-int rf_collision_sweep_face(const rf_collision_face *face,const float start[3],
+static int collision_sweep_face(const rf_collision_face *face,const float start[3],
     const float displacement[3],const float normal_displacement[3],float radius,
-    float limit,rf_collision_sweep_hit *result,uint32_t *matched)
+    float limit,int textured,int32_t bitmap,const rf_collision_texture_backend *texture,
+    rf_collision_sweep_hit *result,uint32_t *matched)
 {
     rf_collision_sweep_hit value;float lo[3],hi[3],end[3],scratch[3];uint32_t hit,j,i;int status;
     if(!face || !start || !displacement || !normal_displacement || !result || !matched)return RF_RANGE;
     if(!isfinite(radius) || radius<0 || !isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
     value.hits=0;value.edge=0;
     if(radius<.0001f) {
-        status=rf_collision_thin_face(face,start,displacement,limit,&value.hit,&hit);if(status)return status;
+        status=textured?rf_collision_thin_face_textured(face,bitmap,start,displacement,limit,texture,&value.hit,&hit):
+            rf_collision_thin_face(face,start,displacement,limit,&value.hit,&hit);if(status)return status;
         if(hit) {value.hits=1;*result=value;}*matched=hit;return RF_OK;
     }
     status=rf_collision_face_accept(&face->filter,&hit);if(status)return status;
     if(!hit)goto miss;
-    if(face->filter.query_flags&0x180u)return RF_NOT_FOUND;
+    if(!textured && (face->filter.query_flags&0x180u))return RF_NOT_FOUND;
     for(j=0;j<3;j++) {
         if(!isfinite(start[j]) || !isfinite(displacement[j]) || !isfinite(normal_displacement[j]))return RF_FORMAT;
         end[j]=start[j]+displacement[j];lo[j]=face->minimum[j]-radius;hi[j]=face->maximum[j]+radius;
@@ -1464,7 +1466,16 @@ int rf_collision_sweep_face(const rf_collision_face *face,const float start[3],
     status=rf_collision_sphere_plane(start,displacement,radius,face->plane,&value.hit.fraction,value.hit.point,&hit);if(status)return status;if(!hit)goto miss;
     if(value.hit.fraction>limit)goto miss;
     status=rf_collision_polygon_contains(face->plane,value.hit.point,face->vertices,face->count,&hit);if(status)return status;
-    if(hit) {memcpy(value.hit.normal,face->plane,12);value.hits=1;goto accept;}
+    if(hit) {
+        uint32_t flags=face->filter.query_flags,color;
+        if(textured && bitmap>=0 && (((flags&0x80) && (face->filter.face_flags&0x40)) ||
+            ((flags&0x100) && (face->filter.face_flags&0x80)))) {
+            if(!texture || !texture->sample)return RF_NOT_FOUND;
+            status=texture->sample(texture->context,face,bitmap,value.hit.point,&color);if(status)return status;
+            if((color>>24)<128)goto miss;
+        }
+        memcpy(value.hit.normal,face->plane,12);value.hits=1;goto accept;
+    }
     for(j=0;j<3;j++) {
         lo[j]=(start[j]<end[j]?start[j]:end[j])-radius;
         hi[j]=(start[j]<end[j]?end[j]:start[j])+radius;
@@ -1487,6 +1498,19 @@ int rf_collision_sweep_face(const rf_collision_face *face,const float start[3],
     *result=value;*matched=1;return RF_OK;
  miss:
     *matched=0;return RF_OK;
+}
+
+int rf_collision_sweep_face(const rf_collision_face *face,const float start[3],
+    const float displacement[3],const float normal_displacement[3],float radius,
+    float limit,rf_collision_sweep_hit *result,uint32_t *matched)
+{
+    return collision_sweep_face(face,start,displacement,normal_displacement,radius,limit,0,-1,NULL,result,matched);
+}
+int rf_collision_sweep_face_textured(const rf_collision_face *face,int32_t bitmap,const float start[3],
+    const float displacement[3],const float normal_displacement[3],float radius,float limit,
+    const rf_collision_texture_backend *texture,rf_collision_sweep_hit *result,uint32_t *matched)
+{
+    return collision_sweep_face(face,start,displacement,normal_displacement,radius,limit,1,bitmap,texture,result,matched);
 }
 
 int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,

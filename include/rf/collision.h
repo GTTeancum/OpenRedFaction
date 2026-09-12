@@ -183,6 +183,13 @@ typedef struct rf_collision_sweep_hit {
  * Radius below 0.0001 uses thin path. Ordered vertices close the edge loop.
  * Unsupported texture flags, errors and misses follow thin_face conventions.
  * No world traversal, transforms or actor response; no allocation. */
+/* Original4dec10 alpha gate also applies to sphere/face interior contact.
+ * Transparent interior rejects the face without edge fallback; edge-only
+ * contact does not sample alpha. Missing callback fails only when needed.
+ * Callback errors preserve result/matched. No allocation or world traversal. */
+int rf_collision_sweep_face_textured(const rf_collision_face *face,int32_t bitmap,const float start[3],
+    const float displacement[3],const float normal_displacement[3],float radius,float limit,
+    const rf_collision_texture_backend *texture,rf_collision_sweep_hit *result,uint32_t *matched);
 int rf_collision_sweep_face(const rf_collision_face *face,const float start[3],
     const float displacement[3],const float normal_displacement[3],float radius,
     float limit,rf_collision_sweep_hit *result,uint32_t *matched);
