@@ -3334,3 +3334,27 @@ collision retirement, animation, configured-item/weapon drops and linked-actor
 handoff. Resource operations are still supplied, and this adapter has not been
 exercised by a live XEMU death. Bind the other stage views and their resources
 before scheduling the complete transition.
+
+
+## Registered model reset for death animation (2026-09-12)
+
+The503400 reset in the death animation stage dispatches via501cd0 model kind2
+to51c390. That operation is the already reconstructed rf_motion_stop_nonlooping:
+clear primary/freeze designation and frozen state, zero only weights whose
+loop byte is exactly0, and retain slots, cursors and resource references.
+Model kind3 has a separate representation and is not covered by this binding.
+
+rf_scene_model_stop_nonlooping resolves the registered model's currently
+published pose and its shared playback resources, then executes that existing
+operation. It adds no allocations. The NPC residency test covers loop bytes
+0/1/2, complete playback state, unchanged reference counts, malformed motion
+preservation, out-of-range and retired owners. It also transfers a model to
+owned corpse pose storage, poisons the original actor playback, and confirms
+the reset reaches only the transferred pose before normal retirement releases
+its references. This protects against indexing the old level-pose array.
+
+Both builds and all19 CTests pass; the extended residency test passes after
+adding transfer coverage. The1800-case original-vs-PC motion-stop verifier also
+passes. The binding itself is tested on PC and compiled into NXDK; no new
+XEMU death-animation execution is claimed. Death motion still requires real
+bone-override state, action selection/playback and complete dispatch binding.

@@ -66,6 +66,11 @@ int rf_scene_npc_damage_ai(uint32_t handle,uint32_t source);
  * mirrored into the damage view. Callback owners/registration remain alive.
  * This alone must not be used to dispatch a complete death. */
 int rf_scene_npc_death_tail(uint32_t handle,uint32_t name,const rf_entity_death_tail_backend *);
+/*503400 ->501cd0(kind2)->51c390 on the currently published model pose.
+ * Zero exact non-looping weights without releasing references or removing
+ * slots. Resolves actor or transferred-corpse ownership; no allocation. */
+int rf_scene_model_stop_nonlooping(uint32_t model_slot);
+
 
 /* Resolved local-player entity portion of40e0b0. Uses the same retained
  * camera-effect owner as force feedback and the rendered camera update.

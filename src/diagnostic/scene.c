@@ -574,6 +574,15 @@ static int campaign_model_pose(uint32_t slot,rf_entity_pose **result)
        owner->registration.active!=&owner->pose->playback.completion.active)return RF_RANGE;
     *result=owner->pose;return RF_OK;
 }
+int rf_scene_model_stop_nonlooping(uint32_t slot)
+{
+    rf_entity_pose *pose;rf_entity_playback_model *model;int status;
+    status=campaign_model_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    if(!campaign_playback_resources.models || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
+    model=campaign_playback_resources.models+pose->skeleton;
+    return rf_motion_stop_nonlooping(&pose->playback,model->resources,model->count);
+}
+
 /* Copy placement so the model does not borrow its actor's render metadata.
  * A corpse can later publish its own transform through this same boundary. */
 static int campaign_model_place(uint32_t slot,const float position[3],const float basis[9],uint32_t appearance,uint32_t room)

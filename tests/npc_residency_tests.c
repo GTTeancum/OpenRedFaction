@@ -2,6 +2,7 @@
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do { if(!(x)){fprintf(stderr,"residency line %d\n",__LINE__);return 1;} } while(0)
 #include "npc_death_tail_binding.h"
+#include "model_death_reset_binding.h"
 static uint32_t event_damage_notifications;
 static uint32_t player_notifications[6];
 static uint32_t sound_starts,sound_updates,sound_fail;
@@ -889,6 +890,7 @@ int main(int argc,char **argv)
     uint32_t ids[3]={0,0,1};void *data[2]={0};uint32_t sizes[2]={0};
     rf_entity_pose pose={0};rf_entity_seed seed={0};rf_entity_motion_mapping mapping={0};
     uint32_t baseline=2*(sizeof(void*)+sizeof(uint32_t)),i;
+    CHECK(model_death_reset_binding_check()==0);
     CHECK(death_tail_binding_check()==0);
     CHECK(death_geometry_check()==0);
     archive.stream=tmpfile();CHECK(archive.stream);archive.length=sizeof(payload);
