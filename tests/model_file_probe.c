@@ -1,3 +1,4 @@
+#include "model_skin_fixture.h"
 #include "model_collision_fixture.h"
 #include "rf/model_file.h"
 #include "rf/model.h"
@@ -12,6 +13,10 @@ static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 }
 int main(int argc, char **argv)
 {
+    if(argc==4 && !strcmp(argv[1],"--skin-fixture")) {
+        volatile uint32_t state[8];uint32_t i;rf_model_skin_fixture(argv[2],argv[3],state);
+        for(i=0;i<8;++i)printf("%u%c",state[i],i==7?'\n':' ');return state[1]==2?0:3;
+    }
     if(argc==4 && !strcmp(argv[1],"--collision-fixture")) {
         volatile uint32_t state[8];uint32_t i;rf_model_collision_fixture(argv[2],argv[3],state);
         for(i=0;i<8;++i)printf("%u%c",state[i],i==7?'\n':' ');return state[1]==2?0:3;
@@ -76,6 +81,30 @@ int main(int argc, char **argv)
     }
     if ((argc != 3 && argc != 4) || rf_vpp_open(&archive, argv[1])) return 2;
     result = rf_model_file_open(&model, &archive, argv[2]);
+    if(!result && argc==4 && !strcmp(argv[3],"--skin-trace")) {
+        rf_model_skin_geometry owner={0};float matrices[256][12],(*scratch)[3]=NULL;uint32_t selected=UINT32_MAX;
+        struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;uint32_t reset,lod,mode;} input;
+        _Static_assert(sizeof(input)==148,"authored skin trace wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(!result && fread(&input,sizeof(input),1,stdin)==1) {
+            uint32_t accepted,hash,n;
+            if(input.mode>1){result=RF_RANGE;break;}
+            if(input.lod!=selected) {
+                free(scratch);scratch=NULL;rf_model_skin_geometry_close(&owner);
+                result=rf_model_skin_geometry_open(&owner,&model,input.lod,256,256*1024);if(result)break;
+                scratch=owner.max_vertices?malloc((size_t)owner.max_vertices*12):NULL;
+                if(owner.max_vertices && !scratch){result=RF_IO;break;}selected=input.lod;
+            }
+            memset(matrices,0,sizeof(matrices));
+            for(n=0;n<256;++n){matrices[n][0]=matrices[n][4]=matrices[n][8]=1;matrices[n][11]=input.mode?n*.03125f:0;}
+            if(owner.max_vertices)memset(scratch,0xa5,(size_t)owner.max_vertices*12);
+            accepted=rf_collision_model_pose_query(owner.batches,owner.batch_count,matrices,256,&input.query,&input.hit,scratch,input.reset);
+            hash=hash_bytes(2166136261u,scratch,(uint32_t)owner.max_vertices*12);
+            if(fwrite(&accepted,4,1,stdout)!=1 || fwrite(&input.query,104,1,stdout)!=1 || fwrite(&input.hit,32,1,stdout)!=1 || fwrite(&hash,4,1,stdout)!=1)result=RF_IO;
+        }
+        if(ferror(stdin))result=RF_IO;
+        free(scratch);rf_model_skin_geometry_close(&owner);rf_vpp_close(&archive);return result?3:0;
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--collision-trace")) {
         rf_model_collision_resource owner={0};
         struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;uint32_t reset;} input;

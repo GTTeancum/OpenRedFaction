@@ -1,3 +1,4 @@
+#include "../../../tests/model_skin_fixture.h"
 #include "../../../tests/model_collision_fixture.h"
 #include "../../../tests/campaign_particle_fixture.h"
 #include "../../../tests/burn_retarget_fixture.h"
@@ -781,6 +782,7 @@ cleanup:
     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_campaign_particle_diagnostic[5]=memory.AvailablePages;
     rf_campaign_particle_diagnostic[1]=status?0x80000000u|(uint32_t)(-status):2;
 }
+volatile uint32_t rf_model_skin_test[8];
 volatile uint32_t rf_model_collision_test[8];
 int main(void)
 {
@@ -791,6 +793,7 @@ int main(void)
     record_fp_control(1);
     rf_diagnostic[2] = 1;
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
+    {FILE *test=fopen("D:\\model-skin-test.bin","rb");if(test){fclose(test);rf_model_skin_fixture("D:\\model-skin-test.bin","D:\\",rf_model_skin_test);for(;;)Sleep(1000);}}
     {FILE *test=fopen("D:\\model-collision-test.bin","rb");if(test){fclose(test);rf_model_collision_fixture("D:\\model-collision-test.bin","D:\\",rf_model_collision_test);for(;;)Sleep(1000);}}
     {FILE *test=fopen("D:\\particle-view.flag","rb");if(test){fclose(test);rf_scene_particle_view_enabled=1;}}
     {FILE *test=fopen("D:\\campaign-particle-test.flag","rb");if(test){fclose(test);campaign_particle_test();for(;;)Sleep(1000);}}

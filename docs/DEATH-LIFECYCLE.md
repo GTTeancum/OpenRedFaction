@@ -5142,3 +5142,29 @@ allocation, repeated cleanup, and static rejection. All skeletal batches use
 format518c41. PC/NXDK builds and19 CTests pass; no new native XEMU query or
 retained NPC residency is claimed. Per-model selected residency, prepared
 cache ownership and authored skeletal collision query comparisons remain open.
+
+
+### Authored skeletal queries and native stock64MiB gate (2026-09-12)
+
+`tools/verify_model_skin_authored_trace.py` rebuilds original runtime batch
+pointers from all95 shipped V3C files/170 LODs and executes54e140/54e200
+with actual geometry/math callees. Only51ba00 is supplied via checked ABI
+with synthetic prepared identity or per-bone Z translation matrices.24 axis
+sweeps per LOD cover thin/sphere and closest/first-hit paths. PC archive-owned
+geometry matches all4080 queries (2674 hits): exact return/query/hit plus
+FNV hash over the entire poisoned/reused posed scratch buffer. No original
+loader or authored animation evaluation is claimed. The generated ignored
+plan stores148 input bytes and144 expected output bytes per query.
+
+`tests/model_skin_fixture.h` streams the same independent answers on PC and
+Xbox, owning one selected LOD at a time. `tools/xemu_model_skin.py` packages
+the opt-in model-skin-test.bin, launches isolated XEMU, reads guest state
+through QMP, then restores/rebuilds the diagnostic disc. No host input or
+desktop capture. Native run artifacts/xemu/model-skin-20260912-072724/report.json
+passes with base memory67108864 and plugged memory0. Guest/PC state is
+[1380340564,2,95,4080,2674,2588134272,92700,0]. Peak92700 accounts for the
+loaded geometry owner/blob/views, posed scratch and256 test matrices, not
+total emulator usage or allocator/other stack overhead. XBE SHA256:
+402d92f77ecfe4f04c39af3a1c9dff4524af0697a8affd89b61ff28e2e55be78.
+Both builds and19 CTests pass. Selected live NPC residency, budgeted prepared
+caches, authored moving poses and scheduled collision remain open.
