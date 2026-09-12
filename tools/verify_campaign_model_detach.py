@@ -37,6 +37,11 @@ def call(address,*args):
  put(stack,stop,*args);u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(address,stop,count=1000000)
  assert u.reg_read(UC_X86_REG_EIP)==stop
  return u.reg_read(UC_X86_REG_EAX)
+bound='--bind' in sys.argv
+source_model=b+0xb000;corpse_model=b+0xb200;room=b+0xb400
+if bound:bind=sym('rf_scene_corpse_bind_model')
+def handoff():
+ return call(bind,room,source_model,corpse_model) if bound else call(take,0,position,basis,11)
 cases=0
 for bones in range(1,51):
  for active in (0,8,16):
@@ -48,19 +53,23 @@ for bones in range(1,51):
   put(owner,1,source+8,owner,owner,source);put(owner+68,7,9,0)
   put(owners,owner);put(count,1);put(head,owner);put(owned_count,0);put(owned_bytes,0);put(diagnostic,1,80,0,0)
   u.mem_write(position,f(10,20,30));u.mem_write(basis,f(1,0,0,0,1,0,0,0,1))
+  if bound:
+   u.mem_write(source_model,bytes(284));put(source_model+12,1);put(source_model+36,2)
+   u.mem_write(corpse_model,bytes(276));put(corpse_model+28,1)
+   u.mem_write(corpse_model+40,bytes(u.mem_read(position,12)));u.mem_write(corpse_model+52,bytes(u.mem_read(basis,36)));put(room,11)
   before=bytes(u.mem_read(owner,80));old=bytes(u.mem_read(source,300));calls.clear()
-  put(owned_count,30);assert call(take,0,position,basis,11)==0xfffffffc and not calls;put(owned_count,0)
+  put(owned_count,30);assert handoff()==0xfffffffc and not calls;put(owned_count,0)
   for fail in (1,2):
-   assert call(take,0,position,basis,11)==0xfffffffc
+   assert handoff()==0xfffffffc
    assert live=={owner} and bytes(u.mem_read(owner,80))==before and bytes(u.mem_read(source,300))==old
    assert read(owned_count)==read(owned_bytes)==0
-  fail=0;assert call(take,0,position,basis,11)==0
+  fail=0;assert handoff()==0
   assert read(owner+16)==owned and read(owner+4)==owned+8 and read(owner+76)==owned
   assert bytes(u.mem_read(owner+8,8))==w(owner,owner) and read(head)==owner
   assert bytes(u.mem_read(owner+20,48))==f(10,20,30,1,0,0,0,1,0,0,0,1) and bytes(u.mem_read(owner+68,8))==w(7,11)
   assert read(owned_count)==1 and read(owned_bytes)==308+bones*50
   assert read(source)==0xffffffff and read(source+8)==0
-  assert call(take,0,position,basis,11)==0xfffffffc
+  assert handoff()==0xfffffffc
   u.mem_write(matrices,bytes([0xdd])*bones*48);assert bytes(u.mem_read(cache,bones*48))==data
   assert all(read(clips+i*36+32)==2 for i in range(16))
   saved=bytes(u.mem_read(owner,80));put(owned_bytes,1)
@@ -77,5 +86,5 @@ for bones in range(1,51):
   assert bytes(u.mem_read(diagnostic,16))==w(1,80,1,0)
   assert all(read(clips+i*36+32)==(1 if i<active else 2) for i in range(16))
   cases+=1
-report=dict(result='PASS',cases=cases,allocation_failures=cases*2,capacity_rejections=cases,repeat_rejections=cases,nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Compiled campaign detach, individual retirement and level teardown with controlled heap boundaries; registered pose/placement preserved, source consumed, exact reference retirement and both allocations freed. No live death dispatch or XEMU transferred-model claim.')
-(root/'artifacts/campaign-model-retire.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
+report=dict(result='PASS',bound=bound,cases=cases,allocation_failures=cases*2,capacity_rejections=cases,repeat_rejections=cases,nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Compiled campaign detach, individual retirement and level teardown with controlled heap boundaries; registered pose/placement preserved, source consumed, exact reference retirement and both allocations freed. No live death dispatch or XEMU transferred-model claim.')
+(root/('artifacts/campaign-corpse-model-bind.json' if bound else 'artifacts/campaign-model-retire.json')).write_text(json.dumps(report,indent=2)+'\n');print(report)

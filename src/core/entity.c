@@ -826,7 +826,8 @@ static int corpse_owner_eligible(const rf_corpse *c)
 {return !(c->update.fade.flags_29c&0x43u) && !(c->update.fade.object_flags_7c&0x4000u);}
 static int corpse_create_with_name(rf_corpse_create_source *s,const rf_corpse_create_request *r,
     rf_corpse_list_link *head,uint32_t *count,const rf_corpse_create_backend *b,rf_corpse **result,
-    int (*assign_name)(void *,rf_corpse *,const char *),void (*progress)(void *,uint32_t))
+    int (*assign_name)(void *,rf_corpse *,const char *),void (*progress)(void *,uint32_t),
+    int (*bind_model)(void *,rf_corpse_create_source *,rf_corpse *))
 {
     rf_corpse_physics_seed seed;rf_corpse *c,*oldest,*candidate;rf_corpse_list_link *n,*previous;
     rf_corpse_delete_emitter *emitter;uint32_t visits=0,eligible=0;int32_t motion,offset=0;double delay;int status;
@@ -866,6 +867,7 @@ static int corpse_create_with_name(rf_corpse_create_source *s,const rf_corpse_cr
     c->uid=s->uid;c->weapon=s->weapon;c->update.motion_2b8=-1;c->word_2d8=s->word_2d8;
     c->update.model=(s->replacement_model && s->replacement_model[0])?b->load_model(b->context,s->replacement_model):s->model;
     if(progress)progress(b->context,RF_CORPSE_CONSTRUCT_MODEL);
+    if(bind_model){status=bind_model(b->context,s,c);if(status)return status;}
     if(s->model && s->model_kind==2) {
         motion=b->motion(b->context,s,r->death_name);
         if(motion<-1 || motion>=45)return RF_RANGE;
@@ -919,11 +921,12 @@ static int corpse_create_with_name(rf_corpse_create_source *s,const rf_corpse_cr
 
 int rf_corpse_create(rf_corpse_create_source *s,const rf_corpse_create_request *r,
     rf_corpse_list_link *head,uint32_t *count,const rf_corpse_create_backend *backend,rf_corpse **result)
-{return corpse_create_with_name(s,r,head,count,backend,result,NULL,NULL);}
+{return corpse_create_with_name(s,r,head,count,backend,result,NULL,NULL,NULL);}
 
 typedef struct corpse_owned_create_context {
     const rf_corpse_create_ownership *ownership;const rf_corpse_create_backend *backend;
     uint32_t index;int allocation_status;
+    int (*bind_model)(void *,rf_corpse_create_source *,rf_corpse *);void *model_context;
 } corpse_owned_create_context;
 static rf_corpse *corpse_owned_allocate(void *context,rf_corpse_create_source *source,const rf_corpse_physics_seed *seed)
 {
@@ -949,21 +952,33 @@ static int corpse_owned_assign_name(void *context,rf_corpse *corpse,const char *
     corpse_owned_create_context *c=context;(void)corpse;
     return rf_corpse_name_assign(c->ownership->owners,c->index,RF_CORPSE_DEATH_NAME,name);
 }
-int rf_corpse_owned_create(const rf_corpse_create_ownership *o,rf_corpse_create_source *source,
+static int corpse_owned_bind_model(void *context,rf_corpse_create_source *source,rf_corpse *corpse)
+{
+    corpse_owned_create_context *c=context;
+    return c->bind_model?c->bind_model(c->model_context,source,corpse):RF_OK;
+}
+int rf_corpse_owned_create_bound(const rf_corpse_create_ownership *o,rf_corpse_create_source *source,
     const rf_corpse_create_request *request,rf_corpse_list_link *head,uint32_t *count,
-    const rf_corpse_create_backend *backend,rf_corpse **result)
+    const rf_corpse_create_backend *backend,rf_corpse **result,
+    int (*bind_model)(void *,rf_corpse_create_source *,rf_corpse *),void *model_context)
 {
     corpse_owned_create_context context;rf_corpse_create_backend bridge;int status;
     if(!result)return RF_RANGE;*result=NULL;if(!source)return RF_NOT_FOUND;
     if(!o || !o->owners || !o->registry || !o->object_head || !o->object_count ||
        !backend || !backend->load_model || !backend->motion || !backend->effect || !backend->emitter ||
        o->object_head==head || o->object_count==count)return RF_RANGE;
+    context.bind_model=bind_model;context.model_context=model_context;
     context.ownership=o;context.backend=backend;context.index=0;context.allocation_status=0;
     bridge.allocate=corpse_owned_allocate;bridge.load_model=corpse_owned_load_model;bridge.motion=corpse_owned_motion;
     bridge.effect=corpse_owned_create_effect;bridge.emitter=corpse_owned_emitter;bridge.context=&context;
-    status=corpse_create_with_name(source,request,head,count,&bridge,result,corpse_owned_assign_name,corpse_owned_progress);
+    status=corpse_create_with_name(source,request,head,count,&bridge,result,corpse_owned_assign_name,corpse_owned_progress,corpse_owned_bind_model);
     return context.allocation_status?context.allocation_status:status;
 }
+
+int rf_corpse_owned_create(const rf_corpse_create_ownership *o,rf_corpse_create_source *source,
+    const rf_corpse_create_request *request,rf_corpse_list_link *head,uint32_t *count,
+    const rf_corpse_create_backend *backend,rf_corpse **result)
+{return rf_corpse_owned_create_bound(o,source,request,head,count,backend,result,NULL,NULL);}
 
 int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backend *b)
 {

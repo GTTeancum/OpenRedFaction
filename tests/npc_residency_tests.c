@@ -320,6 +320,64 @@ static int player_feedback_check(void)
     CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&other_registration)==RF_OK);
     return 0;
 }
+typedef struct corpse_scene_fixture {uint32_t motions,effects,deleted,errors;} corpse_scene_fixture;
+static uint32_t csf_load(void *context,const char *name)
+{(void)name;++((corpse_scene_fixture*)context)->errors;return 0;}
+static int32_t csf_motion(void *context,rf_corpse_create_source *source,const char *name)
+{
+    corpse_scene_fixture *f=context;(void)source;(void)name;++f->motions;
+    if(!campaign_model_owners[0].owned)++f->errors;return -1;
+}
+static void csf_effect(void *context,uint32_t operation,rf_corpse_create_source *source,rf_corpse *corpse,const char *name)
+{(void)operation;(void)source;(void)corpse;(void)name;++((corpse_scene_fixture*)context)->effects;}
+static rf_corpse_delete_emitter *csf_emitter(void *context,rf_corpse_create_source *source,rf_corpse *corpse)
+{(void)source;(void)corpse;++((corpse_scene_fixture*)context)->errors;return NULL;}
+static void csf_delete(void *context,uint32_t operation,uint32_t token)
+{
+    corpse_scene_fixture *f=context;
+    if(operation==RF_CORPSE_DELETE_MODEL){++f->deleted;if(!token || rf_scene_model_retire(token-1))++f->errors;}
+    else if(operation!=RF_CORPSE_DELETE_PAIRS)++f->errors;
+}
+static uint32_t *csf_sound(void *context,int32_t sound)
+{(void)context;(void)sound;return NULL;}
+static int corpse_scene_binding_check(void)
+{
+    static rf_corpse_owners pool;static rf_object_registry registry;uint32_t mode;
+    for(mode=0;mode<3;++mode) {
+        corpse_scene_fixture fixture={0};rf_entity_pose pose={0};float matrices[1][12]={{1,0,0,0,1,0,0,0,1,0,0,0}};
+        uint16_t stamps[1]={0};rf_entity_playback_model model={0};rf_corpse_create_source source={0};rf_corpse_create_request request={0};
+        rf_corpse_list_link object_head,corpse_head;uint32_t object_count=0,corpse_count=0;rf_corpse *corpse=NULL;int status;
+        rf_corpse_create_ownership ownership={&pool,&registry,&object_head,&object_count,9,.25f,.5f,2};
+        rf_corpse_create_backend backend={NULL,csf_load,csf_motion,csf_effect,csf_emitter,&fixture};
+        rf_corpse_delete_backend deletion={csf_delete,csf_sound,&fixture};
+        memset(&pool,0,sizeof(pool));rf_corpse_owners_init(&pool,sizeof(pool)+(mode==2?24:128));rf_object_registry_init(&registry);
+        object_head.next=object_head.previous=&object_head;corpse_head.next=corpse_head.previous=&corpse_head;
+        pose.bone_count=1;pose.matrices=matrices;pose.generations=stamps;rf_motion_playback_initialize(&pose.playback);
+        campaign_poses.items=&pose;campaign_poses.count=1;campaign_playback_resources.models=&model;campaign_playback_resources.model_count=1;
+        CHECK(campaign_models_open()==RF_OK);
+        source.model=1;source.model_kind=2;source.flags_814=2;source.emitter_kind=-1;source.motion_a44=-1;
+        source.word_8c=0x41200000;source.word_98=0x40400000;source.physics_radius=1;source.class_health=100;source.class_value=1;
+        request.death_name="death_front";request.position[1]=10;request.basis[0]=request.basis[4]=request.basis[8]=1;
+        if(mode==1)campaign_model_owned_count=30;
+        status=rf_corpse_owned_create_bound(&ownership,&source,&request,&corpse_head,&corpse_count,&backend,&corpse,
+            rf_scene_corpse_bind_model,&ownership.room);
+        if(mode==1)campaign_model_owned_count=0;
+        CHECK(corpse && source.object_flags==0x402 && !fixture.errors);
+        if(mode==0) {
+            CHECK(status==RF_OK && fixture.motions==3 && campaign_model_owned_count==1 && corpse_count==1);
+            CHECK(campaign_model_owners[0].position[1]==10 && campaign_model_owners[0].room==9 && pose.skeleton==UINT32_MAX);
+            CHECK(rf_corpse_owned_delete(&pool,0,&registry,&corpse_count,&object_count,4,&deletion)==RF_OK);
+        } else {
+            CHECK(status==RF_RANGE && !corpse_count && !fixture.effects && fixture.motions==(mode==2));
+            CHECK(pool.slots[0].construction==(mode==1?RF_CORPSE_CONSTRUCT_MODEL:RF_CORPSE_CONSTRUCT_TAIL));
+            CHECK(rf_corpse_owned_abort(&pool,0,&registry,&corpse_count,&object_count,4,&deletion)==RF_OK);
+        }
+        CHECK(fixture.deleted==1 && !fixture.errors && !object_count && !pool.pool.live && pool.allocated_bytes==sizeof(pool));
+        CHECK(!campaign_model_owned_count && !campaign_model_owned_bytes && !campaign_model_owners[0].pose);
+        campaign_models_close();CHECK(!rf_scene_npc_models[3]);
+    }
+    memset(&campaign_poses,0,sizeof(campaign_poses));memset(&campaign_playback_resources,0,sizeof(campaign_playback_resources));return 0;
+}
 static int eye_binding_check(void)
 {
     campaign_npc_body owner={0};campaign_npc_eye_class eye={0};rf_entity_pose pose={0};
@@ -576,5 +634,6 @@ int main(void)
     CHECK(campaign_npc_motion_bytes==1024*1024-80);
     CHECK(pain_binding_check()==0);campaign_models_close();free(data[1]);CHECK(eye_binding_check()==0);CHECK(event_damage_binding_check()==0);CHECK(player_feedback_check()==0);CHECK(player_damage_check()==0);
     CHECK(sound_request_check()==0);
+    CHECK(corpse_scene_binding_check()==0);
     puts("PASS: selection, aliases, pressure, reference protection, eviction, reload and failure recovery");return 0;
 }

@@ -587,6 +587,17 @@ int rf_corpse_owned_create(const rf_corpse_create_ownership *ownership,
     rf_corpse_list_link *corpse_head,uint32_t *corpse_count,
     const rf_corpse_create_backend *backend,rf_corpse **result);
 
+/* Owned construction with a fallible port model-ownership boundary, called
+ * after model assignment/stage MODEL and before motion/effects. NULL callback
+ * preserves ordinary owned-create behavior. Failure returns the partial owner
+ * for owned_abort; its assigned model token must be releasable by that backend.
+ * The callback must preserve pool/list/registry state and construction fields. */
+int rf_corpse_owned_create_bound(const rf_corpse_create_ownership *ownership,
+    rf_corpse_create_source *source,const rf_corpse_create_request *request,
+    rf_corpse_list_link *corpse_head,uint32_t *corpse_count,
+    const rf_corpse_create_backend *backend,rf_corpse **result,
+    int (*bind_model)(void *,rf_corpse_create_source *,rf_corpse *),void *model_context);
+
 /* SP41fdc0 state prefix through41fe59, before collision-link teardown.
  * Requires a live state; falling is the resolved42a020 low byte.
  * Returns1 on entry,0 if already dying (all fields then remain untouched).

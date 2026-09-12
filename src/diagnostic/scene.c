@@ -605,6 +605,16 @@ int rf_scene_model_detach(uint32_t slot,const float position[3],const float basi
     memcpy(owner->position,position,12);memcpy(owner->basis,basis,36);owner->room=room;
     return RF_OK;
 }
+/* Model tokens for this bridge are stable registry slot+1; zero means absent.
+ * Context points to the accepted corpse room. Replacement loading is separate. */
+int rf_scene_corpse_bind_model(void *context,rf_corpse_create_source *source,rf_corpse *corpse)
+{
+    if(!context || !source || !corpse)return RF_RANGE;
+    if(!corpse->update.model)return RF_OK;
+    if(corpse->update.model!=source->model || source->model_kind!=2 ||
+       (source->replacement_model && source->replacement_model[0]))return RF_FORMAT;
+    return rf_scene_model_detach(corpse->update.model-1,corpse->update.position,corpse->update.basis,*(const uint32_t*)context);
+}
 /* An actor loses access when its model storage is handed off. Model rendering
  * and eventual corpse updates continue through campaign_model_pose. */
 static int campaign_actor_pose(uint32_t slot,rf_entity_pose **result)
