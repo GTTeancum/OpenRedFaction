@@ -43,6 +43,16 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-segment-triangle")) {
+        struct {float start[3],delta[3],vertices[3][3],plane[4],result[4];} input;
+        uint32_t result;_Static_assert(sizeof(input)==92,"model segment triangle wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            result=rf_collision_model_segment_triangle(input.start,input.delta,input.vertices,input.plane,input.result);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(input.result,16,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--model-trace")) {
         struct batch_wire {float vertices[9][3],planes[3][4];rf_collision_model_triangle_record records[3];uint32_t count;};
         struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;uint32_t reset;float metadata[9];uint32_t flags,counts[2];struct batch_wire batches[4];int32_t part_count;float second_offset[3];} input;

@@ -6,6 +6,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+uint32_t rf_collision_model_segment_triangle(const float start[3],const float displacement[3],
+    const float vertices[3][3],const float plane[4],float result[4])
+{
+    uint32_t accepted,i;
+    if(rf_collision_segment_plane(start,displacement,plane,result+3,&accepted)!=RF_OK || !accepted)return 0;
+    for(i=0;i<3;++i){volatile float moved=displacement[i]*result[3];result[i]=start[i]+moved;}
+    return rf_collision_model_polygon_contains(result,3,vertices,plane);
+}
+
 uint32_t rf_collision_model_sphere_triangle(const rf_collision_model_triangle *triangle,
     const float start[3],const float displacement[3],float radius,uint32_t two_sided,rf_collision_model_response_hit *hit)
 {

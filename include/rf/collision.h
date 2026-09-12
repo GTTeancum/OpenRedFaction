@@ -53,6 +53,11 @@ int rf_collision_segment_plane(const float start[3],const float displacement[3],
  * Separate from the one-sided506550 world query. No allocation or validation. */
 uint32_t rf_collision_model_ray_plane(const float start[3],const float displacement[3],
     const float plane[4],float result[4]);
+/* Original5065b0 one-sided model segment/triangle composition. result is
+ * point[3],fraction; plane rejection preserves it, containment rejection
+ * retains the computed intersection. Finite disjoint inputs required. */
+uint32_t rf_collision_model_segment_triangle(const float start[3],const float displacement[3],
+    const float vertices[3][3],const float plane[4],float result[4]);
 /* Complete 5071b0 sphere against plane. Requires approach toward the front
  * side; a center behind the plane is rejected even if radius overlaps it.
  * Initial front-side overlap returns fraction zero and a projected contact.

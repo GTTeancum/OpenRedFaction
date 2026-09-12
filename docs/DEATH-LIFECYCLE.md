@@ -4987,3 +4987,27 @@ and rebuilds the ordinary ISO on exit; emulator HDD writes use snapshot
 mode and EEPROM is isolated. No screenshot was taken because this test has
 no new rendered content. Live scene residency, dispatcher binding and
 skeletal type2 collision remain open; no full campaign claim is made.
+
+
+## Skeletal-path one-sided segment/triangle5065b0
+
+Live campaign model owners contain skeletal registration and retained pose
+matrices. The newly native-verified static path cannot replace their type2
+geometry;54e140/54e200/54e530 remains required before NPC model response
+binding.54e530 uses5065b0 for its thin branch. The original radius threshold
+at58a290 is0.025f, distinct from static54dcd0's0.0001f threshold.
+
+rf_collision_model_segment_triangle reconstructs complete5065b0: original
+506550 one-sided segment/plane test, float-stored scale/add point formation,
+and506dd0 triangle containment. Plane rejection preserves the result;
+after a plane hit, fraction and point stay written even when containment
+rejects. Result layout is point3 followed by fraction. Finite disjoint
+inputs are required; no allocation or implicit nearest-hit filtering.
+
+verify_model_segment_triangle.py runs full original5065b0 with all real
+callees and no hooks.8192 exact original/PC/NXDK cases pass:234 hits,1499
+misses writing intersection and6459 preserving result. Includes axis planes,
+parallel/coplanar starts, both movement directions and arbitrary finite
+planes, with input and guard preservation. Report:
+artifacts/model-segment-triangle.json. PC/NXDK builds and all19 CTests pass.
+Full type2 triangle behavior and skeletal/live/native integration remain.
