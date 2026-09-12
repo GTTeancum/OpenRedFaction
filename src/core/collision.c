@@ -1947,9 +1947,15 @@ void rf_collision_pairs_process(rf_collision_pair_list *active,rf_collision_pair
         rf_collision_pair *next=node->next;rf_collision_pair_record *record=(rf_collision_pair_record *)node;
         const rf_collision_pair_actor_state *a,*c;uint32_t remove=0,flags,op;
         const void *first,*second;
-        if((b->call(b->context,RF_PAIR_EXPIRED,record,NULL)&255u)==1)remove=1;
-        else {
-            a=b->actor(b->context,node->first);c=b->actor(b->context,node->second);
+        a=b->actor(b->context,node->first);c=b->actor(b->context,node->second);
+        if(record->flags&1u) {
+            rf_collision_pair_expiration expiration;
+            expiration.flags=record->flags;expiration.first_kind=a->kind;expiration.second_kind=c->kind;
+            memcpy(expiration.first_position,a->position,12);memcpy(expiration.first_forward,a->forward,12);
+            memcpy(expiration.second_position,c->position,12);memcpy(expiration.second_forward,c->forward,12);
+            remove=rf_collision_pair_expired(&expiration);
+        }
+        if(!remove) {
             if((a->body_flags|c->body_flags)&0x40000000u) {
                 if(a->kind==5 || c->kind==5)remove=!rf_collision_pair_trigger_dispatch(a,c,node->first,node->second,b);
                 else if(rf_collision_pair_response_allowed(a,c)) {

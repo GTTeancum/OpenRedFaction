@@ -371,13 +371,14 @@ uint32_t rf_collision_pair_create(rf_collision_pair_list *active,rf_collision_pa
 typedef struct rf_collision_pair_actor_state {
     uint32_t kind,body_flags,model,movement_mode,handle,parent_handle,object_flags;
     uint32_t trigger_filter;int32_t allowed_count;const uint32_t *allowed_handles;
+    float position[3],forward[3]; /* object3c and60; finite,53-bit arithmetic. */
 } rf_collision_pair_actor_state;
 /*48bb90/40a110: reject either parent/child handle match or object4000.
  * No geometry test and no mutation; actual actor handles, not list indices. */
 uint32_t rf_collision_pair_response_allowed(const rf_collision_pair_actor_state *first,
     const rf_collision_pair_actor_state *second);
 enum rf_collision_pair_process_call {
-    RF_PAIR_EXPIRED,RF_PAIR_TRIGGER_CONTACT,
+    RF_PAIR_TRIGGER_CONTACT,
     RF_PAIR_RESPONSE_MODES1,RF_PAIR_RESPONSE_GENERAL,RF_PAIR_RESPONSE_MODEL,RF_PAIR_RESPONSE_SOLID
 };
 typedef struct rf_collision_pair_process_backend {
@@ -393,8 +394,8 @@ uint32_t rf_collision_pair_trigger_dispatch(const rf_collision_pair_actor_state 
     const rf_collision_pair_actor_state *second,const void *first_identity,const void *second_identity,
     const rf_collision_pair_process_backend *backend);
 /* Full48ca60 control flow: cached-next traversal, expiration/trigger filtering,
- * active-body/parent/visibility gates and original response precedence. Expiration receives the
- * pair record; trigger contact and responses receive ordered identities.
+ * active-body/parent/visibility gates and original response precedence. Expiration and trigger membership are handled directly; callbacks
+ * receive ordered trigger/actor or response identities.
  * Trigger contact is4bfc60(trigger,other,0), and its return is ignored.
  * Actor lookup is pure; resources may update actor fields/pair flags but
  * must preserve live list/node ownership for the original cached traversal.

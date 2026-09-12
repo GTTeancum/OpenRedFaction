@@ -4072,3 +4072,28 @@ boundaries. Existing shared trigger contact code can supply part of this
 work, but full activation effects, pair ownership and frame placement still
 need integration. Next replace supplied expiration with the verified
 projectile predicate and connect live object/trigger views.
+
+
+Expiration integrated into pair processing - 2026-09-12
+
+The pair processor now resolves each endpoint's position3c and forward60
+and calls the verified shared expiration predicate directly for flags mask1.
+The supplied RF_PAIR_EXPIRED callback is removed. Actor views now carry
+six additional floats (64-byte total view on32-bit builds); these are
+resolved views, not newly allocated campaign actors. Temporary expiration
+input is60 stack bytes only on flagged pairs. Existing endpoint precedence
+and mode0 behavior remain unchanged.
+
+verify_collision_process.py now executes original48cc10/48c7f0 plus actual
+48bb00 membership and48bb90/40a110 filtering inside48ca60. Only4bfc60
+contact and the four physics response effects are supplied boundaries.
+2048 cases pass on PC/NXDK, including1237 actual directional eligibility
+calls. Contact/response trace counts are1386/533/1293/335/189 (trigger,
+mode1, general, model, solid). List topology/counts, flags, identities and
+ordered effects match with finite geometry under027f, signed trigger counts,
+parent/visibility filters and counter wrapping.
+
+The separate4096-case expiration verifier, all19 CTests and both builds
+also pass. No XEMU invocation or live campaign collision response is claimed.
+Next supply actual live object views, trigger contact/activation and physics
+response owners, retaining original discovery and substep scheduling.
