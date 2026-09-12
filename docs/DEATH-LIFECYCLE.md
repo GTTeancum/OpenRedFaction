@@ -5323,3 +5323,27 @@ These are opt-in staged fixtures with saved scene state restored afterward,
 not automatic gameplay collision scheduling. Global pair discovery/pool
 ownership, trigger/projectile/solid bindings, stale-pose demand evaluation,
 and velocity/position response scheduling remain open.
+
+
+### Projectile discovery plane production (2026-09-12)
+
+rf_collision_projectile_planes reconstructs full48bbe0 using a52-byte
+resolved source: projectile e4 position, fc/108/114 basis rows, and
+definition c0 speed. It computes float(10/speed), adds the scaled forward
+row to each lateral row, normalizes using original X/Y/Z squared-sum order,
+and writes a plane through e4. Each opposite plane reflects that normal
+using float-stored dot/projection/scaled components, without renormalizing.
+Plane D uses the original Z/Y/X dot order and sign. Four planes are written
+to caller-owned storage instead of original global75db38. Inputs must be
+finite with nonzero speed and constructed normals; no replacement fallback
+normal is introduced.
+
+verify_projectile_planes.py passes8192 exact original/PC/NXDK cases, using
+full original48bbe0 and all real vector/normalization/plane helpers with no
+substituted callees. Rotated orthonormal and arbitrary finite bases and
+positive/negative nonzero speeds are covered; source bytes remain unchanged.
+The original executable SHA is checked and x87 control is027f. Result:
+artifacts/projectile-planes.json. Both builds and19 CTests pass. This gate
+executes Xbox-compiled code in Unicorn; no native XEMU activation is claimed.
+Live projectile definition/owner state, classification and discovery
+scheduling remain open.

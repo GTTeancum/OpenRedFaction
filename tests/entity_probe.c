@@ -616,6 +616,15 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--collision-discovery")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return collision_discovery_probe();
     }
+    if(argc==2 && !strcmp(argv[1],"--projectile-planes")) {
+        rf_collision_projectile_plane_source state;float planes[4][4];
+        _Static_assert(sizeof(state)==52,"Projectile plane source wire layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&state,sizeof(state),1,stdin)==1) {
+            rf_collision_projectile_planes(&state,planes);if(fwrite(planes,sizeof(planes),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--projectile-eligible")) {
         rf_collision_projectile_eligibility state;uint32_t result;
         _Static_assert(sizeof(state)==152,"Projectile eligibility wire layout");

@@ -2065,6 +2065,24 @@ static uint32_t projectile_forward_eligible(const float position[3],const float 
     dot=(double)delta[2]*forward[2];dot+=(double)delta[1]*forward[1];dot+=(double)delta[0]*forward[0];
     return !(dot<0);
 }
+void rf_collision_projectile_planes(const rf_collision_projectile_plane_source *s,float planes[4][4])
+{
+    float scale=(float)(10.0/s->speed);uint32_t axis,i,side;
+    for(axis=0;axis<2;++axis) {
+        const float *basis=s->basis+axis*3;float normal[3],projection[3],dot;double length,inverse,value;
+        for(i=0;i<3;++i){float scaled=(float)((double)scale*s->basis[6+i]);normal[i]=(float)((double)scaled+basis[i]);}
+        length=(double)normal[0]*normal[0];length+=(double)normal[1]*normal[1];length+=(double)normal[2]*normal[2];
+        inverse=1.0/sqrt(length);for(i=0;i<3;++i)normal[i]=(float)(inverse*normal[i]);
+        value=(double)basis[2]*normal[2];value+=(double)basis[1]*normal[1];value+=(double)basis[0]*normal[0];dot=(float)value;
+        for(i=0;i<3;++i)projection[i]=(float)((double)dot*basis[i]);
+        for(side=0;side<2;++side) {
+            float *plane=planes[axis*2+side];
+            if(side)for(i=0;i<3;++i){float reflected=(float)(-2.0*projection[i]);normal[i]=(float)((double)reflected+normal[i]);}
+            memcpy(plane,normal,12);value=(double)normal[2]*s->position[2];value+=(double)normal[1]*s->position[1];value+=(double)normal[0]*s->position[0];plane[3]=(float)(-value);
+        }
+    }
+}
+
 uint32_t rf_collision_projectile_eligible(const rf_collision_projectile_eligibility *s)
 {
     double dot,threshold;uint32_t i;

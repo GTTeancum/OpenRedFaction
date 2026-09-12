@@ -348,6 +348,14 @@ typedef struct rf_collision_actor_pair_view {
  * original bytes6fc4d8 and64ecb9. No broad-phase or other object families. */
 uint32_t rf_collision_actor_pair_reject(const rf_collision_actor_pair_view *first,
     const rf_collision_actor_pair_view *second,uint32_t alternate,uint32_t multiplayer,uint32_t *flags);
+/*48bbe0: construct four discovery planes from projectile e4 position,
+ * fc/108/114 basis rows and definition c0 speed. Finite inputs, nonzero speed
+ * and nonzero constructed normals required. Preserves the original reflected
+ * normal without renormalization. Caller-owned output; no global mutation. */
+typedef struct rf_collision_projectile_plane_source {
+    float position[3],basis[9],speed;
+} rf_collision_projectile_plane_source;
+void rf_collision_projectile_planes(const rf_collision_projectile_plane_source *source,float planes[4][4]);
 /* Resolved48c7f0 inputs. Owner is426fc0(projectile owner handle); planes are
  * original75db38[4]. target_position is3c, target_next_position is e4.
  * Finite geometry, original53-bit x87 arithmetic. No identity lookup or
