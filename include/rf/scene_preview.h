@@ -76,6 +76,14 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered);
  * authored NPC orientation. No allocation, pair scheduling or response effects.
  * Caller refreshes after mutations. Failure preserves output. */
 int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result);
+/* Borrow registered NPC body/spheres for immediate response processing. Uses
+ * body current/predicted transforms, not published rendering position. Owners
+ * must remain stable. No response scheduling or extra-velocity lookup here. */
+int rf_scene_npc_collision_response(uint32_t handle,rf_collision_actor_general_response *result);
+/* Publish contact and flags even when a response reports no hit: general
+ * deferral can still mutate flags/time. Other owner fields remain untouched.
+ * Stale handles, unavailable models/bodies and errors preserve outputs. */
+int rf_scene_npc_collision_publish(uint32_t handle,uint32_t body_flags,const rf_collision_actor_contact *contact);
 /* Reserved model identity for the current player animation owner, separate from
  * NPC slot+1 tokens. Valid only during the placed stream's frame callbacks. */
 #define RF_SCENE_PLAYER_MODEL UINT32_MAX

@@ -1786,6 +1786,8 @@ static rf_movement_descriptor campaign_modes[16];
 _Static_assert(sizeof(rf_entity_damage_state)==56,"Damage owner telemetry layout");
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
+    rf_collision_contact_extra collision_contact;
+    uint32_t collision_material; /* Original object1fc, factory parameter+10. */
     rf_entity_damage_state damage;uint32_t object_flags,field_840;
     struct {int32_t item_82c,requested_83c,action_824,linked_146c,deadline_4b8;uint32_t model_148c;} death;
     uint32_t death_bone_words[2]; /* actor1464/1468 */
@@ -1948,6 +1950,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
             {
                 campaign_npc_body *owner=campaign_npc_bodies+actor;
                 owner->model_radius_78=model_radius;
+                owner->collision_material=config.material.index;
                 const rf_entity_seed_class *definition=campaign_seeds.classes+cls;
                 uint32_t flags=rf_entity_creation_object_flags(campaign_seeds.items[actor].spawn.creation_flags,definition->model_kind);
                 /* Generic486da0 factory, then422ba0 class flag and creation vitals.
@@ -2406,6 +2409,37 @@ int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *r
      * Moving object orientation publication remains a separate integration. */
     memcpy(value.forward,campaign_seeds.records.items[i].record.orientation[2],12);
     *result=value;return RF_OK;
+}
+
+int rf_scene_npc_collision_response(uint32_t handle,rf_collision_actor_general_response *result)
+{
+    rf_collision_pair_actor_state view;rf_collision_actor_general_response value={0};
+    campaign_npc_body *owner;rf_physics_body *body;uint32_t i;int status;
+    if(!result)return RF_RANGE;
+    status=rf_scene_npc_collision_view(handle,&view);if(status)return status;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;body=&owner->body;
+    if(!body->allocated_bytes || body->spheres.count>INT32_MAX ||
+       (body->spheres.count && !body->spheres.items))return RF_RANGE;
+    memcpy(value.actor.minimum,body->state.bounds.minimum,12);memcpy(value.actor.maximum,body->state.bounds.maximum,12);
+    memcpy(value.actor.position,body->state.position,12);memcpy(value.actor.next_position,body->state.next_position,12);
+    memcpy(value.actor.velocity,body->state.velocity,12);value.actor.mass=body->state.mass;
+    value.actor.handle=handle;value.actor.material=owner->collision_material;value.actor.body_flags=body->state.flags;
+    value.actor.sphere_count=(int32_t)body->spheres.count;value.actor.spheres=body->spheres.items;
+    status=rf_collision_contact_read(&body->state,&owner->collision_contact,&value.actor.contact);if(status)return status;
+    memcpy(value.orientation,body->state.orientation,36);memcpy(value.next_orientation,body->state.next_orientation,36);
+    value.extent=body->state.bounds.radius;value.kind=view.kind;*result=value;return RF_OK;
+}
+int rf_scene_npc_collision_publish(uint32_t handle,uint32_t body_flags,const rf_collision_actor_contact *contact)
+{
+    rf_collision_pair_actor_state view;campaign_npc_body *owner;uint32_t i;int status;
+    if(!contact)return RF_RANGE;
+    status=rf_scene_npc_collision_view(handle,&view);if(status)return status;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(!owner->body.allocated_bytes)return RF_RANGE;
+    status=rf_collision_contact_write(&owner->body.state,&owner->collision_contact,contact);
+    if(!status)owner->body.state.flags=body_flags;return status;
 }
 
 int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)

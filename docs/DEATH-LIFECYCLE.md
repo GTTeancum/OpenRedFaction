@@ -4416,3 +4416,31 @@ are established by the earlier original-executable response verifiers.
 Both builds and all19 CTests pass. Local report:
 artifacts/collision-contact-storage.json. No live extension allocation,
 response dispatch or native-XEMU integration is claimed.
+
+## Registered NPC contact ownership
+
+Each campaign NPC now retains the40-byte contact extension plus4-byte actor
+material. Original486eb8 loads factory parameter+10 and486ec6 stores actor1fc;
+creation uses the already resolved config.material.index. These44 bytes are
+included by the existing sizeof-based512KiB owner budget. Allocation zeros
+the inactive extension as a port storage policy, not as claimed49f010 behavior.
+
+rf_scene_npc_collision_response validates the registered handle/model owner
+and body, borrows its ordered spheres, gathers complete contact state, and
+copies current/predicted body position/orientation, bounds, mass and velocity.
+It does not substitute published render position or model-origin radius for
+physics position/extent. rf_scene_npc_collision_publish validates ownership
+and publishes contact plus response flags, preserving all other actor fields.
+Neither API schedules a response or supplies actor8a0 extra velocity.
+
+The extended npc_collision_binding_check passes in the19-test PC suite: stale
+handles, unavailable body, invalid sphere count/storage, empty spheres, NULL
+arguments, borrowed sphere identity, distinct predicted/body transforms,
+contact bit patterns, flags publication and complete unrelated-owner
+preservation. PC build succeeds. Native NXDK build and180-frame stock64MiB
+XEMU replay pass: artifacts/xemu/replay-20260912-053555/report.json.
+78 NPC owners add3432 bytes; body allocation telemetry is resident55732,
+peak430372 bytes under524288. Existing collision-view hashes remain unchanged.
+The replay verifies allocation and existing behavior, not execution of the
+new response snapshot/publication APIs on Xbox. Player binding, support extra
+velocity refresh41e370 and automatic live response dispatch remain open.
