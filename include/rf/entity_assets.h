@@ -204,6 +204,16 @@ int rf_entity_damage_factors_read(const void *text,uint32_t bytes,const char *na
 
 typedef struct rf_entity_eye_limits {float minimum[3],maximum[3];} rf_entity_eye_limits;
 
+/* Selected class metadata from41bb32..41bbb9. Empty model retains the source
+ * instance; absent emitter has an empty name and lifetime -1. Names are owned,
+ * not runtime model/emitter handles. Port parser requires ordered, unique corpse
+ * fields and finite lifetime; selected-class errors preserve output. */
+typedef struct rf_entity_corpse_config {
+    char model[64],emitter[64];float emitter_lifetime;
+} rf_entity_corpse_config;
+int rf_entity_corpse_config_read(const void *text,uint32_t bytes,const char *name,
+    rf_entity_corpse_config *result);
+
 typedef struct rf_entity_seed_class {
     uint32_t record_index;
     char model[64];uint32_t model_kind;
@@ -212,6 +222,7 @@ typedef struct rf_entity_seed_class {
     rf_entity_lod_distances lod;
     float damage_factors[11];
     rf_entity_eye_limits eye_limits;
+    rf_entity_corpse_config corpse;
 } rf_entity_seed_class;
 typedef struct rf_entity_seed {
     uint32_t class_index;

@@ -1205,3 +1205,39 @@ Validation: full Release PC build and all17 CTests pass; NXDK build is
 current. The compiled Xbox pose verifier passes150 transfers,150 short-budget
 cases and150 injected allocation failures. Xbox executable SHA256:
 41e9e19bcb2ff4cd7cd43406ad2b41a4e4b23add0d66f191fb45380ad825adb3.
+
+
+## Retained authored corpse model and emitter metadata
+
+rf_entity_corpse_config_read now retains selected-class replacement model,
+emitter name and emitter lifetime; rf_entity_seeds_open copies this into each
+owned class record before closing its table scratch. This supplies previously
+missing inputs for live416940 binding, rather than assuming every class keeps
+its source model. It does not load a replacement model or instantiate emitters.
+
+Static original evidence:41bb32 tests "$Corpse V3D Filename:" and41bb53..41bb5b
+assigns the empty string when absent.41bb60 initializes emitter ID to-1;
+41bb6a initializes lifetime to binary32 -1.41bb63 tests "$Corpse Emitter:";
+41bb93 resolves its quoted name through497550. The nested41bba1..41bbb6 reads
+"$Corpse Emitter Lifetime:" only when the emitter field exists. The port keeps
+the name instead of inventing an emitter ID; runtime resolution remains open.
+The reader requires unique, ordered corpse fields, quoted names up to63 bytes
+and finite lifetime. These bounded parsing rules are port validation, not a
+claim to reproduce the full original parser's behavior on malformed text.
+
+The installed table has63 classes and two authored replacement models:
+Stationary Turret uses sentry_turret01_dam.v3d; Stationary Turret_Plain uses
+sentry_turret01_dam_plain.v3d. No installed corpse emitter declarations occur.
+Other classes default to an empty replacement model and emitter, lifetime-1.
+
+python tools/verify_corpse_config.py passes81 PC/NXDK cases: all63 installed
+classes plus18 cases covering defaults, populated/empty names, field ordering,
+duplicates, name limits, comments, class boundaries and invalid/nonfinite input.
+Failure preserves the destination. The original parser itself is not executed;
+tag/default evidence above is static disassembly. Three retained PC level
+checks (L1S1/L1S2/L1S3) compare metadata after archive closure and exercise exact
+and insufficient budgets. New storage is132 bytes per distinct class, charged
+through the existing sizeof-based class allocation:660/396/792 bytes for those
+levels. Full PC and NXDK builds and all17 CTests pass. No new XEMU gameplay or
+visual result is claimed. Finalization418f80 and live model/emitter bindings
+remain incomplete.

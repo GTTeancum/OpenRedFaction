@@ -9,6 +9,18 @@ int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--owned-pose"))return owned_pose_probe();
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==4 && !strcmp(argv[1],"--corpse-config")) {
+        FILE *f=fopen(argv[2],"rb");long size;rf_entity_corpse_config value,before;
+        if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);
+        if(size<0 || size>1024*1024){fclose(f);return 2;}
+        text=malloc((size_t)size+1);if(!text){fclose(f);return 2;}
+        if(fread(text,1,(size_t)size,f)!=(size_t)size){free(text);fclose(f);return 2;}fclose(f);
+        memset(&value,0xa5,sizeof(value));before=value;
+        status=rf_entity_corpse_config_read(text,(uint32_t)size,argv[3],&value);free(text);
+        if(status && memcmp(&value,&before,sizeof(value)))return 3;
+        _setmode(_fileno(stdout),_O_BINARY);
+        fwrite(&status,4,1,stdout);fwrite(&value,1,sizeof(value),stdout);return 0;
+    }
     if(argc==4 && (!strcmp(argv[1],"--pain-groups") || !strcmp(argv[1],"--damage-sound-groups"))) {
         uint32_t count=!strcmp(argv[1],"--pain-groups")?2:3;
         rf_foley_owner owner={0};int32_t groups[3]={123,456,789};FILE *f;long size;
@@ -448,6 +460,9 @@ int main(int argc,char **argv)
             printf("SEED_EYE\t%s\t%u\t%u\t%u\t%u\t%u\t%u\n",
                 seeds.records.items[seeds.classes[i].record_index].record.class_name,
                 eye_words[0],eye_words[1],eye_words[2],eye_words[3],eye_words[4],eye_words[5]);
+            printf("SEED_CORPSE\t%s\t%s\t%s\t%.9g\n",
+                seeds.records.items[seeds.classes[i].record_index].record.class_name,
+                seeds.classes[i].corpse.model,seeds.classes[i].corpse.emitter,seeds.classes[i].corpse.emitter_lifetime);
             const rf_entity_lod_distances *lod=&seeds.classes[i].lod;
             printf("SEED_LOD\t%s\t%u\t%.9g\t%.9g\t%.9g\t%.9g\n",
                 seeds.records.items[seeds.classes[i].record_index].record.class_name,

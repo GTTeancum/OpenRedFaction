@@ -1558,6 +1558,29 @@ static int named_effect_block(const void *text,uint32_t bytes,const char *name,
         } else if(status)return status;
     }
 }
+int rf_entity_corpse_config_read(const void *text,uint32_t bytes,const char *name,
+    rf_entity_corpse_config *result)
+{
+    rf_entity_corpse_config value={0};uint32_t start,length,seen=0;
+    char authored[64],t[256];lexer l;int status,quoted;
+    if(!result)return RF_RANGE;
+    status=named_effect_block(text,bytes,name,&start,&length,authored);if(status)return status;
+    l=(lexer){(const unsigned char *)text+start,length,0};value.emitter_lifetime=-1.0f;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted || !same(t,"$Corpse"))continue;
+        if(metadata_tag(&l,"V3D Filename:")) {
+            if(seen)return RF_FORMAT;
+            if(metadata_string(&l,value.model,sizeof(value.model)))return RF_FORMAT;seen=1;
+        } else if(metadata_tag(&l,"Emitter:")) {
+            if(seen&6)return RF_FORMAT;
+            if(metadata_string(&l,value.emitter,sizeof(value.emitter)))return RF_FORMAT;seen|=2;
+        } else if(metadata_tag(&l,"Emitter Lifetime:")) {
+            if(!(seen&2) || (seen&4) || sphere_number(&l,&value.emitter_lifetime))return RF_FORMAT;seen|=4;
+        } else return RF_FORMAT;
+    }
+    if(status!=RF_NOT_FOUND)return status;*result=value;return RF_OK;
+}
+
 int rf_emitter_definition_read(const void *text,uint32_t bytes,const char *name,
     rf_particle_definition *result)
 {
@@ -2249,6 +2272,7 @@ int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf
             v.classes[j].record_index=i;
             status=rf_entity_vitals_config_read(text,entry.size,name,&v.classes[j].vitals);if(status)goto done;
             status=rf_entity_eye_limits_read(text,entry.size,name,&v.classes[j].eye_limits);if(status)goto done;
+            status=rf_entity_corpse_config_read(text,entry.size,name,&v.classes[j].corpse);if(status)goto done;
             status=rf_entity_damage_factors_read(text,entry.size,name,v.classes[j].damage_factors);if(status)goto done;
             status=rf_entity_class_physics_read(text,entry.size,name,&v.classes[j].physics);if(status)goto done;
             status=rf_entity_lod_distances_read(text,entry.size,name,&v.classes[j].lod);if(status)goto done;
