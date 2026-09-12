@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include "collision_pool_probe.h"
+#include "collision_process_probe.h"
 #include "collision_discovery_probe.h"
 #include "damage_effect_probe.h"
 #include "pain_probe.h"
@@ -628,6 +629,9 @@ int main(int argc,char **argv)
             result=rf_collision_pair_expired(&state);if(fwrite(&result,4,1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--collision-process")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return collision_process_probe();
     }
     if(argc==2 && !strcmp(argv[1],"--collision-create")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return collision_pool_probe();

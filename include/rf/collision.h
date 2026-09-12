@@ -368,6 +368,24 @@ void rf_collision_pairs_seed(rf_collision_pair_list *available,rf_collision_pair
 uint32_t rf_collision_pair_create(rf_collision_pair_list *active,rf_collision_pair_list *available,
     const void *first,const void *second,
     uint32_t (*gate)(void *,const void *,const void *,uint32_t *),void *context);
+typedef struct rf_collision_pair_actor_state {uint32_t kind,body_flags,model,movement_mode;} rf_collision_pair_actor_state;
+enum rf_collision_pair_process_call {
+    RF_PAIR_EXPIRED,RF_PAIR_KIND5_TEST,RF_PAIR_BOUNDS_TEST,
+    RF_PAIR_RESPONSE_MODES1,RF_PAIR_RESPONSE_GENERAL,RF_PAIR_RESPONSE_MODEL,RF_PAIR_RESPONSE_SOLID
+};
+typedef struct rf_collision_pair_process_backend {
+    const rf_collision_pair_actor_state *(*actor)(void *,const void *);
+    uint32_t (*call)(void *,uint32_t,const void *,const void *);
+    void *context;
+} rf_collision_pair_process_backend;
+/* Full48ca60 control flow: cached-next traversal, expiration/kind5 removal,
+ * active-body gate and original response precedence. Queries receive the
+ * pair record as first argument; responses receive ordered actor identities.
+ * Actor lookup is pure; resources may update actor fields/pair flags but
+ * must preserve live list/node ownership for the original cached traversal.
+ * Callback effects remain backend-owned. No allocation or scene scheduling. */
+void rf_collision_pairs_process(rf_collision_pair_list *active,rf_collision_pair_list *available,
+    const rf_collision_pair_process_backend *backend);
 /* Full48c9f0: unlink either-endpoint matches, prepend each to the free list.
  * Lists must be disjoint, finite, valid and exclusively owned during this
  * call. Counts use original uint32 wrap semantics. Payload is preserved. */

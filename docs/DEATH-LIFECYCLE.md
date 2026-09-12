@@ -3973,3 +3973,36 @@ pass; no native XEMU run is claimed.
 This predicate is ready for the48ca60 pair processor, whose response
 selection and mutable-list traversal still need composition. Pair expiration
 is not the actor-specific48c9f0 death cleanup: keep their triggers separate.
+
+
+Collision pair processing loop - 2026-09-12
+
+rf_collision_pairs_process reconstructs full48ca60 control flow around
+resource callbacks. Save next before queries; expiration low byte exactly1
+removes the pair. Otherwise either body flag40000000 enables processing.
+Kind5 uses48bb00 and removes on zero low byte. Other kinds call48bb90;
+zero retains the pair without response. Successful bounds queries reread
+pair flags and actor facts before response selection.
+
+Response precedence: flags20 selects49ab00 only when both movement modes
+are1, otherwise49a420; flags4 plus second model selects49afe0(first,second);
+flags2 plus first model selects49afe0(second,first); flags10 with second
+kind3 selects49b570(first,second); flags8 with first kind3 selects reversed
+49b570; fallback49a420. Removals unlink from active and push onto available,
+keeping previous unchanged for consecutive removals. The loop advances to
+the cached next. Resource callbacks preserve node/list lifetime; actor lookup
+is pure and returns a live resolved view. No heap allocation is added.
+
+verify_collision_process.py passes2048 original/PC/NXDK cases. Original
+48ca60 and list helpers run unchanged; expiration, kind5/bounds and response
+functions are supplied. Operation counts:8182 expiration queries,1545 kind5
+queries,3575 bounds queries,460 mode1 responses,1147 general responses,
+313 model responses and122 solid responses. Exact ordered callback traces,
+list heads/links/counts, record flags and endpoint identities match, including
+empty/full/permuted lists, consecutive removals, unsigned count wrap, query
+upper bytes and bounds callbacks replacing flags. Both builds and all19
+CTests pass. No native XEMU or live collision response claim is made.
+
+Next bind actual48cc10,48bb00 and48bb90 queries and response resource
+owners. Discovery/classification/global-list integration remains required;
+the processor is not invoked in campaign physics yet.

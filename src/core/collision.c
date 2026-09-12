@@ -1916,3 +1916,37 @@ uint32_t rf_collision_pair_expired(const rf_collision_pair_expiration *s)
     if(s->second_kind==2)return !projectile_forward_eligible(s->second_position,s->second_forward,s->first_position);
     return 0;
 }
+
+void rf_collision_pairs_process(rf_collision_pair_list *active,rf_collision_pair_list *available,
+    const rf_collision_pair_process_backend *b)
+{
+    rf_collision_pair *node=active->head,*previous=NULL;
+    while(node) {
+        rf_collision_pair *next=node->next;rf_collision_pair_record *record=(rf_collision_pair_record *)node;
+        const rf_collision_pair_actor_state *a,*c;uint32_t remove=0,flags,op;
+        const void *first,*second;
+        if((b->call(b->context,RF_PAIR_EXPIRED,record,NULL)&255u)==1)remove=1;
+        else {
+            a=b->actor(b->context,node->first);c=b->actor(b->context,node->second);
+            if((a->body_flags|c->body_flags)&0x40000000u) {
+                if(a->kind==5 || c->kind==5)remove=!(b->call(b->context,RF_PAIR_KIND5_TEST,record,NULL)&255u);
+                else if(b->call(b->context,RF_PAIR_BOUNDS_TEST,record,NULL)&255u) {
+                    flags=record->flags;first=node->first;second=node->second;
+                    a=b->actor(b->context,first);c=b->actor(b->context,second);
+                    if(flags&0x20u)op=a->movement_mode==1 && c->movement_mode==1?RF_PAIR_RESPONSE_MODES1:RF_PAIR_RESPONSE_GENERAL;
+                    else if((flags&4u) && c->model)op=RF_PAIR_RESPONSE_MODEL;
+                    else if((flags&2u) && a->model){op=RF_PAIR_RESPONSE_MODEL;first=node->second;second=node->first;}
+                    else if((flags&0x10u) && c->kind==3)op=RF_PAIR_RESPONSE_SOLID;
+                    else if((flags&8u) && a->kind==3){op=RF_PAIR_RESPONSE_SOLID;first=node->second;second=node->first;}
+                    else op=RF_PAIR_RESPONSE_GENERAL;
+                    b->call(b->context,op,first,second);
+                }
+            }
+        }
+        if(remove) {
+            if(previous)previous->next=node->next;else active->head=node->next;
+            --active->count;node->next=available->head;available->head=node;++available->count;
+        } else previous=node;
+        node=next;
+    }
+}
