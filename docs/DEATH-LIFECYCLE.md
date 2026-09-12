@@ -4238,3 +4238,40 @@ state, not yet allocated per actor. Existing body vector138/scalar144 correspond
 to original actor1c0/1cc; the rest of1b4..1f4 and actor8a0 need explicit shared
 ownership before binding this routine. General49a420, model49afe0 and solid
 49b570 responses remain unreconstructed. No new native-XEMU response claim.
+
+
+### Complete general actor response49a420 (2026-09-12)
+
+rf_collision_actors_general_response reconstructs49a420 and uses the actual
+shared508e40 helper. After strict bounds overlap it chooses the actor with fewer
+spheres as the outer loop; equal counts choose smaller extent, with the second
+argument chosen on equal extent. Either body400 flag takes the original shortcut:
+only outer contact time0, other handle and inverse mass are published.
+
+The ordinary loop rotates each outer sphere using current and next orientations,
+converts its relative trajectory into the other actor's local coordinates, and
+tests each inner sphere in order. World-space center motion is retained separately
+for the contact point. Ray normalization uses the float-stored length, unlike
+49ab00. Accepted fractions are not divided by length a second time. Contact
+normal uses the other actor's current orientation, followed by original4faaf0
+normalization. Each accepted earlier pair updates retained times before later
+sphere queries; this is not an unordered minimum-distance search.
+
+If the outer actor is kind2, its contact is written but the second actor's contact
+is suppressed. Deferral branches can mutate body flags/times while the function
+returns zero: its return tracks new contact writes, unlike49ab00. The existing
+extra-velocity callback resolves the original426fc0/actor8a0 read in order.
+
+verify_actor_general_response.py passes8192 original/PC/NXDK cases with actual
+AABB/list/transform/normalization/ray/vector callees; only426fc0 is supplied.
+Final outcomes:5879 no-write rejections,218 ordinary contact results,1891
+special400 results,204 flag/time deferrals returning zero;394 lookups. Exact
+contact writes, return values, lookup order and surrounding original object
+bytes match. Coverage includes zero/negative list counts, multiple spheres,
+nonzero centers, quarter-turn and oblique current/next orientations, kind2 and
+active-body flags. Local report: artifacts/actor-general-response.json.
+Normal response4096 cases still pass; PC/NXDK builds and all19 CTests pass.
+
+The232-byte x86 general view is borrowed and has not been allocated per live
+actor. Live contact ownership, scheduler integration, native response execution
+and model49afe0/solid49b570 response reconstruction remain open. No new visual.

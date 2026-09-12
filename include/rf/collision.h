@@ -395,6 +395,15 @@ typedef struct rf_collision_actor_response {
  * No pair scheduling or subsequent impulse/damage dispatch. */
 uint32_t rf_collision_actors_normal_response(rf_collision_actor_response *first,rf_collision_actor_response *second,
     const float *(*extra_velocity)(void *,uint32_t),void *context);
+typedef struct rf_collision_actor_general_response {
+    rf_collision_actor_response actor;
+    float orientation[9],next_orientation[9],extent;uint32_t kind;
+} rf_collision_actor_general_response;
+/* Original49a420 general sphere-pair response; same borrowed-state/resolver
+ * contract as49ab00. Ordered sphere traversal, original transform arithmetic,
+ * special body400 handling and projectile second-contact suppression. */
+uint32_t rf_collision_actors_general_response(rf_collision_actor_general_response *first,
+    rf_collision_actor_general_response *second,const float *(*extra_velocity)(void *,uint32_t),void *context);
 typedef struct rf_collision_pair_actor_state {
     uint32_t kind,body_flags,model,movement_mode,handle,parent_handle,object_flags;
     uint32_t trigger_filter;int32_t allowed_count;const uint32_t *allowed_handles;

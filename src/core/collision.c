@@ -2046,3 +2046,57 @@ uint32_t rf_collision_actors_normal_response(rf_collision_actor_response *a,rf_c
     extra=extra_velocity(context,a->handle);if(extra)for(i=0;i<3;++i)b->contact.velocity[i]=(float)((double)b->contact.velocity[i]+extra[i]);
     b->contact.reference=UINT32_MAX;b->contact.handle=a->handle;b->contact.word_1f0=b->contact.word_1f4=0;return 1;
 }
+
+static void response_rotate(float v[3],const float matrix[9],uint32_t transpose)
+{
+    float out[3];uint32_t i;double dot;
+    for(i=0;i<3;++i){dot=(double)v[2]*matrix[transpose?6+i:i*3+2];dot+=(double)v[1]*matrix[transpose?3+i:i*3+1];dot+=(double)v[0]*matrix[transpose?i:i*3];out[i]=(float)dot;}
+    memcpy(v,out,12);
+}
+uint32_t rf_collision_actors_general_response(rf_collision_actor_general_response *first,
+    rf_collision_actor_general_response *second,const float *(*extra_velocity)(void *,uint32_t),void *context)
+{
+    rf_collision_actor_general_response *small,*large;rf_collision_actor_response *a,*b;
+    float relative[3],next_relative[3],ray[6],end[3],world[3],travel[3],hit[3],normal[3],length,fraction,scaled;
+    double magnitude,inverse,dot;const float *extra;int32_t j,k;uint32_t i,changed=0;
+    for(i=0;i<3;++i)if(!(first->actor.minimum[i]<second->actor.maximum[i]))return 0;
+    for(i=0;i<3;++i)if(!(second->actor.minimum[i]<first->actor.maximum[i]))return 0;
+    if(first->actor.sphere_count==second->actor.sphere_count?first->extent<second->extent:first->actor.sphere_count<second->actor.sphere_count){small=first;large=second;}
+    else {small=second;large=first;}
+    a=&small->actor;b=&large->actor;
+    if((a->body_flags|b->body_flags)&0x400u){a->contact.time=0;a->contact.handle=b->handle;a->contact.inverse_mass=(float)(1.0/b->mass);return 1;}
+    for(i=0;i<3;++i){relative[i]=(float)((double)a->position[i]-b->position[i]);next_relative[i]=(float)((double)a->next_position[i]-b->next_position[i]);}
+    for(j=0;j<a->sphere_count;++j) {
+        memcpy(ray,a->spheres[j].center,12);response_rotate(ray,small->orientation,1);
+        for(i=0;i<3;++i){world[i]=(float)((double)ray[i]+a->position[i]);ray[i]=(float)((double)ray[i]+relative[i]);}
+        response_rotate(ray,large->orientation,0);
+        memcpy(end,a->spheres[j].center,12);response_rotate(end,small->next_orientation,1);
+        for(i=0;i<3;++i){travel[i]=(float)((double)end[i]+a->next_position[i]);travel[i]=(float)((double)travel[i]-world[i]);end[i]=(float)((double)end[i]+next_relative[i]);}
+        response_rotate(end,large->next_orientation,0);
+        for(i=0;i<3;++i)ray[i+3]=(float)((double)end[i]-ray[i]);
+        magnitude=response_length(ray+3);length=(float)magnitude;if(!(magnitude>0))continue;
+        inverse=1.0/length;for(i=0;i<3;++i)ray[i+3]=(float)((double)ray[i+3]*inverse);
+        for(k=0;k<b->sphere_count;++k) {
+            if(!rf_collision_ray_sphere(ray,length,b->spheres[k].center,(float)((double)b->spheres[k].radius+a->spheres[j].radius),hit,&fraction) || fraction<0)continue;
+            if(fraction==0){for(i=0;i<3;++i)normal[i]=(float)((double)hit[i]-b->spheres[k].center[i]);dot=(double)ray[5]*normal[2];dot+=(double)ray[4]*normal[1];dot+=(double)ray[3]*normal[0];if(dot>=0)continue;}
+            if(!(fraction<a->contact.time || fraction<b->contact.time))continue;
+            if(!(fraction<a->contact.time)){if(b->body_flags&0x40000000u){b->body_flags|=0x20000000u;b->contact.time=a->contact.time;}continue;}
+            if(!(fraction<b->contact.time)){if(a->body_flags&0x40000000u){a->body_flags|=0x20000000u;a->contact.time=b->contact.time;}continue;}
+            a->contact.time=fraction;changed=1;
+            for(i=0;i<3;++i)a->contact.normal[i]=(float)((double)hit[i]-b->spheres[k].center[i]);
+            response_rotate(a->contact.normal,large->orientation,1);inverse=1.0/response_length(a->contact.normal);
+            for(i=0;i<3;++i)a->contact.normal[i]=(float)((double)a->contact.normal[i]*inverse);
+            for(i=0;i<3;++i){scaled=(float)((double)travel[i]*fraction);a->contact.point[i]=(float)((double)world[i]+scaled);scaled=(float)((double)a->contact.normal[i]*a->spheres[j].radius);a->contact.point[i]=(float)((double)a->contact.point[i]-scaled);}
+            a->contact.material=b->material;a->contact.inverse_mass=(float)(1.0/b->mass);memcpy(a->contact.velocity,b->velocity,12);
+            extra=extra_velocity(context,b->handle);if(extra)for(i=0;i<3;++i)a->contact.velocity[i]=(float)((double)a->contact.velocity[i]+extra[i]);
+            a->contact.reference=UINT32_MAX;a->contact.handle=b->handle;a->contact.word_1f0=a->contact.word_1f4=0;
+            if(small->kind!=2) {
+                b->contact.time=fraction;for(i=0;i<3;++i)b->contact.normal[i]=-a->contact.normal[i];memcpy(b->contact.point,a->contact.point,12);
+                b->contact.material=a->material;b->contact.inverse_mass=(float)(1.0/a->mass);memcpy(b->contact.velocity,a->velocity,12);
+                extra=extra_velocity(context,a->handle);if(extra)for(i=0;i<3;++i)b->contact.velocity[i]=(float)((double)b->contact.velocity[i]+extra[i]);
+                b->contact.reference=UINT32_MAX;b->contact.handle=a->handle;b->contact.word_1f0=b->contact.word_1f4=0;
+            }
+        }
+    }
+    return changed;
+}
