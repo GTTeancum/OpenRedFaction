@@ -71,6 +71,20 @@ int main(int argc, char **argv)
     }
     if ((argc != 3 && argc != 4) || rf_vpp_open(&archive, argv[1])) return 2;
     result = rf_model_file_open(&model, &archive, argv[2]);
+    if(!result && argc==4 && !strcmp(argv[3],"--collision-trace")) {
+        rf_model_collision_resource owner={0};
+        struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;uint32_t reset;} input;
+        _Static_assert(sizeof(input)==140,"authored trace wire");
+        result=rf_model_collision_resource_open(&owner,&model,4*1024*1024);
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(!result && fread(&input,sizeof(input),1,stdin)==1) {
+            uint32_t hit=rf_collision_model_trace(owner.parts,&owner.part_count,&input.query,&input.hit,input.reset);
+            if(fwrite(&hit,4,1,stdout)!=1 || fwrite(&input.query,104,1,stdout)!=1 || fwrite(&input.hit,32,1,stdout)!=1)result=RF_IO;
+        }
+        if(ferror(stdin))result=RF_IO;
+        rf_model_collision_resource_close(&owner);rf_vpp_close(&archive);return result?3:0;
+    }
+
     if(!result && argc==4 && !strcmp(argv[3],"--spheres")) {
         rf_model_collision_sphere sphere,before;uint32_t index=0,j;int status;
         for(;;) {

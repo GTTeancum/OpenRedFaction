@@ -4942,3 +4942,23 @@ this is not total scene residency. Report:
 artifacts/model-collision-resource.json. PC/NXDK builds and all19 CTests
 pass. Native XEMU archive/query execution and live scene residency/binding
 remain open, along with type2 skeletal collision.
+
+
+## Authored complete-resource query verification
+
+verify_model_authored_trace.py rebuilds original part/LOD/batch pointers
+from installed static model bytes, preserving shared metadata and raw
+triangle/plane/vertex data. It executes complete original54e000 with all
+geometry callees unchanged, initializing only static constructor flags.
+Original result record pointers are normalized to file-relative triangle
+offsets for comparison with the owned resource's token contract.
+The PC probe independently opens the actual VPP/model, loads the complete
+owned collision resource, then calls rf_collision_model_trace. Each authored
+part gets12 sweeps: both directions on each axis, thin radius0 and sphere
+radius0.25, centered on its shared bounds and offset. All427 installed
+static models pass6900 exact query/result/return comparisons,6242 hits.
+Report: artifacts/model-authored-trace.json. The PC probe build passes.
+This validates the archive-to-owned-query composition, not just synthetic
+geometry. Original memory setup is reconstructed rather than running the
+original archive loader. General trajectories, native XEMU archive/query
+execution and live scene residency/dispatch remain open.
