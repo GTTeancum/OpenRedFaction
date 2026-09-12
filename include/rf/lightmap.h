@@ -6,8 +6,10 @@ typedef struct rf_lightmaps {
     rf_image *images;
     uint32_t count, allocated_bytes;
 } rf_lightmaps;
-/* v180 packed RGB lightmaps, retained in disk row order as opaque RGBA.
- * Budget includes image records and pixels; fixed 1536-byte input scratch.
+/* v180 lightmaps packed to original1555 for the shared MODULATE2X renderer.
+ * Two-byte pixels: linear PC, swizzled Xbox; RGB brightening disabled for
+ * the current two-texture/doubled-modulation backend.
+ * Budget includes image records and pixels; fixed2560-byte decoder scratch.
  * Close before reuse; failures leave the result empty. */
 int rf_lightmaps_open(rf_lightmaps *maps, const rf_level *level, uint32_t budget);
 void rf_lightmaps_close(rf_lightmaps *maps);

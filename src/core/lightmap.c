@@ -14,7 +14,7 @@ void rf_lightmaps_close(rf_lightmaps *maps)
 int rf_lightmaps_open(rf_lightmaps *maps, const rf_level *level, uint32_t budget)
 {
     const rf_level_section *section;
-    unsigned char header[8], rgb[1536];
+    unsigned char header[8], rgb[1536], packed[1024];
     uint32_t count, at = 4, i;
     uint64_t records;
     int result;
@@ -48,7 +48,7 @@ int rf_lightmaps_open(rf_lightmaps *maps, const rf_level *level, uint32_t budget
         pixels = image->width * image->height;
         if ((uint64_t)pixels*3 > section->size-at) goto fail;
         result = RF_RANGE;
-        image->bytes = pixels*4;
+        image->bytes = pixels*2; image->source_format=5;
         if (image->bytes > budget - maps->allocated_bytes) goto fail;
         result=rf_image_allocate_pixels(image);if(result)goto fail;
         maps->allocated_bytes += image->bytes;
@@ -57,9 +57,13 @@ int rf_lightmaps_open(rf_lightmaps *maps, const rf_level *level, uint32_t budget
             if (n > 512) n = 512;
             result = rf_level_read(level, section, at, rgb, n*3);
             if (result) goto fail;
+            /* Both current world backends implement two-texture MODULATE2X.
+             * Original mode102 with those capabilities skips RGB brightening. */
+            result=rf_lightmap_pack_1555(rgb,n*3,n,1,rf_lightmap_requires_brightening(102,1,1),packed,n*2,n*2);
+            if(result)goto fail;
             for (j = 0; j < n; ++j) {
                 unsigned char *pixel=rf_image_pixel(image,(decoded+j)%image->width,(decoded+j)/image->width);
-                memcpy(pixel,rgb+j*3,3);pixel[3]=255;
+                memcpy(pixel,packed+j*2,2);
             }
             at += n*3; decoded += n;
         }

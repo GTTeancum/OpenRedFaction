@@ -2757,3 +2757,34 @@ f9b18dd0aa9602c70dd3b0130114b301f08739c9ceffc5380e3c754efcfed79c
 Campaign lightmap loading still uses the previous RGBA path. Migration and
 shared swizzle-aware CPU lightmap sampling are the next integration steps;
 this format test does not claim a campaign memory saving already achieved.
+
+## Campaign migration to packed1555 lightmaps
+
+rf_lightmaps_open now writes original1555 packed texels into the existing
+rf_image owner. PC stores linear words; Xbox writes the same logical words
+through swizzle-aware rf_image_pixel. Source format5 selects the tested
+native texture path. Current world backends explicitly implement two-texture
+MODULATE2X, so the verified102/1/1 capability profile skips RGB brightening.
+No additional lightmap allocation is retained. Decoder scratch is2560 bytes.
+
+verify_campaign_lightmaps.py compares every image hash to independently
+packed archive RGB for L1S1/L1S2/L1S3, including exact-budget success and
+one-byte-short empty-owner failure. Descriptor-plus-pixel allocations are
+754124/295092/754124 bytes, down from1507788/590004/1507788. Pixel storage
+is halved, saving753664/294912/753664 bytes respectively. Owner header,
+allocator metadata and fixed stack scratch remain excluded by the existing
+budget convention. This is now the live campaign loader on both platforms.
+
+Stock64MiB XEMU replay-20260912-010403 passes180 frames with door staging,
+NPC damage8456 and captured audio. Native gameplay state matches PC. QMP
+confirms67108864 base bytes and0 plugged memory. Available pages at
+completion are8717; historical replay-20260911-222939 recorded8538, though
+other intervening code/layout changes prevent assigning all179 pages solely
+to this migration. Exact lightmap savings are established by owner accounting.
+
+The native framebuffer was inspected and shows the textured scene/robot;
+this is a rendering sanity check, not quantitative PS2 visual parity. Both
+builds and19 CTests pass. Shared CPU face sampling still needs a borrowed,
+swizzle-aware view of this owner; it must retain channel-times-eight behavior
+separately from normalized GPU sampling. Campaign blood-pool source/queue
+activation remains open. The audit tool now labels raw RGB as historical.
