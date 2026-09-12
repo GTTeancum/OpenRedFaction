@@ -2009,3 +2009,21 @@ PC build passes. This commit changes tests/documentation only; it adds no
 Xbox runtime changes or new XEMU result. Sound callbacks validate data but
 produce no audio. Actual sound/emitter ownership, full corpse construction
 from authored actors, live dispatch and rendering remain open.
+
+
+## Corpse sound field is a world-object handle
+
+Full original459a20 calls40a0e0, then accepts only object+24 equal1.
+tools/verify_corpse_sound_object_lookup.py runs384 unhooked combinations of
+slot, generation, type, presence and stale stored handle, including high-bit
+handles. Only16 exact type1/live-generation cases resolve. Report:
+artifacts/corpse-sound-object-lookup.json.
+
+This changes the next integration step: corpse2cc must resolve a type1 world
+sound object, not campaign_device_voice_ids or a mixer slot. Original48a230
+then updates public/current/pending positions, radius bounds and dirty flag;
+rf_group_pose_set_position already reconstructs those writes (COLLISION.md).
+Sound-object creation/publication and its connection to audio voice refresh
+remain to be recovered. Direct mixer movement would skip this owner state.
+The public borrowed sound-view comment now states this distinction. Runtime
+behavior is unchanged; no build or new XEMU result is claimed for this audit.

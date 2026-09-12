@@ -363,6 +363,9 @@ typedef struct rf_corpse_update_state {
 typedef struct rf_corpse_emitter_link {
     struct rf_corpse_emitter_link *next;uint32_t *enabled;
 } rf_corpse_emitter_link;
+/* Borrowed projection of a type1 world sound object (459a20), not a mixer
+ * voice. move_sound must apply object pose/bounds assignment (48a230); audio
+ * voice refresh belongs to the sound object lifecycle. token is backend-owned. */
 typedef struct rf_corpse_sound_view {float position[3];uint32_t token;} rf_corpse_sound_view;
 typedef struct rf_corpse_update_backend {
     void (*reset)(void *context,uint32_t model); /*5033f0*/
