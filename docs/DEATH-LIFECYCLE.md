@@ -3383,3 +3383,30 @@ sound selection/playback. PC and NXDK builds succeed (NXDK is up to date).
 The new ownership binding is tested on PC, not yet through live XEMU death.
 Complete death composition, bone overrides, armed declarations and resource
 callbacks remain open.
+
+
+## Bone override clearing and cached death poses (2026-09-12)
+
+Inspection of original51b500 shows the override branch after parent/root
+composition and generation-stamp publication. The per-bone record uses
+instance1398+48*bone for a nine-float basis,13bc+48*bone for the enabled byte
+and13c0+48*bone for blend weight. Nonzero enabled bytes enter the branch.
+The generation comparison occurs before this branch, so clearing the byte
+alone must not forcibly rebuild a pose already evaluated this generation.
+
+tools/verify_bone_override_clear_original.py executes the original evaluator
+and its callees without hooks on installed miner stand/crouch motions. Its320
+cases cover two ticks each, bones0/1/8/24, weights0/.25/.5/1 and enabled bytes
+1/2/127/128/255. For each case it compares complete25-bone matrices: enabled
+byte variants agree; clearing only the byte preserves current-generation
+matrices; advancing the generation restores the unmodified baseline exactly.
+The override basis, weight and surrounding record bytes remain unchanged.
+310 cases differ bitwise from baseline before clearing; that count measures
+byte differences, not visual significance or nonzero blend contribution.
+Report: artifacts/bone-override-clear-original.json, PASS.
+
+The shared evaluator currently has no override record or override blend path.
+Do not replace death's CLEAR_BONE callback with a cache invalidation or a
+no-op. Implement retained override storage, original conversion/blending and
+owned-pose transfer before binding it. This audit proves original behavior
+only; it is not a PC/Xbox implementation comparison or live death test.
