@@ -234,6 +234,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-pack")) {
+        struct {uint32_t width,height,pitch,rgb_bytes,packed_bytes,double_rgb,available;unsigned char rgb[512],packed[512];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            int status;if(in.rgb_bytes>512 || in.packed_bytes>512)return 2;
+            status=rf_lightmap_pack_1555(in.rgb,in.rgb_bytes,in.width,in.height,in.double_rgb,in.available?in.packed:NULL,in.pitch,in.packed_bytes);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(in.rgb,512,1,stdout)!=1 || fwrite(in.packed,512,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-project")) {
         struct {rf_lightmap_projection projection;float point[3];uint32_t alias;} in;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

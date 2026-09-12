@@ -121,3 +121,21 @@ int rf_lightmap_projection_read(const void *record,uint32_t bytes,rf_lightmap_pr
     for(i=0;i<2;++i)if(value.axes[i]>2 || !isfinite(value.scale[i]) || !isfinite(value.offset[i]))return RF_FORMAT;
     *projection=value;return RF_OK;
 }
+
+int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,uint32_t height,
+    uint32_t double_rgb,unsigned char *packed,uint32_t pitch,uint32_t packed_bytes)
+{
+    uint64_t count=(uint64_t)width*height,i;uint32_t y,x,c[3],j,value;
+    if(!rgb || !width || !height || double_rgb>1 || count>rgb_bytes/3u)return RF_RANGE;
+    if(packed && ((pitch&1u) || (uint64_t)width*2>pitch ||
+        (uint64_t)(height-1)*pitch+(uint64_t)width*2>packed_bytes))return RF_RANGE;
+    if(double_rgb)for(i=0;i<count*3;++i){value=(uint32_t)rgb[i]*2+1;rgb[i]=(unsigned char)(value>255?255:value);}
+    if(!packed)return RF_OK;
+    for(y=0;y<height;++y)for(x=0;x<width;++x) {
+        const unsigned char *source=rgb+((uint64_t)y*width+x)*3;
+        unsigned char *destination=packed+(uint64_t)y*pitch+x*2;
+        for(j=0;j<3;++j){c[j]=source[j]>>3;if(c[j]<4)c[j]=4;}
+        value=0x8000u|(c[0]<<10)|(c[1]<<5)|c[2];destination[0]=(unsigned char)value;destination[1]=(unsigned char)(value>>8);
+    }
+    return RF_OK;
+}

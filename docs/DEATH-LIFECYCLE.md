@@ -2392,3 +2392,34 @@ those saved UVs without further evidence. Both builds and19 CTests pass.
 Next ownership dependency: original RGB-to-packed texture conversion and
 pitch/storage policy. Authored projection now exists, but face-color binding,
 live source effects, runtime tags and lifetime/rendering are still open.
+
+
+## Original RGB upload packing
+
+rf_lightmap_pack_1555 reconstructs4ed32c..4ed4fa after RGB bytes are loaded.
+Original50df50 decides whether the in-place RGB pass is needed: a zero low
+byte causes min(2*c+1,255), otherwise RGB remains unchanged. Both branches
+pack max(c>>3,4) into each RGB555 channel and set bit15. Therefore the decoded
+channel floor is32, not0; a simple RGB555 truncation would be wrong.
+
+The shared caller supplies double_rgb explicitly rather than guessing the
+active renderer capability. Source RGB is contiguous and mutable; packed
+output uses caller-supplied even byte pitch and disjoint storage. No allocation
+occurs. A NULL packed destination represents a subsequent lock failure:
+the selected RGB brightening still takes effect. Buffer guards run before
+mutation. Valid row padding remains untouched.
+
+verify_lightmap_pack.py executes the original upload slice and max helper,
+with capability and lock/unlock boundaries supplied.1024 cases cover all256
+byte values, both branch decisions, pitched rows and lock success/failure.
+Shared PC/NXDK source mutation and packed bytes match exactly; five port
+buffer/argument guards pass. Both builds and19 CTests pass.
+
+4f5e80 retains width/height, an RGB owner, a format5 bitmap handle and global
+image registration. Its destructor4f5f20 releases the handle and RGB/optional
+auxiliary allocation. These are traced leads, not reconstructed resource
+ownership.50df50 dispatches by renderer mode17c7bcc; mode104 returns true,
+mode102 calls546a00 with the query word, and others return false.546a00 uses
+capability bytes1cfcc1c/1cfcc1d and the low five query bits. Their complete
+live initialization remains unresolved. The existing preview lightmaps are
+unchanged; no authored packed upload, face-color binding or rendering claim.

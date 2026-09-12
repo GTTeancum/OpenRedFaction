@@ -22,6 +22,13 @@ typedef struct rf_lightmap_projection {
  * original4ee2db..4ee51d. Does not resolve image/resource ownership. */
 int rf_lightmap_projection_read(const void *record,uint32_t bytes,rf_lightmap_projection *projection);
 int rf_lightmap_project(const rf_lightmap_projection *projection,const float point[3],float uv[2]);
+/*4ed32c..4ed4fa RGB upload conversion. double_rgb selects the capability-
+ * dependent min(2*c+1,255) in-place RGB pass; both paths floor5-bit channels
+ * at4 and set bit15. Caller owns disjoint RGB/packed buffers; even byte pitch.
+ * NULL packed models a failed subsequent lock: RGB brightening still occurs.
+ * Buffer guards run before mutation; no allocation or capability inference. */
+int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,uint32_t height,
+    uint32_t double_rgb,unsigned char *packed,uint32_t pitch,uint32_t packed_bytes);
 typedef struct rf_lightmap_1555_view {
     const unsigned char *pixels;uint32_t width,height,pitch,bytes;
 } rf_lightmap_1555_view;
