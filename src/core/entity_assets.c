@@ -1547,7 +1547,7 @@ int rf_entity_state_motion_load(const char *path,const char *class_name,
     if(!status)status=rf_entity_state_motion_read(text,entry.size,class_name,weapon,state,motion);
     free(text);rf_vpp_close(&archive);return status;
 }
-int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
+static int class_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets,int clutter)
 {
     lexer l={(const unsigned char*)text,bytes,0};rf_entity_assets value={0};char t[256];
     int quoted,status,selected=0,found=0,skin_found;
@@ -1555,7 +1555,7 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
     skin_found=!*skin;
     while((status=token(&l,t,&quoted))==RF_OK) {
         if(quoted)continue;
-        if(same(t,"$Name:")) {
+        if((!clutter && same(t,"$Name:")) || (clutter && same(t,"$Class") && metadata_tag(&l,"Name:"))) {
             if(found)break;
             status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;
             selected=same(t,class_name);found=selected;
@@ -1567,7 +1567,7 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
             int use;
             status=token(&l,t,&quoted);if(status || !quoted)return RF_FORMAT;use=*skin && same(t,skin);
             status=token(&l,t,&quoted);if(status || quoted || strcmp(t,"("))return RF_FORMAT;
-            if(use && skin_found)return RF_FORMAT;
+            if(use && skin_found) {if(!clutter)return RF_FORMAT;use=0;}
             for(;;) {
                 status=token(&l,t,&quoted);if(status)return RF_FORMAT;
                 if(!quoted && !strcmp(t,")"))break;
@@ -1581,6 +1581,10 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
     if(!found || !skin_found)return RF_NOT_FOUND;
     *assets=value;return RF_OK;
 }
+int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
+{return class_assets_read(text,bytes,class_name,skin,assets,0);}
+int rf_clutter_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
+{return class_assets_read(text,bytes,class_name,skin,assets,1);}
 
 static int named_effect_block(const void *text,uint32_t bytes,const char *name,
     uint32_t *start,uint32_t *length,char authored_name[64])

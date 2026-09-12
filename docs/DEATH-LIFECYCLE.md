@@ -6636,3 +6636,27 @@ XEMU or live clutter rendering. Next recover complete clutter.tbl class/model
 inputs and4104a0 factory ownership, bind actual texture/glare resources and retain
 successful creation order for scene visibility. Do not treat this helper as a
 complete class factory or release/replacement resource policy.
+
+
+Clutter asset metadata (2026-09-12)
+-----------------------------------
+Shared rf_clutter_assets_read selects bounded clutter.tbl model and ordered
+replacement names without allocation, preserving output on failure. It shares
+the existing entity metadata lexer while retaining entity duplicate-skin errors;
+clutter selects the first matching skin. Empty skin selects base materials.
+
+verify_clutter_assets.py executes original410b60 with supplied authored class
+string storage, including actual500190/57c130 comparison:430 lookup cases pass.
+The431 declarations contain429 selectable case-insensitive names; later Cart
+and firehose declarations are shadowed by earlier names. Independent table
+declarations match complete PC/compiled NXDK output for494 authored selections.
+Six synthetic cases cover first duplicate skin, base materials, absent class/
+skin, malformed quoting and replacement overflow with unchanged error output.
+The NXDK oracle supplies only stack growth on an already mapped fixture stack.
+
+This is metadata selection, not complete original40f4f0 parser equivalence,
+4104a0 factory creation, compiled-filename conversion, glare resource lookup or
+native XEMU integration. Complete class/body ownership and live scene binding
+remain open. No new visual is claimed.
+Both PC/NXDK builds pass; existing entity metadata63 classes/168 selections
+and all19 CTests pass after sharing the lexer-based selector.

@@ -358,6 +358,12 @@ typedef struct rf_entity_assets {
  * on failure. Limits: token 255 bytes, asset 63 bytes, 64 skin replacements. */
 int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name,
     const char *skin,rf_entity_assets *assets);
+/* Bounded clutter.tbl model/replacement metadata, with the same storage limits.
+ * $Class Name selects the class; first matching skin wins (410d30).
+ * Empty skin selects base materials. No glare lookup, compiled filename
+ * conversion, full40f4f0 parser or4104a0 factory equivalence is claimed. */
+int rf_clutter_assets_read(const void *text,uint32_t bytes,const char *class_name,
+    const char *skin,rf_entity_assets *assets);
 /* Load entity.tbl into temporary storage capped by table_budget; release it
  * before return. Output unchanged on failure. Port-owned archive integration. */
 int rf_entity_assets_load(const char *tables_path,const char *class_name,
