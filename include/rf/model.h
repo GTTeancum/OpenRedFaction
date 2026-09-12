@@ -57,6 +57,28 @@ int rf_model_register_motion(rf_model_motion_registry *registry,uint32_t identit
 /* Fixed-width material record used by original model-instance arrays.
  * Unknown fields remain bytes; pointer-valued slots are not native pointers. */
 typedef struct rf_model_material_record { uint8_t bytes[200]; } rf_model_material_record;
+typedef struct rf_clutter_skin_variant {
+    const char *name;const char *const *textures;int32_t texture_count,glare_class;
+} rf_clutter_skin_variant;
+typedef struct rf_clutter_skin_glare {
+    uint32_t parent;int32_t class_index;const void *class_record;
+} rf_clutter_skin_glare;
+typedef struct rf_clutter_skin_backend {
+    int (*materials)(void *,uint32_t,rf_model_material_record **,int32_t *);
+    int (*texture)(void *,const char *,int32_t,uint32_t,int32_t *);
+    void *context;
+} rf_clutter_skin_backend;
+/*410d30+4153e0+48ac00. First ASCII-case-insensitive variant wins; missing
+ * names succeed with selected=-1 and no effects. Retarget matching parent
+ * glare nodes before resolving model materials and replacing primary texture
+ * word10 in order. Negative texture handles are published. Caller owns stable
+ * disjoint variants, strings, glare classes/nodes and material storage. Errors
+ * preserve selected but retain completed effects. Does not publish actor2bc,
+ * allocate textures, or own glare/model lifetimes. */
+int rf_clutter_skin_apply(const rf_clutter_skin_variant *variants,uint32_t count,
+    const char *name,uint32_t parent,uint32_t model,rf_clutter_skin_glare *glares,uint32_t glare_count,
+    const void *const *glare_classes,uint32_t class_count,
+    const rf_clutter_skin_backend *backend,int32_t *selected);
 /* Original 54a7c0 constructor: initializes only fields it writes, preserving
  * other bytes. Call on newly owned storage, never to release a live material. */
 int rf_model_material_initialize(rf_model_material_record *material);

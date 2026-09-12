@@ -4,6 +4,50 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+static int clutter_skin_name_equal(const char *first,const char *second)
+{
+    unsigned char a,b;
+    do {
+        a=(unsigned char)*first++;b=(unsigned char)*second++;
+        if(a>='A' && a<='Z')a=(unsigned char)(a+'a'-'A');
+        if(b>='A' && b<='Z')b=(unsigned char)(b+'a'-'A');
+        if(a!=b)return 0;
+    } while(a);
+    return 1;
+}
+int rf_clutter_skin_apply(const rf_clutter_skin_variant *variants,uint32_t count,
+    const char *name,uint32_t parent,uint32_t model,rf_clutter_skin_glare *glares,uint32_t glare_count,
+    const void *const *glare_classes,uint32_t class_count,
+    const rf_clutter_skin_backend *backend,int32_t *selected)
+{
+    const rf_clutter_skin_variant *variant;rf_model_material_record *materials=NULL;
+    uint32_t index,i;int32_t material_count=0,texture;int status;
+    if(!name || !selected || (count && !variants) || count>INT_MAX ||
+        (glare_count && !glares) || (class_count && !glare_classes) ||
+        !backend || !backend->materials || !backend->texture)return RF_RANGE;
+    for(index=0;index<count;++index) {
+        if(!variants[index].name)return RF_RANGE;
+        if(clutter_skin_name_equal(variants[index].name,name))break;
+    }
+    if(index==count){*selected=-1;return RF_OK;}
+    variant=variants+index;
+    if(variant->texture_count>0) {
+        if(!variant->textures)return RF_RANGE;
+        for(i=0;i<(uint32_t)variant->texture_count;++i)if(!variant->textures[i])return RF_RANGE;
+    }
+    if(variant->glare_class>=0 && (uint32_t)variant->glare_class<class_count)
+        for(i=0;i<glare_count;++i)if(glares[i].parent==parent) {
+            glares[i].class_index=variant->glare_class;
+            glares[i].class_record=glare_classes[variant->glare_class];
+        }
+    status=backend->materials(backend->context,model,&materials,&material_count);if(status)return status;
+    if(material_count>0 && variant->texture_count>0 && !materials)return RF_RANGE;
+    for(i=0;(int32_t)i<variant->texture_count && (int32_t)i<material_count;++i) {
+        status=backend->texture(backend->context,variant->textures[i],-1,1,&texture);if(status)return status;
+        memcpy(materials[i].bytes+0x10,&texture,4);
+    }
+    *selected=(int32_t)index;return RF_OK;
+}
 int rf_model_skeletal_register(rf_model_skeletal_registration *node,
     rf_model_skeletal_registration **head,uint32_t limit)
 {

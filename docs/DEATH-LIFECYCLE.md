@@ -6603,3 +6603,36 @@ class model/name, kind38, radius40, material4c, authored pose and class flags74,
 then initializes life, sound, emitters, glare/light props and final list insertion.
 Those complete class/model/resource owners still need reconstruction before
 scene visibility can claim the authored clutter population.
+
+
+### Shared clutter skin application (2026-09-12)
+
+`rf_clutter_skin_apply` now composes410d30 selection,4153e0 matching-parent glare
+retarget and48ac00 primary material replacement in shared C. Compact borrowed
+variant views retain case-insensitive names, ordered textures and glare index.
+Glare views retain parent identity, class index and class-record pointer. Existing
+200-byte model material records receive only word10 texture updates. Model
+material lookup and texture loading are required resource services; no allocation
+or actual scene ownership is fabricated by the helper.
+
+First matching skin wins. Missing skins return success with selected=-1 and no
+effects. Valid glare indices retarget every matching parent before model lookup.
+Nonpositive material/texture counts make no texture calls. Each replacement calls
+the loader with(name,-1,1), publishes even a returned-1 handle, and leaves other
+material bytes unchanged. Errors preserve selected while retaining completed
+glare/texture effects. The caller still owns publication of actor2bc.
+
+`tools/verify_clutter_skin.py --shared` executes2048 full original cases against
+PC and compiled NXDK:904 selected,1144 missing,1319 texture calls and1374 glare
+updates. Cases include nonpositive material counts, duplicate/case-varied names,
+empty inputs, mismatched material/texture counts and missing texture handles.
+Exact result, ordered resource calls, full material records and glare views match.
+Seven additional NXDK errors cover missing owners/services/texture storage,
+model lookup failure after glare changes, and a second texture failure retaining
+the first material replacement. Both builds and all19 CTests pass.
+
+This is compiled NXDK under Unicorn with resource boundaries supplied, not native
+XEMU or live clutter rendering. Next recover complete clutter.tbl class/model
+inputs and4104a0 factory ownership, bind actual texture/glare resources and retain
+successful creation order for scene visibility. Do not treat this helper as a
+complete class factory or release/replacement resource policy.
