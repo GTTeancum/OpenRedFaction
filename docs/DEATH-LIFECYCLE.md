@@ -5548,3 +5548,25 @@ Model-query state remains[5,61128,2472,2856,2472,425497051,0], unchanged from
 the prior baseline. Both builds and19 CTests pass. XBE SHA256:
 90508e6cf1465ae108a4304be98ef33286832c16207ac7c6286beef3908905cb.
 No new visible gameplay or full physics scheduling is claimed.
+
+
+### Pending displacement producer audit (2026-09-12)
+
+The earlier stationary-query change must not imply every moving actor needs
+a synthesized displacement increment. tools/audit_pose_displacement_refs.py
+reproduces eight direct operand references to12c0/12c4/12c8 in the checked
+original executable. Ghidra containing-function inspection separates instance
+51ae00/51ae90 constructor boundaries and explicit zero assignment51af8f,
+instance root consumption51b8e9, and shared-definition attachment transforms
+at51b45b/51d4e6/51d544/51d568. The latter addresses are not pending root
+movement producers despite sharing the numeric offset. Default vector
+constructor calls alone are not evidence of a clear;51ae90 also bulk-zeros
+instance storage and explicitly assigns the zero pending vector.
+
+Report:artifacts/pose-displacement-references.json. No nonzero instance
+producer is established by this scan. Linear decoding with data skipping and
+direct-offset matching is not exhaustive pointer-alias analysis, so this does
+not prove the field always remains zero. Preserve explicit displacement
+consumption where callers supply it; require real producer evidence before
+adding movement-driven accumulation. Collision scheduling and NPC body
+stepping can be pursued without inventing that missing write.
