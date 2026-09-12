@@ -1788,6 +1788,7 @@ typedef struct campaign_npc_body {
     rf_entity_damage_state damage;uint32_t object_flags,field_840;
     struct {int32_t item_82c,requested_83c,action_824,linked_146c,deadline_4b8;uint32_t model_148c;} death;
     uint32_t death_bone_words[2]; /* actor1464/1468 */
+    float command_714[3]; /* Constructor422eaf..422ed3 clears this movement vector. */
     float model_radius_78; /* Original489fe0 model-origin radius. */
     float published[3],previous[3];uint32_t movement_slot;
     uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
@@ -2386,6 +2387,29 @@ int rf_scene_player_damage_audio(uint32_t handle,const rf_damage_request *reques
     if(!random || now_ms<0 || now_ms>RF_TIMER_PERIOD)return RF_RANGE;
     return campaign_player_damage_apply(handle,request,difficulty,clock_bits,now_ms,random,effects,result);
 }
+int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
+{
+    campaign_npc_body *owner;rf_entity_death_entry_state state;uint32_t i,cls,falling;
+    if(!entered)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view)return RF_NOT_FOUND;
+    if(owner->view.flags_810&1u){*entered=0;return RF_OK;}
+    if(!campaign_seeds.items || !campaign_seeds.classes || i>=campaign_seeds.records.count || owner->movement_slot>=16)return RF_RANGE;
+    cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
+    falling=rf_entity_falling((int32_t)campaign_modes[owner->movement_slot].index,
+        campaign_seeds.classes[cls].physics.use_kind,owner->support.material);
+    state.flags_810=owner->view.flags_810;state.flags_1a8=owner->body.state.flags;
+    memcpy(state.vector_714,owner->command_714,12);
+    /* Embedded physics starts at actor88: bc/c8 map to actor144/150. */
+    memcpy(state.vector_144,owner->body.state.velocity,12);memcpy(state.vector_150,owner->body.state.vector_c8,12);
+    *entered=rf_entity_death_entry_sp(&state,falling);
+    owner->view.flags_810=owner->damage.effects.flags_810=state.flags_810;owner->body.state.flags=state.flags_1a8;
+    memcpy(owner->command_714,state.vector_714,12);
+    memcpy(owner->body.state.velocity,state.vector_144,12);memcpy(owner->body.state.vector_c8,state.vector_150,12);
+    return RF_OK;
+}
+
 typedef struct campaign_death_tail_context {
     campaign_npc_body *owner;rf_entity_death_tail_state state;
     const rf_entity_death_tail_backend *resources;

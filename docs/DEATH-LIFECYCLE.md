@@ -3768,3 +3768,37 @@ Live entry still needs command714 storage/initialization ownership and
 body-field publication. Collision teardown, timers, death scheduling and
 corpse creation remain integration work; this predicate adds no allocator
 or replacement lifecycle.
+
+
+Registered NPC death-entry binding - 2026-09-12
+
+Original422eaf loads actor+714 into ECX and422ed3 calls4fad00, explicitly
+zeroing the three command words during creation. campaign_npc_body now
+retains command_714[3], zeroed by its existing calloc. The twelve added bytes
+per actor are included in sizeof-based owner budgeting (936 bytes for78
+opening actors). AI/steering command production is still open.
+
+rf_scene_npc_death_entry resolves a registered handle, returns entered=0
+without any owner changes when already dying, and otherwise resolves the
+verified falling predicate from retained movement slot, class use-kind and
+support material. Embedded physics at actor88 maps bodybc/c8/120 to
+actor144/150/1a8: velocity, vector_c8 and body flags. Shared entry results
+publish to these fields, command714 and authoritative view.flags810, also
+mirroring flags into damage.effects. No allocation or later death callbacks
+are performed. Invalid handles/state preserve the owner and output.
+
+The registered-owner test covers192 mode/use/material/dying combinations,
+whole-owner preservation outside the intended writes, repeated calls, stale
+handles, null output, invalid movement slot and invalid class. All19 CTests
+and PC/NXDK builds pass. Native stock64MiB replay
+artifacts/xemu/replay-20260912-035803/report.json passes180 frames with the
+new retained allocation and the existing death-animation/sound fixture.
+That replay does not call the new death-entry adapter; native entry-binding
+activation remains unverified. The original predicate/entry instruction
+comparison evidence is recorded in the preceding section.
+
+Do not call this alone as a full death handler:48c9f0 collision-pair
+retirement, global timers and downstream effects still need composition.
+The shared collision-pair retire helper exists, but a live campaign pair
+list owner has not yet been connected; an empty substitute is not evidence
+of original collision teardown.

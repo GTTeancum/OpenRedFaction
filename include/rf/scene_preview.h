@@ -66,6 +66,10 @@ int rf_scene_npc_damage_ai(uint32_t handle,uint32_t source);
  * mirrored into the damage view. Callback owners/registration remain alive.
  * This alone must not be used to dispatch a complete death. */
 int rf_scene_npc_death_tail(uint32_t handle,uint32_t name,const rf_entity_death_tail_backend *);
+/*41fdc0 entry on a registered NPC: command/velocity clearing and dying flags.
+ * Already-dying is a complete no-op with entered=0; errors preserve owners
+ * and entered. Does not dispatch collision teardown or later death stages. */
+int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered);
 /*503400 ->501cd0(kind2)->51c390 on the currently published model pose.
  * Zero exact non-looping weights without releasing references or removing
  * slots. Resolves actor or transferred-corpse ownership; no allocation. */
