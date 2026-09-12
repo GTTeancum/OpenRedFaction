@@ -5,6 +5,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+uint32_t rf_collision_model_query(const rf_collision_model_query_view *model,int32_t part,
+    const void *query,rf_collision_model_response_hit *hit,uint32_t reset,const rf_collision_model_query_backend *backend)
+{
+    if((reset&255u)==1u){hit->time=1;hit->part=0;}
+    if(model->kind==2)return backend->query(backend->context,RF_MODEL_QUERY_POSE,model->geometry,
+        model->pose_records+(model->pose_count-1u)*148u,-1,query,hit,reset);
+    if(model->kind==1)return backend->query(backend->context,part==-1?RF_MODEL_QUERY_ALL:RF_MODEL_QUERY_PART,
+        model->geometry,NULL,part,query,hit,reset);
+    return 0;
+}
+uint32_t rf_collision_model_query_all(const rf_collision_model_query_view *model,const void *query,
+    rf_collision_model_response_hit *hit,uint32_t reset,const rf_collision_model_query_backend *backend)
+{return rf_collision_model_query(model,-1,query,hit,reset,backend);}
+
 int rf_collision_contact_read(const rf_physics_body_state *body,
     const rf_collision_contact_extra *extra,rf_collision_actor_contact *result)
 {

@@ -449,6 +449,26 @@ typedef struct rf_collision_model_target {
 typedef struct rf_collision_model_response_hit {
     float time,point[3],normal[3];uint32_t part;
 } rf_collision_model_response_hit;
+typedef struct rf_collision_model_query_view {
+    uint32_t kind;const void *geometry;
+    const uint8_t *pose_records;uint32_t pose_count; /* Type2:148-byte records. */
+} rf_collision_model_query_view;
+enum rf_collision_model_query_operation {RF_MODEL_QUERY_ALL,RF_MODEL_QUERY_PART,RF_MODEL_QUERY_POSE};
+typedef struct rf_collision_model_query_backend {
+    uint32_t (*query)(void *,uint32_t,const void *,const void *,int32_t,const void *,rf_collision_model_response_hit *,uint32_t);
+    void *context;
+} rf_collision_model_query_backend;
+/* Original503120 dispatch with resolved model storage. Geometry callbacks
+ * implement54e000/54daa0/54e140; query is their opaque original input block.
+ * Type2 requires a nonempty valid148-byte pose array and ignores part.
+ * Reset only when lowbyte(reset)==1. Type3/unknown return0; type3 metadata
+ * reads with no observable result are omitted. Callback return is preserved.
+ * Valid stable/disjoint owners required; no geometry, allocation or lookup. */
+uint32_t rf_collision_model_query(const rf_collision_model_query_view *model,int32_t part,
+    const void *query,rf_collision_model_response_hit *hit,uint32_t reset,const rf_collision_model_query_backend *backend);
+/* Original5031f0: same dispatch with part=-1. */
+uint32_t rf_collision_model_query_all(const rf_collision_model_query_view *model,const void *query,
+    rf_collision_model_response_hit *hit,uint32_t reset,const rf_collision_model_query_backend *backend);
 typedef struct rf_collision_model_response_backend {
     const rf_collision_model_target *(*target)(void *,uint32_t);
     uint32_t (*query)(void *,uint32_t,const rf_collision_solid_response_query *,rf_collision_model_response_hit *);

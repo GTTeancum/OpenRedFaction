@@ -4573,3 +4573,22 @@ reset-before-callback, modified hit fields, untouched query/model/pose/part
 bytes and callee cleanup. Geometry and port dispatcher remain unimplemented;
 this audit avoids guessing their ABI or synthesizing type3 collisions.
 No source build or XEMU run was needed for this original-executable audit.
+
+## Shared model query dispatcher
+
+rf_collision_model_query/all reconstruct503120/5031f0 with a borrowed
+kind/geometry/pose-array view and explicit geometry backend. Type2 selects
+the last148-byte pose record; type1 routes whole-model or selected-part
+queries. Only lowbyte(reset)==1 initializes hit time/part. Type3/unknown
+return0, omitting original inert metadata reads and incidental upper EAX
+bits. Callback returns remain unchanged. The type2 callback part is-1 since
+the original ignores that argument; pose arrays must be valid and nonempty.
+
+verify_model_query_dispatch.py now also compares the PC probe and actual
+NXDK dispatcher against all4096 original cases. Callback operation/geometry
+identity/pose address/part/reset, reset-before-callback, query preservation,
+all32 hit bytes and result values match.2058 whole-model wrapper cases and
+1174 exact-low-byte resets are covered. Builds and all19 CTests pass.
+Report: artifacts/model-query-dispatch.json. Geometry callbacks still stand
+in for54e000/54daa0/54e140; no real model geometry, live dispatch or XEMU
+execution of this new dispatcher is claimed. No allocation is introduced.

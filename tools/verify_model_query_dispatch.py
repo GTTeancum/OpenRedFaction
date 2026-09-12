@@ -1,5 +1,5 @@
 """Audit original503120/5031f0 model dispatch, supplying only geometry callees."""
-import hashlib,json,random,struct,sys
+import hashlib,json,random,re,struct,subprocess,sys
 from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
@@ -24,6 +24,20 @@ def geometry(cpu,address,size,context):
     trace.append(observed);cpu.mem_write(hit,fixture);cpu.reg_write(UC_X86_REG_EAX,return_word)
     cpu.reg_write(UC_X86_REG_EIP,read(sp));cpu.reg_write(UC_X86_REG_ESP,sp+4+count*4)
 u.hook_add(UC_HOOK_CODE,geometry)
+xp=pefile.PE(str(root/'build/xbox/main.exe'));xd=xp.get_memory_mapped_image();xo=xp.OPTIONAL_HEADER.ImageBase
+x=Uc(UC_ARCH_X86,UC_MODE_32);x.mem_map(xo,(len(xd)+4095)//4096*4096);x.mem_write(xo,xd);x.mem_map(b,0x10000)
+mapping=(root/'build/xbox/main.map').read_text()
+symbol=lambda name:int(re.search(r'\s_'+name+r'\s+([0-9a-fA-F]+)',mapping)[1],16)
+entry=symbol('rf_collision_model_query');all_entry=symbol('rf_collision_model_query_all')
+poses=b+0x9000;backend=b+0xa000;callback=b+0xb000;native_trace=[];commands=[];answers=[]
+def native_geometry(cpu,address,size,context):
+    if address!=callback:return
+    sp=cpu.reg_read(UC_X86_REG_ESP);args=tuple(struct.unpack('<8I',cpu.mem_read(sp+4,32)))
+    assert args==expected_native_args,('native callback',args,expected_native_args)
+    assert bytes(cpu.mem_read(hit,32))==expected_input
+    native_trace.append(args);cpu.mem_write(hit,fixture);cpu.reg_write(UC_X86_REG_EAX,return_word)
+    cpu.reg_write(UC_X86_REG_EIP,struct.unpack('<I',cpu.mem_read(sp,4))[0]);cpu.reg_write(UC_X86_REG_ESP,sp+4)
+x.hook_add(UC_HOOK_CODE,native_geometry)
 rng=random.Random(0x503120);calls={hex(a):0 for a in (0x54e140,0x54e000,0x54daa0)};resets=0;rejections=0;wrappers=0
 for case in range(4096):
     kind=(0,1,2,3,4,0xffffffff)[case%6];reset=(0,1,0x100,0x101,2,255,0xffffffff)[case//6%7]
@@ -57,6 +71,29 @@ for case in range(4096):
     assert bytes(u.mem_read(model,0x6800))==before,'model, pose, parts or query mutated'
     assert bytes(u.mem_read(query,84))==query_data
     wrappers+=wrapper
+    commands.append(w(kind,part,pose_count,reset,return_word,int(wrapper))+query_data+seed+fixture)
+    expected_native_args=None;call_trace=bytes(56)
+    if expected_call:
+        op=2 if kind==2 else (0 if part==-1 else 1)
+        selected=pose_count-1 if kind==2 else 0xffffffff
+        forwarded_part=-1 if kind==2 else part
+        expected_native_args=(0,op,primary,poses+selected*148 if kind==2 else 0,forwarded_part&0xffffffff,query,hit,reset)
+        call_trace=w(1,op,selected,forwarded_part,reset,1)+expected_input
+    want=w(return_word if expected_call else 0)+call_trace+(fixture if expected_call else expected_input)
+    answers.append(want)
+    x.mem_write(model,w(kind,primary,poses,pose_count));x.mem_write(poses,b'\xa5'*(4*148))
+    x.mem_write(backend,w(callback,0));x.mem_write(query,query_data);x.mem_write(hit,seed)
+    native_trace.clear();args=(model,query,hit,reset,backend) if wrapper else (model,part,query,hit,reset,backend)
+    x.mem_write(stack,w(stop,*args));x.reg_write(UC_X86_REG_ESP,stack)
+    x.emu_start(all_entry if wrapper else entry,stop,count=10000)
+    assert x.reg_read(UC_X86_REG_EIP)==stop and x.reg_read(UC_X86_REG_ESP)==stack+4
+    assert native_trace==([expected_native_args] if expected_call else [])
+    assert x.reg_read(UC_X86_REG_EAX)==(return_word if expected_call else 0)
+    assert bytes(x.mem_read(hit,32))==want[-32:]
+    assert bytes(x.mem_read(query,84))==query_data and bytes(x.mem_read(poses,4*148))==b'\xa5'*(4*148)
+    assert bytes(x.mem_read(model,16))==w(kind,primary,poses,pose_count)
+actual=subprocess.check_output([str(root/'build/pc/Release/rf_physics_probe.exe'),'--model-query-dispatch'],input=b''.join(commands))
+assert actual==b''.join(answers),'PC dispatch mismatch' 
 report=dict(result='PASS',cases=4096,wrapper_cases=wrappers,reset_cases=resets,rejections=rejections,geometry_calls=calls,original_sha256=sha,
-    scope='Original503120 and5031f0, only geometry54e000/54daa0/54e140 supplied. Callee ECX/stack ABI, final-pose selection, part forwarding, full callback return, low-byte rejection, reset-before-callback, untouched model/pose/part/query bytes and hit fields verified. Type3 intentionally returns no hit after reading part metadata. No geometry implementation or PC/NXDK dispatcher is claimed.')
+    scope='Original503120 and5031f0, only geometry54e000/54daa0/54e140 supplied. Callee ECX/stack ABI, final-pose selection, part forwarding, full callback return, low-byte rejection, reset-before-callback, untouched model/pose/part/query bytes and hit fields verified. Type3 intentionally returns no hit after reading part metadata. Shared PC/NXDK callback arguments, pose selection, returns and all hit bytes match; type3 inert metadata reads are omitted. No geometry implementation or XEMU integration is claimed.')
 (root/'artifacts/model-query-dispatch.json').write_text(json.dumps(report,indent=2));print(report)

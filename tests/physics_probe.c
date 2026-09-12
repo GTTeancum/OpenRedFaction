@@ -7,6 +7,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+#include "model_query_dispatch_probe.h"
 typedef struct force_observation {uint32_t count;float velocity[3];uint32_t flags;float cap;uint32_t selected;} force_observation;
 static void observe_force(void *context,const rf_player_force_state *state,const float position[3],uint32_t slot)
 {
@@ -41,6 +42,9 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-query-dispatch")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return model_query_dispatch_probe();
+    }
     if(argc==2 && !strcmp(argv[1],"--contact-storage")) {
         struct {rf_physics_body_state body;rf_collision_contact_extra extra;rf_collision_actor_contact source;} input;
         rf_collision_actor_contact gathered;
