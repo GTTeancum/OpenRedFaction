@@ -1,4 +1,26 @@
 #include "rf/glare.h"
+typedef struct glare_occluder_fixture {uint32_t calls,value,error;rf_collision_solid_response_query query;} glare_occluder_fixture;
+static int glare_occluder_model(void *context,const rf_collision_visibility_object *object,rf_collision_model_part_query *query,
+    rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted)
+{
+    glare_occluder_fixture *c=context;(void)object;(void)hit;if(reset!=1)return RF_RANGE;
+    ++c->calls;c->query=query->input;if(c->error)return RF_IO;*accepted=c->value;return RF_OK;
+}
+static int glare_occluder_probe(void)
+{
+    rf_collision_visibility_object object;uint32_t input[5],blocked;float positions[6];rf_glare_base_owner glare={0};
+    glare_occluder_fixture c;rf_collision_visibility_backend backend={glare_occluder_model,NULL,&c};int status;
+    _Static_assert(sizeof(object)==88,"occluder wire");
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(&object,sizeof(object),1,stdin)==1) {
+        if(fread(input,4,5,stdin)!=5 || fread(positions,4,6,stdin)!=6)return 2;
+        memset(&c,0,sizeof(c));memset(&c.query,0xa5,sizeof(c.query));c.value=input[3];c.error=input[4];blocked=0xa5a5a5a5;
+        glare.parent_handle=input[2];memcpy(glare.position,positions,12);
+        status=rf_glare_occluder_test(&object,input[0],input[1],&glare,positions+3,&backend,&blocked);
+        fwrite(&status,4,1,stdout);fwrite(&blocked,4,1,stdout);fwrite(&c.calls,4,1,stdout);fwrite(&c.query,sizeof(c.query),1,stdout);
+    }
+    return 0;
+}
 static int glare_collect_probe(void)
 {
     uint32_t input[12],count,accepted=0xa5a5a5a5;rf_glare_base_owner owner={0};rf_visibility_frustum frustum;

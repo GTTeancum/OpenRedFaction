@@ -28,7 +28,7 @@ int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
     memcpy(descriptor.matrix,pose,36);memcpy(descriptor.position,pose+9,12);
     status=backend->allocate(backend->context,&descriptor,&state);if(status)return status;
     *out=state;if(!state)return RF_OK;
-    state->definition=definition->definition;state->class_index=index;state->timer=-1;
+    state->definition=definition->definition;state->class_index=index;state->occluder=-1;
     memset(state->samples,0,sizeof(state->samples));state->word_2cc=0;
     state->parent=parent;state->tag=tag;state->flags=(flag&255u)?2:0;state->active=1;
     rf_object_list_append(list,&state->link);
@@ -317,6 +317,26 @@ uint32_t rf_clutter_material_index(const char *name)
     uint32_t i;if(!name)return 0;
     for(i=0;i<10;++i)if(clutter_skin_name_equal(names[i],name))return i;
     return 0;
+}
+int rf_glare_occluder_test(const rf_collision_visibility_object *candidate,
+    uint32_t candidate_handle,uint32_t excluded,const rf_glare_base_owner *glare,
+    const float camera[3],const rf_collision_visibility_backend *backend,uint32_t *blocked)
+{
+    rf_collision_model_part_query query={0};rf_collision_model_response_hit hit={0};float point[3];
+    uint32_t accepted,i;int status;
+    if(!candidate || !glare || !camera || !backend || !backend->model || !blocked)return RF_RANGE;
+    if(!(candidate->flags&0x10) || !candidate->model || candidate->token==excluded || candidate_handle==glare->parent_handle){*blocked=0;return RF_OK;}
+    status=rf_collision_segment_box(candidate->minimum,candidate->maximum,glare->position,camera,point,&accepted);if(status)return status;
+    if(!accepted){*blocked=0;return RF_OK;}
+    memcpy(query.input.origin,candidate->position,12);memcpy(query.input.matrix,candidate->matrix,36);
+    memcpy(query.input.start,camera,12);query.input.flags=1;
+    for(i=0;i<3;++i) {
+        if(!isfinite(candidate->position[i]))return RF_FORMAT;
+        query.input.displacement[i]=glare->position[i]-camera[i];if(!isfinite(query.input.displacement[i]))return RF_FORMAT;
+    }
+    for(i=0;i<9;++i)if(!isfinite(candidate->matrix[i]))return RF_FORMAT;
+    status=backend->model(backend->context,candidate,&query,&hit,1,&accepted);if(status)return status;
+    *blocked=!!(accepted&255);return RF_OK;
 }
 int rf_glare_collect(rf_glare_base_owner *owner,uint32_t room,uint32_t current_room,
     int32_t volume,uint32_t callback,const rf_visibility_frustum *frustum,

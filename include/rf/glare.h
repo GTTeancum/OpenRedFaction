@@ -29,7 +29,7 @@ int rf_glare_classes_open(rf_vpp *tables,uint32_t budget,rf_glare_classes *owner
 void rf_glare_classes_close(rf_glare_classes *owner);
 typedef struct rf_glare_state {
     uint32_t parent;int32_t tag;uint8_t active,reserved[3];
-    int32_t timer;float samples[6];const void *definition;int32_t class_index;
+    int32_t occluder;float samples[6];const void *definition;int32_t class_index;
     uint32_t flags;rf_object_link link;float last_position[3];uint32_t word_2cc;
     uint8_t byte_2d0,padding[3];float vectors[2][3];
 } rf_glare_state;
@@ -118,4 +118,13 @@ int rf_glare_collect(rf_glare_base_owner *owner,uint32_t room,uint32_t current_r
     int32_t volume,uint32_t callback,const rf_visibility_frustum *frustum,
     const float cull_position[3],rf_render_queue_record *records,uint32_t capacity,
     uint32_t *count,uint32_t *accepted);
+/*415280 candidate occlusion: require flag0x10/model, exclude the selected
+ * object token and glare's parent handle; box-test glare->camera, then query
+ * model camera->glare with flags1/reset1. Successful low-byte hit normalizes
+ * to0/1. Uses only backend.model. Errors preserve blocked; candidate/glare
+ * geometry is borrowed. Full world/actor search and cached-handle update
+ * in414e00 are separate. */
+int rf_glare_occluder_test(const rf_collision_visibility_object *candidate,
+    uint32_t candidate_handle,uint32_t excluded,const rf_glare_base_owner *glare,
+    const float camera[3],const rf_collision_visibility_backend *backend,uint32_t *blocked);
 #endif

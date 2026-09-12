@@ -7632,3 +7632,31 @@ this oracle. The original collector does not draw callback geometry here.
 Both builds,197 draw-pass checks and21 CTests pass. Next bind collection to
 live room scheduling and recover414860 corona geometry/occlusion,4141a0
 volume drawing and4155a0 reflection behavior before visible integration.
+
+
+Glare candidate occlusion415280 (2026-09-12)
+------------------------------------------
+rf_glare_occluder_test composes actual shared segment-box and model query
+interfaces. Original415280 requires candidate flag0x10 and model80, skips
+the object pointer stored at5cb054 and the glare parent handle30, then
+tests candidate AABB190/19c against glare3c -> camera using508b70. On a
+box hit it constructs a model query with candidate position3c/basis48,
+camera start, glare-minus-camera displacement, radius0, flags1 and reset1.
+The5031f0 return low byte determines the normalized blocking result.
+The excluded object's identity remains a caller input, not a guessed role.
+
+Original414e00 first resolves glare290 as an object handle through40a0e0
+and retests it with415280; a stale/nonblocking cache is reset to -1. The
+shared state field previously called timer is therefore renamed occluder
+without changing layout or constructor bytes. Full414e00 traversal/cache
+publication is still unreconstructed. Original28d caches visibility, and
+414860 refreshes on alternating handle/frame parity; neither is live yet.
+
+verify_glare_occluder.py passes420 PC/compiled NXDK cases:408 execute full
+original415280 with actual box/vector/query constructors and only5031f0
+supplied, plus12 callback-error cases. Checks all80 query input bytes,
+filters, tangency/misses/degenerate segments, low-byte return semantics and
+unchanged candidate/glare owners;157 model calls total. Port errors preserve
+blocked. This does not prove model collision or complete world visibility
+by itself. Both builds,72 constructor checks,197 pass checks,336 collector
+checks and21 CTests pass. No native replay or new visual is claimed here.
