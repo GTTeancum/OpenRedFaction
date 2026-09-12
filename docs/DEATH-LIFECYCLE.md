@@ -5035,3 +5035,29 @@ independently clipped endpoints, input guards and miss preservation are
 covered. Report: artifacts/model-posed-triangle.json. PC/NXDK builds and
 all19 CTests pass. Pose/LOD traversal54e200 and preparation54e140 still
 need composition with retained skeletal owners and native XEMU evidence.
+
+
+## Prepared skeletal geometry traversal54e200
+
+rf_collision_model_pose_trace composes verified collision vertex deformation
+and posed triangle queries over borrowed batches/prepared matrices. Caller
+supplies scratch for the largest batch; no global vertex cache/allocation.
+Entry hit time forms one float-stored endpoint used for every batch and
+triangle. Deformation stops at first zero weight and uses byte/256. Batch
+bounds start at FLT_MAX minimum and positive FLT_MIN maximum. Original
+539530 uses if-minimum/else-if-maximum per axis, not independent updates.
+A vertex lowering minimum skips maximum; in descending data maximum can
+remain near zero and reject otherwise plausible contacts. This distinction
+was exposed by original comparison case2667 and preserved in the port.
+Expanded bounds gate ordered triangle calls; token is0, first-hit flag exits,
+and the input query remains unchanged. Valid indices/prepared matrices and
+adequate disjoint scratch are preconditions; loader/preparation are external.
+
+verify_model_pose_trace.py passes4096 original/PC/NXDK cases,671 hits,
+comparing all posed vertex bytes and complete hit output. Original54e200
+runs its actual geometry/vector callees; only51ba00 is replaced with a checked
+ABI prepared-matrix fixture. Cases use one batch and0..2 triangles, mixed
+weights/zero termination, identity and arbitrary dyadic matrices, radius,
+time limits and first-hit mode. Report: artifacts/model-pose-trace.json.
+PC/NXDK builds and all19 CTests pass. Multi-batch traversal, full51ba00/LOD
+composition,54e140 preparation and retained NPC/native XEMU remain open.

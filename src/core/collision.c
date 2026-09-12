@@ -1,6 +1,7 @@
 #include "rf/collision.h"
 #include "rf/physics.h"
 #include "rf/entity.h"
+#include "rf/model.h"
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
@@ -2277,6 +2278,30 @@ uint32_t rf_collision_model_parts_query(const int32_t *part_count,rf_collision_s
     }
     return changed;
 }
+uint32_t rf_collision_model_pose_trace(const rf_collision_model_skin_batch *batches,uint16_t batch_count,
+    const float (*matrices)[12],uint32_t bone_count,const rf_collision_model_part_query *query,
+    rf_collision_model_response_hit *hit,float (*scratch)[3])
+{
+    float end[3],minimum[3],maximum[3],point[3];uint32_t i,j,b,t,inside,changed=0;
+    for(i=0;i<3;++i){volatile float moved=query->local_displacement[i]*hit->time;end[i]=query->local_start[i]+moved;}
+    for(b=0;b<batch_count;++b) {
+        const rf_collision_model_skin_batch *batch=batches+b;
+        for(i=0;i<3;++i){minimum[i]=FLT_MAX;maximum[i]=FLT_MIN;}
+        for(j=0;j<batch->vertex_count;++j) {
+            (void)rf_model_collision_vertex(batch->positions[j],batch->links[j].weights,batch->links[j].bones,matrices,bone_count,scratch[j]);
+            for(i=0;i<3;++i){if(scratch[j][i]<minimum[i])minimum[i]=scratch[j][i];else if(scratch[j][i]>maximum[i])maximum[i]=scratch[j][i];}
+        }
+        for(i=0;i<3;++i){minimum[i]-=query->input.radius;maximum[i]+=query->input.radius;}
+        if(rf_collision_segment_box(minimum,maximum,query->local_start,end,point,&inside)!=RF_OK || !inside)continue;
+        for(t=0;t<batch->triangle_count;++t) {
+            float vertices[3][3];for(i=0;i<3;++i)memcpy(vertices[i],scratch[batch->triangles[t].indices[i]],12);
+            changed|=rf_collision_model_posed_triangle(vertices,query->local_start,query->local_displacement,end,query->input.radius,0,hit);
+            if(changed && (query->input.flags&1u))return 1;
+        }
+    }
+    return changed;
+}
+
 typedef struct model_trace_context {
     const rf_collision_model_part_view *parts;rf_collision_model_part_query *query;
 } model_trace_context;

@@ -547,6 +547,19 @@ uint32_t rf_collision_model_part_trace(const rf_collision_model_part_view *part,
  * Signed count<=0 still performs preparation/reset. Borrowed stable views. */
 uint32_t rf_collision_model_trace(const rf_collision_model_part_view *parts,const int32_t *count,
     rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset);
+typedef struct rf_collision_model_skin_links {uint8_t weights[4],bones[4];} rf_collision_model_skin_links;
+typedef struct rf_collision_model_skin_batch {
+    const float (*positions)[3];const rf_collision_model_skin_links *links;
+    const rf_collision_model_triangle_record *triangles;uint16_t vertex_count,triangle_count;
+} rf_collision_model_skin_batch;
+/* Geometry traversal54e200 after LOD selection and51ba00 matrix preparation.
+ * Scratch must hold the largest batch; valid active bone/triangle indices,
+ * stable disjoint owners and finite nonoverflowing geometry required.
+ * Uses entry hit time for the fixed broadphase endpoint, positive FLT_MIN
+ * maximum initialization, ordered batches/triangles and token0. No allocation. */
+uint32_t rf_collision_model_pose_trace(const rf_collision_model_skin_batch *batches,uint16_t batch_count,
+    const float (*matrices)[12],uint32_t bone_count,const rf_collision_model_part_query *query,
+    rf_collision_model_response_hit *hit,float (*scratch)[3]);
 typedef struct rf_collision_model_parts_backend {
     uint32_t (*part)(void *,int32_t,rf_collision_solid_response_query *,rf_collision_model_response_hit *,uint32_t);
     void *context;

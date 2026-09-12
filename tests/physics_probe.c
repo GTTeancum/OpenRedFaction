@@ -43,6 +43,17 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-pose-trace")) {
+        struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;float matrices[4][12],positions[6][3];rf_collision_model_skin_links links[6];rf_collision_model_triangle_record records[2];uint32_t count;} input;
+        uint32_t result;float scratch[6][3];_Static_assert(sizeof(input)==468,"pose trace wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_collision_model_skin_batch batch={input.positions,input.links,input.records,6,(uint16_t)input.count};
+            result=rf_collision_model_pose_trace(&batch,1,input.matrices,4,&input.query,&input.hit,scratch);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(&input.hit,32,1,stdout)!=1 || fwrite(scratch,72,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--model-posed-triangle")) {
         struct {float start[3],delta[3],end[3],vertices[3][3],radius;uint32_t token;rf_collision_model_response_hit hit;} input;
         uint32_t result;_Static_assert(sizeof(input)==112,"posed triangle wire");
