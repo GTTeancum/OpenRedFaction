@@ -24,6 +24,7 @@ extern rf_physics_body scene_actor_body;
 extern rf_startup_events_report rf_scene_startup_events;
 extern uint32_t rf_scene_startup_gravity[4];
 extern uint32_t rf_scene_switch_state[3],rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
+extern uint32_t rf_scene_npc_models[4];
 extern uint32_t rf_scene_npc_startup[4],rf_scene_npc_geometry[7],rf_scene_npc_materials[8],rf_scene_npc_draw[5],rf_scene_npc_draw_detail[6],rf_scene_npc_playback[7],rf_scene_npc_gate[4],rf_scene_npc_bodies[6],rf_scene_npc_registration[6],rf_scene_npc_support[12],rf_scene_npc_support_first_miss[16],rf_scene_npc_support_deep[8],rf_scene_npc_support_deep_first[20];
 extern uint32_t rf_scene_npc_damage_owners[3];
 extern uint32_t rf_scene_npc_pain_owners[4];
@@ -289,6 +290,7 @@ int main(int argc,char **argv)
              memcpy(words+9,rf_scene_startup_gravity,16);printf("CAMPAIGN_STARTUP");
              for(k=0;k<13;++k)printf(" %u",words[k]);puts("");}
             printf("CAMPAIGN_MEMBERSHIPS %u %u %u %u %u\n",rf_scene_campaign_memberships[0],rf_scene_campaign_memberships[1],rf_scene_campaign_memberships[2],rf_scene_campaign_memberships[3],rf_scene_campaign_memberships[4]);
+            printf("NPC_MODELS %u %u %u %u\n",rf_scene_npc_models[0],rf_scene_npc_models[1],rf_scene_npc_models[2],rf_scene_npc_models[3]);
             printf("NPC_BODIES %u %u %u %u %u %u\n",rf_scene_npc_bodies[0],rf_scene_npc_bodies[1],rf_scene_npc_bodies[2],rf_scene_npc_bodies[3],rf_scene_npc_bodies[4],rf_scene_npc_bodies[5]);
             printf("NPC_SUPPORT_PROBE");for(uint32_t k=0;k<12;++k)printf(" %u",rf_scene_npc_support[k]);puts("");
             printf("NPC_SUPPORT_FIRST_MISS");for(uint32_t k=0;k<16;++k)printf(" %u",rf_scene_npc_support_first_miss[k]);puts("");

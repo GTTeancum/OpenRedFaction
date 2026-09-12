@@ -1541,3 +1541,28 @@ comparison. Both builds and all18 CTests pass. Xbox SHA256:
 Report: artifacts/skeletal-registration-verification.json. Shared register and
 retire operations are now available; live registry population, pose transfer
 and material/resource lifecycle integration remain open.
+
+
+## Live campaign skeletal registry
+
+Campaign startup now publishes each loaded NPC pose after initial playback is
+initialized. Registration storage is separate from NPC physics owners, with
+one20-byte entry per authored pose slot on PC32/Xbox and a32KiB allocation
+limit. Each entry borrows the pose and its active motion list. Level teardown
+retires registrations before releasing physics, pose caches and shared playback
+resources. Retirement drains motion references; the subsequent pose release
+resets cache stamps with an empty active list. Partial startup also retires
+already-published entries. NPC_MODELS reports published, peak allocated bytes,
+retired and errors, retaining cleanup results after the table is freed.
+
+python tools/verify_campaign_model_registry.py passes the L1S1/L1S2/L1S3 PC
+replays:78/38/25 loaded owners publish and retire with zero errors, using
+1560/780/560 bytes for78/39/28 authored slots. All18 CTests pass.
+Report: artifacts/campaign-model-registry/report.json. The registry currently
+borrows level poses; corpse transfer, render/room lookup redirection and model
+material lifetime integration remain open. This is not live death completion.
+
+Native XEMU replay-20260911-214300 passes180 frames with stock67108864-byte
+RAM, door/damage/audio fixtures and direct guest-memory NPC_MODELS comparison:
+[78,1560,78,0], matching PC. Existing body, animation, damage and audio checks
+also pass. The harness now checks registry lifecycle on campaign replays.
