@@ -12,7 +12,7 @@ p=pefile.PE(str(exe));im=p.get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32
 b=0x30000000;u.mem_map(b,0x20000);params=b;source=b+0x2000;stack=b+0xe000;stop=b+0xf000;pool=0x708748;actor=b+0x4000
 read=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
 def put(a,v):u.mem_write(a,w(v))
-allocations=[];trace=[];fail_object=False
+allocations=[];trace=[];fail_object=False;fail_model=False;freed=[]
 model=b+0x18000;parent=b+0x19000
 
 def hook(cpu,address,size,data):
@@ -24,12 +24,14 @@ def hook(cpu,address,size,data):
   if n==728 and fail_object:
    cpu.reg_write(UC_X86_REG_EAX,0);cpu.reg_write(UC_X86_REG_ESP,sp+4);cpu.reg_write(UC_X86_REG_EIP,read(sp));return
   allocations.append((result,n));cpu.mem_write(result,bytes([0xa5])*n)
- elif address==0x57360e:assert arg(0) in [a for a,n in allocations]
+ elif address==0x57360e:
+  assert arg(0) in [a for a,n in allocations] and arg(0) not in freed;freed.append(arg(0))
+  cpu.mem_write(arg(0),bytes([0xdd])*next(n for a,n in allocations if a==arg(0)))
  elif address==0x4ffa80:pop=4
  elif address==0x40a0e0:result=parent if has_parent else 0
  elif address==0x489fe0:
   assert arg(0)==actor and arg(1)==source+0x800 and arg(2)==kind
-  put(actor+0x80,model);put(actor+0x84,0xffffffff);cpu.mem_write(actor+0x78,f(model_radius));result=model
+  put(actor+0x80,0 if fail_model else model);put(actor+0x84,0xffffffff);cpu.mem_write(actor+0x78,f(model_radius));result=0 if fail_model else model
  elif address==0x503250:
   assert arg(0)==model;result=0
  cpu.reg_write(UC_X86_REG_EAX,result);cpu.reg_write(UC_X86_REG_ESP,sp+4+pop);cpu.reg_write(UC_X86_REG_EIP,read(sp))
@@ -54,7 +56,7 @@ for case in range(256):
  descriptor[60:108]=f(*position,*basis);descriptor[132:136]=f(radius)
  descriptor[136:148]=w(count,count,source if count else 0);descriptor[148:152]=w(0x20)
  u.mem_write(params,bytes(descriptor));u.mem_write(source,b''.join(f(j,0,0,.5,-1)+w(j+7) for j in range(count)) or bytes(24));u.mem_write(source+0x800,b'model.v3m\0')
- u.mem_write(0x649f50,f(.25,.5,2));allocations.clear();trace.clear()
+ u.mem_write(0x649f50,f(.25,.5,2));allocations.clear();trace.clear();freed.clear()
  room=case%3
  assert call(0x486da0,(4,0xffffffff,123,params,allocation_flags,room))==actor
  assert allocations[0]==(actor,728) and len(allocations)==1+(0 if allocation_flags&0x10000 else 1+int(count==0)),allocations
@@ -79,9 +81,30 @@ for empty in (False,True):
  put(0x7394c0,0x7394c0 if empty else node);put(0x7394c4,0x7394c0 if empty else node)
  u.mem_write(node,w(0x7394c0,0x7394c0,slot));put(0x7394cc+slot*4,0)
  put(0x73d890,0x73d880);put(0x73d894,0x73d880);put(0x73a850,0);put(0x708744,123)
- fail_object=not empty;allocations.clear();trace.clear()
+ fail_object=not empty;allocations.clear();trace.clear();freed.clear()
  assert call(0x486da0,(4,0xffffffff,123,params,0,1))==0
  assert read(0x7394cc+slot*4)==0 and read(0x708744)==123 and read(0x73a850)==0 and read(0x73d894)==0x73d880
  assert not allocations and trace==([] if empty else [0x573619]),trace
-report=dict(result='PASS',cases=256,early_failure_cases=2,original_sha256=digest,examples=examples,scope='Full original486da0 type4 including real487100/411ac0 constructors, registry/list publication,49ec90/49f010 physics and48a160 room binding. Supplied heap, string assignment, parent lookup, model attach result/radius and zero model sphere count. Existing descriptor spheres execute; model sphere extraction, model resource loading, model-failure rollback and native Xbox remain unverified. Empty registry and object heap failure preserve registration state.')
+# Model failure executes actual4867b0/48b390/40e200 rollback after publication.
+fail_object=False;fail_model=True
+for case in range(64):
+ slot=case;node=0x73a880+slot*12;other=0x73a880+(slot+1)*12
+ extra=case%2;previous=b+0x3000 if case%4>=2 else 0x73d880;old_count=int(previous!=0x73d880)
+ put(0x73d890,previous);put(0x73d894,previous);put(previous+0x10,0x73d880);put(previous+0x14,0x73d880);put(0x73a850,old_count)
+ put(0x7394c0,node);put(0x7394c4,other if extra else node)
+ u.mem_write(node,w(other if extra else 0x7394c0,0x7394c0,slot))
+ if extra:u.mem_write(other,w(0x7394c0,node,slot+1))
+ put(0x7394cc+slot*4,0);generation=0x752e if case%7==0 else case+1;put(0x708744,generation)
+ put(0x59f7e4,0xffffffff);allocations.clear();trace.clear();freed.clear()
+ assert call(0x486da0,(4,0xffffffff,123,params,0,1))==0
+ assert allocations==[(actor,728)] and freed==[actor],(allocations,freed)
+ assert read(0x7394cc+slot*4)==0 and read(0x73a850)==old_count
+ assert read(0x73d894)==previous and read(previous+0x10)==0x73d880
+ assert read(0x708744)==(1 if generation==0x752e else generation+1)
+ assert read(0x59f7e4)==0xfffffffe
+ assert read(0x7394c0)==(other if extra else node) and read(0x7394c4)==node
+ assert read(node)==0x7394c0 and read(node+4)==(other if extra else 0x7394c0)
+ if extra:assert read(other)==node and read(other+4)==0x7394c0
+ assert trace.index(0x489fe0)<trace.index(0x57360e) and 0x503250 not in trace
+report=dict(result='PASS',cases=256,early_failure_cases=2,model_failure_cases=64,original_sha256=digest,examples=examples,scope='Full original486da0 type4 including real487100/411ac0 constructors, registry/list publication,49ec90/49f010 physics and48a160 room binding. Supplied heap, string assignment, parent lookup, model attach result/radius and zero model sphere count. Existing descriptor spheres execute; model sphere extraction, model resource loading, native Xbox remain unverified. Actual4867b0/48b390/40e200 model-failure rollback verified with0/1 remaining free slots, prior list members and generation wrap. Empty registry and object heap failure preserve registration state.')
 (root/'artifacts/clutter-base-original.json').write_text(json.dumps(report,indent=2));print(report)

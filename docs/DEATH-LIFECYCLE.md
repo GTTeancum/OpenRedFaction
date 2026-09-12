@@ -6978,3 +6978,12 @@ All256 successful cases pass across supplied kinds1/3, radius -1/0/.5/2,0/1/2/4 
 The successful heap traces contain the728-byte object plus one384-byte physics sphere allocation when physics20 is enabled; an initially empty sphere descriptor adds another384-byte allocation while preparing its default sphere. With10000 set, neither sphere allocation occurs. These are observed allocation requests, not proof of full lifetime cleanup or a proposed port memory layout. Model attachment is still supplied, and model failure rollback, real extracted model spheres and room search remain open.
 
 Evidence: artifacts/clutter-base-original.json; original executable SHA256 b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836. No production C change or new native XEMU claim in this audit. The shared generic owner must preserve this publication/radius/physics behavior while providing actual model ownership and rollback.
+
+
+## Original type4 failed-model rollback (2026-09-12)
+
+The clutter base harness now also executes real4867b0,48b390 and40e200 after supplied489fe0 reports model failure. All64 cases pass with zero/one remaining free slot, zero/one pre-existing global-list member and generation wrap. The only successful allocation is the728-byte object; its destructor frees it exactly once. Freed memory is poisoned. No physics sphere allocation or model sphere query occurs after failed attachment.
+
+Rollback removes the newly published global-list node and decrements its count, destroys the object, clears the registry object pointer and appends the released slot to the FIFO free queue. It does not restore the consumed generation or generated object ID: generation advances (wrapping752e to1), and59f7e4 decrements even though the factory returns null. By contrast, the previously verified empty-registry/object-heap early failures never publish registration. Shared generic creation must distinguish these stages rather than treating every failure as an unchanged registry.
+
+Evidence: tools/verify_clutter_base_original.py and artifacts/clutter-base-original.json (256 successful,2 early failure,64 model failure cases). Model attachment itself remains a supplied boundary; this is not model-loader implementation or native Xbox validation.
