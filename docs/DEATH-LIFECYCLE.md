@@ -8000,3 +8000,25 @@ workspace-capacity guard pass. PC and NXDK builds and21 CTests pass.
 This adapter is not yet bound to live scene collision callbacks. Next resolve
 runtime texture selection and carry the alpha service through preferred,
 room/tree and flat traversal, retaining source-face IDs and mover-local UVs.
+
+
+USERBMAP original owner/load audit (2026-09-12)
+--------------------------------------------
+verify_user_bitmap_original.py executes full50fbf0 including original string
+helpers: USERBMAP is case-insensitive type3, while USERBMAP.tga is ordinary
+TGA type2. Full5119c0 with only descriptor allocation supplied initializes
+name USERBMAP, type3, dimensions truncated to16 bits, one mip, format, size
+and null resource fields; it does not allocate or fill pixels. All108 owner
+bytes match50 cases including preserved allocator bytes and wide dimensions.
+Original50eb50 and50f2b0 execute as part of these cases.
+
+Full50f6e0 ordinary loading, with cache miss and fallback supplied, dispatches
+three USERBMAP case variants to510470 and returns its handle. Classification
+and50fcb0 metadata dispatch execute unmodified. This corrects the earlier
+ambiguity: retained NOT_FOUND is an explicit incomplete port behavior, not
+original loader parity. Static inspection of510470 shows a32x32 format6
+constructor call, renderer lock50e2e0 and55dd20 fill from global17e2794, then
+release. The fallback renderer/pixels and later runtime face replacement
+are not verified by this harness. Reconstruct those before substituting a
+texture for the116 opening faces; do not infer that every USERBMAP reference
+is necessarily the same live runtime bitmap.
