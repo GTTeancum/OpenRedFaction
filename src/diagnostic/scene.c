@@ -1176,6 +1176,11 @@ static rf_clutter_catalogs campaign_clutter_catalogs;
 static rf_clutter_classes campaign_clutter_classes;
 static rf_glare_classes campaign_glare_classes;
 static rf_glare_materials campaign_glare_materials;
+static rf_glare_base_owner **campaign_glare_instances;
+static uint32_t campaign_glare_instance_count,campaign_glare_instance_capacity;
+static rf_object_list campaign_glare_list;
+uint32_t rf_scene_glare_instances[10]; /* parents, tag queries, requests, created, skin changes, retained, peak, hash, retired, errors */
+static int campaign_glare_instances_close(void);
 uint32_t rf_scene_glare_resources[9]; /* classes, textures, frames, retained, peak, definitions hash, mapping/header hash, pixel bytes, pixel hash */
 static rf_level_owned_clutter campaign_clutter_records;
 uint32_t rf_scene_clutter[8]; /* classes, records, unmatched, class bytes, record bytes, retained, load peak, hash */
@@ -1866,6 +1871,7 @@ static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes)
 static int campaign_clutter_bodies_close(void)
 {
     uint32_t i;int status;
+    status=campaign_glare_instances_close();if(status)return status;
     if(campaign_clutter_bodies)for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i]) {
         status=rf_clutter_shared_static_base_close(campaign_clutter_shared+campaign_clutter_model_slots[i],
             campaign_clutter_bodies+i,&campaign_registry,&campaign_clutter_objects);
@@ -1900,6 +1906,107 @@ int rf_scene_clutter_tag_place(uint32_t handle,int32_t index,float transform[12]
     status=campaign_clutter_registered(handle,&i,&model);if(status)return status;
     return rf_static_model_tag_place(&campaign_clutter_models[model].tags,index,
         campaign_clutter_bodies[i]->matrix,campaign_clutter_bodies[i]->state.position,transform);
+}
+static int campaign_glare_instances_close(void)
+{
+    uint32_t i;int status;
+    for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
+        uint32_t handle=campaign_glare_instances[i]->handle;
+        status=rf_glare_owned_close(campaign_glare_instances+i,&campaign_registry,&campaign_clutter_objects,&campaign_glare_list);
+        if(status || rf_object_registry_lookup(&campaign_registry,handle)){++rf_scene_glare_instances[9];return status?status:RF_FORMAT;}
+        ++rf_scene_glare_instances[8];
+    }
+    if(campaign_glare_list.count){++rf_scene_glare_instances[9];return RF_FORMAT;}
+    free(campaign_glare_instances);campaign_glare_instances=NULL;campaign_glare_instance_count=campaign_glare_instance_capacity=0;return RF_OK;
+}
+typedef struct campaign_glare_context {rf_clutter_base_owner *parent;uint32_t scratch;} campaign_glare_context;
+static int campaign_glare_pose(void *context,uint32_t parent,int32_t tag,float pose[12])
+{(void)context;return rf_scene_clutter_tag_place(parent,tag,pose);}
+static int campaign_glare_factory_call(void *context,rf_clutter_state *state,uint32_t op,
+    const rf_clutter_create_request *request,int32_t *result)
+{
+    campaign_glare_context *c=context;int status;
+    if(state!=&c->parent->state)return RF_RANGE;
+    if(op==RF_CLUTTER_TAG) {
+        rf_model_name name={request->text,strlen(request->text)};
+        if(request->values[0]!=state->model)return RF_FORMAT;
+        ++rf_scene_glare_instances[1];*result=-1;
+        status=rf_scene_clutter_tag_find(state->handle,name,result);return status==RF_NOT_FOUND?RF_OK:status;
+    }
+    if(op==RF_CLUTTER_GLARE) {
+        const rf_entity_material *m=campaign_surface_palette->materials;float coefficients[]={m->elasticity,m->friction,m->density};
+        rf_glare_services services={campaign_glare_pose,NULL};rf_glare_base_owner *owner=NULL;
+        if(request->values[0]!=state->handle || campaign_glare_instance_count>=campaign_glare_instance_capacity)return RF_RANGE;
+        ++rf_scene_glare_instances[2];
+        status=rf_glare_owned_open(campaign_glare_classes.items,campaign_glare_classes.count,(int32_t)request->values[2],
+            state->handle,(int32_t)request->values[1],request->values[3],&campaign_registry,&campaign_clutter_objects,&campaign_glare_list,
+            &campaign_clutter_uid_cursor,c->parent->parent_byte,c->parent->parent_group,coefficients,
+            256*1024-rf_scene_glare_instances[5]-c->scratch,&services,&owner);if(status)return status;
+        *result=0;if(!owner)return RF_OK;
+        campaign_glare_instances[campaign_glare_instance_count++]=owner;++rf_scene_glare_instances[3];
+        rf_scene_glare_instances[5]+=owner->allocated_bytes;
+        if(rf_scene_glare_instances[5]+c->scratch>rf_scene_glare_instances[6])rf_scene_glare_instances[6]=rf_scene_glare_instances[5]+c->scratch;
+        return RF_OK;
+    }
+    return RF_RANGE;
+}
+static int campaign_glare_instances_open(const char *tables_path)
+{
+    rf_vpp tables={0};rf_vpp_entry entry;void *text=NULL;rf_entity_assets *assets=NULL;int32_t *skins=NULL;
+    uint32_t i,j,k,before,present,scratch=0,appearances=rf_scene_clutter_skins[0];int status;char glare[64];
+    if(campaign_glare_instances || campaign_glare_instance_count || !campaign_surface_palette)return RF_RANGE;
+    memset(rf_scene_glare_instances,0,sizeof(rf_scene_glare_instances));rf_scene_glare_instances[7]=2166136261u;rf_object_list_init(&campaign_glare_list);
+    if(campaign_clutter_records.count>UINT32_MAX/4)return RF_RANGE;
+    campaign_glare_instance_capacity=campaign_clutter_records.count*4;
+    rf_scene_glare_instances[5]=sizeof(campaign_glare_list)+3*sizeof(uint32_t)+campaign_glare_instance_capacity*sizeof(*campaign_glare_instances);
+    if(rf_scene_glare_instances[5]>256*1024)return RF_RANGE;
+    if(campaign_glare_instance_capacity)campaign_glare_instances=calloc(campaign_glare_instance_capacity,sizeof(*campaign_glare_instances));
+    if(campaign_glare_instance_capacity && !campaign_glare_instances){status=RF_IO;goto done;}
+    status=rf_vpp_open(&tables,tables_path);if(status)goto done;
+    status=rf_vpp_find(&tables,"clutter.tbl",&entry);if(status)goto done;
+    if((uint64_t)entry.size+sizeof(*assets)+(uint64_t)appearances*4+rf_scene_glare_instances[5]>256*1024){status=RF_RANGE;goto done;}
+    scratch=entry.size+sizeof(*assets)+appearances*4;
+    rf_scene_glare_instances[6]=rf_scene_glare_instances[5]+scratch;
+    text=malloc(entry.size);assets=malloc(sizeof(*assets));skins=appearances?malloc(appearances*4):NULL;
+    if(!text || !assets || (appearances && !skins)){status=RF_IO;goto done;}
+    status=rf_vpp_read(&tables,&entry,0,text,entry.size);if(status)goto done;rf_vpp_close(&tables);
+    for(i=0;i<appearances;++i) {
+        const rf_level_clutter *record;skins[i]=-1;
+        for(j=0;j<campaign_clutter_records.count;++j)if(campaign_clutter_appearance_slots[j]==i)break;
+        if(j==campaign_clutter_records.count){status=RF_FORMAT;goto done;}record=campaign_clutter_records.items+j;
+        if(!*record->resource_name)continue;
+        status=rf_clutter_skin_assets_read(text,entry.size,record->class_name,record->resource_name,assets,glare,&present);
+        if(status==RF_NOT_FOUND){status=RF_OK;continue;}if(status)goto done;
+        if(present)skins[i]=rf_glare_name_lookup(campaign_clutter_catalogs.names.glares,campaign_clutter_catalogs.names.glare_count,glare);
+    }
+    free(text);text=NULL;free(assets);assets=NULL;scratch=appearances*4;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i]) {
+        rf_clutter_base_owner *parent=campaign_clutter_bodies[i];campaign_glare_context context={parent,scratch};
+        rf_clutter_create_backend backend={NULL,campaign_glare_factory_call,&context};int32_t skin;
+        for(j=0;j<campaign_clutter_classes.count;++j)if(rf_emitter_name_lookup(&campaign_clutter_classes.items[j].name,1,campaign_clutter_records.items[i].class_name)==0)break;
+        if(j==campaign_clutter_classes.count || campaign_clutter_appearance_slots[i]>=appearances){status=RF_FORMAT;goto done;}
+        before=campaign_glare_instance_count;++rf_scene_glare_instances[0];
+        status=rf_clutter_create_glares(campaign_clutter_classes.items+j,&parent->state,&backend);if(status)goto done;
+        skin=skins[campaign_clutter_appearance_slots[i]];
+        for(k=before;k<campaign_glare_instance_count;++k) {
+            rf_glare_base_owner *owner=campaign_glare_instances[k];uint32_t words[7];
+            if(owner->state.parent!=parent->state.handle || rf_object_registry_lookup(&campaign_registry,owner->handle)!=&owner->state){status=RF_FORMAT;goto done;}
+            /*4153e0/48ac00 change only class index/definition after creation;
+             * do not recompute base radius or pose for a skin override. */
+            if(skin>=0 && (uint32_t)skin<campaign_glare_classes.count) {
+                owner->state.class_index=skin;owner->state.definition=campaign_glare_classes.definitions+skin;++rf_scene_glare_instances[4];
+            }
+            words[0]=parent->uid;words[1]=(uint32_t)owner->state.tag;words[2]=(uint32_t)owner->state.class_index;
+            words[3]=owner->flags;words[4]=owner->state.flags;words[5]=owner->state.active;memcpy(words+6,&owner->radius,4);
+            rf_scene_glare_instances[7]=npc_hash_bytes(rf_scene_glare_instances[7],words,sizeof(words));
+            rf_scene_glare_instances[7]=npc_hash_bytes(rf_scene_glare_instances[7],owner->matrix,36);
+            rf_scene_glare_instances[7]=npc_hash_bytes(rf_scene_glare_instances[7],owner->position,12);
+        }
+    }
+    status=RF_OK;
+done:
+    rf_vpp_close(&tables);free(text);free(assets);free(skins);
+    if(status){++rf_scene_glare_instances[9];(void)campaign_glare_instances_close();}return status;
 }
 static int campaign_clutter_tags_probe(void)
 {
@@ -2645,6 +2752,7 @@ done:
 }
 static void campaign_close_movers(void)
 {
+    if(campaign_glare_instances_close())return;
     rf_glare_materials_close(&campaign_glare_materials);
     rf_glare_classes_close(&campaign_glare_classes);
     campaign_clutter_render_close();
@@ -6303,6 +6411,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_models_open();if(status)goto done;
             /* This diagnostic begins the simulation clock at zero. */
             status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
+            status=campaign_glare_instances_open(tables_path);if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;
             status=campaign_npc_damage_fixture();if(status)goto done;

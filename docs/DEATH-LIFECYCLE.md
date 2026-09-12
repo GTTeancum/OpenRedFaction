@@ -7538,3 +7538,40 @@ RunwayLight01_Larger/Yellowish selects WarmWedge01_NoVolume; its Blue skin
 selects CoolWedge01_NoVolume_Small. The existing opening appearance audit
 contains67 Yellowish placements. Preserve these after base glare creation
 when binding live instances. No native instance or rendered override claim.
+
+### Native authored prop glare instances
+
+Campaign now invokes rf_clutter_create_glares for every retained prop after
+registered parent/NPC storage exists. TAG resolves the registered parent model;
+GLARE composes rf_glare_owned_open with real registry/global-object/family
+lists, parent byte/group, material0 coefficients and registered tag world
+pose. At most four slots per authored prop are reserved. Successful instances
+retain actual type10 bodies and shared class pointers. This remains diagnostic
+creation order, not proof of full original global object load scheduling.
+
+Skin overrides are resolved once per appearance from the shared metadata
+reader and exact glare-name catalog. The table and metadata scratch are
+released before instance allocation. After each parent creates its glares,
+4153e0/48ac00 semantics change only matching child class index/definition;
+radius and initial pose remain as created from the base class. Missing skin
+or unresolved override leaves the base glare unchanged. Full prop class
+effects/flags/family/slot creation beyond this glare stage remain open.
+
+Shutdown retires every glare family/global-list link and registry handle
+before releasing shared resources and parent props. Partial failures release
+created owners. The scene checks registry identity at creation and stale
+handle rejection at retirement. No update, visibility, frame clock or draw
+submission for these glares yet.
+
+verify_clutter_scene_glares.py derives counts/cache selections/skin classes
+from authored records and verified metadata and executes original503220 and
+5034f0 on raw static attachments. Every instance UID/tag/class/flags/radius/
+world-pose hash matches the PC scene. Native stock64MiB XEMU
+replay20260912-175811 passes180 actor-pair frames with identical telemetry:
+[168,9,157,157,67,85644,171598,1729083959,157,0].
+Fields: parents,tag queries,requests,created,skin changes,retained,peak,hash,
+retired,errors. Peak includes transient skin metadata; retained85644 bytes
+includes slots/list/counters and157*528-byte owners. Native available pages
+7908, memory base67108864/plugged0; five control words0x27f. Existing replay
+checks and21 CTests pass; harness restored flags and completed its final
+build. No new screenshot because glare instances are not rendered yet.

@@ -290,6 +290,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert glare_reference['result']=='PASS' and glare_resources==expected('GLARE_RESOURCES')==glare_reference['expected'],glare_resources
      assert glare_resources[3]<=glare_resources[4]<=2*1024*1024,glare_resources
      report['glare_resources']=glare_resources
+     glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
+     assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
+     assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances
+     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+      glare_instance_reference=json.loads((root/'artifacts/clutter-scene-glares.json').read_text())
+      assert glare_instance_reference['result']=='PASS' and glare_instances==glare_instance_reference['expected'],glare_instances
+     report['glare_instances']=glare_instances
      clutter_tag_queries=words(monitor,symbol('rf_scene_clutter_tag_queries'),5)
      assert clutter_tag_queries==expected('CLUTTER_TAG_QUERIES') and clutter_tag_queries[4]==0,clutter_tag_queries
      if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
