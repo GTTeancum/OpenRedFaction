@@ -6271,3 +6271,41 @@ Ordered navigation query reconstruction (2026-09-12)
 rf_entity_navigation_select composes complete40c2c0 selection around verified candidate/single/pair geometry and an explicit visibility boundary. It first updates candidate35 rejection flags, then visits single candidates in order, then per-node ordered neighbor lists at original28 (NOT every global node pair). Pair traversal also preserves unsigned original node-address ordering via order_key. Direct hits return immediately, partial candidates keep strict lowest scores, and ties preserve the earlier winner. The original meaningful return is AL; adapted contained is normalized. Selection indexes use UINT32_MAX for null; a fallback node may be selected while contained remains0.
 Fallback chooses the least scored unblocked candidate, subject to625 squared-distance unless allow_far low byte is nonzero, then requests4991c0(candidate query0c,actor point,2.5,1,0,0,0). A zero visibility low byte returns that first node with contained0; blocked nodes get35=1 and selection repeats. Borrowed collections remain stable and the supplied visibility operation must not mutate them. Preflight checks reject invalid refs/neighbor indexes/missing visibility before mutation; later failures preserve already-applied candidate and selection effects. Neighbor references presently must index the supplied node collection.
 The first executable comparison exposed the missing per-node adjacency in the initial interpretation of raw Ghidra output; final code and fixtures use actual node28/30 lists. verify_navigation_select.py runs2048 complete original calls with unchanged geometry helpers, only4991c0 supplied, static box vectors preinitialized. PC/compiled NXDK match selections, low-byte return meaning,1600 ordered visibility calls and all candidate bytes. Outcomes:33 single,179 pair,774 fallback,1062 none. Fixtures include0..4 nodes, permuted address and adjacency order, disconnected graphs, linked pair-only cases and low-byte flags; three malformed preflight cases preserve outputs. Both builds and19 CTests pass. Native scene ownership, loading navigation records/adjacency, actual visibility and AI408ac0 remain open; no new XEMU run or live movement claimed.
+
+
+### Authored navigation loader463d50 audit (2026-09-12)
+
+`tools/inspect_navigation_records.py` reads the installed version180 navigation
+sections in place from VPP archives. All94 sections consume exactly245088 bytes:
+4752 nodes,74 oriented records,90 tag words and10526 directed connections.
+L1S1 contains333 nodes, one orientation, three tags and760 connections in17078
+bytes. No original assets or extracted records are tracked.
+
+`tools/verify_navigation_loader.py` executes original463d50 and the actual
+40e9e0 constructor, vector/matrix operations, array lookup and466220 duplicate
+filter. Boundaries supplied are version180 stream reads,124-byte allocations
+initialized with poison, and45ec40 array growth. Comparisons cover all124 node
+bytes plus four guard bytes, full ordered tag arrays, global insertion order,
+full ordered adjacency arrays, exact section consumption and stack restoration.
+All94 authored sections/4752 nodes pass. Additional empty and three-node cases
+exercise noncanonical boolean bytes, both orientation branches, duplicate tags,
+self/duplicate connections and out-of-range/negative connection indices.
+
+Records contain UID, discarded enabled byte, height, position, radius, node040
+word, orientation flag and optional36-byte matrix, three discarded boolean
+bytes, node024 float, and tag count/words. Adjacency follows all node records,
+with a byte count and32-bit indices per node. Original466220 removes duplicate
+neighbors preserving first occurrence; tags retain duplicates. Invalid signed
+indices are skipped. The installed authored connections need no such filtering.
+
+40e9e0 initializes array headers028 and070 and byte034 only. Vector and matrix
+constructors leave their storage untouched. Loader copies radius to018 and01c,
+height to020, the additional float to024, word040, orientation flag044, optional
+matrix048 and UID06c. Query scratch and unoriented matrix bytes remain poison
+in this audit; they must not be mistaken for authored zero initialization.
+
+This establishes original loader semantics for version180, not shared C runtime
+ownership, older formats, original filesystem/allocator behavior, navigation
+visibility4991c0, live AI408ac0, or native Xbox execution. Next implement shared
+owned node/tag/adjacency storage, retaining collection and original-relative
+node order for the verified40c2c0 query, then bind actual visibility and AI.
