@@ -119,6 +119,11 @@ extern uint32_t rf_scene_clutter_skins[6];
 extern uint32_t rf_scene_clutter_bodies[10];
 extern uint32_t rf_scene_clutter_collision[9];
 extern uint32_t rf_scene_clutter_tags[4];
+extern uint32_t rf_scene_clutter_tag_queries[5];
+/* Registered prop tag services; placement consumes current owned pose.
+ * Output preserved for missing/stale handle, missing tag or invalid geometry. */
+int rf_scene_clutter_tag_find(uint32_t handle,rf_model_name query,int32_t *index);
+int rf_scene_clutter_tag_place(uint32_t handle,int32_t index,float transform[12]);
 /* Registered static prop model query through5031f0/static geometry. Caller
  * supplies original query pose/flags and finite disjoint input; mutable local
  * scratch and hit follow the recovered query contract. No physics scheduling. */

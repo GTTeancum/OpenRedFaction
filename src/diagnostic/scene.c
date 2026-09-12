@@ -1873,6 +1873,54 @@ static int campaign_clutter_bodies_close(void)
     if(rf_scene_clutter_bodies[8]){++rf_scene_clutter_bodies[9];return RF_RANGE;}
     free(campaign_clutter_bodies);campaign_clutter_bodies=NULL;free(campaign_clutter_shared);campaign_clutter_shared=NULL;return RF_OK;
 }
+uint32_t rf_scene_clutter_tag_queries[5]; /* lookups, matches, poses, hash, errors */
+static int campaign_clutter_registered(uint32_t handle,uint32_t *slot,uint32_t *model)
+{
+    void *registered=rf_object_registry_lookup(&campaign_registry,handle);uint32_t i,m;
+    if(!registered)return RF_NOT_FOUND;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies && campaign_clutter_bodies[i] &&
+        registered==&campaign_clutter_bodies[i]->state && campaign_clutter_bodies[i]->state.handle==handle)break;
+    if(i==campaign_clutter_records.count)return RF_NOT_FOUND;
+    m=campaign_clutter_model_slots[i];if(m>=campaign_clutter_model_count)return RF_FORMAT;
+    if(campaign_clutter_bodies[i]->attachment.model!=(uint32_t)(uintptr_t)(campaign_clutter_shared+m))return RF_FORMAT;
+    *slot=i;*model=m;return RF_OK;
+}
+int rf_scene_clutter_tag_find(uint32_t handle,rf_model_name query,int32_t *index)
+{
+    uint32_t i,model;int status;if(!index)return RF_RANGE;
+    status=campaign_clutter_registered(handle,&i,&model);if(status)return status;
+    return rf_static_model_tags_find(&campaign_clutter_models[model].tags,query,index);
+}
+int rf_scene_clutter_tag_place(uint32_t handle,int32_t index,float transform[12])
+{
+    uint32_t i,model;int status;if(!transform)return RF_RANGE;
+    status=campaign_clutter_registered(handle,&i,&model);if(status)return status;
+    return rf_static_model_tag_place(&campaign_clutter_models[model].tags,index,
+        campaign_clutter_bodies[i]->matrix,campaign_clutter_bodies[i]->state.position,transform);
+}
+static int campaign_clutter_tags_probe(void)
+{
+    const char *queries[]={"corona_1","corona_2","corona_3","corona_4","corona_5","corona_rod1","corona_rod2","light_prop"};
+    uint32_t i,j,model,*h=&rf_scene_clutter_tag_queries[3];int status;
+    memset(rf_scene_clutter_tag_queries,0,sizeof(rf_scene_clutter_tag_queries));*h=2166136261u;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i]) {
+        const rf_clutter_base_owner *owner=campaign_clutter_bodies[i];model=campaign_clutter_model_slots[i];
+        for(j=0;j<8+campaign_clutter_models[model].tags.count;++j) {
+            const char *text=j<8?queries[j]:campaign_clutter_models[model].tags.items[j-8].name;
+            rf_model_name name={text,strlen(text)};int32_t index=-1;float pose[12];
+            status=rf_scene_clutter_tag_find(owner->state.handle,name,&index);
+            if(status && status!=RF_NOT_FOUND)goto fail;
+            ++rf_scene_clutter_tag_queries[0];*h=npc_hash_bytes(*h,&owner->uid,4);
+            *h=npc_hash_bytes(*h,text,(uint32_t)name.length+1);*h=npc_hash_bytes(*h,&index,4);
+            if(!status) {
+                ++rf_scene_clutter_tag_queries[1];status=rf_scene_clutter_tag_place(owner->state.handle,index,pose);if(status)goto fail;
+                ++rf_scene_clutter_tag_queries[2];*h=npc_hash_bytes(*h,pose,sizeof(pose));
+            }
+        }
+    }
+    return RF_OK;
+ fail:++rf_scene_clutter_tag_queries[4];return status;
+}
 static uint32_t campaign_clutter_query_geometry(void *context,uint32_t operation,const void *geometry,
     const void *pose,int32_t part,const void *query,rf_collision_model_response_hit *hit,uint32_t reset)
 {
@@ -1967,7 +2015,8 @@ static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world
     }
     rf_scene_clutter_bodies[3]=(uint32_t)bytes;rf_scene_clutter_bodies[4]=(uint32_t)peak;rf_scene_clutter_bodies[5]=hash;
     for(i=0;i<campaign_clutter_model_count;++i)rf_scene_clutter_bodies[6]+=campaign_clutter_shared[i].references;
-    status=campaign_clutter_query_probe();if(status)goto fail;return RF_OK;
+    status=campaign_clutter_query_probe();if(status)goto fail;
+    status=campaign_clutter_tags_probe();if(status)goto fail;return RF_OK;
  fail:
     (void)campaign_clutter_bodies_close();return status;
 }
