@@ -6916,3 +6916,32 @@ all19 CTests pass. Original full class parser and resource loading are not
 executed by this binding oracle. Catalog ownership, complete class/effect data,
 generic model/body allocation and live level/factory integration remain open.
 No native XEMU replay or new visual is claimed.
+
+
+Archive-backed clutter resource catalogs (2026-09-12)
+----------------------------------------------------
+rf_clutter_catalogs_open loads authored name order from emitters.tbl's particle
+emitter types section, effects.tbl's Glares section and vclip.tbl's Vclips
+section. It owns pointer tables and exact terminated names in one allocation,
+while reusing one temporary archive buffer across both passes. Vclips expose
+64 slots, with unused entries NULL. Foley remains a borrowed scene-owned catalog.
+Per-catalog bounds are64 names and63 bytes per name; no runtime resource or
+complete effect definition is loaded by this name-only owner.
+
+Installed data contains52 emitters,56 glares and63 vclips. Retained ownership
+uses3589 bytes including the36-byte owner; peak45199 includes the41610-byte
+scratch allocation. Temporary scratch is released before success. Budgets are
+checked before each allocation, and errors preserve a zero output owner.
+Callers must keep archives stable across both passes and retire catalog borrowers
+before closing; close frees only owned name storage and is repeatable.
+
+verify_clutter_catalogs.py passes15 scenarios: full/exact/short peak budget,
+both allocation failures, all six archive-read failure points, empty sections,
+oversized name,65-name overflow and missing section end. PC reads actual VPP
+files; compiled NXDK receives the same archive data through explicit read/find
+boundaries. Full names/order, unused slots, retained pointers after scratch
+retirement, peak accounting and cleanup match. Fixture hooks are restricted to
+four resource boundary addresses, avoiding per-instruction Python callbacks.
+Both builds and all19 CTests pass. Native XEMU residency, full effect/resource
+loading, class archive loading and scene/factory integration remain open.
+No new visual is claimed.

@@ -15,6 +15,25 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--clutter-classes"))return clutter_classes_probe();
     if(argc==2 && !strcmp(argv[1],"--clutter-bind"))return clutter_binding_probe();
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
+    if(argc==4 && !strcmp(argv[1],"--clutter-catalogs")) {
+        rf_clutter_catalogs value={0},before={0};rf_foley_owner sounds={0};uint32_t k,n,present;
+        if(rf_vpp_open(&archive,argv[2]))return 2;
+        status=rf_clutter_catalogs_open(&archive,&sounds,(uint32_t)strtoul(argv[3],NULL,10),&value);
+        rf_vpp_close(&archive);if(status && memcmp(&value,&before,sizeof(value)))return 3;
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);fwrite(&value.allocated_bytes,4,1,stdout);fwrite(&value.peak_bytes,4,1,stdout);
+        fwrite(&value.names.emitter_count,4,1,stdout);fwrite(&value.names.glare_count,4,1,stdout);
+        if(!status) {
+            const char *const *lists[]={value.names.emitters,value.names.glares,value.names.vclips};
+            uint32_t counts[]={value.names.emitter_count,value.names.glare_count,64};
+            if(value.names.sounds!=&sounds)return 4;
+            for(k=0;k<3;++k)for(i=0;i<counts[k];++i) {
+                present=lists[k][i]!=NULL;n=present?(uint32_t)strlen(lists[k][i]):0;
+                fwrite(&present,4,1,stdout);fwrite(&n,4,1,stdout);if(n)fwrite(lists[k][i],1,n,stdout);
+            }
+        }
+        rf_clutter_catalogs_close(&value);rf_clutter_catalogs_close(&value);
+        return memcmp(&value,&before,sizeof(value))?5:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--clutter-resource-lookup")) {
         uint32_t count;char names[256][64],query[64];const char *pointers[256];int32_t result[3];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

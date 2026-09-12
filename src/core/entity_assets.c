@@ -1676,6 +1676,70 @@ int rf_clutter_definition_bind(const rf_clutter_definition *d,const rf_clutter_r
     if(d->emitter_count){memcpy(emitter_ids,ids,d->emitter_count*4);v.emitters=emitter_ids;}
     *binding=v;return RF_OK;
 }
+static int clutter_catalog_scan(const void *text,uint32_t bytes,uint32_t kind,
+    const char **names,uint32_t capacity,char **storage,uint32_t *remaining,
+    uint32_t *count,uint32_t *string_bytes)
+{
+    lexer l={text,bytes,0};char t[256];uint32_t n=0,strings=0,length;int status,quoted,inside=0;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(!inside) {
+            if((kind==0 && same(t,"#particle") && metadata_tag(&l,"emitter types")) ||
+               (kind==1 && same(t,"#Glares")) || (kind==2 && same(t,"#Vclips")))inside=1;
+            continue;
+        }
+        if(same(t,"#End")){*count=n;*string_bytes=strings;return RF_OK;}
+        if(!same(t,"$Name:"))continue;
+        if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+        length=(uint32_t)strlen(t)+1;if(length>64 || n==64)return RF_RANGE;
+        if(names) {
+            if(n>=capacity || length>*remaining)return RF_RANGE;
+            names[n]=*storage;memcpy(*storage,t,length);*storage+=length;*remaining-=length;
+        }
+        ++n;strings+=length;
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    return inside?RF_FORMAT:RF_NOT_FOUND;
+}
+int rf_clutter_catalogs_open(rf_vpp *tables,const rf_foley_owner *sounds,uint32_t budget,rf_clutter_catalogs *owner)
+{
+    static const char *const files[]={"emitters.tbl","effects.tbl","vclip.tbl"};
+    rf_clutter_catalogs v={0};rf_vpp_entry entries[3];void *scratch=NULL;const char **pointers;
+    char *strings;uint32_t counts[3],sizes[3],i,scratch_bytes=0,string_bytes=0,remaining,count,size;
+    uint64_t bytes;int status;
+    if(!tables || !owner || owner->storage || owner->names.emitters || owner->names.emitter_count ||
+       owner->names.glares || owner->names.glare_count || owner->names.vclips || owner->names.sounds ||
+       owner->allocated_bytes || owner->peak_bytes)return RF_RANGE;
+    for(i=0;i<3;++i){status=rf_vpp_find(tables,files[i],entries+i);if(status)return status;
+        if(entries[i].size>scratch_bytes)scratch_bytes=entries[i].size;}
+    if(!scratch_bytes || (uint64_t)sizeof(v)+scratch_bytes>budget)return RF_RANGE;
+    scratch=malloc(scratch_bytes);if(!scratch)return RF_IO;
+    for(i=0;i<3;++i) {
+        status=rf_vpp_read(tables,entries+i,0,scratch,entries[i].size);if(status)goto done;
+        status=clutter_catalog_scan(scratch,entries[i].size,i,NULL,0,NULL,NULL,counts+i,sizes+i);if(status)goto done;
+        string_bytes+=sizes[i];
+    }
+    bytes=(uint64_t)sizeof(v)+(counts[0]+counts[1]+64)*sizeof(*pointers)+string_bytes;
+    if(bytes+scratch_bytes>budget || bytes+scratch_bytes>UINT32_MAX){status=RF_RANGE;goto done;}
+    v.storage=malloc((size_t)bytes-sizeof(v));if(!v.storage){status=RF_IO;goto done;}
+    v.allocated_bytes=(uint32_t)bytes;v.peak_bytes=(uint32_t)bytes+scratch_bytes;
+    memset(v.storage,0,(size_t)bytes-sizeof(v));pointers=v.storage;
+    v.names.emitters=counts[0]?pointers:NULL;v.names.emitter_count=counts[0];
+    v.names.glares=counts[1]?pointers+counts[0]:NULL;v.names.glare_count=counts[1];
+    v.names.vclips=pointers+counts[0]+counts[1];v.names.sounds=sounds;
+    strings=(char *)(pointers+counts[0]+counts[1]+64);remaining=string_bytes;
+    for(i=0;i<3;++i) {
+        status=rf_vpp_read(tables,entries+i,0,scratch,entries[i].size);if(status)goto done;
+        status=clutter_catalog_scan(scratch,entries[i].size,i,pointers,counts[i],&strings,&remaining,&count,&size);
+        if(status)goto done;
+        if(count!=counts[i] || size!=sizes[i]){status=RF_FORMAT;goto done;}pointers+=counts[i];
+    }
+    *owner=v;v.storage=NULL;status=RF_OK;
+done:
+    free(v.storage);free(scratch);return status;
+}
+void rf_clutter_catalogs_close(rf_clutter_catalogs *owner)
+{if(owner){free(owner->storage);memset(owner,0,sizeof(*owner));}}
 
 static int named_effect_block(const void *text,uint32_t bytes,const char *name,
     uint32_t *start,uint32_t *length,char authored_name[64])

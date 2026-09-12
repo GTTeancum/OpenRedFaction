@@ -48,6 +48,20 @@ typedef struct rf_clutter_resource_names {
     const char *const *vclips; /*64 slots when explosion is authored. */
     const struct rf_foley_owner *sounds;
 } rf_clutter_resource_names;
+typedef struct rf_clutter_catalogs {
+    void *storage;rf_clutter_resource_names names;uint32_t allocated_bytes,peak_bytes;
+} rf_clutter_catalogs;
+/* Load names from emitters.tbl/effects.tbl/vclip.tbl in authored order using
+ * one reusable archive scratch block and one retained allocation. Limits64
+ * names per catalog and63 bytes/name; vclip always exposes64 slots. Budget
+ * includes owner, retained bytes and scratch (not allocator overhead/stack).
+ * Initially zero owner required, errors preserve it. Archive contents must
+ * remain stable across passes. Foley is borrowed and must outlive catalog use.
+ * This is a bounded name-catalog loader, not effect definition/resource loading.
+ * Close frees only this storage and can be repeated after borrowers retire. */
+int rf_clutter_catalogs_open(rf_vpp *tables,const struct rf_foley_owner *sounds,
+    uint32_t budget,rf_clutter_catalogs *owner);
+void rf_clutter_catalogs_close(rf_clutter_catalogs *owner);
 /* Resolve factory-facing material/effect IDs with verified lookup rules.
  * Absent optional fields produce-1 without lookup; explicit empty glare names
  * can match an empty catalog entry. Missing names retain the original-1 result.
