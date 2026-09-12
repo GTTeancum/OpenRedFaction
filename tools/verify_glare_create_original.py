@@ -33,8 +33,6 @@ trace=[];fail=False
 position=struct.pack('<3f',1.25,-2.5,3.75);matrix=struct.pack('<9f',1,0,0,0,1,0,0,0,1)
 def hook(cpu,address,size,context):
  sp=cpu.reg_read(UC_X86_REG_ESP);arg=lambda i:r(sp+4+4*i);result=0
- if address==0x40a4a0:
-  trace.append(('radius',arg(0),arg(1)));cpu.reg_write(UC_X86_REG_EIP,STUB);return
  if address==0x40a0e0:
   trace.append(('parent',arg(0)));result=PARENT
  elif address==0x5034f0:
@@ -46,21 +44,21 @@ def hook(cpu,address,size,context):
   assert r(desc+0x14)==0x3f800000 and r(desc+0x84)==r(RADIUS) and r(desc+4)==0
   result=0 if fail else OBJ
  cpu.reg_write(UC_X86_REG_EAX,result);cpu.reg_write(UC_X86_REG_ESP,sp+4);cpu.reg_write(UC_X86_REG_EIP,r(sp))
-for a in (0x40a4a0,0x40a0e0,0x5034f0,0x486da0):u.hook_add(UC_HOOK_CODE,hook,begin=a,end=a)
+for a in (0x40a0e0,0x5034f0,0x486da0):u.hook_add(UC_HOOK_CODE,hook,begin=a,end=a)
 cases=0;records=[]
 for cls in (-1,0,1,2,3):
  for flag in (0,1,2,255,256,257):
   for fail in (False,True):
    trace=[];u.mem_write(OBJ,b'\xa5'*0x300);before=bytes(u.mem_read(OBJ,0x300));u.mem_write(0x5cab98,w(3));u.mem_write(0x5c9e64,w(NODE));u.mem_write(NODE+0x2b8,w(SENT))
-   u.mem_write(PARENT+0x80,w(987));u.mem_write(RADIUS,struct.pack('<f',.75))
-   for i in range(3):u.mem_write(CLASS+i*52+40,struct.pack('<2f',.5,1.0))
+   u.mem_write(PARENT+0x80,w(987));u.mem_write(RADIUS,struct.pack('<f',1))
+   for i in range(3):u.mem_write(CLASS+i*52+40,struct.pack('<2f',*((.5,1),(1,.5),(1,1))[i]))
    u.mem_write(STACK,w(STOP,123,7,cls,flag));u.reg_write(UC_X86_REG_ESP,STACK);u.reg_write(UC_X86_REG_FPCW,0x27f)
    u.emu_start(0x413d20,STOP,count=100000);assert u.reg_read(UC_X86_REG_EIP)==STOP
    actual=bytes(u.mem_read(OBJ,0x300));expected=bytearray(before)
    if cls<0 or cls>=3:
     assert not trace and u.reg_read(UC_X86_REG_EAX)==0 and actual==before
    else:
-    assert trace==[('radius',0x3f000000,0x3f800000),('parent',123),('tag',987,7),('allocate',10,0xffffffff,123,0x30000,0)],trace
+    assert trace==[('parent',123),('tag',987,7),('allocate',10,0xffffffff,123,0x30000,0)],trace
     if fail:assert actual==before and u.reg_read(UC_X86_REG_EAX)==0 and r(0x5c9e64)==NODE
     else:
      expected[0x200:0x208]=w(123,7);expected[0x28c]=1;expected[0x290:0x2ac]=w(-1,0,0,0,0,0,0)
@@ -71,7 +69,7 @@ for cls in (-1,0,1,2,3):
    canonical=bytearray(actual[0x200:0x208]+actual[0x28c:0x2ec])
    created=0<=cls<3 and not fail
    canonical[52:60]=w(1,2) if created else bytes(8)
-   records.append(dict(index=cls,flag=flag,fail=int(fail),created=int(created),trace=123 if 0<=cls<3 else 0,state=canonical.hex()))
+   records.append(dict(index=cls,flag=flag,fail=int(fail),created=int(created),trace=23 if 0<=cls<3 else 0,state=canonical.hex()))
    cases+=1
-report=dict(result='PASS',cases=cases,records=records,scope='Full original413d20 with actual descriptor/vector initialization and destruction; supplied random-radius, parent lookup, tag pose and generic allocation boundaries. Complete object write footprint, ordered calls, descriptor fields, low-byte flag, class bounds, allocation failure and tail linkage. No shared constructor, resource lifetime or native Xbox claim.')
+report=dict(result='PASS',cases=cases,records=records,scope='Full original413d20 with actual descriptor/vector initialization and destruction; actual class-size maximum40a4a0; supplied parent lookup, tag pose and generic allocation boundaries. Complete object write footprint, ordered calls, descriptor fields, low-byte flag, class bounds, allocation failure and tail linkage. No shared constructor, resource lifetime or native Xbox claim.')
 (ROOT/'artifacts/glare-create-original.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='records'})

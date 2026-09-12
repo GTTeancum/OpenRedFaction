@@ -3,7 +3,7 @@
 #include "rf/object_registry.h"
 #include "rf/physics.h"
 typedef struct rf_glare_class {
-    float radius_minimum,radius_maximum;const void *definition;
+    float size_first,size_second;const void *definition;
 } rf_glare_class;
 typedef struct rf_glare_state {
     uint32_t parent;int32_t tag;uint8_t active,reserved[3];
@@ -15,12 +15,11 @@ typedef struct rf_glare_create_descriptor {
     uint32_t parent;float radius,position[3],matrix[9];
 } rf_glare_create_descriptor;
 typedef struct rf_glare_create_backend {
-    int (*radius)(void *,float minimum,float maximum,float *result);
     int (*tag_pose)(void *,uint32_t parent,int32_t tag,float result[12]);
     int (*allocate)(void *,const rf_glare_create_descriptor *,rf_glare_state **);
     void *context;
 } rf_glare_create_backend;
-/*413d20 parented glare. Radius sampling precedes parent/tag lookup and type10
+/*413d20 parented glare. Maximum class size precedes parent/tag lookup and type10
  * allocation (identifier-1,parent,flags30000,final0; descriptor flags0/scale1).
  * Backend supplies generic object ownership with unlinked glare state. NULL
  * allocation succeeds without insertion. Class out of range returns NULL
@@ -55,14 +54,13 @@ int rf_glare_base_open(const rf_glare_create_descriptor *descriptor,
  * linked glare state rejects close. External effects must already be retired. */
 int rf_glare_base_close(rf_glare_base_owner **owner,rf_object_registry *registry,rf_object_list *objects);
 typedef struct rf_glare_services {
-    int (*radius)(void *,float,float,float *);
     int (*tag_pose)(void *,uint32_t,int32_t,float[12]);void *context;
 } rf_glare_services;
 /* Compose413d20 with concrete type10 ownership. External services supply
- * radius RNG and registered parent pose; all other creation/lifetime storage
+ * registered parent pose; all other creation/lifetime storage
  * is owned here. Parent/material inputs are resolved by caller. Classes and
  * lists outlive the owner. Empty output required; successful NULL means no
- * object. Callback errors preserve output; prior RNG effects are not undone. */
+ * object. Callback errors preserve output; prior callback effects are not undone. */
 int rf_glare_owned_open(const rf_glare_class *classes,uint32_t count,int32_t index,
     uint32_t parent,int32_t tag,uint32_t flag,rf_object_registry *registry,
     rf_object_list *objects,rf_object_list *glares,uint32_t *uid_cursor,

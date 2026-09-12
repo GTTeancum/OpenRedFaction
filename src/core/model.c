@@ -17,11 +17,11 @@ int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
     const rf_glare_class *definition;float pose[12];uint32_t i;int status;
     if(!out || count>INT32_MAX)return RF_RANGE;
     if(index<0 || (uint32_t)index>=count){*out=NULL;return RF_OK;}
-    if(!classes || !list || !backend || !backend->radius || !backend->tag_pose || !backend->allocate)return RF_RANGE;
+    if(!classes || !list || !backend || !backend->tag_pose || !backend->allocate)return RF_RANGE;
     definition=classes+index;
-    if(!isfinite(definition->radius_minimum) || !isfinite(definition->radius_maximum))return RF_FORMAT;
+    if(!isfinite(definition->size_first) || !isfinite(definition->size_second))return RF_FORMAT;
     descriptor.parent=parent;
-    status=backend->radius(backend->context,definition->radius_minimum,definition->radius_maximum,&descriptor.radius);if(status)return status;
+    descriptor.radius=definition->size_first>definition->size_second?definition->size_first:definition->size_second;
     if(!isfinite(descriptor.radius))return RF_FORMAT;
     status=backend->tag_pose(backend->context,parent,tag,pose);if(status)return status;
     for(i=0;i<12;++i)if(!isfinite(pose[i]))return RF_FORMAT;
@@ -73,8 +73,6 @@ typedef struct glare_owned_context {
     uint32_t parent_byte,parent_group,budget;const float *material;
     const rf_glare_services *services;rf_glare_base_owner *owner;
 } glare_owned_context;
-static int glare_owned_radius(void *context,float minimum,float maximum,float *radius)
-{glare_owned_context *c=context;return c->services->radius(c->services->context,minimum,maximum,radius);}
 static int glare_owned_pose(void *context,uint32_t parent,int32_t tag,float pose[12])
 {glare_owned_context *c=context;return c->services->tag_pose(c->services->context,parent,tag,pose);}
 static int glare_owned_allocate(void *context,const rf_glare_create_descriptor *d,rf_glare_state **out)
@@ -90,8 +88,8 @@ int rf_glare_owned_open(const rf_glare_class *classes,uint32_t count,int32_t ind
     const rf_glare_services *services,rf_glare_base_owner **out)
 {
     glare_owned_context c={registry,objects,uid_cursor,parent_byte,parent_group,budget,material,services,NULL};
-    rf_glare_create_backend backend={glare_owned_radius,glare_owned_pose,glare_owned_allocate,&c};rf_glare_state *state=NULL;int status;
-    if(!out || *out || !registry || !objects || !glares || !uid_cursor || !material || !services || !services->radius || !services->tag_pose ||
+    rf_glare_create_backend backend={glare_owned_pose,glare_owned_allocate,&c};rf_glare_state *state=NULL;int status;
+    if(!out || *out || !registry || !objects || !glares || !uid_cursor || !material || !services || !services->tag_pose ||
        !glares->sentinel.next || !glares->sentinel.previous || glares->sentinel.next->previous!=&glares->sentinel || glares->sentinel.previous->next!=&glares->sentinel)return RF_RANGE;
     status=rf_glare_create(classes,count,index,parent,tag,flag,glares,&backend,&state);if(status)return status;
     *out=c.owner;return RF_OK;

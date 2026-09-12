@@ -1,10 +1,5 @@
 #include "rf/glare.h"
 typedef struct glare_probe_context {uint32_t mode,trace;rf_glare_state state;} glare_probe_context;
-static int glare_probe_radius(void *p,float a,float b,float *out)
-{
-    glare_probe_context *c=p;c->trace=c->trace*10+1;
-    if(a!=.5f || b!=1)return RF_FORMAT;if(c->mode==2)return RF_IO;*out=.75f;return RF_OK;
-}
 static int glare_probe_pose(void *p,uint32_t parent,int32_t tag,float out[12])
 {
     glare_probe_context *c=p;const float pose[12]={1,0,0,0,1,0,0,0,1,1.25f,-2.5f,3.75f};
@@ -15,17 +10,17 @@ static int glare_probe_allocate(void *p,const rf_glare_create_descriptor *d,rf_g
 {
     glare_probe_context *c=p;const float matrix[9]={1,0,0,0,1,0,0,0,1},position[3]={1.25f,-2.5f,3.75f};
     c->trace=c->trace*10+3;
-    if(d->parent!=123 || d->radius!=.75f || memcmp(d->matrix,matrix,36) || memcmp(d->position,position,12))return RF_FORMAT;
+    if(d->parent!=123 || d->radius!=1 || memcmp(d->matrix,matrix,36) || memcmp(d->position,position,12))return RF_FORMAT;
     if(c->mode==4)return RF_IO;*out=c->mode==1?NULL:&c->state;return RF_OK;
 }
 static int glare_create_probe(void)
 {
     uint32_t input[3];rf_glare_class classes[3];uint32_t i;
     _Static_assert(sizeof(rf_glare_state)==104,"glare state wire");
-    for(i=0;i<3;++i){classes[i].radius_minimum=.5f;classes[i].radius_maximum=1;classes[i].definition=(void *)(uintptr_t)(0x5c9e98+i*52);}
+    for(i=0;i<3;++i){classes[i].size_first=i?1:.5f;classes[i].size_second=i==1?.5f:1;classes[i].definition=(void *)(uintptr_t)(0x5c9e98+i*52);}
     while(fread(input,sizeof(input),1,stdin)==1) {
         glare_probe_context c;rf_object_list list;rf_object_link previous;rf_glare_state *out=(void *)(uintptr_t)1;
-        rf_glare_create_backend backend={glare_probe_radius,glare_probe_pose,glare_probe_allocate,&c};uint32_t header[5];
+        rf_glare_create_backend backend={glare_probe_pose,glare_probe_allocate,&c};uint32_t header[5];
         memset(&c,0xa5,sizeof(c));c.trace=0;c.mode=input[2];c.state.link.next=c.state.link.previous=NULL;
         rf_object_list_init(&list);rf_object_list_append(&list,&previous);
         header[0]=(uint32_t)rf_glare_create(classes,3,(int32_t)input[0],123,7,input[1],&list,&backend,&out);
@@ -67,17 +62,17 @@ static int glare_owned_probe(void)
 {
     rf_glare_base_owner *owners[3]={0},*missing=NULL;rf_object_registry registry;rf_object_list objects,glares,wrong;
     rf_glare_class definition={.5f,1,(void *)(uintptr_t)0x5c9e98};uint32_t uid=UINT32_MAX,i,handles[3];
-    float material[3]={.25f,.5f,2};glare_probe_context c={0};rf_glare_services services={glare_probe_radius,glare_probe_pose,&c};
+    float material[3]={.25f,.5f,2};glare_probe_context c={0};rf_glare_services services={glare_probe_pose,&c};
     rf_object_registry_init(&registry);rf_object_list_init(&objects);rf_object_list_init(&glares);rf_object_list_init(&wrong);
     for(i=0;i<3;++i) {
         c.trace=0;
         if(rf_glare_owned_open(&definition,1,0,123,7,i,&registry,&objects,&glares,&uid,7,17,material,528,&services,owners+i))return 2;
-        if(!owners[i] || c.trace!=12 || owners[i]->state.definition!=definition.definition || owners[i]->state.parent!=123 ||
+        if(!owners[i] || c.trace!=2 || owners[i]->state.definition!=definition.definition || owners[i]->state.parent!=123 ||
            owners[i]->state.tag!=7 || owners[i]->state.flags!=(i?2u:0u) || owners[i]->body.state.mass!=1 || glares.count!=i+1 || objects.count!=i+1)return 3;
         handles[i]=owners[i]->handle;
     }
     if(rf_glare_owned_close(owners+1,&registry,&objects,&wrong)!=RF_RANGE || !owners[1] || glares.count!=3)return 4;
-    for(i=2;i<5;++i) {
+    for(i=3;i<5;++i) {
         c.mode=i==4?0:i;c.trace=0;
         if(rf_glare_owned_open(&definition,1,0,123,7,0,&registry,&objects,&glares,&uid,7,17,material,i==4?527:528,&services,&missing)==RF_OK || missing || glares.count!=3 || objects.count!=3)return 5;
     }
