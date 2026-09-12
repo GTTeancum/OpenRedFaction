@@ -1592,18 +1592,18 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
 {return class_assets_read(text,bytes,class_name,skin,assets,0);}
 int rf_clutter_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
 {return class_assets_read(text,bytes,class_name,skin,assets,1);}
-int rf_glare_definition_read(const void *text,uint32_t bytes,const char *name,rf_glare_definition *result)
+static int glare_definition_read_selection(const void *text,uint32_t bytes,const char *name,uint32_t ordinal,rf_glare_definition *result)
 {
     lexer l={(const unsigned char *)text,bytes,0};rf_glare_definition v={0};
-    char t[256];uint32_t mask=0,bit,i,value,digits;int status,q,inside=0,found=0;float *number;
-    if(!text || !name || !*name || !result)return RF_RANGE;
+    char t[256];uint32_t mask=0,bit,i,value,digits,row=0;int status,q,inside=0,found=0;float *number;
+    if(!text || (ordinal==UINT32_MAX && (!name || !*name)) || !result)return RF_RANGE;
     while((status=token(&l,t,&q))==RF_OK) {
         if(q)continue;
         if(!inside){if(same(t,"#Glares"))inside=1;continue;}
         if(t[0]=='#')break;
         if(same(t,"$Name:")) {
             if(found)break;if(token(&l,t,&q) || !q)return RF_FORMAT;
-            found=!strcmp(t,name);if(found){if(strlen(t)>=64)return RF_RANGE;strcpy(v.name,t);}continue;
+            found=ordinal==UINT32_MAX?!strcmp(t,name):row++==ordinal;if(found){if(strlen(t)>=64)return RF_RANGE;strcpy(v.name,t);}continue;
         }
         if(!found)continue;bit=0;number=NULL;
         if(same(t,"$Light") && metadata_tag(&l,"Color:")) {
@@ -1640,6 +1640,8 @@ int rf_glare_definition_read(const void *text,uint32_t bytes,const char *name,rf
     if((v.fields&2) && (mask&768)!=768)return RF_FORMAT;
     *result=v;return RF_OK;
 }
+int rf_glare_definition_read(const void *text,uint32_t bytes,const char *name,rf_glare_definition *result)
+{return glare_definition_read_selection(text,bytes,name,UINT32_MAX,result);}
 
 int rf_clutter_definition_read(const void *text,uint32_t bytes,const char *name,rf_clutter_definition *result)
 {
@@ -1739,6 +1741,33 @@ static int clutter_catalog_scan(const void *text,uint32_t bytes,uint32_t kind,
     if(status!=RF_NOT_FOUND)return status;
     return inside?RF_FORMAT:RF_NOT_FOUND;
 }
+void rf_glare_classes_close(rf_glare_classes *owner)
+{if(!owner)return;free(owner->definitions);memset(owner,0,sizeof(*owner));}
+int rf_glare_classes_open(rf_vpp *tables,uint32_t budget,rf_glare_classes *owner)
+{
+    rf_glare_classes next={0};rf_vpp_entry entry;void *text;uint32_t i,strings;uint64_t bytes;int status;
+    if(!tables || !owner || owner->definitions || owner->items || owner->count || owner->allocated_bytes || owner->peak_bytes)return RF_RANGE;
+    status=rf_vpp_find(tables,"effects.tbl",&entry);if(status)return status;
+    if(!entry.size || (uint64_t)sizeof(next)+entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto done;
+    status=clutter_catalog_scan(text,entry.size,1,NULL,0,NULL,NULL,&next.count,&strings);if(status)goto done;
+    bytes=sizeof(next)+(uint64_t)next.count*(sizeof(*next.definitions)+sizeof(*next.items));
+    if(bytes+entry.size>budget || bytes>SIZE_MAX){status=RF_RANGE;goto done;}
+    if(next.count) {
+        next.definitions=malloc((size_t)(bytes-sizeof(next)));if(!next.definitions){status=RF_IO;goto done;}
+        next.items=(rf_glare_class *)(next.definitions+next.count);
+        for(i=0;i<next.count;++i) {
+            status=glare_definition_read_selection(text,entry.size,NULL,i,next.definitions+i);if(status)goto done;
+            next.items[i].size_first=next.definitions[i].height;next.items[i].size_second=next.definitions[i].length;
+            next.items[i].definition=next.definitions+i;
+        }
+    }
+    next.allocated_bytes=(uint32_t)bytes;next.peak_bytes=(uint32_t)(bytes+entry.size);
+ done:
+    free(text);if(status){rf_glare_classes_close(&next);return status;}*owner=next;return RF_OK;
+}
+
 int rf_clutter_catalogs_open(rf_vpp *tables,const rf_foley_owner *sounds,uint32_t budget,rf_clutter_catalogs *owner)
 {
     static const char *const files[]={"emitters.tbl","effects.tbl","vclip.tbl"};

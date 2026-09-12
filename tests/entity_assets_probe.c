@@ -53,6 +53,20 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==4 && !strcmp(argv[1],"--glare-classes")) {
+        rf_glare_classes value={0},before={0};
+        if(rf_vpp_open(&archive,argv[2]))return 2;
+        status=rf_glare_classes_open(&archive,(uint32_t)strtoul(argv[3],NULL,10),&value);
+        rf_vpp_close(&archive);if(status && memcmp(&value,&before,sizeof(value)))return 3;
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);
+        fwrite(&value.count,4,1,stdout);fwrite(&value.allocated_bytes,4,1,stdout);fwrite(&value.peak_bytes,4,1,stdout);
+        for(i=0;i<value.count;++i) {
+            if(value.items[i].definition!=value.definitions+i || value.items[i].size_first!=value.definitions[i].height || value.items[i].size_second!=value.definitions[i].length)return 4;
+            fwrite(value.definitions+i,sizeof(*value.definitions),1,stdout);
+        }
+        rf_glare_classes_close(&value);rf_glare_classes_close(&value);
+        return memcmp(&value,&before,sizeof(value))?5:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--glare-definition")) {
         FILE *f=fopen(argv[2],"rb");long size;rf_glare_definition value,before;
         if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);

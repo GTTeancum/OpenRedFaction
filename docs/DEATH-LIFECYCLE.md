@@ -7395,3 +7395,22 @@ Glare base compiled verification and owned factory adapter (2026-09-12): verify_
 Correction and full owned adapter verification (2026-09-12): direct disassembly establishes40a4a0 is maximum(first,second), not a random sampler. Earlier supplied-radius boundaries proved constructor ordering only and did not establish that service; prior radius/RNG descriptions are superseded. rf_glare_create now computes the larger finite class size directly (second operand on equality); class fields renamed size_first/size_second and the false RNG callback removed from factory/services. Original constructor oracle now executes unhooked40a4a0, with first<second,first>second,equal class cases; all60 cases match PC/compiled NXDK and12 pose/allocation callback failures pass. verify_glare_owned_nxdk.py verifies full actual compiled adapter with only pose/heap supplied: three live objects, insertion, wrong-list close rejection, pose/heap/short-budget failures, invalid classes, empty registry, middle/head/tail retirement and repeat close;14 checks,zero leaks. Both builds and21 CTests pass; PC composed lifecycle passes. Glare construction consumes no RNG draw at40a4a0. Next bind actual class size/resource data and registered prop poses to campaign creation, then rendering.
 
 Glare authored metadata (2026-09-12): rf_glare_definition_read reads the first exact name inside#Glares into owned300-byte metadata: class/corona/volumetric/reflection names, RGB, cone degrees, intensity, radius distance/scale factors, diminish distance, volumetric height/length and optional-field presence. Does not load bitmaps or convert degrees. Disassembly413920 establishes class+28/+2c are Volumetric Height/Length;413d20 takes their maximum. Optional missing fields zero in this fresh metadata owner; no claim of equivalent behavior when reusing original nonzero class storage. Bounded63-byte names, finite numeric parser, required color and conditional corona/volume numeric fields; errors preserve output. verify_glare_definition.py passes all56 installed definitions plus9 absence/malformed/duplicate cases on PC and actual compiled NXDK versus independent table extraction. Both builds and21 CTests pass. Full original parser oracle, runtime class ownership, bitmap handles/pixels, degree conversion and live factory binding remain open.
+
+### Owned glare class definitions
+
+rf_glare_classes_open retains effects.tbl #Glares rows in authored order,
+including duplicate names, in one definitions/views allocation. Each factory
+view borrows its corresponding definition and authored volumetric height/length.
+The transient table is released before publication; all failures preserve the
+empty destination and release partial allocations. The authored 64-row limit
+is enforced. Bitmap names remain metadata; renderer IDs/residency and live
+campaign glare creation remain open.
+
+verify_glare_classes.py passes13 checks on actual compiled NXDK code with only
+archive I/O and heap boundaries supplied: all56 authored rows, exact/short
+budget, duplicate ordinal mapping, empty/64/65-row tables, malformed later
+rows, both allocation failures, read failure and repeated retirement. PC
+compares all authored owner bytes after archive close. Retained17492 bytes,
+peak39157 bytes. verify_glare_definition.py independently rechecks all56
+authored definitions plus9 guards on PC/NXDK. Both builds and21 CTests pass.
+No native XEMU or bitmap/rendering integration claim for this change.

@@ -15,6 +15,17 @@ int rf_glare_definition_read(const void *text,uint32_t bytes,const char *name,rf
 typedef struct rf_glare_class {
     float size_first,size_second;const void *definition;
 } rf_glare_class;
+typedef struct rf_glare_classes {
+    rf_glare_definition *definitions;rf_glare_class *items;
+    uint32_t count,allocated_bytes,peak_bytes;
+} rf_glare_classes;
+/* Own #Glares rows in authored order, including duplicate names. Factory
+ * views borrow their corresponding owned definition and volumetric sizes.
+ * One retained allocation plus transient effects.tbl buffer, both budgeted;
+ * no archive borrowing after success. Max64 rows, empty destination required.
+ * Bitmap names remain metadata; no renderer resource IDs are assigned. */
+int rf_glare_classes_open(rf_vpp *tables,uint32_t budget,rf_glare_classes *owner);
+void rf_glare_classes_close(rf_glare_classes *owner);
 typedef struct rf_glare_state {
     uint32_t parent;int32_t tag;uint8_t active,reserved[3];
     int32_t timer;float samples[6];const void *definition;int32_t class_index;
