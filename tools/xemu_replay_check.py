@@ -282,11 +282,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['clutter_render']=clutter_render
      clutter_materials=words(monitor,symbol('rf_scene_clutter_materials'),8)
      assert clutter_materials==expected('CLUTTER_MATERIALS'),clutter_materials
-     assert clutter_materials[0]==clutter_render[0] and clutter_materials[1]==clutter_render[6],clutter_materials
+     clutter_skins=words(monitor,symbol('rf_scene_clutter_skins'),6)
+     assert clutter_skins==expected('CLUTTER_SKINS') and clutter_skins[1]==clutter_render[1],clutter_skins
+     assert clutter_materials[0]==clutter_skins[0],clutter_materials
      assert clutter_materials[3]<=clutter_materials[4]<=1024*1024,clutter_materials
      if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
-      assert clutter_materials[:5]==[12,23,11,843456,847688],clutter_materials
+      skin_reference=json.loads((root/'artifacts/clutter-scene-skins.json').read_text())
+      assert skin_reference['result']=='PASS' and clutter_skins==skin_reference['expected'],clutter_skins
+      assert clutter_materials[:5]==[12,23,12,909700,915680],clutter_materials
      report['clutter_materials']=clutter_materials
+     report['clutter_skins']=clutter_skins
      clutter_draw=words(monitor,symbol('rf_scene_clutter_draw'),6)
      assert clutter_draw==expected('CLUTTER_DRAW') and clutter_draw[0]==frames,clutter_draw
      assert clutter_draw[4]==clutter[1]*4 and clutter_draw[2]%3==0,clutter_draw

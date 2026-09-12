@@ -10,7 +10,7 @@ visual quality must meet the PS2 version. **There is no playable port yet.**
 A miner and mining robot appear alongside newly rendered static mine lamps and
 warning fixtures in their authored positions. This is frame 60 of a recorded
 campaign diagnostic replay, captured directly from the guest framebuffer.
-The shared PC build matches the prop vertex output. Base materials, highest-detail
+The shared PC build matches the prop vertex output. Authored skin textures, highest-detail
 LODs and provisional room culling are used; AI, final lighting and full campaign
 gameplay remain unfinished. This is emulator footage, not a real-hardware capture.
 

@@ -115,6 +115,7 @@ extern uint32_t rf_scene_navigation[6];
 extern uint32_t rf_scene_clutter[8];
 extern uint32_t rf_scene_clutter_render[8];
 extern uint32_t rf_scene_clutter_materials[8];
+extern uint32_t rf_scene_clutter_skins[6];
 extern uint32_t rf_scene_clutter_draw[6];
 /*428030: blocked standing still selects slow mode; forced crouch sets only the flag.
  * Required standing services only when attempting to stand; borrowed owners must survive callbacks. */
