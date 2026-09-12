@@ -310,6 +310,7 @@ int main(int argc,char **argv)
             printf("CLUTTER_SKINS");for(i=0;i<6;++i)printf(" %u",rf_scene_clutter_skins[i]);printf("\n");
             printf("CLUTTER_BODIES");for(i=0;i<10;++i)printf(" %u",rf_scene_clutter_bodies[i]);printf("\n");
             printf("CLUTTER_COLLISION");for(i=0;i<9;++i)printf(" %u",rf_scene_clutter_collision[i]);printf("\n");
+            printf("CLUTTER_TAGS");for(i=0;i<4;++i)printf(" %u",rf_scene_clutter_tags[i]);printf("\n");
             printf("NPC_SLOW_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_slow_test[i]);printf("\n");
             printf("NPC_STAND_TEST");for(i=0;i<7;++i)printf(" %u",rf_scene_npc_stand_test[i]);printf("\n");
             printf("NPC_IMPACT_DISPATCH");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_impact_dispatch[i]);printf("\n");

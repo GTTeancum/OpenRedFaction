@@ -118,6 +118,7 @@ extern uint32_t rf_scene_clutter_materials[8];
 extern uint32_t rf_scene_clutter_skins[6];
 extern uint32_t rf_scene_clutter_bodies[10];
 extern uint32_t rf_scene_clutter_collision[9];
+extern uint32_t rf_scene_clutter_tags[4];
 /* Registered static prop model query through5031f0/static geometry. Caller
  * supplies original query pose/flags and finite disjoint input; mutable local
  * scratch and hit follow the recovered query contract. No physics scheduling. */
