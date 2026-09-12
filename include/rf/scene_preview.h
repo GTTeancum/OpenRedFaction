@@ -113,6 +113,7 @@ int rf_scene_npc_normal(const rf_geometry_collision_world *world,uint32_t handle
 extern uint32_t rf_scene_npc_normal_test[4];
 extern uint32_t rf_scene_navigation[6];
 extern uint32_t rf_scene_clutter[8];
+extern uint32_t rf_scene_clutter_render[8];
 /*428030: blocked standing still selects slow mode; forced crouch sets only the flag.
  * Required standing services only when attempting to stand; borrowed owners must survive callbacks. */
 int rf_scene_npc_slow(const rf_geometry_collision_world *world,uint32_t handle,

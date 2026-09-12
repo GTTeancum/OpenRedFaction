@@ -7251,3 +7251,37 @@ close. Both builds and all19 CTests pass. Reports:
 artifacts/static-render-resource.json and
 artifacts/static-render-resource-nxdk.json. Scene cache/instance binding,
 runtime material/texture conversion, native XEMU and visuals remain open.
+
+
+## Native scene-owned static clutter resources
+
+Campaign startup now retains shared static render resources and a record-to-
+model slot array after clutter class/record loading. Compiled .v3m names
+are deduplicated case-insensitively in placement order. Opening168 resolved
+placements share12 resources; two unmatched Pole Light 1 records keep
+UINT32_MAX slots. Nonstatic model kinds are counted separately for later
+backends. This mapping does not implement original factory visibility,
+enabled-record filtering, effects or render-object creation.
+
+The scene allocates one model-slot capacity per authored clutter record,
+then embeds only the unique owned resources. Retained accounting includes
+all170 capacity slots, names and placement references, without double-
+counting embedded44-byte resource headers. One8792-byte heap file directory
+is reused across loads and freed before return. Retention is109416 bytes;
+peak is118208, under a separate256KiB cap. Textures/runtime material
+instances and caller archive state are excluded. Partial startup failures
+and normal scene close release all populated resources and slot arrays.
+
+Native180-frame actor-pair replay20260912-152601 passes on stock64MiB XEMU:
+CLUTTER_RENDER=[12,168,2,0,109416,118208,23,3534861336]. The eight words are
+unique models, bound records, unmatched records, nonstatic records, retained
+bytes, load peak, serialized material rows and full retained-data hash.
+The hash includes names, bounds, parts, material rows, thresholds, batch
+ranges, vertices, indices/reuse, face planes and record slots. PC and native
+values match exactly. Existing clutter metadata fingerprint and replay
+gates also pass. Guest memory reports67108864 base bytes and0 plugged bytes.
+Tested XBE SHA256:e90e40f5946cd9efbab306d49bfdc3aac9f9646ec946f910f72d5bba7df16293.
+Both builds and all19 CTests pass after harness restoration. Report:
+artifacts/xemu/replay-20260912-152601/report.json. Resources are resident but
+not yet drawn; runtime texture/material conversion, view ownership and
+GPU submission remain open. No new screenshot was requested or posted.

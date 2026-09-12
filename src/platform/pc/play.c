@@ -304,6 +304,7 @@ int main(int argc,char **argv)
             printf("NPC_NORMAL_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_normal_test[i]);printf("\n");
             printf("NAVIGATION");for(i=0;i<6;++i)printf(" %u",rf_scene_navigation[i]);printf("\n");
             printf("CLUTTER");for(i=0;i<8;++i)printf(" %u",rf_scene_clutter[i]);printf("\n");
+            printf("CLUTTER_RENDER");for(i=0;i<8;++i)printf(" %u",rf_scene_clutter_render[i]);printf("\n");
             printf("NPC_SLOW_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_slow_test[i]);printf("\n");
             printf("NPC_STAND_TEST");for(i=0;i<7;++i)printf(" %u",rf_scene_npc_stand_test[i]);printf("\n");
             printf("NPC_IMPACT_DISPATCH");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_impact_dispatch[i]);printf("\n");
