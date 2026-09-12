@@ -199,6 +199,12 @@ int rf_scene_npc_death_select(void *context,uint32_t handle,int32_t *action);
  * action position (actor+3c), unity spatial playback and no stored voice. */
 int rf_scene_npc_death_sound(void *context,uint32_t handle,const char *name);
 extern uint32_t rf_scene_npc_action_audio[9];
+/*49ce88..49cecf NPC impact sound: retained class128 group, original group
+ * selection, on-demand PCM and unity spatial playback at bodye4. Caller
+ * establishes lethal impact eligibility. RNG/audio effects are not rolled
+ * back on playback failure; no voice is stored in the NPC. */
+int rf_scene_npc_impact_sound(uint32_t handle,rf_random_state *random);
+extern uint32_t rf_scene_npc_impact_audio[12];
 extern uint32_t rf_scene_death_animation_test_enabled,rf_scene_death_animation_test[8];
 
 

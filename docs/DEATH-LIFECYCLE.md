@@ -6005,3 +6005,33 @@ both increase20; all other previous PC rows are unchanged. Tested XBE SHA256:
 634f169c32828975e9a73689e02a544fc1747b415fd3ecb777220d8a063ad626.
 Bind impact audio selection/playback using these retained groups and bodye4
 position, along with force suppression/damage services, before support finish.
+
+
+## Registered NPC impact audio playback (2026-09-12)
+
+rf_scene_npc_impact_sound binds the49ce88..49cecf NPC sound path to retained
+class128 groups, shared original-verified group choice, on-demand PCM residency
+and unity spatial playback. Position comes from bodye4 rather than published
+object3c or eye7d4. It shares the existing audio bank/mixer and eviction policy;
+no duplicate cache or per-NPC voice ownership is introduced. The caller must
+establish lethal impact eligibility. Current registered NPCs use spatial audio;
+associated-player routing remains the separate player service. Selection/RNG
+or PCM effects are not undone on a later playback error. Missing samples do
+not create a voice. Stale registration rejects before changing RNG or audio.
+
+The explicit --damage-uid fixture requests impact audio after its damage
+checks, using a separate seeded random state and temporarily offsetting bodyY
+by2 while keeping published position unchanged. It restores the position and
+verifies requested-position telemetry and stale-handle preservation. This is
+an audio fixture, not a claim of a lethal gameplay collision or automatic
+impact dispatch. The existing pain/death routines are unchanged.
+
+Both builds and19 CTests pass. Stock64MiB XEMU180-frame --damage-uid8456 replay:
+artifacts/xemu/replay-20260912-102104/report.json PASS.
+NPC_IMPACT_AUDIO=[1,1,1,1,2380,89,2745024,0,1022235703,
+3232371648,1081468562,1103648368], exactly equal to PC: one selection/play,
+one2380-byte PCM load, sample89 and zero errors. This verifies native runtime
+requests/state and residency; listening quality is not inferred from counters.
+Tested XBE SHA256:7f22e42a624fb72b5b766e008fe81471d7a43ce43a3c834a54cfd79ef07ecf6d.
+Compose impact orchestration with real force suppression/damage and associated
+player feedback, then connect ground acceptance, landing and NPC scheduling.

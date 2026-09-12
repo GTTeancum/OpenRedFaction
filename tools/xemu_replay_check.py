@@ -349,6 +349,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['npc_pain_test']=npc_pain_test
      death_animation=words(monitor,symbol('rf_scene_death_animation_test'),8)
      action_audio=words(monitor,symbol('rf_scene_npc_action_audio'),9)
+     impact_audio=words(monitor,symbol('rf_scene_npc_impact_audio'),12)
+     assert impact_audio==expected('NPC_IMPACT_AUDIO') and impact_audio[7]==0,impact_audio
+     if args.damage_uid==8456:assert impact_audio[:4]==[1,1,1,1] and impact_audio[4]>0,impact_audio
+     report['npc_impact_audio']=impact_audio
      assert death_animation==expected('DEATH_ANIMATION_TEST'),death_animation
      assert action_audio==expected('NPC_ACTION_AUDIO'),action_audio
      if args.death_animation:assert death_animation[0]==120 and death_animation[6]==0 and action_audio[7]==0,(death_animation,action_audio)

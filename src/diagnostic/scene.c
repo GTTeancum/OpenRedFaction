@@ -2997,6 +2997,25 @@ int rf_scene_npc_death_sound(void *context,uint32_t handle,const char *name)
     rf_scene_npc_action_audio[6]=input->random->value;
     if(audio.status)++rf_scene_npc_action_audio[7];return audio.status;
 }
+uint32_t rf_scene_npc_impact_audio[12]; /* common audio counters + requested body position */
+int rf_scene_npc_impact_sound(uint32_t handle,rf_random_state *random)
+{
+    campaign_npc_body *owner;uint32_t i,cls;int32_t group,sample;campaign_pain_audio_context audio;
+    if(!random)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view)return RF_NOT_FOUND;
+    if(!campaign_seeds.items || i>=campaign_seeds.records.count || !campaign_impact_groups)return RF_RANGE;
+    cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
+    group=campaign_impact_groups[cls];
+    if(group>=0 && !campaign_foley.samples)return RF_RANGE;
+    audio.random=random;audio.status=0;audio.telemetry=rf_scene_npc_impact_audio;audio.player=0;
+    ++rf_scene_npc_impact_audio[0];sample=campaign_pain_audio_resolve(&audio,group);
+    memcpy(rf_scene_npc_impact_audio+9,owner->body.state.position,12);
+    if(!audio.status)campaign_pain_audio_play(&audio,owner->body.state.position,sample);
+    rf_scene_npc_impact_audio[6]=random->value;
+    if(audio.status)++rf_scene_npc_impact_audio[7];return audio.status;
+}
 int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random)
 {
     uint32_t i,cls;int status;campaign_npc_body *owner;
@@ -3088,6 +3107,7 @@ static int campaign_npc_damage_fixture(void)
     memset(rf_scene_npc_damage_test_words,0,sizeof(rf_scene_npc_damage_test_words));
     memset(rf_scene_npc_pain_test_words,0,sizeof(rf_scene_npc_pain_test_words));
     memset(rf_scene_npc_pain_sound_test,0,sizeof(rf_scene_npc_pain_sound_test));
+    memset(rf_scene_npc_impact_audio,0,sizeof(rf_scene_npc_impact_audio));rf_scene_npc_impact_audio[5]=UINT32_MAX;
     memset(rf_scene_npc_pain_audio,0,sizeof(rf_scene_npc_pain_audio));rf_scene_npc_pain_audio[5]=UINT32_MAX;
     if(rf_scene_npc_damage_test_uid==UINT32_MAX)return RF_OK;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
@@ -3130,6 +3150,17 @@ static int campaign_npc_damage_fixture(void)
         rf_scene_npc_pain_sound_test[pass*5+4]=rf_scene_npc_pain_audio[2];
     }
     {int removed=rf_object_registry_remove(&campaign_registry,event.handle);if(!status)status=removed;}
+    if(!status) {
+        /* Explicit audio fixture, not a lethal gameplay impact. */
+        rf_random_state impact_random={1},before=impact_random;float position[3];uint32_t kept[12];
+        memcpy(position,owner->body.state.position,12);memcpy(kept,rf_scene_npc_impact_audio,sizeof(kept));
+        if(rf_scene_npc_impact_sound(owner->registration.handle^0x10000,&impact_random)!=RF_NOT_FOUND ||
+           memcmp(&before,&impact_random,sizeof(before)) || memcmp(kept,rf_scene_npc_impact_audio,sizeof(kept)))status=RF_FORMAT;
+        owner->body.state.position[1]+=2;
+        if(!status)status=rf_scene_npc_impact_sound(owner->registration.handle,&impact_random);
+        if(!status && memcmp(rf_scene_npc_impact_audio+9,owner->body.state.position,12))status=RF_FORMAT;
+        memcpy(owner->body.state.position,position,12);
+    }
     return status?status:rf_scene_npc_damage_test_words[63]?RF_FORMAT:RF_OK;
 }
 
