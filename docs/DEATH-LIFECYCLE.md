@@ -5230,3 +5230,37 @@ from MSYS make paths, so explicit *_fixture.h prerequisites now rebuild main.
 The074148 failed retry still used the old binary due to that dependency gap;
 074311 used the verified smaller entry frame. All diagnostic flags and disc
 changes were restored by the harness.
+
+
+### Selected skeletal scene geometry and registered queries (2026-09-12)
+
+rf_entity_collision_models_open/close owns the original initial skeletal
+collision selection: last LOD of the first SUBM per shared model, matching
+54e200 metadata access without static fallback. Skeleton/model indices stay
+stable. The20-byte x86 owner accounts arrays, raw LOD blobs and batch views;
+maximum vertex count sizes one scene-owned scratch buffer. All95 shipped
+V3Cs pass tools/verify_entity_collision_models.py: independent first-SUBM
+selection, two disjoint owners, exact/one-under total budgets, failure after
+the first owner loads and repeated cleanup. Peak two-model fixture147532 bytes.
+
+The campaign loads these resources with shared scratch under a combined1MiB
+cap, then frees them on level teardown after model retirement. The public
+rf_scene_model_collision_query resolves the registered model's published pose,
+checks its evaluated generation through the cache adapter and composes matrix
+refresh and skeletal geometry queries. Caller supplies query coordinates and
+transform; scratch is synchronous/non-reentrant. It does not advance stale
+animation, perform dynamic LOD selection, schedule physics or publish contacts.
+
+The opt-in actor-pair replay now exercises six model-local thin/sphere sweeps
+per retained actor every30 ticks, after gated authored pose advancement. Native
+stock64MiB run artifacts/xemu/replay-20260912-075119/report.json passes180
+frames with PC/Xbox NPC_MODEL_QUERIES=[5,61128,2472,2808,2448,2112961295,0].
+Five shared meshes use61128 bytes and scratch2472 bytes. Every query return
+is counted and all hit bytes feed the matching result hash. Cache state stays
+[78,86010,6501,4131715306,78,0]. Base memory67108864, plugged memory0. XBE
+SHA256: e5f1bf4537c534f2ccd7780c55d8ac41ef1a9d898751bb70faae9a339c1fc2cb.
+Both builds and19 CTests pass. This proves cross-platform queries against
+the currently authored animated scene poses; the independent original geometry
+verification remains the earlier synthetic/prepared and authored-mesh gates,
+not a new full original animation-runtime comparison. Model dispatch, demand
+evaluation, dynamic selection and physical response scheduling remain open.
