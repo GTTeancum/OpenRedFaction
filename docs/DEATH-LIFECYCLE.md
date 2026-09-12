@@ -5691,3 +5691,36 @@ Liquid/crush/rotating branches, complete contact dispatch and impact damage
 remain open. No new native XEMU run or visible behavior is claimed for this
 isolated reconstruction; compiled NXDK comparison uses Unicorn at x87 control
 word027f, matching the established runtime precision contract.
+
+
+### Contact entry selection and damping (2026-09-12)
+
+rf_physics_contact_select reconstructs49d7e0 entry through six distinct
+response/effect boundaries. Nonzero actor1ec (body.word_164) clears itself
+and actor1ac bit1000, scales velocity by float.85 and supplies the new Y as
+impact. This route is named DAMPED: the current contact owner calls1ec
+reserved, so the historical liquid label does not establish its producer.
+Positive contact inverse mass selects49dcf6. Otherwise the default response
+comes from body flag80, with crush/stance decisions preceding it.
+
+Crush eligibility requires mode1, a resolved object of radius>1, normalY<-.5,
+negative contact velocityY and squared(contact velocity-support velocity)>.1.
+Actual428010 checks actor974 or964 not equal-1;40a130 checks actor810 bit400.
+An available field and clear bit selects49d907 stance effects; other eligible
+cases select49da18 crush damage. No semantic identity for964/974 beyond these
+verified field tests is required by the helper. The caller must execute those
+effects and preserve their ordering before continuing the default response.
+
+tools/verify_contact_select.py executes original49d7e0 with real generation-
+checked object lookup, vector helpers,428010 and40a130. Hooks only stop at
+selected instruction boundaries, never replace helper results.8192 cases
+match complete PC/NXDK body state, route and impact. Route counts are
+[1024,1785,2654,2526,127,76] for damped,dynamic,static,flag80,crush,stance.
+Unrelated original actor bytes, NXDK source/guards and10 nonfinite rejection
+cases preserve expected state. Both builds and19 CTests pass. Report:
+artifacts/contact-select-verification.json.
+
+This is not complete49d7e0: subsequent stance/crush effects, rotating response
+and damage-tail dispatch remain open. Existing dynamic/static/flag80 numeric
+helpers must be composed at their correct boundaries. No live scene binding
+or new XEMU execution is claimed for this isolated compiled-NXDK comparison.

@@ -267,6 +267,24 @@ int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3]
 int rf_physics_player_contact(rf_physics_body_state *state,const float normal[3],
     const float support_velocity[3],const float contact_velocity[3],const float direction[3],
     uint32_t mode,uint32_t free_tangent,float *impact_speed);
+typedef enum rf_physics_contact_route {
+    RF_PHYSICS_CONTACT_DAMPED=0, RF_PHYSICS_CONTACT_DYNAMIC=1,
+    RF_PHYSICS_CONTACT_STATIC=2, RF_PHYSICS_CONTACT_FLAG80=3,
+    RF_PHYSICS_CONTACT_CRUSH=4, RF_PHYSICS_CONTACT_STANCE=5
+} rf_physics_contact_route;
+typedef struct rf_physics_contact_context {
+    uint32_t mode,object_present;float object_radius,inverse_mass;
+    float contact_velocity[3],support_velocity[3];
+    int32_t field_964,field_974;uint32_t actor_flags_810;
+} rf_physics_contact_context;
+/*49d7e0 early branch selection with resolved contact object facts. Nonzero
+ * body.word_164 clears that word and state_124 bit1000, scales velocity by.85
+ * and returns its new Y as impact. Other routes preserve body and set impact0.
+ * Crush/stance routes require caller effects before subsequent response; this
+ * function does not execute damage, stance transitions or velocity responses.
+ * Finite consumed arithmetic required; failures preserve all outputs. */
+int rf_physics_contact_select(rf_physics_body_state *state,
+    const rf_physics_contact_context *context,rf_physics_contact_route *route,float *impact);
 /*49dcf6..49ddef: prepared positive-inverse-mass contact response. Caller
  * resolves contacted object and player predicates (low byte). Missing object,
  * or NPC against player, returns zero impact with body/normal unchanged.

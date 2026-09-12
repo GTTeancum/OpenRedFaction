@@ -184,6 +184,38 @@ int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3]
 }
 static long double player_contact_dot(const float a[3],const float b[3])
 {return ((long double)a[2]*b[2]+(long double)a[1]*b[1])+(long double)a[0]*b[0];}
+int rf_physics_contact_select(rf_physics_body_state *state,
+    const rf_physics_contact_context *context,rf_physics_contact_route *route,float *impact)
+{
+    rf_physics_contact_route selected;uint32_t i;
+    if(!state || !context || !route || !impact)return RF_RANGE;
+    if(state->word_164) {
+        float velocity[3];
+        for(i=0;i<3;++i){if(!isfinite(state->velocity[i]))return RF_RANGE;velocity[i]=(float)((long double)state->velocity[i]*.8500000238418579f);}
+        memcpy(state->velocity,velocity,12);state->word_164=0;state->state_124&=~0x1000u;
+        *impact=velocity[1];*route=RF_PHYSICS_CONTACT_DAMPED;return RF_OK;
+    }
+    if(!isfinite(context->inverse_mass))return RF_RANGE;
+    if(context->inverse_mass>0)selected=RF_PHYSICS_CONTACT_DYNAMIC;
+    else {
+        selected=(state->flags&0x80)?RF_PHYSICS_CONTACT_FLAG80:RF_PHYSICS_CONTACT_STATIC;
+        if(context->mode==1 && context->object_present) {
+            if(!isfinite(context->object_radius) || !isfinite(state->vector_138[1]) || !isfinite(context->contact_velocity[1]))return RF_RANGE;
+            if(context->object_radius>1 && state->vector_138[1]<-.5f && context->contact_velocity[1]<0) {
+                float delta[3];long double squared;
+                for(i=0;i<3;++i) {
+                    if(!isfinite(context->contact_velocity[i]) || !isfinite(context->support_velocity[i]))return RF_RANGE;
+                    delta[i]=(float)((long double)context->contact_velocity[i]-context->support_velocity[i]);
+                    if(!isfinite(delta[i]))return RF_RANGE;
+                }
+                squared=((long double)delta[0]*delta[0]+(long double)delta[1]*delta[1])+(long double)delta[2]*delta[2];
+                if(squared>.10000000149011612f)selected=(context->field_974!=-1 || context->field_964!=-1) &&
+                    !(context->actor_flags_810&0x400)?RF_PHYSICS_CONTACT_STANCE:RF_PHYSICS_CONTACT_CRUSH;
+            }
+        }
+    }
+    *route=selected;*impact=0;return RF_OK;
+}
 int rf_physics_dynamic_contact(rf_physics_body_state *state,float normal[3],
     const float support_velocity[3],const float contact_velocity[3],uint32_t mode,
     uint32_t object_present,uint32_t object_player,uint32_t actor_player,float *impact_speed)
