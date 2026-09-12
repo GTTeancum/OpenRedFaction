@@ -110,3 +110,14 @@ int rf_lightmap_project(const rf_lightmap_projection *projection,const float poi
     }
     memcpy(uv,value,sizeof(value));return RF_OK;
 }
+
+int rf_lightmap_projection_read(const void *record,uint32_t bytes,rf_lightmap_projection *projection)
+{
+    const unsigned char *p=record;rf_lightmap_projection value;uint32_t words[4],i;
+    if(!record || !projection || bytes!=96)return RF_RANGE;
+    value.axes[0]=u32(p+68);value.axes[1]=u32(p+72);
+    words[0]=u32(p+84);words[1]=u32(p+88);words[2]=u32(p+76);words[3]=u32(p+80);
+    memcpy(value.scale,words,8);memcpy(value.offset,words+2,8);
+    for(i=0;i<2;++i)if(value.axes[i]>2 || !isfinite(value.scale[i]) || !isfinite(value.offset[i]))return RF_FORMAT;
+    *projection=value;return RF_OK;
+}

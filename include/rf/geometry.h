@@ -1,5 +1,6 @@
 #ifndef RF_GEOMETRY_H
 #define RF_GEOMETRY_H
+#include "rf/lightmap.h"
 #include "rf/level.h"
 #include "rf/collision.h"
 #include "rf/entity.h"
@@ -66,6 +67,7 @@ void rf_geometry_movers_close(rf_geometry_movers *movers);
 int rf_geometry_vertex(const rf_geometry *geometry, uint32_t index, float position[3]);
 int rf_geometry_texture_name(const rf_geometry *geometry, uint32_t index, char *name, uint32_t capacity);
 /* Resolve a mapping record's first word; remaining 92 bytes stay opaque. */
+int rf_geometry_lightmap_projection(const rf_geometry *geometry,uint32_t mapping,rf_lightmap_projection *projection);
 int rf_geometry_lightmap(const rf_geometry *geometry, uint32_t mapping, uint32_t image_count, uint32_t *image);
 int rf_geometry_get_face(const rf_geometry *geometry, uint32_t index, rf_geometry_face *face);
 int rf_geometry_get_corner(const rf_geometry *geometry, uint32_t face, uint32_t corner, rf_geometry_corner *result);

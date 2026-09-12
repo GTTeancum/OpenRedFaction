@@ -254,6 +254,11 @@ int rf_geometry_vertex(const rf_geometry *g, uint32_t index, float position[3])
     for (i = 0; i < 3; ++i) position[i] = f32(g->data + g->vertices_offset + index * 12 + i * 4);
     return RF_OK;
 }
+int rf_geometry_lightmap_projection(const rf_geometry *geometry,uint32_t mapping,rf_lightmap_projection *projection)
+{
+    if(!geometry || !geometry->data || mapping>=geometry->mappings || !projection)return RF_RANGE;
+    return rf_lightmap_projection_read(geometry->data+geometry->mapping_offset+mapping*96,96,projection);
+}
 int rf_geometry_lightmap(const rf_geometry *g, uint32_t mapping, uint32_t image_count, uint32_t *image)
 {
     uint32_t index;

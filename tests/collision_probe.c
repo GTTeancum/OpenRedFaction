@@ -93,6 +93,30 @@ static int geometry_body_fixture_run(const body_fixture *input,rf_geometry_body_
 }
 int main(int argc,char **argv)
 {
+    if(argc==4 && !strcmp(argv[1],"--level-lightmap-projections")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;uint32_t i,j,checked=0,different=0;float largest=0;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,16u*1024u*1024u))return 2;
+        for(i=0;i<geometry.mappings;++i){rf_lightmap_projection p;if(rf_geometry_lightmap_projection(&geometry,i,&p))return 3;}
+        for(i=0;i<geometry.faces;++i) {
+            rf_geometry_face face;rf_lightmap_projection p;
+            if(rf_geometry_get_face(&geometry,i,&face))return 4;
+            if(face.lightmap_mapping==UINT32_MAX)continue;
+            if(rf_geometry_lightmap_projection(&geometry,face.lightmap_mapping,&p))return 5;
+            for(j=0;j<face.corners;++j) {
+                rf_geometry_corner corner;float position[3],uv[2],difference;uint32_t axis;
+                if(rf_geometry_get_corner(&geometry,i,j,&corner) || rf_geometry_vertex(&geometry,corner.vertex,position) || rf_lightmap_project(&p,position,uv))return 6;
+                ++checked;
+                for(axis=0;axis<2;++axis) {
+                    float authored=corner.lightmap_uv[axis];if(authored<0)authored=0;if(authored>1)authored=1;
+                    difference=uv[axis]-authored;if(difference<0)difference=-difference;
+                    if(difference>largest)largest=difference;if(difference>.0001f)++different;
+                }
+            }
+        }
+        printf("%u %u %u %.9g\n",geometry.mappings,checked,different,largest);
+        rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--group-ramp")) {
         struct {rf_group_motion_state motion;float elapsed,acceleration,deceleration,dt;} input;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

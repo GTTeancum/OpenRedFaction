@@ -2360,3 +2360,35 @@ shared alias cases and four invalid-axis/nonfinite guards pass. Both builds
 and19 CTests pass. Geometry-to-descriptor construction and packed texture
 ownership are still missing; these supplied projection records do not yet
 provide an authored face-color binding or rendered corpse effects.
+
+
+## Authored saved lightmap projection records
+
+The original saved mapping path4ee2db..4ee51d is distinct from the lighting
+generation path4e4a60. For version180 it consumes96 bytes: image index, four
+byte fields, two scalar floats, two vectors, plane, flag/axis words, offsets,
+scales and trailing word. Projection axes are saved offsets68/72, offsets
+76/80 and scales84/88. They become descriptor60/64,54/58 and4c/50.
+
+rf_lightmap_projection_read decodes these fields with finite/axis validation;
+rf_geometry_lightmap_projection supplies an allocation-free accessor over
+the retained geometry mapping records. Original allocation and image-owner
+registration are separate. Invalid projection records preserve output.
+
+verify_lightmap_projection_read.py supplies sequential typed file reads and
+version180 while executing the original loader slice, including stores,
+branches and image-index resolution.1024 cases consume exactly96 bytes and
+match the shared PC/NXDK projection. Four port guards cover bad axes and
+nonfinite values. The primitive file-reader implementations and allocator
+are not exercised by this boundary test.
+
+verify_lightmap_authored_projections.py decodes301871 mappings across all94
+inventoried installed levels. It compares projected UVs with clamped saved
+corner UVs at1819163 corners: nine components exceed0.0001, maximum
+difference0.000228129327. This is measured agreement, not exact baked-UV
+equivalence. The verified original projection must not be adjusted to fit
+those saved UVs without further evidence. Both builds and19 CTests pass.
+
+Next ownership dependency: original RGB-to-packed texture conversion and
+pitch/storage policy. Authored projection now exists, but face-color binding,
+live source effects, runtime tags and lifetime/rendering are still open.

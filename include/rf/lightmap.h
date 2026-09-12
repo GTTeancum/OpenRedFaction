@@ -18,6 +18,9 @@ typedef struct rf_lightmap_projection {
  * then clamp to[0,1]. Projection ownership/loading remains separate. Finite
  * inputs required; finite-input overflow clamps as original. Aliasing allowed;
  * errors preserve output. No allocation or implicit texture lookup. */
+/* Version180 saved96-byte mapping record, projection fields loaded by
+ * original4ee2db..4ee51d. Does not resolve image/resource ownership. */
+int rf_lightmap_projection_read(const void *record,uint32_t bytes,rf_lightmap_projection *projection);
 int rf_lightmap_project(const rf_lightmap_projection *projection,const float point[3],float uv[2]);
 typedef struct rf_lightmap_1555_view {
     const unsigned char *pixels;uint32_t width,height,pitch,bytes;

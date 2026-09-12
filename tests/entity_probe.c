@@ -225,6 +225,15 @@ int main(int argc,char **argv)
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_delete_probe();
     }
     if(argc==2 && !strcmp(argv[1],"--corpse-surface-guards"))return corpse_surface_guards();
+    if(argc==2 && !strcmp(argv[1],"--lightmap-projection-read")) {
+        unsigned char record[96];struct {int32_t status;rf_lightmap_projection projection;} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(record,sizeof(record),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=rf_lightmap_projection_read(record,sizeof(record),&out.projection);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-project")) {
         struct {rf_lightmap_projection projection;float point[3];uint32_t alias;} in;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
