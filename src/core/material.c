@@ -1,19 +1,53 @@
 #include "rf/material.h"
 #include <stdlib.h>
 #include <string.h>
+static int geometry_material_slot(const rf_geometry_materials *materials,uint32_t geometry_index,
+    const rf_geometry *geometry,uint32_t face,uint32_t *slot)
+{
+    rf_geometry_face source;uint32_t first,last,value;int status;
+    if(!materials || !geometry || !slot || !materials->offsets || geometry_index>=materials->count)return RF_RANGE;
+    status=rf_geometry_get_face(geometry,face,&source);if(status)return status;
+    if(source.texture==UINT32_MAX){*slot=UINT32_MAX;return RF_OK;}
+    first=materials->offsets[geometry_index];last=materials->offsets[geometry_index+1];
+    if(last<first || last-first!=geometry->textures || source.texture>=geometry->textures || !materials->slots)return RF_FORMAT;
+    value=materials->slots[first+source.texture];if(value>=materials->textures.count || !materials->textures.items)return RF_FORMAT;
+    *slot=value;return RF_OK;
+}
 int rf_geometry_material_sample(const rf_geometry_materials *materials,uint32_t geometry_index,
     const rf_geometry *geometry,uint32_t face,const float point[3],
     rf_geometry_texture_workspace *work,uint32_t *color)
 {
-    rf_geometry_face source;uint32_t first,last,slot;const rf_material *item;int status;
-    if(!materials || !geometry || !color || !materials->offsets || geometry_index>=materials->count)return RF_RANGE;
-    status=rf_geometry_get_face(geometry,face,&source);if(status)return status;
-    if(source.texture==UINT32_MAX)return RF_NOT_FOUND;
-    first=materials->offsets[geometry_index];last=materials->offsets[geometry_index+1];
-    if(last<first || last-first!=geometry->textures || source.texture>=geometry->textures || !materials->slots)return RF_FORMAT;
-    slot=materials->slots[first+source.texture];if(slot>=materials->textures.count || !materials->textures.items)return RF_FORMAT;
+    uint32_t slot;const rf_material *item;int status;if(!color)return RF_RANGE;
+    status=geometry_material_slot(materials,geometry_index,geometry,face,&slot);if(status)return status;
+    if(slot==UINT32_MAX)return RF_NOT_FOUND;
     item=materials->textures.items+slot;if(item->status)return item->status;
     return rf_geometry_sample_texture(geometry,face,point,&item->image,work,color);
+}
+int rf_geometry_material_collision_sample(void *context,uint32_t index,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color)
+{
+    const rf_geometry_material_collision *view=context;uint32_t source,slot;int status;
+    if(!view || !face || !color || index>=view->face_count)return RF_RANGE;
+    source=view->source_indices?view->source_indices[index]:index;
+    status=geometry_material_slot(view->materials,view->geometry_index,view->geometry,source,&slot);if(status)return status;
+    if(slot==UINT32_MAX)return RF_NOT_FOUND;
+    if(slot>INT32_MAX || bitmap<0 || (uint32_t)bitmap!=slot)return RF_FORMAT;
+    return rf_geometry_material_sample(view->materials,view->geometry_index,view->geometry,source,point,view->work,color);
+}
+int rf_geometry_material_collision_bind(const rf_geometry_material_collision *view,
+    int32_t *bitmaps,uint32_t capacity,rf_collision_indexed_texture_backend *backend)
+{
+    uint32_t i,source,slot;int status;
+    if(!view || !view->materials || !view->geometry || !view->work || !backend ||
+        capacity<view->face_count || (view->face_count && !bitmaps))return RF_RANGE;
+    for(i=0;i<view->face_count;++i) {
+        source=view->source_indices?view->source_indices[i]:i;
+        status=geometry_material_slot(view->materials,view->geometry_index,view->geometry,source,&slot);if(status)return status;
+        if(slot!=UINT32_MAX && slot>INT32_MAX)return RF_RANGE;
+        bitmaps[i]=(int32_t)slot;
+    }
+    backend->bitmaps=bitmaps;backend->sample=rf_geometry_material_collision_sample;backend->context=(void *)view;
+    return RF_OK;
 }
 
 int rf_geometry_body_surface(void *context,uint32_t solid,uint32_t face,

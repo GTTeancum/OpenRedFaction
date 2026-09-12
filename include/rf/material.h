@@ -171,6 +171,20 @@ void rf_geometry_materials_close(rf_geometry_materials *materials);
 int rf_geometry_material_sample(const rf_geometry_materials *materials,uint32_t geometry_index,
     const rf_geometry *geometry,uint32_t face,const float point[3],
     rf_geometry_texture_workspace *work,uint32_t *color);
+typedef struct rf_geometry_material_collision {
+    const rf_geometry_materials *materials;const rf_geometry *geometry;
+    const uint32_t *source_indices;uint32_t face_count,geometry_index;
+    rf_geometry_texture_workspace *work;
+} rf_geometry_material_collision;
+/* Bind a tree's source-face map (NULL means flat file order) to material
+ * slots in caller-provided bitmap scratch. No allocation or pixel copying.
+ * All borrowed owners, this view and work must outlive the backend. Calls
+ * sharing work are serialized. Failure preserves backend; bitmap scratch
+ * may change. Initial authored geometry only, no runtime face overrides. */
+int rf_geometry_material_collision_bind(const rf_geometry_material_collision *view,
+    int32_t *bitmaps,uint32_t capacity,rf_collision_indexed_texture_backend *backend);
+int rf_geometry_material_collision_sample(void *view,uint32_t index,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color);
 typedef struct rf_geometry_body_surfaces {
     const rf_geometry *const *geometries;uint32_t count; /* World first, then movers. */
     const rf_geometry_materials *mapping;const rf_surface_materials *palette;

@@ -8216,3 +8216,28 @@ with only UV/bitmap services supplied; ordered sampler contact hashes and
 PC/compiled NXDK results match. Existing4406 non-textured preferred checks,
 21 CTests and both builds pass. World/mover scene material and source-face
 services, live glare scheduling and native alpha-query evidence remain open.
+
+
+Authored source-face to indexed collision material binding (2026-09-12)
+--------------------------------------------------------------------
+rf_geometry_material_collision borrows material/geometry owners, a tree
+source-index map (NULL means flat file order), face count, geometry index
+and shared UV workspace. Bind writes resolved bitmap slots into caller
+scratch and publishes an indexed collision backend only on success. The
+sampler resolves the authored face, checks that the supplied bitmap still
+matches its slot, and calls the retained-image sampler. No allocation or
+image duplication. Scratch may change on bind failure; backend and sampled
+color remain unchanged on failure. All owners/view/work must outlive use;
+calls sharing workspace are serialized. Runtime face overrides are excluded.
+
+verify_geometry_indexed_material_sample.py covers all7418 opening face
+centroids against original4e1ad0/55cfa0 with only lock/release supplied.
+PC binds a reversed source-face map; compiled NXDK binds repeated source
+references to equivalent one-face records and uses distinct swizzled images.
+All17 retained slots match. Six additional adapter guards cover invalid
+callback index, stale/negative bitmap, short bitmap capacity and invalid
+source indices with unchanged backend/color, alongside existing workspace
+and mapping guards. The direct7418-face sampler regression,21 CTests and
+both builds pass. The adapter is ready for scene lifetime management, but
+scene-owned bitmap scratch/views and native live query validation are not
+yet connected. No live alpha collision or animation-selection claim.
