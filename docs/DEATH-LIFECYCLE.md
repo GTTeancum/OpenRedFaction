@@ -6486,3 +6486,45 @@ class/model selection and successful creation order before supplying the middle
 visibility list. Actor/corpse lifetime, live model geometry and world498e80
 services remain required; do not replace missing clutter with an empty list and
 claim complete scene visibility.
+
+
+### Authored clutter465220/464f90 loader audit (2026-09-12)
+
+`tools/inspect_clutter_records.py` consumes every byte of all91 installed
+version180 section50000 payloads:12659 clutter records,787 association words
+and2854 nonempty trailing resource names. L1S1 contains170 records in17531 bytes,
+67 resource names and no associations. Its13 classes are primarily mine/pole/
+runway/portable lights, plants/vines and shards. Three installed levels have no
+clutter section. Raw assets and extracted per-record content remain untracked.
+
+Record order is UID, class string, position12, orientation36, instance name,
+discarded enabled byte, common count with(string,u32) pairs, resource string,
+association count and u32 association IDs. Strings have u16 byte lengths.
+Original464f90 consumes and discards common pairs; installed records have none.
+The trailing resource name remains a provisional label until410d30 is audited.
+Do not infer texture/animation semantics from its position in the record.
+
+`tools/verify_clutter_loader.py` executes full original465220 and464f90 with
+actual vector/matrix wrappers, array lookup and string inequality. Version180
+I/O, string storage, class lookup410b60, factory4104a0, array growth, resource
+lookup410d30 and post callback525c70 are supplied. All authored records pass in
+both successful and failed factory modes. Tests compare exact factory class/
+instance/pose arguments, full2d8-byte successful-node write footprint, UID20,
+resource2bc publication, ordered2c0 associations and post-callback sequence.
+The lookup collection includes missing IDs and duplicate IDs with differing
+handles, confirming first matching record wins; repeated authored links remain
+repeated. A synthetic two-record section covers common pairs, duplicate keys,
+noncanonical enabled bytes, repeated links and empty/nonempty resource names.
+
+4104a0 receives resolved class, instance name,-1, position, matrix,1. On success,
+each authored association searches646098 in order by first word; the matched
+record's94 word is appended to clutter2c0. Missing matches are ignored. UID is
+published after associations and before optional410d30 resource lookup. Nonempty
+resource names publish the returned word at2bc, then525c70(0,0) executes. Failed
+factories still consume the entire record but skip all these publications.
+
+No shared C clutter owner, actual class/model factory, association-target owner,
+resource semantics or native clutter visibility is claimed. Next implement
+budgeted shared record ownership retaining raw unknown names/pairs/IDs, validate
+PC/NXDK against this audit, then recover class/model initialization4104a0 and
+ordered successful creation for the visibility middle list.
