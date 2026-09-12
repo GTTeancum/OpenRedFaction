@@ -1788,6 +1788,7 @@ typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_collision_contact_extra collision_contact;
     uint32_t collision_material; /* Original object1fc, factory parameter+10. */
+    float support_velocity[3]; /* Original422f35..422f3b clears actor8a0. */
     rf_entity_damage_state damage;uint32_t object_flags,field_840;
     struct {int32_t item_82c,requested_83c,action_824,linked_146c,deadline_4b8;uint32_t model_148c;} death;
     uint32_t death_bone_words[2]; /* actor1464/1468 */
@@ -3178,6 +3179,16 @@ static float campaign_support_velocity[3];
 static uint32_t campaign_support_handle;
 static rf_collision_contact_extra campaign_player_contact;
 static uint32_t campaign_player_material;
+const float *rf_scene_collision_extra_velocity(void *context,uint32_t handle)
+{
+    const rf_entity_view *view;uint32_t i;(void)context;
+    view=rf_entity_lookup(&campaign_entities,(int32_t)handle);if(!view || view->type!=0)return NULL;
+    if(campaign_spawn && campaign_player_object.view==view && campaign_player_object.handle==handle &&
+       view==&campaign_player_view)return campaign_support_velocity;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view==view &&
+       campaign_npc_bodies[i].registration.handle==handle)return campaign_npc_bodies[i].support_velocity;
+    return NULL;
+}
 
 uint32_t rf_scene_actor_ground_queries[4]; /* queries, hits, mover hits, status */
 uint32_t rf_scene_actor_ground_stats[8]; /* magic, records, hits, walkable, first walkable frame, hash, stride, status */
@@ -3216,7 +3227,7 @@ int rf_scene_player_collision_publish(uint32_t handle,uint32_t body_flags,const 
 }
 uint32_t rf_scene_collision_views[8]; /* frames, player hash, NPC hash/count, player model, NPC models, status, last frame */
 uint32_t rf_scene_collision_responses[6]; /* frames, player hash, NPC hash/count, status, last frame */
-static uint32_t collision_response_hash(uint32_t hash,const rf_collision_actor_general_response *view)
+static uint32_t collision_response_hash(uint32_t hash,const rf_collision_actor_general_response *view,const float *extra_velocity)
 {
     uint32_t words[57],i;
     _Static_assert(offsetof(rf_collision_actor_response,spheres)==80,"response scalar prefix");
@@ -3226,6 +3237,7 @@ static uint32_t collision_response_hash(uint32_t hash,const rf_collision_actor_g
     hash=npc_hash_bytes(hash,words,sizeof(words));
     /* Addresses and sphere opaque_14 are not semantic portable state. */
     for(i=0;i<(uint32_t)view->actor.sphere_count;++i)hash=npc_hash_bytes(hash,view->actor.spheres+i,20);
+    hash=npc_hash_bytes(hash,extra_velocity,12);
     return hash;
 }
 static uint32_t collision_view_hash(uint32_t hash,const rf_collision_pair_actor_state *view)
@@ -3238,19 +3250,21 @@ static uint32_t collision_view_hash(uint32_t hash,const rf_collision_pair_actor_
 }
 static int campaign_collision_views_check(uint32_t frame)
 {
-    rf_collision_pair_actor_state view;rf_collision_actor_general_response response;uint32_t i,models=0;int status;
+    rf_collision_pair_actor_state view;rf_collision_actor_general_response response;const float *extra;uint32_t i,models=0;int status;
     if(!frame){memset(rf_scene_collision_views,0,sizeof(rf_scene_collision_views));rf_scene_collision_views[1]=rf_scene_collision_views[2]=2166136261u;}
     if(!frame){memset(rf_scene_collision_responses,0,sizeof(rf_scene_collision_responses));rf_scene_collision_responses[1]=rf_scene_collision_responses[2]=2166136261u;}
     status=rf_scene_player_collision_view(campaign_player_object.handle,&view);if(status)goto done;
     rf_scene_collision_views[1]=collision_view_hash(rf_scene_collision_views[1],&view);rf_scene_collision_views[4]=view.model;
     status=rf_scene_player_collision_response(campaign_player_object.handle,&response);if(status)goto done;
-    rf_scene_collision_responses[1]=collision_response_hash(rf_scene_collision_responses[1],&response);
+    extra=rf_scene_collision_extra_velocity(NULL,campaign_player_object.handle);if(!extra){status=RF_NOT_FOUND;goto done;}
+    rf_scene_collision_responses[1]=collision_response_hash(rf_scene_collision_responses[1],&response,extra);
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
         status=rf_scene_npc_collision_view(campaign_npc_bodies[i].registration.handle,&view);if(status)goto done;
         rf_scene_collision_views[2]=collision_view_hash(rf_scene_collision_views[2],&view);
         ++rf_scene_collision_views[3];models+=view.model!=0;
         status=rf_scene_npc_collision_response(campaign_npc_bodies[i].registration.handle,&response);if(status)goto done;
-        rf_scene_collision_responses[2]=collision_response_hash(rf_scene_collision_responses[2],&response);++rf_scene_collision_responses[3];
+        extra=rf_scene_collision_extra_velocity(NULL,campaign_npc_bodies[i].registration.handle);if(!extra){status=RF_NOT_FOUND;goto done;}
+        rf_scene_collision_responses[2]=collision_response_hash(rf_scene_collision_responses[2],&response,extra);++rf_scene_collision_responses[3];
     }
     ++rf_scene_collision_views[0];rf_scene_collision_views[5]=models;
     ++rf_scene_collision_responses[0];

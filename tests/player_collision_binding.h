@@ -6,6 +6,11 @@ static int player_collision_binding_check(void)
  CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&campaign_player_view,&campaign_player_object)==RF_OK);handle=campaign_player_object.handle;
  campaign_spawn=1;campaign_player_view.flags_7c=8;campaign_player_view.linked_handle=-1;rf_scene_actor_landing[1]=4;campaign_modes[4].index=2;
  scene_actor_body.allocated_bytes=1;scene_actor_body.state.flags=0x40000020;
+ campaign_support_velocity[0]=1;campaign_support_velocity[1]=-2;campaign_support_velocity[2]=3;
+ CHECK(rf_scene_collision_extra_velocity(NULL,handle)==campaign_support_velocity);
+ CHECK(rf_scene_collision_extra_velocity(NULL,handle)[1]==-2);
+ CHECK(!rf_scene_collision_extra_velocity(NULL,handle^0x10000));
+ campaign_player_view.type=2;CHECK(!rf_scene_collision_extra_velocity(NULL,handle));campaign_player_view.type=0;
  scene_actor_body.state.position[0]=99;rf_scene_actor_pose.public_position[0]=17;scene_actor_body.state.orientation[6]=.5f;
  model.model=&file;model.bones=&bone;model.bone_count=1;model.matrices=(const float (*)[12])matrices;model.playback=&playback;
  memset(&out,0xa5,sizeof(out));before=out;
@@ -56,6 +61,7 @@ static int player_collision_binding_check(void)
  CHECK(rf_scene_player_collision_view(handle,&out)==RF_RANGE && !memcmp(&out,&before,sizeof(out)));rf_scene_actor_landing[1]=4;
  campaign_player_model=NULL;CHECK(rf_scene_player_collision_view(handle,&out)==RF_RANGE && !memcmp(&out,&before,sizeof(out)));
  CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&campaign_player_object)==RF_OK);
+ CHECK(!rf_scene_collision_extra_velocity(NULL,handle));memset(campaign_support_velocity,0,sizeof(campaign_support_velocity));
  CHECK(rf_scene_player_collision_view(handle,&out)==RF_NOT_FOUND && !memcmp(&out,&before,sizeof(out)));
  campaign_spawn=0;campaign_modes[4]=saved;memset(&scene_actor_body,0,sizeof(scene_actor_body));memset(&rf_scene_actor_pose,0,sizeof(rf_scene_actor_pose));memset(rf_scene_actor_landing,0,sizeof(rf_scene_actor_landing));return 0;
 }

@@ -95,6 +95,11 @@ int rf_scene_player_collision_view(uint32_t handle,rf_collision_pair_actor_state
  * current campaign player registration and borrowed model publication. */
 int rf_scene_player_collision_response(uint32_t handle,rf_collision_actor_general_response *result);
 int rf_scene_player_collision_publish(uint32_t handle,uint32_t body_flags,const rf_collision_actor_contact *contact);
+/* Response426fc0-style registered kind0 actor8a0 lookup. Player aliases its
+ * existing support velocity; NPCs retain constructor-zeroed vectors. Model
+ * publication is not required. Other actor families and stale handles return
+ * NULL. Context is unused; no mutation or support refresh is performed. */
+const float *rf_scene_collision_extra_velocity(void *context,uint32_t handle);
 extern uint32_t rf_scene_collision_views[8]; /* Pointer-free live actor snapshot replay evidence. */
 extern uint32_t rf_scene_collision_responses[6]; /* Live body/contact snapshot replay evidence. */
 

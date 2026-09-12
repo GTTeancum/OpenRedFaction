@@ -8,6 +8,12 @@ static int npc_collision_binding_check(void)
  rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
  CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);handle=owner.registration.handle;
  owner.movement_slot=3;campaign_modes[3].index=8;owner.view.linked_handle=-1;
+ CHECK(rf_scene_collision_extra_velocity(NULL,handle)==owner.support_velocity);
+ CHECK(!owner.support_velocity[0] && !owner.support_velocity[1] && !owner.support_velocity[2]);
+ owner.support_velocity[0]=3;owner.support_velocity[1]=-7;owner.support_velocity[2]=11;
+ CHECK(rf_scene_collision_extra_velocity(NULL,handle)[1]==-7);
+ CHECK(!rf_scene_collision_extra_velocity(NULL,handle^0x10000));
+ owner.view.type=2;CHECK(!rf_scene_collision_extra_velocity(NULL,handle));owner.view.type=0;
  owner.object_flags=0x12344000;owner.view.flags_7c=0;owner.body.state.flags=0x40000020;
  owner.published[0]=12;owner.published[1]=-5;owner.published[2]=9;
  record.record.orientation[2][0]=1;record.record.orientation[2][1]=2;record.record.orientation[2][2]=3;
@@ -67,6 +73,7 @@ static int npc_collision_binding_check(void)
   CHECK(rf_scene_npc_collision_response(handle,&response)==RF_OK && !response.actor.sphere_count && !response.actor.spheres);
  }
  CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
+ CHECK(!rf_scene_collision_extra_velocity(NULL,handle));
  CHECK(rf_scene_npc_collision_view(handle,&out)==RF_NOT_FOUND && !memcmp(&out,&before,sizeof(out)));
  campaign_seeds=saved;campaign_modes[3]=saved_mode;campaign_npc_bodies=NULL;campaign_npc_body_count=0;
  campaign_model_owners=NULL;campaign_model_owner_count=0;return 0;

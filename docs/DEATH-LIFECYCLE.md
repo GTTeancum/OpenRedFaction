@@ -4482,3 +4482,25 @@ artifacts/xemu/replay-20260912-054139/report.json. Response summary:
 completed;78 NPCs, body resident55732 and peak430372 bytes. Door/damage/death
 animation/audio replay checks also pass. Native response publication, extra
 velocity refresh and automatic pair dispatch remain unverified/unconnected.
+
+## Registered response extra-velocity lookup
+
+Original422f35..422f3b clears NPC actor8a0 with4fad00. Each retained NPC now
+has the corresponding12-byte support_velocity vector, zeroed by its owner
+allocation. Player lookup borrows existing campaign_support_velocity instead
+of creating a duplicate. rf_scene_collision_extra_velocity resolves registered
+kind0 handles to these stable vectors without requiring model publication.
+Original426fc0 calls40a0e0 and rejects nonzero actor24; its disassembly confirms
+this type/handle gate. Unowned actor families remain unsupported.
+
+NPC/player binding tests check borrowed identity, changed values, stale and
+unregistered handles, wrong actor type and lookup without model publication.
+The existing response telemetry now requires successful lookups and hashes
+their12 bytes per actor/frame. PC build and19 CTests pass. Native NXDK build
+and180-frame stock64MiB replay pass:
+artifacts/xemu/replay-20260912-054555/report.json. NPC ownership adds936 bytes
+for78 actors. Snapshot parity includes live player support velocity and
+constructor-zero NPC vectors. This does not connect NPC support refresh or
+response dispatch. Existing rf_physics_support_refresh already reconstructs
+41e370/40a420 numerical copy/wake behavior; its scheduler must be connected
+to the NPC support handle and resolved moving support before claiming motion.
