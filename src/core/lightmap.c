@@ -96,3 +96,17 @@ int rf_lightmap_sample_1555(const rf_lightmap_1555_view *view,const float uv[2],
     value=((pixel>>7)&0xf8u)|(((pixel>>2)&0xf8u)<<8)|((pixel&31u)<<19)|0xff000000u;
     *color=value;return RF_OK;
 }
+
+int rf_lightmap_project(const rf_lightmap_projection *projection,const float point[3],float uv[2])
+{
+    float value[2];uint32_t i;
+    if(!projection || !point || !uv)return RF_RANGE;
+    for(i=0;i<2;++i)if(projection->axes[i]>2 || !isfinite(projection->scale[i]) || !isfinite(projection->offset[i]))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(point[i]))return RF_RANGE;
+    for(i=0;i<2;++i) {
+        volatile float product=(float)((double)point[projection->axes[i]]*projection->scale[i]);
+        value[i]=(float)((double)product+projection->offset[i]);
+        if(value[i]<0)value[i]=0;else if(value[i]>1)value[i]=1;
+    }
+    memcpy(uv,value,sizeof(value));return RF_OK;
+}

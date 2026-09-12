@@ -225,6 +225,18 @@ int main(int argc,char **argv)
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_delete_probe();
     }
     if(argc==2 && !strcmp(argv[1],"--corpse-surface-guards"))return corpse_surface_guards();
+    if(argc==2 && !strcmp(argv[1],"--lightmap-project")) {
+        struct {rf_lightmap_projection projection;float point[3];uint32_t alias;} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            struct {int32_t status;float uv[2];} out;
+            out.uv[0]=in.point[0];out.uv[1]=in.point[1];
+            out.status=rf_lightmap_project(&in.projection,in.point,in.alias?in.point:out.uv);
+            if(in.alias)memcpy(out.uv,in.point,8);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-sample")) {
         struct {uint32_t width,height,pitch,bytes,available;float uv[2];unsigned char pixels[512];} in;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

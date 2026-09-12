@@ -11,6 +11,14 @@ typedef struct rf_lightmaps {
  * Close before reuse; failures leave the result empty. */
 int rf_lightmaps_open(rf_lightmaps *maps, const rf_level *level, uint32_t budget);
 void rf_lightmaps_close(rf_lightmaps *maps);
+typedef struct rf_lightmap_projection {
+    uint32_t axes[2];float scale[2],offset[2];
+} rf_lightmap_projection;
+/*4e49d0: select coordinate axes, multiply/store each float, add/store offsets,
+ * then clamp to[0,1]. Projection ownership/loading remains separate. Finite
+ * inputs required; finite-input overflow clamps as original. Aliasing allowed;
+ * errors preserve output. No allocation or implicit texture lookup. */
+int rf_lightmap_project(const rf_lightmap_projection *projection,const float point[3],float uv[2]);
 typedef struct rf_lightmap_1555_view {
     const unsigned char *pixels;uint32_t width,height,pitch,bytes;
 } rf_lightmap_1555_view;

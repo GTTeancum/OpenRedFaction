@@ -2337,3 +2337,26 @@ The existing level lightmap loader still retains RGB-derived RGBA images.
 Original texture-format conversion/ownership and4e49d0 world-to-UV mapping
 must be recovered before this sampler can replace the face-color fixture.
 No authored color, live corpse effect, rendering or XEMU result is claimed.
+
+
+## Shared world-to-lightmap projection arithmetic
+
+rf_lightmap_project reconstructs unhooked4e49d0: read point components at
+descriptor axes60/64, multiply by4c/50, spill each product to float, add54/58
+offsets with another float store, then clamp to[0,1]. Raw Ghidra output
+obscured the multiply-before-offset ordering; disassembly and direct
+execution establish it. Shared projection records carry just two axes, two
+scales and two offsets,24 bytes, with no allocation.
+
+Finite inputs and axes0..2 are required. Finite-input arithmetic overflow
+clamps as original; invalid input preserves output. Shared point/output
+aliasing is supported by calculating both outputs before publishing them.
+This does not assert equivalence for original aliased output pointers.
+
+verify_lightmap_project.py passes4096 original/PC/NXDK comparisons, including
+all axis pairs, interior UVs, clamp boundaries, extreme finite scales and
+a cancellation case sensitive to the intermediate product rounding.2048
+shared alias cases and four invalid-axis/nonfinite guards pass. Both builds
+and19 CTests pass. Geometry-to-descriptor construction and packed texture
+ownership are still missing; these supplied projection records do not yet
+provide an authored face-color binding or rendered corpse effects.

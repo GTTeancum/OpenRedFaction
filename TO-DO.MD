@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Compose tested corpse file-tag placement, room queries and1555 sampling after recovering world-to-lightmap UV/texture ownership, runtime-created tags and effect lifetime/rendering.
+- [ ] Compose tested corpse tags, room queries, lightmap projection and1555 sampling after recovering authored projection/texture ownership, runtime-created tags and effect lifetime/rendering.
 - [ ] Bind verified base corpse-motion lookup to live creation and recover weapon-switched declaration views; canonical availability masks are retained.
 - [ ] Connect the authored-tested owned corpse constructor and class-input binding to live death dispatch and resource effects; bind the authored-tested corpse update adapter to live dispatch, replacement materials and moving room lookup.
 - [ ] Enable authored-class sphere transfer and tested corpse transition/refresh in live dispatch and recover attached item creation/handle publication and bind the tested item world-pose callback to live owners.
