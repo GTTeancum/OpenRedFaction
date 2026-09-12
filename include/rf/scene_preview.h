@@ -107,6 +107,10 @@ typedef struct rf_scene_npc_stance_services {
  * caches must remain alive. No speed/mode change or automatic scheduling. */
 int rf_scene_npc_try_stand(const rf_geometry_collision_world *world,uint32_t handle,
     const rf_scene_npc_stance_services *services,int *stood);
+/*4280b0: blocked standing stops the transition; successful walking clears the previous region. */
+int rf_scene_npc_normal(const rf_geometry_collision_world *world,uint32_t handle,
+    const rf_scene_npc_stance_services *services);
+extern uint32_t rf_scene_npc_normal_test[4];
 /*428030: blocked standing still selects slow mode; forced crouch sets only the flag.
  * Required standing services only when attempting to stand; borrowed owners must survive callbacks. */
 int rf_scene_npc_slow(const rf_geometry_collision_world *world,uint32_t handle,

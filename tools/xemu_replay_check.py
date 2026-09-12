@@ -281,6 +281,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_crouch==expected('NPC_CROUCH_TEST') and npc_crouch[5]==0,npc_crouch
      if args.actor_pairs:assert npc_crouch[0]>0 and npc_crouch[1]==npc_crouch[0] and npc_crouch[2]==npc_crouch[3]*2 and npc_crouch[0]==npc_crouch[3]*3,npc_crouch
      report['npc_crouch']=npc_crouch
+     npc_normal=words(monitor,symbol('rf_scene_npc_normal_test'),4)
+     assert npc_normal==expected('NPC_NORMAL_TEST') and npc_normal[3]==0,npc_normal
+     if args.actor_pairs:assert npc_normal[0]>0 and npc_normal[1]>0,npc_normal
+     report['npc_normal']=npc_normal
      npc_slow=words(monitor,symbol('rf_scene_npc_slow_test'),4)
      assert npc_slow==expected('NPC_SLOW_TEST') and npc_slow[3]==0,npc_slow
      if args.actor_pairs:assert npc_slow[0]>0 and npc_slow[1]>0,npc_slow

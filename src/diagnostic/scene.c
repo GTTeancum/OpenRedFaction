@@ -1898,6 +1898,7 @@ typedef struct campaign_npc_body {
     struct {int32_t item_82c,requested_83c,action_824,linked_146c,deadline_4b8;uint32_t model_148c;} death;
     uint32_t death_bone_words[2]; /* actor1464/1468 */
     float command_714[3]; /* Constructor422eaf..422ed3 clears this movement vector. */
+    const rf_player_movement_region *previous_region_13ec; /* Constructor clears; borrowed campaign region. */
     int32_t attachment_75c; /* Embedded AI initializer402e96: -1; later attachment lifecycle pending. */
     uint32_t stance_clock_7b4; /* Raw6460f0 bits, published after crouch ground refresh. */
     float model_radius_78; /* Original489fe0 model-origin radius. */
@@ -2078,7 +2079,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 owner->damage.burn_source=UINT32_MAX; /* Absent burn; source unused until installed. */
                 owner->movement_slot=rf_movement_start(campaign_modes,(int32_t)config.authored.movement_index,&body->state.flags);
                 owner->movement_orientation=campaign_identity[0]; /* Constructor422360 installs original73a858. */
-                owner->attachment_75c=-1;owner->stance_clock_7b4=0; /* Original402c20 embedded AI initialization. */
+                owner->previous_region_13ec=NULL;owner->attachment_75c=-1;owner->stance_clock_7b4=0; /* Original402c20 embedded AI initialization. */
                 owner->movement.response=body->state.coefficients[1];
                 /* Constructor422e19 requests normal speed via427450. */
                 status=rf_movement_set_mode(&owner->movement,movement,1,owner->attachment_75c,body->state.mass,0);if(status)goto done;
@@ -4047,6 +4048,23 @@ int rf_scene_npc_try_stand(const rf_geometry_collision_world *world,uint32_t han
     status=rf_physics_try_stand(&owner->body.spheres,campaign_npc_stances+cls,owner->published,&owner->view.flags_810,&ops,&context,stood);
     return status;
 }
+int rf_scene_npc_normal(const rf_geometry_collision_world *world,uint32_t handle,
+    const rf_scene_npc_stance_services *services)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls,index;int status,stood;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    if(!(campaign_seeds.classes[cls].physics.flags&1u))return rf_scene_npc_set_speed(handle,1);
+    index=campaign_seeds.classes[cls].physics.movement_index;if(index>=16)return RF_RANGE;
+    if(owner->view.flags_810&0x400u) {
+        status=rf_scene_npc_try_stand(world,handle,services,&stood);if(status)return status;
+        if(!stood)return RF_OK;
+    }
+    owner->previous_region_13ec=NULL;
+    status=rf_scene_npc_set_speed(handle,1);if(status)return status;
+    index=campaign_seeds.classes[cls].physics.movement_index;if(index>=16)return RF_RANGE;
+    owner->movement_slot=(campaign_modes[index].enabled&255u)?index:0u;
+    owner->movement_orientation=campaign_identity[0];owner->body.state.velocity[1]=0;return RF_OK;
+}
 int rf_scene_npc_slow(const rf_geometry_collision_world *world,uint32_t handle,
     uint32_t forced_crouch,const rf_scene_npc_stance_services *services)
 {
@@ -4963,6 +4981,7 @@ static int campaign_npc_crouch_fixture(const rf_geometry_collision_world *world,
     }
     if(status)++rf_scene_npc_crouch_test[5];return status;
 }
+uint32_t rf_scene_npc_normal_test[4]; /* cases,blocked,hash,errors */
 uint32_t rf_scene_npc_slow_test[4]; /* cases,blocked,hash,errors */
 uint32_t rf_scene_npc_stand_test[7];
 typedef struct npc_stand_test_context {const rf_geometry_collision_world *world;uint32_t calls,reenter;} npc_stand_test_context;
@@ -4984,6 +5003,7 @@ static int campaign_npc_stand_fixture(const rf_geometry_collision_world *world,u
     uint32_t i,j;int status=RF_OK;if(frame)return RF_OK;
     memset(rf_scene_npc_stand_test,0,sizeof(rf_scene_npc_stand_test));if(!rf_scene_actor_pair_test_enabled)return RF_OK;
     rf_scene_npc_stand_test[4]=2166136261u;
+    memset(rf_scene_npc_normal_test,0,sizeof(rf_scene_npc_normal_test));rf_scene_npc_normal_test[2]=2166136261u;
     memset(rf_scene_npc_slow_test,0,sizeof(rf_scene_npc_slow_test));rf_scene_npc_slow_test[2]=2166136261u;
     for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].body.spheres.count) {
         campaign_npc_body *owner=campaign_npc_bodies+i,saved=*owner;uint32_t cls=campaign_seeds.items[i].class_index,k;
@@ -5016,6 +5036,25 @@ static int campaign_npc_stand_fixture(const rf_geometry_collision_world *world,u
             record[0]=owner->registration.handle;record[1]=stood;record[2]=owner->view.flags_810;record[3]=c.calls;
             ++rf_scene_npc_stand_test[0];++rf_scene_npc_stand_test[blocked?2:1];
             rf_scene_npc_stand_test[4]=npc_hash_bytes(rf_scene_npc_stand_test[4],record,sizeof(record));
+            if(campaign_seeds.classes[cls].physics.flags&1u) {
+                campaign_npc_body expected=*owner,stand_result=*owner;rf_physics_sphere expected_spheres[8];uint32_t q=rf_scene_npc_stand_test[3];
+                memcpy(expected_spheres,owner->body.spheres.items,owner->body.spheres.count*sizeof(*spheres));
+                expected.previous_region_13ec=campaign_regions.items;
+                if(!blocked) {
+                    status=rf_movement_set_mode(&expected.movement,campaign_npc_movement_configs+cls,1,expected.attachment_75c,expected.body.state.mass,0);if(status)break;
+                    expected.body.state.coefficients[1]=expected.movement.response;expected.body.state.velocity[1]=0;
+                    expected.movement_slot=(campaign_modes[campaign_seeds.classes[cls].physics.movement_index].enabled&255u)?campaign_seeds.classes[cls].physics.movement_index:0;
+                    expected.movement_orientation=campaign_identity[0];expected.previous_region_13ec=NULL;
+                }
+                *owner=saved;owner->previous_region_13ec=campaign_regions.items;memcpy(owner->body.spheres.items,spheres,owner->body.spheres.count*sizeof(*spheres));
+                status=rf_physics_stance_centers(&owner->body.spheres,cache.centers[1],cache.count,&owner->view.flags_810,1);if(status)break;
+                owner->damage.effects.flags_810=owner->view.flags_810;c.calls=0;
+                status=rf_scene_npc_normal(world,owner->registration.handle,&services);rf_scene_npc_stand_test[3]=q;
+                if(status || memcmp(owner,&expected,sizeof(expected)) || memcmp(owner->body.spheres.items,expected_spheres,owner->body.spheres.count*sizeof(*spheres)) || c.calls!=(blocked?0:1)) {status=RF_FORMAT;++rf_scene_npc_normal_test[3];break;}
+                ++rf_scene_npc_normal_test[0];rf_scene_npc_normal_test[1]+=blocked!=0;
+                rf_scene_npc_normal_test[2]=npc_hash_bytes(rf_scene_npc_normal_test[2],&owner->movement,sizeof(owner->movement));
+                *owner=stand_result;
+            }
             if(campaign_seeds.classes[cls].physics.flags&1u) {
                 campaign_npc_body expected=*owner;rf_physics_sphere expected_spheres[8];uint32_t q=rf_scene_npc_stand_test[3];
                 memcpy(expected_spheres,owner->body.spheres.items,owner->body.spheres.count*sizeof(*spheres));
