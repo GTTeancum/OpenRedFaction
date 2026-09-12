@@ -7,6 +7,42 @@
 #include <stdlib.h>
 #include <string.h>
 
+int rf_collision_visibility(const rf_collision_visibility_list lists[3],
+    const float start[3],const float end[3],float minimum_extent,uint32_t flags,
+    uint32_t exclude_first,uint32_t exclude_second,const void *world_context,
+    const rf_collision_visibility_backend *backend,uint32_t *result)
+{
+    rf_collision_model_part_query query={0};rf_collision_model_response_hit hit={0};
+    float displacement[3],point[3];uint32_t family,i,j,blocked=0,accepted;int status;
+    if(!lists || !start || !end || !backend || !backend->model || !backend->world || !result)return RF_RANGE;
+    for(family=0;family<3;++family)if(lists[family].count && !lists[family].items)return RF_RANGE;
+    for(j=0;j<3;++j) {
+        if(!isfinite(start[j]) || !isfinite(end[j]))return RF_FORMAT;
+        displacement[j]=end[j]-start[j];if(!isfinite(displacement[j]))return RF_FORMAT;
+    }
+    memcpy(query.input.start,start,12);memcpy(query.input.displacement,displacement,12);
+    query.input.flags=flags&1;
+    for(family=0;family<3;++family)for(i=0;i<lists[family].count;++i) {
+        const rf_collision_visibility_object *object=lists[family].items+i;
+        if(!(object->extent>=minimum_extent) || (object->flags&0x4000) ||
+            (family!=1 && (object->flags&2)) || object->token==exclude_first ||
+            object->token==exclude_second)continue;
+        status=rf_collision_segment_box(object->minimum,object->maximum,start,end,point,&accepted);
+        if(status)return status;if(!accepted)continue;
+        memcpy(query.input.origin,object->position,12);memcpy(query.input.matrix,object->matrix,36);
+        status=backend->model(backend->context,object,&query,&hit,1,&accepted);
+        if(status)return status;blocked|=accepted&255;
+        if(family==1)for(j=0;j<3;++j)query.input.displacement[j]=displacement[j]*hit.time;
+        if(blocked && (flags&1)){*result=1;return RF_OK;}
+        if(query.input.flags&2) {
+            memcpy(query.input.start,start,12);memcpy(query.input.displacement,displacement,12);
+            query.input.flags&=~2u;
+        }
+    }
+    status=backend->world(backend->context,start,end,flags,world_context,&accepted);
+    if(status)return status;*result=blocked|(accepted&255);return RF_OK;
+}
+
 uint32_t rf_collision_model_posed_triangle(const float vertices[3][3],const float start[3],
     const float displacement[3],const float end[3],float radius,uint32_t token,rf_collision_model_response_hit *hit)
 {

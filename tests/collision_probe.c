@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "burn_resolved_probe.h"
+#include "visibility_probe.h"
 static int32_t group_sound_probe(void *context,int32_t sample,const float position[3],float volume,uint32_t flags)
 {
     uint32_t *trace=context,words[6],i;memcpy(words,&sample,4);memcpy(words+1,position,12);
@@ -93,6 +94,7 @@ static int geometry_body_fixture_run(const body_fixture *input,rf_geometry_body_
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--visibility"))return visibility_probe();
     if(argc==5 && !strcmp(argv[1],"--level-packed-lightmaps")) {
         rf_vpp archive;rf_level level;rf_geometry geometry;rf_packed_lightmaps maps={0};
         rf_lightmaps resident={0};rf_geometry_resident_lightmap_context resident_context;

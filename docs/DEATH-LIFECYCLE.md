@@ -6419,3 +6419,38 @@ Next reconstruct this full orchestration in shared C with ordered stable owner
 views and real AABB helper, verify PC/NXDK against these original traces, then
 bind model/world geometry and actual three-list ownership. This audit does not
 prove5031f0/498e80 geometry internals, shared C visibility or native gameplay.
+
+
+### Shared full visibility traversal4991c0 (2026-09-12)
+
+`rf_collision_visibility` now implements the verified complete three-list
+traversal in shared C. Borrowed ordered88-byte object views carry identity token,
+flags, extent, model, body pose and AABB. Lists remain stable during callbacks;
+nonzero identity tokens represent original object pointers for exclusions.
+The function composes actual shared508b70 bounds checks with required5031f0
+model and498e80 world services. No heap allocation or fabricated clear path.
+
+Size comparisons reject unordered values. All lists reject4000; only first and
+third reject2. Model query radius stays0; caller bit1 initializes flags and
+controls canonical early return1. The middle list rescales original displacement
+by returned hit time even on misses; callback flag2 restores original endpoints
+and clears only that flag. Final world receives original endpoints/full flags/
+context, and its low byte is ORed without boolean normalization. Port scratch
+starts at zero, distinct from the original uninitialized constructor bytes.
+
+`tools/verify_visibility_original.py --shared` compares4096 complete original,
+PC and compiled NXDK cases, including randomized float endpoints and non-exact
+hit-time products, exact initialized80-byte model queries, ordered effects and
+return bytes. Latest fixture totals:2183 model calls,3504 world calls,592 early
+returns,759 restores,881 middle-list clips,1568 nonboolean results. Seven NXDK
+error cases check null inputs/backend, missing list storage, NaN endpoint,
+inverted bounds and model/world callback failures. Result stays untouched on
+errors; already-observed callback effects are not rolled back. Full PC binary
+probe outputs match original traces. Both builds and all19 CTests pass.
+
+The oracle supplies only model/world effect boundaries; this is compiled NXDK
+execution under Unicorn, not native XEMU. Next bind the original three object
+lists to retained owners and complete5031f0/498e80 geometry services, then use
+this visibility path from scene-owned navigation40c2c0 and AI408ac0. Object-list
+identity/order, current poses, lifetime and exclusion mapping require actual
+owner evidence; current startup NPCs alone are not the complete visibility set.

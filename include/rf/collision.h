@@ -562,6 +562,30 @@ typedef struct rf_collision_model_part_view {
 typedef struct rf_collision_model_part_query {
     rf_collision_solid_response_query input;float local_start[3],local_displacement[3];
 } rf_collision_model_part_query;
+typedef struct rf_collision_visibility_object {
+    uint32_t token,flags;float extent;const void *model;
+    float position[3],matrix[9],minimum[3],maximum[3];
+} rf_collision_visibility_object;
+typedef struct rf_collision_visibility_list {
+    const rf_collision_visibility_object *items;uint32_t count;
+} rf_collision_visibility_list;
+typedef struct rf_collision_visibility_backend {
+    int (*model)(void *,const rf_collision_visibility_object *,rf_collision_model_part_query *,
+        rf_collision_model_response_hit *,uint32_t,uint32_t *);
+    int (*world)(void *,const float[3],const float[3],uint32_t,const void *,uint32_t *);
+    void *context;
+} rf_collision_visibility_backend;
+/* Full4991c0 with ordered views of its three lists. Nonzero unique tokens map
+ * object identity for exclusions; views remain stable during callbacks. Extent
+ * is an ordered minimum-size filter, not query radius. Model callback supplies
+ * full5031f0 effects/reset1; world supplies498e80. Scratch starts at port zero.
+ * Finite disjoint geometry and finite callback-produced math required. Callback
+ * errors preserve result, but external callback effects are not rolled back.
+ * Successful result retains original low-byte OR, except first-hit return1. */
+int rf_collision_visibility(const rf_collision_visibility_list lists[3],
+    const float start[3],const float end[3],float minimum_extent,uint32_t flags,
+    uint32_t exclude_first,uint32_t exclude_second,const void *world_context,
+    const rf_collision_visibility_backend *backend,uint32_t *result);
 /* Original54daa0/54dcd0 with resolved part/LOD storage. Stable borrowed views,
  * valid signed indices, finite transforms and nonoverflowing geometry required.
  * Selected flag10 uses fallback. Query first80 bytes stay unchanged; scratch
