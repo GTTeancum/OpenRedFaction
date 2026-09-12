@@ -5264,3 +5264,38 @@ the currently authored animated scene poses; the independent original geometry
 verification remains the earlier synthetic/prepared and authored-mesh gates,
 not a new full original animation-runtime comparison. Model dispatch, demand
 evaluation, dynamic selection and physical response scheduling remain open.
+
+
+### Actor/model contact publication through scene geometry (2026-09-12)
+
+rf_scene_actor_model_response now gathers retained player/NPC source state
+and retained NPC target state, supplies current armor/class/814 target fields,
+and composes original-verified49afe0 with5031f0/503120 dispatch and the registered
+skeletal scene query. One published pose adapts the original type2 pose-record
+selection without fabricated record contents. The geometry callback copies
+80 query input bytes into104-byte working storage and passes reset0, matching
+49afe0's original5031f0 call: hit time carries between actor spheres.
+
+Contact mutations stay in the gathered copies until all geometry queries
+succeed, then both body/contact owners receive publication. Query errors
+preserve changed and do not publish partial response contacts; prepared caches
+may already have refreshed. Target use-kind comes from authored class physics.
+Scope is retained player/NPC source and retained NPC target; projectile/other
+families, stale-pose demand evaluation and automatic pair scheduling remain.
+Query telemetry now hashes acceptance and accepted hit bytes only, since an
+original-style first miss can retain uninitialized non-time hit fields.
+
+The opt-in actor-pair harness adds24 model-response cases: player/NPC sources,
+three axes, both directions, two source spheres and deliberately offset misses.
+It verifies accepted time/target handle and reciprocal target publication,
+hashes both68-byte contacts and restores all three staged bodies/extras.
+Native stock64MiB replay artifacts/xemu/replay-20260912-075820/report.json
+passes180 frames with PC/Xbox ACTOR_MODEL_TEST=[24,12,12,569176833,0,3].
+NPC_MODEL_QUERIES=[5,61128,2472,2856,2472,425497051,0]; this includes the
+continuing animated-pose fixture plus48 response geometry queries. Base memory
+67108864, plugged memory0. XBE SHA256:
+ec107934606d9f0074aa7bb3a169097959c395f15089f9e724418f3631c4f4fd.
+Both builds and19 CTests pass. This validates scene composition/publication
+across platforms; original49afe0 numeric/branch verification is the earlier
+independent helper gate. No automatic NPC blocking or projectile gameplay is
+claimed until these responses are selected by the live pair scheduler.

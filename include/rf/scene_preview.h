@@ -111,15 +111,19 @@ extern uint32_t rf_scene_collision_views[8]; /* Pointer-free live actor snapshot
 extern uint32_t rf_scene_collision_responses[6]; /* Live body/contact snapshot replay evidence. */
 extern uint32_t rf_scene_actor_pair_test_enabled,rf_scene_actor_pair_test[8]; /* Opt-in restored-state publication fixture. */
 
+/* Query the registered model's evaluated pose and initial selected skeletal
+ * LOD. Caller supplies the104-byte query transform/scratch. Shared scene scratch
+ * is synchronous/non-reentrant; stale pose returns RANGE. No contact publication. */
+int rf_scene_model_collision_query(uint32_t model_slot,rf_collision_model_part_query *query,
+    rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted);
+/* Compose49afe0 with5031f0 and registered skeletal scene geometry. First is
+ * a retained player/NPC, target a retained NPC model. Publishes both contacts
+ * only after successful queries; preserves changed on failure. Evaluated pose
+ * required. No projectile views, pair scheduling or velocity stepping. */
+int rf_scene_actor_model_response(uint32_t first,uint32_t target,uint32_t *changed);
 /*503400 ->501cd0(kind2)->51c390 on the currently published model pose.
  * Zero exact non-looping weights without releasing references or removing
  * slots. Resolves actor or transferred-corpse ownership; no allocation. */
-/* Query the registered model's current evaluated pose and initial selected
- * skeletal collision LOD. Caller supplies the104-byte query transform/scratch.
- * Shared scene scratch is synchronous/non-reentrant; stale pose returns RANGE.
- * Does not advance animation, schedule physics or publish actor contacts. */
-int rf_scene_model_collision_query(uint32_t model_slot,rf_collision_model_part_query *query,
-    rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted);
 int rf_scene_model_stop_nonlooping(uint32_t model_slot);
 /* Death CLEAR_BONE: clear only the current owner's override-enabled byte.
  * Nonnegative indices preserve playback/caches; UINT32_MAX models original
