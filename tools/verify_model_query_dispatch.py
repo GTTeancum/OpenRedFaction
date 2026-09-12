@@ -93,7 +93,7 @@ for case in range(4096):
     assert bytes(x.mem_read(query,84))==query_data and bytes(x.mem_read(poses,4*148))==b'\xa5'*(4*148)
     assert bytes(x.mem_read(model,16))==w(kind,primary,poses,pose_count)
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_physics_probe.exe'),'--model-query-dispatch'],input=b''.join(commands))
-assert actual==b''.join(answers),'PC dispatch mismatch' 
+assert actual==b''.join(answers),'PC dispatch mismatch'
 report=dict(result='PASS',cases=4096,wrapper_cases=wrappers,reset_cases=resets,rejections=rejections,geometry_calls=calls,original_sha256=sha,
     scope='Original503120 and5031f0, only geometry54e000/54daa0/54e140 supplied. Callee ECX/stack ABI, final-pose selection, part forwarding, full callback return, low-byte rejection, reset-before-callback, untouched model/pose/part/query bytes and hit fields verified. Type3 intentionally returns no hit after reading part metadata. Shared PC/NXDK callback arguments, pose selection, returns and all hit bytes match; type3 inert metadata reads are omitted. No geometry implementation or XEMU integration is claimed.')
 (root/'artifacts/model-query-dispatch.json').write_text(json.dumps(report,indent=2));print(report)
