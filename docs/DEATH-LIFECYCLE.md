@@ -6707,3 +6707,41 @@ malformed rod assertion loop, native XEMU or live scene integration. Next
 reconstruct factory/resource ownership and bind retained clutter in successful
 creation order. No new visual is claimed. Production source is unchanged;
 no build or native replay is required for this original-executable oracle.
+
+
+Shared clutter factory (2026-09-12)
+----------------------------------
+rf_clutter_create in model.c / rf/clutter.h reconstructs full4104a0 orchestration
+with caller-owned class and object views, generic allocation and explicit
+resource services. Class96-byte and state108-byte x86 views preserve retained
+class timer/corona/light caches and per-instance health/flags/sound/emitter/
+corpse/timer/skin/slot state. No heap allocation occurs in the orchestration.
+Generic allocation receives a76-byte semantic descriptor corresponding to the
+original152-byte zero-filled record and fixed type4/handle-1/final0 arguments.
+Creation order uses the verified intrusive tail append before slot registration.
+Names are borrowed stable caller storage; original string allocation is not
+reproduced. Resource implementations, resource retirement and live scheduling
+remain separate. Out publishes the allocated owner immediately, including on
+later service failure, so partial resources remain reachable for cleanup.
+
+verify_clutter_factory.py --shared passes512 full-original/PC/compiled NXDK
+cases:465 successes,47 empty allocations,698 emitter calls,862 glare calls,
+243 slot registrations. Complete semantic state/class outputs and exact PC/
+NXDK request records match, including descriptor/position/matrix arguments.
+Normalized results match original object/class write footprints and resource
+call order. Original411e40 now executes directly: capacity is four IDs, and
+factory tag discovery continues past capacity until the first missing tag.
+Expanded fixtures discover up to seven tags and retain only the first four.
+The historical688-glare result above used a narrower fixture distribution.
+
+Ten additional compiled-NXDK cases cover invalid class index, nonfinite position,
+missing class name/backend, invalid time/cache count, allocation service error,
+tag service error after allocation, slot service error after list publication,
+and missing second rod tag (RF_FORMAT replaces the original assertion loop).
+Output remains unchanged before allocation; partial owner remains accessible
+on later errors, and slot failure retains list publication and slot increment.
+All19 CTests and PC/NXDK builds pass. NXDK execution here is Unicorn, not a
+native XEMU replay. No live clutter or new visual is claimed. Next establish
+owned complete class definitions, generic model/body creation and actual
+sound/emitter/glare/collision/slot resources, then bind retained level records
+and successful creation order to scene visibility.

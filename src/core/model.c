@@ -1,4 +1,7 @@
 #include "rf/model.h"
+#include "rf/clutter.h"
+#include "rf/timer.h"
+#include <stdio.h>
 #include <limits.h>
 #include <math.h>
 #include <string.h>
@@ -14,6 +17,102 @@ static int clutter_skin_name_equal(const char *first,const char *second)
         if(a!=b)return 0;
     } while(a);
     return 1;
+}
+int rf_clutter_create(rf_clutter_class *classes,uint32_t count,int32_t index,
+    int32_t shield_class,const char *name,int32_t identifier,const float position[3],
+    const float matrix[9],uint32_t persistent,int32_t now_ms,int32_t *next_slot,
+    rf_object_list *list,const rf_clutter_create_backend *backend,rf_clutter_state **out)
+{
+    rf_clutter_class *c;rf_clutter_state *s=NULL;rf_clutter_create_descriptor d={0};
+    rf_clutter_create_request q={0};int status;int32_t value,tag,rod,deadline=-1;uint32_t i;
+    double milliseconds;char tag_name[32];
+    if(!classes || count>INT_MAX || index<0 || (uint32_t)index>=count || !name ||
+       !position || !matrix || !next_slot || *next_slot<0 || !list || !out ||
+       !backend || !backend->allocate || !backend->call || now_ms<0 || now_ms>RF_TIMER_PERIOD)return RF_RANGE;
+    c=classes+index;
+    if(!c->name || !c->model || !c->corpse || (c->emitter_count && !c->emitters) ||
+       c->emitter_count>INT_MAX || c->corona_count>4 || c->material>255 ||
+       !isfinite(c->life) || !isfinite(c->radius) || !isfinite(c->emitter_lifetime))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(position[i]))return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(matrix[i]))return RF_RANGE;
+    for(i=0;i<count;++i)if(!classes[i].name)return RF_RANGE;
+    if(c->emitter_lifetime>0) {
+        milliseconds=(double)c->emitter_lifetime*1000.0+0.5;
+        if(milliseconds>RF_TIMER_PERIOD)return RF_RANGE;
+        status=rf_timer_set(&deadline,now_ms,(int32_t)milliseconds);if(status)return status;
+    }
+    d.model=c->model;d.kind=c->model_kind;d.material=c->material;d.flags=(c->flags&6)?0x20:0;
+    d.allocation_flags=index==shield_class?0x100000:0;d.identifier=identifier;
+    memcpy(d.position,position,sizeof(d.position));memcpy(d.matrix,matrix,sizeof(d.matrix));d.radius=c->radius;
+    status=backend->allocate(backend->context,&d,&s);if(status)return status;
+    *out=s;if(!s)return RF_OK;
+    if(c->flags&0x20)s->flags|=0x100000;
+    if(c->flags&2)s->flags|=0x40000;
+    s->definition=c;s->class_index=index;s->name=*name?name:c->name;s->byte_cc=0;
+    s->health=c->life;if(c->life<0){s->health=100;s->flags|=4;}s->armor=0;
+#define CLUTTER_CALL(op) do {status=backend->call(backend->context,s,(op),&q,&value);if(status)return status;} while(0)
+    s->sound=-1;
+    if(c->sound>=0) {
+        q=(rf_clutter_create_request){{(uint32_t)c->sound,0x3f800000,0},NULL,s->position};
+        CLUTTER_CALL(RF_CLUTTER_SOUND);q=(rf_clutter_create_request){{(uint32_t)value},NULL,NULL};
+        CLUTTER_CALL(RF_CLUTTER_SOUND_HANDLE);s->sound=value;
+    }
+    if(c->flags&1)s->flags|=0x1000;
+    s->corpse=-1;
+    if(*c->corpse)for(i=0;i<count;++i)if(clutter_skin_name_equal(c->corpse,classes[i].name)){s->corpse=(int32_t)i;break;}
+    s->timer_a4=-1;s->word_a8=-1;
+    for(i=0;i<c->emitter_count;++i)if(c->emitters[i]>=0) {
+        q=(rf_clutter_create_request){{s->handle,(uint32_t)c->emitters[i],s->first_word,1},NULL,s->position};
+        CLUTTER_CALL(RF_CLUTTER_EMITTER);
+        if(value) {
+            q=(rf_clutter_create_request){{(uint32_t)value,s->emitter_head},NULL,NULL};
+            s->emitter_head=(uint32_t)value;CLUTTER_CALL(RF_CLUTTER_EMITTER_PREPEND);
+        }
+    }
+    s->timer_b0=deadline;c->timer=now_ms;s->timer_b4=-1;s->word_b8=0;s->skin=-1;s->sound_d0=-1;
+    if(c->glare!=-1 && !(c->flags&0x400)) {
+        for(i=1;;++i) {
+            if(i>INT_MAX)return RF_RANGE;
+            snprintf(tag_name,sizeof(tag_name),"corona_%u",i);
+            q=(rf_clutter_create_request){{s->model},tag_name,NULL};CLUTTER_CALL(RF_CLUTTER_TAG);
+            if(value<0)break;
+            if(c->corona_count<4)c->coronas[c->corona_count++]=value;
+        }
+        c->flags|=0x400;
+    }
+    for(i=0;i<c->corona_count;++i) {
+        q=(rf_clutter_create_request){{s->handle,(uint32_t)c->coronas[i],(uint32_t)c->glare,0},NULL,NULL};
+        CLUTTER_CALL(RF_CLUTTER_GLARE);
+    }
+    q=(rf_clutter_create_request){{s->model},"corona_rod1",NULL};CLUTTER_CALL(RF_CLUTTER_TAG);tag=value;
+    if(tag>=0) {
+        q.text="corona_rod2";CLUTTER_CALL(RF_CLUTTER_TAG);rod=value;if(rod<0)return RF_FORMAT;
+        if(c->rod>=0) {
+            q=(rf_clutter_create_request){{s->handle,(uint32_t)c->rod,(uint32_t)tag,(uint32_t)rod,UINT32_MAX},NULL,NULL};
+            CLUTTER_CALL(RF_CLUTTER_ROD);
+        }
+    }
+    if((c->flags&0x10) && !(c->flags&0x800)) {
+        q=(rf_clutter_create_request){{s->model},"light_prop",NULL};CLUTTER_CALL(RF_CLUTTER_TAG);
+        c->light_tag=value;c->flags|=0x800;
+    }
+    if(c->flags&8) {
+        q=(rf_clutter_create_request){{s->handle,UINT32_MAX,c->screen_width,c->screen_height,1},NULL,NULL};
+        CLUTTER_CALL(RF_CLUTTER_SCREEN);
+    }
+    if(c->explosion!=-1) {
+        q=(rf_clutter_create_request){{(uint32_t)c->explosion},NULL,NULL};CLUTTER_CALL(RF_CLUTTER_EXPLOSION);
+    }
+    if((s->physics_flags&0x20) && !(s->flags&0x8000)) {
+        q=(rf_clutter_create_request){{s->token},NULL,NULL};CLUTTER_CALL(RF_CLUTTER_COLLISION);
+    }
+    rf_object_list_append(list,&s->link);s->slot=UINT16_MAX;
+    if(persistent && *next_slot<3200) {
+        s->slot=(uint16_t)*next_slot;
+        q=(rf_clutter_create_request){{(uint32_t)(*next_slot)++,1},NULL,NULL};CLUTTER_CALL(RF_CLUTTER_SLOT);
+    }
+#undef CLUTTER_CALL
+    return RF_OK;
 }
 int rf_clutter_skin_apply(const rf_clutter_skin_variant *variants,uint32_t count,
     const char *name,uint32_t parent,uint32_t model,rf_clutter_skin_glare *glares,uint32_t glare_count,

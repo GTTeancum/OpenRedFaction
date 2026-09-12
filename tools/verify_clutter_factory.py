@@ -26,7 +26,7 @@ def string(a,value):
     u.mem_write(pool,value+b'\0');u.mem_write(a,w(len(value),pool));pool+=len(value)+1
 
 BOUNDARIES=(0x486da0,0x4ffa80,0x4ffa20,0x4ff470,0x434da0,0x5056a0,
- 0x497ca0,0x5006c0,0x4ffd60,0x503220,0x411e40,0x413d20,0x413f20,
+ 0x497ca0,0x5006c0,0x4ffd60,0x503220,0x413d20,0x413f20,
  0x412470,0x4c1ec0,0x48c9a0,0x50ea00)
 def hook(cpu,address,size,context):
     global emitted
@@ -68,9 +68,6 @@ def hook(cpu,address,size,context):
         elif name==b'corona_rod2':result=52
         elif name==b'light_prop':result=77
         else:raise AssertionError(name)
-    elif address==0x411e40:
-        assert owner==CLS+0x84;count=r(owner);cpu.mem_write(owner+4+count*4,w(arg(0)))
-        cpu.mem_write(owner,w(count+1));pop=4
     elif address==0x413d20:
         assert arg(0)==handle and arg(2)==(glare&0xffffffff) and arg(3)==0
         trace.append(('glare',arg(1)))
@@ -91,13 +88,16 @@ def hook(cpu,address,size,context):
     cpu.reg_write(UC_X86_REG_EAX,result&0xffffffff);cpu.reg_write(UC_X86_REG_EIP,r(rsp))
     cpu.reg_write(UC_X86_REG_ESP,rsp+4+pop)
 u.hook_add(UC_HOOK_CODE,hook)
+if '--shared' in sys.argv:
+    from verify_clutter_factory_shared import verify as verify_shared
+else:verify_shared=None
 rng=random.Random(0x4104a0);totals=dict(success=0,failure=0,emitters=0,glare=0,slots=0)
 for case in range(512):
     pool=B+0x10000;trace=[];emitted=0;fail=case%11==0;shield=bool(case&1)
-    kind=rng.choice((1,3));material=rng.randrange(9);flags=rng.randrange(0x1000)
+    kind=rng.choice((1,3));material=rng.randrange(9);flags=rng.randrange(0x1000);initial_class_flags=flags
     life=rng.choice((-1.,0.,10.,100.));lifetime=rng.choice((-1.,0.,.5,1.25))
     sound=rng.choice((-1,0,12));explosion=rng.choice((-1,3));glare=rng.choice((-1,2))
-    rod=bool(case&2);rodclass=rng.choice((-1,4));coronas=rng.randrange(4)
+    rod=bool(case&2);rodclass=rng.choice((-1,4));coronas=rng.randrange(8)
     emitters=[rng.choice((-1,0,1,2)) for _ in range(rng.randrange(5))]
     position=struct.pack('<3f',*(rng.uniform(-100,100) for _ in range(3)))
     matrix=struct.pack('<9f',*(rng.uniform(-1,1) for _ in range(9)))
@@ -129,6 +129,7 @@ for case in range(512):
     if fail:
         assert trace==[('allocate',)] and bytes(u.mem_read(OBJ,len(before)))==before
         assert bytes(u.mem_read(CLS,232))==class_before and r(0x5c9358)==initial_count
+        if verify_shared:verify_shared(locals())
         totals['failure']+=1;continue
     expected_trace=[('allocate',)];expected=before[:]
     expected[0x18:0x20]=u.mem_read(OBJ+0x18,8)
@@ -147,7 +148,7 @@ for case in range(512):
     for i in range(len(live)):assert r(B+0x8000+i*0x200+0x150)==(B+0x8000+(i-1)*0x200 if i else 0)
     if glare!=-1 and not flags&0x400:
         expected_trace.extend(('tag','corona_'+str(i)) for i in range(1,coronas+2))
-        cached=list(range(101,101+coronas));class_before[0x84:0x88+4*len(cached)]=w(len(cached),*cached);flags|=0x400
+        cached=list(range(101,101+min(coronas,4)));class_before[0x84:0x88+4*len(cached)]=w(len(cached),*cached);flags|=0x400
     expected_trace.extend(('glare',i) for i in cached)
     expected_trace.append(('tag','corona_rod1'))
     if rod:
@@ -167,7 +168,13 @@ for case in range(512):
     assert bytes(u.mem_read(CLS,232))==class_before,(case,'class footprint')
     assert r(0x5afb84)==slot+allocated and r(0x5c9358)==initial_count+1
     assert r(SENTINEL+0x28c)==OBJ and r(SENTINEL+0x290)==OBJ
+    if verify_shared:verify_shared(locals())
     totals['success']+=1;totals['emitters']+=len(accepted);totals['glare']+=len(cached);totals['slots']+=allocated
 result=dict(result='PASS',cases=512,**totals,original_sha256=digest,
  scope='Full4104a0 with supplied generic allocation, string storage, model tags, sound/emitter/glare/screen/explosion/collision/slot effects. Actual descriptor constructors, vector/matrix copies, class lookup/comparison, array reads and timers execute. Synthetic finite class inputs; complete object/class write footprint and ordered calls. No shared C factory, resource implementation, malformed rod assertion, invalid class boundary, or native XEMU claim.')
+result['compiled_nxdk']=bool(verify_shared)
+if verify_shared:
+    from verify_clutter_factory_shared import guards
+    result['nxdk_error_cases']=guards();result['pc']=True
+    result['scope']='Full original4104a0 versus shared PC/compiled NXDK factory over synthetic finite class/owner inputs, normalized field footprints, ordered resource requests and four-entry corona cache. Actual original fixed array append executes. Resource implementations and native XEMU/live integration remain unproved.'
 (ROOT/'artifacts/clutter-factory.json').write_text(json.dumps(result,indent=2));print(result)
