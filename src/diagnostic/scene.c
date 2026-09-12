@@ -313,7 +313,7 @@ typedef struct scene_particle_workspace {
 typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
-    rf_model_projection npc_view;uint32_t *npc_rooms;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
+    rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
     rf_level_visibility visibility;
@@ -497,7 +497,10 @@ static rf_entity_poses campaign_poses;
 static rf_entity_base_motions campaign_base_motions;
 static rf_entity_motion_catalog campaign_motion_catalog;
 static rf_entity_playback_resources campaign_playback_resources;
-typedef struct campaign_model_owner {rf_model_skeletal_registration registration;rf_entity_pose *pose;} campaign_model_owner;
+typedef struct campaign_model_owner {
+    rf_model_skeletal_registration registration;rf_entity_pose *pose;
+    float position[3],basis[9];uint32_t appearance,room;
+} campaign_model_owner;
 static campaign_model_owner *campaign_model_owners;
 static rf_model_skeletal_registration *campaign_model_head;
 static uint32_t campaign_model_owner_count;
@@ -529,6 +532,7 @@ static int campaign_models_open(void)
         campaign_model_owner *owner=campaign_model_owners+i;rf_entity_pose *pose=campaign_poses.items+i;
         if(pose->skeleton==UINT32_MAX)continue;
         if(!campaign_playback_resources.models || pose->skeleton>=campaign_playback_resources.model_count){status=RF_RANGE;break;}
+        owner->room=UINT32_MAX;owner->appearance=UINT32_MAX;
         owner->pose=pose;owner->registration.loaded=1;owner->registration.active=&pose->playback.completion.active;
         status=rf_model_skeletal_register(&owner->registration,&campaign_model_head,campaign_model_owner_count);if(status)break;
         ++rf_scene_npc_models[0];
@@ -547,6 +551,20 @@ static int campaign_model_pose(uint32_t slot,rf_entity_pose **result)
     if(!owner->pose || owner->pose->skeleton==UINT32_MAX || !owner->registration.next || !owner->registration.previous ||
        owner->registration.active!=&owner->pose->playback.completion.active)return RF_RANGE;
     *result=owner->pose;return RF_OK;
+}
+/* Copy placement so the model does not borrow its actor's render metadata.
+ * A corpse can later publish its own transform through this same boundary. */
+static int campaign_model_place(uint32_t slot,const float position[3],const float basis[9],uint32_t appearance,uint32_t room)
+{
+    rf_entity_pose *pose;campaign_model_owner *owner;uint32_t i;int status;
+    if(!position || !basis)return RF_RANGE;
+    status=campaign_model_pose(slot,&pose);if(status)return status;
+    if(!pose)return RF_OK;
+    for(i=0;i<3;++i)if(!isfinite(position[i]))return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_RANGE;
+    owner=campaign_model_owners+slot;
+    memcpy(owner->position,position,12);memcpy(owner->basis,basis,36);
+    owner->appearance=appearance;owner->room=room;return RF_OK;
 }
 static void **campaign_npc_motion_data;
 static uint32_t *campaign_npc_motion_sizes;
@@ -3488,6 +3506,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
         campaign_npc_body *owner=campaign_npc_bodies+i;
         rf_entity_position_snapshot(&owner->object_flags,owner->previous,owner->published);
         owner->view.flags_7c=owner->object_flags;
+        memcpy(campaign_model_owners[i].position,owner->published,12);
     }
     for(i=0;i<campaign_poses.count;++i) {
         rf_entity_pose *pose;const rf_entity_motion_mapping *map;
@@ -3503,8 +3522,8 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
             rf_entity_animation_gate gate={0};uint32_t room;int advance;
             const rf_entity_seed_class *cls=campaign_seeds.classes+class_index;
             const rf_visibility_view *camera=&stream->particle_camera.view;
-            if(!stream->npc_rooms || !stream->visibility.storage)return RF_RANGE;
-            room=stream->npc_rooms[i];gate.model_present=1;gate.model_kind=cls->model_kind;
+            if(!stream->visibility.storage)return RF_RANGE;
+            room=campaign_model_owners[i].room;gate.model_present=1;gate.model_kind=cls->model_kind;
             gate.descriptor_present=room<stream->visibility.state.count;
             if(gate.descriptor_present)gate.descriptor_flag=stream->visibility.state.rooms[room].visible;
             /* Fixed startup actors:402d68 clears action520;422360 clears810/814.
@@ -3512,7 +3531,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
              * still use startup values until AI/death ownership is connected. */
             gate.action_520=campaign_npc_bodies[i].view.action_520;gate.flags=0;gate.predicate=0;
             gate.lod_distance_count=(int32_t)cls->lod.count;
-            status=rf_model_lod_metric(0x66,campaign_npc_bodies[i].published,
+            status=rf_model_lod_metric(0x66,campaign_model_owners[i].position,
                 camera->origin,camera->scale[2],camera->scale[0],&gate.distance);if(status)return status;
             advance=rf_entity_animation_should_advance(&gate);
             ++rf_scene_npc_gate[0];++rf_scene_npc_gate[advance?1:2];
@@ -3548,7 +3567,7 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
     uint32_t actor,lod,batch,k,start_all=stream->mesh->count;int status;
     if(!stream->npc_memory)return RF_OK;
     memset(rf_scene_npc_draw,0,sizeof(rf_scene_npc_draw));rf_scene_npc_draw[0]=frame+1;
-    rf_scene_npc_draw[4]=4096*96+24576*sizeof(uint16_t)+sizeof(*stream->npc_pool)+campaign_poses.count*sizeof(uint32_t);
+    rf_scene_npc_draw[4]=4096*96+24576*sizeof(uint16_t)+sizeof(*stream->npc_pool);
     buffers.cache=stream->npc_memory;buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
     buffers.second=(float(*)[3])((uint8_t*)stream->npc_memory+4096*44);
     buffers.vertices=(uint8_t(*)[40])((uint8_t*)stream->npc_memory+4096*56);buffers.capacity=4096;
@@ -3557,18 +3576,18 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
     lights.ambient[0]=40;lights.ambient[1]=50;lights.ambient[2]=60;
     for(actor=0;actor<campaign_poses.count;++actor) {
         rf_entity_pose *pose;const rf_entity_render_model *model;
-        const rf_level_entity *entity;rf_model_projection view;float prepared[50][12];uint16_t generations[50];
+        const campaign_model_owner *owner=campaign_model_owners+actor;rf_model_projection view;float prepared[50][12];uint16_t generations[50];
         uint32_t appearance,first,last,start_actor=stream->mesh->count;
         rf_scene_npc_draw_detail[0]=actor;
         status=campaign_model_pose(actor,&pose);if(status)return status;if(!pose)continue;
-        if(stream->npc_rooms[actor]<stream->visibility.state.count &&
-            !stream->visibility.state.rooms[stream->npc_rooms[actor]].visible)continue;
-        appearance=campaign_appearances.actor_indices[actor];if(appearance>=campaign_npc_materials.count)return RF_FORMAT;
+        if(owner->room<stream->visibility.state.count &&
+            !stream->visibility.state.rooms[owner->room].visible)continue;
+        appearance=owner->appearance;if(appearance>=campaign_npc_materials.count)return RF_FORMAT;
         first=campaign_npc_materials.offsets[appearance];last=campaign_npc_materials.offsets[appearance+1];
-        model=campaign_render_models.items+pose->skeleton;entity=&campaign_seeds.records.items[actor].record;
+        model=campaign_render_models.items+pose->skeleton;
         memset(prepared,0,sizeof(prepared));memset(generations,0,sizeof(generations));
         status=rf_model_prepare_skinning(model->stored,pose->matrices,pose->bone_count,(uint16_t)pose->playback.generation,prepared,generations,50);if(status)return status;
-        status=rf_model_local_view(&stream->npc_view,campaign_npc_bodies[actor].published,entity->orientation[0],&view);if(status)return status;
+        status=rf_model_local_view(&stream->npc_view,owner->position,owner->basis,&view);if(status)return status;
         for(lod=0;lod<model->file.lod_count;++lod) {
             const rf_model_geometry *geometry=model->lods+lod;uint32_t previous;
             for(previous=0;previous<lod;++previous)if(model->file.lods[previous].section_index==model->file.lods[lod].section_index)break;
@@ -4059,11 +4078,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(textures->items);memset(textures,0,sizeof(*textures)); /* Transfer pixels to renderer owner. */
         stream.npc_memory=malloc(4096*96);stream.npc_indices=malloc(24576*sizeof(uint16_t));stream.npc_pool=calloc(1,sizeof(*stream.npc_pool));
         if(!stream.npc_memory || !stream.npc_indices || !stream.npc_pool){status=RF_IO;goto done;}
-        stream.npc_rooms=malloc(campaign_poses.count*sizeof(*stream.npc_rooms));if(!stream.npc_rooms){status=RF_IO;goto done;}
         for(i=0;i<campaign_poses.count;++i) {
             rf_collision_room_location location;
             status=rf_geometry_collision_world_locate(collision,campaign_seeds.records.items[i].record.position,&location);if(status)goto done;
-            stream.npc_rooms[i]=location.room;
+            status=campaign_model_place(i,campaign_npc_bodies[i].published,campaign_seeds.records.items[i].record.orientation[0],
+                campaign_appearances.actor_indices[i],location.room);if(status)goto done;
         }
     }
     if(sink) {
@@ -4103,7 +4122,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
-    free(stream.npc_rooms);free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
+    free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);
     rf_level_particles_close(&stream.particles);
     free(stream.particle_workspace);particle_draw_stream=NULL;

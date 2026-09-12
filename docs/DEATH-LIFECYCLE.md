@@ -1609,3 +1609,27 @@ Native XEMU replay-20260911-215023 passes180 frames on stock64MiB with
 door/damage/audio fixtures and matching PC telemetry, including model registry
 [78,1560,78,0]. This verifies the redirected consumers on untransferred campaign
 poses; the transferred-eye fixture is PC-only.
+
+
+## Model-owned render placement
+
+Campaign model owners now retain position, basis, appearance and room in addition
+to pose registration. campaign_model_place copies finite transforms and retains
+material/room indices without borrowing source metadata. Drawing uses those
+values; animation visibility/LOD uses the same model position and room. The
+actor tick still publishes its position into the model, until corpse ownership
+switches the update path. Appearance refers to shared level materials; model
+retirement must not free those textures. Moving room refresh remains open.
+
+Each model slot is now76 bytes (was20), bounded by the existing32KiB cap. The
+separate4-byte-per-slot render room array is removed. Opening-level ownership
+is5928 bytes, a net4056-byte increase after removing312 room-array bytes.
+L1S2/L1S3 use2964/2128 bytes. All three PC registry replays and all18 CTests
+pass. Placement tests overwrite source arrays and reject a NaN update without
+mutating the retained owner. Comparing the door/damage PC replay to its previous
+run preserves NPC playback/gate/eye/body telemetry and rendered vertex hash;
+render scratch telemetry falls445192 to444880 bytes. No visible change expected.
+
+Native XEMU replay-20260911-215423 passes180 frames on stock67108864-byte
+RAM with matching door/damage/audio and registry telemetry [78,5928,78,0].
+This verifies model-owned placement for existing actors, not live corpses.

@@ -332,6 +332,15 @@ static int eye_binding_check(void)
     record.record.orientation[0][0]=record.record.orientation[1][1]=record.record.orientation[2][2]=1;
     owner.published[0]=10;owner.published[1]=20;owner.published[2]=30;
     CHECK(campaign_models_open()==RF_OK);
+    {
+        float position[3]={10,20,30},basis[9]={1,0,0,0,1,0,0,0,1};campaign_model_owner saved;
+        CHECK(campaign_model_place(0,position,basis,7,9)==RF_OK);saved=campaign_model_owners[0];
+        position[1]=NAN;CHECK(campaign_model_place(0,position,basis,8,10)==RF_RANGE);
+        CHECK(!memcmp(&saved,campaign_model_owners,sizeof(saved)));
+        memset(position,0xdd,sizeof(position));memset(basis,0xdd,sizeof(basis));
+        CHECK(campaign_model_owners[0].position[1]==20 && campaign_model_owners[0].basis[4]==1 &&
+            campaign_model_owners[0].appearance==7 && campaign_model_owners[0].room==9);
+    }
     eye.tag=-1;CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==20);
     eye.tag=0;eye.parent=0;eye.offsets[1]=2;eye.offsets[4]=1;
     CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==22);
