@@ -99,7 +99,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     int32_t actions[45],sounds[45],sound_class;
     rf_motion_controller controller={0,-1,0,0,0,0}; int32_t motions[23];
     struct pose_workspace {rf_model_bone bones[256];float matrices[256][12];} *workspace=NULL;
-    rf_model_bone *bones;rf_model_attachment eye;
+    rf_model_bone *bones;rf_model_attachment eye={0};
     float (*matrices)[12], local[12], tag[12], displacement[3]={.125f,-.25f,.5f};
     uint16_t generations[256]={0}; uint32_t count=0,i,frame=UINT32_MAX; int status,opened=0,found=0;
     void *payload=NULL;

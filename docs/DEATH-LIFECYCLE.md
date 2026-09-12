@@ -3106,3 +3106,29 @@ Report: artifacts/weapon-player-slots.json.
 Next: identify and bind the resource owners released by4cc010, compose the
 player-slot implementation with live inventory removal, and continue the item
 allocation/query/bounds and remaining death-start integration.
+
+
+## Original nested resource recycling audit (2026-09-12)
+
+verify_player_resource_recycle_original.py executes unmodified4cc010, without
+replacing any calls, over256 synthetic well-formed ownership configurations.
+It verifies762 middle records and1880 leaf records: children are appended to
+the leaf free list in traversal order, then their owner to the middle free
+list, then the top owner to its free list. Existing free entries retain their
+order, owned lists become empty, and payload bytes remain unchanged. The three
+free counters increase by exactly the number of returned records.
+
+Original list layout: top records use links+28/+2c and free sentinel876f28;
+active sentinel878e18. Their child sentinel is embedded at+4, using links+1c/
++20, with middle free sentinel876f58. Middle records contain leaf sentinels
+using links+14/+18, with leaf free sentinel876f80. Counters are878e48/4c/50.
+The constructor4cbb30 takes a top free record, appends it to the active list,
+initializes its child sentinel, and builds children while traversing model
+triangles. This is evidence of model-geometry resources; their exact gameplay
+meaning, creation inputs and live rendering binding are still unclassified.
+Do not substitute the existing particle-emitter pool for this nested owner.
+Report: artifacts/player-resource-recycle-original.json.
+
+The diagnostic eye attachment is now explicitly zero-initialized; missing tags
+still fail the existing found/parent validation. The PC rebuild no longer emits
+the C4701 warning. This does not introduce a fallback eye pose.

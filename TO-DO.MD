@@ -15,7 +15,6 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Investigate the PC diagnostic animation C4701 warning for eye initialization before extending live pose integration.
 - [ ] Connect the authored-tested file-tag/room-query/shared-lightmap source composition to death dispatch and bind room queue scheduling; isolated authored texture/growth draws now pass PC and stock64MiB XEMU, while campaign source ownership and queue scheduling remain open.
 - [ ] Recover generic cached CSPH tag parent initialization/placement; the95-model original audit clears cached-tag precedence for all190 corpse eye/spine queries.
 - [ ] Bind verified base corpse-motion lookup to live creation and recover weapon-switched declaration views; canonical availability masks are retained.
@@ -25,7 +24,7 @@ Immediate open items:
 - [ ] Connect native-verified burn retarget/release to live corpse inheritance after corpse ownership is reconstructed.
 - [ ] Bind verified finalization418f80 and its owned-corpse creation adapter to live actors, burn/player owners, geometry queries and deferred deletion.
 - [ ] Connect the native-verified registered NPC/player death-clearance query to complete death-start and moving-NPC orientation ownership.
-- [ ] Complete death-start41fdc0 around the verified death-animation handoff and configured-item drop, bind real item allocation/query/bounds and connect the verified SP weapon-drop42ae10 resource callbacks and shared inventory removal4031a0, bind verified player-slot release4a70e0 to the resource pool4cc010, bind the verified shared dying-update41ee40 to live owners and recover their player/camera handoff; dead/dying queries, death-entry state, collision-pair retirement and death-action selection are verified; live clearance integration, playback and remaining death effects are open.
+- [ ] Complete death-start41fdc0 around the verified death-animation handoff and configured-item drop, bind real item allocation/query/bounds and connect the verified SP weapon-drop42ae10 resource callbacks and shared inventory removal4031a0, bind verified player-slot release4a70e0 to the original-audited nested resource pool4cc010, bind the verified shared dying-update41ee40 to live owners and recover their player/camera handoff; dead/dying queries, death-entry state, collision-pair retirement and death-action selection are verified; live clearance integration, playback and remaining death effects are open.
 - [ ] Extend integrated player damage/pain/death audio to authored callers and recover death animation, camera, game-over and respawn ownership.
 - [ ] Attach the verified event-to-player damage/flash/camera binding to authored activation with complete player pain audio/death reactions and camera-mode lifecycle; add weapon damage and verify HUD/pause presentation timing.
 - [ ] Connect and verify NPC settling/fall/landing; deeper diagnostic sweeps find walkable floors below all24 opening-level short-probe misses.
