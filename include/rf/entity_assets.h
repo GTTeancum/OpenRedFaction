@@ -248,6 +248,11 @@ typedef struct rf_entity_skeletons {
     rf_entity_skeleton *items;uint32_t *class_indices;
     uint32_t count,class_count,resident_bytes,peak_bytes;
 } rf_entity_skeletons;
+/* Successful loaded-class setup424520/4246e0: only kind2 humanoid classes
+ * select spine/head bones; all others resolve to -1. Does not model setup's
+ * already-initialized flag or failed model loading. Failure preserves output. */
+int rf_entity_class_death_bones(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,
+    uint32_t class_index,int32_t out[3]);
 /* Level-owned shared immutable bones for kind2 classes. Non-skeletal classes
  * map to UINT32_MAX. No per-actor pose, geometry, skins or animation ownership.
  * Requires successful seeds, empty output. Budget includes owner/heap/scratch,

@@ -1917,6 +1917,19 @@ void rf_entity_seeds_close(rf_entity_seeds *seeds)
     rf_level_owned_entities_close(&seeds->records);
     free(seeds->items);free(seeds->classes);memset(seeds,0,sizeof(*seeds));
 }
+int rf_entity_class_death_bones(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,
+    uint32_t cls,int32_t out[3])
+{
+    const rf_entity_seed_class *definition;uint32_t index;
+    if(!seeds || !out || !seeds->classes || cls>=seeds->class_count)return RF_RANGE;
+    definition=seeds->classes+cls;
+    if(definition->model_kind!=2 || !(definition->physics.flags&0x20000u)) {
+        out[0]=out[1]=out[2]=-1;return RF_OK;
+    }
+    if(!skeletons || !skeletons->class_indices || !skeletons->items || cls>=skeletons->class_count)return RF_RANGE;
+    index=skeletons->class_indices[cls];if(index>=skeletons->count)return RF_RANGE;
+    return rf_model_death_bones(skeletons->items[index].bones,skeletons->items[index].count,out);
+}
 int rf_entity_model_kind(const char *model,uint32_t *kind)
 {
     const char *extension=NULL;uint32_t i;

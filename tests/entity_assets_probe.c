@@ -384,6 +384,17 @@ int main(int argc,char **argv)
             char name[64];if(rf_entity_skeletal_filename(seeds.classes[i].model,name) || s.class_indices[i]>=s.count ||
                 _stricmp(name,s.items[s.class_indices[i]].model))return 7;
         } else if(s.class_indices[i]!=UINT32_MAX)return 8;
+        for(i=0;i<seeds.class_count;++i) {
+            int32_t indices[3];rf_entity_seed_class saved=seeds.classes[i];
+            const char *model=s.class_indices[i]==UINT32_MAX?"-":s.items[s.class_indices[i]].model;
+            if(rf_entity_class_death_bones(&seeds,&s,i,indices))return 27;
+            printf("CLASS_DEATH_BONES\t%u\t%u\t%s\t%d\t%d\t%d\n",saved.model_kind,saved.physics.flags,model,indices[0],indices[1],indices[2]);
+            seeds.classes[i].physics.flags&=~0x20000u;
+            if(rf_entity_class_death_bones(&seeds,NULL,i,indices) || indices[0]!=-1 || indices[1]!=-1 || indices[2]!=-1)return 28;
+            seeds.classes[i]=saved;seeds.classes[i].model_kind=1;
+            if(rf_entity_class_death_bones(&seeds,NULL,i,indices) || indices[0]!=-1 || indices[1]!=-1 || indices[2]!=-1)return 29;
+            seeds.classes[i]=saved;
+        }
         if(rf_entity_poses_open(&seeds,&s,1024*1024,&poses))return 11;
         if(rf_entity_poses_open(&seeds,&s,poses.resident_bytes-1,&pose_guard)!=RF_RANGE ||
            memcmp(&pose_guard,&(rf_entity_poses){0},sizeof(pose_guard)))return 12;

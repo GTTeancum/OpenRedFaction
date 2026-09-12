@@ -3594,3 +3594,30 @@ Both builds and all19 CTests pass. The original audit is instruction-level
 evidence; ownership checks run on PC and the adapter compiles into NXDK.
 Actual class reachability of this path is still unproven and must be traced
 when binding base/effective views. No live death/XEMU execution is claimed.
+
+
+## Loaded class gate for death bones (2026-09-12)
+
+Caller424520 supplies the bone-selection gate to4246e0 only for kind2 models
+with class724 bit20000, the authored humanoid flag. In the common base-equals-
+effective path this uses40a1e0 (nonnull actor/model and base kind2) followed
+by40a150 (base class humanoid bit); the separate-view paths test each class.
+The disabled branch424f02 writes -1 to all three class bone fields. The
+already-initialized bit20000000 and failed/null model loading are separate
+setup lifecycle gates, not evidence for changing the selection itself.
+
+rf_entity_class_death_bones binds the verified selector to loaded seed-class
+and skeleton ownership. Non-kind2 or non-humanoid classes return all-minus-one
+without needing skeleton storage. Eligible classes validate their mapping
+and use the decoded original bone names/parents. No allocation is added.
+This helper models successful loaded setup, not an already-initialized flag
+mutation or failed resource-loading path.
+
+The opening-class probe verifies14 entries across L1S1/L1S2/L1S3 against
+original-audited model selections plus the recovered gate: six humanoid
+miner/guard entries resolve15/16/8, eight other entries resolve-1/-1/-1.
+Forced non-humanoid and non-skeletal tests also return all-minus-one without
+skeleton access. tools/verify_class_death_bones.py passes; its source model
+comparison reruns1119 original/PC/NXDK cases. All19 CTests and both builds
+pass. Class binding is tested on PC and compiled into NXDK, not live XEMU
+death. Effective view ownership and full stage composition remain open.
