@@ -18,6 +18,47 @@ static int clutter_skin_name_equal(const char *first,const char *second)
     } while(a);
     return 1;
 }
+int rf_clutter_classes_open(const rf_clutter_definition *definitions,
+    const rf_clutter_class_binding *bindings,uint32_t count,uint32_t budget,rf_clutter_classes *owner)
+{
+    rf_clutter_classes v={0};uint64_t bytes=sizeof(v),emitter_bytes=0,string_bytes=0;
+    uint32_t i,j;int32_t *emitter;char *text;
+    if(!owner || owner->storage || owner->items || owner->count || owner->allocated_bytes ||
+       (count && (!definitions || !bindings)) || count>INT_MAX)return RF_RANGE;
+    for(i=0;i<count;++i) {
+        const rf_clutter_definition *d=definitions+i;const char *names[]={d->name,d->model,d->corpse};
+        if(!*d->name || d->emitter_count>16 || (d->emitter_count && !bindings[i].emitters) ||
+           bindings[i].material>255 || (d->flags&~511u) || (d->model_kind!=1 && d->model_kind!=3) ||
+           !isfinite(d->life) || !isfinite(d->radius) || !isfinite(d->emitter_lifetime))return RF_RANGE;
+        for(j=0;j<3;++j) {
+            const char *end=memchr(names[j],0,64);if(!end)return RF_RANGE;
+            string_bytes+=(uint32_t)(end-names[j])+1;
+        }
+        emitter_bytes+=(uint64_t)d->emitter_count*4;
+    }
+    bytes+=(uint64_t)count*sizeof(*v.items)+emitter_bytes+string_bytes;
+    if(bytes>budget || bytes>UINT32_MAX)return RF_RANGE;
+    v.allocated_bytes=(uint32_t)bytes;v.count=count;
+    if(count) {
+        v.storage=malloc((size_t)(bytes-sizeof(v)));if(!v.storage)return RF_IO;
+        v.items=v.storage;memset(v.items,0,(size_t)count*sizeof(*v.items));
+        emitter=(int32_t *)(v.items+count);text=(char *)emitter+(size_t)emitter_bytes;
+        for(i=0;i<count;++i) {
+            rf_clutter_class *c=v.items+i;const rf_clutter_definition *d=definitions+i;
+            const rf_clutter_class_binding *b=bindings+i;const char *names[]={d->name,d->model,d->corpse};
+            const char **outputs[]={&c->name,&c->model,&c->corpse};
+            for(j=0;j<3;++j){size_t n=strlen(names[j])+1;*outputs[j]=text;memcpy(text,names[j],n);text+=n;}
+            c->emitter_count=d->emitter_count;
+            if(c->emitter_count){c->emitters=emitter;memcpy(emitter,b->emitters,c->emitter_count*4);emitter+=c->emitter_count;}
+            c->emitter_lifetime=d->emitter_lifetime;c->model_kind=d->model_kind;c->life=d->life;c->radius=d->radius;
+            c->material=b->material;c->flags=d->flags;c->sound=b->sound;c->explosion=b->explosion;c->glare=b->glare;c->rod=b->rod;
+            c->light_tag=-1;c->screen_width=d->screen_width;c->screen_height=d->screen_height;
+        }
+    }
+    *owner=v;return RF_OK;
+}
+void rf_clutter_classes_close(rf_clutter_classes *owner)
+{if(owner){free(owner->storage);memset(owner,0,sizeof(*owner));}}
 int rf_clutter_create(rf_clutter_class *classes,uint32_t count,int32_t index,
     int32_t shield_class,const char *name,int32_t identifier,const float position[3],
     const float matrix[9],uint32_t persistent,int32_t now_ms,int32_t *next_slot,

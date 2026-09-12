@@ -6,10 +6,12 @@
 #include <io.h>
 #include "owned_pose_probe.h"
 #include "clutter_create_probe.h"
+#include "clutter_classes_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--owned-pose"))return owned_pose_probe();
     if(argc==2 && !strcmp(argv[1],"--clutter-create"))return clutter_create_probe();
+    if(argc==2 && !strcmp(argv[1],"--clutter-classes"))return clutter_classes_probe();
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
     if(argc==4 && !strcmp(argv[1],"--clutter-definition")) {
         FILE *f=fopen(argv[2],"rb");long size;rf_clutter_definition value,before;

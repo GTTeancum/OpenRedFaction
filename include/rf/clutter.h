@@ -29,6 +29,23 @@ typedef struct rf_clutter_class {
     int32_t timer,coronas[4];uint32_t corona_count;int32_t light_tag;
     uint32_t screen_width,screen_height;
 } rf_clutter_class;
+typedef struct rf_clutter_class_binding {
+    uint32_t material;int32_t sound,explosion,glare,rod;const int32_t *emitters;
+} rf_clutter_class_binding;
+typedef struct rf_clutter_classes {
+    void *storage;rf_clutter_class *items;uint32_t count,allocated_bytes;
+} rf_clutter_classes;
+/* Compact port ownership: one allocation holds runtime classes, copied emitter
+ * IDs and exact terminated name/model/corpse strings. Class order and duplicate
+ * names are preserved. Bindings supply externally resolved IDs, not resources
+ * owned by this allocation; no lookup or resource side effects occur here.
+ * Budget includes owner plus allocation, excludes caller inputs/stack. Source
+ * arrays may be released after success. Initially zero owner required; errors
+ * preserve it. Close requires all borrowing objects retired and is repeatable.
+ * Factory caches start empty; timer0/light tag-1 are port initial storage. */
+int rf_clutter_classes_open(const rf_clutter_definition *definitions,
+    const rf_clutter_class_binding *bindings,uint32_t count,uint32_t budget,rf_clutter_classes *owner);
+void rf_clutter_classes_close(rf_clutter_classes *owner);
 typedef struct rf_clutter_state {
     uint32_t token,first_word,handle,model,flags,physics_flags;
     float position[3],health,armor;

@@ -6827,3 +6827,31 @@ owner. Runtime names and emitter IDs still need compact budgeted storage and
 resource resolution into the verified96-byte class view. Damage/debris/use/light
 metadata, full class parsing, resource allocation/release and live level binding
 remain open. No native XEMU replay or new visual is claimed for this change.
+
+
+Compact clutter class ownership (2026-09-12)
+------------------------------------------
+rf_clutter_classes_open converts factory-facing definitions plus explicitly
+supplied resource bindings into one allocation:96-byte runtime class records,
+ordered int32 emitter IDs and exact terminated name/model/corpse strings. Class
+and duplicate-name order are retained. The owner16 bytes plus payload are
+included in allocated_bytes and checked against budget before allocation.
+No source definitions, binding arrays or emitter arrays are borrowed. No resource
+lookup/load/release occurs: referenced IDs remain owned by external systems.
+Factory caches start empty, with port initial timer0/light tag-1. Classes must
+outlive borrowing objects; close frees only this storage and is repeatable.
+
+verify_clutter_classes.py uses all429 parsed selectable definitions and supplied
+material/effect/emitter IDs. PC and compiled NXDK exact-budget results match
+complete scalar/name/emitter contents after inputs are overwritten/freed. These
+classes occupy55379 bytes including owner, versus672672 bytes for the temporary
+metadata records. Nine scenarios cover the complete set, empty set and duplicate
+classes, each at exact/short budget and injected NXDK allocation failure. Empty
+ownership needs16 budget bytes but no allocation. Eight additional NXDK guards
+cover missing emitter storage, unterminated model, invalid material/life/flags,
+nonempty output owner, empty class name and invalid model kind. All errors
+preserve output; invalid inputs make no allocation. PC/NXDK builds and all19
+CTests pass. This is port-owned storage, not original allocator equivalence or
+native XEMU residency proof. Resource resolution, generic model/body allocation,
+complete class metadata, skin/effect owners and live level integration remain.
+No new visual is claimed.
