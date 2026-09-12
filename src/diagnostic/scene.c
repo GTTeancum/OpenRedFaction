@@ -1177,7 +1177,8 @@ static rf_clutter_classes campaign_clutter_classes;
 static rf_level_owned_clutter campaign_clutter_records;
 uint32_t rf_scene_clutter[8]; /* classes, records, unmatched, class bytes, record bytes, retained, load peak, hash */
 uint32_t rf_scene_clutter_render[8]; /* models, bindings, unmatched, nonstatic, retained, peak, materials, hash */
-typedef struct campaign_clutter_model {char name[64];rf_static_render_resource resource;} campaign_clutter_model;
+typedef struct campaign_clutter_model {char name[64];rf_static_render_resource resource;rf_model_collision_resource collision;} campaign_clutter_model;
+uint32_t rf_scene_clutter_collision[9]; /* models, parts, LODs, collision bytes, queries, hits, resource hash, query hash, errors */
 uint32_t rf_scene_clutter_materials[8]; /* models, rows, textures, retained, peak, material hash, image bytes, pixel hash */
 static rf_model_materials campaign_clutter_materials;
 static uint32_t *campaign_clutter_material_offsets;
@@ -1871,6 +1872,52 @@ static int campaign_clutter_bodies_close(void)
     if(rf_scene_clutter_bodies[8]){++rf_scene_clutter_bodies[9];return RF_RANGE;}
     free(campaign_clutter_bodies);campaign_clutter_bodies=NULL;free(campaign_clutter_shared);campaign_clutter_shared=NULL;return RF_OK;
 }
+static uint32_t campaign_clutter_query_geometry(void *context,uint32_t operation,const void *geometry,
+    const void *pose,int32_t part,const void *query,rf_collision_model_response_hit *hit,uint32_t reset)
+{
+    const rf_model_collision_resource *resource=geometry;(void)context;(void)pose;(void)part;
+    if(operation!=RF_MODEL_QUERY_ALL)return 0;
+    return rf_collision_model_trace(resource->parts,&resource->part_count,(rf_collision_model_part_query *)query,hit,reset);
+}
+int rf_scene_clutter_collision_query(uint32_t handle,rf_collision_model_part_query *query,
+    rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted)
+{
+    void *registered;uint32_t i,model,value;rf_collision_model_query_view view={0};
+    rf_collision_model_query_backend backend={campaign_clutter_query_geometry,NULL};
+    if(!query || !hit || !accepted)return RF_RANGE;
+    registered=rf_object_registry_lookup(&campaign_registry,handle);if(!registered)return RF_NOT_FOUND;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies && campaign_clutter_bodies[i] &&
+        registered==&campaign_clutter_bodies[i]->state && campaign_clutter_bodies[i]->state.handle==handle)break;
+    if(i==campaign_clutter_records.count)return RF_NOT_FOUND;
+    model=campaign_clutter_model_slots[i];if(model>=campaign_clutter_model_count)return RF_FORMAT;
+    if(campaign_clutter_bodies[i]->attachment.model!=(uint32_t)(uintptr_t)(campaign_clutter_shared+model))return RF_FORMAT;
+    view.kind=1;view.geometry=&campaign_clutter_models[model].collision;
+    value=rf_collision_model_query_all(&view,query,hit,reset,&backend);
+    ++rf_scene_clutter_collision[4];rf_scene_clutter_collision[5]+=!!value;
+    rf_scene_clutter_collision[7]=npc_hash_bytes(rf_scene_clutter_collision[7],&campaign_clutter_bodies[i]->uid,4);
+    rf_scene_clutter_collision[7]=npc_hash_bytes(rf_scene_clutter_collision[7],query,sizeof(*query));
+    rf_scene_clutter_collision[7]=npc_hash_bytes(rf_scene_clutter_collision[7],hit,sizeof(*hit));
+    rf_scene_clutter_collision[7]=npc_hash_bytes(rf_scene_clutter_collision[7],&value,4);
+    *accepted=value;return RF_OK;
+}
+static int campaign_clutter_query_probe(void)
+{
+    uint32_t i,axis,side,j,accepted;int status;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i]) {
+        const rf_clutter_base_owner *owner=campaign_clutter_bodies[i];
+        float radius=owner->attachment.radius+1;
+        for(axis=0;axis<3;++axis)for(side=0;side<2;++side) {
+            rf_collision_model_part_query query={0};rf_collision_model_response_hit hit={0};
+            memcpy(query.input.start,owner->state.position,12);memcpy(query.input.origin,owner->state.position,12);
+            memcpy(query.input.matrix,owner->matrix,36);
+            query.input.start[axis]+=side?radius:-radius;query.input.displacement[axis]=side?-2*radius:2*radius;
+            for(j=0;j<3;++j)if(!isfinite(query.input.start[j]) || !isfinite(query.input.displacement[j]))return RF_FORMAT;
+            status=rf_scene_clutter_collision_query(owner->state.handle,&query,&hit,1,&accepted);
+            if(status){++rf_scene_clutter_collision[8];return status;}
+        }
+    }
+    return RF_OK;
+}
 static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world)
 {
     const uint32_t budget=256*1024;uint64_t bytes,peak;uint32_t i,j,hash=2166136261u;int status;
@@ -1919,7 +1966,7 @@ static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world
     }
     rf_scene_clutter_bodies[3]=(uint32_t)bytes;rf_scene_clutter_bodies[4]=(uint32_t)peak;rf_scene_clutter_bodies[5]=hash;
     for(i=0;i<campaign_clutter_model_count;++i)rf_scene_clutter_bodies[6]+=campaign_clutter_shared[i].references;
-    return RF_OK;
+    status=campaign_clutter_query_probe();if(status)goto fail;return RF_OK;
  fail:
     (void)campaign_clutter_bodies_close();return status;
 }
@@ -1929,7 +1976,10 @@ static void campaign_clutter_render_close(void)
     rf_model_materials_close(&campaign_clutter_materials);
     free(campaign_clutter_material_offsets);campaign_clutter_material_offsets=NULL;
     free(campaign_clutter_appearance_slots);campaign_clutter_appearance_slots=NULL;
-    uint32_t i;for(i=0;i<campaign_clutter_model_count;++i)rf_static_render_resource_close(&campaign_clutter_models[i].resource);
+    uint32_t i;for(i=0;i<campaign_clutter_model_count;++i) {
+        rf_model_collision_resource_close(&campaign_clutter_models[i].collision);
+        rf_static_render_resource_close(&campaign_clutter_models[i].resource);
+    }
     free(campaign_clutter_models);free(campaign_clutter_model_slots);
     campaign_clutter_models=NULL;campaign_clutter_model_slots=NULL;campaign_clutter_model_count=0;
 }
@@ -1939,6 +1989,8 @@ static int campaign_clutter_render_open(rf_vpp *archive)
     uint32_t i,j,k,hash=2166136261u;int status=RF_OK;
     if(campaign_clutter_models || campaign_clutter_model_slots)return RF_RANGE;
     memset(rf_scene_clutter_render,0,sizeof(rf_scene_clutter_render));
+    memset(rf_scene_clutter_collision,0,sizeof(rf_scene_clutter_collision));
+    rf_scene_clutter_collision[6]=rf_scene_clutter_collision[7]=2166136261u;
     bytes=(uint64_t)campaign_clutter_records.count*(sizeof(*campaign_clutter_models)+sizeof(*campaign_clutter_model_slots));
     if(bytes+sizeof(*file)>budget)return RF_RANGE;
     if(campaign_clutter_records.count) {
@@ -1965,6 +2017,9 @@ static int campaign_clutter_render_open(rf_vpp *archive)
             status=rf_static_render_resource_open(file,(uint32_t)(budget-bytes-sizeof(*file)+sizeof(*resource)),resource);if(status)goto fail;
             memcpy(campaign_clutter_models[j].name,name,strlen(name)+1);++campaign_clutter_model_count;
             bytes+=resource->allocated_bytes-sizeof(*resource);
+            status=rf_model_collision_resource_open(&campaign_clutter_models[j].collision,file,
+                (uint32_t)(budget-bytes-sizeof(*file)+sizeof(rf_model_collision_resource)));if(status)goto fail;
+            bytes+=campaign_clutter_models[j].collision.accounted_bytes-sizeof(rf_model_collision_resource);
         }
         campaign_clutter_model_slots[i]=j;++rf_scene_clutter_render[1];
     }
@@ -1975,6 +2030,24 @@ static int campaign_clutter_render_open(rf_vpp *archive)
         hash=npc_hash_bytes(hash,m->name,(uint32_t)strlen(m->name)+1);hash=npc_hash_bytes(hash,r->bound,16);
         hash=npc_hash_bytes(hash,r->parts,r->part_count*sizeof(*r->parts));hash=npc_hash_bytes(hash,r->materials,r->material_count*84);
         hash=npc_hash_bytes(hash,&r->sphere_count,4);hash=npc_hash_bytes(hash,r->spheres,r->sphere_count*sizeof(*r->spheres));
+        {
+            const rf_model_collision_resource *collision=&m->collision;uint32_t *h=&rf_scene_clutter_collision[6];
+            ++rf_scene_clutter_collision[0];rf_scene_clutter_collision[1]+=(uint32_t)collision->part_count;
+            rf_scene_clutter_collision[2]+=collision->lod_count;rf_scene_clutter_collision[3]+=collision->accounted_bytes;
+            for(j=0;j<(uint32_t)collision->part_count;++j) {
+                const rf_collision_model_part_view *part=collision->parts+j;uint32_t selected=UINT32_MAX,fallback=UINT32_MAX;
+                for(k=0;k<collision->lod_count;++k) {
+                    if(part->selected==&collision->lods[k].view)selected=k;if(part->fallback==&collision->lods[k].view)fallback=k;
+                }
+                *h=npc_hash_bytes(*h,part,36);*h=npc_hash_bytes(*h,&selected,4);*h=npc_hash_bytes(*h,&fallback,4);
+            }
+            for(j=0;j<collision->lod_count;++j) {
+                const rf_model_collision_geometry *lod=collision->lods+j;
+                uint32_t data_bytes=lod->accounted_bytes-sizeof(*lod)-lod->view.batch_count*sizeof(rf_collision_model_batch_view);
+                *h=npc_hash_bytes(*h,&lod->view.flags,4);*h=npc_hash_bytes(*h,&lod->view.batch_count,2);
+                *h=npc_hash_bytes(*h,lod->data,data_bytes);
+            }
+        }
         rf_scene_clutter_render[6]+=r->material_count;
         for(j=0;j<r->lod_count;++j) {
             const rf_static_render_lod *lod=r->lods+j;const rf_model_geometry *g=&lod->geometry;

@@ -117,6 +117,12 @@ extern uint32_t rf_scene_clutter_render[8];
 extern uint32_t rf_scene_clutter_materials[8];
 extern uint32_t rf_scene_clutter_skins[6];
 extern uint32_t rf_scene_clutter_bodies[10];
+extern uint32_t rf_scene_clutter_collision[9];
+/* Registered static prop model query through5031f0/static geometry. Caller
+ * supplies original query pose/flags and finite disjoint input; mutable local
+ * scratch and hit follow the recovered query contract. No physics scheduling. */
+int rf_scene_clutter_collision_query(uint32_t handle,rf_collision_model_part_query *query,
+    rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted);
 extern uint32_t rf_scene_clutter_draw[6];
 /*428030: blocked standing still selects slow mode; forced crouch sets only the flag.
  * Required standing services only when attempting to stand; borrowed owners must survive callbacks. */

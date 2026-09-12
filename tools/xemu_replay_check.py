@@ -278,7 +278,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert clutter_render[1]+clutter_render[2]+clutter_render[3]==clutter[1],clutter_render
      assert clutter_render[4]<=clutter_render[5]<=256*1024,clutter_render
      if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
-      assert clutter_render[:4]==[12,168,2,0] and clutter_render[4:6]==[110968,119760],clutter_render
+      assert clutter_render[:4]==[12,168,2,0] and clutter_render[4:6]==[203444,212236],clutter_render
      report['clutter_render']=clutter_render
      clutter_materials=words(monitor,symbol('rf_scene_clutter_materials'),8)
      assert clutter_materials==expected('CLUTTER_MATERIALS'),clutter_materials
@@ -304,6 +304,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       body_reference=json.loads((root/'artifacts/clutter-scene-bodies.json').read_text())
       assert body_reference['result']=='PASS' and clutter_bodies[:5]==body_reference['expected'],clutter_bodies
      report['clutter_bodies']=clutter_bodies
+     clutter_collision=words(monitor,symbol('rf_scene_clutter_collision'),9)
+     assert clutter_collision==expected('CLUTTER_COLLISION') and clutter_collision[8]==0,clutter_collision
+     assert clutter_collision[0]==clutter_render[0] and clutter_collision[4]==6*clutter_bodies[0],clutter_collision
+     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+      collision_reference=json.loads((root/'artifacts/clutter-scene-collision.json').read_text())
+      assert collision_reference['result']=='PASS' and clutter_collision==collision_reference['expected'],clutter_collision
+     report['clutter_collision']=clutter_collision
      npc_models=words(monitor,symbol('rf_scene_npc_models'),4)
      assert npc_models==expected('NPC_MODELS'),npc_models
      assert npc_models==[npc_bodies[1],npc_bodies[0]*80,npc_bodies[1],0],npc_models
