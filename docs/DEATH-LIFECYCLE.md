@@ -7182,3 +7182,37 @@ pass. Reports: artifacts/model-static-triangle-route.json and
 artifacts/model-static-clip-inputs.json. Static polygon generation, capacity
 checks, submission, view ownership and native scene use are still open;
 this is not an XEMU or new-visual claim.
+
+
+## Composed static triangle clipping and emission
+
+rf_model_geometry_emit_static_batch binds static stored-plane routing and
+static clipping records to the shared polygon clipper and generated-vertex
+fan emission. The existing skeletal emission API now forwards through the
+same internal composition with its original route/record policy. Callers
+supply batch-local stored face planes and optional RGBs, prepared caches,
+clip/view state and bounded output/pool ownership. Static vertex preparation
+remains a separate preceding API. No heap allocation or GPU API is added.
+Port capacity/range errors retain the existing emission contract; they are
+not a claim to reproduce the original silent capacity-skip policy.
+
+verify_model_static_emission.py executes complete original52e43e..52e842,
+including actual facing, clipping, projection/depth and fan callees, across
+512 batches with441 generated vertices and1302 emitted indices. Compiled
+NXDK matches all2860 output bytes for every batch and preserves input bytes.
+Four NXDK missing-plane/index/vertex-capacity/index-capacity guards preserve
+vertex/index arrays and counts. Fixtures supply prepared caches with
+positive depths, side/far masks, perspective/orthographic gates, optional
+RGB, stored-plane facing and u16 base wrap; near/custom planes, multiple
+triangles, live archive binding and device submission need broader coverage.
+
+PC matches408 complete records exactly. In the other104, generated float
+coordinates differ from x87 output by at most0.000335693359375 screen pixels;
+UV/depth scaled error is at most7.748601049685103e-7. Two generated RGB
+channels differ by one8-bit step. Counts, indices, alpha/depth bytes and
+all untouched bytes match. The report explicitly returns
+PASS_WITH_NUMERIC_DIFFERENCES and enforces exact NXDK-original output;
+PC float/RGB convergence remains an open item, not an exact-parity claim.
+Both builds and all19 CTests pass; existing600 clipped-polygon emission
+comparisons remain passing. Report: artifacts/model-static-emission.json.
+No native XEMU or new-visual claim.

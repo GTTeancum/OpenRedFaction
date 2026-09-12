@@ -202,6 +202,21 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--emit-static-batch")) {
+        struct {rf_model_vertex vertices[4];int32_t reuse[4];rf_model_render_cache cache[4];float clip[4][3];rf_model_triangle triangle;float face[1][4];rf_model_projection view;rf_model_clip_planes planes;rf_model_clip_projection projection;rf_model_render_output attributes;uint32_t use_colors;uint8_t colors[4][3];uint32_t base;} data;
+        _Static_assert(sizeof(data)==580,"Static emission wire layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            uint8_t gpu[64][40];uint16_t indices[144];int32_t status;rf_model_clip_pool pool;
+            rf_model_draw_batch draw={0,4,0,1,0};rf_model_geometry g={&draw,data.vertices,&data.triangle,data.reuse,1,4,1,0};
+            rf_model_render_buffers buffers={data.cache,data.clip,NULL,gpu,4};
+            rf_model_triangle_output output={gpu,indices,4,64,0,144};
+            memset(gpu,0xa5,sizeof(gpu));memset(indices,0xa5,sizeof(indices));memset(&pool,0,sizeof(pool));
+            status=rf_model_geometry_emit_static_batch(&g,0,&buffers,&data.view,&data.planes,&data.projection,&data.attributes,(uint16_t)data.base,&pool,&output,data.face,data.use_colors?data.colors:NULL);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&output.vertex_count,4,1,stdout)!=1 || fwrite(&output.index_count,4,1,stdout)!=1 ||
+               fwrite(gpu,sizeof(gpu),1,stdout)!=1 || fwrite(indices,sizeof(indices),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--prepare-static-clip")) {
         struct {rf_model_vertex vertices[4];int32_t reuse[4];rf_model_render_cache cache[4];float clip[4][3];uint16_t indices[3],pad;uint32_t use_colors;uint8_t colors[4][3];} data;
         _Static_assert(sizeof(data)==376,"Clip input wire layout");

@@ -233,6 +233,14 @@ int rf_model_geometry_emit_batch(const rf_model_geometry *geometry,uint32_t batc
     const rf_model_clip_planes *planes,const rf_model_clip_projection *projection,
     const rf_model_render_output *attributes,uint16_t base,rf_model_clip_pool *pool,
     rf_model_triangle_output *output);
+/* Static batch composition. face_planes contains draw->triangles stored planes;
+ * optional colors contains draw->vertices RGB rows, both batch-local. Uses
+ * existing clip pool/emission and the same port capacity errors as emit_batch. */
+int rf_model_geometry_emit_static_batch(const rf_model_geometry *geometry,uint32_t batch,
+    const rf_model_render_buffers *buffers,const rf_model_projection *view,
+    const rf_model_clip_planes *planes,const rf_model_clip_projection *projection,
+    const rf_model_render_output *attributes,uint16_t base,rf_model_clip_pool *pool,
+    rf_model_triangle_output *output,const float (*face_planes)[4],const uint8_t (*colors)[3]);
 /* Select a flattened LOD index within one SUBM using its serialized thresholds.
  * Metric and render gates have the same meaning as rf_model_select_lod.
  * No allocation; output unchanged on failure. */
