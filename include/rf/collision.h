@@ -568,6 +568,19 @@ uint32_t rf_collision_model_pose_query(const rf_collision_model_skin_batch *batc
     const float (*matrices)[12],uint32_t bone_count,rf_collision_model_part_query *query,
     rf_collision_model_response_hit *hit,float (*scratch)[3],uint32_t reset);
 
+typedef struct rf_collision_model_skin_pose {
+    const float (*stored)[12],(*evaluated)[12];float (*prepared)[12];
+    uint16_t *generations;uint32_t bone_count,capacity;uint16_t generation;
+} rf_collision_model_skin_pose;
+/* Compose54e140/54e200 with51ba00 matrix refresh after pose evaluation.
+ * Caller owns selected batches, evaluated pose, prepared matrix cache/stamps,
+ * and scratch. Returns RF status; accepted is published only on success.
+ * Preparation failures can retain query/reset and earlier matrix-cache writes.
+ * Does not evaluate animation or allocate/select retained scene resources. */
+int rf_collision_model_skinning_query(const rf_collision_model_skin_batch *batches,uint16_t batch_count,
+    const rf_collision_model_skin_pose *pose,rf_collision_model_part_query *query,
+    rf_collision_model_response_hit *hit,float (*scratch)[3],uint32_t reset,uint32_t *accepted);
+
 typedef struct rf_collision_model_parts_backend {
     uint32_t (*part)(void *,int32_t,rf_collision_solid_response_query *,rf_collision_model_response_hit *,uint32_t);
     void *context;

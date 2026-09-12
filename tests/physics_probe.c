@@ -43,6 +43,24 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-skinning-query")) {
+        struct batch_wire {float positions[6][3];rf_collision_model_skin_links links[6];rf_collision_model_triangle_record records[2];uint32_t count;};
+        struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;float matrices[4][12];struct batch_wire batches[2];uint32_t count,reset;float stored[4][12],evaluated[4][12];uint16_t stamps[4],generation,pad;} input;
+        uint32_t result,i;int status;rf_collision_model_skin_pose pose;float scratch[6][3];rf_collision_model_skin_batch batches[2];
+        _Static_assert(sizeof(input)==1012,"multi pose trace wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(input.count>2 || input.batches[0].count>2 || input.batches[1].count>2)return 2;
+            for(i=0;i<2;++i){batches[i].positions=input.batches[i].positions;batches[i].links=input.batches[i].links;batches[i].triangles=input.batches[i].records;batches[i].vertex_count=6;batches[i].triangle_count=(uint16_t)input.batches[i].count;}
+            memset(scratch,0xa5,sizeof(scratch));
+            pose.stored=input.stored;pose.evaluated=input.evaluated;pose.prepared=input.matrices;
+            pose.generations=input.stamps;pose.bone_count=pose.capacity=4;pose.generation=input.generation;
+            status=rf_collision_model_skinning_query(batches,(uint16_t)input.count,&pose,&input.query,&input.hit,scratch,input.reset,&result);
+            if(status)return 4;
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(&input.hit,32,1,stdout)!=1 || fwrite(scratch,72,1,stdout)!=1 || fwrite(&input.query,104,1,stdout)!=1 || fwrite(input.matrices,192,1,stdout)!=1 || fwrite(input.stamps,8,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--model-pose-query")) {
         struct batch_wire {float positions[6][3];rf_collision_model_skin_links links[6];rf_collision_model_triangle_record records[2];uint32_t count;};
         struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;float matrices[4][12];struct batch_wire batches[2];uint32_t count,reset;} input;

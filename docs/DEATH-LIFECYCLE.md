@@ -5098,3 +5098,24 @@ translated/rotated input, both flag2 paths, reset values0/1/2/255/256/257,
 zero to two batches,149 first-batch exits and2581 complete two-batch visits.
 Both builds and19 CTests pass. This gate uses Unicorn for original/NXDK
 code, not a new native XEMU gameplay run.
+
+
+### Skeletal matrix refresh and query composition (2026-09-12)
+
+`rf_collision_model_skinning_query` combines54e140 coordinate preparation,
+51ba00 prepared-matrix refresh after pose evaluation, and54e200 traversal.
+The borrowed skin-pose view supplies bind/evaluated/prepared matrices,16-bit
+generation stamps and capacity. No allocations or scene ownership are hidden.
+Coordinates/reset precede matrix preparation; accepted output is published
+only on success. Preparation errors may retain reset/query and earlier cache
+writes. The original pose-query API shares the coordinate helper.
+
+`tools/verify_model_skinning_query.py` runs original54e140 with actual51ba00
+and51b500; evaluated pose generations are current, while prepared generations
+are independently current/stale. No original callee is substituted.8192 cases
+(518 hits) match PC and compiled NXDK return/hit/query/scratch plus all192
+prepared-matrix bytes and8 generation bytes. Includes125 first-batch exits,
+2605 complete two-batch traversals and2732 empty traversals (matrix refresh
+still occurs). Both builds and19 CTests pass. Unicorn comparison is not a
+native XEMU run. Live animation evaluation, budgeted per-NPC prepared cache
+ownership, selected skeletal LOD geometry and live scheduling remain open.
