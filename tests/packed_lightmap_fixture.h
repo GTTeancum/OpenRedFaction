@@ -12,3 +12,10 @@ static int packed_lightmap_fixture(rf_image *image,rf_particle_draw_vertex verti
         vertices[j].uv[0]=(j==1 || j==2)?1:0;vertices[j].uv[1]=j>=2?1:0;}
     return RF_OK;
 }
+
+static void packed_lightmap_sample_fixture(const rf_image *image,uint32_t output[132])
+{
+    uint32_t i;for(i=0;i<66;++i){float uv[2];uint32_t color=0x12345678;int status;
+        uv[0]=i<64?(float)(i%32)/32:1;uv[1]=i<64?(float)(i/32)/2:i==64?0:1;
+        status=rf_lightmap_sample_image_1555(image,uv,&color);output[i*2]=(uint32_t)status;output[i*2+1]=color;}
+}

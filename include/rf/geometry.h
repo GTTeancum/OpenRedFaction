@@ -20,6 +20,11 @@ typedef struct rf_geometry_lightmap_context {
  * mapping/image, verified projection and1555 sampling. Missing lightmap is
  * opaque white. Geometry and packed maps remain owned/alive by the caller. */
 int rf_geometry_corpse_color(void *context,uint32_t face,const float point[3],uint32_t *color);
+typedef struct rf_geometry_resident_lightmap_context {
+    const rf_geometry *geometry;const rf_lightmaps *maps;
+} rf_geometry_resident_lightmap_context;
+/* Borrow existing campaign image owners, including Xbox swizzled storage. */
+int rf_geometry_corpse_resident_color(void *context,uint32_t face,const float point[3],uint32_t *color);
 typedef struct rf_geometry_face {
     float plane[4];
     uint32_t texture, lightmap_mapping, room, portal, flags, corners;

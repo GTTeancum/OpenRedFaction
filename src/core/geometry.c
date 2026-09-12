@@ -267,6 +267,19 @@ int rf_geometry_corpse_color(void *context,uint32_t face_index,const float point
     status=rf_lightmap_project(&projection,point,uv);if(status)return status;
     return rf_lightmap_sample_1555(owner->maps->images+image,uv,color);
 }
+int rf_geometry_corpse_resident_color(void *context,uint32_t face_index,const float point[3],uint32_t *color)
+{
+    const rf_geometry_resident_lightmap_context *owner=context;rf_geometry_face face;
+    rf_lightmap_projection projection;float uv[2];uint32_t image;int status;
+    if(!owner || !owner->geometry || !color)return RF_RANGE;
+    status=rf_geometry_get_face(owner->geometry,face_index,&face);if(status)return status;
+    if(face.lightmap_mapping==UINT32_MAX){*color=0xffffffffu;return RF_OK;}
+    if(!owner->maps || (owner->maps->count && !owner->maps->images))return RF_RANGE;
+    status=rf_geometry_lightmap(owner->geometry,face.lightmap_mapping,owner->maps->count,&image);if(status)return status;
+    status=rf_geometry_lightmap_projection(owner->geometry,face.lightmap_mapping,&projection);if(status)return status;
+    status=rf_lightmap_project(&projection,point,uv);if(status)return status;
+    return rf_lightmap_sample_image_1555(owner->maps->images+image,uv,color);
+}
 int rf_geometry_lightmap_projection(const rf_geometry *geometry,uint32_t mapping,rf_lightmap_projection *projection)
 {
     if(!geometry || !geometry->data || mapping>=geometry->mappings || !projection)return RF_RANGE;

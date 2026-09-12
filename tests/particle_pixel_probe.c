@@ -42,11 +42,12 @@ static int corpse_texture_test(const char *path,int samples)
     if(rf_corpse_surface_draw(&effect,&camera,&environment,&texture.image,RF_PARTICLE_NORMAL_MODE,corpse_present,&sink)!=RF_IO || effect.extent!=.5f || sink.calls!=calls+1)return 7;
     rf_particle_bitmap_close(&texture);rf_pc_raster_close(&raster);return 0;
 }
-static int packed_lightmap_test(void)
+static int packed_lightmap_test(int samples)
 {
     rf_pc_raster raster={0};rf_image image={0};rf_particle_draw_vertex vertices[4];uint32_t i,x,y;int status;
     if(rf_pc_raster_open(&raster,1))return 1;
     status=packed_lightmap_fixture(&image,vertices);if(status)return 2;
+    if(samples){uint32_t output[132];packed_lightmap_sample_fixture(&image,output);for(i=0;i<66;++i)printf("%u %u\n",output[i*2],output[i*2+1]);rf_image_close(&image);rf_pc_raster_close(&raster);return 0;}
     for(i=0;i<raster.pixels;++i){raster.rgb[i*3]=32;raster.rgb[i*3+1]=64;raster.rgb[i*3+2]=96;raster.depth[i]=16777215;}
     status=rf_pc_raster_particle(&raster,vertices,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0);if(status)return 3;
     for(y=0;y<2;++y)for(x=0;x<32;++x){i=((96+y*64)*raster.width+72+x*16)*3;printf("%u %u %u\n",raster.rgb[i],raster.rgb[i+1],raster.rgb[i+2]);}
@@ -117,7 +118,8 @@ int main(int argc,char **argv)
 {
     if(argc==3 && !strcmp(argv[1],"--corpse-pixels"))return corpse_texture_test(argv[2],1);
     if(argc==3 && !strcmp(argv[1],"--corpse-texture"))return corpse_texture_test(argv[2],0);
-    if(argc==2 && !strcmp(argv[1],"--packed-lightmap"))return packed_lightmap_test();
+    if(argc==2 && !strcmp(argv[1],"--packed-lightmap-samples"))return packed_lightmap_test(1);
+    if(argc==2 && !strcmp(argv[1],"--packed-lightmap"))return packed_lightmap_test(0);
     if(argc==2 && !strcmp(argv[1],"--flash"))return flash_test();
     if(argc==2 && !strcmp(argv[1],"--stretch"))return stretch_test();
     if(argc==3 && !strcmp(argv[1],"--textures"))return texture_test(argv[2]);

@@ -95,6 +95,7 @@ int main(int argc,char **argv)
 {
     if(argc==5 && !strcmp(argv[1],"--level-packed-lightmaps")) {
         rf_vpp archive;rf_level level;rf_geometry geometry;rf_packed_lightmaps maps={0};
+        rf_lightmaps resident={0};rf_geometry_resident_lightmap_context resident_context;
         rf_geometry_lightmap_context context;uint32_t mode=(uint32_t)strtoul(argv[4],NULL,10),required,i,j,count;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,16u*1024u*1024u))return 2;
         if(rf_packed_lightmaps_open(&maps,&level,mode,32u*1024u*1024u))return 3;
@@ -106,6 +107,8 @@ int main(int argc,char **argv)
             const rf_lightmap_1555_view *image=maps.images+i;uint32_t header[4]={image->width,image->height,image->pitch,image->bytes};
             fwrite(header,sizeof(header),1,stdout);fwrite(image->pixels,image->bytes,1,stdout);
         }
+        resident_context.geometry=&geometry;resident_context.maps=&resident;
+        if(!mode && rf_lightmaps_open(&resident,&level,32u*1024u*1024u))return 11;
         context.geometry=&geometry;context.maps=&maps;count=geometry.faces<64?geometry.faces:64;fwrite(&count,4,1,stdout);
         for(i=0;i<count;++i) {
             struct {uint32_t face,mapping,image;int32_t status;float point[3];uint32_t color;rf_lightmap_projection projection;} sample={0};
@@ -118,8 +121,12 @@ int main(int argc,char **argv)
             }
             if(sample.mapping!=UINT32_MAX && (rf_geometry_lightmap(&geometry,sample.mapping,maps.count,&sample.image) ||
                 rf_geometry_lightmap_projection(&geometry,sample.mapping,&sample.projection)))return 8;
-            sample.status=rf_geometry_corpse_color(&context,i,sample.point,&sample.color);fwrite(&sample,sizeof(sample),1,stdout);
+            sample.status=rf_geometry_corpse_color(&context,i,sample.point,&sample.color);
+            if(!mode){uint32_t color=0x12345678;int status=rf_geometry_corpse_resident_color(&resident_context,i,sample.point,&color);
+                if(status!=sample.status || color!=sample.color)return 12;}
+            fwrite(&sample,sizeof(sample),1,stdout);
         }
+        rf_lightmaps_close(&resident);
         rf_packed_lightmaps_close(&maps);rf_packed_lightmaps_close(&maps);
         if(maps.images || maps.count || maps.allocated_bytes)return 9;
         rf_geometry_close(&geometry);rf_vpp_close(&archive);return ferror(stdout)?10:0;

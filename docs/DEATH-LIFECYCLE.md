@@ -2788,3 +2788,29 @@ builds and19 CTests pass. Shared CPU face sampling still needs a borrowed,
 swizzle-aware view of this owner; it must retain channel-times-eight behavior
 separately from normalized GPU sampling. Campaign blood-pool source/queue
 activation remains open. The audit tool now labels raw RGB as historical.
+
+## Shared renderer-owned CPU lightmap sampling
+
+rf_lightmap_sample_image_1555 borrows the existing campaign rf_image owner.
+It uses the verified exact binary32 texel-index calculation, resolves the
+logical linear row address, bounds-checks it, then calls rf_image_pixel for
+PC linear or Xbox swizzled storage. u1 may reach the following row exactly
+as the original tight-pitch address; a final-row overread returns RF_RANGE
+without changing output. Missing pixels return white. RGB channels expand
+by8 with alpha255, regardless of the texel alpha bit, matching CPU sampling
+rather than normalized renderer sampling. No allocation/copy occurs.
+
+rf_geometry_corpse_resident_color supplies the authored mapping/projection
+callback over borrowed rf_geometry and rf_lightmaps. The owners must remain
+alive.192 face-centroid samples across L1S1/L1S2/L1S3 match the separately
+owned packed reference in the no-brightening mode used by campaign rendering.
+The existing six-mode/level packing checks also pass. The duplicate owner
+exists only in that comparison test, not in the new sampling callback.
+
+Stock64MiB XEMU particle-pixels-20260912-011000 verifies66 exact PC/native
+CPU samples from the renderer-owned32x2 image: all64 texels including both
+alpha states, u1 crossing to the next row, and final overread preservation.
+Expected channel-times-eight colors are computed independently. The existing
+normalized GPU samples, blood-pool rendering and other graphics checks pass.
+Both builds and19 CTests pass. Live effect source/queue wiring and runtime
+tag ownership remain open; no additional gameplay behavior is claimed.

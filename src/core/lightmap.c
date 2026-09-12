@@ -101,6 +101,20 @@ int rf_lightmap_sample_1555(const rf_lightmap_1555_view *view,const float uv[2],
     *color=value;return RF_OK;
 }
 
+int rf_lightmap_sample_image_1555(const rf_image *image,const float uv[2],uint32_t *color)
+{
+    uint64_t index;const unsigned char *p;uint32_t pixel;
+    if(!image || !uv || !color)return RF_RANGE;
+    if(!isfinite(uv[0]) || !isfinite(uv[1]) || uv[0]<0 || uv[0]>1 || uv[1]<0 || uv[1]>1)return RF_RANGE;
+    if(!image->rgba){*color=0xffffffffu;return RF_OK;}
+    if(!rf_image_is_packed_1555(image) || image->width>4096 || image->height>4096)return RF_RANGE;
+    index=(uint64_t)lightmap_texel_index(image->height,uv[1])*image->width+lightmap_texel_index(image->width,uv[0]);
+    if(index>=(uint64_t)image->width*image->height)return RF_RANGE;
+    p=rf_image_pixel(image,(uint32_t)(index%image->width),(uint32_t)(index/image->width));
+    pixel=p[0]|(uint32_t)p[1]<<8;
+    *color=((pixel>>7)&0xf8u)|(((pixel>>2)&0xf8u)<<8)|((pixel&31u)<<19)|0xff000000u;return RF_OK;
+}
+
 int rf_lightmap_project(const rf_lightmap_projection *projection,const float point[3],float uv[2])
 {
     float value[2];uint32_t i;

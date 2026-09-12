@@ -114,6 +114,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   assert max(errors)<=2,report['packed_lightmap']
   assert all(rgb==(32,64,96) for rgb in packed_rgb[32:])
   assert packed_rgb[0]!=packed_rgb[31]
+  sample_address=int(re.search(r'\s_rf_packed_lightmap_samples\s+([0-9a-fA-F]+)',mapping)[1],16)
+  samples=words(monitor,sample_address,132)
+  pc_samples=[int(v) for v in subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe'),'--packed-lightmap-samples'],text=True).split()]
+  expected=[]
+  for i in range(65):
+   v=i%32 if i<64 else 0
+   expected.extend([0,0xff000000|(v*8)|((31-v)*8<<8)|((v^15)*8<<16)])
+  expected.extend([0xfffffffc,0x12345678])
+  assert samples==pc_samples==expected
+  report['packed_cpu_samples']=dict(cases=66,result='PASS',scope='Shared renderer-owned image, all64 texels plus u1 row crossing and final overread guard; exact CPU channel*8 values, ignoring alpha bit, PC linear vs Xbox swizzled.')
   report['result']='PASS'
 finally:
  if monitor:

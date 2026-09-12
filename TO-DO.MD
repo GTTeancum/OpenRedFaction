@@ -15,8 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Bind swizzle-aware CPU surface sampling to the migrated campaign1555 lightmap owner without a duplicate allocation.
-- [ ] Compose tested corpse tags, room queries and the authored packed-lightmap color owner using the migrated shared texture residency, then recover runtime-created tags and bind effect live dispatch; isolated authored texture/growth draws now pass PC and stock64MiB XEMU, while campaign source ownership and queue scheduling remain open.
+- [ ] Compose tested corpse tags, room queries and the tested shared campaign lightmap color callback, then recover runtime-created tags and bind effect live dispatch; isolated authored texture/growth draws now pass PC and stock64MiB XEMU, while campaign source ownership and queue scheduling remain open.
 - [ ] Bind verified base corpse-motion lookup to live creation and recover weapon-switched declaration views; canonical availability masks are retained.
 - [ ] Connect the authored-tested owned corpse constructor and class-input binding to live death dispatch and resource effects; bind the authored-tested corpse update adapter to live dispatch, replacement materials and moving room lookup.
 - [ ] Enable authored-class sphere transfer and tested corpse transition/refresh in live dispatch and recover attached item creation/handle publication and bind the tested item world-pose callback to live owners.

@@ -330,12 +330,13 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     return RF_OK;
 }
 
-uint32_t rf_packed_lightmap_diagnostic[66];
+uint32_t rf_packed_lightmap_diagnostic[66],rf_packed_lightmap_samples[132];
 static int packed_lightmap_test(void)
 {
     rf_image image={0};rf_particle_draw_vertex vertices[4];uint32_t x,y;int status;
     rf_packed_lightmap_diagnostic[0]=0x52464c35;
     status=packed_lightmap_fixture(&image,vertices);if(status)return status;
+    packed_lightmap_sample_fixture(&image,rf_packed_lightmap_samples);
     pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
     status=rf_xbox_particle_draw(vertices,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0);
     while(pb_busy()) {}
