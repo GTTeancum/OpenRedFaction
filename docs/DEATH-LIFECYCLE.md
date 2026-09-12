@@ -7828,3 +7828,38 @@ Both builds,21 CTests,6062 existing thin checks and2406 preferred-flat checks
 pass. Actual UV interpolation, bitmap decoding/sampling, swept edge behavior
 and propagation through preferred/room/flat scene queries remain open. No
 native gameplay or new visible effect is claimed by this helper milestone.
+
+
+Glare dependency: collision UV interpolation (2026-09-12)
+------------------------------------------------------
+rf_collision_texture_coordinates reconstructs full4e1ad0 with unchanged
+projection-axis behavior4fa6d0. It selects the first accepted projected
+triangle in an ordered fan anchored at corner0. UV pairs correspond to the
+original edge+4/+8 values, separately borrowed from vertex positions. The
+original dominant-axis ties/signs and strict +/-0.0001 near-zero branch
+are preserved. The general branch rejects zero determinant. Weights retain
+original float stores and acceptance comparisons; interpolation order is
+weight2*corner2 + anchor*corner0 + weight1*corner1. No coplanarity test,
+clamping, alternative triangulation, bitmap access or allocation is added.
+The similar model-polygon routine has different intermediate comparisons
+and cannot simply stand in for this UV routine.
+
+Input views require3..65536 finite vertices and UV pairs. The port rejects
+invalid bounds/data, preserves output UV on miss/error, and reports matched
+separately. The original assumes a valid circular edge list; contiguous
+ordered arrays avoid reproducing invalid-list dereferences.
+
+verify_collision_texture_uv.py executes original4e1ad0 and4fa6d0 without
+supplied callees and matches8192 PC/compiled NXDK results exactly, plus6
+finite/count guards.3583 accepted points;2777 near-zero branch visits and
+24264 general branch visits. Includes all normal-axis signs/ties, zero
+normal,3..8 corners, irregular and degenerate fans, vertices, edge midpoints,
+outside points and points away from the face plane. Miss/error preservation
+and original edge-list immutability are checked. Original uses control37f;
+compiled NXDK also passes at control27f, preserving the control word. The
+initial compiled37f run also passed before the27f check was added.
+
+Both builds,6060 texture-alpha regression cases and21 CTests pass. Next
+resolve authored corner UV ownership into the sampler and reconstruct50e330
+bitmap addressing/alpha sampling, then propagate the composed service into
+scene solid queries. This is not yet an authored/native visibility binding.

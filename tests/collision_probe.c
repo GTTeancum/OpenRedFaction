@@ -1683,6 +1683,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--texture-uv")) {
+        struct {float normal[3],point[3],vertices[8][3],uv[8][2];uint32_t count;} in;
+        struct {int32_t status;uint32_t matched;float uv[2];} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=in.count>8?RF_RANGE:rf_collision_texture_coordinates(in.normal,in.point,in.vertices,in.uv,in.count,out.uv,&out.matched);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && (!strcmp(argv[1],"--thin") || !strcmp(argv[1],"--thin-textured"))) {
         uint32_t textured=!strcmp(argv[1],"--thin-textured");
         struct {float plane[4],lo[3],hi[3],vertices[8][3],start[3],delta[3],limit;rf_collision_face_filter filter;uint32_t count;} in;

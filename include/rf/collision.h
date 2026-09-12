@@ -155,6 +155,12 @@ int rf_collision_mover_contact(const rf_collision_ray_hit *local,const float ori
 /* Finite nonnegative fraction limit; FLT_MAX is an original caller input. */
 int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     const float displacement[3],float limit,rf_collision_ray_hit *result,uint32_t *matched);
+/* Original4e1ad0: first accepted projected triangle fan interpolates edge UV.
+ * Uses dominant-normal projection, strict +/-0.0001 branch and original
+ * binary32 weight stores. Ordered finite vertices/UV, count3..65536. UV is
+ * preserved on miss/error; matched changes only on success. No bitmap access. */
+int rf_collision_texture_coordinates(const float normal[3],const float point[3],
+    const float (*vertices)[3],const float (*coordinates)[2],uint32_t count,float uv[2],uint32_t *matched);
 typedef struct rf_collision_texture_backend {
     int (*sample)(void *,const rf_collision_face *,int32_t,const float[3],uint32_t *);
     void *context;

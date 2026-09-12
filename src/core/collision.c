@@ -1279,6 +1279,44 @@ int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     *matched=hit;return RF_OK;
 }
 
+int rf_collision_texture_coordinates(const float normal[3],const float point[3],
+    const float (*vertices)[3],const float (*coordinates)[2],uint32_t count,float uv[2],uint32_t *matched)
+{
+    static const uint32_t axes[3][2]={{2,1},{0,2},{1,0}};
+    float absolute[3],px,py,ax,ay,bx,by,first,second,result[2];double determinant,value,anchor;
+    uint32_t axis,u,v,j,k;
+    if(!normal || !point || !vertices || !coordinates || !uv || !matched || count<3 || count>65536)return RF_RANGE;
+    for(k=0;k<3;++k){if(!isfinite(normal[k]) || !isfinite(point[k]))return RF_FORMAT;absolute[k]=fabsf(normal[k]);}
+    for(j=0;j<count;++j) {
+        for(k=0;k<3;++k)if(!isfinite(vertices[j][k]))return RF_FORMAT;
+        for(k=0;k<2;++k)if(!isfinite(coordinates[j][k]))return RF_FORMAT;
+    }
+    axis=absolute[0]>absolute[1]?(absolute[0]>absolute[2]?0:2):(absolute[1]>absolute[2]?1:2);
+    u=axes[axis][normal[axis]>0?0:1];v=axes[axis][normal[axis]>0?1:0];
+    px=(float)((double)point[u]-vertices[0][u]);py=(float)((double)point[v]-vertices[0][v]);
+    for(j=2;j<count;++j) {
+        ax=(float)((double)vertices[j-1][u]-vertices[0][u]);ay=(float)((double)vertices[j-1][v]-vertices[0][v]);
+        bx=(float)((double)vertices[j][u]-vertices[0][u]);by=(float)((double)vertices[j][v]-vertices[0][v]);
+        if(ax>-.0001f && ax<.0001f) {
+            if(bx==0 || ay==0)continue;
+            first=(float)((double)px/bx);if(!(first>=0 && first<=1))continue;
+            value=((double)py-(double)by*first)/ay;
+        } else {
+            determinant=(double)by*ax-(double)ay*bx;if(determinant==0)continue;
+            first=(float)(((double)ax*py-(double)ay*px)/determinant);if(!(first>=0 && first<=1))continue;
+            value=((double)px-(double)bx*first)/ax;
+        }
+        second=(float)value;if(!(value>=0) || !((double)first+second<=1))continue;
+        anchor=1-((double)first+second);
+        for(k=0;k<2;++k) {
+            result[k]=(float)(((double)first*coordinates[j][k]+anchor*coordinates[0][k])+(double)second*coordinates[j-1][k]);
+            if(!isfinite(result[k]))return RF_FORMAT;
+        }
+        memcpy(uv,result,sizeof(result));*matched=1;return RF_OK;
+    }
+    *matched=0;return RF_OK;
+}
+
 int rf_collision_thin_face_textured(const rf_collision_face *face,int32_t bitmap,
     const float start[3],const float displacement[3],float limit,
     const rf_collision_texture_backend *texture,rf_collision_ray_hit *result,uint32_t *matched)
