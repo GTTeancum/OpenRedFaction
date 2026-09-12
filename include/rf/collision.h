@@ -493,6 +493,13 @@ uint32_t rf_collision_model_ray_triangle(const rf_collision_model_triangle *tria
  * Shipped all-ffc00000 planes also verify as preserving misses. */
 uint32_t rf_collision_model_sphere_triangle(const rf_collision_model_triangle *triangle,
     const float start[3],const float displacement[3],float radius,uint32_t two_sided,rf_collision_model_response_hit *hit);
+/* Original54e530 posed triangle. Caller supplies broadphase endpoint, which
+ * may be clipped to an earlier hit. Radius>0.025 uses sphere contact; interior
+ * sphere hits replace without a nearest-time gate, edges/thin hits require
+ * strictly nearer time. Generated face normal is also used for edge hits.
+ * Finite disjoint inputs, nonnegative radius and nonoverflowing math required. */
+uint32_t rf_collision_model_posed_triangle(const float vertices[3][3],const float start[3],
+    const float displacement[3],const float end[3],float radius,uint32_t token,rf_collision_model_response_hit *hit);
 typedef struct rf_collision_model_query_view {
     uint32_t kind;const void *geometry;
     const uint8_t *pose_records;uint32_t pose_count; /* Type2:148-byte records. */

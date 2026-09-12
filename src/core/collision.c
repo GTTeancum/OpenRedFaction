@@ -6,6 +6,33 @@
 #include <stdlib.h>
 #include <string.h>
 
+uint32_t rf_collision_model_posed_triangle(const float vertices[3][3],const float start[3],
+    const float displacement[3],const float end[3],float radius,uint32_t token,rf_collision_model_response_hit *hit)
+{
+    float minimum[3],maximum[3],point[4],a[3],b[3],plane[4];double dot,length,scale;uint32_t i,inside;
+    for(i=0;i<3;++i) {
+        minimum[i]=vertices[0][i]<vertices[1][i]?vertices[0][i]:vertices[1][i];
+        maximum[i]=vertices[0][i]<vertices[1][i]?vertices[1][i]:vertices[0][i];
+        if(vertices[2][i]<minimum[i])minimum[i]=vertices[2][i];if(vertices[2][i]>maximum[i])maximum[i]=vertices[2][i];
+        minimum[i]-=radius;maximum[i]+=radius;
+    }
+    if(rf_collision_segment_box(minimum,maximum,start,end,point,&inside)!=RF_OK || !inside)return 0;
+    for(i=0;i<3;++i){a[i]=vertices[1][i]-vertices[0][i];b[i]=vertices[2][i]-vertices[1][i];}
+    for(i=0;i<3;++i){uint32_t j=(i+1)%3,k=(i+2)%3;plane[i]=(float)((double)a[j]*b[k]-(double)a[k]*b[j]);}
+    dot=(double)plane[2]*displacement[2];dot+=(double)plane[1]*displacement[1];dot+=(double)plane[0]*displacement[0];
+    if(!(dot<=0))return 0;
+    length=(double)plane[0]*plane[0];length+=(double)plane[1]*plane[1];length+=(double)plane[2]*plane[2];length=sqrt(length);
+    if(length<=0){plane[0]=1;plane[1]=plane[2]=0;}else{scale=1.0/length;for(i=0;i<3;++i)plane[i]=(float)(scale*plane[i]);}
+    dot=(double)plane[2]*vertices[0][2];dot+=(double)plane[1]*vertices[0][1];dot+=(double)plane[0]*vertices[0][0];plane[3]=(float)(dot*-1.0);
+    if(radius>.025f) {
+        if(rf_collision_sphere_plane(start,displacement,radius,plane,point+3,point,&inside)!=RF_OK || !inside)return 0;
+        if(!rf_collision_model_polygon_contains(point,3,vertices,plane)) {
+            if(!rf_collision_model_sphere_edges(start,displacement,radius,3,vertices,point+3,point) || !(point[3]<hit->time))return 0;
+        }
+    } else if(!rf_collision_model_segment_triangle(start,displacement,vertices,plane,point) || !(point[3]<hit->time))return 0;
+    hit->time=point[3];memcpy(hit->point,point,12);memcpy(hit->normal,plane,12);hit->part=token;return 1;
+}
+
 uint32_t rf_collision_model_segment_triangle(const float start[3],const float displacement[3],
     const float vertices[3][3],const float plane[4],float result[4])
 {

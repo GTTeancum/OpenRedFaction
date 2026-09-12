@@ -43,6 +43,16 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-posed-triangle")) {
+        struct {float start[3],delta[3],end[3],vertices[3][3],radius;uint32_t token;rf_collision_model_response_hit hit;} input;
+        uint32_t result;_Static_assert(sizeof(input)==112,"posed triangle wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            result=rf_collision_model_posed_triangle(input.vertices,input.start,input.delta,input.end,input.radius,input.token,&input.hit);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(&input.hit,32,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--model-segment-triangle")) {
         struct {float start[3],delta[3],vertices[3][3],plane[4],result[4];} input;
         uint32_t result;_Static_assert(sizeof(input)==92,"model segment triangle wire");

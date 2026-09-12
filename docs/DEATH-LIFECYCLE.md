@@ -5011,3 +5011,27 @@ parallel/coplanar starts, both movement directions and arbitrary finite
 planes, with input and guard preservation. Report:
 artifacts/model-segment-triangle.json. PC/NXDK builds and all19 CTests pass.
 Full type2 triangle behavior and skeletal/live/native integration remain.
+
+
+## Complete posed triangle54e530
+
+rf_collision_model_posed_triangle reconstructs radius-expanded vertex bounds
+and508b70 rejection using the caller-supplied (potentially clipped) endpoint.
+It computes the normal as(v1-v0) cross(v2-v1), retaining float difference
+stores and double cross intermediates from4fb050/40caf0. Normal/displacement
+dot must be<=0;4fab70 normalization defaults zero length to(1,0,0), and the
+plane uses the negative ordered normal/v0 dot. Radius strictly>0.025f uses
+sphere contact; thinner queries use5065b0. Interior sphere hits intentionally
+replace the result without checking nearest time. Sphere edge and thin hits
+require strictly smaller time. Edge hits keep the generated face normal,
+not static54de40's start-to-contact normal. Misses preserve the full result.
+
+verify_model_posed_triangle.py runs full original54e530 with actual bounds,
+cross/normalization, plane, containment, thin/sphere and edge callees; only
+static constructor flags are initialized.8192 exact PC/NXDK cases pass,
+240 hits including27 that are not nearer than stored time. Axis-aligned,
+arbitrary and degenerate triangles, neighboring0.025 threshold values,
+independently clipped endpoints, input guards and miss preservation are
+covered. Report: artifacts/model-posed-triangle.json. PC/NXDK builds and
+all19 CTests pass. Pose/LOD traversal54e200 and preparation54e140 still
+need composition with retained skeletal owners and native XEMU evidence.
