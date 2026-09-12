@@ -4372,3 +4372,28 @@ artifacts/actor-model-response.json. PC/NXDK builds and all19 CTests pass.
 All four48ca60 response destinations now have reconstructed control flow, but
 model5031f0, solid query/cache services and live contact/actor field ownership
 still require integration. No native-XEMU response behavior is claimed here.
+
+## Collision preparation and retained contact ownership
+
+The shared rf_physics_body_prepare_contact reconstructs the post-bounds tails
+49f8ea..49f925 and49fdbe..49fdf9. Both set actor1cc=1, actor1e4=-1,
+zero actor168/174 and set body01000000. Other contact bytes are preserved,
+including point, normal, material, inverse mass, velocity, references and face.
+It must run after predicted movement and swept bounds, before pair responses;
+calling it after responses would discard the selected collision time/handle.
+
+The existing embedded body starts at actor88: vector138 is actor1c0 normal,
+scalar144 is actor1cc time, reference15c is actor1e4 other handle, word164 is
+actor1ec reserved, and word168 is actor1f0 face. Missing contact fields remain
+actor1b4 point,1d0 material,1d4 inverse mass,1d8 velocity,1e8 reference and1f4
+part. Future live ownership must map these existing fields rather than add
+a second authoritative copy. Original fresh49f010 leaves the missing fields
+untouched; its constructor does not establish zero contact payloads.
+
+verify_physics_prepare_contact.py passes2048 cases across both original tails
+with real4fad00 callees and no hooks, PC and NXDK. Full actor-byte preservation
+and all308 retained body bytes match; arbitrary bits, flags, repeat calls,
+guard bytes and NULL rejection are checked. No body-size increase/allocation.
+Both builds and all19 CTests pass. Report:
+artifacts/physics-prepare-contact-verification.json. Preceding motion/bounds,
+live scheduling and native XEMU execution are outside this verification.

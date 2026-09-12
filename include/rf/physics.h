@@ -86,6 +86,12 @@ typedef struct rf_physics_body_state {
     int32_t reference_15c;
     uint32_t word_164,word_168;
 } rf_physics_body_state;
+/* Shared preparation tail49f8ea..49f925 /49fdbe..49fdf9, after predicted
+ * motion and swept bounds have been prepared. Resets contact time/handle,
+ * clears both force accumulators and sets body01000000; all other fields,
+ * including prior contact normal and face, remain unchanged. No scheduling
+ * or bounds update. NULL returns RF_RANGE. */
+int rf_physics_body_prepare_contact(rf_physics_body_state *state);
 /* Original487962..487973, after a physics body finishes its substeps:
  * publish current position, synchronize pending position, rebuild bounds,
  * set object04000000 and clear body40000000. Scheduling/removal from the

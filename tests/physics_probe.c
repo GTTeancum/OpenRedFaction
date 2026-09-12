@@ -40,6 +40,16 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--prepare-contact")) {
+        rf_physics_body_state state;
+        _Static_assert(sizeof(state)==308,"contact preparation wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&state,sizeof(state),1,stdin)==1) {
+            if(rf_physics_body_prepare_contact(&state) ||
+                fwrite(&state,sizeof(state),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--publish-position")) {
         struct {rf_physics_body_state state;float published[3];uint32_t flags;} input;int32_t status;
         _Static_assert(sizeof(input)==324,"publish wire");

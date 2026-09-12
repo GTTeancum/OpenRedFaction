@@ -6,6 +6,15 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_body_prepare_contact(rf_physics_body_state *state)
+{
+    if(!state)return RF_RANGE;
+    state->scalar_144=1;state->reference_15c=-1;
+    memset(state->vector_e0,0,sizeof(state->vector_e0));
+    memset(state->vector_ec,0,sizeof(state->vector_ec));
+    state->flags|=0x01000000u;
+    return RF_OK;
+}
 int rf_physics_surface_probe_gate(float up_y,uint32_t flags,int32_t *surface)
 {
     if(!surface)return 0;
