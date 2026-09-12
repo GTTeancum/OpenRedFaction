@@ -504,6 +504,8 @@ typedef struct campaign_model_owner {
     float position[3],basis[9];uint32_t appearance,room;rf_entity_owned_pose *owned;
 } campaign_model_owner;
 static campaign_model_owner *campaign_model_owners;
+static rf_entity_collision_cache *campaign_collision_caches;
+uint32_t rf_scene_npc_collision_cache[6]; /* created, peak bytes, refreshes, hash, retired, errors */
 static rf_model_skeletal_registration *campaign_model_head;
 static uint32_t campaign_model_owner_count;
 static uint32_t campaign_model_owned_bytes,campaign_model_owned_count;
@@ -535,6 +537,9 @@ int rf_scene_model_retire(uint32_t slot)
         status=rf_entity_owned_pose_close(owner->owned,&campaign_playback_resources);if(status)return status;
         free(owner->owned);owner->owned=NULL;campaign_model_owned_bytes-=bytes;--campaign_model_owned_count;
     }
+    if(campaign_collision_caches && campaign_collision_caches[slot].matrices) {
+        rf_entity_collision_cache_close(campaign_collision_caches+slot);++rf_scene_npc_collision_cache[4];
+    }
     owner->registration.loaded=0;owner->registration.active=NULL;owner->pose=NULL;
     ++rf_scene_npc_models[2];return RF_OK;
 }
@@ -542,16 +547,27 @@ void campaign_models_close(void)
 {
     uint32_t i;for(i=0;i<campaign_model_owner_count;++i)
         if(rf_scene_model_retire(i))++rf_scene_npc_models[3];
+    if(campaign_collision_caches)for(i=0;i<campaign_model_owner_count;++i)rf_entity_collision_cache_close(campaign_collision_caches+i);
+    free(campaign_collision_caches);campaign_collision_caches=NULL;
     free(campaign_model_owners);campaign_model_owners=NULL;campaign_model_owner_count=0;campaign_model_head=NULL;
 }
 static int campaign_models_open(void)
 {
-    uint32_t i;uint64_t bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_model_owners);int status=RF_OK;
-    if(campaign_model_owners || campaign_model_head)return RF_RANGE;
+    uint32_t i;uint64_t bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_model_owners),cache_bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_collision_caches);int status=RF_OK;
+    if(campaign_model_owners || campaign_model_head || campaign_collision_caches)return RF_RANGE;
+    for(i=0;i<campaign_poses.count;++i)if(campaign_poses.items[i].skeleton!=UINT32_MAX) {
+        if(!campaign_poses.items[i].bone_count || campaign_poses.items[i].bone_count>50)return RF_RANGE;
+        cache_bytes+=(uint64_t)campaign_poses.items[i].bone_count*50;
+    }
+    if(cache_bytes>256*1024)return RF_RANGE;
+    memset(rf_scene_npc_collision_cache,0,sizeof(rf_scene_npc_collision_cache));rf_scene_npc_collision_cache[3]=2166136261u;
     memset(rf_scene_npc_models,0,sizeof(rf_scene_npc_models));
     if(bytes>32*1024)return RF_RANGE;if(!campaign_poses.count)return RF_OK;
     campaign_model_owners=calloc(campaign_poses.count,sizeof(*campaign_model_owners));if(!campaign_model_owners)return RF_RANGE;
     campaign_model_owner_count=campaign_poses.count;rf_scene_npc_models[1]=(uint32_t)bytes;
+    campaign_collision_caches=calloc(campaign_poses.count,sizeof(*campaign_collision_caches));
+    if(!campaign_collision_caches){campaign_models_close();return RF_IO;}
+    rf_scene_npc_collision_cache[1]=(uint32_t)cache_bytes;
     for(i=0;i<campaign_model_owner_count;++i) {
         campaign_model_owner *owner=campaign_model_owners+i;rf_entity_pose *pose=campaign_poses.items+i;
         if(pose->skeleton==UINT32_MAX)continue;
@@ -560,6 +576,8 @@ static int campaign_models_open(void)
         owner->pose=pose;owner->registration.loaded=1;owner->registration.active=&pose->playback.completion.active;
         status=rf_model_skeletal_register(&owner->registration,&campaign_model_head,campaign_model_owner_count);if(status)break;
         ++rf_scene_npc_models[0];
+        status=rf_entity_collision_cache_open(pose,(uint32_t)sizeof(*campaign_collision_caches)+pose->bone_count*50,campaign_collision_caches+i);if(status)break;
+        ++rf_scene_npc_collision_cache[0];
     }
     if(status)campaign_models_close();return status;
 }
@@ -575,6 +593,19 @@ static int campaign_model_pose(uint32_t slot,rf_entity_pose **result)
     if(!owner->pose || owner->pose->skeleton==UINT32_MAX || !owner->registration.next || !owner->registration.previous ||
        owner->registration.active!=&owner->pose->playback.completion.active)return RF_RANGE;
     *result=owner->pose;return RF_OK;
+}
+static int campaign_model_collision_refresh(uint32_t slot)
+{
+    rf_entity_pose *pose;rf_collision_model_skin_pose view;uint32_t i,n;int status=campaign_model_pose(slot,&pose);
+    if(status)return status;
+    if(!pose || !campaign_collision_caches || !campaign_render_models.items || pose->skeleton>=campaign_render_models.count)return RF_RANGE;
+    if(campaign_render_models.items[pose->skeleton].bone_count!=pose->bone_count)return RF_RANGE;
+    status=rf_entity_collision_cache_view(campaign_collision_caches+slot,pose,campaign_render_models.items[pose->skeleton].stored,&view);
+    if(!status)status=rf_model_prepare_skinning(view.stored,view.evaluated,view.bone_count,view.generation,view.prepared,view.generations,view.capacity);
+    if(status){++rf_scene_npc_collision_cache[5];return status;}
+    ++rf_scene_npc_collision_cache[2];n=pose->bone_count*50;
+    for(i=0;i<n;++i)rf_scene_npc_collision_cache[3]=(rf_scene_npc_collision_cache[3]^((unsigned char*)campaign_collision_caches[slot].matrices)[i])*16777619u;
+    return RF_OK;
 }
 int rf_scene_model_clear_bone_override(uint32_t slot,uint32_t bone)
 {
@@ -910,7 +941,8 @@ int rf_scene_corpse_evaluate(const rf_corpse *corpse,float pending_displacement[
         int32_t motion=pose->playback.completion.active.slots[i].motion;if(motion<0)return RF_RANGE;
         status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)return status;
     }
-    return rf_entity_pose_evaluate(pose,&campaign_skeletons,&campaign_motion_catalog,pending_displacement);
+    status=rf_entity_pose_evaluate(pose,&campaign_skeletons,&campaign_motion_catalog,pending_displacement);
+    return status?status:campaign_model_collision_refresh(slot);
 }
 int rf_scene_corpse_duration(const rf_corpse *corpse,int32_t motion,double *seconds)
 {
@@ -4339,6 +4371,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
             g=(g^(uint32_t)advance)*16777619u;
             if(advance) {
                 status=rf_entity_pose_advance(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement);if(status)return status;
+                status=campaign_model_collision_refresh(i);if(status)return status;
             }
         }
         status=campaign_npc_eye_update(i);if(status)return status;

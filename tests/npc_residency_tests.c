@@ -359,7 +359,8 @@ static int corpse_scene_binding_check(void)
         CHECK(actions.action_declarations[0]==35 && !actions.action_declarations[1] && !actions.count);
         CHECK(rf_entity_declared_action_lookup(actions.action_declarations,1,2,"DEATH_GENERIC")==5);
     }
-    memset(&render,0,sizeof(render));render.bone_count=1;render.collision_sphere_count=1;
+    static float stored[1][12]={{1,0,0,0,1,0,0,0,1,0,0,0}};
+    memset(&render,0,sizeof(render));render.bone_count=1;render.collision_sphere_count=1;render.stored=stored;
     render.collision_spheres[0].parent=0;render.collision_spheres[0].center[0]=1;render.collision_spheres[0].radius=99;
     campaign_render_models.items=&render;campaign_render_models.count=1;
     campaign_base_motions.classes=&actions;campaign_base_motions.class_count=1;
@@ -440,6 +441,7 @@ static int corpse_scene_binding_check(void)
                             CHECK(rf_motion_stop_slot(&moved->playback,1)==RF_OK);
                             CHECK(rf_scene_corpse_advance(corpse,0)==RF_OK && !clips[1].references);
                             CHECK(rf_scene_corpse_evaluate(corpse,pending)==RF_OK);
+                            CHECK(campaign_collision_caches[0].matrices[0][9]==4 && campaign_collision_caches[0].generations[0]==moved->playback.generation);
                             CHECK(moved->matrices[0][9]==4 && moved->matrices[0][10]==5 && moved->matrices[0][11]==6);
                             CHECK(!pending[0] && moved->generations[0]==moved->playback.generation);
                             CHECK(rf_scene_corpse_pose(&pool.slots[0])==RF_OK && pool.slots[0].body.spheres.items[0].center[0]==5);
@@ -482,9 +484,9 @@ static int eye_binding_check(void)
 {
     campaign_npc_body owner={0};campaign_npc_eye_class eye={0};rf_entity_pose pose={0};
     rf_entity_seed seed={0};rf_entity_seed_class cls={0};rf_level_owned_entity record={0};
-    float matrix[1][12]={{1,0,0,0,1,0,0,0,1,0,3,0}};
+    float matrix[1][12]={{1,0,0,0,1,0,0,0,1,0,3,0}};uint16_t initial_stamp[1]={0};
     campaign_npc_bodies=&owner;campaign_npc_body_count=1;campaign_npc_eyes=&eye;
-    campaign_poses.items=&pose;campaign_poses.count=1;pose.matrices=matrix;pose.bone_count=1;
+    campaign_poses.items=&pose;campaign_poses.count=1;pose.matrices=matrix;pose.bone_count=1;pose.generations=initial_stamp;
     campaign_seeds.items=&seed;campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
     campaign_seeds.records.items=&record;campaign_seeds.records.count=1;
     record.record.orientation[0][0]=record.record.orientation[1][1]=record.record.orientation[2][2]=1;
@@ -896,6 +898,7 @@ int main(int argc,char **argv)
     rf_motion_playback_resource resources[3]={0};
     uint32_t ids[3]={0,0,1};void *data[2]={0};uint32_t sizes[2]={0};
     rf_entity_pose pose={0};rf_entity_seed seed={0};rf_entity_motion_mapping mapping={0};
+    float pose_matrix[1][12]={{1,0,0,0,1,0,0,0,1,0,0,0}};uint16_t pose_stamp[1]={0};
     uint32_t baseline=2*(sizeof(void*)+sizeof(uint32_t)),i;
     CHECK(model_death_reset_binding_check()==0);
     CHECK(death_entry_binding_check()==0);
@@ -918,6 +921,7 @@ int main(int argc,char **argv)
     campaign_npc_motion_count=2;campaign_npc_motion_bytes=baseline;
     campaign_poses.items=&pose;campaign_poses.count=1;
     campaign_seeds.items=&seed;campaign_seeds.records.count=1;
+    pose.bone_count=1;pose.matrices=pose_matrix;pose.generations=pose_stamp;
     pose.controller.current=pose.controller.next=-1;
     pose.playback.completion.active.count=1;pose.playback.completion.active.slots[0].motion=0;
     CHECK(campaign_models_open()==RF_OK);

@@ -5193,3 +5193,40 @@ composition, same-generation cache reuse, next-generation refresh/rollover,
 skeleton mismatch and repeated cleanup. Both builds and19 CTests pass. This
 adds the owner and adapter, not yet registration in campaign scene lifetime
 or a native XEMU cache fixture; those integrations remain open.
+
+
+### Registered model collision-cache lifetime and native replay (2026-09-12)
+
+Scene registration now owns a separate slot-indexed collision-cache table,
+preflighted under256KiB including table and all50-byte-per-bone backing stores.
+Each registered model receives its own cache; actor-to-corpse pose publication
+keeps the same slot/cache, and model retirement closes it. The original80-byte
+registration owner layout is unchanged. Cache refresh follows successful gated
+NPC pose advancement and corpse evaluation, using the resident bind transforms.
+No animation generation is advanced merely to fill the cache. Skipped actors
+can retain invalid/unrefreshed caches until future query evaluation.
+
+NPC_COLLISION_CACHE telemetry reports created/peak bytes/refresh calls/content
+hash/retired/errors. The180-frame campaign actor-pair replay passes PC and
+stock64MiB XEMU in artifacts/xemu/replay-20260912-074311/report.json. Both
+report[78,86010,6501,4131715306,78,0]; every cache retires. Native base memory
+67108864, plugged memory0. XBE SHA256:
+e539679a907b5afbb465b4c7888613d2918a786760b69337b291af971ce518e2.
+The existing residency fixtures now supply valid bone/cache inputs; corpse
+evaluation explicitly checks the moved model collision matrix and generation.
+PC/NXDK builds and19 CTests pass. Selected skeletal geometry residency and
+scheduled live collision queries remain open; this is startup animation/cache
+agreement across platforms, not a full original live-animation audit.
+
+During this gate XEMU repeatedly asserted graphics surface/DMA bounds before
+frame submission. The committed scene baseline reproduced it in073946, ruling
+out the current scene-cache integration as its cause. Optional static/skeletal
+fixture bodies were inlined into main, whose compiled stack frame was0x5918.
+Marking these fixture calls noinline reduced that frame to0x10f4; the rebuilt
+180-frame replay then passed. This establishes the observed resolution, not
+an instruction-level proof of stack corruption. Also fixed missing Xbox entry
+prerequisites for test fixture headers: Windows clang dependency paths differ
+from MSYS make paths, so explicit *_fixture.h prerequisites now rebuild main.
+The074148 failed retry still used the old binary due to that dependency gap;
+074311 used the verified smaller entry frame. All diagnostic flags and disc
+changes were restored by the harness.

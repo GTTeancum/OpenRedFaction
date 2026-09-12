@@ -4,6 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 /* Stream independently original-verified queries/answers; no host input. */
+/* Keep optional fixture buffers out of the normal game's entry stack. */
+#if defined(_MSC_VER)
+__declspec(noinline)
+#else
+__attribute__((noinline))
+#endif
 static void rf_model_collision_fixture(const char *plan_path,const char *archive_prefix,volatile uint32_t state[8])
 {
     FILE *plan=fopen(plan_path,"rb");uint32_t header[2],model_index;int status=RF_OK;
