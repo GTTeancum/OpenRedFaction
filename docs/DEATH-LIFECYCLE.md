@@ -3458,3 +3458,29 @@ are independently checked against input. NXDK runs in the instruction
 harness, not XEMU. Existing1600 pose-blend comparisons and all19 CTests pass;
 both builds succeed. Retained overrides, evaluation/transfer integration
 and death clearing remain open; no live gameplay change is claimed.
+
+
+## Overrides in hierarchical pose evaluation (2026-09-12)
+
+rf_model_evaluate_overrides accepts one44-byte override record per bone, or
+NULL, and uses the same shared playback evaluator. After normal local/parent
+composition and generation-stamp publication, a nonzero enabled byte applies
+rf_model_override_pose before descendants are evaluated. Matching generation
+stamps skip the whole operation. Disabled records are not interpreted. The
+existing evaluator APIs pass NULL and keep their prior behavior. Records are
+caller-owned; this step adds no campaign allocation or persistent pose fields.
+
+tools/verify_bone_override_evaluation.py compares complete original51b500
+execution with the PC C evaluator on the same320 fixtures as the original
+clearing audit. Every case evaluates enabled, clears the byte and reevaluates
+the same generation, then advances to the next generation. All24000 bone
+matrices and24000 generation stamps match byte for byte. The selection covers
+root/internal/leaf bones, so parent override propagation is included. It does
+not yet cover simultaneous overrides or mixed playback slots with overrides.
+
+Existing playback-skeleton comparisons also pass320 cases/8000 matrices/320
+eye transforms without overrides, and all19 CTests pass. Both PC and NXDK
+builds succeed. Full override evaluation is tested on PC and compiled into
+NXDK; no new XEMU runtime evidence is claimed. Next retain records in actor
+poses, transfer them with corpse ownership, account their memory and bind
+death's clear operation without invalidating generation stamps.

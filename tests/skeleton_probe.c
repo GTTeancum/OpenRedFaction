@@ -39,6 +39,25 @@ int main(int argc,char **argv)
         if (rf_model_file_attachment(&model,0,i,&eye)!=RF_OK) return 6;
         if (!strcmp(eye.name,"eye")) { found=1; break; }
     }
+    if(getenv("RF_PROBE_OVERRIDES")) {
+        struct {int32_t tick,bone;rf_model_bone_override override;} request;
+        _Static_assert(sizeof(request)==52,"Override probe wire");
+        while(fread(&request,sizeof(request),1,stdin)==1) {
+            rf_model_bone_override overrides[256]={0};rf_motion_playback_state state;float displacement[3]={0};unsigned pass;
+            if(request.bone<0 || (uint32_t)request.bone>=count)return 7;
+            overrides[request.bone]=request.override;rf_motion_playback_initialize(&state);
+            state.generation=1;state.completion.active.count=1;
+            state.completion.active.slots[0].motion=0;state.completion.active.slots[0].tick=request.tick;state.completion.active.slots[0].weight=1;
+            memset(generations,0,sizeof(generations));memset(matrices,0,sizeof(matrices));
+            for(pass=0;pass<3;++pass) {
+                if(pass)overrides[request.bone].enabled=0;
+                if(pass==2)state.generation=2;
+                if(rf_model_evaluate_overrides(bones,count,&state,handles,resources,(uint32_t)argc-4,displacement,matrices,generations,256,overrides))return 7;
+                if(fwrite(matrices,48,count,stdout)!=count || fwrite(generations,2,count,stdout)!=count)return 8;
+            }
+        }
+        rf_vpp_close(&meshes);rf_vpp_close(&motions);return ferror(stdin)?9:0;
+    }
     if(pose_only) {
         rf_motion_playback_state state;float displacement[3]={0};
         while(fread(&state,sizeof(state),1,stdin)==1) {

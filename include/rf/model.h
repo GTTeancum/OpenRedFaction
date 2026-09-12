@@ -138,6 +138,9 @@ int rf_model_attachment_transform(const float rotation[4], const float position[
 /* 518e10: basis to quaternion, without normalization. Aliased output allowed;
  * non-finite input/result fails without changing output. */
 int rf_model_basis_rotation(const float basis[9],float out[4]);
+typedef struct rf_model_bone_override {
+    float basis[9];uint8_t enabled,reserved[3];float weight;
+} rf_model_bone_override;
 /* 51b950..51b9db: blend composed rotation toward override basis, preserving
  * translation. Caller owns enabled/generation gates. Weights wrap by float unit steps, without
  * quaternion normalization; invalid input/result preserves the matrix. */
@@ -333,6 +336,13 @@ int rf_model_evaluate_playback(const rf_model_bone *bones, uint32_t count, const
                                const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
                                uint32_t resource_count, float root_displacement[3], float (*matrices)[12],
                                uint16_t *generations, uint32_t capacity);
+/* Same generation/parent ordering, with count override records (or NULL).
+ * Apply enabled overrides after generation publication and before children.
+ * Disabled records are not interpreted; errors retain prior evaluated bones. */
+int rf_model_evaluate_overrides(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
+                               const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
+                               uint32_t resource_count, float root_displacement[3], float (*matrices)[12],
+                               uint16_t *generations, uint32_t capacity,const rf_model_bone_override *overrides);
 /* Detail selection from 0x52faae..0x52fb1d (and 0x52fbe2).
  * Metric is supplied by the caller (original 0x5182f0); thresholds retain file
  * order. No allocation/loading. Invalid count or minimum leaves output intact. */

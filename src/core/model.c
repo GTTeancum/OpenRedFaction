@@ -1027,7 +1027,7 @@ int rf_model_sample_single_motion(const rf_model_bone *bones, uint32_t count, co
 }
 static int model_sample_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
                              const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
-                             uint32_t resource_count, float root_displacement[3], float (*matrices)[12], uint16_t *generations, uint32_t capacity)
+                             uint32_t resource_count, float root_displacement[3], float (*matrices)[12], uint16_t *generations, uint32_t capacity,const rf_model_bone_override *overrides)
 {
     uint8_t order[256]; uint32_t i,j,index,mask=0; int status;
     const rf_motion_slot_state *active;
@@ -1079,6 +1079,10 @@ static int model_sample_playback(const rf_model_bone *bones, uint32_t count, con
             if (status!=RF_OK) return status;
         }
         if (generations) generations[index]=(uint16_t)state->generation;
+        if(overrides && overrides[index].enabled) {
+            status=rf_model_override_pose(matrices[index],overrides[index].basis,overrides[index].weight);
+            if(status)return status;
+        }
     }
     return RF_OK;
 }
@@ -1087,7 +1091,7 @@ int rf_model_sample_playback(const rf_model_bone *bones, uint32_t count, const r
                              const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
                              uint32_t resource_count, float root_displacement[3], float (*matrices)[12], uint32_t capacity)
 {
-    return model_sample_playback(bones,count,state,motions,resources,resource_count,root_displacement,matrices,NULL,capacity);
+    return model_sample_playback(bones,count,state,motions,resources,resource_count,root_displacement,matrices,NULL,capacity,NULL);
 }
 
 int rf_model_evaluate_playback(const rf_model_bone *bones, uint32_t count, const rf_motion_playback_state *state,
@@ -1096,7 +1100,16 @@ int rf_model_evaluate_playback(const rf_model_bone *bones, uint32_t count, const
                                uint16_t *generations, uint32_t capacity)
 {
     if (!generations) return RF_RANGE;
-    return model_sample_playback(bones,count,state,motions,resources,resource_count,root_displacement,matrices,generations,capacity);
+    return model_sample_playback(bones,count,state,motions,resources,resource_count,root_displacement,matrices,generations,capacity,NULL);
+}
+
+int rf_model_evaluate_overrides(const rf_model_bone *bones,uint32_t count,const rf_motion_playback_state *state,
+    const rf_motion_file *const *motions,const rf_motion_playback_resource *resources,uint32_t resource_count,
+    float root_displacement[3],float (*matrices)[12],uint16_t *generations,uint32_t capacity,
+    const rf_model_bone_override *overrides)
+{
+    if(!generations)return RF_RANGE;
+    return model_sample_playback(bones,count,state,motions,resources,resource_count,root_displacement,matrices,generations,capacity,overrides);
 }
 
 int rf_model_place_tag(const float local[12], const float orientation[9], const float position[3], float out[12])
