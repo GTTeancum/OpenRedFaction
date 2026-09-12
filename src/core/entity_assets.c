@@ -1,5 +1,6 @@
 #include "rf/entity_assets.h"
 #include "rf/clutter.h"
+#include "rf/glare.h"
 #include <limits.h>
 #include "rf/model.h"
 #include "rf/model_file.h"
@@ -1591,6 +1592,55 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
 {return class_assets_read(text,bytes,class_name,skin,assets,0);}
 int rf_clutter_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
 {return class_assets_read(text,bytes,class_name,skin,assets,1);}
+int rf_glare_definition_read(const void *text,uint32_t bytes,const char *name,rf_glare_definition *result)
+{
+    lexer l={(const unsigned char *)text,bytes,0};rf_glare_definition v={0};
+    char t[256];uint32_t mask=0,bit,i,value,digits;int status,q,inside=0,found=0;float *number;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(!inside){if(same(t,"#Glares"))inside=1;continue;}
+        if(t[0]=='#')break;
+        if(same(t,"$Name:")) {
+            if(found)break;if(token(&l,t,&q) || !q)return RF_FORMAT;
+            found=!strcmp(t,name);if(found){if(strlen(t)>=64)return RF_RANGE;strcpy(v.name,t);}continue;
+        }
+        if(!found)continue;bit=0;number=NULL;
+        if(same(t,"$Light") && metadata_tag(&l,"Color:")) {
+            bit=1;if(token(&l,t,&q) || q || strcmp(t,"{"))return RF_FORMAT;
+            for(i=0;i<3;++i) {
+                while(l.at<l.size && l.text[l.at]<=32)++l.at;value=digits=0;
+                while(l.at<l.size && l.text[l.at]>='0' && l.text[l.at]<='9') {
+                    value=value*10+l.text[l.at++]-'0';if(value>255)return RF_FORMAT;++digits;
+                }
+                if(!digits)return RF_FORMAT;v.color[i]=value;
+                while(l.at<l.size && l.text[l.at]<=32)++l.at;
+                if(l.at==l.size || l.text[l.at++]!=(i==2?'}':','))return RF_FORMAT;
+            }
+        } else if(same(t,"$Corona") && metadata_tag(&l,"Bitmap:")) {
+            bit=2;v.fields|=1;if(metadata_string(&l,v.corona,64))return RF_FORMAT;
+        } else if(same(t,"$Volumetric")) {
+            if(metadata_tag(&l,"Bitmap:")){bit=4;v.fields|=2;if(metadata_string(&l,v.volumetric,64))return RF_FORMAT;}
+            else if(metadata_tag(&l,"Height:")){bit=256;number=&v.height;}
+            else if(metadata_tag(&l,"Length:")){bit=512;number=&v.length;}
+        } else if(same(t,"$Reflection") && metadata_tag(&l,"Bitmap:")) {
+            bit=8;v.fields|=4;if(metadata_string(&l,v.reflection,64))return RF_FORMAT;
+        } else if(same(t,"$Cone") && metadata_tag(&l,"Angle:")){bit=16;number=&v.cone_degrees;}
+        else if(same(t,"$Intensity:")){bit=32;number=&v.intensity;}
+        else if(same(t,"$Radius")) {
+            if(metadata_tag(&l,"Distance Factor:")){bit=64;number=&v.radius_distance;}
+            else if(metadata_tag(&l,"Scale Factor:")){bit=128;number=&v.radius_scale;}
+        } else if(same(t,"$Diminish") && metadata_tag(&l,"Distance:")){bit=1024;number=&v.diminish;}
+        if(bit && (mask&bit))return RF_FORMAT;mask|=bit;
+        if(number && sphere_number(&l,number))return RF_FORMAT;
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;if(!(mask&1))return RF_FORMAT;
+    if((v.fields&1) && (mask&1264)!=1264)return RF_FORMAT;
+    if((v.fields&2) && (mask&768)!=768)return RF_FORMAT;
+    *result=v;return RF_OK;
+}
+
 int rf_clutter_definition_read(const void *text,uint32_t bytes,const char *name,rf_clutter_definition *result)
 {
     lexer l={(const unsigned char *)text,bytes,0};rf_clutter_definition v={0};

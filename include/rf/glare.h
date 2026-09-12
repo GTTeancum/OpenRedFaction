@@ -2,6 +2,16 @@
 #define RF_GLARE_H
 #include "rf/object_registry.h"
 #include "rf/physics.h"
+typedef struct rf_glare_definition {
+    char name[64],corona[64],volumetric[64],reflection[64];uint32_t color[3];
+    float cone_degrees,intensity,radius_distance,radius_scale,diminish,height,length;
+    uint32_t fields;
+} rf_glare_definition;
+/* First exact name in #Glares. Owned authored metadata, no bitmap loading or
+ * degree conversion. fields bits1/2/4 indicate corona/volume/reflection keys.
+ * Required light color; optional bitmap blocks require their numeric fields.
+ * Absent fields zero. Errors preserve output; bounded63-byte strings. */
+int rf_glare_definition_read(const void *text,uint32_t bytes,const char *name,rf_glare_definition *result);
 typedef struct rf_glare_class {
     float size_first,size_second;const void *definition;
 } rf_glare_class;
