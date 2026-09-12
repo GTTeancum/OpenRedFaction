@@ -7,11 +7,13 @@
 #include "owned_pose_probe.h"
 #include "clutter_create_probe.h"
 #include "clutter_classes_probe.h"
+#include "clutter_binding_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--owned-pose"))return owned_pose_probe();
     if(argc==2 && !strcmp(argv[1],"--clutter-create"))return clutter_create_probe();
     if(argc==2 && !strcmp(argv[1],"--clutter-classes"))return clutter_classes_probe();
+    if(argc==2 && !strcmp(argv[1],"--clutter-bind"))return clutter_binding_probe();
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
     if(argc==2 && !strcmp(argv[1],"--clutter-resource-lookup")) {
         uint32_t count;char names[256][64],query[64];const char *pointers[256];int32_t result[3];

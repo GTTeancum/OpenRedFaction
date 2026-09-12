@@ -6884,3 +6884,35 @@ this does not prove the original table loader or native XEMU behavior. Sound and
 vclip lookup already have separate verified helpers; composing these lookups
 with class binding, complete effect owners and actual resource loading remains
 open. No new visual is claimed.
+
+
+Clutter class resource binding (2026-09-12)
+-----------------------------------------
+rf_clutter_definition_bind composes verified emitter/material/Foley/vclip/glare
+lookup into the factory binding, retaining original missing-name results. It
+uses ordered caller-owned catalogs and copies emitter IDs into caller output;
+no allocation, registration, loading or resource release occurs. Material names
+are insensitive with default0 fallback, emitter/Foley/vclip names are insensitive,
+and glare/rod names are exact. Both outputs remain unchanged on errors.
+
+Definition metadata now includes resource_fields with sound1/explosion2/glare4/
+rod8 presence bits, increasing the temporary record from1568 to1572 bytes.
+Absent optional fields stay-1 without lookup. Explicit empty fields still invoke
+the relevant lookup: empty glare can match an empty catalog slot, while empty
+Foley/vclip names remain-1. This distinction must survive parsing even where
+installed catalogs contain no empty names. Runtime class size and compact owner
+size are unchanged:429 classes still occupy55379 bytes; temporary metadata is
+now674388 bytes. The loader must release temporary metadata after construction.
+
+verify_clutter_binding.py compares all429 selectable classes with actual original
+4686c0/434cb0/4c1d00/415430/497550 results using authored catalog storage. PC and
+compiled NXDK match.51 synthetic cases cover all16 presence masks with empty,
+missing and mixed-case names, duplicate catalog entries, insufficient emitter
+capacity, invalid presence bits and unterminated material. Four additional NXDK
+missing-catalog cases preserve binding and emitter outputs. Updated metadata
+verification passes429 classes plus10 synthetic cases including presence bits;
+compact ownership passes its nine scenarios and eight guards. Both builds and
+all19 CTests pass. Original full class parser and resource loading are not
+executed by this binding oracle. Catalog ownership, complete class/effect data,
+generic model/body allocation and live level/factory integration remain open.
+No native XEMU replay or new visual is claimed.

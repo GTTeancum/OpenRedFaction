@@ -1,5 +1,6 @@
 #include "rf/entity_assets.h"
 #include "rf/clutter.h"
+#include <limits.h>
 #include "rf/model.h"
 #include "rf/model_file.h"
 #include "rf/effect.h"
@@ -1647,7 +1648,33 @@ int rf_clutter_definition_read(const void *text,uint32_t bytes,const char *name,
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found)return RF_NOT_FOUND;if((mask&15)!=15)return RF_FORMAT;
     extension=strrchr(v.model,'.');v.model_kind=extension && same(extension,".vfx")?3:1;
+    v.resource_fields=(mask>>5)&15;
     *result=v;return RF_OK;
+}
+int rf_clutter_definition_bind(const rf_clutter_definition *d,const rf_clutter_resource_names *names,
+    int32_t *emitter_ids,uint32_t capacity,rf_clutter_class_binding *binding)
+{
+    rf_clutter_class_binding v={0,-1,-1,-1,-1,NULL};int32_t ids[16];uint32_t i;int status;
+    if(!d || !names || !binding || d->emitter_count>16 || d->emitter_count>capacity ||
+       (d->emitter_count && !emitter_ids) || (d->resource_fields&~15u) ||
+       names->emitter_count>INT_MAX || names->glare_count>INT_MAX ||
+       (names->emitter_count && !names->emitters) || (names->glare_count && !names->glares))return RF_RANGE;
+    if(!memchr(d->material,0,64))return RF_FORMAT;
+    for(i=0;i<d->emitter_count;++i)if(!memchr(d->emitters[i],0,64))return RF_FORMAT;
+    for(i=0;i<4;++i)if(d->resource_fields&(1u<<i)) {
+        const char *field=i==0?d->sound:i==1?d->explosion:i==2?d->glare:d->rod;
+        if(!memchr(field,0,64))return RF_FORMAT;
+    }
+    if((d->resource_fields&RF_CLUTTER_HAS_SOUND) && !names->sounds)return RF_RANGE;
+    if((d->resource_fields&RF_CLUTTER_HAS_EXPLOSION) && !names->vclips)return RF_RANGE;
+    for(i=0;i<d->emitter_count;++i)ids[i]=rf_emitter_name_lookup(names->emitters,names->emitter_count,d->emitters[i]);
+    v.material=rf_clutter_material_index(d->material);
+    if(d->resource_fields&RF_CLUTTER_HAS_SOUND){status=rf_foley_find(names->sounds,d->sound,&v.sound);if(status)return status;}
+    if(d->resource_fields&RF_CLUTTER_HAS_EXPLOSION)v.explosion=rf_vclip_name_lookup(names->vclips,d->explosion);
+    if(d->resource_fields&RF_CLUTTER_HAS_GLARE)v.glare=rf_glare_name_lookup(names->glares,names->glare_count,d->glare);
+    if(d->resource_fields&RF_CLUTTER_HAS_ROD)v.rod=rf_glare_name_lookup(names->glares,names->glare_count,d->rod);
+    if(d->emitter_count){memcpy(emitter_ids,ids,d->emitter_count*4);v.emitters=emitter_ids;}
+    *binding=v;return RF_OK;
 }
 
 static int named_effect_block(const void *text,uint32_t bytes,const char *name,

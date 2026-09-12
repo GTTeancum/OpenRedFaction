@@ -80,7 +80,7 @@ clean=re.sub(r'"[^"\r\n]*"|//[^\r\n]*',lambda m:'' if m[0].startswith('//') else
 names=list(dict.fromkeys(n.upper() for n in re.findall(r'(?im)^\s*\$Class Name:\s*"([^"]+)"',clean)))
 defs=[]
 for name in names:
-    result=subprocess.check_output([exe,'--clutter-definition',str(path),name]);assert result[:4]==w(0) and len(result)==1572
+    result=subprocess.check_output([exe,'--clutter-definition',str(path),name]);assert result[:4]==w(0) and len(result)==1576
     defs.append(result[4:])
 budget=check(defs,'installed classes')
 check([],'empty');check([defs[0],defs[0]],'duplicate class order')
@@ -96,6 +96,6 @@ for label in ('emitter-storage','model-termination','material','life','flags','b
     else:x.mem_write(D+1540,w(2))
     before=bytes(x.mem_read(O,16));assert call(entry,D,BD,1,10000,O)==0xfffffffc,label
     assert not allocations and not live and bytes(x.mem_read(O,16))==before,label
-report=dict(result='PASS',classes=len(defs),metadata_bytes=len(defs)*1568,owned_bytes=budget,cases=tests,nxdk_guard_cases=8,
+report=dict(result='PASS',classes=len(defs),metadata_bytes=len(defs)*1572,owned_bytes=budget,cases=tests,nxdk_guard_cases=8,
  scope='PC and compiled NXDK compact ownership, exact/short budgets, allocation failure, input destruction, duplicate order, repeated close. Parsed inputs separately verified; supplied material/effect/emitter IDs, no resource lookup or loading, no original allocator or native XEMU equivalence claim.')
 (ROOT/'artifacts/clutter-classes.json').write_text(json.dumps(report,indent=2));print(report)

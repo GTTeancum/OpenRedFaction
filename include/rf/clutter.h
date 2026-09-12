@@ -18,8 +18,9 @@ int rf_clutter_flags_read(const void *text,uint32_t bytes,uint32_t *flags,uint32
 typedef struct rf_clutter_definition {
     char name[64],model[64],corpse[64],material[64],sound[64],explosion[64],glare[64],rod[64];
     char emitters[16][64];uint32_t emitter_count,model_kind,flags;
-    float emitter_lifetime,life,radius;uint32_t screen_width,screen_height;
+    float emitter_lifetime,life,radius;uint32_t screen_width,screen_height,resource_fields;
 } rf_clutter_definition;
+enum {RF_CLUTTER_HAS_SOUND=1,RF_CLUTTER_HAS_EXPLOSION=2,RF_CLUTTER_HAS_GLARE=4,RF_CLUTTER_HAS_ROD=8};
 /* Owned factory-facing metadata for the first ASCII-insensitive class match.
  * No allocation or borrowed text. Required model/material/life/flags; defaults
  * follow40f4f0 through40f9b7. Stops before skin overrides. Bounds:63-byte names,
@@ -40,6 +41,23 @@ typedef struct rf_clutter_class {
 typedef struct rf_clutter_class_binding {
     uint32_t material;int32_t sound,explosion,glare,rod;const int32_t *emitters;
 } rf_clutter_class_binding;
+struct rf_foley_owner;
+typedef struct rf_clutter_resource_names {
+    const char *const *emitters;uint32_t emitter_count;
+    const char *const *glares;uint32_t glare_count;
+    const char *const *vclips; /*64 slots when explosion is authored. */
+    const struct rf_foley_owner *sounds;
+} rf_clutter_resource_names;
+/* Resolve factory-facing material/effect IDs with verified lookup rules.
+ * Absent optional fields produce-1 without lookup; explicit empty glare names
+ * can match an empty catalog entry. Missing names retain the original-1 result.
+ * Caller supplies stable terminated catalogs; emitter IDs are copied into its
+ * capacity-sized output, and binding.emitters points there (NULL when empty).
+ * Both outputs must be disjoint and remain unchanged on error. No allocation,
+ * resource creation or reference ownership; catalogs preserve original order. */
+int rf_clutter_definition_bind(const rf_clutter_definition *definition,
+    const rf_clutter_resource_names *names,int32_t *emitter_ids,uint32_t capacity,
+    rf_clutter_class_binding *binding);
 typedef struct rf_clutter_classes {
     void *storage;rf_clutter_class *items;uint32_t count,allocated_bytes;
 } rf_clutter_classes;

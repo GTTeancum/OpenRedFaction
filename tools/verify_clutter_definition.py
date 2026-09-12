@@ -9,7 +9,7 @@ p=pefile.PE(str(ROOT/'build/xbox/main.exe'));im=p.get_memory_mapped_image();x=Uc
 x.mem_map(p.OPTIONAL_HEADER.ImageBase,(len(im)+4095)//4096*4096);x.mem_write(p.OPTIONAL_HEADER.ImageBase,im)
 B=0x30000000;x.mem_map(B,0x400000);T=B;N=B+0x200000;O=B+0x201000;S=B+0x300000;STOP=B+0x301000
 entry=int(re.search(r'\s_rf_clutter_definition_read\s+([0-9a-fA-F]+)',(ROOT/'build/xbox/main.map').read_text())[1],16)
-SIZE=1568;w=lambda *v:struct.pack('<%dI'%len(v),*(a&0xffffffff for a in v));path=ROOT/'artifacts/clutter-definition-input.tbl'
+SIZE=1572;w=lambda *v:struct.pack('<%dI'%len(v),*(a&0xffffffff for a in v));path=ROOT/'artifacts/clutter-definition-input.tbl'
 flag_names=['collectable','collide_weapon','collide_object','is_screen','shatters','has_alpha','is_switch','can_carry','is_clock']
 fields=['Class Name','V3D Filename','Corpse Class Name','Material','Sound','Explode Anim','Glare','Rod Glare']
 def expected(block):
@@ -25,7 +25,8 @@ def expected(block):
     out=b''.join(map(pad,names))+b''.join(map(pad,emitters))+b'\0'*64*(16-len(emitters))
     out+=w(len(emitters),3 if names[1].lower().endswith('.vfx') else 1,flags)
     out+=struct.pack('<3f2I',float(value('Emitter Life','-1')),float(value('Life')),float(value('Radius','-1')),int(value('Screen Width','64')),int(value('Screen Height','64')))
-    assert len(out)==SIZE;return out
+    present=sum(1<<i for i,k in enumerate(['Sound','Explode Anim','Glare','Rod Glare']) if re.search(r'(?im)^\s*\$'+re.escape(k)+r':',block))
+    out+=w(present);assert len(out)==SIZE;return out
 cases=0
 def check(data,name,wanted):
     global cases
