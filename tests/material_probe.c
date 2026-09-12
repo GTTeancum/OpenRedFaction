@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <fcntl.h>
+#include <io.h>
 extern char rf_material_failure_name[61];
 extern uint32_t rf_material_failure[3];
 int main(int argc, char **argv)
@@ -13,6 +15,24 @@ int main(int argc, char **argv)
     rf_materials materials;
     uint32_t count, i;
     int result;
+    if(argc>=4 && argc<=19 && !strcmp(argv[1],"--records")) {
+        uint32_t n,j;uint8_t (*rows)[84];rf_model_materials bundle={0};
+        _setmode(_fileno(stdin),_O_BINARY);
+        if(fread(&n,4,1,stdin)!=1 || n>4096)return 2;
+        rows=n?malloc(n*84):NULL;if(n && (!rows || fread(rows,84,n,stdin)!=n)){free(rows);return 2;}
+        count=(uint32_t)argc-3;
+        for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+3])){while(i)rf_vpp_close(archives+--i);free(rows);return 1;}
+        result=rf_model_materials_open_records(&bundle,rows,n,archives,count,(uint32_t)strtoul(argv[2],NULL,10));
+        if(n)memset(rows,0xdd,n*84);free(rows);for(i=0;i<count;++i)rf_vpp_close(archives+i);
+        if(!result) {
+            printf("%u %u %u %u\n",bundle.count,bundle.textures.count,bundle.resident_bytes,bundle.peak_bytes);
+            for(i=0;i<bundle.count;++i) {
+                rf_model_material_instance *item=bundle.items+i;
+                printf("M ");for(j=0;j<200;++j)printf("%02x",item->record.bytes[j]);printf(" %u\n",item->arrays[1][0]);
+            }
+        } else {if(bundle.items || bundle.textures.items || bundle.resident_bytes)return 3;printf("%d\n",result);}
+        rf_model_materials_close(&bundle);rf_model_materials_close(&bundle);return result?1:0;
+    }
     if(argc>=8 && argc<=23 && !strcmp(argv[1],"--entities")) {
         rf_vpp tables,meshes;rf_entity_seeds seeds={0};rf_entity_skeletons skeletons={0};
         rf_entity_render_models models={0};rf_entity_appearances appearances={0};rf_entity_materials bundle={0},guard={0};

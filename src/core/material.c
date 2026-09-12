@@ -275,15 +275,18 @@ int rf_level_particle_materials_open(rf_level_particle_materials *materials,cons
     rf_level_particle_materials_close(&value);return status;
 }
 
-int rf_model_materials_open_skin(rf_model_materials *m,const rf_model_file *model,
+static int model_materials_open_source(rf_model_materials *m,const rf_model_file *model,
+    const uint8_t (*records)[84],uint32_t record_count,
     const char *const *primary_names,uint32_t primary_count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)
 {
     rf_model_materials next={0}; uint8_t *raw=NULL;const char **names=NULL;int32_t *mapping=NULL;
     uint64_t count=0,base,scratch,used;uint32_t i,j,k,mesh=0,at=0,unique=0;int status=RF_OK;
-    if (!m || !model || !model->archive || model->section_count>RF_MODEL_MAX_SECTIONS ||
+    if (!m || (model && (!model->archive || model->section_count>RF_MODEL_MAX_SECTIONS)) ||
+        (!model && record_count && !records) ||
         (!archives && archive_count) || m->items || m->textures.items || m->resident_bytes) return RF_RANGE;
-    for(i=0;i<model->section_count;++i) if(model->sections[i].type==0x5355424d) count+=model->sections[i].material_count;
+    if(model) {for(i=0;i<model->section_count;++i) if(model->sections[i].type==0x5355424d) count+=model->sections[i].material_count;}
+    else count=record_count;
     if(primary_count && (!primary_names || primary_count!=count))return RF_RANGE;
     for(i=0;i<primary_count;++i) {
         size_t length=0;if(!primary_names[i])return RF_RANGE;
@@ -299,23 +302,27 @@ int rf_model_materials_open_skin(rf_model_materials *m,const rf_model_file *mode
         if(!next.items || !raw || !names || !mapping) { status=RF_IO;goto done; }
     }
     next.count=(uint32_t)count;
-    for(i=0;i<model->section_count;++i) if(model->sections[i].type==0x5355424d) {
-        for(j=0;j<model->sections[i].material_count;++j,++at) {
-            uint8_t *record=raw+(size_t)at*84;
-            status=rf_model_file_material(model,mesh,j,record);if(status)goto done;
-            if(!record[0] || !memchr(record,0,32) || !memchr(record+48,0,32)) { status=RF_FORMAT;goto done; }
-            if(primary_count) {
-                memset(record,0,32);memcpy(record,primary_names[at],strlen(primary_names[at]));
+    if(model) {
+        for(i=0;i<model->section_count;++i) if(model->sections[i].type==0x5355424d) {
+            for(j=0;j<model->sections[i].material_count;++j,++at) {
+                status=rf_model_file_material(model,mesh,j,raw+(size_t)at*84);if(status)goto done;
             }
-            for(k=0;k<2;++k) {
-                const char *name=(const char *)record+(k?48:0);uint32_t slot;
-                mapping[at*2+k]=-1;if(!*name)continue;
-                for(slot=0;slot<unique;++slot)if(equal_texture_name(name,names[slot]))break;
-                if(slot==unique)names[unique++]=name;
-                mapping[at*2+k]=(int32_t)slot;
-            }
+            ++mesh;
         }
-        ++mesh;
+    } else if(count)memcpy(raw,records,(size_t)count*84);
+    for(at=0;at<count;++at) {
+        uint8_t *record=raw+(size_t)at*84;
+        if(!record[0] || !memchr(record,0,32) || !memchr(record+48,0,32)) { status=RF_FORMAT;goto done; }
+        if(primary_count) {
+            memset(record,0,32);memcpy(record,primary_names[at],strlen(primary_names[at]));
+        }
+        for(k=0;k<2;++k) {
+            const char *name=(const char *)record+(k?48:0);uint32_t slot;
+            mapping[at*2+k]=-1;if(!*name)continue;
+            for(slot=0;slot<unique;++slot)if(equal_texture_name(name,names[slot]))break;
+            if(slot==unique)names[unique++]=name;
+            mapping[at*2+k]=(int32_t)slot;
+        }
     }
     status=rf_materials_open_names(&next.textures,names,unique,archives,archive_count,budget-(uint32_t)used);
     if(status)goto done;
@@ -334,6 +341,19 @@ done:
     if(status)rf_model_materials_close(&next);else *m=next;
     return status;
 }
+int rf_model_materials_open_skin(rf_model_materials *m,const rf_model_file *model,
+    const char *const *primary_names,uint32_t primary_count,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{
+    if(!model)return RF_RANGE;
+    return model_materials_open_source(m,model,NULL,0,primary_names,primary_count,archives,archive_count,budget);
+}
+int rf_model_materials_open_records(rf_model_materials *m,const uint8_t (*records)[84],uint32_t count,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{
+    return model_materials_open_source(m,NULL,records,count,NULL,0,archives,archive_count,budget);
+}
+
 int rf_model_materials_open(rf_model_materials *m,const rf_model_file *model,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)
 {

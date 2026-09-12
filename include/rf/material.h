@@ -99,6 +99,11 @@ int rf_model_materials_open(rf_model_materials *materials,const rf_model_file *m
 int rf_model_materials_open_skin(rf_model_materials *materials,const rf_model_file *model,
     const char *const *primary_names,uint32_t primary_count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
+/* Same owned texture/material conversion from retained serialized84-byte rows.
+ * Records remain caller-owned and unchanged; no geometry archive is required.
+ * Budget includes the copied scratch rows and existing bundle ownership. */
+int rf_model_materials_open_records(rf_model_materials *materials,const uint8_t (*records)[84],uint32_t count,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_model_materials_close(rf_model_materials *materials);
 typedef struct rf_entity_materials {
     rf_model_materials materials;

@@ -7285,3 +7285,30 @@ Both builds and all19 CTests pass after harness restoration. Report:
 artifacts/xemu/replay-20260912-152601/report.json. Resources are resident but
 not yet drawn; runtime texture/material conversion, view ownership and
 GPU submission remain open. No new screenshot was requested or posted.
+
+
+## Texture/material loading from retained records
+
+rf_model_materials_open_records accepts retained serialized84-byte rows,
+reusing the existing model material conversion, primary/secondary texture
+deduplication, decoded-image ownership and budget/cleanup path. File-backed
+and skin-substituted loading forward through the same internal implementation.
+The records entry point copies its input to scratch and borrows no rows or
+geometry directory after success. It uses base authored rows; original
+clutter skin-switch/factory policies still need binding.
+
+verify_material_records.py compares the retained-record and file-backed
+paths for the opening12 static models plus baby_reeper.v3c, including all
+200 runtime-record bytes, handle mappings, auxiliary-array sentinel and
+resident/peak accounting. Exact peak budgets succeed; one byte below fails.
+Source rows are poisoned/freed and archives closed before output inspection.
+Three malformed-primary/secondary/missing-image cases clean partial bundles.
+The combined23 opening rows deduplicate to11 textures at843404 retained
+bytes and845704 peak bytes, including decoded pixels/runtime materials but
+excluding caller-owned row arrays and archive state. This enables cross-
+model sharing instead of separate per-model texture bundles.
+
+Both builds and all19 CTests pass. Report: artifacts/material-records.json.
+Verification here uses PC archive decoding; pixel bytes are not independently
+hashed by this new probe. Scene binding, native XEMU texture ownership,
+clutter material/skin policy and static drawing remain open.
