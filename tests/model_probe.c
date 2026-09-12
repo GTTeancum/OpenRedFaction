@@ -10,11 +10,13 @@
 #include "skeletal_release_probe.h"
 #include "glare_create_probe.h"
 #include "glare_render_probe.h"
+#include "glare_search_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--glare-render-pass"))return glare_render_probe();
     if(argc==2 && !strcmp(argv[1],"--glare-collect"))return glare_collect_probe();
     if(argc==2 && !strcmp(argv[1],"--glare-occluder"))return glare_occluder_probe();
+    if(argc==2 && !strcmp(argv[1],"--glare-search"))return glare_search_probe();
     struct { uint32_t counts[3]; char names[3][16][32]; char query[32]; } input;
     struct { int32_t status, index; } output;
     rf_model_name names[3][16];

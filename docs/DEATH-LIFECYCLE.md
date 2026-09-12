@@ -7716,3 +7716,41 @@ Next implement complete shared search against this oracle, separately test
 the deliberate cached-query initialization, then bind real scene services.
 Both PC and NXDK builds pass after the field correction;72 constructor,
 197 render-pass,336 collector,420 occluder and21 CTest checks remain green.
+
+
+Shared full glare visibility search (2026-09-12)
+---------------------------------------------
+rf_glare_visibility_search implements414e00 in shared C with actual shared
+rf_glare_occluder_test/segment-box math. Borrowed96-byte object views retain
+geometry, stable nonzero token, handle and solid token. Mover/actor lists
+must preserve original traversal order. Backend lookup, cached solid-owner
+resolution, room/state/association, solid and model queries bind real owners.
+No heap allocation or frame scheduling is performed.84-byte solid queries
+retain preferred-face token plus existing80-byte collision input. Missing
+cached solid resolution clears that cache; caller guarantees live identity
+for original-valid owners. Callback errors leave visible output unchanged
+and preserve earlier cache invalidations, rather than undoing prior work.
+
+The confirmed original cached-query defect is corrected explicitly: set
+origin0, identity basis, radius0 and flags5/0x85 before its local ray query.
+Preferred face is0 there. The subsequent world query uses cached_face;
+scanned movers reuse it. Three orientations, including a non-axis matrix,
+match the original endpoint transform order. No other search-order change.
+
+verify_glare_search_shared.py executes full original414e00 and415280, with
+actual constructors, box, vector and matrix routines. Only external lookup,
+room/state/association, solid-query and model-query services are supplied.
+1537 PC/compiled NXDK cases compare ordered callback payloads (including
+all query input bytes), three caches, visible result and immutable other
+owner bytes.161 failures cover all seven backend operations and compare
+original callback-boundary cache snapshots, including failed association.
+342 original cached-query payloads contain the proven stack poison; only
+origin/basis/radius/flags are normalized to the documented corrected values
+for comparison. Remaining bytes and every other query compare unchanged.
+Original baseline outcomes793 hidden/744 visible; shared runs perform1748
+solid and192 model callbacks. Standalone PC probe is --glare-search.
+
+Both builds and21 CTests pass;420 candidate-occluder and197 render-pass
+regression checks pass. No native gameplay/glare rendering claim is made:
+next bind stable scene solid/face/actor identities, preferred-face handling,
+alternating visibility refresh and actual corona/reflection/volume drawing.

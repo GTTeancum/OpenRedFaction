@@ -129,4 +129,37 @@ int rf_glare_collect(rf_glare_base_owner *owner,uint32_t room,uint32_t current_r
 int rf_glare_occluder_test(const rf_collision_visibility_object *candidate,
     uint32_t candidate_handle,uint32_t excluded,const rf_glare_base_owner *glare,
     const float camera[3],const rf_collision_visibility_backend *backend,uint32_t *blocked);
+typedef struct rf_glare_visibility_object {
+    rf_collision_visibility_object geometry;uint32_t handle,solid;
+} rf_glare_visibility_object;
+typedef struct rf_glare_visibility_list {
+    const rf_glare_visibility_object *items;uint32_t count;
+} rf_glare_visibility_list;
+typedef struct rf_glare_solid_query {
+    uint32_t preferred_face;rf_collision_solid_response_query input;
+} rf_glare_solid_query;
+typedef struct rf_glare_visibility_backend {
+    int (*lookup)(void *,uint32_t,const rf_glare_visibility_object **);
+    int (*solid_owner)(void *,uint32_t,const rf_glare_visibility_object **);
+    int (*room)(void *,const rf_glare_visibility_object *,uint32_t *);
+    int (*state)(void *,const rf_glare_visibility_object *,uint32_t *);
+    int (*associated)(void *,const rf_glare_visibility_object *,const rf_glare_visibility_object **);
+    int (*solid_query)(void *,uint32_t,const rf_glare_solid_query *,rf_collision_solid_response_hit *,uint32_t);
+    int (*model)(void *,const rf_collision_visibility_object *,rf_collision_model_part_query *,
+        rf_collision_model_response_hit *,uint32_t,uint32_t *);
+    void *context;
+} rf_glare_visibility_backend;
+/* Full414e00 search with stable borrowed views in original traversal order.
+ * Nonzero unique object tokens identify live owners; face tokens stay stable.
+ * Cache resolution must return the matching owner; callbacks must not mutate lists
+ * or glare. Lookup returns NULL for missing owners. Errors preserve visible,
+ * while completed cache invalidations remain. Solid callbacks implement reset1.
+ * Deliberate original defect correction: cached solid query is initialized to
+ * origin0/identity/radius0/flags5 or85, rather than reading previous stack bytes.
+ * The selected object is the original5cb054 role, supplied without guessing it.
+ * No allocation, alternating-frame scheduling, or rendering in this entry. */
+int rf_glare_visibility_search(rf_glare_base_owner *glare,const float camera[3],
+    const rf_glare_visibility_list *movers,const rf_glare_visibility_list *actors,
+    const rf_glare_visibility_object *selected,uint32_t world,uint32_t special,
+    const rf_glare_visibility_backend *backend,uint32_t *visible);
 #endif

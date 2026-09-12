@@ -338,6 +338,95 @@ int rf_glare_occluder_test(const rf_collision_visibility_object *candidate,
     status=backend->model(backend->context,candidate,&query,&hit,1,&accepted);if(status)return status;
     *blocked=!!(accepted&255);return RF_OK;
 }
+static void glare_solid_query_init(rf_glare_solid_query *query,uint32_t special)
+{
+    memset(query,0,sizeof(*query));query->input.matrix[0]=1;query->input.matrix[4]=1;query->input.matrix[8]=1;
+    query->input.flags=(special&255)?0x85:5;
+}
+static int glare_moving_solid_test(const rf_glare_visibility_object *object,const float camera[3],
+    const float position[3],rf_glare_solid_query *query,const rf_glare_visibility_backend *backend,uint32_t *blocked)
+{
+    float point[3],start[3],end[3],local_end[3];uint32_t accepted,i;int status;
+    rf_collision_solid_response_hit hit={0};
+    *blocked=0;if(!(object->geometry.flags&0x10))return RF_OK;
+    status=rf_collision_segment_box(object->geometry.minimum,object->geometry.maximum,position,camera,point,&accepted);
+    if(status || !accepted)return status;
+    for(i=0;i<3;++i){start[i]=camera[i]-object->geometry.position[i];end[i]=position[i]-object->geometry.position[i];}
+    for(i=0;i<3;++i) {
+        const float *m=object->geometry.matrix+3*i;
+        query->input.start[i]=(start[2]*m[2]+start[1]*m[1])+start[0]*m[0];
+        local_end[i]=(end[2]*m[2]+end[1]*m[1])+end[0]*m[0];
+        query->input.displacement[i]=local_end[i]-query->input.start[i];
+        if(!isfinite(query->input.start[i]) || !isfinite(query->input.displacement[i]))return RF_FORMAT;
+    }
+    status=backend->solid_query(backend->context,object->solid,query,&hit,1);if(status)return status;
+    *blocked=hit.count>0;return RF_OK;
+}
+int rf_glare_visibility_search(rf_glare_base_owner *glare,const float camera[3],
+    const rf_glare_visibility_list *movers,const rf_glare_visibility_list *actors,
+    const rf_glare_visibility_object *selected,uint32_t world,uint32_t special,
+    const rf_glare_visibility_backend *backend,uint32_t *visible)
+{
+    const rf_glare_visibility_object *object=NULL,*associated=NULL;rf_glare_solid_query query;
+    rf_collision_solid_response_hit hit={0};rf_collision_visibility_backend collision;
+    uint32_t blocked,i,room,other_room,value,excluded=selected?selected->geometry.token:0;int status;
+    if(!glare || !camera || !movers || !actors || !visible || !backend || !backend->lookup ||
+       !backend->solid_owner || !backend->room || !backend->state || !backend->associated ||
+       !backend->solid_query || !backend->model || (movers->count && !movers->items) ||
+       (actors->count && !actors->items))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(camera[i]) || !isfinite(glare->position[i]))return RF_FORMAT;
+    collision.model=backend->model;collision.world=NULL;collision.context=backend->context;
+    if(glare->state.occluder!=-1) {
+        status=backend->lookup(backend->context,(uint32_t)glare->state.occluder,&object);if(status)return status;
+        if(object) {
+            status=rf_glare_occluder_test(&object->geometry,object->handle,excluded,glare,camera,&collision,&blocked);if(status)return status;
+            if(blocked){*visible=0;return RF_OK;}
+        }
+        glare->state.occluder=-1;
+    }
+    glare_solid_query_init(&query,special);
+    if(glare->state.cached_solid) {
+        object=NULL;status=backend->solid_owner(backend->context,glare->state.cached_solid,&object);if(status)return status;
+        if(object) {
+            status=glare_moving_solid_test(object,camera,glare->position,&query,backend,&blocked);if(status)return status;
+            if(blocked){*visible=0;return RF_OK;}
+        }
+        glare->state.cached_solid=0;
+    }
+    glare_solid_query_init(&query,special);query.preferred_face=glare->state.cached_face;
+    for(i=0;i<3;++i) {
+        query.input.start[i]=camera[i];query.input.displacement[i]=glare->position[i]-camera[i];
+        if(!isfinite(query.input.displacement[i]))return RF_FORMAT;
+    }
+    status=backend->solid_query(backend->context,world,&query,&hit,1);if(status)return status;
+    if(hit.count>0){glare->state.cached_face=hit.face;*visible=0;return RF_OK;}
+    for(i=0;i<movers->count;++i) {
+        object=movers->items+i;
+        status=glare_moving_solid_test(object,camera,glare->position,&query,backend,&blocked);if(status)return status;
+        if(blocked){glare->state.cached_solid=object->geometry.token;*visible=0;return RF_OK;}
+    }
+    if(selected) {
+        status=backend->room(backend->context,selected,&room);if(status)return status;
+        for(i=0;i<actors->count;++i) {
+            object=actors->items+i;
+            status=backend->room(backend->context,object,&other_room);if(status)return status;if(room!=other_room)continue;
+            status=backend->state(backend->context,object,&value);if(status)return status;if(value&255)continue;
+            status=backend->state(backend->context,selected,&value);if(status)return status;
+            if((value&255)==1) {
+                associated=NULL;status=backend->associated(backend->context,selected,&associated);if(status)return status;
+                if(associated && associated->geometry.token==object->geometry.token)continue;
+            }
+            status=rf_glare_occluder_test(&object->geometry,object->handle,excluded,glare,camera,&collision,&blocked);if(status)return status;
+            if(blocked){glare->state.occluder=(int32_t)object->handle;*visible=0;return RF_OK;}
+        }
+    }
+    object=NULL;status=backend->lookup(backend->context,glare->parent_handle,&object);if(status)return status;
+    if(object) {
+        status=rf_glare_occluder_test(&object->geometry,object->handle,excluded,glare,camera,&collision,&blocked);if(status)return status;
+        if(blocked){glare->state.occluder=(int32_t)object->handle;*visible=0;return RF_OK;}
+    }
+    *visible=1;return RF_OK;
+}
 int rf_glare_collect(rf_glare_base_owner *owner,uint32_t room,uint32_t current_room,
     int32_t volume,uint32_t callback,const rf_visibility_frustum *frustum,
     const float cull_position[3],rf_render_queue_record *records,uint32_t capacity,
