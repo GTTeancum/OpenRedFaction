@@ -358,15 +358,20 @@ typedef struct rf_collision_projectile_plane_source {
 void rf_collision_projectile_planes(const rf_collision_projectile_plane_source *source,float planes[4][4]);
 /* Resolved object-family inputs for full48be00. Predicate bytes retain
  * low-byte meaning. Owner facts refer to lookup(parent); projectile_eligible
- * and trigger_eligible are evaluated against the other endpoint. No lookup,
+ * is evaluated against the other endpoint. Trigger filtering uses flags2b0
+ * and filter2c4 with the other endpoint's actual kind/player/use-kind facts. No lookup,
  * resource creation or callback side effects occur in this classifier. */
 typedef struct rf_collision_pair_class_view {
     rf_collision_actor_pair_view actor;
     uint32_t kind,handle,parent,definition_present,definition_flags,type_id;
     float field_78;uint32_t trigger_flags;
-    uint32_t disabled,item_mode_reject,projectile_eligible,trigger_eligible;
+    uint32_t disabled,item_mode_reject,projectile_eligible,trigger_filter;
     uint32_t owner_present,owner_object_flags,owner_link_200,owner_is_player;
 } rf_collision_pair_class_view;
+/*48c8e0 plus actual4c0910/4895d0/429990 facts. Creation eligibility
+ * only: no activation limits, cooldown, allowed-handle list or contact test. */
+uint32_t rf_collision_trigger_pair_eligible(uint32_t trigger_flags,uint32_t filter,
+    uint32_t actor_kind,uint32_t actor_object_flags,uint32_t actor_use_kind);
 uint32_t rf_collision_pair_reject(const rf_collision_pair_class_view *first,
     const rf_collision_pair_class_view *second,uint32_t alternate,uint32_t multiplayer,
     uint32_t mode_6fc4d9,uint32_t special_projectile,uint32_t special_item,uint32_t *flags);

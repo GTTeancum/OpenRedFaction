@@ -5384,3 +5384,29 @@ Next: bind registered object-family/owner facts and real eligibility
 providers to discovery at creation/unhide, allocate the original pair pool,
 and integrate substep processing/contact effects. Predicate facts must not
 be replaced with unconditional acceptance when live bindings are added.
+
+
+### Trigger creation eligibility bound into classification (2026-09-12)
+
+rf_collision_trigger_pair_eligible reconstructs48c8e0 with actual helper
+semantics:4c0910 checks trigger2b0 bit4; filter2c4 zero requires object7c
+bit8, filter3 excludes it, and filter4 requires use-kind1 only for kind0
+actors. Other filters pass this stage. This differs from later4c06d0
+activation eligibility and48ca60 allowed-handle filtering; it does not
+apply cooldown, activation count, geometry or allowed-handle checks.
+
+The full pair classifier now computes this result from trigger flags/filter
+and the opposite actor facts, replacing its supplied trigger predicate.
+The96-byte endpoint wire layout stays the same, with trigger_filter replacing
+trigger_eligible. verify_pair_classification.py now executes real original
+48c8e0 and4c0910 rather than hooking them. All32768 original/PC/NXDK cases
+pass, including716 observed trigger calls across filters0..5,256 and-1,
+and1621 rejected pairs with changed flags. Both builds and19 CTests pass.
+No native XEMU activation or full trigger scheduling is claimed.
+
+Scene ownership inspection confirms the current NPC registry order is
+explicitly provisional (serialized registration after class sampling), and
+registered weapons are initially absent while full inventory ownership is
+open. Do not claim this establishes original global discovery order.
+Factory/list insertion order and live weapon facts must be connected before
+using scene registration order as original creation/discovery scheduling.

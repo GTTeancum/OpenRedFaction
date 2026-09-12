@@ -2045,6 +2045,16 @@ uint32_t rf_collision_actor_pair_reject(const rf_collision_actor_pair_view *a,
     return !(a->extent_180>=2.0f || b->extent_180>=2.0f);
 }
 
+uint32_t rf_collision_trigger_pair_eligible(uint32_t trigger_flags,uint32_t filter,
+    uint32_t actor_kind,uint32_t actor_object_flags,uint32_t actor_use_kind)
+{
+    if(trigger_flags&4u)return 0;
+    if(filter==0 && !(actor_object_flags&8u))return 0;
+    if(filter==3 && (actor_object_flags&8u))return 0;
+    if(filter==4 && actor_kind==0 && actor_use_kind!=1)return 0;
+    return 1;
+}
+
 uint32_t rf_collision_pair_reject(const rf_collision_pair_class_view *a,
     const rf_collision_pair_class_view *b,uint32_t alternate,uint32_t multiplayer,
     uint32_t mode,uint32_t special_projectile,uint32_t special_item,uint32_t *flags)
@@ -2080,7 +2090,8 @@ uint32_t rf_collision_pair_reject(const rf_collision_pair_class_view *a,
                 if(other->actor.extent_180>0.5f){*flags=reverse?2:4;return 0;}
             }
             return !(actor->actor.use_kind==1 && other->actor.extent_180>0.5f);
-        case 5:return !(other->trigger_eligible&255u);
+        case 5:return !rf_collision_trigger_pair_eligible(other->trigger_flags,other->trigger_filter,
+            actor->kind,actor->actor.object_flags,actor->actor.use_kind);
         case 7:
             if((actor->actor.object_flags&8u) && (other->actor.body_flags&0x40u)){*flags=reverse?2:4;return 0;}
             return 1;
