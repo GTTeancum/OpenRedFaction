@@ -2209,3 +2209,38 @@ attachment/room/color ownership boundaries, then recover update/render and
 retirement before connecting live actor source effects.42df20 disassembly
 shows sine growth and quad submission, but its newly-created Ghidra function
 export is candidate evidence only, not verified rendering or lifetime.
+
+
+## Shared corpse surface-effect construction
+
+include/rf/corpse_effect.h and src/core/effect.c now reconstruct42dc00/42dc50
+dispatch and construction. Caller-owned circular rings provide storage with
+no allocation:84 bytes per slot and12 bytes per pool header on32-bit targets.
+The model metadata, attachment lookup/placement, descriptor-room surface query
+and face-color sampling remain explicit callbacks. Full scene bindings are
+not supplied by this change. Pool capacity is caller-provisioned; it is not
+claimed to recover the original global pool count or initialization routine.
+
+The constructor preserves reservation-before-lookup, first greatest elapsed
+recycling, fallback-on-minus-one, geometry miss retention, offset/basis/color
+payload writes and active-tail publication. Source dispatch rereads flags
+between eye/spine calls. Backend errors stop shared dispatch and retain prior
+mutations; a color error leaves the reserved position updated. Callbacks
+must not mutate/reenter the pool, whose rings/storage remain owner-valid.
+Empty full pools, invalid capacity and nonfinite/invalid authored inputs are
+defensive RF_RANGE cases, outside the original valid-state equivalence claim.
+
+verify_corpse_surface_shared.py compares all76 payload bytes and normalized
+ring links against the384 full-original flat/sloped cases on both PC and
+compiled NXDK code in Unicorn.192 hits and192 misses match exactly. The
+original executes geometry; shared code consumes its supplied hit, so this
+is construction equivalence rather than a shared room-query comparison.
+The original executable hash remains pinned and the native binary hash is
+recorded in artifacts/corpse-surface-shared.json.
+
+New corpse_surface_failures CTest checks recycling at each active position,
+failed/fallback lookup, placement/query/color errors, partial payload rules,
+16 live flag-mutation combinations and disabled/empty/invalid-time guards.
+Both builds and all19 CTests pass. These failure guards are PC tests, not an
+additional original/NXDK differential test. No live corpse effect, native
+emulator rendering, authored attachment integration or lifecycle is claimed.

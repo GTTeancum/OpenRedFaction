@@ -649,3 +649,95 @@ int rf_effect_set_enabled(rf_effect_pair *pairs,uint32_t count,int32_t index,
     }
     return RF_OK;
 }
+
+#include "rf/corpse_effect.h"
+static void corpse_surface_unlink(rf_corpse_surface_effect **head,rf_corpse_surface_effect *node)
+{
+    if(node->next==node)*head=NULL;
+    else {
+        if(*head==node)*head=node->next;
+        node->previous->next=node->next;node->next->previous=node->previous;
+    }
+    node->next=node->previous=NULL;
+}
+static void corpse_surface_append(rf_corpse_surface_effect **head,rf_corpse_surface_effect *node)
+{
+    if(!*head){node->next=node->previous=node;*head=node;}
+    else {
+        node->next=*head;node->previous=(*head)->previous;
+        (*head)->previous->next=node;(*head)->previous=node;
+    }
+}
+/*4fcfa0, also used by the reconstructed cone orientation above. */
+static void corpse_surface_basis(const float normal[3],float basis[9])
+{
+    double inverse;uint32_t i;
+    memset(basis,0,36);memcpy(basis+6,normal,12);
+    if(normal[0]<.0001f && normal[0]>-.0001f && normal[2]<.0001f && normal[2]>-.0001f) {
+        basis[0]=1;basis[6]=basis[8]=0;basis[7]=normal[1]<0?-1.0f:1.0f;basis[5]=-basis[7];
+    } else {
+        basis[0]=normal[2];basis[2]=-normal[0];
+        inverse=1.0/sqrt(((double)basis[0]*basis[0]+(double)basis[1]*basis[1])+(double)basis[2]*basis[2]);
+        for(i=0;i<3;++i)basis[i]=(float)((double)basis[i]*inverse);
+        for(i=0;i<3;++i)basis[3+i]=(float)((double)normal[(i+1)%3]*basis[(i+2)%3]-(double)normal[(i+2)%3]*basis[(i+1)%3]);
+    }
+}
+int rf_corpse_surface_create(rf_corpse_surface_pool *pool,const rf_corpse_surface_source *source,
+    uint32_t enabled,const char *attachment,float growth_time,float max_extent,
+    const rf_corpse_surface_backend *backend)
+{
+    rf_corpse_surface_effect *node,*walk;rf_corpse_surface_hit hit;
+    uint32_t metadata,seen=0,matched=0,color,i,descriptor;int32_t index;int status;
+    float greatest=-1,point[3],basis[9],offset,rate;
+    if(!enabled)return RF_OK;
+    if(!pool || !source || !attachment || !backend || !backend->metadata || !backend->lookup ||
+       !backend->place || !backend->surface || !backend->color || !pool->capacity ||
+       !isfinite(growth_time) || growth_time<=0 || !isfinite(max_extent))return RF_RANGE;
+    descriptor=source->descriptor;metadata=backend->metadata(backend->context,source->model);
+    if(!descriptor || !metadata)return RF_OK;
+    node=pool->free;
+    if(!node) {
+        walk=pool->active;
+        if(!walk)return RF_RANGE;
+        do {
+            if(!walk || ++seen>pool->capacity || !isfinite(walk->elapsed))return RF_RANGE;
+            if(walk->elapsed>greatest){greatest=walk->elapsed;node=walk;}
+            walk=walk->next;
+        } while(walk!=pool->active);
+        if(!node)return RF_RANGE;
+        corpse_surface_unlink(&pool->active,node);corpse_surface_append(&pool->free,node);
+    }
+    index=backend->lookup(backend->context,metadata,attachment,0);
+    if(index==-1)index=backend->lookup(backend->context,metadata,attachment,1);
+    if(index==-1)return RF_OK;
+    status=backend->place(backend->context,source,index,point);if(status)return status;
+    for(i=0;i<3;++i)if(!isfinite(point[i]))return RF_RANGE;
+    status=backend->surface(backend->context,descriptor,point,&hit,&matched);if(status)return status;
+    if(!matched)return RF_OK;
+    for(i=0;i<3;++i)if(!isfinite(hit.point[i]) || !isfinite(hit.normal[i]))return RF_RANGE;
+    corpse_surface_basis(hit.normal,basis);
+    for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        offset=(float)((double)hit.normal[i]*(double).01f);
+        point[i]=(float)((double)hit.point[i]+offset);
+        if(!isfinite(point[i]))return RF_RANGE;
+    }
+    memcpy(node->position,point,12);
+    status=backend->color(backend->context,hit.face,hit.point,&color);if(status)return status;
+    node->color=color;memcpy(node->basis,basis,36);
+    rate=(float)((double)1.5707963705062866211f/growth_time);
+    node->descriptor=descriptor;node->elapsed=0;node->max_extent=max_extent;
+    node->growth_time=growth_time;node->extent=0;node->growth_rate=rate;
+    corpse_surface_unlink(&pool->free,node);corpse_surface_append(&pool->active,node);
+    return RF_OK;
+}
+int rf_corpse_source_effects(rf_corpse_surface_pool *pool,const rf_corpse_surface_source *source,
+    const uint32_t *flags,uint32_t enabled,const rf_corpse_surface_backend *backend)
+{
+    int status;if(!flags)return RF_RANGE;
+    if(*flags&0x08000000u) {
+        status=rf_corpse_surface_create(pool,source,enabled,"eye",5,.25f,backend);if(status)return status;
+    }
+    if(*flags&0x10000000u)return rf_corpse_surface_create(pool,source,enabled,"spine",8,.5f,backend);
+    return RF_OK;
+}

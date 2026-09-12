@@ -94,6 +94,11 @@ for slope,height,offset,existing,free_count,duration,size in itertools.product(
   assert bytes(u.mem_read(slot,0x4c))==bytes(0x4c)
   assert get(slot+0x4c)==(free_tail if free_count==2 else slot)
   assert get(slot+0x50)==(free_tail if free_count==2 else slot)
+ if 'observe_case' in globals():
+  observe_case(dict(free_count=free_count,existing=existing,growth=duration,extent=size,
+   matched=expected_hit,hit=bytes(u.mem_read(query_snapshot[1]+8,24)) if expected_hit else bytes(24),
+   payload=bytes(u.mem_read(slot,76)),links=[get(a) for a in [0x62f488,0x62f764,slot+0x4c,slot+0x50,other+0x4c,other+0x50,free_tail+0x4c,free_tail+0x50]],
+   addresses=[slot,other,free_tail]))
  results.append(dict(origin=origin,slope=slope,hit=expected_hit,existing=existing,free_count=free_count,duration=duration,size=size))
 report=dict(result='PASS',original_sha256=digest,cases=len(results),hits=sum(x['hit'] for x in results),
  scope='Full original42dc50 with original room-tree geometry, vector/basis arithmetic and list publication. Attachment lookup/transform and face color are supplied boundaries. Flat/sloped single-face rooms; no reconstruction equivalence, authored geometry, lifetime or rendering.',examples=results[:4])
