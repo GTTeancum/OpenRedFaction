@@ -4708,3 +4708,27 @@ verifier uses027f. Report: artifacts/model-sphere-edges.json. The existing
 9013-case sphere-edge verifier plus7 invalid-input guards also passes under
 its037f setup. PC/NXDK builds and all19 CTests pass.
 Full swept-triangle composition and native/live integration remain open.
+
+
+## Complete swept-sphere model triangle54de40
+
+rf_collision_model_sphere_triangle composes5071b0 plane contact,506dd0
+containment and5076f0 closed edges. The normal/displacement dot uses the
+original Z/Y/X double ordering; nonnegative dot rejects one-sided faces or
+flips the plane for two-sided queries. The initial plane contact must be
+strictly nearer before either containment or edge testing. Interior hits
+copy the plane normal. Edge hits also require strictly nearer time and
+normalize start minus contact (not the center at impact), matching409fa0
+and4fab70, with double reciprocal length and float component stores under
+027f. A zero length gives(1,0,0). Misses preserve the entire hit record.
+Caller-resolved plane/vertices and triangle-record token match54dd10.
+
+verify_model_sphere_triangle.py executes complete original54de40 with all
+geometry/vector callees unchanged; static constructor flags alone are
+preinitialized.8192 exact PC/NXDK comparisons pass,610 hits including162
+flipped-plane hits and227 non-plane edge normals. Cases exercise one/two
+sidedness, radii0..2, strict time limits, signed source indices, all axes
+and arbitrary finite planes/triangles; input bytes and miss outputs remain
+unchanged. Report: artifacts/model-sphere-triangle.json. Both builds and
+all19 CTests pass. This does not establish native XEMU or gameplay wiring.
+Part54daa0, type2 geometry and live model response binding remain open.

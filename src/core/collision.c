@@ -6,6 +6,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+uint32_t rf_collision_model_sphere_triangle(const rf_collision_model_triangle *triangle,
+    const float start[3],const float displacement[3],float radius,uint32_t two_sided,rf_collision_model_response_hit *hit)
+{
+    float plane[4],point[3],normal[3],time;double dot,length,scale;uint32_t i,accepted;
+    memcpy(plane,triangle->plane,sizeof(plane));
+    dot=(double)plane[2]*displacement[2];dot+=(double)plane[1]*displacement[1];dot+=(double)plane[0]*displacement[0];
+    if(dot>=0){if(!two_sided)return 0;for(i=0;i<4;++i)plane[i]=-plane[i];}
+    if(rf_collision_sphere_plane(start,displacement,radius,plane,&time,point,&accepted)!=RF_OK || !accepted || !(time<hit->time))return 0;
+    if(rf_collision_model_polygon_contains(point,3,triangle->vertices,plane))memcpy(normal,plane,12);
+    else {
+        if(!rf_collision_model_sphere_edges(start,displacement,radius,3,triangle->vertices,&time,point) || !(time<hit->time))return 0;
+        /* Original uses start minus edge contact, not the center at impact. */
+        for(i=0;i<3;++i)normal[i]=start[i]-point[i];
+        length=(double)normal[0]*normal[0];length+=(double)normal[1]*normal[1];length+=(double)normal[2]*normal[2];length=sqrt(length);
+        if(length<=0){normal[0]=1;normal[1]=normal[2]=0;}
+        else {scale=1.0/length;for(i=0;i<3;++i)normal[i]=(float)(scale*normal[i]);}
+    }
+    hit->time=time;memcpy(hit->point,point,12);memcpy(hit->normal,normal,12);hit->part=triangle->token;return 1;
+}
+
 uint32_t rf_collision_model_ray_triangle(const rf_collision_model_triangle *triangle,
     const float start[3],const float displacement[3],uint32_t two_sided,rf_collision_model_response_hit *hit)
 {
