@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Extend the composed base/unarmed NPC death-animation binding to effective class views and live selection/audio callers; the registered clear adapter now preserves the original index-1 slot15 cursor-byte effect.
+- [ ] Connect the composed base/unarmed NPC death-animation stage and registered selection/clearance/RNG adapter to campaign death scheduling, audio and effective class views; the registered clear adapter now preserves the original index-1 slot15 cursor-byte effect.
 - [ ] Connect the tested registered-model bone-clear adapter to full death dispatch and recover original override producers, then verify enabled overrides in XEMU; baseline stock64MiB replay passes with the new storage.
 - [ ] Compose the verified ordinary-SP death stages using the retained NPC death fields, composed base/unarmed animation stage and tested registered-NPC tail adapter, completing remaining shared field ownership, accounting for the 6fc4d8 alternate-mode gate and remaining live resource callbacks.
 - [ ] Reconstruct riot-shield impact-mark allocation/clipping/rendering and bind verified player-slot cleanup to the original-audited 50-mark/150-polygon/500-vertex pools.

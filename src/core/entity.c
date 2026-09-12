@@ -1221,7 +1221,7 @@ int rf_entity_death_select(const rf_entity_death_selection *state,
     if(!state || !clearance || !random || !result ||
        state->action_824 < -1 || state->action_824>=45)return RF_RANGE;
     action=state->action_824;
-    if((state->flags_810&0x400u) || state->damage_138c==13 || state->damage_1390==13)action=16;
+    if((state->flags_810&0x400u) || state->current_138c==13 || state->next_1390==13)action=16;
     else {
         if(action==6 || action==8 || action==11) {
             if(!(clearance(context,1)&255u))action=-1;

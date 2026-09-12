@@ -90,6 +90,14 @@ typedef struct rf_scene_death_motion_ops {
     void *context;
 } rf_scene_death_motion_ops;
 int rf_scene_npc_death_motion(uint32_t handle,const rf_scene_death_motion_ops *ops);
+typedef struct rf_scene_death_selection_context {
+    const rf_geometry_collision_world *world;
+    rf_entity_death_obstacle *scratch;uint32_t capacity;rf_random_state *random;
+} rf_scene_death_selection_context;
+/* Compatible with death_motion_ops.select. Current base/unarmed pose state;
+ * no allocations. Query failure preserves result/RNG, scratch may change. */
+int rf_scene_npc_death_select(void *context,uint32_t handle,int32_t *action);
+
 
 
 

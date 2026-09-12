@@ -2992,6 +2992,34 @@ int rf_scene_death_clearance(const rf_geometry_collision_world *world,uint32_t h
 }
 
 uint32_t rf_scene_actor_initial_world[8],rf_scene_actor_initial_fall[8];
+typedef struct campaign_death_selection_query {
+    rf_scene_death_selection_context *input;uint32_t handle;int status;
+} campaign_death_selection_query;
+static uint32_t campaign_death_selection_clearance(void *context,uint32_t direction)
+{
+    campaign_death_selection_query *q=context;uint32_t allowed=0;
+    if(!q->status)q->status=rf_scene_death_clearance(q->input->world,q->handle,direction,q->input->scratch,q->input->capacity,&allowed);
+    return allowed;
+}
+int rf_scene_npc_death_select(void *context,uint32_t handle,int32_t *action)
+{
+    rf_scene_death_selection_context *input=context;campaign_death_selection_query query={input,handle,0};
+    rf_entity_death_selection selection;rf_entity_pose *pose;campaign_npc_body *owner;
+    rf_random_state random;int32_t result;uint32_t i,cls;int status;
+    if(!input || !input->world || !input->random || !action)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view || owner->view.weapons[0]!=-1)return RF_NOT_FOUND;
+    status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    if(!campaign_seeds.items || i>=campaign_seeds.records.count)return RF_RANGE;cls=campaign_seeds.items[i].class_index;
+    if(!campaign_motion_catalog.mappings || cls>=campaign_motion_catalog.mapping_count)return RF_RANGE;
+    if(campaign_motion_catalog.mappings[cls].weapon!=-1 || campaign_motion_catalog.mappings[cls].skeleton!=pose->skeleton)return RF_NOT_FOUND;
+    selection.flags_810=owner->view.flags_810;selection.current_138c=pose->controller.current;selection.next_1390=pose->controller.next;
+    selection.action_824=owner->death.action_824;memcpy(selection.motions,campaign_motion_catalog.mappings[cls].actions,sizeof(selection.motions));
+    random=*input->random;status=rf_entity_death_select(&selection,campaign_death_selection_clearance,&query,&random,&result);
+    if(query.status)return query.status;if(status)return status;
+    *input->random=random;*action=result;return RF_OK;
+}
 uint32_t rf_scene_death_clearance_test[8]; /* passes, queries, allowed, blocked, candidates, hash, status, scratch bytes */
 static int campaign_death_clearance_fixture(const rf_geometry_collision_world *world,uint32_t frame)
 {

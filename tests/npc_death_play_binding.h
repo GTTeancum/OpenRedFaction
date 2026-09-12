@@ -68,6 +68,26 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
   CHECK(rf_scene_npc_death_motion(handle,&ops)==RF_IO && owner->view.flags_810==0x200 && owner->damage.effects.flags_810==0x200);
   CHECK(!memcmp(&before,&pose->playback,sizeof(before)) && owner->death.action_824==14);f.failure=0;
 
+  {
+   rf_geometry_collision_world world={0};rf_random_state rng={7},reference=rng;uint32_t draw,old_spawn=campaign_spawn;
+   rf_scene_death_selection_context selection={&world,NULL,0,&rng};int32_t selected=-99;static const int32_t choices[3]={5,14,15};
+   campaign_motion_catalog.mappings[0].actions[5]=campaign_motion_catalog.mappings[0].actions[15]=campaign_motion_catalog.mappings[0].actions[16]=2;
+   owner->view.flags_810=0;owner->death.action_824=-1;pose->controller.current=0;pose->controller.next=-1;
+   rf_random_next(&reference,&draw);
+   CHECK(rf_scene_npc_death_select(&selection,handle,&selected)==RF_OK && selected==choices[draw%3] && rng.value==reference.value && owner->death.action_824==-1);
+   pose->controller.next=13;reference=rng;
+   CHECK(rf_scene_npc_death_select(&selection,handle,&selected)==RF_OK && selected==16 && rng.value==reference.value);
+   pose->controller.next=-1;pose->controller.current=13;
+   CHECK(rf_scene_npc_death_select(&selection,handle,&selected)==RF_OK && selected==16 && rng.value==reference.value);
+   pose->controller.current=0;owner->view.flags_810=0x400;
+   CHECK(rf_scene_npc_death_select(&selection,handle,&selected)==RF_OK && selected==16 && rng.value==reference.value);
+   owner->view.flags_810=0;owner->death.action_824=6;campaign_spawn=0;selected=-99;
+   CHECK(rf_scene_npc_death_select(&selection,handle,&selected)==RF_NOT_FOUND && selected==-99 && rng.value==reference.value);
+   CHECK(rf_scene_npc_death_select(&selection,handle^0x10000,&selected)==RF_NOT_FOUND && selected==-99 && rng.value==reference.value);
+   campaign_spawn=old_spawn;owner->death.action_824=-1;owner->death.requested_83c=-1;
+   ops.select=rf_scene_npc_death_select;ops.sound=NULL;ops.context=&selection;
+   CHECK(rf_scene_npc_death_motion(handle,&ops)==RF_OK && owner->death.action_824>=0 && (owner->view.flags_810&8));
+  }
   bindings->action_sounds[14][0]=0;pose->overrides=old_overrides;pose->bone_count=saved_bone_count;
   campaign_seeds.classes=saved_classes;campaign_seeds.class_count=saved_count;campaign_skeletons=saved_skeletons;
  }

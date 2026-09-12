@@ -833,7 +833,7 @@ rf_corpse *rf_entity_finalize_create_owned_bound(void *context,rf_entity_finaliz
 
 typedef struct rf_entity_death_selection {
     uint32_t flags_810;
-    int32_t damage_138c,damage_1390,action_824,motions[45];
+    int32_t current_138c,next_1390,action_824,motions[45];
 } rf_entity_death_selection;
 /*420c00. Clearance supplies420d00(entity,direction), using its low byte.
  * Input and callback remain stable; callback must not mutate state/RNG.

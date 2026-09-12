@@ -3658,3 +3658,33 @@ Complete death dispatch remains open: entry/collision retirement, early
 player/timers, drops, linked actor, tail and dying updates must share owners
 and resource scheduling. Selection/clearance/RNG and audio callbacks need
 actual campaign callers; alternate-mode and effective-view paths remain.
+
+
+## Registered NPC death selection (2026-09-12)
+
+rf_scene_npc_death_select can now be assigned directly to the composed
+animation stage's select callback. Its caller-owned context supplies the
+collision world, registered-entity scratch capacity and shared RNG. It
+resolves the live registered base/unarmed actor and pose, takes current/next
+controller states, actor flags, retained action824 and mapped availability,
+then calls the verified420c00 selector. Clearance requests use the existing
+registered scene geometry/actor query. It allocates nothing.
+
+The selector fields previously named damage138c/1390 are now current138c
+and next1390:42a650 tests logical animation states, not damage types. Existing
+controller reconstruction already retains these fields. The field rename
+does not change layout or the reconstructed selector's arithmetic.
+
+Query or validation errors preserve output and shared RNG by using a local
+RNG copy until success. Caller scratch may change. Actor state is read-only
+in selection; the composed stage commits the returned action later. The
+registered fixture verifies random choice/RNG, current13, next13 and crouch
+selection, stale handles, clearance failure preserving output/RNG, and
+selection through the composed animation stage into actual motion playback.
+
+Both builds and all19 CTests pass. The8192-case original/PC/NXDK selection
+comparison also passes exact choices, RNG and query order; its clearance
+boundary is supplied. New ownership composition runs on PC and compiles
+into NXDK, without a new live XEMU death test. Scene clearance still uses
+stationary NPC orientation; moving orientation, effective class changes,
+audio ownership and full death scheduling remain open.
