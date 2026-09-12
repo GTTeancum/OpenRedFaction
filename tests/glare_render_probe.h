@@ -1,4 +1,5 @@
 #include "rf/glare.h"
+#include <stddef.h>
 typedef struct glare_occluder_fixture {uint32_t calls,value,error;rf_collision_solid_response_query query;} glare_occluder_fixture;
 static int glare_occluder_model(void *context,const rf_collision_visibility_object *object,rf_collision_model_part_query *query,
     rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted)
@@ -61,12 +62,12 @@ static int glare_render_probe(void)
     rf_object_list_init(&list);
     for(i=0;i<3;++i) {
         if(fread(words,4,8,stdin)!=8)return 2;c.owners[i].flags=words[0];c.owners[i].state.flags=words[1];
-        memcpy(c.owners[i].state.samples,words+2,24);rf_object_list_append(&list,&c.owners[i].state.link);
+        memcpy((unsigned char *)&c.owners[i].state+offsetof(rf_glare_state,cached_solid),words+2,24);rf_object_list_append(&list,&c.owners[i].state.link);
     }
     status=rf_glare_render_pass(&list,views,input[0],(void *)(uintptr_t)input[1],input[2],&backend);
     fwrite(&status,4,1,stdout);fwrite(&c.count,4,1,stdout);fwrite(c.events,12,c.count,stdout);
     for(i=0;i<3;++i) {
-        words[0]=c.owners[i].flags;words[1]=c.owners[i].state.flags;memcpy(words+2,c.owners[i].state.samples,24);fwrite(words,4,8,stdout);
+        words[0]=c.owners[i].flags;words[1]=c.owners[i].state.flags;memcpy(words+2,(unsigned char *)&c.owners[i].state+offsetof(rf_glare_state,cached_solid),24);fwrite(words,4,8,stdout);
     }
     return 0;
 }

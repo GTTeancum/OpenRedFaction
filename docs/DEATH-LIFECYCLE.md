@@ -7660,3 +7660,59 @@ unchanged candidate/glare owners;157 model calls total. Port errors preserve
 blocked. This does not prove model collision or complete world visibility
 by itself. Both builds,72 constructor checks,197 pass checks,336 collector
 checks and21 CTests pass. No native replay or new visual is claimed here.
+
+
+Full glare visibility search414e00 audit (2026-09-12)
+--------------------------------------------------
+verify_glare_search_original.py executes full414e00 with actual AABB,
+vector/matrix helpers and constructors. Supplied services are40a0e0 lookup,
+415280 candidate test (separately verified),40a490 room,4290d0 state,
+426fc0 association and4df1c0 geometry results.2048 cases cover empty/one/two
+item lists, cached/stale actors and solids, world/solid hits, signed result
+counts, same/different rooms, low-byte state and blocking values, associated
+actor exclusion, parent fallback and owner footprints. This is an original
+orchestration audit, not a shared implementation or native gameplay test.
+
+Search order and state:
+- Original290 is the cached actor handle. Resolve/retest first; retain on
+  block, reset to -1 on stale/miss before proceeding.
+- Original294 is a cached moving-solid object pointer. Require flag0x10
+  and glare-to-camera AABB hit, transform both endpoints into its local
+  coordinates using position3c/basis48, query its solid294 with reset1.
+  Positive signed count blocks and retains it; otherwise clear this cache.
+- Query global solid6460e8, origin0/basisidentity, camera start, glare-minus-
+  camera displacement, radius0, flags5 (0x85 if5cab9d nonzero), reset1.
+  Original298 seeds preferred face only when nonzero. Positive signed count
+  stores result face and returns hidden; miss preserves the old face cache.
+- Traverse movers64e96c to sentinel64e6e0 via28c. Each eligible AABB hit
+  uses local endpoints and its solid294, reusing query flags/preferred face.
+  First positive count stores the moving object pointer in glare294.
+- If5cb054 exists, traverse actors5cb2ec to sentinel5cb060 via28c. Compare
+  rooms, skip actor state lowbyte nonzero, and when selected object state
+  lowbyte equals1 skip its associated426fc0 object. First415280 hit stores
+  actor handle2c in290. Finally resolve/test glare parent30, then visible1.
+  The actual415280 rejects a candidate matching that parent handle; the
+  supplied-service audit preserves the fallback call instead of removing it.
+
+The shared layout now names cached_solid/cached_face as uint32 tokens,
+followed by four sample floats. Previously all six words were called float
+samples. Constructor zero bytes and sample clearing offsets are unchanged.
+No object allocation size changes. The tokens require stable scene-owned
+solid/face identity when binding; they are not float values or actor handles.
+
+Confirmed original defect: before the first cached-solid query, constructor
+4161f0 clears only preferred-face word0; its vector/matrix constructors do
+not initialize data.414e00 sets start/displacement but leaves origin, basis,
+radius and flags as previous stack contents.361 exercised cached queries
+retain either0xa5 or0x3c poison in all these fields. The ordinary world and
+subsequent mover queries are explicitly initialized. A C port must explicitly
+initialize the cached query using the ordinary local-ray policy (origin0,
+identity basis, radius0, flags5/0x85) and record that intentional correction;
+it must not manufacture byte parity by reproducing uninitialized reads.
+
+Audit totals:465 cached-actor returns,212 cached-solid,483 world,87 scanned
+solid,239 actor/fallback and562 clear;1371 world queries and583 mover queries.
+Next implement complete shared search against this oracle, separately test
+the deliberate cached-query initialization, then bind real scene services.
+Both PC and NXDK builds pass after the field correction;72 constructor,
+197 render-pass,336 collector,420 occluder and21 CTest checks remain green.

@@ -27,9 +27,11 @@ typedef struct rf_glare_classes {
  * Bitmap names remain metadata; no renderer resource IDs are assigned. */
 int rf_glare_classes_open(rf_vpp *tables,uint32_t budget,rf_glare_classes *owner);
 void rf_glare_classes_close(rf_glare_classes *owner);
+/* Original290: actor handle;294: moving-solid pointer token;298: face token.
+ * Keep cache words separate from the four per-view sample floats29c..2a8. */
 typedef struct rf_glare_state {
     uint32_t parent;int32_t tag;uint8_t active,reserved[3];
-    int32_t occluder;float samples[6];const void *definition;int32_t class_index;
+    int32_t occluder;uint32_t cached_solid,cached_face;float samples[4];const void *definition;int32_t class_index;
     uint32_t flags;rf_object_link link;float last_position[3];uint32_t word_2cc;
     uint8_t byte_2d0,padding[3];float vectors[2][3];
 } rf_glare_state;

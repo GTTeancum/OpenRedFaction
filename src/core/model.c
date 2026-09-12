@@ -29,7 +29,7 @@ int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
     status=backend->allocate(backend->context,&descriptor,&state);if(status)return status;
     *out=state;if(!state)return RF_OK;
     state->definition=definition->definition;state->class_index=index;state->occluder=-1;
-    memset(state->samples,0,sizeof(state->samples));state->word_2cc=0;
+    state->cached_solid=0;state->cached_face=0;memset(state->samples,0,sizeof(state->samples));state->word_2cc=0;
     state->parent=parent;state->tag=tag;state->flags=(flag&255u)?2:0;state->active=1;
     rf_object_list_append(list,&state->link);
     for(i=0;i<3;++i)state->last_position[i]=-1000;
@@ -371,7 +371,7 @@ int rf_glare_render_pass(rf_object_list *list,const void *const *views,uint32_t 
         if(owner->flags&1)continue;
         if(owner->state.flags&0x80000000u) {
             status=backend->corona(backend->context,owner,view);if(status)break;
-        } else {owner->state.samples[2+view]=0;owner->state.samples[4+view]=0;}
+        } else {owner->state.samples[view]=0;owner->state.samples[2+view]=0;}
         if((uint8_t)reflections) {status=backend->reflection(backend->context,owner);if(status)break;}
         owner->state.flags&=0x7fffffffu;
     }
