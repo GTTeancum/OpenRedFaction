@@ -3568,3 +3568,29 @@ Both builds and all19 CTests pass. Native C runs in the isolated instruction
 harness, not XEMU. The helper allocates nothing and has not yet been bound
 to retained base/effective class views; malformed unterminated names and
 counts above50 fail without modifying output.
+
+
+## Missing effective bone index aliases playback cursor (2026-09-12)
+
+Original42000c..42003a uses effective class13d8/13dc without negative guards.
+For index-1, pose13bc+48*index is138c: the low byte of slot15's tick, since
+slot0 begins12d4 with12-byte records and tick at+4. This is not an override
+record and not a harmless skipped bone.
+
+tools/verify_death_missing_bone_original.py executes that instruction block
+unchanged across1024 random pose buffers and effective-index pairs,569 with
+at least one negative index. Complete8192-byte buffer comparisons confirm
+only the addressed bytes change. For index-1, all cases independently match
+slot15.tick bits AND ffffff00. No callees or writes are substituted.
+
+rf_scene_model_clear_bone_override now treats UINT32_MAX as this exact
+original index-1 effect using explicit unsigned bits and memcpy, avoiding
+undefined indexing in C. Nonnegative bones retain the enabled-byte behavior.
+The registered actor and transferred-corpse tests each exercise all256 low
+byte values, checking the complete playback state, override record, matrix
+and generation stamp. Other out-of-range indices still fail.
+
+Both builds and all19 CTests pass. The original audit is instruction-level
+evidence; ownership checks run on PC and the adapter compiles into NXDK.
+Actual class reachability of this path is still unproven and must be traced
+when binding base/effective views. No live death/XEMU execution is claimed.

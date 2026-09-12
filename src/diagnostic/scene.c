@@ -580,6 +580,11 @@ int rf_scene_model_clear_bone_override(uint32_t slot,uint32_t bone)
 {
     rf_entity_pose *pose;int status=campaign_model_pose(slot,&pose);
     if(status)return status;if(!pose)return RF_NOT_FOUND;
+    /* Original effective index-1 addresses138c: slot15's tick low byte. */
+    if(bone==UINT32_MAX) {
+        uint32_t bits;memcpy(&bits,&pose->playback.completion.active.slots[15].tick,4);
+        bits&=0xffffff00u;memcpy(&pose->playback.completion.active.slots[15].tick,&bits,4);return RF_OK;
+    }
     if(bone>=pose->bone_count)return RF_RANGE;
     if(!pose->overrides)return RF_NOT_FOUND;
     pose->overrides[bone].enabled=0;return RF_OK;

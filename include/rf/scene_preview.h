@@ -71,7 +71,8 @@ int rf_scene_npc_death_tail(uint32_t handle,uint32_t name,const rf_entity_death_
  * slots. Resolves actor or transferred-corpse ownership; no allocation. */
 int rf_scene_model_stop_nonlooping(uint32_t model_slot);
 /* Death CLEAR_BONE: clear only the current owner's override-enabled byte.
- * Preserve basis, weight, playback and cached matrices/generation stamps. */
+ * Nonnegative indices preserve playback/caches; UINT32_MAX models original
+ * index-1 clearing the low byte of slot15 tick, without touching overrides. */
 int rf_scene_model_clear_bone_override(uint32_t model_slot,uint32_t bone);
 
 /* Death stage's428c90(actor,action,1,freeze,1) resource binding. Publish the

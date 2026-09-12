@@ -8,6 +8,18 @@ static int model_death_clear_check(rf_entity_pose *pose)
  CHECK(rf_scene_model_clear_bone_override(0,0)==RF_OK && !memcmp(&expected,pose->overrides,sizeof(expected)));
  CHECK(rf_scene_model_clear_bone_override(0,0)==RF_OK && !memcmp(&expected,pose->overrides,sizeof(expected)));
  CHECK(!memcmp(&playback,&pose->playback,sizeof(playback)) && !memcmp(matrix,pose->matrices[0],sizeof(matrix)) && generation==pose->generations[0]);
+ {
+  unsigned i;rf_motion_playback_state expected_playback;
+  for(i=0;i<256;++i) {
+   uint32_t bits=0x81234500u|i;memcpy(&pose->playback.completion.active.slots[15].tick,&bits,4);
+   expected_playback=pose->playback;bits&=0xffffff00u;memcpy(&expected_playback.completion.active.slots[15].tick,&bits,4);
+   CHECK(rf_scene_model_clear_bone_override(0,UINT32_MAX)==RF_OK);
+   CHECK(!memcmp(&expected_playback,&pose->playback,sizeof(expected_playback)) && !memcmp(&expected,pose->overrides,sizeof(expected)));
+   CHECK(!memcmp(matrix,pose->matrices[0],sizeof(matrix)) && generation==pose->generations[0]);
+  }
+  pose->playback=playback;
+ }
+
  return 0;
 }
 static int model_death_reset_binding_check(void)
