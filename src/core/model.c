@@ -318,6 +318,31 @@ uint32_t rf_clutter_material_index(const char *name)
     for(i=0;i<10;++i)if(clutter_skin_name_equal(names[i],name))return i;
     return 0;
 }
+int rf_glare_render_pass(rf_object_list *list,const void *const *views,uint32_t count,
+    const void *current,uint32_t reflections,const rf_glare_render_backend *backend)
+{
+    rf_object_link *node;uint32_t view,i;int status,disabled;
+    if(!list || (count && !views) || count>2 || !backend || !backend->enable || !backend->corona || !backend->reflection)return RF_RANGE;
+    for(view=0;view<count;++view)if(views[view]==current)break;
+    if(view==count)return RF_OK;
+    node=list->sentinel.next;
+    for(i=0;i<list->count;++i) {
+        if(!node || node==&list->sentinel || !node->next || !node->previous || node->next->previous!=node || node->previous->next!=node)return RF_RANGE;
+        node=node->next;
+    }
+    if(node!=&list->sentinel || !list->sentinel.previous || list->sentinel.previous->next!=&list->sentinel)return RF_RANGE;
+    status=backend->enable(backend->context,1);if(status)return status;
+    for(node=list->sentinel.next;node!=&list->sentinel;node=node->next) {
+        rf_glare_base_owner *owner=(rf_glare_base_owner *)((unsigned char *)node-offsetof(rf_glare_state,link));
+        if(owner->flags&1)continue;
+        if(owner->state.flags&0x80000000u) {
+            status=backend->corona(backend->context,owner,view);if(status)break;
+        } else {owner->state.samples[2+view]=0;owner->state.samples[4+view]=0;}
+        if((uint8_t)reflections) {status=backend->reflection(backend->context,owner);if(status)break;}
+        owner->state.flags&=0x7fffffffu;
+    }
+    disabled=backend->enable(backend->context,0);return status?status:disabled;
+}
 int32_t rf_glare_name_lookup(const char *const *names,uint32_t count,const char *name)
 {
     uint32_t i;if(!name || (count && !names) || count>INT_MAX)return -1;

@@ -7575,3 +7575,31 @@ includes slots/list/counters and157*528-byte owners. Native available pages
 7908, memory base67108864/plugged0; five control words0x27f. Existing replay
 checks and21 CTests pass; harness restored flags and completed its final
 build. No new screenshot because glare instances are not rendered yet.
+
+### Glare draw-pass orchestration
+
+Original4154a0 only marks base flag2 if a nonnegative parent handle no longer
+resolves; it does not itself update attachment pose. Original4141a0 is a
+volumetric draw routine. Original4154f0 is the corona/reflection pass: first
+matching view in7c75e4/count7c7634 versus current7c763c, render-state enable
+431950(1), traverse family list5c9e60, skip hidden base flag1, and dispatch
+414860(owner,view) only when glare flag0x80000000 is set. Otherwise clear
+that view at29c/2a4. Optional low-byte reflection argument calls4155a0, then
+consume0x80000000. Finally431950(0). Volume pass and marker production are
+separate from this routine and remain to bind.
+
+rf_glare_render_pass implements that ordered traversal over concrete owners
+and the two represented per-view sample slots. Required renderer callbacks
+must not change list ownership. Port validation rejects malformed lists and
+more than two views. After successful enable, callback errors disable the
+backend and preserve prior progress; initial enable failure returns directly.
+A failed draw callback leaves its owner marker unconsumed. Renderer callbacks
+are not bound to campaign yet; no dummy draws or visibility substitutions.
+
+verify_glare_render_pass.py passes197 cases:192 full original4154f0 versus
+PC and actual compiled NXDK, four callback-error paths and the view-count
+bound. It compares ordered callbacks and state footprints across hidden/base
+flags, duplicate/missing/current views, reflection low-byte values, sample
+clearing and marker consumption. Only original enable/corona/reflection
+implementations are supplied; full dispatcher executes. Both builds and
+21 CTests pass. No native geometry or integrated rendering claim.

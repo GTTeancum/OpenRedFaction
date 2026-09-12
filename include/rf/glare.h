@@ -91,4 +91,20 @@ int rf_glare_owned_open(const rf_glare_class *classes,uint32_t count,int32_t ind
  * NULL owner is repeatable. No renderer/resource borrower teardown implied. */
 int rf_glare_owned_close(rf_glare_base_owner **owner,rf_object_registry *registry,
     rf_object_list *objects,rf_object_list *glares);
+typedef struct rf_glare_render_backend {
+    int (*enable)(void *,uint32_t);
+    int (*corona)(void *,rf_glare_base_owner *,uint32_t);
+    int (*reflection)(void *,rf_glare_base_owner *);
+    void *context;
+} rf_glare_render_backend;
+/*4154f0 corona/reflection dispatch. First matching view wins; at most two
+ * sample slots are represented by the owned state. Hidden base flag1 skips
+ * the owner. Marker0x80000000 selects corona, otherwise clear that view's
+ * two samples. Optional reflection uses the low byte; consume the marker
+ * after successful callbacks. No volume pass or visibility producer here.
+ * Backend must not mutate list ownership. After enable succeeds, later callback
+ * errors disable rendering and preserve prior progress; the failed owner's
+ * marker is not consumed. An enable failure returns directly. */
+int rf_glare_render_pass(rf_object_list *glares,const void *const *views,
+    uint32_t count,const void *current,uint32_t reflections,const rf_glare_render_backend *backend);
 #endif
