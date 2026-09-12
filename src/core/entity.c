@@ -1477,3 +1477,24 @@ int rf_entity_navigation_closest_point(const float point[3],const float start[3]
     for(i=0;i<3;++i){scaled=(float)((double)direction[i]*along);value[i]=(float)((double)start[i]+scaled);if(!isfinite(value[i]))return RF_FORMAT;}
     memcpy(closest,value,12);*distance_along=along;return RF_OK;
 }
+
+int rf_entity_navigation_basis(const float direction[3],float matrix[3][3])
+{
+    float value[3][3]={{0}};double length,inverse;uint32_t i;
+    if(!direction || !matrix)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(direction[i]))return RF_FORMAT;
+    length=sqrt(((double)direction[0]*direction[0]+(double)direction[1]*direction[1])+(double)direction[2]*direction[2]);
+    if(!(length>0) || !isfinite(length))return RF_FORMAT;inverse=1.0/length;
+    for(i=0;i<3;++i)value[2][i]=(float)(inverse*direction[i]);
+    if(value[2][0]<.0001f && value[2][0]>-.0001f && value[2][2]<.0001f && value[2][2]>-.0001f) {
+        value[0][0]=1;value[1][2]=value[2][1]<0?1:-1;value[2][1]=value[2][1]<0?-1:1;value[2][0]=value[2][2]=0;
+    } else {
+        value[0][0]=value[2][2];value[0][2]=-value[2][0];
+        length=sqrt(((double)value[0][0]*value[0][0]+(double)value[0][1]*value[0][1])+(double)value[0][2]*value[0][2]);inverse=1.0/length;
+        for(i=0;i<3;++i)value[0][i]=(float)(inverse*value[0][i]);
+        value[1][0]=(float)((double)value[2][1]*value[0][2]-(double)value[2][2]*value[0][1]);
+        value[1][1]=(float)((double)value[2][2]*value[0][0]-(double)value[2][0]*value[0][2]);
+        value[1][2]=(float)((double)value[2][0]*value[0][1]-(double)value[2][1]*value[0][0]);
+    }
+    memcpy(matrix,value,sizeof(value));return RF_OK;
+}

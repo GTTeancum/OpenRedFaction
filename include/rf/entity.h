@@ -964,4 +964,9 @@ int rf_entity_navigation_single(const float position[3],float radius,float heigh
 int rf_entity_navigation_closest_point(const float point[3],const float start[3],
     const float end[3],float closest[3],float *distance_along);
 
+/*4fcea0 direction basis for nonzero finite directions. Strict normalized X/Z
+ * +/-0.0001 thresholds select the vertical branch. Invalid direction leaves
+ * matrix unchanged; zero-direction original NaNs are not synthesized here. */
+int rf_entity_navigation_basis(const float direction[3],float matrix[3][3]);
+
 #endif
