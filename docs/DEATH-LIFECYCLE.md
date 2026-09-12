@@ -3743,3 +3743,28 @@ The native8192-byte DSP ring contains4037 nonzero samples. This proves
 combined scene device output, not isolated death-sound audibility. Complete
 death scheduling, armed/effective class views, corpse creation, enabled
 override visuals and real hardware remain open.
+
+
+Resolved falling predicate and death-entry verification - 2026-09-12
+
+rf_entity_falling reconstructs42a020 for a present actor. Modes3/8 return
+true directly; otherwise429990/486c90 must resolve physics use-kind1 and
+actor1380 contact material must equal-1. It reads no command714 data, so
+resolving this predicate before the shared entry helper cannot observe that
+helper's first vector clear. The campaign NPC support probe now uses this
+shared predicate in place of its identical inline rule.
+
+verify_death_entry_falling.py executes original42a020,429990 and486c90
+without helper hooks. It exercises756 combinations of object families,
+movement modes, use kinds and contact materials, including noncanonical
+upper bits:530 grounded and226 falling. Shared PC/NXDK results match.
+Each case also runs both fresh and already-dying original41fdc0 prefixes
+with the real predicate (1512 entry cases), stopping at48c9f0 collision
+teardown. Selected entry fields match PC/NXDK and every other actor byte
+is preserved. The existing4096-case supplied-low-byte suite still passes,
+as do all19 CTests and both builds. No new native XEMU run is claimed.
+
+Live entry still needs command714 storage/initialization ownership and
+body-field publication. Collision teardown, timers, death scheduling and
+corpse creation remain integration work; this predicate adds no allocator
+or replacement lifecycle.

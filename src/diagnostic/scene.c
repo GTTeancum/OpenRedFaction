@@ -3243,8 +3243,7 @@ static void campaign_npc_support_probe(const rf_geometry_collision_world *world,
     uint32_t record[16]={0},matched=0,i,flags=owner->object_flags;int status;
     memcpy(published,owner->published,12);record[0]=uid;++rf_scene_npc_support[0];
     gate.movement_mode=campaign_modes[owner->movement_slot].index;gate.linked_handle=-1;
-    gate.falling=gate.movement_mode==3 || gate.movement_mode==8 ||
-        (config->authored.use_kind==1 && support.material==-1);
+    gate.falling=rf_entity_falling(gate.movement_mode,config->authored.use_kind,support.material);
     gate.moved=rf_entity_support_moved(&flags,owner->previous,state.position);
     gate.body_flags=state.flags;gate.special=(flags&8)!=0;
     record[1]=(uint32_t)rf_entity_support_route(&gate);record[2]=gate.falling;

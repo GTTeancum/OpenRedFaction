@@ -662,6 +662,15 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--death-motion")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return death_motion_probe();
     }
+    if(argc==2 && !strcmp(argv[1],"--falling")) {
+        uint32_t words[3],result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(words,sizeof(words),1,stdin)==1) {
+            result=rf_entity_falling((int32_t)words[0],words[1],(int32_t)words[2]);
+            if(fwrite(&result,4,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--death-entry")) {
         uint32_t words[12],entered;rf_entity_death_entry_state state;
         _Static_assert(sizeof(state)==44,"Death entry wire layout");

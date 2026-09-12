@@ -505,6 +505,11 @@ int rf_entity_pain_react(rf_entity_pain_state *s,const rf_entity_pain_backend *b
     return RF_OK;
 }
 
+uint32_t rf_entity_falling(int32_t movement_mode,uint32_t use_kind,int32_t contact_material)
+{
+    return movement_mode==3 || movement_mode==8 || (use_kind==1 && contact_material==-1);
+}
+
 uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t falling)
 {
     if(state->flags_810&1u)return 0;

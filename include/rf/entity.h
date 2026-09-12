@@ -328,6 +328,9 @@ typedef struct rf_entity_pain_backend {
  * Finite representable lock duration required; post-effect errors do not roll
  * back state. Timer/RNG, weapon reset, playback and sound remain backend-owned. */
 int rf_entity_pain_react(rf_entity_pain_state *state,const rf_entity_pain_backend *backend);
+/* Original42a020 for a present actor; use_kind is resolved486c90.
+ * No mutation: modes3/8 bypass the contact-material/use-kind check. */
+uint32_t rf_entity_falling(int32_t movement_mode,uint32_t use_kind,int32_t contact_material);
 typedef struct rf_entity_death_entry_state {
     uint32_t flags_810,flags_1a8;
     float vector_714[3],vector_144[3],vector_150[3];
