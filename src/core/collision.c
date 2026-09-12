@@ -5,6 +5,31 @@
 #include <stdlib.h>
 #include <string.h>
 
+uint32_t rf_collision_model_polygon_contains(const float point[3],uint32_t count,
+    const float (*vertices)[3],const float normal[3])
+{
+    static const uint32_t axes[3][2]={{2,1},{0,2},{1,0}};
+    float absolute[3]={fabsf(normal[0]),fabsf(normal[1]),fabsf(normal[2])};
+    float px,py,ax,ay,bx,by,stored;double first,second;uint32_t axis,u,v,j;
+    axis=absolute[0]>absolute[1]?(absolute[0]>absolute[2]?0:2):(absolute[1]>absolute[2]?1:2);
+    u=axes[axis][normal[axis]>0?0:1];v=axes[axis][normal[axis]>0?1:0];
+    px=(float)((double)point[u]-vertices[0][u]);py=(float)((double)point[v]-vertices[0][v]);
+    for(j=2;j<count;++j) {
+        ax=(float)((double)vertices[j-1][u]-vertices[0][u]);ay=(float)((double)vertices[j-1][v]-vertices[0][v]);
+        bx=(float)((double)vertices[j][u]-vertices[0][u]);by=(float)((double)vertices[j][v]-vertices[0][v]);
+        if(ax>-0.0001f && ax<0.0001f) {
+            first=(double)px/bx;stored=(float)first;if(!(first>=0 && stored<=1))continue;
+            second=((double)py-(double)stored*by)/ay;
+        } else {
+            first=((double)ax*py-(double)ay*px)/((double)by*ax-(double)bx*ay);
+            stored=(float)first;if(!(first>=0 && stored<=1))continue;
+            second=((double)px-(double)stored*bx)/ax;
+        }
+        if(second>=0 && (double)stored+second<=1)return 1;
+    }
+    return 0;
+}
+
 uint32_t rf_collision_model_ray_plane(const float start[3],const float displacement[3],
     const float plane[4],float result[4])
 {

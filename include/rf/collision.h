@@ -73,6 +73,13 @@ int rf_collision_sphere_edge(const float start[3],const float delta[3],float rad
  * errors preserve inside. No allocation. */
 int rf_collision_polygon_contains(const float normal[3],const float point[3],
     const float (*vertices)[3],uint32_t count,uint32_t *inside);
+/* Original506dd0 model polygon containment via a projected triangle fan.
+ * Ordered contiguous vertices replace original vertex pointers. Requires
+ * 3..INT32_MAX vertices and finite inputs. Preserves original axis ties,
+ * normal-sign axis order and +/-0.0001 branch; no coplanarity check. Not
+ * interchangeable with the world polygon test above. No writes/allocation. */
+uint32_t rf_collision_model_polygon_contains(const float point[3],uint32_t count,
+    const float (*vertices)[3],const float normal[3]);
 typedef struct rf_collision_face_filter {
     uint32_t query_flags,face_flags; /* Query +50, face +28. */
     int32_t property_34; /* Signed 16-bit face +34. */

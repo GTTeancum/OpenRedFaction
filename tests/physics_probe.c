@@ -43,6 +43,16 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-polygon")) {
+        struct {float point[3],normal[3];uint32_t count;float vertices[8][3];} input;uint32_t result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(input.count<3 || input.count>8)return 3;
+            result=rf_collision_model_polygon_contains(input.point,input.count,input.vertices,input.normal);
+            if(fwrite(&result,4,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--model-ray-plane")) {
         float input[14];uint32_t result;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

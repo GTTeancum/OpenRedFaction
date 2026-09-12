@@ -4641,3 +4641,23 @@ triangle paths.54dd10 uses506430 then506dd0;54de40 uses5071b0,506dd0 and
 5076f0. Existing world polygon containment4e1f50 is not automatically a
 substitute for model506dd0, whose projected triangle-fan arithmetic requires
 its own reconstruction. Type2 triangle path54e530 also needs verification.
+
+## Model triangle-fan containment506dd0
+
+rf_collision_model_polygon_contains reconstructs506dd0 using contiguous
+ordered vertices instead of an array of vertex pointers. It chooses the
+projection axis with original strict comparisons/ties, swaps projected axes
+according to the normal sign, and tests successive triangles anchored at
+vertex0. Float-stored coordinate differences, the open(-0.0001,0.0001)
+branch, unrounded first-coordinate lower bound, float-stored upper bound
+and unrounded second-coordinate/sum comparisons are retained. It does not
+check coplanarity or replace the world polygon routine. Valid finite inputs
+and3..INT32_MAX vertices are required; no allocation or mutation.
+
+verify_model_polygon.py passes12288 complete-original/PC/NXDK cases with no
+hooks under027f:4177 hits and8111 misses. Coverage includes all axes/signs,
+normal magnitude ties,3..8 vertices, irregular and degenerate fans, exact
+vertices/edges, adjacent float values near epsilon and barycentric bounds,
+and points displaced off the projected plane. Inputs remain unchanged.
+Report: artifacts/model-polygon.json. PC/NXDK builds and all19 CTests pass.
+Full model triangle composition and native XEMU integration remain open.
