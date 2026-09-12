@@ -7,6 +7,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+#include "collision_pool_probe.h"
 #include "damage_effect_probe.h"
 #include "pain_probe.h"
 #include "burn_probe.h"
@@ -594,6 +595,9 @@ int main(int argc,char **argv)
             if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--collision-create")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return collision_pool_probe();
     }
     if(argc==2 && !strcmp(argv[1],"--collision-retire")) {
         uint32_t words[101],i;rf_collision_pair nodes[32];rf_collision_pair_list active,available;

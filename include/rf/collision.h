@@ -311,6 +311,20 @@ typedef struct rf_collision_pair_list {
     rf_collision_pair *head;
     uint32_t count;
 } rf_collision_pair_list;
+enum {RF_COLLISION_PAIR_CAPACITY=8192};
+/* Original16-byte x86 record; retirement touches only its header. */
+typedef struct rf_collision_pair_record {rf_collision_pair pair;uint32_t flags;} rf_collision_pair_record;
+/*48c950 list seeding: prepend records in ascending address order, preserving
+ * endpoints/payload and any preexisting free list. Distinct unlinked storage;
+ * initialization is once per pool, not a per-frame reset. No heap allocation. */
+void rf_collision_pairs_seed(rf_collision_pair_list *available,rf_collision_pair_record *records,uint32_t count);
+/*48bd80: gate48be00 runs before checking free capacity, flags initially zero.
+ * Only gate low byte==1 rejects. Pop free head, prepend active, then write
+ * endpoints/flags. Caller supplies valid exclusive lists and a live gate;
+ * callback may mutate lists. No duplicate filtering beyond the gate. */
+uint32_t rf_collision_pair_create(rf_collision_pair_list *active,rf_collision_pair_list *available,
+    const void *first,const void *second,
+    uint32_t (*gate)(void *,const void *,const void *,uint32_t *),void *context);
 /* Full48c9f0: unlink either-endpoint matches, prepend each to the free list.
  * Lists must be disjoint, finite, valid and exclusively owned during this
  * call. Counts use original uint32 wrap semantics. Payload is preserved. */

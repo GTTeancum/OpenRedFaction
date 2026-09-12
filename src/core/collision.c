@@ -1819,3 +1819,20 @@ void rf_collision_pairs_retire(rf_collision_pair_list *active,
         node=next;
     }
 }
+
+void rf_collision_pairs_seed(rf_collision_pair_list *available,rf_collision_pair_record *records,uint32_t count)
+{
+    uint32_t i;
+    for(i=0;i<count;++i){records[i].pair.next=available->head;available->head=&records[i].pair;++available->count;}
+}
+uint32_t rf_collision_pair_create(rf_collision_pair_list *active,rf_collision_pair_list *available,
+    const void *first,const void *second,
+    uint32_t (*gate)(void *,const void *,const void *,uint32_t *),void *context)
+{
+    uint32_t flags=0;rf_collision_pair_record *record;
+    if((gate(context,first,second,&flags)&255u)==1 || !available->head)return 0;
+    record=(rf_collision_pair_record *)available->head;
+    available->head=record->pair.next;--available->count;
+    record->pair.next=active->head;active->head=&record->pair;++active->count;
+    record->pair.first=first;record->pair.second=second;record->flags=flags;return 1;
+}

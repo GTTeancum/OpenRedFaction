@@ -3802,3 +3802,40 @@ retirement, global timers and downstream effects still need composition.
 The shared collision-pair retire helper exists, but a live campaign pair
 list owner has not yet been connected; an empty substitute is not evidence
 of original collision teardown.
+
+
+Collision pair pool and creation - 2026-09-12
+
+Original48c950 seeds records73db30 through75db20 at16-byte stride:8192
+records,131072 bytes. It prepends in ascending address order, leaving the
+highest address at the free-list head. Only next pointers change; endpoint
+and flags payload is preserved. It then registers an empty48c980 exit
+callback. rf_collision_pairs_seed reproduces list seeding with explicit
+caller-owned storage, preserving a preexisting available list/count. It is
+not a per-frame reset and must not be called twice on linked storage.
+
+rf_collision_pair_record adds the fourth word (flags) after the existing
+retirement header. rf_collision_pair_create reconstructs48bd80: zero local
+flags, call gate48be00, reject only when its low byte equals1, then check
+free capacity. Pop the free head, prepend to active, and write both actor
+identities and returned flags. Counters retain unsigned wrap behavior. The
+gate can modify the lists; free capacity is observed after it returns.
+The shared API requires valid exclusive lists and a live classification
+callback; it does not substitute a permissive gate or deduplicate pairs.
+
+verify_collision_pool.py runs original48c950 up to its CRT exit registration
+and compares all8192 next pointers and payload words with NXDK output.
+It then compares2048 original48bd80 creation cases with PC/NXDK, including
+1364 successful allocations, empty capacity, arbitrary free/active order,
+noncanonical gate bytes and counter wrap. Only48be00 classification is
+supplied; original list helpers execute unchanged. Existing4096 retirement
+cases (43750 removals), all19 CTests and both builds pass. Seed verification
+is original/NXDK; creation verification includes PC. No XEMU run is claimed.
+
+The pool is not yet allocated in the campaign. Its 128KiB plus list headers
+must be budgeted when discovery is connected.48be00 uses object-family,
+body flags, use-kind, size and model checks, and is not reconstructed by
+this change.48ca60 traverses active pairs, checks retirement via48cc10 and
+selects response functions from flags;49b900 queries active pairs during
+sweeps. These consumers and discovery scheduling must be connected before
+claiming live death collision cleanup.
