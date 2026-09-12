@@ -598,6 +598,13 @@ int rf_corpse_owned_create_bound(const rf_corpse_create_ownership *ownership,
     const rf_corpse_create_backend *backend,rf_corpse **result,
     int (*bind_model)(void *,rf_corpse_create_source *,rf_corpse *),void *model_context);
 
+/*428fe0 with40a1e0/5001d0: first mapped action-name match, ASCII C-locale
+ * case insensitive. NULL entries are unavailable; empty strings are available
+ * empty declarations. NULL query, absent model or non-skeletal kind returns-1.
+ * Caller resolves the45 declaration-index entries to valid terminated strings;
+ * this does not search animation filenames or infer availability from clips. */
+int32_t rf_entity_action_name_lookup(uint32_t model,uint32_t model_kind,const char *const names[45],const char *query);
+
 /* SP41fdc0 state prefix through41fe59, before collision-link teardown.
  * Requires a live state; falling is the resolved42a020 low byte.
  * Returns1 on entry,0 if already dying (all fields then remain untouched).

@@ -980,6 +980,21 @@ int rf_corpse_owned_create(const rf_corpse_create_ownership *o,rf_corpse_create_
     const rf_corpse_create_backend *backend,rf_corpse **result)
 {return rf_corpse_owned_create_bound(o,source,request,head,count,backend,result,NULL,NULL);}
 
+int32_t rf_entity_action_name_lookup(uint32_t model,uint32_t model_kind,const char *const names[45],const char *query)
+{
+    uint32_t i;
+    if(!query || !model || model_kind!=2 || !names)return -1;
+    for(i=0;i<45;++i)if(names[i]) {
+        const unsigned char *a=(const unsigned char*)names[i],*b=(const unsigned char*)query;
+        for(;;++a,++b) {
+            unsigned char x=*a,y=*b;
+            if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;
+            if(x!=y)break;if(!x)return (int32_t)i;
+        }
+    }
+    return -1;
+}
+
 int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backend *b)
 {
     uint32_t finish=0,token,i,gain;float end[3],offset,radius;

@@ -1721,3 +1721,31 @@ Live death dispatch and remaining resource effects are still open.
 The existing tools/verify_corpse_owned_create.py also passes256 PC/NXDK
 construction/deletion cycles and the PC allocation-boundary checks after this
 API extension, including poisoned cleanup storage and no post-recycle reads.
+
+
+## Original action-name lookup for corpse motions
+
+Original428fe0 first rejects NULL query or non-skeletal/absent actor models
+through40a1e0. It scans45 actor action slots: signed declaration index at
+actor+a58+i*16. Nonnegative indices address class+760 declaration records
+with52-byte stride.5001d0 compares the record string with the query; under
+C locale its actual57c130 callee folds ASCII uppercase only. First matching
+actor slot is returned, not the declaration index or model motion ID. An empty
+declaration matches an empty non-NULL query. Missing entries are skipped.
+
+rf_entity_action_name_lookup reconstructs this search over caller-resolved
+45 name pointers. NULL entry means missing; empty string means an available
+empty declaration. It preserves order and returns-1 for absent model, other
+model kinds or NULL query. This is not an animation filename search; the
+existing compiled-clip indices cannot alone establish declaration availability.
+Retaining authored declaration mappings and binding the corpse motion callback
+remain open, rather than assuming the fixed parser label list is equivalent.
+
+python tools/verify_action_name.py passes814 original/PC/NXDK comparisons:
+all45 positions, duplicate matches, reversed declaration storage, empty names,
+NULL query/model, non-skeletal kind,63-byte names, case variants and non-ASCII
+bytes. Full original428fe0/40a1e0/5001d0/57c130 execute without substituted
+callees; the harness explicitly sets original C locale. Original SHA256:
+b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836.
+Report: artifacts/action-name-verification.json. No live corpse/XEMU claim.
+Both complete builds and all18 CTests pass after the lookup addition.

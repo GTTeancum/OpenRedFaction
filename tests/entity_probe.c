@@ -78,8 +78,22 @@ static int slow_stand(void *context,uint32_t *stood)
 #include "corpse_owned_delete_probe.h"
 #include "corpse_owned_create_probe.h"
 #include "corpse_owned_abort_probe.h"
+static int action_name_probe(const char *path)
+{
+    FILE *file=fopen(path,"rb");uint32_t h[5],i;char data[46][64];const char *names[45];int32_t result;
+    if(!file)return 2;_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(h,1,sizeof(h),file)==sizeof(h)) {
+        if(fread(data,1,sizeof(data),file)!=sizeof(data)){fclose(file);return 3;}
+        for(i=0;i<46;++i)if(!memchr(data[i],0,64)){fclose(file);return 4;}
+        for(i=0;i<45;++i)names[i]=(h[2+i/32]&(1u<<(i%32)))?data[i]:NULL;
+        result=rf_entity_action_name_lookup(h[0],h[1],names,h[4]?data[45]:NULL);
+        if(fwrite(&result,4,1,stdout)!=1){fclose(file);return 5;}
+    }
+    fclose(file);return 0;
+}
 int main(int argc,char **argv)
 {
+    if(argc==3 && !strcmp(argv[1],"--action-name"))return action_name_probe(argv[2]);
     if(argc==2 && !strcmp(argv[1],"--corpse-owned-abort"))return corpse_owned_abort_probe();
     if(argc==2 && !strcmp(argv[1],"--corpse-owned-create"))return corpse_owned_create_probe();
     if(argc==2 && !strcmp(argv[1],"--finalize-owned-create"))return finalize_owned_create_probe();
