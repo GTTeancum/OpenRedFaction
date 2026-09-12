@@ -2139,3 +2139,38 @@ remain explicit fixture inputs. Collision/source effects are recorded only;
 replacement/emitter requests are rejected by this test, with selected authored
 classes confirmed to request neither. No live death dispatch, actual attachment
 publication, gameplay physics, rendering or XEMU corpse is claimed.
+
+
+## Original corpse source-effect reservation and lookup
+
+tools/verify_corpse_source_effects.py executes the original42dc00 dispatcher
+and the reservation/attachment-lookup portion of42dc50. It passes25 dispatch
+cases,10 gated returns and90 reservation cases, including30 complete original
+failed-lookup returns. No shared C/PC/NXDK equivalence is claimed yet.
+
+Flag08000000 requests eye with raw float arguments5.0/0.25; flag10000000
+requests spine with8.0/0.5. The second flag is reread after the first call,
+including when that call changes the flags. The arguments are not assigned
+physical meanings until the downstream update/render ownership is recovered.
+
+42dc50 first gates on global5a00f0. Original40a490 returns actor[0] in EAX;
+it is an integer object identifier, not the float suggested by raw Ghidra.
+Original503c00 reads model[8] unconditionally before the identifier/null
+metadata gates. Do not change this into a speculative model-kind predicate.
+
+Free ring62f488 and active ring62f764 use next/previous at4c/50. If no free
+slot exists, the original chooses the first active node with greatest field0
+value above-1.0, unlinks it, and places it alone in the free ring BEFORE
+attachment lookup. Existing free rings are left unchanged. Lookup51d5b0
+falls back to51d690 only on-1; both receive the same model metadata and name.
+If both fail, the recycled effect remains removed from the active ring and
+reserved in the free ring, with payload bytes unchanged. This ordering must
+be preserved even though allocating only after lookup would seem convenient.
+
+Successful-lookup cases stop before5034f0 and verify model/index plus actor
+basis48/position3c argument pointers. Scratch constructors and attachment
+lookup are supplied boundaries; geometry, successful publication, rendering,
+empty/corrupt pools and live actor integration remain unverified. The next
+reconstruction work is the attachment transform and downward geometry query,
+then effect update/render/lifetime ownership; fixture source effects remain
+explicitly unimplemented rather than being silently treated as complete.
