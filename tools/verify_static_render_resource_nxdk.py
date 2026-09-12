@@ -37,22 +37,23 @@ def hash_bytes(data):
  return h
 def digest():
  parts,lods,materials,np,nl,nm,nb=struct.unpack('<7I',x.mem_read(O,28));out=[f'R 0 {np} {nl} {nm} {nb}',f'H {hash_bytes(x.mem_read(parts,np*48))} {hash_bytes(x.mem_read(materials,nm*84))}']
+ spheres,ns=struct.unpack('<2I',x.mem_read(O+44,8));out.append(f'C {ns} {hash_bytes(x.mem_read(spheres,ns*48))}')
  for i in range(nl):
   g=lods+i*40;batches,vertices,triangles,reuse,bc,vc,tc,gb,planes,threshold=struct.unpack('<10I',x.mem_read(g,40))
   out.extend((f'P {i} {threshold} {hash_bytes(x.mem_read(planes,tc*16))}',f'G {i} {bc} {vc} {tc} {gb}'))
   for j in range(bc):
    fv,nv,ft,nt,mat=struct.unpack('<5I',x.mem_read(batches+j*20,20))
    out.extend((f'V {i} {j} {hash_bytes(x.mem_read(vertices+fv*40,nv*40))} {hash_bytes(x.mem_read(triangles+ft*8,nt*8))} {hash_bytes(x.mem_read(reuse+fv*4,nv*4))}',f'M {i} {j} {mat}'))
- assert nb==44+sum(live.values()),(filename,nb,live)
+ assert nb==52+sum(live.values()),(filename,nb,live)
  return out
 def check(budget,wanted,pc):
  global allocations,reads,cursor,cases
- assert not live;allocations=reads=0;cursor=B+0x10000;x.mem_write(O,bytes(44));status=call(entry,M,budget,O)
+ assert not live;allocations=reads=0;cursor=B+0x10000;x.mem_write(O,bytes(52));status=call(entry,M,budget,O)
  assert status==wanted,(filename,status,wanted)
- if status:assert bytes(x.mem_read(O,44))==bytes(44) and not live
+ if status:assert bytes(x.mem_read(O,52))==bytes(52) and not live
  else:assert digest()==pc,filename
  total_allocations,total_reads=allocations,reads
- call(close,O);call(close,O);assert bytes(x.mem_read(O,44))==bytes(44) and not live;cases+=1
+ call(close,O);call(close,O);assert bytes(x.mem_read(O,52))==bytes(52) and not live;cases+=1
  return total_allocations,total_reads
 names=['RunwayLight01_Larger','Double_MineLight04','minelight03','vines01','Port_Light01','shard04','shard05','Veg_Plant01','Veg_Plant02','shard02','shard03','shard01']
 archive=next(a for a in json.loads((ROOT/'artifacts/inventory.json').read_text())['files'] if a['path']=='meshes.vpp');entries={e['name'].lower():e for e in archive['vpp']['entries']};rows=[]
@@ -62,11 +63,11 @@ for name in names:
  x.mem_write(N,filename.encode()+b'\0');assert call(open_file,M,B,N)==0
  pc=subprocess.check_output([str(ROOT/'build/pc/Release/rf_model_file_probe.exe'),str(ROOT/'Installed_Game/meshes.vpp'),filename,'--static-resource','4194304'],text=True).splitlines();budget=int(pc[0].split()[-1])
  count,read_count=check(budget,0,pc);check(budget-1,0xfffffffc,pc)
- if not rows:
+ if not rows or name=='Port_Light01':
   for fail_alloc in range(1,count+1):check(budget,0xffffffff,pc)
   fail_alloc=0
-  for fail_read in (1,read_count//2,read_count):check(budget,0xffffffff,pc)
+  for fail_read in ((1,2,3,4,read_count//2,read_count) if name=='Port_Light01' else (1,read_count//2,read_count)):check(budget,0xffffffff,pc)
   fail_read=0
  rows.append(dict(model=filename,bytes=budget,allocations=count,reads=read_count));print(rows[-1],flush=True)
-report=dict(result='PASS',cases=cases,models=len(rows),retained=sum(a['bytes'] for a in rows),scope='Compiled NXDK actual file decoder/resource composition; only VPP find/read and heap supplied. Opening12 models versus PC retained bytes/hashes, exact/short budgets, every first-model allocation failure and three read failures, full cleanup. No native XEMU/texture or live scene claim.',records=rows)
+report=dict(result='PASS',cases=cases,models=len(rows),retained=sum(a['bytes'] for a in rows),scope='Compiled NXDK actual file decoder/resource composition; only VPP find/read and heap supplied. Opening12 models versus PC retained geometry/CSPH bytes/hashes, exact/short budgets, every first/portable-light allocation failure and nine read failures including all four portable-light sphere reads, full cleanup. No native XEMU/texture or live scene claim.',records=rows)
 (ROOT/'artifacts/static-render-resource-nxdk.json').write_text(json.dumps(report,indent=2));print(report)

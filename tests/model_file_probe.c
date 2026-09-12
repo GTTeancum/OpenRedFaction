@@ -275,6 +275,7 @@ int main(int argc, char **argv)
         printf("R %d %u %u %u %u\n",result,r.part_count,r.lod_count,r.material_count,r.allocated_bytes);
         if(!result) {
             printf("H %u %u\n",hash_bytes(2166136261u,r.parts,r.part_count*sizeof(*r.parts)),hash_bytes(2166136261u,r.materials,r.material_count*84));
+            printf("C %u %u\n",r.sphere_count,hash_bytes(2166136261u,r.spheres,r.sphere_count*sizeof(*r.spheres)));
             for(i=0;i<r.lod_count;++i) {
                 const rf_model_geometry *g=&r.lods[i].geometry;uint32_t threshold;
                 memcpy(&threshold,&r.lods[i].threshold,4);

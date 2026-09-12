@@ -1903,6 +1903,7 @@ static int campaign_clutter_render_open(rf_vpp *archive)
         const campaign_clutter_model *m=campaign_clutter_models+i;const rf_static_render_resource *r=&m->resource;
         hash=npc_hash_bytes(hash,m->name,(uint32_t)strlen(m->name)+1);hash=npc_hash_bytes(hash,r->bound,16);
         hash=npc_hash_bytes(hash,r->parts,r->part_count*sizeof(*r->parts));hash=npc_hash_bytes(hash,r->materials,r->material_count*84);
+        hash=npc_hash_bytes(hash,&r->sphere_count,4);hash=npc_hash_bytes(hash,r->spheres,r->sphere_count*sizeof(*r->spheres));
         rf_scene_clutter_render[6]+=r->material_count;
         for(j=0;j<r->lod_count;++j) {
             const rf_static_render_lod *lod=r->lods+j;const rf_model_geometry *g=&lod->geometry;

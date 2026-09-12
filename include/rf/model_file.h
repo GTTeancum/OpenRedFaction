@@ -191,9 +191,12 @@ typedef struct rf_static_render_lod {
 typedef struct rf_static_render_resource {
     rf_model_part_metadata *parts;rf_static_render_lod *lods;uint8_t (*materials)[84];
     uint32_t part_count,lod_count,material_count,allocated_bytes;float bound[4];
+    rf_model_collision_sphere *spheres;uint32_t sphere_count;
 } rf_static_render_resource;
 /* Retain all static LOD geometry, stored planes, part metadata, thresholds and
- * serialized material rows. Budget counts this owner and retained arrays once;
+ * serialized material rows and authored CSPH records (names/parents included).
+ * Spheres remain model-local; no physics body or transformed sphere is created.
+ * Budget counts this owner and retained arrays once;
  * caller-owned file directory/archive, textures and allocator metadata excluded.
  * No archive borrowing after success. Unsupported render formats still reject.
  * Zero-initialize, close before reuse; errors free partial state without publish. */

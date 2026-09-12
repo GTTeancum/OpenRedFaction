@@ -744,13 +744,13 @@ void rf_static_render_resource_close(rf_static_render_resource *resource)
     if(resource->lods)for(i=0;i<resource->lod_count;++i) {
         rf_model_geometry_close(&resource->lods[i].geometry);free(resource->lods[i].planes);
     }
-    free(resource->parts);free(resource->lods);free(resource->materials);memset(resource,0,sizeof(*resource));
+    free(resource->parts);free(resource->lods);free(resource->materials);free(resource->spheres);memset(resource,0,sizeof(*resource));
 }
 int rf_static_render_resource_open(const rf_model_file *model,uint32_t budget,rf_static_render_resource *resource)
 {
     rf_static_render_resource next={0};uint64_t bytes;uint32_t i,j,k,part=0,material=0;int status;
     if(!model || !model->archive || !resource || resource->parts || resource->lods || resource->materials ||
-       resource->part_count || resource->lod_count || resource->material_count || resource->allocated_bytes ||
+       resource->part_count || resource->lod_count || resource->material_count || resource->allocated_bytes || resource->spheres || resource->sphere_count ||
        !model->submeshes || model->section_count>RF_MODEL_MAX_SECTIONS || !model->lod_count || model->lod_count>RF_MODEL_MAX_LODS)return RF_RANGE;
     for(i=0;i<model->lod_count;++i)if(!(model->lods[i].flags&32))return RF_NOT_FOUND;
     for(i=0;i<model->section_count;++i)if(model->sections[i].type==0x5355424d) {
@@ -758,12 +758,15 @@ int rf_static_render_resource_open(const rf_model_file *model,uint32_t budget,rf
         ++part;next.material_count+=model->sections[i].material_count;
     }
     if(part!=model->submeshes)return RF_FORMAT;
+    for(i=0;i<model->section_count;++i)if(model->sections[i].type==0x43535048)++next.sphere_count;
     next.part_count=part;next.lod_count=model->lod_count;
-    bytes=sizeof(next)+(uint64_t)part*sizeof(*next.parts)+(uint64_t)next.lod_count*sizeof(*next.lods)+(uint64_t)next.material_count*sizeof(*next.materials);
+    bytes=sizeof(next)+(uint64_t)part*sizeof(*next.parts)+(uint64_t)next.lod_count*sizeof(*next.lods)+(uint64_t)next.material_count*sizeof(*next.materials)+(uint64_t)next.sphere_count*sizeof(*next.spheres);
     if(bytes>budget || bytes>SIZE_MAX)return RF_RANGE;
     next.parts=calloc(part,sizeof(*next.parts));next.lods=calloc(next.lod_count,sizeof(*next.lods));
     if(next.material_count)next.materials=malloc((size_t)next.material_count*sizeof(*next.materials));
-    if(!next.parts || !next.lods || (next.material_count && !next.materials)){status=RF_IO;goto fail;}
+    if(next.sphere_count)next.spheres=malloc(next.sphere_count*sizeof(*next.spheres));
+    if(!next.parts || !next.lods || (next.material_count && !next.materials) || (next.sphere_count && !next.spheres)){status=RF_IO;goto fail;}
+    for(i=0;i<next.sphere_count;++i){status=rf_model_file_collision_sphere(model,i,next.spheres+i);if(status)goto fail;}
     status=rf_model_file_static_bound_sphere(model,next.bound);if(status)goto fail;
     for(i=0;i<part;++i){status=rf_model_file_part_metadata(model,i,next.parts+i);if(status)goto fail;}
     part=0;
