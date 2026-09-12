@@ -3193,3 +3193,32 @@ claimed. Report: artifacts/death-link.json.
 
 Next: recover the remaining death-start player/camera effects and tail cleanup,
 then bind these stages to live registry, animation, item and world owners.
+
+
+## Shared SP death-start tail cleanup (2026-09-12)
+
+rf_entity_death_tail_sp reconstructs420b03..420bdc for single-player. Action520
+value13 calls4096f0 on the actor inventory. Class728 bit20 sets deadline4b8
+using shared rf_timer_set: radius78 greater than6 selects2000ms, otherwise
+1600ms. The original x87 unordered case also takes1600ms; NaN and infinity
+inputs are included in the comparison fixture. The shared clock is borrowed
+and read after the inventory callback, preserving strict timer-period wrap.
+
+The429ab0 actor callback always follows the optional timer. Flags810 are then
+reread; bit400000 calls43e9b0 with the name resolved from the original string
+owner by4ff480. Auxiliary model148c is read after that event. If nonzero,
+502b10 receives it and the field is cleared after release, even if the callback
+writes another value. MP-only1430/player timer behavior is excluded from this
+SP helper. Resource and callback owners must remain alive through the stage.
+
+verify_death_tail.py passes1024 exact original/PC/compiled-NXDK cases, including
+536 timer changes,502 events and525 releases. Original4fa360 executes unchanged;
+fixture callbacks exercise class-flag mutation, reset flag mutation, event
+model replacement and release-time writes. Threshold neighbors, negative
+radius, infinities, NaN and clock-wrap boundaries are included. Actor bytes
+outside mapped fields remain unchanged. Both builds, all19 CTests and the
+1024-case linked-actor comparison pass. No live resource release, death
+dispatch or XEMU gameplay is claimed. Report: artifacts/death-tail.json.
+
+Next: recover the early player/camera side effects between death-entry and
+animation, then compose the verified stages using live resource ownership.

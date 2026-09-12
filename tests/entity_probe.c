@@ -23,6 +23,7 @@
 #include "death_motion_probe.h"
 #include "death_drop_probe.h"
 #include "death_link_probe.h"
+#include "death_tail_probe.h"
 static uint32_t death_clearance(void *context,uint32_t direction)
 {uint32_t *v=context;++v[2];v[3]=direction;return v[direction];}
 typedef struct death_ray_trace {uint32_t responses[4],count,points[24];} death_ray_trace;
@@ -637,6 +638,9 @@ int main(int argc,char **argv)
     }
     if(argc==2 && !strcmp(argv[1],"--death-drop")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return death_drop_probe();
+    }
+    if(argc==2 && !strcmp(argv[1],"--death-tail")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return death_tail_probe();
     }
     if(argc==2 && !strcmp(argv[1],"--death-link")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return death_link_probe();

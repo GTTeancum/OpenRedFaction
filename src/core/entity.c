@@ -1308,3 +1308,21 @@ int rf_entity_death_link_sp(const rf_entity_death_link_source *s,const rf_entity
     }
     return RF_OK;
 }
+
+int rf_entity_death_tail_sp(rf_entity_death_tail_state *s,const rf_entity_death_tail_backend *b)
+{
+    int status;
+    if(!s || !b || !b->call || !b->now_ms)return RF_RANGE;
+    if(s->action_520==13)b->call(b->context,RF_DEATH_TAIL_INVENTORY,0);
+    if(s->class_flags_728&0x20u) {
+        status=rf_timer_set(&s->deadline_4b8,*b->now_ms,s->radius_78>6.0f?2000:1600);
+        if(status)return status;
+    }
+    b->call(b->context,RF_DEATH_TAIL_RESET,0);
+    if(s->flags_810&0x400000u)b->call(b->context,RF_DEATH_TAIL_EVENT,s->name);
+    if(s->model_148c) {
+        b->call(b->context,RF_DEATH_TAIL_RELEASE,s->model_148c);
+        s->model_148c=0;
+    }
+    return RF_OK;
+}

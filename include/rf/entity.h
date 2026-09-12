@@ -640,6 +640,21 @@ typedef struct rf_entity_death_motion_backend {
 int rf_entity_death_motion_sp(rf_entity_death_motion_state *,uint32_t player,
     const rf_entity_death_motion_backend *);
 
+typedef struct rf_entity_death_tail_state {
+    uint32_t action_520,class_flags_728;float radius_78;int32_t deadline_4b8;
+    uint32_t flags_810,model_148c,name;
+} rf_entity_death_tail_state;
+enum rf_entity_death_tail_call {RF_DEATH_TAIL_INVENTORY,RF_DEATH_TAIL_RESET,RF_DEATH_TAIL_EVENT,RF_DEATH_TAIL_RELEASE};
+typedef struct rf_entity_death_tail_backend {
+    void (*call)(void *,uint32_t operation,uint32_t argument);void *context;const int32_t *now_ms;
+} rf_entity_death_tail_backend;
+/* SP420b03..420bdc. INVENTORY=4096f0(actor+2a0), RESET=429ab0(actor),
+ * EVENT=43e9b0(name resolved by4ff480), RELEASE=502b10(model).
+ * Inventory/reset use argument0. Callback changes to flags/model/class/clock
+ * are observed at the original boundaries; release is followed by model=0.
+ * Borrowed state, name and callback owners stay alive. No MP1430 reset. */
+int rf_entity_death_tail_sp(rf_entity_death_tail_state *,const rf_entity_death_tail_backend *);
+
 typedef struct rf_entity_death_link_actor {
     uint32_t handle,parent_200,flags_814,word_34;
     float position[3],basis[9],base_position[3],base_basis[9];
