@@ -7312,3 +7312,32 @@ Both builds and all19 CTests pass. Report: artifacts/material-records.json.
 Verification here uses PC archive decoding; pixel bytes are not independently
 hashed by this new probe. Scene binding, native XEMU texture ownership,
 clutter material/skin policy and static drawing remain open.
+
+
+## Native scene-owned clutter textures and materials
+
+Campaign startup now concatenates retained static material rows into one
+shared base-material bundle and retains per-model material offsets. The
+caller row copy is freed before return; partial failures and scene cleanup
+release the offsets and complete material/image bundle. The1MiB cap includes
+retained offsets plus bundle ownership, and both the caller row copy and
+loader scratch in peak accounting. Geometry resource ownership is separate.
+Original clutter skin variants/factory effects and device texture submission
+are not implemented by this base-material binding.
+
+Stock64MiB XEMU actor-pair replay20260912-153543 passes180 frames with
+CLUTTER_MATERIALS=[12,23,11,843456,847688,3830229234,837632,3791756628].
+These are models, material rows, textures, retained bytes, loading peak,
+runtime-material/offset hash, image storage bytes and logical RGBA pixel
+hash. Every200-byte runtime record and owned auxiliary array is hashed.
+Pixel hashing includes dimensions/source format and reads every pixel in
+top-left order through rf_image_pixel, comparing Xbox swizzled storage
+with PC row-major storage. All eight fields match PC. Existing static
+geometry hash3534861336 and replay checks remain passing. Guest memory
+is67108864 base bytes with0 plugged bytes. XBE SHA256:
+a24b6a19eb3a9d3bd27f810fae650038425e0ede2ef42a4631fbb234b9fddd94.
+Both builds and all19 CTests pass after harness restoration. Evidence:
+artifacts/xemu/replay-20260912-153543/report.json. These materials/images
+are resident scene resources; clutter instance view preparation, skin
+selection and actual draw/device submission still need integration. No
+new visual was produced or posted.

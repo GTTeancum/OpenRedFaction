@@ -280,6 +280,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
       assert clutter_render[:4]==[12,168,2,0] and clutter_render[4:6]==[109416,118208],clutter_render
      report['clutter_render']=clutter_render
+     clutter_materials=words(monitor,symbol('rf_scene_clutter_materials'),8)
+     assert clutter_materials==expected('CLUTTER_MATERIALS'),clutter_materials
+     assert clutter_materials[0]==clutter_render[0] and clutter_materials[1]==clutter_render[6],clutter_materials
+     assert clutter_materials[3]<=clutter_materials[4]<=1024*1024,clutter_materials
+     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+      assert clutter_materials[:5]==[12,23,11,843456,847688],clutter_materials
+     report['clutter_materials']=clutter_materials
      npc_models=words(monitor,symbol('rf_scene_npc_models'),4)
      assert npc_models==expected('NPC_MODELS'),npc_models
      assert npc_models==[npc_bodies[1],npc_bodies[0]*80,npc_bodies[1],0],npc_models

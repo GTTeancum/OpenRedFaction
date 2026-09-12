@@ -1177,6 +1177,9 @@ static rf_level_owned_clutter campaign_clutter_records;
 uint32_t rf_scene_clutter[8]; /* classes, records, unmatched, class bytes, record bytes, retained, load peak, hash */
 uint32_t rf_scene_clutter_render[8]; /* models, bindings, unmatched, nonstatic, retained, peak, materials, hash */
 typedef struct campaign_clutter_model {char name[64];rf_static_render_resource resource;} campaign_clutter_model;
+uint32_t rf_scene_clutter_materials[8]; /* models, rows, textures, retained, peak, material hash, image bytes, pixel hash */
+static rf_model_materials campaign_clutter_materials;
+static uint32_t *campaign_clutter_material_offsets;
 static campaign_clutter_model *campaign_clutter_models;
 static uint32_t *campaign_clutter_model_slots,campaign_clutter_model_count;
 
@@ -1849,6 +1852,8 @@ static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes)
 }
 static void campaign_clutter_render_close(void)
 {
+    rf_model_materials_close(&campaign_clutter_materials);
+    free(campaign_clutter_material_offsets);campaign_clutter_material_offsets=NULL;
     uint32_t i;for(i=0;i<campaign_clutter_model_count;++i)rf_static_render_resource_close(&campaign_clutter_models[i].resource);
     free(campaign_clutter_models);free(campaign_clutter_model_slots);
     campaign_clutter_models=NULL;campaign_clutter_model_slots=NULL;campaign_clutter_model_count=0;
@@ -1907,6 +1912,51 @@ static int campaign_clutter_render_open(rf_vpp *archive)
     rf_scene_clutter_render[7]=hash;free(file);return RF_OK;
  fail:
     free(file);campaign_clutter_render_close();return status;
+}
+static int campaign_clutter_materials_open(rf_vpp *archives,uint32_t archive_count)
+{
+    const uint32_t budget=1024*1024;uint8_t (*records)[84]=NULL;
+    uint64_t count=0,scratch,offset_bytes;uint32_t i,j,k,x,y,h=2166136261u,p=2166136261u;int status;
+    if(campaign_clutter_material_offsets || campaign_clutter_materials.items)return RF_RANGE;
+    memset(rf_scene_clutter_materials,0,sizeof(rf_scene_clutter_materials));
+    if(!campaign_clutter_model_count)return RF_OK;
+    for(i=0;i<campaign_clutter_model_count;++i)count+=campaign_clutter_models[i].resource.material_count;
+    offset_bytes=((uint64_t)campaign_clutter_model_count+1)*4;scratch=count*84;
+    if(offset_bytes+scratch>budget)return RF_RANGE;
+    campaign_clutter_material_offsets=malloc((size_t)offset_bytes);
+    if(count)records=malloc((size_t)scratch);
+    if(!campaign_clutter_material_offsets || (count && !records)){status=RF_IO;goto fail;}
+    k=0;
+    for(i=0;i<campaign_clutter_model_count;++i) {
+        const rf_static_render_resource *r=&campaign_clutter_models[i].resource;
+        campaign_clutter_material_offsets[i]=k;
+        if(r->material_count)memcpy(records+k,r->materials,r->material_count*84);
+        k+=r->material_count;
+    }
+    campaign_clutter_material_offsets[i]=k;
+    status=rf_model_materials_open_records(&campaign_clutter_materials,records,k,archives,archive_count,(uint32_t)(budget-offset_bytes-scratch));
+    if(status)goto fail;
+    free(records);records=NULL;
+    rf_scene_clutter_materials[0]=campaign_clutter_model_count;rf_scene_clutter_materials[1]=campaign_clutter_materials.count;
+    rf_scene_clutter_materials[2]=campaign_clutter_materials.textures.count;
+    rf_scene_clutter_materials[3]=campaign_clutter_materials.resident_bytes+(uint32_t)offset_bytes;
+    rf_scene_clutter_materials[4]=campaign_clutter_materials.peak_bytes+(uint32_t)(offset_bytes+scratch);
+    h=npc_hash_bytes(h,campaign_clutter_material_offsets,(uint32_t)offset_bytes);
+    for(i=0;i<campaign_clutter_materials.count;++i) {
+        const rf_model_material_instance *item=campaign_clutter_materials.items+i;
+        h=npc_hash_bytes(h,item->record.bytes,200);
+        for(j=0;j<3;++j)h=npc_hash_bytes(h,item->arrays[j],item->counts[j]*4);
+    }
+    for(i=0;i<campaign_clutter_materials.textures.count;++i) {
+        const rf_image *image=&campaign_clutter_materials.textures.items[i].image;
+        p=npc_hash_bytes(p,&image->width,4);p=npc_hash_bytes(p,&image->height,4);p=npc_hash_bytes(p,&image->source_format,4);
+        for(y=0;y<image->height;++y)for(x=0;x<image->width;++x)p=npc_hash_bytes(p,rf_image_pixel(image,x,y),4);
+        rf_scene_clutter_materials[6]+=image->bytes;
+    }
+    rf_scene_clutter_materials[5]=h;rf_scene_clutter_materials[7]=p;return RF_OK;
+ fail:
+    free(records);free(campaign_clutter_material_offsets);campaign_clutter_material_offsets=NULL;
+    rf_model_materials_close(&campaign_clutter_materials);return status;
 }
 static int campaign_clutter_open(const char *tables_path,const rf_level *level)
 {
@@ -5820,6 +5870,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_audio_open(tables_path,level->entry.name,binding.entity.class_name);if(status)goto done;
             status=campaign_clutter_open(tables_path,level);if(status)goto done;
             status=campaign_clutter_render_open(&archive);if(status)goto done;
+            status=campaign_clutter_materials_open(maps,map_count);if(status)goto done;
             memset(rf_scene_live_activation,0,sizeof(rf_scene_live_activation));campaign_actor_controller=UINT32_MAX;
             memset(rf_scene_trigger_contacts,0,sizeof(rf_scene_trigger_contacts));
             memset(&campaign_entities,0,sizeof(campaign_entities));memset(&campaign_player_view,0,sizeof(campaign_player_view));
