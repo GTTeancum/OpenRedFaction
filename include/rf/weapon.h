@@ -92,6 +92,38 @@ int rf_weapon_reserve(const rf_weapon_inventory *inventory,const rf_weapon_suppl
 int rf_weapon_choose_available(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],
     const int32_t preference[32],uint32_t defer_flag,int32_t *selected);
 
+typedef struct rf_weapon_drop_source {
+    int32_t current;uint32_t flags_1a8,handle,notification_owner;
+    float position[3],extent_7c4;
+} rf_weapon_drop_source;
+typedef struct rf_weapon_drop_definition {int32_t ammo_type,quantity;} rf_weapon_drop_definition;
+typedef struct rf_weapon_drop_pose {float position[3],basis[9];} rf_weapon_drop_pose;
+typedef struct rf_weapon_drop_request {int32_t item,quantity;uint32_t owner;rf_weapon_drop_pose pose;} rf_weapon_drop_request;
+typedef struct rf_weapon_drop_backend {
+    uint32_t (*pose)(void *,rf_weapon_drop_pose *); /*418e60(actor,0,...); nonzero handled. */
+    int32_t (*item)(void *,int32_t weapon); /*459a90. */
+    uint32_t (*remote)(void *,int32_t item); /*5001d0: Remote Charges, low byte. */
+    int32_t (*resolve_remote)(void *); /*459430: Remote Charge. */
+    void (*remove)(void *,int32_t weapon); /*4031a0(actor+2a0,weapon). */
+    /*4df1c0: identity local, radius.1, flags2000, FLT_MAX, hierarchy1. */
+    int (*query)(void *,const float start[3],const float delta[3],rf_entity_death_drop_hit *);
+    /*459100(item,empty,quantity,owner,position,basis,-1,0,0). */
+    rf_entity_death_drop_item *(*create)(void *,const rf_weapon_drop_request *);
+    void (*notify)(void *,uint32_t owner,int32_t item,const float point[3]); /*401340. */
+    int (*bounds)(void *,uint32_t model,float *second_x); /*503310; read-only item. */
+    void *context;
+} rf_weapon_drop_backend;
+/* Complete SP42ae10 orchestration with supplied resource owners. Parameter's
+ * low byte==1 selects pose placement; any nonzero low byte notifies, including
+ * failed creation. Other values remove inventory and clear current before query.
+ * Callback/source/inventory/definition lifetimes span the call. No reentry.
+ * Callbacks must preserve unrelated state; pose may change current, which is
+ * reread for mapping/quantity. RNG/order and prior changes survive later errors.
+ * Created item remains exposed on a bounds failure. No implicit allocation,
+ * model evaluation, global RNG or live death dispatch. */
+int rf_weapon_drop_sp(rf_weapon_drop_source *,rf_weapon_inventory *,const rf_weapon_drop_definition definitions[64],
+    int32_t excluded,uint32_t parameter,rf_random_state *,const rf_weapon_drop_backend *,rf_entity_death_drop_item **);
+
 typedef struct rf_weapon_empty_input {
     int32_t current,always_weapon,block_weapon,excluded_weapon,paired_first,paired_second;
     uint32_t automatic_enabled,request_flag,passenger,special_block,override_mode,defer_flag;

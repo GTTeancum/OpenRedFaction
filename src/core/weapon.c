@@ -1,6 +1,7 @@
 #include "rf/weapon.h"
 #include "rf/timer.h"
 #include <string.h>
+#include <math.h>
 int rf_weapon_update_presentation(rf_weapon_presentation_state *state,int32_t weapon,
     const rf_weapon_model_descriptor descriptors[64],const rf_weapon_model_cache cache[32],
     const rf_weapon_presentation_context *context,const rf_weapon_presentation_ops *ops,
@@ -224,4 +225,81 @@ int rf_weapon_reset(rf_weapon_reset_state *state,int32_t weapon,
         status=ops->player_reset(user); if (status!=RF_OK) return status;
     }
     return RF_OK;
+}
+
+
+static void weapon_drop_cross(const float a[3],const float b[3],float out[3])
+{
+    out[0]=(float)((double)a[1]*b[2]-(double)a[2]*b[1]);
+    out[1]=(float)((double)a[2]*b[0]-(double)a[0]*b[2]);
+    out[2]=(float)((double)a[0]*b[1]-(double)a[1]*b[0]);
+}
+static int weapon_drop_basis(float basis[9],const float normal[3])
+{
+    float value[9];double dot,length;uint32_t i;
+    for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(normal[i]))return RF_RANGE;
+    dot=((double)basis[0]*normal[0]+(double)basis[1]*normal[1])+(double)basis[2]*normal[2];
+    if(dot>0)weapon_drop_cross(basis+6,normal,value+3);
+    else weapon_drop_cross(normal,basis+6,value+3);
+    length=sqrt(((double)value[3]*value[3]+(double)value[4]*value[4])+(double)value[5]*value[5]);
+    if(!isfinite(length))return RF_RANGE;
+    if(length<=0){value[3]=1;value[4]=value[5]=0;}
+    else {length=1.0/length;for(i=3;i<6;++i)value[i]=(float)(value[i]*length);}
+    if(dot>0)weapon_drop_cross(normal,value+3,value+6);
+    else weapon_drop_cross(value+3,normal,value+6);
+    weapon_drop_cross(value+3,value+6,value);
+    for(i=0;i<9;++i)if(!isfinite(value[i]))return RF_RANGE;
+    memcpy(basis,value,36);return RF_OK;
+}
+int rf_weapon_drop_sp(rf_weapon_drop_source *s,rf_weapon_inventory *inventory,const rf_weapon_drop_definition definitions[64],
+    int32_t excluded,uint32_t parameter,rf_random_state *random,const rf_weapon_drop_backend *b,rf_entity_death_drop_item **result)
+{
+    rf_weapon_drop_request request={0};rf_entity_death_drop_hit hit={0};rf_entity_death_drop_item *item;
+    int32_t weapon,ammo,quantity,reduction;uint32_t draw,i;uint64_t magnitude,product;
+    float start[3],delta[3],end_y,size,offset;int status;
+    if(!s || !inventory || !definitions || !random || !b || !result || !b->pose || !b->item ||
+       !b->remote || !b->resolve_remote || !b->remove || !b->query || !b->create || !b->notify || !b->bounds)return RF_RANGE;
+    *result=NULL;weapon=s->current;
+    if(weapon==excluded || s->flags_1a8&0x400000u)return RF_OK;
+    if(weapon>=0) {
+        if(weapon>=64)return RF_RANGE;ammo=definitions[weapon].ammo_type;
+        if(ammo<0 || ammo>=32)return RF_RANGE;
+        if((int32_t)((uint32_t)inventory->reserve[ammo]+(uint32_t)inventory->loaded[weapon])<=0)return RF_OK;
+    }
+    request.pose.basis[0]=request.pose.basis[4]=request.pose.basis[8]=1;
+    if(b->pose(b->context,&request.pose))return RF_OK;
+    request.item=b->item(b->context,s->current);if(request.item==-1)return RF_OK;
+    weapon=s->current;if(weapon<0 || weapon>=64)return RF_RANGE;
+    quantity=definitions[weapon].quantity;status=rf_random_next(random,&draw);if(status)return status;
+    /* Exact trunc(quantity*draw*.2f/32768), using .2f=13421773/2^26.
+     * Split the up-to71-bit numerator before multiplying, avoiding64-bit overflow. */
+    magnitude=quantity<0?(uint64_t)(-(int64_t)quantity):(uint64_t)quantity;
+    product=magnitude*draw;
+    magnitude=(((product>>24)*13421773u+(((product&0xffffffu)*13421773u)>>24))>>17);
+    reduction=quantity<0?-(int32_t)magnitude:(int32_t)magnitude;
+    quantity=(int32_t)((uint32_t)quantity-(uint32_t)reduction);request.quantity=quantity<4?4:quantity;
+    if(b->remote(b->context,request.item)&255u)request.item=b->resolve_remote(b->context);
+    parameter&=255u;
+    memcpy(start,parameter==1?request.pose.position:s->position,12);
+    if(!isfinite(s->extent_7c4))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(start[i]))return RF_RANGE;
+    end_y=(float)((double)start[1]-(double)s->extent_7c4*4.0);
+    if(parameter==1)start[1]=(float)((double)start[1]+.5);
+    else {b->remove(b->context,s->current);s->current=-1;}
+    delta[0]=delta[2]=0;delta[1]=(float)((double)end_y-start[1]);
+    if(!isfinite(start[1]) || !isfinite(delta[1]))return RF_RANGE;
+    status=b->query(b->context,start,delta,&hit);if(status)return status;if(hit.count<=0)return RF_OK;
+    status=weapon_drop_basis(request.pose.basis,hit.normal);if(status)return status;
+    for(i=0;i<3;++i)if(!isfinite(hit.point[i]))return RF_RANGE;
+    memcpy(request.pose.position,hit.point,12);request.owner=s->handle;
+    item=b->create(b->context,&request);*result=item;
+    if(parameter)b->notify(b->context,s->notification_owner,request.item,request.pose.position);
+    if(!item)return RF_OK;item->flags_2bc|=8u;
+    status=b->bounds(b->context,item->model,&size);if(status)return status;if(!isfinite(size))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        offset=(float)((double)hit.normal[i]*size);
+        item->base_position[i]=(float)((double)item->base_position[i]+offset);
+    }
+    memcpy(item->position,item->base_position,12);return RF_OK;
 }

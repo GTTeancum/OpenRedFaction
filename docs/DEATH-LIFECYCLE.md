@@ -3009,3 +3009,43 @@ The remaining implementation target is the full SP routine, using existing
 shared inventory/RNG/query/item types where their contracts match. Item/resource
 ownership, real model-pose/bounds and live dispatch remain separate open work.
 Report: artifacts/weapon-drop-original.json.
+
+
+## Shared SP weapon-drop orchestration (2026-09-12)
+
+`rf_weapon_drop_sp` now reconstructs the complete42ae10 single-player routine
+with explicit resource callbacks. It borrows the existing weapon inventory and
+random-state owner, consumes64 drop definitions, preserves original callback
+order/current-weapon writes, and returns any created item to its caller even
+when a later bounds callback fails. Model pose may update current before its
+mapping is queried; the current index is reread at the original boundaries.
+
+The implementation preserves the parameter low-byte distinction: exactly1
+uses model-pose placement without removal, while any nonzero byte notifies
+after creation (including failure). Other placement values call removal and
+clear current before collision. Queries keep the original radius.1/flags2000/
+FLT_MAX/hierarchy1 contract; item requests retain the computed surface basis
+and459100's -1,0,0 trailing arguments. Empty-name/default-resource ownership
+is a create-backend contract, not a fabricated live allocator.
+
+Quantity reduction uses the exact .2f rational and shared15-bit RNG draw.
+Splitting the integer product before multiplication avoids overflowing64 bits
+and reproduces truncation without relying on platform x87 intermediate width.
+Surface axes use the original cross-product order, double-precision length,
+float stores and zero-length normalization fallback. Item position adjustment
+preserves the product float spill before addition.
+
+`tools/verify_weapon_drop_shared.py` regenerates the original oracle and passes
+1024 exact comparisons for compiled PC and NXDK code: current weapon, modeled
+owned-byte changes, RNG, query vectors, item request quantity/point/basis, final
+item flags/base/current position, ordered callbacks and notification arguments.
+Two additional resource-error cases verify query failure after removal and
+bounds failure after creation/notification/flag8; the created item stays exposed
+for cleanup. Both builds and all19 CTests pass. The original fixture's4031a0
+owned-byte effect remains supplied, not an independent reconstruction of that
+helper. Native checks run compiled NXDK code in the instruction harness, not
+live XEMU gameplay. Report: artifacts/weapon-drop-shared.json.
+
+Next: bind real item allocation/list/registry ownership, model-pose/bounds,
+weapon-to-item/default-count tables and query/removal/notification callbacks,
+then compose remaining death-start stages with dying/finalization dispatch.
