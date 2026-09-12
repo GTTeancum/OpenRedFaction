@@ -110,6 +110,35 @@ int rf_physics_support_accept(rf_physics_body_state *state,const rf_physics_grou
     memcpy(published,state->position,12);
     value.material=material;*support=value;return RF_OK;
 }
+int rf_physics_support_finish(rf_physics_support_actor *actor,const rf_physics_ground_probe *probe,
+    const rf_collision_actor_contact *contact,const rf_physics_support_backend *backend)
+{
+    rf_physics_support_object object={0};double up;int route,status;uint32_t falling;
+    if(!actor || !actor->body || !actor->extra || !actor->support || !actor->published || !probe || !contact ||
+        !backend || !backend->lookup || !backend->fall || !backend->impact || !backend->land || !backend->relative)return RF_RANGE;
+    up=((double)contact->normal[2]*0+(double)contact->normal[1])+(double)contact->normal[0]*0;
+    if(!(contact->time>=1) && up>=.5) {
+        status=backend->lookup(backend->context,contact->handle,&object);if(status)return status;
+    }
+    falling=rf_entity_falling((int32_t)actor->mode,actor->use_kind,actor->support->material);
+    route=rf_entity_support_contact_route(contact->time,up,object.present,object.type,object.body_flags,falling);
+    if(route==RF_ENTITY_CONTACT_FALL)return backend->fall(backend->context,actor);
+    if(route==RF_ENTITY_CONTACT_NONE)return RF_OK;
+    status=rf_physics_support_accept(actor->body,probe,contact->time,object.present,contact->velocity[1],object.handle,
+        (int32_t)contact->material,actor->support,actor->published);if(status)return status;
+    status=rf_collision_contact_write(actor->body,actor->extra,contact);if(status)return status;
+    if(rf_entity_falling((int32_t)actor->mode,actor->use_kind,actor->support->material)) {
+        float impact=(float)-(((double)actor->body->velocity[2]*contact->normal[2]+(double)actor->body->velocity[1]*contact->normal[1])+
+            (double)actor->body->velocity[0]*contact->normal[0]);
+        status=backend->impact(backend->context,actor,impact);if(status)return status;
+        status=backend->land(backend->context,actor);if(status)return status;
+    }
+    if(contact->word_1f0 && (contact->handle&0x80000000u)) {
+        uint32_t value;status=backend->relative(backend->context,contact->word_1f0,contact,&value);if(status)return status;
+        actor->relative_contact=value;
+    }
+    return RF_OK;
+}
 void rf_physics_support_refresh(uint32_t mode,const float resolved_velocity[3],
     float cached_velocity[3],uint32_t *body_flags,uint32_t *object_flags)
 {

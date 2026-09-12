@@ -5826,3 +5826,38 @@ already identified as authored logical crouch8/crouch-walk9 motion slots in
 NPC initialization; contact adapters can source them from the retained mapping.
 Full contact effect binding remains open; these requests alone do not make
 NPCs move or change visible playback in the restored test scene.
+
+
+### Composed post-query support finish (2026-09-12)
+
+rf_physics_support_finish reconstructs4a0a5c through4a0c94 after the ground
+query. It preserves lookup gating and rejected-contact fall routing, accepts
+static/moving support through the verified numeric commit, copies the complete
+contact payload and publishes position/handle/material. The falling predicate
+is reevaluated after material1380 is assigned. If true, signed normal impact
+is delivered before landing, even if the impact callback changes movement mode.
+
+Query word_1f0 is original local18, the opaque source for4e5c60. Nonzero source
+plus a high-bit query handle invokes relative conversion and stores its result
+in actor1474 after landing. The query remains immutable across callbacks, so
+changes to the body's copied contact word do not replace this source. Backend
+callbacks retain actor lifetime and update mode/use-kind facts as needed.
+Failures stop immediately; completed contact publication and earlier effects
+are not rolled back. Ground preparation/execution is outside this helper.
+
+tools/verify_support_finish.py runs original4a0a5c through return with actual
+lookup, predicates,417d80 contact copy and vector/bounds helpers. Only fall,
+impact,landing and relative callbacks are supplied.4096 cases exactly match
+PC/NXDK body/contact/support/published state, mutable actor facts and callback
+arguments/order. Counts:[975 lookup,789 fall,626 impact,626 landing,
+432 relative conversion]. Initial/final material-dependent falling, rising
+and static support, rejected type3/high-bit bodies and reentrant callback
+changes are covered. All five callback failure boundaries preserve applied
+state and stop subsequent work; query/probe/source bytes stay unchanged.
+
+Both builds and19 CTests pass. Report:artifacts/support-finish-verification.json.
+The PC callback fixture is tests/support_finish_probe.h. This completes
+post-query orchestration at callback boundaries, not full4a0840 or live
+NPC landing. Compose query execution and scene fall/impact/landing/relative
+backends next; crouch must reenter that same path. No new native XEMU run
+or visible gameplay change is claimed for this compiled-NXDK comparison.

@@ -378,6 +378,31 @@ typedef struct rf_physics_support_contact {
 int rf_physics_support_accept(rf_physics_body_state *state,const rf_physics_ground_probe *probe,
     float fraction,uint32_t moving,float contact_y,uint32_t object_handle,int32_t material,
     rf_physics_support_contact *support,float published[3]);
+struct rf_collision_actor_contact;
+typedef struct rf_physics_support_actor {
+    rf_physics_body_state *body;struct rf_collision_contact_extra *extra;
+    rf_physics_support_contact *support;float *published;
+    uint32_t mode,use_kind,relative_contact;
+} rf_physics_support_actor;
+typedef struct rf_physics_support_object {uint32_t present,type,body_flags,handle;} rf_physics_support_object;
+typedef struct rf_physics_support_backend {
+    int (*lookup)(void *,uint32_t,rf_physics_support_object *);
+    int (*fall)(void *,rf_physics_support_actor *);
+    int (*impact)(void *,rf_physics_support_actor *,float);
+    int (*land)(void *,rf_physics_support_actor *);
+    int (*relative)(void *,uint32_t,const struct rf_collision_actor_contact *,uint32_t *);
+    void *context;
+} rf_physics_support_backend;
+/*4a0a5c..4a0c94 after the ground query: route, accept contact, publish support,
+ * then impact/landing and optional relative-contact token. Query normal is
+ * dotted with original world-up(0,1,0). Falling is reevaluated after material
+ * publication. Callbacks update mutable actor facts and retain owner lifetime.
+ * Rejected support requests fall only when not already falling. contact.word_1f0
+ * is the query's opaque original local18 token; only nonzero plus a high-bit
+ * contact handle invokes relative conversion. Prior effects survive errors.
+ * Does not prepare/execute the ground query or implement callback internals. */
+int rf_physics_support_finish(rf_physics_support_actor *actor,const rf_physics_ground_probe *probe,
+    const struct rf_collision_actor_contact *contact,const rf_physics_support_backend *backend);
 /* 41e370/40a420 after caller resolves the support handle. Modes 1/3 copy
  * current support velocity and set body/object wake flags. NULL resolved
  * velocity means lookup failed: preserve all outputs. Output pointers must
