@@ -331,6 +331,7 @@ static int eye_binding_check(void)
     campaign_seeds.records.items=&record;campaign_seeds.records.count=1;
     record.record.orientation[0][0]=record.record.orientation[1][1]=record.record.orientation[2][2]=1;
     owner.published[0]=10;owner.published[1]=20;owner.published[2]=30;
+    CHECK(campaign_models_open()==RF_OK);
     eye.tag=-1;CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==20);
     eye.tag=0;eye.parent=0;eye.offsets[1]=2;eye.offsets[4]=1;
     CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==22);
@@ -342,6 +343,16 @@ static int eye_binding_check(void)
     matrix[0][10]=5;CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==25.5f);
     eye.parent=-1;CHECK(campaign_npc_eye_update(0)==RF_RANGE && owner.eye_position[1]==25.5f);
     CHECK(campaign_npc_eye_update(1)==RF_RANGE);
+    {
+        rf_entity_owned_pose owned={0};uint16_t stamps[1]={0};eye.parent=0;
+        pose.generations=stamps;rf_motion_playback_initialize(&pose.playback);
+        CHECK(rf_entity_registered_pose_take(&campaign_model_owners[0].registration,
+            &campaign_model_owners[0].pose,&campaign_playback_resources,sizeof(owned)+50,&owned)==RF_OK);
+        memset(matrix,0xdd,sizeof(matrix));
+        CHECK(campaign_npc_eye_update(0)==RF_OK && owner.eye_position[1]==25.5f);
+        campaign_models_close();CHECK(rf_entity_owned_pose_close(&owned,&campaign_playback_resources)==RF_OK);
+        CHECK(campaign_npc_eye_update(0)==RF_RANGE);
+    }
     campaign_npc_eyes=NULL;campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     memset(&campaign_poses,0,sizeof(campaign_poses));memset(&campaign_seeds,0,sizeof(campaign_seeds));return 0;
 }
@@ -490,6 +501,7 @@ int main(void)
     campaign_seeds.items=&seed;campaign_seeds.records.count=1;
     pose.controller.current=pose.controller.next=-1;
     pose.playback.completion.active.count=1;pose.playback.completion.active.slots[0].motion=0;
+    CHECK(campaign_models_open()==RF_OK);
     CHECK(campaign_npc_pose_residency(0)==RF_OK);
     CHECK(data[0] && !data[1] && campaign_npc_motion_bytes==baseline+80);
     CHECK(motions[0].file.resident==data[0]);
@@ -538,7 +550,7 @@ int main(void)
     CHECK(campaign_npc_motion_require(0,0)==RF_IO && !data[0] && data[1]);
     CHECK(!motions[0].file.resident && !motions[1].file.resident && !sizes[0]);
     CHECK(campaign_npc_motion_bytes==1024*1024-80);
-    CHECK(pain_binding_check()==0);free(data[1]);CHECK(eye_binding_check()==0);CHECK(event_damage_binding_check()==0);CHECK(player_feedback_check()==0);CHECK(player_damage_check()==0);
+    CHECK(pain_binding_check()==0);campaign_models_close();free(data[1]);CHECK(eye_binding_check()==0);CHECK(event_damage_binding_check()==0);CHECK(player_feedback_check()==0);CHECK(player_damage_check()==0);
     CHECK(sound_request_check()==0);
     puts("PASS: selection, aliases, pressure, reference protection, eviction, reload and failure recovery");return 0;
 }

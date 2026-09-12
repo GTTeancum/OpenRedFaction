@@ -1588,3 +1588,24 @@ also passes. Both builds and all18 CTests pass. No live corpse/XEMU claim:
 scene rendering, residency, eye and pain consumers still use actor pose slots;
 redirect their ownership before activating the corpse-creation binding.
 Report: artifacts/registered-pose-verification.json.
+
+
+## Live registered pose consumers
+
+Campaign playback, residency, eye placement, pain reactions and drawing now
+resolve their pose through campaign_model_pose. The lookup checks registration
+state and active-list identity, skips unloaded authored slots and rejects
+inconsistent loaded owners. Initial construction/digests and level-array cleanup
+retain their source-array access. This removes live pose-storage dependence
+on the original actor slot; transforms, appearance and room indices are still
+actor-owned and require corpse bindings before runtime ownership can change.
+
+The residency unit fixture now publishes its model. Its eye test transfers
+registered ownership, poisons the former matrices, verifies the same eye position,
+then retires and closes the moved pose. All18 CTests and three campaign registry
+replays pass. Both PC and NXDK builds pass. Live corpse creation is still open.
+
+Native XEMU replay-20260911-215023 passes180 frames on stock64MiB with
+door/damage/audio fixtures and matching PC telemetry, including model registry
+[78,1560,78,0]. This verifies the redirected consumers on untransferred campaign
+poses; the transferred-eye fixture is PC-only.

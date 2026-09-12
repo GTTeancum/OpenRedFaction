@@ -536,6 +536,18 @@ static int campaign_models_open(void)
     if(status)campaign_models_close();return status;
 }
 
+/* Runtime consumers resolve the published model pose, not its original level
+ * array slot. Empty authored slots have no model; inconsistent owners fail. */
+static int campaign_model_pose(uint32_t slot,rf_entity_pose **result)
+{
+    campaign_model_owner *owner;
+    if(!result || slot>=campaign_model_owner_count || !campaign_model_owners)return RF_RANGE;
+    owner=campaign_model_owners+slot;*result=NULL;
+    if(!owner->registration.loaded)return RF_OK;
+    if(!owner->pose || owner->pose->skeleton==UINT32_MAX || !owner->registration.next || !owner->registration.previous ||
+       owner->registration.active!=&owner->pose->playback.completion.active)return RF_RANGE;
+    *result=owner->pose;return RF_OK;
+}
 static void **campaign_npc_motion_data;
 static uint32_t *campaign_npc_motion_sizes;
 static uint32_t campaign_npc_motion_count,campaign_npc_motion_bytes;
@@ -600,8 +612,8 @@ static int campaign_npc_pose_residency(uint32_t actor)
     uint32_t i;int status;
     if(actor>=campaign_poses.count || actor>=campaign_seeds.records.count)return RF_RANGE;
     {
-        const rf_entity_pose *pose=campaign_poses.items+actor;
-        if(pose->skeleton==UINT32_MAX)return RF_OK;
+        rf_entity_pose *pose;status=campaign_model_pose(actor,&pose);if(status)return status;
+        if(!pose)return RF_OK;
         if(pose->playback.completion.active.count>16 ||
            campaign_seeds.items[actor].class_index>=campaign_motion_catalog.class_count)return RF_RANGE;
         for(i=0;i<pose->playback.completion.active.count+3;++i) {
@@ -1419,9 +1431,10 @@ static uint32_t campaign_npc_body_count;
 static int campaign_npc_eye_update(uint32_t actor)
 {
     rf_eye_input input={0};float tag[12],placed[12];int status;
-    const rf_entity_pose *pose;const campaign_npc_eye_class *eye;campaign_npc_body *owner;uint32_t cls;
+    rf_entity_pose *pose;const campaign_npc_eye_class *eye;campaign_npc_body *owner;uint32_t cls;
     if(actor>=campaign_npc_body_count || actor>=campaign_poses.count || !campaign_npc_eyes)return RF_RANGE;
-    owner=campaign_npc_bodies+actor;pose=campaign_poses.items+actor;cls=campaign_seeds.items[actor].class_index;
+    status=campaign_model_pose(actor,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    owner=campaign_npc_bodies+actor;cls=campaign_seeds.items[actor].class_index;
     if(cls>=campaign_seeds.class_count)return RF_RANGE;eye=campaign_npc_eyes+cls;
     memcpy(input.position,owner->published,12);
     memcpy(input.orientation,campaign_seeds.records.items[actor].record.orientation,36);
@@ -2168,7 +2181,7 @@ int rf_scene_npc_pain(uint32_t handle,int32_t now,rf_random_state *random,const 
     if(!random || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
     if(i==campaign_npc_body_count)return RF_NOT_FOUND;
-    c.owner=campaign_npc_bodies+i;c.pose=campaign_poses.items+i;
+    c.owner=campaign_npc_bodies+i;status=campaign_model_pose(i,&c.pose);if(status)return status;if(!c.pose)return RF_NOT_FOUND;
     if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&c.owner->view)return RF_NOT_FOUND;
     cls=campaign_seeds.items[i].class_index;
     if(cls>=campaign_motion_catalog.class_count || cls>=campaign_base_motions.class_count ||
@@ -3470,15 +3483,16 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0,g=2166136261u;int status;
     if(campaign_npc_body_count!=campaign_poses.count)return RF_RANGE;
     /* Original snapshot list completes before any model/controller update. */
-    for(i=0;i<campaign_npc_body_count;++i)if(campaign_poses.items[i].skeleton!=UINT32_MAX) {
+    for(i=0;i<campaign_npc_body_count;++i) {
+        rf_entity_pose *pose;status=campaign_model_pose(i,&pose);if(status)return status;if(!pose)continue;
         campaign_npc_body *owner=campaign_npc_bodies+i;
         rf_entity_position_snapshot(&owner->object_flags,owner->previous,owner->published);
         owner->view.flags_7c=owner->object_flags;
     }
     for(i=0;i<campaign_poses.count;++i) {
-        rf_entity_pose *pose=campaign_poses.items+i;const rf_entity_motion_mapping *map;
+        rf_entity_pose *pose;const rf_entity_motion_mapping *map;
         rf_entity_playback_model *model;float displacement[3]={0};uint32_t class_index;
-        if(pose->skeleton==UINT32_MAX)continue;
+        status=campaign_model_pose(i,&pose);if(status)return status;if(!pose)continue;
         class_index=campaign_seeds.items[i].class_index;
         if(class_index>=campaign_motion_catalog.class_count || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
         map=campaign_motion_catalog.mappings+class_index;model=campaign_playback_resources.models+pose->skeleton;
@@ -3542,11 +3556,11 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
     projection.scale[0]=320;projection.scale[1]=240;projection.clamp=1;
     lights.ambient[0]=40;lights.ambient[1]=50;lights.ambient[2]=60;
     for(actor=0;actor<campaign_poses.count;++actor) {
-        const rf_entity_pose *pose=campaign_poses.items+actor;const rf_entity_render_model *model;
+        rf_entity_pose *pose;const rf_entity_render_model *model;
         const rf_level_entity *entity;rf_model_projection view;float prepared[50][12];uint16_t generations[50];
         uint32_t appearance,first,last,start_actor=stream->mesh->count;
         rf_scene_npc_draw_detail[0]=actor;
-        if(pose->skeleton==UINT32_MAX)continue;
+        status=campaign_model_pose(actor,&pose);if(status)return status;if(!pose)continue;
         if(stream->npc_rooms[actor]<stream->visibility.state.count &&
             !stream->visibility.state.rooms[stream->npc_rooms[actor]].visible)continue;
         appearance=campaign_appearances.actor_indices[actor];if(appearance>=campaign_npc_materials.count)return RF_FORMAT;
