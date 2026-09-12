@@ -1886,3 +1886,21 @@ Both builds and all18 CTests pass. Existing original comparisons pass4096
 duration cases (PC/NXDK) and6000 action-start cases. These compare underlying
 primitives; the new scene adapters have PC fixture coverage. Per-frame model
 advancement, transforms, owned sounds and live death dispatch remain open.
+
+
+## Corpse skeletal advance dispatch boundary
+
+tools/verify_corpse_advance_dispatch.py executes original503360/501ab0 and
+observes entry to51ba80 across64 combinations of delta, auxiliary argument,
+position/basis pointers and final flag. Deliberately unmapped nonzero transform
+pointers prove these wrappers do not dereference them for type2. The skeletal
+payload is forwarded as this; only delta, auxiliary and final flag are passed.
+The check stops before51ba80 and does not claim playback or lazy pose timing.
+Report: artifacts/corpse-advance-dispatch.json.
+
+Consequently the pending skeletal corpse advance adapter must not copy its
+position/basis arguments into model placement as a503360 side effect. Corpse
+render placement and room membership require their separate owner update.
+Playback51ba80 is already reconstructed by rf_motion_update; connecting its
+transferred owner and determining when cached pose evaluation is demanded
+remain the next integration work. Type3 advancement is outside this evidence.
