@@ -6745,3 +6745,25 @@ native XEMU replay. No live clutter or new visual is claimed. Next establish
 owned complete class definitions, generic model/body creation and actual
 sound/emitter/glare/collision/slot resources, then bind retained level records
 and successful creation order to scene visibility.
+
+
+Authored clutter flag parsing (2026-09-12)
+----------------------------------------
+rf_clutter_flags_read reconstructs513020 with the nine-entry vocabulary selected
+at40f957..40f960 from593f20: collectable1, collide_weapon2, collide_object4,
+is_screen8, shatters10, has_alpha20, is_switch40, can_carry80, is_clock100.
+Only these nine names are authored flags. The next pointer words reference
+clock texture filenames, not additional flag names. Runtime corona-cache400
+and light-cache800 bits are set by4104a0, not by the authored parser.
+
+verify_clutter_flags.py executes unmodified513020 and its parser/CRT helpers;
+no hooks replace token reading or comparison. All431 installed declarations
+and all512 bit combinations match PC and compiled NXDK output and exact byte
+consumption. Synthetic combinations include uppercase, duplicate names,
+comments and trailing input. Six PC/NXDK malformed/unknown flag cases preserve
+both outputs and return RF_FORMAT; the original fatal diagnostic is not invoked.
+The reader handles one parenthesized list without allocation; the full class
+loader must pass its remaining text and advance by the returned byte count.
+This is a class-loader dependency, not complete40f4f0, resource ownership or
+live scene integration. No new visual or native XEMU replay is claimed.
+PC/NXDK builds and all19 CTests pass after this addition.

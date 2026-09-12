@@ -1,6 +1,12 @@
 #ifndef RF_CLUTTER_H
 #define RF_CLUTTER_H
 #include "rf/object_registry.h"
+/* Original513020 with40f4f0's nine-entry flag vocabulary. Read one quoted
+ * parenthesized list; consumed stops immediately after its closing parenthesis.
+ * ASCII-insensitive names, duplicate flags OR together; comments allowed.
+ * Unknown/malformed input fails without modifying either output. The original
+ * fatal parser diagnostic is returned as RF_FORMAT. No allocation. */
+int rf_clutter_flags_read(const void *text,uint32_t bytes,uint32_t *flags,uint32_t *consumed);
 
 typedef struct rf_clutter_class {
     const char *name,*model,*corpse;

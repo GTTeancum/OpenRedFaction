@@ -1,4 +1,5 @@
 #include "rf/entity_assets.h"
+#include "rf/clutter.h"
 #include "rf/model.h"
 #include "rf/model_file.h"
 #include "rf/effect.h"
@@ -1580,6 +1581,22 @@ static int class_assets_read(const void *text,uint32_t bytes,const char *class_n
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found || !skin_found)return RF_NOT_FOUND;
     *assets=value;return RF_OK;
+}
+int rf_clutter_flags_read(const void *text,uint32_t bytes,uint32_t *flags,uint32_t *consumed)
+{
+    static const char *const names[]={"collectable","collide_weapon","collide_object","is_screen",
+        "shatters","has_alpha","is_switch","can_carry","is_clock"};
+    lexer l={(const unsigned char *)text,bytes,0};char t[256];int status,quoted;uint32_t value=0,i;
+    if(!text || !flags || !consumed)return RF_RANGE;
+    status=token(&l,t,&quoted);if(status || quoted || strcmp(t,"("))return RF_FORMAT;
+    for(;;) {
+        status=token(&l,t,&quoted);if(status)return RF_FORMAT;
+        if(!quoted && !strcmp(t,")"))break;
+        if(!quoted)return RF_FORMAT;
+        for(i=0;i<9;++i)if(same(t,names[i]))break;
+        if(i==9)return RF_FORMAT;value|=1u<<i;
+    }
+    *flags=value;*consumed=l.at;return RF_OK;
 }
 int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
 {return class_assets_read(text,bytes,class_name,skin,assets,0);}
