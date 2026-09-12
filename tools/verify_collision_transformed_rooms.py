@@ -57,9 +57,7 @@ for n in range(5004):
   edge=struct.unpack('<I',u.mem_read(out+32,4))[0];edge_hits+=bool(edge)
   value=bytes(u.mem_read(out+4,28))+struct.pack('<4I',0,count,edge,index)
  else:value=bytes([0xa5])*44
- if n==5000:
-  expected.append(struct.pack('<i',-2)+bytes([0xa5])*48) # Port rejects coplanar zero-local-delta NaN at the plane helper.
- else:expected.append(struct.pack('<iI',0,bool(count))+value)
+ expected.append(struct.pack('<iI',0,bool(count))+value)
 for offset,value,status in [(160,99,-4),(28,256,-4),(32,99,-4),(0,math.nan,-2),(208,math.nan,-2),(212,0x1000,-3),(216,-1.0,-2),(216,math.nan,-2)]:
  wire=bytearray(cases[0]);struct.pack_into('<f' if isinstance(value,float) else '<I',wire,offset,value);cases.append(bytes(wire));expected.append(struct.pack('<i',status)+bytes([0xa5])*48)
 for offset in (220,232):
@@ -86,5 +84,5 @@ for n,(wire,want) in enumerate(zip(cases,expected)):
  x.emu_start(entry,stop,count=1000000);assert x.reg_read(UC_X86_REG_EIP)==stop
  got=struct.pack('<I',x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(out+44,4))+bytes(x.mem_read(out,44))
  assert got==want,('NXDK',n,got.hex(),want.hex())
-report=dict(result='PASS',original_cases=5003,port_guards=11,hits=hits,multiple_updates=multiple,edge_hits=edge_hits,nxdk_sha256=hashlib.sha256(xbox_path.read_bytes()).hexdigest(),scope='Complete unmodified 4df1c0 with swept radii, translated/rotated inputs and direct-local bypass, no preferred face/cache, hierarchy enabled and special mode 1000 disabled; unchanged tree/face queries. Four single-face room trees, ordered primary/detail lists, skip flags, overlap rejection, ties and first/nearest queries. PC and actual NXDK-linked comparison; three collapsed-local fixtures (one coplanar NaN is a port error) plus inactive original motion. Not XEMU gameplay.')
+report=dict(result='PASS',original_cases=5004,port_guards=10,hits=hits,multiple_updates=multiple,edge_hits=edge_hits,nxdk_sha256=hashlib.sha256(xbox_path.read_bytes()).hexdigest(),scope='Complete unmodified 4df1c0 with swept radii, translated/rotated inputs and direct-local bypass, no preferred face/cache, hierarchy enabled and special mode 1000 disabled; unchanged tree/face queries. Four single-face room trees, ordered primary/detail lists, skip flags, overlap rejection, ties and first/nearest queries. PC and actual NXDK-linked comparison; three collapsed-local fixtures including original coplanar miss plus inactive original motion. Not XEMU gameplay.')
 (root/'artifacts/collision-transformed-rooms-verification.json').write_text(json.dumps(report,indent=2));print(report)

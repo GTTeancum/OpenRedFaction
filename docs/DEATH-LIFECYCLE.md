@@ -8145,3 +8145,9 @@ child references and zero-displacement inactivity are included. Existing
 local-room5008 checks, both builds and21 CTests pass. Transformed/preferred/
 flat paths and live scene resource binding remain open; these tests do not
 establish native XEMU gameplay alpha collision.
+
+Transformed-room regression follow-up: an old test expected FORMAT for a
+collapsed coplanar thin query. Current shared thin handling returns a miss,
+matching the executed original, as established by the earlier coplanar audit.
+Removed that obsolete override; all5004 original transformed-room cases and
+10 port guards now pass. No collision implementation change was necessary.
