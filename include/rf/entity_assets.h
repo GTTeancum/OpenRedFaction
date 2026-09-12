@@ -207,9 +207,10 @@ typedef struct rf_entity_eye_limits {float minimum[3],maximum[3];} rf_entity_eye
 /* Selected class metadata from41bb32..41bbb9. Empty model retains the source
  * instance; absent emitter has an empty name and lifetime -1. Names are owned,
  * not runtime model/emitter handles. Port parser requires ordered, unique corpse
- * fields and finite lifetime; selected-class errors preserve output. */
+ * fields and finite lifetime; selected-class errors preserve output.
+ * Body temperature comes from41d4bc..41d4db, optional finite Fahrenheit,0 default. */
 typedef struct rf_entity_corpse_config {
-    char model[64],emitter[64];float emitter_lifetime;
+    char model[64],emitter[64];float emitter_lifetime,body_temperature;
 } rf_entity_corpse_config;
 int rf_entity_corpse_config_read(const void *text,uint32_t bytes,const char *name,
     rf_entity_corpse_config *result);

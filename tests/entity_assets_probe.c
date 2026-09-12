@@ -470,9 +470,9 @@ int main(int argc,char **argv)
             printf("SEED_EYE\t%s\t%u\t%u\t%u\t%u\t%u\t%u\n",
                 seeds.records.items[seeds.classes[i].record_index].record.class_name,
                 eye_words[0],eye_words[1],eye_words[2],eye_words[3],eye_words[4],eye_words[5]);
-            printf("SEED_CORPSE\t%s\t%s\t%s\t%.9g\n",
+            printf("SEED_CORPSE\t%s\t%s\t%s\t%.9g\t%.9g\n",
                 seeds.records.items[seeds.classes[i].record_index].record.class_name,
-                seeds.classes[i].corpse.model,seeds.classes[i].corpse.emitter,seeds.classes[i].corpse.emitter_lifetime);
+                seeds.classes[i].corpse.model,seeds.classes[i].corpse.emitter,seeds.classes[i].corpse.emitter_lifetime,seeds.classes[i].corpse.body_temperature);
             const rf_entity_lod_distances *lod=&seeds.classes[i].lod;
             printf("SEED_LOD\t%s\t%u\t%.9g\t%.9g\t%.9g\t%.9g\n",
                 seeds.records.items[seeds.classes[i].record_index].record.class_name,

@@ -2090,3 +2090,26 @@ Final bounds radii are1.554366 miner and1.564534 guard. All720 animation frames
 still pass with unchanged hashes and zero motion references after teardown.
 This strengthens constructor-input evidence but does not yet construct the
 complete live corpse from an actor or assign its optional item handle.
+
+
+## Corpse temperature metadata
+
+Original41d4bc pushes the string $Body Temperature(F):,41d4ce reads the float,
+and41d4d3 stores class+13e4;41d4db defaults it to zero. Constructor416940
+copies5cd8e4 + class_index*1514 into corpse2b0. The417290 decay therefore
+represents cooling relative to the class body temperature, not an unknown
+general-purpose lifetime value.
+
+rf_entity_corpse_config now retains body_temperature, adding4 bytes per class
+inside existing budget accounting. The parser accepts one finite value with
+zero default; the lexer splits the tag parentheses into separate tokens.
+PC/NXDK metadata comparison passes63 installed classes and85 total cases,
+including missing/negative/duplicate/nonfinite values. Three level seed loads
+retain the field through archive close and exact/short-budget checks. Original
+parser tag/default evidence is static instruction inspection, not parser execution.
+
+The authored update fixture now seeds current/class temperatures from retained
+metadata. Both env_guard and miner1 start at90F and finish at89.268402F after
+120 ordinary ticks plus eligible transition/failure-path updates. Both builds,
+18 CTests and720 authored frames pass. Full live constructor-source population
+remains open; infrared rendering is not implemented by this change.

@@ -1587,10 +1587,14 @@ int rf_entity_corpse_config_read(const void *text,uint32_t bytes,const char *nam
     status=named_effect_block(text,bytes,name,&start,&length,authored);if(status)return status;
     l=(lexer){(const unsigned char *)text+start,length,0};value.emitter_lifetime=-1.0f;
     while((status=token(&l,t,&quoted))==RF_OK) {
-        if(quoted || !same(t,"$Corpse"))continue;
+        if(quoted)continue;
+        if(same(t,"$Body") && metadata_tag(&l,"Temperature ( F ) :")) {
+            if((seen&8) || sphere_number(&l,&value.body_temperature))return RF_FORMAT;seen|=8;continue;
+        }
+        if(!same(t,"$Corpse"))continue;
         if(metadata_tag(&l,"V3D Filename:")) {
-            if(seen)return RF_FORMAT;
-            if(metadata_string(&l,value.model,sizeof(value.model)))return RF_FORMAT;seen=1;
+            if(seen&7)return RF_FORMAT;
+            if(metadata_string(&l,value.model,sizeof(value.model)))return RF_FORMAT;seen|=1;
         } else if(metadata_tag(&l,"Emitter:")) {
             if(seen&6)return RF_FORMAT;
             if(metadata_string(&l,value.emitter,sizeof(value.emitter)))return RF_FORMAT;seen|=2;

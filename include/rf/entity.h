@@ -356,7 +356,7 @@ typedef struct rf_corpse_fade_state {
 int rf_corpse_fade_step(rf_corpse_fade_state *state,float frame_seconds,uint32_t *continue_tick);
 typedef struct rf_corpse_update_state {
     rf_corpse_fade_state fade;
-    int32_t emitter_deadline_2ac;float value_2b0,class_value;
+    int32_t emitter_deadline_2ac;float value_2b0,class_value; /* current/class body temperature(F) */
     uint32_t model;int32_t motion_2b8,item_2cc;
     float position[3],basis[9];
 } rf_corpse_update_state;

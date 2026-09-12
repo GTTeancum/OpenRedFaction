@@ -698,6 +698,7 @@ static int corpse_authored_check(char **argv)
             &config,class_spheres,&class_sphere_count)==RF_OK);
         corpse->update.model=actor+1;corpse->update.basis[0]=corpse->update.basis[4]=corpse->update.basis[8]=1;
         corpse->update.position[1]=10;corpse->attachment_index=0;
+        corpse->update.value_2b0=corpse->update.class_value=campaign_seeds.classes[cls].corpse.body_temperature;
         corpse->update.item_2cc=-1;corpse->update.motion_2b8=-1;rf_timer_clear(&corpse->update.emitter_deadline_2ac);
         CHECK(campaign_npc_motion_require(skeleton,(uint32_t)death)==RF_OK);
         CHECK(rf_motion_start(&source->playback,campaign_playback_resources.models[skeleton].resources,
@@ -752,6 +753,10 @@ static int corpse_authored_check(char **argv)
             CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,4000,NULL,0,pending,NULL)==RF_OK);
             CHECK((corpse->update.fade.object_flags_7c&2) && pose->playback.generation==generation);
         }
+        if(campaign_seeds.classes[cls].corpse.body_temperature>0)
+            CHECK(corpse->update.value_2b0<campaign_seeds.classes[cls].corpse.body_temperature && corpse->update.value_2b0>campaign_seeds.classes[cls].corpse.body_temperature*.99f);
+        printf("CORPSE_TEMPERATURE %s %.6f %.6f\n",campaign_seeds.records.items[actor].record.class_name,
+            campaign_seeds.classes[cls].corpse.body_temperature,corpse->update.value_2b0);
         CHECK(model_changed);printf("CORPSE_AUTHORED %s %u %d %.6f %u %u\n",campaign_skeletons.items[skeleton].model,pose->bone_count,death,duration,model_changed,previous);
         CHECK(rf_scene_model_retire(actor)==RF_OK);++tested;
     }
