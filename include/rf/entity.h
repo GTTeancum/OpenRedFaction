@@ -7,6 +7,30 @@
 #include "rf/random.h"
 #include "rf/physics.h"
 
+/* Resolved464625..46474a record-creation stage. Fields named after original
+ * offsets belong to stable created actors; class_flags_728 is shared class
+ * storage. Create returns NULL on allocation failure, or a live distinct
+ * owner whose fields/pointers remain valid through the second allocation. */
+typedef struct rf_entity_loader_created {
+    uint32_t handle,linked_146c,flags_814;uint8_t field_7c8;
+    float field_7cc;uint32_t *class_flags_728;
+} rf_entity_loader_created;
+typedef struct rf_entity_loader_create_request {
+    int32_t class_id;const char *name;int32_t uid;
+    const float *position,*orientation;uint32_t flags;int32_t player_index;
+} rf_entity_loader_create_request;
+typedef struct rf_entity_loader_creation {
+    int32_t class_id;uint32_t hidden,other_flag,multiplayer,excluded;
+    uint32_t special_name,matching_level;int32_t special_class;
+    const char *name;const float *position,*orientation;
+} rf_entity_loader_creation;
+/* Input predicates/name/class lookup are resolved from a stable snapshot;
+ * this function orders actual constructor callbacks and publication only.
+ * No parsing, full factory, later record setup or rollback of a created main
+ * actor on secondary failure. NULL result means skipped/main allocation failed. */
+rf_entity_loader_created *rf_entity_loader_create(const rf_entity_loader_creation *input,
+    rf_entity_loader_created *(*create)(void *,const rf_entity_loader_create_request *),void *context);
+
 /* Original487b11..487b2f: snapshot published object+3c into previous+6c
  * and clear object flag01000000 before model/physics updates. Does not read
  * the physics position. Call for every retained object before updating any.

@@ -105,6 +105,33 @@ static int action_name_probe(const char *path)
     }
     fclose(file);return 0;
 }
+typedef struct loader_creation_fixture {
+    uint32_t calls,success[2],class_flags,trace[6];rf_entity_loader_created actors[2];
+    const float *position,*orientation;
+} loader_creation_fixture;
+static rf_entity_loader_created *loader_creation_create(void *context,const rf_entity_loader_create_request *r)
+{
+    loader_creation_fixture *f=context;uint32_t i=f->calls++;
+    if(i>=2 || r->uid!=-1 || r->player_index!=-1 || r->position!=f->position || r->orientation!=f->orientation)return NULL;
+    f->trace[i*3]=(uint32_t)r->class_id;f->trace[i*3+1]=!strcmp(r->name,"main")?1:!strcmp(r->name,"masako_endgame")?2:0;
+    f->trace[i*3+2]=r->flags;return f->success[i]?f->actors+i:NULL;
+}
+static int loader_creation_probe(void)
+{
+    uint32_t wire[10],out[13];float transform[12]={0};
+    while(fread(wire,sizeof(wire),1,stdin)==1) {
+        loader_creation_fixture f={0};rf_entity_loader_creation input={0};rf_entity_loader_created *result;
+        input.class_id=(int32_t)wire[0];input.multiplayer=wire[1];input.excluded=wire[2];input.hidden=wire[3];input.other_flag=wire[4];
+        input.special_name=wire[6];input.matching_level=wire[7];input.special_class=(int32_t)wire[8];input.name="main";input.position=transform;input.orientation=transform+3;
+        f.position=input.position;f.orientation=input.orientation;f.success[0]=wire[5];f.success[1]=wire[9];f.class_flags=0xcccccccc;
+        memset(f.actors,0xa5,sizeof(f.actors));f.actors[0].class_flags_728=f.actors[1].class_flags_728=&f.class_flags;f.actors[1].handle=12345;
+        result=rf_entity_loader_create(&input,loader_creation_create,&f);
+        out[0]=result!=NULL;out[1]=f.calls;memcpy(out+2,f.trace,24);out[8]=f.actors[0].linked_146c;
+        out[9]=f.actors[1].field_7c8;out[10]=f.actors[1].flags_814;memcpy(out+11,&f.actors[1].field_7cc,4);out[12]=f.class_flags;
+        if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
+    }
+    return ferror(stdin)?1:0;
+}
 int main(int argc,char **argv)
 {
     if(argc==3 && !strcmp(argv[1],"--action-name"))return action_name_probe(argv[2]);
@@ -615,6 +642,9 @@ int main(int argc,char **argv)
     }
     if(argc==2 && !strcmp(argv[1],"--collision-discovery")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return collision_discovery_probe();
+    }
+    if(argc==2 && !strcmp(argv[1],"--loader-create")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return loader_creation_probe();
     }
     if(argc==2 && !strcmp(argv[1],"--pair-classify")) {
         rf_collision_pair_class_view views[2];uint32_t words[7],result;

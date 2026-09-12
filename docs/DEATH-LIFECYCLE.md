@@ -5500,3 +5500,23 @@ actual observed instruction writes; lookup/string semantics remain supplied.
 Scene integration must account for this extra allocation and shared class
 mutation before claiming serialized entity records establish global object
 order. Subsequent per-record setup and post-load player creation remain open.
+
+
+### Shared C entity record creation stage (2026-09-12)
+
+rf_entity_loader_create now implements the verified464625..46474a stage
+with a resolved44-byte input,28-byte constructor request and24-byte created
+actor view on x86. The constructor callback receives class/name/UID/transform/
+flags/player-index in original order and returns NULL on allocation failure.
+Main success clears linked146c; the immediate endgame second request keeps
+the same transform and publishes its link and actor/shared-class mutations
+only on success. Secondary failure retains the created main actor. No heap
+allocation is added by this orchestration; the callback owns construction.
+
+The extended verify_entity_loader_creation_order.py now compares all5184
+original cases against PC and Xbox-compiled C, including exact normalized
+constructor requests and changed actor/class fields. The original predicate
+lookup trace is verified separately; C consumes stable resolved predicates
+and does not claim the same helper call timing or support callback mutation
+of those facts. Both builds and19 CTests pass. Native XEMU scene activation,
+live constructor ownership and subsequent entity-record setup remain open.

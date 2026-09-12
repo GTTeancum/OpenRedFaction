@@ -4,6 +4,27 @@
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
+rf_entity_loader_created *rf_entity_loader_create(const rf_entity_loader_creation *input,
+    rf_entity_loader_created *(*create)(void *,const rf_entity_loader_create_request *),void *context)
+{
+    rf_entity_loader_create_request request;rf_entity_loader_created *main,*secondary;
+    if(input->class_id<0 || ((input->multiplayer&255u) && (input->excluded&255u)))return NULL;
+    request.class_id=input->class_id;request.name=input->name;request.uid=-1;
+    request.position=input->position;request.orientation=input->orientation;
+    request.flags=(input->hidden&255u?2u:0u)|(input->other_flag&255u?4u:0u);request.player_index=-1;
+    main=create(context,&request);if(!main)return NULL;
+    main->linked_146c=UINT32_MAX;
+    if((input->special_name&255u) && input->matching_level && input->special_class>=0) {
+        request.class_id=input->special_class;request.name="masako_endgame";request.flags=2;
+        secondary=create(context,&request);
+        if(secondary) {
+            secondary->field_7c8=1;secondary->flags_814|=0x10u;secondary->field_7cc=10.0f;
+            main->linked_146c=secondary->handle;*secondary->class_flags_728|=0x100u;
+        }
+    }
+    return main;
+}
+
 int rf_entity_impact_damage(float impact_speed,uint32_t falling,int32_t contact_material,
     uint32_t kind_one,uint32_t object_flags,float *amount,uint32_t *eligible)
 {
