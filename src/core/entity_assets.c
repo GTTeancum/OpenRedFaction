@@ -2088,6 +2088,13 @@ int rf_entity_render_models_open(const rf_entity_skeletons *skeletons,rf_vpp *me
         rf_entity_render_model *m=v.items+i;const rf_entity_skeleton *s=skeletons->items+i;
         if(!s->bones || !s->count || s->count>50){status=RF_RANGE;goto fail;}
         status=rf_model_file_open(&m->file,meshes,s->model);if(status)goto fail;
+        for(j=0;j<=8;++j) {
+            rf_model_collision_sphere sphere;
+            status=rf_model_file_collision_sphere(&m->file,j,&sphere);
+            if(status==RF_NOT_FOUND){status=RF_OK;break;}if(status)goto fail;
+            if(j==8){status=RF_RANGE;goto fail;}
+            m->collision_spheres[m->collision_sphere_count++]=sphere;
+        }
         m->bone_count=s->count;
         bytes+=(uint64_t)s->count*sizeof(*m->stored)+(uint64_t)m->file.lod_count*sizeof(*m->lods);
         if(bytes>budget){status=RF_RANGE;goto fail;}

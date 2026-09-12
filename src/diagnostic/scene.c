@@ -497,6 +497,7 @@ static rf_entity_poses campaign_poses;
 static rf_entity_base_motions campaign_base_motions;
 static rf_entity_motion_catalog campaign_motion_catalog;
 static rf_entity_playback_resources campaign_playback_resources;
+static rf_entity_render_models campaign_render_models;
 typedef struct campaign_model_owner {
     rf_model_skeletal_registration registration;rf_entity_pose *pose;
     float position[3],basis[9];uint32_t appearance,room;rf_entity_owned_pose *owned;
@@ -627,6 +628,23 @@ int32_t rf_scene_corpse_motion(void *context,rf_corpse_create_source *source,con
        campaign_motion_catalog.mappings[cls].weapon!=-1)return -2;
     return rf_entity_declared_action_lookup(campaign_base_motions.classes[cls].action_declarations,source->model,source->model_kind,name);
 }
+/*4164c0 using the transferred model's cached matrices and the corpse's owned
+ * physics spheres. Source class radii and extra physics spheres are retained. */
+int rf_scene_corpse_pose(rf_corpse_owned *corpse)
+{
+    rf_entity_pose *pose;const rf_entity_render_model *model;uint32_t slot;int status;float radius;
+    if(!corpse || !corpse->corpse.update.model)return RF_RANGE;
+    slot=corpse->corpse.update.model-1;status=campaign_model_pose(slot,&pose);if(status)return status;
+    if(!pose || !campaign_model_owners[slot].owned || !campaign_render_models.items ||
+       pose->skeleton>=campaign_render_models.count)return RF_RANGE;
+    model=campaign_render_models.items+pose->skeleton;
+    if(model->collision_sphere_count>8 || model->bone_count!=pose->bone_count)return RF_RANGE;
+    status=rf_model_corpse_spheres_refresh(model->collision_spheres,model->collision_sphere_count,
+        pose->matrices,pose->bone_count,corpse->body.spheres.items,corpse->body.spheres.count,
+        corpse->body.state.position,&corpse->body.state.bounds,&radius);
+    if(status)return status;
+    corpse->corpse.physics_radius=radius;corpse->corpse.model_radius=radius;return RF_OK;
+}
 /* An actor loses access when its model storage is handed off. Model rendering
  * and eventual corpse updates continue through campaign_model_pose. */
 static int campaign_actor_pose(uint32_t slot,rf_entity_pose **result)
@@ -739,7 +757,7 @@ static int campaign_npc_motion_residency(void)
     }
     return RF_OK;
 }
-static rf_entity_render_models campaign_render_models;
+
 static rf_entity_appearances campaign_appearances;
 static rf_entity_materials campaign_npc_materials;
 uint32_t rf_scene_npc_materials[8]; /* appearances, materials, images, resident, peak, binding hash, pixel bytes, pixel hash */

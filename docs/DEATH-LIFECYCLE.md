@@ -1781,3 +1781,33 @@ tools/verify_base_action_sets.py now independently checks retained masks against
 authored declarations for base/weapon groups across L1S1/L1S2/L1S3, in addition
 to its existing clip, cache, sound and budget checks; all pass.
 Both complete builds and all18 CTests pass; no new native XEMU run is claimed.
+
+
+## Corpse pose refresh through retained model spheres
+
+Each shared render model now retains up to8 immutable collision-sphere records
+and their count, loaded once with geometry. The cache costs388 bytes per model,
+charged through existing model-owner budget accounting. Oversized sphere sets
+are rejected rather than silently truncated; this remains a port bound. Model
+archives are not read by corpse pose refresh.
+
+rf_scene_corpse_pose resolves an owned, transferred model token and invokes
+the verified4164c0 refresh using its cached matrices/sphere definitions and the
+corpse body position. It updates body bounds and both represented radius fields
+(original180 and78), preserving class-adjusted physical sphere radii and extra
+physics spheres. The owned-constructor PC fixture now uses this actual POSE
+effect, including subsequent failure cleanup. A model radius99 with physical
+radius1 and posed centerX1 produces bounds/object radius2, retaining radius1.
+
+All18 CTests and both full builds pass. The existing original/PC/NXDK
+1024-case sphere verifier passes on the rebuilt Xbox binary. The skeleton
+probe compares each retained sphere with its serialized source, checks the
+end-of-list sentinel and exact/short allocation budgets. Three levels pass:
+L1S1 five models,7 sphere records,316976 render-owner bytes; L1S2 two models,
+6 records,181000 bytes; L1S3 four models,6 records,208264 bytes.
+Report: artifacts/corpse-sphere-cache.json. The complete constructor/pose
+connection is PC fixture evidence; live death dispatch remains open.
+
+Native XEMU replay-20260911-222939 passes180 door/damage/audio frames on
+stock67108864-byte RAM with matching PC telemetry. This covers campaign loading
+of the new cache; no transferred corpse is spawned in that replay.

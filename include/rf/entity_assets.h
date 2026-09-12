@@ -256,6 +256,7 @@ int rf_entity_skeletons_open(const rf_entity_seeds *seeds,rf_vpp *meshes,uint32_
 void rf_entity_skeletons_close(rf_entity_skeletons *skeletons);
 typedef struct rf_entity_render_model {
     rf_model_file file;rf_model_geometry *lods;float (*stored)[12];uint32_t bone_count;
+    rf_model_collision_sphere collision_spheres[8];uint32_t collision_sphere_count;
 } rf_entity_render_model;
 typedef struct rf_entity_render_models {
     rf_entity_render_model *items;uint32_t count,resident_bytes;

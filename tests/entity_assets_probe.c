@@ -409,6 +409,14 @@ int main(int argc,char **argv)
                 rf_model_geometry *g=render.items[j].lods+k;
                 printf("RENDER_LOD\t%s\t%u\t%u\t%u\t%u\n",s.items[j].model,k,g->batch_count,g->vertex_count,g->triangle_count);
             }
+            for(j=0;j<render.count;++j) {
+                rf_entity_render_model *model=render.items+j;rf_model_collision_sphere sphere;
+                for(k=0;k<model->collision_sphere_count;++k) {
+                    if(rf_model_file_collision_sphere(&model->file,k,&sphere) || memcmp(&sphere,model->collision_spheres+k,sizeof(sphere)))return 24;
+                }
+                if(rf_model_file_collision_sphere(&model->file,k,&sphere)!=RF_NOT_FOUND)return 25;
+                printf("RENDER_SPHERES\t%s\t%u\n",s.items[j].model,model->collision_sphere_count);
+            }
             printf("RENDER_MODELS %u %u\n",render.count,render.resident_bytes);
             rf_entity_render_models_close(&render);rf_entity_render_models_close(&render);
         }

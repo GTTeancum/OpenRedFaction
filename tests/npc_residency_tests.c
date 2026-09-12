@@ -329,7 +329,10 @@ static int32_t csf_motion(void *context,rf_corpse_create_source *source,const ch
     if(!campaign_model_owners[0].owned)++f->errors;return rf_scene_corpse_motion(NULL,source,name);
 }
 static void csf_effect(void *context,uint32_t operation,rf_corpse_create_source *source,rf_corpse *corpse,const char *name)
-{(void)operation;(void)source;(void)corpse;(void)name;++((corpse_scene_fixture*)context)->effects;}
+{
+    corpse_scene_fixture *f=context;(void)source;(void)name;++f->effects;
+    if(operation==RF_CORPSE_CREATE_POSE && rf_scene_corpse_pose((rf_corpse_owned*)corpse))++f->errors;
+}
 static rf_corpse_delete_emitter *csf_emitter(void *context,rf_corpse_create_source *source,rf_corpse *corpse)
 {(void)source;(void)corpse;++((corpse_scene_fixture*)context)->errors;return NULL;}
 static void csf_delete(void *context,uint32_t operation,uint32_t token)
@@ -342,13 +345,16 @@ static uint32_t *csf_sound(void *context,int32_t sound)
 {(void)context;(void)sound;return NULL;}
 static int corpse_scene_binding_check(void)
 {
-    static rf_corpse_owners pool;static rf_object_registry registry;static rf_entity_state_set actions;rf_entity_motion_mapping mapping={0};uint32_t mode;
+    static rf_corpse_owners pool;static rf_object_registry registry;static rf_entity_state_set actions;static rf_entity_render_model render;rf_entity_motion_mapping mapping={0};uint32_t mode;
     {
         const char text[]="$Name: \"Miner\" +Action: \"corpse_drop\" \"\" \"\" +Action: \"corpse_carry\" \"\" \"\" +Action: \"death_generic\" \"\" \"\"";
         memset(&actions,0,sizeof(actions));CHECK(rf_entity_action_declarations_read(text,sizeof(text)-1,"Miner","",actions.action_declarations)==RF_OK);
         CHECK(actions.action_declarations[0]==35 && !actions.action_declarations[1] && !actions.count);
         CHECK(rf_entity_declared_action_lookup(actions.action_declarations,1,2,"DEATH_GENERIC")==5);
     }
+    memset(&render,0,sizeof(render));render.bone_count=1;render.collision_sphere_count=1;
+    render.collision_spheres[0].parent=0;render.collision_spheres[0].center[0]=1;render.collision_spheres[0].radius=99;
+    campaign_render_models.items=&render;campaign_render_models.count=1;
     campaign_base_motions.classes=&actions;campaign_base_motions.class_count=1;
     mapping.weapon=-1;campaign_motion_catalog.mappings=&mapping;campaign_motion_catalog.class_count=1;
     for(mode=0;mode<3;++mode) {
@@ -372,6 +378,8 @@ static int corpse_scene_binding_check(void)
         if(mode==1)campaign_model_owned_count=0;
         CHECK(corpse && source.object_flags==0x402 && !fixture.errors);
         if(mode==0) {
+            CHECK(corpse->model_radius==2 && corpse->physics_radius==2 && pool.slots[0].body.state.bounds.radius==2);
+            CHECK(pool.slots[0].body.spheres.items[0].center[0]==1 && pool.slots[0].body.spheres.items[0].radius==1);
             CHECK(status==RF_OK && fixture.motions==3 && campaign_model_owned_count==1 && corpse_count==1);
             CHECK(campaign_model_owners[0].position[1]==10 && campaign_model_owners[0].room==9 && pose.skeleton==UINT32_MAX);
             CHECK(rf_corpse_owned_delete(&pool,0,&registry,&corpse_count,&object_count,4,&deletion)==RF_OK);
