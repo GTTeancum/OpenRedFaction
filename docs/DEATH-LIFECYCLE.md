@@ -7086,3 +7086,33 @@ Reports: artifacts/static-model-vertices-verification.json and
 artifacts/static-model-link-audit.json. Next: recover static draw dispatch
 and its transform/material interpretation, then bind shared geometry and
 textures to concrete scene owners.
+
+
+## Original static vertex projection
+
+The existing52fa40 dispatcher routes a zero skeletal-pose pointer to
+52de10 and a nonzero pointer to52e9e0. The static path reads position,
+normal, UV and reuse streams directly; its projection is not identical
+to the previously reconstructed skeletal path. No format acceptance rule
+was changed from this inspection.
+
+rf_model_project_static_vertex reconstructs52e1b5 through its visibility
+branch. Rotation uses the original X/Z/Y accumulation order; the Z camera
+subtraction remains extended while the X/Y differences are stored floats.
+The vertical screen calculation consumes the stored reciprocal, unlike
+the horizontal calculation. Broad arbitrary-float fixtures exposed the Z
+precision difference after dyadic fixtures initially passed. The dedicated
+API preserves these operations without changing animated projection. Its
+view must already be prepared for model coordinates; object/submesh view
+preparation, static lighting/reuse, batch submission and scene integration
+are still separate work.
+
+verify_model_static_projection.py executes the unchanged original block
+and real5475d0/52fc70 callees with no replaced calls. All4000 dyadic and
+arbitrary-float cases match all88 output bytes against PC and the compiled
+NXDK function, including all five view gates, signed/zero depth, NaN/Inf
+and1813 visibility rejections. Six NXDK null-argument cases preserve all
+outputs. Existing2000 animated projection comparisons remain passing.
+PC/NXDK builds and all19 CTests pass. This is original/compiled-code
+verification, not a native XEMU or visual claim. Report:
+artifacts/model-static-projection-verification.json.

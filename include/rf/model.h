@@ -226,6 +226,9 @@ int rf_model_local_view(const rf_model_projection *world,const float position[3]
  * Caller supplies original view globals; other cache/vertex bytes are retained. */
 int rf_model_project_vertex(const float world[3],const rf_model_projection *view,
     rf_model_render_cache *cache,float clip_position[3],uint8_t vertex[40],uint32_t *visible);
+/* Static52de10 projection; view must already be prepared for model space. */
+int rf_model_project_static_vertex(const float world[3],const rf_model_projection *view,
+    rf_model_render_cache *cache,float clip_position[3],uint8_t vertex[40],uint32_t *visible);
 /* Original positive-reuse branch 0x52edbc..0x52ee9d plus UV tail 0x52f3bd.
  * Distance is batch-local, positive and <=index. vertex holds 40 writable
  * original-format bytes; untouched fields remain intact, and clipped copies

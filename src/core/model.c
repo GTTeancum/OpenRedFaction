@@ -726,6 +726,41 @@ int rf_model_project_vertex(const float world[3],const rf_model_projection *view
     cache->clip=clip;return RF_OK;
 }
 
+/* Original static path 52e1b5..52e341: no skinning, different sum order,
+ * the Z subtraction stays extended during rotation, and the vertical screen
+ * calculation consumes the stored reciprocal. */
+int rf_model_project_static_vertex(const float world[3],const rf_model_projection *view,
+    rf_model_render_cache *cache,float clip_position[3],uint8_t vertex[40],uint32_t *visible)
+{
+    float delta[3],position[3],depth,biased;double reciprocal,last_delta;uint32_t bits;uint8_t clip=0;unsigned i;
+    const float *m;
+    if(!world || !view || !cache || !clip_position || !vertex || !visible)return RF_RANGE;
+    m=view->rotation;
+    for(i=0;i<3;++i)delta[i]=world[i]-view->camera[i];
+    last_delta=(double)world[2]-view->camera[2];
+    position[0]=(float)(((double)m[0]*delta[0]+(double)m[2]*last_delta)+(double)m[1]*delta[1]);
+    position[1]=(float)(((double)m[3]*delta[0]+(double)m[5]*last_delta)+(double)m[4]*delta[1]);
+    position[2]=(float)(((double)m[6]*delta[0]+(double)m[8]*last_delta)+(double)m[7]*delta[1]);
+    if(!view->perspective)position[2]=view->fixed_depth;
+    if(view->compute_clip) {
+        clip=model_clip_mask(position,view);
+        memcpy(clip_position,position,sizeof(position));
+    }
+    depth=(float)(255.0-(double)view->depth_factor*position[2]);
+    if(!(depth>=0))depth=0;else if(depth>255)depth=255;
+    biased=depth+12582912.0f;memcpy(&bits,&biased,4);cache->depth=(uint8_t)bits;vertex[23]=cache->depth;
+    reciprocal=1.0/(double)position[2];
+    cache->projected[2]=(float)reciprocal;
+    cache->projected[0]=(float)((reciprocal*position[0])*view->screen[0]+view->screen[2]);
+    cache->projected[1]=(float)(((double)cache->projected[2]*view->screen[1])*position[1]+view->screen[3]);
+    *visible=1;
+    if(view->screen_clip && !(cache->projected[0]>view->bounds[0] && cache->projected[0]<view->bounds[2] &&
+        cache->projected[1]>view->bounds[1] && cache->projected[1]<view->bounds[3] && cache->projected[2]>=0)) {
+        clip=1;*visible=0;
+    }
+    cache->clip=clip;return RF_OK;
+}
+
 static void emit_render_vertex(const rf_model_render_cache *source,const rf_model_render_output *output,
     const float uv[2],uint8_t vertex[40])
 {
