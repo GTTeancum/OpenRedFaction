@@ -7,6 +7,7 @@
 #include "rf/event.h"
 #include "rf/eye.h"
 #include "rf/player.h"
+#include "rf/collision.h"
 
 /* Play a resolved48a9c0 request from an already resident campaign sample.
  * Flat pan is the original float bit pattern retained in request.pan; values
@@ -70,6 +71,12 @@ int rf_scene_npc_death_tail(uint32_t handle,uint32_t name,const rf_entity_death_
  * Already-dying is a complete no-op with entered=0; errors preserve owners
  * and entered. Does not dispatch collision teardown or later death stages. */
 int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered);
+/* Snapshot current registered kind0 NPC owners for pair processing. Model token
+ * follows publication/transfer; position is published, forward is the current
+ * authored NPC orientation. No allocation, pair scheduling or response effects.
+ * Caller refreshes after mutations. Failure preserves output. */
+int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result);
+
 /*503400 ->501cd0(kind2)->51c390 on the currently published model pose.
  * Zero exact non-looping weights without releasing references or removing
  * slots. Resolves actor or transferred-corpse ownership; no allocation. */

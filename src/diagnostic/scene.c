@@ -2387,6 +2387,26 @@ int rf_scene_player_damage_audio(uint32_t handle,const rf_damage_request *reques
     if(!random || now_ms<0 || now_ms>RF_TIMER_PERIOD)return RF_RANGE;
     return campaign_player_damage_apply(handle,request,difficulty,clock_bits,now_ms,random,effects,result);
 }
+int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;rf_collision_pair_actor_state value={0};uint32_t i;int status;
+    if(!result)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view || owner->view.type!=0)return RF_NOT_FOUND;
+    if(owner->movement_slot>=16 || !campaign_seeds.records.items || i>=campaign_seeds.records.count)return RF_RANGE;
+    status=campaign_actor_pose(i,&pose);if(status)return status;
+    value.kind=0;value.body_flags=owner->body.state.flags;value.model=pose?i+1:0;
+    value.movement_mode=campaign_modes[owner->movement_slot].index;value.handle=handle;
+    /* Original object200 is the registry view's linked_handle. */
+    value.parent_handle=(uint32_t)owner->view.linked_handle;value.object_flags=owner->object_flags;
+    memcpy(value.position,owner->published,12);
+    /* Same authored orientation as current NPC model placement/clearance.
+     * Moving object orientation publication remains a separate integration. */
+    memcpy(value.forward,campaign_seeds.records.items[i].record.orientation[2],12);
+    *result=value;return RF_OK;
+}
+
 int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
 {
     campaign_npc_body *owner;rf_entity_death_entry_state state;uint32_t i,cls,falling;

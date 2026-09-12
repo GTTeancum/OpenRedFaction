@@ -4097,3 +4097,25 @@ The separate4096-case expiration verifier, all19 CTests and both builds
 also pass. No XEMU invocation or live campaign collision response is claimed.
 Next supply actual live object views, trigger contact/activation and physics
 response owners, retaining original discovery and substep scheduling.
+
+
+### Registered NPC collision view (2026-09-12)
+
+rf_scene_npc_collision_view resolves a registered kind0 NPC and snapshots the
+retained body flags, movement descriptor index, published position, parent
+handle and object flags. Original object200 maps to view.linked_handle (also
+covered by verify_entity_predicates.py); body120 maps to actor1a8. The model
+token is actor slot+1 only while campaign_actor_pose publishes its model;
+empty/retired or corpse-transferred models produce zero. Invalid resource
+owners fail without publishing a partial output. No allocation is added.
+
+Forward follows authored orientation[2], matching current NPC model placement
+and clearance, not an assertion that moving orientation ownership is complete.
+Trigger fields are neutral for this kind0-only view. Callers must refresh the
+snapshot after mutations; no pair pool, discovery scheduling or response effects
+are enabled by this adapter. Player, trigger and projectile views remain open.
+
+Validation: npc_collision_binding_check in npc_motion_residency checks stale
+handles, model publication/transfer, live state changes, unsupported kinds and
+invalid owners preserving output. PC and NXDK builds pass; all19 CTests pass.
+This adapter has not yet been exercised in native XEMU gameplay.

@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Bind verified pair processor48ca60 to live object views and contact/response effects after integrating expiration48cc10, trigger membership48bb00 and parent/visibility filter48bb90; complete projectile classification, global-plane producer48bbe0 and live owner lookup.
+- [ ] Bind verified pair processor48ca60 to live scheduling and contact/response effects after the registered stationary-NPC view binding; add player/trigger/projectile views and moving orientation ownership, complete projectile classification, global-plane producer48bbe0 and live owner lookup.
 - [ ] Compose registered-NPC death entry with collision teardown and remaining stages; connect the original-verified 8192-record collision pool after completing classification48be00 beyond the verified actor/actor branch and binding the original-verified discovery traversal to object-list ownership and creation/unhide scheduling.
 - [ ] Bind complete death scheduling and effective class views after the composed base NPC death-animation/action-sound fixture passed PC and stock64MiB XEMU; extend beyond the single authored miner case.
 - [ ] Connect the tested registered-model bone-clear adapter to full death dispatch and recover original override producers, then verify enabled overrides in XEMU; baseline stock64MiB replay passes with the new storage.
