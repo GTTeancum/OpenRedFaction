@@ -2503,3 +2503,29 @@ quad to actual PC and compiled NXDK code, including native libm. All bytes
 match. Both builds and19 CTests pass. This is instruction-level verification;
 no new XEMU frame or live effect rendering is claimed. Texture62f73c, render
 state17c7c58, room submission4d3560 and lifecycle scheduling remain to bind.
+
+## Shared world-quad projection and texture lead
+
+Original42db58 stores the bitmap loaded from string595ef8 into62f73c;
+the string is somenewblood_A.tga, present in the installed archive inventory.
+This identifies the requested asset, not a live port texture owner.42df20
+passes mode17c7c58. Its startup value00118c42 and decoded ordinary-particle
+blend/depth/texture rules are already verified in docs/RENDER_STATE.md.
+Do not confuse startup mode evidence with proof of every later mutation.
+
+517110 forwards mode102 to558d40, expanding RGBA bytes into arguments.
+The shared rf_particle_world_quad now exposes the existing four-vertex world
+transform/clip/project path, with individual vertex depths and no billboard
+depth override. rf_particle_world_stretch delegates its nonfallback geometry
+to this helper. Finite vertex positions/UVs are checked before processing.
+
+verify_particle_world_quad.py executes full original517110/558d40 through
+final551900 submission, which is the only intercepted boundary.1024 tilted
+quads match exact PC/NXDK screen polygon bytes:523 retain four vertices,
+500 reject and one clips to five vertices. Varied camera, perspective, far
+plane and clipping settings are supplied. The existing1024 world-stretch
+cases still match original output. Both builds and19 CTests pass.
+
+This makes the verified projection path reusable by surface quads; it does
+not yet bind their room queue, texture residency, color backend or live
+submission. No new GPU output or XEMU screenshot is claimed.

@@ -119,19 +119,21 @@ static uint32_t particle_clip_code(const rf_particle_clip_environment *clip,cons
     }
     return code;
 }
-int rf_particle_world_stretch(const rf_visibility_camera *camera,const float position[3],
-    const float previous[3],float radius,uint32_t width,uint32_t height,rf_particle_screen_polygon *out)
+int rf_particle_world_quad(const rf_visibility_camera *camera,const rf_particle_billboard_vertex vertices[4],
+    rf_particle_screen_polygon *out)
 {
-    rf_particle_billboard_vertex vertices[4];rf_particle_billboard_packet packet={0};
+    rf_particle_billboard_packet packet={0};
     rf_particle_clipped_polygon clipped={0};rf_particle_screen_polygon value={0};
-    const rf_visibility_projection *view;uint32_t fallback,i,j;int status;
-    if(!camera || !out || !width || !height)return RF_RANGE;
+    const rf_visibility_projection *view;uint32_t i,j;int status;
+    if(!camera || !vertices || !out)return RF_RANGE;
     view=&camera->projection;
     if(!isfinite(view->flat_depth) || !isfinite(view->clip.far_distance))return RF_RANGE;
     for(i=0;i<9;i++)if(!isfinite(view->matrix[i]))return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(view->origin[i]))return RF_RANGE;
-    status=rf_particle_stretch_build(position,previous,view->matrix+6,radius,vertices,&fallback);if(status)return status;
-    if(fallback)return rf_particle_world_billboard(camera,position,0,radius,width,height,out);
+    for(i=0;i<4;++i) {
+        for(j=0;j<3;++j)if(!isfinite(vertices[i].position[j]))return RF_RANGE;
+        for(j=0;j<2;++j)if(!isfinite(vertices[i].uv[j]))return RF_RANGE;
+    }
     packet.clip_and=255;
     for(i=0;i<4;i++) {
         float delta[3];
@@ -164,6 +166,20 @@ int rf_particle_world_stretch(const rf_visibility_camera *camera,const float pos
         value.vertices[i].reciprocal_z=point.reciprocal_z;
     }
     value.count=clipped.count;*out=value;return RF_OK;
+}
+int rf_particle_world_stretch(const rf_visibility_camera *camera,const float position[3],
+    const float previous[3],float radius,uint32_t width,uint32_t height,rf_particle_screen_polygon *out)
+{
+    rf_particle_billboard_vertex vertices[4];const rf_visibility_projection *view;
+    uint32_t fallback,i;int status;
+    if(!camera || !out || !width || !height)return RF_RANGE;
+    view=&camera->projection;
+    if(!isfinite(view->flat_depth) || !isfinite(view->clip.far_distance))return RF_RANGE;
+    for(i=0;i<9;i++)if(!isfinite(view->matrix[i]))return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(view->origin[i]))return RF_RANGE;
+    status=rf_particle_stretch_build(position,previous,view->matrix+6,radius,vertices,&fallback);if(status)return status;
+    if(fallback)return rf_particle_world_billboard(camera,position,0,radius,width,height,out);
+    return rf_particle_world_quad(camera,vertices,out);
 }
 int rf_visibility_box_project(const rf_visibility_projection *view,const float minimum[3],
     const float maximum[3],rf_visibility_screen_bounds *output)

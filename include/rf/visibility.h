@@ -110,6 +110,11 @@ int rf_visibility_camera_setup(const rf_visibility_camera_parameters *parameters
  * particles use a different original path and must not use this helper. */
 int rf_particle_world_billboard(const rf_visibility_camera *camera,const float position[3],
     float angle,float radius,uint32_t width,uint32_t height,rf_particle_screen_polygon *polygon);
+/* Original558d40 four-vertex world transform, clipping and projection.
+ * Shared by stretched particles and corpse surface quads. No depth override,
+ * color conversion, texture binding or allocation. Errors preserve output. */
+int rf_particle_world_quad(const rf_visibility_camera *camera,const rf_particle_billboard_vertex vertices[4],
+    rf_particle_screen_polygon *polygon);
 /* Full 558e30/558d40 stretched particle, including zero-motion billboard
  * fallback and 5587c0 clipping/projected submission. No forced common depth:
  * stretched corners retain individual camera Z and reciprocal depth. */
