@@ -9,6 +9,15 @@ int main(int argc, char **argv)
     _Static_assert(sizeof(output) == 52, "Probe wire layout");
     (void)argv;
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
+    if(argc>1 && !strcmp(argv[1],"--death-bones")) {
+        uint32_t count;rf_model_bone bones[50];struct {int32_t status,indices[3];} result;
+        while(fread(&count,4,1,stdin)==1) {
+            if(count>50 || fread(bones,sizeof(*bones),count,stdin)!=count)return 1;
+            memset(&result,0,sizeof(result));result.status=rf_model_death_bones(bones,count,result.indices);
+            if(fwrite(&result,sizeof(result),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc>1 && !strcmp(argv[1],"--override")) {
         float values[22];
         while(fread(values,sizeof(values),1,stdin)==1) {

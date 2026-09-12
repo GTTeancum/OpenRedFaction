@@ -793,6 +793,19 @@ int rf_model_decode_bones(const void *payload, size_t bytes,
     return RF_OK;
 }
 
+int rf_model_death_bones(const rf_model_bone *bones,uint32_t count,int32_t out[3])
+{
+    int32_t first=-1,second=-1,head=-1,parent;uint32_t i;
+    if(!out || count>50 || (count && !bones))return RF_RANGE;
+    for(i=0;i<count;++i)if(!memchr(bones[i].name,0,sizeof(bones[i].name)))return RF_FORMAT;
+    for(i=0;i<count;++i)if(strstr(bones[i].name,"spine")) {
+        if(first!=-1){second=(int32_t)i;break;}first=(int32_t)i;
+    }
+    for(i=0;i<count;++i)if(strstr(bones[i].name,"head")){head=(int32_t)i;break;}
+    parent=second<0?(int32_t)count:bones[second].parent;
+    if(parent!=first){int32_t swap=first;first=second;second=swap;}
+    out[0]=first;out[1]=second;out[2]=head;return RF_OK;
+}
 static int make_transform(const float rotation[4], const float position[3], float transform[12], int normalize)
 {
     double length = 0, scale, x, y, z, w;

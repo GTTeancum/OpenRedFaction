@@ -3541,3 +3541,30 @@ evaluation comparison remains passing. These new binding/retirement checks
 run on PC; NXDK compiles the adapters. The preceding stock64MiB replay covers
 baseline allocation, not this new death-clear call or transferred retirement
 in XEMU. Full death composition and enabled-override gameplay remain open.
+
+
+## Authored death-bone selection (2026-09-12)
+
+rf_model_death_bones reconstructs424e47..424f00 within class setup4246e0.
+The original573930 searches case-sensitive substrings, not exact names or
+case-insensitive tags: take the first two names containing spine and first
+containing head. If the second spine's parent is not the first spine, swap
+the pair before storing class13d8/13dc/13e0. When the second spine is absent,
+the original descriptor address calculation reads bone count at48 as the
+parent comparison. The shared helper models that value without out-of-bounds
+C access. A lone spine therefore ends in slot1 with slot0=-1. Non-skeletal
+setup uses a separate all-minus-one branch outside this helper.
+
+tools/verify_death_bones.py runs the original selection block and real string
+search without hooks, comparing all three outputs to PC and NXDK C. All1119
+cases pass:1024 synthetic name/parent layouts and95 installed V3C skeletons.
+Miner resolves to15/16/8. Sixty-one installed models lack a full spine pair.
+This does not establish their effective class configuration or prove that
+all can reach the same unguarded effective-bone clear path in death-start.
+Base bone clears already guard negative indices; effective class selection
+and missing-pair reachability need tracing before full composition.
+
+Both builds and all19 CTests pass. Native C runs in the isolated instruction
+harness, not XEMU. The helper allocates nothing and has not yet been bound
+to retained base/effective class views; malformed unterminated names and
+counts above50 fail without modifying output.

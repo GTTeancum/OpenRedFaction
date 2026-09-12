@@ -125,6 +125,10 @@ typedef struct rf_model_bone {
     float rotation[4], position[3];
     int32_t parent;
 } rf_model_bone;
+/* 424e47..424f00: first two case-sensitive spine substrings and first head,
+ * with the original parent-order swap (missing second uses descriptor count).
+ * At most50 bones; failure preserves output. */
+int rf_model_death_bones(const rf_model_bone *bones,uint32_t count,int32_t out[3]);
 int rf_model_decode_bones(const void *payload, size_t bytes,
                           rf_model_bone *bones, uint32_t capacity, uint32_t *count);
 /* Reconstructs normalization (0x519720) and local transform (0x4fe900).
