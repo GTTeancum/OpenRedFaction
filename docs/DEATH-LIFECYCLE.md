@@ -8022,3 +8022,24 @@ release. The fallback renderer/pixels and later runtime face replacement
 are not verified by this harness. Reconstruct those before substituting a
 texture for the116 opening faces; do not infer that every USERBMAP reference
 is necessarily the same live runtime bitmap.
+
+
+Owned original missing-bitmap pattern (2026-09-12)
+------------------------------------------------
+rf_image_missing reconstructs50f1d8..50f20d:32x32 BGR24 source, gray0x40
+lines wherever x or y is divisible by8, interior BGR=(0x8e,0x79,0x79).
+The image stores opaque RGBA following the shared decoded-image convention,
+retains source_format6, and allocates4096 bytes through the existing native
+allocator. It honors budget, empties output on failure, and uses the shared
+PC row-major/Xbox Morton accessor. Close-before-reuse contract matches the
+existing image decoders. No extra source buffer is retained.
+
+verify_image_missing.py executes the original generator and55dd20 format6
+copy, compares all1024 pixels with PC and compiled NXDK storage, and checks
+budget, allocation failure, guard bytes, and release. Four PC and six NXDK
+cases pass with kernel allocation/free supplied. Source format6 is retained
+for original sampling classification; normalized alpha255 is a storage
+convention, not a claim that55cfa0 samples alpha255 for format6. Both builds
+and21 CTests pass. This image constructor is not yet called by live material
+loading; preserve loader failure distinctions and establish later USERBMAP
+replacement before changing scene material behavior.

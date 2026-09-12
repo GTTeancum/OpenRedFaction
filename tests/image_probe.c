@@ -10,6 +10,14 @@ int main(int argc, char **argv)
     rf_image image;
     FILE *output;
     int result;
+    if(argc==3 && !strcmp(argv[1],"--missing")) {
+        uint32_t budget=(uint32_t)strtoul(argv[2],NULL,10);
+        _setmode(_fileno(stdout),_O_BINARY);
+        result=rf_image_missing(&image,budget);
+        if(fwrite(&result,4,1,stdout)!=1 || fwrite(&image,16,1,stdout)!=1)return 2;
+        if(!result && fwrite(image.rgba,1,image.bytes,stdout)!=image.bytes)return 2;
+        rf_image_close(&image);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--sample-owned")) {
         struct {uint32_t width,height,format,packed;float u,v;unsigned char pixels[256];} in;
         struct {int32_t status;uint32_t color;} out;

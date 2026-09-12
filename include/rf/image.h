@@ -29,6 +29,11 @@ int rf_image_vbm_frame(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry
     uint32_t frame,uint32_t budget,uint32_t *frame_count,uint32_t *frame_rate);
 /* Detect VBM by magic, otherwise use the existing TGA decoder. */
 int rf_image_open(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget);
+/* Original missing-resource pattern50f1d8..50f20d, used by510470.
+ * Own32x32 RGBA pixels, original BGR24 source_format6; one4096-byte
+ * allocation within budget. Close before reuse. Failure leaves image empty.
+ * Does not select fallback policy or replace runtime USERBMAP owners. */
+int rf_image_missing(rf_image *image,uint32_t budget);
 void rf_image_close(rf_image *image);
 /* Original 50fe39 TGA depth dispatch: 8/16/24/32 -> 1/5/6/7, else zero.
  * This classifier does not extend decoder support beyond 24/32-bit TGA. */

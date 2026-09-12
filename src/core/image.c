@@ -80,6 +80,24 @@ void rf_image_close(rf_image *image)
 #endif
     memset(image,0,sizeof(*image));
 }
+int rf_image_missing(rf_image *image,uint32_t budget)
+{
+    uint32_t x,y;int status;
+    if(!image)return RF_RANGE;
+    memset(image,0,sizeof(*image));
+    if(budget<4096)return RF_RANGE;
+    image->width=32;image->height=32;image->bytes=4096;image->source_format=6;
+    status=rf_image_allocate_pixels(image);
+    if(status){memset(image,0,sizeof(*image));return status;}
+    for(y=0;y<32;++y)for(x=0;x<32;++x) {
+        unsigned char *pixel=rf_image_pixel(image,x,y);
+        int interior=(x&7) && (y&7);
+        pixel[0]=pixel[1]=interior?0x79:0x40;
+        pixel[2]=interior?0x8e:0x40;pixel[3]=255;
+    }
+    return RF_OK;
+}
+
 int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget)
 {
     unsigned char h[18], pixel[4], id[255];
