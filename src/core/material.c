@@ -181,6 +181,48 @@ static int equal_texture_name(const char *a,const char *b)
         if (!x) return 1;
     }
 }
+void rf_glare_materials_close(rf_glare_materials *m)
+{
+    uint32_t i;if(!m)return;
+    for(i=0;i<m->texture_count;++i)rf_particle_animation_close(&m->textures[i].animation);
+    free(m->storage);memset(m,0,sizeof(*m));
+}
+int rf_glare_materials_open(rf_glare_materials *m,const rf_glare_definition *definitions,
+    uint32_t count,rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{
+    rf_glare_materials next={0};uint32_t i,j,slot;uint64_t bytes;int status;
+    if(!m || m->storage || m->bindings || m->textures || m->count || m->texture_count || m->resident_bytes ||
+       (!definitions && count) || (!archives && archive_count) || count>64)return RF_RANGE;
+    bytes=sizeof(next)+(uint64_t)count*(sizeof(*next.bindings)+3*sizeof(*next.textures));
+    if(bytes>budget)return RF_RANGE;
+    if(count) {
+        next.storage=calloc(1,(size_t)(bytes-sizeof(next)));if(!next.storage)return RF_IO;
+        next.bindings=next.storage;next.textures=(rf_level_particle_texture *)(next.bindings+count);
+    }
+    next.count=count;next.resident_bytes=(uint32_t)bytes;
+    for(i=0;i<count;++i) {
+        const char *names[]={definitions[i].corona,definitions[i].volumetric,definitions[i].reflection};
+        if(definitions[i].fields&~7u){status=RF_FORMAT;goto failed;}
+        for(j=0;j<3;++j) {
+            next.bindings[i][j]=UINT32_MAX;if(!(definitions[i].fields&(1u<<j)))continue;
+            if(!names[j][0] || !memchr(names[j],0,64)){status=RF_FORMAT;goto failed;}
+            for(slot=0;slot<next.texture_count;++slot)if(equal_texture_name(names[j],next.textures[slot].name))break;
+            if(slot==next.texture_count){strcpy(next.textures[slot].name,names[j]);++next.texture_count;}
+            next.bindings[i][j]=slot;
+        }
+    }
+    for(i=0;i<next.texture_count;++i) {
+        rf_particle_definition definition={0};rf_particle_animation *animation=&next.textures[i].animation;
+        strcpy(definition.bitmap,next.textures[i].name);
+        status=rf_particle_animation_open(animation,&definition,archives,archive_count,
+            budget-next.resident_bytes+(uint32_t)sizeof(*animation));
+        if(status)goto failed;
+        next.resident_bytes+=animation->resident_bytes-(uint32_t)sizeof(*animation);
+    }
+    *m=next;return RF_OK;
+failed:
+    rf_glare_materials_close(&next);return status;
+}
 void rf_geometry_materials_close(rf_geometry_materials *m)
 {
     if(!m)return;

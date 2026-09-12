@@ -7441,3 +7441,31 @@ Do not bind glare resources through the static-only material path. Reuse the
 all-frame decoder with bounded shared ownership, then reconstruct frame
 selection and bind campaign resources. No Xbox residency or live rendering
 claim is made by this PC audit. Full results: artifacts/glare-bitmaps/report.json.
+
+### Owned glare materials
+
+rf_glare_materials_open maps each class to corona/volumetric/reflection slots,
+using UINT32_MAX for absent blocks. All authored bitmap names are owned and
+ASCII-insensitively deduplicated; first matching caller archive wins, including
+errors. The existing particle animation decoder retains every base-mip frame.
+This is port resource ownership, not original bitmap-handle/cache equivalence.
+No animation clock, renderer binding or campaign glare creation is added yet.
+
+One zeroed slot allocation reserves count*12 binding bytes and count*3*84
+texture bytes plus24-byte owner on x86. Decoder budgets credit the embedded
+20-byte animation descriptor once. Partial failure closes every decoded
+animation and frees slots without publishing output. Inputs cap at64 classes.
+The loader rejects occupied destinations, malformed present filenames and
+unknown bitmap presence bits. Definitions and archives may close on success.
+
+verify_glare_materials.py passes all56 class mappings,38 unique textures and
+62 decoded frames against separately loaded texture hashes after definition
+and archive retirement. PC retained1785520 bytes; exact budget passes, one
+byte less and missing archive fail cleanly. verify_glare_materials_nxdk.py
+passes48 actual-compiled binding/lifetime cases, including every one of38
+texture-load failures, slot allocation failure, mixed-case deduplication,
+malformed inputs, empty/64/65 classes and repeated retirement. That harness
+supplies animation-loader/heap boundaries with audited PC sizes and accounts
+for compiler-inlined cleanup; it does not verify Xbox image residency or
+swizzling. Both builds and21 CTests pass. Native Xbox resource residency and
+campaign binding remain required before claiming integrated glare support.

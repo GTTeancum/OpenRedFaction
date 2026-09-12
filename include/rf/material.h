@@ -6,6 +6,7 @@
 #include "rf/model_file.h"
 #include "rf/effect.h"
 #include "rf/entity_assets.h"
+#include "rf/glare.h"
 typedef struct rf_particle_bitmap {
     rf_image image;
     uint32_t frames,rate,archive_index,resident_bytes;
@@ -40,6 +41,22 @@ void rf_particle_animation_close(rf_particle_animation *animation);
 typedef struct rf_level_particle_texture {
     char name[64];rf_particle_animation animation;
 } rf_level_particle_texture;
+
+typedef struct rf_glare_materials {
+    void *storage;uint32_t (*bindings)[3];rf_level_particle_texture *textures;
+    uint32_t count,texture_count,resident_bytes;
+} rf_glare_materials;
+/* Owned corona/volumetric/reflection slots per authored class, UINT32_MAX
+ * for absent blocks. ASCII-insensitive deduplication, first archive wins.
+ * Retains every base-mip frame; no animation clock or original bitmap IDs.
+ * Budget includes owner, worst-case slot arrays and all decoded images.
+ * Fixed decoder stack and allocator metadata excluded. At most64 classes.
+ * Empty destination required; failure preserves it and releases partial state.
+ * Definitions and archives may be released after success. */
+int rf_glare_materials_open(rf_glare_materials *materials,
+    const rf_glare_definition *definitions,uint32_t count,rf_vpp *archives,
+    uint32_t archive_count,uint32_t budget);
+void rf_glare_materials_close(rf_glare_materials *materials);
 typedef struct rf_level_particle_binding {uint32_t uid,texture;} rf_level_particle_binding;
 typedef struct rf_level_particle_materials {
     void *storage;

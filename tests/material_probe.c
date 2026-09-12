@@ -15,6 +15,32 @@ int main(int argc, char **argv)
     rf_materials materials;
     uint32_t count, i;
     int result;
+    if(argc>=5 && argc<=20 && !strcmp(argv[1],"--glare-materials")) {
+        rf_glare_classes classes={0};rf_glare_materials bundle={0},empty={0};uint32_t j,k,f;
+        if(rf_vpp_open(&level_archive,argv[2]))return 2;
+        result=rf_glare_classes_open(&level_archive,1000000,&classes);rf_vpp_close(&level_archive);if(result)return 2;
+        count=(uint32_t)argc-4;
+        for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+4]))return 2;
+        result=rf_glare_materials_open(&bundle,classes.definitions,classes.count,archives,count,(uint32_t)strtoul(argv[3],NULL,10));
+        rf_glare_classes_close(&classes);for(i=0;i<count;++i)rf_vpp_close(archives+i);
+        printf("%d %u %u %u\n",result,bundle.count,bundle.texture_count,bundle.resident_bytes);
+        if(result){if(memcmp(&bundle,&empty,sizeof(bundle)))return 3;return 0;}
+        for(i=0;i<bundle.count;++i)printf("B %u %u %u\n",bundle.bindings[i][0],bundle.bindings[i][1],bundle.bindings[i][2]);
+        for(i=0;i<bundle.texture_count;++i) {
+            rf_particle_animation *animation=&bundle.textures[i].animation;
+            printf("T %s %u %u %u %u\n",bundle.textures[i].name,animation->count,animation->rate,animation->archive_index,animation->resident_bytes);
+            for(f=0;f<animation->count;++f) {
+                rf_image *image=animation->images+f;uint32_t hash=2166136261u;
+                for(j=0;j<image->height;++j)for(k=0;k<image->width;++k) {
+                    unsigned char *pixel=rf_image_pixel(image,k,j);uint32_t b;
+                    for(b=0;b<(rf_image_is_packed_1555(image)?2u:4u);++b)hash=(hash^pixel[b])*16777619u;
+                }
+                printf("F %u %u %u\n",image->width,image->height,hash);
+            }
+        }
+        rf_glare_materials_close(&bundle);rf_glare_materials_close(&bundle);
+        return memcmp(&bundle,&empty,sizeof(bundle))?3:0;
+    }
     if(argc>=4 && argc<=19 && (!strcmp(argv[1],"--records") || !strcmp(argv[1],"--records-overrides"))) {
         uint32_t n,j;uint8_t (*rows)[84];rf_model_materials bundle={0};
         static char replacements[4096][64];static const char *names[4096];
