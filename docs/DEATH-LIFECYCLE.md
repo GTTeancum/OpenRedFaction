@@ -5894,3 +5894,35 @@ The PC reference differs from replay-20260912-093543 only by the new query row.
 Fixture movement/support changes are restored. No landing, live NPC physics
 scheduling or visible gameplay change is claimed. Compose support_finish with
 fall/impact/landing/relative backends next; crouch must reenter the same path.
+
+
+## Retained NPC fall transition (2026-09-12)
+
+rf_scene_npc_fall binds4281a0 to registered active NPC owners: body flag1,
+class724 bit400 selection of slot8 versus3, enabled-low-byte fallback0, and
+stable identity movement orientation. Added retained actor85c ownership;
+constructor422360 also installs identity73a858 after descriptor selection.
+No support velocity/handle, position, speed, animation or damage mutation is
+part of this callback. Original movement orientation is separate from the
+body's physical orientation. Stale/corpse owner errors preserve state.
+
+The restored-state native fixture covers78 owners times4 cases: normal,
+alternate, and both disabled-low-byte fallbacks (enabled words101/100).
+Whole-owner comparison verifies only descriptor, body wake bit and borrowed
+orientation change; stale handles preserve that result. Initial nonidentity
+orientation verifies actual replacement. Shared class/descriptor changes and
+owners are restored after each actor, including failures. The scene binding
+uses previously reconstructed rf_movement_fall. Re-run original force/fall
+verification passes512 original/PC/NXDK cases with actual4281a0,40a270 and
+4339d0, supplying only the audio boundary. This is separate from the native
+scene fixture, not a claim of full NPC scheduling against the original.
+
+Both builds and19 CTests pass. Stock64MiB XEMU replay passes180 frames:
+artifacts/xemu/replay-20260912-100007/report.json.
+npc_fall=[312,78,78,156,4141236165,0], equal to PC.
+Tested XBE SHA256:42bdb579683946485d07dd207953b5a98d250c873767614cf8a4bcc818a1f745.
+PC reference differs from replay-20260912-095509 only by the new NPC_FALL row.
+The binding remains callable rather than automatically scheduled; compose it
+with support finish and complete impact/landing/relative callbacks. Landing
+must retain support-relative velocity, sound, stance clearance and special
+class effects. No new visible gameplay change is claimed.

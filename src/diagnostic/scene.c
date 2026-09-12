@@ -1875,6 +1875,7 @@ static int campaign_npc_geometry_digest(void)
     }
     return RF_OK;
 }
+static const float campaign_identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
 static rf_movement_descriptor campaign_modes[16];
 _Static_assert(sizeof(rf_entity_damage_state)==56,"Damage owner telemetry layout");
 typedef struct campaign_npc_body {
@@ -1888,6 +1889,7 @@ typedef struct campaign_npc_body {
     float command_714[3]; /* Constructor422eaf..422ed3 clears this movement vector. */
     float model_radius_78; /* Original489fe0 model-origin radius. */
     float published[3],previous[3];uint32_t movement_slot;
+    const float *movement_orientation; /* Original actor85c, borrowed stable matrix. */
     uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
     struct {int32_t ai_timer,animation_lock,cooldown,selected_action;} pain; /*514/744/830/828*/
     struct {int32_t deadline,voice;} pain_sound; /*1458/808; separate from damage.effects.voice(854)*/
@@ -2062,6 +2064,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 owner->damage.effects.voice=UINT32_MAX;owner->damage.responsible_handle=UINT32_MAX;
                 owner->damage.burn_source=UINT32_MAX; /* Absent burn; source unused until installed. */
                 owner->movement_slot=rf_movement_start(campaign_modes,(int32_t)config.authored.movement_index,&body->state.flags);
+                owner->movement_orientation=campaign_identity[0]; /* Constructor422360 installs original73a858. */
                 owner->movement.response=body->state.coefficients[1];
                 /* Constructor422e19 requests normal speed via427450. */
                 status=rf_movement_set_mode(&owner->movement,movement,1,-1,body->state.mass,0);if(status)goto done;
@@ -2497,6 +2500,14 @@ static int campaign_npc_motion_owner(uint32_t handle,campaign_npc_body **result,
     if(cls>=campaign_seeds.class_count || cls>=campaign_motion_catalog.mapping_count)return RF_RANGE;
     status=campaign_actor_pose(i,pose);if(status)return status;if(!*pose)return RF_NOT_FOUND;
     *result=owner;*class_index=cls;return RF_OK;
+}
+int rf_scene_npc_fall(uint32_t handle)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    if(!campaign_seeds.classes)return RF_RANGE;
+    owner->movement_slot=rf_movement_fall(campaign_modes,campaign_seeds.classes[cls].physics.flags,&owner->body.state.flags);
+    owner->movement_orientation=campaign_identity[0];return RF_OK;
 }
 int rf_scene_npc_set_speed(uint32_t handle,int32_t requested,int32_t forced_action)
 {
@@ -3169,7 +3180,6 @@ static int campaign_player_pain_fixture(void)
     return status?status:campaign_player_fixture_notifications?RF_FORMAT:RF_OK;
 }
 static rf_player_climb_state campaign_climb;
-static const float campaign_identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
 uint32_t rf_scene_player_climb_frames[128][9]; /* frame, region, mode, position XYZ, velocity XYZ before motion */
 uint32_t rf_scene_player_climb[8]; /* queries, enters, exits, region, mode, bytes, sounds, sound ID */
 
@@ -4727,6 +4737,35 @@ uint32_t rf_scene_npc_playback[7]; /* ticks, actors, bones, state hash, pose has
 /* Advance the existing startup selection once per simulation step. AI/state
  * reselection and weapon overlays remain external; do not tick from drawing. */
 uint32_t rf_scene_npc_gate[4]; /* cumulative considered, advanced, skipped; last decision hash */
+uint32_t rf_scene_npc_fall_test[6]; /* cases,normal,alternate,fallback,hash,errors */
+static int campaign_npc_fall_fixture(uint32_t frame)
+{
+    uint32_t i,j;int status=RF_OK;
+    if(frame)return RF_OK;memset(rf_scene_npc_fall_test,0,sizeof(rf_scene_npc_fall_test));
+    if(!rf_scene_actor_pair_test_enabled)return RF_OK;rf_scene_npc_fall_test[4]=2166136261u;
+    for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view) {
+        campaign_npc_body *owner=campaign_npc_bodies+i,saved=*owner,expected;uint32_t cls=campaign_seeds.items[i].class_index;
+        uint32_t flags=campaign_seeds.classes[cls].physics.flags,enabled3=campaign_modes[3].enabled,enabled8=campaign_modes[8].enabled;
+        for(j=0;j<4 && !status;++j) {
+            uint32_t selected=j&1?8:3,actual,record[3];
+            *owner=saved;owner->movement_orientation=owner->body.state.orientation;
+            owner->body.state.flags&=~1u;expected=*owner;
+            campaign_seeds.classes[cls].physics.flags=(flags&~0x400u)|(j&1?0x400u:0);
+            campaign_modes[selected].enabled=j<2?0x101:0x100;
+            actual=j<2?selected:0;expected.movement_slot=actual;expected.body.state.flags|=1;
+            expected.movement_orientation=campaign_identity[0];
+            status=rf_scene_npc_fall(owner->registration.handle);if(status)break;
+            if(memcmp(owner,&expected,sizeof(expected))){status=RF_FORMAT;break;}
+            ++rf_scene_npc_fall_test[0];++rf_scene_npc_fall_test[j>=2?3:j==0?1:2];
+            record[0]=owner->movement_slot;record[1]=owner->body.state.flags;record[2]=owner->movement_orientation==campaign_identity[0];
+            rf_scene_npc_fall_test[4]=npc_hash_bytes(rf_scene_npc_fall_test[4],record,sizeof(record));
+            if(rf_scene_npc_fall(owner->registration.handle^0x10000)!=RF_NOT_FOUND || memcmp(owner,&expected,sizeof(expected)))status=RF_FORMAT;
+        }
+        *owner=saved;campaign_seeds.classes[cls].physics.flags=flags;
+        campaign_modes[3].enabled=enabled3;campaign_modes[8].enabled=enabled8;
+    }
+    if(status)++rf_scene_npc_fall_test[5];return status;
+}
 uint32_t rf_scene_npc_ground_query_test[6]; /* cases,hits,misses,hash,errors,rejected empty bodies */
 static int campaign_npc_ground_query_fixture(const rf_geometry_collision_world *world,uint32_t frame)
 {
@@ -4920,6 +4959,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
         ++rf_scene_npc_eyes[0];rf_scene_npc_eyes[3]=npc_hash_bytes(rf_scene_npc_eyes[3],campaign_npc_bodies[i].eye_position,12);
     }
+    status=campaign_npc_fall_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_ground_query_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_motion_request_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
