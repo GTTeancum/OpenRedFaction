@@ -3915,3 +3915,36 @@ them with a per-frame full pair scan.
 Next: complete classification for other object families, projectile prepare
 48bbe0 and eligibility48c7f0, then bind the actual global object-list lifetime
 and creation/unhide dispatch before using the pool for death cleanup.
+
+
+Projectile pair eligibility - 2026-09-12
+
+rf_collision_projectile_eligible reconstructs48c7f0 from resolved inputs.
+409fa0 computes target3c minus projectile3c with float storage;40a0b0 dots
+that displacement with projectile60 in Z/Y/X order. Negative projection
+rejects, so this is a forward-axis gate, not a distance limit. Mode low byte
+zero then accepts immediately, as used by existing-pair retirement48cc10.
+
+For nonzero mode the original resolves426fc0(projectile30). A present owner
+with owner1f8=0 and target1f8=0 rejects kind0 targets whose2c handle differs
+from owner560. Definition268 bit20 then enables four planes at75db38,
+stride16. Each plane tests targete4 (not target3c) with Z/Y/X dot plus planeD
+against the negative sum of target/projectile180 extents; strictly smaller
+rejects, equality accepts. The shared152-byte input is caller-owned scratch
+and includes resolved owner facts and plane coefficients, with finite
+geometry and the established53-bit arithmetic requirement. It does not
+perform owner lookup or create the global planes.
+
+verify_projectile_eligibility.py compares8192 full original48c7f0 cases to
+PC/NXDK under x87control027f:5339 reject,2853 accept,2937 owner lookups.
+Plane-count histogram for0..4 tests is6650/635/363/157/387. The verifier
+supplies only426fc0 owner resolution; original subtraction, dot, plane and
+kind helpers execute unchanged. It checks boundary equality/adjacent float
+values, arithmetic cancellation, owner conditions, mode upper bytes and
+input preservation. Both builds and all19 CTests pass. No native XEMU
+activation is claimed.
+
+The general classification switch still needs integration for projectile
+object pairs. Its eligibility mode1 and retirement48cc10 mode0 must remain
+distinct. Recover48bbe0 plane production and registered projectile/owner
+state before connecting these checks to live discovery and physics.

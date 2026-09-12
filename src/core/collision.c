@@ -1882,3 +1882,24 @@ void rf_collision_pairs_discover(rf_collision_discovery_state *state,
         current=call(context,RF_COLLISION_DISCOVERY_NEXT,current,0);
     }
 }
+
+uint32_t rf_collision_projectile_eligible(const rf_collision_projectile_eligibility *s)
+{
+    float delta[3];double dot,threshold;uint32_t i;
+    for(i=0;i<3;++i)delta[i]=(float)((double)s->target_position[i]-(double)s->projectile_position[i]);
+    dot=(double)delta[2]*s->projectile_forward[2];dot+=(double)delta[1]*s->projectile_forward[1];dot+=(double)delta[0]*s->projectile_forward[0];
+    if(dot<0)return 0;
+    if(!(s->mode&255u))return 1;
+    if(s->owner_present && !s->owner_field_1f8 && !s->target_field_1f8 &&
+       s->owner_target_560!=s->target_handle && s->target_kind==0)return 0;
+    if(s->definition_flags&0x20u) {
+        threshold=-((double)s->target_extent+(double)s->projectile_extent);
+        for(i=0;i<4;++i) {
+            dot=(double)s->planes[i][2]*s->target_next_position[2];
+            dot+=(double)s->planes[i][1]*s->target_next_position[1];
+            dot+=(double)s->planes[i][0]*s->target_next_position[0];dot+=s->planes[i][3];
+            if(dot<threshold)return 0;
+        }
+    }
+    return 1;
+}

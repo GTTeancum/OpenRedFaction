@@ -323,6 +323,18 @@ typedef struct rf_collision_actor_pair_view {
  * original bytes6fc4d8 and64ecb9. No broad-phase or other object families. */
 uint32_t rf_collision_actor_pair_reject(const rf_collision_actor_pair_view *first,
     const rf_collision_actor_pair_view *second,uint32_t alternate,uint32_t multiplayer,uint32_t *flags);
+/* Resolved48c7f0 inputs. Owner is426fc0(projectile owner handle); planes are
+ * original75db38[4]. target_position is3c, target_next_position is e4.
+ * Finite geometry, original53-bit x87 arithmetic. No identity lookup or
+ * mutation; mode low byte zero skips owner filtering and all plane tests. */
+typedef struct rf_collision_projectile_eligibility {
+    float projectile_position[3],projectile_forward[3],target_position[3],target_next_position[3];
+    float projectile_extent,target_extent;
+    uint32_t definition_flags,target_kind,target_field_1f8,target_handle;
+    uint32_t owner_present,owner_field_1f8,owner_target_560,mode;
+    float planes[4][4];
+} rf_collision_projectile_eligibility;
+uint32_t rf_collision_projectile_eligible(const rf_collision_projectile_eligibility *state);
 typedef struct rf_collision_discovery_state {uint32_t actor,kind,definition_flags,head,sentinel;} rf_collision_discovery_state;
 enum rf_collision_discovery_call {RF_COLLISION_DISCOVERY_PREPARE,RF_COLLISION_DISCOVERY_CREATE,RF_COLLISION_DISCOVERY_NEXT};
 /*48c9a0: kind2/definition268 bit20 prepares first, then rereads global head.
