@@ -4767,3 +4767,30 @@ indices/flags and reuse, but not stored triangle planes. Batch region4 is
 already located by the file parser. Add bounded plane decoding/ownership
 with budget accounting before binding original static-part geometry;
 do not silently regenerate planes or use render LOD bounds as part bounds.
+
+
+## Static model envelopes and stored-plane reads
+
+Asset inspection refines the preceding ownership plan: all95 installed V3C
+models have170 LODs with flags3 and no stored plane region. All427 V3M
+models use magic52463344/version40000; their760 LODs have flags32(757)
+or48(3), including plane region4. The same structural section/LOD traversal
+parses every installed V3M. rf_model_file_open now accepts either V3C or
+V3M magic with the existing strict version/range/section checks; this adds
+structural loading, not complete static rendering or collision residency.
+
+rf_model_file_triangle_plane reads16 bytes from bounded region4 at index16,
+preserving little-endian bits and leaving output unchanged on missing
+region(NOT_FOUND), invalid index(RANGE), or truncated region(FORMAT).
+Preserve nonfinite payloads: authored talltree1.v3m contains NaN planes.
+Do not reject the entire model or silently regenerate these planes; their
+original collision behavior still requires verification before live use.
+
+verify_model_planes.py compares per-batch plane byte hashes against direct
+archive bytes across522 installed models,930 LODs and1737 batches, including
+absent animated planes and bounds guards. PASS on PC file I/O. PC/NXDK
+builds and all19 CTests pass. Format counts are1714 batches518c41 and23
+batches110c21; existing vertex/triangle decoders still accept only518c41.
+Budgeted static geometry ownership, remaining batch decoding and native
+XEMU archive validation remain open. No plane memory is allocated by this
+streamed accessor; existing animated geometry residency is unchanged.

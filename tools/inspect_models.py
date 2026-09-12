@@ -23,7 +23,7 @@ def inspect(data):
             if cursor - start > 256: raise ValueError('texture name too long')
         return data[start:cursor - 1].decode('cp1252')
     header = struct.unpack('<10I', take(40))
-    if header[:2] != (0x5246434d, 0x40000): raise ValueError('unsupported model header')
+    if header[0] not in (0x5246434d,0x52463344) or header[1] != 0x40000: raise ValueError('unsupported model header')
     sections = []; meshes = 0
     while cursor < len(data):
         start = cursor; kind, declared = u32(), u32()

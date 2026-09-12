@@ -253,7 +253,7 @@ int rf_model_file_open(rf_model_file *model, rf_vpp *archive, const char *name)
     r.model = model; r.cursor = 0;
     r.status = rf_vpp_find(archive, name, &model->entry);
     magic = integer(&r, 4); version = integer(&r, 4); declared_meshes = integer(&r, 4);
-    if (!r.status && (magic != 0x5246434d || version != 0x40000)) r.status = RF_FORMAT;
+    if (!r.status && ((magic != 0x5246434d && magic != 0x52463344) || version != 0x40000)) r.status = RF_FORMAT;
     skip(&r, 28);
     while (!r.status && r.cursor < model->entry.size) {
         rf_model_section *section;
@@ -405,6 +405,18 @@ int rf_model_file_vertex(const rf_model_file *model,const rf_model_batch *batch,
         memcpy(value.weights,links,4);memcpy(value.bones,links+4,4);
     }
     *vertex=value;return RF_OK;
+}
+int rf_model_file_triangle_plane(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,float plane[4])
+{
+    uint8_t raw[16];float value[4];uint32_t i,j,bits;int status;
+    if(!model || !model->archive || !batch || !plane || index>=batch->triangles)return RF_RANGE;
+    if(!batch->sizes[4])return RF_NOT_FOUND;
+    status=batch_read(model,batch,4,index,16,raw);if(status)return status;
+    for(i=0;i<4;++i) {
+        bits=0;for(j=0;j<4;++j)bits|=(uint32_t)raw[i*4+j]<<(8*j);
+        memcpy(value+i,&bits,4);
+    }
+    memcpy(plane,value,16);return RF_OK;
 }
 int rf_model_file_triangle(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,rf_model_triangle *triangle)
 {

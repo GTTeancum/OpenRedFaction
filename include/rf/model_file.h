@@ -41,7 +41,7 @@ typedef struct rf_model_file {
     uint32_t lod_count;
     rf_model_lod lods[RF_MODEL_MAX_LODS];
 } rf_model_file;
-/* Structural V3C v0x40000 traversal; LOD payloads stay on disc. Caller retains
+/* Structural V3C/V3M v0x40000 traversal; LOD payloads stay on disc. Caller retains
  * archive ownership. Result is cleared on failure. No mesh/animation decoding. */
 int rf_model_file_open(rf_model_file *model, rf_vpp *archive, const char *name);
 /* First animated submesh sphere (5032d0/501610/504510). Does not combine
@@ -82,6 +82,9 @@ int rf_model_file_batch(const rf_model_file *model,uint32_t lod,uint32_t index,r
  * assuming their runtime interpretation. Source non-finite normal bits are
  * preserved; positions/UV must be finite. No allocation; output unchanged on error. */
 int rf_model_file_vertex(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,rf_model_vertex *vertex);
+/* Stored region4 plane, four little-endian words; preserves NaN payloads.
+ * Absent region returns NOT_FOUND. Invalid index/data preserves output. */
+int rf_model_file_triangle_plane(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,float plane[4]);
 int rf_model_file_triangle(const rf_model_file *model,const rf_model_batch *batch,uint32_t index,rf_model_triangle *triangle);
 /* Signed backward distance from the extra-data stream. Nonpositive means
  * deform afresh; positive must refer to an earlier vertex in this batch.

@@ -213,6 +213,27 @@ int main(int argc, char **argv)
             ++mesh;
         }
     }
+    if(!result && argc==4 && !strcmp(argv[3],"--planes")) {
+        uint32_t b,n;
+        for(i=0;i<model.lod_count && !result;++i)for(b=0;b<model.lods[i].batch_count && !result;++b) {
+            rf_model_batch batch;float plane[4],before[4];uint32_t hash=2166136261u,count=0;
+            result=rf_model_file_batch(&model,i,b,&batch);if(result)break;
+            memset(before,0xa5,16);
+            for(n=0;n<batch.triangles;++n) {
+                int status;memcpy(plane,before,16);status=rf_model_file_triangle_plane(&model,&batch,n,plane);
+                if(!batch.sizes[4]) {if(status!=RF_NOT_FOUND || memcmp(plane,before,16))result=RF_FORMAT;}
+                else if(status)result=status;else {hash=hash_bytes(hash,plane,16);++count;}
+                if(result)break;
+            }
+            memcpy(plane,before,16);
+            if(rf_model_file_triangle_plane(&model,&batch,batch.triangles,plane)!=RF_RANGE || memcmp(plane,before,16))result=RF_FORMAT;
+            if(batch.sizes[4] && batch.triangles) {
+                batch.sizes[4]=15;
+                if(rf_model_file_triangle_plane(&model,&batch,0,plane)!=RF_FORMAT || memcmp(plane,before,16))result=RF_FORMAT;
+            }
+            printf("P %u %u %u %u\n",i,b,count,hash);
+        }
+    }
     if (!result && argc==4 && !strcmp(argv[3],"--batches")) {
         uint32_t n,j;
         for(i=0;i<model.lod_count && !result;++i) {
@@ -237,7 +258,7 @@ int main(int argc, char **argv)
             }
         }
     }
-    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches")) for (i = 0; i < model.lod_count && !result; ++i) {
+    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches") && strcmp(argv[3],"--planes")) for (i = 0; i < model.lod_count && !result; ++i) {
         uint32_t n, j;
         rf_model_lod *lod = &model.lods[i];
         printf("L %u %u %u %u\n", lod->offset, lod->size, lod->attachment_offset, lod->attachment_count);
