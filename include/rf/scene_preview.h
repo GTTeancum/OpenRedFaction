@@ -77,7 +77,7 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered);
  * Caller refreshes after mutations. Failure preserves output. */
 int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result);
 /* Registered active NPC427450 speed request and42a580 animation request.
- * Speed uses retained class settings/mass; caller resolves actor75c forced_action
+ * Speed uses retained class settings/mass and actor75c attachment
  * (-1 means absent). SP only. Motion uses the retained authored mapping and
  * controller, including original fallback/retarget behavior. Neither ticks AI,
  * animation or physics. Stale/corpse owners and errors preserve actor state. */
@@ -107,6 +107,11 @@ typedef struct rf_scene_npc_stance_services {
  * caches must remain alive. No speed/mode change or automatic scheduling. */
 int rf_scene_npc_try_stand(const rf_geometry_collision_world *world,uint32_t handle,
     const rf_scene_npc_stance_services *services,int *stood);
+/*428030: blocked standing still selects slow mode; forced crouch sets only the flag.
+ * Required standing services only when attempting to stand; borrowed owners must survive callbacks. */
+int rf_scene_npc_slow(const rf_geometry_collision_world *world,uint32_t handle,
+    uint32_t forced_crouch,const rf_scene_npc_stance_services *services);
+extern uint32_t rf_scene_npc_slow_test[4];
 extern uint32_t rf_scene_npc_stand_test[7]; /* cases,clear,blocked,ground queries,hash,errors,rejected no-cache */
 typedef struct rf_scene_npc_crouch_services {
     int (*refresh_ground)(void *,uint32_t handle);
