@@ -1084,7 +1084,7 @@ int rf_model_query_bone(const float (*pose)[12],uint32_t count,int32_t index,rf_
     *out=value;return RF_OK;
 }
 
-int rf_model_sound_follow_point(const float (*pose)[12],uint32_t count,int32_t index,
+int rf_model_object_follow_point(const float (*pose)[12],uint32_t count,int32_t index,
     const float orientation[9],const float position[3],float out[3])
 {
     rf_model_bone_query bone;float result[3];unsigned i;int status;

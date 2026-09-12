@@ -662,11 +662,11 @@ int rf_scene_corpse_follow_point(const rf_corpse *corpse,float point[3])
     rf_entity_pose *pose;uint32_t slot;int status;
     if(!corpse || !point)return RF_RANGE;
     if(corpse->attachment_index==UINT32_MAX)
-        return rf_model_sound_follow_point(NULL,0,-1,NULL,corpse->update.position,point);
+        return rf_model_object_follow_point(NULL,0,-1,NULL,corpse->update.position,point);
     if(!corpse->update.model)return RF_RANGE;
     slot=corpse->update.model-1;status=campaign_model_pose(slot,&pose);if(status)return status;
     if(!pose || !campaign_model_owners[slot].owned)return RF_RANGE;
-    return rf_model_sound_follow_point(pose->matrices,pose->bone_count,(int32_t)corpse->attachment_index,
+    return rf_model_object_follow_point(pose->matrices,pose->bone_count,(int32_t)corpse->attachment_index,
         corpse->update.basis,corpse->update.position,point);
 }
 /* An actor loses access when its model storage is handed off. Model rendering
@@ -786,12 +786,12 @@ int rf_scene_corpse_duration(const rf_corpse *corpse,int32_t motion,double *seco
     file=&campaign_motion_catalog.models[pose->skeleton].items[motion].file;
     *seconds=rf_motion_duration((int32_t)file->header[4],(int32_t)file->header[5]);return RF_OK;
 }
-typedef struct rf_scene_corpse_sound_ops {
-    rf_corpse_sound_view *(*lookup)(void *,int32_t);
-    int (*move)(void *,rf_corpse_sound_view *,const float[3]);void *context;
-} rf_scene_corpse_sound_ops;
+typedef struct rf_scene_corpse_item_ops {
+    rf_corpse_item_view *(*lookup)(void *,int32_t);
+    int (*move)(void *,rf_corpse_item_view *,const float[3]);void *context;
+} rf_scene_corpse_item_ops;
 typedef struct campaign_corpse_tick {
-    rf_corpse_owned *owner;float *pending;const rf_scene_corpse_sound_ops *sounds;int status;
+    rf_corpse_owned *owner;float *pending;const rf_scene_corpse_item_ops *items;int status;
 } campaign_corpse_tick;
 static int corpse_tick_model(campaign_corpse_tick *c,uint32_t model)
 {
@@ -812,11 +812,11 @@ static void corpse_tick_pose(void *context)
     c->status=rf_scene_corpse_evaluate(&c->owner->corpse,c->pending);
     if(!c->status)c->status=rf_scene_corpse_pose(c->owner);
 }
-static rf_corpse_sound_view *corpse_tick_sound(void *context,int32_t id)
+static rf_corpse_item_view *corpse_tick_item(void *context,int32_t id)
 {
     campaign_corpse_tick *c=context;if(c->status)return NULL;
-    if(!c->sounds || !c->sounds->lookup || !c->sounds->move){c->status=RF_NOT_FOUND;return NULL;}
-    return c->sounds->lookup(c->sounds->context,id);
+    if(!c->items || !c->items->lookup || !c->items->move){c->status=RF_NOT_FOUND;return NULL;}
+    return c->items->lookup(c->items->context,id);
 }
 static int corpse_tick_follow(void *context,float point[3])
 {
@@ -824,16 +824,16 @@ static int corpse_tick_follow(void *context,float point[3])
     if(c->owner->corpse.attachment_index!=UINT32_MAX)c->status=rf_scene_corpse_evaluate(&c->owner->corpse,c->pending);
     if(!c->status)c->status=rf_scene_corpse_follow_point(&c->owner->corpse,point);return c->status;
 }
-static void corpse_tick_move(void *context,rf_corpse_sound_view *sound,const float point[3])
-{campaign_corpse_tick *c=context;if(!c->status)c->status=c->sounds->move(c->sounds->context,sound,point);}
-/*417290 orchestration with retained model adapters and explicit external sound
+static void corpse_tick_move(void *context,rf_corpse_item_view *item,const float point[3])
+{campaign_corpse_tick *c=context;if(!c->status)c->status=c->items->move(c->items->context,item,point);}
+/*417290 orchestration with retained model adapters and explicit external item
  * ownership. No rendering, deferred deletion, or live-list dispatch here. */
 int rf_scene_corpse_update(rf_corpse_owned *owner,float dt,int32_t now,rf_corpse_emitter_link *emitters,
-    uint32_t limit,float pending_displacement[3],const rf_scene_corpse_sound_ops *sounds)
+    uint32_t limit,float pending_displacement[3],const rf_scene_corpse_item_ops *items)
 {
-    campaign_corpse_tick c={owner,pending_displacement,sounds,0};int status;
+    campaign_corpse_tick c={owner,pending_displacement,items,0};int status;
     rf_corpse_update_backend backend={corpse_tick_reset,corpse_tick_play,corpse_tick_duration,corpse_tick_advance,
-        corpse_tick_pose,corpse_tick_sound,corpse_tick_follow,corpse_tick_move,&c};
+        corpse_tick_pose,corpse_tick_item,corpse_tick_follow,corpse_tick_move,&c};
     if(!owner || !pending_displacement)return RF_RANGE;
     status=rf_corpse_update(&owner->corpse.update,dt,now,emitters,limit,&backend);
     return c.status?c.status:status;

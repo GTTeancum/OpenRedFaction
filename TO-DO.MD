@@ -17,7 +17,7 @@ Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 Immediate open items:
 - [ ] Bind verified base corpse-motion lookup to live creation and recover weapon-switched declaration views; canonical availability masks are retained.
 - [ ] Connect the tested finalizer-to-owned-model handoff to live death dispatch and resource effects; bind the authored-tested corpse update adapter to live dispatch, replacement materials and moving room lookup.
-- [ ] Enable authored-tested corpse transition/sphere refresh in live dispatch and recover type1 sound-object ownership and its voice publication before connecting tested position callbacks.
+- [ ] Enable authored-tested corpse transition/sphere refresh in live dispatch and recover attached item creation/ownership before connecting its position callbacks.
 - [ ] Bind verified corpse retention/fade/update/deletion and30-slot allocation to live creation and owned resource backends; five eligible bodies trigger fading.
 - [ ] Connect native-verified burn retarget/release to live corpse inheritance after corpse ownership is reconstructed.
 - [ ] Bind verified finalization418f80 and its owned-corpse creation adapter to live actors, burn/player owners, geometry queries and deferred deletion.

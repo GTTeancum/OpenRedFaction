@@ -81,7 +81,7 @@ static int corpse_create_probe(uint32_t multiple)
         memset(out,0,sizeof(out));out[0]=(uint32_t)status;out[1]=s.object_flags;out[2]=s.extra_model;out[3]=count;out[4]=o!=NULL;out[5]=c.errors;
         if(o) {
             uint32_t values[34]={o->uid,o->attachment_index,o->class_index,o->word_1fc,o->word_2d8,o->extra_model,(uint32_t)o->weapon,(uint32_t)o->drop_motion,(uint32_t)o->carry_motion,(uint32_t)o->direction,(uint32_t)o->word_2d4,
-                cc_bits(o->model_radius),cc_bits(o->physics_radius),cc_bits(o->created_seconds),o->update.fade.flags_29c,cc_bits(o->update.fade.health_34),o->update.model,(uint32_t)o->update.motion_2b8,(uint32_t)o->update.sound_2cc,
+                cc_bits(o->model_radius),cc_bits(o->physics_radius),cc_bits(o->created_seconds),o->update.fade.flags_29c,cc_bits(o->update.fade.health_34),o->update.model,(uint32_t)o->update.motion_2b8,(uint32_t)o->update.item_2cc,
                 (uint32_t)o->update.emitter_deadline_2ac,cc_bits(o->update.value_2b0),cc_bits(o->update.class_value),o->deletion.burn,o->presentation[0],o->presentation[1],o->deletion.emitters!=NULL,
                 o->deletion.corpse_link.next==&head && o->deletion.corpse_link.previous==(old_count?&existing[old_count-1].deletion.corpse_link:&head) && head.next==(old_count?&existing[0].deletion.corpse_link:&o->deletion.corpse_link) && head.previous==&o->deletion.corpse_link,
                 o->deletion.update==&o->update,cc_bits(o->velocity[0]),cc_bits(o->velocity[1]),cc_bits(o->velocity[2]),cc_bits(o->vector_150[0]),cc_bits(o->vector_150[1]),cc_bits(o->vector_150[2])};

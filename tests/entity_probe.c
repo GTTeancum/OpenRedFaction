@@ -141,7 +141,7 @@ int main(int argc,char **argv)
             values[0]=c->deletion.handle;memcpy(values+1,&c->update.fade.health_34,4);
             values[2]=c->update.fade.object_flags_7c;values[3]=c->update.model;
             memcpy(values+4,&c->model_radius,4);memcpy(values+5,&c->physics_radius,4);
-            values[6]=c->physics_flags;values[7]=c->attachment_index;values[8]=c->word_1fc;values[9]=(uint32_t)c->update.sound_2cc;
+            values[6]=c->physics_flags;values[7]=c->attachment_index;values[8]=c->word_1fc;values[9]=(uint32_t)c->update.item_2cc;
             fwrite(&owners.slots[0].room,sizeof(owners.slots[0].room),1,stdout);fwrite(values,4,10,stdout);fwrite(c->update.position,4,3,stdout);fwrite(c->update.basis,4,9,stdout);
             fwrite(&body->state,sizeof(body->state),1,stdout);fwrite(&body->spheres.count,4,1,stdout);fwrite(body->spheres.items,24,body->spheres.count,stdout);
             /* Fixture teardown; only the base subset has run, no constructor resources. */

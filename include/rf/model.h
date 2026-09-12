@@ -288,11 +288,11 @@ typedef struct rf_model_bone_query {float position[3],basis[9];} rf_model_bone_q
  * Finite matrix required; output unchanged on error, input/output may alias. */
 int rf_model_query_bone(const float (*pose)[12],uint32_t count,int32_t index,
     rf_model_bone_query *result);
-/*48ac70 sound-follow point with evaluated skeletal poses. Index -1 copies
+/*48ac70 object root-follow point with evaluated skeletal poses. Index -1 copies
  * position without inspecting pose/orientation; otherwise query and transform
  * through 4fb9d0. Returns RF status, not the original attachment boolean.
  * No lazy evaluation or virtual attachments. Output unchanged on error. */
-int rf_model_sound_follow_point(const float (*pose)[12],uint32_t count,int32_t index,
+int rf_model_object_follow_point(const float (*pose)[12],uint32_t count,int32_t index,
     const float orientation[9],const float position[3],float out[3]);
 /* Tag placement 0x5034f0 after character tag evaluation: rotate then translate.
  * Preserves its separate rounding stages; no extra scale parameter is applied. */

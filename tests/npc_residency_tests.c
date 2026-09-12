@@ -650,14 +650,14 @@ static int death_geometry_check(void)
     CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,1,&allowed)==RF_RANGE && allowed==99);
     rf_collision_tree_close(&room.tree);return 0;
 }
-typedef struct corpse_authored_sound {
-    rf_corpse_sound_view view;uint32_t lookups,moves;int fail;
-} corpse_authored_sound;
-static rf_corpse_sound_view *corpse_authored_lookup(void *context,int32_t id)
-{corpse_authored_sound *s=context;++s->lookups;return id==7?&s->view:NULL;}
-static int corpse_authored_move(void *context,rf_corpse_sound_view *view,const float point[3])
+typedef struct corpse_authored_item {
+    rf_corpse_item_view view;uint32_t lookups,moves;int fail;
+} corpse_authored_item;
+static rf_corpse_item_view *corpse_authored_lookup(void *context,int32_t id)
+{corpse_authored_item *s=context;++s->lookups;return id==7?&s->view:NULL;}
+static int corpse_authored_move(void *context,rf_corpse_item_view *view,const float point[3])
 {
-    corpse_authored_sound *s=context;++s->moves;
+    corpse_authored_item *s=context;++s->moves;
     if(view!=&s->view || memcmp(view->position,point,12) || !isfinite(point[0]) || !isfinite(point[1]) || !isfinite(point[2]))return RF_FORMAT;
     return s->fail;
 }
@@ -690,7 +690,7 @@ static int corpse_authored_check(char **argv)
         death=campaign_motion_catalog.mappings[cls].actions[5];if(death<0 || seen[skeleton])continue;seen[skeleton]=1;
         corpse->update.model=actor+1;corpse->update.basis[0]=corpse->update.basis[4]=corpse->update.basis[8]=1;
         corpse->update.position[1]=10;corpse->attachment_index=0;
-        corpse->update.sound_2cc=-1;corpse->update.motion_2b8=-1;rf_timer_clear(&corpse->update.emitter_deadline_2ac);
+        corpse->update.item_2cc=-1;corpse->update.motion_2b8=-1;rf_timer_clear(&corpse->update.emitter_deadline_2ac);
         CHECK(campaign_npc_motion_require(skeleton,(uint32_t)death)==RF_OK);
         CHECK(rf_motion_start(&source->playback,campaign_playback_resources.models[skeleton].resources,
             campaign_playback_resources.models[skeleton].count,death,1,1)==RF_OK);
@@ -709,15 +709,15 @@ static int corpse_authored_check(char **argv)
         }
         {
             rf_physics_sphere spheres[8]={{0}};uint32_t enabled=0xaabbccff,visits;
-            rf_corpse_emitter_link emitter={NULL,&enabled};corpse_authored_sound sound={0};
-            rf_scene_corpse_sound_ops ops={corpse_authored_lookup,corpse_authored_move,&sound};
+            rf_corpse_emitter_link emitter={NULL,&enabled};corpse_authored_item sound={0};
+            rf_scene_corpse_item_ops ops={corpse_authored_lookup,corpse_authored_move,&sound};
             owned.body.spheres.items=spheres;owned.body.spheres.count=campaign_render_models.items[skeleton].collision_sphere_count;
             CHECK(owned.body.spheres.count>0 && owned.body.spheres.count<=8);
             for(visits=0;visits<owned.body.spheres.count;++visits)spheres[visits].radius=1;
             memcpy(owned.body.state.position,corpse->update.position,12);
             corpse->update.motion_2b8=death;corpse->update.fade.flags_29c=8|1;
             corpse->update.fade.fade_298=.01f;corpse->update.emitter_deadline_2ac=100;
-            corpse->update.sound_2cc=7;
+            corpse->update.item_2cc=7;
             CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,4000,&emitter,1,pending,&ops)==RF_OK);
             CHECK(!(corpse->update.fade.flags_29c&8) && (corpse->update.fade.object_flags_7c&2));
             CHECK(enabled==0xaabbcc00 && corpse->update.emitter_deadline_2ac==-1);
@@ -732,7 +732,7 @@ static int corpse_authored_check(char **argv)
         }
         {
             uint32_t generation=pose->playback.generation;
-            corpse->update.sound_2cc=7;
+            corpse->update.item_2cc=7;
             CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,4000,NULL,0,pending,NULL)==RF_NOT_FOUND);
             CHECK(pose->playback.generation==generation);
             corpse->update.fade.health_34=-1;

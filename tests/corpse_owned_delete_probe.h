@@ -28,7 +28,7 @@ static void cod_effect(void *context,uint32_t operation,uint32_t token)
 static uint32_t *cod_sound(void *context,int32_t id)
 {
     corpse_owned_delete_test *v=context;rf_corpse_owned *owner=&v->owners.slots[0];
-    if(id!=owner->corpse.update.sound_2cc || owner->names[1].bytes || !owner->names[0].bytes || !owner->body.allocated_bytes)++v->errors;
+    if(id!=owner->corpse.update.item_2cc || owner->names[1].bytes || !owner->names[0].bytes || !owner->body.allocated_bytes)++v->errors;
     return v->found?&v->sound:NULL;
 }
 static int corpse_owned_delete_probe(void)
@@ -46,7 +46,7 @@ static int corpse_owned_delete_probe(void)
         c->deletion.corpse_link.next=c->deletion.corpse_link.previous=&v.corpse_head;
         v.corpse_head.next=v.corpse_head.previous=&c->deletion.corpse_link;v.corpse_count=1;
         c->update.model=i%3?77:0;c->update.fade.object_flags_7c|=i%2?0x400:0;c->deletion.burn=i%4?88:0;
-        c->update.sound_2cc=i%7?(int32_t)i:-1;v.found=i%2;v.sound=0x500;
+        c->update.item_2cc=i%7?(int32_t)i:-1;v.found=i%2;v.sound=0x500;
         c->deletion.emitters=i%5?v.emitters:NULL;
         for(j=0;j<i%5;j++) {v.emitters[j].next=j+1<i%5?v.emitters+j+1:NULL;v.emitters[j].token=100+j;}
         expected=(1u<<RF_CORPSE_DELETE_PAIRS)|(i%4?1u<<RF_CORPSE_DELETE_BURN:0)|

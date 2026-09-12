@@ -350,23 +350,23 @@ typedef struct rf_corpse_fade_state {
 /*417290 prefix through4172ea, real4174e0 and48ab40 semantics. Negative
  * health marks deletion and returns continue_tick=0. Otherwise a fading
  * corpse decrements its timer and marks deletion at <=0, but continue_tick
- * stays1: remaining animation/timer/sound work still runs that frame.
+ * stays1: remaining animation/timer/item work still runs that frame.
  * Finite health; active fade requires finite nonnegative dt and finite
  * representable remainder. Errors preserve state/output. No clamp/free. */
 int rf_corpse_fade_step(rf_corpse_fade_state *state,float frame_seconds,uint32_t *continue_tick);
 typedef struct rf_corpse_update_state {
     rf_corpse_fade_state fade;
     int32_t emitter_deadline_2ac;float value_2b0,class_value;
-    uint32_t model;int32_t motion_2b8,sound_2cc;
+    uint32_t model;int32_t motion_2b8,item_2cc;
     float position[3],basis[9];
 } rf_corpse_update_state;
 typedef struct rf_corpse_emitter_link {
     struct rf_corpse_emitter_link *next;uint32_t *enabled;
 } rf_corpse_emitter_link;
-/* Borrowed projection of a type1 world sound object (459a20), not a mixer
- * voice. move_sound must apply object pose/bounds assignment (48a230); audio
- * voice refresh belongs to the sound object lifecycle. token is backend-owned. */
-typedef struct rf_corpse_sound_view {float position[3];uint32_t token;} rf_corpse_sound_view;
+/* Borrowed projection of a type1 item (459a20). move_item applies world
+ * pose/bounds assignment (48a230); this is not an audio voice operation.
+ * token is backend-owned. */
+typedef struct rf_corpse_item_view {float position[3];uint32_t token;} rf_corpse_item_view;
 typedef struct rf_corpse_update_backend {
     void (*reset)(void *context,uint32_t model); /*5033f0*/
     void (*play)(void *context,uint32_t model,int32_t motion); /*5033b0, rate1/flag1*/
@@ -374,15 +374,15 @@ typedef struct rf_corpse_update_backend {
     /*503360(model,dt,0,position,basis,1), NULL transforms for transition seeks.*/
     void (*advance)(void *context,uint32_t model,float dt,const float *position,const float *basis);
     void (*pose)(void *context); /*4164c0, after bit8 clear*/
-    rf_corpse_sound_view *(*sound)(void *context,int32_t id); /*459a20*/
+    rf_corpse_item_view *(*item)(void *context,int32_t id); /*459a20*/
     int (*follow_point)(void *context,float point[3]); /*48ac70*/
-    void (*move_sound)(void *context,rf_corpse_sound_view *sound,const float point[3]); /*48a230*/
+    void (*move_item)(void *context,rf_corpse_item_view *item,const float point[3]); /*48a230*/
     void *context;
 } rf_corpse_update_backend;
 /* Full417290 orchestration. Borrowed state, backend and emitter links remain
  * alive. Callbacks may change model/motion/flags, reread at original boundaries;
  * geometry/class/frame inputs stay stable. Timer shutdown clears only each
- * enabled low byte. Emission and model/sound implementations remain external.
+ * enabled low byte. Emission and model/item implementations remain external.
  * Nonnegative finite dt and finite representable arithmetic/duration required.
  * Emitter traversal is bounded; errors after fade/effects do not roll back.
  * No allocation, immediate destruction or corpse registration. */
@@ -422,7 +422,7 @@ enum rf_corpse_delete_effect {
 };
 typedef struct rf_corpse_delete_backend {
     void (*effect)(void *context,uint32_t operation,uint32_t token);
-    uint32_t *(*sound_flags)(void *context,int32_t sound_id);
+    uint32_t *(*item_flags)(void *context,int32_t item_id);
     void *context;
 } rf_corpse_delete_backend;
 /*486670 type7,416ff0,489fc0 and4867b0 order. State references the registered
@@ -504,7 +504,7 @@ int rf_corpse_name_assign(rf_corpse_owners *owners,uint32_t index,uint32_t kind,
 
 /* Concrete resource bridge for rf_corpse_delete. Releases the death name,
  * physics spheres, object name and pool slot at their verified boundaries.
- * The supplied backend handles only PAIRS/BURN/MODEL/EMITTER and sound lookup;
+ * The supplied backend handles only PAIRS/BURN/MODEL/EMITTER and item lookup;
  * it must not release names/body/storage or mutate accounting/registry/lists.
  * Requires a registered, fully constructed live owner with intact resources.
  * No owner access follows recycle. Pre-construction failure cleanup is separate. */
@@ -514,7 +514,7 @@ int rf_corpse_owned_delete(rf_corpse_owners *owners,uint32_t index,rf_object_reg
 /* Recover a failed rf_corpse_owned_create, before COMPLETE. Releases only
  * resources reached in this construction, unlinks whichever lists were joined,
  * and retires the registry handle after recycling. Backend handles acquired
- * model/burn/emitter resources only; no corpse sound or collision pair was
+ * model/burn/emitter resources only; no corpse item or collision pair was
  * installed by incomplete construction. Old source marks/retention fades are
  * not rolled back. Rejects broken/stale/reentrant or complete owners before
  * effects. This is port error recovery, not an original gameplay routine. */
@@ -524,7 +524,7 @@ int rf_corpse_owned_abort(rf_corpse_owners *owners,uint32_t index,rf_object_regi
 /* Type7 base-owner subset of486da0/487100: caller has accepted room placement,
  * no model descriptor, object flags argument0. Registers the acquired corpse
  * and appends its object link, but not its corpse link. Initializes represented
- * base fields only; preserves sound and constructor tail fields across reuse.
+ * base fields only; preserves item and constructor tail fields across reuse.
  * The accepted room token and query position are retained. String and parent metadata are supplied by the
  * live allocator. Initialized intact registry/list/pool; disjoint arguments.
  * Shared allocation failure is recoverable and leaves no published owner.
@@ -549,7 +549,7 @@ enum rf_corpse_create_effect {
 typedef struct rf_corpse_create_backend {
     /* Own/copy seed data before returning; other original descriptor fields
      * are zero. Return an initialized type7 base owner, with registered handle,
-     * update position/basis, physics radius/flags and existing sound id.
+     * update position/basis, physics radius/flags and existing item id.
      * Do not insert its corpse_link: creation does that after resource setup. */
     rf_corpse *(*allocate)(void *context,rf_corpse_create_source *source,const rf_corpse_physics_seed *seed);
     uint32_t (*load_model)(void *context,const char *name); /*502880(name,1,-1)*/

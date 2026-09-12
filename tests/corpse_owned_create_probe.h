@@ -63,7 +63,7 @@ static int corpse_owned_create_probe_mode(uint32_t bridge)
            v.events!=((1u<<RF_CORPSE_CREATE_SNAPSHOT)|(1u<<RF_CORPSE_CREATE_COLLISION)|(1u<<RF_CORPSE_CREATE_SOURCE_EFFECTS)))return 2;
         if(strcmp(v.deletion.owners.slots[0].names[1].bytes,"death_front") || c->presentation[0]!=100)return 3;
         if(rf_corpse_name_assign(&v.deletion.owners,0,RF_CORPSE_OBJECT_NAME,"corpse"))return 4;
-        v.deletion.handle=c->deletion.handle;v.deletion.found=i%2;v.deletion.sound=0x500;c->update.sound_2cc=-1;
+        v.deletion.handle=c->deletion.handle;v.deletion.found=i%2;v.deletion.sound=0x500;c->update.item_2cc=-1;
         if(rf_corpse_owned_delete(&v.deletion.owners,0,&v.deletion.registry,&v.deletion.corpse_count,&v.deletion.object_count,4,&deletion))return 5;
         if(v.deletion.errors || v.deletion.owners.pool.live || v.deletion.object_count || v.deletion.corpse_count ||
            v.deletion.registry.count!=1024 || v.deletion.owners.allocated_bytes!=sizeof(v.deletion.owners))return 6;

@@ -43,7 +43,7 @@ static int corpse_owned_abort_probe(void)
         memset(&v,0,sizeof(v));memset(&source,0,sizeof(source));memset(&request,0,sizeof(request));v.mode=i%5;
         rf_corpse_owners_init(&v.owners,sizeof(v.owners)+(v.mode==1?24:128));rf_object_registry_init(&v.registry);
         v.object_head.next=v.object_head.previous=&v.object_head;v.corpse_head.next=v.corpse_head.previous=&v.corpse_head;
-        v.owners.slots[0].corpse.deletion.burn=0xdead0001;v.owners.slots[0].corpse.update.sound_2cc=1234;
+        v.owners.slots[0].corpse.deletion.burn=0xdead0001;v.owners.slots[0].corpse.update.item_2cc=1234;
         ownership.owners=&v.owners;ownership.registry=&v.registry;ownership.object_head=&v.object_head;ownership.object_count=&v.object_count;
         ownership.room=2;ownership.elasticity=.25f;ownership.friction=.5f;ownership.density=2;
         source.model=77;source.model_kind=2;source.word_8c=0x41200000;source.word_98=0x40400000;
@@ -64,7 +64,7 @@ static int corpse_owned_abort_probe(void)
         }
         if(status || v.errors || v.models!=1 || v.emitters!=(v.mode>=2?1u:0u) || v.owners.pool.live || v.object_count || v.corpse_count ||
            v.owners.allocated_bytes!=sizeof(v.owners) || v.registry.count!=1024 || rf_object_registry_lookup(&v.registry,handle) ||
-           c->update.sound_2cc!=1234 || (v.mode==0 && c->deletion.burn!=0xdead0001))return 5;
+           c->update.item_2cc!=1234 || (v.mode==0 && c->deletion.burn!=0xdead0001))return 5;
         if(rf_corpse_owned_abort(&v.owners,0,&v.registry,&v.corpse_count,&v.object_count,1,&cleanup)!=RF_RANGE)return 6;
     }
     puts("PASS 256 staged corpse cleanup cases, stale/reentrant/complete rejection and retained stale fields");return 0;

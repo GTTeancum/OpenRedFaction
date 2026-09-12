@@ -1,3 +1,5 @@
+> Correction: historical references below to corpse2cc as a sound handle/object are wrong; it is a type1 item handle. See the attached-item correction at the end.
+
 # Death lifecycle reconstruction
 
 The live campaign does not yet have a complete death-start, dying-update,
@@ -2027,3 +2029,31 @@ Sound-object creation/publication and its connection to audio voice refresh
 remain to be recovered. Direct mixer movement would skip this owner state.
 The public borrowed sound-view comment now states this distinction. Runtime
 behavior is unchanged; no build or new XEMU result is claimed for this audit.
+
+
+## Attached-item correction: corpse2cc is not sound
+
+The prior sound interpretation was incorrect. Verified459a20 resolves exact
+type1 objects. Newly inspected original45a3d0 resolves that object, checks its
+class weapon/ammo fields at294+40/+3c, and updates actor inventory fields.
+Original459bb0 restores its mesh;459560 handles pickup/respawn eligibility.
+Dash Faction identifies type1 as OT_ITEM and459bb0 as item_restore_mesh:
+https://github.com/rafalh/dashfaction/blob/master/game_patch/rf/object.h
+https://github.com/rafalh/dashfaction/blob/master/game_patch/rf/item.h
+These declarations are corroborating analysis leads; no third-party runtime
+code was copied. The 384-case unhooked lookup result remains valid but proves
+item lookup, not a sound lifecycle.
+
+Shared corpse update/deletion fields and callbacks now use item terminology.
+The generic48ac70 helper is rf_model_object_follow_point: it finds the object
+root attachment position and does not implement audio. Layouts and algorithms
+are unchanged. Historical sound-labelled tests exercised item movement and
+deferred deletion, not audio. The integration target is attached item creation,
+publication into corpse2cc, world-pose/bounds movement and eventual deletion.
+Remove the previously inferred corpse-to-voice dependency from planning.
+
+Validation after correction: both builds,18 CTests,720 authored frames,
+4096 original/PC/NXDK update comparisons and4096 original/PC/NXDK root-follow
+comparisons plus6 guards pass. Historical verifier filenames/output keys
+containing sound remain for compatibility; their item semantics are clarified
+here. No new live item owner or audio behavior is claimed.

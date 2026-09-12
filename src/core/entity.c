@@ -552,10 +552,10 @@ int rf_corpse_retention_apply(rf_corpse_retention_node *head,uint32_t limit,uint
 int rf_corpse_update(rf_corpse_update_state *s,float dt,int32_t now,
     rf_corpse_emitter_link *emitters,uint32_t limit,const rf_corpse_update_backend *b)
 {
-    rf_corpse_emitter_link *e;rf_corpse_sound_view *sound;uint32_t proceed,visits=0;
+    rf_corpse_emitter_link *e;rf_corpse_item_view *item;uint32_t proceed,visits=0;
     int status,expired;double value,duration;float point[3],seconds;
     if(!s || !b || !b->reset || !b->play || !b->duration || !b->advance || !b->pose ||
-       !b->sound || !b->follow_point || !b->move_sound)return RF_RANGE;
+       !b->item || !b->follow_point || !b->move_item)return RF_RANGE;
     status=rf_corpse_fade_step(&s->fade,dt,&proceed);if(status || !proceed)return status;
     if(!isfinite(dt) || dt<0)return RF_RANGE;
     status=rf_timer_expired(s->emitter_deadline_2ac,now,&expired);if(status)return status;
@@ -579,11 +579,11 @@ int rf_corpse_update(rf_corpse_update_state *s,float dt,int32_t now,
         b->advance(b->context,s->model,0.3f,NULL,NULL);
         s->fade.flags_29c&=~8u;b->pose(b->context);
     }
-    if(s->sound_2cc!=-1) {
-        sound=b->sound(b->context,s->sound_2cc);
-        if(sound) {
+    if(s->item_2cc!=-1) {
+        item=b->item(b->context,s->item_2cc);
+        if(item) {
             memset(point,0,sizeof(point));status=b->follow_point(b->context,point);if(status)return status;
-            memcpy(sound->position,point,sizeof(point));b->move_sound(b->context,sound,point);
+            memcpy(item->position,point,sizeof(point));b->move_item(b->context,item,point);
         }
     }
     if(s->model)b->advance(b->context,s->model,dt,s->position,s->basis);
@@ -623,8 +623,8 @@ static void corpse_link_remove(rf_corpse_list_link *n)
 int rf_corpse_delete(rf_corpse_delete_state *s,rf_object_registry *registry,
     uint32_t *corpse_count,uint32_t *object_count,uint32_t limit,const rf_corpse_delete_backend *b)
 {
-    rf_corpse_delete_emitter *e,*next;uint32_t visits=0,*sound,handle;int status;
-    if(!s || !s->update || !b || !b->effect || !b->sound_flags || !corpse_count || !object_count ||
+    rf_corpse_delete_emitter *e,*next;uint32_t visits=0,*item,handle;int status;
+    if(!s || !s->update || !b || !b->effect || !b->item_flags || !corpse_count || !object_count ||
        corpse_count==object_count || !*corpse_count || !*object_count || s->lifecycle || !s->registered_object ||
        !corpse_link_valid(&s->corpse_link) || !corpse_link_valid(&s->object_link))return RF_RANGE;
     if(rf_object_registry_lookup(registry,s->handle)!=s->registered_object)return RF_NOT_FOUND;
@@ -632,8 +632,8 @@ int rf_corpse_delete(rf_corpse_delete_state *s,rf_object_registry *registry,
     handle=s->handle;s->lifecycle=1;
     b->effect(b->context,RF_CORPSE_DELETE_PAIRS,handle);
     b->effect(b->context,RF_CORPSE_DELETE_STRING,handle);
-    sound=b->sound_flags(b->context,s->update->sound_2cc);
-    if(sound) {*sound|=2u;s->update->sound_2cc=-1;}
+    item=b->item_flags(b->context,s->update->item_2cc);
+    if(item) {*item|=2u;s->update->item_2cc=-1;}
     if(s->burn)b->effect(b->context,RF_CORPSE_DELETE_BURN,s->burn);
     corpse_link_remove(&s->corpse_link);--*corpse_count;
     b->effect(b->context,RF_CORPSE_DELETE_PHYSICS,handle);
@@ -747,9 +747,9 @@ static void corpse_owned_delete_effect(void *context,uint32_t operation,uint32_t
     default:c->backend->effect(c->backend->context,operation,token);break;
     }
 }
-static uint32_t *corpse_owned_delete_sound(void *context,int32_t id)
+static uint32_t *corpse_owned_delete_item(void *context,int32_t id)
 {
-    corpse_owned_delete_context *c=context;return c->backend->sound_flags(c->backend->context,id);
+    corpse_owned_delete_context *c=context;return c->backend->item_flags(c->backend->context,id);
 }
 int rf_corpse_owned_delete(rf_corpse_owners *owners,uint32_t index,rf_object_registry *registry,
     uint32_t *corpse_count,uint32_t *object_count,uint32_t limit,const rf_corpse_delete_backend *backend)
@@ -757,11 +757,11 @@ int rf_corpse_owned_delete(rf_corpse_owners *owners,uint32_t index,rf_object_reg
     rf_corpse *corpse;corpse_owned_delete_context context;rf_corpse_delete_backend bridge;
     if(!owners || index>=RF_CORPSE_CAPACITY || !(owners->pool.active_mask&(1u<<index)) ||
        owners->allocated_bytes<sizeof(*owners) || owners->allocated_bytes>owners->budget ||
-       !backend || !backend->effect || !backend->sound_flags)return RF_RANGE;
+       !backend || !backend->effect || !backend->item_flags)return RF_RANGE;
     corpse=&owners->slots[index].corpse;
     if(corpse->deletion.registered_object!=corpse || corpse->deletion.update!=&corpse->update)return RF_RANGE;
     context.owners=owners;context.index=index;context.backend=backend;
-    bridge.effect=corpse_owned_delete_effect;bridge.sound_flags=corpse_owned_delete_sound;bridge.context=&context;
+    bridge.effect=corpse_owned_delete_effect;bridge.item_flags=corpse_owned_delete_item;bridge.context=&context;
     return rf_corpse_delete(&corpse->deletion,registry,corpse_count,object_count,limit,&bridge);
 }
 int rf_corpse_owned_abort(rf_corpse_owners *owners,uint32_t index,rf_object_registry *registry,
@@ -1041,7 +1041,7 @@ rf_corpse *rf_entity_finalize_create_owned_bound(void *context,rf_entity_finaliz
     b->status=RF_RANGE;b->cleanup_status=0;
     if(!source || !b->source || b->source->handle!=source->handle || !b->ownership ||
        !b->ownership->owners || !b->ownership->registry || !b->ownership->object_count ||
-       !b->head || !b->count || !b->create || !b->destroy || !b->destroy->effect || !b->destroy->sound_flags)return NULL;
+       !b->head || !b->count || !b->create || !b->destroy || !b->destroy->effect || !b->destroy->item_flags)return NULL;
     request=b->request;request.death_name=name;memcpy(request.position,source->position,12);memcpy(request.basis,source->basis,36);
     request.protected_body=0;request.seek_motion=0;
     b->source->object_flags=source->object_flags;b->source->flags_810=source->flags_810;b->source->replacement_model=source->replacement_model;

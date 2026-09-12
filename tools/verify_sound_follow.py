@@ -1,4 +1,4 @@
-"""Execute original48ac70 and cached skeletal callees vs PC/NXDK sound point."""
+"""Execute original48ac70 and cached skeletal callees vs PC/NXDK object root point."""
 import hashlib,json,random,re,struct,subprocess,sys
 from pathlib import Path
 import pefile
@@ -13,7 +13,7 @@ original=root/'Installed_Game/RF.exe';digest=hashlib.sha256(original.read_bytes(
 assert digest=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
 u=machine(original);x=machine(root/'build/xbox/main.exe');b=0x30000000
 desc=b+0x4000;handle=b+0x5000;actor=b+0x6000;output=b+0xa000;stack=b+0xe000;stop=b+0xf000
-entry=int(re.search(r'_rf_model_sound_follow_point\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+entry=int(re.search(r'_rf_model_object_follow_point\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
 rng=random.Random(0x48ac70);cases=[];expected=[]
 for i in range(4096):
  index=i%5-1
@@ -41,5 +41,5 @@ for i,(wire,want) in enumerate(zip(cases,expected)):
  x.mem_write(stack,w(stop,0 if index==-1 else b,4,index,0 if index==-1 else b+192,b+228,output))
  x.reg_write(UC_X86_REG_ESP,stack);x.reg_write(UC_X86_REG_FPCW,0x37f);x.emu_start(entry,stop,count=100000);assert x.reg_read(UC_X86_REG_EIP)==stop
  assert w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(output,12))==want,('NXDK',i)
-report=dict(result='PASS',original_cases=original_count,guard_cases=len(cases)-original_count,original_sha256=digest,nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Complete unhooked48ac70 with cached kind2 bone lookup and4fb9d0 transform; PC/NXDK bit-exact output including absent-model fallback. No lazy evaluation, virtual attachments or live corpse sound integration.')
+report=dict(result='PASS',original_cases=original_count,guard_cases=len(cases)-original_count,original_sha256=digest,nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Complete unhooked48ac70 with cached kind2 bone lookup and4fb9d0 transform; PC/NXDK bit-exact output including absent-model fallback. No lazy evaluation, virtual attachments or live corpse item integration.')
 (root/'artifacts/sound-follow-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

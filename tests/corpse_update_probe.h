@@ -1,5 +1,5 @@
 typedef struct corpse_probe_context {
-    rf_corpse_update_state *state;rf_corpse_sound_view sound;
+    rf_corpse_update_state *state;rf_corpse_item_view sound;
     uint32_t found,mutate,count,trace[84];double duration;
 } corpse_probe_context;
 static void cp_trace(corpse_probe_context *c,uint32_t op,uint32_t a,uint32_t b,uint32_t d,uint32_t e,uint32_t f,uint32_t g)
@@ -14,11 +14,11 @@ static void cp_advance(void *ctx,uint32_t model,float dt,const float *position,c
 {uint32_t bits;memcpy(&bits,&dt,4);cp_trace(ctx,0x503360,model,bits,0,position?0x3000003c:0,basis?0x30000048:0,1);}
 static void cp_pose(void *ctx)
 {corpse_probe_context *c=ctx;cp_trace(c,0x4164c0,0x30000000,c->state->fade.flags_29c&8,0,0,0,0);}
-static rf_corpse_sound_view *cp_sound(void *ctx,int32_t id)
+static rf_corpse_item_view *cp_sound(void *ctx,int32_t id)
 {corpse_probe_context *c=ctx;cp_trace(c,0x459a20,(uint32_t)id,0,0,0,0,0);return c->found?&c->sound:NULL;}
 static int cp_point(void *ctx,float point[3])
 {cp_trace(ctx,0x48ac70,0x30000000,0,0,0,0,0);point[0]=1.25f;point[1]=-2;point[2]=3;return RF_OK;}
-static void cp_move(void *ctx,rf_corpse_sound_view *sound,const float point[3])
+static void cp_move(void *ctx,rf_corpse_item_view *sound,const float point[3])
 {uint32_t bits[3];memcpy(bits,sound->position,12);cp_trace(ctx,0x48a230,0x30003000,bits[0],bits[1],bits[2],0,0);(void)point;}
 static int corpse_update_probe(void)
 {

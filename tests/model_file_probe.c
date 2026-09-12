@@ -16,7 +16,7 @@ int main(int argc, char **argv)
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(&index,4,1,stdin)==1) {
             if(fread(pose,sizeof(pose),1,stdin)!=1 || fread(orientation,36,1,stdin)!=1 || fread(position,12,1,stdin)!=1)return 2;
-            memset(out,0xa5,12);status=rf_model_sound_follow_point(pose,4,index,orientation,position,out);
+            memset(out,0xa5,12);status=rf_model_object_follow_point(pose,4,index,orientation,position,out);
             fwrite(&status,4,1,stdout);fwrite(out,12,1,stdout);
         }
         return ferror(stdin)?1:0;

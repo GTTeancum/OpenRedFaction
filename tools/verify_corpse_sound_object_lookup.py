@@ -1,4 +1,4 @@
-"""Verify corpse459a20 is typed world-object lookup, not mixer voice lookup."""
+"""Verify corpse459a20 is typed item lookup, not mixer voice lookup."""
 import hashlib,itertools,json,struct,sys
 from pathlib import Path
 import pefile
@@ -22,5 +22,5 @@ for slot,generation,kind,present,stale in itertools.product([0,1,31,1023],[0,1,0
  expected=b if present and not stale and kind==1 else 0
  assert u.reg_read(UC_X86_REG_EAX)==expected,(slot,generation,kind,present,stale)
  cases+=1;matched+=bool(expected)
-report=dict(result='PASS',cases=cases,matches=matched,original_sha256=digest,scope='Complete unhooked459a20 and40a0e0: generation-bearing world-object handle, exact type1, stale/missing/type mismatch rejection. Does not identify the object-to-audio-voice publication or implement sound ownership.')
+report=dict(result='PASS',cases=cases,matches=matched,original_sha256=digest,scope='Complete unhooked459a20 and40a0e0: generation-bearing world-object handle, exact type1, stale/missing/type mismatch rejection. Type1 is item, corroborated by pickup dispatcher45a3d0 and Dash Faction object/item declarations. No item creation or ownership implemented.')
 (root/'artifacts/corpse-sound-object-lookup.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
