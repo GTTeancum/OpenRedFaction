@@ -127,6 +127,7 @@ int rf_collision_mover_contact(const rf_collision_ray_hit *local,const float ori
  * The crouch visibility mask 0x27 maps to supported internal flags 0x461.
  * Finite data and fraction limit [0,1] required. Coplanar NaN is a port FORMAT
  * error. This does not walk the world, increment original counters or own faces. */
+/* Finite nonnegative fraction limit; FLT_MAX is an original caller input. */
 int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     const float displacement[3],float limit,rf_collision_ray_hit *result,uint32_t *matched);
 typedef struct rf_collision_sweep_hit {
@@ -153,6 +154,8 @@ typedef struct rf_collision_tree_hit {
  * Nodes form a tree rooted at zero and reference ordered ranges in faces.
  * Caller provides node_count stack entries. No allocation or world room
  * selection. Errors preserve result/matched; scratch may change. */
+/* Finite nonnegative limit includes FLT_MAX used by4df690. Segment-plane
+ * acceptance still bounds the geometric intersection to the segment. */
 int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
     const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
     const float start[3],const float displacement[3],float limit,

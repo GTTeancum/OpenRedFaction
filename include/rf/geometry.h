@@ -170,6 +170,15 @@ typedef struct rf_geometry_world_hit {
 int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget,
     rf_geometry_collision_world *world);
 void rf_geometry_collision_world_close(rf_geometry_collision_world *world);
+#include "rf/corpse_effect.h"
+/*42dc50/4df690 surface callback. Descriptor is retained room index+1 (zero
+ * is absent), not a serialized room ID. Queries only that room's tree with
+ * delta(0,-1,0), radius0, flags4 and FLT_MAX; no primary/child/skip routing.
+ * Uses serialized scratch; caller owns valid retained geometry. Face tokens
+ * are level source indices. Misses/errors preserve hit; no allocation. */
+int rf_geometry_corpse_surface(void *world,uint32_t descriptor,const float point[3],
+    rf_corpse_surface_hit *hit,uint32_t *matched);
+
 /* Same supported scope as thin_rooms; returns level face identities. Shared
  * tree scratch means calls on the same world must be serialized. */
 /* Locate against retained primary rooms, with level source face IDs in result.

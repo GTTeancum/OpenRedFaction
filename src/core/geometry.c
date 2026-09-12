@@ -1,3 +1,4 @@
+#include <float.h>
 #include "rf/geometry.h"
 #include <stdlib.h>
 #include <string.h>
@@ -636,6 +637,25 @@ int rf_geometry_collision_world_track_emitter(void *context,uint32_t previous_ro
         previous_room?previous_room-1:UINT32_MAX,previous_position,position,flags,&result);
     if(status)return status;
     *room=result==UINT32_MAX?0:result+1;return RF_OK;
+}
+
+int rf_geometry_corpse_surface(void *context,uint32_t descriptor,const float point[3],
+    rf_corpse_surface_hit *hit,uint32_t *matched)
+{
+    const rf_geometry_collision_world *world=context;const rf_collision_tree *tree;
+    const float delta[3]={0,-1,0};rf_collision_tree_hit found;rf_corpse_surface_hit value;
+    uint32_t accepted;int status;
+    if(!world || !descriptor || descriptor>world->room_count || !world->rooms || !hit || !matched)return RF_RANGE;
+    tree=&world->rooms[descriptor-1].tree;
+    if(tree->face_count && !tree->source_indices)return RF_RANGE;
+    status=rf_collision_thin_tree(tree->nodes,tree->node_count,tree->faces,tree->face_count,
+        4,point,delta,FLT_MAX,tree->stack,tree->node_capacity,&found,&accepted);if(status)return status;
+    if(accepted) {
+        if(found.face_index>=tree->face_count)return RF_RANGE;
+        memcpy(value.point,found.hit.point,12);memcpy(value.normal,found.hit.normal,12);
+        value.face=tree->source_indices[found.face_index];*hit=value;
+    }
+    *matched=accepted;return RF_OK;
 }
 
 int rf_geometry_collision_world_ray(const rf_geometry_collision_world *world,

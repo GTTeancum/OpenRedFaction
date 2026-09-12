@@ -2277,3 +2277,34 @@ original-runtime frame comparison or XEMU execution. Scene surface/color
 callbacks, runtime-created tag precedence, effect rendering/lifetime and
 live source-effect dispatch remain open; constructor fixture source effects
 are still explicitly observed only.
+
+
+## Shared descriptor-room surface query
+
+rf_geometry_corpse_surface now supplies the surface callback for the shared
+constructor. The descriptor token is retained room index+1, matching the
+existing room-tracking adapter; zero means absent. It traverses only that
+room tree with displacement(0,-1,0), flags4, radius0 and FLT_MAX. It does not
+route through primary/child lists, room skip gates, movers or world selection.
+Accepted face indices map back through retained level source_indices. Misses
+and errors preserve the hit; shared tree scratch requires serialized calls.
+No allocation is added and valid retained geometry remains caller-owned.
+
+The thin-face/tree helpers now accept any finite nonnegative fraction limit.
+Their former limit<=1 restriction rejected this original caller. Segment-
+plane acceptance still constrains contact to the actual segment; no ray
+extension or replacement of FLT_MAX with1 is introduced. Other swept/room
+wrapper contracts are unchanged.
+
+verify_corpse_room_surface.py compares shared PC/NXDK query output with the
+unchanged original4df690 geometry executed inside42dc50.384 flat/sloped
+queries match point/normal bytes and mapped face identity, including misses
+beyond one unit. Three port guards cover absent/out-of-range descriptors and
+an empty selected room while another room contains a face. No primary list
+is supplied to the shared fixture, establishing selected-room operation.
+
+Both builds,19 CTests,1800 original tree cases plus3 guards and6060 original
+thin-face cases plus2 guards pass. This adds a verified scene-geometry backend
+but does not yet compose the authored model, actual tracked room, face color
+and effect pool in live actor dispatch. Dynamic geometry, lightmap sampling,
+effect lifetime/rendering and runtime-created tag ownership remain open.

@@ -1538,6 +1538,24 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--corpse-surface-room")) {
+        struct {uint32_t descriptor;float plane_bounds[10],vertices[4][3],start[3];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_geometry_collision_world world={0};rf_geometry_collision_room rooms[2]={{0}};
+            rf_collision_node node={0};rf_collision_face face={0};uint32_t scratch,source=7;
+            struct {int32_t status;uint32_t matched;rf_corpse_surface_hit hit;} out;
+            memcpy(face.plane,in.plane_bounds,40);face.vertices=in.vertices;face.count=4;
+            memcpy(node.minimum,in.plane_bounds+4,24);node.face_count=1;node.left=node.right=UINT32_MAX;
+            rooms[1].tree.nodes=&node;rooms[1].tree.node_count=rooms[1].tree.node_capacity=1;
+            rooms[1].tree.faces=&face;rooms[1].tree.face_count=1;rooms[1].tree.source_indices=&source;rooms[1].tree.stack=&scratch;
+            world.rooms=rooms;world.room_count=2;
+            memset(&out,0xa5,sizeof(out));out.matched=99;
+            out.status=rf_geometry_corpse_surface(&world,in.descriptor,in.start,&out.hit,&out.matched);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--tree")) {
         struct {rf_collision_node nodes[3];float z[3],start[3],delta[3],limit;uint32_t flags;} in;
         struct {int32_t status;uint32_t matched;rf_collision_tree_hit result;} out;

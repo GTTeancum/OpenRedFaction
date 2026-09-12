@@ -1045,7 +1045,7 @@ int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
 {
     rf_collision_ray_hit value;float end[3],box_point[3];uint32_t hit,j;int status;
     if(!face || !start || !displacement || !result || !matched)return RF_RANGE;
-    if(!isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    if(!isfinite(limit) || limit<0)return RF_FORMAT;
     status=rf_collision_face_accept(&face->filter,&hit);if(status)return status;
     if(!hit) {*matched=0;return RF_OK;}
     if(face->filter.query_flags&0x180u)return RF_NOT_FOUND;
@@ -1187,7 +1187,7 @@ int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
 {
     rf_collision_tree_hit value;float end[3],scratch[3];uint32_t i,j,used=0,visited=0,hit;int status;
     if(!start || !displacement || !result || !matched || (node_count && (!nodes || !stack || capacity<node_count)) || (face_count && !faces))return RF_RANGE;
-    if(!isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    if(!isfinite(limit) || limit<0)return RF_FORMAT;
     for(j=0;j<3;j++) {if(!isfinite(start[j]) || !isfinite(displacement[j]))return RF_FORMAT;end[j]=start[j]+displacement[j];if(!isfinite(end[j]))return RF_FORMAT;}
     for(i=0;i<node_count;i++) {
         const rf_collision_node *n=nodes+i;
