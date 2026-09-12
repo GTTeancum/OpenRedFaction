@@ -319,3 +319,11 @@ int rf_weapon_remove_owned(rf_weapon_inventory *inventory,int32_t weapon,const r
     }
     return RF_OK;
 }
+
+int rf_weapon_release_player_slots(uint32_t slots[25],void (*release)(void *,uint32_t),void *context)
+{
+    unsigned i;
+    if(!slots || !release)return RF_RANGE;
+    for(i=0;i<25;++i)if(slots[i]) {release(context,slots[i]);slots[i]=0;}
+    return RF_OK;
+}

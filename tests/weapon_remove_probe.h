@@ -15,3 +15,20 @@ static int weapon_remove_probe(void)
  if(fwrite(&status,4,1,stdout)!=1 || fwrite(&f.input.inventory,448,1,stdout)!=1 || fwrite(&f.input.count,24,1,stdout)!=1 || fwrite(&f.calls,68,1,stdout)!=1)return 3;}
  return 0;
 }
+
+typedef struct ws_fixture {uint32_t slots[25],mutation,calls,trace[25];} ws_fixture;
+static void ws_release(void *context,uint32_t token)
+{
+ ws_fixture *f=context;f->trace[f->calls++]=token;
+ if(f->mutation==1)f->slots[24]=0x12345678;
+ if(f->mutation==2)f->slots[24]=0;
+ if(f->mutation==3)f->slots[0]=0xabcdef;
+}
+static int weapon_slots_probe(void)
+{
+ ws_fixture f;int status;
+ while(fread(f.slots,104,1,stdin)==1){f.calls=0;memset(f.trace,0,sizeof(f.trace));
+ status=rf_weapon_release_player_slots(f.slots,ws_release,&f);
+ if(fwrite(&status,4,1,stdout)!=1 || fwrite(f.slots,100,1,stdout)!=1 || fwrite(&f.calls,104,1,stdout)!=1)return 3;}
+ return 0;
+}

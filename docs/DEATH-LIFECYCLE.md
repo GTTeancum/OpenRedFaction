@@ -3079,3 +3079,30 @@ Reports: artifacts/weapon-remove.json and artifacts/weapon-drop-shared.json.
 
 Next: recover4a70e0 and bind the player registry, real item ownership, pose,
 bounds and query backends before enabling complete live death dispatch.
+
+
+## Player weapon-removal resource slots (2026-09-12)
+
+Original4a70e0 iterates25 pointer slots beginning at player+10e8. Each nonzero
+slot is passed to4cc010, then cleared after that call returns. It is resource
+cleanup, rather than a generic player message. rf_weapon_release_player_slots
+preserves this sequence and rereads later slots as they are reached. Callback
+writes to the current slot are overwritten by the clear; writes to previously
+visited slots remain. The caller retains the slot owner throughout cleanup.
+The underlying4cc010 implementation returns linked resource records to pools;
+its allocation and live resource type/binding remain to be recovered.
+
+verify_weapon_player_slots.py executes full original4a70e0 and shared compiled
+PC/NXDK code over1024 cases with16722 release callbacks, empty/full arrays and
+mutations to future and already-visited slots. It checks surrounding original
+player bytes stay unchanged. The4cc010 backend is supplied in this test.
+Inventory-removal and full weapon-drop checks also pass against both rebuilt
+binaries, as do all19 CTests. These are instruction-harness checks; no live
+player resource cleanup or XEMU gameplay integration is claimed. Builds pass;
+the PC build also reports an existing C4701 eye warning in diagnostic animation,
+and the NXDK linker reports its existing .edata merge warning.
+Report: artifacts/weapon-player-slots.json.
+
+Next: identify and bind the resource owners released by4cc010, compose the
+player-slot implementation with live inventory removal, and continue the item
+allocation/query/bounds and remaining death-start integration.

@@ -92,6 +92,11 @@ int rf_weapon_reserve(const rf_weapon_inventory *inventory,const rf_weapon_suppl
 int rf_weapon_choose_available(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],
     const int32_t preference[32],uint32_t defer_flag,int32_t *selected);
 
+/*4a70e0: release each nonzero player +10e8 slot through4cc010, then clear
+ * that slot after the callback. Later slots are read when reached. Resource
+ * tokens and their pool lifetime belong to the release backend. */
+int rf_weapon_release_player_slots(uint32_t slots[25],void (*release)(void *,uint32_t),void *context);
+
 typedef struct rf_weapon_remove_backend {
     const uint32_t *players;const int32_t *count,*special_weapon;uint32_t capacity;
     rf_weapon_inventory *(*inventory)(void *,uint32_t player);
