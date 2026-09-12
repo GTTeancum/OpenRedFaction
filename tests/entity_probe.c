@@ -369,6 +369,15 @@ int main(int argc,char **argv)
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return dying_probe_main();
     }
     if(argc==2 && !strcmp(argv[1],"--pain"))return pain_probe();
+    if(argc==2 && !strcmp(argv[1],"--navigation-reset")) {
+        struct {rf_entity_navigation_route route;int32_t now;} wire;int32_t result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&wire,sizeof(wire),1,stdin)==1) {
+            result=rf_entity_navigation_reset(&wire.route,wire.now);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(&wire.route,sizeof(wire.route),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--land-process"))return land_process_probe();
     if(argc==2 && !strcmp(argv[1],"--impact-process-sp"))return impact_process_probe();
     if(argc==2 && !strcmp(argv[1],"--impact-damage")) {

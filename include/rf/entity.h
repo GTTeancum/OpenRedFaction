@@ -927,4 +927,19 @@ uint32_t rf_entity_death_clearance(const rf_entity_death_clearance_state *state,
     uint32_t direction,const rf_entity_death_obstacle *actors,uint32_t count,
     uint32_t (*ray)(void *context,const float start[3],const float end[3]),void *context);
 
+/* Original40a950 route prefix, embedded at actor588. Unknown bytes are retained,
+ * not interpreted as pointers or reconstructed navigation nodes. */
+typedef struct rf_entity_navigation_route {
+    uint32_t word_000;uint8_t retained_004[0x10];
+    int32_t word_014,word_018;uint8_t retained_01c[0x100];
+    int32_t timer_11c;uint8_t retained_120[8];uint32_t word_128,word_12c;
+    uint8_t retained_130[4];int32_t timer_134;float vector_138[3];int32_t word_144;
+    uint8_t retained_148[0x14],flag_15c,retained_15d[3];uint32_t word_160;
+    uint8_t retained_164[12],flag_170,retained_171[3];
+} rf_entity_navigation_route;
+/* Reset only the original fields, using the supplied valid game clock for both
+ * timer writes. Invalid state/clock leaves storage unchanged. Does not select
+ * navigation references, allocate routes or reselect AI. */
+int rf_entity_navigation_reset(rf_entity_navigation_route *route,int32_t now_ms);
+
 #endif

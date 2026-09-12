@@ -1409,3 +1409,16 @@ int rf_entity_death_early_sp(rf_entity_death_early_state *s,const rf_entity_deat
     status=rf_timer_set(&s->deadline_62fd48,s->now_ms,1500);if(status)return status;
     return rf_timer_set(&s->deadline_62fd44,s->now_ms,750);
 }
+
+_Static_assert(sizeof(rf_entity_navigation_route)==0x174,"navigation route prefix");
+_Static_assert(offsetof(rf_entity_navigation_route,timer_11c)==0x11c,"route timer");
+_Static_assert(offsetof(rf_entity_navigation_route,flag_170)==0x170,"route flag");
+int rf_entity_navigation_reset(rf_entity_navigation_route *route,int32_t now_ms)
+{
+    int32_t deadline;int status;if(!route)return RF_RANGE;
+    status=rf_timer_set(&deadline,now_ms,0);if(status)return status;
+    route->word_000=0;route->word_128=0;route->word_018=-1;route->word_014=-1;
+    route->word_12c=0;route->word_144=-1;route->timer_11c=deadline;route->timer_134=deadline;
+    memset(route->vector_138,0,sizeof(route->vector_138));route->flag_15c=1;route->flag_170=0;route->word_160=0;
+    return RF_OK;
+}
