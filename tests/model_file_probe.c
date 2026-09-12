@@ -14,6 +14,22 @@ static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 }
 int main(int argc, char **argv)
 {
+    if(argc==5 && !strcmp(argv[1],"--static-metadata")) {
+        rf_vpp archive;rf_static_model_metadata owner={0},empty={0};int status;
+        if(rf_vpp_open(&archive,argv[2]))return 2;
+        status=rf_static_model_metadata_open(&archive,argv[3],(uint32_t)strtoul(argv[4],NULL,10),&owner);
+        rf_vpp_close(&archive);
+        if(status && memcmp(&owner,&empty,sizeof(owner)))return 3;
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);
+        fwrite(owner.filename,80,1,stdout);fwrite(&owner.count,12,1,stdout);fwrite(owner.spheres,sizeof(*owner.spheres),owner.count,stdout);
+        rf_static_model_metadata_close(&owner);rf_static_model_metadata_close(&owner);return memcmp(&owner,&empty,sizeof(owner))?4:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--static-name")) {
+        char in[64],out[64];int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,64,1,stdin)==1){memset(out,0xa5,64);status=rf_model_compiled_filename(in,out,".v3m");fwrite(&status,4,1,stdout);fwrite(out,64,1,stdout);}return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--static-bounds")) {
         uint32_t count;float rows[128][4],out[4];int status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

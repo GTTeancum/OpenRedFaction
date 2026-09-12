@@ -3,6 +3,37 @@
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
+int rf_model_compiled_filename(const char *authored,char compiled[64],const char extension[5])
+{
+    uint32_t length=0,stem=0,i;int dot=0;
+    if(!authored || !compiled || !extension || extension[0]!='.')return RF_RANGE;
+    for(i=1;i<4;++i)if(!extension[i])return RF_RANGE;
+    if(extension[4])return RF_RANGE;
+    while(length<64 && authored[length]){if(authored[length]=='.'){stem=length;dot=1;}++length;}
+    if(length==64)return RF_RANGE;if(!dot)stem=length;if(stem>59)return RF_RANGE;
+    memmove(compiled,authored,stem);memcpy(compiled+stem,extension,5);return RF_OK;
+}
+int rf_static_model_metadata_open(rf_vpp *archive,const char *authored,uint32_t budget,rf_static_model_metadata *owner)
+{
+    rf_static_model_metadata value={0};rf_model_file *file;uint64_t peak;uint32_t i;int status;
+    if(!archive || !owner || owner->filename[0] || owner->spheres || owner->count || owner->allocated_bytes || owner->peak_bytes)return RF_RANGE;
+    if((uint64_t)sizeof(value)+sizeof(*file)>budget)return RF_RANGE;
+    status=rf_model_compiled_filename(authored,value.filename,".v3m");if(status)return status;
+    file=malloc(sizeof(*file));if(!file)return RF_IO;
+    status=rf_model_file_open(file,archive,value.filename);if(status)goto done;
+    status=rf_model_file_static_bound_sphere(file,value.bound);if(status)goto done;
+    for(i=0;i<file->section_count;++i)if(file->sections[i].type==0x43535048)++value.count;
+    peak=sizeof(value)+(uint64_t)sizeof(*file)+(uint64_t)value.count*sizeof(*value.spheres);
+    if(peak>budget){status=RF_RANGE;goto done;}
+    if(value.count){value.spheres=malloc(value.count*sizeof(*value.spheres));if(!value.spheres){status=RF_IO;goto done;}}
+    for(i=0;i<value.count;++i){status=rf_model_file_collision_sphere(file,i,value.spheres+i);if(status)goto done;}
+    value.allocated_bytes=sizeof(value)+value.count*sizeof(*value.spheres);value.peak_bytes=(uint32_t)peak;
+    *owner=value;value.spheres=NULL;
+done:
+    free(value.spheres);free(file);return status;
+}
+void rf_static_model_metadata_close(rf_static_model_metadata *owner)
+{if(owner){free(owner->spheres);memset(owner,0,sizeof(*owner));}}
 typedef struct reader { rf_model_file *model; uint32_t cursor; int status; } reader;
 int rf_model_collision_sphere_pose(const rf_model_collision_sphere *sphere,
     const float (*matrices)[12],uint32_t bones,float result[4])

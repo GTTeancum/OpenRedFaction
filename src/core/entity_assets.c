@@ -53,19 +53,7 @@ int rf_entity_assets_load(const char *path,const char *class_name,const char *sk
     free(text);rf_vpp_close(&archive);return status;
 }
 int rf_entity_skeletal_filename(const char *authored,char compiled[64])
-{
-    uint32_t length=0,stem=0;int dot=0;
-    if(!authored || !compiled)return RF_RANGE;
-    while(length<64 && authored[length]) {
-        if(authored[length]=='.') {stem=length;dot=1;}
-        ++length;
-    }
-    if(length==64)return RF_RANGE;
-    if(!dot)stem=length;
-    if(stem>59)return RF_RANGE;
-    memmove(compiled,authored,stem);memcpy(compiled+stem,".v3c",5);
-    return RF_OK;
-}
+{return rf_model_compiled_filename(authored,compiled,".v3c");}
 int rf_entity_state_motion_open(const char *tables_path,const char *class_name,
     const char *weapon,const char *state,rf_vpp *motions,uint32_t budget,rf_motion_file *file)
 {

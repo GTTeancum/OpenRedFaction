@@ -45,6 +45,23 @@ typedef struct rf_model_file {
 /* Structural V3C/V3M v0x40000 traversal; LOD payloads stay on disc. Caller retains
  * archive ownership. Result is cleared on failure. No mesh/animation decoding. */
 int rf_model_file_open(rf_model_file *model, rf_vpp *archive, const char *name);
+/*5142d0 bounded filename conversion. Replace the final dot suffix anywhere
+ * in the authored name; four-character extension (including dot), disjoint
+ * from output. Authored/output may alias. Errors preserve output. */
+int rf_model_compiled_filename(const char *authored,char compiled[64],const char extension[5]);
+typedef struct rf_static_model_metadata {
+    char filename[64];float bound[4];rf_model_collision_sphere *spheres;
+    uint32_t count,allocated_bytes,peak_bytes;
+} rf_static_model_metadata;
+/* Owned static model metadata: compile .v3m name, stream whole bounds and
+ * CSPH records. One transient model directory, one retained sphere allocation.
+ * Budget includes this owner, directory and spheres; excludes archive/stack.
+ * Empty owner required; errors preserve it. Archive may close after success.
+ * No geometry, texture, model-handle registration, reference sharing or VFX. */
+int rf_static_model_metadata_open(rf_vpp *archive,const char *authored,uint32_t budget,
+    rf_static_model_metadata *owner);
+void rf_static_model_metadata_close(rf_static_model_metadata *owner);
+
 /* First animated submesh sphere (5032d0/501610/504510). Does not combine
  * submeshes or collision spheres. Bounded16-byte read; errors preserve output. */
 int rf_model_file_bound_sphere(const rf_model_file *model,float sphere[4]);
