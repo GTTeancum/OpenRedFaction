@@ -416,6 +416,17 @@ static int corpse_scene_binding_check(void)
                     CHECK(rf_scene_corpse_play(corpse,1)==RF_OK);
                     CHECK(moved->playback.completion.active.count==2 && moved->playback.completion.active.slots[1].weight==1);
                     CHECK(moved->playback.completion.active.freeze_slot==1 && clips[0].references==1 && clips[1].references==1);
+                    {
+                        uint32_t generation=moved->playback.generation;float saved[12];
+                        memcpy(saved,moved->matrices[0],sizeof(saved));
+                        clips[0].comparison.end_tick=clips[1].comparison.end_tick=4800;
+                        clips[0].comparison.weight=clips[1].comparison.weight=1;
+                        CHECK(rf_scene_corpse_advance(corpse,.25f)==RF_OK);
+                        CHECK(moved->playback.completion.active.count==1 && moved->playback.completion.active.slots[0].motion==1);
+                        CHECK(moved->playback.completion.active.slots[0].tick==1200 && moved->playback.generation==generation+1);
+                        CHECK(!clips[0].references && clips[1].references==1 && !memcmp(saved,moved->matrices[0],sizeof(saved)));
+                        CHECK(campaign_model_owners[0].position[1]==10);
+                    }
                     campaign_motion_catalog.models=NULL;campaign_motion_catalog.model_count=0;
                     campaign_npc_motion_data=NULL;campaign_npc_motion_sizes=NULL;campaign_npc_motion_count=0;model.cache_ids=NULL;
                 }

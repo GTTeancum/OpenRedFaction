@@ -1904,3 +1904,22 @@ render placement and room membership require their separate owner update.
 Playback51ba80 is already reconstructed by rf_motion_update; connecting its
 transferred owner and determining when cached pose evaluation is demanded
 remain the next integration work. Type3 advancement is outside this evidence.
+
+
+## Transferred corpse playback advancement
+
+rf_scene_corpse_advance resolves the transferred model and invokes the shared
+51ba80 playback update with its retained per-model resources. It uses no actor
+controller, does not alter world placement, allocate, or read clip archives.
+Generation advances according to the verified playback rules; cached matrices
+remain untouched until evaluation is requested. This is timing advancement,
+not a complete render-ready corpse tick. Current sphere/follow helpers still
+read cached matrices, so pose evaluation must be connected before live use.
+
+The PC constructor/finalizer fixture advances a retained nonloop motion by
+0.25 seconds to tick1200, checks generation, removes a zero-weight loop and
+releases exactly that reference. Cached matrices/placement are unchanged, and
+final deletion releases the remaining reference. Both builds and all18 CTests
+pass. The underlying original playback comparison passes160 scenarios across
+64 consecutive frames each (10240 updates); adapter coverage is PC fixture
+evidence, not a native XEMU corpse tick. Live dispatch remains open.

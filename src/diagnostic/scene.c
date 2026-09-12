@@ -747,6 +747,18 @@ int rf_scene_corpse_play(const rf_corpse *corpse,int32_t motion)
     model=campaign_playback_resources.models+pose->skeleton;
     return rf_motion_start(&pose->playback,model->resources,model->count,motion,1,1);
 }
+/*503360/501ab0/51ba80 timing only. Type2 does not consume world transforms.
+ * Pose matrices remain generation-tagged and must be evaluated before use. */
+int rf_scene_corpse_advance(const rf_corpse *corpse,float elapsed)
+{
+    rf_entity_pose *pose;rf_entity_playback_model *model;uint32_t slot;int status;
+    if(!corpse || !corpse->update.model)return RF_RANGE;
+    slot=corpse->update.model-1;status=campaign_model_pose(slot,&pose);if(status)return status;
+    if(!pose || !campaign_model_owners[slot].owned || !campaign_playback_resources.models ||
+       pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
+    model=campaign_playback_resources.models+pose->skeleton;
+    return rf_motion_update(&pose->playback,model->resources,model->count,elapsed);
+}
 int rf_scene_corpse_duration(const rf_corpse *corpse,int32_t motion,double *seconds)
 {
     rf_entity_pose *pose;const rf_motion_file *file;uint32_t slot;int status;
