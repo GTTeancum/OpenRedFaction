@@ -420,6 +420,11 @@ typedef struct rf_collision_solid_response_backend {
  * positive count supplies local point/normal/face. Owners remain stable. */
 uint32_t rf_collision_actor_solid_response(rf_collision_actor_general_response *actor,
     rf_collision_actor_general_response *solid_actor,uint32_t solid,const rf_collision_solid_response_backend *backend);
+/* Original506ae0 segment/sphere helper used by49afe0's immunity branch.
+ * Finite disjoint inputs/outputs. Exact tangency rejects. Zero-length queries
+ * always copy start, even on misses; ordinary misses preserve output. */
+uint32_t rf_collision_segment_sphere(const float start[3],const float end[3],const float center[3],
+    float radius,float point[3]);
 typedef struct rf_collision_pair_actor_state {
     uint32_t kind,body_flags,model,movement_mode,handle,parent_handle,object_flags;
     uint32_t trigger_filter;int32_t allowed_count;const uint32_t *allowed_handles;

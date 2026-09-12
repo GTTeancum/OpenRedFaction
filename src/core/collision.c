@@ -2134,3 +2134,23 @@ uint32_t rf_collision_actor_solid_response(rf_collision_actor_general_response *
     }
     backend->finish(backend->context);return changed;
 }
+
+uint32_t rf_collision_segment_sphere(const float start[3],const float end[3],const float center[3],
+    float radius,float point[3])
+{
+    float delta[3],offset[3],direction[3],closest[3],length,projection,scaled,hit_float;
+    double magnitude,dot,distance,hit;uint32_t i;
+    for(i=0;i<3;++i){delta[i]=(float)((double)end[i]-start[i]);offset[i]=(float)((double)center[i]-start[i]);}
+    magnitude=response_length(delta);length=(float)magnitude;
+    if(!(magnitude>0)){distance=response_length(offset);memcpy(point,start,12);return (float)distance<radius;}
+    for(i=0;i<3;++i)direction[i]=(float)((double)delta[i]/length);
+    dot=(double)direction[2]*offset[2];dot+=(double)direction[1]*offset[1];dot+=(double)direction[0]*offset[0];projection=(float)dot;
+    if(-radius>projection || projection>(double)length+radius)return 0;
+    for(i=0;i<3;++i){scaled=(float)((double)direction[i]*projection);closest[i]=(float)((double)start[i]+scaled);delta[i]=(float)((double)closest[i]-center[i]);}
+    distance=response_length(delta);if(!(distance<radius))return 0;
+    hit=(double)projection-sqrt((double)radius*radius-distance*distance);hit_float=(float)hit;
+    if(hit<=length && hit_float>=0) {
+        for(i=0;i<3;++i){scaled=(float)((double)direction[i]*hit_float);point[i]=(float)((double)start[i]+scaled);}
+    } else memcpy(point,start,12);
+    return 1;
+}

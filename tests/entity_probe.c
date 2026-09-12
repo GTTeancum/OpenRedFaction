@@ -633,6 +633,15 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--actor-response")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return actor_response_probe();
     }
+    if(argc==2 && !strcmp(argv[1],"--segment-sphere")) {
+        float wire[13];uint32_t result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            result=rf_collision_segment_sphere(wire,wire+3,wire+6,wire[9],wire+10);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(wire+10,12,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ray-sphere")) {
         float wire[15];uint32_t result;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

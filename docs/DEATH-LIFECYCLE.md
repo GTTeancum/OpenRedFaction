@@ -4305,3 +4305,30 @@ Bounds/list/vector/matrix/minimum callees execute unchanged.4df7e0,4df1c0 and
 4dfb00 are supplied services; this does not establish actual cache/query effects
 or their live binding. Local report: artifacts/actor-solid-response.json.
 PC/NXDK builds and all19 CTests pass. No new native response/visual claim.
+
+
+### Model-response immunity branch geometry506ae0 (2026-09-12)
+
+49afe0 resolves the second actor through426fc0 and tests42cca0 armor immunity.
+If present/immune and the first object is kind2, it substitutes a unit-radius
+segment/sphere query506ae0 for model geometry5031f0. The already verified
+rf_entity_armor_immunity predicate can supply42cca0 once live ownership is
+connected. rf_collision_segment_sphere now reconstructs506ae0 completely.
+
+The helper retains float-rounded segment length and direction divisions,
+projection and closest-point stores, then the original distance/square-root
+calculation. Exact tangency rejects. Accepted intersections outside the segment
+return start rather than a clamped endpoint. For a zero-length segment the
+helper always writes start, including a failed strict-radius test; other misses
+preserve output. This must not be replaced by508e40 or an all-or-nothing query.
+The original uses static scratch vectors; the port uses local scratch without
+allocation. Empty static destructor registration is outside geometric behavior.
+
+verify_collision_segment_sphere.py passes8192 full-original/PC/NXDK cases under
+027f:6938 misses,1254 hits,569 misses writing start and983 hits returning start.
+Original geometry/vector/distance callees run without hooks; static constructor
+flags are preinitialized. Return, point and input preservation match exactly.
+Coverage includes zero length, radius/endpoint limits, strict tangency, adjacent
+floats and large-coordinate rounding. Report: artifacts/collision-segment-sphere.json.
+PC/NXDK builds and all19 CTests pass.49afe0 orchestration, live model query
+ownership and native response dispatch remain open.
