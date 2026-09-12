@@ -615,6 +615,31 @@ int32_t rf_entity_action_name_lookup(uint32_t model,uint32_t model_kind,const ch
  * activate live dying updates before the remaining death effects exist. */
 uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t falling);
 
+typedef struct rf_entity_death_motion_state {
+    uint32_t flags_810;int32_t requested_83c,action_824;
+    uint32_t model,class_flags_724;int32_t base_bones[3],effective_bones[2];
+    uint32_t word_1464,word_1468;int32_t motions[45];
+} rf_entity_death_motion_state;
+enum rf_entity_death_motion_call {
+    RF_DEATH_MOTION_SELECT,RF_DEATH_MOTION_SKELETAL,RF_DEATH_MOTION_RESET,
+    RF_DEATH_MOTION_POSE,RF_DEATH_MOTION_CLEAR_BONE,RF_DEATH_MOTION_PLAY
+};
+typedef struct rf_entity_death_motion_backend {
+    uint32_t (*call)(void *,uint32_t operation,uint32_t first,uint32_t second);
+    void *context;
+} rf_entity_death_motion_backend;
+/* SP41feed..42009f animation stage, not complete death entry/dispatch.
+ * Supplied4895d0 player predicate uses its low byte. SELECT(0,0)=420c00;
+ * SKELETAL(0,0)=40a1e0; RESET(model,0)=503400; POSE(model,0)=5034d0.
+ * CLEAR_BONE(pose,index) clears the single byte at pose+13bc+48*index.
+ * PLAY(action,blend)=428c90(actor,action,1.0,blend,1). Its flag mutations
+ * are retained before the ordinary post-play bit8 is ORed.
+ * Callbacks/owners remain alive; model/class/mapping fields remain stable.
+ * Caller resolves valid pose/bone tokens; selected actions are -1 or0..44.
+ * Errors after callbacks/state changes do not roll back. */
+int rf_entity_death_motion_sp(rf_entity_death_motion_state *,uint32_t player,
+    const rf_entity_death_motion_backend *);
+
 typedef struct rf_entity_dying_state {
     uint32_t handle,flags_810;int32_t action_824,primary_weapon;
     uint32_t burn_13d8,class_flags_728;

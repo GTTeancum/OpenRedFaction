@@ -20,6 +20,7 @@
 #include "corpse_surface_probe.h"
 #include "corpse_delete_probe.h"
 #include "corpse_create_probe.h"
+#include "death_motion_probe.h"
 static uint32_t death_clearance(void *context,uint32_t direction)
 {uint32_t *v=context;++v[2];v[3]=direction;return v[direction];}
 typedef struct death_ray_trace {uint32_t responses[4],count,points[24];} death_ray_trace;
@@ -631,6 +632,9 @@ int main(int argc,char **argv)
             if(fwrite(out,sizeof(out),1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--death-motion")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return death_motion_probe();
     }
     if(argc==2 && !strcmp(argv[1],"--death-entry")) {
         uint32_t words[12],entered;rf_entity_death_entry_state state;

@@ -516,6 +516,38 @@ uint32_t rf_entity_death_entry_sp(rf_entity_death_entry_state *state,uint32_t fa
     return 1;
 }
 
+int rf_entity_death_motion_sp(rf_entity_death_motion_state *s,uint32_t player,
+    const rf_entity_death_motion_backend *b)
+{
+    int32_t action;uint32_t pose,i,blend;
+    if(!s || !b || !b->call)return RF_RANGE;
+    if(player&255u){s->action_824=-1;return RF_OK;}
+    if(s->flags_810&0x80u)return RF_OK;
+    action=s->requested_83c;
+    if(action==-1)action=(int32_t)b->call(b->context,RF_DEATH_MOTION_SELECT,0,0);
+    if(action<-1 || action>=45)return RF_RANGE;
+    if(b->call(b->context,RF_DEATH_MOTION_SKELETAL,0,0)&255u) {
+        b->call(b->context,RF_DEATH_MOTION_RESET,s->model,0);
+        pose=b->call(b->context,RF_DEATH_MOTION_POSE,s->model,0);
+        if(!pose)return RF_RANGE;
+        for(i=0;i<3;++i)if(s->base_bones[i]>=0) {
+            if(i==2)s->word_1468=0;else s->word_1464=0;
+            b->call(b->context,RF_DEATH_MOTION_CLEAR_BONE,pose,(uint32_t)s->base_bones[i]);
+        }
+    }
+    if(action==-1 || s->motions[action]==-1){s->action_824=-1;return RF_OK;}
+    if(s->model) {
+        pose=b->call(b->context,RF_DEATH_MOTION_POSE,s->model,0);
+        if(pose)for(i=0;i<2;++i)
+            b->call(b->context,RF_DEATH_MOTION_CLEAR_BONE,pose,(uint32_t)s->effective_bones[i]);
+    }
+    s->action_824=action;blend=1;
+    if(s->class_flags_724&0x200000u){s->flags_810|=0x02000000u;blend=0;}
+    b->call(b->context,RF_DEATH_MOTION_PLAY,(uint32_t)action,blend);
+    if(blend)s->flags_810|=8u;
+    return RF_OK;
+}
+
 static int corpse_retention_eligible(const rf_corpse_retention_node *n)
 {return !(n->flags_29c&0x43u) && !(n->object_flags_7c&0x4000u);}
 int rf_corpse_fade_step(rf_corpse_fade_state *s,float dt,uint32_t *continue_tick)

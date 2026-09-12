@@ -2878,3 +2878,40 @@ binding. Generic cached-tag pose/parent ownership remains an independent task;
 this audit does not prove full model loading, original animated frames, native
 C/XEMU composition or live death dispatch. No speculative cached-parent code
 was added. Report: artifacts/model-cached-tags.json.
+
+
+## Death-animation handoff reconstruction (2026-09-12)
+
+`rf_entity_death_motion_sp` reconstructs41feed..42009f, the SP animation stage
+inside41fdc0. It consumes a supplied4895d0 low-byte player predicate; a player
+stores action824=-1 even when810 bit80 is set. Nonplayers with bit80 skip the
+stage. Otherwise requested83c wins, with420c00 selection only for-1.
+
+The40a1e0 low-byte skeletal path resets503400 and resolves5034d0 before checking
+whether the chosen action has a motion. Nonnegative base-class bones13d8/13dc
+clear actor1464 and their pose override byte;13e0 clears1468 and its byte.
+No clearing occurs for negative base indices. Missing actions/mappings store
+824=-1 after this cleanup. For a valid mapped action, a nonzero model resolves
+its pose again and, if present, clears the two effective-class bone bytes.
+The second resolution is preserved even when the first already succeeded.
+
+Action824 is committed before playback. Base class724 bit200000 sets actor810
+bit02000000 and passes blend0; otherwise blend1 is passed and810 bit8 is ORed
+AFTER428c90. Both use gain1.0 and final argument1. Playback mutations to810
+are retained. Callback contracts expose original helper boundaries and direct
+bone-byte writes; no allocation or replacement skeletal representation is added.
+Class/model/mapping owners must remain stable and bone tokens valid. Invalid
+selected actions or missing required first pose return RF_RANGE, with prior
+callback effects retained. The helper does not activate live dying dispatch.
+
+`tools/verify_death_motion.py` executes the original instruction stage unchanged
+apart from supplied player/type/selection/reset/pose/play helper boundaries.
+It observes actual original bone-byte writes and compares full state, remaining
+actor bytes,52 bytes of fixture bone flags and callback order against compiled
+PC and NXDK code.2048 cases pass:677 player bypasses,170 bit80 skips,343 missing
+animations,858 playback calls (440 ordinary/418 special). Random flag mutation
+inside playback tests the pre/post ordering. Four PC/NXDK guard cases cover
+invalid actions and a missing first pose. PC/NXDK builds and all19 CTests pass.
+This is compiled-code emulation, not an XEMU gameplay capture or actual motion
+playback test. Full death-start item drops, linked actors, player/camera effects,
+remaining cleanup and live ownership remain to be reconstructed/connected.
