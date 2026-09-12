@@ -3741,6 +3741,35 @@ static int campaign_body_query(const rf_geometry_collision_world *world,const rf
     return rf_geometry_collision_body_sweep(world,&campaign_movers,query,campaign_sweep_scratch,
         campaign_movers.count,rf_geometry_body_surface,&surfaces,contact,matched);
 }
+/* Caller owns conversion scratch; no per-query allocation or player globals. */
+static int campaign_physics_body_sweep(const rf_geometry_collision_world *world,
+    const rf_physics_body_state *state,const rf_physics_spheres *source,uint32_t flags,
+    rf_collision_body_sphere *scratch,uint32_t capacity,rf_geometry_body_hit *hit,uint32_t *matched)
+{
+    rf_collision_body_query query={0};rf_geometry_body_hit value={0};uint32_t i,found;int status;
+    if(!world || !state || !source || !hit || !matched || source->count>capacity ||
+        (source->count && (!source->items || !scratch)))return RF_RANGE;
+    if(state->position[0]==state->next_position[0] && state->position[1]==state->next_position[1] &&
+        state->position[2]==state->next_position[2]){*matched=0;return RF_OK;}
+    for(i=0;i<source->count;++i){memcpy(scratch[i].center,source->items[i].center,12);scratch[i].radius=source->items[i].radius;}
+    memcpy(query.start,state->position,12);memcpy(query.end,state->next_position,12);
+    memcpy(query.matrix,state->orientation,36);query.radius=state->bounds.radius;
+    query.flags=flags;query.spheres=scratch;query.count=source->count;query.limit=1;
+    status=campaign_body_query(world,&query,&value,&found);if(status)return status;
+    if(found)*hit=value;*matched=found;return RF_OK;
+}
+int rf_scene_npc_body_sweep(const rf_geometry_collision_world *world,uint32_t handle,
+    const rf_physics_body_state *proposal,uint32_t flags,rf_collision_body_sphere *scratch,
+    uint32_t capacity,rf_geometry_body_hit *hit,uint32_t *matched)
+{
+    uint32_t i;campaign_npc_body *owner;
+    if(!proposal || !hit || !matched)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
+        campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view || owner->view.type!=0)return RF_NOT_FOUND;
+    return campaign_physics_body_sweep(world,proposal,&owner->body.spheres,flags,scratch,capacity,hit,matched);
+}
 /* Diagnostic follow-up to short misses, never a substitute for4a0840 depth.
  * Extend only the endpoint by16 units and propose contact on private storage. */
 static void campaign_npc_deep_probe(const rf_geometry_collision_world *world,const campaign_npc_body *owner,
@@ -3902,17 +3931,9 @@ static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics
     for(k=0;k<3;++k)delta[k]=state->next_position[k]-state->position[k];
     if(delta[0]==0 && delta[1]==0 && delta[2]==0)return RF_OK; /* 4df1c0 zero-displacement exit */
     if(campaign_spawn) {
-        rf_collision_body_sphere spheres[8];rf_collision_body_query query={0};
-        int status;
-        if(!actor_follow_world || !campaign_surface_palette || !campaign_surface_sources || scene_actor_body.spheres.count>8)return RF_RANGE;
-        for(i=0;i<scene_actor_body.spheres.count;i++) {
-            memcpy(spheres[i].center,scene_actor_body.spheres.items[i].center,12);
-            spheres[i].radius=scene_actor_body.spheres.items[i].radius;
-        }
-        memcpy(query.start,state->position,12);memcpy(query.end,state->next_position,12);
-        memcpy(query.matrix,state->orientation,36);query.radius=state->bounds.radius;
-        query.flags=query_flags;query.spheres=spheres;query.count=scene_actor_body.spheres.count;query.limit=1;
-        status=campaign_body_query(world,&query,&rf_scene_actor_body_contact,&matched);
+        rf_collision_body_sphere spheres[8];int status;
+        status=campaign_physics_body_sweep(world,state,&scene_actor_body.spheres,query_flags,
+            spheres,8,&rf_scene_actor_body_contact,&matched);
         ++rf_scene_actor_body_sweeps[0];rf_scene_actor_body_sweeps[3]=(uint32_t)status;
         if(status)return status;
         if(matched) {
@@ -4590,6 +4611,39 @@ uint32_t rf_scene_npc_playback[7]; /* ticks, actors, bones, state hash, pose has
 /* Advance the existing startup selection once per simulation step. AI/state
  * reselection and weapon overlays remain external; do not tick from drawing. */
 uint32_t rf_scene_npc_gate[4]; /* cumulative considered, advanced, skipped; last decision hash */
+uint32_t rf_scene_npc_body_sweep_test[5]; /* cases,hits,misses,hash,errors */
+static int campaign_npc_body_sweep_fixture(const rf_geometry_collision_world *world,uint32_t frame)
+{
+    uint32_t i,axis,direction,capacity=0;rf_collision_body_sphere *scratch;int status=RF_OK;
+    if(frame)return RF_OK;memset(rf_scene_npc_body_sweep_test,0,sizeof(rf_scene_npc_body_sweep_test));
+    if(!rf_scene_actor_pair_test_enabled)return RF_OK;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].body.spheres.count>capacity)capacity=campaign_npc_bodies[i].body.spheres.count;
+    if(!capacity || capacity>4096)return RF_RANGE;scratch=malloc(capacity*sizeof(*scratch));if(!scratch)return RF_IO;
+    rf_scene_npc_body_sweep_test[3]=2166136261u;
+    for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;
+        for(axis=0;axis<3 && !status;++axis)for(direction=0;direction<3 && !status;++direction) {
+            rf_physics_body_state proposal=owner->body.state;rf_collision_body_query query={0};
+            rf_geometry_body_hit hit={0},expected={0};uint32_t matched=99,want=0,k;
+            memcpy(proposal.next_position,proposal.position,12);
+            proposal.next_position[axis]+=direction==0?-16.0f:direction==1?16.0f:0;
+            status=rf_physics_body_prepare_sweep(&proposal);if(status)break;
+            status=rf_scene_npc_body_sweep(world,owner->registration.handle,&proposal,0x460,scratch,capacity,&hit,&matched);if(status)break;
+            /* Independent query assembly checks owner and transform selection. */
+            for(k=0;k<owner->body.spheres.count;++k){memcpy(scratch[k].center,owner->body.spheres.items[k].center,12);scratch[k].radius=owner->body.spheres.items[k].radius;}
+            memcpy(query.start,proposal.position,12);memcpy(query.end,proposal.next_position,12);
+            memcpy(query.matrix,proposal.orientation,36);query.radius=proposal.bounds.radius;
+            query.flags=0x460;query.spheres=scratch;query.count=owner->body.spheres.count;query.limit=1;
+            if(direction!=2)status=campaign_body_query(world,&query,&expected,&want);
+            if(!status && (matched!=want || (matched && memcmp(&hit,&expected,sizeof(hit)))))status=RF_FORMAT;
+            if(status)break;
+            ++rf_scene_npc_body_sweep_test[0];++rf_scene_npc_body_sweep_test[matched?1:2];
+            rf_scene_npc_body_sweep_test[3]=npc_hash_bytes(rf_scene_npc_body_sweep_test[3],&matched,4);
+            if(matched)rf_scene_npc_body_sweep_test[3]=npc_hash_bytes(rf_scene_npc_body_sweep_test[3],&hit,sizeof(hit));
+        }
+    }
+    free(scratch);if(status)++rf_scene_npc_body_sweep_test[4];return status;
+}
 static int campaign_model_query_fixture(uint32_t frame)
 {
     uint32_t i,axis,r,tested=0;int status;
@@ -4674,6 +4728,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
         ++rf_scene_npc_eyes[0];rf_scene_npc_eyes[3]=npc_hash_bytes(rf_scene_npc_eyes[3],campaign_npc_bodies[i].eye_position,12);
     }
+    status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_model_query_fixture(rf_scene_npc_playback[0]);if(status)return status;
     ++rf_scene_npc_playback[0];rf_scene_npc_playback[1]=actors;rf_scene_npc_playback[2]=bones;
     rf_scene_npc_playback[3]=h;rf_scene_npc_playback[4]=p;rf_scene_npc_playback[5]=markers;rf_scene_npc_playback[6]=campaign_npc_motion_bytes;return RF_OK;

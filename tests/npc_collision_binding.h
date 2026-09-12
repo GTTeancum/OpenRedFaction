@@ -8,6 +8,21 @@ static int npc_collision_binding_check(void)
  rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
  CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);handle=owner.registration.handle;
  owner.movement_slot=3;campaign_modes[3].index=8;owner.view.linked_handle=-1;
+ {
+  rf_geometry_collision_world world={0};rf_geometry_body_hit hit,before_hit;
+  rf_physics_sphere sphere={0};rf_collision_body_sphere scratch;uint32_t matched=99;
+  memset(&hit,0xa5,sizeof(hit));before_hit=hit;
+  CHECK(rf_scene_npc_body_sweep(&world,handle^0x10000,&owner.body.state,0x460,&scratch,1,&hit,&matched)==RF_NOT_FOUND);
+  CHECK(matched==99 && !memcmp(&hit,&before_hit,sizeof(hit)));
+  CHECK(rf_scene_npc_body_sweep(NULL,handle,&owner.body.state,0x460,&scratch,1,&hit,&matched)==RF_RANGE);
+  owner.body.spheres.items=&sphere;owner.body.spheres.count=1;
+  CHECK(rf_scene_npc_body_sweep(&world,handle,&owner.body.state,0x460,&scratch,0,&hit,&matched)==RF_RANGE);
+  CHECK(matched==99 && !memcmp(&hit,&before_hit,sizeof(hit)));
+  CHECK(rf_scene_npc_body_sweep(&world,handle,&owner.body.state,0x460,&scratch,1,&hit,&matched)==RF_OK);
+  CHECK(matched==0 && !memcmp(&hit,&before_hit,sizeof(hit)));
+  owner.body.spheres.items=NULL;owner.body.spheres.count=0;
+ }
+
  CHECK(rf_scene_collision_extra_velocity(NULL,handle)==owner.support_velocity);
  CHECK(!owner.support_velocity[0] && !owner.support_velocity[1] && !owner.support_velocity[2]);
  owner.support_velocity[0]=3;owner.support_velocity[1]=-7;owner.support_velocity[2]=11;

@@ -76,6 +76,14 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered);
  * authored NPC orientation. No allocation, pair scheduling or response effects.
  * Caller refreshes after mutations. Failure preserves output. */
 int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result);
+/* Query registered NPC spheres using an explicit proposed body and current world/
+ * mover geometry. Caller scratch has at least sphere-count records. No actor
+ * mutation, contact publication or scheduling. Misses preserve hit; errors
+ * preserve hit/matched. Scratch may change. Zero translation returns a miss. */
+int rf_scene_npc_body_sweep(const rf_geometry_collision_world *world,uint32_t handle,
+    const rf_physics_body_state *proposal,uint32_t flags,rf_collision_body_sphere *scratch,
+    uint32_t capacity,rf_geometry_body_hit *hit,uint32_t *matched);
+
 /* Borrow registered NPC body/spheres for immediate response processing. Uses
  * body current/predicted transforms, not published rendering position. Owners
  * must remain stable. No response scheduling or extra-velocity lookup here. */

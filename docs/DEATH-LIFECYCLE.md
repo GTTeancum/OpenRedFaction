@@ -5597,3 +5597,33 @@ Completion has8728 available pages and sampled GPU mesh peak1339632 bytes.
 XBE SHA256:6a6c01207069ed4eb12aeb3d0682b102b2d5721d37c070b627f6a8311992c570.
 NPC stepping, discovered pair scheduling and complete actor-family response
 integration remain open. No new visible gameplay is claimed.
+
+
+### Registered NPC world/mover body sweeps (2026-09-12)
+
+The previous live actor_sweep converted spheres from the global player owner,
+which could not be reused for NPC movement. campaign_physics_body_sweep now
+takes explicit body state, owned sphere collection and caller conversion
+scratch, and the player calls it. rf_scene_npc_body_sweep validates a registered
+kind0 NPC handle, borrows its authored spheres and queries an explicit proposed
+body against the current campaign world/mover geometry. No query allocation,
+actor mutation, response publication or physics scheduling is performed.
+Scratch capacity is explicit; hit is preserved on a miss and hit/matched are
+preserved on errors. Zero translation returns a miss, preserving the existing
+player exit. This is a scene binding to the previously reconstructed body
+query, not new evidence for complete original NPC physics scheduling.
+
+The opt-in actor-pairs fixture tests78 retained NPCs across three axes with
+positive/negative16-unit proposals and zero translation:702 cases,397 hits,
+305 misses, hash799736443, zero errors. Explicit independent query assembly
+checks sphere-owner and transform selection; PC/native equality checks complete
+hit records via the accumulated hash. Scratch is allocated once for the
+fixture and freed. The registered binding test also covers stale handles,
+NULL world, insufficient capacity and stationary output preservation.
+
+Both builds and19 CTests pass. Stock64MiB XEMU replay-20260912-085925 passes
+180 frames. Its PC reference differs from085053 only by the new NPC_BODY_SWEEP
+row; existing movement/rendering telemetry is unchanged. XBE SHA256:
+83f90d31d3c99534a324e806d847a3cf8242d80e7ad8c9858bb385db0d15ea35.
+Live NPC prediction, contact response, support/landing and position/room
+publication remain open; this fixture does not make stationary NPCs move.
