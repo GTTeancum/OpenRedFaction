@@ -456,6 +456,25 @@ int rf_entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skele
  * bone cache stamps. Other actors sharing registrations retain their counters.
  * Empty playback is repeatable; invalid slots/counts preserve the owner/pose. */
 int rf_entity_pose_release(rf_entity_pose *pose,rf_entity_playback_resources *resources);
+/* Port-owned mutable model state for actor-to-corpse handoff. Immutable
+ * skeleton/geometry/material/catalog data stay level-owned and must outlive it.
+ * One allocation contains matrices and cache stamps; playback references move,
+ * they are not duplicated. This is a storage adaptation for the original shared
+ * model-instance transfer, not a reconstruction of502880's complete instance. */
+typedef struct rf_entity_owned_pose {
+    rf_entity_pose pose;void *storage;uint32_t allocated_bytes;
+} rf_entity_owned_pose;
+/* Empty result and disjoint valid source storage required. Budget covers the
+ * new owner/cache allocation; existing level arrays remain charged separately.
+ * On success source is consumed (skeleton UINT32_MAX, empty playback and invalid
+ * cache stamps), with its level-owned backing pointers preserved for teardown.
+ * Errors preserve source, result and shared reference counters. */
+int rf_entity_pose_take(rf_entity_pose *source,const rf_entity_playback_resources *resources,
+    uint32_t budget,rf_entity_owned_pose *result);
+/* Releases moved playback references exactly once, then cache storage. Empty
+ * close is repeatable; invalid references preserve the owner for recovery. */
+int rf_entity_owned_pose_close(rf_entity_owned_pose *pose,rf_entity_playback_resources *resources);
+
 /* Initial unlinked, nonplayer actor selection from creation-cleared intent and
  * velocity, action0 and flags0. Uses base bindings before later weapon overlay.
  * Verified opening-class startup composition, not a complete actor constructor.

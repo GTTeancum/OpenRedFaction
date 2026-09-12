@@ -4,8 +4,10 @@
 #include <string.h>
 #include <fcntl.h>
 #include <io.h>
+#include "owned_pose_probe.h"
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--owned-pose"))return owned_pose_probe();
     rf_vpp archive;rf_vpp_entry entry;rf_entity_assets assets;char *text;int status;uint32_t i;
     if(argc==4 && (!strcmp(argv[1],"--pain-groups") || !strcmp(argv[1],"--damage-sound-groups"))) {
         uint32_t count=!strcmp(argv[1],"--pain-groups")?2:3;

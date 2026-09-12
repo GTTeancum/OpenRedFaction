@@ -2099,9 +2099,9 @@ int rf_entity_poses_start_initial(const rf_entity_seeds *seeds,const rf_entity_s
     }
     return RF_OK;
 }
-int rf_entity_pose_release(rf_entity_pose *pose,rf_entity_playback_resources *resources)
+static int entity_pose_reference_check(const rf_entity_pose *pose,const rf_entity_playback_resources *resources)
 {
-    rf_entity_playback_model *model;rf_motion_slot_state *active;uint32_t i,j;
+    const rf_entity_playback_model *model;const rf_motion_slot_state *active;uint32_t i,j;
     if(!pose || !resources || !resources->models || pose->skeleton>=resources->model_count ||
        !pose->generations || !pose->bone_count || pose->bone_count>50)return RF_RANGE;
     model=resources->models+pose->skeleton;active=&pose->playback.completion.active;
@@ -2111,8 +2111,42 @@ int rf_entity_pose_release(rf_entity_pose *pose,rf_entity_playback_resources *re
         if(id<0 || (uint32_t)id>=model->count || model->resources[id].references<1)return RF_RANGE;
         for(j=0;j<i;++j)if(active->slots[j].motion==id)return RF_RANGE;
     }
+    return RF_OK;
+}
+int rf_entity_pose_release(rf_entity_pose *pose,rf_entity_playback_resources *resources)
+{
+    rf_entity_playback_model *model;rf_motion_slot_state *active;uint32_t i;int status;
+    status=entity_pose_reference_check(pose,resources);if(status)return status;
+    model=resources->models+pose->skeleton;active=&pose->playback.completion.active;
     for(i=0;i<active->count;++i)--model->resources[active->slots[i].motion].references;
     rf_motion_playback_initialize(&pose->playback);memset(pose->generations,0,pose->bone_count*sizeof(*pose->generations));return RF_OK;
+}
+int rf_entity_pose_take(rf_entity_pose *source,const rf_entity_playback_resources *resources,
+    uint32_t budget,rf_entity_owned_pose *result)
+{
+    rf_entity_owned_pose value={0};uint32_t bytes,matrix_bytes;int status;
+    if(!source || !result || source==&result->pose || !source->matrices || result->storage || result->allocated_bytes ||
+       result->pose.matrices || result->pose.generations || result->pose.bone_count)return RF_RANGE;
+    status=entity_pose_reference_check(source,resources);if(status)return status;
+    matrix_bytes=source->bone_count*sizeof(*source->matrices);
+    bytes=matrix_bytes+source->bone_count*sizeof(*source->generations);
+    if((uint64_t)sizeof(value)+bytes>budget)return RF_RANGE;
+    value.storage=malloc(bytes);if(!value.storage)return RF_RANGE;
+    value.pose=*source;value.pose.matrices=value.storage;
+    value.pose.generations=(uint16_t *)((unsigned char *)value.storage+matrix_bytes);
+    memcpy(value.pose.matrices,source->matrices,matrix_bytes);
+    memcpy(value.pose.generations,source->generations,source->bone_count*sizeof(*source->generations));
+    value.allocated_bytes=sizeof(value)+bytes;
+    rf_motion_playback_initialize(&source->playback);memset(source->generations,0,source->bone_count*sizeof(*source->generations));
+    source->skeleton=UINT32_MAX;*result=value;return RF_OK;
+}
+int rf_entity_owned_pose_close(rf_entity_owned_pose *pose,rf_entity_playback_resources *resources)
+{
+    int status;if(!pose)return RF_RANGE;
+    if(!pose->storage && !pose->allocated_bytes)return RF_OK;
+    if(!pose->storage || !pose->allocated_bytes)return RF_RANGE;
+    status=rf_entity_pose_release(&pose->pose,resources);if(status)return status;
+    free(pose->storage);memset(pose,0,sizeof(*pose));return RF_OK;
 }
 int rf_entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
     const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,float elapsed,float displacement[3])

@@ -1166,3 +1166,42 @@ separately. The1024 original/PC/NXDK constructor cases and7431 resource calls
 still match. Both builds and all16 CTests pass. Model/burn/emitter resources
 remain supplied test backends; real resource integration and room lookup are
 still required before live scene death or native XEMU gameplay is enabled.
+
+
+## Independent mutable pose handoff
+
+Current NPC pose records borrow matrices/stamps from level-owned contiguous
+arrays. A corpse must not depend on those mutable actor cache slices after
+actor retirement or reuse. rf_entity_pose_take now moves playback/controller
+ownership to rf_entity_owned_pose while copying only matrices and cache stamps
+into one independent allocation. Shared animation reference counts do not
+increase or decrease during the move. The source becomes consumed (skeleton
+UINT32_MAX, initialized empty playback and invalidated cache stamps), retaining
+its original backing pointers so level teardown can still free its arrays.
+
+rf_entity_owned_pose_close releases the moved active motion references exactly
+once through the existing pose-release semantics and then frees the new cache.
+Other actors sharing registrations retain their references. Invalid reference
+state leaves the owner intact for recovery; empty close is repeatable. Allocation
+and budget failures preserve source, destination and counters. Immutable bones,
+geometry, materials and motion catalogs remain level-owned and must outlive
+the moved pose. Their memory is not duplicated by this helper.
+
+This is a port storage adaptation for the previously verified source-to-corpse
+model-instance transfer. It is not complete reconstruction of502880/502b10,
+and it does not yet connect model tokens or retirement dispatch in the scene.
+The existing level arrays remain resident and separately accounted. New Xbox
+storage is308 owner bytes plus50 bytes per bone, at most2808 for50 bones.
+
+The owned_model_pose CTest and tools/verify_owned_pose.py exercise150 transfers
+(1..50 bones,0/8/16 active clips) on PC and compiled NXDK. Checks include exact
+playback/controller/cache copying, overwritten old backing buffers, unchanged
+references during transfer, one decrement on close, preserved other-owner
+references,150 short budgets and150 injected Xbox allocation failures. Invalid
+close references preserve the destination; repeated close performs no free.
+No native XEMU run or visual change is claimed for this storage step.
+
+Validation: full Release PC build and all17 CTests pass; NXDK build is
+current. The compiled Xbox pose verifier passes150 transfers,150 short-budget
+cases and150 injected allocation failures. Xbox executable SHA256:
+41e9e19bcb2ff4cd7cd43406ad2b41a4e4b23add0d66f191fb45380ad825adb3.

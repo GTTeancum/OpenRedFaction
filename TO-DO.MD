@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Bind real model/resource backends and containing-room lookup to the owned corpse lifecycle; staged failure cleanup and full deletion now release acquired storage.
+- [ ] Bind the owned pose handoff, model tokens and remaining resource backends plus room lookup to the corpse lifecycle; staged cleanup already releases acquired storage.
 - [ ] Bind verified corpse sphere refresh and sound-follow points to live owned model poses and sounds.
 - [ ] Bind verified corpse retention/fade/update/deletion and30-slot allocation to live creation and owned resource backends; five eligible bodies trigger fading.
 - [ ] Connect native-verified burn retarget/release to live corpse inheritance after corpse ownership is reconstructed.
