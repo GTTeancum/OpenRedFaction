@@ -1867,3 +1867,22 @@ transfer and verifies both references retire exactly once on corpse deletion.
 Both builds and all18 CTests pass; the original motion-stop comparison passes
 1800 cases. This is an adapter test, not live corpse update dispatch. Duration,
 start/advance, sound ownership and the complete update binding remain open.
+
+
+## Corpse motion start and duration adapters
+
+rf_scene_corpse_play resolves a transferred model and model-local motion ID,
+requires its clip through the existing bounded campaign residency owner, and
+invokes the verified restart with weight1/freeze1 (5033b0).
+rf_scene_corpse_duration uses the same owned model mapping and retained file
+ticks through rf_motion_duration (5033e0), preserving output on invalid IDs.
+Neither adapter consults actor action slots or copies animation payloads.
+
+The integrated PC constructor/finalizer fixture supplies resident clip metadata
+and verifies invalid IDs, duration, restart weight/freeze and unchanged active
+reference counts, followed by exact retirement. This fixture tests an already
+resident clip, not a real archive load or decoded motion advancement.
+Both builds and all18 CTests pass. Existing original comparisons pass4096
+duration cases (PC/NXDK) and6000 action-start cases. These compare underlying
+primitives; the new scene adapters have PC fixture coverage. Per-frame model
+advancement, transforms, owned sounds and live death dispatch remain open.

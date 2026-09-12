@@ -736,6 +736,29 @@ static int campaign_npc_motion_require(uint32_t skeleton,uint32_t id)
     campaign_npc_motion_data[cache]=data;campaign_npc_motion_sizes[cache]=file->entry.size;
     campaign_npc_motion_bytes+=file->entry.size;return RF_OK;
 }
+/* Corpse5033b0/5033e0 use model-local motion IDs, not actor action slots. */
+int rf_scene_corpse_play(const rf_corpse *corpse,int32_t motion)
+{
+    rf_entity_pose *pose;rf_entity_playback_model *model;uint32_t slot;int status;
+    if(!corpse || !corpse->update.model || motion<0)return RF_RANGE;
+    slot=corpse->update.model-1;status=campaign_model_pose(slot,&pose);if(status)return status;
+    if(!pose || !campaign_model_owners[slot].owned)return RF_RANGE;
+    status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)return status;
+    model=campaign_playback_resources.models+pose->skeleton;
+    return rf_motion_start(&pose->playback,model->resources,model->count,motion,1,1);
+}
+int rf_scene_corpse_duration(const rf_corpse *corpse,int32_t motion,double *seconds)
+{
+    rf_entity_pose *pose;const rf_motion_file *file;uint32_t slot;int status;
+    if(!corpse || !corpse->update.model || motion<0 || !seconds)return RF_RANGE;
+    slot=corpse->update.model-1;status=campaign_model_pose(slot,&pose);if(status)return status;
+    if(!pose || !campaign_model_owners[slot].owned || !campaign_motion_catalog.models ||
+       pose->skeleton>=campaign_motion_catalog.model_count ||
+       (uint32_t)motion>=campaign_motion_catalog.models[pose->skeleton].count ||
+       !campaign_motion_catalog.models[pose->skeleton].items)return RF_RANGE;
+    file=&campaign_motion_catalog.models[pose->skeleton].items[motion].file;
+    *seconds=rf_motion_duration((int32_t)file->header[4],(int32_t)file->header[5]);return RF_OK;
+}
 static int campaign_npc_pose_residency(uint32_t actor)
 {
     uint32_t i;int status;

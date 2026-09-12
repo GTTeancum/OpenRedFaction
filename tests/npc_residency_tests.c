@@ -404,6 +404,21 @@ static int corpse_scene_binding_check(void)
                 CHECK(moved->playback.completion.active.count==2 && !moved->playback.completion.active.slots[0].weight);
                 CHECK(moved->playback.completion.active.slots[1].weight==.5f && moved->playback.completion.active.freeze_slot==-1);
                 CHECK(!moved->playback.completion.frozen && clips[0].references==1 && clips[1].references==1);
+                {
+                    rf_entity_model_motion entries[2]={{0}};rf_entity_model_motions catalog={0};
+                    uint8_t resident[1]={0};void *data[2]={resident,resident};uint32_t sizes[2]={1,1},ids[2]={0,1};double seconds=-99;
+                    catalog.items=entries;catalog.count=2;campaign_motion_catalog.models=&catalog;campaign_motion_catalog.model_count=1;
+                    entries[0].file.resident=resident;entries[1].file.resident=resident;entries[1].file.header[5]=4800;
+                    model.cache_ids=ids;campaign_npc_motion_data=data;campaign_npc_motion_sizes=sizes;campaign_npc_motion_count=2;
+                    CHECK(rf_scene_corpse_duration(corpse,1,&seconds)==RF_OK && seconds==rf_motion_duration(0,4800));
+                    CHECK(rf_scene_corpse_duration(corpse,2,&seconds)==RF_RANGE && seconds==rf_motion_duration(0,4800));
+                    CHECK(rf_scene_corpse_play(corpse,2)==RF_RANGE);
+                    CHECK(rf_scene_corpse_play(corpse,1)==RF_OK);
+                    CHECK(moved->playback.completion.active.count==2 && moved->playback.completion.active.slots[1].weight==1);
+                    CHECK(moved->playback.completion.active.freeze_slot==1 && clips[0].references==1 && clips[1].references==1);
+                    campaign_motion_catalog.models=NULL;campaign_motion_catalog.model_count=0;
+                    campaign_npc_motion_data=NULL;campaign_npc_motion_sizes=NULL;campaign_npc_motion_count=0;model.cache_ids=NULL;
+                }
                 moved->matrices[0][9]=2;moved->matrices[0][10]=3;
                 corpse->attachment_index=0;
                 corpse->update.basis[0]=corpse->update.basis[4]=0;corpse->update.basis[1]=1;corpse->update.basis[3]=-1;
