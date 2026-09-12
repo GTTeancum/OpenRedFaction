@@ -947,4 +947,15 @@ int rf_entity_navigation_reset(rf_entity_navigation_route *route,int32_t now_ms)
 uint32_t rf_entity_navigation_candidate_allowed(float radius,float height,uint32_t mode,
     float candidate_radius,float candidate_height,uint32_t word_40);
 
+typedef struct rf_entity_navigation_candidate {
+    float position[3],query_point[3];uint32_t retained_018;
+    float radius,height;uint8_t retained_024[0x14];float distance_squared;
+    uint32_t retained_03c,word_040;
+} rf_entity_navigation_candidate;
+/*40b2e0: publishes query point and squared distance even on rejection.
+ * Classification0=direct,1=overlap,2=outside. Inputs must be distinct and finite;
+ * malformed inputs preserve candidate and output. Does not test eligibility. */
+int rf_entity_navigation_single(const float position[3],float radius,float height,
+    uint32_t mode,rf_entity_navigation_candidate *candidate,uint32_t *classification);
+
 #endif

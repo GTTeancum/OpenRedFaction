@@ -369,6 +369,16 @@ int main(int argc,char **argv)
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return dying_probe_main();
     }
     if(argc==2 && !strcmp(argv[1],"--pain"))return pain_probe();
+    if(argc==2 && !strcmp(argv[1],"--navigation-single")) {
+        struct {float position[3],radius,height;uint32_t mode;rf_entity_navigation_candidate candidate;} wire;
+        uint32_t result;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&wire,sizeof(wire),1,stdin)==1) {
+            result=99;status=rf_entity_navigation_single(wire.position,wire.radius,wire.height,wire.mode,&wire.candidate,&result);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&result,4,1,stdout)!=1 || fwrite(&wire.candidate,sizeof(wire.candidate),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--navigation-candidate")) {
         struct {float radius,height;uint32_t mode;float candidate_radius,candidate_height;uint32_t word_40;} wire;uint32_t result;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

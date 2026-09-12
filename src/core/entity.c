@@ -1429,3 +1429,31 @@ uint32_t rf_entity_navigation_candidate_allowed(float radius,float height,uint32
     return !(radius>candidate_radius) && !(height>candidate_height) &&
         ((mode&255u)!=1u || word_40==0);
 }
+
+_Static_assert(sizeof(rf_entity_navigation_candidate)==0x44,"navigation candidate");
+_Static_assert(offsetof(rf_entity_navigation_candidate,distance_squared)==0x38,"navigation score");
+static double navigation_distance_squared(const float a[3],const float b[3])
+{
+    volatile float x=(float)((double)a[0]-b[0]),y=(float)((double)a[1]-b[1]),z=(float)((double)a[2]-b[2]);
+    return ((double)x*x+(double)y*y)+(double)z*z;
+}
+int rf_entity_navigation_single(const float position[3],float radius,float height,
+    uint32_t mode,rf_entity_navigation_candidate *candidate,uint32_t *classification)
+{
+    uint32_t i,result=2;volatile float half,cr2,r2;float flat[3];double distance;
+    if(!position || !candidate || !classification)return RF_RANGE;
+    if(!isfinite(radius) || !isfinite(height) || !isfinite(candidate->radius) || !isfinite(candidate->height))return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(position[i]) || !isfinite(candidate->position[i]))return RF_FORMAT;
+    half=(float)((double)candidate->height*.5);
+    memcpy(candidate->query_point,candidate->position,12);
+    if(mode&255u)candidate->query_point[1]=(float)(((double)candidate->position[1]-half)+(double)height*.5);
+    candidate->distance_squared=(float)navigation_distance_squared(position,candidate->query_point);
+    if((double)half+candidate->position[1]>=position[1] &&
+        (double)candidate->position[1]-half<=position[1]) {
+        cr2=(float)((double)candidate->radius*candidate->radius);r2=(float)((double)radius*radius);
+        memcpy(flat,candidate->position,12);flat[1]=position[1];distance=navigation_distance_squared(flat,position);
+        if(!(distance>=(double)cr2-r2))result=0;
+        else if(!(distance>=(double)r2+cr2))result=1;
+    }
+    *classification=result;return RF_OK;
+}
