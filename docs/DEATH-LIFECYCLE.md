@@ -3132,3 +3132,32 @@ Report: artifacts/player-resource-recycle-original.json.
 The diagnostic eye attachment is now explicitly zero-initialized; missing tags
 still fail the existing found/parent validation. The PC rebuild no longer emits
 the C4701 warning. This does not introduce a fallback eye pose.
+
+
+## Riot-shield impact-mark identification and pool limits (2026-09-12)
+
+The previously unnamed player geometry slots are riot-shield impact marks.
+Disassembly establishes the weapon identity:4c662c pushes string5a3344,
+"riot shield",4c6636 calls the weapon lookup4c81f0, and4c6640 stores its result
+in85cce4. The intervening push of "Riot Stick" belongs to the next lookup;
+it does not change the result being stored. This matches4031a0's removal gate.
+
+Texture initialization loads "riotshield1.tga" into5a00f4 and
+"RiotShieldHit.tga" into5a00f8 (4a9b9d..4a9bd4). Creator4a7110 searches the25
+player slots for the first empty slot, resolves the held model via503f20,
+uses hit position, randomized size/rotation and these texture handles, then
+stores4cbe50's generated model-geometry result at player+10e8+4*slot. The
+model triangle traversal and nested geometry recycling documented above are
+therefore part of the shield impact-mark path, not a general item allocator.
+Full pool allocation/clipping/rendering and impact dispatch remain open.
+
+The original initializer4cbd80 now executes in32 randomized-memory cases in
+verify_player_resource_recycle_original.py. Exact free-list order and empty
+active/child lists pass. Capacities are50 top records at876fa0 (48 bytes),150
+polygon records at877900 (36 bytes), and500 vertex records at873878 (28 bytes):
+21800 bytes of record arrays, excluding sentinels/counters. Only prescribed
+links, counters and top texture=-1 fields change; geometry payloads persist.
+The previous256 recycling cases also pass. No shared pool implementation or
+live shield rendering is claimed. This narrows the remaining cleanup work to
+a specific weapon feature; full actor death dispatch still requires separate
+item, camera, animation and resource integration.

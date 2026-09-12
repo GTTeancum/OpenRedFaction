@@ -18,10 +18,35 @@ def link(head,nodes,offset):
 def walk(head,offset):
  result=[];node=get(head+offset);previous=head
  while node!=head:
-  assert len(result)<100 and get(node+offset+4)==previous
+  assert len(result)<701 and get(node+offset+4)==previous
   result.append(node);previous=node;node=get(node+offset)
  assert get(head+offset+4)==previous
  return result
+# Original4cbd80 initializes fixed pools without clearing geometry payloads.
+init_rng=random.Random(0x4cbd80)
+for trial in range(32):
+ start=0x873878;size=0x878e54-start;before=init_rng.randbytes(size);u.mem_write(start,before)
+ put(stack,stop);u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(0x4cbd80,stop,count=100000)
+ assert u.reg_read(UC_X86_REG_EIP)==stop
+ top=[0x876fa0+i*48 for i in range(50)]
+ middle=[0x877900+i*36 for i in range(150)]
+ leaf=[0x873878+i*28 for i in range(500)]
+ assert walk(0x876f28,0x28)==top and walk(0x876f58,0x1c)==middle and walk(0x876f80,0x14)==leaf
+ assert walk(0x878e18,0x28)==[]
+ assert [get(a) for a in (0x878e48,0x878e4c,0x878e50)]==[50,150,500]
+ after=bytearray(u.mem_read(start,size))
+ def preserved_except(address,length):
+  i=address-start;after[i:i+length]=before[i:i+length]
+ for node in top:
+  assert get(node)==0xffffffff and walk(node+4,0x1c)==[]
+  preserved_except(node,4);preserved_except(node+0x20,16)
+ for node in middle:
+  assert walk(node,0x14)==[]
+  preserved_except(node+0x14,16)
+ for node in leaf:preserved_except(node+0x14,8)
+ for head,offset in ((0x876f28,0x28),(0x876f58,0x1c),(0x876f80,0x14),(0x878e18,0x28)):preserved_except(head+offset,8)
+ preserved_except(0x878e48,12)
+ assert bytes(after)==before,('initialization payload',trial)
 rng=random.Random(0x4cc010);total_middle=total_leaf=0
 for case in range(256):
  u.mem_write(b,rng.randbytes(0x10000))
@@ -50,5 +75,5 @@ for case in range(256):
    index=node+offset-b;after[index:index+8]=before[index:index+8]
  assert bytes(after)==before,case
  total_middle+=len(mid);total_leaf+=len(leaves)
-report=dict(result='PASS',cases=256,middle_records=total_middle,leaf_records=total_leaf,original_sha256=digest,scope='Unmodified4cc010, no callbacks replaced. Synthetic well-formed ownership lists; exact FIFO recycling, emptied owner lists, preserved payload and free counters. No shared pool implementation, real allocation, rendering or XEMU gameplay claim.')
+report=dict(result='PASS',cases=256,initialization_cases=32,capacities=[50,150,500],record_bytes=21800,middle_records=total_middle,leaf_records=total_leaf,original_sha256=digest,scope='Unmodified4cbd80 initialization and4cc010 recycling, no callbacks replaced. Synthetic well-formed ownership lists; exact FIFO recycling, emptied owner lists, preserved payload and free counters. No shared pool implementation, real allocation, rendering or XEMU gameplay claim.')
 (root/'artifacts/player-resource-recycle-original.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
