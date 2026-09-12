@@ -659,6 +659,28 @@ static int entity_damage_sound_groups_read(const void *text,uint32_t bytes,const
     }
     if(!selected)return RF_NOT_FOUND;memcpy(groups,value,count*sizeof(*value));return RF_OK;
 }
+int rf_entity_impact_sound_group_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t *group)
+{
+    lexer l={text,bytes,0};char t[256],name[64];int status,quoted,selected=0,seen=0;int32_t value;
+    if(!text || !bytes || !class_name || !*class_name || !group)return RF_RANGE;
+    value=*group;
+    for(;;) {
+        status=token(&l,t,&quoted);if(status==RF_NOT_FOUND)break;if(status)return status;
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(selected)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;selected=same(t,class_name);
+        } else if(same(t,"#End"))break;
+        else if(selected && same(t,"$Impact")) {
+            if(seen++)return RF_FORMAT;
+            if(token(&l,t,&quoted) || quoted || !same(t,"Death") || token(&l,t,&quoted) || quoted || !same(t,"Sound:"))return RF_FORMAT;
+            if(metadata_string(&l,name,sizeof(name)))return RF_FORMAT;
+            status=rf_foley_find(owner,name,&value);if(status)return status;
+        }
+    }
+    if(!selected)return RF_NOT_FOUND;*group=value;return RF_OK;
+}
 int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_foley_owner *owner,int32_t groups[2])
 {return entity_damage_sound_groups_read(text,bytes,class_name,owner,groups,2);}

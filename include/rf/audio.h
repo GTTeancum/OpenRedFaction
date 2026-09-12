@@ -199,7 +199,13 @@ int rf_foley_find(const rf_foley_owner *owner,const char *name,int32_t *group);
  * Port metadata reader for one class, not the full original class parser. */
 int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_foley_owner *owner,int32_t groups[2]);
-/* Same rules, with DeathSnd (class124) as the third result. */
+/*41c961..41c999 optional class128 $Impact Death Sound: binding. Missing field
+ * preserves the caller's initial group, as the original parser does; explicit
+ * empty/unknown labels resolve-1. Errors preserve output. Separate from124
+ * $DeathSnd:. Name resolution only, no sample selection or playback. */
+int rf_entity_impact_sound_group_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t *group);
+/* Same rules as pain groups, with DeathSnd (class124) as the third result. */
 int rf_entity_damage_sound_groups_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_foley_owner *owner,int32_t groups[3]);
 

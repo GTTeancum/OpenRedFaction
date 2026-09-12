@@ -5968,3 +5968,40 @@ Report:artifacts/impact-process-sp-verification.json. Both builds and19 CTests
 pass. No new native XEMU run or visible gameplay change is claimed. Bind the
 verified orchestration to force, damage, sound and player owners before NPC
 support-finish integration; landing and relative conversion remain open.
+
+
+## Separate impact-death sound metadata (2026-09-12)
+
+The49cd80 lethal sound reads class128, not class124's ordinary $DeathSnd:.
+Original41c961 pushes595560 ($Impact Death Sound:); optional parsing resolves
+through434cb0 and41c993 stores class128. An absent field branches41c96f to
+41c999 without writing it. In contrast,41cb4b stores $DeathSnd: at124 and its
+missing-field branch explicitly writes-1. Reusing the existing death group
+would therefore select the wrong sound. Miner1 impact group21 (Impact Death)
+is distinct from ordinary death group20 (Player Die).
+
+rf_entity_impact_sound_group_read preserves the supplied initial value when
+absent, resolves explicit empty/unknown labels to-1, and rejects malformed or
+duplicate declarations without changing output. It is a selected-field port
+parser, not a reconstruction of the complete original parser. The scene owns
+one separate4-byte group per retained class and releases it with NPC metadata.
+First-load storage is zero initialized, matching the original static class
+array image at5cc500+128; parser41b910 has no missing-field assignment here.
+Class reload/inheritance lifecycle remains outside this first-load binding.
+
+verify_pain_groups.py --impact checks all63 installed classes and6 synthetic
+cases against independent label extraction and real original434cb0 resolution,
+on PC and compiled NXDK.13 classes explicitly resolve21;50 preserve input.
+The missing-field tests seed123 to distinguish preservation from zero/-1.
+The existing --death check also passes63 classes and7 synthetic cases. No
+sample selection, PCM playback or live impact dispatch is claimed yet.
+
+Both builds and19 CTests pass. Native stock64MiB replay101326 completed180
+frames but failed an outdated expected allocation formula (48 bytes/class).
+Adding one group makes52 bytes/class; the harness was updated accordingly.
+Replay artifacts/xemu/replay-20260912-101509/report.json then passes180 frames.
+NPC_IMPACT_GROUPS=[5,20,1853699328], exactly equal to PC. Audio owned/peak bytes
+both increase20; all other previous PC rows are unchanged. Tested XBE SHA256:
+634f169c32828975e9a73689e02a544fc1747b415fd3ecb777220d8a063ad626.
+Bind impact audio selection/playback using these retained groups and bodye4
+position, along with force suppression/damage services, before support finish.

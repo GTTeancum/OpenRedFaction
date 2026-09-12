@@ -274,6 +274,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert model_queries==expected('NPC_MODEL_QUERIES') and model_queries[1]+model_queries[2]<=1024*1024 and model_queries[6]==0,model_queries
      if args.actor_pairs and frames>1:assert model_queries[3]>0 and model_queries[4]>0,model_queries
      report['npc_model_queries']=model_queries
+     impact_groups=words(monitor,symbol('rf_scene_npc_impact_groups'),3)
+     assert impact_groups==expected('NPC_IMPACT_GROUPS') and impact_groups[1]==impact_groups[0]*4,impact_groups
+     report['npc_impact_groups']=impact_groups
      npc_fall=words(monitor,symbol('rf_scene_npc_fall_test'),6)
      assert npc_fall==expected('NPC_FALL') and npc_fall[5]==0,npc_fall
      if args.actor_pairs:assert npc_fall[0]>0 and npc_fall[1]==npc_fall[2] and npc_fall[3]==npc_fall[1]*2 and npc_fall[0]==npc_fall[1]*4,npc_fall
@@ -450,7 +453,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['live_audio']=audio
      foley=words(monitor,symbol('rf_scene_foley'),10)
      assert foley==expected('FOLEY') and foley[:3]==[497,1140,1],foley
-     assert foley[3]==26452+foley[8]*48 and foley[4]<512*1024 and foley[5]==1135,foley
+     assert foley[3]==26452+foley[8]*52 and foley[4]<512*1024 and foley[5]==1135,foley
      assert foley[6]==1274782420 and foley[7]==3317977305,foley
      report['foley']=foley
      pain_groups=words(monitor,symbol('rf_scene_npc_pain_groups'),3)
