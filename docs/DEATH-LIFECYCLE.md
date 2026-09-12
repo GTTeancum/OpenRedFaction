@@ -5928,3 +5928,43 @@ The binding remains callable rather than automatically scheduled; compose it
 with support finish and complete impact/landing/relative callbacks. Landing
 must retain support-relative velocity, sound, stance clearance and special
 class effects. No new visible gameplay change is claimed.
+
+
+## SP impact orchestration (2026-09-12)
+
+rf_entity_impact_process_sp composes49cd80 numeric impact damage with its
+ordered effect boundaries. It resolves falling from movement/use-kind and
+cached support1380, but the material3 damage reduction uses contact1d0.
+Eligible damage queries force suppression45ce50 at published object3c;
+only the low byte suppresses. It then dispatches the SP4892c0 request with
+source-1, kind9, argument6=0, auxiliary UID-1 and force0. The backend supplies
+the target handle from the mutable actor and original unused target-1 slot.
+Health is reread after damage: negative or unordered health selects the
+lethal sound block, while nonnegative health selects player lookup/feedback.
+Original fcomp/test AH bit0 follows the lethal branch for NaN; this behavior
+is preserved. Sound uses the current class128 set and current bodye4 position,
+which can differ from pre-damage values. Failures stop without undoing earlier
+effects. Callback owners/facts must remain alive and current through reentry.
+
+The callback contract explicitly leaves these bodies external:
+-45ce50 force-region query.
+-4892c0 actual damage and its downstream effects.
+-49ce88..49cecf:434d00 sound selection and48a930 playback.
+-49ced0..49cf31:48aa90 player lookup, camera/feedback calls and local clamp.
+No multiplayer forwarding is included in this SP operation. It does not
+claim those callback bodies or scene dispatch are complete.
+
+tools/verify_impact_process_sp.py executes original49cd80 through return,
+with actual falling/kind predicates and arithmetic, substituting exactly
+those four boundaries.4096 cases match complete retained actor state and
+ordered callback arguments on PC and compiled NXDK under x87 control027f.
+Counts:[1409 suppression,840 damage,321 lethal sound,519 player feedback].
+Coverage includes contact/support material distinction, low-byte suppression,
+post-damage zero/negative/positive/unordered health, and callback mutations to
+handle, sound set and body position. All four callback failure paths stop with
+already-applied state intact; four invalid/overflow speed inputs leave actor
+state unchanged and call no backend. The PC fixture is impact_process_probe.h.
+Report:artifacts/impact-process-sp-verification.json. Both builds and19 CTests
+pass. No new native XEMU run or visible gameplay change is claimed. Bind the
+verified orchestration to force, damage, sound and player owners before NPC
+support-finish integration; landing and relative conversion remain open.

@@ -264,6 +264,27 @@ typedef struct rf_damage_object {uint32_t type,flags;float health;} rf_damage_ob
 typedef struct rf_damage_request {
     float amount;uint32_t source;int32_t kind;uint32_t argument6,auxiliary_uid,force;
 } rf_damage_request;
+/* Retained49cd80 SP facts. Callback mutations are visible to later stages;
+ * owners remain alive throughout. Material is contact1d0, not support1380. */
+typedef struct rf_entity_impact_actor {
+    uint32_t handle,object_flags,movement_mode,use_kind;int32_t contact_material,support_material;
+    uint32_t sound_set;float health,published[3],position[3];
+} rf_entity_impact_actor;
+typedef struct rf_entity_impact_backend {
+    int (*suppressed)(void *,rf_entity_impact_actor *,uint32_t *);
+    int (*damage)(void *,rf_entity_impact_actor *,const rf_damage_request *);
+    /* Own434d00 selection/48a930 playback using current class128 and bodye4. */
+    int (*lethal_sound)(void *,rf_entity_impact_actor *);
+    /* Own48aa90 lookup and, if present,49cedf..49cf31 player feedback. */
+    int (*player_feedback)(void *,rf_entity_impact_actor *,float amount);
+    void *context;
+} rf_entity_impact_backend;
+/*49cd80 SP ordering: numeric gate, force suppression, damage kind9, then
+ * reread health and request lethal sound or player feedback. Original unordered
+ * health follows the lethal branch. Suppression uses its low byte. No MP
+ * forwarding, rollback, callback implementation or actor scheduling. */
+int rf_entity_impact_process_sp(rf_entity_impact_actor *actor,float speed,const rf_entity_impact_backend *backend);
+
 typedef struct rf_damage_backend {
     rf_damage_object *(*lookup)(void *context,uint32_t handle);
     /* stage0: entity exists (full word); stage1: immunity (low byte);

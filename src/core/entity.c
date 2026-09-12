@@ -39,6 +39,20 @@ int rf_entity_impact_damage(float impact_speed,uint32_t falling,int32_t contact_
     if(!isfinite(value))return RF_RANGE;
     *amount=value;*eligible=value>=10 && value>0 && !(object_flags&4u);return RF_OK;
 }
+int rf_entity_impact_process_sp(rf_entity_impact_actor *actor,float speed,const rf_entity_impact_backend *backend)
+{
+    float amount;uint32_t eligible,suppressed=0,falling;int status;rf_damage_request request;
+    if(!actor || !backend || !backend->suppressed || !backend->damage || !backend->lethal_sound || !backend->player_feedback)return RF_RANGE;
+    falling=rf_entity_falling((int32_t)actor->movement_mode,actor->use_kind,actor->support_material);
+    status=rf_entity_impact_damage(speed,falling,actor->contact_material,actor->use_kind==1,actor->object_flags,&amount,&eligible);
+    if(status || !eligible)return status;
+    status=backend->suppressed(backend->context,actor,&suppressed);if(status || (suppressed&255u))return status;
+    request.amount=amount;request.source=UINT32_MAX;request.kind=9;request.argument6=0;request.auxiliary_uid=UINT32_MAX;request.force=0;
+    status=backend->damage(backend->context,actor,&request);if(status)return status;
+    /* Original fcomp/test AH bit0 treats unordered health like negative. */
+    if(!(actor->health>=0))return backend->lethal_sound(backend->context,actor);
+    return backend->player_feedback(backend->context,actor,amount);
+}
 void rf_entity_creation_vitals(rf_entity_creation_vitals_state *state,
     const rf_entity_creation_vitals_class *definition,uint32_t network_mode)
 {
