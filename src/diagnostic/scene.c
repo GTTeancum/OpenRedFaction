@@ -2596,6 +2596,35 @@ int rf_scene_npc_pain(uint32_t handle,int32_t now,rf_random_state *random,const 
     c.now=now;c.random=random;c.ops=ops;
     status=rf_entity_pain_react(&c.state,&backend);return c.status?c.status:status;
 }
+int rf_scene_npc_death_play(uint32_t handle,int32_t action,uint32_t freeze,
+    int (*play_sound)(void *,uint32_t,const char *),void *context)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;rf_entity_playback_model *model;
+    const rf_entity_motion_mapping *mapping;const rf_entity_state_set *bindings;
+    uint32_t i,cls;int status;int32_t sounds[45],sound;
+    if(action<0 || action>=45)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view)return RF_NOT_FOUND;
+    status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    if(!campaign_seeds.items || i>=campaign_seeds.records.count)return RF_RANGE;
+    cls=campaign_seeds.items[i].class_index;
+    if(!campaign_motion_catalog.mappings || !campaign_base_motions.classes || !campaign_playback_resources.models ||
+       cls>=campaign_motion_catalog.class_count || cls>=campaign_motion_catalog.mapping_count ||
+       cls>=campaign_base_motions.class_count || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
+    mapping=campaign_motion_catalog.mappings+cls;bindings=campaign_base_motions.classes+cls;
+    if(mapping->weapon!=-1 || owner->view.weapons[0]!=-1 || mapping->skeleton!=pose->skeleton)return RF_NOT_FOUND;
+    if(mapping->actions[action]<0)return RF_NOT_FOUND;
+    owner->death.action_824=action;
+    status=campaign_npc_motion_require(pose->skeleton,(uint32_t)mapping->actions[action]);if(status)return status;
+    model=campaign_playback_resources.models+pose->skeleton;
+    for(i=0;i<45;++i)sounds[i]=bindings->action_sounds[i][0]?(int32_t)i:-1;
+    status=rf_motion_start_action(&pose->playback,model->resources,model->count,mapping->actions,sounds,action,1,(int)(freeze&255u),1,&sound);
+    if(status)return status;
+    if(sound>=0)return play_sound?play_sound(context,handle,bindings->action_sounds[sound]):RF_NOT_FOUND;
+    return RF_OK;
+}
+
 uint32_t rf_scene_npc_pain_audio[9]; /* calls, selections, plays, loads, PCM bytes, last sample, RNG, errors, name hash */
 uint32_t rf_scene_npc_pain_sound_test[10]; /* two deadline/voice/sample/RNG/play-count snapshots */
 typedef struct campaign_pain_audio_context {rf_random_state *random;int status;uint32_t *telemetry,player;} campaign_pain_audio_context;

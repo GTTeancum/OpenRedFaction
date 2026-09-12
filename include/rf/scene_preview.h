@@ -70,6 +70,13 @@ int rf_scene_npc_death_tail(uint32_t handle,uint32_t name,const rf_entity_death_
  * Zero exact non-looping weights without releasing references or removing
  * slots. Resolves actor or transferred-corpse ownership; no allocation. */
 int rf_scene_model_stop_nonlooping(uint32_t model_slot);
+/* Death stage's428c90(actor,action,1,freeze,1) resource binding. Publish the
+ * retained death action before loading/starting playback; later errors retain
+ * preceding action/playback effects. Base unarmed mappings only; stale handles
+ * and missing mappings do not start playback. Audio is caller-owned. */
+int rf_scene_npc_death_play(uint32_t handle,int32_t action,uint32_t freeze,
+    int (*sound)(void *,uint32_t,const char *),void *context);
+
 
 
 /* Resolved local-player entity portion of40e0b0. Uses the same retained

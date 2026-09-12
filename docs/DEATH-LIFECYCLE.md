@@ -3358,3 +3358,28 @@ adding transfer coverage. The1800-case original-vs-PC motion-stop verifier also
 passes. The binding itself is tested on PC and compiled into NXDK; no new
 XEMU death-animation execution is claimed. Death motion still requires real
 bone-override state, action selection/playback and complete dispatch binding.
+
+
+## Registered NPC death playback (2026-09-12)
+
+rf_scene_npc_death_play binds the death stage's428c90(actor,action,1,freeze,1)
+operation to the registered NPC owner, current actor pose and bounded motion
+cache. It validates handle generation and base unarmed mapping, publishes
+action824 before loading/starting, then forwards the declared action sound to
+a caller-owned callback. Loading or sound errors retain preceding effects.
+Armed mappings and transferred-away actor poses are not supported by this
+binding. No full death dispatch or actual sound selection is added here.
+
+The fourth original argument is freeze-at-end, previously described as blend
+in death-stage terminology. Only low byte1 designates the freeze slot. A
+restart with low byte0 preserves an existing designation; the separate reset
+clears it. The authored residency fixture checks both orders, values256/257,
+reference retention, stale handles, missing mappings, armed rejection and
+callback-visible action state with missing/failing/successful sound callbacks.
+
+All19 PC CTests pass. The6000-case original-vs-PC action-start verifier passes
+through loaded type-two controls and sound-class dispatch; it excludes actual
+sound selection/playback. PC and NXDK builds succeed (NXDK is up to date).
+The new ownership binding is tested on PC, not yet through live XEMU death.
+Complete death composition, bone overrides, armed declarations and resource
+callbacks remain open.
