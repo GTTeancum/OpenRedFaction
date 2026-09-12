@@ -1566,3 +1566,25 @@ Native XEMU replay-20260911-214300 passes180 frames with stock67108864-byte
 RAM, door/damage/audio fixtures and direct guest-memory NPC_MODELS comparison:
 [78,1560,78,0], matching PC. Existing body, animation, damage and audio checks
 also pass. The harness now checks registry lifecycle on campaign replays.
+
+
+## Registered pose ownership handoff
+
+rf_entity_registered_pose_take composes the port-owned pose transfer with an
+existing skeletal registration. It verifies loaded status, source active-list
+identity and local ring reciprocity before allocation. On success the published
+pose pointer and active-list pointer both switch to owned storage, preserving
+links and model identity. Failure preserves the registration and source. This
+is a port storage adaptation, not a new original-executable reconstruction.
+The caller maintains the complete valid ring and must retire the node before
+closing its owned pose. Immutable level resources must outlive both operations.
+
+python tools/verify_owned_pose.py --registered passes150 PC/NXDK cases over
+1..50 bones and0/8/16 clips. Compiled Xbox additionally passes150 allocation
+failures and150 short budgets. Tests poison former caches, verify pointer/link
+identity and check retirement plus repeated owned-close releases each reference
+once, preserving other borrowers. The original unregistered150-case verifier
+also passes. Both builds and all18 CTests pass. No live corpse/XEMU claim:
+scene rendering, residency, eye and pain consumers still use actor pose slots;
+redirect their ownership before activating the corpse-creation binding.
+Report: artifacts/registered-pose-verification.json.

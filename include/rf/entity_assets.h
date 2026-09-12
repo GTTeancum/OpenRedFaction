@@ -482,6 +482,14 @@ typedef struct rf_entity_owned_pose {
  * Errors preserve source, result and shared reference counters. */
 int rf_entity_pose_take(rf_entity_pose *source,const rf_entity_playback_resources *resources,
     uint32_t budget,rf_entity_owned_pose *result);
+/* Move a registered pose without unlinking or changing model identity. The
+ * published pointer and registration active list switch together on success.
+ * Registration must belong to a caller-maintained valid ring. Errors preserve
+ * registration, published/source pose, result and references. Retire the node
+ * before closing the owned pose; immutable level resources must still exist. */
+int rf_entity_registered_pose_take(rf_model_skeletal_registration *registration,
+    rf_entity_pose **published,const rf_entity_playback_resources *resources,
+    uint32_t budget,rf_entity_owned_pose *result);
 /* Releases moved playback references exactly once, then cache storage. Empty
  * close is repeatable; invalid references preserve the owner for recovery. */
 int rf_entity_owned_pose_close(rf_entity_owned_pose *pose,rf_entity_playback_resources *resources);

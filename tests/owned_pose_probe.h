@@ -1,3 +1,30 @@
+static int registered_pose_probe(void)
+{
+    uint32_t bones,count,i;
+    for(bones=1;bones<=50;++bones)for(count=0;count<=16;count+=8) {
+        rf_entity_pose source={0},*published=&source;rf_entity_owned_pose owned={0};
+        rf_motion_playback_resource clips[16]={0};rf_entity_playback_model model={clips,NULL,16};
+        rf_entity_playback_resources resources={0};rf_model_skeletal_registration node={0},*head=NULL;
+        float matrices[50][12]={{0}};uint16_t stamps[50]={0};uint32_t budget=sizeof(owned)+bones*50;
+        resources.models=&model;resources.model_count=1;source.bone_count=bones;
+        source.matrices=matrices;source.generations=stamps;rf_motion_playback_initialize(&source.playback);
+        source.playback.completion.active.count=count;
+        for(i=0;i<16;++i){clips[i].references=2;source.playback.completion.active.slots[i].motion=i;}
+        node.loaded=1;node.active=&source.playback.completion.active;
+        if(rf_entity_registered_pose_take(&node,&published,&resources,budget,&owned)!=RF_RANGE)return 20;
+        if(rf_model_skeletal_register(&node,&head,1))return 21;
+        if(rf_entity_registered_pose_take(&node,&published,&resources,budget-1,&owned)!=RF_RANGE ||
+           published!=&source || node.active!=&source.playback.completion.active || owned.storage || source.skeleton)return 22;
+        if(rf_entity_registered_pose_take(&node,&published,&resources,budget,&owned) || published!=&owned.pose ||
+           node.active!=&owned.pose.playback.completion.active || head!=&node || node.next!=&node || node.previous!=&node)return 23;
+        memset(matrices,0xdd,sizeof(matrices));memset(stamps,0xdd,sizeof(stamps));
+        for(i=0;i<16;++i)if(clips[i].references!=2)return 24;
+        if(rf_model_skeletal_retire(&node,&head,1,clips,16) || head || node.next || node.previous)return 25;
+        if(rf_entity_owned_pose_close(&owned,&resources) || rf_entity_owned_pose_close(&owned,&resources))return 26;
+        for(i=0;i<16;++i)if(clips[i].references!=(i<count?1:2))return 27;
+    }
+    return 0;
+}
 static int owned_pose_probe(void)
 {
     rf_entity_pose source,before;rf_entity_owned_pose owned={0},saved;
@@ -27,5 +54,6 @@ static int owned_pose_probe(void)
         if(rf_entity_owned_pose_close(&owned,&resources) || owned.storage || owned.allocated_bytes || rf_entity_owned_pose_close(&owned,&resources))return 9;
         for(i=0;i<16;i++)if(clips[i].references!=(i<count?1:2))return 10;
     }
+    {int status=registered_pose_probe();if(status)return status;}
     printf("PASS 150 pose transfers; independent caches, moved references and repeatable close; PC owner %u bytes\n",(unsigned)sizeof(owned));return 0;
 }

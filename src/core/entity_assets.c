@@ -2163,6 +2163,19 @@ int rf_entity_pose_take(rf_entity_pose *source,const rf_entity_playback_resource
     rf_motion_playback_initialize(&source->playback);memset(source->generations,0,source->bone_count*sizeof(*source->generations));
     source->skeleton=UINT32_MAX;*result=value;return RF_OK;
 }
+int rf_entity_registered_pose_take(rf_model_skeletal_registration *registration,
+    rf_entity_pose **published,const rf_entity_playback_resources *resources,
+    uint32_t budget,rf_entity_owned_pose *result)
+{
+    int status;
+    if(!registration || !published || !*published || !registration->loaded ||
+       registration->active!=&(*published)->playback.completion.active ||
+       !registration->next || !registration->previous ||
+       registration->next->previous!=registration || registration->previous->next!=registration)return RF_RANGE;
+    status=rf_entity_pose_take(*published,resources,budget,result);if(status)return status;
+    *published=&result->pose;registration->active=&result->pose.playback.completion.active;
+    return RF_OK;
+}
 int rf_entity_owned_pose_close(rf_entity_owned_pose *pose,rf_entity_playback_resources *resources)
 {
     int status;if(!pose)return RF_RANGE;
