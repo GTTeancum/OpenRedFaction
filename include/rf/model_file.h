@@ -115,6 +115,19 @@ typedef struct rf_model_collision_geometry {
 int rf_model_collision_geometry_open(rf_model_collision_geometry *geometry,const rf_model_file *model,
     uint32_t lod,uint32_t budget);
 void rf_model_collision_geometry_close(rf_model_collision_geometry *geometry);
+typedef struct rf_model_skin_geometry {
+    rf_collision_model_skin_batch *batches;void *data;uint32_t accounted_bytes;
+    uint16_t batch_count,max_vertices;
+} rf_model_skin_geometry;
+/* Own a skeletal LOD blob and raw collision views; no render conversion.
+ * Budget includes owner/blob/views, excludes allocator overhead and posed
+ * scratch (max_vertices*12). Checks finite positions, signed triangle indices
+ * and active bone IDs, stopping at the first zero weight as54e200 does.
+ * Zero owner required; errors preserve it. Archive may close after success. */
+int rf_model_skin_geometry_open(rf_model_skin_geometry *geometry,const rf_model_file *model,
+    uint32_t lod,uint32_t bone_count,uint32_t budget);
+void rf_model_skin_geometry_close(rf_model_skin_geometry *geometry);
+
 typedef struct rf_model_collision_resource {
     rf_collision_model_part_view *parts;rf_model_collision_geometry *lods;
     int32_t part_count;uint32_t lod_count,accounted_bytes;

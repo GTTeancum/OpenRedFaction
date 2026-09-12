@@ -273,6 +273,38 @@ int main(int argc, char **argv)
             model.sections[i].size=saved;break;
         }
     }
+    if(!result && argc==4 && !strcmp(argv[3],"--skin-geometry")) {
+        for(i=0;i<model.lod_count && !result;++i) {
+            rf_model_skin_geometry g={0};uint32_t budget,b,required=0,j,k;
+            if(!(model.lods[i].flags&2u)) {
+                if(rf_model_skin_geometry_open(&g,&model,i,256,4*1024*1024)!=RF_NOT_FOUND || g.data || g.batches || g.accounted_bytes)result=RF_FORMAT;
+                continue;
+            }
+            result=rf_model_skin_geometry_open(&g,&model,i,256,4*1024*1024);if(result)break;
+            budget=g.accounted_bytes;rf_model_skin_geometry_close(&g);
+            if(rf_model_skin_geometry_open(&g,&model,i,256,budget-1)!=RF_RANGE || g.data || g.batches || g.accounted_bytes){result=RF_FORMAT;break;}
+            result=rf_model_skin_geometry_open(&g,&model,i,256,budget);if(result)break;
+            printf("C %u %u %u %u\n",i,g.batch_count,budget,g.max_vertices);
+            for(b=0;b<g.batch_count;++b) {
+                const rf_collision_model_skin_batch *view=g.batches+b;rf_model_batch batch;
+                result=rf_model_file_batch(&model,i,b,&batch);if(result)break;
+                for(j=0;j<view->vertex_count;++j)for(k=0;k<4 && view->links[j].weights[k];++k)
+                    if((uint32_t)view->links[j].bones[k]+1>required)required=(uint32_t)view->links[j].bones[k]+1;
+                printf("D %u %u %u %u %u %u %u\n",i,b,view->vertex_count,view->triangle_count,
+                    hash_bytes(2166136261u,view->positions,batch.vertices*12),hash_bytes(2166136261u,view->links,batch.vertices*8),hash_bytes(2166136261u,view->triangles,batch.triangles*8));
+            }
+            rf_model_skin_geometry_close(&g);rf_model_skin_geometry_close(&g);
+            if(g.data || g.batches || g.accounted_bytes || g.batch_count || g.max_vertices)result=RF_FORMAT;
+            if(!result)result=rf_model_skin_geometry_open(&g,&model,i,required,budget);
+            rf_model_skin_geometry_close(&g);
+            if(required && (rf_model_skin_geometry_open(&g,&model,i,required-1,budget)!=RF_FORMAT || g.data || g.batches || g.accounted_bytes))result=RF_FORMAT;
+            if(model.lods[i].batch_count) {
+                uint32_t saved=model.lods[i].attachment_offset;model.lods[i].attachment_offset=model.lods[i].offset;
+                if(rf_model_skin_geometry_open(&g,&model,i,256,budget)!=RF_FORMAT || g.data || g.batches || g.accounted_bytes)result=RF_FORMAT;
+                model.lods[i].attachment_offset=saved;
+            }
+        }
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--collision-geometry")) {
         for(i=0;i<model.lod_count && !result;++i) {
             rf_model_collision_geometry g={0};uint32_t budget,b;
@@ -345,7 +377,7 @@ int main(int argc, char **argv)
             }
         }
     }
-    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches") && strcmp(argv[3],"--planes") && strcmp(argv[3],"--collision-geometry") && strcmp(argv[3],"--part-metadata") && strcmp(argv[3],"--collision-resource")) for (i = 0; i < model.lod_count && !result; ++i) {
+    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches") && strcmp(argv[3],"--planes") && strcmp(argv[3],"--collision-geometry") && strcmp(argv[3],"--skin-geometry") && strcmp(argv[3],"--part-metadata") && strcmp(argv[3],"--collision-resource")) for (i = 0; i < model.lod_count && !result; ++i) {
         uint32_t n, j;
         rf_model_lod *lod = &model.lods[i];
         printf("L %u %u %u %u\n", lod->offset, lod->size, lod->attachment_offset, lod->attachment_count);

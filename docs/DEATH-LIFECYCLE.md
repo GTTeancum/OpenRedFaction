@@ -5119,3 +5119,26 @@ prepared-matrix bytes and8 generation bytes. Includes125 first-batch exits,
 still occurs). Both builds and19 CTests pass. Unicorn comparison is not a
 native XEMU run. Live animation evaluation, budgeted per-NPC prepared cache
 ownership, selected skeletal LOD geometry and live scheduling remain open.
+
+
+### Owned authored skeletal collision LODs (2026-09-12)
+
+`rf_model_skin_geometry_open/close` owns one skeletal (flag2) LOD blob and
+16-byte x86 batch views for54e200: positions, original8-byte links, signed
+triangle records and counts. The16-byte owner reports total accounted bytes
+and maximum batch vertex count for caller-owned posed scratch. Finite positions,
+region sizes, triangle indices and active bone capacity are validated. Bone
+validation stops at the first zero weight; bytes remain unmodified. Budget
+includes owner/blob/views, excludes allocator overhead and pose scratch/cache.
+No source archive is retained; errors preserve the empty output and release
+partial allocations. Static LODs return NOT_FOUND.
+
+`tools/verify_model_skin_geometry.py` scans all522 installed model files/930
+LODs:170 skeletal LODs with599 batches match independent serialized position,
+link and triangle hashes exactly, including maximum batch sizes. Peak owned
+LOD is73752 bytes. Checks cover exact budget and one byte under, minimum
+active-bone capacity and one under, malformed attachment failure after blob
+allocation, repeated cleanup, and static rejection. All skeletal batches use
+format518c41. PC/NXDK builds and19 CTests pass; no new native XEMU query or
+retained NPC residency is claimed. Per-model selected residency, prepared
+cache ownership and authored skeletal collision query comparisons remain open.

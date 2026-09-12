@@ -531,6 +531,48 @@ int rf_model_collision_geometry_open(rf_model_collision_geometry *g,const rf_mod
     rf_model_collision_geometry_close(&next);return status;
 }
 
+void rf_model_skin_geometry_close(rf_model_skin_geometry *g)
+{
+    if(!g)return;free(g->batches);free(g->data);memset(g,0,sizeof(*g));
+}
+int rf_model_skin_geometry_open(rf_model_skin_geometry *g,const rf_model_file *model,
+    uint32_t index,uint32_t bone_count,uint32_t budget)
+{
+    rf_model_skin_geometry next={0};const rf_model_lod *lod;uint64_t bytes;uint32_t i,j,k;int status;
+    if(!g || !model || !model->archive || index>=model->lod_count || index>=RF_MODEL_MAX_LODS ||
+        bone_count>256 || g->data || g->batches || g->accounted_bytes || g->batch_count || g->max_vertices)return RF_RANGE;
+    lod=model->lods+index;if(!(lod->flags&2u))return RF_NOT_FOUND;
+    if(lod->batch_count>65535 || (uint64_t)lod->offset+lod->size>model->entry.size)return RF_FORMAT;
+    bytes=sizeof(next)+(uint64_t)lod->size+(uint64_t)lod->batch_count*sizeof(*next.batches);
+    if(bytes>budget || bytes>SIZE_MAX)return RF_RANGE;
+    next.accounted_bytes=(uint32_t)bytes;next.batch_count=(uint16_t)lod->batch_count;
+    next.batches=lod->batch_count?calloc(lod->batch_count,sizeof(*next.batches)):NULL;
+    next.data=lod->size?malloc(lod->size):NULL;
+    if((lod->batch_count && !next.batches) || (lod->size && !next.data)){status=RF_IO;goto fail;}
+    if(lod->size){status=rf_vpp_read(model->archive,&model->entry,lod->offset,next.data,lod->size);if(status)goto fail;}
+    for(i=0;i<lod->batch_count;++i) {
+        rf_model_batch batch;rf_collision_model_skin_batch *view=next.batches+i;unsigned char *data=next.data;
+        status=rf_model_file_batch(model,index,i,&batch);if(status)goto fail;
+        if(batch.sizes[0]<(uint64_t)batch.vertices*12 || batch.sizes[3]<(uint64_t)batch.triangles*8 || batch.sizes[6]<(uint64_t)batch.vertices*8){status=RF_FORMAT;goto fail;}
+        view->positions=batch.vertices?(const float (*)[3])(data+batch.offsets[0]-lod->offset):NULL;
+        view->links=batch.vertices?(const rf_collision_model_skin_links *)(data+batch.offsets[6]-lod->offset):NULL;
+        view->triangles=batch.triangles?(const rf_collision_model_triangle_record *)(data+batch.offsets[3]-lod->offset):NULL;
+        view->vertex_count=(uint16_t)batch.vertices;view->triangle_count=(uint16_t)batch.triangles;
+        if(batch.vertices>next.max_vertices)next.max_vertices=(uint16_t)batch.vertices;
+        for(j=0;j<batch.vertices;++j) {
+            for(k=0;k<3;++k)if(!isfinite(view->positions[j][k])){status=RF_FORMAT;goto fail;}
+            for(k=0;k<4 && view->links[j].weights[k];++k)
+                if(view->links[j].bones[k]>=bone_count){status=RF_FORMAT;goto fail;}
+        }
+        for(j=0;j<batch.triangles;++j)for(k=0;k<3;++k) {
+            int32_t n=view->triangles[j].indices[k];if(n<0 || (uint32_t)n>=batch.vertices){status=RF_FORMAT;goto fail;}
+        }
+    }
+    *g=next;return RF_OK;
+ fail:
+    rf_model_skin_geometry_close(&next);return status;
+}
+
 void rf_model_collision_resource_close(rf_model_collision_resource *resource)
 {
     uint32_t i;if(!resource)return;
