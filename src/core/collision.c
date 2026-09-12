@@ -1279,11 +1279,54 @@ int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     *matched=hit;return RF_OK;
 }
 
+/*4e1ca3..4e1ce8 retains extended products through the final binary32 store. */
+static float collision_texture_blend(float first,float second,float base,float previous,float next)
+{
+    float result;
+#if (defined(_MSC_VER) && defined(_M_IX86)) || defined(__i386__)
+    unsigned short saved,control;
+#if defined(_MSC_VER)
+    __asm { fnstcw saved }
+    control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm {
+        fldcw control
+        fld first
+        fadd second
+        fld1
+        fsubrp st(1),st(0)
+        fld first
+        fmul next
+        fld st(1)
+        fmul base
+        faddp st(1),st(0)
+        fld second
+        fmul previous
+        faddp st(1),st(0)
+        fstp result
+        fstp st(0)
+        fldcw saved
+    }
+#else
+    __asm__ volatile("fnstcw %0":"=m"(saved));control=(unsigned short)((saved&~0x0f00u)|0x0300u);
+    __asm__ volatile("fldcw %0"::"m"(control));
+    __asm__ volatile(".intel_syntax noprefix\n\t"
+        "fld dword ptr [%[first]]\n\tfadd dword ptr [%[second]]\n\tfld1\n\tfsubrp st(1),st(0)\n\t"
+        "fld dword ptr [%[first]]\n\tfmul dword ptr [%[next]]\n\tfld st(1)\n\tfmul dword ptr [%[base]]\n\tfaddp st(1),st(0)\n\t"
+        "fld dword ptr [%[second]]\n\tfmul dword ptr [%[previous]]\n\tfaddp st(1),st(0)\n\tfstp dword ptr [%[result]]\n\tfstp st(0)\n\t.att_syntax prefix"
+        ::[first]"r"(&first),[second]"r"(&second),[base]"r"(&base),[previous]"r"(&previous),[next]"r"(&next),[result]"r"(&result):"memory");
+    __asm__ volatile("fldcw %0"::"m"(saved));
+#endif
+#else
+    result=(float)(((double)first*next+(1-((double)first+second))*base)+(double)second*previous);
+#endif
+    return result;
+}
+
 int rf_collision_texture_coordinates(const float normal[3],const float point[3],
     const float (*vertices)[3],const float (*coordinates)[2],uint32_t count,float uv[2],uint32_t *matched)
 {
     static const uint32_t axes[3][2]={{2,1},{0,2},{1,0}};
-    float absolute[3],px,py,ax,ay,bx,by,first,second,result[2];double determinant,value,anchor;
+    float absolute[3],px,py,ax,ay,bx,by,first,second,result[2];double determinant,value;
     uint32_t axis,u,v,j,k;
     if(!normal || !point || !vertices || !coordinates || !uv || !matched || count<3 || count>65536)return RF_RANGE;
     for(k=0;k<3;++k){if(!isfinite(normal[k]) || !isfinite(point[k]))return RF_FORMAT;absolute[k]=fabsf(normal[k]);}
@@ -1307,9 +1350,8 @@ int rf_collision_texture_coordinates(const float normal[3],const float point[3],
             value=((double)px-(double)bx*first)/ax;
         }
         second=(float)value;if(!(value>=0) || !((double)first+second<=1))continue;
-        anchor=1-((double)first+second);
         for(k=0;k<2;++k) {
-            result[k]=(float)(((double)first*coordinates[j][k]+anchor*coordinates[0][k])+(double)second*coordinates[j-1][k]);
+            result[k]=collision_texture_blend(first,second,coordinates[0][k],coordinates[j-1][k],coordinates[j][k]);
             if(!isfinite(result[k]))return RF_FORMAT;
         }
         memcpy(uv,result,sizeof(result));*matched=1;return RF_OK;

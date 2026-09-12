@@ -83,6 +83,19 @@ int rf_geometry_lightmap_projection(const rf_geometry *geometry,uint32_t mapping
 int rf_geometry_lightmap(const rf_geometry *geometry, uint32_t mapping, uint32_t image_count, uint32_t *image);
 int rf_geometry_get_face(const rf_geometry *geometry, uint32_t index, rf_geometry_face *face);
 int rf_geometry_get_corner(const rf_geometry *geometry, uint32_t face, uint32_t corner, rf_geometry_corner *result);
+typedef struct rf_geometry_texture_workspace {
+    float (*vertices)[3],(*coordinates)[2];uint32_t capacity;
+} rf_geometry_texture_workspace;
+/* Initial authored face UVs in original corner order, using caller scratch.
+ * Geometry stays open; scratch may change on failure. No allocation. UV and
+ * matched preserve shared interpolation error/miss semantics. */
+int rf_geometry_texture_coordinates(const rf_geometry *geometry,uint32_t face,
+    const float point[3],rf_geometry_texture_workspace *work,float uv[2],uint32_t *matched);
+/* Compose authored UV and existing image sampling. Caller resolves the image
+ * for this face and animation frame. UV miss is NOT_FOUND, preserving color;
+ * no fabricated coordinate or opaque fallback. Initial geometry only. */
+int rf_geometry_sample_texture(const rf_geometry *geometry,uint32_t face,const float point[3],
+    const rf_image *image,rf_geometry_texture_workspace *work,uint32_t *color);
 /* Bind a loaded file face to borrowed collision vertices with exact corner
  * order and original 0.0001-expanded bounds. filter MUST be supplied from resolved runtime
  * metadata; file flag bytes are not assumed equivalent to runtime flags.

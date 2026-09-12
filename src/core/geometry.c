@@ -333,6 +333,30 @@ int rf_geometry_get_corner(const rf_geometry *g, uint32_t index, uint32_t corner
     return RF_OK;
 }
 
+int rf_geometry_texture_coordinates(const rf_geometry *geometry,uint32_t index,
+    const float point[3],rf_geometry_texture_workspace *work,float uv[2],uint32_t *matched)
+{
+    rf_geometry_face face;rf_geometry_corner corner;uint32_t i;int status;
+    if(!work || !work->vertices || !work->coordinates || !point || !uv || !matched)return RF_RANGE;
+    status=rf_geometry_get_face(geometry,index,&face);if(status)return status;
+    if(face.corners<3 || face.corners>work->capacity || face.corners>65536)return RF_RANGE;
+    for(i=0;i<face.corners;++i) {
+        status=rf_geometry_get_corner(geometry,index,i,&corner);if(status)return status;
+        status=rf_geometry_vertex(geometry,corner.vertex,work->vertices[i]);if(status)return status;
+        memcpy(work->coordinates[i],corner.uv,8);
+    }
+    return rf_collision_texture_coordinates(face.plane,point,work->vertices,work->coordinates,face.corners,uv,matched);
+}
+int rf_geometry_sample_texture(const rf_geometry *geometry,uint32_t face,const float point[3],
+    const rf_image *image,rf_geometry_texture_workspace *work,uint32_t *color)
+{
+    float uv[2];uint32_t matched;int status;
+    if(!image || !color)return RF_RANGE;
+    status=rf_geometry_texture_coordinates(geometry,face,point,work,uv,&matched);if(status)return status;
+    if(!matched)return RF_NOT_FOUND;
+    return rf_image_sample_owned(image,uv[0],uv[1],color);
+}
+
 int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
     const rf_collision_face_filter *filter,float (*scratch)[3],uint32_t capacity,
     rf_collision_face *face)

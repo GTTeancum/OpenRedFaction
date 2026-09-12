@@ -1556,6 +1556,27 @@ int main(int argc,char **argv)
         if(!layout)printf("%u %u %u %u %u %u\n",geometry.rooms,total,nodes,peak,queries,hits);
         rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
     }
+    if(argc==4 && !strcmp(argv[1],"--level-texture-uv")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;float vertices[256][3],coordinates[256][2];
+        rf_geometry_texture_workspace work={vertices,coordinates,256};unsigned char pixels[64];rf_image image={4,4,64,7,pixels};uint32_t i,j,k;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,8*1024*1024))return 3;
+        for(i=0;i<64;++i)pixels[i]=(unsigned char)(i*37+11);
+        for(i=0;i<geometry.faces;++i) {
+            rf_geometry_face face;rf_geometry_corner corner;float point[3]={0};
+            struct {int32_t status;uint32_t matched;float uv[2];int32_t sample_status;uint32_t color;} out;
+            if(rf_geometry_get_face(&geometry,i,&face) || face.corners>256)return 4;
+            for(j=0;j<face.corners;++j) {
+                if(rf_geometry_get_corner(&geometry,i,j,&corner) || rf_geometry_vertex(&geometry,corner.vertex,vertices[j]))return 4;
+                for(k=0;k<3;++k)point[k]+=vertices[j][k];
+            }
+            for(k=0;k<3;++k)point[k]/=face.corners;
+            memset(&out,0xa5,sizeof(out));out.status=rf_geometry_texture_coordinates(&geometry,i,point,&work,out.uv,&out.matched);
+            out.sample_status=rf_geometry_sample_texture(&geometry,i,point,&image,&work,&out.color);
+            if(fwrite(&i,4,1,stdout)!=1 || fwrite(&face.corners,4,1,stdout)!=1 || fwrite(face.plane,16,1,stdout)!=1 || fwrite(point,12,1,stdout)!=1 ||
+               fwrite(vertices,12,face.corners,stdout)!=face.corners || fwrite(coordinates,8,face.corners,stdout)!=face.corners || fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
+    }
     if(argc==4 && (!strcmp(argv[1],"--level") || !strcmp(argv[1],"--level-initial"))) {
         int initial=!strcmp(argv[1],"--level-initial");
         rf_vpp archive;rf_level level;rf_geometry geometry;float scratch[256][3];

@@ -7938,3 +7938,39 @@ not a native XEMU scene run or an authored asset composition check.
 Next compose authored face UV records, this owned sampler and the verified
 alpha gate into preferred/room/flat collision services, then validate actual
 scene queries in stock64MiB XEMU before enabling visible glare rendering.
+
+
+Glare dependency: authored UV/sample composition (2026-09-12)
+-----------------------------------------------------------
+rf_geometry_texture_coordinates reads initial face plane and ordered corner
+position/UV through the existing geometry owner, then calls the verified
+4e1ad0 reconstruction. Caller supplies separate vertex/UV scratch and
+capacity; no allocation or retained copy is added. Scratch may change on
+failure; UV/matched follow the shared helper contract. It requires a valid
+open initial geometry owner, not arbitrary mutated runtime face topology.
+rf_geometry_sample_texture composes this with rf_image_sample_owned for a
+caller-resolved texture/frame. UV miss returns NOT_FOUND instead of passing
+uninitialized coordinates to a sampler; other failures preserve color.
+
+The authored test exposed L1S1 face5582 UV cancellation: C double products
+rounded a near-zero U differently from original x87 extended products.
+The sampled color was identical but UV bytes differed. A targeted blend
+helper now retains original4e1ca3..4e1ce8 arithmetic through its final
+binary32 store, with saved/restored x87 control and both MSVC/NXDK paths.
+8192 original UV fixtures plus6 guards and21 CTests still pass afterward.
+
+verify_geometry_texture_sample.py checks each face in the installed geometry
+audit using its authored plane, corner positions/UV and centroid. A controlled
+4x4 RGBA pattern isolates interpolation/addressing/channel behavior from
+asset selection. Original4e1ad0 and55cfa0 execute, only bitmap lock/release
+supplied. PC uses actual initial geometry; compiled NXDK uses equivalent
+one-face initial records and swizzled image storage. Out-of-image reads are
+rejected, not executed in the original. This does not establish game texture
+selection, animation, changed runtime topology or native scene callbacks.
+
+Full audit result: PASS460720 faces across94 installed levels, including
+70 original UV misses and73294 controlled4x4 logical bounds rejections;
+94 compiled workspace-capacity guards preserve color. These rejections are
+explicit port policies, not original out-of-bounds read comparisons. Both
+builds pass. Next bind actual texture/frame selection and propagate this
+service through the live preferred/room/flat collision traversal.
