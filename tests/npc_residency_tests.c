@@ -671,28 +671,38 @@ static int corpse_authored_check(char **argv)
     CHECK(campaign_npc_motion_data && campaign_npc_motion_sizes);
     campaign_npc_motion_bytes=campaign_npc_motion_count*(sizeof(void*)+sizeof(uint32_t));
     for(actor=0;actor<campaign_poses.count;++actor) {
-        rf_entity_pose *source=campaign_poses.items+actor,*pose;rf_corpse corpse={0};
+        rf_entity_pose *source=campaign_poses.items+actor,*pose;rf_corpse_owned owned={0};rf_corpse *corpse=&owned.corpse;
         uint32_t skeleton=source->skeleton,cls=campaign_seeds.items[actor].class_index,previous=0,model_changed=0;
         int32_t death;float pending[3]={0},point[3];double duration;
         if(skeleton==UINT32_MAX)continue;CHECK(skeleton<256);
         death=campaign_motion_catalog.mappings[cls].actions[5];if(death<0 || seen[skeleton])continue;seen[skeleton]=1;
-        corpse.update.model=actor+1;corpse.update.basis[0]=corpse.update.basis[4]=corpse.update.basis[8]=1;
-        corpse.update.position[1]=10;corpse.attachment_index=0;
+        corpse->update.model=actor+1;corpse->update.basis[0]=corpse->update.basis[4]=corpse->update.basis[8]=1;
+        corpse->update.position[1]=10;corpse->attachment_index=0;
+        corpse->update.sound_2cc=-1;corpse->update.motion_2b8=-1;rf_timer_clear(&corpse->update.emitter_deadline_2ac);
         CHECK(campaign_npc_motion_require(skeleton,(uint32_t)death)==RF_OK);
         CHECK(rf_motion_start(&source->playback,campaign_playback_resources.models[skeleton].resources,
             campaign_playback_resources.models[skeleton].count,death,1,1)==RF_OK);
-        CHECK(rf_scene_model_detach(actor,corpse.update.position,corpse.update.basis,9)==RF_OK);
+        CHECK(rf_scene_model_detach(actor,corpse->update.position,corpse->update.basis,9)==RF_OK);
         CHECK(campaign_model_pose(actor,&pose)==RF_OK && pose && source->skeleton==UINT32_MAX);
         memset(source->matrices,0xdd,source->bone_count*48);
-        CHECK(rf_scene_corpse_reset(&corpse)==RF_OK && rf_scene_corpse_play(&corpse,death)==RF_OK);
-        CHECK(rf_scene_corpse_duration(&corpse,death,&duration)==RF_OK && duration>0);
+        CHECK(rf_scene_corpse_reset(corpse)==RF_OK && rf_scene_corpse_play(corpse,death)==RF_OK);
+        CHECK(rf_scene_corpse_duration(corpse,death,&duration)==RF_OK && duration>0);
         for(i=0;i<120;++i) {
             uint32_t hash;
-            CHECK(rf_scene_corpse_advance(&corpse,1.0f/30.0f)==RF_OK);
-            CHECK(rf_scene_corpse_evaluate(&corpse,pending)==RF_OK);
-            CHECK(rf_scene_corpse_follow_point(&corpse,point)==RF_OK && isfinite(point[0]) && isfinite(point[1]) && isfinite(point[2]));
+            CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,(int32_t)i*33,NULL,0,pending,NULL)==RF_OK);
+            CHECK(rf_scene_corpse_evaluate(corpse,pending)==RF_OK);
+            CHECK(rf_scene_corpse_follow_point(corpse,point)==RF_OK && isfinite(point[0]) && isfinite(point[1]) && isfinite(point[2]));
             hash=npc_hash_bytes(2166136261u,pose->matrices,pose->bone_count*48);
             if(i && hash!=previous){++changed;++model_changed;}previous=hash;++frames;
+        }
+        {
+            uint32_t generation=pose->playback.generation;
+            corpse->update.sound_2cc=7;
+            CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,4000,NULL,0,pending,NULL)==RF_NOT_FOUND);
+            CHECK(pose->playback.generation==generation);
+            corpse->update.fade.health_34=-1;
+            CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,4000,NULL,0,pending,NULL)==RF_OK);
+            CHECK((corpse->update.fade.object_flags_7c&2) && pose->playback.generation==generation);
         }
         CHECK(model_changed);printf("CORPSE_AUTHORED %s %u %d %.6f %u %u\n",campaign_skeletons.items[skeleton].model,pose->bone_count,death,duration,model_changed,previous);
         CHECK(rf_scene_model_retire(actor)==RF_OK);++tested;

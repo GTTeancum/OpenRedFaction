@@ -1965,3 +1965,26 @@ This proves authored clip decoding through the transferred scene adapters.
 It does not compare those frames against the original, instantiate the full
 owned corpse constructor, render a corpse, or exercise XEMU/live death dispatch.
 No runtime source changed in this harness-only commit.
+
+
+## Scene corpse update orchestration adapter
+
+rf_scene_corpse_update now assembles the verified417290 backend using retained
+model reset/start/duration/advance adapters. The POSE callback evaluates then
+refreshes physical spheres; sound attachment queries evaluate before reading
+bones except for the no-attachment sentinel. External sound lookup/move owners
+are explicit. Missing sound operations return RF_NOT_FOUND when requested.
+Callback errors latch, suppress subsequent backend work, and are returned to
+the caller. Earlier fade/field mutations are not rolled back.
+
+The authored harness now runs all720 frames through this shared update entry
+and separately evaluates the final pose as a consumer. Pose hashes and cache
+accounting remain unchanged. A missing sound backend returns failure without
+advancing playback; negative health marks deletion and returns before sound
+lookup. Both builds and all18 CTests pass.
+
+This covers ordinary playback and the mentioned failure/early-return paths.
+The adapter transition-bit8 branch, playing sound movement and emitter owners
+still need integrated tests. No complete live corpse list, deferred deletion
+dispatch, render placement or XEMU corpse is claimed. Existing full original
+417290 verification covers the shared orchestration independently of adapters.
