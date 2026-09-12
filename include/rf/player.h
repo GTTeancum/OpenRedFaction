@@ -5,6 +5,12 @@
 #include "rf/physics.h"
 #include "rf/entity.h"
 
+typedef struct rf_player_mode_state {uint8_t field_f94,field_f95,reserved[2];uint32_t field_f98;} rf_player_mode_state;
+/*4ace90 returns bytef94;4ad8a0 clears only f94/f95/f98. Requires a live
+ * player-mode owner. This does not infer a camera mode or change bytefb0. */
+uint32_t rf_player_mode_active(const rf_player_mode_state *);
+void rf_player_mode_stop(rf_player_mode_state *);
+
 typedef struct rf_player_entity_link {int32_t entity_handle;} rf_player_entity_link;
 /* Original4a4920/4a4940 normalized boolean results. A missing player/entity is
  * dead but not dying; a resolved type0 entity is dying only for flags810 bit1.

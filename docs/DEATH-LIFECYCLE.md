@@ -3252,3 +3252,32 @@ claim XEMU gameplay. Report: artifacts/death-early.json.
 
 Next: map the small player-mode field handlers, audit remaining SP branches
 between the reconstructed stages, and compose them with live resource owners.
+
+
+## Player-mode field handlers and death-stage gap audit (2026-09-12)
+
+rf_player_mode_active and rf_player_mode_stop reconstruct4ace90 and4ad8a0.
+The query returns bytef94 without boolean normalization; stop clears only
+bytesf94/f95 and wordf98, preservingf96/f97. The8-byte adapted state is owned
+separately from fb0. verify_player_mode.py executes both original handlers
+without hooks and compares PC/NXDK output in1024 randomized player buffers,
+covering every active-byte value. Original surrounding bytes remain intact.
+Both builds and all19 CTests pass. The early-death callback fixture still
+supplies mode callbacks; these handlers are not yet bound to the live player.
+Report: artifacts/player-mode.json.
+
+The stage-gap audit retains an explicit mode restriction: shared motion-stage
+comparisons use6fc4d8=0 as well as64ecb9=0. A nonzero6fc4d8 bypasses the normal
+4895d0 player gate and can clear player11f4 after42a8e0 at4200a0..4200c6. The
+setter480b80 initializes additional player entities and distinct view modes
+when59f294 is2;4359e0 clears this mode and restores the first player view.
+This is evidence of an alternate player mode, not proof of its complete
+semantics. It must not silently enter the ordinary-SP composition.
+
+Ordinary-SP stage order now accounted for: entry vectors/flags, collision and
+local player/timers, death motion, configured item, linked actor, weapon reset
+41ae70 followed by weapon drop42ae10, then tail cleanup. The intervening
+420600..420b03 branches are gated by64ecb9. A composed implementation still
+needs one coherent actor field owner across all adapted views and callbacks,
+plus real model, world, registry, item, inventory, event and player owners.
+Per-stage comparisons do not establish full41fdc0 equivalence or live gameplay.

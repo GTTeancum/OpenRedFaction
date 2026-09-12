@@ -640,6 +640,16 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--death-drop")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return death_drop_probe();
     }
+    if(argc==2 && !strcmp(argv[1],"--player-mode")) {
+        rf_player_mode_state state;uint32_t active;
+        _Static_assert(sizeof(state)==8,"player mode ABI");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&state,8,1,stdin)==1) {
+            active=rf_player_mode_active(&state);rf_player_mode_stop(&state);
+            if(fwrite(&active,4,1,stdout)!=1 || fwrite(&state,8,1,stdout)!=1)return 3;
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--death-early")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return death_early_probe();
     }

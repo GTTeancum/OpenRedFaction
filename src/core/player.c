@@ -238,3 +238,8 @@ int rf_player_slow_enter(rf_player_climb_state *state,uint32_t *actor_flags,
     state->movement=input->descriptors+selected;*selected_descriptor=selected;
     state->orientation=input->identity;state->vertical_velocity=0;return RF_OK;
 }
+
+uint32_t rf_player_mode_active(const rf_player_mode_state *state)
+{return state->field_f94;}
+void rf_player_mode_stop(rf_player_mode_state *state)
+{state->field_f94=state->field_f95=0;state->field_f98=0;}
