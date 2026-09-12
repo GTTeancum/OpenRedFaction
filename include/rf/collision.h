@@ -368,6 +368,14 @@ void rf_collision_pairs_seed(rf_collision_pair_list *available,rf_collision_pair
 uint32_t rf_collision_pair_create(rf_collision_pair_list *active,rf_collision_pair_list *available,
     const void *first,const void *second,
     uint32_t (*gate)(void *,const void *,const void *,uint32_t *),void *context);
+/* Original508e40 directional ray/sphere helper used by actor response49ab00.
+ * Ray is origin3/direction3; caller supplies normalized direction and length.
+ * Finite inputs and disjoint input/output storage. Preserves point on misses,
+ * but a candidate beyond length writes its distance into fraction before
+ * rejecting. Accepted ordinary hits return normalized fraction; initial overlap
+ * returns zero only after the original forward-projection gates. No allocation. */
+uint32_t rf_collision_ray_sphere(const float ray[6],float length,const float center[3],float radius,
+    float point[3],float *fraction);
 typedef struct rf_collision_pair_actor_state {
     uint32_t kind,body_flags,model,movement_mode,handle,parent_handle,object_flags;
     uint32_t trigger_filter;int32_t allowed_count;const uint32_t *allowed_handles;

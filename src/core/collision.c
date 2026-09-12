@@ -1978,3 +1978,22 @@ void rf_collision_pairs_process(rf_collision_pair_list *active,rf_collision_pair
         node=next;
     }
 }
+
+uint32_t rf_collision_ray_sphere(const float ray[6],float length,const float center[3],float radius,
+    float point[3],float *fraction)
+{
+    float delta[3],projection,distance,scaled;double dot,squared,discriminant,hit;uint32_t i;
+    if(length==0)return 0;
+    for(i=0;i<3;++i)delta[i]=(float)((double)center[i]-ray[i]);
+    dot=(double)delta[2]*ray[5];dot+=(double)delta[1]*ray[4];dot+=(double)delta[0]*ray[3];
+    projection=(float)dot;
+    if(!(dot>0) || (double)projection-length>radius)return 0;
+    squared=(double)delta[2]*delta[2];squared+=(double)delta[1]*delta[1];squared+=(double)delta[0]*delta[0];
+    if(squared<=(double)radius*radius){memcpy(point,ray,12);*fraction=0;return 1;}
+    discriminant=(double)radius*radius-(squared-(double)projection*projection);
+    if(discriminant<0)return 0;
+    hit=(double)projection-sqrt(discriminant);distance=(float)hit;*fraction=distance;
+    if(hit>length)return 0;
+    for(i=0;i<3;++i){scaled=(float)((double)ray[i+3]*distance);point[i]=(float)((double)ray[i]+scaled);}
+    *fraction=(float)((double)*fraction/length);return 1;
+}

@@ -621,6 +621,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--ray-sphere")) {
+        float wire[15];uint32_t result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            result=rf_collision_ray_sphere(wire,wire[6],wire+7,wire[10],wire+11,wire+14);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(wire+11,16,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--pair-expired")) {
         rf_collision_pair_expiration state;uint32_t result;
         _Static_assert(sizeof(state)==60,"Pair expiration wire layout");

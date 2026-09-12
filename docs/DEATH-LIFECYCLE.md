@@ -4170,3 +4170,32 @@ owners remain published in this animation-only fixture. Existing death animation
 and action audio summaries also match. All19 CTests pass. This supersedes the
 previous native-unverified notes for the snapshot adapters, without establishing
 full collision handling, actor death or moving NPC orientation ownership.
+
+
+### Actor response directional ray/sphere helper (2026-09-12)
+
+49ab00 uses strict AABB overlap46c340, maximum sphere radii from actor184
+lists, and a horizontal relative-motion ray before response field updates.
+Its ray constructor467620 only initializes two vectors; it is not a collision
+query. The actual sphere intersection is508e40, now rf_collision_ray_sphere.
+Raw Ghidra exports for49ab00/49a420/49afe0/49b570 and helpers are local evidence;
+this change reconstructs508e40 fully, not those response routines.
+
+508e40 rejects zero length and nonpositive forward projection before checking
+initial overlap. Projection is stored as float for later discriminant arithmetic;
+the initial comparison uses its unrounded53-bit value. Vector subtraction,
+multiplication and addition retain their original float stores and dot order.
+Accepted ordinary hits return a normalized fraction and point. A discriminant
+candidate beyond ray length writes its unnormalized distance then rejects,
+leaving the point untouched. Earlier misses preserve both outputs. Do not
+replace this with an all-or-nothing generic intersection API or silently fix
+the caller's additional fraction scaling. Finite, nonaliasing input contract.
+
+verify_collision_ray_sphere.py executes the complete original508e40 and vector
+callees without hooks. All8192 fixtures match PC and NXDK return values, point,
+fraction and input preservation:7654 misses,538 hits,78 misses updating distance.
+Coverage includes zero length, initial overlap, forward rejection, tangency
+and adjacent float boundaries under x87 control027f. Report is local
+artifacts/collision-ray-sphere.json. PC/NXDK builds and all19 CTests pass.
+The helper is not yet called by a reconstructed actor response or native XEMU
+gameplay; contact state updates and their live owners remain open.
