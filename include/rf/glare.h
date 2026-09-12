@@ -54,4 +54,22 @@ int rf_glare_base_open(const rf_glare_create_descriptor *descriptor,
  * Then release body/global link/heap and recycle the handle. NULL repeats OK;
  * linked glare state rejects close. External effects must already be retired. */
 int rf_glare_base_close(rf_glare_base_owner **owner,rf_object_registry *registry,rf_object_list *objects);
+typedef struct rf_glare_services {
+    int (*radius)(void *,float,float,float *);
+    int (*tag_pose)(void *,uint32_t,int32_t,float[12]);void *context;
+} rf_glare_services;
+/* Compose413d20 with concrete type10 ownership. External services supply
+ * radius RNG and registered parent pose; all other creation/lifetime storage
+ * is owned here. Parent/material inputs are resolved by caller. Classes and
+ * lists outlive the owner. Empty output required; successful NULL means no
+ * object. Callback errors preserve output; prior RNG effects are not undone. */
+int rf_glare_owned_open(const rf_glare_class *classes,uint32_t count,int32_t index,
+    uint32_t parent,int32_t tag,uint32_t flag,rf_object_registry *registry,
+    rf_object_list *objects,rf_object_list *glares,uint32_t *uid_cursor,
+    uint32_t parent_byte,uint32_t parent_group,const float material[3],uint32_t budget,
+    const rf_glare_services *services,rf_glare_base_owner **out);
+/* Valid linked family owner required; unlinks glare state before base close.
+ * NULL owner is repeatable. No renderer/resource borrower teardown implied. */
+int rf_glare_owned_close(rf_glare_base_owner **owner,rf_object_registry *registry,
+    rf_object_list *objects,rf_object_list *glares);
 #endif

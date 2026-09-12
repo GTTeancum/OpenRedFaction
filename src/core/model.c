@@ -68,6 +68,46 @@ int rf_glare_base_open(const rf_glare_create_descriptor *d,
     v->allocated_bytes=sizeof(*v);*out=v;return RF_OK;
 }
 
+typedef struct glare_owned_context {
+    rf_object_registry *registry;rf_object_list *objects;uint32_t *uid;
+    uint32_t parent_byte,parent_group,budget;const float *material;
+    const rf_glare_services *services;rf_glare_base_owner *owner;
+} glare_owned_context;
+static int glare_owned_radius(void *context,float minimum,float maximum,float *radius)
+{glare_owned_context *c=context;return c->services->radius(c->services->context,minimum,maximum,radius);}
+static int glare_owned_pose(void *context,uint32_t parent,int32_t tag,float pose[12])
+{glare_owned_context *c=context;return c->services->tag_pose(c->services->context,parent,tag,pose);}
+static int glare_owned_allocate(void *context,const rf_glare_create_descriptor *d,rf_glare_state **out)
+{
+    glare_owned_context *c=context;int status=rf_glare_base_open(d,c->registry,c->objects,c->uid,
+        c->parent_byte,c->parent_group,c->material,c->budget,&c->owner);
+    if(!status)*out=c->owner?&c->owner->state:NULL;return status;
+}
+int rf_glare_owned_open(const rf_glare_class *classes,uint32_t count,int32_t index,
+    uint32_t parent,int32_t tag,uint32_t flag,rf_object_registry *registry,
+    rf_object_list *objects,rf_object_list *glares,uint32_t *uid_cursor,
+    uint32_t parent_byte,uint32_t parent_group,const float material[3],uint32_t budget,
+    const rf_glare_services *services,rf_glare_base_owner **out)
+{
+    glare_owned_context c={registry,objects,uid_cursor,parent_byte,parent_group,budget,material,services,NULL};
+    rf_glare_create_backend backend={glare_owned_radius,glare_owned_pose,glare_owned_allocate,&c};rf_glare_state *state=NULL;int status;
+    if(!out || *out || !registry || !objects || !glares || !uid_cursor || !material || !services || !services->radius || !services->tag_pose ||
+       !glares->sentinel.next || !glares->sentinel.previous || glares->sentinel.next->previous!=&glares->sentinel || glares->sentinel.previous->next!=&glares->sentinel)return RF_RANGE;
+    status=rf_glare_create(classes,count,index,parent,tag,flag,glares,&backend,&state);if(status)return status;
+    *out=c.owner;return RF_OK;
+}
+int rf_glare_owned_close(rf_glare_base_owner **owner,rf_object_registry *registry,
+    rf_object_list *objects,rf_object_list *glares)
+{
+    rf_object_link *node;uint32_t i;
+    if(!owner || !registry || !objects || !glares)return RF_RANGE;if(!*owner)return RF_OK;
+    if(rf_object_registry_lookup(registry,(*owner)->handle)!=&(*owner)->state)return RF_RANGE;
+    node=glares->sentinel.next;
+    for(i=0;i<glares->count && node && node!=&glares->sentinel;++i,node=node->next)if(node==&(*owner)->state.link)break;
+    if(i==glares->count || node!=&(*owner)->state.link || !node->previous || !node->next || node->previous->next!=node || node->next->previous!=node)return RF_RANGE;
+    rf_object_list_remove(glares,node);return rf_glare_base_close(owner,registry,objects);
+}
+
 int rf_object_model_attach(rf_object_model_attachment *state,const char *name,
     uint32_t kind,const rf_object_model_backend *backend)
 {
