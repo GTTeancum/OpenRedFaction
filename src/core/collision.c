@@ -2190,6 +2190,40 @@ static void response_rotate(float v[3],const float matrix[9],uint32_t transpose)
     for(i=0;i<3;++i){dot=(double)v[2]*matrix[transpose?6+i:i*3+2];dot+=(double)v[1]*matrix[transpose?3+i:i*3+1];dot+=(double)v[0]*matrix[transpose?i:i*3];out[i]=(float)dot;}
     memcpy(v,out,12);
 }
+uint32_t rf_collision_model_part_trace(const rf_collision_model_part_view *part,
+    rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset)
+{
+    const rf_collision_model_lod_view *lod=part->selected;rf_collision_solid_response_query *q=&query->input;
+    float minimum[3],maximum[3],end[3],scratch[3];uint32_t i,b,t,inside,changed=0;
+    if(lod->flags&0x10u)lod=part->fallback;
+    if((reset&255u)==1u){hit->time=1;hit->part=0;}
+    memcpy(query->local_start,q->start,12);memcpy(query->local_displacement,q->displacement,12);
+    if(!(q->flags&2u)) {
+        for(i=0;i<3;++i)query->local_start[i]-=q->origin[i];
+        response_rotate(query->local_start,q->matrix,0);response_rotate(query->local_displacement,q->matrix,0);
+    }
+    for(i=0;i<3;++i) {
+        query->local_start[i]-=part->offset[i];minimum[i]=part->minimum[i]-q->radius;
+        maximum[i]=part->maximum[i]+q->radius;end[i]=query->local_start[i]+query->local_displacement[i];
+    }
+    if(rf_collision_segment_box(minimum,maximum,query->local_start,end,scratch,&inside)!=RF_OK || !inside)return 0;
+    for(b=0;b<lod->batch_count;++b) {
+        const rf_collision_model_batch_view *batch=lod->batches+b;
+        for(t=0;t<batch->triangle_count;++t) {
+            const rf_collision_model_triangle_record *record=batch->triangles+t;rf_collision_model_triangle triangle;uint32_t accepted;
+            memcpy(triangle.plane,batch->planes[t],16);
+            for(i=0;i<3;++i)memcpy(triangle.vertices[i],batch->vertices[record->indices[i]],12);
+            triangle.token=batch->token_base+t*8u;
+            if(q->radius<.0001f)accepted=rf_collision_model_ray_triangle(&triangle,query->local_start,query->local_displacement,record->flags&0x20u,hit);
+            else accepted=rf_collision_model_sphere_triangle(&triangle,query->local_start,query->local_displacement,q->radius,record->flags&0x20u,hit);
+            changed|=accepted;if(changed && (q->flags&1u))goto finish;
+        }
+    }
+ finish:
+    if(changed)for(i=0;i<3;++i)hit->point[i]+=part->offset[i];
+    return changed;
+}
+
 uint32_t rf_collision_model_parts_query(const int32_t *part_count,rf_collision_solid_response_query *query,
     rf_collision_model_response_hit *hit,uint32_t reset,const rf_collision_model_parts_backend *backend)
 {

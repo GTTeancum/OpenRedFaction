@@ -508,6 +508,28 @@ uint32_t rf_collision_model_query(const rf_collision_model_query_view *model,int
 /* Original5031f0: same dispatch with part=-1. */
 uint32_t rf_collision_model_query_all(const rf_collision_model_query_view *model,const void *query,
     rf_collision_model_response_hit *hit,uint32_t reset,const rf_collision_model_query_backend *backend);
+typedef struct rf_collision_model_triangle_record {int16_t indices[3];uint16_t flags;} rf_collision_model_triangle_record;
+typedef struct rf_collision_model_batch_view {
+    const float (*vertices)[3],(*planes)[4];const rf_collision_model_triangle_record *triangles;
+    uint32_t token_base;uint16_t triangle_count;
+} rf_collision_model_batch_view;
+typedef struct rf_collision_model_lod_view {
+    const rf_collision_model_batch_view *batches;uint32_t flags;uint16_t batch_count;
+} rf_collision_model_lod_view;
+typedef struct rf_collision_model_part_view {
+    float offset[3],minimum[3],maximum[3];
+    const rf_collision_model_lod_view *selected,*fallback;
+} rf_collision_model_part_view;
+typedef struct rf_collision_model_part_query {
+    rf_collision_solid_response_query input;float local_start[3],local_displacement[3];
+} rf_collision_model_part_query;
+/* Original54daa0/54dcd0 with resolved part/LOD storage. Stable borrowed views,
+ * valid signed indices, finite transforms and nonoverflowing geometry required.
+ * Selected flag10 uses fallback. Query first80 bytes stay unchanged; scratch
+ * is always prepared. Nearest/first-hit behavior and shared offset retained.
+ * No allocation or owner lookup; token_base represents original record base. */
+uint32_t rf_collision_model_part_trace(const rf_collision_model_part_view *part,
+    rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset);
 typedef struct rf_collision_model_parts_backend {
     uint32_t (*part)(void *,int32_t,rf_collision_solid_response_query *,rf_collision_model_response_hit *,uint32_t);
     void *context;

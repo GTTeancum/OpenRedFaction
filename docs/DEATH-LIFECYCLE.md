@@ -4817,3 +4817,31 @@ regions. There are23 such batches, including lights/control panels; format
 semantics still require original consumer verification before accepting
 those through the existing518c41 decoded vertex path.569d20 only stores the
 format word; it does not decode it and cannot prove consumer equivalence.
+
+
+## Reconstructed complete model part trace54daa0
+
+rf_collision_model_part_trace uses borrowed compact part/LOD/batch views
+with shared offsets/bounds, selected/fallback LODs, contiguous plane/vertex
+arrays and original signed16 triangle indices/flags. Triangle tokens are
+base plus index*8. No geometry allocation or owner lookup is introduced.
+The104-byte query contains the original80-byte input and24-byte working
+start/displacement. Input remains unchanged; scratch is prepared even on
+bounds rejection. Shared offsets, reset lowbyte1, flag2 inverse preparation,
+radius-expanded bounds and full-segment508b70 match the original. Ordered
+batch/triangle iteration calls verified54dd10 below0.0001f and54de40 at or
+above it. Flag1 returns the first hit, otherwise the nearest survives;
+accepted point receives the shared part offset once on exit.
+
+verify_model_part_trace.py executes full original54daa0 with all actual
+54dcd0/triangle/geometry callees and no substituted callbacks. Only static
+constructor flags are preinitialized.4096 exact PC/NXDK comparisons pass,
+467 hits,0..2 batches and0..3 triangles, both LOD selections, empty geometry,
+three axis-permutation orientations, nonzero origins/offsets, reset/flags,
+near/equal radius threshold, forward/reverse triangle depth ordering and
+one/two-sided records. Exact104-byte query,32-byte result and low return
+are checked; input geometry and guard bytes remain unchanged. Report:
+artifacts/model-part-trace.json. Both builds and all19 CTests pass.
+Retained resource binding, whole-model composition and native XEMU remain
+open, as does type2 skeletal geometry. Resolved views require valid owners
+and indices; file validation belongs to the resource loader.

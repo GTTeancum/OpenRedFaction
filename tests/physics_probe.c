@@ -43,6 +43,21 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-part-trace")) {
+        struct batch_wire {float vertices[9][3],planes[3][4];rf_collision_model_triangle_record records[3];uint32_t count;};
+        struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;uint32_t reset;float metadata[9];uint32_t flags,counts[2];struct batch_wire batches[4];} input;
+        _Static_assert(sizeof(input)==924,"model part trace wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            rf_collision_model_part_view part;rf_collision_model_lod_view lods[2];rf_collision_model_batch_view batches[4];uint32_t i,result;
+            for(i=0;i<4;++i){batches[i].vertices=input.batches[i].vertices;batches[i].planes=input.batches[i].planes;batches[i].triangles=input.batches[i].records;batches[i].triangle_count=(uint16_t)input.batches[i].count;batches[i].token_base=0x30008000u+i*0x100u;}
+            for(i=0;i<2;++i){lods[i].batches=batches+i*2;lods[i].batch_count=(uint16_t)input.counts[i];lods[i].flags=i?input.flags:0;}
+            memcpy(part.offset,input.metadata,36);part.selected=lods+1;part.fallback=lods;
+            result=rf_collision_model_part_trace(&part,&input.query,&input.hit,input.reset);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(&input.query,104,1,stdout)!=1 || fwrite(&input.hit,32,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--model-sphere-triangle")) {
         struct {float start[3],displacement[3];rf_collision_model_triangle triangle;uint32_t two_sided;rf_collision_model_response_hit hit;float radius;} input;
         uint32_t result;_Static_assert(sizeof(input)==120,"model sphere triangle wire");
