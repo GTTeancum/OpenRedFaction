@@ -707,7 +707,7 @@ int rf_corpse_owners_recycle(rf_corpse_owners *owners,uint32_t index)
 }
 int rf_corpse_base_acquire(rf_corpse_owners *owners,rf_object_registry *registry,
     rf_corpse_list_link *head,uint32_t *object_count,const rf_corpse_physics_seed *seed,
-    float elasticity,float friction,float density,uint32_t *index)
+    float elasticity,float friction,float density,uint32_t room,uint32_t *index)
 {
     rf_corpse_physics_seed prepared;rf_corpse *c;rf_physics_body *body;uint32_t slot,handle;int status;
     if(!owners || !registry || !head || !object_count || !seed || !index || !isfinite(seed->radius) ||
@@ -728,6 +728,9 @@ int rf_corpse_base_acquire(rf_corpse_owners *owners,rf_object_registry *registry
     c->deletion.corpse_link.next=c->deletion.corpse_link.previous=NULL;
     c->deletion.object_link.next=head;c->deletion.object_link.previous=head->previous;
     head->previous->next=&c->deletion.object_link;head->previous=&c->deletion.object_link;
+    /*48a160 copies object position into the query cache, then assigns room. */
+    memcpy(owners->slots[slot].room.query_position,c->update.position,12);
+    owners->slots[slot].room.room=room;owners->slots[slot].room.flags=c->update.fade.object_flags_7c;
     ++*object_count;*index=slot;return RF_OK;
 }
 static int corpse_owner_eligible(const rf_corpse *c)

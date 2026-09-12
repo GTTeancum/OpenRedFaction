@@ -14,7 +14,7 @@ f=lambda *v:struct.pack('<'+'f'*len(v),*v)
 read=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
 mapping=(root/'build/xbox/main.map').read_text();sym=lambda n:int(re.search(r'\s_'+n+r'\s+([0-9a-fA-F]+)',mapping)[1],16)
 init=sym('rf_corpse_owners_init');acquire=sym('rf_corpse_owners_acquire');recycle=sym('rf_corpse_owners_recycle');malloc=sym('malloc');free=sym('free')
-base_bytes=18144;record_bytes=600;live=set();heap_calls=[];fail=False
+base_bytes=18744;record_bytes=620;live=set();heap_calls=[];fail=False
 
 def heap(cpu,address,size,data):
  if address not in (malloc,free):return

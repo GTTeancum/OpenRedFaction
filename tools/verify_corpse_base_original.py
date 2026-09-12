@@ -14,12 +14,12 @@ read=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
 def put(a,v):u.mem_write(a,w(v))
 allocations=[];trace=[]
 def hook(cpu,address,size,data):
- if address not in (0x4ffa80,0x48a160,0x40a0e0,0x573619,0x57360e):return
+ if address not in (0x4ffa80,0x40a0e0,0x573619,0x57360e):return
  sp=cpu.reg_read(UC_X86_REG_ESP);arg=read(sp+4);trace.append((address,arg));result=0
  if address==0x573619:
   assert arg==384;result=b+0x4000+len(allocations)*0x1000;allocations.append(result);cpu.mem_write(result,bytes([0xa5])*arg)
  elif address==0x57360e:assert arg in allocations
- cpu.reg_write(UC_X86_REG_EAX,result);cpu.reg_write(UC_X86_REG_ESP,sp+4+(4 if address in (0x4ffa80,0x48a160) else 0));cpu.reg_write(UC_X86_REG_EIP,read(sp))
+ cpu.reg_write(UC_X86_REG_EAX,result);cpu.reg_write(UC_X86_REG_ESP,sp+4+(4 if address==0x4ffa80 else 0));cpu.reg_write(UC_X86_REG_EIP,read(sp))
 u.hook_add(UC_HOOK_CODE,hook)
 def call(address,args=(),ecx=0):
  u.mem_write(stack,w(stop,*args));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_ECX,ecx);u.reg_write(UC_X86_REG_FPCW,0x37f)
@@ -40,7 +40,9 @@ for case in range(256):
  spheres=b''.join(f(j*.25,j*.5,0,.5,-1)+w(j+7) for j in range(count))
  descriptor=bytearray(0x98);descriptor[12:16]=f(10);descriptor[20:24]=f(mass);descriptor[60:108]=f(*position,*basis);descriptor[132:136]=f(radius);descriptor[136:148]=w(count,count,source if count else 0);descriptor[148:152]=w(flags)
  u.mem_write(params,bytes(descriptor));u.mem_write(source,spheres or bytes(24));u.mem_write(0x649f50,f(.25,.5,2));allocations.clear();trace.clear()
- assert call(0x486da0,(7,0xffffffff,0xffffffff,params,0,0))==actor
+ room=case%3
+ assert call(0x486da0,(7,0xffffffff,0xffffffff,params,0,room))==actor
+ assert read(actor)==room and bytes(u.mem_read(actor+4,12))==f(*position)
  assert read(0x7394cc+slot*4)==actor and read(actor+0x2c)==generation*65536+slot
  assert read(0x708744)==(1 if generation==0x752e else generation+1)
  assert read(0x7394c0)==read(0x7394c4)==0x7394c0 and read(node)==read(node+4)==0
@@ -56,6 +58,6 @@ for case in range(256):
  result=dict(handle=read(actor+0x2c),object_flags=read(actor+0x7c),model_radius=struct.unpack('<f',u.mem_read(actor+0x78,4))[0],physics_radius=struct.unpack('<f',u.mem_read(actor+0x180,4))[0],sound=read(actor+0x2cc),sphere_count=used)
  if len(examples)<16:examples.append(result)
  if 'observe_case' in globals():observe_case(globals())
-report=dict(result='PASS',cases=256,original_sha256=digest,examples=examples,scope='Complete original486da0 type7 with real487100/48b870 registration and49ec90/49f010 physics. String assignment, room attachment, parent lookup and heap supplied. No model descriptor, no room search; incoming sound word retained. Radius -2/0/.5/2, mass0/3,0..4 spheres and generation wrap.')
+report=dict(result='PASS',cases=256,original_sha256=digest,examples=examples,scope='Complete original486da0 type7 with real487100/48b870 registration and49ec90/49f010 physics. String assignment, parent lookup and heap supplied; real48a160 room binding. No model descriptor, no room search; room tokens0/1/2; incoming sound word retained. Radius -2/0/.5/2, mass0/3,0..4 spheres and generation wrap.')
 (root/'artifacts/corpse-base-original.json').write_text(json.dumps(report,indent=2)+'\n');print({k:v for k,v in report.items() if k!='examples'})
 

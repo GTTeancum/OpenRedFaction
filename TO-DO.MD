@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Connect the registered corpse/body base allocator to room, name and model owners; complete partial-construction cleanup before enabling live death completion.
+- [ ] Connect registered corpse room state to live containing-room lookup, name and model owners; complete partial-construction cleanup before enabling live death completion.
 - [ ] Bind verified corpse sphere refresh and sound-follow points to live owned model poses and sounds.
 - [ ] Bind verified corpse retention/fade/update/deletion and30-slot allocation to live creation and owned resource backends; five eligible bodies trigger fading.
 - [ ] Connect native-verified burn retarget/release to live corpse inheritance after corpse ownership is reconstructed.

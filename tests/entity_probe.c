@@ -78,7 +78,7 @@ int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--corpse-base")) {
         static rf_corpse_owners owners;static rf_object_registry registry;
-        uint32_t input[22],index,count,values[10];rf_corpse_list_link head,previous;rf_corpse *c;rf_physics_body *body;
+        uint32_t input[23],index,count,values[10];rf_corpse_list_link head,previous;rf_corpse *c;rf_physics_body *body;
         rf_corpse_physics_seed seed;rf_physics_sphere spheres[4];float material[3];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(input,sizeof(input),1,stdin)==1) {
@@ -90,7 +90,7 @@ int main(int argc,char **argv)
             memset(&seed,0,sizeof(seed));seed.word_0c=input[0];seed.word_14=input[1];
             memcpy(seed.position,input+2,12);memcpy(seed.basis,input+5,36);memcpy(&seed.radius,input+14,4);
             seed.flags=input[15];memcpy(material,input+16,12);seed.sphere_count=input[19];seed.spheres=spheres;
-            if(rf_corpse_base_acquire(&owners,&registry,&head,&count,&seed,material[0],material[1],material[2],&index) || index)return 3;
+            if(rf_corpse_base_acquire(&owners,&registry,&head,&count,&seed,material[0],material[1],material[2],input[22],&index) || index)return 3;
             c=&owners.slots[0].corpse;body=&owners.slots[0].body;
             if(count!=1+input[21]%2 || head.previous!=&c->deletion.object_link ||
                c->deletion.object_link.next!=&head || c->deletion.object_link.previous!=(input[21]%2?&previous:&head) ||
@@ -102,7 +102,7 @@ int main(int argc,char **argv)
             values[2]=c->update.fade.object_flags_7c;values[3]=c->update.model;
             memcpy(values+4,&c->model_radius,4);memcpy(values+5,&c->physics_radius,4);
             values[6]=c->physics_flags;values[7]=c->attachment_index;values[8]=c->word_1fc;values[9]=(uint32_t)c->update.sound_2cc;
-            fwrite(values,4,10,stdout);fwrite(c->update.position,4,3,stdout);fwrite(c->update.basis,4,9,stdout);
+            fwrite(&owners.slots[0].room,sizeof(owners.slots[0].room),1,stdout);fwrite(values,4,10,stdout);fwrite(c->update.position,4,3,stdout);fwrite(c->update.basis,4,9,stdout);
             fwrite(&body->state,sizeof(body->state),1,stdout);fwrite(&body->spheres.count,4,1,stdout);fwrite(body->spheres.items,24,body->spheres.count,stdout);
             /* Fixture teardown; only the base subset has run, no constructor resources. */
             head.next=head.previous=&head;rf_object_registry_remove(&registry,c->deletion.handle);rf_corpse_owners_recycle(&owners,index);

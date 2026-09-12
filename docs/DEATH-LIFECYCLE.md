@@ -997,3 +997,27 @@ native XEMU gameplay. Live room attachment, owned names, inherited parent
 metadata, models, post-construction cleanup and finalization dispatch remain
 open. Bare pool recycle must not be used to destroy a registered live corpse;
 normal final deletion must preserve the existing verified deletion order.
+
+
+## Retained room binding
+
+The base verifier now executes48a160 directly, both in487100's initial null-room
+assignment and486da0's final room attachment. Instructions48a166..48a17b copy
+object3c into the query-position cache at object4, then assign the room token
+at object0. This does not allocate or link a room-list node.
+
+rf_corpse_owned now retains an rf_entity_room_state beside the body. Base
+acquisition accepts the caller's resolved room token and records it with the
+query position and final object flags. The256 original/PC/NXDK cases exercise
+room tokens0/1/2 and compare all20 represented room-state bytes in addition
+to the prior base/body outputs. The original room function is no longer a
+supplied hook. Actual containing-room lookup and subsequent moving-corpse
+refresh are still caller work; refresh must synchronize flags with the corpse
+owner, as in the existing actor room adapter.
+
+This adds20 bytes per slot. Current Xbox owner-pool fixed storage is18744
+bytes, and the one-sphere-per-body test peaks at19464 bytes. Earlier18144-byte
+figures above describe the prior layout. The64 fill/drain cycles and1921
+acquisitions continue to pass with the expanded records. No native XEMU or
+visual change is claimed; names, models and full cleanup remain open.
+Both builds succeed and all13 CTests pass for this layout.

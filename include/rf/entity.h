@@ -474,7 +474,7 @@ int rf_corpse_body_open(const rf_corpse_physics_seed *seed,float elasticity,floa
  * Recycle only after all other resources and list memberships are retired.
  * Does not register objects, load models, or dispatch scene death by itself. */
 typedef struct rf_corpse_owned {
-    rf_corpse corpse;rf_physics_body body;
+    rf_corpse corpse;rf_physics_body body;rf_entity_room_state room;
 } rf_corpse_owned;
 typedef struct rf_corpse_owners {
     rf_corpse_pool pool;rf_corpse_owned slots[RF_CORPSE_CAPACITY];
@@ -490,13 +490,13 @@ int rf_corpse_owners_recycle(rf_corpse_owners *owners,uint32_t index);
  * no model descriptor, object flags argument0. Registers the acquired corpse
  * and appends its object link, but not its corpse link. Initializes represented
  * base fields only; preserves sound and constructor tail fields across reuse.
- * String, parent metadata and room ownership are supplied separately by the
+ * The accepted room token and query position are retained. String and parent metadata are supplied by the
  * live allocator. Initialized intact registry/list/pool; disjoint arguments.
  * Shared allocation failure is recoverable and leaves no published owner.
  * Final destruction must use rf_corpse_delete, not bare owner recycling. */
 int rf_corpse_base_acquire(rf_corpse_owners *owners,rf_object_registry *registry,
     rf_corpse_list_link *object_head,uint32_t *object_count,const rf_corpse_physics_seed *seed,
-    float elasticity,float friction,float density,uint32_t *index);
+    float elasticity,float friction,float density,uint32_t room,uint32_t *index);
 
 typedef struct rf_corpse_create_request {
     const char *death_name;float position[3],basis[9],created_seconds;
