@@ -180,6 +180,24 @@ int rf_clutter_static_base_open(rf_vpp *models,const rf_clutter_create_descripto
     uint32_t room,uint32_t parent_byte,uint32_t parent_group,const float material[3],
     uint32_t budget,rf_clutter_base_owner **out);
 int rf_clutter_static_base_close(rf_clutter_base_owner **owner,rf_object_registry *registry,rf_object_list *objects);
+
+typedef struct rf_clutter_shared_static_model {
+    const char *filename;const rf_static_render_resource *resource;uint32_t references;
+} rf_clutter_shared_static_model;
+/* Borrow resident static geometry/bounds/CSPH through a stable shared entry.
+ * Entry, filename and resource outlive every borrower; caller may release them
+ * only at references==0. Filename is the compiled name. Open increments once
+ * after a matching load; every later constructor failure releases that borrow.
+ * Missing filename match follows generic missing-model rollback. No archive I/O
+ * or model allocation. Budget counts per-object base/physics/scratch only;
+ * shared entry and resource are separately budgeted. Single-threaded, x86.
+ * Full clutter effects/family registration/collision scheduling remain separate. */
+int rf_clutter_shared_static_base_open(rf_clutter_shared_static_model *model,
+    const rf_clutter_create_descriptor *descriptor,rf_object_registry *registry,
+    rf_object_list *objects,uint32_t *uid_cursor,uint32_t room,uint32_t parent_byte,
+    uint32_t parent_group,const float material[3],uint32_t budget,rf_clutter_base_owner **out);
+int rf_clutter_shared_static_base_close(rf_clutter_shared_static_model *model,
+    rf_clutter_base_owner **owner,rf_object_registry *registry,rf_object_list *objects);
 enum rf_clutter_create_operation {
     RF_CLUTTER_SOUND,RF_CLUTTER_SOUND_HANDLE,RF_CLUTTER_EMITTER,
     RF_CLUTTER_EMITTER_PREPEND,RF_CLUTTER_TAG,RF_CLUTTER_GLARE,

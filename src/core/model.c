@@ -158,6 +158,50 @@ int rf_clutter_static_base_close(rf_clutter_base_owner **owner,rf_object_registr
     rf_clutter_base_backend backend={0};backend.release=clutter_static_release;
     return rf_clutter_base_close(owner,registry,objects,&backend);
 }
+static int clutter_shared_load(void *context,uint32_t kind,const char *name,uint32_t first,uint32_t second,uint32_t *model)
+{
+    rf_clutter_shared_static_model *shared=context;char compiled[64];int status;
+    if(kind!=1 || first!=1 || second!=UINT32_MAX)return RF_RANGE;
+    status=rf_model_compiled_filename(name,compiled,".v3m");if(status)return status;
+    if(rf_emitter_name_lookup(&shared->filename,1,compiled)!=0){*model=0;return RF_OK;}
+    if(shared->references==UINT32_MAX)return RF_RANGE;
+    ++shared->references;*model=(uint32_t)(uintptr_t)shared;return RF_OK;
+}
+static int clutter_shared_bounds(void *context,uint32_t model,float center[3],float *radius)
+{
+    const rf_clutter_shared_static_model *shared=context;
+    if(model!=(uint32_t)(uintptr_t)shared)return RF_RANGE;
+    memcpy(center,shared->resource->bound,12);*radius=shared->resource->bound[3];return RF_OK;
+}
+static int clutter_shared_spheres(void *context,uint32_t model,rf_clutter_model_view *view)
+{
+    const rf_clutter_shared_static_model *shared=context;
+    if(model!=(uint32_t)(uintptr_t)shared)return RF_RANGE;
+    view->spheres=shared->resource->spheres;view->count=shared->resource->sphere_count;
+    view->wrapper_kind=1;view->matrices=NULL;view->bones=0;return RF_OK;
+}
+static void clutter_shared_release(void *context,uint32_t model)
+{
+    rf_clutter_shared_static_model *shared=context;
+    if(model==(uint32_t)(uintptr_t)shared && shared->references)--shared->references;
+}
+int rf_clutter_shared_static_base_open(rf_clutter_shared_static_model *model,
+    const rf_clutter_create_descriptor *descriptor,rf_object_registry *registry,
+    rf_object_list *objects,uint32_t *uid_cursor,uint32_t room,uint32_t parent_byte,
+    uint32_t parent_group,const float material[3],uint32_t budget,rf_clutter_base_owner **out)
+{
+    rf_clutter_base_backend backend={{clutter_shared_load,clutter_shared_bounds,clutter_static_animate,clutter_static_property,model},clutter_shared_spheres,clutter_shared_release};
+    if(!model || !model->filename || !model->resource || !descriptor || descriptor->kind!=1 || !descriptor->model ||
+       (model->resource->sphere_count && !model->resource->spheres))return RF_RANGE;
+    return rf_clutter_base_open(descriptor,registry,objects,uid_cursor,room,parent_byte,parent_group,material,&backend,budget,out);
+}
+int rf_clutter_shared_static_base_close(rf_clutter_shared_static_model *model,
+    rf_clutter_base_owner **owner,rf_object_registry *registry,rf_object_list *objects)
+{
+    rf_clutter_base_backend backend={0};backend.model.context=model;backend.release=clutter_shared_release;
+    if(!model || !owner || (*owner && ((*owner)->attachment.model!=(uint32_t)(uintptr_t)model || !model->references)))return RF_RANGE;
+    return rf_clutter_base_close(owner,registry,objects,&backend);
+}
 static int clutter_skin_name_equal(const char *first,const char *second)
 {
     unsigned char a,b;
