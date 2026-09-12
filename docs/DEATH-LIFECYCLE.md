@@ -6660,3 +6660,50 @@ native XEMU integration. Complete class/body ownership and live scene binding
 remain open. No new visual is claimed.
 Both PC/NXDK builds pass; existing entity metadata63 classes/168 selections
 and all19 CTests pass after sharing the lexer-based selector.
+
+
+Original clutter factory orchestration (2026-09-12)
+--------------------------------------------------
+verify_clutter_factory.py executes complete4104a0:512 synthetic cases pass,
+465 successful allocations,47 failures,698 emitter requests,688 glare creations
+and243 persistent slot registrations. Original SHA256 remains
+b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836.
+Full152-byte allocation descriptor, ordered calls, complete728-byte object and
+232-byte class write footprints, list links and counters are checked. Failure
+publishes no class/object changes and makes no subsequent resource calls.
+
+The descriptor passes type4, handle-1, caller identifier, zeroed152-byte record,
+riot-shield flag100000 when applicable and final0. Descriptor fields are model
+pointer00, kind04, material10, position3c, matrix48, radius84, flags94=20 if
+class flags contain either bit2 or4. Object294/298 receive class pointer/index.
+Object flags map class20->100000, class2->40000, class1->1000. Negative life
+sets100 health and object flag4; nonnegative life is copied. Empty instance name
+falls back to class name. Armor38 is zero. Corpse class29c is looked up only
+when its class name is nonempty. Ambient sound50 uses434da0 then5056a0.
+
+Emitters visit authored order, skip negative IDs and prepend successful creates
+through object268/emitter150. Actual40a490 on the object supplies its first
+word as emitter argument3; its meaning is not inferred. Timer2a4 is cleared;
+2a8=-1. Positive emitter lifetime schedules2b0 using trunc(lifetime*1000+0.5),
+otherwise clears it. Class70 receives current clock. Object2b4 is cleared;
+2b8=0,2bc=-1,2d0=-1. Class glare7c!=-1 and missing flag400 discover sequential
+corona_1 onward tags until missing, cache IDs at84 and mark flag400. Cached
+entries create glares each instance. corona_rod1 requires corona_rod2; a
+nonnegative rod class80 creates a rod. Class flag10 without800 resolves
+light_prop into class98 and marks800. Class flag8 creates a screen with e0/e4
+dimensions. Nonnegative explosion58 is registered. Eligible collision discovery
+precedes list append/counter increment. Optional persistent slot assignment
+follows append when requested and5afb84<3200, storing the old slot in2d4 and
+registering it through50ea00. Otherwise2d4 remainsffff.
+
+Actual descriptor constructors/destructor, vector/matrix copies, class lookup,
+string comparison, array reads, float conversion and timers execute. Supplied
+boundaries are generic allocation, string storage/formatting, model tag lookup,
+array append storage, sound/emitter/glare/rod/screen/explosion/collision/slot
+effects. Cached/uncached paths, failed emitters, absent sounds/corpses and slot
+capacity are covered. This verifies factory control/data flow, not resource
+implementations, full class parser, shared C factory, invalid-class handling,
+malformed rod assertion loop, native XEMU or live scene integration. Next
+reconstruct factory/resource ownership and bind retained clutter in successful
+creation order. No new visual is claimed. Production source is unchanged;
+no build or native replay is required for this original-executable oracle.
