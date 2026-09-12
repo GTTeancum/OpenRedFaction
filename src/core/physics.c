@@ -7,6 +7,33 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_creation_body_open(const rf_physics_creation_seed *seed,float elasticity,float friction,
+    float density,uint32_t budget,rf_physics_body *result)
+{
+    rf_physics_body_parameters parameters={0};rf_physics_mass_tensor initial={0},prepared;
+    rf_physics_sphere fallback={0};rf_physics_fallback values;
+    const rf_physics_sphere *spheres;uint32_t count;int status;
+    if(!seed || !result)return RF_RANGE;
+    count=(seed->flags&0x70)?seed->sphere_count:0;
+    if(count && !seed->spheres)return RF_RANGE;
+    if(result->allocated_bytes || result->spheres.items || result->spheres.count || result->spheres.allocated_bytes ||
+       sizeof(*result)+(uint64_t)((seed->flags&0x70)?(count?count:1):0)*sizeof(*spheres)>budget)return RF_RANGE;
+    memcpy(&parameters.coefficients[1],&seed->word_0c,4);memcpy(&parameters.mass,&seed->word_14,4);
+    parameters.coefficients[0]=elasticity;parameters.coefficients[2]=friction;parameters.flags=seed->flags;
+    memcpy(parameters.position,seed->position,12);memcpy(parameters.orientation,seed->basis,36);
+    spheres=count?seed->spheres:NULL;
+    if((seed->flags&0x70) && !count) {
+        status=rf_physics_fallback_prepare(density,seed->radius,parameters.mass,&values);if(status)return status;
+        parameters.mass=values.mass;fallback.radius=values.radius;fallback.parameter_10=values.parameter_10;
+        parameters.local_tensor[0]=parameters.local_tensor[4]=parameters.local_tensor[8]=1;
+        spheres=&fallback;count=1;
+    } else if(count && parameters.mass<=0) {
+        initial.mass=parameters.mass;
+        status=rf_physics_spheres_prepare(spheres,count,density,&initial,&prepared);if(status)return status;
+        parameters.mass=prepared.mass;memcpy(parameters.local_tensor,prepared.tensor,36);
+    }
+    return rf_physics_body_open(&parameters,spheres,count,budget,result);
+}
 int rf_physics_body_prepare_contact(rf_physics_body_state *state)
 {
     if(!state)return RF_RANGE;

@@ -118,6 +118,21 @@ typedef struct rf_physics_body {
 int rf_physics_body_open(const rf_physics_body_parameters *parameters,
     const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_body *result);
 void rf_physics_body_close(rf_physics_body *body);
+typedef struct rf_physics_creation_seed {
+    uint32_t word_0c,word_14;
+    float position[3],basis[9],radius;
+    const rf_physics_sphere *spheres;uint32_t sphere_count,flags;
+} rf_physics_creation_seed;
+/*49ec90/49f010 with no geometric mass-grid input. Zero initial tensor and
+ * velocity, supplied material coefficients/density. Flags70 select sphere
+ * setup: generate mass if needed and provide the empty-list fallback;
+ * otherwise sphere/radius inputs are ignored. One retained sphere allocation,
+ * budget includes body+records. Output unchanged on errors; empty owner needed.
+ * Fallback opaque_14 is port-initialized0, original temporary word unspecified.
+ * Negative object radius must be resolved before calling when spheres need it. */
+int rf_physics_creation_body_open(const rf_physics_creation_seed *seed,
+    float elasticity,float friction,float density,uint32_t budget,rf_physics_body *result);
+
 /* Class-sphere installation after creation: replace owned records, rebuild
  * bounds and flag 0x2000, preserve all other state including mass/tensors.
  * Budget covers peak body + old records + new records (no allocator overhead).

@@ -523,11 +523,7 @@ typedef struct rf_corpse_create_source {
     int32_t weapon,motion_a44,emitter_kind,motions[45];
     const rf_physics_sphere *spheres;uint32_t sphere_count;
 } rf_corpse_create_source;
-typedef struct rf_corpse_physics_seed {
-    uint32_t word_0c,word_14;
-    float position[3],basis[9],radius;
-    const rf_physics_sphere *spheres;uint32_t sphere_count,flags;
-} rf_corpse_physics_seed;
+typedef rf_physics_creation_seed rf_corpse_physics_seed;
 /*486da0->49ec90/49f010 for constructor seeds (flags33/73, no geometric model).
  * Material arguments must come from material index0, not the source actor's
  * material. word_0c/word_14 retain binary32 response/mass bits. Generates mass
