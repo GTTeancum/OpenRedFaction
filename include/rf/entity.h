@@ -949,7 +949,7 @@ uint32_t rf_entity_navigation_candidate_allowed(float radius,float height,uint32
 
 typedef struct rf_entity_navigation_candidate {
     float position[3],query_point[3];uint32_t retained_018;
-    float radius,height;uint8_t retained_024[0x14];float distance_squared;
+    float radius,height;uint8_t retained_024[0x11],rejected_035,retained_036[2];float distance_squared;
     uint32_t retained_03c,word_040;
 } rf_entity_navigation_candidate;
 /*40b2e0: publishes query point and squared distance even on rejection.
@@ -975,5 +975,22 @@ int rf_entity_navigation_basis(const float direction[3],float matrix[3][3]);
 int rf_entity_navigation_pair(const float position[3],float radius,
     const rf_entity_navigation_candidate *first,const rf_entity_navigation_candidate *second,
     float *squared_distance,uint32_t *classification);
+
+typedef struct rf_entity_navigation_reference {
+    rf_entity_navigation_candidate *candidate;uint32_t order_key;
+    const uint32_t *neighbors;uint32_t neighbor_count;
+} rf_entity_navigation_reference;
+typedef struct rf_entity_navigation_selection {uint32_t first,second,contained;} rf_entity_navigation_selection;
+/*40c2c0 ordered selection. UINT32_MAX denotes absent indexes. order_key retains
+ * original unsigned node-address ordering for pair traversal; neighbors are
+ * ordered indexes into references, matching original node+28 adjacency. References and
+ * nodes stay alive; visibility must not mutate this collection. It receives
+ * candidate query point, actor point and radius2.5; blocked uses low byte.
+ * Fallback can select first while contained remains0. Errors retain effects
+ * already applied, including rejected flags, scores and partial selections. */
+int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint32_t count,
+    const float position[3],float radius,float height,uint32_t mode,uint32_t allow_far,
+    int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,
+    rf_entity_navigation_selection *selection);
 
 #endif

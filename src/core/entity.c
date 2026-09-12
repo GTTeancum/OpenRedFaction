@@ -2,6 +2,7 @@
 #include "rf/collision.h"
 #include "rf/timer.h"
 #include <math.h>
+#include <float.h>
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -1535,4 +1536,50 @@ int rf_entity_navigation_pair(const float position[3],float radius,
         }
     }
     *classification=2;return RF_OK;
+}
+
+int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint32_t count,
+    const float position[3],float radius,float height,uint32_t mode,uint32_t allow_far,
+    int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,
+    rf_entity_navigation_selection *selection)
+{
+    uint32_t i,j,k,result,best,blocked;float score,minimum=FLT_MAX;int status;
+    if(!position || !selection || !visibility || (count && !references) || count>0x7fffffffu)return RF_RANGE;
+    if(!isfinite(radius) || !isfinite(height))return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(position[i]))return RF_FORMAT;
+    for(i=0;i<count;++i) {
+        if(!references[i].candidate || (references[i].neighbor_count && !references[i].neighbors))return RF_RANGE;
+        for(k=0;k<references[i].neighbor_count;++k)if(references[i].neighbors[k]>=count)return RF_RANGE;
+    }
+    selection->first=selection->second=UINT32_MAX;selection->contained=0;
+    for(i=0;i<count;++i) {
+        rf_entity_navigation_candidate *c=references[i].candidate;
+        c->rejected_035=!rf_entity_navigation_candidate_allowed(radius,height,mode,c->radius,c->height,c->word_040);
+    }
+    for(i=0;i<count;++i) {
+        rf_entity_navigation_candidate *c=references[i].candidate;if(c->rejected_035==1)continue;
+        status=rf_entity_navigation_single(position,radius,height,mode,c,&result);if(status)return status;
+        if(result==0){selection->first=i;selection->contained=1;return RF_OK;}
+        if(result==1 && c->distance_squared<minimum){minimum=c->distance_squared;selection->first=i;}
+    }
+    if(selection->first!=UINT32_MAX){selection->contained=1;return RF_OK;}
+    for(i=0;i<count;++i)if(references[i].candidate->rejected_035!=1)
+        for(k=0;k<references[i].neighbor_count;++k) {
+            j=references[i].neighbors[k];if(references[i].order_key>references[j].order_key || references[j].candidate->rejected_035==1)continue;
+            status=rf_entity_navigation_pair(position,radius,references[i].candidate,references[j].candidate,&score,&result);if(status)return status;
+            if(result==0){selection->first=i;selection->second=j;selection->contained=1;return RF_OK;}
+            if(result==1 && score<minimum){minimum=score;selection->first=i;selection->second=j;}
+        }
+    if(selection->first!=UINT32_MAX && selection->second!=UINT32_MAX){selection->contained=1;return RF_OK;}
+    for(;;) {
+        minimum=FLT_MAX;best=UINT32_MAX;
+        for(i=0;i<count;++i) {
+            rf_entity_navigation_candidate *c=references[i].candidate;
+            if(c->rejected_035!=1 && ((allow_far&255u) || c->distance_squared<=625.0f) && c->distance_squared<minimum){minimum=c->distance_squared;best=i;}
+        }
+        if(best==UINT32_MAX)return RF_OK;
+        status=visibility(context,references[best].candidate->query_point,position,2.5f,&blocked);if(status)return status;
+        if(!(blocked&255u)){selection->first=best;return RF_OK;}
+        references[best].candidate->rejected_035=1;
+    }
 }

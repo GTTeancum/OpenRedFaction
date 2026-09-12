@@ -9,6 +9,7 @@
 #include <io.h>
 #include "impact_process_probe.h"
 #include "land_process_probe.h"
+#include "navigation_select_probe.h"
 #include "collision_pool_probe.h"
 #include "actor_response_probe.h"
 #include "actor_general_response_probe.h"
@@ -369,6 +370,7 @@ int main(int argc,char **argv)
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return dying_probe_main();
     }
     if(argc==2 && !strcmp(argv[1],"--pain"))return pain_probe();
+    if(argc==2 && !strcmp(argv[1],"--navigation-select"))return navigation_select_probe();
     if(argc==2 && !strcmp(argv[1],"--navigation-pair")) {
         struct {float point[3],radius;rf_entity_navigation_candidate a,b;} wire;
         uint32_t classification;float score;int32_t status;
