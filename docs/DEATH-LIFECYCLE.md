@@ -2154,8 +2154,8 @@ including when that call changes the flags. The arguments are not assigned
 physical meanings until the downstream update/render ownership is recovered.
 
 42dc50 first gates on global5a00f0. Original40a490 returns actor[0] in EAX;
-it is an integer object identifier, not the float suggested by raw Ghidra.
-Original503c00 reads model[8] unconditionally before the identifier/null
+it is a descriptor pointer, not the float suggested by raw Ghidra.
+Original503c00 reads model[8] unconditionally before the descriptor/null
 metadata gates. Do not change this into a speculative model-kind predicate.
 
 Free ring62f488 and active ring62f764 use next/previous at4c/50. If no free
@@ -2174,3 +2174,38 @@ empty/corrupt pools and live actor integration remain unverified. The next
 reconstruction work is the attachment transform and downward geometry query,
 then effect update/render/lifetime ownership; fixture source effects remain
 explicitly unimplemented rather than being silently treated as complete.
+
+
+## Complete original source-effect surface construction
+
+verify_corpse_source_surface.py executes all of42dc50, including unchanged
+4df690 room-tree geometry and its callees, vector arithmetic,4fcfa0 basis
+construction and publication. Attachment lookup/5034f0 transform and4e5c60
+face-color sampling are supplied boundaries.384 cases pass with192 accepted
+hits across flat/sloped single-face rooms, three heights, above/below/out-of-
+reach starts, both numeric argument pairs and one/two free slots with/without
+an existing active node. No shared C/PC/NXDK equivalence is claimed.
+
+The first actor word is the descriptor pointer passed to4df690, whose+3c
+tree is traversed. Earlier wording identifying this word as an object ID was
+incorrect and has been corrected. The earlier gate harness only observed raw
+nonzero words before this pointer was dereferenced. World6460e8 also supplies
+the face-list nonempty gate at+74. This is a room-tree query, not498e80
+mover/static-world composition or an arbitrary downward world ray.
+
+The descriptor uses attachment world position as start, displacement(0,-1,0),
+radius0 and flags4, with FLT_MAX initial fraction. A surface beyond one unit
+is missed. On contact the unmodified hit point is passed to face-color lookup;
+the stored center is hit+normal*0.01, preserving the intermediate float scale.
+4fcfa0 constructs the stored basis from the contact normal. The slot retains
+the descriptor at44 and sampled color at48; fields0/4 initialize to0,8/c
+copy the two input arguments and10 receives float(global5895a8/argument1).
+Success removes the reserved free head and appends it to the active tail;
+a geometry miss leaves the free-ring slot and payload unchanged. Recycling
+before this query remains as established by the earlier lookup harness.
+
+Next: reconstruct the shared effect owner against this contract, retaining
+attachment/room/color ownership boundaries, then recover update/render and
+retirement before connecting live actor source effects.42df20 disassembly
+shows sine growth and quad submission, but its newly-created Ghidra function
+export is candidate evidence only, not verified rendering or lifetime.

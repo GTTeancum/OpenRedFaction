@@ -69,7 +69,7 @@ def hook(machine, address, size, unused):
             returned()
         return
     if address in (0x40a490, 0x503c00):
-        # Execute both original accessors: actor[0] is an integer identifier,
+        # Execute both original accessors: actor[0] is a raw descriptor pointer,
         # and model[8] supplies the metadata pointer, without a kind check.
         trace.append(address)
     elif address in (0x409f90, 0x4fbcd0):
@@ -128,12 +128,12 @@ for flags, mutation in itertools.product(
 
 dispatch = False
 gate_cases = 0
-for enabled, identifier, metadata in itertools.product([0, 1], [0, 7, 0xffffffff], [0, META]):
+for enabled, descriptor, metadata in itertools.product([0, 1], [0, 7, 0xffffffff], [0, META]):
     put(0x5a00f0, enabled)
-    put(ACTOR, identifier)
+    put(ACTOR, descriptor)
     put(ACTOR + 0x80, MODEL)
     put(MODEL + 8, metadata)
-    if enabled and identifier and metadata:
+    if enabled and descriptor and metadata:
         continue
     # Invalid pool heads must remain unobserved behind these gates.
     put(FREE, 0xdead0000)
