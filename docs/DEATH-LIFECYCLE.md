@@ -6562,3 +6562,44 @@ Next recover4104a0 class/model initialization and the still-provisional trailing
 resource semantics410d30, bind scene lifetime and actual creation order, then
 verify native64MiB residency and complete the clutter visibility population.
 No new native XEMU clutter or rendering result is claimed by these tests.
+
+
+### Clutter skin variant semantics410d30 (2026-09-12)
+
+The trailing authored clutter resource_name field is now identified as a skin
+variant. Original clutter.tbl declares $Skin names with ordered replacement
+textures; opening records use Yellowish, matching the runway-light variants.
+The public field keeps its existing spelling with an explicit semantic comment.
+410d30 searches class294->c8, an array of108-byte variants. Each begins with an
+8-byte string, texture count at8 and up to the record's capacity of8-byte texture
+strings atc. A parallel classd4 array supplies glare-class indices.
+
+`tools/verify_clutter_skin.py` executes full original410d30, actual string equality
+5001d0/57c130, glare retarget4153e0 and material replacement48ac00. Only model
+material lookup503650 and texture-loading50f6a0 are supplied.2048 cases pass:
+911 selected,1137 missing,1647 texture calls and1374 matching glare-node updates.
+Case variants, duplicate names, empty names/lists, differing texture/material
+counts, negative/out-of-range glare indices and missing texture handles are
+covered. Exact actor, complete material records and glare nodes are compared.
+
+Names compare ASCII case-insensitively and the first match wins. Missing names
+return-1 without texture/glare effects. A matched nonnegative glare index calls
+4153e0 with the clutter handle; it updates every glare node whose30 parent handle
+matches, provided the index is inside global5cab98. Node2ac becomes the selected
+52-byte glare-class pointer and2b0 its index. Nonmatching nodes stay unchanged.
+
+48ac00 obtains model material count/storage, then replaces texture word10 in each
+200-byte material record for min(variant texture count, material count) entries.
+It calls50f6a0(name,-1,1) in order and publishes the returned handle even if-1;
+remaining material bytes/entries stay unchanged.410d30 returns the selected index
+but does not write clutter2bc itself;465220 performs that publication afterward.
+No shared skin/glare ownership, real texture residency or native rendering proof
+is claimed. Existing entity material code can inform the binding, but clutter's
+parallel glare selection must be retained.
+
+Fresh original40f410/40f4f0 output identifies clutter.tbl class parsing and its
+232-byte class records.4104a0 assembles the common486da0 type4 factory input from
+class model/name, kind38, radius40, material4c, authored pose and class flags74,
+then initializes life, sound, emitters, glare/light props and final list insertion.
+Those complete class/model/resource owners still need reconstruction before
+scene visibility can claim the authored clutter population.

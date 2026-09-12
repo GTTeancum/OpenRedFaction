@@ -52,7 +52,8 @@ void rf_level_owned_navigation_close(rf_level_owned_navigation *navigation);
 
 typedef struct rf_level_clutter {
     uint32_t uid;float position[3],matrix[3][3];
-    const char *class_name,*name,*resource_name;uint32_t enabled;
+    const char *class_name,*name,*resource_name; /* resource_name is the410d30 skin variant. */
+    uint32_t enabled;
     const uint8_t *raw;uint32_t bytes,common_offset,common_count,links_offset,link_count;
 } rf_level_clutter;
 typedef struct rf_level_owned_clutter {
