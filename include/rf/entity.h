@@ -675,6 +675,24 @@ typedef struct rf_entity_finalize_backend {
  * source deletion. Finite geometry/query math required; errors after effects
  * do not roll back. Network modes, live binding and backends remain separate. */
 int rf_entity_finalize_sp(rf_entity_finalize_state *state,const rf_entity_finalize_backend *backend);
+/* Concrete create callback for rf_entity_finalize_sp. Other finalizer callbacks
+ * may wrap this binding in their own context and call this adapter explicitly.
+ * request supplies time/scratch; name/position/basis and both zero flags come
+ * from the finalizer. Constructor state is retained separately and its handle
+ * must match. Source flags are synchronized before and after construction.
+ * Only complete corpses are returned. Failed partial construction is aborted
+ * through the supplied resource backend. status records the creation error;
+ * cleanup_status records abort failure, leaving partial for explicit recovery.
+ * Do not reuse a binding with an unresolved partial owner. No retries or
+ * rollback of source flags. Model/emitter callbacks remain external. */
+typedef struct rf_entity_finalize_corpse_binding {
+    const rf_corpse_create_ownership *ownership;rf_corpse_create_source *source;
+    rf_corpse_create_request request;rf_corpse_list_link *head;uint32_t *count;
+    const rf_corpse_create_backend *create;const rf_corpse_delete_backend *destroy;
+    uint32_t visit_limit;int status,cleanup_status;rf_corpse *partial;
+} rf_entity_finalize_corpse_binding;
+rf_corpse *rf_entity_finalize_create_owned(void *context,rf_entity_finalize_state *source,const char *death_name);
+
 
 typedef struct rf_entity_death_selection {
     uint32_t flags_810;

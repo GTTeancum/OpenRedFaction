@@ -82,6 +82,7 @@ int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--corpse-owned-abort"))return corpse_owned_abort_probe();
     if(argc==2 && !strcmp(argv[1],"--corpse-owned-create"))return corpse_owned_create_probe();
+    if(argc==2 && !strcmp(argv[1],"--finalize-owned-create"))return finalize_owned_create_probe();
     if(argc==2 && !strcmp(argv[1],"--corpse-owned-delete"))return corpse_owned_delete_probe();
     if(argc==2 && !strcmp(argv[1],"--corpse-name")) {
         static rf_corpse_owners owners;rf_corpse_physics_seed seed={0};uint32_t input[3],slot,values[4],base;char text[256];const char *name;int status;

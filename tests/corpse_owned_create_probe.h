@@ -17,12 +17,13 @@ static void coc_effect(void *context,uint32_t operation,rf_corpse_create_source 
         if(!owner->names[1].bytes || strcmp(owner->names[1].bytes,"death_front") || v->deletion.corpse_count!=1)++v->errors;
     } else ++v->errors;
 }
-static int corpse_owned_create_probe(void)
+static int corpse_owned_create_probe_mode(uint32_t bridge)
 {
     static corpse_owned_create_test v;rf_corpse_create_source source;rf_corpse_create_request request;
     rf_corpse_create_ownership ownership;rf_corpse_create_backend backend={NULL,coc_model,coc_motion,coc_effect,coc_emitter,&v};
     rf_corpse_delete_backend deletion={cod_effect,cod_sound,&v.deletion};rf_corpse *c;uint32_t i;int status;
     for(i=0;i<258;i++) {
+        rf_entity_finalize_state final={0};rf_entity_finalize_corpse_binding binding={0};
         memset(&v,0,sizeof(v));memset(&source,0,sizeof(source));memset(&request,0,sizeof(request));
         rf_corpse_owners_init(&v.deletion.owners,sizeof(v.deletion.owners)+(i==256?24:128));rf_object_registry_init(&v.deletion.registry);
         v.deletion.object_head.next=v.deletion.object_head.previous=&v.deletion.object_head;
@@ -33,10 +34,24 @@ static int corpse_owned_create_probe(void)
         source.model=i<256 && i%3?77:0;source.model_kind=2;source.emitter_kind=-1;source.motion_a44=-1;
         request.death_name="death_front";request.basis[0]=request.basis[4]=request.basis[8]=1;
         if(i==257)v.deletion.owners.budget=sizeof(v.deletion.owners)+23;
-        status=rf_corpse_owned_create(&ownership,&source,&request,&v.deletion.corpse_head,&v.deletion.corpse_count,&backend,&c);
+        if(bridge) {
+            final.handle=source.handle;final.basis[0]=final.basis[4]=final.basis[8]=1;
+            final.position[0]=2;final.position[1]=3;final.position[2]=4;
+            binding.ownership=&ownership;binding.source=&source;binding.request=request;binding.request.protected_body=1;binding.request.seek_motion=1;
+            binding.head=&v.deletion.corpse_head;binding.count=&v.deletion.corpse_count;binding.create=&backend;binding.destroy=&deletion;binding.visit_limit=4;
+            c=rf_entity_finalize_create_owned(&binding,&final,"death_front");status=binding.status;
+            if(binding.cleanup_status || binding.partial || final.object_flags!=source.object_flags || final.flags_810!=source.flags_810 ||
+               binding.request.protected_body!=1 || binding.request.seek_motion!=1)return 14;
+            if(c && (memcmp(c->update.position,final.position,12) || memcmp(c->update.basis,final.basis,36)))return 15;
+        } else status=rf_corpse_owned_create(&ownership,&source,&request,&v.deletion.corpse_head,&v.deletion.corpse_count,&backend,&c);
         if(i>=256) {
             if(status!=RF_RANGE || source.object_flags!=0x402 || v.deletion.corpse_count || v.errors ||
                v.events!=(i==256?1u<<RF_CORPSE_CREATE_SNAPSHOT:0))return 10;
+            if(bridge) {
+                if(c || v.deletion.object_count || v.deletion.owners.pool.live ||
+                   v.deletion.owners.allocated_bytes!=sizeof(v.deletion.owners) || v.deletion.registry.count!=1024)return 16;
+                continue;
+            }
             if(i==256) {
                 if(!c || v.deletion.object_count!=1 || v.deletion.owners.pool.live!=1 || c->deletion.corpse_link.next)return 11;
                 if(rf_corpse_owned_abort(&v.deletion.owners,0,&v.deletion.registry,&v.deletion.corpse_count,
@@ -55,3 +70,6 @@ static int corpse_owned_create_probe(void)
     }
     puts("PASS 256 owned create/delete cycles and two allocation failure boundaries");return 0;
 }
+
+static int corpse_owned_create_probe(void){return corpse_owned_create_probe_mode(0);}
+static int finalize_owned_create_probe(void){return corpse_owned_create_probe_mode(1);}

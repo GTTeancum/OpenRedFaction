@@ -1002,6 +1002,32 @@ int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backen
     return RF_OK;
 }
 
+rf_corpse *rf_entity_finalize_create_owned(void *context,rf_entity_finalize_state *source,const char *name)
+{
+    rf_entity_finalize_corpse_binding *b=context;rf_corpse_create_request request;rf_corpse *result=NULL;uint32_t i;
+    if(!b)return NULL;
+    if(b->partial){b->status=RF_RANGE;return NULL;}
+    b->status=RF_RANGE;b->cleanup_status=0;
+    if(!source || !b->source || b->source->handle!=source->handle || !b->ownership ||
+       !b->ownership->owners || !b->ownership->registry || !b->ownership->object_count ||
+       !b->head || !b->count || !b->create || !b->destroy || !b->destroy->effect || !b->destroy->sound_flags)return NULL;
+    request=b->request;request.death_name=name;memcpy(request.position,source->position,12);memcpy(request.basis,source->basis,36);
+    request.protected_body=0;request.seek_motion=0;
+    b->source->object_flags=source->object_flags;b->source->flags_810=source->flags_810;b->source->replacement_model=source->replacement_model;
+    b->status=rf_corpse_owned_create(b->ownership,b->source,&request,b->head,b->count,b->create,&result);
+    source->object_flags=b->source->object_flags;source->flags_810=b->source->flags_810;
+    if(!b->status)return result;
+    if(result) {
+        b->partial=result;b->cleanup_status=RF_RANGE;
+        for(i=0;i<RF_CORPSE_CAPACITY;++i)if(&b->ownership->owners->slots[i].corpse==result) {
+            b->cleanup_status=rf_corpse_owned_abort(b->ownership->owners,i,b->ownership->registry,b->count,
+                b->ownership->object_count,b->visit_limit,b->destroy);break;
+        }
+        if(!b->cleanup_status)b->partial=NULL;
+    }
+    return NULL;
+}
+
 static void finalize_cross(const float a[3],const float b[3],float result[3])
 {
     result[0]=(float)((double)a[1]*b[2]-(double)a[2]*b[1]);

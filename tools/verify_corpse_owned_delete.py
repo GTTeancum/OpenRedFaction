@@ -5,9 +5,10 @@ import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_CODE,UC_HOOK_MEM_READ,UC_HOOK_MEM_WRITE
 from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_EAX,UC_X86_REG_FPCW
+bridge_mode=globals().get('bridge_mode',False)
 abort_mode=globals().get('abort_mode',False)
-create_mode=abort_mode or globals().get('create_mode',False)
-print(subprocess.check_output([str(root/'build/pc/Release/rf_entity_probe.exe'),'--corpse-owned-abort' if abort_mode else '--corpse-owned-create' if create_mode else '--corpse-owned-delete'],text=True).strip())
+create_mode=bridge_mode or abort_mode or globals().get('create_mode',False)
+print(subprocess.check_output([str(root/'build/pc/Release/rf_entity_probe.exe'),'--finalize-owned-create' if bridge_mode else '--corpse-owned-abort' if abort_mode else '--corpse-owned-create' if create_mode else '--corpse-owned-delete'],text=True).strip())
 w=lambda *v:struct.pack('<'+'I'*len(v),*(v&0xffffffff for v in v));f=lambda *v:struct.pack('<'+'f'*len(v),*v)
 p=pefile.PE(str(root/'build/xbox/main.exe'));im=p.get_memory_mapped_image();ib=p.OPTIONAL_HEADER.ImageBase
 u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(ib,(len(im)+4095)//4096*4096);u.mem_write(ib,im);b=0x30000000;u.mem_map(b,0x40000)
@@ -17,11 +18,15 @@ mapping=(root/'build/xbox/main.map').read_text();sym=lambda n:int(re.search(r'\s
 init=sym('rf_corpse_owners_init');reginit=sym('rf_object_registry_init');acquire=sym('rf_corpse_base_acquire');assign=sym('rf_corpse_name_assign');delete=sym('rf_corpse_owned_delete');release=sym('rf_corpse_pool_release');remove=sym('rf_object_registry_remove');malloc=sym('malloc');free=sym('free')
 abort=sym('rf_corpse_owned_abort');create=sym('rf_corpse_owned_create');create_backend=backend+32;load_cb=effect+32;motion_cb=effect+48;create_effect_cb=effect+64;emitter_cb=effect+80
 request=b+0xc500;source=b+0xc600;death_name=b+0xc800;ownership=b+0xc900;create_trace=[]
+final_create=sym('rf_entity_finalize_create_owned');binding=b+0xca00;final_state=b+0xcb00
 read=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
 live={};labels={};trace=[];deleting=False;retired=False;handle=0
 
 def hook(cpu,address,size,data):
- global retired
+ global retired,deleting,handle
+ if bridge_mode and address==abort:
+  deleting=True;handle=read(c+116);labels[read(body+308)]='body'
+  if read(names+12):labels[read(names+12)]='death'
  if deleting and address==remove:
   assert retired and read(b+124)==0;trace.append(('registry_remove',handle));return
  if address in (load_cb,motion_cb,create_effect_cb,emitter_cb):
@@ -84,7 +89,14 @@ for case in range(256):
   if abort_mode:u.mem_write(c+112,w(0xdead0001));u.mem_write(c+36,w(1234))
   u.mem_write(death_name,b'death_front\0');u.mem_write(request,w(death_name)+f(0,0,0,1,0,0,0,1,0,0,0,1,0)+w(1000,0,0,0))
   u.mem_write(ownership,w(b,registry,oh,counts+4,2,*material));u.mem_write(create_backend,w(0,load_cb,motion_cb,create_effect_cb,emitter_cb,123))
-  result=call(create,ownership,source,request,ch,counts,create_backend,out)
+  if bridge_mode:
+   u.mem_write(backend,w(effect,sound_cb,123));u.mem_write(final_state,bytes(160));u.mem_write(final_state+44,f(2,3,4,1,0,0,0,1,0,0,0,1))
+   template=bytearray(u.mem_read(request,72));template[60:62]=bytes([1,1])
+   u.mem_write(binding,w(ownership,source)+bytes(template)+w(ch,counts,create_backend,backend,4,0,0,0))
+   pointer=call(final_create,binding,final_state,death_name);result=read(binding+100);u.mem_write(out,w(pointer))
+   assert pointer==c and result==read(binding+104)==read(binding+108)==0 and read(final_state+4)==read(source+8)
+   assert bytes(u.mem_read(c+40,48))==bytes(u.mem_read(final_state+44,48)) and bytes(u.mem_read(binding+8,72))==template
+  else:result=call(create,ownership,source,request,ch,counts,create_backend,out)
   if abort_mode:
    stage=2 if mode==0 else 3 if mode==1 else 5 if mode==4 else 4
    assert result==(0 if mode==4 else 0xfffffffc) and read(out)==c and read(c+636)==stage and read(source+8)==0x402
@@ -136,6 +148,22 @@ for case in range(256):
  assert read(sound)==(0x502 if case%2 else 0x500) and read(c+36)==(0xffffffff if case%2 else sid)
  assert bytes(u.mem_read(ch,8))==w(ch,ch) and bytes(u.mem_read(oh,8))==w(oh,oh)
  assert call(delete,*args)==0xfffffffc # inactive slot, no retired owner access
+if bridge_mode:
+ # Budget failures before body allocation and during owned death-name assignment.
+ for extra in (23,24):
+  deleting=retired=False;trace.clear();labels.clear();create_trace.clear();assert not live
+  assert call(init,b,base+extra)==0;call(reginit,registry)
+  u.mem_write(oh,w(oh,oh));u.mem_write(ch,w(ch,ch));u.mem_write(counts,w(0,0));u.mem_write(source+12,w(0));u.mem_write(source+92,w(0xffffffff))
+  u.mem_write(final_state+4,w(0));u.mem_write(binding+100,w(0,0,0))
+  assert call(final_create,binding,final_state,death_name)==0
+  assert read(binding+100)==0xfffffffc and read(binding+104)==read(binding+108)==0
+  assert read(final_state+4)==read(source+8)==0x402 and not live and read(b+base-8)==base
+  assert read(counts)==read(counts+4)==read(b+124)==0 and read(registry+12292)==1024
+  assert trace==([('free','body'),('recycle',handle),('registry_remove',handle)] if extra==24 else [])
+ # Existing unresolved partial is not overwritten or dereferenced on reuse.
+ u.mem_write(binding+108,w(c));trace.clear()
+ assert call(final_create,binding,final_state,death_name)==0 and read(binding+108)==c and not trace
 report=dict(result='PASS',cases=256,nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Real owned names/body allocation, registered base and deletion bridge on PC/NXDK. Exact release/forwarded effect sequence, budget restoration, registry after recycle, poisoned emitter links, stale/reentrant/repeated rejection and no Xbox owner reads after recycle. Model/burn/emitter/pair/sound backends supplied; original sequence independently verified by verify_corpse_delete_original.py. No live scene/XEMU binding.')
-report['owned_constructor']=create_mode;report['partial_cleanup']=abort_mode
-(root/('artifacts/corpse-owned-abort-verification.json' if abort_mode else 'artifacts/corpse-owned-create-verification.json' if create_mode else 'artifacts/corpse-owned-delete-verification.json')).write_text(json.dumps(report,indent=2)+'\n');print(report)
+report['owned_constructor']=create_mode;report['partial_cleanup']=abort_mode or bridge_mode;report['finalizer_adapter']=bridge_mode
+if bridge_mode:report['adapter_budget_failures']=2
+(root/('artifacts/finalize-owned-create-verification.json' if bridge_mode else 'artifacts/corpse-owned-abort-verification.json' if abort_mode else 'artifacts/corpse-owned-create-verification.json' if create_mode else 'artifacts/corpse-owned-delete-verification.json')).write_text(json.dumps(report,indent=2)+'\n');print(report)

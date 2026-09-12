@@ -1345,3 +1345,42 @@ model, emitter, geometry, attachment/explosion bindings and deferred deletion
 still need integration before enabling live finalization. Multiplayer branches,
 all list mutation/reentrancy scenarios and native XEMU gameplay remain outside
 this verification scope.
+
+
+## Finalizer callback bound to concrete corpse creation
+
+rf_entity_finalize_create_owned now implements the finalizer create callback
+using rf_corpse_owned_create and staged rf_corpse_owned_abort. Its zero-initialized
+binding contains the retained source constructor fields, ownership context,
+request timing/scratch, corpse list/count and construction/deletion backends.
+Finalizer and constructor handles must match. The callback copies current
+position/basis and death name into a local request, forces both original zero
+flags, synchronizes source object/810 flags before and after construction, and
+leaves the request template unchanged. Other finalizer callbacks may wrap this
+binding in a larger context. This adapter is not yet wired to the scene.
+
+Only a successful complete corpse is returned to the finalizer. A failed
+partial constructor is cleaned through the staged abort API before NULL is
+returned, preventing burn transfer to an incomplete corpse. status preserves
+the construction error; cleanup_status preserves a failed abort and partial
+retains that unresolved owner for explicit recovery. Reusing a binding with an
+unresolved partial is rejected without dereferencing or replacing that owner.
+Earlier source deletion/ownership flags are not rolled back. Model, emitter
+and other resource release effects still use supplied backends.
+
+python tools/verify_finalize_owned_create.py passes256 PC/NXDK creation/deletion
+cycles through the adapter, plus two memory-budget failures before body
+allocation and during owned name allocation. Both failures restore fixed pool
+accounting, object/corpse counts and registry capacity. The latter executes
+actual staged abort, body free, recycle and registry removal. Native memory
+hooks reject owner reads after recycle. Existing release ordering, stale-handle
+rejection, emitter poisoning and repeat deletion checks remain active. Transform
+copying, source flag synchronization and unchanged request templates are checked.
+The Xbox harness additionally confirms unresolved-partial reuse is rejected.
+These tests do not inject an abort failure or exercise live NPC finalization.
+
+Full PC/NXDK builds and all18 CTests pass, including finalizer_owned_creation.
+Xbox SHA256:37cc742975c0d440b8612e8efc435dc71c86ee963c1ad1d175d065983d49cdcc.
+Report: artifacts/finalize-owned-create-verification.json. Real model token/pose
+transfer, scene ownership, burn/player/query bindings and deferred actor deletion
+remain open before native gameplay can use the completed-death path.
