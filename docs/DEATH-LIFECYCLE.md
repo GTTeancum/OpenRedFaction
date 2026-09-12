@@ -1988,3 +1988,24 @@ The adapter transition-bit8 branch, playing sound movement and emitter owners
 still need integrated tests. No complete live corpse list, deferred deletion
 dispatch, render placement or XEMU corpse is claimed. Existing full original
 417290 verification covers the shared orchestration independently of adapters.
+
+
+## Authored transition, sphere and sound-position coverage
+
+The authored PC harness now loads the render-model sphere definitions and
+executes bit8 transition through the scene update adapter for miner/guard on
+L1S1/L1S2/L1S3. Physical spheres use fixture radius1, not reconstructed class
+configuration; transition refresh preserves those radii. Resulting bounds
+radii are2.404366 miner and2.386669 guard.
+
+The same update expires the fade timer and still performs transition/sound
+work, clears only the enabled low byte of an expired emitter, clears bit8,
+updates both object radius fields, and forwards the evaluated attachment point
+to a supplied sound callback. A subsequent callback failure returns RF_IO.
+Existing missing-backend/negative-health cases and final reference cleanup
+still pass, together with720 ordinary authored frames and all18 CTests.
+
+PC build passes. This commit changes tests/documentation only; it adds no
+Xbox runtime changes or new XEMU result. Sound callbacks validate data but
+produce no audio. Actual sound/emitter ownership, full corpse construction
+from authored actors, live dispatch and rendering remain open.

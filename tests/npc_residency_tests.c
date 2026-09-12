@@ -650,6 +650,17 @@ static int death_geometry_check(void)
     CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,1,&allowed)==RF_RANGE && allowed==99);
     rf_collision_tree_close(&room.tree);return 0;
 }
+typedef struct corpse_authored_sound {
+    rf_corpse_sound_view view;uint32_t lookups,moves;int fail;
+} corpse_authored_sound;
+static rf_corpse_sound_view *corpse_authored_lookup(void *context,int32_t id)
+{corpse_authored_sound *s=context;++s->lookups;return id==7?&s->view:NULL;}
+static int corpse_authored_move(void *context,rf_corpse_sound_view *view,const float point[3])
+{
+    corpse_authored_sound *s=context;++s->moves;
+    if(view!=&s->view || memcmp(view->position,point,12) || !isfinite(point[0]) || !isfinite(point[1]) || !isfinite(point[2]))return RF_FORMAT;
+    return s->fail;
+}
 /* Opt-in authored-asset harness; ordinary CTest fixtures require no game data. */
 static int corpse_authored_check(char **argv)
 {
@@ -664,6 +675,7 @@ static int corpse_authored_check(char **argv)
     CHECK(rf_entity_base_motions_open(&campaign_seeds,&tables,&motions,1024*1024,&campaign_base_motions)==RF_OK);
     CHECK(rf_entity_motion_catalog_open(&campaign_skeletons,&campaign_base_motions,512*1024,&campaign_motion_catalog)==RF_OK);
     CHECK(rf_entity_playback_resources_open(&campaign_motion_catalog,256*1024,&campaign_playback_resources)==RF_OK);
+    CHECK(rf_entity_render_models_open(&campaign_skeletons,&meshes,1024*1024,&campaign_render_models)==RF_OK);
     CHECK(campaign_models_open()==RF_OK);
     campaign_npc_motion_count=campaign_playback_resources.cache_count;
     campaign_npc_motion_data=calloc(campaign_npc_motion_count,sizeof(void*));
@@ -696,6 +708,29 @@ static int corpse_authored_check(char **argv)
             if(i && hash!=previous){++changed;++model_changed;}previous=hash;++frames;
         }
         {
+            rf_physics_sphere spheres[8]={{0}};uint32_t enabled=0xaabbccff,visits;
+            rf_corpse_emitter_link emitter={NULL,&enabled};corpse_authored_sound sound={0};
+            rf_scene_corpse_sound_ops ops={corpse_authored_lookup,corpse_authored_move,&sound};
+            owned.body.spheres.items=spheres;owned.body.spheres.count=campaign_render_models.items[skeleton].collision_sphere_count;
+            CHECK(owned.body.spheres.count>0 && owned.body.spheres.count<=8);
+            for(visits=0;visits<owned.body.spheres.count;++visits)spheres[visits].radius=1;
+            memcpy(owned.body.state.position,corpse->update.position,12);
+            corpse->update.motion_2b8=death;corpse->update.fade.flags_29c=8|1;
+            corpse->update.fade.fade_298=.01f;corpse->update.emitter_deadline_2ac=100;
+            corpse->update.sound_2cc=7;
+            CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,4000,&emitter,1,pending,&ops)==RF_OK);
+            CHECK(!(corpse->update.fade.flags_29c&8) && (corpse->update.fade.object_flags_7c&2));
+            CHECK(enabled==0xaabbcc00 && corpse->update.emitter_deadline_2ac==-1);
+            CHECK(sound.lookups==1 && sound.moves==1 && owned.body.state.bounds.radius>0);
+            CHECK(corpse->model_radius==owned.body.state.bounds.radius && corpse->physics_radius==corpse->model_radius);
+            for(visits=0;visits<owned.body.spheres.count;++visits)CHECK(spheres[visits].radius==1);
+            CHECK(rf_scene_corpse_follow_point(corpse,point)==RF_OK && !memcmp(point,sound.view.position,12));
+            sound.fail=RF_IO;CHECK(rf_scene_corpse_update(&owned,0,4001,NULL,0,pending,&ops)==RF_IO);
+            CHECK(sound.moves==2 && sound.lookups==2);
+            owned.body.spheres.items=NULL;owned.body.spheres.count=0;
+            printf("CORPSE_TRANSITION %s %u %u %.6f\n",campaign_skeletons.items[skeleton].model,sound.lookups,sound.moves,corpse->model_radius);
+        }
+        {
             uint32_t generation=pose->playback.generation;
             corpse->update.sound_2cc=7;
             CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,4000,NULL,0,pending,NULL)==RF_NOT_FOUND);
@@ -714,6 +749,7 @@ static int corpse_authored_check(char **argv)
     free(campaign_npc_motion_data);free(campaign_npc_motion_sizes);
     rf_entity_playback_resources_close(&campaign_playback_resources);rf_entity_motion_catalog_close(&campaign_motion_catalog);
     rf_entity_base_motions_close(&campaign_base_motions);rf_entity_poses_close(&campaign_poses);
+    rf_entity_render_models_close(&campaign_render_models);
     rf_entity_skeletons_close(&campaign_skeletons);rf_entity_seeds_close(&campaign_seeds);
     rf_vpp_close(&motions);rf_vpp_close(&meshes);rf_vpp_close(&tables);rf_vpp_close(&levels);return 0;
 }
