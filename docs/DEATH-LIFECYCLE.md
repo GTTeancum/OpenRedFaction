@@ -8122,3 +8122,26 @@ ties, first/closest modes, radii and separate normal displacement. Existing
 5005 non-textured tree and12000 textured face cases plus21 CTests pass;
 both builds pass. Room/preferred/flat propagation and live scene sampling
 remain open. This is not native XEMU scene-binding evidence.
+
+
+Texture-alpha local room hierarchy (2026-09-12)
+--------------------------------------------
+rf_collision_sweep_rooms_textured accepts room_count indexed texture
+backends alongside the existing room views. Each entry maps its tree face
+order to bitmap IDs and sampler context. The shared prepared room walk now
+selects the textured tree path when supplied, retaining primary/child order,
+parent skip/overlap rules, radius bounds, first/nearest selection and total
+improving-hit count. Special0x1000 remains unsupported. No allocation or
+retained tree copies; errors preserve caller output with scratch/callback
+side effects allowed. Existing non-textured APIs retain their contracts.
+
+verify_collision_textured_rooms.py runs complete original4df1c0 in direct
+local coordinates with hierarchy enabled, supplying only UV/bitmap calls.
+5000 original/PC/compiled NXDK cases plus8 room/query guards pass, with1570
+samples,274 multiple updates,628 final edge hits,32 callback errors and40
+missing-sampler errors. Eleven callback errors follow an earlier sample;
+output preservation and ordered sampler room/contact hashes match. Repeated
+child references and zero-displacement inactivity are included. Existing
+local-room5008 checks, both builds and21 CTests pass. Transformed/preferred/
+flat paths and live scene resource binding remain open; these tests do not
+establish native XEMU gameplay alpha collision.

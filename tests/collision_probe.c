@@ -14,6 +14,17 @@
 #include "burn_resolved_probe.h"
 #include "visibility_probe.h"
 #include "clutter_skin_probe.h"
+typedef struct collision_room_texture_fixture {uint32_t input[6],calls,hash;} collision_room_texture_fixture;
+static int collision_room_texture_sample(void *context,uint32_t index,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color)
+{
+    collision_room_texture_fixture *f=context;unsigned char bytes[16];uint32_t i;(void)face;
+    if(index || bitmap<0 || bitmap>=4)return RF_RANGE;
+    memcpy(bytes,&bitmap,4);memcpy(bytes+4,point,12);++f->calls;
+    for(i=0;i<16;++i)f->hash=(f->hash^bytes[i])*16777619u;
+    if(f->input[4]==(uint32_t)bitmap+1)return RF_IO;
+    *color=f->input[bitmap];return RF_OK;
+}
 typedef struct collision_tree_texture_fixture {uint32_t input[5],calls,hash;} collision_tree_texture_fixture;
 static int collision_tree_texture_sample(void *context,uint32_t index,const rf_collision_face *face,
     int32_t bitmap,const float point[3],uint32_t *color)
@@ -1478,7 +1489,8 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
-    if(argc==2 && !strcmp(argv[1],"--sweep-rooms")) {
+    if(argc==2 && (!strcmp(argv[1],"--sweep-rooms") || !strcmp(argv[1],"--sweep-rooms-textured"))) {
+        uint32_t textured=!strcmp(argv[1],"--sweep-rooms-textured");
         struct {struct {float bounds[6],z;uint32_t skip,first,count;} rooms[4];uint32_t primary[2],children[4];float start[3],delta[3],limit;uint32_t flags;float radius;} in;
         while(fread(&in,sizeof(in),1,stdin)==1) {
             rf_collision_room_view rooms[4];rf_collision_tree trees[4];rf_collision_node nodes[4];rf_collision_face faces[4];float vertices[4][4][3];uint32_t stacks[4],i,j;
@@ -1493,7 +1505,18 @@ int main(int argc,char **argv)
                 faces[i].plane[2]=1;faces[i].plane[3]=-z;faces[i].vertices=vertices[i];faces[i].count=4;
                 for(j=0;j<4;j++) {vertices[i][j][0]=(j==0 || j==3)?-2:2;vertices[i][j][1]=j<2?-2:2;vertices[i][j][2]=z;}
             }
-            memset(&out,0xa5,sizeof(out));out.status=rf_collision_sweep_rooms(rooms,4,in.primary,2,in.children,4,in.flags,in.start,in.delta,in.radius,in.limit,&out.hit,&out.matched);
+            memset(&out,0xa5,sizeof(out));
+            if(textured) {
+                int32_t bitmaps[4]={0,1,2,3};collision_room_texture_fixture fixture;
+                rf_collision_indexed_texture_backend backends[4];
+                if(fread(fixture.input,4,6,stdin)!=6)return 2;fixture.calls=0;fixture.hash=2166136261u;
+                for(i=0;i<4;++i) {faces[i].filter.face_flags=0xc0;backends[i].bitmaps=bitmaps+i;
+                    backends[i].sample=fixture.input[5]?NULL:collision_room_texture_sample;backends[i].context=&fixture;}
+                out.status=rf_collision_sweep_rooms_textured(rooms,4,in.primary,2,in.children,4,in.flags,in.start,in.delta,in.radius,in.limit,backends,&out.hit,&out.matched);
+                if(fwrite(&out,sizeof(out),1,stdout)!=1 || fwrite(&fixture.calls,4,1,stdout)!=1 || fwrite(&fixture.hash,4,1,stdout)!=1)return 2;
+                continue;
+            }
+            out.status=rf_collision_sweep_rooms(rooms,4,in.primary,2,in.children,4,in.flags,in.start,in.delta,in.radius,in.limit,&out.hit,&out.matched);
             if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
         }
         return ferror(stdin)?2:0;

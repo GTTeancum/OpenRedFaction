@@ -301,6 +301,14 @@ int rf_collision_sweep_rooms(const rf_collision_room_view *rooms,uint32_t room_c
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
     uint32_t query_flags,const float start[3],const float displacement[3],float radius,float limit,
     rf_collision_sweep_room_hit *result,uint32_t *matched);
+/* Alpha-aware local hierarchy. textures has room_count entries, each with
+ * its tree's ordered bitmap table and source-face-aware sampler context.
+ * Same room order, skip flags, hit accumulation and scratch contract as
+ * sweep_rooms; special mode0x1000 remains unsupported. No allocation. */
+int rf_collision_sweep_rooms_textured(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],float radius,float limit,
+    const rf_collision_indexed_texture_backend *textures,rf_collision_sweep_room_hit *result,uint32_t *matched);
 /* Uncached hierarchy query including 4df1c0 input transformation. Results
  * remain in the original function's local contact convention; edge normals
  * retain original +40 displacement semantics. World-output conversion is a
