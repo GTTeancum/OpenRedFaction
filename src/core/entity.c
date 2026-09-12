@@ -705,6 +705,31 @@ int rf_corpse_owners_recycle(rf_corpse_owners *owners,uint32_t index)
     owners->allocated_bytes-=body->spheres.count*sizeof(rf_physics_sphere);
     rf_physics_body_close(body);return rf_corpse_pool_release(&owners->pool,index);
 }
+int rf_corpse_base_acquire(rf_corpse_owners *owners,rf_object_registry *registry,
+    rf_corpse_list_link *head,uint32_t *object_count,const rf_corpse_physics_seed *seed,
+    float elasticity,float friction,float density,uint32_t *index)
+{
+    rf_corpse_physics_seed prepared;rf_corpse *c;rf_physics_body *body;uint32_t slot,handle;int status;
+    if(!owners || !registry || !head || !object_count || !seed || !index || !isfinite(seed->radius) ||
+       !head->next || !head->previous || head->next->previous!=head || head->previous->next!=head ||
+       *object_count>=RF_OBJECT_CAPACITY)return RF_RANGE;
+    if(!registry->count)return RF_NOT_FOUND;
+    prepared=*seed;if(prepared.radius<0)prepared.radius=1;
+    status=rf_corpse_owners_acquire(owners,&prepared,elasticity,friction,density,&slot);if(status)return status;
+    c=&owners->slots[slot].corpse;body=&owners->slots[slot].body;
+    status=rf_object_registry_insert(registry,c,&handle);
+    if(status) {rf_corpse_owners_recycle(owners,slot);return status;}
+    c->update.fade.health_34=100;c->update.fade.object_flags_7c=0x6400000u;c->update.model=0;
+    memcpy(c->update.position,seed->position,12);memcpy(c->update.basis,seed->basis,36);
+    c->model_radius=seed->radius<=0?1:seed->radius;c->physics_radius=body->state.bounds.radius;
+    c->physics_flags=body->state.flags;c->word_1fc=0;c->attachment_index=UINT32_MAX;
+    c->deletion.update=&c->update;c->deletion.handle=handle;c->deletion.registered_object=c;
+    c->deletion.lifecycle=0;c->deletion.emitters=NULL;
+    c->deletion.corpse_link.next=c->deletion.corpse_link.previous=NULL;
+    c->deletion.object_link.next=head;c->deletion.object_link.previous=head->previous;
+    head->previous->next=&c->deletion.object_link;head->previous=&c->deletion.object_link;
+    ++*object_count;*index=slot;return RF_OK;
+}
 static int corpse_owner_eligible(const rf_corpse *c)
 {return !(c->update.fade.flags_29c&0x43u) && !(c->update.fade.object_flags_7c&0x4000u);}
 int rf_corpse_create(rf_corpse_create_source *s,const rf_corpse_create_request *r,

@@ -957,3 +957,43 @@ all releases. The 640 original/PC/NXDK body comparisons still pass. Both builds
 succeed and all 13 CTests pass; existing unrelated PC compiler warnings remain.
 No native XEMU run or visual change is claimed for this step. Base registration,
 model ownership and cleanup after later constructor effects remain open.
+
+
+## Registered corpse base allocation
+
+rf_corpse_base_acquire now obtains an actual owned body/slot, inserts the corpse
+in the shared object registry, and appends its object link. Its corpse link
+remains unlinked until416940 reaches that construction stage. This implements
+the represented type7 base fields for the no-model descriptor and flags0 case,
+after the caller has accepted room placement. Health becomes100, object flags
+become06400000, model is cleared, attachment index becomes-1, and position,
+basis, physics flags and bounds radius are copied into the base owner.
+
+Full original486da0 execution establishes a distinction at radius zero:
+object/model radius becomes1 for seed radius<=0, but the physics descriptor is
+changed only for radius<0. The shared adapter preserves this distinction and
+normalizes a local seed copy. Original base allocation leaves the corpse sound
+word2cc untouched; shared allocation likewise preserves it and the remaining
+constructor tail. It does not invent a sound-id reset for reused storage.
+
+python tools/verify_corpse_base_original.py executes complete486da0 including
+real487100,48b870, registry writes and49ec90/49f010. Hooks supply heap, parent
+lookup, string assignment and room attachment; room search is disabled and
+there is no model descriptor. The room hook uses the verified ret4 convention.
+Across256 cases it verifies empty/nonempty object list insertion, registry
+slot removal, generation wrap, base flags, radius normalization and retained
+sound. Sphere counts0/1/2/4 and mass0/3 exercise both body preparation paths.
+
+python tools/verify_corpse_base.py compares the represented base fields,
+position/basis, all308 body state bytes and sphere records with PC and compiled
+NXDK. It additionally verifies256 exhausted-registry cases and256 injected
+heap failures without a published index, registered object or leaked body.
+For recoverable shared allocation errors, body acquisition precedes registry
+insertion so no handle generation is consumed. This failure behavior is a
+bounded-resource adaptation, not a claim about original out-of-memory behavior.
+
+Both builds and all13 CTests pass. This is compiled-code verification, not
+native XEMU gameplay. Live room attachment, owned names, inherited parent
+metadata, models, post-construction cleanup and finalization dispatch remain
+open. Bare pool recycle must not be used to destroy a registered live corpse;
+normal final deletion must preserve the existing verified deletion order.

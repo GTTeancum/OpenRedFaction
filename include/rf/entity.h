@@ -486,6 +486,18 @@ int rf_corpse_owners_acquire(rf_corpse_owners *owners,const rf_corpse_physics_se
     float elasticity,float friction,float density,uint32_t *index);
 int rf_corpse_owners_recycle(rf_corpse_owners *owners,uint32_t index);
 
+/* Type7 base-owner subset of486da0/487100: caller has accepted room placement,
+ * no model descriptor, object flags argument0. Registers the acquired corpse
+ * and appends its object link, but not its corpse link. Initializes represented
+ * base fields only; preserves sound and constructor tail fields across reuse.
+ * String, parent metadata and room ownership are supplied separately by the
+ * live allocator. Initialized intact registry/list/pool; disjoint arguments.
+ * Shared allocation failure is recoverable and leaves no published owner.
+ * Final destruction must use rf_corpse_delete, not bare owner recycling. */
+int rf_corpse_base_acquire(rf_corpse_owners *owners,rf_object_registry *registry,
+    rf_corpse_list_link *object_head,uint32_t *object_count,const rf_corpse_physics_seed *seed,
+    float elasticity,float friction,float density,uint32_t *index);
+
 typedef struct rf_corpse_create_request {
     const char *death_name;float position[3],basis[9],created_seconds;
     int32_t now_ms;uint8_t protected_body,seek_motion;
