@@ -4463,3 +4463,22 @@ spheres. NPC regression checks continue to pass. PC/NXDK builds and all19
 CTests pass. This turn does not run XEMU: native execution of the new response
 snapshot/publication APIs remains open, together with actor8a0 velocity
 refresh, pair scheduling and automatic response dispatch.
+
+## Native response snapshot parity
+
+The per-frame campaign collision check now calls registered player and NPC
+response snapshot APIs and hashes228 explicit scalar/contact/transform bytes
+plus20 meaningful bytes per sphere. Borrowed addresses, structure padding and
+opaque sphere word14 are excluded. The six-word24-byte diagnostic records
+completed frames, separate player/NPC hashes, NPC snapshots, status and last
+frame. PC prints COLLISION_RESPONSES; xemu_replay_check reads the native symbol
+and checks exact PC parity and frame/actor coverage. No contact is published
+and no collision response is synthesized by this diagnostic.
+
+PC build and all19 CTests pass; native NXDK build and180-frame replay pass
+on67108864 bytes with no plugged memory. Report:
+artifacts/xemu/replay-20260912-054139/report.json. Response summary:
+[180,906628816,3407848021,14040,0,179]. All180 player and14040 NPC snapshots
+completed;78 NPCs, body resident55732 and peak430372 bytes. Door/damage/death
+animation/audio replay checks also pass. Native response publication, extra
+velocity refresh and automatic pair dispatch remain unverified/unconnected.

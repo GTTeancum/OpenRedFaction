@@ -96,6 +96,7 @@ int rf_scene_player_collision_view(uint32_t handle,rf_collision_pair_actor_state
 int rf_scene_player_collision_response(uint32_t handle,rf_collision_actor_general_response *result);
 int rf_scene_player_collision_publish(uint32_t handle,uint32_t body_flags,const rf_collision_actor_contact *contact);
 extern uint32_t rf_scene_collision_views[8]; /* Pointer-free live actor snapshot replay evidence. */
+extern uint32_t rf_scene_collision_responses[6]; /* Live body/contact snapshot replay evidence. */
 
 /*503400 ->501cd0(kind2)->51c390 on the currently published model pose.
  * Zero exact non-looping weights without releasing references or removing

@@ -265,6 +265,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert collision_views[0]==frames and collision_views[3]==frames*npc_bodies[1],collision_views
      assert collision_views[4]==0xffffffff and collision_views[5]==npc_bodies[1] and collision_views[6]==0 and collision_views[7]==frames-1,collision_views
      report['collision_views']=collision_views
+     collision_responses=words(monitor,symbol('rf_scene_collision_responses'),6)
+     assert collision_responses==expected('COLLISION_RESPONSES'),collision_responses
+     assert collision_responses[0]==frames and collision_responses[3]==frames*npc_bodies[1],collision_responses
+     assert collision_responses[4]==0 and collision_responses[5]==frames-1,collision_responses
+     report['collision_responses']=collision_responses
      npc_damage_owners=words(monitor,symbol('rf_scene_npc_damage_owners'),3)
      assert npc_damage_owners==expected('NPC_DAMAGE_OWNERS'),npc_damage_owners
      report['npc_damage_owners']=npc_damage_owners
