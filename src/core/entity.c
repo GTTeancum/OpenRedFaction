@@ -548,6 +548,46 @@ int rf_entity_death_motion_sp(rf_entity_death_motion_state *s,uint32_t player,
     return RF_OK;
 }
 
+static int death_drop_name(const char *name,const char *query)
+{
+    unsigned char a,b;if(!name)return 0;
+    do {a=(unsigned char)*name++;b=(unsigned char)*query++;
+        if(a>='A' && a<='Z')a+=32;if(b>='A' && b<='Z')b+=32;
+        if(a!=b)return 0;
+    }while(a);return 1;
+}
+int rf_entity_death_drop(const rf_entity_death_drop_source *s,const rf_entity_death_drop_backend *b,
+    rf_entity_death_drop_item **result)
+{
+    float start[3],end_y,delta[3]={0},size,offset;rf_entity_death_drop_hit hit={0};
+    rf_entity_death_drop_item *item;uint32_t i;int status;
+    if(!s || !b || !b->query || !b->create || !b->bounds || !result)return RF_RANGE;
+    *result=NULL;if(s->item==-1)return RF_OK;
+    if(s->item<0 || !isfinite(s->extent_7c4))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(s->position[i]))return RF_RANGE;
+    memcpy(start,s->position,12);start[1]=(float)((double)start[1]+.5);
+    end_y=(float)((double)s->position[1]-s->extent_7c4);
+    delta[1]=(float)((double)end_y-start[1]);
+    if(!isfinite(start[1]) || !isfinite(delta[1]))return RF_RANGE;
+    status=b->query(b->context,start,delta,&hit);if(status)return status;
+    if(hit.count<=0)return RF_OK;
+    for(i=0;i<64 && !s->owned[i];++i){}if(i==64)return RF_OK;
+    for(i=0;i<3;++i)if(!isfinite(hit.point[i]) || !isfinite(hit.normal[i]))return RF_RANGE;
+    item=b->create(b->context,s->item,s->handle,hit.point);*result=item;
+    if(!item)return RF_OK;item->flags_2bc|=8u;
+    if(death_drop_name(item->name,"medical kit") || death_drop_name(item->name,"riot_stick_battery")) {
+        item->base_position[1]=(float)((double)item->base_position[1]+(double).05f);
+    } else {
+        status=b->bounds(b->context,item->model,&size);if(status)return status;
+        if(!isfinite(size))return RF_RANGE;
+        for(i=0;i<3;++i) {
+            offset=(float)((double)hit.normal[i]*size);
+            item->base_position[i]=(float)((double)item->base_position[i]+offset);
+        }
+    }
+    memcpy(item->position,item->base_position,12);return RF_OK;
+}
+
 static int corpse_retention_eligible(const rf_corpse_retention_node *n)
 {return !(n->flags_29c&0x43u) && !(n->object_flags_7c&0x4000u);}
 int rf_corpse_fade_step(rf_corpse_fade_state *s,float dt,uint32_t *continue_tick)

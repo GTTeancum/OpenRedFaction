@@ -640,6 +640,35 @@ typedef struct rf_entity_death_motion_backend {
 int rf_entity_death_motion_sp(rf_entity_death_motion_state *,uint32_t player,
     const rf_entity_death_motion_backend *);
 
+typedef struct rf_entity_death_drop_source {
+    int32_t item;uint32_t handle;float position[3],extent_7c4;
+    uint8_t owned[64];
+} rf_entity_death_drop_source;
+typedef struct rf_entity_death_drop_hit {int32_t count;float point[3],normal[3];} rf_entity_death_drop_hit;
+typedef struct rf_entity_death_drop_item {
+    uint32_t flags_2bc,model;float position[3],base_position[3];const char *name;
+} rf_entity_death_drop_item;
+typedef struct rf_entity_death_drop_backend {
+    /*4df1c0 on world6460e8: identity local query, radius.15, flags2000,
+     * initial FLT_MAX and hierarchy1. Query runs even with empty ownership. */
+    int (*query)(void *,const float start[3],const float delta[3],rf_entity_death_drop_hit *);
+    /*459100(index,empty,table[index].default_count,owner,point,identity,-1,1,0).
+     * NULL is allocation failure. Returned owner remains alive through calls. */
+    rf_entity_death_drop_item *(*create)(void *,int32_t index,uint32_t owner,const float point[3]);
+    /*503310(model,min,max); return the first component of the second vector.
+     * Must not mutate the returned item or its class name. */
+    int (*bounds)(void *,uint32_t model,float *second_x);
+    void *context;
+} rf_entity_death_drop_backend;
+/* SP4200c6..4204a0 configured item drop; separate from42ae10 weapon dropping.
+ * At least one nonzero owned byte and a positive query count permit creation.
+ * World item publication belongs to create; no corpse handle is assigned here.
+ * No allocation in this helper. Errors retain prior creation/flag mutations;
+ * output exposes a created item even if subsequent bounds adjustment fails.
+ * Finite, valid source/query/item data and terminated class names required. */
+int rf_entity_death_drop(const rf_entity_death_drop_source *,const rf_entity_death_drop_backend *,
+    rf_entity_death_drop_item **);
+
 typedef struct rf_entity_dying_state {
     uint32_t handle,flags_810;int32_t action_824,primary_weapon;
     uint32_t burn_13d8,class_flags_728;

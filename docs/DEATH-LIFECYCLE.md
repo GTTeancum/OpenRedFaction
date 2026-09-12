@@ -2915,3 +2915,46 @@ invalid actions and a missing first pose. PC/NXDK builds and all19 CTests pass.
 This is compiled-code emulation, not an XEMU gameplay capture or actual motion
 playback test. Full death-start item drops, linked actors, player/camera effects,
 remaining cleanup and live ownership remain to be reconstructed/connected.
+
+
+## Configured death-item drop (2026-09-12)
+
+`rf_entity_death_drop` reconstructs4200c6..4204a0, the configured82c item drop
+inside SP41fdc0. This is separate from the subsequent42ae10 weapon drop. The
+inspected SP path does not assign the returned world item to corpse2cc; local
+item pointers are forwarded to a multiplayer notification in the MP branch.
+Do not invent corpse attachment ownership from their proximity in death-start.
+
+An item index of-1 skips the query. Otherwise the query runs BEFORE the64-byte
+owned array scan: start=(x,y+.5,z), end=(x,y-7c4,z), with float spills before
+forming end-start; radius.15, flags2000, initial FLT_MAX, hierarchy1 and identity
+local transform against6460e8. Positive hit count plus any nonzero owned byte
+allows one459100 creation at the hit point. The create contract supplies the
+configured default count, empty name, actor handle, identity basis, -1,1,0.
+The original calculates intermediate slope axes but reconstructs identity for
+this creation call; those temporary axes do not change item position or basis.
+
+A created item's2bc flags receive bit8. Ordinary items obtain503310's second
+output vector's first component and add normal*component to base_position,
+with float product spills, then copy it to position. Special names receive
+only a+.05 Y adjustment and position copy. The actual original string is
+`medical kit` (space), not Ghidra's underscored symbol label; the other name is
+`riot_stick_battery`. Matching is ASCII case insensitive. Underscored medical_kit
+and suffixed names remain ordinary items. The bounds callback must not mutate
+the item or class name, matching the observed model-bound query role.
+
+`tools/verify_death_drop.py` passes1024 original/PC/NXDK cases using unchanged
+original4200c6..4204a0 arithmetic and500290/5001d0 comparisons. Only world query,
+item allocation and model bounds are supplied at their original helper entries.
+It checks exact query descriptors, creation arguments/identity, points, flags,
+base/current item positions and source actor preservation. Branch counts:
+94 disabled,385 query misses,83 empty inventories,109 allocation failures,
+160 ordinary adjustments and193 special adjustments. Two additional PC/NXDK
+failure cases prove query errors stop creation and bounds errors retain the
+created item and already-applied flag8 for caller cleanup. Both builds and all
+19 CTests pass. This is compiled-code emulation, not live XEMU item rendering.
+
+Real item allocation/list/registry ownership, authored drop query/model bounds,
+weapon-drop42ae10, linked actor release and remaining death-start effects still
+need binding/reconstruction. No live death dispatch or corpse-item publication
+is claimed. Report: artifacts/death-drop.json.
