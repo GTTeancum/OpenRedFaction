@@ -2241,6 +2241,22 @@ uint32_t rf_collision_model_parts_query(const int32_t *part_count,rf_collision_s
     }
     return changed;
 }
+typedef struct model_trace_context {
+    const rf_collision_model_part_view *parts;rf_collision_model_part_query *query;
+} model_trace_context;
+static uint32_t model_trace_part(void *context,int32_t part,rf_collision_solid_response_query *input,
+    rf_collision_model_response_hit *hit,uint32_t reset)
+{
+    model_trace_context *ctx=context;(void)input;
+    return rf_collision_model_part_trace(ctx->parts+part,ctx->query,hit,reset);
+}
+uint32_t rf_collision_model_trace(const rf_collision_model_part_view *parts,const int32_t *count,
+    rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset)
+{
+    model_trace_context context={parts,query};rf_collision_model_parts_backend backend={model_trace_part,&context};
+    return rf_collision_model_parts_query(count,&query->input,hit,reset,&backend);
+}
+
 uint32_t rf_collision_actors_general_response(rf_collision_actor_general_response *first,
     rf_collision_actor_general_response *second,const float *(*extra_velocity)(void *,uint32_t),void *context)
 {

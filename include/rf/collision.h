@@ -530,6 +530,11 @@ typedef struct rf_collision_model_part_query {
  * No allocation or owner lookup; token_base represents original record base. */
 uint32_t rf_collision_model_part_trace(const rf_collision_model_part_view *part,
     rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset);
+/* Complete54e000 composition with the part/triangle implementations above.
+ * Mutates input preparation/flag2 once, then reuses104-byte working query.
+ * Signed count<=0 still performs preparation/reset. Borrowed stable views. */
+uint32_t rf_collision_model_trace(const rf_collision_model_part_view *parts,const int32_t *count,
+    rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset);
 typedef struct rf_collision_model_parts_backend {
     uint32_t (*part)(void *,int32_t,rf_collision_solid_response_query *,rf_collision_model_response_hit *,uint32_t);
     void *context;

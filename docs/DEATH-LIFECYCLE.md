@@ -4845,3 +4845,24 @@ artifacts/model-part-trace.json. Both builds and all19 CTests pass.
 Retained resource binding, whole-model composition and native XEMU remain
 open, as does type2 skeletal geometry. Resolved views require valid owners
 and indices; file validation belongs to the resource loader.
+
+
+## Composed whole-model trace54e000 through triangle queries
+
+rf_collision_model_trace binds the verified whole-model traversal to actual
+rf_collision_model_part_trace with stack-local callback context. It reuses
+the104-byte query so preparation changes the original input start/delta
+and flag2 once; each part then writes its separate working scratch. Empty
+or negative signed part counts still execute original reset/preparation.
+No part/triangle callbacks are externally substituted and no allocation is
+introduced. Existing traversal retains count rereads and first-hit policy.
+
+verify_model_trace.py runs complete original54e000,54daa0,54dcd0 and actual
+thin/sphere geometry callees. Only static constructor flags are initialized.
+4096 exact PC/NXDK cases pass with273 hits, signed counts-1..2, two parts
+with different offsets,0..2 batches,0..3 triangles, LOD fallback, rotations,
+reset and query flags, radius threshold and nearest/first-hit ordering.
+It compares104-byte query,32-byte result and return, plus geometry/guard
+preservation. Report: artifacts/model-trace.json. PC/NXDK builds and all19
+CTests pass. This composes the geometry path but does not bind retained
+model resources or prove native XEMU execution; those remain explicit work.
