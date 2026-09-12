@@ -1740,6 +1740,53 @@ done:
 }
 void rf_clutter_catalogs_close(rf_clutter_catalogs *owner)
 {if(owner){free(owner->storage);memset(owner,0,sizeof(*owner));}}
+typedef struct clutter_archive_source {
+    const unsigned char *text;uint32_t (*spans)[2];const rf_clutter_resource_names *resources;
+    rf_clutter_definition definition;rf_clutter_class_binding binding;int32_t ids[16];
+} clutter_archive_source;
+static int clutter_archive_spans(clutter_archive_source *source,uint32_t bytes,uint32_t *count)
+{
+    lexer l={source->text,bytes,0};char t[256];uint32_t n=0,boundary;int status,quoted,inside=0;
+    for(;;) {
+        boundary=l.at;status=token(&l,t,&quoted);if(status)return status==RF_NOT_FOUND?RF_FORMAT:status;
+        if(quoted)continue;
+        if(!inside){if(same(t,"#Clutter"))inside=1;continue;}
+        if(same(t,"#End")){if(n)source->spans[n-1][1]=boundary-source->spans[n-1][0];*count=n;return RF_OK;}
+        if(!same(t,"$Class") || !metadata_tag(&l,"Name:"))continue;
+        if(token(&l,t,&quoted) || !quoted || !*t)return RF_FORMAT;
+        if(n==450 || strlen(t)>=64)return RF_RANGE;
+        if(n)source->spans[n-1][1]=boundary-source->spans[n-1][0];
+        source->spans[n][0]=boundary;source->spans[n][1]=0;++n;
+    }
+}
+static int clutter_archive_fetch(void *context,uint32_t index,
+    const rf_clutter_definition **definition,const rf_clutter_class_binding **binding)
+{
+    clutter_archive_source *source=context;uint32_t offset=source->spans[index][0],bytes=source->spans[index][1];
+    lexer l={source->text+offset,bytes,0};char name[64];int status;
+    if(!metadata_tag(&l,"$Class Name:") || metadata_string(&l,name,sizeof(name)))return RF_FORMAT;
+    status=rf_clutter_definition_read(source->text+offset,bytes,name,&source->definition);if(status)return status;
+    status=rf_clutter_definition_bind(&source->definition,source->resources,source->ids,16,&source->binding);if(status)return status;
+    *definition=&source->definition;*binding=&source->binding;return RF_OK;
+}
+int rf_clutter_classes_load(rf_vpp *tables,const rf_clutter_resource_names *resources,
+    uint32_t budget,rf_clutter_classes *owner,uint32_t *peak_bytes)
+{
+    clutter_archive_source *source;rf_vpp_entry entry;rf_clutter_classes value={0};
+    uint64_t scratch;uint32_t count;int status;
+    if(!tables || !resources || !owner || !peak_bytes || owner->storage || owner->items || owner->count || owner->allocated_bytes)return RF_RANGE;
+    status=rf_vpp_find(tables,"clutter.tbl",&entry);if(status)return status;
+    scratch=(uint64_t)sizeof(*source)+450*8+entry.size;
+    if(scratch+sizeof(value)>budget || scratch>UINT32_MAX)return RF_RANGE;
+    source=malloc((size_t)scratch);if(!source)return RF_IO;
+    source->spans=(uint32_t (*)[2])(source+1);source->text=(const unsigned char *)(source->spans+450);source->resources=resources;
+    status=rf_vpp_read(tables,&entry,0,(void *)source->text,entry.size);if(status)goto done;
+    status=clutter_archive_spans(source,entry.size,&count);if(status)goto done;
+    status=rf_clutter_classes_open_source(clutter_archive_fetch,source,count,budget-(uint32_t)scratch,&value);if(status)goto done;
+    *owner=value;*peak_bytes=value.allocated_bytes+(uint32_t)scratch;
+done:
+    free(source);return status;
+}
 
 static int named_effect_block(const void *text,uint32_t bytes,const char *name,
     uint32_t *start,uint32_t *length,char authored_name[64])

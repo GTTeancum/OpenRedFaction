@@ -85,6 +85,22 @@ typedef struct rf_clutter_classes {
  * Factory caches start empty; timer0/light tag-1 are port initial storage. */
 int rf_clutter_classes_open(const rf_clutter_definition *definitions,
     const rf_clutter_class_binding *bindings,uint32_t count,uint32_t budget,rf_clutter_classes *owner);
+typedef int (*rf_clutter_class_fetch)(void *context,uint32_t index,
+    const rf_clutter_definition **definition,const rf_clutter_class_binding **binding);
+/* Same owner, with rows fetched in two ordered passes. Fetch is read-only and
+ * must return identical row content across passes; returned storage need only
+ * survive until the next fetch. Callback errors free partial storage and leave
+ * output unchanged. Caller-owned source workspace is excluded from budget. */
+int rf_clutter_classes_open_source(rf_clutter_class_fetch fetch,void *context,
+    uint32_t count,uint32_t budget,rf_clutter_classes *owner);
+/* Archive composition, retaining all authored rows including duplicate names.
+ * One scratch allocation holds table text,450 span slots and a reusable parsed
+ * row/binding. Budget/peak include that workspace and final owner, excluding
+ * caller-owned resource catalogs and stack. Outputs unchanged on error.
+ * Resources and archive are borrowed only during load; resulting IDs still
+ * refer to externally owned resources. No generic objects are instantiated. */
+int rf_clutter_classes_load(rf_vpp *tables,const rf_clutter_resource_names *resources,
+    uint32_t budget,rf_clutter_classes *owner,uint32_t *peak_bytes);
 void rf_clutter_classes_close(rf_clutter_classes *owner);
 typedef struct rf_clutter_state {
     uint32_t token,first_word,handle,model,flags,physics_flags;

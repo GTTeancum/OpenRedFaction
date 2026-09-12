@@ -6945,3 +6945,14 @@ four resource boundary addresses, avoiding per-instruction Python callbacks.
 Both builds and all19 CTests pass. Native XEMU residency, full effect/resource
 loading, class archive loading and scene/factory integration remain open.
 No new visual is claimed.
+
+
+## Archive-backed clutter class loading (2026-09-12)
+
+rf_clutter_classes_load composes the archive reader, factory-facing metadata parser, resource binding and compact class owner. It preserves all 431 authored declarations, including duplicate names, using one reusable parsed row rather than retaining the expanded definition array. The final classes own their names and emitter IDs; numeric resource IDs still require externally owned resources.
+
+The shared two-pass owner accepts a read-only row callback and validates each row before copying. Archive text, 450 span slots and the reusable definition/binding occupy 169910 scratch bytes on the 32-bit targets. All 431 classes retain 55610 bytes including the owner; loader peak is 225520 bytes, excluding caller-owned catalogs, archive state and stack. This differs from the prior 429 first-match-selected class fixture because authored duplicate rows are now retained.
+
+tools/verify_clutter_load.py passes 11 scenarios: every authored row and bound ID on PC actual archive/catalog loading versus compiled NXDK with supplied archive I/O and catalogs; exact and one-byte-short budgets; scratch/final allocation failures; archive read failure; binding failure in either pass; empty, malformed and capacity-overflow tables. Freed scratch is poisoned before retained fields are inspected. Outputs stay unchanged and partial allocations are released on errors. Existing compact class ownership verification and all 19 PC CTests pass; PC and NXDK builds succeed.
+
+Evidence: artifacts/clutter-load.json. This is archive-to-runtime class metadata composition, not a complete original class parser, generic model/effect allocation, instantiated scene clutter or native XEMU validation. The next integration must retain the class owner for the lifetime of its objects and connect actual resource ownership and factory backends.
