@@ -803,3 +803,29 @@ int rf_corpse_surface_build_quad(rf_corpse_surface_effect *effect,rf_corpse_surf
     memcpy(result.uv,uv,sizeof(uv));result.color=effect->color|0xff000000u;
     effect->extent=extent;*quad=result;return RF_OK;
 }
+
+int rf_corpse_surface_collect_room(const rf_corpse_surface_pool *pool,uint32_t descriptor,
+    const rf_corpse_surface_queue *queue)
+{
+    const rf_corpse_surface_effect *node;uint32_t visited=0,i;
+    if(!pool || !queue || !queue->frustum || !queue->count || !queue->callback ||
+       queue->capacity>2048 || *queue->count>queue->capacity ||
+       (queue->capacity && !queue->records))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(queue->world_offset[i]))return RF_RANGE;
+    node=pool->active;
+    while(node) {
+        if(visited++>=pool->capacity)return RF_RANGE;
+        if(node->descriptor==descriptor) {
+            rf_render_queue_record record={0};float cull[3];uint32_t accepted;int status;
+            if((uintptr_t)node>UINT32_MAX)return RF_RANGE;
+            record.object=(uint32_t)(uintptr_t)node;
+            memcpy(record.position,node->position,sizeof(record.position));record.radius=node->extent;
+            record.sorted=1;record.lighting_flag=1;record.callback=queue->callback;
+            for(i=0;i<3;++i)cull[i]=(float)((double)node->position[i]+queue->world_offset[i]);
+            status=rf_render_queue_append(queue->frustum,cull,&record,queue->records,
+                queue->capacity,queue->count,&accepted);if(status)return status;
+        }
+        node=node->next;if(node==pool->active)break;
+    }
+    return RF_OK;
+}

@@ -20,6 +20,22 @@ int rf_corpse_surface_reset(rf_corpse_surface_pool *,rf_corpse_surface_effect sl
  * Caller supplies valid bounded rings and finite elapsed values. */
 int rf_corpse_surface_tick(rf_corpse_surface_pool *,float dt);
 
+struct rf_visibility_frustum;
+struct rf_render_queue_record;
+typedef struct rf_corpse_surface_queue {
+    const struct rf_visibility_frustum *frustum;
+    float world_offset[3];
+    struct rf_render_queue_record *records;
+    uint32_t *count,capacity,callback;
+} rf_corpse_surface_queue;
+/* Original42e140 room collection using the non-instanced4d3560 path.
+ * Uses stored extent; never evaluates growth or draws. Nodes remain alive
+ * until queued callbacks finish; object tokens are their32-bit addresses.
+ * Valid bounded rings and disjoint queue storage required. Rejection continues;
+ * backend errors stop without rolling back preceding appends. */
+int rf_corpse_surface_collect_room(const rf_corpse_surface_pool *,uint32_t descriptor,
+    const rf_corpse_surface_queue *);
+
 typedef struct rf_corpse_surface_quad {
     float vertices[4][3],uv[4][2];uint32_t color;
 } rf_corpse_surface_quad;

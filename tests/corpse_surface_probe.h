@@ -1,3 +1,4 @@
+#include "rf/visibility.h"
 #include "rf/corpse_effect.h"
 typedef struct corpse_surface_fixture {uint32_t input[11],calls,names,fail;int32_t lookup[2];uint32_t *flags,mutation;} corpse_surface_fixture;
 static uint32_t cs_metadata(void *p,uint32_t model){corpse_surface_fixture *f=p;(void)model;++f->calls;return 1;}
@@ -107,4 +108,27 @@ static int corpse_surface_quad_probe(void)
         fwrite(&effect,sizeof(effect),1,stdout);fwrite(&quad,sizeof(quad),1,stdout);
     }
     return ferror(stdin)||ferror(stdout)?3:0;
+}
+
+static int corpse_surface_collect_probe(void)
+{
+    struct {uint32_t active,room,count,planes;float offset[3];unsigned char nodes[8][84];} input;
+    static rf_render_queue_record records[2048];
+    while(fread(&input,sizeof(input),1,stdin)==1) {
+        rf_corpse_surface_effect nodes[8];rf_corpse_surface_pool pool={0};
+        rf_visibility_frustum frustum={0};rf_corpse_surface_queue queue;uint32_t i,count=input.count;int status;
+        if(input.active>8 || input.count>2048 || input.planes>1)return 2;
+        memcpy(nodes,input.nodes,sizeof(nodes));
+        for(i=0;i<input.active;++i){nodes[i].next=nodes+(i+1)%input.active;nodes[i].previous=nodes+(i+input.active-1)%input.active;}
+        pool.active=input.active?nodes:NULL;pool.capacity=8;
+        frustum.count=input.planes;frustum.planes[0].normal[0]=1;
+        memset(records,0xa5,sizeof(records));queue.frustum=&frustum;memcpy(queue.world_offset,input.offset,12);
+        queue.records=records;queue.count=&count;queue.capacity=2048;queue.callback=0x42df20;
+        status=rf_corpse_surface_collect_room(&pool,input.room,&queue);
+        for(i=input.count;i<count;++i)records[i].object=0x30000000u+84u*(uint32_t)((rf_corpse_surface_effect*)(uintptr_t)records[i].object-nodes);
+        for(i=0;i<8;++i)if(memcmp(nodes+i,input.nodes[i],76))return 3;
+        for(i=0;i<input.active;++i)if(nodes[i].next!=nodes+(i+1)%input.active || nodes[i].previous!=nodes+(i+input.active-1)%input.active)return 4;
+        fwrite(&status,4,1,stdout);fwrite(&count,4,1,stdout);fwrite(records,sizeof(records),1,stdout);
+    }
+    return ferror(stdin)||ferror(stdout)?5:0;
 }

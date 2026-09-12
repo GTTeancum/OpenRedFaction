@@ -39,6 +39,7 @@ for case in range(288):
  assert get(0x9bb550)==after_count and get(0x9bb568)==after_count-queue_count,(case,'counts')
  actual=bytes(u.mem_read(0x88fd20,len(initial)));assert actual==expected,(case,[(i,a,z) for i,(a,z) in enumerate(zip(actual,expected)) if a!=z][:16])
  assert bytes(u.mem_read(nodes,8*84))==original_nodes,(case,'effect mutation')
+ if callable(globals().get('observe_case')):observe_case(count,room,queue_count,plane_count,offset,bytes(original_nodes),after_count,actual)
 report=dict(result='PASS',cases=288,appended=appended,culled=culled,room_mismatches=mismatched,full_queue_rejections=full,original_sha256=digest,scope='Unhooked original42e140,4d3560,5186a0 and vector helpers. All active counts0..8, room identifiers including0, queue capacities at0/2046/2048 used slots, supplied world offsets and optional x plane. Exact2048 queue records and untouched effect payload/links. Culling uses existing extent, not elapsed-derived growth; callback is queued but not executed. No instance transform, live collector binding or GPU run.')
 assert appended and culled and mismatched and full
 (root/'artifacts/corpse-room-queue-original.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

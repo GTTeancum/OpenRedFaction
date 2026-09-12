@@ -2556,3 +2556,27 @@ Room identifier0 is compared normally, without an extra absence gate here.
 This establishes original collector behavior for the next shared binding.
 No new C collector is introduced in this change; instance transforms, live
 queue integration and deferred draw execution remain open. No GPU run.
+
+## Shared corpse surface room collector
+
+rf_corpse_surface_collect_room now reconstructs42e140 using the existing
+verified rf_render_queue_append for non-instanced4d3560 submissions. The
+caller supplies frustum, world offset, queue storage/count/capacity and a
+nonzero draw callback token. Stored position is unchanged; world offset
+is added only to the cull position with binary32 stores. Existing extent
+is passed to culling and queued without evaluating growth.
+
+The collector emits sorted1, lighting0, lighting_flag1, empty plane/bounds
+and the supplied callback. Object tokens are32-bit node addresses, matching
+the current PC/NXDK targets; larger addresses reject. Nodes must stay alive
+until callbacks finish. Valid bounded rings and disjoint output storage are
+caller requirements. Culling/full-queue rejection continues traversal; errors
+stop with earlier appends retained. No allocation or draw callback occurs.
+
+verify_corpse_room_queue_shared.py compares all288 original collector cases
+to actual PC and compiled NXDK source: exact queue count and all2048 records,
+including stale reserved/distance bytes. PC object addresses are normalized
+to fixture nodes; NXDK uses identical synthetic addresses. Effect payload
+and active ring links survive unchanged. Both builds and19 CTests pass.
+Instance transform handling, live campaign collection, texture ownership and
+deferred draw dispatch remain open. No new XEMU output is claimed.
