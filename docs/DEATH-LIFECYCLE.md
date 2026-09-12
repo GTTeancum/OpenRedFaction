@@ -1459,3 +1459,34 @@ Full PC and NXDK builds and all18 CTests pass. Xbox SHA256:
 Report: artifacts/model-release-verification.json. Pose transfer, mutable
 material ownership and live model token resolution remain to be connected;
 this step does not add live corpse rendering or claim new XEMU gameplay.
+
+
+## Complete original skeletal payload retirement
+
+python tools/inspect_skeletal_release.py executes full51b070 with real51c090
+slot removal and539d70 reference decrement: no callee substitutions. Across680
+cases it covers active counts0..16, unique/duplicate motion IDs, zero/positive
+reference counts, rings of1..4 owners and every removal position. Whole victim
+and surviving owner records, all motion counters and the global head are checked.
+There are2720 actual active-slot removals.
+
+A null payload1d50 skips all writes, including list unlink. Otherwise1cfc/1d00/
+1d48 become-1 before repeatedly removing the first active motion. Reference
+counts saturate at zero; the original shifted unused slot tail is retained.
+Then the owner is removed from the circular list headed by0181bdb8. Removing
+its head advances to the next owner, or clears the head for a singleton. Both
+victim links1d54/1d58 become zero and neighboring links are repaired. Descriptor
+1d50 is not cleared. The payload destructor itself does not free storage;
+504600 performs that afterward. Do not treat this original destructor as a
+repeatable close operation merely because links become zero.
+
+The existing rf_motion_remove_slot already reconstructs the slot/refcount
+helper (see docs/CAMERA.md). rf_entity_owned_pose_close is a port storage
+adaptation that releases valid unique active references and frees its cache;
+it is not the original global registration-list retirement. Live corpse pose
+transfer must also preserve correct model registration/update traversal before
+source actor slots are reused. The explicit per-level arrays may implement
+that ownership differently, but leaving transferred poses unreachable by
+updates would not reproduce the original behavior.
+Report: artifacts/skeletal-release-original.json. This is original-code evidence,
+not a new PC/NXDK skeletal registry or live corpse scene binding.
