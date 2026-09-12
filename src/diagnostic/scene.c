@@ -1898,6 +1898,7 @@ typedef struct campaign_npc_body {
     struct {int32_t item_82c,requested_83c,action_824,linked_146c,deadline_4b8;uint32_t model_148c;} death;
     uint32_t death_bone_words[2]; /* actor1464/1468 */
     float command_714[3]; /* Constructor422eaf..422ed3 clears this movement vector. */
+    int32_t attachment_75c; /* Embedded AI initializer402e96: -1; later attachment lifecycle pending. */
     uint32_t stance_clock_7b4; /* Raw6460f0 bits, published after crouch ground refresh. */
     float model_radius_78; /* Original489fe0 model-origin radius. */
     float published[3],previous[3];uint32_t movement_slot;
@@ -2077,9 +2078,10 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 owner->damage.burn_source=UINT32_MAX; /* Absent burn; source unused until installed. */
                 owner->movement_slot=rf_movement_start(campaign_modes,(int32_t)config.authored.movement_index,&body->state.flags);
                 owner->movement_orientation=campaign_identity[0]; /* Constructor422360 installs original73a858. */
+                owner->attachment_75c=-1;owner->stance_clock_7b4=0; /* Original402c20 embedded AI initialization. */
                 owner->movement.response=body->state.coefficients[1];
                 /* Constructor422e19 requests normal speed via427450. */
-                status=rf_movement_set_mode(&owner->movement,movement,1,-1,body->state.mass,0);if(status)goto done;
+                status=rf_movement_set_mode(&owner->movement,movement,1,owner->attachment_75c,body->state.mass,0);if(status)goto done;
                 body->state.coefficients[1]=owner->movement.response;
                 memcpy(owner->published,record->position,12);memcpy(owner->previous,record->position,12);
                 status=campaign_npc_eye_update(actor);if(status)goto done;
@@ -2522,12 +2524,12 @@ int rf_scene_npc_fall(uint32_t handle)
     owner->movement_slot=rf_movement_fall(campaign_modes,campaign_seeds.classes[cls].physics.flags,&owner->body.state.flags);
     owner->movement_orientation=campaign_identity[0];return RF_OK;
 }
-int rf_scene_npc_set_speed(uint32_t handle,int32_t requested,int32_t forced_action)
+int rf_scene_npc_set_speed(uint32_t handle,int32_t requested)
 {
     campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;
     status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
     if(!campaign_npc_movement_configs)return RF_RANGE;
-    status=rf_movement_set_mode(&owner->movement,campaign_npc_movement_configs+cls,requested,forced_action,owner->body.state.mass,0);
+    status=rf_movement_set_mode(&owner->movement,campaign_npc_movement_configs+cls,requested,owner->attachment_75c,owner->body.state.mass,0);
     if(!status)owner->body.state.coefficients[1]=owner->movement.response;return status;
 }
 int rf_scene_npc_request_motion(uint32_t handle,int32_t requested,float duration)
@@ -5084,8 +5086,9 @@ static int campaign_npc_motion_request_fixture(uint32_t frame)
     for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view) {
         campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;rf_movement_settings saved,expected;rf_motion_controller controller,wanted;float response;
         status=campaign_npc_motion_owner(campaign_npc_bodies[i].registration.handle,&owner,&cls,&pose);if(status)break;
+        if(owner->attachment_75c!=-1)return RF_FORMAT;
         saved=owner->movement;response=owner->body.state.coefficients[1];controller=pose->controller;
-        if(rf_scene_npc_set_speed(owner->registration.handle^0x10000,0,-1)!=RF_NOT_FOUND ||
+        if(rf_scene_npc_set_speed(owner->registration.handle^0x10000,0)!=RF_NOT_FOUND ||
             rf_scene_npc_request_motion(owner->registration.handle^0x10000,9,.25f)!=RF_NOT_FOUND ||
             rf_scene_npc_request_motion(owner->registration.handle,9,-1)!=RF_FORMAT ||
             memcmp(&controller,&pose->controller,sizeof(controller)) || memcmp(&saved,&owner->movement,sizeof(saved)))status=RF_FORMAT;
@@ -5093,7 +5096,8 @@ static int campaign_npc_motion_request_fixture(uint32_t frame)
         for(j=0;j<4 && !status;++j)for(k=0;k<2 && !status;++k) {
             expected=owner->movement;
             status=rf_movement_set_mode(&expected,campaign_npc_movement_configs+cls,speeds[j],k?42:-1,owner->body.state.mass,0);if(status)break;
-            status=rf_scene_npc_set_speed(owner->registration.handle,speeds[j],k?42:-1);if(status)break;
+            owner->attachment_75c=k?42:-1;
+            status=rf_scene_npc_set_speed(owner->registration.handle,speeds[j]);if(status)break;
             if(memcmp(&expected,&owner->movement,sizeof(expected)) || memcmp(&expected.response,&owner->body.state.coefficients[1],4)){status=RF_FORMAT;break;}
             ++rf_scene_npc_motion_request_test[1];rf_scene_npc_motion_request_test[3]=npc_hash_bytes(rf_scene_npc_motion_request_test[3],&owner->movement,sizeof(owner->movement));
         }
@@ -5103,7 +5107,7 @@ static int campaign_npc_motion_request_fixture(uint32_t frame)
             if(memcmp(&wanted,&pose->controller,sizeof(wanted))){status=RF_FORMAT;break;}
             ++rf_scene_npc_motion_request_test[2];rf_scene_npc_motion_request_test[3]=npc_hash_bytes(rf_scene_npc_motion_request_test[3],&pose->controller,sizeof(pose->controller));
         }
-        owner->movement=saved;owner->body.state.coefficients[1]=response;pose->controller=controller;++rf_scene_npc_motion_request_test[0];
+        owner->attachment_75c=-1;owner->movement=saved;owner->body.state.coefficients[1]=response;pose->controller=controller;++rf_scene_npc_motion_request_test[0];
     }
     if(status)++rf_scene_npc_motion_request_test[4];return status;
 }
