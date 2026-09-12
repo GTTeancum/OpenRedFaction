@@ -139,3 +139,45 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
     }
     return RF_OK;
 }
+
+void rf_packed_lightmaps_close(rf_packed_lightmaps *maps)
+{
+    uint32_t i;if(!maps)return;
+    for(i=0;i<maps->count;++i)free((void*)maps->images[i].pixels);
+    free(maps->images);memset(maps,0,sizeof(*maps));
+}
+int rf_packed_lightmaps_open(rf_packed_lightmaps *maps,const rf_level *level,uint32_t double_rgb,uint32_t budget)
+{
+    const rf_level_section *section;unsigned char header[8],rgb[1536];
+    uint32_t count,at=4,i;uint64_t records;int status;
+    if(!maps)return RF_RANGE;memset(maps,0,sizeof(*maps));
+    if(!level || level->version!=180)return RF_FORMAT;
+    if(double_rgb>1 || budget<sizeof(*maps))return RF_RANGE;
+    section=rf_level_find(level,0x1200);if(!section)return RF_NOT_FOUND;
+    if(section->size<4)return RF_FORMAT;
+    status=rf_level_read(level,section,0,header,4);if(status)return status;count=u32(header);
+    if((uint64_t)count*11>section->size-4)return RF_FORMAT;
+    records=sizeof(*maps)+(uint64_t)count*sizeof(*maps->images);if(records>budget)return RF_RANGE;
+    if(count){maps->images=calloc(count,sizeof(*maps->images));if(!maps->images)return RF_RANGE;}
+    maps->count=count;maps->allocated_bytes=(uint32_t)records;
+    for(i=0;i<count;++i) {
+        rf_lightmap_1555_view *image=maps->images+i;unsigned char *pixels;uint32_t count_pixels,decoded=0;
+        status=RF_FORMAT;if(section->size-at<8)goto fail;
+        status=rf_level_read(level,section,at,header,8);if(status)goto fail;at+=8;
+        image->width=u32(header);image->height=u32(header+4);status=RF_FORMAT;
+        if(!image->width || !image->height || image->width>4096 || image->height>4096)goto fail;
+        count_pixels=image->width*image->height;
+        if((uint64_t)count_pixels*3>section->size-at)goto fail;
+        image->pitch=image->width*2;image->bytes=count_pixels*2;status=RF_RANGE;
+        if(image->bytes>budget-maps->allocated_bytes)goto fail;
+        pixels=malloc(image->bytes);if(!pixels)goto fail;image->pixels=pixels;maps->allocated_bytes+=image->bytes;
+        while(decoded<count_pixels) {
+            uint32_t n=count_pixels-decoded;if(n>512)n=512;
+            status=rf_level_read(level,section,at,rgb,n*3);if(status)goto fail;
+            status=rf_lightmap_pack_1555(rgb,n*3,n,1,double_rgb,pixels+decoded*2,n*2,n*2);if(status)goto fail;
+            at+=n*3;decoded+=n;
+        }
+    }
+    if(at!=section->size){status=RF_FORMAT;goto fail;}return RF_OK;
+ fail:rf_packed_lightmaps_close(maps);return status;
+}

@@ -93,6 +93,38 @@ static int geometry_body_fixture_run(const body_fixture *input,rf_geometry_body_
 }
 int main(int argc,char **argv)
 {
+    if(argc==5 && !strcmp(argv[1],"--level-packed-lightmaps")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;rf_packed_lightmaps maps={0};
+        rf_geometry_lightmap_context context;uint32_t mode=(uint32_t)strtoul(argv[4],NULL,10),required,i,j,count;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,16u*1024u*1024u))return 2;
+        if(rf_packed_lightmaps_open(&maps,&level,mode,32u*1024u*1024u))return 3;
+        required=maps.allocated_bytes;rf_packed_lightmaps_close(&maps);
+        if(rf_packed_lightmaps_open(&maps,&level,mode,required-1)!=RF_RANGE || maps.images || maps.count || maps.allocated_bytes)return 4;
+        if(rf_packed_lightmaps_open(&maps,&level,mode,required) || maps.allocated_bytes!=required)return 5;
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&maps.count,4,1,stdout);fwrite(&required,4,1,stdout);
+        for(i=0;i<maps.count;++i) {
+            const rf_lightmap_1555_view *image=maps.images+i;uint32_t header[4]={image->width,image->height,image->pitch,image->bytes};
+            fwrite(header,sizeof(header),1,stdout);fwrite(image->pixels,image->bytes,1,stdout);
+        }
+        context.geometry=&geometry;context.maps=&maps;count=geometry.faces<64?geometry.faces:64;fwrite(&count,4,1,stdout);
+        for(i=0;i<count;++i) {
+            struct {uint32_t face,mapping,image;int32_t status;float point[3];uint32_t color;rf_lightmap_projection projection;} sample={0};
+            rf_geometry_face face;sample.face=i;sample.color=0x12345678;sample.image=UINT32_MAX;
+            if(rf_geometry_get_face(&geometry,i,&face) || !face.corners)return 6;sample.mapping=face.lightmap_mapping;
+            for(j=0;j<face.corners;++j) {
+                rf_geometry_corner corner;float point[3];uint32_t axis;
+                if(rf_geometry_get_corner(&geometry,i,j,&corner) || rf_geometry_vertex(&geometry,corner.vertex,point))return 7;
+                for(axis=0;axis<3;++axis)sample.point[axis]+=point[axis]/face.corners;
+            }
+            if(sample.mapping!=UINT32_MAX && (rf_geometry_lightmap(&geometry,sample.mapping,maps.count,&sample.image) ||
+                rf_geometry_lightmap_projection(&geometry,sample.mapping,&sample.projection)))return 8;
+            sample.status=rf_geometry_corpse_color(&context,i,sample.point,&sample.color);fwrite(&sample,sizeof(sample),1,stdout);
+        }
+        rf_packed_lightmaps_close(&maps);rf_packed_lightmaps_close(&maps);
+        if(maps.images || maps.count || maps.allocated_bytes)return 9;
+        rf_geometry_close(&geometry);rf_vpp_close(&archive);return ferror(stdout)?10:0;
+    }
+
     if(argc==4 && !strcmp(argv[1],"--level-lightmap-projections")) {
         rf_vpp archive;rf_level level;rf_geometry geometry;uint32_t i,j,checked=0,different=0;float largest=0;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,16u*1024u*1024u))return 2;

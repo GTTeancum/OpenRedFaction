@@ -2423,3 +2423,28 @@ mode102 calls546a00 with the query word, and others return false.546a00 uses
 capability bytes1cfcc1c/1cfcc1d and the low five query bits. Their complete
 live initialization remains unresolved. The existing preview lightmaps are
 unchanged; no authored packed upload, face-color binding or rendering claim.
+
+## Authored packed-lightmap owner and face-color binding
+
+rf_packed_lightmaps_open/close now provide a port-owned CPU resource for
+version180 saved RGB lightmaps. This is not a reconstruction of the original
+bitmap allocator or GPU owner. The caller explicitly selects double_rgb;
+packing uses the separately original/PC/NXDK-verified conversion. Each image
+uses tightly packed16-bit pixels. Accounted bytes include the owner header,
+image views and pixels, excluding allocator overhead and1536-byte stack scratch.
+Failed partial loads release their allocations; close is repeatable.
+
+rf_geometry_corpse_color resolves authored face mappings, projects the world
+point with the verified saved projection, and samples the packed image.
+Geometry and images are borrowed and must remain alive. Missing face lightmaps
+produce opaque white; invalid or out-of-buffer samples return explicit errors.
+
+verify_packed_lightmap_owner.py passes L1S1/L1S2/L1S3 in both conversion modes:
+all pixels in110 image instances match independent conversion of archive RGB,
+and384 face centroid samples match independently computed projection/colors.
+Exact-budget opens succeed; one-byte-short opens clean up and empty the owner.
+Per-level accounted bytes are754136,295104,754136 respectively. Both modes
+have the same allocation size. These are component budgets, not total campaign
+residency claims. PC and NXDK builds and19 CTests pass. The new resource owner
+is exercised on PC; native allocation, live renderer-capability selection,
+GPU texture sharing and live corpse surface dispatch/rendering remain open.

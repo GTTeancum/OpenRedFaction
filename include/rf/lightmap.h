@@ -39,4 +39,13 @@ typedef struct rf_lightmap_1555_view {
  * Out-of-buffer addresses reject unchanged rather than reproducing overreads.
  * Caller retains pixel storage. No allocation; output bytes are RGBA. */
 int rf_lightmap_sample_1555(const rf_lightmap_1555_view *view,const float uv[2],uint32_t *color);
+typedef struct rf_packed_lightmaps {
+    rf_lightmap_1555_view *images;uint32_t count,allocated_bytes;
+} rf_packed_lightmaps;
+/* Port resource owner for saved version180 RGB data, using verified packing.
+ * double_rgb is explicit renderer policy. Tight2*width pitch, no GPU object.
+ * Budget includes this header, views and pixels; excludes fixed1536-byte stack
+ * scratch and allocator overhead. Close before reuse. Failure empties result. */
+int rf_packed_lightmaps_open(rf_packed_lightmaps *maps,const rf_level *level,uint32_t double_rgb,uint32_t budget);
+void rf_packed_lightmaps_close(rf_packed_lightmaps *maps);
 #endif
