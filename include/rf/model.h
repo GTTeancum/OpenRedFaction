@@ -2,6 +2,22 @@
 #define RF_MODEL_H
 #include "rf/vpp.h"
 #include "rf/motion_file.h"
+typedef struct rf_model_release_state {uint32_t kind,payload,materials;} rf_model_release_state;
+typedef struct rf_model_release_backend {
+    void (*payload)(void *context,uint32_t kind,uint32_t token);
+    void (*materials)(void *context,uint32_t token);
+    void (*recycle)(void *context,rf_model_release_state *state);
+    void *context;
+} rf_model_release_backend;
+/*502b10/5028f0 dispatch. Kind2/3 payload destruction includes its storage free;
+ * materials releases the counted material array in reverse order and frees its
+ * storage (504480 with flags3). Payload is cleared after its callback; other
+ * kinds preserve it. Materials token is not cleared. recycle runs last and may
+ * invalidate/overwrite the owner; no later reads occur. Callback storage/owner
+ * remain valid until recycle; no allocation or complete model backend implied.
+ * Invalid arguments fail before any effect. Not repeatable after recycling. */
+int rf_model_release(rf_model_release_state *state,const rf_model_release_backend *backend);
+
 typedef struct rf_model_motion_registry {
     uint32_t *identities;uint8_t *flags;uint32_t count,capacity;
 } rf_model_motion_registry;

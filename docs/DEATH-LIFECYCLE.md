@@ -1424,3 +1424,38 @@ records. Those bodies still require execution verification and concrete port
 bindings; rf_entity_owned_pose_close alone is not the full model destructor.
 Report: artifacts/model-release-original.json. No C runtime or XEMU gameplay
 change is claimed for this original-code ownership audit.
+
+
+## Shared model release dispatch and identified material array
+
+rf_model_release now reconstructs502b10/5028f0 resource dispatch in shared C.
+Kind2/3 with a payload invokes its deleting backend, then clears the payload.
+Other kinds preserve the token. A nonnull material-array token invokes its
+release backend without clearing the token. The recycle callback runs last and
+may invalidate the entire owner; the function performs no later owner read.
+This is dispatch over resolved tokens, not yet the live model registry/backend.
+
+The earlier unidentified200-byte auxiliary array is the model material array:
+the existing54a7c0/503950 reconstruction in docs/MODEL-MATERIALS.md uses that
+record and the same80/bc/c4 array fields.54a8a0 is its destructor. The original
+harness now executes that complete body instead of substituting it. With flags
+bit0 set, nonnull arrays80/bc/c4 are freed in order; otherwise they remain owned
+elsewhere. Real57377d visits material records in reverse and frees the outer
+array cookie afterward. Both inline34-byte destructor calls execute54a620,
+which is a bare return; no shared texture-release effect occurs there.
+The three owned material arrays already have a combined-storage port adapter
+in rf_model_material_instance, while campaign textures remain level-owned.
+
+python tools/verify_model_release.py passes144 original/PC/NXDK cases. Checks
+include kind/payload gates, callback order, payload mutation followed by the
+outer clear, unchanged material token, and a recycle callback that poisons all
+owner bytes. Native memory hooks reject any owner read afterward. The original
+reference also verifies actual material frees, array order, pool counters and
+unchanged surrounding bytes; skeletal/static payload bodies remain supplied.
+The C dispatcher still requires concrete payload/material/recycle backends.
+
+Full PC and NXDK builds and all18 CTests pass. Xbox SHA256:
+9c76ab4d31f41de8f88d737e3abd2e103079be64fc019f8722c0457f6da04797.
+Report: artifacts/model-release-verification.json. Pose transfer, mutable
+material ownership and live model token resolution remain to be connected;
+this step does not add live corpse rendering or claim new XEMU gameplay.

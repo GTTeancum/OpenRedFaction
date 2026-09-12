@@ -4,6 +4,16 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_model_release(rf_model_release_state *state,const rf_model_release_backend *backend)
+{
+    if(!state || !backend || !backend->payload || !backend->materials || !backend->recycle)return RF_RANGE;
+    if((state->kind==2 || state->kind==3) && state->payload) {
+        backend->payload(backend->context,state->kind,state->payload);state->payload=0;
+    }
+    if(state->materials)backend->materials(backend->context,state->materials);
+    backend->recycle(backend->context,state);return RF_OK;
+}
+
 int rf_model_register_motion(rf_model_motion_registry *registry,uint32_t identity,
     uint8_t flag,int32_t *index,int *added)
 {
