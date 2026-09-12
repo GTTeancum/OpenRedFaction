@@ -1241,3 +1241,57 @@ through the existing sizeof-based class allocation:660/396/792 bytes for those
 levels. Full PC and NXDK builds and all17 CTests pass. No new XEMU gameplay or
 visual result is claimed. Finalization418f80 and live model/emitter bindings
 remain incomplete.
+
+
+## Full original ordinary-SP finalizer execution
+
+python tools/inspect_death_finalizer.py now executes complete418f80 through
+return in1024 controlled ordinary-SP cases. Both network globals are zero.
+This is original executable evidence for the next C reconstruction, not an
+implementation or live integration of the finalizer. Original classification,
+actor and object handle lookup, indexed attachment-list reads, player detach,
+string construction/copy/free and support orientation math execute unchanged.
+Heap allocation, damage, attachment mutations, explosion, region/probe/area,
+corpse construction, drop, burn effects and the final predicate are supplied
+boundaries. Callback traces expose those substitutions explicitly.
+
+Verified sequence and conditions:
+-48ab40 marks object7c bit2 before any remaining effects; no registry removal.
+-Type1 actors damage matching attached player actors by10000 with kind3.
+-Flag7d0 bit100000 damages a resolved parent by1000 with kind-1. A resolved
+ parent independently triggers4279d0. For each retained child, flag100000
+ clears health before427380(child,1); player detach follows child handling.
+-Class6f8 !=-1 clears action824 before419420 (death explosion/effect).
+-Flag810 bit80 skips corpse creation. Otherwise an action other than-1 or a
+ nonempty replacement corpse model is required. A valid action mapping supplies
+ the copied death-name string; no mapping leaves it empty.
+-Region flag2 suppresses creation. Movement kind10 bypasses the support probe.
+ Other kinds probe from position+(0,.5,0) to position-(0,1.5,0). In ordinary SP
+ a miss (fraction>=1) still permits creation. A hit whose handle resolves to an
+ object suppresses creation. A static hit permits it regardless of alignment.
+-Static alignment additionally needs normal.y>.5, a nonnull face, and face
+ area>1. Real40caf0/4fab70/409f40 update the three basis vectors; real417d80
+ copies the68-byte contact record into actor1b4. The fixture checks exact basis
+ and support bytes for its axis-aligned normals, including the strict boundaries.
+-Creation gets(source,name,position,basis,0,0). On success flag810 bit4000000
+ invokes4174f0 and then clears bit200 from the current flags (reread after the
+ callback). A source burn then retargets to the new corpse handle. Corpse2d0
+ receives the current source13d8 after that callback, not a cached token.
+-Successful burn transfer deliberately leaves source13d8 intact. Without a
+ transfer, the tail releases a remaining burn and clears source13d8. The final
+42a8e0 predicate executes even in ordinary SP; its multiplayer action does not.
+
+Counts:118 constructor calls,43 drops,68 burn transfers,614 burn releases,
+137 support probes,53 resolved-object rejections,11 surface alignments,
+768 attached-actor damage calls and512 explosion callbacks. The harness checks
+whole-source preservation outside the identified write locations, child health
+at callback entry, player detach byte preservation, temporary string frees,
+creation failure cleanup decisions, and post-callback flags/burn rereads.
+The probe initially sets fraction+18=1, handle+30=-1 and word+38=0; face+3c is
+not initialized there. The supplied probe fills every result byte; a future
+port query must not treat the uninitialized original bytes as semantic defaults.
+
+Report: artifacts/death-finalizer-original.json. This establishes execution
+coverage beyond the earlier static export. It does not verify the supplied
+resource effects, all attachment mutation/reentrancy scenarios, arbitrary
+surface geometry, multiplayer branches, or a C/PC/NXDK finalizer implementation.

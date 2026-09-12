@@ -19,7 +19,7 @@ Immediate open items:
 - [ ] Bind verified corpse sphere refresh and sound-follow points to live owned model poses and sounds.
 - [ ] Bind verified corpse retention/fade/update/deletion and30-slot allocation to live creation and owned resource backends; five eligible bodies trigger fading.
 - [ ] Connect native-verified burn retarget/release to live corpse inheritance after corpse ownership is reconstructed.
-- [ ] Recover finalization418f80 corpse creation/owner transfer and deferred deletion, then bind verified burn retargeting, ordinary-SP player detach and live death completion.
+- [ ] Reconstruct finalization418f80 from the full original SP execution harness, then bind corpse/burn ownership, player detach and deferred deletion to live death completion.
 - [ ] Connect the native-verified registered NPC/player death-clearance query to complete death-start and moving-NPC orientation ownership.
 - [ ] Reconstruct death-start41fdc0, bind the verified shared dying-update41ee40 to live owners and recover their player/camera handoff; dead/dying queries, death-entry state, collision-pair retirement and death-action selection are verified; live clearance integration, playback and remaining death effects are open.
 - [ ] Extend integrated player damage/pain/death audio to authored callers and recover death animation, camera, game-over and respawn ownership.
