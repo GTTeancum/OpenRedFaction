@@ -6767,3 +6767,34 @@ loader must pass its remaining text and advance by the returned byte count.
 This is a class-loader dependency, not complete40f4f0, resource ownership or
 live scene integration. No new visual or native XEMU replay is claimed.
 PC/NXDK builds and all19 CTests pass after this addition.
+
+
+Original clutter class defaults (2026-09-12)
+------------------------------------------
+verify_clutter_class_defaults.py executes40f4f0 through40f9b7 across256 synthetic
+cases, supplying tag presence, decoded strings/numbers, material index and flag
+bits. Actual default/write branches, extension extraction5143f0 and string case
+comparison execute. Required class/model names and life are published; model
+kind38 is3 for .vfx ignoring case, otherwise1 including .vcm or no extension.
+Material4c is one byte: the following three bytes remain untouched.
+
+Absent emitter lifetime34 and radius40 become-1. Sound50, use-sound54,
+explosion58, glare7c and rod80 become-1. Explosion radius scale5c and damage60
+default to1. Explosion offset64 is zeroed. All eleven damage factors9c start
+at1. Required flags74 receive the parsed mask. Optional screen e0/e4 dimensions
+default64. Six independent optional scalar fields exercise present/absent cases:
+emitter lifetime, radius, explosion radius, explosion damage, width and height.
+Checks include zero, negative and positive float values and zero dimensions;
+this records the original parser's writes, not a new restriction on table data.
+The installed table has431 class declarations and at most five emitters per
+class, but no authored radius overrides or rod-glare declarations, so installed
+content alone would not validate those default paths.
+
+This is explicitly a prefix oracle, not full40f4f0 equivalence: parsing beyond
+40f9b7 (use/light metadata and skins), resource-name resolution and complete
+class allocation/ownership remain open. String/array preconditions are supplied;
+this does not execute the table-reset driver. No shared class loader or new
+visual is claimed. Production source is unchanged, so no rebuild/native replay
+is needed for this original-executable verification step. Next implement owned
+factory-facing class input loading, using these verified defaults and the shared
+flag reader, then bind generic model/body and actual effect resources.
