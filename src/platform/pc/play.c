@@ -307,6 +307,7 @@ int main(int argc,char **argv)
              printf("PLAYER_DAMAGE_AUDIO_TEST");for(uint32_t k=0;k<18;++k)printf(" %u",rf_scene_player_damage_audio_test[k]);puts("");
              printf("PLAYER_DEATH_AUDIO_TEST");for(uint32_t k=0;k<18;++k)printf(" %u",rf_scene_player_death_audio_test[k]);puts("");}
             printf("NPC_DAMAGE_OWNERS");for(uint32_t k=0;k<3;++k)printf(" %u",rf_scene_npc_damage_owners[k]);puts("");
+            printf("COLLISION_VIEWS");for(uint32_t k=0;k<8;++k)printf(" %u",rf_scene_collision_views[k]);puts("");
             printf("NPC_DEATH_OWNERS");for(uint32_t k=0;k<3;++k)printf(" %u",rf_scene_npc_death_owners[k]);puts("");
             printf("NPC_PAIN_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_owners[k]);puts("");
             printf("NPC_PAIN_SOUND_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_sound_owners[k]);puts("");

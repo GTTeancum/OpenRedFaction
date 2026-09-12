@@ -3158,6 +3158,30 @@ int rf_scene_player_collision_view(uint32_t handle,rf_collision_pair_actor_state
     memcpy(value.forward,scene_actor_body.state.orientation+6,12);
     *result=value;return RF_OK;
 }
+uint32_t rf_scene_collision_views[8]; /* frames, player hash, NPC hash/count, player model, NPC models, status, last frame */
+static uint32_t collision_view_hash(uint32_t hash,const rf_collision_pair_actor_state *view)
+{
+    uint32_t words[16]={view->kind,view->body_flags,view->model,view->movement_mode,view->handle,
+        view->parent_handle,view->object_flags,view->trigger_filter,(uint32_t)view->allowed_count,0};
+    /* Pointer-free wire layout: actor views have no trigger handle array. */
+    memcpy(words+10,view->position,12);memcpy(words+13,view->forward,12);
+    return npc_hash_bytes(hash,words,sizeof(words));
+}
+static int campaign_collision_views_check(uint32_t frame)
+{
+    rf_collision_pair_actor_state view;uint32_t i,models=0;int status;
+    if(!frame){memset(rf_scene_collision_views,0,sizeof(rf_scene_collision_views));rf_scene_collision_views[1]=rf_scene_collision_views[2]=2166136261u;}
+    status=rf_scene_player_collision_view(campaign_player_object.handle,&view);if(status)goto done;
+    rf_scene_collision_views[1]=collision_view_hash(rf_scene_collision_views[1],&view);rf_scene_collision_views[4]=view.model;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
+        status=rf_scene_npc_collision_view(campaign_npc_bodies[i].registration.handle,&view);if(status)goto done;
+        rf_scene_collision_views[2]=collision_view_hash(rf_scene_collision_views[2],&view);
+        ++rf_scene_collision_views[3];models+=view.model!=0;
+    }
+    ++rf_scene_collision_views[0];rf_scene_collision_views[5]=models;
+done:
+    rf_scene_collision_views[6]=(uint32_t)status;rf_scene_collision_views[7]=frame;return status;
+}
 rf_movement_descriptor rf_scene_actor_movement[2]; /* authored run and fall */
 rf_entity_movement_values rf_scene_actor_movement_values;
 rf_movement_config rf_scene_actor_movement_config;
@@ -4417,6 +4441,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             }
             if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;}
         }
+        if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;}
         profile_mark(7);
         return RF_OK;
     }

@@ -83,6 +83,7 @@ int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *r
  * Uses published object position and body orientation, not the camera pose.
  * Failure preserves output. Full player model lifecycle remains separate. */
 int rf_scene_player_collision_view(uint32_t handle,rf_collision_pair_actor_state *result);
+extern uint32_t rf_scene_collision_views[8]; /* Pointer-free live actor snapshot replay evidence. */
 
 /*503400 ->501cd0(kind2)->51c390 on the currently published model pose.
  * Zero exact non-looping weights without releasing references or removing

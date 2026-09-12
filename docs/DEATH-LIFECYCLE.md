@@ -4149,3 +4149,24 @@ with real miner assets for normal completion, sink failure and archive-open
 failure; the initial test needed a valid camera placement instead of a zero
 projection. All19 CTests and PC/NXDK builds pass. Native XEMU execution of the
 new player snapshot remains unverified.
+
+
+### Native collision view replay (2026-09-12)
+
+Campaign scene frames now exercise the registered player and NPC snapshot
+bindings after physics and NPC playback. Eight telemetry words retain completed
+frames, cumulative player/NPC hashes, NPC snapshot count, current model counts,
+error and last frame. Hash input is an explicit16-word wire layout with no
+host pointers or struct padding; current kind0 views have no trigger list.
+The32-byte summary and bounded stack scratch add no heap allocations. This
+read-only check does not create collision pairs or dispatch response effects.
+
+Native report artifacts/xemu/replay-20260912-045001/report.json passes the
+180-frame door/miner death-animation replay. XEMU reports67108864 base bytes
+and zero plugged memory. Collision summary exactly matches PC:
+[180,3103947230,2575274397,14040,4294967295,78,0,179].
+All180 player and14040 NPC snapshots resolve successfully; all78 NPC model
+owners remain published in this animation-only fixture. Existing death animation
+and action audio summaries also match. All19 CTests pass. This supersedes the
+previous native-unverified notes for the snapshot adapters, without establishing
+full collision handling, actor death or moving NPC orientation ownership.
