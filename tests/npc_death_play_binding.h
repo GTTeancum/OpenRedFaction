@@ -87,6 +87,19 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
    campaign_spawn=old_spawn;owner->death.action_824=-1;owner->death.requested_83c=-1;
    ops.select=rf_scene_npc_death_select;ops.sound=NULL;ops.context=&selection;
    CHECK(rf_scene_npc_death_motion(handle,&ops)==RF_OK && owner->death.action_824>=0 && (owner->view.flags_810&8));
+   {
+    rf_foley_group group={0};int32_t samples[2]={-1,-1};rf_foley_owner old_foley=campaign_foley;uint32_t first_draw;
+    strcpy(group.name,"death-test");group.count=2;campaign_foley.groups=&group;campaign_foley.group_count=1;campaign_foley.samples=samples;campaign_foley.sample_count=2;
+    rng.value=7;reference=rng;rf_random_next(&reference,&first_draw);rf_random_next(&reference,&draw);
+    strcpy(bindings->action_sounds[5],"death-test");strcpy(bindings->action_sounds[14],"death-test");strcpy(bindings->action_sounds[15],"death-test");
+    owner->death.action_824=-1;owner->view.flags_810=0;ops.sound=rf_scene_npc_death_sound;
+    CHECK(rf_scene_npc_death_motion(handle,&ops)==RF_OK && owner->death.action_824==choices[first_draw%3] && rng.value==reference.value);
+    CHECK(rf_scene_npc_death_sound(&selection,handle,"missing")==RF_OK && rng.value==reference.value);
+    CHECK(rf_scene_npc_death_sound(&selection,handle^0x10000,"death-test")==RF_NOT_FOUND && rng.value==reference.value);
+    group.count=0;CHECK(rf_scene_npc_death_sound(&selection,handle,"death-test")==RF_FORMAT && rng.value==reference.value);
+    bindings->action_sounds[5][0]=bindings->action_sounds[14][0]=bindings->action_sounds[15][0]=0;campaign_foley=old_foley;
+   }
+
   }
   bindings->action_sounds[14][0]=0;pose->overrides=old_overrides;pose->bone_count=saved_bone_count;
   campaign_seeds.classes=saved_classes;campaign_seeds.class_count=saved_count;campaign_skeletons=saved_skeletons;

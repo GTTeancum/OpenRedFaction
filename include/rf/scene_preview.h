@@ -97,6 +97,11 @@ typedef struct rf_scene_death_selection_context {
 /* Compatible with death_motion_ops.select. Current base/unarmed pose state;
  * no allocations. Query failure preserves result/RNG, scratch may change. */
 int rf_scene_npc_death_select(void *context,uint32_t handle,int32_t *action);
+/* Compatible sound callback using the same selection context/RNG, original
+ * action position (actor+3c), unity spatial playback and no stored voice. */
+int rf_scene_npc_death_sound(void *context,uint32_t handle,const char *name);
+extern uint32_t rf_scene_npc_action_audio[9];
+
 
 
 

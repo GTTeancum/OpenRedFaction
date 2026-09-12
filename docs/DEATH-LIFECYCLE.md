@@ -3688,3 +3688,30 @@ boundary is supplied. New ownership composition runs on PC and compiles
 into NXDK, without a new live XEMU death test. Scene clearance still uses
 stationary NPC orientation; moving orientation, effective class changes,
 audio ownership and full death scheduling remain open.
+
+
+## Action sound callback for death animation (2026-09-12)
+
+Original428c90 starts motion, resolves the action's group through434da0 and,
+for a present sample, calls5056a0(sample,actor+3c,1,173c378,0). It uses actor
+position rather than the eye position used by pain playback, and stores no
+voice handle. rf_scene_npc_death_sound now implements the composed stage's
+sound callback using the same rf_scene_death_selection_context as selection.
+It resolves the declared Foley label, uses the shared group/RNG selector,
+then reuses bounded campaign sample loading and unity spatial playback at
+the registered NPC's published position. Action telemetry is separate from
+pain counters. Missing groups/samples skip playback, matching original
+absence handling; malformed owned groups fail. No cooldown is introduced.
+
+The composed registered-NPC test now uses both production callbacks: one
+RNG draw chooses a death action, the following draw selects from a two-entry
+sound group, and final RNG/action agree with that order. Its samples are-1,
+so this tests selection/order and absence handling, not waveform playback.
+Missing labels, stale handles and malformed groups are also checked.
+
+All19 CTests and both builds pass. Existing sound-dispatch verification
+passes1024 original group selections (258 linked NXDK comparisons) and256
+original wrapper dispatch cases. That shared helper evidence does not prove
+new death callback device output. Run a campaign death-animation harness
+with real declared samples and native audio capture before claiming audible
+XEMU death playback. Complete death scheduling remains open.

@@ -2750,6 +2750,24 @@ static void campaign_pain_audio_play(void *context,const float position[3],int32
     ++c->telemetry[2];
     /* Original48a9c0 does not store the returned voice in entity+808. */
 }
+uint32_t rf_scene_npc_action_audio[9];
+int rf_scene_npc_death_sound(void *context,uint32_t handle,const char *name)
+{
+    rf_scene_death_selection_context *input=context;campaign_npc_body *owner;uint32_t i;int status;int32_t group,sample;
+    campaign_pain_audio_context audio;
+    if(!input || !input->random || !name)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view)return RF_NOT_FOUND;
+    status=rf_foley_find(&campaign_foley,name,&group);if(status)return status;
+    if(group<0)return RF_OK; /* Original absent group resolves to absent sample. */
+    if(!campaign_foley.samples)return RF_RANGE;
+    audio.random=input->random;audio.status=0;audio.telemetry=rf_scene_npc_action_audio;audio.player=0;
+    ++rf_scene_npc_action_audio[0];sample=campaign_pain_audio_resolve(&audio,group);
+    if(!audio.status)campaign_pain_audio_play(&audio,owner->published,sample);
+    rf_scene_npc_action_audio[6]=input->random->value;
+    if(audio.status)++rf_scene_npc_action_audio[7];return audio.status;
+}
 int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random)
 {
     uint32_t i,cls;int status;campaign_npc_body *owner;
