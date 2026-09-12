@@ -26,6 +26,16 @@ int rf_preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
     const rf_model_clip_projection *projection,const rf_model_render_output *attributes,
     rf_preview_mesh *mesh,uint32_t capacity_bytes,uint32_t *emitted);
 
+/* Static equivalent with required batch-local stored face planes and optional
+ * batch-local RGB rows. Uses static facing/clip records, never skeletal cached
+ * world positions. Retains the diagnostic white vertex tint and depth policy. */
+int rf_preview_static_model_emit(const rf_model_geometry *geometry,uint32_t batch,
+    rf_model_render_buffers *buffers,uint16_t *indices,rf_model_clip_pool *pool,
+    const rf_model_projection *view,const rf_model_clip_planes *planes,
+    const rf_model_clip_projection *projection,const rf_model_render_output *attributes,
+    rf_preview_mesh *mesh,uint32_t capacity_bytes,uint32_t *emitted,
+    const float (*face_planes)[4],const uint8_t (*colors)[3]);
+
 /* Last world capacity error: valid, face, fan corner, used/capacity vertices,
  * geometry face count, writing pass, required vertices. Diagnostic only. */
 extern uint32_t rf_preview_failure[8];

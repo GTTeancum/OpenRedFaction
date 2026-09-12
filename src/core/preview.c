@@ -294,11 +294,12 @@ int rf_preview_update_world_staged(rf_preview_mesh *mesh,uint32_t capacity_bytes
     return world_mesh(mesh,world,movers,poses,materials,level,capacity_bytes,1,scratch);
 }
 
-int rf_preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
+static int preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
     rf_model_render_buffers *buffers,uint16_t *indices,rf_model_clip_pool *pool,
     const rf_model_projection *view,const rf_model_clip_planes *planes,
     const rf_model_clip_projection *projection,const rf_model_render_output *attributes,
-    rf_preview_mesh *mesh,uint32_t capacity_bytes,uint32_t *emitted)
+    rf_preview_mesh *mesh,uint32_t capacity_bytes,uint32_t *emitted,
+    const float (*face_planes)[4],const uint8_t (*colors)[3])
 {
     const rf_model_draw_batch *draw;rf_model_triangle_output output;uint32_t n,start;int status;
     if(!geometry || !geometry->batches || batch>=geometry->batch_count || !buffers ||
@@ -312,7 +313,10 @@ int rf_preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
     if(planes->near_depth>0) {
         status=rf_model_geometry_clip_near(geometry,batch,buffers,planes->near_depth);if(status)return status;
     }
-    status=rf_model_geometry_emit_batch(geometry,batch,buffers,view,planes,projection,attributes,0,pool,&output);
+    if(face_planes)
+        status=rf_model_geometry_emit_static_batch(geometry,batch,buffers,view,planes,projection,attributes,0,pool,&output,face_planes,colors);
+    else
+        status=rf_model_geometry_emit_batch(geometry,batch,buffers,view,planes,projection,attributes,0,pool,&output);
     if(status)return status;
     if(output.index_count%3)return RF_FORMAT;
     for(n=0;n<output.index_count;++n)if(indices[n]>=output.vertex_count)return RF_FORMAT;
@@ -333,4 +337,26 @@ int rf_preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
         mesh->count+=output.index_count;mesh->bytes=mesh->count*sizeof(rf_preview_vertex);
     }
     *emitted=output.index_count;return RF_OK;
+}
+
+int rf_preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
+    rf_model_render_buffers *buffers,uint16_t *indices,rf_model_clip_pool *pool,
+    const rf_model_projection *view,const rf_model_clip_planes *planes,
+    const rf_model_clip_projection *projection,const rf_model_render_output *attributes,
+    rf_preview_mesh *mesh,uint32_t capacity_bytes,uint32_t *emitted)
+{
+    return preview_model_emit(geometry,batch,buffers,indices,pool,view,planes,projection,
+        attributes,mesh,capacity_bytes,emitted,NULL,NULL);
+}
+
+int rf_preview_static_model_emit(const rf_model_geometry *geometry,uint32_t batch,
+    rf_model_render_buffers *buffers,uint16_t *indices,rf_model_clip_pool *pool,
+    const rf_model_projection *view,const rf_model_clip_planes *planes,
+    const rf_model_clip_projection *projection,const rf_model_render_output *attributes,
+    rf_preview_mesh *mesh,uint32_t capacity_bytes,uint32_t *emitted,
+    const float (*face_planes)[4],const uint8_t (*colors)[3])
+{
+    if(!face_planes)return RF_RANGE;
+    return preview_model_emit(geometry,batch,buffers,indices,pool,view,planes,projection,
+        attributes,mesh,capacity_bytes,emitted,face_planes,colors);
 }
