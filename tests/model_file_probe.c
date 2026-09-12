@@ -14,6 +14,17 @@ static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 }
 int main(int argc, char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--static-bounds")) {
+        uint32_t count;float rows[128][4],out[4];int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&count,4,1,stdin)==1) {
+            if(count>128 || fread(rows,16,count,stdin)!=count)return 2;
+            memset(out,0xa5,sizeof(out));status=rf_model_static_bound_sphere(rows,count,out);
+            fwrite(&status,4,1,stdout);fwrite(out,16,1,stdout);
+        }
+        return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--creation-spheres")) {
         uint32_t h[4];rf_model_collision_sphere model[16];rf_physics_sphere spheres[16];float matrices[4][12];int status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
@@ -63,10 +74,10 @@ int main(int argc, char **argv)
     rf_model_file model;
     uint32_t i;
     int result;
-    if(argc==4 && !strcmp(argv[1],"--bound-sphere")) {
+    if(argc==4 && (!strcmp(argv[1],"--bound-sphere") || !strcmp(argv[1],"--static-bound"))) {
         float values[5];
         if(rf_vpp_open(&archive,argv[2]) || rf_model_file_open(&model,&archive,argv[3]))return 2;
-        result=rf_model_file_bound_sphere(&model,values);
+        result=!strcmp(argv[1],"--static-bound")?rf_model_file_static_bound_sphere(&model,values):rf_model_file_bound_sphere(&model,values);
         if(!result)result=rf_model_origin_radius(values,values+4);
         rf_vpp_close(&archive);if(result)return 3;
         _setmode(_fileno(stdout),_O_BINARY);return fwrite(values,sizeof(values),1,stdout)==1?0:4;

@@ -682,19 +682,60 @@ int rf_model_origin_radius(const float sphere[4],float *radius)
     value=sqrt((x*x+y*y)+z*z)+(double)sphere[3];out=(float)value;
     if(!isfinite(out))return RF_RANGE;*radius=out;return RF_OK;
 }
-int rf_model_file_bound_sphere(const rf_model_file *model,float sphere[4])
+static int model_submesh_bound(const rf_model_file *model,const rf_model_section *section,float value[4])
 {
-    uint32_t i,lods,offset;unsigned char header[8];float value[4],radius;int status;
-    if(!model || !model->archive || !sphere || model->section_count>RF_MODEL_MAX_SECTIONS)return RF_RANGE;
-    for(i=0;i<model->section_count;i++)if(model->sections[i].type==0x5355424d) {
-        const rf_model_section *section=model->sections+i;
-        if(section->size<56 || section->offset>model->entry.size || section->size>model->entry.size-section->offset)return RF_FORMAT;
-        status=rf_vpp_read(model->archive,&model->entry,section->offset+48,header,8);if(status)return status;
-        memcpy(&lods,header+4,4);if(lods<1 || lods>3)return RF_FORMAT;
-        offset=56+lods*4;if(offset>section->size || section->size-offset<16)return RF_FORMAT;
-        status=rf_vpp_read(model->archive,&model->entry,section->offset+offset,value,16);if(status)return status;
-        if(rf_model_origin_radius(value,&radius))return RF_FORMAT;
-        memcpy(sphere,value,16);return RF_OK;
+    uint32_t lods,offset;unsigned char header[8];float radius;int status;
+    if(section->size<56 || section->offset>model->entry.size || section->size>model->entry.size-section->offset)return RF_FORMAT;
+    status=rf_vpp_read(model->archive,&model->entry,section->offset+48,header,8);if(status)return status;
+    memcpy(&lods,header+4,4);if(lods<1 || lods>3)return RF_FORMAT;
+    offset=56+lods*4;if(offset>section->size || section->size-offset<16)return RF_FORMAT;
+    status=rf_vpp_read(model->archive,&model->entry,section->offset+offset,value,16);if(status)return status;
+    return rf_model_origin_radius(value,&radius)?RF_FORMAT:RF_OK;
+}
+static int model_file_bound_fetch(void *context,uint32_t index,float value[4])
+{
+    const rf_model_file *model=context;uint32_t i;
+    for(i=0;i<model->section_count;++i)if(model->sections[i].type==0x5355424d) {
+        if(!index)return model_submesh_bound(model,model->sections+i,value);--index;
     }
     return RF_NOT_FOUND;
+}
+int rf_model_file_bound_sphere(const rf_model_file *model,float sphere[4])
+{
+    float value[4];int status;
+    if(!model || !model->archive || !sphere || model->section_count>RF_MODEL_MAX_SECTIONS)return RF_RANGE;
+    status=model_file_bound_fetch((void *)model,0,value);if(!status)memcpy(sphere,value,16);return status;
+}
+static int model_static_bound(int (*fetch)(void *,uint32_t,float[4]),void *context,uint32_t count,float sphere[4])
+{
+    float value[4]={0},row[4],difference[3],scale,distance,candidate;uint32_t i,j;int status;
+    if(!sphere || !count || count>INT32_MAX)return RF_RANGE;
+    for(i=0;i<count;++i) {
+        status=fetch(context,i,row);if(status)return status;
+        for(j=0;j<4;++j)if(!isfinite(row[j]))return RF_RANGE;
+        if(row[3]<0)return RF_RANGE;
+        for(j=0;j<3;++j){value[j]=(float)((double)value[j]+row[j]);if(!isfinite(value[j]))return RF_RANGE;}
+    }
+    scale=(float)(1.0/(double)(int32_t)count);
+    for(j=0;j<3;++j)value[j]=(float)((double)value[j]*scale);
+    for(i=0;i<count;++i) {
+        status=fetch(context,i,row);if(status)return status;
+        for(j=0;j<3;++j)difference[j]=(float)((double)value[j]-row[j]);
+        distance=(float)sqrt(((double)difference[0]*difference[0]+(double)difference[1]*difference[1])+(double)difference[2]*difference[2]);
+        candidate=(float)((double)distance+row[3]);if(!isfinite(candidate))return RF_RANGE;
+        if(candidate>value[3])value[3]=candidate;
+    }
+    memcpy(sphere,value,16);return RF_OK;
+}
+static int model_array_bound_fetch(void *context,uint32_t index,float value[4])
+{const float (*rows)[4]=context;memcpy(value,rows[index],16);return RF_OK;}
+int rf_model_static_bound_sphere(const float (*submeshes)[4],uint32_t count,float sphere[4])
+{
+    if(!submeshes)return RF_RANGE;
+    return model_static_bound(model_array_bound_fetch,(void *)submeshes,count,sphere);
+}
+int rf_model_file_static_bound_sphere(const rf_model_file *model,float sphere[4])
+{
+    if(!model || !model->archive || model->section_count>RF_MODEL_MAX_SECTIONS)return RF_RANGE;
+    return model_static_bound(model_file_bound_fetch,(void *)model,model->submeshes,sphere);
 }

@@ -48,6 +48,15 @@ int rf_model_file_open(rf_model_file *model, rf_vpp *archive, const char *name);
 /* First animated submesh sphere (5032d0/501610/504510). Does not combine
  * submeshes or collision spheres. Bounded16-byte read; errors preserve output. */
 int rf_model_file_bound_sphere(const rf_model_file *model,float sphere[4]);
+/*53c36d whole static model: mean of submesh centers, then maximum distance
+ * from that mean plus each submesh radius, with original float stores.
+ * Nonempty finite nonnegative spheres required; errors preserve result. */
+int rf_model_static_bound_sphere(const float (*submeshes)[4],uint32_t count,float sphere[4]);
+/* Stream both aggregation passes without retaining a submesh array. This is
+ * the static wrapper-kind1 whole-model query; animated first-submesh behavior
+ * remains rf_model_file_bound_sphere. No geometry/resource allocation. */
+int rf_model_file_static_bound_sphere(const rf_model_file *model,float sphere[4]);
+
 /*48a0b2..48a0c0: distance of sphere center from origin plus its radius.
  * Finite center and nonnegative radius required; errors preserve result. */
 int rf_model_origin_radius(const float sphere[4],float *radius);
