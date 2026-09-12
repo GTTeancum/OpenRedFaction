@@ -741,3 +741,25 @@ int rf_corpse_source_effects(rf_corpse_surface_pool *pool,const rf_corpse_surfac
     if(*flags&0x10000000u)return rf_corpse_surface_create(pool,source,enabled,"spine",8,.5f,backend);
     return RF_OK;
 }
+
+int rf_corpse_surface_reset(rf_corpse_surface_pool *pool,rf_corpse_surface_effect slots[RF_CORPSE_SURFACE_CAPACITY])
+{
+    uint32_t i;if(!pool || !slots)return RF_RANGE;
+    for(i=0;i<RF_CORPSE_SURFACE_CAPACITY;++i) {
+        slots[i].next=slots+(i+1)%RF_CORPSE_SURFACE_CAPACITY;
+        slots[i].previous=slots+(i+RF_CORPSE_SURFACE_CAPACITY-1)%RF_CORPSE_SURFACE_CAPACITY;
+    }
+    pool->free=slots;pool->active=NULL;pool->capacity=RF_CORPSE_SURFACE_CAPACITY;return RF_OK;
+}
+int rf_corpse_surface_tick(rf_corpse_surface_pool *pool,float dt)
+{
+    rf_corpse_surface_effect *node;uint32_t count=0;
+    if(!pool || !isfinite(dt) || dt<0)return RF_RANGE;
+    node=pool->active;
+    while(node) {
+        if(count++>=pool->capacity)return RF_RANGE;
+        node->elapsed=(float)((double)node->elapsed+dt);
+        node=node->next;if(node==pool->active)break;
+    }
+    return RF_OK;
+}

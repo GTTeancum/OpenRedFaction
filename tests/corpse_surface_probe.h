@@ -78,3 +78,23 @@ static int corpse_surface_guards(void)
     if(rf_corpse_surface_create(&pool,&source,1,"eye",0,.25f,&backend)!=RF_RANGE)return 8;
     return 0;
 }
+
+static int corpse_surface_pool_probe(void)
+{
+    struct {uint32_t count;float dt;unsigned char payload[8][76];} input;
+    while(fread(&input,sizeof(input),1,stdin)==1) {
+        rf_corpse_surface_effect nodes[8];rf_corpse_surface_pool pool;uint32_t i,out[18];
+        if(input.count>8)return 2;
+        memset(nodes,0,sizeof(nodes));for(i=0;i<8;++i)memcpy(nodes+i,input.payload[i],76);
+        if(rf_corpse_surface_reset(&pool,nodes))return 3;
+        out[0]=(uint32_t)(pool.free-nodes)+1;out[1]=pool.active?99:0;
+        for(i=0;i<8;++i){out[2+i*2]=(uint32_t)(nodes[i].next-nodes)+1;out[3+i*2]=(uint32_t)(nodes[i].previous-nodes)+1;}
+        fwrite(out,sizeof(out),1,stdout);
+        for(i=0;i<8;++i)fwrite(nodes+i,76,1,stdout);
+        pool.active=input.count?nodes:NULL;
+        for(i=0;i<input.count;++i){nodes[i].next=nodes+(i+1)%input.count;nodes[i].previous=nodes+(i+input.count-1)%input.count;}
+        if(rf_corpse_surface_tick(&pool,input.dt))return 4;
+        for(i=0;i<8;++i)fwrite(nodes+i,76,1,stdout);
+    }
+    return ferror(stdin)||ferror(stdout)?5:0;
+}

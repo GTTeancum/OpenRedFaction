@@ -2448,3 +2448,32 @@ have the same allocation size. These are component budgets, not total campaign
 residency claims. PC and NXDK builds and19 CTests pass. The new resource owner
 is exercised on PC; native allocation, live renderer-capability selection,
 GPU texture sharing and live corpse surface dispatch/rendering remain open.
+
+## Eight-slot surface pool reset and elapsed ticking
+
+Original42dbb0 rebuilds the free circle from eight84-byte slots at62f490,
+ending before62f730, and clears active62f764. Head62f488 points to the
+first slot; next links ascend slot order, previous links descend and wrap.
+Only links change: all76 payload bytes per slot survive reset. The static
+constructor42dab0 also declares eight84-byte elements. The shared
+rf_corpse_surface_reset now uses exactly eight caller-owned slots.
+
+Original42e190 traverses the active circle and adds frame delta5a4014 to
+each elapsed float, storing binary32. It does not change extent, expire
+entries or return them to the free list. rf_corpse_surface_tick preserves
+this separation, accepting finite nonnegative caller delta and valid bounded
+rings. The port bounds traversal by capacity; errors after a malformed
+traversal are not transactional. Payload elapsed values must be finite.
+
+verify_corpse_surface_pool.py runs both complete original functions without
+hooks against PC and compiled NXDK implementations:288 cases verify exact
+reset ring order, retained payloads and elapsed-only updates for active
+counts0..8, large ages and tiny/zero/large deltas. PC/NXDK builds and19 CTests
+pass. This is instruction-level native verification, not an XEMU gameplay run.
+
+Disassembly leads for the next integration:42e140 submits only effects whose
+descriptor44 matches the requested room, through4d3560 with callback42df20.
+42df20 computes extent during drawing using sine before growth_time, then
+max_extent, and submits a four-vertex polygon through517110. Exact vector
+construction, texture/render state and live scheduling remain unverified.
+Do not add assumed age-based expiration to the verified tick function.

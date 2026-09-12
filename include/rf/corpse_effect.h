@@ -12,6 +12,14 @@ typedef struct rf_corpse_surface_pool {
     rf_corpse_surface_effect *free,*active;
     uint32_t capacity;
 } rf_corpse_surface_pool;
+/* Original42dbb0 resets exactly eight slots, preserving their payloads.
+ * Storage stays caller-owned; reset discards both previous rings. */
+#define RF_CORPSE_SURFACE_CAPACITY 8u
+int rf_corpse_surface_reset(rf_corpse_surface_pool *,rf_corpse_surface_effect slots[RF_CORPSE_SURFACE_CAPACITY]);
+/* Original42e190 advances elapsed only; no expiry or extent update.
+ * Caller supplies valid bounded rings and finite elapsed values. */
+int rf_corpse_surface_tick(rf_corpse_surface_pool *,float dt);
+
 typedef struct rf_corpse_surface_source {
     uint32_t descriptor,model;
     float position[3],basis[9];
