@@ -662,10 +662,19 @@ static int corpse_authored_move(void *context,rf_corpse_item_view *view,const fl
     if(s->fail)return s->fail;
     return rf_scene_corpse_item_position(&s->pose,point);
 }
+static void corpse_authored_create_effect(void *context,uint32_t operation,rf_corpse_create_source *source,rf_corpse *corpse,const char *name)
+{
+    corpse_scene_fixture *f=context;float pending[3]={0};(void)source;(void)name;++f->effects;
+    if(operation==RF_CORPSE_CREATE_POSE) {
+        if(rf_scene_corpse_evaluate(corpse,pending) || rf_scene_corpse_pose((rf_corpse_owned*)corpse))++f->errors;
+    } else if(operation!=RF_CORPSE_CREATE_COLLISION && operation!=RF_CORPSE_CREATE_SOURCE_EFFECTS)++f->errors;
+    /* Collision/source effects are observed, not implemented by this fixture. */
+}
 /* Opt-in authored-asset harness; ordinary CTest fixtures require no game data. */
 static int corpse_authored_check(char **argv)
 {
     rf_vpp levels={0},tables={0},meshes={0},motions={0};rf_level level={0};
+    static rf_corpse_owners pool;static rf_object_registry registry;
     uint32_t actor,i,seen[256]={0},tested=0,frames=0,changed=0;
     CHECK(rf_vpp_open(&levels,argv[2])==RF_OK && rf_vpp_open(&tables,argv[3])==RF_OK);
     CHECK(rf_vpp_open(&meshes,argv[4])==RF_OK && rf_vpp_open(&motions,argv[5])==RF_OK);
@@ -687,30 +696,50 @@ static int corpse_authored_check(char **argv)
     CHECK(campaign_npc_motion_data && campaign_npc_motion_sizes);
     campaign_npc_motion_bytes=campaign_npc_motion_count*(sizeof(void*)+sizeof(uint32_t));
     for(actor=0;actor<campaign_poses.count;++actor) {
-        rf_entity_pose *source=campaign_poses.items+actor,*pose;rf_corpse_owned owned={0};rf_corpse *corpse=&owned.corpse;
+        rf_entity_pose *source=campaign_poses.items+actor,*pose;rf_corpse_owned *owned;rf_corpse *corpse=NULL;
         uint32_t skeleton=source->skeleton,cls=campaign_seeds.items[actor].class_index,previous=0,model_changed=0;
         int32_t death;float pending[3]={0},point[3];double duration;
+        corpse_scene_fixture fixture={0};rf_corpse_create_source create_source={0};rf_corpse_create_request request={0};
+        rf_physics_sphere scratch[8];rf_corpse_list_link object_head,corpse_head;uint32_t object_count=0,corpse_count=0;
+        rf_corpse_create_ownership ownership={&pool,&registry,&object_head,&object_count,9,.25f,.5f,2};
+        rf_corpse_create_backend backend={NULL,csf_load,rf_scene_corpse_motion,corpse_authored_create_effect,csf_emitter,&fixture};
+        rf_corpse_delete_backend deletion={csf_delete,csf_sound,&fixture};
         rf_entity_physics_config config={0};rf_physics_sphere class_spheres[8]={{0}};uint32_t class_sphere_count;
         if(skeleton==UINT32_MAX)continue;CHECK(skeleton<256);
         death=campaign_motion_catalog.mappings[cls].actions[5];if(death<0 || seen[skeleton])continue;seen[skeleton]=1;
         CHECK(rf_entity_physics_config_load(&tables,campaign_seeds.records.items[actor].record.class_name,1024*1024,&config)==RF_OK);
         CHECK(rf_entity_class_spheres_build(&campaign_render_models.items[skeleton].file,source->matrices,source->bone_count,
             &config,class_spheres,&class_sphere_count)==RF_OK);
-        corpse->update.model=actor+1;corpse->update.basis[0]=corpse->update.basis[4]=corpse->update.basis[8]=1;
-        corpse->update.position[1]=10;corpse->attachment_index=0;
-        corpse->update.value_2b0=corpse->update.class_value=campaign_seeds.classes[cls].corpse.body_temperature;
-        corpse->update.item_2cc=-1;corpse->update.motion_2b8=-1;rf_timer_clear(&corpse->update.emitter_deadline_2ac);
+        CHECK(!campaign_seeds.classes[cls].corpse.emitter[0] && !campaign_seeds.classes[cls].corpse.model[0]);
+        memset(&pool,0,sizeof(pool));rf_corpse_owners_init(&pool,sizeof(pool)+4096);rf_object_registry_init(&registry);
+        object_head.next=object_head.previous=&object_head;corpse_head.next=corpse_head.previous=&corpse_head;
+        create_source.model=actor+1;create_source.flags_814=2;create_source.emitter_kind=-1;create_source.motion_a44=-1;
+        create_source.attachment_index=0;create_source.word_8c=0x41200000;create_source.word_98=0x40400000;create_source.physics_radius=1;
+        create_source.spheres=class_spheres;create_source.sphere_count=class_sphere_count;
+        {
+            rf_corpse_create_source before=create_source;
+            CHECK(rf_scene_corpse_class_source(campaign_seeds.class_count,&create_source)==RF_RANGE && !memcmp(&before,&create_source,sizeof(before)));
+        }
+        CHECK(rf_scene_corpse_class_source(cls,&create_source)==RF_OK && create_source.motions[5]==death);
+        CHECK(create_source.model==actor+1 && create_source.flags_814==2 && create_source.emitter_kind==-1 && create_source.spheres==class_spheres);
+        request.death_name="death_generic";request.position[1]=10;request.basis[0]=request.basis[4]=request.basis[8]=1;
+        request.sphere_scratch=scratch;request.sphere_capacity=8;
         CHECK(campaign_npc_motion_require(skeleton,(uint32_t)death)==RF_OK);
         CHECK(rf_motion_start(&source->playback,campaign_playback_resources.models[skeleton].resources,
             campaign_playback_resources.models[skeleton].count,death,1,1)==RF_OK);
-        CHECK(rf_scene_model_detach(actor,corpse->update.position,corpse->update.basis,9)==RF_OK);
+        CHECK(rf_corpse_owned_create_bound(&ownership,&create_source,&request,&corpse_head,&corpse_count,&backend,&corpse,
+            rf_scene_corpse_bind_model,&ownership.room)==RF_OK && corpse && !fixture.errors);
+        owned=(rf_corpse_owned*)corpse;CHECK(corpse_count==1 && object_count==1 && owned->body.spheres.count==class_sphere_count);
+        CHECK(corpse->update.class_value==campaign_seeds.classes[cls].corpse.body_temperature);
+        /* Optional item publication is outside this fixture. */
+        corpse->update.item_2cc=-1;
         CHECK(campaign_model_pose(actor,&pose)==RF_OK && pose && source->skeleton==UINT32_MAX);
         memset(source->matrices,0xdd,source->bone_count*48);
         CHECK(rf_scene_corpse_reset(corpse)==RF_OK && rf_scene_corpse_play(corpse,death)==RF_OK);
         CHECK(rf_scene_corpse_duration(corpse,death,&duration)==RF_OK && duration>0);
         for(i=0;i<120;++i) {
             uint32_t hash;
-            CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,(int32_t)i*33,NULL,0,pending,NULL)==RF_OK);
+            CHECK(rf_scene_corpse_update(owned,1.0f/30.0f,(int32_t)i*33,NULL,0,pending,NULL)==RF_OK);
             CHECK(rf_scene_corpse_evaluate(corpse,pending)==RF_OK);
             CHECK(rf_scene_corpse_follow_point(corpse,point)==RF_OK && isfinite(point[0]) && isfinite(point[1]) && isfinite(point[2]));
             hash=npc_hash_bytes(2166136261u,pose->matrices,pose->bone_count*48);
@@ -721,25 +750,24 @@ static int corpse_authored_check(char **argv)
             rf_corpse_emitter_link emitter={NULL,&enabled};corpse_authored_item sound={0};
             rf_scene_corpse_item_ops ops={corpse_authored_lookup,corpse_authored_move,&sound};
             sound.pose.radius=.5f;sound.pose.velocity[0]=17;sound.pose.base_position[1]=19;
-            memcpy(spheres,class_spheres,sizeof(spheres));owned.body.spheres.items=spheres;owned.body.spheres.count=class_sphere_count;
-            CHECK(owned.body.spheres.count>0 && owned.body.spheres.count<=8);
-            memcpy(owned.body.state.position,corpse->update.position,12);
+            memcpy(spheres,owned->body.spheres.items,class_sphere_count*sizeof(*spheres));
+            CHECK(owned->body.spheres.count>0 && owned->body.spheres.count<=8);
+            memcpy(owned->body.state.position,corpse->update.position,12);
             corpse->update.motion_2b8=death;corpse->update.fade.flags_29c=8|1;
             corpse->update.fade.fade_298=.01f;corpse->update.emitter_deadline_2ac=100;
             corpse->update.item_2cc=7;
-            CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,4000,&emitter,1,pending,&ops)==RF_OK);
+            CHECK(rf_scene_corpse_update(owned,1.0f/30.0f,4000,&emitter,1,pending,&ops)==RF_OK);
             CHECK(!(corpse->update.fade.flags_29c&8) && (corpse->update.fade.object_flags_7c&2));
             CHECK(enabled==0xaabbcc00 && corpse->update.emitter_deadline_2ac==-1);
-            CHECK(sound.lookups==1 && sound.moves==1 && owned.body.state.bounds.radius>0);
-            CHECK(corpse->model_radius==owned.body.state.bounds.radius && corpse->physics_radius==corpse->model_radius);
-            for(visits=0;visits<owned.body.spheres.count;++visits)CHECK(spheres[visits].radius==class_spheres[visits].radius);
+            CHECK(sound.lookups==1 && sound.moves==1 && owned->body.state.bounds.radius>0);
+            CHECK(corpse->model_radius==owned->body.state.bounds.radius && corpse->physics_radius==corpse->model_radius);
+            for(visits=0;visits<owned->body.spheres.count;++visits)CHECK(owned->body.spheres.items[visits].radius==class_spheres[visits].radius);
             CHECK(rf_scene_corpse_follow_point(corpse,point)==RF_OK && !memcmp(point,sound.view.position,12));
             CHECK(!memcmp(sound.pose.position,point,12) && !memcmp(sound.pose.public_position,point,12) && !memcmp(sound.pose.pending,point,12));
             CHECK((sound.pose.flags&0x4000000) && sound.pose.velocity[0]==17 && sound.pose.base_position[1]==19);
             for(visits=0;visits<3;++visits)CHECK(sound.pose.minimum[visits]==point[visits]-.5f && sound.pose.maximum[visits]==point[visits]+.5f);
-            sound.fail=RF_IO;CHECK(rf_scene_corpse_update(&owned,0,4001,NULL,0,pending,&ops)==RF_IO);
+            sound.fail=RF_IO;CHECK(rf_scene_corpse_update(owned,0,4001,NULL,0,pending,&ops)==RF_IO);
             CHECK(sound.moves==2 && sound.lookups==2);
-            owned.body.spheres.items=NULL;owned.body.spheres.count=0;
             printf("CORPSE_CLASS_SPHERES %s %u",campaign_seeds.records.items[actor].record.class_name,class_sphere_count);
             for(visits=0;visits<class_sphere_count;++visits)printf(" %.6f",class_spheres[visits].radius);printf("\n");
             printf("CORPSE_TRANSITION %s %u %u %.6f\n",campaign_skeletons.items[skeleton].model,sound.lookups,sound.moves,corpse->model_radius);
@@ -747,10 +775,10 @@ static int corpse_authored_check(char **argv)
         {
             uint32_t generation=pose->playback.generation;
             corpse->update.item_2cc=7;
-            CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,4000,NULL,0,pending,NULL)==RF_NOT_FOUND);
+            CHECK(rf_scene_corpse_update(owned,1.0f/30.0f,4000,NULL,0,pending,NULL)==RF_NOT_FOUND);
             CHECK(pose->playback.generation==generation);
             corpse->update.fade.health_34=-1;
-            CHECK(rf_scene_corpse_update(&owned,1.0f/30.0f,4000,NULL,0,pending,NULL)==RF_OK);
+            CHECK(rf_scene_corpse_update(owned,1.0f/30.0f,4000,NULL,0,pending,NULL)==RF_OK);
             CHECK((corpse->update.fade.object_flags_7c&2) && pose->playback.generation==generation);
         }
         if(campaign_seeds.classes[cls].corpse.body_temperature>0)
@@ -758,7 +786,9 @@ static int corpse_authored_check(char **argv)
         printf("CORPSE_TEMPERATURE %s %.6f %.6f\n",campaign_seeds.records.items[actor].record.class_name,
             campaign_seeds.classes[cls].corpse.body_temperature,corpse->update.value_2b0);
         CHECK(model_changed);printf("CORPSE_AUTHORED %s %u %d %.6f %u %u\n",campaign_skeletons.items[skeleton].model,pose->bone_count,death,duration,model_changed,previous);
-        CHECK(rf_scene_model_retire(actor)==RF_OK);++tested;
+        CHECK(rf_corpse_owned_delete(&pool,0,&registry,&corpse_count,&object_count,4,&deletion)==RF_OK);
+        CHECK(!fixture.errors && fixture.deleted==1 && !corpse_count && !object_count && !pool.pool.live && pool.allocated_bytes==sizeof(pool));
+        ++tested;
     }
     CHECK(tested && changed);campaign_models_close();CHECK(!campaign_model_owned_bytes && !campaign_model_owned_count && !rf_scene_npc_models[3]);
     for(i=0;i<campaign_playback_resources.resource_count;++i)CHECK(!campaign_playback_resources.resources[i].references);

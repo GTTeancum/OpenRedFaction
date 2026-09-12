@@ -628,6 +628,21 @@ int32_t rf_scene_corpse_motion(void *context,rf_corpse_create_source *source,con
        campaign_motion_catalog.mappings[cls].weapon!=-1)return -2;
     return rf_entity_declared_action_lookup(campaign_base_motions.classes[cls].action_declarations,source->model,source->model_kind,name);
 }
+/* Populate only retained class inputs to416940. Actor fields and resolved
+ * emitter index remain caller-owned; borrowed class strings require level life. */
+int rf_scene_corpse_class_source(uint32_t cls,rf_corpse_create_source *source)
+{
+    const rf_entity_seed_class *definition;const rf_entity_motion_mapping *mapping;
+    if(!source || !campaign_seeds.classes || cls>=campaign_seeds.class_count ||
+       !campaign_motion_catalog.mappings || cls>=campaign_motion_catalog.class_count)return RF_RANGE;
+    definition=campaign_seeds.classes+cls;mapping=campaign_motion_catalog.mappings+cls;
+    if(mapping->weapon!=-1)return RF_FORMAT;
+    source->class_index=cls;source->model_kind=definition->model_kind;
+    source->class_flags_724=definition->physics.flags;source->class_flags_728=definition->physics.flags2;
+    source->class_health=definition->vitals.health;source->class_value=definition->corpse.body_temperature;
+    source->replacement_model=definition->corpse.model;source->emitter_lifetime=definition->corpse.emitter_lifetime;
+    memcpy(source->motions,mapping->actions,sizeof(source->motions));return RF_OK;
+}
 /*4164c0 using the transferred model's cached matrices and the corpse's owned
  * physics spheres. Source class radii and extra physics spheres are retained. */
 int rf_scene_corpse_pose(rf_corpse_owned *corpse)

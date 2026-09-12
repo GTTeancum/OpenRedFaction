@@ -2113,3 +2113,29 @@ metadata. Both env_guard and miner1 start at90F and finish at89.268402F after
 120 ordinary ticks plus eligible transition/failure-path updates. Both builds,
 18 CTests and720 authored frames pass. Full live constructor-source population
 remains open; infrared rendering is not implemented by this change.
+
+
+## Authored owned construction through retained class inputs
+
+rf_scene_corpse_class_source populates only retained class fields: class/model
+kind,724/728 flags, health, body temperature, replacement model string, emitter
+lifetime and base model-local action IDs. Actor fields and resolved emitter
+index remain caller-owned. Invalid class or weapon-switched mapping rejects
+before mutation. Borrowed model strings require the class owner to stay alive.
+
+The authored harness now calls rf_corpse_owned_create_bound with the actual
+scene model handoff, action-name lookup and evaluated sphere refresh. It owns
+body sphere copies and names through the real pool, registry and sentinel
+lists. After120 update frames and transition tests, real owned deletion retires
+the transferred model and frees names/body/slot. Registry/list counts and
+allocated bytes return to baseline; all motion references return to zero.
+
+Six constructor/update/destructor cycles pass across L1S1/L1S2/L1S3,720 frames
+total. Clip residency is now16224/16136/16184 bytes: constructor pose demand
+loads retained startup clips too. Both builds and18 CTests pass.
+
+Dynamic actor words/position, material coefficients and optional item absence
+remain explicit fixture inputs. Collision/source effects are recorded only;
+replacement/emitter requests are rejected by this test, with selected authored
+classes confirmed to request neither. No live death dispatch, actual attachment
+publication, gameplay physics, rendering or XEMU corpse is claimed.
