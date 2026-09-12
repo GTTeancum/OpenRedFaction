@@ -471,6 +471,42 @@ int rf_model_file_batch_material(const rf_model_file *model,uint32_t lod_index,u
     flattened+=value;if(flattened>UINT32_MAX)return RF_RANGE;
     *material=(uint32_t)flattened;return RF_OK;
 }
+void rf_model_collision_geometry_close(rf_model_collision_geometry *g)
+{
+    if(!g)return;free((void *)g->view.batches);free(g->data);memset(g,0,sizeof(*g));
+}
+int rf_model_collision_geometry_open(rf_model_collision_geometry *g,const rf_model_file *model,uint32_t index,uint32_t budget)
+{
+    rf_model_collision_geometry next={0};const rf_model_lod *lod;rf_collision_model_batch_view *views;
+    uint64_t bytes;uint32_t i,j,k;int status;
+    if(!g || !model || !model->archive || index>=model->lod_count || index>=RF_MODEL_MAX_LODS || g->data || g->view.batches || g->accounted_bytes)return RF_RANGE;
+    lod=model->lods+index;if(!(lod->flags&32u))return RF_NOT_FOUND;
+    if(lod->batch_count>65535 || (uint64_t)lod->offset+lod->size>model->entry.size)return RF_FORMAT;
+    bytes=sizeof(next)+(uint64_t)lod->size+(uint64_t)lod->batch_count*sizeof(*views);
+    if(bytes>budget || bytes>SIZE_MAX)return RF_RANGE;
+    next.accounted_bytes=(uint32_t)bytes;next.view.flags=lod->flags;next.view.batch_count=(uint16_t)lod->batch_count;
+    views=lod->batch_count?calloc(lod->batch_count,sizeof(*views)):NULL;next.view.batches=views;
+    next.data=lod->size?malloc(lod->size):NULL;
+    if((lod->batch_count && !views) || (lod->size && !next.data)){status=RF_IO;goto fail;}
+    if(lod->size){status=rf_vpp_read(model->archive,&model->entry,lod->offset,next.data,lod->size);if(status)goto fail;}
+    for(i=0;i<lod->batch_count;++i) {
+        rf_model_batch batch;rf_collision_model_batch_view *view=views+i;unsigned char *data=next.data;
+        status=rf_model_file_batch(model,index,i,&batch);if(status)goto fail;
+        if(batch.sizes[0]<(uint64_t)batch.vertices*12 || batch.sizes[3]<(uint64_t)batch.triangles*8 || batch.sizes[4]<(uint64_t)batch.triangles*16){status=RF_FORMAT;goto fail;}
+        view->vertices=batch.vertices?(const float (*)[3])(data+batch.offsets[0]-lod->offset):NULL;
+        view->planes=batch.triangles?(const float (*)[4])(data+batch.offsets[4]-lod->offset):NULL;
+        view->triangles=batch.triangles?(const rf_collision_model_triangle_record *)(data+batch.offsets[3]-lod->offset):NULL;
+        view->triangle_count=(uint16_t)batch.triangles;view->token_base=batch.offsets[3];
+        for(j=0;j<batch.vertices;++j)for(k=0;k<3;++k)if(!isfinite(view->vertices[j][k])){status=RF_FORMAT;goto fail;}
+        for(j=0;j<batch.triangles;++j)for(k=0;k<3;++k) {
+            int32_t n=view->triangles[j].indices[k];if(n<0 || (uint32_t)n>=batch.vertices){status=RF_FORMAT;goto fail;}
+        }
+    }
+    *g=next;return RF_OK;
+ fail:
+    rf_model_collision_geometry_close(&next);return status;
+}
+
 void rf_model_geometry_close(rf_model_geometry *g)
 {
     if(!g)return;

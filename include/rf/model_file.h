@@ -3,6 +3,7 @@
 #include "rf/vpp.h"
 #include "rf/model.h"
 #include "rf/physics.h"
+#include "rf/collision.h"
 #define RF_MODEL_MAX_SECTIONS 128
 #define RF_MODEL_MAX_LODS 128
 typedef struct rf_model_lod {
@@ -96,6 +97,17 @@ int rf_model_file_batch_material(const rf_model_file *model,uint32_t lod,uint32_
 typedef struct rf_model_draw_batch {
     uint32_t first_vertex,vertices,first_triangle,triangles,material;
 } rf_model_draw_batch;
+typedef struct rf_model_collision_geometry {
+    rf_collision_model_lod_view view;void *data;uint32_t accounted_bytes;
+} rf_model_collision_geometry;
+/* Own one stored-plane LOD blob and borrowed views into it. Budget includes
+ * this struct, blob and batch views; excludes allocator overhead. Little-endian
+ * x86. Finite positions and valid signed indices checked; planes preserved.
+ * Tokens are file-relative triangle offsets, interpreted with this resource.
+ * Missing plane flag returns NOT_FOUND; errors leave a zero owner unchanged. */
+int rf_model_collision_geometry_open(rf_model_collision_geometry *geometry,const rf_model_file *model,
+    uint32_t lod,uint32_t budget);
+void rf_model_collision_geometry_close(rf_model_collision_geometry *geometry);
 typedef struct rf_model_geometry {
     rf_model_draw_batch *batches;rf_model_vertex *vertices;
     rf_model_triangle *triangles;int32_t *reuse;

@@ -4866,3 +4866,33 @@ It compares104-byte query,32-byte result and return, plus geometry/guard
 preservation. Report: artifacts/model-trace.json. PC/NXDK builds and all19
 CTests pass. This composes the geometry path but does not bind retained
 model resources or prove native XEMU execution; those remain explicit work.
+
+
+## Owned static collision LOD geometry
+
+rf_model_collision_geometry_open retains one original LOD blob and compact
+batch views into its position, plane and triangle regions. This follows
+54daa0's direct geometry interpretation, independent of render format-word
+semantics. It validates region lengths, finite positions and nonnegative
+signed16 indices within the declared vertex count. Stored plane payloads
+(including authored NaNs) and triangle flags are preserved. Tokens use the
+file-relative triangle record offset, requiring the associated resource
+owner for interpretation. No host pointer truncation is used.
+Budget counts the owner, original blob and batch-view array; allocator
+metadata is excluded. Original blob residency includes opaque regions,
+without expanding rendering vertices or duplicating individual planes.
+Absent stored-plane flag returns NOT_FOUND. Failures free partial ownership
+and leave the destination empty; close is repeatable. Views borrow this
+owner's lifetime. The storage representation targets little-endian x86.
+
+verify_model_collision_geometry.py checks all522 installed model envelopes:
+760 static LODs/1138 batches load, including all23 alternate110c21 batches.
+Position/plane/triangle hashes and file-offset tokens equal direct archive
+bytes. Exact budget succeeds, one byte below fails, deliberately shortened
+attachment bounds fail after allocation without publishing an owner, and
+repeated close clears state. Animated LODs reject with NOT_FOUND. Maximum
+individual LOD accounting is70240 bytes on32-bit PC/NXDK layouts; this is
+not a total scene memory figure. Report: artifacts/model-collision-geometry.json.
+PC/NXDK builds and all19 CTests pass. Native archive execution, part metadata
+ownership, combined scene residency and resource/trace binding remain open.
+The alternate format's rendering decoder remains a separate unresolved task.

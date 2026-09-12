@@ -213,6 +213,33 @@ int main(int argc, char **argv)
             ++mesh;
         }
     }
+    if(!result && argc==4 && !strcmp(argv[3],"--collision-geometry")) {
+        for(i=0;i<model.lod_count && !result;++i) {
+            rf_model_collision_geometry g={0};uint32_t budget,b;
+            if(!(model.lods[i].flags&32u)) {
+                if(rf_model_collision_geometry_open(&g,&model,i,4*1024*1024)!=RF_NOT_FOUND || g.data || g.view.batches || g.accounted_bytes)result=RF_FORMAT;
+                continue;
+            }
+            result=rf_model_collision_geometry_open(&g,&model,i,4*1024*1024);if(result)break;
+            budget=g.accounted_bytes;rf_model_collision_geometry_close(&g);
+            if(rf_model_collision_geometry_open(&g,&model,i,budget-1)!=RF_RANGE || g.data || g.view.batches || g.accounted_bytes){result=RF_FORMAT;break;}
+            result=rf_model_collision_geometry_open(&g,&model,i,budget);if(result)break;
+            printf("C %u %u %u\n",i,g.view.batch_count,budget);
+            for(b=0;b<g.view.batch_count;++b) {
+                const rf_collision_model_batch_view *view=g.view.batches+b;rf_model_batch batch;
+                result=rf_model_file_batch(&model,i,b,&batch);if(result)break;
+                printf("D %u %u %u %u %u %u %u\n",i,b,view->token_base,view->triangle_count,
+                    hash_bytes(2166136261u,view->vertices,batch.vertices*12),hash_bytes(2166136261u,view->planes,batch.triangles*16),hash_bytes(2166136261u,view->triangles,batch.triangles*8));
+            }
+            rf_model_collision_geometry_close(&g);rf_model_collision_geometry_close(&g);
+            if(g.data || g.view.batches || g.accounted_bytes)result=RF_FORMAT;
+            if(model.lods[i].batch_count) {
+                uint32_t saved=model.lods[i].attachment_offset;model.lods[i].attachment_offset=model.lods[i].offset;
+                if(rf_model_collision_geometry_open(&g,&model,i,budget)!=RF_FORMAT || g.data || g.view.batches || g.accounted_bytes)result=RF_FORMAT;
+                model.lods[i].attachment_offset=saved;
+            }
+        }
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--planes")) {
         uint32_t b,n;
         for(i=0;i<model.lod_count && !result;++i)for(b=0;b<model.lods[i].batch_count && !result;++b) {
@@ -258,7 +285,7 @@ int main(int argc, char **argv)
             }
         }
     }
-    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches") && strcmp(argv[3],"--planes")) for (i = 0; i < model.lod_count && !result; ++i) {
+    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches") && strcmp(argv[3],"--planes") && strcmp(argv[3],"--collision-geometry")) for (i = 0; i < model.lod_count && !result; ++i) {
         uint32_t n, j;
         rf_model_lod *lod = &model.lods[i];
         printf("L %u %u %u %u\n", lod->offset, lod->size, lod->attachment_offset, lod->attachment_count);
