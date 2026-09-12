@@ -7414,3 +7414,30 @@ compares all authored owner bytes after archive close. Retained17492 bytes,
 peak39157 bytes. verify_glare_definition.py independently rechecks all56
 authored definitions plus9 guards on PC/NXDK. Both builds and21 CTests pass.
 No native XEMU or bitmap/rendering integration claim for this change.
+
+### Glare bitmap decoder and residency audit
+
+Original413920 calls50f6a0(name,-1,1) at4139c1,413a73 and413add
+for corona, volumetric and reflection slots respectively; absent blocks store
+zero at class offsets0c/24/30. The50f6a0 wrapper preserves the global bitmap
+mode for the supplied nonzero third argument and calls50f6e0. That function
+first calls50f580 and returns an existing nonnegative result before loading.
+This disassembly establishes a shared bitmap-loading boundary, not full cache
+or filename/format resolution equivalence. Original cache retirement and
+animated glare frame selection still require reconstruction.
+
+inspect_glare_bitmaps.py reads all56 owned authored definitions and resolves
+all38 unique bitmap names against every installed archive. No missing names,
+duplicate-archive matches or decoder failures. Existing PC all-frame ownership
+passes176 checks including every frame, exact/short budgets and hashes against
+the direct decoder. This is a decoder-composition check, not an independent
+image decoder oracle. Archives close before the probe hashes retained pixels.
+
+Two textures require animation: thruster02_cor.vbm has5 frames at15 fps and
+retains82040 bytes; thruster02_vol.vbm has21 frames at15 fps and retains344504
+bytes. Across all38 textures the existing animation owners retain1771472
+bytes, excluding glare binding arrays, allocator metadata and GPU overhead.
+Do not bind glare resources through the static-only material path. Reuse the
+all-frame decoder with bounded shared ownership, then reconstruct frame
+selection and bind campaign resources. No Xbox residency or live rendering
+claim is made by this PC audit. Full results: artifacts/glare-bitmaps/report.json.
