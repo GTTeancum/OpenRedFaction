@@ -5861,3 +5861,36 @@ post-query orchestration at callback boundaries, not full4a0840 or live
 NPC landing. Compose query execution and scene fall/impact/landing/relative
 backends next; crouch must reenter that same path. No new native XEMU run
 or visible gameplay change is claimed for this compiled-NXDK comparison.
+
+
+## Retained NPC ground-query binding (2026-09-12)
+
+rf_scene_npc_ground_query binds original4a0840 preparation to registered NPC
+body spheres/next position, retained movement descriptor, class base speed,
+class use-kind, support material and vertical support velocity. Elapsed time
+is explicit. The single lowest sphere, identity matrix, radius and flags feed
+the existing shared world/mover query. A successful hit copies the complete
+68-byte contact wire. A miss sets time1 and reserved_1ec0 while preserving
+other caller bytes. Invalid/stale owners and query errors preserve outputs.
+Player-flag owners require their separate49b900 prequery path. Face tokens
+remain port tokens; original pointer lifetime/relative conversion is not claimed.
+
+The first PC fixture failed at authored NPC index15 with no collision spheres.
+The adapter correctly rejected an undefined lowest-sphere query; the fixture
+incorrectly required all78 owners to have spheres. Seven authored owners have
+none. The revised fixture verifies RF_RANGE and unchanged probe/contact/matched
+for those owners, without synthesizing spheres. Three elapsed/movement/support
+cases for each remaining71 owner yield213 queries:104 hits and109 misses.
+There are21 empty-body rejections and stale-handle preservation checks on all
+213 successful queries. Each query is compared to separately assembled world/
+mover execution. These scene checks extend prior original-executable numeric
+preparation verification; they are not an independent full4a0840 comparison.
+
+PC and NXDK builds plus19 CTests pass. Stock64MiB XEMU180-frame replay passes:
+artifacts/xemu/replay-20260912-095509/report.json.
+npc_ground_query=[213,104,109,3482877009,0,21], exactly equal to PC.
+Tested XBE SHA256:5e621d4bf40ae78cb168fec496445bd843ca13e9c4f7b1887c0804ef26d9d35b.
+The PC reference differs from replay-20260912-093543 only by the new query row.
+Fixture movement/support changes are restored. No landing, live NPC physics
+scheduling or visible gameplay change is claimed. Compose support_finish with
+fall/impact/landing/relative backends next; crouch must reenter the same path.

@@ -3834,6 +3834,29 @@ static int campaign_body_query(const rf_geometry_collision_world *world,const rf
     return rf_geometry_collision_body_sweep(world,&campaign_movers,query,campaign_sweep_scratch,
         campaign_movers.count,rf_geometry_body_surface,&surfaces,contact,matched);
 }
+int rf_scene_npc_ground_query(const rf_geometry_collision_world *world,uint32_t handle,float elapsed,
+    rf_physics_ground_probe *probe,rf_collision_actor_contact *contact,uint32_t *matched)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls,falling,found,i;int status;
+    rf_physics_ground_probe prepared;rf_collision_body_sphere sphere;rf_collision_body_query query={0};
+    rf_geometry_body_hit hit={0};rf_collision_actor_contact candidate;
+    if(!world || !probe || !contact || !matched)return RF_RANGE;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    if(owner->movement_slot>=16 || !campaign_npc_movement_configs || !campaign_seeds.classes)return RF_RANGE;
+    /* NPC path: player-only49b900 prequery remains in the player adapter. */
+    if(owner->object_flags&8)return RF_RANGE;
+    falling=rf_entity_falling((int32_t)campaign_modes[owner->movement_slot].index,campaign_seeds.classes[cls].physics.use_kind,owner->support.material);
+    status=rf_physics_ground_prepare(owner->body.spheres.items,owner->body.spheres.count,owner->body.state.next_position,
+        owner->body.state.state_124,(int)falling,elapsed,campaign_npc_movement_configs[cls].base_speed,owner->support_velocity[1],&prepared);if(status)return status;
+    memcpy(sphere.center,prepared.sphere.center,12);sphere.radius=prepared.sphere.radius;
+    memcpy(query.start,prepared.start,12);memcpy(query.end,prepared.end,12);for(i=0;i<3;++i)query.matrix[i][i]=1;
+    query.radius=prepared.bounds.radius;query.flags=prepared.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
+    candidate=*contact;candidate.time=1;candidate.reserved_1ec=0;
+    status=campaign_body_query(world,&query,&hit,&found);if(status)return status;
+    _Static_assert(sizeof(hit.contact)==sizeof(candidate),"original contact payload wire");
+    if(found)memcpy(&candidate,&hit.contact,sizeof(candidate));
+    *probe=prepared;*contact=candidate;*matched=found;return RF_OK;
+}
 /* Caller owns conversion scratch; no per-query allocation or player globals. */
 static int campaign_physics_body_sweep(const rf_geometry_collision_world *world,
     const rf_physics_body_state *state,const rf_physics_spheres *source,uint32_t flags,
@@ -4704,6 +4727,50 @@ uint32_t rf_scene_npc_playback[7]; /* ticks, actors, bones, state hash, pose has
 /* Advance the existing startup selection once per simulation step. AI/state
  * reselection and weapon overlays remain external; do not tick from drawing. */
 uint32_t rf_scene_npc_gate[4]; /* cumulative considered, advanced, skipped; last decision hash */
+uint32_t rf_scene_npc_ground_query_test[6]; /* cases,hits,misses,hash,errors,rejected empty bodies */
+static int campaign_npc_ground_query_fixture(const rf_geometry_collision_world *world,uint32_t frame)
+{
+    uint32_t i,j;int status=RF_OK;
+    if(frame)return RF_OK;memset(rf_scene_npc_ground_query_test,0,sizeof(rf_scene_npc_ground_query_test));
+    if(!rf_scene_actor_pair_test_enabled)return RF_OK;rf_scene_npc_ground_query_test[3]=2166136261u;
+    for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;uint32_t cls=campaign_seeds.items[i].class_index;
+        float support_y=owner->support_velocity[1];uint32_t slot=owner->movement_slot;
+        for(j=0;j<3 && !status;++j) {
+            rf_physics_ground_probe probe={0},expected={0};rf_collision_actor_contact contact,expected_contact;
+            rf_collision_body_sphere sphere;rf_collision_body_query query={0};rf_geometry_body_hit hit={0};uint32_t found=99,want=0,k,falling;
+            float elapsed=j==0?0:j==1?1.0f/60:1.0f/30;
+            owner->movement_slot=j==0?slot:j==1?3:1;owner->support_velocity[1]=j==2?2:support_y;
+            memset(&contact,0xa5,sizeof(contact));expected_contact=contact;expected_contact.time=1;expected_contact.reserved_1ec=0;
+            /* Authored non-colliding actors have no lowest sphere. Verify the
+             * rejected query without inventing a collision shape for them. */
+            if(!owner->body.spheres.count) {
+                rf_collision_actor_contact saved=contact;
+                if(rf_scene_npc_ground_query(world,owner->registration.handle,elapsed,&probe,&contact,&found)!=RF_RANGE ||
+                    memcmp(&probe,&expected,sizeof(probe)) || memcmp(&contact,&saved,sizeof(contact)) || found!=99)status=RF_FORMAT;
+                else ++rf_scene_npc_ground_query_test[5];
+                continue;
+            }
+            falling=rf_entity_falling((int32_t)campaign_modes[owner->movement_slot].index,campaign_seeds.classes[cls].physics.use_kind,owner->support.material);
+            status=rf_physics_ground_prepare(owner->body.spheres.items,owner->body.spheres.count,owner->body.state.next_position,
+                owner->body.state.state_124,(int)falling,elapsed,campaign_npc_movement_configs[cls].base_speed,owner->support_velocity[1],&expected);if(status)break;
+            status=rf_scene_npc_ground_query(world,owner->registration.handle,elapsed,&probe,&contact,&found);if(status)break;
+            memcpy(sphere.center,expected.sphere.center,12);sphere.radius=expected.sphere.radius;
+            memcpy(query.start,expected.start,12);memcpy(query.end,expected.end,12);for(k=0;k<3;++k)query.matrix[k][k]=1;
+            query.radius=expected.bounds.radius;query.flags=expected.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
+            status=campaign_body_query(world,&query,&hit,&want);if(status)break;if(want)memcpy(&expected_contact,&hit.contact,68);
+            if(found!=want || memcmp(&probe,&expected,sizeof(probe)) || memcmp(&contact,&expected_contact,68)){status=RF_FORMAT;break;}
+            ++rf_scene_npc_ground_query_test[0];++rf_scene_npc_ground_query_test[found?1:2];
+            rf_scene_npc_ground_query_test[3]=npc_hash_bytes(rf_scene_npc_ground_query_test[3],&probe,sizeof(probe));
+            rf_scene_npc_ground_query_test[3]=npc_hash_bytes(rf_scene_npc_ground_query_test[3],&contact,sizeof(contact));
+            {rf_physics_ground_probe saved=probe;rf_collision_actor_contact kept=contact;uint32_t sentinel=99;
+             if(rf_scene_npc_ground_query(world,owner->registration.handle^0x10000,elapsed,&probe,&contact,&sentinel)!=RF_NOT_FOUND ||
+                memcmp(&probe,&saved,sizeof(probe)) || memcmp(&contact,&kept,sizeof(contact)) || sentinel!=99)status=RF_FORMAT;}
+        }
+        owner->support_velocity[1]=support_y;owner->movement_slot=slot;
+    }
+    if(status)++rf_scene_npc_ground_query_test[4];return status;
+}
 uint32_t rf_scene_npc_motion_request_test[5]; /* owners,speed cases,motion cases,hash,errors */
 static int campaign_npc_motion_request_fixture(uint32_t frame)
 {
@@ -4853,6 +4920,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
         ++rf_scene_npc_eyes[0];rf_scene_npc_eyes[3]=npc_hash_bytes(rf_scene_npc_eyes[3],campaign_npc_bodies[i].eye_position,12);
     }
+    status=campaign_npc_ground_query_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_motion_request_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_model_query_fixture(rf_scene_npc_playback[0]);if(status)return status;

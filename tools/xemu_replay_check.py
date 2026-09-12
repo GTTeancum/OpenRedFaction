@@ -274,6 +274,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert model_queries==expected('NPC_MODEL_QUERIES') and model_queries[1]+model_queries[2]<=1024*1024 and model_queries[6]==0,model_queries
      if args.actor_pairs and frames>1:assert model_queries[3]>0 and model_queries[4]>0,model_queries
      report['npc_model_queries']=model_queries
+     ground_query=words(monitor,symbol('rf_scene_npc_ground_query_test'),6)
+     assert ground_query==expected('NPC_GROUND_QUERY') and ground_query[4]==0,ground_query
+     if args.actor_pairs:assert ground_query[0]>0 and ground_query[1]>0 and ground_query[2]>0,ground_query
+     report['npc_ground_query']=ground_query
      motion_request=words(monitor,symbol('rf_scene_npc_motion_request_test'),5)
      assert motion_request==expected('NPC_MOTION_REQUEST') and motion_request[4]==0,motion_request
      if args.actor_pairs:assert motion_request[0]>0 and motion_request[1]==motion_request[0]*8 and motion_request[2]==motion_request[0]*4,motion_request

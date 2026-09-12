@@ -83,6 +83,14 @@ int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *r
  * animation or physics. Stale/corpse owners and errors preserve actor state. */
 int rf_scene_npc_set_speed(uint32_t handle,int32_t requested,int32_t forced_action);
 int rf_scene_npc_request_motion(uint32_t handle,int32_t requested,float duration);
+/*4a0840 NPC query preparation bound to retained class/body/support and current
+ * world/mover geometry. Outputs a probe and original-layout contact payload;
+ * geometry face tokens remain port tokens. Misses set time1/reserved_1ec0 and
+ * preserve other contact fields. Errors preserve all outputs. No support
+ * acceptance or landing effects. Player-flag owners require a separate path. */
+int rf_scene_npc_ground_query(const rf_geometry_collision_world *world,uint32_t handle,float elapsed,
+    rf_physics_ground_probe *probe,rf_collision_actor_contact *contact,uint32_t *matched);
+
 
 /*41e370 support refresh for one registered NPC: modes1/3 resolve retained
  * NPC/player/mover body velocity and update support velocity plus wake flags.
