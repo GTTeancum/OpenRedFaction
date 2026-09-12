@@ -181,3 +181,10 @@ int rf_packed_lightmaps_open(rf_packed_lightmaps *maps,const rf_level *level,uin
     if(at!=section->size){status=RF_FORMAT;goto fail;}return RF_OK;
  fail:rf_packed_lightmaps_close(maps);return status;
 }
+
+uint32_t rf_lightmap_requires_brightening(uint32_t renderer_mode,uint32_t multitexture,uint32_t modulate2x)
+{
+    if(renderer_mode==104)return 0;
+    if(renderer_mode==102)return !(multitexture&255u) || !(modulate2x&255u);
+    return 1;
+}

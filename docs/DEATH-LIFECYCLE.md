@@ -2678,3 +2678,28 @@ No host input or desktop capture was used. The harness closes XEMU and
 restores/repackages its diagnostic flag. Live campaign creation, real room
 queue scheduling, renderer capability binding and hardware/PS2 parity remain
 open; these diagnostic samples do not establish those broader requirements.
+
+## Lightmap upload capability query resolved
+
+Original50c0e0 calls411e00 to initialize17756c4 to00418c45, fields
+[texture5,color2,alpha3,blend3,depth4,fog0]. This is the query passed from
+4ed32c into50df50 before RGB brightening. For renderer102,546a00 checks
+multitexture byte1cfcc1c and, specifically for texture5, modulate2x byte
+1cfcc1d. Both nonzero skips brightening; otherwise upload brightens.
+Renderer104 always skips brightening; other renderer IDs brighten.
+
+rf_lightmap_requires_brightening implements this decision from explicit
+renderer and capability inputs. Byte semantics are preserved (low8 bits),
+including noncanonical true values. This policy does not choose the port
+renderer capabilities or silently replace current preview lightmaps.
+
+verify_lightmap_brightening.py executes unchanged initializer/constructor
+and query/helper functions against PC/NXDK in343 combinations. Query fields
+and all decisions match. Both builds and19 CTests pass. Runtime mutation
+of the query word and port device-capability binding are not proven here.
+
+Additional disassembly leads:545ef3 reads1cfcb5c/60 and enables multitexture
+when both are at least2. An earlier52afc0 check searches device description
+1cfc7e8 for string5a9d50, Voodoo2, and bypasses that enable branch on a match.
+545f46 writes the already documented TextureOpCaps MODULATE2X bit into
+1cfcc1d. These initialization leads are not an Xbox capability probe.

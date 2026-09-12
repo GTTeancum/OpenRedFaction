@@ -1,6 +1,9 @@
 #include "rf/lightmap.h"
 #include "rf/geometry.h"
 #include <stdlib.h>
+#include <string.h>
+#include <io.h>
+#include <fcntl.h>
 int main(int argc, char **argv)
 {
     rf_vpp archive;
@@ -9,6 +12,11 @@ int main(int argc, char **argv)
     rf_geometry geometry;
     int result;
     uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--brightening")) {
+        uint32_t input[3],value;_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1){value=rf_lightmap_requires_brightening(input[0],input[1],input[2]);fwrite(&value,4,1,stdout);}
+        return ferror(stdin)||ferror(stdout)?1:0;
+    }
     if(argc==1){printf("%u\n",(unsigned)sizeof(rf_image));return 0;}
     if (argc != 4) return 2;
     if (rf_vpp_open(&archive, argv[1])) return 1;

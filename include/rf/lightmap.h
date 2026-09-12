@@ -39,6 +39,10 @@ typedef struct rf_lightmap_1555_view {
  * Out-of-buffer addresses reject unchanged rather than reproducing overreads.
  * Caller retains pixel storage. No allocation; output bytes are RGBA. */
 int rf_lightmap_sample_1555(const rf_lightmap_1555_view *view,const float uv[2],uint32_t *color);
+/* Original50c0e0 initializes the upload capability query to texture mode5.
+ * 50df50/546a00 capability result selects brightening in4ed32c. Capability
+ * inputs are original byte flags (low8 bits), not inferred GPU support. */
+uint32_t rf_lightmap_requires_brightening(uint32_t renderer_mode,uint32_t multitexture,uint32_t modulate2x);
 typedef struct rf_packed_lightmaps {
     rf_lightmap_1555_view *images;uint32_t count,allocated_bytes;
 } rf_packed_lightmaps;
