@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Compose the verified ordinary-SP death stages using the retained NPC death fields and remaining shared field ownership, accounting for the 6fc4d8 alternate-mode gate and remaining live resource callbacks.
+- [ ] Compose the verified ordinary-SP death stages using the retained NPC death fields and tested registered-NPC tail adapter, completing remaining shared field ownership, accounting for the 6fc4d8 alternate-mode gate and remaining live resource callbacks.
 - [ ] Reconstruct riot-shield impact-mark allocation/clipping/rendering and bind verified player-slot cleanup to the original-audited 50-mark/150-polygon/500-vertex pools.
 - [ ] Connect the authored-tested file-tag/room-query/shared-lightmap source composition to death dispatch and bind room queue scheduling; isolated authored texture/growth draws now pass PC and stock64MiB XEMU, while campaign source ownership and queue scheduling remain open.
 - [ ] Recover generic cached CSPH tag parent initialization/placement; the95-model original audit clears cached-tag precedence for all190 corpse eye/spine queries.

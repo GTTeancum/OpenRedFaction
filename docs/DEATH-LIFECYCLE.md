@@ -3307,3 +3307,30 @@ Evidence: artifacts/xemu/replay-20260912-023602/report.json.
 This is live storage and memory validation, not live death behavior. Connect
 the stage views to these retained fields and existing shared owners, then
 bind resource callbacks before enabling complete death dispatch.
+
+
+## Registered NPC tail adapter (2026-09-12)
+
+rf_scene_npc_death_tail resolves a current NPC registration and runs the shared
+SP tail against its retained death deadline/model, published actor action and
+flags, model radius and retained class flags. It publishes timer/model changes
+before every resource callback and reloads the owner afterward, so inventory
+class changes, reset flags and event-driven model replacement reach subsequent
+steps. Published view.flags810 is mirrored into the damage view; unrelated
+death item, requested/active death action and linked-actor fields are preserved.
+The name token and resource callbacks are supplied by the eventual dispatcher.
+Registration and all resource owners must stay alive during this operation.
+
+The NPC residency test now exercises this adapter with an actual registered
+campaign_npc_body: callback-visible wrapped timer, flags synchronization,
+event-selected model release, the post-release clear, stale generation,
+unregistered handle, and invalid clock retaining preceding effects. This is a
+PC ownership-binding test; compiled NXDK includes the adapter, while the1024
+original/PC/NXDK tail comparison verifies the shared stage separately. Both
+builds and all19 CTests pass. No allocation is added by the adapter.
+
+Full death dispatch remains disabled: this tail cannot substitute for entry,
+collision retirement, animation, configured-item/weapon drops and linked-actor
+handoff. Resource operations are still supplied, and this adapter has not been
+exercised by a live XEMU death. Bind the other stage views and their resources
+before scheduling the complete transition.

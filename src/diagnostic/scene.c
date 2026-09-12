@@ -2361,6 +2361,42 @@ int rf_scene_player_damage_audio(uint32_t handle,const rf_damage_request *reques
     if(!random || now_ms<0 || now_ms>RF_TIMER_PERIOD)return RF_RANGE;
     return campaign_player_damage_apply(handle,request,difficulty,clock_bits,now_ms,random,effects,result);
 }
+typedef struct campaign_death_tail_context {
+    campaign_npc_body *owner;rf_entity_death_tail_state state;
+    const rf_entity_death_tail_backend *resources;
+} campaign_death_tail_context;
+static void campaign_death_tail_load(campaign_death_tail_context *c)
+{
+    campaign_npc_body *o=c->owner;
+    c->state.action_520=(uint32_t)o->view.action_520;
+    c->state.class_flags_728=o->damage.effects.class_flags_728;c->state.radius_78=o->model_radius_78;
+    c->state.deadline_4b8=o->death.deadline_4b8;c->state.flags_810=o->view.flags_810;c->state.model_148c=o->death.model_148c;
+}
+static void campaign_death_tail_publish(campaign_death_tail_context *c)
+{
+    c->owner->death.deadline_4b8=c->state.deadline_4b8;c->owner->death.model_148c=c->state.model_148c;
+    c->owner->damage.effects.flags_810=c->owner->view.flags_810;
+}
+static void campaign_death_tail_call(void *context,uint32_t operation,uint32_t argument)
+{
+    campaign_death_tail_context *c=context;
+    campaign_death_tail_publish(c);
+    c->resources->call(c->resources->context,operation,argument);
+    campaign_death_tail_load(c);
+}
+int rf_scene_npc_death_tail(uint32_t handle,uint32_t name,const rf_entity_death_tail_backend *resources)
+{
+    const rf_entity_view *view;campaign_death_tail_context c={0};uint32_t i;int status;
+    rf_entity_death_tail_backend backend={campaign_death_tail_call,&c,NULL};
+    if(!resources || !resources->call || !resources->now_ms)return RF_RANGE;
+    view=rf_entity_lookup(&campaign_entities,(int32_t)handle);if(!view)return RF_NOT_FOUND;
+    for(i=0;i<campaign_npc_body_count;++i)if(view==&campaign_npc_bodies[i].view)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;
+    c.owner=campaign_npc_bodies+i;c.resources=resources;c.state.name=name;backend.now_ms=resources->now_ms;
+    campaign_death_tail_load(&c);status=rf_entity_death_tail_sp(&c.state,&backend);
+    campaign_death_tail_publish(&c);return status;
+}
+
 static rf_damage_object *campaign_damage_lookup(void *context,uint32_t handle)
 {
     campaign_damage_context *c=context;

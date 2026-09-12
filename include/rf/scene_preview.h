@@ -60,6 +60,13 @@ int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random
  * original no-ops. A live different source requires the unfinished AI owner
  * and returns NOT_FOUND. This does not implement forced mode1 alerts. */
 int rf_scene_npc_damage_ai(uint32_t handle,uint32_t source);
+/* Run the verified SP tail on a registered NPC's retained death fields.
+ * Name is the caller's resolved event-name token. Publish timer/model before
+ * resource callbacks and reload afterward; view.flags810 is authoritative and
+ * mirrored into the damage view. Callback owners/registration remain alive.
+ * This alone must not be used to dispatch a complete death. */
+int rf_scene_npc_death_tail(uint32_t handle,uint32_t name,const rf_entity_death_tail_backend *);
+
 /* Resolved local-player entity portion of40e0b0. Uses the same retained
  * camera-effect owner as force feedback and the rendered camera update.
  * Strength/duration replace the previous effect. A stale/nonlocal entity
