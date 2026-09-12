@@ -90,6 +90,10 @@ typedef struct rf_static_model_tags {
 int rf_static_model_tags_open(const rf_model_file *model,uint32_t budget,rf_static_model_tags *owner);
 void rf_static_model_tags_close(rf_static_model_tags *owner);
 int rf_static_model_tags_find(const rf_static_model_tags *owner,rf_model_name query,int32_t *index);
+/* Static53c1c4 local attachment then5034f0 world placement. Parent is ignored
+ * by the static wrapper. No quaternion normalization; errors preserve output. */
+int rf_static_model_tag_place(const rf_static_model_tags *owner,int32_t index,
+    const float orientation[9],const float position[3],float transform[12]);
 /* Stream the indexed CSPH record (44 serialized bytes). Center is bone-local
  * when parent is nonnegative; pose transformation is a separate runtime step.
  * NOT_FOUND past the last sphere; malformed data/errors preserve output. */

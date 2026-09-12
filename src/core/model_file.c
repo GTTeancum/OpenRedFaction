@@ -777,6 +777,18 @@ int rf_static_model_tags_find(const rf_static_model_tags *owner,rf_model_name qu
     return RF_NOT_FOUND;
 }
 
+int rf_static_model_tag_place(const rf_static_model_tags *owner,int32_t index,
+    const float orientation[9],const float position[3],float transform[12])
+{
+    float local[12];int status;
+    if(!owner || !orientation || !position || !transform)return RF_RANGE;
+    if(index<0 || (uint32_t)index>=owner->count)return RF_NOT_FOUND;
+    if(!owner->items)return RF_RANGE;
+    status=rf_model_attachment_transform(owner->items[index].rotation,owner->items[index].position,local);
+    if(status)return status;
+    return rf_model_place_tag(local,orientation,position,transform);
+}
+
 void rf_static_render_resource_close(rf_static_render_resource *resource)
 {
     uint32_t i;if(!resource)return;
