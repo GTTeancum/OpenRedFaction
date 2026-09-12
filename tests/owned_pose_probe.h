@@ -1,3 +1,34 @@
+static int collision_cache_probe(void)
+{
+    uint32_t count,g,i;float evaluated[50][12]={{0}},stored[50][12]={{0}};uint16_t stamps[50];
+    for(count=1;count<=50;++count)for(g=0;g<3;++g) {
+        rf_entity_pose pose={0},moved;rf_entity_collision_cache cache={0};rf_collision_model_skin_pose view,before;
+        rf_collision_model_part_query query={0};rf_collision_model_response_hit hit={0};uint32_t accepted=99;
+        uint32_t generation=g==0?0:g==1?65535:1,budget=sizeof(cache)+count*50;
+        pose.skeleton=7;pose.bone_count=count;pose.matrices=evaluated;pose.generations=stamps;pose.playback.generation=generation;
+        for(i=0;i<count;++i){memset(evaluated[i],0,48);memset(stored[i],0,48);evaluated[i][0]=evaluated[i][4]=evaluated[i][8]=1;stored[i][0]=stored[i][4]=stored[i][8]=1;evaluated[i][9]=(float)i;stamps[i]=(uint16_t)generation;}
+        if(rf_entity_collision_cache_open(&pose,budget-1,&cache)!=RF_RANGE || cache.matrices || cache.allocated_bytes)return 30;
+        if(rf_entity_collision_cache_open(&pose,budget,&cache) || cache.allocated_bytes!=budget)return 31;
+        for(i=0;i<count;++i)if(cache.generations[i]==generation)return 32;
+        memset(&before,0xa5,sizeof(before));view=before;stamps[count-1]=(uint16_t)(generation-1);
+        if(rf_entity_collision_cache_view(&cache,&pose,stored,&view)!=RF_RANGE || memcmp(&view,&before,sizeof(view)))return 33;
+        stamps[count-1]=(uint16_t)generation;moved=pose;
+        if(rf_entity_collision_cache_view(&cache,&moved,stored,&view))return 34;
+        query.input.flags=2;
+        if(rf_collision_model_skinning_query(NULL,0,&view,&query,&hit,NULL,1,&accepted) || accepted || hit.time!=1)return 35;
+        for(i=0;i<count;++i)if(cache.generations[i]!=generation || memcmp(cache.matrices[i],evaluated[i],48))return 36;
+        /* Current stamps retain cache contents; next generation refreshes. */
+        evaluated[0][9]=123;
+        if(rf_collision_model_skinning_query(NULL,0,&view,&query,&hit,NULL,0,&accepted) || cache.matrices[0][9]!=0)return 37;
+        moved.playback.generation=(generation+1)&65535;for(i=0;i<count;++i)stamps[i]=(uint16_t)moved.playback.generation;
+        if(rf_entity_collision_cache_view(&cache,&moved,stored,&view) || rf_collision_model_skinning_query(NULL,0,&view,&query,&hit,NULL,0,&accepted) || cache.matrices[0][9]!=123)return 38;
+        moved.skeleton=8;view=before;
+        if(rf_entity_collision_cache_view(&cache,&moved,stored,&view)!=RF_RANGE || memcmp(&view,&before,sizeof(view)))return 39;
+        rf_entity_collision_cache_close(&cache);rf_entity_collision_cache_close(&cache);
+        if(cache.matrices || cache.generations || cache.bone_count || cache.skeleton || cache.allocated_bytes)return 40;
+    }
+    return 0;
+}
 static int registered_pose_probe(void)
 {
     uint32_t bones,count,i;rf_model_bone_override overrides[50];
@@ -65,6 +96,6 @@ static int owned_pose_probe(void)
         if(rf_entity_owned_pose_close(&owned,&resources) || owned.storage || owned.allocated_bytes || rf_entity_owned_pose_close(&owned,&resources))return 9;
         for(i=0;i<16;i++)if(clips[i].references!=(i<count?1:2))return 10;
     }
-    {int status=registered_pose_probe();if(status)return status;}
+    {int status=registered_pose_probe();if(status)return status;status=collision_cache_probe();if(status)return status;}
     printf("PASS 150 pose transfers; independent caches, moved references and repeatable close; PC owner %u bytes\n",(unsigned)sizeof(owned));return 0;
 }

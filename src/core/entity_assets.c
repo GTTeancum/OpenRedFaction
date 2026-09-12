@@ -2266,6 +2266,38 @@ int rf_entity_pose_evaluate(rf_entity_pose *pose,const rf_entity_skeletons *skel
     return rf_model_evaluate_overrides(skeleton->bones,skeleton->count,&compact,files,resources,count,
         pending_displacement,pose->matrices,pose->generations,pose->bone_count,pose->overrides);
 }
+int rf_entity_collision_cache_open(const rf_entity_pose *pose,uint32_t budget,rf_entity_collision_cache *cache)
+{
+    rf_entity_collision_cache value={0};uint32_t bytes,i;
+    if(!pose || !cache || !pose->bone_count || pose->bone_count>50 || pose->skeleton==UINT32_MAX ||
+        !pose->matrices || !pose->generations || pose->playback.generation>65535 ||
+        cache->matrices || cache->generations || cache->bone_count || cache->skeleton || cache->allocated_bytes)return RF_RANGE;
+    bytes=pose->bone_count*50;if((uint64_t)sizeof(value)+bytes>budget)return RF_RANGE;
+    value.matrices=calloc(1,bytes);if(!value.matrices)return RF_IO;
+    value.generations=(uint16_t *)((unsigned char *)value.matrices+pose->bone_count*48);
+    value.bone_count=pose->bone_count;value.skeleton=pose->skeleton;value.allocated_bytes=(uint32_t)sizeof(value)+bytes;
+    for(i=0;i<value.bone_count;++i)value.generations[i]=(uint16_t)(pose->playback.generation-1u);
+    *cache=value;return RF_OK;
+}
+void rf_entity_collision_cache_close(rf_entity_collision_cache *cache)
+{
+    if(!cache)return;free(cache->matrices);memset(cache,0,sizeof(*cache));
+}
+int rf_entity_collision_cache_view(rf_entity_collision_cache *cache,const rf_entity_pose *pose,
+    const float (*stored)[12],rf_collision_model_skin_pose *view)
+{
+    rf_collision_model_skin_pose value={0};uint32_t i;
+    if(!cache || !pose || !stored || !view || !cache->matrices || !cache->generations ||
+        !pose->matrices || !pose->generations || !pose->bone_count || pose->bone_count>50 ||
+        cache->bone_count!=pose->bone_count || cache->skeleton!=pose->skeleton || pose->playback.generation>65535 ||
+        cache->allocated_bytes!=sizeof(*cache)+pose->bone_count*50 ||
+        (void *)cache->generations!=(unsigned char *)cache->matrices+pose->bone_count*48)return RF_RANGE;
+    for(i=0;i<pose->bone_count;++i)if(pose->generations[i]!=(uint16_t)pose->playback.generation)return RF_RANGE;
+    value.stored=stored;value.evaluated=pose->matrices;value.prepared=cache->matrices;value.generations=cache->generations;
+    value.bone_count=value.capacity=pose->bone_count;value.generation=(uint16_t)pose->playback.generation;
+    *view=value;return RF_OK;
+}
+
 void rf_entity_poses_close(rf_entity_poses *p)
 {
     if(!p)return;free(p->items);free(p->matrices);free(p->generations);free(p->overrides);memset(p,0,sizeof(*p));

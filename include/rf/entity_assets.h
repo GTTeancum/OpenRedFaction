@@ -295,6 +295,21 @@ typedef struct rf_entity_pose {
     rf_motion_controller controller;
     float (*matrices)[12];uint16_t *generations;rf_model_bone_override *overrides;
 } rf_entity_pose;
+typedef struct rf_entity_collision_cache {
+    float (*matrices)[12];uint16_t *generations;uint32_t bone_count,skeleton,allocated_bytes;
+} rf_entity_collision_cache;
+/* Separate per-model prepared skinning cache. Budget includes this owner and
+ * one allocation of50 bytes per bone. Initial stamps differ from the pose's
+ * current generation. No playback references are acquired. Close repeatable. */
+int rf_entity_collision_cache_open(const rf_entity_pose *pose,uint32_t budget,rf_entity_collision_cache *cache);
+void rf_entity_collision_cache_close(rf_entity_collision_cache *cache);
+/* Bind an already evaluated pose to the owned collision cache. Every evaluated
+ * stamp must be current; skeleton/count must match. Errors preserve the view.
+ * Stable disjoint stored/evaluated/cache arrays required. A moved pose with the
+ * same skeleton/count can reuse the cache; a replacement model needs reopen. */
+int rf_entity_collision_cache_view(rf_entity_collision_cache *cache,const rf_entity_pose *pose,
+    const float (*stored)[12],rf_collision_model_skin_pose *view);
+
 typedef struct rf_entity_poses {
     rf_entity_pose *items;float (*matrices)[12];uint16_t *generations;
     uint32_t count,bone_count,resident_bytes;rf_model_bone_override *overrides;

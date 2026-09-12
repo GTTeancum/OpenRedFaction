@@ -5168,3 +5168,28 @@ total emulator usage or allocator/other stack overhead. XBE SHA256:
 402d92f77ecfe4f04c39af3a1c9dff4524af0697a8affd89b61ff28e2e55be78.
 Both builds and19 CTests pass. Selected live NPC residency, budgeted prepared
 caches, authored moving poses and scheduled collision remain open.
+
+
+### Per-instance collision cache ownership (2026-09-12)
+
+`rf_entity_collision_cache_open/close/view` provides a separate prepared-matrix
+cache for an evaluated entity pose. Budget is the20-byte x86 owner plus50
+bytes per bone (48 matrix,2 generation), in one backing allocation;1..50 bones
+are supported. Opening initializes stamps unequal to the current16-bit pose
+generation, including0/65535. Closing is repeatable and clears all fields.
+No playback reference is acquired or released.
+
+The view validates skeleton/count identity, storage layout/accounting and every
+evaluated-pose generation before publishing the borrowed inputs required by
+`rf_collision_model_skinning_query`. A moved pose for the same model instance
+may reuse the cache; replacement models require close/reopen. Stale evaluation
+or mismatched identity preserves the caller view. The cache does not schedule
+animation evaluation or own selected collision geometry.
+
+The existing owned_model_pose CTest now covers150 cache fixtures over all
+1..50 bone counts and generations0/65535/1: exact/one-under budgets, initial
+invalidation, stale-pose rejection, moved-view binding, actual matrix-refresh
+composition, same-generation cache reuse, next-generation refresh/rollover,
+skeleton mismatch and repeated cleanup. Both builds and19 CTests pass. This
+adds the owner and adapter, not yet registration in campaign scene lifetime
+or a native XEMU cache fixture; those integrations remain open.
