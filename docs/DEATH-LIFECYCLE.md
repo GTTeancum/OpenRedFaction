@@ -1384,3 +1384,43 @@ Xbox SHA256:37cc742975c0d440b8612e8efc435dc71c86ee963c1ad1d175d065983d49cdcc.
 Report: artifacts/finalize-owned-create-verification.json. Real model token/pose
 transfer, scene ownership, burn/player/query bindings and deferred actor deletion
 remain open before native gameplay can use the completed-death path.
+
+
+## Original model-instance release ordering
+
+Full502b10 delegates to5028f0. python tools/inspect_model_release.py executes
+both wrappers, the scalar/vector deleting destructors and actual504800 pool
+recycle across144 combinations. Types0/1/2/3/4/ffffffff, absent/present payload,
+absent/present auxiliary array and counts0..5 are covered. The type-specific
+51b070/54b570 payload destructors and54a8a0 auxiliary element destructor are
+supplied boundaries; allocator free is recorded and poisons released storage.
+This does not prove complete resource destruction or a live model backend.
+
+Type2 with nonnull word4 invokes504600(payload,1), which runs51b070 then frees
+the payload. Type3 uses504620/54b570 similarly. Only those successful dispatches
+clear model word4, after the deleting wrapper returns. Other types leave word4
+unchanged even if nonzero. A callback deliberately overwrites word4 to confirm
+the outer clear occurs after it, while free still uses the original payload.
+
+Nonnull model word50 invokes504480(array,3). The count is stored atarray-4;
+real57377d walks200-byte records in reverse order through54a8a0, then the
+wrapper freesarray-4 even for count0. The pointer at model50 is not cleared.
+Its semantic role remains unidentified: auxiliary array is a structural name,
+not a claim that these are animation attachments. There are180 verified element
+calls and24 submodel releases in this matrix.
+
+Finally504800 recycles the model through pool0173c3f0. It sets pool+157c0 to
+the released model, overwrites the model's first word with the previous free
+head, increments pool+157cc and decrements pool+157d8. Other inspected model
+bytes survive. A memory hook rejects any subsequent original read from the
+recycled model. This proves why a future port model resolver must invalidate
+ownership before reuse and must not inspect the owner after recycling it.
+
+Static follow-up evidence:51b070 clears three action indices and drains active
+motions through51c090 only when payload1d50 is nonzero, then unlinks its ring.
+54b570 dispatches four optional array destructors at offsets14/18/1c/20.
+54a8a0 conditionally frees payloads80/bc/c4 and destroys two inline34-byte
+records. Those bodies still require execution verification and concrete port
+bindings; rf_entity_owned_pose_close alone is not the full model destructor.
+Report: artifacts/model-release-original.json. No C runtime or XEMU gameplay
+change is claimed for this original-code ownership audit.
