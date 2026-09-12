@@ -4036,3 +4036,39 @@ or campaign activation is claimed.
 wins), optionally filters mode2 through an external handle list, then calls
 4bfc60(kind5,other,0) and returns1. That list and dispatch need an explicit
 audit before replacing the remaining kind5 callback.
+
+
+Trigger membership routing integrated into pair processing - 2026-09-12
+
+The kind5 path48bb00 uses the selected trigger's own vector at2d4, not a
+global handle list: signed count at2d4 and storage pointer at2dc via
+40a490/40a480. First kind5 wins when both endpoints qualify. Filter2 at2c4
+searches for the other object's2c handle. Empty/no-match returns0, causing
+the processor to retire the pair. Other filters dispatch directly.
+Successful routing calls4bfc60(trigger,other,0) then returns1 irrespective
+of contact/activation outcome. This means retain the pair, not event fired.
+
+rf_collision_pair_trigger_dispatch now implements that routing, and
+rf_collision_pairs_process calls it directly. The actor view adds filter,
+signed allowed-count and borrowed allowed-handles. The previous kind5 query
+callback is replaced by RF_PAIR_TRIGGER_CONTACT with ordered trigger/other
+identities and implicit original input0. The original search has no mutating
+callbacks; a stable list snapshot suffices. Negative count behavior is also
+preserved: no scan, zero differs from the negative count, so dispatch occurs.
+Live owners must still maintain valid lists; this is fidelity evidence, not
+an instruction to create malformed trigger storage.
+
+verify_collision_process.py now executes real original48bb00,40a490 and
+40a480 in addition to48ca60/48bb90/40a110/list helpers.2048 original/PC/NXDK
+cases pass with967 contact dispatches,431 mode1 responses,1054 general
+responses,283 model responses and145 solid responses, plus8182 supplied
+expiration queries. Trigger lists include empty/missing/matched entries,
+negative counts and either/both kind5 endpoints. Exact traces, contact
+input0, pair topology/counts, endpoint identity and flags match. Both builds
+and all19 CTests pass. No XEMU or campaign event-firing claim is made.
+
+Actual4bfc60 contact/activation and physics responses remain resource
+boundaries. Existing shared trigger contact code can supply part of this
+work, but full activation effects, pair ownership and frame placement still
+need integration. Next replace supplied expiration with the verified
+projectile predicate and connect live object/trigger views.

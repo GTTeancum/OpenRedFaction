@@ -1924,6 +1924,21 @@ uint32_t rf_collision_pair_response_allowed(const rf_collision_pair_actor_state 
         !((a->object_flags|b->object_flags)&0x4000u);
 }
 
+uint32_t rf_collision_pair_trigger_dispatch(const rf_collision_pair_actor_state *a,
+    const rf_collision_pair_actor_state *b,const void *first,const void *second,
+    const rf_collision_pair_process_backend *ops)
+{
+    const rf_collision_pair_actor_state *trigger,*other;const void *trigger_id,*other_id;int32_t i;
+    if(a->kind==5){trigger=a;other=b;trigger_id=first;other_id=second;}
+    else if(b->kind==5){trigger=b;other=a;trigger_id=second;other_id=first;}
+    else return 0;
+    if(trigger->trigger_filter==2) {
+        for(i=0;i<trigger->allowed_count;++i)if(trigger->allowed_handles[i]==other->handle)break;
+        if(i==trigger->allowed_count)return 0;
+    }
+    ops->call(ops->context,RF_PAIR_TRIGGER_CONTACT,trigger_id,other_id);return 1;
+}
+
 void rf_collision_pairs_process(rf_collision_pair_list *active,rf_collision_pair_list *available,
     const rf_collision_pair_process_backend *b)
 {
@@ -1936,7 +1951,7 @@ void rf_collision_pairs_process(rf_collision_pair_list *active,rf_collision_pair
         else {
             a=b->actor(b->context,node->first);c=b->actor(b->context,node->second);
             if((a->body_flags|c->body_flags)&0x40000000u) {
-                if(a->kind==5 || c->kind==5)remove=!(b->call(b->context,RF_PAIR_KIND5_TEST,record,NULL)&255u);
+                if(a->kind==5 || c->kind==5)remove=!rf_collision_pair_trigger_dispatch(a,c,node->first,node->second,b);
                 else if(rf_collision_pair_response_allowed(a,c)) {
                     flags=record->flags;first=node->first;second=node->second;
                     a=b->actor(b->context,first);c=b->actor(b->context,second);

@@ -370,13 +370,14 @@ uint32_t rf_collision_pair_create(rf_collision_pair_list *active,rf_collision_pa
     uint32_t (*gate)(void *,const void *,const void *,uint32_t *),void *context);
 typedef struct rf_collision_pair_actor_state {
     uint32_t kind,body_flags,model,movement_mode,handle,parent_handle,object_flags;
+    uint32_t trigger_filter;int32_t allowed_count;const uint32_t *allowed_handles;
 } rf_collision_pair_actor_state;
 /*48bb90/40a110: reject either parent/child handle match or object4000.
  * No geometry test and no mutation; actual actor handles, not list indices. */
 uint32_t rf_collision_pair_response_allowed(const rf_collision_pair_actor_state *first,
     const rf_collision_pair_actor_state *second);
 enum rf_collision_pair_process_call {
-    RF_PAIR_EXPIRED,RF_PAIR_KIND5_TEST,
+    RF_PAIR_EXPIRED,RF_PAIR_TRIGGER_CONTACT,
     RF_PAIR_RESPONSE_MODES1,RF_PAIR_RESPONSE_GENERAL,RF_PAIR_RESPONSE_MODEL,RF_PAIR_RESPONSE_SOLID
 };
 typedef struct rf_collision_pair_process_backend {
@@ -384,9 +385,17 @@ typedef struct rf_collision_pair_process_backend {
     uint32_t (*call)(void *,uint32_t,const void *,const void *);
     void *context;
 } rf_collision_pair_process_backend;
-/* Full48ca60 control flow: cached-next traversal, expiration/kind5 removal,
- * active-body/parent/visibility gates and original response precedence. Queries receive the
- * pair record as first argument; responses receive ordered actor identities.
+/*48bb00: choose first kind5, otherwise second; filter2 searches the
+ * trigger-owned allowed handles. Dispatch contact with input0, returning1
+ * independently of activation. Stable list snapshot; no other callbacks
+ * occur during membership search. No geometry or event effects here. */
+uint32_t rf_collision_pair_trigger_dispatch(const rf_collision_pair_actor_state *first,
+    const rf_collision_pair_actor_state *second,const void *first_identity,const void *second_identity,
+    const rf_collision_pair_process_backend *backend);
+/* Full48ca60 control flow: cached-next traversal, expiration/trigger filtering,
+ * active-body/parent/visibility gates and original response precedence. Expiration receives the
+ * pair record; trigger contact and responses receive ordered identities.
+ * Trigger contact is4bfc60(trigger,other,0), and its return is ignored.
  * Actor lookup is pure; resources may update actor fields/pair flags but
  * must preserve live list/node ownership for the original cached traversal.
  * Callback effects remain backend-owned. No allocation or scene scheduling. */
