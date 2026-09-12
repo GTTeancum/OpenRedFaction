@@ -392,11 +392,15 @@ int main(int argc,char **argv)
         {uint32_t at=0;rf_motion_playback_state expected;rf_motion_playback_initialize(&expected);
         for(i=0;i<poses.count;++i)if(poses.items[i].skeleton!=UINT32_MAX) {
             rf_entity_pose *p=poses.items+i;
-            if(p->matrices!=poses.matrices+at || p->generations!=poses.generations+at ||
+            if(p->matrices!=poses.matrices+at || p->generations!=poses.generations+at || p->overrides!=poses.overrides+at ||
                memcmp(&p->playback,&expected,sizeof(expected)))return 14;
             at+=p->bone_count;
         }
-        if(at!=poses.bone_count)return 15;}
+        if(at!=poses.bone_count)return 15;
+        for(i=0;i<poses.bone_count*sizeof(*poses.overrides);++i)if(((unsigned char *)poses.overrides)[i])return 25;
+        if(poses.resident_bytes!=sizeof(poses)+poses.count*sizeof(*poses.items)+poses.bone_count*(48+2+sizeof(*poses.overrides)))return 26;
+        printf("POSE_OVERRIDES %u %u %u\n",poses.bone_count,poses.bone_count*(unsigned)sizeof(*poses.overrides),poses.resident_bytes);
+        }
         for(i=0;i<s.class_count;++i)if(s.class_indices[i]!=UINT32_MAX)
             printf("SKELETON_CLASS\t%s\t%s\n",seeds.records.items[seeds.classes[i].record_index].record.class_name,s.items[s.class_indices[i]].model);
         {

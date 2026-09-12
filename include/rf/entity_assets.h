@@ -288,11 +288,11 @@ void rf_entity_appearances_close(rf_entity_appearances *appearances);
 typedef struct rf_entity_pose {
     uint32_t skeleton,bone_count;rf_motion_playback_state playback;
     rf_motion_controller controller;
-    float (*matrices)[12];uint16_t *generations;
+    float (*matrices)[12];uint16_t *generations;rf_model_bone_override *overrides;
 } rf_entity_pose;
 typedef struct rf_entity_poses {
     rf_entity_pose *items;float (*matrices)[12];uint16_t *generations;
-    uint32_t count,bone_count,resident_bytes;
+    uint32_t count,bone_count,resident_bytes;rf_model_bone_override *overrides;
 } rf_entity_poses;
 /* Separate playback/cache storage per authored skeletal actor; no active motions
  * or valid cached matrices initially. Non-skeletal entries have UINT32_MAX.

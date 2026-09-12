@@ -2178,20 +2178,24 @@ int rf_entity_pose_release(rf_entity_pose *pose,rf_entity_playback_resources *re
 int rf_entity_pose_take(rf_entity_pose *source,const rf_entity_playback_resources *resources,
     uint32_t budget,rf_entity_owned_pose *result)
 {
-    rf_entity_owned_pose value={0};uint32_t bytes,matrix_bytes;int status;
+    rf_entity_owned_pose value={0};uint32_t bytes,matrix_bytes,override_bytes;int status;
     if(!source || !result || source==&result->pose || !source->matrices || result->storage || result->allocated_bytes ||
-       result->pose.matrices || result->pose.generations || result->pose.bone_count)return RF_RANGE;
+       result->pose.matrices || result->pose.generations || result->pose.overrides || result->pose.bone_count)return RF_RANGE;
     status=entity_pose_reference_check(source,resources);if(status)return status;
     matrix_bytes=source->bone_count*sizeof(*source->matrices);
-    bytes=matrix_bytes+source->bone_count*sizeof(*source->generations);
+    override_bytes=source->overrides?source->bone_count*sizeof(*source->overrides):0;
+    bytes=matrix_bytes+override_bytes+source->bone_count*sizeof(*source->generations);
     if((uint64_t)sizeof(value)+bytes>budget)return RF_RANGE;
     value.storage=malloc(bytes);if(!value.storage)return RF_RANGE;
     value.pose=*source;value.pose.matrices=value.storage;
-    value.pose.generations=(uint16_t *)((unsigned char *)value.storage+matrix_bytes);
+    value.pose.generations=(uint16_t *)((unsigned char *)value.storage+matrix_bytes+override_bytes);
+    value.pose.overrides=override_bytes?(rf_model_bone_override *)((unsigned char *)value.storage+matrix_bytes):NULL;
+    if(override_bytes)memcpy(value.pose.overrides,source->overrides,override_bytes);
     memcpy(value.pose.matrices,source->matrices,matrix_bytes);
     memcpy(value.pose.generations,source->generations,source->bone_count*sizeof(*source->generations));
     value.allocated_bytes=sizeof(value)+bytes;
     rf_motion_playback_initialize(&source->playback);memset(source->generations,0,source->bone_count*sizeof(*source->generations));
+    if(override_bytes)memset(source->overrides,0,override_bytes);
     source->skeleton=UINT32_MAX;*result=value;return RF_OK;
 }
 int rf_entity_registered_pose_take(rf_model_skeletal_registration *registration,
@@ -2246,17 +2250,17 @@ int rf_entity_pose_evaluate(rf_entity_pose *pose,const rf_entity_skeletons *skel
         resources[i].looping=motion->looping;resources[i].markers[0]=motion->markers[0];resources[i].markers[1]=motion->markers[1];
         compact.completion.active.slots[i].motion=(int32_t)i;
     }
-    return rf_model_evaluate_playback(skeleton->bones,skeleton->count,&compact,files,resources,count,
-        pending_displacement,pose->matrices,pose->generations,pose->bone_count);
+    return rf_model_evaluate_overrides(skeleton->bones,skeleton->count,&compact,files,resources,count,
+        pending_displacement,pose->matrices,pose->generations,pose->bone_count,pose->overrides);
 }
 void rf_entity_poses_close(rf_entity_poses *p)
 {
-    if(!p)return;free(p->items);free(p->matrices);free(p->generations);memset(p,0,sizeof(*p));
+    if(!p)return;free(p->items);free(p->matrices);free(p->generations);free(p->overrides);memset(p,0,sizeof(*p));
 }
 int rf_entity_poses_open(const rf_entity_seeds *seeds,const rf_entity_skeletons *s,uint32_t budget,rf_entity_poses *result)
 {
     rf_entity_poses v={0};uint64_t bones=0,bytes;uint32_t i,at=0;
-    if(!seeds || !s || !result || result->items || result->matrices || result->generations ||
+    if(!seeds || !s || !result || result->items || result->matrices || result->generations || result->overrides ||
        result->count || result->bone_count || result->resident_bytes || s->class_count!=seeds->class_count ||
        (seeds->records.count && !seeds->items) || (s->class_count && !s->class_indices) || (s->count && !s->items))return RF_RANGE;
     v.count=seeds->records.count;
@@ -2266,16 +2270,16 @@ int rf_entity_poses_open(const rf_entity_seeds *seeds,const rf_entity_skeletons 
         if(index>=s->count || !s->items[index].count || s->items[index].count>50)return RF_RANGE;
         bones+=s->items[index].count;
     }
-    bytes=sizeof(v)+(uint64_t)v.count*sizeof(*v.items)+bones*(sizeof(*v.matrices)+sizeof(*v.generations));
+    bytes=sizeof(v)+(uint64_t)v.count*sizeof(*v.items)+bones*(sizeof(*v.matrices)+sizeof(*v.generations)+sizeof(*v.overrides));
     if(bytes>budget || bones>UINT32_MAX)return RF_RANGE;
     v.bone_count=(uint32_t)bones;v.resident_bytes=(uint32_t)bytes;
     if(v.count)v.items=calloc(v.count,sizeof(*v.items));
-    if(bones){v.matrices=calloc((size_t)bones,sizeof(*v.matrices));v.generations=calloc((size_t)bones,sizeof(*v.generations));}
-    if((v.count && !v.items) || (bones && (!v.matrices || !v.generations))){rf_entity_poses_close(&v);return RF_RANGE;}
+    if(bones){v.matrices=calloc((size_t)bones,sizeof(*v.matrices));v.generations=calloc((size_t)bones,sizeof(*v.generations));v.overrides=calloc((size_t)bones,sizeof(*v.overrides));}
+    if((v.count && !v.items) || (bones && (!v.matrices || !v.generations || !v.overrides))){rf_entity_poses_close(&v);return RF_RANGE;}
     for(i=0;i<v.count;++i) {
         rf_entity_pose *p=v.items+i;p->skeleton=s->class_indices[seeds->items[i].class_index];
         if(p->skeleton==UINT32_MAX)continue;
-        p->bone_count=s->items[p->skeleton].count;p->matrices=v.matrices+at;p->generations=v.generations+at;
+        p->bone_count=s->items[p->skeleton].count;p->matrices=v.matrices+at;p->generations=v.generations+at;p->overrides=v.overrides+at;
         rf_motion_playback_initialize(&p->playback);at+=p->bone_count;
     }
     *result=v;return RF_OK;

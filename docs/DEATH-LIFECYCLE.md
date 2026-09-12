@@ -3484,3 +3484,35 @@ builds succeed. Full override evaluation is tested on PC and compiled into
 NXDK; no new XEMU runtime evidence is claimed. Next retain records in actor
 poses, transfer them with corpse ownership, account their memory and bind
 death's clear operation without invalidating generation stamps.
+
+
+## Retained actor and corpse override ownership (2026-09-12)
+
+rf_entity_poses_open now allocates zeroed44-byte override records per bone
+and includes them in its existing budget; each actor receives its own slice.
+rf_entity_pose_evaluate passes that slice to the verified override evaluator.
+Existing synthetic poses may omit overrides. Transfer copies present records
+into independent owned storage, then clears the consumed source records.
+The destination generation stamps remain intact. Owned storage lays out
+matrices, aligned override records and then16-bit stamps. Close releases the
+whole allocation and moved animation references once. No budget is enlarged.
+
+Opening-level allocation tests verify zero records, separate slices, exact
+accounting, one-byte-short failure and repeatable close. L1S1 has1689 bones,
+74316 override payload bytes and182506 total pose-owner bytes. On32-bit
+builds, rf_entity_pose is304 bytes and rf_entity_owned_pose312 bytes; a50-bone
+owned pose uses5012 bytes with overrides or2812 without. Existing per-scene
+corpse memory limits still apply to total allocations.
+
+Extended PC transfer tests poison old source buffers and check independent
+override payloads. The NXDK instruction harness passes150 cases each for
+plain/registered transfers, both with and without overrides (600 total),
+including tight budgets, heap failure, reference preservation and cleanup.
+Both builds and all19 CTests pass.
+
+Native replay artifacts/xemu/replay-20260912-031030/report.json passes180
+frames on base-memory67108864, plugged-memory0, with8698 available pages at
+completion. Existing PC/guest playback, movement and audio comparisons pass.
+This validates the new allocation and disabled-override baseline, not live
+enabled overrides or death transitions. Bind CLEAR_BONE and original override
+producers next; full SP death composition remains open.
