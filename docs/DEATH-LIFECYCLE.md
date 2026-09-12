@@ -5439,3 +5439,32 @@ not complete factory/destructor executions or native XEMU gameplay.
 The insertion mechanism is now established. Level-loader factory call order
 and scene ownership binding remain open; the current serialized NPC registry
 setup is not by itself evidence of original cross-family allocation order.
+
+
+### Authored level section dispatch order (2026-09-12)
+
+verify_level_factory_order.py executes original460d3b..461137 post-world-
+geometry dispatch with section headers checked against all94 installed RFL
+archive entries. It compares exact handler sequences and key arguments in
+470 runs: SP, MP client, MP server, multiplayer byte2, and synthetic version70
+with the same section list. Section headers, resource/stream operations and
+section handlers are supplied boundaries. This proves dispatch order, not
+record parsing, constructors, first-phase geometry loading or player creation.
+Report:artifacts/level-factory-order.json. No build or native XEMU claim.
+
+For L1S1 the post-geometry sequence is200,300,500,600,6000,a00,1000,c00,
+8000,2000,3000,70000,10000,20000,30000,40000,50000,60000,1000000,2000000,
+3000000. Unsupported sections are skipped by their byte count. Actor section
+30000 invokes464010, trigger60000 invokes465510; group10000 invokes468c50.
+Only multiplayer byte exactly1 with server byte0 skips30000 and40000.
+Section20000 invokes463d50 only at version71 or later. These handler calls
+follow file order, not a globally sorted type list.
+
+Additional Ghidra inspection (not new dynamic constructor verification):
+468c50 at v180 reads group names/counts/UID references; its legacy key-object
+creation branch is below v140. Thus an earlier group section does not itself
+prove earlier controller allocation.464010 loops records sequentially, but
+may create an additional masako_endgame entity for its special endgame path.
+Do not equate one serialized record with one successful global allocation.
+Actual per-handler factory calls and subsequent player creation remain the
+next ownership-order evidence needed for collision discovery integration.
