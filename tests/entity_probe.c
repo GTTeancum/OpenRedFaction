@@ -596,6 +596,17 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--actor-pair")) {
+        uint32_t words[20],result;rf_collision_actor_pair_view a,b;const rf_collision_actor_pair_view *left,*right;
+        _Static_assert(sizeof(a)==32,"Actor pair wire layout");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(words,sizeof(words),1,stdin)==1) {
+            memcpy(&a,words,32);memcpy(&b,words+8,32);left=words[19]==1?NULL:&a;right=words[19]==2?NULL:words[19]==3?&a:&b;
+            result=rf_collision_actor_pair_reject(left,right,words[16],words[17],words+18);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(words+18,4,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--collision-create")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return collision_pool_probe();
     }

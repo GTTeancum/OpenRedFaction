@@ -1836,3 +1836,36 @@ uint32_t rf_collision_pair_create(rf_collision_pair_list *active,rf_collision_pa
     record->pair.next=active->head;active->head=&record->pair;++active->count;
     record->pair.first=first;record->pair.second=second;record->flags=flags;return 1;
 }
+
+uint32_t rf_collision_actor_pair_reject(const rf_collision_actor_pair_view *a,
+    const rf_collision_actor_pair_view *b,uint32_t alternate,uint32_t multiplayer,uint32_t *flags)
+{
+    uint32_t wa,wb;
+    if(a==b || !a || !b)return 1;
+    if(!((a->body_flags|b->body_flags)&0x20u))return 1;
+    if((a->object_flags|b->object_flags)&0x40000u)return 1;
+    if(!(alternate&255u) && !(multiplayer&255u) && ((a->object_flags|b->object_flags)&0x4000u))return 1;
+    if(a->object_flags&8u) {
+        if(b->object_flags&0x20000u)return 1;
+        if(b->use_kind!=1 && (double)b->extent_180<=2.0*(double)a->extent_180) {
+            if(2.0*(double)b->extent_180<=(double)a->extent_180)return 1;
+            *flags=0x20;return 0;
+        }
+        if(!b->name_matches_sea)*flags=4;return 0;
+    }
+    if(b->object_flags&8u) {
+        if(a->object_flags&0x20000u)return 1;
+        if(a->use_kind!=1 && (double)a->extent_180<=2.0*(double)b->extent_180) {
+            /* Original48bf64/48bf71 compare the same doubled B twice. */
+            if(2.0*(double)b->extent_180<=(double)a->extent_180)return 1;
+            *flags=0x20;return 0;
+        }
+        if(!a->name_matches_sea)*flags=2;return 0;
+    }
+    if(a->use_kind==1 || b->use_kind==1)return 0;
+    wa=a->primary_weapon!=-1 && a->secondary_weapon==-1 && (a->weapon_flags&0x20u);
+    wb=b->primary_weapon!=-1 && b->secondary_weapon==-1 && (b->weapon_flags&0x20u);
+    if(wa)return !wb;if(wb)return 1;
+    if(!(a->body_flags&b->body_flags&0x40u))return 1;
+    return !(a->extent_180>=2.0f || b->extent_180>=2.0f);
+}

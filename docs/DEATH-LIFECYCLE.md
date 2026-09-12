@@ -3839,3 +3839,42 @@ this change.48ca60 traverses active pairs, checks retirement via48cc10 and
 selects response functions from flags;49b900 queries active pairs during
 sweeps. These consumers and discovery scheduling must be connected before
 claiming live death collision cleanup.
+
+
+Actor/actor collision classification - 2026-09-12
+
+rf_collision_actor_pair_reject reconstructs48be00 for two kind0 actors,
+including self/null and common body/object/global-byte gates. Its resolved
+view retains object/body flags, use-kind, primary/secondary weapons and
+primary weapon definition flags264, extent180 and case-insensitive equality
+with Sea_Creature. Both inputs must be actor views; this is not a fallback
+for unimplemented object families. Classification returns1 to reject and0
+to allow, preserving initial pair flags except original assignment sites.
+
+Original4895d0 reads object7c bit8.429990 compares486c90 use-kind to1.
+408d90 requires primary!=-1, secondary==-1 and primary definition264 bit20.
+500290 returns string inequality, so unequal Sea_Creature labels select
+flags4 or2 on the corresponding path. Unarmed ordinary actors require
+both body flags40 and at least one extent180>=2 unless earlier use-kind
+logic accepts them. Other early flags and the special-weapon comparison
+retain their original precedence.
+
+The player branches are intentionally asymmetric:48bed0..48bef8 compare
+twice-A with B, then twice-B with A;48bf5c..48bf7c compare twice-B with A
+twice. The second comparison reuses the x87 value without a float spill.
+The shared code uses double arithmetic for these doubled float operands
+and preserves this order-dependent boundary rather than symmetrizing it.
+
+verify_actor_pair.py passes8192 original/PC/NXDK cases with no substituted
+helpers: full original48be00 runs for kind0/kind0, including original
+player/use-kind/weapon/string routines. It checks result, exact flag writes
+and unchanged actor facts. Coverage includes512 directed finite size-grid
+cases in both orders, common rejection flags, alternate/network low bytes,
+weapon/use-kind combinations, case-insensitive names and null/self. Results:
+5289 rejections preserve flags;1682 accepts preserve flags;632 assign32;
+229 assign2;360 assign4. Nonfinite dimensions are not covered.
+
+Both builds, all19 CTests and existing pool verification pass. No live
+classification binding or XEMU invocation is claimed. Other families in
+48be00, especially projectiles/items/solids and their helper dependencies,
+and broad-phase discovery remain open before campaign pair creation.

@@ -311,6 +311,18 @@ typedef struct rf_collision_pair_list {
     rf_collision_pair *head;
     uint32_t count;
 } rf_collision_pair_list;
+/* Resolved kind0 actor facts for48be00; both records represent actors, not
+ * arbitrary object families. name_matches_sea is case-insensitive equality
+ * with Sea_Creature; weapon_flags is the primary weapon definition's264. */
+typedef struct rf_collision_actor_pair_view {
+    uint32_t object_flags,body_flags,use_kind;int32_t primary_weapon,secondary_weapon;
+    uint32_t weapon_flags;float extent_180;uint32_t name_matches_sea;
+} rf_collision_actor_pair_view;
+/* Complete kind0/kind0 branch plus common gates. Returns1 to reject,0 to
+ * allow; flags are preserved except original assignment sites. Globals are
+ * original bytes6fc4d8 and64ecb9. No broad-phase or other object families. */
+uint32_t rf_collision_actor_pair_reject(const rf_collision_actor_pair_view *first,
+    const rf_collision_actor_pair_view *second,uint32_t alternate,uint32_t multiplayer,uint32_t *flags);
 enum {RF_COLLISION_PAIR_CAPACITY=8192};
 /* Original16-byte x86 record; retirement touches only its header. */
 typedef struct rf_collision_pair_record {rf_collision_pair pair;uint32_t flags;} rf_collision_pair_record;
