@@ -463,6 +463,17 @@ typedef struct rf_collision_model_target {
 typedef struct rf_collision_model_response_hit {
     float time,point[3],normal[3];uint32_t part;
 } rf_collision_model_response_hit;
+typedef struct rf_collision_model_triangle {
+    float plane[4],vertices[3][3];uint32_t token;
+} rf_collision_model_triangle;
+/* Original54dd10 with batch plane/indices resolved by the caller. A positive
+ * normal/displacement dot rejects one-sided faces or flips all plane words
+ * for two-sided faces. Accept only a strictly nearer ray/plane hit inside
+ * the projected triangle. Misses preserve all hit bytes. Finite disjoint
+ * geometry required; token represents the original triangle-record pointer.
+ * No index decoding, bounds test, radius handling or allocation. */
+uint32_t rf_collision_model_ray_triangle(const rf_collision_model_triangle *triangle,
+    const float start[3],const float displacement[3],uint32_t two_sided,rf_collision_model_response_hit *hit);
 typedef struct rf_collision_model_query_view {
     uint32_t kind;const void *geometry;
     const uint8_t *pose_records;uint32_t pose_count; /* Type2:148-byte records. */

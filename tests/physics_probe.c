@@ -43,6 +43,16 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-ray-triangle")) {
+        struct {float start[3],displacement[3];rf_collision_model_triangle triangle;uint32_t two_sided;rf_collision_model_response_hit hit;} input;
+        uint32_t result;_Static_assert(sizeof(input)==116,"model ray triangle wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            result=rf_collision_model_ray_triangle(&input.triangle,input.start,input.displacement,input.two_sided,&input.hit);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(&input.hit,32,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--model-polygon")) {
         struct {float point[3],normal[3];uint32_t count;float vertices[8][3];} input;uint32_t result;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

@@ -4661,3 +4661,26 @@ vertices/edges, adjacent float values near epsilon and barycentric bounds,
 and points displaced off the projected plane. Inputs remain unchanged.
 Report: artifacts/model-polygon.json. PC/NXDK builds and all19 CTests pass.
 Full model triangle composition and native XEMU integration remain open.
+
+
+## Complete thin-ray model triangle54dd10
+
+rf_collision_model_ray_triangle composes the verified506430 ray/plane and
+506dd0 projected containment routines. The caller resolves the original
+batch plane and signed vertex indices into a contiguous triangle and passes
+a token representing the original triangle-record pointer. The original
+ordered double dot product rejects strictly positive back-facing one-sided
+queries, or negates all four plane components for two-sided queries. A hit
+must be strictly nearer than the stored time. Accepted hits replace time,
+point, normal and token; all rejected hits preserve the complete32-byte
+result. No allocation, radius handling or part bounds is added.
+
+verify_model_ray_triangle.py runs full original54dd10 and its actual callees
+without hooks.8192 exact original/PC/NXDK comparisons pass, with334 hits
+including140 flipped-plane hits. Coverage includes signed vertex indices,
+batch triangle selection, one/two-sided queries, axis and arbitrary planes,
+strict time limits and unchanged input/guard bytes. Report:
+artifacts/model-ray-triangle.json. PC/NXDK builds and all19 CTests pass.
+This is executable-level verification, not a native XEMU gameplay claim.
+Swept-sphere54de40, type2 triangle54e530, complete part queries and live
+model geometry binding remain open.
