@@ -223,6 +223,23 @@ int rf_collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
     const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
     const float start[3],const float displacement[3],const float normal_displacement[3],float radius,float limit,
     uint32_t *stack,uint32_t capacity,rf_collision_sweep_tree_hit *result,uint32_t *matched);
+/* Bitmap table has face_count entries in the same order as faces. Callback
+ * receives the stable tree face index (not the address of a temporary face).
+ * Use the tree owner's source-index map for authored UV/material lookup. */
+typedef struct rf_collision_indexed_texture_backend {
+    const int32_t *bitmaps;
+    int (*sample)(void *context,uint32_t index,const rf_collision_face *face,
+        int32_t bitmap,const float point[3],uint32_t *color);
+    void *context;
+} rf_collision_indexed_texture_backend;
+/* Same traversal as sweep_tree, with alpha-aware face queries. Required
+ * bitmap table; sampler may be absent if no accepted interior needs alpha.
+ * Errors preserve result/matched, but scratch and callback state may change. */
+int rf_collision_sweep_tree_textured(const rf_collision_node *nodes,uint32_t node_count,
+    const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
+    const float start[3],const float displacement[3],const float normal_displacement[3],float radius,float limit,
+    uint32_t *stack,uint32_t capacity,const rf_collision_indexed_texture_backend *texture,
+    rf_collision_sweep_tree_hit *result,uint32_t *matched);
 /* 4f9050 split decision before allocation. Upper half is tested first;
  * labels are 0=parent, 1=upper, 2=lower. Both child counts must be nonzero.
  * Caller supplies count labels. No mutation of faces or node; invalid inputs

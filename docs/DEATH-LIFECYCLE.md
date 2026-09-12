@@ -8096,3 +8096,29 @@ The existing12005 sweep and6060 textured-thin cases plus21 CTests pass; both
 builds pass. This composes single-face behavior, not tree/room traversal or
 live scene alpha callbacks. Carry bitmap IDs/source-face ownership through
 those paths next, then bind the authored material sampler.
+
+
+Texture-alpha collision-tree traversal (2026-09-12)
+-------------------------------------------------
+rf_collision_sweep_tree_textured uses the same ordered tree traversal as
+rf_collision_sweep_tree, calling the verified textured swept-face path.
+rf_collision_indexed_texture_backend carries a borrowed face_count bitmap
+table and a callback with stable tree face index, face, bitmap and contact.
+This avoids using the temporary query-flags face copy as a persistent ID.
+Scene adapters can use the existing tree source_indices for authored UVs.
+Missing bitmap table is invalid; absent sample callback fails only when a
+face actually needs alpha. No allocation; query stack remains caller-owned.
+Errors preserve result/matched, while callback side effects and scratch may
+already have changed. Transparent faces do not shorten the retained limit.
+
+verify_collision_textured_tree.py executes full original4deab0 and its
+geometry callees with only UV/bitmap services supplied.5000 original cases
+plus5 malformed tree/query guards match PC/compiled NXDK output and ordered
+sampler index/contact hashes. Original cases include2174 samples,205
+multiple updates and581 final edge hits;68 port callback errors and95
+missing-sampler errors preserve outputs, including16 errors after an earlier
+sample. Cases cover right-before-left traversal, child swaps, empty lists,
+ties, first/closest modes, radii and separate normal displacement. Existing
+5005 non-textured tree and12000 textured face cases plus21 CTests pass;
+both builds pass. Room/preferred/flat propagation and live scene sampling
+remain open. This is not native XEMU scene-binding evidence.

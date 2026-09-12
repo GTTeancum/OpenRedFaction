@@ -14,6 +14,17 @@
 #include "burn_resolved_probe.h"
 #include "visibility_probe.h"
 #include "clutter_skin_probe.h"
+typedef struct collision_tree_texture_fixture {uint32_t input[5],calls,hash;} collision_tree_texture_fixture;
+static int collision_tree_texture_sample(void *context,uint32_t index,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color)
+{
+    collision_tree_texture_fixture *f=context;unsigned char bytes[16];uint32_t i;(void)face;
+    if(index>=3 || bitmap!=(int32_t)index)return RF_RANGE;
+    memcpy(bytes,&index,4);memcpy(bytes+4,point,12);++f->calls;
+    for(i=0;i<16;++i)f->hash=(f->hash^bytes[i])*16777619u;
+    if(f->input[3]==index+1)return RF_IO;
+    *color=f->input[index];return RF_OK;
+}
 typedef struct collision_texture_fixture {uint32_t input[4],calls;float point[3];} collision_texture_fixture;
 static int collision_texture_sample(void *context,const rf_collision_face *face,int32_t bitmap,const float point[3],uint32_t *color)
 {
@@ -1648,7 +1659,8 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
-    if(argc==2 && !strcmp(argv[1],"--sweep-tree")) {
+    if(argc==2 && (!strcmp(argv[1],"--sweep-tree") || !strcmp(argv[1],"--sweep-tree-textured"))) {
+        uint32_t textured=!strcmp(argv[1],"--sweep-tree-textured");
         struct {rf_collision_node nodes[3];float z[3],start[3],delta[3],limit;uint32_t flags;float normal_delta[3],radius;} in;
         struct {int32_t status;uint32_t matched;rf_collision_sweep_tree_hit result;} out;
         while(fread(&in,sizeof(in),1,stdin)==1) {
@@ -1662,6 +1674,16 @@ int main(int argc,char **argv)
                 faces[i].vertices=vertices[i];faces[i].count=4;
             }
             memset(&out.result,0xa5,sizeof(out.result));out.matched=0xa5a5a5a5;
+            if(textured) {
+                int32_t bitmaps[3]={0,1,2};collision_tree_texture_fixture fixture;
+                rf_collision_indexed_texture_backend backend={bitmaps,collision_tree_texture_sample,&fixture};
+                if(fread(fixture.input,4,5,stdin)!=5)return 2;fixture.calls=0;fixture.hash=2166136261u;
+                if(fixture.input[4])backend.sample=NULL;
+                for(i=0;i<3;++i)faces[i].filter.face_flags=0xc0;
+                out.status=rf_collision_sweep_tree_textured(in.nodes,3,faces,3,in.flags,in.start,in.delta,in.normal_delta,in.radius,in.limit,stack,3,&backend,&out.result,&out.matched);
+                if(fwrite(&out,sizeof(out),1,stdout)!=1 || fwrite(&fixture.calls,4,1,stdout)!=1 || fwrite(&fixture.hash,4,1,stdout)!=1)return 2;
+                continue;
+            }
             out.status=rf_collision_sweep_tree(in.nodes,3,faces,3,in.flags,in.start,in.delta,in.normal_delta,in.radius,in.limit,stack,3,&out.result,&out.matched);
             if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
         }

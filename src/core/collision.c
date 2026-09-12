@@ -1551,10 +1551,20 @@ int rf_collision_thin_tree(const rf_collision_node *nodes,uint32_t node_count,
     *matched=value.hits!=0;return RF_OK;
 }
 
-int rf_collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
+typedef struct collision_indexed_texture_context {
+    const rf_collision_indexed_texture_backend *texture;uint32_t index;
+} collision_indexed_texture_context;
+static int collision_indexed_sample(void *context,const rf_collision_face *face,int32_t bitmap,
+    const float point[3],uint32_t *color)
+{
+    collision_indexed_texture_context *c=context;
+    if(!c->texture->sample)return RF_NOT_FOUND;
+    return c->texture->sample(c->texture->context,c->index,face,bitmap,point,color);
+}
+static int collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
     const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
     const float start[3],const float displacement[3],const float normal_displacement[3],float radius,float limit,
-    uint32_t *stack,uint32_t capacity,rf_collision_sweep_tree_hit *result,uint32_t *matched)
+    uint32_t *stack,uint32_t capacity,const rf_collision_indexed_texture_backend *texture,rf_collision_sweep_tree_hit *result,uint32_t *matched)
 {
     rf_collision_sweep_tree_hit value;float end[3],scratch[3],lo[3],hi[3];uint32_t i,j,used=0,visited=0,hit;int status;
     if(!start || !displacement || !normal_displacement || !result || !matched || (node_count && (!nodes || !stack || capacity<node_count)) || (face_count && !faces))return RF_RANGE;
@@ -1576,7 +1586,13 @@ int rf_collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
         for(i=0;i<n->face_count;i++) {
             uint32_t index=n->first_face+i;rf_collision_face face=faces[index];rf_collision_sweep_hit candidate;
             face.filter.query_flags=query_flags;
-            status=rf_collision_sweep_face(&face,start,displacement,normal_displacement,radius,limit,&candidate,&hit);if(status)return status;
+            if(texture) {
+                collision_indexed_texture_context context={texture,index};
+                rf_collision_texture_backend backend={collision_indexed_sample,&context};
+                status=rf_collision_sweep_face_textured(&face,texture->bitmaps[index],start,displacement,
+                    normal_displacement,radius,limit,&backend,&candidate,&hit);
+            } else status=rf_collision_sweep_face(&face,start,displacement,normal_displacement,radius,limit,&candidate,&hit);
+            if(status)return status;
             if(hit) {
                 if(candidate.hits>UINT32_MAX-value.hits)return RF_RANGE;
                 value.hit=candidate.hit;value.edge=candidate.edge;value.face_index=index;value.hits+=candidate.hits;limit=value.hit.fraction;
@@ -1589,6 +1605,25 @@ int rf_collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
  done:
     if(value.hits)*result=value;
     *matched=value.hits!=0;return RF_OK;
+}
+
+int rf_collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
+    const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
+    const float start[3],const float displacement[3],const float normal_displacement[3],float radius,float limit,
+    uint32_t *stack,uint32_t capacity,rf_collision_sweep_tree_hit *result,uint32_t *matched)
+{
+    return collision_sweep_tree(nodes,node_count,faces,face_count,query_flags,start,displacement,
+        normal_displacement,radius,limit,stack,capacity,NULL,result,matched);
+}
+int rf_collision_sweep_tree_textured(const rf_collision_node *nodes,uint32_t node_count,
+    const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
+    const float start[3],const float displacement[3],const float normal_displacement[3],float radius,float limit,
+    uint32_t *stack,uint32_t capacity,const rf_collision_indexed_texture_backend *texture,
+    rf_collision_sweep_tree_hit *result,uint32_t *matched)
+{
+    if(!texture || (face_count && !texture->bitmaps))return RF_RANGE;
+    return collision_sweep_tree(nodes,node_count,faces,face_count,query_flags,start,displacement,
+        normal_displacement,radius,limit,stack,capacity,texture,result,matched);
 }
 
 static uint32_t split_axis(const float *lo,const float *hi)
