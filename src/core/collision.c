@@ -1,5 +1,6 @@
 #include "rf/collision.h"
 #include "rf/physics.h"
+#include "rf/entity.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2153,4 +2154,51 @@ uint32_t rf_collision_segment_sphere(const float start[3],const float end[3],con
         for(i=0;i<3;++i){scaled=(float)((double)direction[i]*hit_float);point[i]=(float)((double)start[i]+scaled);}
     } else memcpy(point,start,12);
     return 1;
+}
+
+uint32_t rf_collision_actor_model_response(rf_collision_actor_general_response *actor,
+    rf_collision_actor_general_response *model_actor,uint32_t model,uint32_t target_use_kind,
+    const rf_collision_model_response_backend *backend)
+{
+    rf_collision_actor_response *a=&actor->actor,*b=&model_actor->actor;const rf_collision_model_target *target;
+    rf_collision_solid_response_query query={0};rf_collision_model_response_hit hit;
+    float limit,relative[3],next_relative[3],end[3],model_delta[3],delta[3],scaled,length;
+    double magnitude,inverse;uint32_t i,changed=0;int32_t j;
+    for(i=0;i<3;++i)if(!(a->minimum[i]<b->maximum[i]))return 0;
+    for(i=0;i<3;++i)if(!(b->minimum[i]<a->maximum[i]))return 0;
+    if((a->body_flags|b->body_flags)&0x400u){a->contact.time=0;a->contact.handle=b->handle;a->contact.inverse_mass=(float)(1.0/b->mass);return 1;}
+    limit=a->contact.time<b->contact.time?a->contact.time:b->contact.time;
+    target=backend->target(backend->context,b->handle);
+    if(target && rf_entity_armor_immunity(target->armor,target->class_flags_724,target->flags_814) && actor->kind==2) {
+        if(!rf_collision_segment_sphere(a->position,a->next_position,b->position,1,a->contact.point))return 0;
+        for(i=0;i<3;++i)delta[i]=(float)((double)a->position[i]-a->next_position[i]);magnitude=response_length(delta);length=(float)magnitude;
+        if(magnitude>actor->extent){for(i=0;i<3;++i)delta[i]=(float)((double)a->position[i]-a->contact.point[i]);a->contact.time=(float)(response_length(delta)/length);}
+        else a->contact.time=0;
+        for(i=0;i<3;++i)a->contact.normal[i]=(float)((double)a->contact.point[i]-a->position[i]);inverse=1.0/response_length(a->contact.normal);
+        for(i=0;i<3;++i)a->contact.normal[i]=(float)((double)a->contact.normal[i]*inverse);
+        memcpy(a->contact.velocity,b->velocity,12);a->contact.handle=b->handle;a->contact.reference=UINT32_MAX;
+        a->contact.material=b->material;a->contact.word_1f0=a->contact.word_1f4=0;a->contact.inverse_mass=1;return 1;
+    }
+    for(i=0;i<3;++i){model_delta[i]=(float)((double)b->next_position[i]-b->position[i]);relative[i]=(float)((double)a->position[i]-b->position[i]);next_relative[i]=(float)((double)a->next_position[i]-b->next_position[i]);}
+    query.matrix[0]=query.matrix[4]=query.matrix[8]=1;query.flags=2;hit.time=1;
+    for(j=0;j<a->sphere_count;++j) {
+        query.radius=a->spheres[j].radius;memcpy(query.start,a->spheres[j].center,12);response_rotate(query.start,actor->orientation,1);
+        for(i=0;i<3;++i)query.start[i]=(float)((double)query.start[i]+relative[i]);response_rotate(query.start,model_actor->orientation,0);
+        memcpy(end,a->spheres[j].center,12);response_rotate(end,actor->next_orientation,1);
+        for(i=0;i<3;++i)end[i]=(float)((double)end[i]+next_relative[i]);response_rotate(end,model_actor->next_orientation,0);
+        for(i=0;i<3;++i)query.displacement[i]=(float)((double)end[i]-query.start[i]);
+        if(!(backend->query(backend->context,model,&query,&hit)&255u) || !(hit.time<limit))continue;
+        limit=hit.time;changed=1;a->contact.time=hit.time;
+        memcpy(a->contact.normal,hit.normal,12);response_rotate(a->contact.normal,model_actor->orientation,1);
+        memcpy(a->contact.point,hit.point,12);response_rotate(a->contact.point,model_actor->orientation,1);
+        for(i=0;i<3;++i){scaled=(float)((double)model_delta[i]*hit.time);scaled=(float)((double)b->position[i]+scaled);a->contact.point[i]=(float)((double)a->contact.point[i]+scaled);}
+        a->contact.material=b->material;a->contact.inverse_mass=(float)(1.0/b->mass);memcpy(a->contact.velocity,b->velocity,12);
+        a->contact.handle=b->handle;a->contact.reference=UINT32_MAX;a->contact.word_1f0=0;a->contact.word_1f4=hit.part;
+        if(b->mass<(double)a->mass+a->mass || target_use_kind==1) {
+            b->contact.time=a->contact.time;for(i=0;i<3;++i)b->contact.normal[i]=-a->contact.normal[i];memcpy(b->contact.point,a->contact.point,12);
+            b->contact.material=a->material;b->contact.inverse_mass=(float)(1.0/a->mass);memcpy(b->contact.velocity,a->velocity,12);
+            b->contact.handle=a->handle;b->contact.reference=UINT32_MAX;b->contact.word_1f0=b->contact.word_1f4=0;
+        }
+    }
+    return changed;
 }

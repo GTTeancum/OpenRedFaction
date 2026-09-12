@@ -4332,3 +4332,43 @@ Coverage includes zero length, radius/endpoint limits, strict tangency, adjacent
 floats and large-coordinate rounding. Report: artifacts/collision-segment-sphere.json.
 PC/NXDK builds and all19 CTests pass.49afe0 orchestration, live model query
 ownership and native response dispatch remain open.
+
+
+### Complete model-response49afe0 orchestration (2026-09-12)
+
+rf_collision_actor_model_response reconstructs49afe0 around a stable426fc0
+target lookup and5031f0 model query service. Actual shared42cca0 immunity and
+506ae0 segment geometry execute inside the routine. Bounds rejection and the
+either-body400 shortcut precede lookup. The immunity check still occurs before
+the first actor kind2 gate, matching the original lookup ordering.
+
+The projectile branch queries a unit sphere at the target's current position
+directly into the projectile contact point. A miss may therefore change that
+point without changing other contact fields. Hits compute time from distance
+only when segment length exceeds actor extent; otherwise time is zero. Normal
+is normalized (hit point minus projectile start), not a sphere normal; a zero
+vector retains the original NaN result. Inverse mass is explicitly1 and only
+the projectile is updated.
+
+Ordinary model queries use flags2, zero origin and identity matrix. Sphere start
+and end transform through actor current/next orientation and relative target
+current/next coordinates. The result time starts at1 and survives across queries
+including misses; a separate minimum accepted time starts at min(actor times).
+Only a nonzero low-byte query result with a strictly earlier time writes contact.
+World contact adds target position interpolated by returned time. Contact1f4
+receives the model part, while1f0 is zero. The target is updated only when its
+mass is strictly below twice actor mass or resolved486c90 use-kind equals1.
+No extra8a0 velocity lookup is made.
+
+verify_actor_model_response.py passes8192 complete-original/PC/NXDK cases:
+3668 model queries;385 real immunity branches including194 hits and36 rejected
+queries that modify contact point. Target lookup and model geometry are supplied;
+original immunity, segment, bounds, list, vector, transform, distance and class
+helpers run unchanged. Exact query data/time carry, return, contact fields and
+surrounding original bytes match under027f, including zero-length/zero-normal
+projectile cases, mass/class gates and oblique transforms. Local report:
+artifacts/actor-model-response.json. PC/NXDK builds and all19 CTests pass.
+
+All four48ca60 response destinations now have reconstructed control flow, but
+model5031f0, solid query/cache services and live contact/actor field ownership
+still require integration. No native-XEMU response behavior is claimed here.

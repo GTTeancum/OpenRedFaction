@@ -11,6 +11,7 @@
 #include "actor_response_probe.h"
 #include "actor_general_response_probe.h"
 #include "actor_solid_response_probe.h"
+#include "actor_model_response_probe.h"
 #include "collision_process_probe.h"
 #include "collision_discovery_probe.h"
 #include "damage_effect_probe.h"
@@ -623,6 +624,9 @@ int main(int argc,char **argv)
             result=rf_collision_projectile_eligible(&state);if(fwrite(&result,4,1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--actor-model-response")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return actor_model_response_probe();
     }
     if(argc==2 && !strcmp(argv[1],"--actor-solid-response")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return actor_solid_response_probe();

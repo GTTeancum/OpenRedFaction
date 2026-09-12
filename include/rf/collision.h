@@ -425,6 +425,25 @@ uint32_t rf_collision_actor_solid_response(rf_collision_actor_general_response *
  * always copy start, even on misses; ordinary misses preserve output. */
 uint32_t rf_collision_segment_sphere(const float start[3],const float end[3],const float center[3],
     float radius,float point[3]);
+typedef struct rf_collision_model_target {
+    float armor;uint32_t class_flags_724,flags_814;
+} rf_collision_model_target;
+typedef struct rf_collision_model_response_hit {
+    float time,point[3],normal[3];uint32_t part;
+} rf_collision_model_response_hit;
+typedef struct rf_collision_model_response_backend {
+    const rf_collision_model_target *(*target)(void *,uint32_t);
+    uint32_t (*query)(void *,uint32_t,const rf_collision_solid_response_query *,rf_collision_model_response_hit *);
+    void *context;
+} rf_collision_model_response_backend;
+/* Original49afe0 orchestration, actual immunity42cca0 and segment506ae0 branch.
+ * Borrowed stable actors, positive masses; target lookup426fc0 and model query
+ * 5031f0 supplied. target_use_kind is resolved486c90. Query flags2, origin0 and
+ * identity matrix; query result time starts at1 and carries across spheres.
+ * Query return uses low byte; misses may mutate its retained result. */
+uint32_t rf_collision_actor_model_response(rf_collision_actor_general_response *actor,
+    rf_collision_actor_general_response *model_actor,uint32_t model,uint32_t target_use_kind,
+    const rf_collision_model_response_backend *backend);
 typedef struct rf_collision_pair_actor_state {
     uint32_t kind,body_flags,model,movement_mode,handle,parent_handle,object_flags;
     uint32_t trigger_filter;int32_t allowed_count;const uint32_t *allowed_handles;
