@@ -1,3 +1,4 @@
+#include "rf/entity_assets.h"
 #include "model_skin_fixture.h"
 #include "model_collision_fixture.h"
 #include "rf/model_file.h"
@@ -81,6 +82,20 @@ int main(int argc, char **argv)
     }
     if ((argc != 3 && argc != 4) || rf_vpp_open(&archive, argv[1])) return 2;
     result = rf_model_file_open(&model, &archive, argv[2]);
+    if(!result && argc==4 && !strcmp(argv[3],"--skin-selection")) {
+        rf_entity_render_model inputs[2]={{0}};rf_entity_render_models models={0};rf_entity_collision_models owner={0};uint32_t budget;
+        inputs[0].file=inputs[1].file=model;inputs[0].bone_count=inputs[1].bone_count=50;models.items=inputs;models.count=2;
+        result=rf_entity_collision_models_open(&models,4*1024*1024,&owner);if(result){rf_vpp_close(&archive);return 3;}
+        budget=owner.resident_bytes;rf_entity_collision_models_close(&owner);
+        if(rf_entity_collision_models_open(&models,budget-1,&owner)!=RF_RANGE || owner.items || owner.resident_bytes)result=RF_FORMAT;
+        if(!result)result=rf_entity_collision_models_open(&models,budget,&owner);
+        if(!result && (owner.count!=2 || owner.items[0].data==owner.items[1].data || owner.lod_indices[0]!=owner.lod_indices[1]))result=RF_FORMAT;
+        if(!result)printf("S %u %u %u %u\n",owner.count,owner.lod_indices[0],owner.resident_bytes,owner.max_vertices);
+        rf_entity_collision_models_close(&owner);rf_entity_collision_models_close(&owner);
+        inputs[1].bone_count=0;
+        if(rf_entity_collision_models_open(&models,budget,&owner)!=RF_RANGE || owner.items || owner.lod_indices || owner.count || owner.resident_bytes || owner.max_vertices)result=RF_FORMAT;
+        rf_vpp_close(&archive);return result?3:0;
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--skin-trace")) {
         rf_model_skin_geometry owner={0};float matrices[256][12],(*scratch)[3]=NULL;uint32_t selected=UINT32_MAX;
         struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;uint32_t reset,lod,mode;} input;

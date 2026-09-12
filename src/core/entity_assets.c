@@ -2129,6 +2129,37 @@ int rf_entity_render_models_open(const rf_entity_skeletons *skeletons,rf_vpp *me
 fail:
     rf_entity_render_models_close(&v);return status;
 }
+void rf_entity_collision_models_close(rf_entity_collision_models *models)
+{
+    uint32_t i;if(!models)return;
+    if(models->items)for(i=0;i<models->count;++i)rf_model_skin_geometry_close(models->items+i);
+    free(models->items);free(models->lod_indices);memset(models,0,sizeof(*models));
+}
+int rf_entity_collision_models_open(const rf_entity_render_models *models,uint32_t budget,rf_entity_collision_models *result)
+{
+    rf_entity_collision_models value={0};uint64_t bytes;uint32_t i;int status;
+    if(!models || !result || (models->count && !models->items) || result->items || result->lod_indices ||
+        result->count || result->resident_bytes || result->max_vertices)return RF_RANGE;
+    bytes=sizeof(value)+(uint64_t)models->count*(sizeof(*value.items)+sizeof(*value.lod_indices));
+    if(bytes>budget)return RF_RANGE;
+    value.count=models->count;
+    if(value.count){value.items=calloc(value.count,sizeof(*value.items));value.lod_indices=calloc(value.count,sizeof(*value.lod_indices));}
+    if(value.count && (!value.items || !value.lod_indices)){status=RF_IO;goto fail;}
+    for(i=0;i<value.count;++i) {
+        rf_model_part_metadata metadata;const rf_entity_render_model *model=models->items+i;
+        if(!model->bone_count || model->bone_count>50){status=RF_RANGE;goto fail;}
+        status=rf_model_file_part_metadata(&model->file,0,&metadata);if(status)goto fail;
+        value.lod_indices[i]=metadata.first_lod+metadata.lod_count-1;
+        status=rf_model_skin_geometry_open(value.items+i,&model->file,value.lod_indices[i],model->bone_count,
+            (uint32_t)((uint64_t)budget-bytes+sizeof(*value.items)));if(status)goto fail;
+        bytes+=value.items[i].accounted_bytes-sizeof(*value.items);
+        if(value.items[i].max_vertices>value.max_vertices)value.max_vertices=value.items[i].max_vertices;
+    }
+    value.resident_bytes=(uint32_t)bytes;*result=value;return RF_OK;
+ fail:
+    rf_entity_collision_models_close(&value);return status;
+}
+
 int rf_entity_poses_start_initial(const rf_entity_seeds *seeds,const rf_entity_skeletons *skeletons,
     const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,rf_entity_poses *poses,const rf_movement_descriptor descriptors[16],float elapsed)
 {

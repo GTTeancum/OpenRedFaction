@@ -274,6 +274,16 @@ typedef struct rf_entity_render_models {
  * Empty output required; failure preserves it. Close is repeatable. */
 int rf_entity_render_models_open(const rf_entity_skeletons *skeletons,rf_vpp *meshes,uint32_t budget,rf_entity_render_models *result);
 void rf_entity_render_models_close(rf_entity_render_models *models);
+typedef struct rf_entity_collision_models {
+    rf_model_skin_geometry *items;uint32_t *lod_indices;uint32_t count,resident_bytes,max_vertices;
+} rf_entity_collision_models;
+/* Own the original initial collision selection: last LOD of the first SUBM
+ * per shared skeletal model, as54e200 reads it. No static fallback or dynamic
+ * LOD selection. Budget includes owner/arrays/blobs/views, excludes scratch
+ * and allocator overhead. Source render-model indices must stay stable. */
+int rf_entity_collision_models_open(const rf_entity_render_models *models,uint32_t budget,rf_entity_collision_models *result);
+void rf_entity_collision_models_close(rf_entity_collision_models *models);
+
 typedef struct rf_entity_appearance {
     uint32_t skeleton,texture_count;char (*textures)[64];
 } rf_entity_appearance;

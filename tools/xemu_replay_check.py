@@ -270,6 +270,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert collision_cache[0]==collision_cache[4]==npc_models[0] and collision_cache[1]<=256*1024 and collision_cache[5]==0,collision_cache
      if frames>1:assert collision_cache[2]>0,collision_cache
      report['npc_collision_cache']=collision_cache
+     model_queries=words(monitor,symbol('rf_scene_npc_model_queries'),7)
+     assert model_queries==expected('NPC_MODEL_QUERIES') and model_queries[1]+model_queries[2]<=1024*1024 and model_queries[6]==0,model_queries
+     if args.actor_pairs and frames>1:assert model_queries[3]>0 and model_queries[4]>0,model_queries
+     report['npc_model_queries']=model_queries
      collision_views=words(monitor,symbol('rf_scene_collision_views'),8)
      assert collision_views==expected('COLLISION_VIEWS'),collision_views
      assert collision_views[0]==frames and collision_views[3]==frames*npc_bodies[1],collision_views
