@@ -6967,3 +6967,14 @@ Native stock64MiB XEMU replay-20260912-135452 passes all 180 actor-pair fixture 
 Independent archive inspection identifies both unmatched placements as Pole Light 1, UIDs7143 and9025 (raw enabled byte0); that class name is absent from clutter.tbl. No replacement class or synthetic object is inserted. The original class lookup/factory failure behavior must be preserved when actual creation is connected; the raw enabled byte alone is not used to infer original gating.
 
 The replay checks class/placement content through a pointer-independent hash, counts and memory bounds against PC, plus existing actor/navigation/physics assertions. PC/NXDK builds and all19 CTests pass; the harness completed its build/flag restoration. Remaining work is actual generic object/model/effect ownership and creation-order integration into visibility/collision and AI.
+
+
+## Original type4 generic allocator audit (2026-09-12)
+
+tools/verify_clutter_base_original.py executes full original486da0 for type4, including real487100/411ac0 construction, registry generation/free-slot removal, global allocation-list append,49ec90/49f010 physics and48a160 room binding. The harness supplies heap, string assignment, parent lookup,489fe0 model attachment/model radius and503250 zero model-sphere count. This extends the earlier type7 corpse audit; it does not claim model resource loading is reconstructed.
+
+All256 successful cases pass across supplied kinds1/3, radius -1/0/.5/2,0/1/2/4 explicit spheres, allocation flags0/4000/10000/100000, inherited parent fields and registry generation wrap. Two early failures (no registry slot and failed728-byte object allocation) leave registration/list state unchanged. The original reserves and publishes the object before model setup. Final flags include06400000;4000 also sets8000;10000 clears descriptor physics20 and suppresses sphere allocation. Negative radius copies the model radius into the descriptor; zero remains zero. Explicit spheres determine the resulting physics bound.
+
+The successful heap traces contain the728-byte object plus one384-byte physics sphere allocation when physics20 is enabled; an initially empty sphere descriptor adds another384-byte allocation while preparing its default sphere. With10000 set, neither sphere allocation occurs. These are observed allocation requests, not proof of full lifetime cleanup or a proposed port memory layout. Model attachment is still supplied, and model failure rollback, real extracted model spheres and room search remain open.
+
+Evidence: artifacts/clutter-base-original.json; original executable SHA256 b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836. No production C change or new native XEMU claim in this audit. The shared generic owner must preserve this publication/radius/physics behavior while providing actual model ownership and rollback.
