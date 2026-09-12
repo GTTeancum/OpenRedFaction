@@ -2477,3 +2477,29 @@ descriptor44 matches the requested room, through4d3560 with callback42df20.
 max_extent, and submits a four-vertex polygon through517110. Exact vector
 construction, texture/render state and live scheduling remain unverified.
 Do not add assumed age-based expiration to the verified tick function.
+
+## Surface-effect growth and quad construction
+
+rf_corpse_surface_build_quad reconstructs42df20 up to renderer submission.
+For elapsed below growth_time, extent is sin(growth_rate*elapsed)*max_extent;
+at or above the boundary it copies max_extent. Original arithmetic performs
+x87 multiplication/fsin/multiplication before the float store. Shared C uses
+double libm, with exact agreement in the tested512 cases; this is not proof
+of universal transcendental bit-equivalence. Only effect extent changes.
+
+The first two basis vectors at20/2c are separately scaled and float-stored.
+Corners are (position-a)+b, (position+a)+b, (position+a)-b, (position-a)-b,
+with a float store after the first add/subtract. UVs are00,10,11,01.
+Color retains the low three RGB bytes and forces alpha255. The third basis
+vector is unused here. Output is an84-byte vertices/UV/color value, with no
+allocation or GPU state. Guarded invalid input preserves both outputs.
+
+verify_corpse_surface_draw_original.py executes the full original routine and
+unchanged vector helpers, supplying only final517110 submission.512 cases
+cover both authored5/8-second growth values,0.25/0.5 maximum extents, random
+positions/bases, zero/boundary/mature ages and arbitrary input alpha.
+verify_corpse_surface_quad.py compares full84-byte effect state and84-byte
+quad to actual PC and compiled NXDK code, including native libm. All bytes
+match. Both builds and19 CTests pass. This is instruction-level verification;
+no new XEMU frame or live effect rendering is claimed. Texture62f73c, render
+state17c7c58, room submission4d3560 and lifecycle scheduling remain to bind.

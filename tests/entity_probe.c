@@ -224,6 +224,9 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--corpse-delete")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_delete_probe();
     }
+    if(argc==2 && !strcmp(argv[1],"--corpse-surface-quad")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_surface_quad_probe();
+    }
     if(argc==2 && !strcmp(argv[1],"--corpse-surface-pool")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_surface_pool_probe();
     }

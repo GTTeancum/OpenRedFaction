@@ -98,3 +98,13 @@ static int corpse_surface_pool_probe(void)
     }
     return ferror(stdin)||ferror(stdout)?5:0;
 }
+
+static int corpse_surface_quad_probe(void)
+{
+    rf_corpse_surface_effect effect;rf_corpse_surface_quad quad;
+    while(fread(&effect,sizeof(effect),1,stdin)==1) {
+        if(rf_corpse_surface_build_quad(&effect,&quad))return 2;
+        fwrite(&effect,sizeof(effect),1,stdout);fwrite(&quad,sizeof(quad),1,stdout);
+    }
+    return ferror(stdin)||ferror(stdout)?3:0;
+}

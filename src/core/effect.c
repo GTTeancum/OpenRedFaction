@@ -763,3 +763,27 @@ int rf_corpse_surface_tick(rf_corpse_surface_pool *pool,float dt)
     }
     return RF_OK;
 }
+
+int rf_corpse_surface_build_quad(rf_corpse_surface_effect *effect,rf_corpse_surface_quad *quad)
+{
+    static const float uv[4][2]={{0,0},{1,0},{1,1},{0,1}};
+    static const int signs[4][2]={{-1,1},{1,1},{1,-1},{-1,-1}};
+    rf_corpse_surface_quad result;float extent;uint32_t i,j;
+    if(!effect || !quad || !isfinite(effect->elapsed) || effect->elapsed<0 ||
+       !isfinite(effect->growth_time) || effect->growth_time<=0 ||
+       !isfinite(effect->growth_rate) || effect->growth_rate<0 ||
+       !isfinite(effect->max_extent) || effect->max_extent<0)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(effect->position[i]))return RF_RANGE;
+    for(i=0;i<6;++i)if(!isfinite(effect->basis[i]))return RF_RANGE;
+    extent=effect->elapsed<effect->growth_time?
+        (float)(sin((double)effect->growth_rate*effect->elapsed)*effect->max_extent):effect->max_extent;
+    for(i=0;i<4;++i)for(j=0;j<3;++j) {
+        float a=(float)((double)effect->basis[j]*extent);
+        float b=(float)((double)effect->basis[j+3]*extent);
+        float center=(float)((double)effect->position[j]+signs[i][0]*(double)a);
+        result.vertices[i][j]=(float)((double)center+signs[i][1]*(double)b);
+        if(!isfinite(result.vertices[i][j]))return RF_RANGE;
+    }
+    memcpy(result.uv,uv,sizeof(uv));result.color=effect->color|0xff000000u;
+    effect->extent=extent;*quad=result;return RF_OK;
+}

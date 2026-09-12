@@ -20,6 +20,14 @@ int rf_corpse_surface_reset(rf_corpse_surface_pool *,rf_corpse_surface_effect sl
  * Caller supplies valid bounded rings and finite elapsed values. */
 int rf_corpse_surface_tick(rf_corpse_surface_pool *,float dt);
 
+typedef struct rf_corpse_surface_quad {
+    float vertices[4][3],uv[4][2];uint32_t color;
+} rf_corpse_surface_quad;
+/* Original42df20 geometry/growth, before renderer submission.
+ * Finite nonnegative elapsed/rate/extent and positive growth time required.
+ * Updates effect extent; no allocation, texture selection or GPU submission. */
+int rf_corpse_surface_build_quad(rf_corpse_surface_effect *,rf_corpse_surface_quad *);
+
 typedef struct rf_corpse_surface_source {
     uint32_t descriptor,model;
     float position[3],basis[9];
