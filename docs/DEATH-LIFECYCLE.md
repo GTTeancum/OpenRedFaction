@@ -1490,3 +1490,32 @@ that ownership differently, but leaving transferred poses unreachable by
 updates would not reproduce the original behavior.
 Report: artifacts/skeletal-release-original.json. This is original-code evidence,
 not a new PC/NXDK skeletal registry or live corpse scene binding.
+
+
+## Shared skeletal retirement
+
+rf_model_skeletal_retire now reconstructs51b070 over a borrowed active-slot
+state, loaded token and circular registration node. A zero loaded token skips
+other inputs. For a loaded node it validates bounded ring membership/coherence,
+slot count, resource IDs and nonnegative reference counts before mutation.
+Selected slots are then reset to-1, active entries drain through the existing
+rf_motion_remove_slot, and the victim is unlinked with the original head-update
+semantics. Duplicates and zero references follow original saturating decrement;
+unused slot tails remain intact. The loaded token is retained. This routine
+does not free pose caches or the enclosing model; those follow retirement.
+
+The ring/node/head, borrowed active state and resource counters must be valid,
+disjoint and exclusively owned for this operation. An unlinked loaded node
+cannot be retired again. Pointer validity is a caller contract; structural
+checks do not make arbitrary addresses safe. No runtime registry population or
+scene pose transfer is introduced by this API alone.
+
+python tools/verify_skeletal_release.py passes680 original/PC/NXDK cases with
+exact active-slot bytes, counters and normalized links/head. On compiled Xbox,
+340 insufficient ring limits,320 invalid motion IDs and340 repeat retirements
+preserve the owners/counters and reject the operation. Original51b070 and its
+slot/reference callees execute without substitutions. Both full builds and
+all18 CTests pass. Xbox SHA256:
+b44f8b7fe4b2a45cb348abc71cad5432de0a2dc766c015e78b7858c34d02ba97.
+Report: artifacts/skeletal-release-verification.json. Live registry, owned pose
+cache release and material ownership integration remain open.

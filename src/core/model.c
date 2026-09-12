@@ -4,6 +4,31 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_model_skeletal_retire(rf_model_skeletal_registration *node,
+    rf_model_skeletal_registration **head,uint32_t limit,rf_motion_playback_resource *resources,uint32_t resource_count)
+{
+    rf_model_skeletal_registration *p;rf_motion_slot_state *active;uint32_t visits=0,found=0,i;int status;
+    if(!node)return RF_RANGE;if(!node->loaded)return RF_OK;
+    if(!head || !*head || !limit || !node->active)return RF_RANGE;
+    p=*head;do {
+        if(++visits>limit || !p->next || !p->previous || p->next->previous!=p || p->previous->next!=p)return RF_RANGE;
+        if(p==node)found=1;p=p->next;
+    } while(p!=*head);
+    if(!found)return RF_NOT_FOUND;
+    active=node->active;if(active->count>16 || (active->count && !resources))return RF_RANGE;
+    for(i=0;i<active->count;++i) {
+        int32_t id=active->slots[i].motion;
+        if(id<0 || (uint32_t)id>=resource_count || resources[id].references<0)return RF_RANGE;
+    }
+    active->freeze_slot=active->primary_slot=active->dominant_slot=-1;
+    while(active->count) {
+        int32_t id=active->slots[0].motion;status=rf_motion_remove_slot(active,id,&resources[id].references);if(status)return status;
+    }
+    if(*head==node)*head=node->next==node?NULL:node->next;
+    if(node->next!=node){node->previous->next=node->next;node->next->previous=node->previous;}
+    node->next=node->previous=NULL;return RF_OK;
+}
+
 int rf_model_release(rf_model_release_state *state,const rf_model_release_backend *backend)
 {
     if(!state || !backend || !backend->payload || !backend->materials || !backend->recycle)return RF_RANGE;

@@ -2,6 +2,23 @@
 #define RF_MODEL_H
 #include "rf/vpp.h"
 #include "rf/motion_file.h"
+#include "rf/motion.h"
+typedef struct rf_model_skeletal_registration {
+    uint32_t loaded;rf_motion_slot_state *active;
+    struct rf_model_skeletal_registration *next,*previous;
+} rf_model_skeletal_registration;
+/*51b070 retirement without freeing the enclosing model payload. A zero loaded
+ * token skips all other fields. Otherwise validate the bounded circular ring
+ * and active resource IDs before mutation, reset selected indices, drain slots
+ * through51c090 semantics and unlink. Slots/resources/nodes/head must be disjoint
+ * and exclusively owned during the call. Shared motion counts saturate at0;
+ * duplicate active IDs are allowed. Loaded token remains intact; repeated
+ * retirement of an unlinked loaded node fails. No allocation or pose-cache free.
+ * Invalid ring/IDs/counts preserve all owners and resource counters. */
+int rf_model_skeletal_retire(rf_model_skeletal_registration *node,
+    rf_model_skeletal_registration **head,uint32_t visit_limit,
+    rf_motion_playback_resource *resources,uint32_t resource_count);
+
 typedef struct rf_model_release_state {uint32_t kind,payload,materials;} rf_model_release_state;
 typedef struct rf_model_release_backend {
     void (*payload)(void *context,uint32_t kind,uint32_t token);

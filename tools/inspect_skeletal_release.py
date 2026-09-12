@@ -27,6 +27,7 @@ for count in range(17):
      refs=[(0,1,2,99)[(i+cases)%4] for i in range(16)];expected_refs=refs[:]
      for i in range(16):u.mem_write(desc+0xf5c+4*i,w(motions+256*i));u.mem_write(motions+256*i+0x74,w(refs[i]))
      for i in range(size):u.mem_write(nodes[i],bytes(raw[i]))
+     before_active=bytes(raw[victim][0x12d0:0x1394])+bytes(raw[victim][0x1cfc:0x1d04])+bytes(raw[victim][0x1d48:0x1d4c])
      u.mem_write(head,w(nodes[0]));u.mem_write(stack,w(stop));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_ECX,nodes[victim]);u.emu_start(0x51b070,stop,count=100000)
      assert u.reg_read(UC_X86_REG_EIP)==stop
      expected_head=nodes[0]
@@ -45,6 +46,7 @@ for count in range(17):
      for i in range(size):assert bytes(u.mem_read(nodes[i],0x2000))==raw[i],(cases,i)
      assert read(head)==expected_head
      assert [read(motions+256*i+0x74) for i in range(16)]==expected_refs
+     if 'observe_case' in globals():observe_case(globals())
      cases+=1
 report=dict(result='PASS',cases=cases,removed_slots=removed,original_sha256=sha,scope=__doc__)
 (root/'artifacts/skeletal-release-original.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))
