@@ -4444,3 +4444,22 @@ peak430372 bytes under524288. Existing collision-view hashes remain unchanged.
 The replay verifies allocation and existing behavior, not execution of the
 new response snapshot/publication APIs on Xbox. Player binding, support extra
 velocity refresh41e370 and automatic live response dispatch remain open.
+
+## Player response contact ownership
+
+rf_scene_player_collision_response/publish now use the registered campaign
+player, existing scene_actor_body and borrowed model publication gate. The
+player owns40 contact-extension bytes plus4 material bytes; stream setup
+resets the inactive extension and retains physics_config.material.index.
+The same collision_body_response mapping now serves both NPCs and player,
+using physics current/predicted transforms and borrowed sphere storage.
+Publication changes only contact fields and requested body flags.
+
+Extended player_collision_binding_check covers distinct physical/published
+positions, pending orientation, material, bounds, borrowed spheres, complete
+contact bit patterns, flags, unrelated-body/view preservation, stale handles,
+NULL arguments, lost model publication, invalid sphere storage and empty
+spheres. NPC regression checks continue to pass. PC/NXDK builds and all19
+CTests pass. This turn does not run XEMU: native execution of the new response
+snapshot/publication APIs remains open, together with actor8a0 velocity
+refresh, pair scheduling and automatic response dispatch.

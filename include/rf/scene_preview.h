@@ -91,6 +91,10 @@ int rf_scene_npc_collision_publish(uint32_t handle,uint32_t body_flags,const rf_
  * Uses published object position and body orientation, not the camera pose.
  * Failure preserves output. Full player model lifecycle remains separate. */
 int rf_scene_player_collision_view(uint32_t handle,rf_collision_pair_actor_state *result);
+/* Same immediate borrowed-body/contact contract as the NPC APIs, gated by
+ * current campaign player registration and borrowed model publication. */
+int rf_scene_player_collision_response(uint32_t handle,rf_collision_actor_general_response *result);
+int rf_scene_player_collision_publish(uint32_t handle,uint32_t body_flags,const rf_collision_actor_contact *contact);
 extern uint32_t rf_scene_collision_views[8]; /* Pointer-free live actor snapshot replay evidence. */
 
 /*503400 ->501cd0(kind2)->51c390 on the currently published model pose.
