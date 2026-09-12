@@ -51,7 +51,7 @@ for case in range(32):
  radius=(-1,0,.5,2)[case%4];has_parent=bool(case%2)
  u.mem_write(parent+0x28,b'\x07');put(parent+0x1f8,17)
  descriptor=bytearray(0x98);descriptor[20:24]=f(1);descriptor[60:108]=f(1,2,3,1,0,0,0,1,0,0,0,1);descriptor[132:136]=f(radius)
- u.mem_write(params,bytes(descriptor));u.mem_write(0x649f38,f(.25,.5,2));allocations.clear();trace.clear();freed.clear()
+ u.mem_write(params,bytes(descriptor));u.mem_write(0x649f50,f(.25,.5,2));allocations.clear();trace.clear();freed.clear()
  assert call(0x486da0,(10,0xffffffff,123,params,0x30000,case%3))==actor
  assert allocations==[(actor,748)],allocations
  assert read(actor+0x24)==10 and read(actor+0x30)==123 and read(actor+0x7c)==0x6030000,(hex(read(actor+0x24)),hex(read(actor+0x30)),hex(read(actor+0x7c)))

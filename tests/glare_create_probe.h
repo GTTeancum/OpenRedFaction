@@ -38,3 +38,28 @@ static int glare_create_probe(void)
     }
     return ferror(stdin)?1:0;
 }
+static int glare_base_probe(void)
+{
+    uint32_t input[4];
+    while(fread(input,sizeof(input),1,stdin)==1) {
+        rf_glare_create_descriptor d={123,0,{1,2,3},{1,0,0,0,1,0,0,0,1}};
+        rf_object_registry registry;rf_object_list objects,family;rf_glare_base_owner *owner=NULL,copy={0};
+        uint32_t uid=UINT32_MAX,header[6],handle=0;float material[3]={.25f,.5f,2};
+        memcpy(&d.radius,input,4);rf_object_registry_init(&registry);rf_object_list_init(&objects);rf_object_list_init(&family);
+        if(input[3]==2)registry.count=0;
+        header[0]=(uint32_t)rf_glare_base_open(&d,&registry,&objects,&uid,input[1],input[2],material,sizeof(copy)-(input[3]==1),&owner);
+        header[1]=sizeof(copy);header[2]=owner!=NULL;
+        if(owner) {
+            if(rf_object_registry_lookup(&registry,owner->handle)!=&owner->state)return 3;
+            copy=*owner;copy.object_link.next=copy.object_link.previous=NULL;handle=owner->handle;
+            rf_object_list_append(&family,&owner->state.link);
+            if(rf_glare_base_close(&owner,&registry,&objects)!=RF_RANGE || !owner)return 4;
+            rf_object_list_remove(&family,&owner->state.link);
+            if(rf_glare_base_close(&owner,&registry,&objects) || rf_object_registry_lookup(&registry,handle))return 5;
+        }
+        if(rf_glare_base_close(&owner,&registry,&objects))return 6;
+        header[3]=registry.count;header[4]=objects.count;header[5]=uid;
+        if(fwrite(header,sizeof(header),1,stdout)!=1 || fwrite(&copy,sizeof(copy),1,stdout)!=1)return 2;
+    }
+    return ferror(stdin)?1:0;
+}

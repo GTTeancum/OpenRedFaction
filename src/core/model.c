@@ -36,6 +36,38 @@ int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
     state->byte_2d0=0;memset(state->vectors,0,sizeof(state->vectors));return RF_OK;
 }
 
+int rf_glare_base_close(rf_glare_base_owner **owner,rf_object_registry *registry,rf_object_list *objects)
+{
+    rf_glare_base_owner *v;uint32_t handle;
+    if(!owner || !registry || !objects)return RF_RANGE;v=*owner;if(!v)return RF_OK;
+    if(v->state.link.next || v->state.link.previous || rf_object_registry_lookup(registry,v->handle)!=&v->state)return RF_RANGE;
+    handle=v->handle;rf_object_list_remove(objects,&v->object_link);rf_physics_body_close(&v->body);
+    free(v);*owner=NULL;return rf_object_registry_remove(registry,handle);
+}
+int rf_glare_base_open(const rf_glare_create_descriptor *d,
+    rf_object_registry *registry,rf_object_list *objects,uint32_t *uid_cursor,
+    uint32_t parent_byte,uint32_t parent_group,const float material[3],uint32_t budget,rf_glare_base_owner **out)
+{
+    rf_glare_base_owner *v;rf_physics_creation_seed seed={0};uint32_t i;int status;
+    if(!d || !registry || !objects || !uid_cursor || !material || !out || *out || parent_byte>255 ||
+       budget<sizeof(*v) || !isfinite(d->radius) || !objects->sentinel.next || !objects->sentinel.previous ||
+       objects->sentinel.next->previous!=&objects->sentinel || objects->sentinel.previous->next!=&objects->sentinel)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(d->position[i]) || !isfinite(material[i]))return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(d->matrix[i]))return RF_RANGE;
+    if(!registry->count){*out=NULL;return RF_OK;}
+    v=calloc(1,sizeof(*v));if(!v)return RF_IO;
+    v->state.parent=UINT32_MAX;v->state.tag=-1;v->flags=0x6030000;v->kind=10;v->identifier=-1;
+    v->parent_handle=d->parent;v->parent_byte=parent_byte;v->parent_group=parent_group;v->health=100;
+    v->radius=d->radius<=0?1:d->radius;memcpy(v->position,d->position,12);memcpy(v->matrix,d->matrix,36);
+    rf_object_list_append(objects,&v->object_link);status=rf_object_registry_insert(registry,&v->state,&v->handle);
+    if(status){rf_object_list_remove(objects,&v->object_link);free(v);return status;}
+    v->uid=(*uid_cursor)--;seed.radius=d->radius<0?v->radius:d->radius;seed.word_14=0x3f800000;
+    memcpy(seed.position,d->position,12);memcpy(seed.basis,d->matrix,36);
+    status=rf_physics_creation_body_open(&seed,material[0],material[1],material[2],sizeof(v->body),&v->body);
+    if(status){(void)rf_glare_base_close(&v,registry,objects);return status;}
+    v->allocated_bytes=sizeof(*v);*out=v;return RF_OK;
+}
+
 int rf_object_model_attach(rf_object_model_attachment *state,const char *name,
     uint32_t kind,const rf_object_model_backend *backend)
 {

@@ -1,6 +1,7 @@
 #ifndef RF_GLARE_H
 #define RF_GLARE_H
 #include "rf/object_registry.h"
+#include "rf/physics.h"
 typedef struct rf_glare_class {
     float radius_minimum,radius_maximum;const void *definition;
 } rf_glare_class;
@@ -32,4 +33,25 @@ typedef struct rf_glare_create_backend {
 int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
     uint32_t parent,int32_t tag,uint32_t flag,rf_object_list *list,
     const rf_glare_create_backend *backend,rf_glare_state **out);
+typedef struct rf_glare_base_owner {
+    rf_glare_state state;rf_object_link object_link;
+    uint32_t handle,uid,flags,kind,parent_handle,parent_byte,parent_group;
+    int32_t identifier;float radius,health,position[3],matrix[9];
+    rf_physics_body body;uint32_t allocated_bytes;
+} rf_glare_base_owner;
+/* Type10 generic ownership for413d20: no model, flags30000, descriptor
+ * flags0/scale1/material0, no ordinary room binding. Resolved parent byte/group
+ * and material coefficients supplied. One owner allocation; registry/list
+ * publication precedes physics. Empty registry returns NULL successfully.
+ * UID/generation consumed after publication are not rolled back on failure.
+ * Budget counts owner/body storage once, excludes registry/list/allocator.
+ * Zero output required. Full glare factory/effect state is initialized later. */
+int rf_glare_base_open(const rf_glare_create_descriptor *descriptor,
+    rf_object_registry *registry,rf_object_list *objects,uint32_t *uid_cursor,
+    uint32_t parent_byte,uint32_t parent_group,const float material[3],
+    uint32_t budget,rf_glare_base_owner **out);
+/* Retire glare family link first (4153b0, via rf_object_list_remove).
+ * Then release body/global link/heap and recycle the handle. NULL repeats OK;
+ * linked glare state rejects close. External effects must already be retired. */
+int rf_glare_base_close(rf_glare_base_owner **owner,rf_object_registry *registry,rf_object_list *objects);
 #endif
