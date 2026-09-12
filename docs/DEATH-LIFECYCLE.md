@@ -6377,3 +6377,45 @@ This is preliminary inspection, not a verified reconstruction of4991c0. Its
 third parameter needs semantic treatment as an object-size threshold rather
 than assuming it defines a swept visibility sphere. Continuous NPC navigation,
 actual visibility callbacks and campaign-wide behavior remain open.
+
+
+### Full4991c0 visibility orchestration audit (2026-09-12)
+
+`tools/verify_visibility_original.py` executes full original4991c0 with actual
+40a110 predicate,508b70 segment/AABB, constructors and vector/matrix helpers.
+Only5031f0 model effects and498e80 world results are supplied.4096 cases cover
+empty/partial/permuted three-list traversal, size comparisons including NaN and
+infinity, exclusion pointers, hidden/flag2 filtering, broadphase misses,
+callback-mutated start/displacement/flags and nonboolean low-byte returns.
+Complete initialized80-byte model query prefixes and ordered callback traces
+match; original object storage, input endpoints and caller stack are preserved.
+There are2189 model calls,3546 world calls,550 early returns,745 query restores,
+841 middle-list clipping operations and1640 nonboolean final results.
+
+The float argument is a minimum object extent at object180, not a sphere radius.
+FCOMP/FNSTSW/TEST AH,1 rejects smaller and unordered extents; equality passes.
+Every list rejects object flags4000 through40a110. First/third lists additionally
+reject flag2; the middle list does not. All lists exclude both supplied object
+pointers and require the original508b70 test against bounds190/19c using the
+original caller endpoints, even after working model displacement is shortened.
+
+A104-byte model query is created with body positione4, matrixfc, caller start,
+end-minus-start displacement, radius0 and flags=(caller_flags&1). Its first80
+bytes are initialized; remaining scratch is not initialized by the constructor.
+Model calls receive model80, query,32-byte hit and reset1. Their low-byte results
+are ORed. After each middle-list model call, displacement becomes original
+displacement times returned hit.time, even for a model miss. On accumulated
+nonzero result with caller bit1 set, return canonical1 immediately. Otherwise
+query flag2 restores the original start/displacement and clears only flag2;
+other callback flag changes survive. The middle-list clip occurs before that
+restore/early return. Later model queries see the resulting working segment.
+
+If no early return occurs,498e80 receives the unchanged caller start/end, full
+caller flags and final context argument; its low byte is ORed with accumulated
+model results without boolean normalization. The shared navigation callback
+contract now correctly describes its2.5 argument as minimum object extent.
+
+Next reconstruct this full orchestration in shared C with ordered stable owner
+views and real AABB helper, verify PC/NXDK against these original traces, then
+bind model/world geometry and actual three-list ownership. This audit does not
+prove5031f0/498e80 geometry internals, shared C visibility or native gameplay.

@@ -985,7 +985,8 @@ typedef struct rf_entity_navigation_selection {uint32_t first,second,contained;}
  * original unsigned node-address ordering for pair traversal; neighbors are
  * ordered indexes into references, matching original node+28 adjacency. References and
  * nodes stay alive; visibility must not mutate this collection. It receives
- * candidate query point, actor point and radius2.5; blocked uses low byte.
+ * candidate query point, actor point and minimum object extent2.5 (4991c0
+ * filtering threshold, not a swept-sphere radius); blocked uses low byte.
  * Fallback can select first while contained remains0. Errors retain effects
  * already applied, including rejected flags, scores and partial selections. */
 int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint32_t count,
