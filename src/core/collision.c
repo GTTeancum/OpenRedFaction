@@ -2091,6 +2091,23 @@ static void response_rotate(float v[3],const float matrix[9],uint32_t transpose)
     for(i=0;i<3;++i){dot=(double)v[2]*matrix[transpose?6+i:i*3+2];dot+=(double)v[1]*matrix[transpose?3+i:i*3+1];dot+=(double)v[0]*matrix[transpose?i:i*3];out[i]=(float)dot;}
     memcpy(v,out,12);
 }
+uint32_t rf_collision_model_parts_query(const int32_t *part_count,rf_collision_solid_response_query *query,
+    rf_collision_model_response_hit *hit,uint32_t reset,const rf_collision_model_parts_backend *backend)
+{
+    uint32_t i;int32_t part=0;uint8_t changed=0;
+    if((reset&255u)==1u){hit->time=1;hit->part=0;}
+    if(!(query->flags&2u)) {
+        for(i=0;i<3;++i)query->start[i]=(float)((double)query->start[i]-query->origin[i]);
+        response_rotate(query->start,query->matrix,0);response_rotate(query->displacement,query->matrix,0);
+        query->flags|=2u;
+    }
+    while(part<*part_count) {
+        changed|=(uint8_t)backend->part(backend->context,part,query,hit,0);
+        if(changed && (query->flags&1u))return 1;
+        ++part;
+    }
+    return changed;
+}
 uint32_t rf_collision_actors_general_response(rf_collision_actor_general_response *first,
     rf_collision_actor_general_response *second,const float *(*extra_velocity)(void *,uint32_t),void *context)
 {

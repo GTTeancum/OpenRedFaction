@@ -469,6 +469,19 @@ uint32_t rf_collision_model_query(const rf_collision_model_query_view *model,int
 /* Original5031f0: same dispatch with part=-1. */
 uint32_t rf_collision_model_query_all(const rf_collision_model_query_view *model,const void *query,
     rf_collision_model_response_hit *hit,uint32_t reset,const rf_collision_model_query_backend *backend);
+typedef struct rf_collision_model_parts_backend {
+    uint32_t (*part)(void *,int32_t,rf_collision_solid_response_query *,rf_collision_model_response_hit *,uint32_t);
+    void *context;
+} rf_collision_model_parts_backend;
+/* Original54e000. If query flag2 is clear, transform start-origin and
+ * displacement by the inverse orientation, then set flag2. Re-read signed
+ * part_count after each callback; OR low return bytes, stopping with1 when
+ * accumulated result is nonzero and current query flag1 is set. Reset only
+ * on lowbyte1; per-part reset argument is0. Stable valid owners and finite
+ * transform inputs required. Part callbacks supply54daa0 and may mutate
+ * count/query/result. No part geometry or allocation is implemented here. */
+uint32_t rf_collision_model_parts_query(const int32_t *part_count,rf_collision_solid_response_query *query,
+    rf_collision_model_response_hit *hit,uint32_t reset,const rf_collision_model_parts_backend *backend);
 typedef struct rf_collision_model_response_backend {
     const rf_collision_model_target *(*target)(void *,uint32_t);
     uint32_t (*query)(void *,uint32_t,const rf_collision_solid_response_query *,rf_collision_model_response_hit *);

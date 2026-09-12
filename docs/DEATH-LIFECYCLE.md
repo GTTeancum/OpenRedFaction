@@ -4592,3 +4592,28 @@ all32 hit bytes and result values match.2058 whole-model wrapper cases and
 Report: artifacts/model-query-dispatch.json. Geometry callbacks still stand
 in for54e000/54daa0/54e140; no real model geometry, live dispatch or XEMU
 execution of this new dispatcher is claimed. No allocation is introduced.
+
+## Whole-model part traversal54e000
+
+rf_collision_model_parts_query reconstructs54e000, including preparation
+when query flag2 is clear: subtract origin from start, inverse-rotate start
+and displacement, then set flag2. Reset initializes time/part only for
+lowbyte1. The signed part count is re-read after every callback, so changes
+are observed. Each part receives reset0; low return bytes are ORed without
+normalization, except flag1 early exit returns1. The current query flag is
+read after the callback. Part geometry54daa0 remains supplied.
+
+verify_model_parts_query.py executes full original54e000 with actual53b7bc
+and vector helpers, intercepting only54daa0.4096 PC/NXDK comparisons pass:
+3260 part calls,2458 preparation paths,1666 initially empty counts and908
+early exits. Query/result/count, each callback input/order/reset, surrounding
+bytes and result match under027f. Cases include mutable counts/flags,
+negative counts, callback return high bits, nontrivial transforms and stale
+hit payloads. Report: artifacts/model-parts-query.json. PC/NXDK builds and
+all19 CTests pass. No XEMU run or completed triangle geometry is claimed.
+
+The newly exported54daa0 uses per-part data/LOD selection, transforms a
+working ray, expands part bounds by query radius, runs508b70 and traverses
+geometry batches through54dcd0. Type2 helper54e140 prepares working ray
+fields50/5c then calls54e200; unlike54e000, its reset condition is any nonzero
+low byte. These paths require separate reconstruction and verification.
