@@ -2958,3 +2958,54 @@ Real item allocation/list/registry ownership, authored drop query/model bounds,
 weapon-drop42ae10, linked actor release and remaining death-start effects still
 need binding/reconstruction. No live death dispatch or corpse-item publication
 is claimed. Report: artifacts/death-drop.json.
+
+
+## Full SP weapon-drop oracle (2026-09-12)
+
+`tools/verify_weapon_drop_original.py` now executes complete original42ae10
+in single-player mode, including504e40/504db0/57312d RNG, quantity conversion,
+vector/cross/normalization arithmetic, class-name comparison and current-weapon
+writes. Only model pose418e60, item mapping459a90/459430, inventory operation
+4031a0, collision4df1c0, item creation459100, notification401340 and bounds503310
+are supplied.577eef supplies the explicit CRT thread-data owner; the original
+RNG advances that owner. Resource callbacks are recorded in call order.
+
+1024 cases pass:496 eligibility rejections,78 handled model-pose branches,
+179 missing mappings,118 floor misses,31 allocation failures and122 successful
+creations.78 notifications and182 inventory-operation calls are observed.
+The report retains every fixture, request/basis, sequence, final current weapon,
+RNG and created item state for the next shared implementation. These are original
+execution results, not a C/NXDK equivalence or live gameplay claim.
+
+Verified details to preserve in that implementation:
+
+- Excluded global872118 and flag1a8 bit400000 reject first. For nonnegative
+  current weapons, reserve+loaded uses signed32-bit wrapping addition and must
+  be positive. Model pose handling precedes item mapping; a negative weapon
+  reaching the pose helper still rejects when its supplied mapping is-1.
+- Once a mapping is available, SP consumes one original random draw. The
+  quantity is default_count minus trunc(default_count*range(0,.2)), clamped
+  to at least4 after signed32-bit subtraction. The descriptor uses stride550;
+  ammo type is85cd2c and drop quantity85cd90. The oracle checks exact integer
+  reference reduction using the stored .2f rational13421773/67108864.
+- Actual class strings are `Remote Charges` and `Remote Charge`, with spaces.
+  The plural class resolves to the singular item after RNG consumption.
+- Parameter low byte exactly1 uses the model-pose position, adding.5 to the
+  query start and subtracting4*extent from the end. Every other low-byte value
+  uses actor position without the+.5 start, calls4031a0 and clears current2a4
+  BEFORE querying. This state change persists on misses/allocation failure.
+  The callback fixture models an owned-byte removal; this is not independent
+  proof of4031a0 internals, which still require recovery/binding.
+- Query radius is.1, flags2000, initial FLT_MAX, hierarchy1 and identity local
+  transform. Unlike the configured-item drop, the weapon spawn uses the
+  computed surface-aligned basis. All original arithmetic is retained in the
+  oracle; the report provides exact resulting basis floats.
+- Any nonzero parameter low byte emits401340 after the create attempt, even
+  when allocation returnsNULL; this differs from the exactly1 placement gate.
+  A created item then gets flag8 and normal-scaled model-bound offset. Original
+  actor bytes outside current2a4 and the supplied inventory effect stay intact.
+
+The remaining implementation target is the full SP routine, using existing
+shared inventory/RNG/query/item types where their contracts match. Item/resource
+ownership, real model-pose/bounds and live dispatch remain separate open work.
+Report: artifacts/weapon-drop-original.json.
