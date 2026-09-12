@@ -6,6 +6,7 @@
 #include "rf/player.h"
 #include "rf/event.h"
 #include "rf/audio.h"
+#include "rf/clutter.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -1170,6 +1171,10 @@ typedef struct campaign_controller_effects {
 static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
 static rf_foley_owner campaign_foley;
+static rf_clutter_catalogs campaign_clutter_catalogs;
+static rf_clutter_classes campaign_clutter_classes;
+static rf_level_owned_clutter campaign_clutter_records;
+uint32_t rf_scene_clutter[8]; /* classes, records, unmatched, class bytes, record bytes, retained, load peak, hash */
 static int32_t (*campaign_footstep_groups)[10];
 static int32_t (*campaign_pain_groups)[2];
 static int32_t *campaign_impact_groups;
@@ -1837,6 +1842,40 @@ static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes)
 {
     const unsigned char *p=data;while(bytes--)hash=(hash^*p++)*16777619u;return hash;
 }
+static int campaign_clutter_open(const char *tables_path,const rf_level *level)
+{
+    rf_vpp tables;uint32_t i,j,peak=0,hash=2166136261u;int status;
+    memset(rf_scene_clutter,0,sizeof(rf_scene_clutter));
+    status=rf_vpp_open(&tables,tables_path);if(status)return status;
+    status=rf_clutter_catalogs_open(&tables,&campaign_foley,65536,&campaign_clutter_catalogs);
+    if(!status)status=rf_clutter_classes_load(&tables,&campaign_clutter_catalogs.names,
+        256*1024-campaign_clutter_catalogs.allocated_bytes,&campaign_clutter_classes,&peak);
+    rf_vpp_close(&tables);if(status)return status;
+    status=rf_level_owned_clutter_open(level,128*1024,&campaign_clutter_records);
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    rf_scene_clutter[0]=campaign_clutter_classes.count;rf_scene_clutter[1]=campaign_clutter_records.count;
+    rf_scene_clutter[3]=campaign_clutter_classes.allocated_bytes;
+    rf_scene_clutter[4]=campaign_clutter_records.allocated_bytes;
+    rf_scene_clutter[5]=rf_scene_clutter[3]+rf_scene_clutter[4]+campaign_clutter_catalogs.allocated_bytes;
+    rf_scene_clutter[6]=peak+campaign_clutter_catalogs.allocated_bytes;
+    if(rf_scene_clutter[6]<rf_scene_clutter[5])rf_scene_clutter[6]=rf_scene_clutter[5];
+    for(i=0;i<campaign_clutter_classes.count;++i) {
+        const rf_clutter_class *c=campaign_clutter_classes.items+i;
+        hash=npc_hash_bytes(hash,c->name,(uint32_t)strlen(c->name)+1);
+        hash=npc_hash_bytes(hash,c->model,(uint32_t)strlen(c->model)+1);
+        hash=npc_hash_bytes(hash,c->corpse,(uint32_t)strlen(c->corpse)+1);
+        hash=npc_hash_bytes(hash,&c->emitter_count,80);
+        hash=npc_hash_bytes(hash,c->emitters,c->emitter_count*4);
+    }
+    for(i=0;i<campaign_clutter_records.count;++i) {
+        const rf_level_clutter *c=campaign_clutter_records.items+i;
+        for(j=0;j<campaign_clutter_classes.count;++j)
+            if(rf_emitter_name_lookup(&campaign_clutter_classes.items[j].name,1,c->class_name)==0)break;
+        rf_scene_clutter[2]+=j==campaign_clutter_classes.count;
+        hash=npc_hash_bytes(hash,&j,4);hash=npc_hash_bytes(hash,c->raw,c->bytes);
+    }
+    rf_scene_clutter[7]=hash;return RF_OK;
+}
 static int campaign_navigation_open(const rf_level *level)
 {
     uint32_t i,hash=2166136261u;int status;
@@ -2207,6 +2246,9 @@ done:
 }
 static void campaign_close_movers(void)
 {
+    rf_level_owned_clutter_close(&campaign_clutter_records);
+    rf_clutter_classes_close(&campaign_clutter_classes);
+    rf_clutter_catalogs_close(&campaign_clutter_catalogs);
     campaign_models_close();
     campaign_npc_bodies_close();
     if(campaign_playback_resources.models) {
@@ -5709,6 +5751,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_controller_requests=calloc(campaign_group_runtime.count?campaign_group_runtime.count:1,sizeof(*campaign_controller_requests));
             if(!campaign_controller_requests){status=RF_RANGE;goto done;}
             status=campaign_audio_open(tables_path,level->entry.name,binding.entity.class_name);if(status)goto done;
+            status=campaign_clutter_open(tables_path,level);if(status)goto done;
             memset(rf_scene_live_activation,0,sizeof(rf_scene_live_activation));campaign_actor_controller=UINT32_MAX;
             memset(rf_scene_trigger_contacts,0,sizeof(rf_scene_trigger_contacts));
             memset(&campaign_entities,0,sizeof(campaign_entities));memset(&campaign_player_view,0,sizeof(campaign_player_view));

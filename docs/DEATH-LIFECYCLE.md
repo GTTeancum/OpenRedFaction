@@ -6956,3 +6956,14 @@ The shared two-pass owner accepts a read-only row callback and validates each ro
 tools/verify_clutter_load.py passes 11 scenarios: every authored row and bound ID on PC actual archive/catalog loading versus compiled NXDK with supplied archive I/O and catalogs; exact and one-byte-short budgets; scratch/final allocation failures; archive read failure; binding failure in either pass; empty, malformed and capacity-overflow tables. Freed scratch is poisoned before retained fields are inspected. Outputs stay unchanged and partial allocations are released on errors. Existing compact class ownership verification and all 19 PC CTests pass; PC and NXDK builds succeed.
 
 Evidence: artifacts/clutter-load.json. This is archive-to-runtime class metadata composition, not a complete original class parser, generic model/effect allocation, instantiated scene clutter or native XEMU validation. The next integration must retain the class owner for the lifetime of its objects and connect actual resource ownership and factory backends.
+
+
+## Native scene-owned clutter inputs (2026-09-12)
+
+Campaign startup now retains the archive-backed clutter class catalog and level clutter records after Foley initialization. The name catalogs borrow the existing Foley owner; shared cleanup closes records, classes and catalogs before Foley, including startup failure paths. The tables archive closes immediately after loading. This supplies the owned inputs needed by subsequent object factories; it does not instantiate clutter models, effects, physics or draw calls.
+
+Native stock64MiB XEMU replay-20260912-135452 passes all 180 actor-pair fixture frames and matches the PC content digest. CLUTTER is [431,170,2,55610,39834,99033,229109,3216785036]: classes, placements, unmatched class references, class bytes, placement bytes, retained bytes, loading peak and content hash. Budgets exclude allocator overhead, archive state, stack and other scene owners. The 229109 peak includes the retained resource name catalogs during class loading; placement storage is loaded afterward. No expanded 431-row definition array is retained.
+
+Independent archive inspection identifies both unmatched placements as Pole Light 1, UIDs7143 and9025 (raw enabled byte0); that class name is absent from clutter.tbl. No replacement class or synthetic object is inserted. The original class lookup/factory failure behavior must be preserved when actual creation is connected; the raw enabled byte alone is not used to infer original gating.
+
+The replay checks class/placement content through a pointer-independent hash, counts and memory bounds against PC, plus existing actor/navigation/physics assertions. PC/NXDK builds and all19 CTests pass; the harness completed its build/flag restoration. Remaining work is actual generic object/model/effect ownership and creation-order integration into visibility/collision and AI.

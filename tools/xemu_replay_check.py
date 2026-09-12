@@ -267,6 +267,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       # Independently derived from original463d50-audited L1S1 records.
       assert navigation==[333,760,3,1,48360,916127865],navigation
      report['navigation']=navigation
+     clutter=words(monitor,symbol('rf_scene_clutter'),8)
+     assert clutter==expected('CLUTTER') and clutter[0]==431 and clutter[3]==55610,clutter
+     assert clutter[5]<=clutter[6]<=256*1024,clutter
+     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+      assert clutter[1]==170 and clutter[4]==39834,clutter
+     report['clutter']=clutter
      npc_models=words(monitor,symbol('rf_scene_npc_models'),4)
      assert npc_models==expected('NPC_MODELS'),npc_models
      assert npc_models==[npc_bodies[1],npc_bodies[0]*80,npc_bodies[1],0],npc_models
