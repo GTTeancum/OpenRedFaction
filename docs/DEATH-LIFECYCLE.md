@@ -1021,3 +1021,38 @@ figures above describe the prior layout. The64 fill/drain cycles and1921
 acquisitions continue to pass with the expanded records. No native XEMU or
 visual change is claimed; names, models and full cleanup remain open.
 Both builds succeed and all13 CTests pass for this layout.
+
+
+## Owned corpse names
+
+rf_corpse_owned now retains separate object and death-name allocations. The
+bounded rf_corpse_name_assign adapter follows4ffa80,4ff380 and4ff280: exact
+self-assignment does nothing, equal-length assignment reuses the allocation,
+length changes free before replacing, and empty/null names retain no heap
+allocation. Borrowed source text is copied including its terminator. Interior
+source aliases into the destination allocation are outside the API contract.
+
+Name bytes participate in the same pool budget as sphere bytes. Insufficient
+final-live budget preserves the old name. If replacement allocation fails after
+the old buffer is freed, the shared name becomes empty with corrected accounting;
+this is a recoverable error instead of the original's unchecked null allocation.
+Clearing a name requires no allocation. Recycle rejects retained names so the
+two original deletion boundaries must explicitly release them before slot reuse.
+The constructor/deleter resource callbacks are not yet connected to this adapter.
+
+python tools/verify_corpse_names.py executes complete original4ffa80 with its
+real4ff380/4ff280 and string copy, supplying only malloc/free. Across1024
+assignments to the two fields, PC and compiled NXDK match lengths, nullness,
+text and retained-byte totals. NXDK also matches exact allocation/free sizes
+and order. Tests cover empty/null/self/equal-length/replacement assignments,
+source-buffer overwrite, budget rejection, failed replacement allocation and
+recycle rejection before names are released. No original OOM equivalence or
+native XEMU gameplay is claimed.
+
+The two eight-byte Xbox name records add480 fixed bytes across30 slots. Current
+fixed owner storage is19224 bytes, with a19944-byte one-sphere-per-slot peak
+when names are empty. Name payloads add their length plus one terminator each.
+The64 fill/drain cycles and1921 acquisitions pass with this layout. Names are
+owned storage now; binding them to real constructor and deletion effects,
+models, live room lookup and complete failure cleanup remain open.
+The256 registered-base comparisons, both builds and all13 CTests pass.

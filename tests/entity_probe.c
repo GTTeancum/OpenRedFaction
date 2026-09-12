@@ -76,6 +76,24 @@ static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corpse-name")) {
+        static rf_corpse_owners owners;rf_corpse_physics_seed seed={0};uint32_t input[3],slot,values[4],base;char text[256];const char *name;int status;
+        seed.flags=0x33;seed.radius=1;seed.basis[0]=seed.basis[4]=seed.basis[8]=1;
+        if(rf_corpse_owners_init(&owners,sizeof(owners)+1024) || rf_corpse_owners_acquire(&owners,&seed,.25f,.5f,2,&slot))return 2;
+        base=owners.allocated_bytes;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            if(input[0]>1 || input[1]>255 || fread(text,1,input[1],stdin)!=input[1])return 3;
+            text[input[1]]=0;name=input[2]==1?NULL:input[2]==2?owners.slots[slot].names[input[0]].bytes:text;
+            status=rf_corpse_name_assign(&owners,slot,input[0],name);
+            values[0]=(uint32_t)status;values[1]=owners.slots[slot].names[input[0]].length;
+            values[2]=owners.slots[slot].names[input[0]].bytes!=NULL;values[3]=owners.allocated_bytes-base;
+            fwrite(values,4,4,stdout);if(values[2])fwrite(owners.slots[slot].names[input[0]].bytes,1,values[1]+1,stdout);
+        }
+        rf_corpse_name_assign(&owners,slot,0,NULL);rf_corpse_name_assign(&owners,slot,1,NULL);
+        if(rf_corpse_owners_recycle(&owners,slot) || owners.allocated_bytes!=sizeof(owners))return 4;
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--corpse-base")) {
         static rf_corpse_owners owners;static rf_object_registry registry;
         uint32_t input[23],index,count,values[10];rf_corpse_list_link head,previous;rf_corpse *c;rf_physics_body *body;

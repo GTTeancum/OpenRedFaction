@@ -3,6 +3,7 @@
 #include <math.h>
 #include <string.h>
 #include <stddef.h>
+#include <stdlib.h>
 int rf_entity_impact_damage(float impact_speed,uint32_t falling,int32_t contact_material,
     uint32_t kind_one,uint32_t object_flags,float *amount,uint32_t *eligible)
 {
@@ -701,9 +702,30 @@ int rf_corpse_owners_recycle(rf_corpse_owners *owners,uint32_t index)
 {
     rf_physics_body *body;
     if(!owners || index>=RF_CORPSE_CAPACITY || !(owners->pool.active_mask&(1u<<index)))return RF_RANGE;
+    if(owners->slots[index].names[0].bytes || owners->slots[index].names[1].bytes)return RF_RANGE;
     body=&owners->slots[index].body;
     owners->allocated_bytes-=body->spheres.count*sizeof(rf_physics_sphere);
     rf_physics_body_close(body);return rf_corpse_pool_release(&owners->pool,index);
+}
+int rf_corpse_name_assign(rf_corpse_owners *owners,uint32_t index,uint32_t kind,const char *name)
+{
+    rf_corpse_name *target;size_t length;uint32_t old_bytes,new_bytes;char *copy;
+    if(!owners || index>=RF_CORPSE_CAPACITY || kind>=RF_CORPSE_NAME_COUNT ||
+       !(owners->pool.active_mask&(1u<<index)))return RF_RANGE;
+    target=&owners->slots[index].names[kind];
+    if(name && name==target->bytes)return RF_OK;
+    length=name?strlen(name):0;if(length>=UINT32_MAX)return RF_RANGE;
+    old_bytes=target->bytes?target->length+1:0;new_bytes=length?(uint32_t)length+1:0;
+    if((uint64_t)owners->allocated_bytes-old_bytes+new_bytes>owners->budget)return RF_RANGE;
+    if(length==target->length) {
+        if(target->bytes)memcpy(target->bytes,name,length+1);
+        return RF_OK;
+    }
+    if(target->bytes)free(target->bytes);target->bytes=NULL;target->length=0;owners->allocated_bytes-=old_bytes;
+    if(!length)return RF_OK;
+    copy=malloc(new_bytes);if(!copy)return RF_RANGE;
+    memcpy(copy,name,new_bytes);target->bytes=copy;target->length=(uint32_t)length;
+    owners->allocated_bytes+=new_bytes;return RF_OK;
 }
 int rf_corpse_base_acquire(rf_corpse_owners *owners,rf_object_registry *registry,
     rf_corpse_list_link *head,uint32_t *object_count,const rf_corpse_physics_seed *seed,

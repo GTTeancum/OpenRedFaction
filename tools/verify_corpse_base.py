@@ -37,7 +37,7 @@ def call(address,*args):
  u.mem_write(stack,w(stop,*args));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x37f)
  u.emu_start(address,stop,count=1000000);assert u.reg_read(UC_X86_REG_EIP)==stop;return u.reg_read(UC_X86_REG_EAX)
 for case,(wire,want) in enumerate(zip(commands,expected)):
- values=struct.unpack('<23I',wire[:92]);used=values[19] or 1;budget=18744+used*24
+ values=struct.unpack('<23I',wire[:92]);used=values[19] or 1;budget=19224+used*24
  assert call(init,b,budget)==0;call(reginit,registry)
  u.mem_write(registry+12288,w(values[21],1,values[20]));u.mem_write(c,bytes([0xa5])*276)
  u.mem_write(seed,wire[:60]+w(source,values[19],values[15]));u.mem_write(source,wire[92:] or bytes(24))

@@ -468,13 +468,15 @@ int rf_corpse_body_open(const rf_corpse_physics_seed *seed,float elasticity,floa
     float density,uint32_t budget,rf_physics_body *result);
 /* Concrete storage for the verified 30-slot allocator and owned body adapter.
  * Initialize fresh caller-owned storage. Budget includes this entire pool plus
- * live sphere payloads, excluding allocator overhead. Corpse records retain
+ * live sphere/name payloads, excluding allocator overhead. Corpse records retain
  * payload across recycle, like the original pool; the constructor's allocator
  * callback must initialize/register its base fields before publishing it.
  * Recycle only after all other resources and list memberships are retired.
  * Does not register objects, load models, or dispatch scene death by itself. */
+typedef struct rf_corpse_name {uint32_t length;char *bytes;} rf_corpse_name;
+enum {RF_CORPSE_OBJECT_NAME,RF_CORPSE_DEATH_NAME,RF_CORPSE_NAME_COUNT};
 typedef struct rf_corpse_owned {
-    rf_corpse corpse;rf_physics_body body;rf_entity_room_state room;
+    rf_corpse corpse;rf_physics_body body;rf_entity_room_state room;rf_corpse_name names[RF_CORPSE_NAME_COUNT];
 } rf_corpse_owned;
 typedef struct rf_corpse_owners {
     rf_corpse_pool pool;rf_corpse_owned slots[RF_CORPSE_CAPACITY];
@@ -484,7 +486,15 @@ int rf_corpse_owners_init(rf_corpse_owners *owners,uint32_t budget);
 /* Error preserves output. Failed preparation returns the slot to the pool. */
 int rf_corpse_owners_acquire(rf_corpse_owners *owners,const rf_corpse_physics_seed *seed,
     float elasticity,float friction,float density,uint32_t *index);
+/* Requires both names already cleared at their original deletion boundaries. */
 int rf_corpse_owners_recycle(rf_corpse_owners *owners,uint32_t index);
+/*4ffa80 owned assignment. NULL means empty; equal-length assignment reuses
+ * storage and exact self-assignment is a no-op. Other source overlap with the
+ * destination allocation is forbidden. Final live bytes must fit the pool
+ * budget; that preflight preserves the old name. A later allocation failure
+ * leaves the name empty after freeing the old allocation. No borrowed pointer
+ * retained. Invoke for each name at its construction/deletion effect boundary. */
+int rf_corpse_name_assign(rf_corpse_owners *owners,uint32_t index,uint32_t kind,const char *name);
 
 /* Type7 base-owner subset of486da0/487100: caller has accepted room placement,
  * no model descriptor, object flags argument0. Registers the acquired corpse
