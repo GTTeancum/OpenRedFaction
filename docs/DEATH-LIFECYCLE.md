@@ -6345,3 +6345,35 @@ creation/retirement and budget telemetry, verify stock64MiB XEMU, then compose
 route/query ownership with actual4991c0 visibility and408ac0 AI. Native XEMU
 navigation behavior, original heap-relative ordering across arbitrary lifetimes,
 older RFL versions and continuous NPC navigation remain unverified.
+
+
+### Native scene navigation residency (2026-09-12)
+
+Campaign startup now opens the shared navigation owner alongside retained
+movement regions, before registered NPC creation. It has a65536-byte budget,
+propagates load failures through scene cleanup, and closes after NPC teardown.
+A missing section is allowed. It does not yet execute NPC route queries.
+
+`rf_scene_navigation` publishes node/edge/tag/oriented counts, allocated bytes
+and a pointer-independent FNV hash of UID/orientation/tag/neighbor/key headers,
+complete candidate prefixes, matrices, tags and ordered neighbor indices. The
+PC replay emits NAVIGATION, and the native harness reads the same guest words.
+L1S1 additionally requires the independently computed original-record hash.
+
+Stock64MiB XEMU `replay-20260912-120133` passed180 frames with actor-pair fixtures:
+NAVIGATION [333,760,3,1,48360,916127865]. XBE SHA256 is
+`eb8a6fea07eb36ff3179ab60f5da7a3582970adc83301e0db7025639a6894c14`.
+Guest base memory is67108864 bytes with zero plugged memory. Comparing PC
+reference output to the prior110901 replay finds only the added NAVIGATION row;
+all existing rows are unchanged. Both builds and all19 CTests pass. Native
+harness completed its restore/rebuild cleanup successfully. No new visual was
+produced, so no screenshot was captured.
+
+Next bind route/query ownership, then original4991c0 visibility and408ac0 AI.
+Fresh raw4991c0 decompilation shows three ordered object-list traversals,
+object-size/flag/exclusion filtering, bounds tests and5031f0 model queries before
+498e80 world visibility; a static-world-only callback would be incomplete.
+This is preliminary inspection, not a verified reconstruction of4991c0. Its
+third parameter needs semantic treatment as an object-size threshold rather
+than assuming it defines a swept visibility sphere. Continuous NPC navigation,
+actual visibility callbacks and campaign-wide behavior remain open.

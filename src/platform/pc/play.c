@@ -302,6 +302,7 @@ int main(int argc,char **argv)
             printf("NPC_COLLISION_CACHE %u %u %u %u %u %u\n",rf_scene_npc_collision_cache[0],rf_scene_npc_collision_cache[1],rf_scene_npc_collision_cache[2],rf_scene_npc_collision_cache[3],rf_scene_npc_collision_cache[4],rf_scene_npc_collision_cache[5]);
             printf("NPC_CROUCH_TEST");for(i=0;i<7;++i)printf(" %u",rf_scene_npc_crouch_test[i]);printf("\n");
             printf("NPC_NORMAL_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_normal_test[i]);printf("\n");
+            printf("NAVIGATION");for(i=0;i<6;++i)printf(" %u",rf_scene_navigation[i]);printf("\n");
             printf("NPC_SLOW_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_slow_test[i]);printf("\n");
             printf("NPC_STAND_TEST");for(i=0;i<7;++i)printf(" %u",rf_scene_npc_stand_test[i]);printf("\n");
             printf("NPC_IMPACT_DISPATCH");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_impact_dispatch[i]);printf("\n");

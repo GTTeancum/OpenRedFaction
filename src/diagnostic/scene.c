@@ -407,6 +407,8 @@ uint32_t rf_scene_actor_eye_enabled;
 uint32_t rf_scene_actor_turn_enabled,rf_scene_actor_look_enabled,rf_scene_actor_look_frames[64][33];
 static rf_look_pose actor_look;
 static rf_level_owned_regions campaign_regions;
+static rf_level_owned_navigation campaign_navigation;
+uint32_t rf_scene_navigation[6]; /* nodes, edges, tags, oriented, bytes, content hash */
 static rf_physics_force_collection campaign_forces;
 static uint32_t campaign_force_class_flags,campaign_force_class_kind;
 static float campaign_force_air_limit;
@@ -1834,6 +1836,30 @@ uint32_t rf_scene_campaign_movers[3]; /* registered, owned collision bytes, regi
 static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes)
 {
     const unsigned char *p=data;while(bytes--)hash=(hash^*p++)*16777619u;return hash;
+}
+static int campaign_navigation_open(const rf_level *level)
+{
+    uint32_t i,hash=2166136261u;int status;
+    memset(rf_scene_navigation,0,sizeof(rf_scene_navigation));
+    status=rf_level_owned_navigation_open(level,65536,&campaign_navigation);
+    if(status==RF_NOT_FOUND)return RF_OK;
+    if(status)return status;
+    rf_scene_navigation[0]=campaign_navigation.count;
+    rf_scene_navigation[4]=campaign_navigation.allocated_bytes;
+    for(i=0;i<campaign_navigation.count;++i) {
+        const rf_level_navigation_node *node=campaign_navigation.nodes+i;
+        const rf_entity_navigation_reference *ref=campaign_navigation.references+i;
+        uint32_t header[5]={node->uid,node->oriented,node->tag_count,ref->neighbor_count,ref->order_key};
+        if(ref->candidate!=&node->candidate)return RF_FORMAT;
+        rf_scene_navigation[1]+=ref->neighbor_count;rf_scene_navigation[2]+=node->tag_count;
+        rf_scene_navigation[3]+=node->oriented;
+        hash=npc_hash_bytes(hash,header,sizeof(header));
+        hash=npc_hash_bytes(hash,&node->candidate,sizeof(node->candidate));
+        hash=npc_hash_bytes(hash,node->orientation,sizeof(node->orientation));
+        hash=npc_hash_bytes(hash,node->tags,node->tag_count*4);
+        hash=npc_hash_bytes(hash,ref->neighbors,ref->neighbor_count*4);
+    }
+    rf_scene_navigation[5]=hash;return RF_OK;
 }
 static void campaign_npc_materials_digest(void)
 {
@@ -5705,6 +5731,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_bind_movers();if(status)goto done;
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
+            status=campaign_navigation_open(level);if(status)goto done;
             memset(&campaign_climb,0,sizeof(campaign_climb));memset(rf_scene_player_climb,0,sizeof(rf_scene_player_climb));
             memset(rf_scene_player_climb_frames,0,sizeof(rf_scene_player_climb_frames));
             rf_scene_player_climb[3]=UINT32_MAX;rf_scene_player_climb[5]=campaign_regions.allocated_bytes;
@@ -5900,6 +5927,7 @@ done:
     rf_runtime_events_close(&campaign_events);
     rf_level_owned_ambient_close(&campaign_ambient);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);
+    rf_level_owned_navigation_close(&campaign_navigation);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;
