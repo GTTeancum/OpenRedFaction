@@ -2650,3 +2650,31 @@ texture decoding/budget checks. Both builds and19 CTests pass. This is a
 PC rendering integration test, not an original GPU image comparison or an
 XEMU render. Live campaign creation/queue dispatch and Xbox raster validation
 remain open. No meaningful new gameplay screenshot is available yet.
+
+## Stock64MiB XEMU surface texture and draw validation
+
+The particle diagnostic now includes corpse_pixel_test using the same
+corpse_surface_fixture camera/effect setup as the PC raster probe. It loads
+somenewblood_A.tga from D:\maps_en.vpp, closes the archive before drawing,
+and calls the composed surface draw through the real Xbox scene particle
+sink. Zero, half-grown, mature and repeated mature passes each record a
+16x16 grid directly from the native framebuffer after GPU completion.
+This is a diagnostic scene, not campaign death dispatch.
+
+tools/xemu_particle_pixels.py run particle-pixels-20260912-004902 passes.
+QMP confirms67108864 base bytes and0 plugged memory. All1024 blood-pool
+pixel samples differ from PC by at most1 per color channel. Zero growth
+leaves the background, mid/mature images differ, and repeated mature images
+match exactly. Physical available pages are14095 before allocation,14091
+with the texture retained and14095 after release. Accounted texture bytes
+are16420; the native allocation consumes four physical pages.
+
+The existing particle blend/depth/fog, animated-texture, stretched-particle
+and flash checks also pass in the same isolated run. Both builds and19
+CTests pass. XBE SHA256:
+621be5f4d004bec17c3b3eb99a9a6e0024ab5b4eeee262d06454b57a5c2806d0
+
+No host input or desktop capture was used. The harness closes XEMU and
+restores/repackages its diagnostic flag. Live campaign creation, real room
+queue scheduling, renderer capability binding and hardware/PS2 parity remain
+open; these diagnostic samples do not establish those broader requirements.

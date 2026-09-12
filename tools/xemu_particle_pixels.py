@@ -6,7 +6,7 @@ from xemu_guest_snapshot import words
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu')
 run=root/'artifacts/xemu'/('particle-pixels-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
 flag=root/'build/xbox/disc/particle-render-test.flag';saved=flag.read_bytes() if flag.exists() else None
-process=monitor=None;report={'result':'FAIL','scope':'Native particle shader/blend/fog/depth probes and retained 16-frame texture ownership, age-selected frames 0/7/15 after archive close, physical page recovery, and six stretched-geometry GPU fixtures; no campaign/PS2 parity claim.'}
+process=monitor=None;report={'result':'FAIL','scope':'Native particle shader/blend/fog/depth probes and retained 16-frame texture ownership, age-selected frames 0/7/15 after archive close, physical page recovery, six stretched-geometry GPU fixtures and authored blood-pool texture through composed growth/draw with physical page recovery; no campaign/PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh','--repack'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True,stdout=subprocess.DEVNULL)
 try:
  flag.write_bytes(b'1');build();mapping=(root/'build/xbox/main.map').read_text()
@@ -93,6 +93,17 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   errors=[abs(a-b) for rgb,ref in zip(flash_rgb,flash_pc) for a,b in zip(rgb,ref)]
   report['flash']=dict(actual_rgb=flash_rgb,pc_rgb=flash_pc,max_channel_error=max(errors))
   assert max(errors)<=2,report['flash']
+  corpse_address=int(re.search(r'\s_rf_corpse_pixel_diagnostic\s+([0-9a-fA-F]+)',mapping)[1],16)
+  corpse=words(monitor,corpse_address,1032)
+  corpse_pc=[tuple(map(int,line.split())) for line in subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe'),'--corpse-pixels',str(root/'Installed_Game/maps_en.vpp')],text=True).splitlines()]
+  corpse_rgb=[((p>>16)&255,(p>>8)&255,p&255) for p in corpse[8:]]
+  assert corpse[:3]==[0x52464350,2,4] and corpse[4]==16420 and len(corpse_pc)==1024,corpse[:8]
+  errors=[abs(a-b) for rgb,ref in zip(corpse_rgb,corpse_pc) for a,b in zip(rgb,ref)]
+  report['corpse']=dict(state=corpse[:8],max_channel_error=max(errors),actual_rgb=corpse_rgb,pc_rgb=corpse_pc)
+  assert max(errors)<=2,report['corpse']['max_channel_error']
+  assert corpse[3]>0 and corpse[5]<corpse[3] and corpse[6]>=corpse[3],corpse[:8]
+  assert all(rgb==(32,64,96) for rgb in corpse_rgb[:256])
+  assert corpse_rgb[256:512]!=corpse_rgb[512:768] and corpse_rgb[512:768]==corpse_rgb[768:1024]
   report['result']='PASS'
 finally:
  if monitor:

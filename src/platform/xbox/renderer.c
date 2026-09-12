@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <windows.h>
+#include "../../../tests/corpse_surface_fixture.h"
 
 /* Millisecond presentation phases after the first 16 stream submissions.
  * Each row contains calls, elapsed low/high, maximum. Read-only QMP evidence. */
@@ -328,6 +329,34 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     return RF_OK;
 }
 
+uint32_t rf_corpse_pixel_diagnostic[1032];
+static int corpse_pixel_test(void)
+{
+    rf_vpp archive;rf_particle_bitmap texture={0};rf_visibility_camera camera;
+    rf_particle_vertex_environment environment;rf_corpse_surface_effect effect;
+    MM_STATISTICS statistics={0};uint32_t i,x,y;int status;
+    statistics.Length=sizeof(statistics);rf_corpse_pixel_diagnostic[0]=0x52464350;rf_corpse_pixel_diagnostic[1]=1;
+    status=rf_vpp_open(&archive,"D:\\maps_en.vpp");if(status)return status;
+    status=rf_corpse_surface_texture_open(&texture,&archive,1,16420);if(status){rf_vpp_close(&archive);return status;}
+    rf_particle_bitmap_close(&texture);
+    if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_corpse_pixel_diagnostic[3]=statistics.AvailablePages;
+    status=rf_corpse_surface_texture_open(&texture,&archive,1,16420);rf_vpp_close(&archive);if(status)return status;
+    rf_corpse_pixel_diagnostic[4]=texture.resident_bytes;
+    if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_corpse_pixel_diagnostic[5]=statistics.AvailablePages;
+    corpse_surface_fixture(&camera,&environment,&effect);
+    for(i=0;i<4;++i) {
+        pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
+        effect.elapsed=i==0?0:i==1?2.5f:5;
+        status=rf_corpse_surface_draw(&effect,&camera,&environment,&texture.image,RF_PARTICLE_NORMAL_MODE,scene_particle_present,NULL);if(status)break;
+        while(pb_busy()) {}
+        for(y=0;y<16;++y)for(x=0;x<16;++x)rf_corpse_pixel_diagnostic[8+i*256+y*16+x]=
+            *(volatile uint32_t*)((unsigned char*)pb_back_buffer()+(214+y*4)*pb_back_buffer_pitch()+(284+x*5)*4);
+        rf_corpse_pixel_diagnostic[2]=i+1;
+    }
+    rf_particle_bitmap_close(&texture);
+    if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_corpse_pixel_diagnostic[6]=statistics.AvailablePages;
+    rf_corpse_pixel_diagnostic[1]=status?(uint32_t)status:2;return status;
+}
 uint32_t rf_particle_texture_diagnostic[1544];
 static int particle_texture_test(void)
 {
@@ -467,6 +496,7 @@ failed:
     MmFreeContiguousMemory(pixels);
     status=particle_texture_test();
     if(!status)status=particle_stretch_test();
+    if(!status)status=corpse_pixel_test();
     if(!status)status=flash_pixel_test();
     rf_particle_pixel_diagnostic[1]=status?0x80000000u|(uint32_t)(-status):2;
 

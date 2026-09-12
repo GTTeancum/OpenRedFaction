@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Compose tested corpse tags, room queries and the authored packed-lightmap color owner after binding live renderer capability, shared texture residency, runtime-created tags and effect live dispatch and Xbox raster validation; texture ownership, room collection and composed drawing through the PC renderer sink are tested.
+- [ ] Compose tested corpse tags, room queries and the authored packed-lightmap color owner after binding live renderer capability, shared texture residency, runtime-created tags and effect live dispatch; isolated authored texture/growth draws now pass PC and stock64MiB XEMU, while campaign source ownership and queue scheduling remain open.
 - [ ] Bind verified base corpse-motion lookup to live creation and recover weapon-switched declaration views; canonical availability masks are retained.
 - [ ] Connect the authored-tested owned corpse constructor and class-input binding to live death dispatch and resource effects; bind the authored-tested corpse update adapter to live dispatch, replacement materials and moving room lookup.
 - [ ] Enable authored-class sphere transfer and tested corpse transition/refresh in live dispatch and recover attached item creation/handle publication and bind the tested item world-pose callback to live owners.
