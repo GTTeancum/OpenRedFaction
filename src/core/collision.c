@@ -1954,9 +1954,9 @@ int rf_collision_ray_solids(const rf_collision_solid_view *moving,uint32_t count
     if(found && result)*result=value;*matched=found;return RF_OK;
 }
 
-int rf_collision_flat_faces(const rf_collision_face *faces,uint32_t count,uint32_t flags,
+static int collision_flat_faces(const rf_collision_face *faces,uint32_t count,uint32_t flags,
     const float start[3],const float delta[3],const float origin[3],const float matrix[3][3],
-    float radius,float limit,rf_collision_sweep_tree_hit *result,uint32_t *matched)
+    float radius,float limit,const rf_collision_indexed_texture_backend *texture,rf_collision_sweep_tree_hit *result,uint32_t *matched)
 {
     float local_start[3],local_delta[3];uint32_t active,i,found;int status;
     rf_collision_sweep_tree_hit value={0};rf_collision_sweep_hit candidate;
@@ -1966,13 +1966,32 @@ int rf_collision_flat_faces(const rf_collision_face *faces,uint32_t count,uint32
     if(!active) {*matched=0;return RF_OK;}
     for(i=0;i<count;i++) {
         rf_collision_face face=faces[i];face.filter.query_flags=flags;
-        status=rf_collision_sweep_face(&face,local_start,local_delta,delta,radius,limit,&candidate,&found);if(status)return status;
+        if(texture) {
+            collision_indexed_texture_context context={texture,i};
+            rf_collision_texture_backend backend={collision_indexed_sample,&context};
+            status=rf_collision_sweep_face_textured(&face,texture->bitmaps[i],local_start,local_delta,delta,radius,limit,&backend,&candidate,&found);
+        } else status=rf_collision_sweep_face(&face,local_start,local_delta,delta,radius,limit,&candidate,&found);
+        if(status)return status;
         if(found) {
             if(candidate.hits>UINT32_MAX-value.hits)return RF_RANGE;
             value.hit=candidate.hit;value.face_index=i;value.edge=candidate.edge;value.hits+=candidate.hits;limit=candidate.hit.fraction;
         }
     }
     if(value.hits)*result=value;*matched=value.hits!=0;return RF_OK;
+}
+
+int rf_collision_flat_faces(const rf_collision_face *faces,uint32_t count,uint32_t flags,
+    const float start[3],const float delta[3],const float origin[3],const float matrix[3][3],
+    float radius,float limit,rf_collision_sweep_tree_hit *result,uint32_t *matched)
+{
+    return collision_flat_faces(faces,count,flags,start,delta,origin,matrix,radius,limit,NULL,result,matched);
+}
+int rf_collision_flat_faces_textured(const rf_collision_face *faces,uint32_t count,uint32_t flags,
+    const float start[3],const float delta[3],const float origin[3],const float matrix[3][3],
+    float radius,float limit,const rf_collision_indexed_texture_backend *texture,rf_collision_sweep_tree_hit *result,uint32_t *matched)
+{
+    if(!texture || (count && !texture->bitmaps))return RF_RANGE;
+    return collision_flat_faces(faces,count,flags,start,delta,origin,matrix,radius,limit,texture,result,matched);
 }
 
 /* 4e08c0 computes distance to the infinite edge line, without endpoint clamp. */

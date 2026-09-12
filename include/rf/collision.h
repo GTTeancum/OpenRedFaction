@@ -397,6 +397,12 @@ int rf_collision_body_sweep(const rf_collision_body_query *body,
 /* Uncached no-room branch of 4df1c0: ordered solid face list (+70, next +54).
  * Includes query transformation. Unlike the hierarchy path, query bit 0 does
  * not stop face iteration. No hierarchy/preferred-face/cache handling. */
+/* Alpha-aware ordered flat query; bitmap table has count entries. Callback
+ * index is the flat face index, contact is solid-local. Original flat path
+ * still visits all faces with flag1, retaining ties and improving hit count. */
+int rf_collision_flat_faces_textured(const rf_collision_face *faces,uint32_t count,uint32_t flags,
+    const float start[3],const float delta[3],const float origin[3],const float matrix[3][3],
+    float radius,float limit,const rf_collision_indexed_texture_backend *texture,rf_collision_sweep_tree_hit *result,uint32_t *matched);
 int rf_collision_flat_faces(const rf_collision_face *faces,uint32_t count,uint32_t flags,
     const float start[3],const float delta[3],const float origin[3],const float matrix[3][3],
     float radius,float limit,rf_collision_sweep_tree_hit *result,uint32_t *matched);

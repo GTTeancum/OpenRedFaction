@@ -8171,3 +8171,23 @@ outputs, with15 errors after earlier samples. Existing5014 transformed-room
 and5008 textured local-room checks plus21 CTests pass; both builds pass.
 Preferred-face/flat propagation and live scene resource binding remain next;
 this is compiled NXDK function evidence, not native scene alpha-query proof.
+
+
+Texture-alpha flat solid traversal (2026-09-12)
+---------------------------------------------
+rf_collision_flat_faces_textured shares the original ordered no-room path
+with the existing flat API, using indexed bitmap/sample services for each
+face. It preserves query-local transforms, original edge-normal displacement,
+nearest/tie updates and total improving contact count. Unlike room trees,
+flag1 does not stop this list early. Missing bitmap table is invalid; absent
+sampler fails only when an accepted interior needs alpha. No allocation;
+errors preserve result/matched while callbacks may already have run.
+
+verify_collision_textured_flat.py compares5000 complete original4df1c0
+no-room queries plus6 guards against PC/compiled NXDK, supplying only UV/
+bitmap services in the original.1495 samples,378 multiple updates and538
+final edge hits match, including ordered sampler index/contact hashes.
+39 callback and35 missing-sampler errors preserve outputs, including13
+errors after earlier samples.5006 original non-textured flat and2406
+preferred-face checks plus21 CTests pass; both builds pass. Preferred-face
+texture propagation and live world/mover resource callbacks remain open.

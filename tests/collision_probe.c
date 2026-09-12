@@ -25,6 +25,16 @@ static int collision_room_texture_sample(void *context,uint32_t index,const rf_c
     if(f->input[4]==(uint32_t)bitmap+1)return RF_IO;
     *color=f->input[bitmap];return RF_OK;
 }
+static int collision_flat_texture_sample(void *context,uint32_t index,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color)
+{
+    collision_room_texture_fixture *f=context;unsigned char bytes[16];uint32_t i;(void)face;
+    if(bitmap<0 || bitmap>=4 || index!=(uint32_t)bitmap)return RF_RANGE;
+    memcpy(bytes,&bitmap,4);memcpy(bytes+4,point,12);++f->calls;
+    for(i=0;i<16;++i)f->hash=(f->hash^bytes[i])*16777619u;
+    if(f->input[4]==(uint32_t)bitmap+1)return RF_IO;
+    *color=f->input[bitmap];return RF_OK;
+}
 typedef struct collision_tree_texture_fixture {uint32_t input[5],calls,hash;} collision_tree_texture_fixture;
 static int collision_tree_texture_sample(void *context,uint32_t index,const rf_collision_face *face,
     int32_t bitmap,const float point[3],uint32_t *color)
@@ -1222,7 +1232,7 @@ int main(int argc,char **argv)
         }
         rf_geometry_movers_close(&m);rf_geometry_movers_close(&m);return 0;
     }
-    if(argc==2 && (!strcmp(argv[1],"--flat-query") || !strcmp(argv[1],"--preferred-flat-query"))) {
+    if(argc==2 && (!strcmp(argv[1],"--flat-query") || !strcmp(argv[1],"--flat-query-textured") || !strcmp(argv[1],"--preferred-flat-query"))) {
         uint32_t preferred_mode=!strcmp(argv[1],"--preferred-flat-query"),preferred_index;
         struct {float z[4];uint32_t count,flags;float start[3],delta[3],radius,limit,origin[3],matrix[3][3];} in;
         struct {int32_t status;uint32_t matched;rf_collision_sweep_tree_hit hit;} out;
@@ -1232,6 +1242,16 @@ int main(int argc,char **argv)
                 faces[i].plane[2]=1;faces[i].plane[3]=-in.z[i];faces[i].vertices=vertices[i];faces[i].count=4;
                 for(j=0;j<3;j++) {faces[i].minimum[j]=j==2?in.z[i]-.0001f:-2.0001f;faces[i].maximum[j]=j==2?in.z[i]+.0001f:2.0001f;}
                 for(j=0;j<4;j++) {vertices[i][j][0]=(j==0 || j==3)?-2:2;vertices[i][j][1]=j<2?-2:2;vertices[i][j][2]=in.z[i];}
+            }
+            if(!strcmp(argv[1],"--flat-query-textured")) {
+                int32_t bitmaps[4]={0,1,2,3};collision_room_texture_fixture fixture;
+                rf_collision_indexed_texture_backend backend={bitmaps,collision_flat_texture_sample,&fixture};
+                if(fread(fixture.input,4,6,stdin)!=6)return 2;fixture.calls=0;fixture.hash=2166136261u;
+                if(fixture.input[5])backend.sample=NULL;
+                for(i=0;i<4;++i)faces[i].filter.face_flags=0xc0;
+                memset(&out,0xa5,sizeof(out));out.status=in.count>4?RF_RANGE:rf_collision_flat_faces_textured(faces,in.count,in.flags,in.start,in.delta,in.origin,in.matrix,in.radius,in.limit,&backend,&out.hit,&out.matched);
+                if(fwrite(&out,sizeof(out),1,stdout)!=1 || fwrite(&fixture.calls,4,1,stdout)!=1 || fwrite(&fixture.hash,4,1,stdout)!=1)return 2;
+                continue;
             }
             if(preferred_mode) {
                 rf_collision_solid_view solid={0};rf_collision_preferred_face preferred;
