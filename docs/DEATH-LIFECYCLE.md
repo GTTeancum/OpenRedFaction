@@ -3715,3 +3715,31 @@ original wrapper dispatch cases. That shared helper evidence does not prove
 new death callback device output. Run a campaign death-animation harness
 with real declared samples and native audio capture before claiming audible
 XEMU death playback. Complete death scheduling remains open.
+
+
+Campaign death-animation fixture - 2026-09-12
+
+The optional xemu_replay_check.py --death-animation --damage-uid 8456
+fixture runs the composed base/unarmed NPC animation stage at frame120.
+It uses registered clearance/selection, retained pose reset and bone clears,
+actual mapped motion loading, shared RNG and authored action sound loading.
+It resets the requested/current death action to -1 before dispatch; this is
+a controlled animation-stage fixture, not lethal damage or full dying/corpse
+scheduling. Scratch clearance storage is1580 bytes for this case and freed
+after the call. PC enablement is headless-only; Xbox uses an explicit disc
+flag. The replay harness preserves/restores that flag, including on failure.
+
+Replay artifacts/xemu/replay-20260912-034940/report.json passes180 frames
+with --door --damage-uid 8456 --death-animation --audio-capture. Native
+memory reports67108864 base bytes and zero plugged memory. PC/Xbox match
+frame120, handle16843008, action5, flags8, status0 and RNG3357800067 to
+415139642. Action audio reports one selection, load and playback request,
+sample662,59636 PCM bytes and no errors. Total bank accounting is410546
+bytes across11 loaded waveforms. The initial replay exposed an outdated
+bank assertion that omitted the new action-sound bytes; the corrected
+accounting and full rerun pass. All19 CTests and PC/NXDK builds pass.
+
+The native8192-byte DSP ring contains4037 nonzero samples. This proves
+combined scene device output, not isolated death-sound audibility. Complete
+death scheduling, armed/effective class views, corpse creation, enabled
+override visuals and real hardware remain open.

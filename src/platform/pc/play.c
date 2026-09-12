@@ -230,6 +230,7 @@ int main(int argc,char **argv)
         if(getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START"))CHECK(RF_RANGE);
         CHECK(rf_scene_stage_lift(&level));
     }
+    rf_scene_death_animation_test_enabled=spawn_profile && p.headless && getenv("RF_REPLAY_DEATH_ANIMATION");
     if(spawn_profile && p.headless && getenv("RF_REPLAY_DAMAGE_UID")) {
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_DAMAGE_UID"),&end,10);
         if(*end)CHECK(RF_RANGE);rf_scene_npc_damage_test_uid=(uint32_t)uid;
@@ -311,6 +312,8 @@ int main(int argc,char **argv)
             printf("NPC_PAIN_SOUND_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_sound_owners[k]);puts("");
             {extern uint32_t rf_scene_npc_eyes[4];printf("NPC_EYES");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_eyes[k]);puts("");}
             {extern uint32_t rf_scene_npc_pain_audio[9],rf_scene_npc_pain_sound_test[10];
+             printf("DEATH_ANIMATION_TEST");for(uint32_t k=0;k<8;++k)printf(" %u",rf_scene_death_animation_test[k]);puts("");
+             printf("NPC_ACTION_AUDIO");for(uint32_t k=0;k<9;++k)printf(" %u",rf_scene_npc_action_audio[k]);puts("");
              printf("NPC_PAIN_AUDIO");for(uint32_t k=0;k<9;++k)printf(" %u",rf_scene_npc_pain_audio[k]);puts("");
              printf("NPC_PAIN_SOUND_TEST");for(uint32_t k=0;k<10;++k)printf(" %u",rf_scene_npc_pain_sound_test[k]);puts("");}
             printf("NPC_PAIN_TEST");for(uint32_t k=0;k<10;++k)printf(" %u",rf_scene_npc_pain_test_words[k]);puts("");

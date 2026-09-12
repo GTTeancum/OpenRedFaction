@@ -101,6 +101,7 @@ int rf_scene_npc_death_select(void *context,uint32_t handle,int32_t *action);
  * action position (actor+3c), unity spatial playback and no stored voice. */
 int rf_scene_npc_death_sound(void *context,uint32_t handle,const char *name);
 extern uint32_t rf_scene_npc_action_audio[9];
+extern uint32_t rf_scene_death_animation_test_enabled,rf_scene_death_animation_test[8];
 
 
 

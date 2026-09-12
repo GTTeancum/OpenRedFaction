@@ -3038,6 +3038,27 @@ int rf_scene_npc_death_select(void *context,uint32_t handle,int32_t *action)
     if(query.status)return query.status;if(status)return status;
     *input->random=random;*action=result;return RF_OK;
 }
+uint32_t rf_scene_death_animation_test_enabled,rf_scene_death_animation_test[8];
+static int campaign_death_animation_fixture(const rf_geometry_collision_world *world,uint32_t frame,rf_random_state *random)
+{
+    uint32_t i,count=0;campaign_npc_body *owner;rf_entity_death_obstacle *scratch;int status;
+    rf_scene_death_selection_context context;rf_scene_death_motion_ops ops={rf_scene_npc_death_select,rf_scene_npc_death_sound,&context};
+    if(!frame){memset(rf_scene_death_animation_test,0,sizeof(rf_scene_death_animation_test));memset(rf_scene_npc_action_audio,0,sizeof(rf_scene_npc_action_audio));}
+    if(!rf_scene_death_animation_test_enabled || frame!=120)return RF_OK;
+    if(!random)return RF_NOT_FOUND;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_npc_damage_test_uid)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    for(i=0;i<RF_OBJECT_SLOTS;++i)if(campaign_entities.slots[i])++count;
+    scratch=malloc(count*sizeof(*scratch));if(!scratch)return RF_IO;
+    context.world=world;context.scratch=scratch;context.capacity=count;context.random=random;
+    owner->death.requested_83c=owner->death.action_824=-1;
+    rf_scene_death_animation_test[0]=frame;rf_scene_death_animation_test[1]=owner->registration.handle;
+    rf_scene_death_animation_test[2]=random->value;
+    status=rf_scene_npc_death_motion(owner->registration.handle,&ops);
+    rf_scene_death_animation_test[3]=random->value;rf_scene_death_animation_test[4]=(uint32_t)owner->death.action_824;
+    rf_scene_death_animation_test[5]=owner->view.flags_810;rf_scene_death_animation_test[6]=(uint32_t)status;
+    rf_scene_death_animation_test[7]=count*sizeof(*scratch);free(scratch);return status;
+}
 uint32_t rf_scene_death_clearance_test[8]; /* passes, queries, allowed, blocked, candidates, hash, status, scratch bytes */
 static int campaign_death_clearance_fixture(const rf_geometry_collision_world *world,uint32_t frame)
 {
@@ -4195,6 +4216,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         rf_scene_actor_stance_frames[frame%64][3]=(uint32_t)blocked;
         status=actor_room_refresh(stream->collision,frame);if(status)return status;
         status=campaign_death_clearance_fixture(stream->collision,frame);if(status)return status;
+        status=campaign_death_animation_fixture(stream->collision,frame,stream->particles.state?&stream->particles.state->random:NULL);if(status)return status;
         status=actor_ground_check(stream->collision,frame);if(status)return status;
         {
             const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
