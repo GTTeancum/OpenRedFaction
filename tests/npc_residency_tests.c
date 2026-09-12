@@ -650,8 +650,66 @@ static int death_geometry_check(void)
     CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,1,&allowed)==RF_RANGE && allowed==99);
     rf_collision_tree_close(&room.tree);return 0;
 }
-int main(void)
+/* Opt-in authored-asset harness; ordinary CTest fixtures require no game data. */
+static int corpse_authored_check(char **argv)
 {
+    rf_vpp levels={0},tables={0},meshes={0},motions={0};rf_level level={0};
+    uint32_t actor,i,seen[256]={0},tested=0,frames=0,changed=0;
+    CHECK(rf_vpp_open(&levels,argv[2])==RF_OK && rf_vpp_open(&tables,argv[3])==RF_OK);
+    CHECK(rf_vpp_open(&meshes,argv[4])==RF_OK && rf_vpp_open(&motions,argv[5])==RF_OK);
+    CHECK(rf_level_open(&level,&levels,argv[6])==RF_OK);
+    CHECK(rf_entity_seeds_open(&level,&tables,1024*1024,&campaign_seeds)==RF_OK);
+    CHECK(rf_entity_skeletons_open(&campaign_seeds,&meshes,256*1024,&campaign_skeletons)==RF_OK);
+    CHECK(rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses)==RF_OK);
+    CHECK(rf_entity_base_motions_open(&campaign_seeds,&tables,&motions,1024*1024,&campaign_base_motions)==RF_OK);
+    CHECK(rf_entity_motion_catalog_open(&campaign_skeletons,&campaign_base_motions,512*1024,&campaign_motion_catalog)==RF_OK);
+    CHECK(rf_entity_playback_resources_open(&campaign_motion_catalog,256*1024,&campaign_playback_resources)==RF_OK);
+    CHECK(campaign_models_open()==RF_OK);
+    campaign_npc_motion_count=campaign_playback_resources.cache_count;
+    campaign_npc_motion_data=calloc(campaign_npc_motion_count,sizeof(void*));
+    campaign_npc_motion_sizes=calloc(campaign_npc_motion_count,sizeof(uint32_t));
+    CHECK(campaign_npc_motion_data && campaign_npc_motion_sizes);
+    campaign_npc_motion_bytes=campaign_npc_motion_count*(sizeof(void*)+sizeof(uint32_t));
+    for(actor=0;actor<campaign_poses.count;++actor) {
+        rf_entity_pose *source=campaign_poses.items+actor,*pose;rf_corpse corpse={0};
+        uint32_t skeleton=source->skeleton,cls=campaign_seeds.items[actor].class_index,previous=0,model_changed=0;
+        int32_t death;float pending[3]={0},point[3];double duration;
+        if(skeleton==UINT32_MAX)continue;CHECK(skeleton<256);
+        death=campaign_motion_catalog.mappings[cls].actions[5];if(death<0 || seen[skeleton])continue;seen[skeleton]=1;
+        corpse.update.model=actor+1;corpse.update.basis[0]=corpse.update.basis[4]=corpse.update.basis[8]=1;
+        corpse.update.position[1]=10;corpse.attachment_index=0;
+        CHECK(campaign_npc_motion_require(skeleton,(uint32_t)death)==RF_OK);
+        CHECK(rf_motion_start(&source->playback,campaign_playback_resources.models[skeleton].resources,
+            campaign_playback_resources.models[skeleton].count,death,1,1)==RF_OK);
+        CHECK(rf_scene_model_detach(actor,corpse.update.position,corpse.update.basis,9)==RF_OK);
+        CHECK(campaign_model_pose(actor,&pose)==RF_OK && pose && source->skeleton==UINT32_MAX);
+        memset(source->matrices,0xdd,source->bone_count*48);
+        CHECK(rf_scene_corpse_reset(&corpse)==RF_OK && rf_scene_corpse_play(&corpse,death)==RF_OK);
+        CHECK(rf_scene_corpse_duration(&corpse,death,&duration)==RF_OK && duration>0);
+        for(i=0;i<120;++i) {
+            uint32_t hash;
+            CHECK(rf_scene_corpse_advance(&corpse,1.0f/30.0f)==RF_OK);
+            CHECK(rf_scene_corpse_evaluate(&corpse,pending)==RF_OK);
+            CHECK(rf_scene_corpse_follow_point(&corpse,point)==RF_OK && isfinite(point[0]) && isfinite(point[1]) && isfinite(point[2]));
+            hash=npc_hash_bytes(2166136261u,pose->matrices,pose->bone_count*48);
+            if(i && hash!=previous){++changed;++model_changed;}previous=hash;++frames;
+        }
+        CHECK(model_changed);printf("CORPSE_AUTHORED %s %u %d %.6f %u %u\n",campaign_skeletons.items[skeleton].model,pose->bone_count,death,duration,model_changed,previous);
+        CHECK(rf_scene_model_retire(actor)==RF_OK);++tested;
+    }
+    CHECK(tested && changed);campaign_models_close();CHECK(!campaign_model_owned_bytes && !campaign_model_owned_count && !rf_scene_npc_models[3]);
+    for(i=0;i<campaign_playback_resources.resource_count;++i)CHECK(!campaign_playback_resources.resources[i].references);
+    printf("CORPSE_AUTHORED_PASS %u %u %u %u\n",tested,frames,changed,campaign_npc_motion_bytes);
+    for(i=0;i<campaign_npc_motion_count;++i)free(campaign_npc_motion_data[i]);
+    free(campaign_npc_motion_data);free(campaign_npc_motion_sizes);
+    rf_entity_playback_resources_close(&campaign_playback_resources);rf_entity_motion_catalog_close(&campaign_motion_catalog);
+    rf_entity_base_motions_close(&campaign_base_motions);rf_entity_poses_close(&campaign_poses);
+    rf_entity_skeletons_close(&campaign_skeletons);rf_entity_seeds_close(&campaign_seeds);
+    rf_vpp_close(&motions);rf_vpp_close(&meshes);rf_vpp_close(&tables);rf_vpp_close(&levels);return 0;
+}
+int main(int argc,char **argv)
+{
+    if(argc==7 && !strcmp(argv[1],"--corpse-authored"))return corpse_authored_check(argv);
     rf_vpp archive={0};unsigned char payload[160]={0};
     rf_entity_model_motion motions[3]={0};
     rf_entity_model_motions model={0};rf_entity_playback_model playback={0};

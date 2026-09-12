@@ -1942,3 +1942,26 @@ the same generation leaves matrices and newly pending displacement intact.
 Both builds and all18 CTests pass. This fixture exercises the empty-motion
 evaluation path; authored active-clip evaluation through the corpse adapter
 and native XEMU corpse visuals remain unverified.
+
+
+## Authored corpse playback and pose harness
+
+tools/verify_corpse_authored.py drives an opt-in --corpse-authored mode of the
+PC residency test executable. It opens real levels/tables/meshes/motions,
+registers the authored skeletal owners and selects one actor per skeleton
+with death_generic. It starts a referenced clip, transfers the model, poisons
+the former actor matrices, then runs reset/start/duration and120 consecutive
+advance/evaluate/sound-follow queries. Model retirement and level teardown
+must leave every playback resource reference zero.
+
+L1S1/L1S2/L1S3 pass: each tests25-bone miner and Envirosuit_Guard,120 frames
+each,78 changing poses each,2.633334-second death clips. Across the three
+levels this is720 evaluated frames and468 changing-pose transitions. Bounded
+clip residency totals12404/12316/12364 bytes respectively, including tables;
+this is clip-cache accounting, not total game memory. Report:
+artifacts/corpse-authored.json. Full PC build and all18 CTests pass.
+
+This proves authored clip decoding through the transferred scene adapters.
+It does not compare those frames against the original, instantiate the full
+owned corpse constructor, render a corpse, or exercise XEMU/live death dispatch.
+No runtime source changed in this harness-only commit.
