@@ -5,6 +5,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+uint32_t rf_collision_model_ray_plane(const float start[3],const float displacement[3],
+    const float plane[4],float result[4])
+{
+    double denominator,numerator;float divisor,fraction,scaled;uint32_t i;
+    denominator=(double)plane[2]*displacement[2];denominator+=(double)plane[1]*displacement[1];
+    denominator+=(double)plane[0]*displacement[0];denominator=-denominator;
+    divisor=(float)denominator;if(denominator==0)return 0;
+    numerator=(double)plane[2]*start[2];numerator+=(double)plane[1]*start[1];
+    numerator+=(double)plane[0]*start[0];numerator+=plane[3];
+    fraction=(float)(numerator/divisor);result[3]=fraction;
+    if(!(fraction>=0 && fraction<=1))return 0;
+    for(i=0;i<3;++i){scaled=(float)((double)displacement[i]*fraction);result[i]=(float)((double)start[i]+scaled);}
+    return 1;
+}
+
 uint32_t rf_collision_model_query(const rf_collision_model_query_view *model,int32_t part,
     const void *query,rf_collision_model_response_hit *hit,uint32_t reset,const rf_collision_model_query_backend *backend)
 {

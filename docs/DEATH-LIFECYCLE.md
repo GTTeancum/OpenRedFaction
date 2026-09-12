@@ -4617,3 +4617,27 @@ working ray, expands part bounds by query radius, runs508b70 and traverses
 geometry batches through54dcd0. Type2 helper54e140 prepares working ray
 fields50/5c then calls54e200; unlike54e000, its reset condition is any nonzero
 low byte. These paths require separate reconstruction and verification.
+
+## Model ray/plane506430
+
+rf_collision_model_ray_plane reconstructs506430 independently of one-sided
+world506550. It computes negated normal/displacement dot in Z/Y/X order,
+tests the unrounded denominator for zero, and divides signed plane distance
+by its float-stored value. Nonparallel tests write fraction before range
+checking. Fractions outside[0,1] preserve the old point; parallel tests
+preserve the complete result. Accepted points use separate float stores for
+displacement scaling and start addition. Either direction is accepted.
+
+verify_model_ray_plane.py executes full original506430 and all callees with
+no hooks.8192 PC/NXDK cases pass:2742 hits,4442 misses writing fraction and
+1008 misses preserving output. Tests cover endpoints, coplanar/parallel,
+oblique nonunit planes, finite subnormal denominators, input/guard
+preservation and exact result bits under027f. Report:
+artifacts/model-ray-plane.json. PC/NXDK builds and all19 CTests pass.
+No triangle containment or live model query integration is claimed.
+
+Exports54dcd0/54dd10/54de40 establish separate thin-ray and swept-sphere
+triangle paths.54dd10 uses506430 then506dd0;54de40 uses5071b0,506dd0 and
+5076f0. Existing world polygon containment4e1f50 is not automatically a
+substitute for model506dd0, whose projected triangle-fan arithmetic requires
+its own reconstruction. Type2 triangle path54e530 also needs verification.

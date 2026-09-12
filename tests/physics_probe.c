@@ -43,6 +43,15 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-ray-plane")) {
+        float input[14];uint32_t result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            result=rf_collision_model_ray_plane(input,input+3,input+6,input+10);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(input+10,16,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--model-parts")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return model_parts_probe();
     }

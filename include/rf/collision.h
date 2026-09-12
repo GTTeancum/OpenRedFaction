@@ -46,6 +46,13 @@ int rf_collision_segment_oriented_box(const float center[3],
  * Finite inputs required; invalid inputs preserve fraction/hit. */
 int rf_collision_segment_plane(const float start[3],const float displacement[3],
     const float plane[4],float *fraction,uint32_t *hit);
+/* Original506430 model ray/plane test. Finite disjoint inputs/outputs,
+ * 53-bit arithmetic. result is point[3],fraction. Parallel rejection
+ * preserves all four words; an out-of-segment intersection writes fraction
+ * but preserves point. Accepts either travel direction and both endpoints.
+ * Separate from the one-sided506550 world query. No allocation or validation. */
+uint32_t rf_collision_model_ray_plane(const float start[3],const float displacement[3],
+    const float plane[4],float result[4]);
 /* Complete 5071b0 sphere against plane. Requires approach toward the front
  * side; a center behind the plane is rejected even if radius overlaps it.
  * Initial front-side overlap returns fraction zero and a projected contact.
