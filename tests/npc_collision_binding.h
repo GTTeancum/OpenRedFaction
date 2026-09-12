@@ -29,6 +29,20 @@ static int npc_collision_binding_check(void)
  CHECK(rf_scene_collision_extra_velocity(NULL,handle)[1]==-7);
  CHECK(!rf_scene_collision_extra_velocity(NULL,handle^0x10000));
  owner.view.type=2;CHECK(!rf_scene_collision_extra_velocity(NULL,handle));owner.view.type=0;
+ {
+  campaign_npc_body before_owner=owner;
+  CHECK(rf_scene_npc_refresh_support(handle^0x10000)==RF_NOT_FOUND);
+  CHECK(!memcmp(&owner,&before_owner,sizeof(owner)));
+  owner.movement_slot=16;before_owner=owner;
+  CHECK(rf_scene_npc_refresh_support(handle)==RF_RANGE && !memcmp(&owner,&before_owner,sizeof(owner)));
+  owner.movement_slot=3;owner.support.handle=handle;
+  owner.body.state.velocity[0]=31;owner.body.state.velocity[1]=-13;owner.body.state.velocity[2]=17;
+  campaign_modes[3].index=3;
+  CHECK(rf_scene_npc_refresh_support(handle)==RF_OK);
+  CHECK(!memcmp(owner.support_velocity,owner.body.state.velocity,12));
+  CHECK(owner.object_flags==owner.view.flags_7c);
+  campaign_modes[3].index=8;
+ }
  owner.object_flags=0x12344000;owner.view.flags_7c=0;owner.body.state.flags=0x40000020;
  owner.published[0]=12;owner.published[1]=-5;owner.published[2]=9;
  record.record.orientation[2][0]=1;record.record.orientation[2][1]=2;record.record.orientation[2][2]=3;

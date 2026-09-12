@@ -274,6 +274,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert model_queries==expected('NPC_MODEL_QUERIES') and model_queries[1]+model_queries[2]<=1024*1024 and model_queries[6]==0,model_queries
      if args.actor_pairs and frames>1:assert model_queries[3]>0 and model_queries[4]>0,model_queries
      report['npc_model_queries']=model_queries
+     support_refresh=words(monitor,symbol('rf_scene_npc_support_refresh'),6)
+     assert support_refresh==expected('NPC_SUPPORT_REFRESH') and support_refresh[5]==0,support_refresh
+     if args.actor_pairs:assert support_refresh[0]>0 and support_refresh[3]==80 and support_refresh[2]>0,support_refresh
+     report['npc_support_refresh']=support_refresh
      body_sweep=words(monitor,symbol('rf_scene_npc_body_sweep_test'),5)
      assert body_sweep==expected('NPC_BODY_SWEEP') and body_sweep[4]==0,body_sweep
      if args.actor_pairs:assert body_sweep[0]>0 and body_sweep[1]>0 and body_sweep[2]>0,body_sweep

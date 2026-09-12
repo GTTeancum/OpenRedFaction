@@ -26,6 +26,7 @@ extern uint32_t rf_scene_startup_gravity[4];
 extern uint32_t rf_scene_switch_state[3],rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
 extern uint32_t rf_scene_npc_models[4];
 extern uint32_t rf_scene_npc_collision_cache[6];
+extern uint32_t rf_scene_npc_support_refresh[6];
 extern uint32_t rf_scene_npc_model_queries[7],rf_scene_npc_pose_demand[5],rf_scene_npc_body_sweep_test[5];
 extern uint32_t rf_scene_actor_model_test[6];
 extern uint32_t rf_scene_pair_dispatch[5];
@@ -299,6 +300,7 @@ int main(int argc,char **argv)
             printf("CAMPAIGN_MEMBERSHIPS %u %u %u %u %u\n",rf_scene_campaign_memberships[0],rf_scene_campaign_memberships[1],rf_scene_campaign_memberships[2],rf_scene_campaign_memberships[3],rf_scene_campaign_memberships[4]);
             printf("NPC_MODELS %u %u %u %u\n",rf_scene_npc_models[0],rf_scene_npc_models[1],rf_scene_npc_models[2],rf_scene_npc_models[3]);
             printf("NPC_COLLISION_CACHE %u %u %u %u %u %u\n",rf_scene_npc_collision_cache[0],rf_scene_npc_collision_cache[1],rf_scene_npc_collision_cache[2],rf_scene_npc_collision_cache[3],rf_scene_npc_collision_cache[4],rf_scene_npc_collision_cache[5]);
+            printf("NPC_SUPPORT_REFRESH %u %u %u %u %u %u\n",rf_scene_npc_support_refresh[0],rf_scene_npc_support_refresh[1],rf_scene_npc_support_refresh[2],rf_scene_npc_support_refresh[3],rf_scene_npc_support_refresh[4],rf_scene_npc_support_refresh[5]);
             printf("NPC_BODY_SWEEP %u %u %u %u %u\n",rf_scene_npc_body_sweep_test[0],rf_scene_npc_body_sweep_test[1],rf_scene_npc_body_sweep_test[2],rf_scene_npc_body_sweep_test[3],rf_scene_npc_body_sweep_test[4]);
             printf("NPC_POSE_DEMAND %u %u %u %u %u\n",rf_scene_npc_pose_demand[0],rf_scene_npc_pose_demand[1],rf_scene_npc_pose_demand[2],rf_scene_npc_pose_demand[3],rf_scene_npc_pose_demand[4]);
             printf("NPC_MODEL_QUERIES %u %u %u %u %u %u %u\n",rf_scene_npc_model_queries[0],rf_scene_npc_model_queries[1],rf_scene_npc_model_queries[2],rf_scene_npc_model_queries[3],rf_scene_npc_model_queries[4],rf_scene_npc_model_queries[5],rf_scene_npc_model_queries[6]);

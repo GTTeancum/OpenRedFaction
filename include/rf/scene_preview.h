@@ -76,6 +76,12 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered);
  * authored NPC orientation. No allocation, pair scheduling or response effects.
  * Caller refreshes after mutations. Failure preserves output. */
 int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result);
+/*41e370 support refresh for one registered NPC: modes1/3 resolve retained
+ * NPC/player/mover body velocity and update support velocity plus wake flags.
+ * Missing/unsupported support preserves the cached velocity and wake flags.
+ * No support selection, contact response, landing or position integration. */
+int rf_scene_npc_refresh_support(uint32_t handle);
+
 /* Query registered NPC spheres using an explicit proposed body and current world/
  * mover geometry. Caller scratch has at least sphere-count records. No actor
  * mutation, contact publication or scheduling. Misses preserve hit; errors

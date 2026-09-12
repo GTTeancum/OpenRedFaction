@@ -3285,6 +3285,73 @@ const float *rf_scene_collision_extra_velocity(void *context,uint32_t handle)
     return NULL;
 }
 
+/*41e370 reads support object144, distinct from actor extra velocity8a0. */
+static const float *campaign_object_velocity(uint32_t handle)
+{
+    void *object=rf_object_registry_lookup(&campaign_registry,handle);uint32_t i;
+    if(!object)return NULL;
+    if(campaign_spawn && object==&campaign_player_object && campaign_player_object.handle==handle &&
+        campaign_player_object.view==&campaign_player_view)return scene_actor_body.state.velocity;
+    for(i=0;i<campaign_npc_body_count;++i)if(object==&campaign_npc_bodies[i].registration &&
+        campaign_npc_bodies[i].registration.handle==handle && campaign_npc_bodies[i].registration.view==&campaign_npc_bodies[i].view)
+        return campaign_npc_bodies[i].body.state.velocity;
+    for(i=0;i<campaign_mover_count;++i)if(object==campaign_mover_wrappers+i && campaign_mover_wrappers[i].handle==handle &&
+        campaign_mover_wrappers[i].pose)return campaign_mover_wrappers[i].pose->velocity;
+    return NULL;
+}
+uint32_t rf_scene_npc_support_refresh[6]; /* ticks,actors,resolved,fixture cases/hash,errors */
+int rf_scene_npc_refresh_support(uint32_t handle)
+{
+    uint32_t i,mode;campaign_npc_body *owner;const float *velocity;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
+        campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view || owner->view.type!=0)return RF_NOT_FOUND;
+    if(owner->movement_slot>=16)return RF_RANGE;
+    mode=campaign_modes[owner->movement_slot].index;
+    velocity=(mode==1 || mode==3)?campaign_object_velocity(owner->support.handle):NULL;
+    rf_physics_support_refresh(mode,velocity,owner->support_velocity,&owner->body.state.flags,&owner->object_flags);
+    owner->view.flags_7c=owner->object_flags;
+    ++rf_scene_npc_support_refresh[1];if(velocity)++rf_scene_npc_support_refresh[2];return RF_OK;
+}
+static int campaign_npc_refresh_support_tick(void)
+{
+    uint32_t i;int status;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
+        status=rf_scene_npc_refresh_support(campaign_npc_bodies[i].registration.handle);
+        if(status){++rf_scene_npc_support_refresh[5];return status;}
+    }
+    ++rf_scene_npc_support_refresh[0];return RF_OK;
+}
+extern uint32_t rf_scene_actor_pair_test_enabled;
+static int campaign_npc_refresh_support_fixture(uint32_t frame)
+{
+    campaign_npc_body *owner=NULL,saved;float *sources[3],original[3][3];uint32_t handles[5],i,slot,source;int status=RF_OK;
+    if(frame)return RF_OK;memset(rf_scene_npc_support_refresh,0,sizeof(rf_scene_npc_support_refresh));
+    if(!rf_scene_actor_pair_test_enabled)return RF_OK;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view){owner=campaign_npc_bodies+i;break;}
+    if(!owner || !campaign_mover_count || !campaign_player_object.view)return RF_NOT_FOUND;
+    saved=*owner;handles[0]=0;handles[1]=owner->registration.handle^0x10000;
+    handles[2]=owner->registration.handle;handles[3]=campaign_player_object.handle;handles[4]=campaign_mover_wrappers[0].handle;
+    sources[0]=owner->body.state.velocity;sources[1]=scene_actor_body.state.velocity;sources[2]=campaign_mover_wrappers[0].pose->velocity;
+    for(i=0;i<3;++i){memcpy(original[i],sources[i],12);sources[i][0]=3+i;sources[i][1]=-7-(float)i;sources[i][2]=11+i;}
+    rf_scene_npc_support_refresh[4]=2166136261u;
+    for(slot=0;slot<16 && !status;++slot)for(source=0;source<5 && !status;++source) {
+        float expected[3]={-1,2,-3};uint32_t body_flags=0,object_flags=0,mode=campaign_modes[slot].index;
+        owner->movement_slot=slot;owner->support.handle=handles[source];owner->body.state.flags=0;owner->object_flags=owner->view.flags_7c=0;
+        memcpy(owner->support_velocity,expected,12);
+        rf_physics_support_refresh(mode,source>=2?sources[source-2]:NULL,expected,&body_flags,&object_flags);
+        status=rf_scene_npc_refresh_support(owner->registration.handle);
+        if(!status && (memcmp(expected,owner->support_velocity,12) || body_flags!=owner->body.state.flags ||
+            object_flags!=owner->object_flags || object_flags!=owner->view.flags_7c))status=RF_FORMAT;
+        if(status)break;
+        ++rf_scene_npc_support_refresh[3];rf_scene_npc_support_refresh[4]=npc_hash_bytes(rf_scene_npc_support_refresh[4],expected,12);
+        rf_scene_npc_support_refresh[4]=npc_hash_bytes(rf_scene_npc_support_refresh[4],&body_flags,4);
+        rf_scene_npc_support_refresh[4]=npc_hash_bytes(rf_scene_npc_support_refresh[4],&object_flags,4);
+    }
+    for(i=0;i<3;++i)memcpy(sources[i],original[i],12);*owner=saved;
+    if(status)++rf_scene_npc_support_refresh[5];return status;
+}
 uint32_t rf_scene_actor_ground_queries[4]; /* queries, hits, mover hits, status */
 uint32_t rf_scene_actor_ground_stats[8]; /* magic, records, hits, walkable, first walkable frame, hash, stride, status */
 uint32_t rf_scene_actor_landing[8]; /* magic, descriptor index, frame, landings, grounded ticks, status, support commits, support losses */
@@ -4901,6 +4968,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 rf_scene_force_ticks[11]=(uint32_t)status;if(status)return status;
                 status=campaign_controller_tick(particle_now,&stream->particles,next.position);
                 rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
+                status=campaign_npc_refresh_support_fixture(frame);if(status)return status;
+                status=campaign_npc_refresh_support_tick();if(status)return status;
                 support=rf_object_registry_lookup(&campaign_registry,campaign_support_handle);
                 rf_physics_support_refresh(rf_scene_actor_landing[1],
                     support && support->object_kind==9?support->pose->velocity:NULL,

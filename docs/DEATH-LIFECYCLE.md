@@ -5627,3 +5627,38 @@ row; existing movement/rendering telemetry is unchanged. XBE SHA256:
 83f90d31d3c99534a324e806d847a3cf8242d80e7ad8c9858bb385db0d15ea35.
 Live NPC prediction, contact response, support/landing and position/room
 publication remain open; this fixture does not make stationary NPCs move.
+
+
+### Scheduled registered NPC support refresh (2026-09-12)
+
+rf_scene_npc_refresh_support binds41e370/40a420 to the registered NPC support
+handle, movement descriptor, cached velocity and body/object flags. The source
+resolver validates object-registry identity against retained NPC, player or
+mover owners, then reads actual body velocity (original144), not cached actor
+extra velocity8a0. Unsupported families and missing/stale support handles leave
+cached velocity and wake flags unchanged. Eligible modes1/3 copy even zero
+velocity and wake the body/object; the entity view mirrors object flags.
+
+The campaign tick now refreshes all registered NPCs after controller propagation
+and before the player physics phase, alongside the existing player refresh.
+Original containing487a40 places41e370 after46bbe0 and before487770 (export
+487c33.c.txt); this ordering supports the phase placement but is not a full
+verified original frame trace. NPC support acceptance and physics stepping
+remain separate unfinished stages. NPC setup still has no accepted support,
+so ordinary opening ticks preserve the constructor cache.
+
+verify_support_refresh.py again passes336 PC/NXDK updates against unchanged
+original41e370 with real lookup and wake callees. Binding unit coverage adds
+stale target, invalid descriptor and self-support from actual body velocity.
+The opt-in fixture covers all16 descriptors against five support states:
+missing, stale, self NPC, player and mover. Distinct nonzero source velocities
+and seeded cached velocity expose wrong-field or wrong-owner reads; actor and
+source state are restored. Both builds and19 CTests pass.
+
+Stock64MiB XEMU replay-20260912-090528 passes180 frames with
+npc_support_refresh=[179,14042,6,80,1344857061,0]: ticks,actor calls,resolved
+reads,fixture cases/hash,errors. Six resolved reads are staged fixture cases;
+179*78 ordinary calls have no accepted support yet. The PC reference changes
+only by the new NPC_SUPPORT_REFRESH row compared with baseline085925.
+XBE SHA256:7eae938c8f4eecc1a716c4710edf8000b0d44b40eece20a8c308ca8341bb5a39.
+No platform riding, NPC motion or full contact-response completion is claimed.
