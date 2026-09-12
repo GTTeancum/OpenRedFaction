@@ -20,6 +20,24 @@ int rf_model_collision_sphere_pose(const rf_model_collision_sphere *sphere,
     for(i=0;i<3;++i)if(!isfinite(value[i]))return RF_RANGE;
     value[3]=sphere->radius;memcpy(result,value,sizeof(value));return RF_OK;
 }
+int rf_model_creation_spheres(const rf_model_collision_sphere *models,uint32_t count,
+    uint32_t kind,const float (*matrices)[12],uint32_t bones,
+    rf_physics_sphere *spheres,uint32_t capacity)
+{
+    uint32_t i,j;float value[4];int status;
+    if(count>capacity || (count && (!models || !spheres)) || (kind!=1 && kind!=2))return RF_RANGE;
+    for(i=0;i<count;++i) {
+        if(kind==2){status=rf_model_collision_sphere_pose(models+i,matrices,bones,value);if(status)return status;}
+        else {
+            memcpy(value,models[i].center,12);value[3]=models[i].radius;
+            for(j=0;j<4;++j)if(!isfinite(value[j]))return RF_RANGE;
+            if(value[3]<0)return RF_RANGE;
+        }
+        if(count==1)value[0]=value[1]=value[2]=0;
+        memcpy(spheres[i].center,value,16);
+    }
+    return RF_OK;
+}
 int rf_model_corpse_spheres_refresh(const rf_model_collision_sphere *models,uint32_t model_count,
     const float (*matrices)[12],uint32_t bones,rf_physics_sphere *spheres,uint32_t sphere_count,
     const float position[3],rf_physics_bounds *bounds,float *radius)

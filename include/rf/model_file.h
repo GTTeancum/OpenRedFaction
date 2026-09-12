@@ -64,6 +64,17 @@ int rf_model_file_collision_sphere(const rf_model_file *model,uint32_t index,rf_
  * Invalid input leaves output unchanged. */
 int rf_model_collision_sphere_pose(const rf_model_collision_sphere *sphere,
     const float (*matrices)[12],uint32_t bones,float result[4]);
+/*486fc5..487040 model-derived creation spheres, after caller establishes an
+ * empty descriptor list. Wrapper kind1 uses raw centers; kind2 uses cached
+ * bone poses. A single sphere is centered at the origin after querying it.
+ * Copies centers/radii only: the original does not initialize the final two
+ * temporary sphere words here, so caller-provided parameter_10/opaque_14 stay
+ * intact. No fallback sphere, allocation, body construction or class override.
+ * Initial errors preserve all outputs; later query errors preserve that row
+ * and subsequent rows. Source/output must be disjoint. */
+int rf_model_creation_spheres(const rf_model_collision_sphere *models,uint32_t count,
+    uint32_t wrapper_kind,const float (*matrices)[12],uint32_t bones,
+    rf_physics_sphere *spheres,uint32_t capacity);
 /*4164c0 animated cached-pose path. Updates first model_count physics sphere
  * centers, deliberately preserving class-adjusted radii/other sphere words.
  * Rebuilds bounds over every physics sphere and copies radius to object78.

@@ -14,6 +14,19 @@ static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 }
 int main(int argc, char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--creation-spheres")) {
+        uint32_t h[4];rf_model_collision_sphere model[16];rf_physics_sphere spheres[16];float matrices[4][12];int status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(h,sizeof(h),1,stdin)==1) {
+            if(h[0]>16 || h[2]>4 || h[3]>16)return 2;
+            if(fread(model,sizeof(*model),h[0],stdin)!=h[0] || fread(matrices,48,h[2],stdin)!=h[2] ||
+               fread(spheres,sizeof(*spheres),h[3],stdin)!=h[3])return 2;
+            status=rf_model_creation_spheres(model,h[0],h[1],matrices,h[2],spheres,h[3]);
+            fwrite(&status,4,1,stdout);fwrite(spheres,sizeof(*spheres),h[3],stdout);
+        }
+        return 0;
+    }
+
     if(argc==4 && !strcmp(argv[1],"--skin-fixture")) {
         volatile uint32_t state[8];uint32_t i;rf_model_skin_fixture(argv[2],argv[3],state);
         for(i=0;i<8;++i)printf("%u%c",state[i],i==7?'\n':' ');return state[1]==2?0:3;
