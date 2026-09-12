@@ -108,6 +108,55 @@ int rf_clutter_base_open(const rf_clutter_create_descriptor *d,
 failed:
     free(scratch);(void)rf_clutter_base_close(&v,registry,objects,backend);return status;
 }
+typedef struct clutter_static_context {rf_vpp *models;const rf_clutter_create_descriptor *descriptor;uint32_t budget;} clutter_static_context;
+static int clutter_static_load(void *context,uint32_t kind,const char *name,uint32_t first,uint32_t second,uint32_t *model)
+{
+    clutter_static_context *c=context;rf_static_model_metadata *metadata;int status;
+    if(kind!=1 || first!=1 || second!=UINT32_MAX || c->budget<sizeof(rf_clutter_base_owner)+sizeof(*metadata))return RF_RANGE;
+    metadata=calloc(1,sizeof(*metadata));if(!metadata)return RF_IO;
+    status=rf_static_model_metadata_open(c->models,name,c->budget-sizeof(rf_clutter_base_owner),metadata);
+    if(status){rf_static_model_metadata_close(metadata);free(metadata);if(status==RF_NOT_FOUND){*model=0;return RF_OK;}return status;}
+    *model=(uint32_t)(uintptr_t)metadata;return RF_OK;
+}
+static int clutter_static_bounds(void *context,uint32_t model,float center[3],float *radius)
+{const rf_static_model_metadata *m=(const rf_static_model_metadata *)(uintptr_t)model;(void)context;memcpy(center,m->bound,12);*radius=m->bound[3];return RF_OK;}
+static int clutter_static_animate(void *context,uint32_t model,int32_t motion,float speed)
+{(void)context;(void)model;(void)motion;(void)speed;return RF_FORMAT;}
+static int clutter_static_property(void *context,uint32_t model,int32_t *property)
+{(void)context;(void)model;*property=-1;return RF_OK;}
+static int clutter_static_spheres(void *context,uint32_t model,rf_clutter_model_view *view)
+{
+    clutter_static_context *c=context;const rf_static_model_metadata *m=(const rf_static_model_metadata *)(uintptr_t)model;
+    uint32_t flags=c->descriptor->flags;uint64_t peak;
+    if(c->descriptor->allocation_flags&0x10000)flags&=~0x20u;
+    peak=sizeof(rf_clutter_base_owner)+(uint64_t)m->allocated_bytes+(uint64_t)m->count*sizeof(rf_physics_sphere)+
+        (uint64_t)((flags&0x70)?(m->count?m->count:1):0)*sizeof(rf_physics_sphere);
+    if(peak>c->budget)return RF_RANGE;
+    view->spheres=m->spheres;view->count=m->count;view->wrapper_kind=1;view->matrices=NULL;view->bones=0;return RF_OK;
+}
+static void clutter_static_release(void *context,uint32_t model)
+{rf_static_model_metadata *m=(rf_static_model_metadata *)(uintptr_t)model;(void)context;rf_static_model_metadata_close(m);free(m);}
+int rf_clutter_static_base_open(rf_vpp *models,const rf_clutter_create_descriptor *descriptor,
+    rf_object_registry *registry,rf_object_list *objects,uint32_t *uid_cursor,
+    uint32_t room,uint32_t parent_byte,uint32_t parent_group,const float material[3],uint32_t budget,rf_clutter_base_owner **out)
+{
+    clutter_static_context context={models,descriptor,budget};rf_clutter_base_owner *v=NULL;int status;uint32_t peak;
+    rf_clutter_base_backend backend={{clutter_static_load,clutter_static_bounds,clutter_static_animate,clutter_static_property,&context},clutter_static_spheres,clutter_static_release};
+    if(!models || !descriptor || descriptor->kind!=1 || !descriptor->model || !out || *out)return RF_RANGE;
+    status=rf_clutter_base_open(descriptor,registry,objects,uid_cursor,room,parent_byte,parent_group,material,&backend,budget,&v);
+    if(status)return status;
+    if(v) {
+        const rf_static_model_metadata *m=(const rf_static_model_metadata *)(uintptr_t)v->attachment.model;
+        peak=sizeof(*v)+m->peak_bytes;v->allocated_bytes+=m->allocated_bytes;v->peak_bytes+=m->allocated_bytes;
+        if(v->peak_bytes<peak)v->peak_bytes=peak;
+    }
+    *out=v;return RF_OK;
+}
+int rf_clutter_static_base_close(rf_clutter_base_owner **owner,rf_object_registry *registry,rf_object_list *objects)
+{
+    rf_clutter_base_backend backend={0};backend.release=clutter_static_release;
+    return rf_clutter_base_close(owner,registry,objects,&backend);
+}
 static int clutter_skin_name_equal(const char *first,const char *second)
 {
     unsigned char a,b;

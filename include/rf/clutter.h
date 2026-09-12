@@ -169,6 +169,17 @@ int rf_clutter_base_open(const rf_clutter_create_descriptor *descriptor,
  * No full clutter destructor/effect retirement is implied. */
 int rf_clutter_base_close(rf_clutter_base_owner **owner,rf_object_registry *registry,
     rf_object_list *objects,const rf_clutter_base_backend *backend);
+/* Archive-backed static base adapter. Kind1 only; model token points to owned
+ * rf_static_model_metadata, not a render-model wrapper. Supplies real bounds,
+ * CSPH rows and static property-1. Archive borrowed only during open. Combined
+ * budget/owner counters include metadata, base and both loading workspaces.
+ * Material/room/parent remain resolved inputs. Geometry/textures/effects and
+ * family-list registration are not supplied by this adapter. */
+int rf_clutter_static_base_open(rf_vpp *models,const rf_clutter_create_descriptor *descriptor,
+    rf_object_registry *registry,rf_object_list *objects,uint32_t *uid_cursor,
+    uint32_t room,uint32_t parent_byte,uint32_t parent_group,const float material[3],
+    uint32_t budget,rf_clutter_base_owner **out);
+int rf_clutter_static_base_close(rf_clutter_base_owner **owner,rf_object_registry *registry,rf_object_list *objects);
 enum rf_clutter_create_operation {
     RF_CLUTTER_SOUND,RF_CLUTTER_SOUND_HANDLE,RF_CLUTTER_EMITTER,
     RF_CLUTTER_EMITTER_PREPEND,RF_CLUTTER_TAG,RF_CLUTTER_GLARE,

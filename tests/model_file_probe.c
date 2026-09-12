@@ -2,6 +2,7 @@
 #include "model_skin_fixture.h"
 #include "model_collision_fixture.h"
 #include "rf/model_file.h"
+#include "rf/clutter.h"
 #include "rf/model.h"
 #include <string.h>
 #include <stdlib.h>
@@ -14,6 +15,26 @@ static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 }
 int main(int argc, char **argv)
 {
+    if(argc==6 && !strcmp(argv[1],"--static-base")) {
+        rf_vpp archive;rf_object_registry registry;rf_object_list list;rf_clutter_base_owner *owner=NULL;
+        rf_clutter_create_descriptor d={0};uint32_t uid=UINT32_MAX,header[6],tail[5];float material[3]={.25f,.5f,2};int status;
+        if(rf_vpp_open(&archive,argv[2]))return 2;
+        rf_object_registry_init(&registry);rf_object_list_init(&list);
+        d.model=argv[3];d.kind=1;d.material=2;d.identifier=-1;d.radius=-1;d.flags=(uint32_t)strtoul(argv[5],NULL,0);d.matrix[0]=d.matrix[4]=d.matrix[8]=1;
+        status=rf_clutter_static_base_open(&archive,&d,&registry,&list,&uid,0,0,1,material,(uint32_t)strtoul(argv[4],NULL,10),&owner);
+        rf_vpp_close(&archive);header[0]=status;header[1]=owner!=NULL;header[2]=uid;header[3]=registry.generation;header[4]=registry.count;header[5]=list.count;
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(header,4,6,stdout);
+        if(owner) {
+            rf_clutter_base_owner copy=*owner;rf_static_model_metadata *m=(rf_static_model_metadata *)(uintptr_t)owner->state.model;
+            copy.state.token=copy.state.model=copy.attachment.model=1;copy.object_link.next=copy.object_link.previous=(rf_object_link *)(uintptr_t)1;
+            copy.body.spheres.items=(rf_physics_sphere *)(uintptr_t)(copy.body.spheres.items!=NULL);
+            fwrite(&copy,sizeof(copy),1,stdout);fwrite(owner->body.spheres.items,24,owner->body.spheres.count,stdout);
+            fwrite(m->filename,80,1,stdout);fwrite(&m->count,12,1,stdout);fwrite(m->spheres,sizeof(*m->spheres),m->count,stdout);
+        }
+        tail[0]=rf_clutter_static_base_close(&owner,&registry,&list);tail[1]=registry.generation;tail[2]=registry.count;tail[3]=list.count;tail[4]=registry.free_slots[(registry.head+registry.count-1)%1024];fwrite(tail,4,5,stdout);
+        return owner || rf_clutter_static_base_close(&owner,&registry,&list)?3:0;
+    }
+
     if(argc==5 && !strcmp(argv[1],"--static-metadata")) {
         rf_vpp archive;rf_static_model_metadata owner={0},empty={0};int status;
         if(rf_vpp_open(&archive,argv[2]))return 2;
