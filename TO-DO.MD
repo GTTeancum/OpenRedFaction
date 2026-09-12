@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Bind shared PC/NXDK-verified corpse surface construction to authored attachment/room/color owners, recover lifetime/rendering and replace fixture source-effect no-ops.
+- [ ] Bind shared corpse surface construction to tested authored file-tag placement and room/color owners, recover runtime-created tags and lifetime/rendering, then replace fixture source-effect no-ops.
 - [ ] Bind verified base corpse-motion lookup to live creation and recover weapon-switched declaration views; canonical availability masks are retained.
 - [ ] Connect the authored-tested owned corpse constructor and class-input binding to live death dispatch and resource effects; bind the authored-tested corpse update adapter to live dispatch, replacement materials and moving room lookup.
 - [ ] Enable authored-class sphere transfer and tested corpse transition/refresh in live dispatch and recover attached item creation/handle publication and bind the tested item world-pose callback to live owners.

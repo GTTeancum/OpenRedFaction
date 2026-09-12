@@ -698,6 +698,7 @@ static int corpse_authored_check(char **argv)
     for(actor=0;actor<campaign_poses.count;++actor) {
         rf_entity_pose *source=campaign_poses.items+actor,*pose;rf_corpse_owned *owned;rf_corpse *corpse=NULL;
         uint32_t skeleton=source->skeleton,cls=campaign_seeds.items[actor].class_index,previous=0,model_changed=0;
+        int32_t file_tags[2]={-1,-1};uint32_t tag_hash=2166136261u;
         int32_t death;float pending[3]={0},point[3];double duration;
         corpse_scene_fixture fixture={0};rf_corpse_create_source create_source={0};rf_corpse_create_request request={0};
         rf_physics_sphere scratch[8];rf_corpse_list_link object_head,corpse_head;uint32_t object_count=0,corpse_count=0;
@@ -735,6 +736,19 @@ static int corpse_authored_check(char **argv)
         corpse->update.item_2cc=-1;
         CHECK(campaign_model_pose(actor,&pose)==RF_OK && pose && source->skeleton==UINT32_MAX);
         memset(source->matrices,0xdd,source->bone_count*48);
+        {
+            const char *names[2]={"eye","spine"};uint32_t j;int32_t preserved=123,upper=-1;
+            for(j=0;j<2;++j) {
+                int found=rf_scene_corpse_file_tag(corpse->update.model,names[j],0,file_tags+j);
+                if(found==RF_NOT_FOUND)found=rf_scene_corpse_file_tag(corpse->update.model,names[j],1,file_tags+j);
+                CHECK(found==RF_OK || found==RF_NOT_FOUND);
+            }
+            CHECK(file_tags[0]>=0);
+            CHECK(rf_scene_corpse_file_tag(corpse->update.model,"EYE",0,&upper)==RF_OK && upper==file_tags[0]);
+            CHECK(rf_scene_corpse_file_tag(corpse->update.model,"__missing_tag__",0,&preserved)==RF_NOT_FOUND && preserved==123);
+            CHECK(rf_scene_corpse_file_tag(corpse->update.model,"__missing_tag__",1,&preserved)==RF_NOT_FOUND && preserved==123);
+            CHECK(rf_scene_corpse_file_tag(0,"eye",0,&preserved)==RF_RANGE && preserved==123);
+        }
         CHECK(rf_scene_corpse_reset(corpse)==RF_OK && rf_scene_corpse_play(corpse,death)==RF_OK);
         CHECK(rf_scene_corpse_duration(corpse,death,&duration)==RF_OK && duration>0);
         for(i=0;i<120;++i) {
@@ -742,9 +756,27 @@ static int corpse_authored_check(char **argv)
             CHECK(rf_scene_corpse_update(owned,1.0f/30.0f,(int32_t)i*33,NULL,0,pending,NULL)==RF_OK);
             CHECK(rf_scene_corpse_evaluate(corpse,pending)==RF_OK);
             CHECK(rf_scene_corpse_follow_point(corpse,point)==RF_OK && isfinite(point[0]) && isfinite(point[1]) && isfinite(point[2]));
+            {
+                rf_corpse_surface_source surface={0};uint32_t j,generation=pose->playback.generation;
+                surface.model=corpse->update.model;memcpy(surface.position,corpse->update.position,12);memcpy(surface.basis,corpse->update.basis,36);
+                for(j=0;j<2;++j)if(file_tags[j]>=0) {
+                    float tag_point[3],moved[3];
+                    CHECK(rf_scene_corpse_file_tag_point(&surface,file_tags[j],tag_point)==RF_OK);
+                    CHECK(isfinite(tag_point[0]) && isfinite(tag_point[1]) && isfinite(tag_point[2]));
+                    tag_hash=npc_hash_bytes(tag_hash,tag_point,12);
+                    surface.position[0]+=2;
+                    CHECK(rf_scene_corpse_file_tag_point(&surface,file_tags[j],moved)==RF_OK);
+                    CHECK(fabsf(moved[0]-tag_point[0]-2)<.00001f && moved[1]==tag_point[1] && moved[2]==tag_point[2]);
+                    surface.position[0]-=2;
+                }
+                CHECK(pose->playback.generation==generation);
+                memcpy(point,surface.position,12);
+                CHECK(rf_scene_corpse_file_tag_point(&surface,-1,point)==RF_RANGE && !memcmp(point,surface.position,12));
+            }
             hash=npc_hash_bytes(2166136261u,pose->matrices,pose->bone_count*48);
             if(i && hash!=previous){++changed;++model_changed;}previous=hash;++frames;
         }
+        printf("CORPSE_FILE_TAGS %s eye=%d spine=%d hash=%u\n",campaign_seeds.records.items[actor].record.class_name,file_tags[0],file_tags[1],tag_hash);
         {
             rf_physics_sphere spheres[8]={{0}};uint32_t enabled=0xaabbccff,visits;
             rf_corpse_emitter_link emitter={NULL,&enabled};corpse_authored_item sound={0};

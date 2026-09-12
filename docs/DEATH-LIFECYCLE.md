@@ -2244,3 +2244,36 @@ failed/fallback lookup, placement/query/color errors, partial payload rules,
 Both builds and all19 CTests pass. These failure guards are PC tests, not an
 additional original/NXDK differential test. No live corpse effect, native
 emulator rendering, authored attachment integration or lifecycle is claimed.
+
+
+## Corpse authored file-tag placement
+
+rf_scene_corpse_file_tag resolves an explicit authored file view: case-folded
+exact bone names, then LOD0 attachments; fallback uses original51d690
+case-sensitive bone substring matching. The original middle runtime-tag
+group is NOT represented. File-view indices must not be mixed with original
+runtime indices, and this helper must not stand in for a complete runtime
+tag owner. It preserves output on absence or invalid input.
+
+rf_scene_corpse_file_tag_point resolves the registered model pose, including
+owned corpse models. Bone indices use its current cached matrix. Attachment
+indices read the immutable file record, construct its quaternion transform,
+compose with the current parent bone, and use verified5034f0 placement.
+It does not advance or evaluate playback; the caller must supply an evaluated
+pose. File metadata borrows the meshes archive, which must remain open.
+No persistent allocation is added; file-attachment records are read on demand.
+
+The authored corpse harness checks both tags for120 frames each on miner1
+and env_guard across L1S1/L1S2/L1S3. Eye file-view indices are27/26 and spine
+is15 for both25-bone models. Finite placement, translation covariance, EYE
+case folding, missing-name/invalid-index preservation and unchanged playback
+generation pass after the former actor matrices have been poisoned.720
+frames provide1440 base tag-point checks plus translated repeat checks.
+Tag hashes are2861486865 for miner1 and611322986 for env_guard. Shared clip
+residency remains16224/16136/16184 bytes. PC/NXDK builds and19 CTests pass.
+
+This tests authored pose ownership and composed existing helpers, not a new
+original-runtime frame comparison or XEMU execution. Scene surface/color
+callbacks, runtime-created tag precedence, effect rendering/lifetime and
+live source-effect dispatch remain open; constructor fixture source effects
+are still explicitly observed only.

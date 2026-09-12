@@ -2,6 +2,7 @@
 #include "rf/scene_preview.h"
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
+#include "rf/corpse_effect.h"
 #include "rf/player.h"
 #include "rf/event.h"
 #include "rf/audio.h"
@@ -672,6 +673,54 @@ int rf_scene_corpse_reset(const rf_corpse *corpse)
 }
 /*48ac70 from the corpse's own object transform and transferred skeletal pose.
  * The no-attachment path intentionally does not inspect the model. */
+/* Authored bone/file-attachment view only. Runtime virtual tags (the middle
+ * original51d5b0 group) require a separate owner and are not represented here.
+ * Indices are local to this file view; do not mix with original runtime IDs. */
+int rf_scene_corpse_file_tag(uint32_t model,const char *name,uint32_t fallback,int32_t *index)
+{
+    rf_entity_pose *pose;const rf_entity_skeleton *skeleton;const rf_model_file *file;
+    rf_model_name names[50],query;rf_model_name_group groups[3]={{0}};
+    rf_model_attachment attachment;uint32_t i;int32_t found;int status;
+    if(!model || !name || !index || fallback>1)return RF_RANGE;
+    status=campaign_model_pose(model-1,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    if(pose->skeleton>=campaign_skeletons.count || pose->skeleton>=campaign_render_models.count)return RF_RANGE;
+    skeleton=campaign_skeletons.items+pose->skeleton;file=&campaign_render_models.items[pose->skeleton].file;
+    if(skeleton->count!=pose->bone_count || skeleton->count>50 || (skeleton->count && !skeleton->bones))return RF_RANGE;
+    query.data=name;query.length=strlen(name);
+    for(i=0;i<skeleton->count;++i){names[i].data=skeleton->bones[i].name;names[i].length=strlen(names[i].data);}
+    if(fallback)return rf_model_find_bone_substring(names,skeleton->count,query,index);
+    groups[0].names=names;groups[0].count=skeleton->count;
+    status=rf_model_find_tag(groups,query,&found);
+    if(status==RF_OK){*index=found;return RF_OK;}if(status!=RF_NOT_FOUND)return status;
+    if(!file->lod_count)return RF_FORMAT;
+    if(file->lods[0].attachment_count>INT32_MAX-skeleton->count)return RF_RANGE;
+    groups[0].count=1;
+    for(i=0;i<file->lods[0].attachment_count;++i) {
+        status=rf_model_file_attachment(file,0,i,&attachment);if(status)return status;
+        names[0].data=attachment.name;names[0].length=strlen(attachment.name);
+        status=rf_model_find_tag(groups,query,&found);
+        if(status==RF_OK){*index=(int32_t)(skeleton->count+i);return RF_OK;}
+        if(status!=RF_NOT_FOUND)return status;
+    }
+    return RF_NOT_FOUND;
+}
+int rf_scene_corpse_file_tag_point(const rf_corpse_surface_source *source,int32_t index,float point[3])
+{
+    rf_entity_pose *pose;rf_model_attachment attachment;float local[12],tag[12],placed[12];int status;
+    if(!source || !source->model || !point || index<0)return RF_RANGE;
+    status=campaign_model_pose(source->model-1,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    if(!pose->matrices || pose->skeleton>=campaign_render_models.count)return RF_RANGE;
+    if((uint32_t)index<pose->bone_count)memcpy(tag,pose->matrices[index],48);
+    else {
+        status=rf_model_file_attachment(&campaign_render_models.items[pose->skeleton].file,0,(uint32_t)index-pose->bone_count,&attachment);
+        if(status)return status;
+        if(attachment.parent<0 || (uint32_t)attachment.parent>=pose->bone_count)return RF_RANGE;
+        status=rf_model_attachment_transform(attachment.rotation,attachment.position,local);if(status)return status;
+        status=rf_model_compose_transform(local,pose->matrices[attachment.parent],tag);if(status)return status;
+    }
+    status=rf_model_place_tag(tag,source->basis,source->position,placed);
+    if(!status)memcpy(point,placed+9,12);return status;
+}
 int rf_scene_corpse_follow_point(const rf_corpse *corpse,float point[3])
 {
     rf_entity_pose *pose;uint32_t slot;int status;
