@@ -1881,9 +1881,9 @@ int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_
     *tree=value;return RF_OK;
 }
 
-int rf_collision_solid_preferred(const rf_collision_solid_view *solid,
+static int collision_solid_preferred(const rf_collision_solid_view *solid,
     const rf_collision_preferred_face *preferred,uint32_t flags,const float start[3],
-    const float delta[3],float radius,float limit,rf_collision_sweep_room_hit *result,uint32_t *matched)
+    const float delta[3],float radius,float limit,const rf_collision_solid_texture_backend *textures,rf_collision_sweep_room_hit *result,uint32_t *matched)
 {
     float local_start[3],local_delta[3];uint32_t active,found;rf_collision_sweep_room_hit value;
     rf_collision_sweep_hit candidate;int status;
@@ -1893,20 +1893,43 @@ int rf_collision_solid_preferred(const rf_collision_solid_view *solid,
     if(!active){*matched=0;return RF_OK;}
     if(preferred && (flags&1)) {
         rf_collision_face face=*preferred->face;face.filter.query_flags=flags;
-        status=rf_collision_sweep_face(&face,local_start,local_delta,delta,radius,limit,&candidate,&found);if(status)return status;
+        status=textures?rf_collision_sweep_face_textured(&face,textures->preferred_bitmap,local_start,local_delta,delta,radius,limit,textures->preferred,&candidate,&found):
+            rf_collision_sweep_face(&face,local_start,local_delta,delta,radius,limit,&candidate,&found);if(status)return status;
         if(found) {
             value.tree.hit=candidate.hit;value.tree.edge=candidate.edge;value.tree.hits=candidate.hits;
             value.tree.face_index=preferred->face_index;value.room=preferred->room;*result=value;*matched=1;return RF_OK;
         }
     }
-    if(solid->room_count)status=rf_collision_transformed_rooms(solid->rooms,solid->room_count,
-        solid->primary,solid->primary_count,solid->children,solid->child_count,flags,start,delta,
-        solid->input_origin,solid->input_matrix,radius,limit,&value,&found);
-    else {
-        status=rf_collision_flat_faces(solid->flat_faces,solid->flat_count,flags,start,delta,
-            solid->input_origin,solid->input_matrix,radius,limit,&value.tree,&found);value.room=UINT32_MAX;
+    if(solid->room_count) {
+        if(textures)status=rf_collision_transformed_rooms_textured(solid->rooms,solid->room_count,
+            solid->primary,solid->primary_count,solid->children,solid->child_count,flags,start,delta,
+            solid->input_origin,solid->input_matrix,radius,limit,textures->rooms,&value,&found);
+        else status=rf_collision_transformed_rooms(solid->rooms,solid->room_count,
+            solid->primary,solid->primary_count,solid->children,solid->child_count,flags,start,delta,
+            solid->input_origin,solid->input_matrix,radius,limit,&value,&found);
+    } else {
+        if(textures)status=rf_collision_flat_faces_textured(solid->flat_faces,solid->flat_count,flags,start,delta,
+            solid->input_origin,solid->input_matrix,radius,limit,textures->flat,&value.tree,&found);
+        else status=rf_collision_flat_faces(solid->flat_faces,solid->flat_count,flags,start,delta,
+            solid->input_origin,solid->input_matrix,radius,limit,&value.tree,&found);
+        value.room=UINT32_MAX;
     }
     if(status)return status;if(found)*result=value;*matched=found;return RF_OK;
+}
+
+int rf_collision_solid_preferred(const rf_collision_solid_view *solid,
+    const rf_collision_preferred_face *preferred,uint32_t flags,const float start[3],
+    const float delta[3],float radius,float limit,rf_collision_sweep_room_hit *result,uint32_t *matched)
+{
+    return collision_solid_preferred(solid,preferred,flags,start,delta,radius,limit,NULL,result,matched);
+}
+int rf_collision_solid_preferred_textured(const rf_collision_solid_view *solid,
+    const rf_collision_preferred_face *preferred,uint32_t flags,const float start[3],
+    const float delta[3],float radius,float limit,const rf_collision_solid_texture_backend *textures,
+    rf_collision_sweep_room_hit *result,uint32_t *matched)
+{
+    if(!textures)return RF_RANGE;
+    return collision_solid_preferred(solid,preferred,flags,start,delta,radius,limit,textures,result,matched);
 }
 
 static int query_solid(const rf_collision_solid_view *solid,uint32_t flags,

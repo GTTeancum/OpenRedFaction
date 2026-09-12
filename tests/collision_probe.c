@@ -35,6 +35,11 @@ static int collision_flat_texture_sample(void *context,uint32_t index,const rf_c
     if(f->input[4]==(uint32_t)bitmap+1)return RF_IO;
     *color=f->input[bitmap];return RF_OK;
 }
+static int collision_preferred_texture_sample(void *context,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color)
+{
+    return collision_flat_texture_sample(context,(uint32_t)bitmap,face,bitmap,point,color);
+}
 typedef struct collision_tree_texture_fixture {uint32_t input[5],calls,hash;} collision_tree_texture_fixture;
 static int collision_tree_texture_sample(void *context,uint32_t index,const rf_collision_face *face,
     int32_t bitmap,const float point[3],uint32_t *color)
@@ -1232,8 +1237,8 @@ int main(int argc,char **argv)
         }
         rf_geometry_movers_close(&m);rf_geometry_movers_close(&m);return 0;
     }
-    if(argc==2 && (!strcmp(argv[1],"--flat-query") || !strcmp(argv[1],"--flat-query-textured") || !strcmp(argv[1],"--preferred-flat-query"))) {
-        uint32_t preferred_mode=!strcmp(argv[1],"--preferred-flat-query"),preferred_index;
+    if(argc==2 && (!strcmp(argv[1],"--flat-query") || !strcmp(argv[1],"--flat-query-textured") || (!strcmp(argv[1],"--preferred-flat-query") || !strcmp(argv[1],"--preferred-flat-query-textured")))) {
+        uint32_t preferred_mode=(!strcmp(argv[1],"--preferred-flat-query") || !strcmp(argv[1],"--preferred-flat-query-textured")),preferred_index;
         struct {float z[4];uint32_t count,flags;float start[3],delta[3],radius,limit,origin[3],matrix[3][3];} in;
         struct {int32_t status;uint32_t matched;rf_collision_sweep_tree_hit hit;} out;
         while(fread(&in,sizeof(in),1,stdin)==1) {
@@ -1260,6 +1265,20 @@ int main(int argc,char **argv)
                 if(preferred_index!=UINT32_MAX && preferred_index>=4)return 2;
                 solid.flat_faces=faces;solid.flat_count=in.count;memcpy(solid.input_origin,in.origin,12);memcpy(solid.input_matrix,in.matrix,36);
                 preferred.face=preferred_index==UINT32_MAX?NULL:faces+preferred_index;preferred.room=555;preferred.face_index=preferred_index;
+                if(!strcmp(argv[1],"--preferred-flat-query-textured")) {
+                    int32_t bitmaps[4]={0,1,2,3};collision_room_texture_fixture fixture;
+                    rf_collision_indexed_texture_backend flat={bitmaps,collision_flat_texture_sample,&fixture},rooms_texture[4];
+                    rf_collision_texture_backend cached={collision_preferred_texture_sample,&fixture};
+                    rf_collision_solid_texture_backend texture={rooms_texture,&flat,(int32_t)preferred_index,&cached};
+                    if(fread(fixture.input,4,6,stdin)!=6)return 2;fixture.calls=0;fixture.hash=2166136261u;
+                    if(fixture.input[5]){flat.sample=NULL;cached.sample=NULL;}
+                    for(i=0;i<4;++i){faces[i].filter.face_flags=0xc0;rooms_texture[i].bitmaps=bitmaps+i;
+                        rooms_texture[i].sample=fixture.input[5]?NULL:collision_room_texture_sample;rooms_texture[i].context=&fixture;}
+                    memset(&answer,0xa5,sizeof(answer));answer.status=rf_collision_solid_preferred_textured(&solid,
+                        preferred.face?&preferred:NULL,in.flags,in.start,in.delta,in.radius,in.limit,&texture,&answer.hit,&answer.matched);
+                    if(fwrite(&answer,sizeof(answer),1,stdout)!=1 || fwrite(&fixture.calls,4,1,stdout)!=1 || fwrite(&fixture.hash,4,1,stdout)!=1)return 2;
+                    continue;
+                }
                 memset(&answer,0xa5,sizeof(answer));answer.status=in.count>4?RF_RANGE:rf_collision_solid_preferred(&solid,
                     preferred.face?&preferred:NULL,in.flags,in.start,in.delta,in.radius,in.limit,&answer.hit,&answer.matched);
                 if(fwrite(&answer,sizeof(answer),1,stdout)!=1)return 2;continue;
@@ -1479,8 +1498,8 @@ int main(int argc,char **argv)
         printf("%u %u %u %u %u %u %u %u %u %u %u\n",world.room_count,faces,world.primary_count,world.child_count,world.allocated_bytes,world.peak_bytes,queries,hits,errors,hashes[0],edge_hits);
         free(poison);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return 0;
     }
-    if(argc==2 && (!strcmp(argv[1],"--transformed-rooms") || !strcmp(argv[1],"--transformed-rooms-textured") || !strcmp(argv[1],"--preferred-rooms"))) {
-        uint32_t preferred_mode=!strcmp(argv[1],"--preferred-rooms"),preferred_index;
+    if(argc==2 && (!strcmp(argv[1],"--transformed-rooms") || !strcmp(argv[1],"--transformed-rooms-textured") || (!strcmp(argv[1],"--preferred-rooms") || !strcmp(argv[1],"--preferred-rooms-textured")))) {
+        uint32_t preferred_mode=(!strcmp(argv[1],"--preferred-rooms") || !strcmp(argv[1],"--preferred-rooms-textured")),preferred_index;
         struct {struct {float bounds[6],z;uint32_t skip,first,count;} rooms[4];uint32_t primary[2],children[4];float start[3],delta[3],limit;uint32_t flags;float radius,origin[3],matrix[3][3];} in;
         while(fread(&in,sizeof(in),1,stdin)==1) {
             rf_collision_room_view rooms[4];rf_collision_tree trees[4];rf_collision_node nodes[4];rf_collision_face faces[4];float vertices[4][4][3];uint32_t stacks[4],i,j;
@@ -1513,6 +1532,20 @@ int main(int argc,char **argv)
                 solid.rooms=rooms;solid.room_count=4;solid.primary=in.primary;solid.primary_count=2;solid.children=in.children;solid.child_count=4;
                 memcpy(solid.input_origin,in.origin,12);memcpy(solid.input_matrix,in.matrix,36);
                 preferred.face=preferred_index==UINT32_MAX?NULL:faces+preferred_index;preferred.room=preferred_index;preferred.face_index=0;
+                if(!strcmp(argv[1],"--preferred-rooms-textured")) {
+                    int32_t bitmaps[4]={0,1,2,3};collision_room_texture_fixture fixture;
+                    rf_collision_indexed_texture_backend flat={bitmaps,collision_flat_texture_sample,&fixture},rooms_texture[4];
+                    rf_collision_texture_backend cached={collision_preferred_texture_sample,&fixture};
+                    rf_collision_solid_texture_backend texture={rooms_texture,&flat,(int32_t)preferred_index,&cached};
+                    if(fread(fixture.input,4,6,stdin)!=6)return 2;fixture.calls=0;fixture.hash=2166136261u;
+                    if(fixture.input[5]){flat.sample=NULL;cached.sample=NULL;}
+                    for(i=0;i<4;++i){faces[i].filter.face_flags=0xc0;rooms_texture[i].bitmaps=bitmaps+i;
+                        rooms_texture[i].sample=fixture.input[5]?NULL:collision_room_texture_sample;rooms_texture[i].context=&fixture;}
+                    memset(&out,0xa5,sizeof(out));out.status=rf_collision_solid_preferred_textured(&solid,
+                        preferred.face?&preferred:NULL,in.flags,in.start,in.delta,in.radius,in.limit,&texture,&out.hit,&out.matched);
+                    if(fwrite(&out,sizeof(out),1,stdout)!=1 || fwrite(&fixture.calls,4,1,stdout)!=1 || fwrite(&fixture.hash,4,1,stdout)!=1)return 2;
+                    continue;
+                }
                 out.status=rf_collision_solid_preferred(&solid,preferred.face?&preferred:NULL,in.flags,in.start,in.delta,in.radius,in.limit,&out.hit,&out.matched);
             } else out.status=rf_collision_transformed_rooms(rooms,4,in.primary,2,in.children,4,in.flags,in.start,in.delta,in.origin,in.matrix,in.radius,in.limit,&out.hit,&out.matched);
             if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;

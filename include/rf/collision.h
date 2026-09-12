@@ -353,6 +353,17 @@ typedef struct rf_collision_preferred_face {
  * follow the existing sweep APIs. Global face-cache lists and special room
  * mode0x1000 remain outside this uncached geometry entry. Errors preserve
  * result/matched; inactive motion leaves result unchanged and sets matched0. */
+/* Separate preferred sampler: the cached face may lie outside the active
+ * room/flat list. rooms has solid.room_count entries; flat covers flat_count.
+ * Only the selected fallback is required, and only if preference misses. */
+typedef struct rf_collision_solid_texture_backend {
+    const rf_collision_indexed_texture_backend *rooms,*flat;
+    int32_t preferred_bitmap;const rf_collision_texture_backend *preferred;
+} rf_collision_solid_texture_backend;
+int rf_collision_solid_preferred_textured(const rf_collision_solid_view *solid,
+    const rf_collision_preferred_face *preferred,uint32_t flags,const float start[3],
+    const float delta[3],float radius,float limit,const rf_collision_solid_texture_backend *textures,
+    rf_collision_sweep_room_hit *result,uint32_t *matched);
 int rf_collision_solid_preferred(const rf_collision_solid_view *solid,
     const rf_collision_preferred_face *preferred,uint32_t flags,const float start[3],
     const float delta[3],float radius,float limit,rf_collision_sweep_room_hit *result,uint32_t *matched);

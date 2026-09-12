@@ -8191,3 +8191,28 @@ final edge hits match, including ordered sampler index/contact hashes.
 errors after earlier samples.5006 original non-textured flat and2406
 preferred-face checks plus21 CTests pass; both builds pass. Preferred-face
 texture propagation and live world/mover resource callbacks remain open.
+
+
+Texture-alpha preferred face and solid fallback (2026-09-12)
+----------------------------------------------------------
+rf_collision_solid_preferred_textured composes verified preferred-face,
+transformed-room and flat alpha queries. The borrowed solid texture backend
+has separate preferred bitmap/sample service and room/flat indexed services:
+a cached face can be outside the active list and must not be resolved by
+indexing that list. Accepted preference returns immediately with its room/
+face metadata; miss or transparent rejection continues through the original
+solid path. Only a selected fallback requires its backend; callbacks can
+fail after prior samples without publishing a partial result. No allocation
+or automatic cache insertion/invalidations are added. The non-textured API
+shares the same control flow and retains its previous behavior.
+
+verify_collision_textured_preferred_flat.py passes2400 original cases plus6
+guards, with811 samples,214 original preferred hits,23 callback errors and
+21 missing-sampler errors, including8 failures after earlier samples.
+verify_collision_textured_preferred_rooms.py passes2000 original cases,
+with746 samples,176 preferred hits,11 callback errors and20 missing-sampler
+errors, including3 failures after earlier samples. Both execute full4df1c0
+with only UV/bitmap services supplied; ordered sampler contact hashes and
+PC/compiled NXDK results match. Existing4406 non-textured preferred checks,
+21 CTests and both builds pass. World/mover scene material and source-face
+services, live glare scheduling and native alpha-query evidence remain open.
