@@ -15,7 +15,7 @@ def machine(path):
 from inspect_models import inspect
 u=machine(exe);u.mem_write(0x1754424,b'\x1f');u.mem_write(0x1754525,b'\x03')
 model=b;partbase=b+0x1000;tablebase=b+0x4000;lodbase=b+0x8000;rawbase=b+0x10000;query=b+0x1f0000;hit=b+0x1f1000;stack=b+0x1fe000;stop=b+0x1ff000
-models=cases=hits=0
+models=cases=hits=0;plan=[]
 for archive in json.loads((root/'artifacts/inventory.json').read_text())['files']:
  for resource in archive.get('vpp',{}).get('entries',[]):
   if not resource['name'].lower().endswith('.v3m'):continue
@@ -54,6 +54,9 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
   actual=subprocess.check_output([str(root/'build/pc/Release/rf_model_file_probe.exe'),str(path),resource['name'],'--collision-trace'],input=b''.join(commands))
   assert len(actual)==len(answers)*140
   for n,expected in enumerate(answers):assert actual[n*140:n*140+140]==expected,(resource['name'],n,expected.hex(),actual[n*140:n*140+140].hex())
+  archive_name=archive['path'].encode('ascii');model_name=resource['name'].encode('ascii');assert len(archive_name)<64 and len(model_name)<128
+  plan.append(archive_name.ljust(64,b'\0')+model_name.ljust(128,b'\0')+w(len(commands))+b''.join(a+e for a,e in zip(commands,answers)))
   models+=1;cases+=len(answers)
 report=dict(result='PASS',models=models,cases=cases,hits=hits,original_sha256=sha,scope='Every shipped static model through complete original54e000 and actual geometry callees versus PC archive-loaded owned resource.12 axis-aligned thin/sphere sweeps per authored part; exact query/result/return with original pointers normalized to file-offset tokens. Original layout rebuilt from stored LOD bytes; no original loader or native XEMU claim.')
+(root/'artifacts/model-authored-trace.bin').write_bytes(w(0x52464354,models)+b''.join(plan))
 (root/'artifacts/model-authored-trace.json').write_text(json.dumps(report,indent=2));print(report)

@@ -1,3 +1,4 @@
+#include "model_collision_fixture.h"
 #include "rf/model_file.h"
 #include "rf/model.h"
 #include <string.h>
@@ -11,6 +12,10 @@ static uint32_t hash_bytes(uint32_t hash,const void *data,uint32_t size)
 }
 int main(int argc, char **argv)
 {
+    if(argc==4 && !strcmp(argv[1],"--collision-fixture")) {
+        volatile uint32_t state[8];uint32_t i;rf_model_collision_fixture(argv[2],argv[3],state);
+        for(i=0;i<8;++i)printf("%u%c",state[i],i==7?'\n':' ');return state[1]==2?0:3;
+    }
     if(argc==2 && !strcmp(argv[1],"--sound-follow")) {
         int32_t index,status;float pose[4][12],orientation[9],position[3],out[3];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

@@ -4962,3 +4962,28 @@ This validates the archive-to-owned-query composition, not just synthetic
 geometry. Original memory setup is reconstructed rather than running the
 original archive loader. General trajectories, native XEMU archive/query
 execution and live scene residency/dispatch remain open.
+
+
+## Native stock64MiB static collision archive/query gate
+
+verify_model_authored_trace.py now writes an ignored binary plan containing
+all original-verified queries and expected outputs. Shared diagnostic fixture
+model_collision_fixture.h streams that plan, opens each archive/model,
+loads one complete owned static collision resource under a256KiB budget,
+runs every query, compares all140 output bytes and releases the resource.
+It retains at most one model at a time. An opt-in disc plan triggers the
+Xbox fixture before normal diagnostics; no scene state or host input is used.
+The PC probe runs the identical fixture for final telemetry comparison.
+
+python tools/xemu_model_collision.py passes native XEMU using64MiB base
+memory and0 plugged memory. Report:
+artifacts/xemu/model-collision-20260912-065612/report.json.
+Guest and PC telemetry both equal
+[1380336468,2,427,6900,6242,144612001,169844,0]: magic,complete,models,
+queries,hits,output hash,peak accounted resource bytes,status. Every query
+also matches its independently generated original-game answer inside the
+guest. Both builds and all19 CTests pass. The harness restores the disc plan
+and rebuilds the ordinary ISO on exit; emulator HDD writes use snapshot
+mode and EEPROM is isolated. No screenshot was taken because this test has
+no new rendered content. Live scene residency, dispatcher binding and
+skeletal type2 collision remain open; no full campaign claim is made.
