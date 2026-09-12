@@ -323,6 +323,15 @@ typedef struct rf_collision_actor_pair_view {
  * original bytes6fc4d8 and64ecb9. No broad-phase or other object families. */
 uint32_t rf_collision_actor_pair_reject(const rf_collision_actor_pair_view *first,
     const rf_collision_actor_pair_view *second,uint32_t alternate,uint32_t multiplayer,uint32_t *flags);
+typedef struct rf_collision_discovery_state {uint32_t actor,kind,definition_flags,head,sentinel;} rf_collision_discovery_state;
+enum rf_collision_discovery_call {RF_COLLISION_DISCOVERY_PREPARE,RF_COLLISION_DISCOVERY_CREATE,RF_COLLISION_DISCOVERY_NEXT};
+/*48c9a0: kind2/definition268 bit20 prepares first, then rereads global head.
+ * Visit through the sentinel in list order, reading next AFTER creation;
+ * failed/rejected creation does not stop traversal. Tokens resolve stable
+ * object identities; callback owns linked-list access and projectile prepare.
+ * Valid finite list and callbacks required; no scheduling or deduplication. */
+void rf_collision_pairs_discover(rf_collision_discovery_state *state,
+    uint32_t (*call)(void *,uint32_t,uint32_t,uint32_t),void *context);
 enum {RF_COLLISION_PAIR_CAPACITY=8192};
 /* Original16-byte x86 record; retirement touches only its header. */
 typedef struct rf_collision_pair_record {rf_collision_pair pair;uint32_t flags;} rf_collision_pair_record;

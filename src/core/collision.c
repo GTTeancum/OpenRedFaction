@@ -1869,3 +1869,16 @@ uint32_t rf_collision_actor_pair_reject(const rf_collision_actor_pair_view *a,
     if(!(a->body_flags&b->body_flags&0x40u))return 1;
     return !(a->extent_180>=2.0f || b->extent_180>=2.0f);
 }
+
+void rf_collision_pairs_discover(rf_collision_discovery_state *state,
+    uint32_t (*call)(void *,uint32_t,uint32_t,uint32_t),void *context)
+{
+    uint32_t actor=state->actor,sentinel=state->sentinel,current=state->head;
+    if(state->kind==2 && (state->definition_flags&0x20u)) {
+        call(context,RF_COLLISION_DISCOVERY_PREPARE,actor,0);current=state->head;
+    }
+    while(current!=sentinel) {
+        call(context,RF_COLLISION_DISCOVERY_CREATE,actor,current);
+        current=call(context,RF_COLLISION_DISCOVERY_NEXT,current,0);
+    }
+}

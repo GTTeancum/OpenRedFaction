@@ -3878,3 +3878,40 @@ Both builds, all19 CTests and existing pool verification pass. No live
 classification binding or XEMU invocation is claimed. Other families in
 48be00, especially projectiles/items/solids and their helper dependencies,
 and broad-phase discovery remain open before campaign pair creation.
+
+
+Collision discovery traversal and scheduling audit - 2026-09-12
+
+The direct caller of pair allocation48bd80 is48c9a0 (call48c9d4). It reads
+global object-list head73d890 and scans next links at object10 through the
+73d880 sentinel. For kind2 with definition268 bit20 it first calls48bbe0,
+then rereads the global head. Every candidate reaches pair creation, even
+self; filtering belongs to48be00. It reads next AFTER the creation call and
+ignores creation failure, so exhausted pool capacity does not stop scanning.
+rf_collision_pairs_discover reproduces this traversal with explicit object
+tokens and callbacks for preparation, creation and next-link resolution.
+The callback supplies a valid finite list; no artificial iteration cap or
+deduplication changes original behavior.
+
+verify_collision_discovery.py passes1024 original/PC/NXDK cases with171
+preparation calls and12723 pair attempts. Original48c9a0 executes;48bbe0
+and48bd80 are supplied boundaries. Empty, full and permuted lists include
+self candidates, preparation changing the head and creation changing the
+current next-link. Callback traces, resulting links/head and continued
+traversal on failure match. This does not verify actual projectile prepare
+math or classify/create resources inside those callbacks. Both builds and
+all19 CTests pass; no native XEMU run is claimed.
+
+Direct48c9a0 call sites:4109cc,41302e,413263,416ed6,423968,4593a4,
+48a761,4bfb8f,4c7c9b. Actor creation at423968 runs discovery only when
+body1a8 bit20 is set and object7c bit8000 is clear. Unhide48a660 calls it
+at48a761 when bit8000 is set, then clears that bit. Their full surrounding
+resource effects are not newly reconstructed here. Other callers still need
+individual scheduling audits. Pair processing48ca60 is called at487849
+inside physics substep loop487770 after body preparation, before the SP
+49bb70 pass. These are distinct discovery/processing phases; do not replace
+them with a per-frame full pair scan.
+
+Next: complete classification for other object families, projectile prepare
+48bbe0 and eligibility48c7f0, then bind the actual global object-list lifetime
+and creation/unhide dispatch before using the pool for death cleanup.
