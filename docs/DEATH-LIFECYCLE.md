@@ -8043,3 +8043,32 @@ convention, not a claim that55cfa0 samples alpha255 for format6. Both builds
 and21 CTests pass. This image constructor is not yet called by live material
 loading; preserve loader failure distinctions and establish later USERBMAP
 replacement before changing scene material behavior.
+
+
+Initial USERBMAP material binding (2026-09-12)
+--------------------------------------------
+The ordinary material loader now supplies rf_image_missing after every
+archive has missed the case-insensitive exact USERBMAP name. It records
+archive_index UINT32_MAX, status OK, loaded count and4096 pixel bytes.
+Found corrupt/unsupported images still fail the entire load; other missing
+names retain explicit missing status until their original policies are
+reconstructed. This binds initial uncached loading, not runtime bitmap
+replacement, animation clocks or mutable face texture assignment.
+
+verify_user_bitmap_materials.py checks actual VPP precedence, case variants,
+unknown ordinary names, exact budget and one-byte-short failure after a
+successful first fallback, plus corrupt found USERBMAP after an earlier
+archive miss. Probe failure paths verify emptied owners. All four cases pass.
+The68-level geometry/material audit passes with generated slots sharing the
+existing case-insensitive mapping. Opening world+movers has17 loaded slots,
+zero missing,2122384 retained/2124204 peak bytes. Its28 local references use
+six geometry owners. All7418 opening face centroid samples pass original/
+PC/compiled NXDK comparison, including the116 previously missing faces.
+Both builds and21 CTests pass. Native scene validation follows separately.
+
+Native validation: replay-20260912-192942 PASS at180 actor-pair frames,
+67108864 base bytes and zero plugged memory, with five x87 controls0x027f.
+The harness compares scene telemetry against the matching PC reference.
+No claim of later runtime USERBMAP replacement or texture-alpha collision
+integration is implied. The constructor/loader and live startup allocation
+are now connected; visibility/collision callback propagation remains next.

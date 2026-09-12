@@ -39,8 +39,12 @@ def check(level, archives):
             assert textures[index] == [index, *fields[:5]], (textures[index], fields)
         assert list(map(int, named[0].split()))[:3] == header[1:4]
     else:
-        assert header[2] == 0 and header[3] == len(unique)
-        assert all(row[2:] == [4294967295, 0, 0, 2166136261] for row in textures)
+        generated=sum(name.lower()=='userbmap' for name in unique)
+        assert header[2] == generated and header[3] == len(unique)-generated
+        for name,row in zip(unique,textures):
+            if name.lower()=='userbmap':
+                assert row[1:5]==[0,4294967295,32,32]
+            else:assert row[1:]==[-3,4294967295,0,0,2166136261]
     return dict(file=level['file'], geometries=header[0], references=references,
                 unique=header[1], loaded=header[2], missing=header[3],
                 resident_bytes=header[4], peak_bytes=header[5])

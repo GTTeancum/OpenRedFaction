@@ -116,6 +116,7 @@ void rf_materials_close(rf_materials *m)
     for (i = 0; i < m->count; ++i) rf_image_close(&m->items[i].image);
     free(m->items); memset(m, 0, sizeof(*m));
 }
+static int equal_texture_name(const char *a,const char *b);
 static int open_materials(rf_materials *m,const rf_geometry *g,const char *const *names,uint32_t count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)
 {
@@ -161,6 +162,13 @@ static int open_materials(rf_materials *m,const rf_geometry *g,const char *const
             item->archive_index = a; item->status = RF_OK;
             m->allocated_bytes += item->image.bytes; ++m->loaded;
             break;
+        }
+        if(item->status==RF_NOT_FOUND && equal_texture_name(name,"USERBMAP")) {
+            /* Ordinary uncached USERBMAP:50f6e0 ->510470. Runtime bitmap
+             * replacement remains the caller's responsibility. */
+            result=rf_image_missing(&item->image,budget-m->allocated_bytes);
+            if(result)goto fail;
+            item->status=RF_OK;m->allocated_bytes+=item->image.bytes;++m->loaded;
         }
         if (item->status == RF_NOT_FOUND) ++m->missing;
     }

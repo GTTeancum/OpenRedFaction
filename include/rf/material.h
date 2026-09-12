@@ -83,7 +83,9 @@ typedef struct rf_materials {
     uint32_t count, loaded, missing, allocated_bytes;
 } rf_materials;
 /* Archives searched in caller-specified order; first exact case-insensitive
- * name wins. Missing entries are explicit slots, never substituted textures.
+ * name wins. Uncached USERBMAP gets original510470's generated fallback
+ * (archive_index UINT32_MAX, counted as loaded). Other missing names remain
+ * explicit missing slots. No runtime bitmap replacement is implied.
  * Unsupported/corrupt found images fail the whole load. TGA and static VBM supported.
  * Budget includes slots and decoded images, excluding allocator metadata.
  * Close before reuse; any failure releases allocations and leaves empty state. */
