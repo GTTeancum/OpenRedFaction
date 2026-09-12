@@ -97,6 +97,13 @@ int rf_model_file_batch_material(const rf_model_file *model,uint32_t lod,uint32_
 typedef struct rf_model_draw_batch {
     uint32_t first_vertex,vertices,first_triangle,triangles,material;
 } rf_model_draw_batch;
+typedef struct rf_model_part_metadata {
+    float offset[3],radius,minimum[3],maximum[3];uint32_t first_lod,lod_count;
+} rf_model_part_metadata;
+/* Shared SUBM metadata read by original5696f0 into offsets1c/28/2c/38.
+ * Submesh ordinal, finite ordered bounds and nonnegative radius required.
+ * Returns flattened LOD range; errors preserve output. No allocation. */
+int rf_model_file_part_metadata(const rf_model_file *model,uint32_t submesh,rf_model_part_metadata *metadata);
 typedef struct rf_model_collision_geometry {
     rf_collision_model_lod_view view;void *data;uint32_t accounted_bytes;
 } rf_model_collision_geometry;

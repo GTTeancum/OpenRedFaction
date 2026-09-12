@@ -4896,3 +4896,22 @@ not a total scene memory figure. Report: artifacts/model-collision-geometry.json
 PC/NXDK builds and all19 CTests pass. Native archive execution, part metadata
 ownership, combined scene residency and resource/trace binding remain open.
 The alternate format's rendering decoder remains a separate unresolved task.
+
+
+## Shared submesh metadata reader
+
+rf_model_file_part_metadata exposes the original5696f0 shared offset/radius/
+minimum/maximum block, read after version, LOD count and thresholds in SUBM.
+Original writes are metadata+1c,28,2c,38 and agree with the getters used by
+54daa0. The reader returns the matching flattened first LOD/count, validates
+finite ordered bounds/nonnegative radius and section/range correspondence,
+and preserves output on errors. It allocates nothing and does not derive
+bounds from a selected render/collision LOD. Valid installed data is copied
+without normalizing or recomputing any value.
+
+verify_model_part_metadata.py checks all522 installed models,670 submeshes
+and930 LODs. All40 metadata bytes plus8 LOD-range bytes equal direct archive
+reads; invalid submesh and truncated metadata leave output unchanged.
+Report: artifacts/model-part-metadata.json. PC/NXDK builds and all19 CTests
+pass. This is PC archive evidence; native archive execution, owned complete
+static-model assembly and live scene binding remain open.

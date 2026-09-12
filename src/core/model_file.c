@@ -471,6 +471,30 @@ int rf_model_file_batch_material(const rf_model_file *model,uint32_t lod_index,u
     flattened+=value;if(flattened>UINT32_MAX)return RF_RANGE;
     *material=(uint32_t)flattened;return RF_OK;
 }
+int rf_model_file_part_metadata(const rf_model_file *model,uint32_t submesh,rf_model_part_metadata *metadata)
+{
+    uint32_t i,j,ordinal=0,count,relative;uint8_t header[8],raw[40];rf_model_part_metadata value={0};int status;
+    if(!model || !model->archive || !metadata || model->section_count>RF_MODEL_MAX_SECTIONS || model->lod_count>RF_MODEL_MAX_LODS)return RF_RANGE;
+    for(i=0;i<model->section_count;++i)if(model->sections[i].type==0x5355424d) {
+        const rf_model_section *section=model->sections+i;
+        if(ordinal++!=submesh)continue;
+        if(section->size<56 || (uint64_t)section->offset+section->size>model->entry.size)return RF_FORMAT;
+        status=rf_vpp_read(model->archive,&model->entry,section->offset+48,header,8);if(status)return status;
+        memcpy(&count,header+4,4);if(count<1 || count>3)return RF_FORMAT;
+        relative=56+count*4;if(relative+40>section->size)return RF_FORMAT;
+        status=rf_vpp_read(model->archive,&model->entry,section->offset+relative,raw,40);if(status)return status;
+        memcpy(value.offset,raw,12);memcpy(&value.radius,raw+12,4);memcpy(value.minimum,raw+16,12);memcpy(value.maximum,raw+28,12);
+        if(!isfinite(value.radius) || value.radius<0)return RF_FORMAT;
+        for(j=0;j<3;++j)if(!isfinite(value.offset[j]) || !isfinite(value.minimum[j]) || !isfinite(value.maximum[j]) || value.minimum[j]>value.maximum[j])return RF_FORMAT;
+        for(j=0;j<model->lod_count;++j)if(model->lods[j].section_index==i)break;
+        if(j==model->lod_count || count>model->lod_count-j)return RF_FORMAT;
+        value.first_lod=j;value.lod_count=count;
+        for(;j<value.first_lod+count;++j)if(model->lods[j].section_index!=i)return RF_FORMAT;
+        *metadata=value;return RF_OK;
+    }
+    return RF_RANGE;
+}
+
 void rf_model_collision_geometry_close(rf_model_collision_geometry *g)
 {
     if(!g)return;free((void *)g->view.batches);free(g->data);memset(g,0,sizeof(*g));

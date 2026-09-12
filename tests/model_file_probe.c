@@ -213,6 +213,21 @@ int main(int argc, char **argv)
             ++mesh;
         }
     }
+    if(!result && argc==4 && !strcmp(argv[3],"--part-metadata")) {
+        rf_model_part_metadata value,before;uint32_t part,j;
+        memset(&before,0xa5,sizeof(before));
+        for(part=0;part<model.submeshes && !result;++part) {
+            result=rf_model_file_part_metadata(&model,part,&value);if(result)break;
+            printf("H %u ",part);for(j=0;j<sizeof(value);++j)printf("%02x",((unsigned char *)&value)[j]);printf("\n");
+        }
+        value=before;
+        if(rf_model_file_part_metadata(&model,model.submeshes,&value)!=RF_RANGE || memcmp(&value,&before,sizeof(value)))result=RF_FORMAT;
+        for(i=0;i<model.section_count;++i)if(model.sections[i].type==0x5355424d) {
+            uint32_t saved=model.sections[i].size;model.sections[i].size=56;
+            if(rf_model_file_part_metadata(&model,0,&value)!=RF_FORMAT || memcmp(&value,&before,sizeof(value)))result=RF_FORMAT;
+            model.sections[i].size=saved;break;
+        }
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--collision-geometry")) {
         for(i=0;i<model.lod_count && !result;++i) {
             rf_model_collision_geometry g={0};uint32_t budget,b;
@@ -285,7 +300,7 @@ int main(int argc, char **argv)
             }
         }
     }
-    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches") && strcmp(argv[3],"--planes") && strcmp(argv[3],"--collision-geometry")) for (i = 0; i < model.lod_count && !result; ++i) {
+    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches") && strcmp(argv[3],"--planes") && strcmp(argv[3],"--collision-geometry") && strcmp(argv[3],"--part-metadata")) for (i = 0; i < model.lod_count && !result; ++i) {
         uint32_t n, j;
         rf_model_lod *lod = &model.lods[i];
         printf("L %u %u %u %u\n", lod->offset, lod->size, lod->attachment_offset, lod->attachment_count);
