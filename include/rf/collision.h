@@ -477,13 +477,15 @@ typedef struct rf_collision_model_triangle {
  * for two-sided faces. Accept only a strictly nearer ray/plane hit inside
  * the projected triangle. Misses preserve all hit bytes. Finite disjoint
  * geometry required; token represents the original triangle-record pointer.
+ * Shipped all-ffc00000 planes also verify as preserving misses.
  * No index decoding, bounds test, radius handling or allocation. */
 uint32_t rf_collision_model_ray_triangle(const rf_collision_model_triangle *triangle,
     const float start[3],const float displacement[3],uint32_t two_sided,rf_collision_model_response_hit *hit);
 /* Original54de40 swept triangle: nonnegative dot rejects one-sided faces;
  * plane hit must be nearer before containment/edge testing. Edge normal is
  * normalized start minus contact. Misses preserve all hit bytes. Finite,
- * disjoint geometry with nonnegative radius/nonoverflowing terms required. */
+ * disjoint geometry with nonnegative radius/nonoverflowing terms required.
+ * Shipped all-ffc00000 planes also verify as preserving misses. */
 uint32_t rf_collision_model_sphere_triangle(const rf_collision_model_triangle *triangle,
     const float start[3],const float displacement[3],float radius,uint32_t two_sided,rf_collision_model_response_hit *hit);
 typedef struct rf_collision_model_query_view {

@@ -4794,3 +4794,26 @@ batches110c21; existing vertex/triangle decoders still accept only518c41.
 Budgeted static geometry ownership, remaining batch decoding and native
 XEMU archive validation remain open. No plane memory is allocated by this
 streamed accessor; existing animated geometry residency is unchanged.
+
+
+## Authored nonfinite triangle-plane behavior
+
+verify_model_nonfinite_planes.py scans every installed static model's stored
+planes. Exactly16 triangles, all in talltree1.v3m, contain nonfinite planes;
+the only plane pattern is four wordsffc00000. Their authored vertex
+positions remain finite. Each triangle is exercised with32 finite queries
+through full original54dd10 and54de40 and the shared PC/NXDK routines:
+512 thin-ray and512 swept-sphere cases all reject and preserve the complete
+hit record and input bytes. No geometry callees are replaced; only original
+static constructor flags are initialized. Report:
+artifacts/model-nonfinite-planes.json. This verifies the shipped pattern,
+not arbitrary nonfinite geometry, floating-point status flags or native
+XEMU behavior. No arithmetic change was needed. Preserve these stored
+payloads when adding collision geometry ownership.
+
+Remaining110c21 static batches have12-byte position/normal elements,
+8-byte triangle/UV/link elements and2-byte reuse elements in their declared
+regions. There are23 such batches, including lights/control panels; format
+semantics still require original consumer verification before accepting
+those through the existing518c41 decoded vertex path.569d20 only stores the
+format word; it does not decode it and cannot prove consumer equivalence.
