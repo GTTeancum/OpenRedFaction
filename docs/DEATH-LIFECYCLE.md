@@ -6075,3 +6075,42 @@ ec4238376b5e562e20f5320bf39a661fd0bea9333ae5cd21528c533983dd80bc.
 Lethal impact integration with complete damage effects and associated-player
 feedback still require coverage. Connect landing/relative contact and then
 NPC support/physics scheduling; no new visible gameplay claim is made.
+
+
+## Complete landing ordering at effect boundaries (2026-09-12)
+
+rf_entity_land_process composes419830's sound gate, group selection,
+support-relative velocity and post-velocity class/action dispatch. Sound is
+requested when contactY minus velocityY exceeds.25 or total velocity length
+exceeds.5. The latter uses original40a000's X/Y/Z squared sum and sqrt.
+A negative material selects group0; a nonnegative material selects its group
+only when that group is positive, otherwise group0. Actor810 flag1000 with
+positive group4 overrides that selection. Group0 itself may be zero/negative;
+it is passed through to the sound callback rather than skipped.
+
+The sound callback owns4198b3..419901 (selection/playback at published3c and
+conditional player landed flag). Its retained actor mutations are observed
+by the subsequent stored (velocity+previous support)-contact velocity update.
+Action4 then selects normal or slow and preserves body200000. Other actions
+optionally dispatch419981..4199c5 special effects, reread crouch after that
+callback, request normal/forced-crouch, and clear body200000 only after the
+successful stance callback. Callbacks can fail; processing stops without
+rollback or later flag clearing. Finite velocity inputs and bounded sound
+material indices are the port contract. Existing post-velocity-only API is
+retained for its prior callers/verifier.
+
+verify_land_process.py executes original419830 through return, with real
+speed/material gates,40a000/vector helpers and40a130 stance predicate. Only
+the stated audio/player-flag block, special block and4280b0/428030 are supplied.
+4096 cases exactly match full retained actor state and callback arguments/order
+on PC and compiled NXDK with x87 control027f. Counts in NORMAL/SLOW/CROUCH/
+SPECIAL/SOUND order:[1362,1905,829,782,3345]. Threshold equality/next-float,
+fallback/override, and callback velocity/support/action/flag mutations are
+covered. Five callback failure routes stop with applied state intact. Ten
+port-domain guards (nine nonfinite vector components, one material overrun)
+leave the actor unchanged and invoke no callback; these are not claims of
+original invalid-input behavior. Both builds and19 CTests pass.
+Report:artifacts/land-process-verification.json; PC fixture:land_process_probe.h.
+No new native XEMU replay or visible gameplay change is claimed. Connect the
+scene sound/player flag and stance/special backends, then compose support
+finish, relative contact and NPC physics scheduling.

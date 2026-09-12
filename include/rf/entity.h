@@ -58,6 +58,26 @@ enum {RF_ENTITY_LAND_NORMAL=0,RF_ENTITY_LAND_SLOW=1,RF_ENTITY_LAND_CROUCH=2,RF_E
 typedef void (*rf_entity_landing_effect)(void *context,rf_entity_landing_state *state,uint32_t request);
 int rf_entity_landing_finish(rf_entity_landing_state *state,rf_entity_landing_effect effect,void *context);
 
+typedef struct rf_entity_land_actor {
+    rf_entity_landing_state state;
+    float velocity[3],previous_support[3],contact_velocity[3],published[3];
+    int32_t material,groups[10];
+} rf_entity_land_actor;
+typedef struct rf_entity_land_backend {
+    /*4198b3..419901: sound selection/playback and conditional player landed flag.
+     * Uses current published position. Actor mutations feed the velocity step. */
+    int (*sound)(void *,rf_entity_land_actor *,int32_t group);
+    /* NORMAL/SLOW/CROUCH invoke4280b0/428030; SPECIAL owns419981..4199c5. */
+    int (*transition)(void *,rf_entity_land_actor *,uint32_t request);
+    void *context;
+} rf_entity_land_backend;
+/*419830 ordering: optional landing sound, support-relative velocity, then
+ * class/action-dependent stance dispatch. Finite velocity domain; positive
+ * material must fit the ten retained groups when sound is requested. Sound
+ * group0 is the fallback; flag1000 overrides with positive group4. Errors
+ * stop without rolling back prior effects. Callback bodies remain external. */
+int rf_entity_land_process(rf_entity_land_actor *actor,const rf_entity_land_backend *backend);
+
 enum {RF_ENTITY_CONTACT_NONE=0,RF_ENTITY_CONTACT_FALL=1,RF_ENTITY_CONTACT_STATIC=2,RF_ENTITY_CONTACT_MOVING=3};
 /* Original4a0a5c contact routing, after query and with resolved handle metadata.
  * fraction>=1, unordered/too-small upward dot, or type3 with body high bit

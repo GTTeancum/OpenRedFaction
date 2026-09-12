@@ -501,6 +501,28 @@ int rf_entity_support_contact_route(float fraction,double upward_dot,uint32_t re
     return resolved?RF_ENTITY_CONTACT_MOVING:RF_ENTITY_CONTACT_STATIC;
 }
 
+int rf_entity_land_process(rf_entity_land_actor *actor,const rf_entity_land_backend *backend)
+{
+    double speed,relative;uint32_t i,slot=0;int status;rf_entity_landing_state *s;
+    if(!actor || !backend || !backend->sound || !backend->transition)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(actor->velocity[i]) || !isfinite(actor->contact_velocity[i]) || !isfinite(actor->previous_support[i]))return RF_FORMAT;
+    relative=(double)actor->contact_velocity[1]-actor->velocity[1];
+    speed=sqrt(((double)actor->velocity[0]*actor->velocity[0]+(double)actor->velocity[1]*actor->velocity[1])+(double)actor->velocity[2]*actor->velocity[2]);
+    s=&actor->state;
+    if(relative>.25 || speed>.5) {
+        if(actor->material>=10)return RF_RANGE;
+        if(actor->material>=0 && actor->groups[actor->material]>0)slot=(uint32_t)actor->material;
+        if((s->actor_flags&0x1000u) && actor->groups[4]>0)slot=4;
+        status=backend->sound(backend->context,actor,actor->groups[slot]);if(status)return status;
+    }
+    status=rf_physics_landing_velocity(actor->velocity,actor->previous_support,actor->contact_velocity,actor->velocity);if(status)return status;
+    if(s->action==4)return backend->transition(backend->context,actor,(s->actor_flags&0x100000u)?RF_ENTITY_LAND_NORMAL:RF_ENTITY_LAND_SLOW);
+    if(s->class_flags&0x02000000u) {
+        status=backend->transition(backend->context,actor,RF_ENTITY_LAND_SPECIAL);if(status)return status;
+    }
+    status=backend->transition(backend->context,actor,(s->actor_flags&0x400u)?RF_ENTITY_LAND_CROUCH:RF_ENTITY_LAND_NORMAL);if(status)return status;
+    s->body_flags&=~0x200000u;return RF_OK;
+}
 int rf_entity_landing_finish(rf_entity_landing_state *state,rf_entity_landing_effect effect,void *context)
 {
     if(!state || !effect)return RF_RANGE;
