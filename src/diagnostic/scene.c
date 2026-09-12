@@ -315,6 +315,7 @@ typedef struct scene_particle_workspace {
 typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
+    uint32_t clutter_base,clutter_textures,*clutter_rooms;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
@@ -5555,6 +5556,56 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
     rf_scene_npc_draw[3]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start_all,rf_scene_npc_draw[2]*sizeof(rf_preview_vertex));
     return RF_OK;
 }
+uint32_t rf_scene_clutter_draw[6]; /* frame, contributing placements, vertices, hash, room bytes, submitted batches */
+static int scene_clutter_draw(scene_stream *stream,uint32_t frame)
+{
+    rf_model_render_buffers buffers;rf_model_lighting lights={0};
+    rf_model_render_output attributes={1,{255,255,255},255,1,1};
+    rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
+    uint32_t i,part,batch,k,start_all=stream->mesh->count;int status;
+    memset(rf_scene_clutter_draw,0,sizeof(rf_scene_clutter_draw));rf_scene_clutter_draw[0]=frame+1;
+    if(!stream->npc_memory || !stream->clutter_rooms)return RF_OK;
+    rf_scene_clutter_draw[4]=campaign_clutter_records.count*sizeof(uint32_t);
+    buffers.cache=stream->npc_memory;buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
+    buffers.second=NULL;buffers.vertices=(uint8_t(*)[40])((uint8_t*)stream->npc_memory+4096*56);buffers.capacity=4096;
+    planes.near_depth=.1f;planes.far_depth=1000;
+    projection.scale[0]=320;projection.scale[1]=240;projection.clamp=1;
+    lights.ambient[0]=40;lights.ambient[1]=50;lights.ambient[2]=60;
+    for(i=0;i<campaign_clutter_records.count;++i) {
+        const rf_level_clutter *record=campaign_clutter_records.items+i;
+        const rf_static_render_resource *resource;rf_model_projection view;
+        uint32_t model=campaign_clutter_model_slots[i],room=stream->clutter_rooms[i],first,last,start_actor=stream->mesh->count;
+        if(model==UINT32_MAX)continue;if(model>=campaign_clutter_model_count)return RF_FORMAT;
+        if(room<stream->visibility.state.count && !stream->visibility.state.rooms[room].visible)continue;
+        resource=&campaign_clutter_models[model].resource;
+        first=campaign_clutter_material_offsets[model];last=campaign_clutter_material_offsets[model+1];
+        status=rf_model_local_view(&stream->npc_view,record->position,record->matrix[0],&view);if(status)return status;
+        /* Diagnostic highest LOD per part, base materials and authored placement.
+         * SUBM offset is not added to vertices:52df09 passes the instance pose.
+         * Original factory visibility, skins and dynamic lighting remain open. */
+        for(part=0;part<resource->part_count;++part) {
+            uint32_t lod_index=resource->parts[part].first_lod;const rf_static_render_lod *lod;const rf_model_geometry *geometry;
+            if(lod_index>=resource->lod_count)return RF_FORMAT;lod=resource->lods+lod_index;geometry=&lod->geometry;
+            for(batch=0;batch<geometry->batch_count;++batch) {
+                const rf_model_draw_batch *draw=geometry->batches+batch;
+                uint32_t start=stream->mesh->count,emitted,slot;
+                if(draw->material==UINT32_MAX)continue;if(draw->material>=last-first)return RF_FORMAT;
+                memcpy(&slot,campaign_clutter_materials.items[first+draw->material].record.bytes+0x10,4);
+                if(slot>=stream->clutter_textures)return RF_FORMAT;
+                memset(stream->npc_memory,0xa5,4096*96);
+                status=rf_model_geometry_render_static_batch(geometry,batch,&view,&lights,&attributes,NULL,&buffers);if(status)return status;
+                status=rf_preview_static_model_emit(geometry,batch,&buffers,stream->npc_indices,stream->npc_pool,&view,&planes,&projection,
+                    &attributes,stream->mesh,stream->capacity,&emitted,lod->planes+draw->first_triangle,NULL);if(status)return status;
+                for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=stream->clutter_base+slot;
+                if(emitted)++rf_scene_clutter_draw[5];
+            }
+        }
+        if(stream->mesh->count>start_actor)++rf_scene_clutter_draw[1];
+    }
+    rf_scene_clutter_draw[2]=stream->mesh->count-start_all;
+    rf_scene_clutter_draw[3]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start_all,rf_scene_clutter_draw[2]*sizeof(rf_preview_vertex));
+    return RF_OK;
+}
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;
@@ -5639,6 +5690,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     {
         int status;profile_mark(5);
         status=scene_npc_draw(stream,frame);if(status)return status;
+        status=scene_clutter_draw(stream,frame);if(status)return status;
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
         particle_draw_stream=NULL;if(status)return status;
@@ -6030,6 +6082,24 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(materials->items);materials->items=combined;materials->count+=textures->count;
         materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
         free(textures->items);memset(textures,0,sizeof(*textures)); /* Transfer pixels to renderer owner. */
+        textures=&campaign_clutter_materials.textures;
+        stream.clutter_base=materials->count;stream.clutter_textures=textures->count;
+        if((uint64_t)materials->count+textures->count>256){status=RF_RANGE;goto done;}
+        combined=malloc((materials->count+textures->count)*sizeof(*combined));if(!combined){status=RF_IO;goto done;}
+        memcpy(combined,materials->items,materials->count*sizeof(*combined));
+        memcpy(combined+materials->count,textures->items,textures->count*sizeof(*combined));
+        free(materials->items);materials->items=combined;materials->count+=textures->count;
+        materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
+        free(textures->items);memset(textures,0,sizeof(*textures));
+        if(campaign_clutter_records.count) {
+            stream.clutter_rooms=malloc(campaign_clutter_records.count*sizeof(*stream.clutter_rooms));
+            if(!stream.clutter_rooms){status=RF_IO;goto done;}
+            for(i=0;i<campaign_clutter_records.count;++i) {
+                rf_collision_room_location location;
+                status=rf_geometry_collision_world_locate(collision,campaign_clutter_records.items[i].position,&location);if(status)goto done;
+                stream.clutter_rooms[i]=location.room;
+            }
+        }
         stream.npc_memory=malloc(4096*96);stream.npc_indices=malloc(24576*sizeof(uint16_t));stream.npc_pool=calloc(1,sizeof(*stream.npc_pool));
         if(!stream.npc_memory || !stream.npc_indices || !stream.npc_pool){status=RF_IO;goto done;}
         for(i=0;i<campaign_poses.count;++i) {
@@ -6076,7 +6146,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
-    free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
+    free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);free(stream.clutter_rooms);
     rf_level_visibility_close(&stream.visibility);
     rf_level_particles_close(&stream.particles);
     free(stream.particle_workspace);particle_draw_stream=NULL;
