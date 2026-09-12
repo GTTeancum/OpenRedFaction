@@ -2,6 +2,7 @@
 #include "rf/physics.h"
 #include "rf/entity.h"
 #include <math.h>
+#include <float.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -728,12 +729,12 @@ static float edge_length(const float *a)
 {
     float reversed[3]={a[2],a[1],a[0]};return edge_dot(reversed,reversed,1,NULL);
 }
-int rf_collision_sphere_edge(const float start[3],const float delta[3],float radius,
+static int sphere_edge_query(const float start[3],const float delta[3],float radius,
     const float a[3],const float b[3],float limit,float *fraction,float point[3],uint32_t *hit)
 {
     float e[3],o[3],terms[9],roots[2],time,contact[3];uint32_t j;int status;
     if(!start || !delta || !a || !b || !fraction || !point || !hit)return RF_RANGE;
-    if(!isfinite(radius) || radius<0 || !isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    if(!isfinite(radius) || radius<0 || !isfinite(limit) || limit<0)return RF_FORMAT;
     for(j=0;j<3;j++) {
         if(!isfinite(start[j]) || !isfinite(delta[j]) || !isfinite(a[j]) || !isfinite(b[j]))return RF_FORMAT;
         e[j]=b[j]-a[j];o[j]=start[j]-a[j];
@@ -766,6 +767,31 @@ int rf_collision_sphere_edge(const float start[3],const float delta[3],float rad
     *fraction=time;memcpy(point,contact,sizeof(contact));*hit=1;return RF_OK;
  miss:
     *hit=0;return RF_OK;
+}
+
+int rf_collision_sphere_edge(const float start[3],const float delta[3],float radius,
+    const float a[3],const float b[3],float limit,float *fraction,float point[3],uint32_t *hit)
+{
+    if(!start || !delta || !a || !b || !fraction || !point || !hit)return RF_RANGE;
+    if(limit>1)return RF_FORMAT;
+    return sphere_edge_query(start,delta,radius,a,b,limit,fraction,point,hit);
+}
+uint32_t rf_collision_model_sphere_edges(const float start[3],const float delta[3],float radius,
+    int32_t count,const float (*vertices)[3],float *fraction,float point[3])
+{
+    float best=FLT_MAX,lo[3],hi[3],scratch[3],time;int32_t i;uint32_t j,hit;
+    for(j=0;j<3;++j) {
+        float a=start[j]-radius,b=start[j]+radius;
+        lo[j]=a<b?a:b;hi[j]=a<b?b:a;
+        if(delta[j]<0)lo[j]+=delta[j];else hi[j]+=delta[j];
+    }
+    for(i=0;i<count;++i) {
+        const float *a=vertices[i],*b=vertices[i+1==count?0:i+1];
+        if(rf_collision_segment_box(lo,hi,a,b,scratch,&hit)!=RF_OK || !hit)continue;
+        if(sphere_edge_query(start,delta,radius,a,b,best,&time,scratch,&hit)!=RF_OK || !hit)continue;
+        if(time<best){best=time;memcpy(point,scratch,12);}
+    }
+    if(best<=1){*fraction=best;return 1;}return 0;
 }
 
 

@@ -4684,3 +4684,27 @@ artifacts/model-ray-triangle.json. PC/NXDK builds and all19 CTests pass.
 This is executable-level verification, not a native XEMU gameplay claim.
 Swept-sphere54de40, type2 triangle54e530, complete part queries and live
 model geometry binding remain open.
+
+
+## Closed model polygon sphere-edge sweep5076f0
+
+rf_collision_model_sphere_edges reconstructs the complete ordered closed
+edge loop with local scratch instead of original static vectors. Bounds
+start at center +/- radius and extend by each signed displacement component
+(original436db0/436d70,539460,539630). Each edge passes original508b70
+segment/bounds rejection before5072e0 sphere/edge testing. The nearest
+strictly smaller contact wins, preserving first-edge ties; the initial
+limit is FLT_MAX, so contacts at time1 remain eligible. Incoming fraction
+is not a limit. Empty/nonpositive counts and misses preserve outputs.
+The shared internal edge helper now permits that initial limit; the public
+world-edge API retains its previous [0,1] validation contract.
+
+verify_model_sphere_edges.py passes8192 exact original/PC/NXDK cases:
+1495 hits including437 at time1, ordered polygons, closing edges, zero
+movement/radius, degenerate edges and nonpositive counts. Original5076f0
+runs with every bounds/edge/vector callee unchanged; only static constructor
+flags are preinitialized to avoid unrelated CRT exit registration. This
+verifier uses027f. Report: artifacts/model-sphere-edges.json. The existing
+9013-case sphere-edge verifier plus7 invalid-input guards also passes under
+its037f setup. PC/NXDK builds and all19 CTests pass.
+Full swept-triangle composition and native/live integration remain open.

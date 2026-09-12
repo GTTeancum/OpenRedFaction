@@ -43,6 +43,16 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-sphere-edges")) {
+        struct {float start[3],delta[3],radius;int32_t count;float vertices[8][3],fraction,point[3];} input;
+        uint32_t result;_Static_assert(sizeof(input)==144,"model edges wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            result=rf_collision_model_sphere_edges(input.start,input.delta,input.radius,input.count,input.vertices,&input.fraction,input.point);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(&input.fraction,16,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--model-ray-triangle")) {
         struct {float start[3],displacement[3];rf_collision_model_triangle triangle;uint32_t two_sided;rf_collision_model_response_hit hit;} input;
         uint32_t result;_Static_assert(sizeof(input)==116,"model ray triangle wire");

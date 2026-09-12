@@ -66,6 +66,12 @@ int rf_collision_sphere_plane(const float start[3],const float displacement[3],
  * outputs. Finite inputs, nonnegative radius and limit [0,1] required. */
 int rf_collision_sphere_edge(const float start[3],const float delta[3],float radius,
     const float a[3],const float b[3],float limit,float *fraction,float point[3],uint32_t *hit);
+/* Original5076f0 closed polygon edge sweep, contiguous ordered vertices.
+ * Finite geometry/nonnegative radius with nonoverflowing intermediates;
+ * count<=0 rejects. Nearest contact including time1, first edge wins ties.
+ * Misses preserve fraction/point. Local scratch replaces original statics. */
+uint32_t rf_collision_model_sphere_edges(const float start[3],const float delta[3],float radius,
+    int32_t count,const float (*vertices)[3],float *fraction,float point[3]);
 /* 4e1f50 + projection-axis selection 4fa6d0, using an ordered closed
  * vertex array instead of the original circular edge list. Exact half-open
  * crossing rule; no epsilon or generic on-edge override. Tests projected
