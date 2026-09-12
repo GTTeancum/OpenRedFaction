@@ -5468,3 +5468,35 @@ may create an additional masako_endgame entity for its special endgame path.
 Do not equate one serialized record with one successful global allocation.
 Actual per-handler factory calls and subsequent player creation remain the
 next ownership-order evidence needed for collision discovery integration.
+
+
+### Entity record creation ordering (2026-09-12)
+
+verify_entity_loader_creation_order.py executes original464625..46474a,
+with record-skip464e5a as the alternate exit. The resolved initial class ID
+and parsed locals are supplied;42cdd0/name comparisons/class lookup and
+422360 factories are explicit boundaries.5184 cases verify exact call order,
+all seven factory arguments, unchanged transform bytes and complete actor/
+class storage writes. Counts:3168 no-create,1890 one-create,126 two-create
+cases;63 successful secondary publications. Report:
+artifacts/entity-loader-creation-order.json. This is original-code evidence,
+not a PC/NXDK equivalence or full-loader/constructor test.
+
+Negative initial class IDs skip the record. Any nonzero multiplayer byte
+consults42cdd0; a nonzero low-byte result skips. Main creation flags combine
+hidden-byte nonzero->2 and the other parsed flag-byte nonzero->4. Factory
+arguments are class ID, record name, UID-1, original position/orientation
+pointers, combined flags and player-index-1. On main failure no secondary
+checks execute. On success linked146c is initially-1.
+
+When the supplied class-name comparison matches masako_fighter and level
+comparison matches l20s2.rfl, the loader looks up masako. A nonnegative class
+ID triggers an immediate second422360 call named masako_endgame, using the
+same transform, flags2, UID-1 and player-index-1. If successful, it sets
+secondary7c8=1, ORs secondary814 with10, writes secondary7cc=10.0f, publishes
+secondary2c into main146c and ORs secondary class728 with100. These are
+actual observed instruction writes; lookup/string semantics remain supplied.
+
+Scene integration must account for this extra allocation and shared class
+mutation before claiming serialized entity records establish global object
+order. Subsequent per-record setup and post-load player creation remain open.
