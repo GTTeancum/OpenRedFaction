@@ -1,4 +1,19 @@
 #include "rf/glare.h"
+static int glare_collect_probe(void)
+{
+    uint32_t input[12],count,accepted=0xa5a5a5a5;rf_glare_base_owner owner={0};rf_visibility_frustum frustum;
+    static rf_render_queue_record records[2048];int status;
+    _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    while(fread(input,4,12,stdin)==12) {
+        if(fread(&frustum,sizeof(frustum),1,stdin)!=1)return 2;
+        memset(records,0xa5,sizeof(records));memset(&owner,0,sizeof(owner));accepted=0xa5a5a5a5;count=input[4];
+        owner.state.active=(uint8_t)input[5];owner.state.flags=input[6];owner.handle=input[7];
+        memcpy(&owner.radius,input+8,4);memcpy(owner.position,input+9,12);
+        status=rf_glare_collect(&owner,input[0],input[1],(int32_t)input[2],input[3],&frustum,owner.position,records,2048,&count,&accepted);
+        fwrite(&status,4,1,stdout);fwrite(&accepted,4,1,stdout);fwrite(&count,4,1,stdout);fwrite(&owner.state.flags,4,1,stdout);fwrite(records,sizeof(records),1,stdout);
+    }
+    return 0;
+}
 typedef struct glare_render_fixture {
     rf_glare_base_owner owners[3];uint32_t events[24][3],count,mode;
 } glare_render_fixture;

@@ -1,5 +1,6 @@
 #ifndef RF_GLARE_H
 #define RF_GLARE_H
+#include "rf/visibility.h"
 #include "rf/object_registry.h"
 #include "rf/physics.h"
 typedef struct rf_glare_definition {
@@ -107,4 +108,14 @@ typedef struct rf_glare_render_backend {
  * marker is not consumed. An enable failure returns directly. */
 int rf_glare_render_pass(rf_object_list *glares,const void *const *views,
     uint32_t count,const void *current,uint32_t reflections,const rf_glare_render_backend *backend);
+/*48847e..4884ec for one resolved owner. Match room token and active byte;
+ * positive volume bitmap ID selects sorted volume callback, otherwise cull
+ * without enqueueing. Accepted culling ORs marker0x80000000; rejection leaves
+ * existing marker intact. Resolved cull position includes world/instance offset.
+ * Callback is an opaque queue identifier, required nonzero for volume>0.
+ * No allocation, room lookup, list traversal, geometry or draw dispatch. */
+int rf_glare_collect(rf_glare_base_owner *owner,uint32_t room,uint32_t current_room,
+    int32_t volume,uint32_t callback,const rf_visibility_frustum *frustum,
+    const float cull_position[3],rf_render_queue_record *records,uint32_t capacity,
+    uint32_t *count,uint32_t *accepted);
 #endif

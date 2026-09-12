@@ -318,6 +318,20 @@ uint32_t rf_clutter_material_index(const char *name)
     for(i=0;i<10;++i)if(clutter_skin_name_equal(names[i],name))return i;
     return 0;
 }
+int rf_glare_collect(rf_glare_base_owner *owner,uint32_t room,uint32_t current_room,
+    int32_t volume,uint32_t callback,const rf_visibility_frustum *frustum,
+    const float cull_position[3],rf_render_queue_record *records,uint32_t capacity,
+    uint32_t *count,uint32_t *accepted)
+{
+    rf_render_queue_record entry={0};uint32_t visible;int status;
+    if(!owner || !accepted)return RF_RANGE;
+    if(room!=current_room || !owner->state.active){*accepted=0;return RF_OK;}
+    if(volume>0 && !callback)return RF_RANGE;
+    entry.object=owner->handle;memcpy(entry.position,owner->position,12);entry.radius=owner->radius;
+    entry.sorted=volume>0;entry.lighting_flag=1;entry.callback=volume>0?callback:0;
+    status=rf_render_queue_append(frustum,cull_position,&entry,records,capacity,count,&visible);if(status)return status;
+    if(visible)owner->state.flags|=0x80000000u;*accepted=visible;return RF_OK;
+}
 int rf_glare_render_pass(rf_object_list *list,const void *const *views,uint32_t count,
     const void *current,uint32_t reflections,const rf_glare_render_backend *backend)
 {

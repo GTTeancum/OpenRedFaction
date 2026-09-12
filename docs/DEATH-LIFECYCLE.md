@@ -7603,3 +7603,32 @@ flags, duplicate/missing/current views, reflection low-byte values, sample
 clearing and marker consumption. Only original enable/corona/reflection
 implementations are supplied; full dispatcher executes. Both builds and
 21 CTests pass. No native geometry or integrated rendering claim.
+
+### Glare visibility marker and volume queue collection
+
+Original488467..4884fa traverses the glare family. For each owner,40a490
+room must match the current room token (EBP) and active byte28c must be
+nonzero. Positive class bitmap24 queues callback488b00 with sorted1;
+nonpositive bitmap24 supplies callback0/sorted0. Both use object handle2c,
+position3c, radius78, plane/min/max0, lighting0 and lighting_flag1.
+Accepted4d3560 culling ORs glare marker0x80000000. Rejected/skipped owners
+keep any existing marker; the later4154f0 pass consumes it. No hidden-base
+flag filter is added here. Null-callback culling accepts without a queue slot,
+even at capacity; positive-volume submission rejects a full queue.
+
+rf_glare_collect composes these rules for one resolved owner with the
+existing rf_render_queue_append and frustum. Room lookup, list traversal and
+resolved world/instance cull position remain caller inputs. Queue callback
+is an opaque identifier and must be nonzero for positive volume. No GPU
+submission, live collector binding or synthetic visibility bypass is added.
+
+verify_glare_collect.py executes the entire original glare-list block with
+actual4d3560 and5186a0; only40a490 room resolution is supplied.336 cases
+compare PC/compiled NXDK acceptance, marker, all2048 queue slot bytes and
+owner footprints. Includes11 appends,37 accepted-without-append and207
+room/inactive skips, signed radii, tangency/outside planes, full queue and
+preexisting markers. The world offset is zero/no instance transform for
+this oracle. The original collector does not draw callback geometry here.
+Both builds,197 draw-pass checks and21 CTests pass. Next bind collection to
+live room scheduling and recover414860 corona geometry/occlusion,4141a0
+volume drawing and4155a0 reflection behavior before visible integration.
