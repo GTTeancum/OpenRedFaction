@@ -4275,3 +4275,33 @@ Normal response4096 cases still pass; PC/NXDK builds and all19 CTests pass.
 The232-byte x86 general view is borrowed and has not been allocated per live
 actor. Live contact ownership, scheduler integration, native response execution
 and model49afe0/solid49b570 response reconstruction remain open. No new visual.
+
+
+### Solid response49b570 orchestration (2026-09-12)
+
+rf_collision_actor_solid_response reconstructs49b570 around explicit geometry
+services. Missing solid exits before bounds; disjoint bounds exit before any
+cache calls. Overlap with more than one actor sphere calls4df7e0 preparation
+with actor bounds and original final argument0. Every overlapping invocation
+releases through4dfb00 after traversal, including zero/negative sphere counts.
+
+Query origin/matrix come from the solid actor's current body transform; flags
+are0. Sphere start uses current actor transform. Displacement retains original
+rounding: rotated next sphere center plus (actor next position minus start),
+not the algebraically equivalent endpoint subtraction. The first result time
+is min(actor time,solid time); each query carries the service's resulting time
+to the next query, including misses. Positive signed hit count triggers writes
+without a second nearest-hit check in the caller. Local point/normal transform
+through the solid's current orientation; point then adds current solid position.
+The actor gets solid material/inverse mass/velocity/handle, reference-1 and
+face1f0 from the query. Kind2 suppresses the other actor's contact. This path
+does not perform the426fc0/8a0 extra-velocity lookup.
+
+verify_actor_solid_response.py passes8192 original/PC/NXDK orchestration cases:
+4525 early exits,1135 overlap/empty-list releases,712 queried misses and1820
+contact results. All6074 query inputs and carried limits match byte-for-byte,
+as do callback ordering, contact writes, return and surrounding original bytes.
+Bounds/list/vector/matrix/minimum callees execute unchanged.4df7e0,4df1c0 and
+4dfb00 are supplied services; this does not establish actual cache/query effects
+or their live binding. Local report: artifacts/actor-solid-response.json.
+PC/NXDK builds and all19 CTests pass. No new native response/visual claim.

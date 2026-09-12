@@ -404,6 +404,22 @@ typedef struct rf_collision_actor_general_response {
  * special body400 handling and projectile second-contact suppression. */
 uint32_t rf_collision_actors_general_response(rf_collision_actor_general_response *first,
     rf_collision_actor_general_response *second,const float *(*extra_velocity)(void *,uint32_t),void *context);
+typedef struct rf_collision_solid_response_query {
+    float origin[3],matrix[9],start[3],displacement[3],radius;uint32_t flags;
+} rf_collision_solid_response_query;
+typedef struct rf_collision_solid_response_hit {
+    int32_t count;float time,point[3],normal[3];uint32_t reserved_20,face;
+} rf_collision_solid_response_hit;
+typedef struct rf_collision_solid_response_backend {
+    void (*prepare)(void *,uint32_t,const float *,const float *);
+    void (*query)(void *,uint32_t,const rf_collision_solid_response_query *,rf_collision_solid_response_hit *);
+    void (*finish)(void *);void *context;
+} rf_collision_solid_response_backend;
+/* Original49b570 orchestration; cache4df7e0, query4df1c0 and release4dfb00
+ * supplied. Query sets count on each call and carries the time limit forward;
+ * positive count supplies local point/normal/face. Owners remain stable. */
+uint32_t rf_collision_actor_solid_response(rf_collision_actor_general_response *actor,
+    rf_collision_actor_general_response *solid_actor,uint32_t solid,const rf_collision_solid_response_backend *backend);
 typedef struct rf_collision_pair_actor_state {
     uint32_t kind,body_flags,model,movement_mode,handle,parent_handle,object_flags;
     uint32_t trigger_filter;int32_t allowed_count;const uint32_t *allowed_handles;
