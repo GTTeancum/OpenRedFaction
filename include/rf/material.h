@@ -105,6 +105,14 @@ int rf_model_materials_open_skin(rf_model_materials *materials,const rf_model_fi
 int rf_model_materials_open_records(rf_model_materials *materials,const uint8_t (*records)[84],uint32_t count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_model_materials_close(rf_model_materials *materials);
+/* Retained rows plus post-conversion primary replacements (410d30 semantics).
+ * Optional overrides has count entries; NULL entries retain base handles.
+ * Named replacements are 1..60 bytes. All other200-byte material fields and
+ * auxiliary arrays retain base conversion, including alpha/secondary state.
+ * Base and replacement images are retained, case-insensitive deduplicated.
+ * Same ownership/budget/error contract as open_records; no glare effects. */
+int rf_model_materials_open_records_overrides(rf_model_materials *materials,const uint8_t (*records)[84],uint32_t count,
+    const char *const *overrides,rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 typedef struct rf_entity_materials {
     rf_model_materials materials;
     uint32_t *offsets;uint32_t count,resident_bytes,peak_bytes;

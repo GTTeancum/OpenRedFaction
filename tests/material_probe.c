@@ -15,14 +15,25 @@ int main(int argc, char **argv)
     rf_materials materials;
     uint32_t count, i;
     int result;
-    if(argc>=4 && argc<=19 && !strcmp(argv[1],"--records")) {
+    if(argc>=4 && argc<=19 && (!strcmp(argv[1],"--records") || !strcmp(argv[1],"--records-overrides"))) {
         uint32_t n,j;uint8_t (*rows)[84];rf_model_materials bundle={0};
+        static char replacements[4096][64];static const char *names[4096];
+        int overridden=!strcmp(argv[1],"--records-overrides");
         _setmode(_fileno(stdin),_O_BINARY);
         if(fread(&n,4,1,stdin)!=1 || n>4096)return 2;
         rows=n?malloc(n*84):NULL;if(n && (!rows || fread(rows,84,n,stdin)!=n)){free(rows);return 2;}
+        if(overridden) {
+            if(n && fread(replacements,64,n,stdin)!=n){free(rows);return 2;}
+            for(i=0;i<n;++i) {
+                if(!memchr(replacements[i],0,64)){free(rows);return 2;}
+                names[i]=replacements[i][0]?replacements[i]:NULL;
+            }
+        }
         count=(uint32_t)argc-3;
         for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+3])){while(i)rf_vpp_close(archives+--i);free(rows);return 1;}
-        result=rf_model_materials_open_records(&bundle,rows,n,archives,count,(uint32_t)strtoul(argv[2],NULL,10));
+        result=overridden?rf_model_materials_open_records_overrides(&bundle,rows,n,names,archives,count,(uint32_t)strtoul(argv[2],NULL,10)):
+            rf_model_materials_open_records(&bundle,rows,n,archives,count,(uint32_t)strtoul(argv[2],NULL,10));
+        memset(replacements,0xdd,sizeof(replacements));memset(names,0,sizeof(names));
         if(n)memset(rows,0xdd,n*84);free(rows);for(i=0;i<count;++i)rf_vpp_close(archives+i);
         if(!result) {
             printf("%u %u %u %u\n",bundle.count,bundle.textures.count,bundle.resident_bytes,bundle.peak_bytes);
