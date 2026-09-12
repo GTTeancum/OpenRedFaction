@@ -1556,11 +1556,23 @@ int main(int argc,char **argv)
         if(!layout)printf("%u %u %u %u %u %u\n",geometry.rooms,total,nodes,peak,queries,hits);
         rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
     }
-    if(argc==4 && !strcmp(argv[1],"--level-texture-uv")) {
+    if((argc==4 && !strcmp(argv[1],"--level-texture-uv")) || (argc>=5 && argc<=13 && !strcmp(argv[1],"--level-material-samples"))) {
+        uint32_t real_materials=!strcmp(argv[1],"--level-material-samples");rf_geometry_materials bundle={0};rf_vpp maps[9];
         rf_vpp archive;rf_level level;rf_geometry geometry;float vertices[256][3],coordinates[256][2];
         rf_geometry_texture_workspace work={vertices,coordinates,256};unsigned char pixels[64];rf_image image={4,4,64,7,pixels};uint32_t i,j,k;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,8*1024*1024))return 3;
         for(i=0;i<64;++i)pixels[i]=(unsigned char)(i*37+11);
+        if(real_materials) {
+            const rf_geometry *g=&geometry;
+            for(i=4;i<(uint32_t)argc;++i)if(rf_vpp_open(maps+i-4,argv[i]))return 5;
+            if(rf_geometry_materials_open(&bundle,&g,1,maps,(uint32_t)argc-4,32*1024*1024))return 5;
+            for(i=4;i<(uint32_t)argc;++i)rf_vpp_close(maps+i-4);
+            fwrite(&geometry.textures,4,1,stdout);fwrite(bundle.slots,4,geometry.textures,stdout);fwrite(&bundle.textures.count,4,1,stdout);
+            for(i=0;i<bundle.textures.count;++i) {
+                const rf_material *m=bundle.textures.items+i;fwrite(&m->status,4,1,stdout);fwrite(&m->image.width,16,1,stdout);
+                if(m->image.bytes)fwrite(m->image.rgba,m->image.bytes,1,stdout);
+            }
+        }
         for(i=0;i<geometry.faces;++i) {
             rf_geometry_face face;rf_geometry_corner corner;float point[3]={0};
             struct {int32_t status;uint32_t matched;float uv[2];int32_t sample_status;uint32_t color;} out;
@@ -1571,11 +1583,12 @@ int main(int argc,char **argv)
             }
             for(k=0;k<3;++k)point[k]/=face.corners;
             memset(&out,0xa5,sizeof(out));out.status=rf_geometry_texture_coordinates(&geometry,i,point,&work,out.uv,&out.matched);
-            out.sample_status=rf_geometry_sample_texture(&geometry,i,point,&image,&work,&out.color);
+            out.sample_status=real_materials?rf_geometry_material_sample(&bundle,0,&geometry,i,point,&work,&out.color):rf_geometry_sample_texture(&geometry,i,point,&image,&work,&out.color);
+            if(real_materials)fwrite(&face.texture,4,1,stdout);
             if(fwrite(&i,4,1,stdout)!=1 || fwrite(&face.corners,4,1,stdout)!=1 || fwrite(face.plane,16,1,stdout)!=1 || fwrite(point,12,1,stdout)!=1 ||
                fwrite(vertices,12,face.corners,stdout)!=face.corners || fwrite(coordinates,8,face.corners,stdout)!=face.corners || fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
         }
-        rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
+        rf_geometry_materials_close(&bundle);rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
     }
     if(argc==4 && (!strcmp(argv[1],"--level") || !strcmp(argv[1],"--level-initial"))) {
         int initial=!strcmp(argv[1],"--level-initial");

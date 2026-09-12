@@ -7974,3 +7974,29 @@ Full audit result: PASS460720 faces across94 installed levels, including
 explicit port policies, not original out-of-bounds read comparisons. Both
 builds pass. Next bind actual texture/frame selection and propagate this
 service through the live preferred/room/flat collision traversal.
+
+
+Glare dependency: retained geometry material sampling (2026-09-12)
+----------------------------------------------------------------
+rf_geometry_material_sample resolves an authored face texture through the
+geometry-local slot mapping into its retained image and calls the verified
+UV/image composition. No allocation, copied pixels, animation clock or
+placeholder selection. Missing images return their loader status; malformed
+mapping ranges/slots fail, and failures preserve the caller color.
+
+verify_geometry_material_sample.py checks all7418 opening L1S1 face centroids
+against full original4e1ad0/55cfa0 with bitmap lock/release supplied. PC uses
+actual archive geometry/materials; compiled NXDK uses equivalent one-face
+records, the real local-slot mapping and distinct swizzled image allocations.
+The original sampler receives source-format channel values restored from
+the normalized retained pixels; this verifies sampling composition, not an
+independent image-decoder audit. The16 loaded textures match; missing slot16
+is USERBMAP, referenced by116 faces. Those cases verify explicit NOT_FOUND
+and preserved color, not original runtime USERBMAP behavior. Its runtime
+owner/selection remains unresolved. No UV misses or bounds rejections occur
+on these opening centroids. Eleven compiled mapping/status guards plus one
+workspace-capacity guard pass. PC and NXDK builds and21 CTests pass.
+
+This adapter is not yet bound to live scene collision callbacks. Next resolve
+runtime texture selection and carry the alpha service through preferred,
+room/tree and flat traversal, retaining source-face IDs and mover-local UVs.

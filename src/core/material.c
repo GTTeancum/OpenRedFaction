@@ -1,6 +1,21 @@
 #include "rf/material.h"
 #include <stdlib.h>
 #include <string.h>
+int rf_geometry_material_sample(const rf_geometry_materials *materials,uint32_t geometry_index,
+    const rf_geometry *geometry,uint32_t face,const float point[3],
+    rf_geometry_texture_workspace *work,uint32_t *color)
+{
+    rf_geometry_face source;uint32_t first,last,slot;const rf_material *item;int status;
+    if(!materials || !geometry || !color || !materials->offsets || geometry_index>=materials->count)return RF_RANGE;
+    status=rf_geometry_get_face(geometry,face,&source);if(status)return status;
+    if(source.texture==UINT32_MAX)return RF_NOT_FOUND;
+    first=materials->offsets[geometry_index];last=materials->offsets[geometry_index+1];
+    if(last<first || last-first!=geometry->textures || source.texture>=geometry->textures || !materials->slots)return RF_FORMAT;
+    slot=materials->slots[first+source.texture];if(slot>=materials->textures.count || !materials->textures.items)return RF_FORMAT;
+    item=materials->textures.items+slot;if(item->status)return item->status;
+    return rf_geometry_sample_texture(geometry,face,point,&item->image,work,color);
+}
+
 int rf_geometry_body_surface(void *context,uint32_t solid,uint32_t face,
     uint32_t *texture,uint32_t *material)
 {
