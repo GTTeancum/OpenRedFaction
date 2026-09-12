@@ -506,26 +506,38 @@ static rf_model_skeletal_registration *campaign_model_head;
 static uint32_t campaign_model_owner_count;
 static uint32_t campaign_model_owned_bytes,campaign_model_owned_count;
 uint32_t rf_scene_npc_models[4]; /* published, peak owner bytes, retired, errors */
-static void campaign_models_close(void)
+/* Retire one model without releasing the registry table or shared textures.
+ * Empty slots are repeatable; failed preflight preserves the loaded owner. */
+int rf_scene_model_retire(uint32_t slot)
 {
-    uint32_t i;for(i=0;i<campaign_model_owner_count;++i) {
-        campaign_model_owner *owner=campaign_model_owners+i;rf_entity_pose *pose=owner->pose;
-        if(owner->registration.loaded && owner->registration.next) {
-            if(!pose || pose->skeleton>=campaign_playback_resources.model_count || !campaign_playback_resources.models)++rf_scene_npc_models[3];
-            else {
-                rf_entity_playback_model *model=campaign_playback_resources.models+pose->skeleton;
-                if(rf_model_skeletal_retire(&owner->registration,&campaign_model_head,campaign_model_owner_count,model->resources,model->count))++rf_scene_npc_models[3];
-                else {
-                    ++rf_scene_npc_models[2];
-                    if(owner->owned) {
-                        uint32_t bytes=owner->owned->allocated_bytes;
-                        if(rf_entity_owned_pose_close(owner->owned,&campaign_playback_resources))++rf_scene_npc_models[3];
-                        else {free(owner->owned);owner->owned=NULL;campaign_model_owned_bytes-=bytes;--campaign_model_owned_count;}
-                    }
-                }
-            }
-        }
+    campaign_model_owner *owner;rf_entity_pose *pose;rf_entity_playback_model *model;uint32_t bytes=0;int status;
+    if(slot>=campaign_model_owner_count || !campaign_model_owners)return RF_RANGE;
+    owner=campaign_model_owners+slot;pose=owner->pose;
+    if(!owner->registration.loaded)return (!pose && !owner->owned)?RF_OK:RF_RANGE;
+    if(!pose || !campaign_playback_resources.models || pose->skeleton>=campaign_playback_resources.model_count ||
+       owner->registration.active!=&pose->playback.completion.active)return RF_RANGE;
+    if(owner->owned) {
+        bytes=owner->owned->allocated_bytes;
+        if(pose!=&owner->owned->pose || !pose->bone_count || pose->bone_count>50 ||
+           !owner->owned->storage || pose->matrices!=owner->owned->storage ||
+           (void*)pose->generations!=(unsigned char*)owner->owned->storage+pose->bone_count*48 ||
+           bytes!=sizeof(*owner->owned)+pose->bone_count*50 || !campaign_model_owned_count ||
+           bytes>campaign_model_owned_bytes)return RF_RANGE;
     }
+    model=campaign_playback_resources.models+pose->skeleton;
+    status=rf_model_skeletal_retire(&owner->registration,&campaign_model_head,campaign_model_owner_count,model->resources,model->count);
+    if(status)return status;
+    if(owner->owned) {
+        status=rf_entity_owned_pose_close(owner->owned,&campaign_playback_resources);if(status)return status;
+        free(owner->owned);owner->owned=NULL;campaign_model_owned_bytes-=bytes;--campaign_model_owned_count;
+    }
+    owner->registration.loaded=0;owner->registration.active=NULL;owner->pose=NULL;
+    ++rf_scene_npc_models[2];return RF_OK;
+}
+void campaign_models_close(void)
+{
+    uint32_t i;for(i=0;i<campaign_model_owner_count;++i)
+        if(rf_scene_model_retire(i))++rf_scene_npc_models[3];
     free(campaign_model_owners);campaign_model_owners=NULL;campaign_model_owner_count=0;campaign_model_head=NULL;
 }
 static int campaign_models_open(void)

@@ -14,7 +14,7 @@ w=lambda *v:struct.pack('<'+'I'*len(v),*(v&0xffffffff for v in v))
 f=lambda *v:struct.pack('<'+'f'*len(v),*v)
 read=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
 def put(a,*v):u.mem_write(a,w(*v))
-take=sym('rf_scene_model_detach');close=sym('campaign_models_close');initialize=sym('rf_motion_playback_initialize')
+retire=sym('rf_scene_model_retire');take=sym('rf_scene_model_detach');close=sym('campaign_models_close');initialize=sym('rf_motion_playback_initialize')
 calloc=sym('calloc');malloc=sym('malloc');free=sym('free');fail=0;live=set();calls=[]
 owners=sym('campaign_model_owners');count=sym('campaign_model_owner_count');head=sym('campaign_model_head');owned_count=sym('campaign_model_owned_count');owned_bytes=sym('campaign_model_owned_bytes');resources=sym('campaign_playback_resources');diagnostic=sym('rf_scene_npc_models')
 def hook(cpu,address,size,data):
@@ -63,10 +63,19 @@ for bones in range(1,51):
   assert call(take,0,position,basis,11)==0xfffffffc
   u.mem_write(matrices,bytes([0xdd])*bones*48);assert bytes(u.mem_read(cache,bones*48))==data
   assert all(read(clips+i*36+32)==2 for i in range(16))
+  saved=bytes(u.mem_read(owner,80));put(owned_bytes,1)
+  assert call(retire,0)==0xfffffffc and bytes(u.mem_read(owner,80))==saved
+  put(owned_bytes,308+bones*50)
+  if active:
+   put(clips+32,0xffffffff);assert call(retire,0)==0xfffffffc and bytes(u.mem_read(owner,80))==saved
+   put(clips+32,2)
+  assert call(retire,0)==0 and live=={owner} and read(owner)==read(owner+16)==read(owner+76)==0
+  assert read(owners)==owner and read(count)==1 and read(owned_count)==read(owned_bytes)==0
+  calls.clear();assert call(retire,0)==0 and not calls
   call(close)
   assert not live and read(owners)==read(count)==read(head)==read(owned_count)==read(owned_bytes)==0
   assert bytes(u.mem_read(diagnostic,16))==w(1,80,1,0)
   assert all(read(clips+i*36+32)==(1 if i<active else 2) for i in range(16))
   cases+=1
-report=dict(result='PASS',cases=cases,allocation_failures=cases*2,capacity_rejections=cases,repeat_rejections=cases,nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Compiled campaign detach and teardown with controlled heap boundaries; registered pose/placement preserved, source consumed, exact reference retirement and both allocations freed. No live death dispatch or XEMU transferred-model claim.')
-(root/'artifacts/campaign-model-detach.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
+report=dict(result='PASS',cases=cases,allocation_failures=cases*2,capacity_rejections=cases,repeat_rejections=cases,nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Compiled campaign detach, individual retirement and level teardown with controlled heap boundaries; registered pose/placement preserved, source consumed, exact reference retirement and both allocations freed. No live death dispatch or XEMU transferred-model claim.')
+(root/'artifacts/campaign-model-retire.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

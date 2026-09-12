@@ -370,6 +370,10 @@ static int eye_binding_check(void)
             campaign_model_owners[0].appearance==7 && campaign_model_owners[0].room==10);
         CHECK(campaign_actor_pose(0,&resolved)==RF_OK && !resolved);
         CHECK(campaign_npc_eye_update(0)==RF_NOT_FOUND);
+        CHECK(rf_scene_model_retire(1)==RF_RANGE);
+        CHECK(rf_scene_model_retire(0)==RF_OK && rf_scene_model_retire(0)==RF_OK);
+        CHECK(campaign_model_pose(0,&resolved)==RF_OK && !resolved && !campaign_model_owned_count && !campaign_model_owned_bytes);
+        CHECK(rf_scene_npc_models[2]==1);
         campaign_models_close();CHECK(!campaign_model_owned_count && !campaign_model_owned_bytes && !rf_scene_npc_models[3]);
         CHECK(campaign_npc_eye_update(0)==RF_RANGE);
     }
