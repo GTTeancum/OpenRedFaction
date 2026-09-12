@@ -575,7 +575,9 @@ typedef struct rf_collision_visibility_backend {
     int (*world)(void *,const float[3],const float[3],uint32_t,const void *,uint32_t *);
     void *context;
 } rf_collision_visibility_backend;
-/* Full4991c0 with ordered views of its three lists. Nonzero unique tokens map
+/* Full4991c0 with ordered actor, clutter, corpse lists (in that order).
+ * Each retains successful factory insertion order, not handle or UID order.
+ * Nonzero unique tokens map
  * object identity for exclusions; views remain stable during callbacks. Extent
  * is an ordered minimum-size filter, not query radius. Model callback supplies
  * full5031f0 effects/reset1; world supplies498e80. Scratch starts at port zero.

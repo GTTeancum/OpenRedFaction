@@ -122,7 +122,7 @@ For the two downward rays a zero low byte rejects; any nonzero byte passes.
 Each rejection returns immediately without remaining queries or actor scans.
 This distinction matters even though the normal498e80 return is boolean.
 
-After the rays, the original traverses the entity list at5c95ec until the
+After the rays, the original traverses the clutter list at5c95ec until the
 5c9360 sentinel, following28c. It considers raw class294->74 bit4. The candidate
 must lie within a3D squared distance of (abs(length)+candidate180)^2. It
 transforms candidate position minus dying actor position into the actor's
@@ -6454,3 +6454,35 @@ lists to retained owners and complete5031f0/498e80 geometry services, then use
 this visibility path from scene-owned navigation40c2c0 and AI408ac0. Object-list
 identity/order, current poses, lifetime and exclusion mapping require actual
 owner evidence; current startup NPCs alone are not the complete visibility set.
+
+
+### Visibility family identity and insertion order (2026-09-12)
+
+4991c0 traverses actors (5cb060 sentinel), clutter (5c9360), then corpses
+(5cabb8). The earlier420d00 note incorrectly called5c9360 an entity list; it
+is corrected. Clutter factory4104a0 contains original clutte source/assertion
+strings, creates type4 through486da0, and appends to5c9360. Corpse416940 appends
+to5cabb8; actor422360 appends to5cb060. These are distinct from the global
+allocation list at object10/14 and73d880.
+
+`tools/verify_visibility_lists.py` executes the unmodified final append regions:
+actors4236ad..4236fc, clutter4109d4..410a0b, corpses416d75..416da3. Each writes
+object28c next/object290 previous and appends at its sentinel tail. Counters are
+62f2d4,5c9358 and5caed0 respectively.3072 total append operations across shuffled
+creation order and wrapping initial counters match the existing compiled NXDK
+intrusive-list helper after pointer normalization. Every new-node byte is checked,
+including actor13ec/13f0 zeroes and1384/1388 minus-one stores in that region.
+Forward and backward traversal both preserve successful factory insertion order.
+No full factory, constructor, removal or live registration sequence is claimed.
+
+The visibility API now names the three families and explicitly requires factory
+insertion order rather than UID/handle order. Existing scene startup NPC storage
+is insufficient for the complete visibility population: the shared level/scene
+owners currently contain no retained clutter collection. Section50000 dispatch
+in460820 calls465220, which reads authored clutter and invokes class lookup410b60
+and factory4104a0, followed by linkage/resource publication. Fresh465220 raw
+output is available for the next loader audit. Recover its common464f90 payload,
+class/model selection and successful creation order before supplying the middle
+visibility list. Actor/corpse lifetime, live model geometry and world498e80
+services remain required; do not replace missing clutter with an empty list and
+claim complete scene visibility.
