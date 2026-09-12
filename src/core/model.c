@@ -1,4 +1,5 @@
 #include "rf/model.h"
+#include "rf/model_file.h"
 #include "rf/clutter.h"
 #include "rf/timer.h"
 #include <stdio.h>
@@ -771,6 +772,45 @@ static void emit_render_vertex(const rf_model_render_cache *source,const rf_mode
     rgb=output->lighting?source->rgb:output->rgb;
     vertex[16]=rgb[2];vertex[17]=rgb[1];vertex[18]=rgb[0];vertex[19]=output->alpha;
     vertex[23]=source->depth;memcpy(vertex+24,uv,8);
+}
+
+/* Static52e11b..52e43e: unlike the skeletal loop, no normalization or
+ * world/second-cache publication occurs. Duplicate outputs use the referenced
+ * cache entry without copying its projected/depth/RGB fields to this entry. */
+int rf_model_geometry_render_static_batch(const rf_model_geometry *geometry,uint32_t batch,
+    const rf_model_projection *view,const rf_model_lighting *lights,
+    const rf_model_render_output *output,const uint8_t (*colors)[3],rf_model_render_buffers *buffers)
+{
+    const rf_model_draw_batch *draw;uint32_t i;int status;
+    if(!geometry || !geometry->batches || batch>=geometry->batch_count || !view || !lights || !output ||
+       !buffers || !buffers->cache || !buffers->clip || !buffers->vertices)return RF_RANGE;
+    draw=geometry->batches+batch;
+    if(draw->vertices>buffers->capacity || draw->first_vertex>geometry->vertex_count ||
+       draw->vertices>geometry->vertex_count-draw->first_vertex || !geometry->vertices || !geometry->reuse)return RF_RANGE;
+    for(i=0;i<draw->vertices;++i)if(geometry->reuse[draw->first_vertex+i]>0 &&
+        (uint32_t)geometry->reuse[draw->first_vertex+i]>i)return RF_RANGE;
+    for(i=0;i<draw->vertices;++i) {
+        const rf_model_vertex *v=geometry->vertices+draw->first_vertex+i;
+        int32_t distance=geometry->reuse[draw->first_vertex+i];uint32_t visible=0;
+        rf_model_render_cache *cache=buffers->cache+i,*source=cache;
+        rf_model_render_output attributes=*output;
+        if(distance>0) {
+            source=cache-distance;cache->clip=source->clip;visible=!source->clip;
+        } else {
+            status=rf_model_project_static_vertex(v->position,view,cache,buffers->clip[i],buffers->vertices[i],&visible);
+            if(status)return status;
+            if(visible && output->lighting && !colors) {
+                status=rf_model_vertex_lighting(v->normal,lights->lights,lights->ambient,cache->rgb);
+                if(status)return status;
+            }
+        }
+        if(visible) {
+            attributes.lighting=colors?0:1;
+            if(colors)memcpy(attributes.rgb,colors[i],3);
+            emit_render_vertex(source,&attributes,v->uv,buffers->vertices[i]);
+        }
+    }
+    return RF_OK;
 }
 
 int rf_model_render_reuse_vertex(rf_model_render_cache *cache,uint32_t count,uint32_t index,int32_t distance,

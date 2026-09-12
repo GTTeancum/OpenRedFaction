@@ -231,6 +231,21 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--render-static-batch")) {
+        struct {rf_model_vertex vertices[8];int32_t reuse[8];rf_model_projection view;rf_model_lighting lights;rf_model_render_output output;uint32_t use_colors;uint8_t colors[8][3];} data;
+        _Static_assert(sizeof(data)==592,"Static batch probe wire layout");
+        while(fread(&data,sizeof(data),1,stdin)==1) {
+            rf_model_render_cache cache[8];float clip[8][3],second[8][3];uint8_t vertices[8][40];int32_t status;
+            rf_model_draw_batch draw={0,8,0,0,0};rf_model_geometry geometry={0};
+            rf_model_render_buffers buffers={cache,clip,second,vertices,8};
+            geometry.batches=&draw;geometry.batch_count=1;geometry.vertices=data.vertices;geometry.reuse=data.reuse;geometry.vertex_count=8;
+            memset(cache,0xa5,sizeof(cache));memset(clip,0xa5,sizeof(clip));memset(second,0xa5,sizeof(second));memset(vertices,0xa5,sizeof(vertices));
+            status=rf_model_geometry_render_static_batch(&geometry,0,&data.view,&data.lights,&data.output,data.use_colors?data.colors:NULL,&buffers);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(cache,sizeof(cache),1,stdout)!=1 || fwrite(clip,sizeof(clip),1,stdout)!=1 ||
+                fwrite(second,sizeof(second),1,stdout)!=1 || fwrite(vertices,sizeof(vertices),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--render-batch")) {
         struct {rf_model_vertex vertices[8];int32_t reuse[8];float matrices[4][12];rf_model_projection view;rf_model_lighting lights;rf_model_render_output output;} data;
         _Static_assert(sizeof(data)==756,"Batch probe wire layout");

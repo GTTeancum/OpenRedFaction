@@ -7116,3 +7116,35 @@ outputs. Existing2000 animated projection comparisons remain passing.
 PC/NXDK builds and all19 CTests pass. This is original/compiled-code
 verification, not a native XEMU or visual claim. Report:
 artifacts/model-static-projection-verification.json.
+
+
+## Complete static batch vertex processing
+
+rf_model_geometry_render_static_batch executes the reconstructed static
+52e11b..52e438 vertex loop over retained geometry with caller-owned buffers.
+Fresh vertices use verified static projection and52fcf0 lighting on raw
+authored normals, without skeletal normalization or bone-link interpretation.
+Optional batch-local RGB rows suppress computed lighting. Without those rows,
+the original lighting gate either updates fresh RGB caches or consumes their
+existing contents. Duplicate vertices copy only the clip flag to their own
+cache entry and emit from the referenced projected/depth/RGB cache, using
+the current vertex UV and any current supplied RGB. Chained reuse therefore
+retains the original cache behavior; it is not silently flattened.
+
+World/second cache fields and unconsumed GPU bytes remain untouched, as in
+the original static loop. This is not the skeletal loop world-cache contract;
+static triangle facing/clipping/submission and prepared model-local view
+ownership still need composition before scene use. No heap allocation,
+archive read or alternate-format acceptance change is introduced.
+
+verify_model_static_render_batch.py runs the unchanged complete original
+vertex loop, including actual projection/light/reuse callees, against PC
+and compiled NXDK:512 batches,4096 vertices,1185 positive reuse entries.
+All772 status/cache/clip/second/GPU bytes match. Cases cover all five view
+gates, lighting and supplied RGB combinations, negative/fresh/chained reuse,
+arbitrary bone-link bytes that must be ignored, dyadic/arbitrary floats and
+zero/NaN/Inf normals. One PC invalid-reuse and four NXDK range/capacity
+guards preserve every output byte; NXDK inputs also remain intact.
+PC/NXDK builds and all19 CTests pass; the existing250 skeletal-batch and
+4000 static-projection comparisons remain passing. No native XEMU or visual
+claim. Report: artifacts/model-static-render-batch.json.

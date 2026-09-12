@@ -201,6 +201,15 @@ int rf_model_geometry_clip_near(const rf_model_geometry *geometry,uint32_t batch
 int rf_model_geometry_render_batch(const rf_model_geometry *geometry,uint32_t batch,
     const float (*matrices)[12],uint32_t bones,const rf_model_projection *view,
     const rf_model_lighting *lights,const rf_model_render_output *output,rf_model_render_buffers *buffers);
+/* Static52de10 vertex loop, with a prepared model-local view. Normals are
+ * used directly. Optional colors contains draw->vertices batch-local RGBs and
+ * suppresses lighting; otherwise output->lighting updates fresh RGB caches.
+ * With lighting disabled and no colors, existing cache RGBs are consumed.
+ * World/second caches and unused GPU bytes remain unchanged; this output must
+ * not be treated as the skeletal loop's published world-space cache. */
+int rf_model_geometry_render_static_batch(const rf_model_geometry *geometry,uint32_t batch,
+    const rf_model_projection *view,const rf_model_lighting *lights,
+    const rf_model_render_output *output,const uint8_t (*colors)[3],rf_model_render_buffers *buffers);
 /* Original 0x52f5b2..0x52f699 clipping inputs: position/RGB from the fresh
  * cache entry, own clip mask and UV, corner ordinal and zero generated flags.
  * Records are 48 original-layout bytes; unrelated bytes stay untouched.
