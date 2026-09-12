@@ -1,7 +1,7 @@
 static int npc_collision_binding_check(void)
 {
  campaign_npc_body owner={0};rf_entity_seeds saved=campaign_seeds;rf_level_owned_entity record={0};
- campaign_model_owner model={0};rf_entity_pose pose={0};rf_collision_pair_actor_state out,before;
+ rf_entity_owned_pose owned={0};campaign_model_owner model={0};rf_entity_pose pose={0};rf_collision_pair_actor_state out,before;
  rf_movement_descriptor saved_mode=campaign_modes[3];uint32_t handle;
  campaign_npc_bodies=&owner;campaign_npc_body_count=1;campaign_seeds.records.items=&record;campaign_seeds.records.count=1;
  campaign_model_owners=&model;campaign_model_owner_count=1;
@@ -22,7 +22,7 @@ static int npc_collision_binding_check(void)
  model.registration.loaded=1;model.pose=&pose;model.registration.active=&pose.playback.completion.active;
  model.registration.next=model.registration.previous=&model.registration;
  CHECK(rf_scene_npc_collision_view(handle,&out)==RF_OK && out.model==1);
- model.owned=1;CHECK(rf_scene_npc_collision_view(handle,&out)==RF_OK && out.model==0);model.owned=0;
+ model.owned=&owned;CHECK(rf_scene_npc_collision_view(handle,&out)==RF_OK && out.model==0);model.owned=0;
  owner.view.linked_handle=123;owner.published[1]=18;campaign_modes[3].index=1;owner.body.state.flags=0;
  CHECK(rf_scene_npc_collision_view(handle,&out)==RF_OK && out.parent_handle==123 && out.position[1]==18 && out.movement_mode==1 && out.body_flags==0);
  before=out;model.pose=NULL;

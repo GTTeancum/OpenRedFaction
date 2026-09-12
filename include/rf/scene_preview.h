@@ -76,6 +76,13 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered);
  * authored NPC orientation. No allocation, pair scheduling or response effects.
  * Caller refreshes after mutations. Failure preserves output. */
 int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result);
+/* Reserved model identity for the current player animation owner, separate from
+ * NPC slot+1 tokens. Valid only during the placed stream's frame callbacks. */
+#define RF_SCENE_PLAYER_MODEL UINT32_MAX
+/* Registered campaign player snapshot; requires live body/model publication.
+ * Uses published object position and body orientation, not the camera pose.
+ * Failure preserves output. Full player model lifecycle remains separate. */
+int rf_scene_player_collision_view(uint32_t handle,rf_collision_pair_actor_state *result);
 
 /*503400 ->501cd0(kind2)->51c390 on the currently published model pose.
  * Zero exact non-looping weights without releasing references or removing

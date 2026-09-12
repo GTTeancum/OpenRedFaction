@@ -1032,6 +1032,7 @@ uint32_t rf_scene_npc_materials[8]; /* appearances, materials, images, resident,
 uint32_t rf_scene_npc_geometry[7]; /* models, LODs, vertices, triangles, bytes, geometry hash, prepared skin hash */
 uint32_t rf_scene_npc_startup[4]; /* actors, bones, playback hash, matrix/cache hash */
 static rf_entity_view campaign_player_view;
+static const rf_animation_model_view *campaign_player_model;
 int rf_scene_draw_player_flash(rf_scene_particle_sink sink,void *context)
 {
     rf_screen_flash next,draw;rf_particle_draw_vertex vertices[4];uint32_t active,i,color;int status;
@@ -3140,6 +3141,23 @@ static uint32_t campaign_support_handle;
 uint32_t rf_scene_actor_ground_queries[4]; /* queries, hits, mover hits, status */
 uint32_t rf_scene_actor_ground_stats[8]; /* magic, records, hits, walkable, first walkable frame, hash, stride, status */
 uint32_t rf_scene_actor_landing[8]; /* magic, descriptor index, frame, landings, grounded ticks, status, support commits, support losses */
+int rf_scene_player_collision_view(uint32_t handle,rf_collision_pair_actor_state *result)
+{
+    rf_collision_pair_actor_state value={0};uint32_t slot=rf_scene_actor_landing[1];
+    if(!result)return RF_RANGE;
+    if(!campaign_spawn || !campaign_player_object.view || campaign_player_object.handle!=handle ||
+       rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&campaign_player_view ||
+       campaign_player_view.type!=0 || !(campaign_player_view.flags_7c&8))return RF_NOT_FOUND;
+    if(slot>=16 || !scene_actor_body.allocated_bytes || !campaign_player_model ||
+       !campaign_player_model->model || !campaign_player_model->bones || !campaign_player_model->bone_count ||
+       !campaign_player_model->matrices || !campaign_player_model->playback)return RF_RANGE;
+    value.body_flags=scene_actor_body.state.flags;value.model=RF_SCENE_PLAYER_MODEL;
+    value.movement_mode=campaign_modes[slot].index;value.handle=handle;
+    value.parent_handle=(uint32_t)campaign_player_view.linked_handle;value.object_flags=campaign_player_view.flags_7c;
+    memcpy(value.position,rf_scene_actor_pose.public_position,12);
+    memcpy(value.forward,scene_actor_body.state.orientation+6,12);
+    *result=value;return RF_OK;
+}
 rf_movement_descriptor rf_scene_actor_movement[2]; /* authored run and fall */
 rf_entity_movement_values rf_scene_actor_movement_values;
 rf_movement_config rf_scene_actor_movement_config;
@@ -4569,6 +4587,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         rf_physics_body_close(&scene_actor_body);memset(rf_scene_actor_physics_diagnostic,0,sizeof(rf_scene_actor_physics_diagnostic));
         placement.physics_config=&physics_config;placement.physics_body=&scene_actor_body;
         placement.campaign_player=campaign_spawn;
+        placement.published_model=campaign_spawn?&campaign_player_model:NULL;
         campaign_crouched=0;placement.player_stance=campaign_spawn?actor_player_stance:NULL;
         placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;
         placement.initial_animation=rf_scene_actor_initial_animation;placement.animation_timing=rf_scene_actor_animation_timing;

@@ -4119,3 +4119,33 @@ Validation: npc_collision_binding_check in npc_motion_residency checks stale
 handles, model publication/transfer, live state changes, unsupported kinds and
 invalid owners preserving output. PC and NXDK builds pass; all19 CTests pass.
 This adapter has not yet been exercised in native XEMU gameplay.
+
+
+### Player collision view and borrowed model publication (2026-09-12)
+
+The current player model belongs to animation_run, outside the NPC model-slot
+registry. rf_animation_placement now optionally publishes a borrowed view of
+that actual model file, bones, evaluated matrices and playback state. Publication
+starts after the first successful pose evaluation/skinning preparation and is
+cleared before any referenced storage is released on every cleanup path. It is
+absent during initial setup callbacks; consumers must not retain it after the
+stream returns. Nonempty publication destinations are rejected on entry. This
+adds no heap allocation: the view is20 bytes on Xbox, plus one pointer in the
+placement and one scene publication pointer. This remains the miner player
+diagnostic's model lifetime, not completed original player creation/death.
+
+rf_scene_player_collision_view requires the registered kind0 player, live body
+and model publication. It reads descriptor index through campaign_modes using
+rf_scene_actor_landing[1], body1a8 flags, linked parent handle, object flags,
+published object position and body forward axis (not camera shake/eye axes).
+Model token UINT32_MAX is reserved for this owner, distinct from NPC slot+1;
+future model response backends must resolve it accordingly. Missing/stale owners
+fail without publishing partial output. Pair scheduling/responses remain open.
+
+Validation: player_collision_binding_check covers mapped state, stale handles,
+missing model and invalid movement slot. rf_npc_residency_tests
+--model-publication Installed_Game/meshes.vpp Installed_Game/motions.vpp passes
+with real miner assets for normal completion, sink failure and archive-open
+failure; the initial test needed a valid camera placement instead of a zero
+projection. All19 CTests and PC/NXDK builds pass. Native XEMU execution of the
+new player snapshot remains unverified.

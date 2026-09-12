@@ -102,6 +102,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_model_bone *bones;rf_model_attachment eye={0};
     float (*matrices)[12], local[12], tag[12], displacement[3]={.125f,-.25f,.5f};
     uint16_t generations[256]={0}; uint32_t count=0,i,frame=UINT32_MAX; int status,opened=0,found=0;
+    rf_animation_model_view published={0};
     void *payload=NULL;
     float (*stored)[12]=NULL,(*prepared)[12]=NULL;uint16_t prepared_generations[256]={0};
     rf_model_geometry geometry={0};rf_model_vertex *vertices=NULL;uint32_t vertex_count=0,vertex_index,selected_lod;
@@ -114,6 +115,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     memset(rf_animation_progress,0,sizeof(rf_animation_progress));rf_animation_progress[0]=UINT32_MAX;
     if(placement && placement->animation_timing && !placement->animation_timing_wrap && frame_count>(placement->animation_timing_capacity?placement->animation_timing_capacity:64))return RF_RANGE;
     if (!out || (placement && (!isfinite(placement->step_seconds) || placement->step_seconds<0))) return RF_RANGE;
+    if(placement && placement->published_model && *placement->published_model)return RF_RANGE;
     memset(out,0,8*4); out[0]=1;
     if(authored) {
         if(!resource_count || resource_count>23)return RF_RANGE;
@@ -227,6 +229,8 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     entity.flags_7d0=10; registry.slots[0]=&entity;
     actor.direction.orientation[0]=actor.direction.orientation[4]=actor.direction.orientation[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
+    published.model=&model;published.bones=bones;published.bone_count=count;
+    published.matrices=(const float (*)[12])matrices;published.playback=&state;
     for (frame=0;frame<frame_count;++frame) {
         rf_animation_progress[0]=frame;rf_animation_progress[1]=1;
         float frame_seconds=frame && placement && placement->step_seconds>0?placement->step_seconds:1.0f/30.0f;
@@ -327,6 +331,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         out[5]=hash_bytes(out[5],matrices,count*48); out[5]=hash_bytes(out[5],displacement,12);
         out[5]=hash_bytes(out[5],generations,count*2); displacement[0]=0;
         status=rf_model_prepare_skinning(stored,matrices,count,(uint16_t)state.generation,prepared,prepared_generations,count);if(status)goto done;
+        if(placement && placement->published_model)*placement->published_model=&published;
         if(placement && placement->physics_config && placement->physics_body) {
             rf_animation_progress[1]=4;
             rf_physics_body *body=placement->physics_body;
@@ -402,6 +407,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     if(!emitted_indices && !placement)status=RF_FORMAT;
 done:
     rf_animation_progress[2]=(uint32_t)status;
+    if(placement && placement->published_model)*placement->published_model=NULL;
     free(motion_cache);
     free(workspace);
     free(clip_pool);free(render_indices);

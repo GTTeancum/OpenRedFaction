@@ -23,7 +23,14 @@ int rf_animation_preview(const char *meshes_path,const char *motions_path,uint32
 typedef int (*rf_animation_frame_sink)(void *context,uint32_t frame,rf_preview_mesh *mesh);
 int rf_animation_stream(const char *meshes_path,const char *motions_path,uint32_t budget,
     rf_animation_frame_sink sink,void *context);
+/* Published after the first pose evaluation, borrowed during frame callbacks.
+ * Producer clears publication before releasing any referenced storage. */
+typedef struct rf_animation_model_view {
+    const rf_model_file *model;const rf_model_bone *bones;uint32_t bone_count;
+    const float (*matrices)[12];const rf_motion_playback_state *playback;
+} rf_animation_model_view;
 typedef struct rf_animation_placement {
+    const rf_animation_model_view **published_model; /* Empty on entry; cleared on return. */
     rf_model_projection world_view;
     float position[3],orientation[9];
     rf_model_clip_planes planes;
