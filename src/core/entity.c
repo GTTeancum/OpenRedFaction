@@ -1032,7 +1032,8 @@ int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backen
     return RF_OK;
 }
 
-rf_corpse *rf_entity_finalize_create_owned(void *context,rf_entity_finalize_state *source,const char *name)
+rf_corpse *rf_entity_finalize_create_owned_bound(void *context,rf_entity_finalize_state *source,const char *name,
+    int (*bind_model)(void *,rf_corpse_create_source *,rf_corpse *),void *model_context)
 {
     rf_entity_finalize_corpse_binding *b=context;rf_corpse_create_request request;rf_corpse *result=NULL;uint32_t i;
     if(!b)return NULL;
@@ -1044,7 +1045,7 @@ rf_corpse *rf_entity_finalize_create_owned(void *context,rf_entity_finalize_stat
     request=b->request;request.death_name=name;memcpy(request.position,source->position,12);memcpy(request.basis,source->basis,36);
     request.protected_body=0;request.seek_motion=0;
     b->source->object_flags=source->object_flags;b->source->flags_810=source->flags_810;b->source->replacement_model=source->replacement_model;
-    b->status=rf_corpse_owned_create(b->ownership,b->source,&request,b->head,b->count,b->create,&result);
+    b->status=rf_corpse_owned_create_bound(b->ownership,b->source,&request,b->head,b->count,b->create,&result,bind_model,model_context);
     source->object_flags=b->source->object_flags;source->flags_810=b->source->flags_810;
     if(!b->status)return result;
     if(result) {
@@ -1057,6 +1058,9 @@ rf_corpse *rf_entity_finalize_create_owned(void *context,rf_entity_finalize_stat
     }
     return NULL;
 }
+
+rf_corpse *rf_entity_finalize_create_owned(void *context,rf_entity_finalize_state *source,const char *name)
+{return rf_entity_finalize_create_owned_bound(context,source,name,NULL,NULL);}
 
 static void finalize_cross(const float a[3],const float b[3],float result[3])
 {

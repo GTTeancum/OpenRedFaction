@@ -1831,3 +1831,26 @@ The original sound-follow verifier passes4096 original/PC/NXDK comparisons
 and6 guards; both builds and all18 CTests pass. No new XEMU run is claimed.
 Live death dispatch, sound ownership and moving a playing corpse sound remain
 open; this adapter currently provides the attachment position only.
+
+
+## Finalizer model-handoff boundary
+
+rf_entity_finalize_create_owned_bound connects the finalizer creation adapter
+to the existing fallible owned-model boundary. The original public adapter
+remains a NULL-boundary wrapper, preserving its binding layout and callers.
+The new entry retains finalizer position/basis, zero protection/seek flags,
+source-flag synchronization and automatic partial-construction abort.
+
+The campaign PC fixture now exercises both constructor and finalizer entry
+paths with the real model transfer, action lookup, cached sphere refresh and
+model retirement. Success preserves the detached pose; model-capacity failure
+and post-transfer name-allocation failure both automatically retire the model
+and leave no corpse/body/name owner or unresolved partial binding. All18
+CTests and complete PC/NXDK builds pass. The finalizer path is fixture-bound;
+this does not yet enable live actor death dispatch or corpse update playback.
+
+The rebuilt compiled-NXDK finalizer adapter regression also passes256 owned
+create/delete cycles and two budget-failure boundaries with supplied external
+resource callbacks. Report: artifacts/finalize-owned-create-verification.json.
+This preserves the existing NULL-boundary adapter coverage; the real scene
+model-bound finalizer connection above is exercised by the PC fixture.

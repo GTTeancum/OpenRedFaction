@@ -710,6 +710,10 @@ typedef struct rf_entity_finalize_corpse_binding {
     uint32_t visit_limit;int status,cleanup_status;rf_corpse *partial;
 } rf_entity_finalize_corpse_binding;
 rf_corpse *rf_entity_finalize_create_owned(void *context,rf_entity_finalize_state *source,const char *death_name);
+/* Same finalizer adapter with the owned-create model boundary. Partial model
+ * handoff failures use the same automatic abort and source-flag semantics. */
+rf_corpse *rf_entity_finalize_create_owned_bound(void *context,rf_entity_finalize_state *source,const char *death_name,
+    int (*bind_model)(void *,rf_corpse_create_source *,rf_corpse *),void *model_context);
 
 
 typedef struct rf_entity_death_selection {

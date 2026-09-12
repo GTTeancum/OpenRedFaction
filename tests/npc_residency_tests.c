@@ -345,7 +345,7 @@ static uint32_t *csf_sound(void *context,int32_t sound)
 {(void)context;(void)sound;return NULL;}
 static int corpse_scene_binding_check(void)
 {
-    static rf_corpse_owners pool;static rf_object_registry registry;static rf_entity_state_set actions;static rf_entity_render_model render;rf_entity_motion_mapping mapping={0};uint32_t mode;
+    static rf_corpse_owners pool;static rf_object_registry registry;static rf_entity_state_set actions;static rf_entity_render_model render;rf_entity_motion_mapping mapping={0};uint32_t mode,iteration;
     {
         const char text[]="$Name: \"Miner\" +Action: \"corpse_drop\" \"\" \"\" +Action: \"corpse_carry\" \"\" \"\" +Action: \"death_generic\" \"\" \"\"";
         memset(&actions,0,sizeof(actions));CHECK(rf_entity_action_declarations_read(text,sizeof(text)-1,"Miner","",actions.action_declarations)==RF_OK);
@@ -357,7 +357,8 @@ static int corpse_scene_binding_check(void)
     campaign_render_models.items=&render;campaign_render_models.count=1;
     campaign_base_motions.classes=&actions;campaign_base_motions.class_count=1;
     mapping.weapon=-1;campaign_motion_catalog.mappings=&mapping;campaign_motion_catalog.class_count=1;
-    for(mode=0;mode<3;++mode) {
+    for(iteration=0;iteration<6;++iteration) {
+        mode=iteration%3;
         corpse_scene_fixture fixture={0};rf_entity_pose pose={0};float matrices[1][12]={{1,0,0,0,1,0,0,0,1,0,0,0}};
         uint16_t stamps[1]={0};rf_entity_playback_model model={0};rf_corpse_create_source source={0};rf_corpse_create_request request={0};
         rf_corpse_list_link object_head,corpse_head;uint32_t object_count=0,corpse_count=0;rf_corpse *corpse=NULL;int status;
@@ -373,10 +374,20 @@ static int corpse_scene_binding_check(void)
         source.word_8c=0x41200000;source.word_98=0x40400000;source.physics_radius=1;source.class_health=100;source.class_value=1;
         request.death_name="death_generic";request.position[1]=10;request.basis[0]=request.basis[4]=request.basis[8]=1;
         if(mode==1)campaign_model_owned_count=30;
-        status=rf_corpse_owned_create_bound(&ownership,&source,&request,&corpse_head,&corpse_count,&backend,&corpse,
-            rf_scene_corpse_bind_model,&ownership.room);
+        if(iteration<3) {
+            status=rf_corpse_owned_create_bound(&ownership,&source,&request,&corpse_head,&corpse_count,&backend,&corpse,
+                rf_scene_corpse_bind_model,&ownership.room);
+        } else {
+            rf_entity_finalize_state final={0};rf_entity_finalize_corpse_binding binding={0};
+            final.handle=source.handle;memcpy(final.position,request.position,12);memcpy(final.basis,request.basis,36);
+            binding.ownership=&ownership;binding.source=&source;binding.request=request;binding.head=&corpse_head;
+            binding.count=&corpse_count;binding.create=&backend;binding.destroy=&deletion;binding.visit_limit=4;
+            corpse=rf_entity_finalize_create_owned_bound(&binding,&final,request.death_name,rf_scene_corpse_bind_model,&ownership.room);
+            status=binding.status;CHECK(!binding.partial && !binding.cleanup_status && final.object_flags==0x402);
+            CHECK((corpse!=NULL)==(mode==0));
+        }
         if(mode==1)campaign_model_owned_count=0;
-        CHECK(corpse && source.object_flags==0x402 && !fixture.errors);
+        CHECK((corpse || iteration>=3) && source.object_flags==0x402 && !fixture.errors);
         if(mode==0) {
             CHECK(corpse->model_radius==2 && corpse->physics_radius==2 && pool.slots[0].body.state.bounds.radius==2);
             CHECK(pool.slots[0].body.spheres.items[0].center[0]==1 && pool.slots[0].body.spheres.items[0].radius==1);
@@ -396,8 +407,10 @@ static int corpse_scene_binding_check(void)
             CHECK(rf_corpse_owned_delete(&pool,0,&registry,&corpse_count,&object_count,4,&deletion)==RF_OK);
         } else {
             CHECK(status==RF_RANGE && !corpse_count && fixture.effects==(mode==2) && fixture.motions==(mode==2));
-            CHECK(pool.slots[0].construction==(mode==1?RF_CORPSE_CONSTRUCT_MODEL:RF_CORPSE_CONSTRUCT_TAIL));
-            CHECK(rf_corpse_owned_abort(&pool,0,&registry,&corpse_count,&object_count,4,&deletion)==RF_OK);
+            if(iteration<3) {
+                CHECK(pool.slots[0].construction==(mode==1?RF_CORPSE_CONSTRUCT_MODEL:RF_CORPSE_CONSTRUCT_TAIL));
+                CHECK(rf_corpse_owned_abort(&pool,0,&registry,&corpse_count,&object_count,4,&deletion)==RF_OK);
+            }
         }
         CHECK(fixture.deleted==1 && !fixture.errors && !object_count && !pool.pool.live && pool.allocated_bytes==sizeof(pool));
         CHECK(!campaign_model_owned_count && !campaign_model_owned_bytes && !campaign_model_owners[0].pose);
