@@ -1275,3 +1275,36 @@ uint32_t rf_entity_death_clearance(const rf_entity_death_clearance_state *s,
     }
     return 1;
 }
+
+int rf_entity_death_link_sp(const rf_entity_death_link_source *s,const rf_entity_death_link_backend *b)
+{
+    rf_entity_death_link_actor *actor,*player,*parent;uint32_t visited=0;
+    if(!s || !b || !b->resolve || !b->call || !b->local_player || !b->head)return RF_RANGE;
+    if(s->linked_146c==UINT32_MAX)return RF_OK;
+    actor=b->resolve(b->context,s->linked_146c);if(!actor)return RF_OK;
+    if(b->call(b->context,RF_DEATH_LINK_SKIP,actor,0)&255u)return RF_OK;
+    memcpy(actor->base_position,s->position,12);memcpy(actor->base_basis,s->basis,36);
+    memcpy(actor->position,s->position,12);memcpy(actor->basis,s->basis,36);
+    b->call(b->context,RF_DEATH_LINK_UNLINK,actor,0);
+    b->call(b->context,RF_DEATH_LINK_QUERY,actor,0);
+    b->call(b->context,RF_DEATH_LINK_REFRESH,actor,0);
+    player=*b->local_player;
+    if(player) {
+        b->call(b->context,RF_DEATH_LINK_OWNER,actor,player->handle);
+        b->call(b->context,RF_DEATH_LINK_INVENTORY,actor,0);
+    }
+    if(b->call(b->context,RF_DEATH_LINK_PLAYER,*b->local_player,0)&255u) {
+        player=*b->local_player;if(!player)return RF_RANGE;
+        parent=b->resolve(b->context,player->parent_200);
+        if(parent) {
+            parent->flags_814|=0x800u;
+            b->call(b->context,RF_DEATH_LINK_DETACH,*b->local_player,0);
+            parent->word_34=0;
+        }
+    }
+    for(actor=*b->head;actor;actor=actor->next) {
+        if(visited++>=b->capacity)return RF_RANGE;
+        if(b->call(b->context,RF_DEATH_LINK_LIST_PREDICATE,actor,0)&255u)actor->word_34=0;
+    }
+    return RF_OK;
+}

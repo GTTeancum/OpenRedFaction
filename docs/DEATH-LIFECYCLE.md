@@ -3161,3 +3161,35 @@ The previous256 recycling cases also pass. No shared pool implementation or
 live shield rendering is claimed. This narrows the remaining cleanup work to
 a specific weapon feature; full actor death dispatch still requires separate
 item, camera, animation and resource integration.
+
+
+## Shared death linked-actor handoff (2026-09-12)
+
+rf_entity_death_link_sp reconstructs4204a1..4205e8. A non--1 linked146c handle
+is resolved through426fc0; missing actors or a nonzero42a910 low byte skip the
+stage. The linked actor receives the source position/basis in both base and
+current fields, then48a660 unlink,40c2c0 room query and489f70 refresh execute
+in order. Query arguments are current position, radius7c0,height7c4,0,
+room69c/room6a0 outputs,1. No source pose update is fabricated.
+
+If the local player exists,409050 and408ac0 act on the linked actor inventory.
+The local pointer is reread for4290d0 and after that predicate. Its resolved
+parent200 gets flags814 bit800 before4279d0, and word34 is cleared after the
+callback. Finally40a210 tests each actor in the current global list; matching
+actors have word34 cleared. The adapted list uses a null terminator and an
+explicit traversal capacity; callbacks retain all borrowed owners. Registry,
+world query, inventory and player detach implementations remain external.
+
+verify_death_link.py passes1024 exact original/PC/compiled-NXDK cases including
+400 handoffs. It executes original pose-copy helpers, supplies resource calls,
+and checks pose/base pose, room results, flags, word34, local-player changes
+and ordered callback arguments. Cases include missing handles/parents, low-byte
+predicate gates, local-player absence, owner-callback removal of the local
+pointer and detach-callback writes overwritten by the original final clear.
+Original actor bytes outside the mapped fields remain unchanged. The initial
+PC fixture text-mode input issue was fixed by setting binary I/O before use.
+Both builds and all19 CTests pass. No live death dispatch or XEMU gameplay is
+claimed. Report: artifacts/death-link.json.
+
+Next: recover the remaining death-start player/camera effects and tail cleanup,
+then bind these stages to live registry, animation, item and world owners.

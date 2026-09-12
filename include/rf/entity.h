@@ -640,6 +640,33 @@ typedef struct rf_entity_death_motion_backend {
 int rf_entity_death_motion_sp(rf_entity_death_motion_state *,uint32_t player,
     const rf_entity_death_motion_backend *);
 
+typedef struct rf_entity_death_link_actor {
+    uint32_t handle,parent_200,flags_814,word_34;
+    float position[3],basis[9],base_position[3],base_basis[9];
+    float radius_7c0,height_7c4;uint32_t room_69c,room_6a0;
+    struct rf_entity_death_link_actor *next;
+} rf_entity_death_link_actor;
+typedef struct rf_entity_death_link_source {uint32_t linked_146c;float position[3],basis[9];} rf_entity_death_link_source;
+enum rf_entity_death_link_call {
+    RF_DEATH_LINK_SKIP,RF_DEATH_LINK_UNLINK,RF_DEATH_LINK_QUERY,RF_DEATH_LINK_REFRESH,
+    RF_DEATH_LINK_OWNER,RF_DEATH_LINK_INVENTORY,RF_DEATH_LINK_PLAYER,
+    RF_DEATH_LINK_DETACH,RF_DEATH_LINK_LIST_PREDICATE
+};
+typedef struct rf_entity_death_link_backend {
+    rf_entity_death_link_actor *(*resolve)(void *,uint32_t handle);
+    uint32_t (*call)(void *,uint32_t operation,rf_entity_death_link_actor *,uint32_t argument);
+    void *context;rf_entity_death_link_actor **local_player,**head;uint32_t capacity;
+} rf_entity_death_link_backend;
+/*4204a1..4205e8: linked actor handoff within death start. Predicates use low
+ * bytes. Resolve=426fc0; calls in enum order map to42a910,48a660,40c2c0,
+ *489f70(actor,0),409050(inventory,owner),408ac0,4290d0,4279d0,40a210.
+ * QUERY uses position/radius/height,0,&room69c,&room6a0,1. OWNER/INVENTORY
+ * receive the actor whose inventory is used. PLAYER accepts NULL. Local
+ * player/head/next are reread after callbacks; all borrowed owners stay alive.
+ * Null terminates the adapted actor list; capacity bounds traversal. Errors
+ * preserve prior effects. Resource operations and registry remain external. */
+int rf_entity_death_link_sp(const rf_entity_death_link_source *,const rf_entity_death_link_backend *);
+
 typedef struct rf_entity_death_drop_source {
     int32_t item;uint32_t handle;float position[3],extent_7c4;
     uint8_t owned[64];
