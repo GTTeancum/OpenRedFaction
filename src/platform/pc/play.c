@@ -300,6 +300,7 @@ int main(int argc,char **argv)
             printf("CAMPAIGN_MEMBERSHIPS %u %u %u %u %u\n",rf_scene_campaign_memberships[0],rf_scene_campaign_memberships[1],rf_scene_campaign_memberships[2],rf_scene_campaign_memberships[3],rf_scene_campaign_memberships[4]);
             printf("NPC_MODELS %u %u %u %u\n",rf_scene_npc_models[0],rf_scene_npc_models[1],rf_scene_npc_models[2],rf_scene_npc_models[3]);
             printf("NPC_COLLISION_CACHE %u %u %u %u %u %u\n",rf_scene_npc_collision_cache[0],rf_scene_npc_collision_cache[1],rf_scene_npc_collision_cache[2],rf_scene_npc_collision_cache[3],rf_scene_npc_collision_cache[4],rf_scene_npc_collision_cache[5]);
+            printf("NPC_STAND_TEST");for(i=0;i<7;++i)printf(" %u",rf_scene_npc_stand_test[i]);printf("\n");
             printf("NPC_IMPACT_DISPATCH");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_impact_dispatch[i]);printf("\n");
             printf("NPC_IMPACT_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_impact_test[i]);printf("\n");
             printf("NPC_IMPACT_AUDIO");for(i=0;i<12;++i)printf(" %u",rf_scene_npc_impact_audio[i]);printf("\n");

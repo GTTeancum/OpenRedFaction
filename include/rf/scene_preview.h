@@ -96,6 +96,19 @@ int rf_scene_npc_ground_query(const rf_geometry_collision_world *world,uint32_t 
     rf_physics_ground_probe *probe,rf_collision_actor_contact *contact,uint32_t *matched);
 
 
+typedef struct rf_scene_npc_stance_services {
+    uint8_t *(*player_crouch)(void *,uint32_t handle);
+    int (*refresh_ground)(void *,uint32_t handle);
+    void *context;
+} rf_scene_npc_stance_services;
+/*428a60 with retained NPC spheres/class stance cache and world/mover clearance.
+ * Ground callback is required and may reenter stance. Effects already applied
+ * survive callback errors; stood changes only on success. Borrowed owners and
+ * caches must remain alive. No speed/mode change or automatic scheduling. */
+int rf_scene_npc_try_stand(const rf_geometry_collision_world *world,uint32_t handle,
+    const rf_scene_npc_stance_services *services,int *stood);
+extern uint32_t rf_scene_npc_stand_test[7]; /* cases,clear,blocked,ground queries,hash,errors,rejected no-cache */
+
 /*41e370 support refresh for one registered NPC: modes1/3 resolve retained
  * NPC/player/mover body velocity and update support velocity plus wake flags.
  * Missing/unsupported support preserves the cached velocity and wake flags.

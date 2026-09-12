@@ -6114,3 +6114,41 @@ Report:artifacts/land-process-verification.json; PC fixture:land_process_probe.h
 No new native XEMU replay or visible gameplay change is claimed. Connect the
 scene sound/player flag and stance/special backends, then compose support
 finish, relative contact and NPC physics scheduling.
+
+
+## Registered NPC standing and clearance (2026-09-12)
+
+rf_scene_npc_try_stand binds original428a60 to registered active NPC owners,
+authored stance caches, current spheres and published position. Its clearance
+adapter uses the existing NPC/world/mover body sweep with the old body spheres,
+original stand endpoint and state124|4, adding100 for radius below.05. It does
+not replace spheres or move the body before determining clearance. A blocked
+result leaves the NPC unchanged. Success clears actor400, optionally resolves
+and clears the caller's player crouch byte, copies cached standing centers,
+and calls a REQUIRED ground service. This avoids installing a no-op ground
+refresh. View/damage flags are synchronized at mutation boundaries and after
+ground; reentrant ground changes to flags/centers survive. Errors preserve
+already-applied effects; stood is published only on success. No speed change
+or scheduling is introduced.
+
+The actor-pairs fixture exercises60 eligible NPCs with three paths each:
+ordinary clearance, a ground callback that performs the real NPC ground query
+then reenters crouch/changes a sphere center, and a staged16-unit clearance
+endpoint that meets the existing overhead world geometry. It independently
+assembles each clearance sweep. Results:180 attempts,120 clear/ground queries,
+60 blocked. An initial fixture assumed all sphere owners had stance caches;
+11 have no applicable centers. Those now verify RF_RANGE with untouched owner/
+output/callback count. Seven sphere-free NPCs are excluded from this stance
+fixture. All owner/sphere/class-height changes are restored. The ground callback
+is diagnostic query/reentry coverage, not complete landing/support acceptance.
+
+Existing verify_try_stand.py still matches576 full original428a60 cases on
+PC/NXDK (clearance/player/ground boundaries supplied),10 port rejections and2
+callback failures. Both builds and19 CTests pass. Stock64MiB XEMU180 frames:
+artifacts/xemu/replay-20260912-104055/report.json PASS.
+NPC_STAND_TEST=[180,120,60,120,3896575309,0,11], exactly equal to PC.
+Tested XBE SHA256:cd894d8d11eaf2467d53c395a500e4629c3f9918d618be2d37a8b10321f818bc.
+Compared with actor-pairs replay101509, PC output only adds the standing row
+and intervening inactive impact telemetry; all preexisting rows are unchanged.
+Bind normal/slow/crouch transitions, landing sound/player/special effects and
+complete ground/relative callbacks before enabling NPC physics scheduling.
