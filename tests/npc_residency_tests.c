@@ -671,14 +671,54 @@ static void corpse_authored_create_effect(void *context,uint32_t operation,rf_co
     /* Collision/source effects are observed, not implemented by this fixture. */
 }
 /* Opt-in authored-asset harness; ordinary CTest fixtures require no game data. */
+static int corpse_authored_surfaces(uint32_t model,const int32_t tags[2],const float position[3],
+    const float basis[9],rf_geometry_collision_world *world,const rf_geometry *geometry,const rf_lightmaps *maps,
+    uint32_t *hits,uint32_t *misses)
+{
+    rf_corpse_surface_effect slots[8]={{0}},*node;rf_corpse_surface_pool pool;
+    rf_corpse_surface_source source={0};rf_collision_room_location location;
+    rf_geometry_resident_lightmap_context colors={geometry,maps};uint32_t flags=0x18000000,j,count=0;
+    CHECK(rf_geometry_collision_world_locate(world,position,&location)==RF_OK);
+    source.model=model;source.descriptor=location.room==UINT32_MAX?0:location.room+1;
+    memcpy(source.position,position,12);memcpy(source.basis,basis,36);
+    CHECK(rf_corpse_surface_reset(&pool,slots)==RF_OK);
+    { rf_corpse_surface_source invalid=source;invalid.model=0;
+      CHECK(rf_scene_corpse_file_surface_effects(&pool,&invalid,&flags,0,world,geometry,maps)==RF_OK && !pool.active);
+      CHECK(rf_scene_corpse_file_surface_effects(&pool,&invalid,&flags,1,world,geometry,maps)==RF_RANGE && !pool.active);
+    }
+    CHECK(rf_scene_corpse_file_surface_effects(&pool,&source,&flags,1,world,geometry,maps)==RF_OK);
+    node=pool.active;
+    for(j=0;j<2;++j) {
+        float point[3];rf_corpse_surface_hit hit;uint32_t matched=0,color,k;
+        if(tags[j]>=0 && source.descriptor) {
+            CHECK(rf_scene_corpse_file_tag_point(&source,tags[j],point)==RF_OK);
+            CHECK(rf_geometry_corpse_surface(world,source.descriptor,point,&hit,&matched)==RF_OK);
+        }
+        if(!matched){++*misses;continue;}
+        CHECK(node && count<2);
+        CHECK(rf_geometry_corpse_resident_color(&colors,hit.face,hit.point,&color)==RF_OK);
+        CHECK(node->color==color && node->descriptor==source.descriptor && node->elapsed==0 && node->extent==0);
+        CHECK(node->growth_time==(j?8:5) && node->max_extent==(j?.5f:.25f));
+        for(k=0;k<3;++k)CHECK(fabsf(node->position[k]-(hit.point[k]+hit.normal[k]*.01f))<.00001f);
+        ++count;++*hits;node=node->next;
+    }
+    CHECK((count && node==pool.active) || (!count && !pool.active));
+    { uint32_t active=0;if(pool.active){node=pool.active;do{++active;node=node->next;CHECK(active<=8);}while(node!=pool.active);}CHECK(active==count); }
+    return 0;
+}
 static int corpse_authored_check(char **argv)
 {
     rf_vpp levels={0},tables={0},meshes={0},motions={0};rf_level level={0};
+    rf_geometry geometry={0};rf_geometry_collision_world world={0};rf_lightmaps maps={0};
+    uint32_t surface_hits=0,surface_misses=0;
     static rf_corpse_owners pool;static rf_object_registry registry;
     uint32_t actor,i,seen[256]={0},tested=0,frames=0,changed=0;
     CHECK(rf_vpp_open(&levels,argv[2])==RF_OK && rf_vpp_open(&tables,argv[3])==RF_OK);
     CHECK(rf_vpp_open(&meshes,argv[4])==RF_OK && rf_vpp_open(&motions,argv[5])==RF_OK);
     CHECK(rf_level_open(&level,&levels,argv[6])==RF_OK);
+    CHECK(rf_geometry_open(&geometry,&level,8*1024*1024)==RF_OK);
+    CHECK(rf_geometry_collision_world_open(&geometry,8*1024*1024,&world)==RF_OK);
+    CHECK(rf_lightmaps_open(&maps,&level,4*1024*1024)==RF_OK);
     CHECK(rf_entity_seeds_open(&level,&tables,1024*1024,&campaign_seeds)==RF_OK);
     CHECK(rf_entity_skeletons_open(&campaign_seeds,&meshes,256*1024,&campaign_skeletons)==RF_OK);
     CHECK(rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses)==RF_OK);
@@ -773,6 +813,8 @@ static int corpse_authored_check(char **argv)
                 memcpy(point,surface.position,12);
                 CHECK(rf_scene_corpse_file_tag_point(&surface,-1,point)==RF_RANGE && !memcmp(point,surface.position,12));
             }
+            CHECK(corpse_authored_surfaces(corpse->update.model,file_tags,campaign_seeds.records.items[actor].record.position,
+                corpse->update.basis,&world,&geometry,&maps,&surface_hits,&surface_misses)==0);
             hash=npc_hash_bytes(2166136261u,pose->matrices,pose->bone_count*48);
             if(i && hash!=previous){++changed;++model_changed;}previous=hash;++frames;
         }
@@ -822,6 +864,9 @@ static int corpse_authored_check(char **argv)
         CHECK(!fixture.errors && fixture.deleted==1 && !corpse_count && !object_count && !pool.pool.live && pool.allocated_bytes==sizeof(pool));
         ++tested;
     }
+    printf("CORPSE_SURFACES %u %u\n",surface_hits,surface_misses);
+    CHECK(surface_hits && surface_misses);
+    rf_lightmaps_close(&maps);rf_geometry_collision_world_close(&world);rf_geometry_close(&geometry);
     CHECK(tested && changed);campaign_models_close();CHECK(!campaign_model_owned_bytes && !campaign_model_owned_count && !rf_scene_npc_models[3]);
     for(i=0;i<campaign_playback_resources.resource_count;++i)CHECK(!campaign_playback_resources.resources[i].references);
     printf("CORPSE_AUTHORED_PASS %u %u %u %u\n",tested,frames,changed,campaign_npc_motion_bytes);

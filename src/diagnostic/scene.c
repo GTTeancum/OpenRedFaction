@@ -721,6 +721,55 @@ int rf_scene_corpse_file_tag_point(const rf_corpse_surface_source *source,int32_
     status=rf_model_place_tag(tag,source->basis,source->position,placed);
     if(!status)memcpy(point,placed+9,12);return status;
 }
+/* File-tag-only source binding. Runtime-created tags and live death dispatch
+ * remain separate work. All geometry, lightmaps and model poses are borrowed;
+ * calls serialize the room tree scratch and never evaluate/advance the pose. */
+typedef struct scene_corpse_surface_context {
+    rf_geometry_collision_world *world;
+    rf_geometry_resident_lightmap_context lightmaps;
+    int status;
+} scene_corpse_surface_context;
+static uint32_t scene_corpse_surface_metadata(void *context,uint32_t model)
+{
+    scene_corpse_surface_context *c=context;rf_entity_pose *pose=NULL;
+    if(c->status)return 0;
+    if(!model){c->status=RF_RANGE;return 0;}
+    c->status=campaign_model_pose(model-1,&pose);
+    return c->status || !pose ? 0:model;
+}
+static int32_t scene_corpse_surface_lookup(void *context,uint32_t model,const char *name,uint32_t fallback)
+{
+    scene_corpse_surface_context *c=context;int32_t index=-1;int status;
+    if(c->status)return -1;
+    status=rf_scene_corpse_file_tag(model,name,fallback,&index);
+    if(status && status!=RF_NOT_FOUND)c->status=status;
+    return status ? -1:index;
+}
+static int scene_corpse_surface_place(void *context,const rf_corpse_surface_source *source,int32_t index,float point[3])
+{
+    scene_corpse_surface_context *c=context;
+    return c->status ? c->status:rf_scene_corpse_file_tag_point(source,index,point);
+}
+static int scene_corpse_surface_query(void *context,uint32_t descriptor,const float point[3],rf_corpse_surface_hit *hit,uint32_t *matched)
+{
+    scene_corpse_surface_context *c=context;
+    return rf_geometry_corpse_surface(c->world,descriptor,point,hit,matched);
+}
+static int scene_corpse_surface_color(void *context,uint32_t face,const float point[3],uint32_t *color)
+{
+    scene_corpse_surface_context *c=context;
+    return rf_geometry_corpse_resident_color(&c->lightmaps,face,point,color);
+}
+int rf_scene_corpse_file_surface_effects(rf_corpse_surface_pool *pool,const rf_corpse_surface_source *source,
+    const uint32_t *flags,uint32_t enabled,rf_geometry_collision_world *world,
+    const rf_geometry *geometry,const rf_lightmaps *maps)
+{
+    scene_corpse_surface_context context={world,{geometry,maps},RF_OK};
+    rf_corpse_surface_backend backend={scene_corpse_surface_metadata,scene_corpse_surface_lookup,
+        scene_corpse_surface_place,scene_corpse_surface_query,scene_corpse_surface_color,&context};int status;
+    status=rf_corpse_source_effects(pool,source,flags,enabled,&backend);
+    return context.status ? context.status:status;
+}
 int rf_scene_corpse_follow_point(const rf_corpse *corpse,float point[3])
 {
     rf_entity_pose *pose;uint32_t slot;int status;

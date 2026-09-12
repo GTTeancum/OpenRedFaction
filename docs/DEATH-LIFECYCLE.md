@@ -2814,3 +2814,31 @@ Expected channel-times-eight colors are computed independently. The existing
 normalized GPU samples, blood-pool rendering and other graphics checks pass.
 Both builds and19 CTests pass. Live effect source/queue wiring and runtime
 tag ownership remain open; no additional gameplay behavior is claimed.
+
+
+## Authored source surface composition (2026-09-12)
+
+`rf_scene_corpse_file_surface_effects` now supplies the reconstructed42dc00/
+42dc50 source constructor with the transferred model's authored file tags,
+retained room collision tree queries and the existing campaign1555 image owner.
+The context borrows all owners, serializes tree scratch, does not allocate,
+and does not advance/evaluate animation. Lookup backend errors are latched
+across eye/spine dispatch instead of being mistaken for missing tags.
+
+`tools/verify_corpse_authored.py` exercises six transferred miner/guard models
+across L1S1/L1S2/L1S3,120 death-pose frames each, two attachments per frame.
+Using authored NPC positions and an explicit identity orientation, it locates
+the room and checks constructed nodes against separate tag/query/color calls:
+L1S1:306 hits/174 misses; L1S2:315/165; L1S3:331/149 (1440 attempts).
+Checks include exact color, descriptor, growth parameters, zero initial age/
+extent, offset position, ring membership/count, disabled dispatch and invalid
+model error propagation. Existing transferred-pose hashes and retirement checks
+still pass. This is integration coverage of previously verified primitives,
+not an independent original-frame oracle. Construction each sampled frame is
+a test choice, not a claim about original death scheduling.
+
+PC build, authored verifier and all19 CTests pass; NXDK build succeeds.
+This composed authored test has not run in XEMU. Prior native verification of
+individual surface/render/image primitives does not prove this live path.
+Runtime-created tags, moving room ownership, death dispatch and deferred room
+queue/render scheduling remain unbound; there is no new gameplay screenshot.
