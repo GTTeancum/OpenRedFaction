@@ -382,6 +382,17 @@ static int corpse_scene_binding_check(void)
             CHECK(pool.slots[0].body.spheres.items[0].center[0]==1 && pool.slots[0].body.spheres.items[0].radius==1);
             CHECK(status==RF_OK && fixture.motions==3 && campaign_model_owned_count==1 && corpse_count==1);
             CHECK(campaign_model_owners[0].position[1]==10 && campaign_model_owners[0].room==9 && pose.skeleton==UINT32_MAX);
+            {
+                float point[3]={-99,-99,-99};rf_entity_pose *moved=campaign_model_owners[0].pose;
+                moved->matrices[0][9]=2;moved->matrices[0][10]=3;
+                corpse->attachment_index=0;
+                corpse->update.basis[0]=corpse->update.basis[4]=0;corpse->update.basis[1]=1;corpse->update.basis[3]=-1;
+                CHECK(rf_scene_corpse_follow_point(corpse,point)==RF_OK && point[0]==-3 && point[1]==12 && point[2]==0);
+                corpse->attachment_index=1;CHECK(rf_scene_corpse_follow_point(corpse,point)!=RF_OK && point[0]==-3 && point[1]==12);
+                corpse->attachment_index=UINT32_MAX;corpse->update.model=0;
+                CHECK(rf_scene_corpse_follow_point(corpse,point)==RF_OK && point[0]==0 && point[1]==10 && point[2]==0);
+                corpse->update.model=1;
+            }
             CHECK(rf_corpse_owned_delete(&pool,0,&registry,&corpse_count,&object_count,4,&deletion)==RF_OK);
         } else {
             CHECK(status==RF_RANGE && !corpse_count && fixture.effects==(mode==2) && fixture.motions==(mode==2));

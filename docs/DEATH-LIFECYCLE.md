@@ -1811,3 +1811,23 @@ connection is PC fixture evidence; live death dispatch remains open.
 Native XEMU replay-20260911-222939 passes180 door/damage/audio frames on
 stock67108864-byte RAM with matching PC telemetry. This covers campaign loading
 of the new cache; no transferred corpse is spawned in that replay.
+
+
+## Corpse sound-follow adapter
+
+rf_scene_corpse_follow_point resolves the transferred skeletal model owner and
+uses the corpse object position/basis with the verified48ac70 helper. The
+no-attachment sentinel copies the corpse position without inspecting a model.
+Invalid model/attachment queries preserve the destination. This allocates no
+additional storage and does not read the former actor pose.
+
+The full owned-constructor PC fixture verifies a changed retained bone and
+a rotated corpse basis independently of the registered render transform.
+tools/verify_campaign_model_detach.py --follow verifies150 compiled NXDK
+handoffs with1..50 bones and0/8/16 active clips after poisoning source matrices,
+plus invalid-attachment and absent-model fallback behavior and existing exact
+retirement/heap checks. Report: artifacts/campaign-corpse-follow.json.
+The original sound-follow verifier passes4096 original/PC/NXDK comparisons
+and6 guards; both builds and all18 CTests pass. No new XEMU run is claimed.
+Live death dispatch, sound ownership and moving a playing corpse sound remain
+open; this adapter currently provides the attachment position only.

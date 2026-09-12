@@ -37,7 +37,9 @@ def call(address,*args):
  put(stack,stop,*args);u.reg_write(UC_X86_REG_ESP,stack);u.emu_start(address,stop,count=1000000)
  assert u.reg_read(UC_X86_REG_EIP)==stop
  return u.reg_read(UC_X86_REG_EAX)
-bound='--bind' in sys.argv
+follow='--follow' in sys.argv
+bound=follow or '--bind' in sys.argv
+if follow:follow_point=sym('rf_scene_corpse_follow_point')
 source_model=b+0xb000;corpse_model=b+0xb200;room=b+0xb400
 if bound:bind=sym('rf_scene_corpse_bind_model')
 def handoff():
@@ -71,6 +73,14 @@ for bones in range(1,51):
   assert read(source)==0xffffffff and read(source+8)==0
   assert handoff()==0xfffffffc
   u.mem_write(matrices,bytes([0xdd])*bones*48);assert bytes(u.mem_read(cache,bones*48))==data
+  if follow:
+   point=b+0xb500;put(corpse_model+132,0)
+   assert call(follow_point,corpse_model,point)==0 and bytes(u.mem_read(point,12))==f(12.25,22.5,32.75)
+   put(corpse_model+132,bones);saved_point=bytes(u.mem_read(point,12))
+   assert call(follow_point,corpse_model,point)!=0 and bytes(u.mem_read(point,12))==saved_point
+   put(corpse_model+132,0xffffffff);put(corpse_model+28,0)
+   assert call(follow_point,corpse_model,point)==0 and bytes(u.mem_read(point,12))==f(10,20,30)
+   put(corpse_model+28,1)
   assert all(read(clips+i*36+32)==2 for i in range(16))
   saved=bytes(u.mem_read(owner,80));put(owned_bytes,1)
   assert call(retire,0)==0xfffffffc and bytes(u.mem_read(owner,80))==saved
@@ -86,5 +96,6 @@ for bones in range(1,51):
   assert bytes(u.mem_read(diagnostic,16))==w(1,80,1,0)
   assert all(read(clips+i*36+32)==(1 if i<active else 2) for i in range(16))
   cases+=1
-report=dict(result='PASS',bound=bound,cases=cases,allocation_failures=cases*2,capacity_rejections=cases,repeat_rejections=cases,nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Compiled campaign detach, individual retirement and level teardown with controlled heap boundaries; registered pose/placement preserved, source consumed, exact reference retirement and both allocations freed. No live death dispatch or XEMU transferred-model claim.')
-(root/('artifacts/campaign-corpse-model-bind.json' if bound else 'artifacts/campaign-model-retire.json')).write_text(json.dumps(report,indent=2)+'\n');print(report)
+report=dict(result='PASS',bound=bound,follow=follow,cases=cases,allocation_failures=cases*2,capacity_rejections=cases,repeat_rejections=cases,nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Compiled campaign detach, individual retirement and level teardown with controlled heap boundaries; registered pose/placement preserved, source consumed, exact reference retirement and both allocations freed. No live death dispatch or XEMU transferred-model claim.')
+if follow:report['scope'] += ' Bone follow points read transferred storage after source poisoning; invalid attachments preserve output and no-attachment fallback works without a model. No sound playback is exercised.'
+(root/('artifacts/campaign-corpse-follow.json' if follow else 'artifacts/campaign-corpse-model-bind.json' if bound else 'artifacts/campaign-model-retire.json')).write_text(json.dumps(report,indent=2)+'\n');print(report)

@@ -645,6 +645,20 @@ int rf_scene_corpse_pose(rf_corpse_owned *corpse)
     if(status)return status;
     corpse->corpse.physics_radius=radius;corpse->corpse.model_radius=radius;return RF_OK;
 }
+/*48ac70 from the corpse's own object transform and transferred skeletal pose.
+ * The no-attachment path intentionally does not inspect the model. */
+int rf_scene_corpse_follow_point(const rf_corpse *corpse,float point[3])
+{
+    rf_entity_pose *pose;uint32_t slot;int status;
+    if(!corpse || !point)return RF_RANGE;
+    if(corpse->attachment_index==UINT32_MAX)
+        return rf_model_sound_follow_point(NULL,0,-1,NULL,corpse->update.position,point);
+    if(!corpse->update.model)return RF_RANGE;
+    slot=corpse->update.model-1;status=campaign_model_pose(slot,&pose);if(status)return status;
+    if(!pose || !campaign_model_owners[slot].owned)return RF_RANGE;
+    return rf_model_sound_follow_point(pose->matrices,pose->bone_count,(int32_t)corpse->attachment_index,
+        corpse->update.basis,corpse->update.position,point);
+}
 /* An actor loses access when its model storage is handed off. Model rendering
  * and eventual corpse updates continue through campaign_model_pose. */
 static int campaign_actor_pose(uint32_t slot,rf_entity_pose **result)
