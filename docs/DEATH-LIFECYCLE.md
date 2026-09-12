@@ -2703,3 +2703,28 @@ when both are at least2. An earlier52afc0 check searches device description
 1cfc7e8 for string5a9d50, Voodoo2, and bypasses that enable branch on a match.
 545f46 writes the already documented TextureOpCaps MODULATE2X bit into
 1cfcc1d. These initialization leads are not an Xbox capability probe.
+
+## Live renderer lightmap representation audit
+
+Source inspection confirms preview_fragment.ps.cg samples base/lightmap
+textures and multiplies lighting by2. tools/pc_raster.c also uses
+min(1,base*light*2). This demonstrates the currently selected port operation,
+not a queried device capability. Both campaign entry points still call
+rf_lightmaps_open, whose decoded image copies archive RGB unchanged.
+The separately verified packed owner is not yet the live world texture owner.
+
+tools/audit_lightmap_live_representation.py measures archive RGB versus
+no-brightening1555 packing followed by original CPU channel-times-eight
+sampling. L1S1/L1S2/L1S3 have1130496/442368/1130496 channels, with maximum
+channel difference7 and mean differences2.664946/2.595864/2.144020.
+Below-floor channel counts are132317/1/77980. Other quantized channel
+counts are505957/268817/445459. These are representation differences,
+not rendered pixel errors or PS2 parity measurements.
+
+Next integration must distinguish normalized GPU5-bit sampling from CPU
+lightmap sampling (channel*8), preserve the shader doubled modulation, and
+share residency rather than casually retaining another full lightmap copy.
+Applying RGB brightening independently while keeping the doubled shader,
+or expanding GPU textures with CPU sampling rules, would change fidelity.
+No live lighting change is made by this audit; it records the concrete
+representation migration still required before binding campaign effects.
