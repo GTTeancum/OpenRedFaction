@@ -7,6 +7,19 @@
  * Unknown/malformed input fails without modifying either output. The original
  * fatal parser diagnostic is returned as RF_FORMAT. No allocation. */
 int rf_clutter_flags_read(const void *text,uint32_t bytes,uint32_t *flags,uint32_t *consumed);
+typedef struct rf_clutter_definition {
+    char name[64],model[64],corpse[64],material[64],sound[64],explosion[64],glare[64],rod[64];
+    char emitters[16][64];uint32_t emitter_count,model_kind,flags;
+    float emitter_lifetime,life,radius;uint32_t screen_width,screen_height;
+} rf_clutter_definition;
+/* Owned factory-facing metadata for the first ASCII-insensitive class match.
+ * No allocation or borrowed text. Required model/material/life/flags; defaults
+ * follow40f4f0 through40f9b7. Stops before skin overrides. Bounds:63-byte names,
+ * 16 emitters,255-byte tokens. Output unchanged on errors. Resource IDs, skins,
+ * damage/debris/use/light metadata and full original parser equivalence are
+ * separate; this is not a complete runtime class or class resource loader. */
+int rf_clutter_definition_read(const void *text,uint32_t bytes,const char *name,
+    rf_clutter_definition *result);
 
 typedef struct rf_clutter_class {
     const char *name,*model,*corpse;

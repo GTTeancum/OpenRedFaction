@@ -6798,3 +6798,32 @@ visual is claimed. Production source is unchanged, so no rebuild/native replay
 is needed for this original-executable verification step. Next implement owned
 factory-facing class input loading, using these verified defaults and the shared
 flag reader, then bind generic model/body and actual effect resources.
+
+
+Owned factory-facing clutter metadata (2026-09-12)
+------------------------------------------------
+rf_clutter_definition_read selects the first ASCII-insensitive class and copies
+name, model, corpse, material, sound, explosion, base glare, rod glare and up to
+16 ordered emitter names, plus emitter lifetime, model kind, life, radius,
+flags and screen dimensions. Output1568-byte metadata owns all names and has
+no archive/text pointers. Read performs no allocation and preserves output on
+failure. Model/material/life/flags are required; repeated selected fields fail.
+Defaults use the verified original parser-prefix behavior, including .vfx kind3
+and other model extensions kind1. Original literal5942a8 is $Rod Glare:, not an
+inferred $Glare Rod spelling. Parsing stops before $Skin: so skin glare metadata
+cannot overwrite the base class glare. Skin materials/glare selection remain
+in their separately verified helpers.
+
+verify_clutter_definition.py checks all429 selectable classes from431 installed
+declarations against independent Python metadata extraction, with byte-identical
+PC and compiled NXDK output. Ten synthetic cases cover base defaults, missing
+radius/rod/dimension authored coverage, emitter order, base-versus-skin glare,
+missing life/class, duplicate life, nonfinite radius, emitter overflow, malformed
+quotes and oversized names. Both builds and all19 CTests pass. The reader uses
+a bounded port grammar; it does not claim full original40f4f0 equivalence.
+
+This record is a temporary metadata representation, not the compact live class
+owner. Runtime names and emitter IDs still need compact budgeted storage and
+resource resolution into the verified96-byte class view. Damage/debris/use/light
+metadata, full class parsing, resource allocation/release and live level binding
+remain open. No native XEMU replay or new visual is claimed for this change.

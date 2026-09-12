@@ -1602,6 +1602,53 @@ int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name
 {return class_assets_read(text,bytes,class_name,skin,assets,0);}
 int rf_clutter_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
 {return class_assets_read(text,bytes,class_name,skin,assets,1);}
+int rf_clutter_definition_read(const void *text,uint32_t bytes,const char *name,rf_clutter_definition *result)
+{
+    lexer l={(const unsigned char *)text,bytes,0};rf_clutter_definition v={0};
+    char t[256],*destination;const char *extension;uint32_t mask=0,bit,used;
+    int status,quoted,found=0;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    v.emitter_lifetime=v.radius=-1;v.screen_width=v.screen_height=64;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$Class") && metadata_tag(&l,"Name:")) {
+            if(found)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            found=same(t,name);if(found){if(strlen(t)>=64)return RF_RANGE;strcpy(v.name,t);}continue;
+        }
+        if(!found)continue;if(same(t,"$Skin:"))break;
+        destination=NULL;bit=0;
+        if(same(t,"$V3D") && metadata_tag(&l,"Filename:")){destination=v.model;bit=1;}
+        else if(same(t,"$Material:")){destination=v.material;bit=2;}
+        else if(same(t,"$Corpse") && metadata_tag(&l,"Class Name:")){destination=v.corpse;bit=16;}
+        else if(same(t,"$Sound:")){destination=v.sound;bit=32;}
+        else if(same(t,"$Explode") && metadata_tag(&l,"Anim:")){destination=v.explosion;bit=64;}
+        else if(same(t,"$Glare:")){destination=v.glare;bit=128;}
+        else if(same(t,"$Rod") && metadata_tag(&l,"Glare:")){destination=v.rod;bit=256;}
+        else if(same(t,"$Emitter:")) {
+            if(v.emitter_count==16)return RF_RANGE;
+            if(metadata_string(&l,v.emitters[v.emitter_count++],64))return RF_FORMAT;continue;
+        } else if(same(t,"$Life:")) {
+            bit=4;if(sphere_number(&l,&v.life))return RF_FORMAT;
+        } else if(same(t,"$Flags:")) {
+            bit=8;status=rf_clutter_flags_read(l.text+l.at,l.size-l.at,&v.flags,&used);
+            if(status)return status;l.at+=used;
+        } else if(same(t,"$Emitter") && metadata_tag(&l,"Life:")) {
+            bit=512;if(sphere_number(&l,&v.emitter_lifetime))return RF_FORMAT;
+        } else if(same(t,"$Radius:")) {
+            bit=1024;if(sphere_number(&l,&v.radius))return RF_FORMAT;
+        } else if(same(t,"$Screen")) {
+            if(metadata_tag(&l,"Width:")){bit=2048;if(metadata_integer(&l,&v.screen_width))return RF_FORMAT;}
+            else if(metadata_tag(&l,"Height:")){bit=4096;if(metadata_integer(&l,&v.screen_height))return RF_FORMAT;}
+        }
+        if(bit && (mask&bit))return RF_FORMAT;mask|=bit;
+        if(destination && metadata_string(&l,destination,64))return RF_FORMAT;
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;if((mask&15)!=15)return RF_FORMAT;
+    extension=strrchr(v.model,'.');v.model_kind=extension && same(extension,".vfx")?3:1;
+    *result=v;return RF_OK;
+}
 
 static int named_effect_block(const void *text,uint32_t bytes,const char *name,
     uint32_t *start,uint32_t *length,char authored_name[64])
