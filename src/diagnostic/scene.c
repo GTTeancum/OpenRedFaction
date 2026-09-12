@@ -673,8 +673,9 @@ int rf_scene_corpse_reset(const rf_corpse *corpse)
 }
 /*48ac70 from the corpse's own object transform and transferred skeletal pose.
  * The no-attachment path intentionally does not inspect the model. */
-/* Authored bone/file-attachment view only. Runtime virtual tags (the middle
- * original51d5b0 group) require a separate owner and are not represented here.
+/* Authored bone/LOD-attachment view. Original51d420 also caches CSPH names
+ * between these groups. The installed95-model audit proves they do not shadow
+ * the corpse eye/spine queries; generic cached-tag placement remains separate.
  * Indices are local to this file view; do not mix with original runtime IDs. */
 int rf_scene_corpse_file_tag(uint32_t model,const char *name,uint32_t fallback,int32_t *index)
 {
@@ -721,8 +722,8 @@ int rf_scene_corpse_file_tag_point(const rf_corpse_surface_source *source,int32_
     status=rf_model_place_tag(tag,source->basis,source->position,placed);
     if(!status)memcpy(point,placed+9,12);return status;
 }
-/* File-tag-only source binding. Runtime-created tags and live death dispatch
- * remain separate work. All geometry, lightmaps and model poses are borrowed;
+/* File-tag source binding: installed eye/spine selections match the original
+ * with local index translation; live death dispatch remains separate work. All geometry, lightmaps and model poses are borrowed;
  * calls serialize the room tree scratch and never evaluate/advance the pose. */
 typedef struct scene_corpse_surface_context {
     rf_geometry_collision_world *world;

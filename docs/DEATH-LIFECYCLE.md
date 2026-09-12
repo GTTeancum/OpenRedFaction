@@ -2842,3 +2842,39 @@ This composed authored test has not run in XEMU. Prior native verification of
 individual surface/render/image primitives does not prove this live path.
 Runtime-created tags, moving room ownership, death dispatch and deferred room
 queue/render scheduling remain unbound; there is no new gameplay screenshot.
+
+
+## Cached tag evidence and corpse lookup scope correction (2026-09-12)
+
+Earlier entries call the middle51d5b0 group runtime-created/virtual tags.
+The loader evidence narrows that description:51d420 obtains legacy attachment
+records through51db90 (first submesh+58 count/+5c pointer), then CSPH records
+through51dbd0 (+60 count/+64 pointer). It creates56-byte cached records with
+borrowed names and local transforms; count is metadata+12b8.51ce60 reads the
+header counts and its51d336..51d347 dispatch fills successive44-byte CSPH
+records through53adc0. Ghidra's inferred parameter list obscures the ECX
+receiver here; instruction-level tracing identifies the destination array.
+
+`tools/verify_model_cached_tags.py` inventories all95 installed V3C models:
+all header legacy-attachment counts are zero;38 models contain114 CSPH records.
+Executing unchanged51d4ce..51d59f with supplied asset-derived submesh arrays
+verifies borrowed name pointers, identity rotation plus CSPH center, count and
+flag4. Parent words at cached record+34 remain explicit sentinels: this setup
+slice does NOT copy the raw CSPH parent. Do not bind cached-tag placement using
+raw sphere parents without recovering the missing behavior. The initializer
+slice uses real getters and matrix helpers; it does not execute file I/O.
+
+Original51d5b0/default-locale comparator passes3262 name queries over these
+bone/cached-sphere/LOD0 groups. Original exact lookup plus51d690 fallback also
+passes190 eye/spine queries: no cached name shadows either source-effect name.
+Removing the cached group and translating indices selects the same authored
+record or bone fallback for every installed model. For example, miner eye is
+original index30 versus local file-view27; env_guard eye is29 versus26. These
+are equivalent record selections, not equal numeric tokens. Existing file-view
+indices must continue to be resolved exclusively by their paired placement API.
+
+This clears cached-tag precedence as a blocker for the current corpse source
+binding. Generic cached-tag pose/parent ownership remains an independent task;
+this audit does not prove full model loading, original animated frames, native
+C/XEMU composition or live death dispatch. No speculative cached-parent code
+was added. Report: artifacts/model-cached-tags.json.
