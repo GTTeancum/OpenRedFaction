@@ -1,6 +1,7 @@
 #ifndef RF_CLUTTER_H
 #define RF_CLUTTER_H
 #include "rf/object_registry.h"
+#include "rf/model_file.h"
 /*4686c0: ten fixed material names, ASCII-insensitive, unknown -> default0.
  *415430: first exact bytewise glare name;497550: first ASCII-insensitive emitter
  * name. Empty names may match an empty slot. NULL slots are empty; NULL query
@@ -118,7 +119,8 @@ typedef struct rf_object_model_backend {
  * Callback errors retain partial state for caller-owned resource cleanup.
  * A zero model is a successful missing result and preserves radius/property.
  * Bounded port filenames <=63 bytes; original local buffer was only32 bytes.
- * Resource ownership stays with caller/backend. No allocation or release here. */
+ * Successful load transfers its returned resource to caller ownership; a load
+ * error must clean up resources it has not transferred. No allocation/release here. */
 int rf_object_model_attach(rf_object_model_attachment *state,const char *name,
     uint32_t kind,const rf_object_model_backend *backend);
 typedef struct rf_clutter_state {
@@ -133,6 +135,40 @@ typedef struct rf_clutter_create_descriptor {
     const char *model;uint32_t kind,material,flags,allocation_flags;
     int32_t identifier;float position[3],matrix[9],radius;
 } rf_clutter_create_descriptor;
+typedef struct rf_clutter_base_owner {
+    rf_clutter_state state;rf_object_link object_link;rf_object_model_attachment attachment;
+    rf_physics_body body;uint32_t uid,material,parent_group,parent_byte;
+    int32_t identifier;float matrix[9],query_position[3];uint32_t allocated_bytes,peak_bytes;
+} rf_clutter_base_owner;
+typedef struct rf_clutter_model_view {
+    const rf_model_collision_sphere *spheres;uint32_t count,wrapper_kind;
+    const float (*matrices)[12];uint32_t bones;
+} rf_clutter_model_view;
+typedef struct rf_clutter_base_backend {
+    rf_object_model_backend model;
+    int (*spheres)(void *context,uint32_t model,rf_clutter_model_view *view);
+    void (*release)(void *context,uint32_t model);
+} rf_clutter_base_backend;
+/* Type4 generic creation composition. Room and parent byte/group are resolved
+ * by caller (missing parent ->0/1). uid_cursor decrements after registration.
+ * Heap object, global-list append, handle publication precede model loading.
+ * Missing model returns OK with NULL out, after destruction and FIFO recycling;
+ * consumed generation/UID are not restored. Other errors preserve out and
+ * clean partial resources; callbacks may observe the published registry entry.
+ * Budget includes owner, retained spheres and temporary sphere workspace;
+ * excludes separately budgeted model resources/registry/list/stack. Model view
+ * stays borrowed through physics copy. Model-derived auxiliary words use port0.
+ * No clutter family list, effects, slot registration, room search or rendering.
+ * Initially zero out required; registry/list must be initialized and intact. */
+int rf_clutter_base_open(const rf_clutter_create_descriptor *descriptor,
+    rf_object_registry *registry,rf_object_list *objects,uint32_t *uid_cursor,
+    uint32_t room,uint32_t parent_byte,uint32_t parent_group,const float material[3],
+    const rf_clutter_base_backend *backend,uint32_t budget,rf_clutter_base_owner **out);
+/* Caller must retire family-list/effect borrowers first. Removes global link,
+ * releases body/model, frees owner, then recycles registry slot. Clears pointer.
+ * No full clutter destructor/effect retirement is implied. */
+int rf_clutter_base_close(rf_clutter_base_owner **owner,rf_object_registry *registry,
+    rf_object_list *objects,const rf_clutter_base_backend *backend);
 enum rf_clutter_create_operation {
     RF_CLUTTER_SOUND,RF_CLUTTER_SOUND_HANDLE,RF_CLUTTER_EMITTER,
     RF_CLUTTER_EMITTER_PREPEND,RF_CLUTTER_TAG,RF_CLUTTER_GLARE,

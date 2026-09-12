@@ -10,8 +10,10 @@
 #include "clutter_binding_probe.h"
 #include "clutter_load_probe.h"
 #include "model_attach_probe.h"
+#include "clutter_base_probe.h"
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--clutter-base"))return clutter_base_probe();
     if(argc==2 && !strcmp(argv[1],"--model-attach"))return model_attach_probe();
     if(argc==2 && !strcmp(argv[1],"--owned-pose"))return owned_pose_probe();
     if(argc==2 && !strcmp(argv[1],"--clutter-create"))return clutter_create_probe();

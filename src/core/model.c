@@ -30,6 +30,84 @@ int rf_object_model_attach(rf_object_model_attachment *state,const char *name,
     if(kind==3){status=backend->animate(backend->context,state->model,0,1);if(status)return status;}
     return backend->property(backend->context,state->model,&state->model_property);
 }
+int rf_clutter_base_close(rf_clutter_base_owner **owner,rf_object_registry *registry,
+    rf_object_list *objects,const rf_clutter_base_backend *backend)
+{
+    rf_clutter_base_owner *v;uint32_t handle;
+    if(!owner || !registry || !objects || !backend || !backend->release)return RF_RANGE;
+    v=*owner;if(!v)return RF_OK;
+    if(v->state.link.next || v->state.link.previous || !objects->count ||
+       !v->object_link.next || !v->object_link.previous ||
+       v->object_link.next->previous!=&v->object_link || v->object_link.previous->next!=&v->object_link ||
+       rf_object_registry_lookup(registry,v->state.handle)!=&v->state)return RF_RANGE;
+    handle=v->state.handle;rf_object_list_remove(objects,&v->object_link);
+    rf_physics_body_close(&v->body);
+    if(v->attachment.model)backend->release(backend->model.context,v->attachment.model);
+    free(v);*owner=NULL;return rf_object_registry_remove(registry,handle);
+}
+typedef struct clutter_base_model_context {rf_clutter_base_owner *owner;const rf_clutter_base_backend *backend;} clutter_base_model_context;
+static int clutter_base_model_load(void *context,uint32_t kind,const char *name,uint32_t first,uint32_t second,uint32_t *model)
+{clutter_base_model_context *c=context;int status=c->backend->model.load(c->backend->model.context,kind,name,first,second,model);if(!status)c->owner->state.model=*model;return status;}
+static int clutter_base_model_bounds(void *context,uint32_t model,float center[3],float *radius)
+{clutter_base_model_context *c=context;return c->backend->model.bounds(c->backend->model.context,model,center,radius);}
+static int clutter_base_model_animate(void *context,uint32_t model,int32_t motion,float speed)
+{clutter_base_model_context *c=context;return c->backend->model.animate(c->backend->model.context,model,motion,speed);}
+static int clutter_base_model_property(void *context,uint32_t model,int32_t *property)
+{clutter_base_model_context *c=context;return c->backend->model.property(c->backend->model.context,model,property);}
+int rf_clutter_base_open(const rf_clutter_create_descriptor *d,
+    rf_object_registry *registry,rf_object_list *objects,uint32_t *uid_cursor,
+    uint32_t room,uint32_t parent_byte,uint32_t parent_group,const float material[3],
+    const rf_clutter_base_backend *backend,uint32_t budget,rf_clutter_base_owner **out)
+{
+    rf_clutter_base_owner *v;rf_physics_creation_seed seed={0};rf_clutter_model_view view={0};
+    rf_physics_sphere *scratch=NULL;uint64_t peak,retained;uint32_t i;int status;
+    clutter_base_model_context context;
+    rf_object_model_backend model_backend={clutter_base_model_load,clutter_base_model_bounds,clutter_base_model_animate,clutter_base_model_property,&context};
+    if(!d || !registry || !objects || !uid_cursor || !material || !backend || !out || *out ||
+       !backend->model.load || !backend->model.bounds || !backend->model.animate || !backend->model.property ||
+       !backend->spheres || !backend->release || parent_byte>255 || !isfinite(d->radius) ||
+       budget<sizeof(*v) || !objects->sentinel.next || !objects->sentinel.previous ||
+       objects->sentinel.next->previous!=&objects->sentinel || objects->sentinel.previous->next!=&objects->sentinel)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(d->position[i]) || !isfinite(material[i]))return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(d->matrix[i]))return RF_RANGE;
+    if(!registry->count)return RF_OK;
+    v=calloc(1,sizeof(*v));if(!v)return RF_IO;
+    v->state.token=(uint32_t)(uintptr_t)&v->state;v->state.health=100;
+    v->state.flags=d->allocation_flags|0x6000000u;if(d->allocation_flags&0x4000)v->state.flags|=0x8000;
+    v->material=d->material;v->identifier=d->identifier;v->parent_byte=parent_byte;v->parent_group=parent_group;
+    memcpy(v->state.position,d->position,12);memcpy(v->matrix,d->matrix,36);
+    v->attachment.model_index=-1;v->attachment.model_property=-1;
+    rf_object_list_append(objects,&v->object_link);
+    status=rf_object_registry_insert(registry,&v->state,&v->state.handle);
+    if(status){rf_object_list_remove(objects,&v->object_link);free(v);return status;}
+    v->uid=(*uid_cursor)--;
+    if(d->model) {
+        context.owner=v;context.backend=backend;
+        status=rf_object_model_attach(&v->attachment,d->model,d->kind,&model_backend);if(status)goto failed;
+        if(!v->attachment.model){status=RF_OK;goto failed;}
+        status=backend->spheres(backend->model.context,v->attachment.model,&view);if(status)goto failed;
+    } else v->attachment.radius=d->radius<=0?1:d->radius;
+    seed.flags=d->flags;if(d->allocation_flags&0x10000)seed.flags&=~0x20u;
+    seed.radius=d->radius<0?v->attachment.radius:d->radius;
+    memcpy(seed.position,d->position,12);memcpy(seed.basis,d->matrix,36);
+    retained=sizeof(*v)+(uint64_t)((seed.flags&0x70)?(view.count?view.count:1):0)*sizeof(*scratch);
+    peak=retained+(uint64_t)view.count*sizeof(*scratch);
+    if(peak>budget){status=RF_RANGE;goto failed;}
+    if(view.count) {
+        scratch=calloc(view.count,sizeof(*scratch));if(!scratch){status=RF_IO;goto failed;}
+        status=rf_model_creation_spheres(view.spheres,view.count,view.wrapper_kind,view.matrices,view.bones,scratch,view.count);
+        if(status)goto failed;
+    }
+    seed.spheres=scratch;seed.sphere_count=view.count;
+    status=rf_physics_creation_body_open(&seed,material[0],material[1],material[2],
+        budget-(uint32_t)sizeof(*v)-(uint32_t)(view.count*sizeof(*scratch))+sizeof(v->body),&v->body);
+    if(status)goto failed;
+    free(scratch);scratch=NULL;v->state.model=v->attachment.model;v->state.physics_flags=v->body.state.flags;
+    v->state.flags|=0x400000;v->state.first_word=room;memcpy(v->query_position,v->state.position,12);
+    v->allocated_bytes=(uint32_t)retained;v->peak_bytes=(uint32_t)peak;*out=v;return RF_OK;
+failed:
+    free(scratch);(void)rf_clutter_base_close(&v,registry,objects,backend);return status;
+}
 static int clutter_skin_name_equal(const char *first,const char *second)
 {
     unsigned char a,b;
