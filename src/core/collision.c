@@ -5,6 +5,29 @@
 #include <stdlib.h>
 #include <string.h>
 
+int rf_collision_contact_read(const rf_physics_body_state *body,
+    const rf_collision_contact_extra *extra,rf_collision_actor_contact *result)
+{
+    if(!body || !extra || !result)return RF_RANGE;
+    memcpy(result->point,extra->point,12);memcpy(result->normal,body->vector_138,12);
+    memcpy(&result->time,&body->scalar_144,4);result->material=extra->material;
+    memcpy(&result->inverse_mass,&extra->inverse_mass,4);memcpy(result->velocity,extra->velocity,12);
+    memcpy(&result->handle,&body->reference_15c,4);result->reference=extra->reference;
+    result->reserved_1ec=body->word_164;result->word_1f0=body->word_168;result->word_1f4=extra->part;
+    return RF_OK;
+}
+int rf_collision_contact_write(rf_physics_body_state *body,
+    rf_collision_contact_extra *extra,const rf_collision_actor_contact *source)
+{
+    if(!body || !extra || !source)return RF_RANGE;
+    memcpy(extra->point,source->point,12);memcpy(body->vector_138,source->normal,12);
+    memcpy(&body->scalar_144,&source->time,4);extra->material=source->material;
+    memcpy(&extra->inverse_mass,&source->inverse_mass,4);memcpy(extra->velocity,source->velocity,12);
+    memcpy(&body->reference_15c,&source->handle,4);extra->reference=source->reference;
+    body->word_164=source->reserved_1ec;body->word_168=source->word_1f0;extra->part=source->word_1f4;
+    return RF_OK;
+}
+
 /* Original 4cf500 arithmetic: squared spans, initial radius, expansion,
  * and 46b075 origin radius. state = radius, radius_squared, center[3], origin_radius. */
 static void sphere_math(const float v[3],const float point[3],float state[6],int mode)

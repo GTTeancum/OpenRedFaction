@@ -382,6 +382,24 @@ typedef struct rf_collision_actor_contact {
     uint32_t material;float inverse_mass,velocity[3];
     uint32_t handle,reference,reserved_1ec,word_1f0,word_1f4;
 } rf_collision_actor_contact;
+/* Fields absent from rf_physics_body_state, in original actor order. Together
+ * with its normal/time/handle/reserved/face fields this retains actor1b4..1f7.
+ * Fresh49f010 leaves these bytes untouched: zero allocation is not evidence
+ * that an inactive contact payload is valid. */
+typedef struct rf_collision_contact_extra {
+    float point[3];uint32_t material;float inverse_mass,velocity[3];
+    uint32_t reference,part;
+} rf_collision_contact_extra;
+struct rf_physics_body_state;
+/* Bit-preserving gather/scatter for stable disjoint owners. Write changes
+ * contact fields only, never motion, bounds, accumulators or flags. Callers
+ * must separately publish response body_flags even on a zero return, since
+ * the general response can defer without reporting a hit. NULL arguments
+ * return RF_RANGE and preserve outputs. No allocation. */
+int rf_collision_contact_read(const struct rf_physics_body_state *body,
+    const rf_collision_contact_extra *extra,rf_collision_actor_contact *result);
+int rf_collision_contact_write(struct rf_physics_body_state *body,
+    rf_collision_contact_extra *extra,const rf_collision_actor_contact *source);
 typedef struct rf_collision_actor_response {
     float minimum[3],maximum[3],position[3],next_position[3],velocity[3],mass;
     uint32_t handle,material,body_flags;int32_t sphere_count;

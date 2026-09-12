@@ -4397,3 +4397,22 @@ guard bytes and NULL rejection are checked. No body-size increase/allocation.
 Both builds and all19 CTests pass. Report:
 artifacts/physics-prepare-contact-verification.json. Preceding motion/bounds,
 live scheduling and native XEMU execution are outside this verification.
+
+## Compact collision contact storage adapter
+
+rf_collision_contact_extra retains only the40 missing bytes: point, material,
+inverse mass, other velocity, reference and part. rf_collision_contact_read
+and rf_collision_contact_write gather/scatter the complete68-byte response
+payload using the existing28 bytes in rf_physics_body_state. Float payloads
+are copied as bits, preserving stale values and NaNs. The adapter never
+changes body flags, motion, bounds or accumulators; callers must publish
+response flags separately, including general-response return0 deferrals.
+
+verify_collision_contact_storage.py passes4096 independent original actor
+layout mappings on PC and NXDK, checks all308 body bytes and40 extension
+bytes, guard bytes, source preservation and six NULL failure combinations.
+This is a new storage adapter, not an original routine: original offsets
+are established by the earlier original-executable response verifiers.
+Both builds and all19 CTests pass. Local report:
+artifacts/collision-contact-storage.json. No live extension allocation,
+response dispatch or native-XEMU integration is claimed.

@@ -15,7 +15,7 @@ footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
 
 Immediate open items:
-- [ ] Bind verified post-bounds contact preparation49f8ea/49fdbe to live physics scheduling; complete retained contact field ownership without duplicating existing body normal/time/handle/face fields.
+- [ ] Bind verified post-bounds contact preparation49f8ea/49fdbe to live physics scheduling; bind verified40-byte contact extension/read-write mapping to retained live owners and publish response flags even on general-response deferral returns.
 - [ ] Bind verified pair processor48ca60 to live scheduling and contact/response effects after PC/stock64MiB XEMU verification of registered NPC/player views and borrowed player model publication; bind verified normal/general actor responses49ab00/49a420 to retained contact/extra-velocity owners, bind verified solid/model response49b570/49afe0 orchestration to geometry/cache/model services, add trigger/projectile views and moving NPC orientation ownership, complete projectile classification, global-plane producer48bbe0 and live owner lookup.
 - [ ] Compose registered-NPC death entry with collision teardown and remaining stages; connect the original-verified 8192-record collision pool after completing classification48be00 beyond the verified actor/actor branch and binding the original-verified discovery traversal to object-list ownership and creation/unhide scheduling.
 - [ ] Bind complete death scheduling and effective class views after the composed base NPC death-animation/action-sound fixture passed PC and stock64MiB XEMU; extend beyond the single authored miner case.

@@ -1,4 +1,5 @@
 #include "rf/physics.h"
+#include "rf/collision.h"
 #include "rf/level.h"
 #include "rf/player.h"
 #include "rf/eye.h"
@@ -40,6 +41,18 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--contact-storage")) {
+        struct {rf_physics_body_state body;rf_collision_contact_extra extra;rf_collision_actor_contact source;} input;
+        rf_collision_actor_contact gathered;
+        _Static_assert(sizeof(input)==416,"contact storage wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(rf_collision_contact_read(&input.body,&input.extra,&gathered) ||
+                rf_collision_contact_write(&input.body,&input.extra,&input.source) ||
+                fwrite(&gathered,68,1,stdout)!=1 || fwrite(&input,348,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--prepare-contact")) {
         rf_physics_body_state state;
         _Static_assert(sizeof(state)==308,"contact preparation wire");
