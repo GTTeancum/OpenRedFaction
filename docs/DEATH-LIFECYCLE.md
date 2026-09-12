@@ -5921,7 +5921,9 @@ Both builds and19 CTests pass. Stock64MiB XEMU replay passes180 frames:
 artifacts/xemu/replay-20260912-100007/report.json.
 npc_fall=[312,78,78,156,4141236165,0], equal to PC.
 Tested XBE SHA256:42bdb579683946485d07dd207953b5a98d250c873767614cf8a4bcc818a1f745.
-PC reference differs from replay-20260912-095509 only by the new NPC_FALL row.
+PC reference adds NPC_FALL and increases NPC_BODIES owner/total byte counts
+by312 bytes (one4-byte orientation pointer for each of78 owners); the existing
+body-state hash and all other rows are unchanged.
 The binding remains callable rather than automatically scheduled; compose it
 with support finish and complete impact/landing/relative callbacks. Landing
 must retain support-relative velocity, sound, stance clearance and special
