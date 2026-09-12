@@ -5,7 +5,8 @@ import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
 from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_CODE,UC_HOOK_MEM_READ,UC_HOOK_MEM_WRITE
 from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_EAX,UC_X86_REG_FPCW
-print(subprocess.check_output([str(root/'build/pc/Release/rf_entity_probe.exe'),'--corpse-owned-delete'],text=True).strip())
+create_mode=globals().get('create_mode',False)
+print(subprocess.check_output([str(root/'build/pc/Release/rf_entity_probe.exe'),'--corpse-owned-create' if create_mode else '--corpse-owned-delete'],text=True).strip())
 w=lambda *v:struct.pack('<'+'I'*len(v),*(v&0xffffffff for v in v));f=lambda *v:struct.pack('<'+'f'*len(v),*v)
 p=pefile.PE(str(root/'build/xbox/main.exe'));im=p.get_memory_mapped_image();ib=p.OPTIONAL_HEADER.ImageBase
 u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(ib,(len(im)+4095)//4096*4096);u.mem_write(ib,im);b=0x30000000;u.mem_map(b,0x40000)
@@ -13,6 +14,8 @@ c=b+136;body=c+276;names=c+620;registry=b+0x8000;seed=b+0xc000;out=seed+128;ch=b
 backend=b+0xd000;effect=b+0xd100;sound_cb=b+0xd110;text=b+0xd200;stack=b+0x3e000;stop=b+0x3f000;base=19224
 mapping=(root/'build/xbox/main.map').read_text();sym=lambda n:int(re.search(r'\s_'+n+r'\s+([0-9a-fA-F]+)',mapping)[1],16)
 init=sym('rf_corpse_owners_init');reginit=sym('rf_object_registry_init');acquire=sym('rf_corpse_base_acquire');assign=sym('rf_corpse_name_assign');delete=sym('rf_corpse_owned_delete');release=sym('rf_corpse_pool_release');remove=sym('rf_object_registry_remove');malloc=sym('malloc');free=sym('free')
+create=sym('rf_corpse_owned_create');create_backend=backend+32;load_cb=effect+32;motion_cb=effect+48;create_effect_cb=effect+64;emitter_cb=effect+80
+request=b+0xc500;source=b+0xc600;death_name=b+0xc800;ownership=b+0xc900;create_trace=[]
 read=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
 live={};labels={};trace=[];deleting=False;retired=False;handle=0
 
@@ -20,6 +23,18 @@ def hook(cpu,address,size,data):
  global retired
  if deleting and address==remove:
   assert retired and read(b+124)==0;trace.append(('registry_remove',handle));return
+ if address in (load_cb,motion_cb,create_effect_cb,emitter_cb):
+  sp=cpu.reg_read(UC_X86_REG_ESP);assert read(sp+4)==123
+  if address==load_cb:raise AssertionError('unexpected replacement model load')
+  elif address==motion_cb:
+   assert read(sp+8)==source;create_trace.append(('motion',bytes(cpu.mem_read(read(sp+12),32)).split(b'\0',1)[0]));result=0xffffffff
+  elif address==emitter_cb:raise AssertionError('unexpected emitter creation')
+  else:
+   op=read(sp+8);assert read(sp+12)==source and read(sp+16)==c and read(registry)==c
+   assert op in (0,4,5);create_trace.append(('effect',op));result=0
+   if op==0:assert read(names+12)==0;cpu.mem_write(c+216,w(100))
+   else:assert bytes(cpu.mem_read(read(names+12),12))==b'death_front\0' and read(counts)==1
+  cpu.reg_write(UC_X86_REG_EAX,result);cpu.reg_write(UC_X86_REG_ESP,sp+4);cpu.reg_write(UC_X86_REG_EIP,read(sp));return
  if address not in (malloc,free,effect,sound_cb):return
  sp=cpu.reg_read(UC_X86_REG_ESP);a=read(sp+4)
  if address==malloc:
@@ -58,9 +73,19 @@ for case in range(256):
  deleting=retired=False;assert not live;labels.clear();trace.clear()
  assert call(init,b,base+128)==0;call(reginit,registry)
  u.mem_write(seed,f(10,3,0,0,0,1,0,0,0,1,0,0,0,1,1)+w(0,0,0x33));u.mem_write(oh,w(oh,oh));u.mem_write(counts,w(0,0))
- material=struct.unpack('<3I',f(.25,.5,2));assert call(acquire,b,registry,oh,counts+4,seed,*material,2,out)==0 and read(out)==0
+ material=struct.unpack('<3I',f(.25,.5,2))
+ if create_mode:
+  create_trace.clear();u.mem_write(ch,w(ch,ch));u.mem_write(source,bytes(284));u.mem_write(source+12,w(77 if case%3 else 0));u.mem_write(source+36,w(2))
+  u.mem_write(source+44,f(10,3));u.mem_write(source+68,f(1,100,1,0));u.mem_write(source+88,w(0xffffffff,0xffffffff))
+  u.mem_write(death_name,b'death_front\0');u.mem_write(request,w(death_name)+f(0,0,0,1,0,0,0,1,0,0,0,1,0)+w(1000,0,0,0))
+  u.mem_write(ownership,w(b,registry,oh,counts+4,2,*material));u.mem_write(create_backend,w(0,load_cb,motion_cb,create_effect_cb,emitter_cb,123))
+  assert call(create,ownership,source,request,ch,counts,create_backend,out)==0 and read(out)==c
+  assert read(source+8)==0x402 and read(counts)==read(counts+4)==1 and read(c+216)==100
+  assert create_trace==[('effect',0)]+([('motion',b'death_front')] if case%3 else [])+[('motion',b'corpse_drop'),('motion',b'corpse_carry'),('effect',4),('effect',5)]
+ else:
+  assert call(acquire,b,registry,oh,counts+4,seed,*material,2,out)==0 and read(out)==0
+  u.mem_write(text,b'death_front\0');assert call(assign,b,0,1,text)==0
  handle=read(c+116);u.mem_write(text,b'corpse\0');assert call(assign,b,0,0,text)==0
- u.mem_write(text,b'death_front\0');assert call(assign,b,0,1,text)==0
  labels.update({read(body+308):'body',read(names+4):'object',read(names+12):'death'})
  u.mem_write(c+92,w(ch,ch));u.mem_write(ch,w(c+92,c+92));u.mem_write(counts,w(1))
  u.mem_write(c+28,w(77 if case%3 else 0));u.mem_write(c+8,w(0x6400400 if case%2 else 0x6400000));u.mem_write(c+112,w(88 if case%4 else 0))
@@ -82,4 +107,5 @@ for case in range(256):
  assert bytes(u.mem_read(ch,8))==w(ch,ch) and bytes(u.mem_read(oh,8))==w(oh,oh)
  assert call(delete,*args)==0xfffffffc # inactive slot, no retired owner access
 report=dict(result='PASS',cases=256,nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),scope='Real owned names/body allocation, registered base and deletion bridge on PC/NXDK. Exact release/forwarded effect sequence, budget restoration, registry after recycle, poisoned emitter links, stale/reentrant/repeated rejection and no Xbox owner reads after recycle. Model/burn/emitter/pair/sound backends supplied; original sequence independently verified by verify_corpse_delete_original.py. No live scene/XEMU binding.')
-(root/'artifacts/corpse-owned-delete-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
+report['owned_constructor']=create_mode
+(root/('artifacts/corpse-owned-create-verification.json' if create_mode else 'artifacts/corpse-owned-delete-verification.json')).write_text(json.dumps(report,indent=2)+'\n');print(report)

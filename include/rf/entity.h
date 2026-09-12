@@ -556,6 +556,24 @@ typedef struct rf_corpse_create_backend {
  * use internally. Only constructor-owned fields are initialized. */
 int rf_corpse_create(rf_corpse_create_source *source,const rf_corpse_create_request *request,
     rf_corpse_list_link *head,uint32_t *count,const rf_corpse_create_backend *backend,rf_corpse **result);
+typedef struct rf_corpse_create_ownership {
+    rf_corpse_owners *owners;rf_object_registry *registry;
+    rf_corpse_list_link *object_head;uint32_t *object_count;
+    uint32_t room;float elasticity,friction,density;
+} rf_corpse_create_ownership;
+/*416940 with concrete base allocation and owned death-name assignment.
+ * Caller has resolved room and material0. Backend allocate is ignored; NAME
+ * is owned internally. Other model/motion/effect/emitter callbacks retain the
+ * original contract and must not mutate the pool/registry/accounting.
+ * Resource allocation failures return their status. If a name allocation or
+ * later guard fails, result exposes the partial owner; no later constructor
+ * effects run. Partial cleanup is caller-owned and must respect which links
+ * and resources have been acquired. Original source deletion marks persist. */
+int rf_corpse_owned_create(const rf_corpse_create_ownership *ownership,
+    rf_corpse_create_source *source,const rf_corpse_create_request *request,
+    rf_corpse_list_link *corpse_head,uint32_t *corpse_count,
+    const rf_corpse_create_backend *backend,rf_corpse **result);
+
 /* SP41fdc0 state prefix through41fe59, before collision-link teardown.
  * Requires a live state; falling is the resolved42a020 low byte.
  * Returns1 on entry,0 if already dying (all fields then remain untouched).

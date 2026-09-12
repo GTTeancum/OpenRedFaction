@@ -1090,3 +1090,38 @@ backends are supplied. The original1024-case complete deletion verifier also
 passes, independently establishing the ordering used by this bridge. No live
 scene dispatch or native XEMU gameplay is claimed.
 The256 PC/NXDK owned-deletion cases, both builds and all14 CTests pass.
+
+
+## Owned constructor bridge
+
+rf_corpse_owned_create binds416940 to the concrete registered base allocator
+and owned death name. rf_corpse_create_ownership supplies the pool, registry,
+object list/count, resolved room and material0 coefficients. External allocate
+is ignored; model, motion, snapshot/pose/play/collision/source effects and emitter
+callbacks retain their previous contracts. The NAME boundary is handled by
+rf_corpse_name_assign and is no longer forwarded externally.
+
+The shared constructor body now has a private optional checked-name assignment.
+The existing rf_corpse_create entry keeps its original infallible callback API
+and behavior. The owned entry returns a name-allocation error immediately at
+that boundary, before emitter creation, corpse-list insertion, retention,
+collision registration or final source effects. It exposes the registered
+partial owner. Base allocation failure returns its resource status with no
+owner. Source deletion/model-retention marks remain set in both cases.
+
+The PC corpse_owned_creation CTest runs256 real owned construction/deletion
+cycles, forwarding only the remaining external backends. It also exercises a
+body budget one byte short and a budget that fits the body but not its death
+name. The latter leaves an unlinked partial corpse with its registered body,
+and no later effects run. Test teardown is explicit fixture cleanup; general
+partial-owner unwind is still not implemented, and normal deletion must not
+be blindly used before corpse-list insertion.
+
+The1024 full original/PC/NXDK constructor comparisons still pass, including
+7431 resource calls. The owned lifecycle harness checks actual base, name and
+list ownership, forwarded construction events, deletion frees, registry-after-
+recycle ordering and final accounting. Model/motion/emitter and other effects
+remain supplied test backends. This does not enable live scene death or claim
+native XEMU gameplay. Real resource backends, room lookup and partial cleanup
+remain open before finalization can use this path.
+The256 owned PC/NXDK cycles, both builds and all15 CTests pass.

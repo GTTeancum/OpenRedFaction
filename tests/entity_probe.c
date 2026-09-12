@@ -75,8 +75,10 @@ typedef struct slow_context {rf_player_climb_state *state;uint32_t *flags,blocke
 static int slow_stand(void *context,uint32_t *stood)
 {slow_context *v=context;++v->calls;v->state->speed.response=9;*stood=!v->blocked;if(*stood)*v->flags&=~0x400u;return RF_OK;}
 #include "corpse_owned_delete_probe.h"
+#include "corpse_owned_create_probe.h"
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corpse-owned-create"))return corpse_owned_create_probe();
     if(argc==2 && !strcmp(argv[1],"--corpse-owned-delete"))return corpse_owned_delete_probe();
     if(argc==2 && !strcmp(argv[1],"--corpse-name")) {
         static rf_corpse_owners owners;rf_corpse_physics_seed seed={0};uint32_t input[3],slot,values[4],base;char text[256];const char *name;int status;
