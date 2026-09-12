@@ -282,6 +282,20 @@ typedef struct rf_collision_solid_view {
     float output_origin[3],output_matrix[3][3];uint32_t object_id;
     const rf_collision_face *flat_faces;uint32_t flat_count; /* Used when room_count is zero. */
 } rf_collision_solid_view;
+typedef struct rf_collision_preferred_face {
+    const rf_collision_face *face;uint32_t room,face_index;
+} rf_collision_preferred_face;
+/* 4df1c0 preferred-face test followed by uncached room/flat traversal.
+ * For active motion and flags bit0 (value1), an accepted preferred face wins
+ * immediately, even when outside this solid's lists. Tokens are resolved by
+ * the caller to stable borrowed geometry and result indices. A miss falls
+ * through without tightening limit. Radius/limit and unsupported face flags
+ * follow the existing sweep APIs. Global face-cache lists and special room
+ * mode0x1000 remain outside this uncached geometry entry. Errors preserve
+ * result/matched; inactive motion leaves result unchanged and sets matched0. */
+int rf_collision_solid_preferred(const rf_collision_solid_view *solid,
+    const rf_collision_preferred_face *preferred,uint32_t flags,const float start[3],
+    const float delta[3],float radius,float limit,rf_collision_sweep_room_hit *result,uint32_t *matched);
 typedef struct rf_collision_solid_hit {
     rf_collision_ray_hit hit;uint32_t object_id,solid_index,room,face_index;
 } rf_collision_solid_hit;

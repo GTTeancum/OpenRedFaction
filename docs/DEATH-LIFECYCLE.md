@@ -7754,3 +7754,41 @@ Both builds and21 CTests pass;420 candidate-occluder and197 render-pass
 regression checks pass. No native gameplay/glare rendering claim is made:
 next bind stable scene solid/face/actor identities, preferred-face handling,
 alternating visibility refresh and actual corona/reflection/volume drawing.
+
+
+Glare dependency: preferred-face collision (2026-09-12)
+---------------------------------------------------
+Scene inspection found existing solid queries lacked the preferred-face
+path required by glare's cached_face. rf_collision_solid_preferred now
+implements4df302..4df31b and then the existing uncached room/flat traversal.
+Active motion and query bit0 enable the supplied preferred4dec10 face test;
+an accepted face returns immediately. It does not need to be in this solid's
+active lists, and bypasses room skip/bounds tests. Miss/disabled preference
+continues ordinary traversal without changing limit. The face still applies
+its own shared collision filters, bounds, plane/polygon and swept tests.
+
+rf_collision_preferred_face borrows face geometry and resolved room/index;
+the caller resolves stable tokens, without treating a token as an unchecked
+original address. Output remains unchanged on miss/error; matched is set
+only on success. Existing transform and nonzero-motion semantics remain.
+No allocations, world-token remapping, global face-cache list or special
+0x1000 room mode is introduced. Texture-sensitive flags0x80/0x100 remain
+explicitly unsupported by the existing face helper; glare's optional0x85
+mode therefore still needs reconstruction before fully binding that mode.
+
+verify_collision_preferred.py:2400 complete original4df1c0 comparisons with
+actual4dec10 and unchanged no-room fallback, no supplied callees.309
+preferred early hits,897 total hits,183 multiple updates and274 edge hits;
+plus6 invalid numeric-input guards. Covers independent preferred faces,
+flags disabling preference, misses, direct/transformed coordinates, retained
+limits, zero motion and swept radii. PC/NXDK query result bytes match.
+verify_collision_preferred_rooms.py:2000 complete original4df1c0 comparisons
+with actual preferred face and room/tree/face traversal, no supplied callees.
+234 preferred hits,687 total hits,168 multiple updates and272 edge hits.
+Four single-face trees, primary/child ordering, room skip/bounds bypass for
+preferred hits, transformed/direct inputs and swept radii. PC/NXDK compare
+geometry, counts and room/face indices. These geometric oracles use the
+existing collision harness x87 control0x37f; no native gameplay claim.
+Both builds,21 CTests and1537 glare-search checks pass. Next bind stable
+scene face identity and reconstruct texture-sensitive query behavior; do not
+drop preferred-face semantics when composing scene collision callbacks.
