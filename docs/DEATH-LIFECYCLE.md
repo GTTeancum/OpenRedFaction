@@ -5347,3 +5347,40 @@ artifacts/projectile-planes.json. Both builds and19 CTests pass. This gate
 executes Xbox-compiled code in Unicorn; no native XEMU activation is claimed.
 Live projectile definition/owner state, classification and discovery
 scheduling remain open.
+
+
+### Full object-family pair classification (2026-09-12)
+
+rf_collision_pair_reject reconstructs48be00 common gates and all family
+branches around explicit96-byte resolved endpoint views. Kind0/kind0 uses
+the previously original-verified actor classifier. Other branches preserve
+identity/null rejection, kind-dependent40000 gates, SP4000 suppression,
+assignment versus OR of pair flags, owner exclusions and projectile/trigger
+eligibility. Globals6fc4d8,64ecb9,6fc4d9,87210c and5afb78 are explicit inputs.
+The resolved disabled4290d0, item-mode427020, projectile48c7f0, trigger48c8e0
+and owner-player48a840 predicate fields use their low bytes. Owner facts
+represent40a0e0(parent), including owner200 linkage and object7c flags.
+The routine does not perform those lookups or predicate side effects.
+
+Original asymmetries are intentional: projectile/solid may assign flags1
+without the projectile definition bit while solid/projectile does not;
+projectile/kind7 tests other78 while reverse tests other180; solid/kind4
+accepts where reverse rejects. Rejected pairs may already have written flags.
+No normalization of those routes into symmetric collision rules is applied.
+
+verify_pair_classification.py passes32768 original/PC/NXDK cases over all
+kind0..7 combinations, noncanonical predicate/global upper bytes, exact
+thresholds and nearby floats, arbitrary initial flags and null/self inputs.
+It observes1572 rejections with modified flags. Original48be00 and actual
+actor/player/use/weapon/string helpers execute; the six external boundaries
+listed above are supplied from explicit fixture facts. Exact reject byte,
+flags and unchanged endpoint facts match. This verifies classifier output,
+not equivalence of helper call timing or mutation during classification.
+Report:artifacts/pair-classification.json. Both builds and19 CTests pass;
+the8192-case actor classifier and8192-case projectile eligibility gates also
+pass. Xbox-compiled comparisons use Unicorn, not native XEMU activation.
+
+Next: bind registered object-family/owner facts and real eligibility
+providers to discovery at creation/unhide, allocate the original pair pool,
+and integrate substep processing/contact effects. Predicate facts must not
+be replaced with unconditional acceptance when live bindings are added.

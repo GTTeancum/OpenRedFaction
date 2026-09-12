@@ -2045,6 +2045,88 @@ uint32_t rf_collision_actor_pair_reject(const rf_collision_actor_pair_view *a,
     return !(a->extent_180>=2.0f || b->extent_180>=2.0f);
 }
 
+uint32_t rf_collision_pair_reject(const rf_collision_pair_class_view *a,
+    const rf_collision_pair_class_view *b,uint32_t alternate,uint32_t multiplayer,
+    uint32_t mode,uint32_t special_projectile,uint32_t special_item,uint32_t *flags)
+{
+    const rf_collision_pair_class_view *actor,*other,*projectile;uint32_t reverse;
+    if(!a || !b || a==b)return 1;
+    if(!((a->actor.body_flags|b->actor.body_flags)&0x20u))return 1;
+    if((a->actor.object_flags&0x40000u) && b->kind!=2)return 1;
+    if((b->actor.object_flags&0x40000u) && a->kind!=2)return 1;
+    if(!(alternate&255u) && !(multiplayer&255u) && ((a->actor.object_flags|b->actor.object_flags)&0x4000u))return 1;
+    if(!a->kind && !b->kind)return rf_collision_actor_pair_reject(&a->actor,&b->actor,alternate,multiplayer,flags);
+    if(a->kind==2 && (a->definition_flags&0x20u))*flags=1;
+    if(!a->kind || !b->kind) {
+        reverse=a->kind!=0;actor=reverse?b:a;other=reverse?a:b;
+        switch(other->kind) {
+        case 1:
+            if(!((alternate|multiplayer|mode)&255u))return !(actor->actor.object_flags&8u);
+            return (actor->item_mode_reject&255u)!=0;
+        case 2:
+            if((actor->disabled&255u) || actor->handle==other->parent || !(other->projectile_eligible&255u))return 1;
+            if(!reverse && (other->definition_flags&0x20u))*flags=1;
+            if(other->owner_object_flags&8u)*flags|=reverse?4:2;
+            return 0;
+        case 3:
+            if((actor->actor.object_flags&8u) && other->definition_present) {
+                if(other->actor.extent_180>1.0f)*flags|=reverse?8:16;
+                if(other->actor.extent_180>0.5f)return 0;
+            }
+            return !(actor->actor.use_kind==1 && other->actor.extent_180>0.5f);
+        case 4:
+            if(actor->actor.object_flags&8u) {
+                if(other->parent==actor->handle)return 1;
+                if(other->actor.extent_180>0.5f){*flags=reverse?2:4;return 0;}
+            }
+            return !(actor->actor.use_kind==1 && other->actor.extent_180>0.5f);
+        case 5:return !(other->trigger_eligible&255u);
+        case 7:
+            if((actor->actor.object_flags&8u) && (other->actor.body_flags&0x40u)){*flags=reverse?2:4;return 0;}
+            return 1;
+        default:return 1;
+        }
+    }
+    if(a->kind==2 && b->kind==2) {
+        if(a->type_id==special_projectile) {
+            if(b->projectile_eligible&255u){*flags|=2;return 0;}
+        } else if(b->type_id==special_projectile && (a->projectile_eligible&255u)){*flags|=4;return 0;}
+        return 1;
+    }
+    if(a->kind==2 || b->kind==2) {
+        reverse=a->kind!=2;projectile=reverse?b:a;other=reverse?a:b;
+        switch(other->kind) {
+        case 3:
+            if(!other->definition_present || !(projectile->projectile_eligible&255u))return 1;
+            if(!reverse || (projectile->definition_flags&0x20u))*flags=1;
+            if(other->actor.extent_180>0.5f){*flags|=reverse?8:16;return 0;}
+            return !(other->actor.extent_180>0.05f);
+        case 4:
+            if(other->type_id==special_item) {
+                if(other->parent==projectile->parent)return 1;
+                if(other->owner_present && other->owner_link_200==projectile->parent)return 1;
+            }
+            if(!(projectile->projectile_eligible&255u))return 1;
+            if(reverse && (projectile->definition_flags&0x20u))*flags=1;
+            if(other->actor.extent_180>0.2f){*flags|=reverse?2:4;return 0;}
+            if(other->actor.extent_180<=0.0f)return 1;
+            return !(projectile->owner_is_player&255u);
+        case 5:
+            return !((projectile->owner_is_player&255u) && (other->trigger_flags&2u) && (projectile->projectile_eligible&255u));
+        case 7:
+            if(!(projectile->projectile_eligible&255u))return 1;
+            if(reverse && (projectile->definition_flags&0x20u))*flags=1;
+            /* Original asymmetric source: kind2/kind7 reads78; reverse reads180. */
+            if((reverse?other->actor.extent_180:other->field_78)>1.5f || (projectile->owner_is_player&255u)){
+                *flags|=reverse?2:4;return 0;
+            }
+            return 1;
+        default:return 1;
+        }
+    }
+    return !(a->kind==3 && b->kind==4);
+}
+
 void rf_collision_pairs_discover(rf_collision_discovery_state *state,
     uint32_t (*call)(void *,uint32_t,uint32_t,uint32_t),void *context)
 {
