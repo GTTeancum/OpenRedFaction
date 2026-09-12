@@ -40,6 +40,12 @@ for i,want in enumerate(expected):assert pc[i*288:(i+1)*288]==want,('PC',i,[(j,p
 p=pefile.PE(str(root/'build/xbox/main.exe'));im=p.get_memory_mapped_image();ib=p.OPTIONAL_HEADER.ImageBase
 x=Uc(UC_ARCH_X86,UC_MODE_32);x.mem_map(ib,(len(im)+4095)//4096*4096);x.mem_write(ib,im);b=0x30000000;x.mem_map(b,0x20000);stack=b+0x1d000;stop=b+0x1e000
 entry=int(re.search(r'\s_rf_weapon_drop_sp\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+remove_entry=int(re.search(r'\s_rf_weapon_remove_owned\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+# cdecl remove(ctx, weapon) adapter executes compiled shared removal with no players.
+# Push backend, original weapon argument, inventory; call and clean our arguments.
+x.mem_write(b+0x8400,b'\x68'+w(b+0xa000)+b'\xff\x74\x24\x0c\x68'+w(b+0x1000)+b'\xb8'+w(remove_entry)+b'\xff\xd0\x83\xc4\x0c\xc3')
+x.mem_write(b+0xa100,w(0,0xffffffff))
+x.mem_write(b+0xa000,w(0,b+0xa100,b+0xa104,0,b+0x8000,b+0x8000,0))
 get=lambda a:struct.unpack('<I',x.mem_read(a,4))[0]
 case={};events=[];query=bytes(28);request=bytes(60);notification=bytes(20)
 def hook(m,a,n,unused):
@@ -51,7 +57,7 @@ def hook(m,a,n,unused):
  elif op==2:assert get(sp+8)==case['mapped_item'];result=int(case['remote'])
  elif op==3:events.append(2);result=case['replacement_item']
  elif op==4:
-  events.append(3);assert get(sp+8)==get(b);m.mem_write(b+0x1000+get(sp+8),b'\0')
+  events.append(3);assert get(sp+8)==get(b);return # Execute the adapter and native removal.
  elif op==5:
   events.append(4);query=bytes(m.mem_read(get(sp+8),12))+bytes(m.mem_read(get(sp+12),12))+w(get(b))
   m.mem_write(get(sp+16),w(case['hit_count'])+f(*case['hit_point'],*case['normal']));result=0xffffffff if case['allocation']==2 else 0
@@ -73,5 +79,5 @@ for i,(payload,want,r) in enumerate(zip(inputs,expected,reference['records'])):
  out+=bytes(x.mem_read(b+0x6000,32)) if get(b+0x5000) else bytes(32)
  out+=w(len(events),*events)+bytes((16-len(events))*4)+notification
  assert out==want,('NXDK',i,[(j,out[j:j+4].hex(),want[j:j+4].hex()) for j in range(0,288,4) if out[j:j+4]!=want[j:j+4]])
-report=dict(result='PASS',cases=len(expected)-2,resource_failure_cases=2,original_sha256=reference['original_sha256'],pc_sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),branches=reference['branches'],scope='Complete shared SP weapon drop vs original42ae10 oracle: exact current/inventory, RNG, query, creation quantity/point/basis, item state, callback ordering and notification. Supplied resource callbacks; no live item allocation or XEMU gameplay.')
+report=dict(result='PASS',cases=len(expected)-2,resource_failure_cases=2,original_sha256=reference['original_sha256'],pc_sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),nxdk_sha256=hashlib.sha256((root/'build/xbox/main.exe').read_bytes()).hexdigest(),branches=reference['branches'],scope='Complete shared SP weapon drop vs original42ae10 oracle: exact current/inventory, RNG, query, creation quantity/point/basis, item state, callback ordering and notification. Original4031a0 and shared PC/NXDK removal execute inside the drop with zero active players. Other resource callbacks supplied; no live item allocation or XEMU gameplay.')
 (root/'artifacts/weapon-drop-shared.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

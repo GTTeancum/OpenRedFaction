@@ -92,6 +92,18 @@ int rf_weapon_reserve(const rf_weapon_inventory *inventory,const rf_weapon_suppl
 int rf_weapon_choose_available(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],
     const int32_t preference[32],uint32_t defer_flag,int32_t *selected);
 
+typedef struct rf_weapon_remove_backend {
+    const uint32_t *players;const int32_t *count,*special_weapon;uint32_t capacity;
+    rf_weapon_inventory *(*inventory)(void *,uint32_t player);
+    void (*notify)(void *,uint32_t player);void *context;
+} rf_weapon_remove_backend;
+/*4031a0: invalid weapon indices are no-ops. Clear only owned[weapon], then
+ * scan active players via4a5b70; matching inventory and global85cce4 weapon
+ * call4a70e0. Count, special weapon and notified player are reread after
+ * callbacks. Owners remain alive, capacity bounds the mutable player list;
+ * errors retain preceding removal/notifications. Ammo/current stay untouched. */
+int rf_weapon_remove_owned(rf_weapon_inventory *,int32_t weapon,const rf_weapon_remove_backend *);
+
 typedef struct rf_weapon_drop_source {
     int32_t current;uint32_t flags_1a8,handle,notification_owner;
     float position[3],extent_7c4;

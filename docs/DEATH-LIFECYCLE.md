@@ -3049,3 +3049,33 @@ live XEMU gameplay. Report: artifacts/weapon-drop-shared.json.
 Next: bind real item allocation/list/registry ownership, model-pose/bounds,
 weapon-to-item/default-count tables and query/removal/notification callbacks,
 then compose remaining death-start stages with dying/finalization dispatch.
+
+
+## Inventory removal and composed weapon drop (2026-09-12)
+
+rf_weapon_remove_owned reconstructs4031a0. Invalid weapon indices are no-ops;
+valid indices clear only the selected ownership byte, leaving reserve/loaded
+ammo and current weapon unchanged. The active-player scan resolves each player
+through the4a5b70 backend, compares inventory identity and the special weapon
+at85cce4, then invokes the4a70e0 notification backend. Player count, special
+weapon and the notified player handle are reread at the original boundaries.
+The shared API bounds the borrowed player array and retains prior effects on
+capacity errors; callers must keep the inventory and callback owners alive.
+
+verify_weapon_remove.py passes1024 exact original/PC/compiled-NXDK comparisons,
+including287 notifications, callback-driven count/special-weapon/player-slot
+changes, invalid indices and empty lists. Original actor bytes are checked for
+unintended changes. Resolution and notification implementations remain supplied;
+this does not reconstruct4a70e0 or bind the live player registry.
+
+This supersedes the supplied-removal limitation in the preceding drop reports:
+the original full-drop oracle now executes4031a0, the PC fixture calls shared
+removal, and the NXDK fixture executes a cdecl adapter into compiled shared
+removal. These composed fixtures have zero active players. All1024 full-drop
+comparisons and two resource-error cases pass, including182 removal paths;
+active-player notification behavior is covered separately above. All19 CTests
+pass. Native evidence is instruction-harness execution, not live XEMU gameplay.
+Reports: artifacts/weapon-remove.json and artifacts/weapon-drop-shared.json.
+
+Next: recover4a70e0 and bind the player registry, real item ownership, pose,
+bounds and query backends before enabling complete live death dispatch.

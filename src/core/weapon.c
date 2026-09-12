@@ -303,3 +303,19 @@ int rf_weapon_drop_sp(rf_weapon_drop_source *s,rf_weapon_inventory *inventory,co
     }
     memcpy(item->position,item->base_position,12);return RF_OK;
 }
+
+int rf_weapon_remove_owned(rf_weapon_inventory *inventory,int32_t weapon,const rf_weapon_remove_backend *b)
+{
+    uint32_t i=0;int32_t count;rf_weapon_inventory *resolved;
+    if(weapon<0 || weapon>=64)return RF_OK;
+    if(!inventory || !b || !b->count || !b->special_weapon || !b->inventory || !b->notify ||
+       (b->capacity && !b->players))return RF_RANGE;
+    inventory->owned[weapon]=0;
+    while((count=*b->count)>0 && i<(uint32_t)count) {
+        if((uint32_t)count>b->capacity)return RF_RANGE;
+        resolved=b->inventory(b->context,b->players[i]);
+        if(resolved==inventory && weapon==*b->special_weapon)b->notify(b->context,b->players[i]);
+        ++i;
+    }
+    return RF_OK;
+}

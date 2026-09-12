@@ -11,7 +11,11 @@ static uint32_t wd_pose(void *context,rf_weapon_drop_pose *pose){wd_fixture *f=c
 static int32_t wd_map(void *context,int32_t weapon){wd_fixture *f=context;(void)weapon;wd_event(f,1);return f->input.mapped;}
 static uint32_t wd_remote(void *context,int32_t item){wd_fixture *f=context;(void)item;return f->input.remote;}
 static int32_t wd_resolve(void *context){wd_fixture *f=context;wd_event(f,2);return f->input.replacement;}
-static void wd_remove(void *context,int32_t weapon){wd_fixture *f=context;wd_event(f,3);if(weapon>=0 && weapon<64)f->input.inventory.owned[weapon]=0;}
+static rf_weapon_inventory *wd_no_player(void *context,uint32_t player){(void)context;(void)player;return NULL;}
+static void wd_no_notify(void *context,uint32_t player){(void)context;(void)player;}
+static void wd_remove(void *context,int32_t weapon)
+{wd_fixture *f=context;int32_t count=0,special=-1;rf_weapon_remove_backend b={NULL,&count,&special,0,wd_no_player,wd_no_notify,NULL};
+ wd_event(f,3);rf_weapon_remove_owned(&f->input.inventory,weapon,&b);}
 static int wd_query(void *context,const float start[3],const float delta[3],rf_entity_death_drop_hit *hit)
 {wd_fixture *f=context;wd_event(f,4);memcpy(f->query,start,12);memcpy(f->query+3,delta,12);f->query_current=f->input.source.current;*hit=f->input.hit;return f->input.allocation==2?RF_IO:RF_OK;}
 static rf_entity_death_drop_item *wd_create(void *context,const rf_weapon_drop_request *request)

@@ -1,8 +1,8 @@
 """Full original42ae10 SP weapon-drop oracle with explicit resource boundaries.
 
 Retains original RNG, quantity arithmetic, vector/basis construction, string
-matching and state writes. Model pose, item mapping/allocation, collision,
-inventory operation and notification are supplied and their order recorded.
+matching and state writes. Model pose, item mapping/allocation, collision and
+notification are supplied and their order recorded.
 """
 import hashlib,json,random,struct,sys
 from pathlib import Path
@@ -38,8 +38,7 @@ def hook(m,a,n,unused):
   assert string(get(sp+4))==replacement_name;events.append('remote_replacement');ret(case['replacement_item'])
  elif a==0x4031a0:
   assert get(sp+4)==b+0x2a0 and signed(get(sp+8))==case['current'];events.append('remove')
-  # Resource boundary models removal of the selected owned byte only.
-  m.mem_write(b+0x42c+case['current'],b'\0');ret()
+  # Observe only: execute the real inventory removal, with no active players.
  elif a==0x4df1c0:
   q=get(sp+4);out=get(sp+8);assert get(sp+12)==1
   assert get(q)==0 and bytes(m.mem_read(q+4,12))==bytes(12)
@@ -73,7 +72,7 @@ for n in range(1024):
   item_flags=rng.getrandbits(32),allocation=n%5!=0,bound_x=f32(rng.uniform(-2,2)))
  events=[];query=None;creation=None;notified=0
  u.mem_write(b,bytes(0x1c000));u.mem_write(b+0x2a4,w(current));u.mem_write(b+0x1a8,w(case['flags']));u.mem_write(b+0x2c,w(case['handle']));u.mem_write(b+0x144c,w(case['notification_owner']));u.mem_write(b+0x3c,f(*case['position']));u.mem_write(b+0x7c4,f(case['extent']));u.mem_write(b+0x42c,bytes([1])*64)
- u.mem_write(0x872118,w(case['excluded']));u.mem_write(0x64ecb9,b'\0');u.mem_write(0x20852f4,w(0));u.mem_write(tls+0x14,w(case['seed']))
+ u.mem_write(0x7c7634,w(0));u.mem_write(0x872118,w(case['excluded']));u.mem_write(0x64ecb9,b'\0');u.mem_write(0x20852f4,w(0));u.mem_write(tls+0x14,w(case['seed']))
  if current>=0:
   u.mem_write(0x85cd2c+current*0x550,w(0));u.mem_write(0x85cd90+current*0x550,w(default));u.mem_write(b+0x2ac,w(reserve));u.mem_write(b+0x32c+current*4,w(loaded))
  classname=remote_name if case['remote'] else 'rifle';u.mem_write(0x6430a0+2*80,w(len(classname),b+0x10000));u.mem_write(b+0x10000,classname.encode()+b'\0')
@@ -109,5 +108,5 @@ for n in range(1024):
  counts[kind]+=1;counts['removed']+=int(removed);counts['notifications']+=notified
  records.append(dict(input=case,events=events,query=query,creation=creation,result=bool(result),random=want_seed,current_after=signed(get(b+0x2a4)),item_after=dict(flags=get(item+0x2bc),position=vec(item+0x3c),base_position=vec(item+0xe4)) if result else None))
 report=dict(result='PASS',cases=len(records),branches=counts,original_sha256=digest,remote_name=remote_name,replacement_name=replacement_name,
- scope='Full original42ae10 single-player execution. Real504e40/504db0/57312d RNG and quantity conversion, vector/surface-basis arithmetic, string comparator and current-weapon writes. Supplied model-pose, mapping, inventory removal, collision, item creation, notification and bounds boundaries. No shared C/NXDK or live gameplay claim.',records=records)
+ scope='Full original42ae10 single-player execution. Real504e40/504db0/57312d RNG and quantity conversion, vector/surface-basis arithmetic, string comparator and current-weapon writes, plus real4031a0 with no active players. Supplied model-pose, mapping, collision, item creation, notification and bounds boundaries. No shared C/NXDK or live gameplay claim.',records=records)
 (root/'artifacts/weapon-drop-original.json').write_text(json.dumps(report,indent=2)+'\n');print({k:v for k,v in report.items() if k!='records'})
