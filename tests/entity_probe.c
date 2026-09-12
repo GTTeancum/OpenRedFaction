@@ -2,6 +2,7 @@
 #include "rf/collision.h"
 #include "rf/player.h"
 #include "rf/level.h"
+#include "rf/lightmap.h"
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -224,6 +225,18 @@ int main(int argc,char **argv)
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_delete_probe();
     }
     if(argc==2 && !strcmp(argv[1],"--corpse-surface-guards"))return corpse_surface_guards();
+    if(argc==2 && !strcmp(argv[1],"--lightmap-sample")) {
+        struct {uint32_t width,height,pitch,bytes,available;float uv[2];unsigned char pixels[512];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_lightmap_1555_view view={in.available?in.pixels:NULL,in.width,in.height,in.pitch,in.bytes};
+            uint32_t out[2]={0,0x12345678};
+            if(in.bytes>512)return 2;
+            out[0]=(uint32_t)rf_lightmap_sample_1555(&view,in.uv,out+1);
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--corpse-surface")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return corpse_surface_probe();
     }

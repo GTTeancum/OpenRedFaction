@@ -2308,3 +2308,32 @@ thin-face cases plus2 guards pass. This adds a verified scene-geometry backend
 but does not yet compose the authored model, actual tracked room, face color
 and effect pool in live actor dispatch. Dynamic geometry, lightmap sampling,
 effect lifetime/rendering and runtime-created tag ownership remain open.
+
+
+## Face lightmap texel sampling
+
+rf_lightmap_sample_1555 reconstructs4e5c60 after world-to-UV calculation
+and texture lock. It uses trunc(width*u), trunc(height*v), byte pitch and
+little-endian RGB555 extraction, with low three RGB bits zero and alpha255.
+The stored high bit is ignored. This is not RGB565 or full8-bit color.
+Exact binary32 scaling/truncation uses integer significand arithmetic to
+avoid host-double rounding moving a coordinate across a texel boundary.
+
+Unavailable pixel storage yields opaque white. This represents the original
+lock failure, while the future face adapter must also select white for a
+negative face lightmap index. Already-clamped UV1 is not changed to the last
+texel: original u==1 can sample row padding/the next row. The shared view
+permits that read only inside its supplied byte extent. Out-of-buffer reads,
+bad pitch and invalid UV reject with unchanged output as port guards.
+
+verify_lightmap_sample.py executes original4e5c60 with UV and bitmap-lock
+boundaries supplied; texture lookup, float-to-integer conversion, pitched
+fetch, color conversion and unlock ordering stay original.2021 valid cases
+match shared PC/NXDK, including296 unavailable/missing-lightmap white cases
+and319 in-buffer u==1 samples. Four port guards pass. Original unsafe reads
+are excluded rather than executed. Both builds and all19 CTests pass.
+
+The existing level lightmap loader still retains RGB-derived RGBA images.
+Original texture-format conversion/ownership and4e49d0 world-to-UV mapping
+must be recovered before this sampler can replace the face-color fixture.
+No authored color, live corpse effect, rendering or XEMU result is claimed.

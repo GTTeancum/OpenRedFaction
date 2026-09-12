@@ -11,4 +11,14 @@ typedef struct rf_lightmaps {
  * Close before reuse; failures leave the result empty. */
 int rf_lightmaps_open(rf_lightmaps *maps, const rf_level *level, uint32_t budget);
 void rf_lightmaps_close(rf_lightmaps *maps);
+typedef struct rf_lightmap_1555_view {
+    const unsigned char *pixels;uint32_t width,height,pitch,bytes;
+} rf_lightmap_1555_view;
+/*4e5c60 after UV calculation and bitmap lock. UVs are already clamped to[0,1].
+ * Truncate width*u and height*v, use byte pitch, decode RGB555 with low3 bits
+ * zero and alpha255. NULL pixels denotes unavailable lock and yields white.
+ * No last-texel clamp: u==1 can address row padding/the next row as original.
+ * Out-of-buffer addresses reject unchanged rather than reproducing overreads.
+ * Caller retains pixel storage. No allocation; output bytes are RGBA. */
+int rf_lightmap_sample_1555(const rf_lightmap_1555_view *view,const float uv[2],uint32_t *color);
 #endif

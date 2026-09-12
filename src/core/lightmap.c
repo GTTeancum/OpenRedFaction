@@ -1,6 +1,7 @@
 #include "rf/lightmap.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 static uint32_t u32(const unsigned char *p)
 { return p[0] | (uint32_t)p[1]<<8 | (uint32_t)p[2]<<16 | (uint32_t)p[3]<<24; }
 void rf_lightmaps_close(rf_lightmaps *maps)
@@ -68,4 +69,30 @@ int rf_lightmaps_open(rf_lightmaps *maps, const rf_level *level, uint32_t budget
 fail:
     rf_lightmaps_close(maps);
     return result;
+}
+
+/* Exact positive binary32 product/truncation, as the x87 caller before ftol.
+ * Integer arithmetic avoids a host-double rounding crossing a texel boundary. */
+static uint32_t lightmap_texel_index(uint32_t extent,float coordinate)
+{
+    uint32_t bits,exponent,shift;uint64_t product;
+    memcpy(&bits,&coordinate,4);exponent=(bits>>23)&255u;
+    if(!exponent)return 0;
+    shift=150u-exponent;product=(uint64_t)extent*((bits&0x7fffffu)|0x800000u);
+    return shift>=64?0:(uint32_t)(product>>shift);
+}
+int rf_lightmap_sample_1555(const rf_lightmap_1555_view *view,const float uv[2],uint32_t *color)
+{
+    uint64_t x,y,offset;uint32_t pixel,value;
+    if(!view || !uv || !color)return RF_RANGE;
+    if(!isfinite(uv[0]) || !isfinite(uv[1]) || uv[0]<0 || uv[0]>1 || uv[1]<0 || uv[1]>1)return RF_RANGE;
+    if(!view->pixels){*color=0xffffffffu;return RF_OK;}
+    if(!view->width || !view->height || view->width>INT32_MAX || view->height>INT32_MAX ||
+       view->pitch>INT32_MAX || (uint64_t)view->width*2>view->pitch)return RF_RANGE;
+    x=lightmap_texel_index(view->width,uv[0]);y=lightmap_texel_index(view->height,uv[1]);
+    offset=y*view->pitch+x*2;
+    if(offset+2>view->bytes)return RF_RANGE;
+    pixel=view->pixels[offset]|(uint32_t)view->pixels[offset+1]<<8;
+    value=((pixel>>7)&0xf8u)|(((pixel>>2)&0xf8u)<<8)|((pixel&31u)<<19)|0xff000000u;
+    *color=value;return RF_OK;
 }
