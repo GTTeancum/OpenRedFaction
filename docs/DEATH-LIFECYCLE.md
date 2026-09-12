@@ -1295,3 +1295,53 @@ Report: artifacts/death-finalizer-original.json. This establishes execution
 coverage beyond the earlier static export. It does not verify the supplied
 resource effects, all attachment mutation/reentrancy scenarios, arbitrary
 surface geometry, multiplayer branches, or a C/PC/NXDK finalizer implementation.
+
+
+## Shared ordinary-SP death finalizer
+
+rf_entity_finalize_sp now reconstructs full418f80 ordinary-SP orchestration in
+shared C. It marks source deletion, handles attached player/parent/child actors,
+detaches a resolved player, invokes the class death effect, gates and places a
+corpse, applies the optional drop and transfers or releases burn ownership.
+Resource operations remain explicit backend boundaries. No live scene binding
+or immediate source registry removal is introduced. The existing dying-update
+caller must keep the actor alive for its subsequent endgame lookup.
+
+The backend maps original counts/handles, typed actor resolution, action-name
+mapping, region flags, support probe/face area, resource effects and416940
+construction. A returned corpse uses its real shared deletion handle/burn
+fields. Backend calls reread flags and source burn after mutation. Child health
+is zeroed before the detach callback where required. Counts are queried again
+while iterating, retaining the original indexed-list traversal semantics.
+Callers must supply valid bounded lists whose traversal terminates.
+
+Static-hit alignment is implemented in C, including cross products, original
+zero-length normalization fallback, new forward/up vectors and a68-byte support
+record copy. A miss still permits an ordinary-SP corpse. Resolved-object hits,
+region flag2, disabled-corpse bit80 and missing action/replacement model retain
+the verified gates. The local death-name copy is bounded to63 bytes; excess
+length or nonfinite geometry/query arithmetic returns RF_RANGE. These are
+explicit port validation limits. Errors after earlier resource effects do not
+roll them back. The probe must fill its complete record when reporting a hit;
+unused initial stack bytes are normalized in the port, not treated as original
+semantic defaults.
+
+python tools/verify_death_finalizer.py passes1536 original/PC/NXDK cases with
+exact state and normalized resource-call traces. The original harness now adds
+512 varied surface-normal/basis cases, including a zero-cross-product fallback.
+All523 aligned cases agree byte-for-byte on resulting basis and support record.
+Across the full suite there are630 constructor calls,262 drops,362 burn
+transfers,662 releases,649 probes,53 resolved-object rejections,896 attached
+actor damage calls and512 class death effects. A region callback overwrites
+the authored action name after selection; construction still receives the
+pre-query name in all three implementations. Drop/retarget callbacks also
+mutate live flags/burn to verify post-callback reads.
+
+Both full Release PC and NXDK builds succeed; all17 CTests pass. Compiled Xbox
+SHA256:6b871e1bc0acc80887a00a776a016ddf8c8ad8309e541a889b81301db2173208.
+Report: artifacts/death-finalizer-verification.json. This proves orchestration
+with supplied resource backends, not their complete implementation. Actual
+model, emitter, geometry, attachment/explosion bindings and deferred deletion
+still need integration before enabling live finalization. Multiplayer branches,
+all list mutation/reentrancy scenarios and native XEMU gameplay remain outside
+this verification scope.

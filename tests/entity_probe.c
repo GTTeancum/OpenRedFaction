@@ -14,6 +14,7 @@
 #include "burn_resource_probe.h"
 #include "burn_retarget_probe.h"
 #include "dying_probe.h"
+#include "finalizer_probe.h"
 #include "corpse_update_probe.h"
 #include "corpse_delete_probe.h"
 #include "corpse_create_probe.h"
@@ -243,6 +244,9 @@ int main(int argc,char **argv)
             rf_player_detach_sp(&s.link,(uint8_t *)&s.activity_word);fwrite(&s,sizeof(s),1,stdout);
         }
         return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--finalize-sp")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return finalizer_probe_main();
     }
     if(argc==2 && !strcmp(argv[1],"--dying-update")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return dying_probe_main();

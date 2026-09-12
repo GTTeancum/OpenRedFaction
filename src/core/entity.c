@@ -1002,6 +1002,85 @@ int rf_entity_dying_update(rf_entity_dying_state *s,const rf_entity_dying_backen
     return RF_OK;
 }
 
+static void finalize_cross(const float a[3],const float b[3],float result[3])
+{
+    result[0]=(float)((double)a[1]*b[2]-(double)a[2]*b[1]);
+    result[1]=(float)((double)a[2]*b[0]-(double)a[0]*b[2]);
+    result[2]=(float)((double)a[0]*b[1]-(double)a[1]*b[0]);
+}
+int rf_entity_finalize_sp(rf_entity_finalize_state *s,const rf_entity_finalize_backend *b)
+{
+    uint32_t i,h,token,transferred=0,allow=0;rf_entity_finalize_link *link;rf_corpse *corpse;
+    rf_entity_finalize_hit hit={0};char name[64]={0};const char *selected;float start[3],end[3],basis[9];double length,area;
+    if(!s || !b || !b->call || !b->actor || !b->action_name || !b->region_flags || !b->probe || !b->face_area || !b->create)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(s->position[i]))return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(s->basis[i]))return RF_RANGE;
+    s->object_flags|=2;
+    if(s->class_kind==1)for(i=0;(int32_t)i<(int32_t)b->call(b->context,RF_FINAL_PLAYER_COUNT,0,0);++i) {
+        h=b->call(b->context,RF_FINAL_PLAYER_HANDLE,i,0);link=b->actor(b->context,h);
+        if(link && link->parent==s->handle)b->call(b->context,RF_FINAL_DAMAGE_CHILD,link->handle,0);
+    }
+    if(s->flags_7d0&0x100000u) {
+        link=b->actor(b->context,s->parent);if(link)b->call(b->context,RF_FINAL_DAMAGE_PARENT,link->handle,0);
+    }
+    if(b->actor(b->context,s->parent))b->call(b->context,RF_FINAL_DETACH_PARENT,s->handle,0);
+    for(i=0;(int32_t)i<(int32_t)b->call(b->context,RF_FINAL_CHILD_COUNT,0,0);++i) {
+        h=b->call(b->context,RF_FINAL_CHILD_HANDLE,i,0);link=b->actor(b->context,h);
+        if(link && (link->flags_7d0&0x100000u))link->health=0;
+        h=b->call(b->context,RF_FINAL_CHILD_HANDLE,i,0);b->call(b->context,RF_FINAL_DETACH_CHILD,h,1);
+    }
+    token=b->call(b->context,RF_FINAL_PLAYER_LOOKUP,s->handle,0);
+    if(token)b->call(b->context,RF_FINAL_PLAYER_DETACH,token,0);
+    if(s->death_effect!=-1){s->action=-1;b->call(b->context,RF_FINAL_EXPLODE,s->handle,0);}
+    if(!(s->flags_810&0x80u) && (s->action!=-1 || (s->replacement_model && *s->replacement_model))) {
+        if(s->action!=-1) {
+            selected=b->action_name(b->context,s->action);
+            if(selected) {for(i=0;i<sizeof(name) && selected[i];++i)name[i]=selected[i];if(i==sizeof(name))return RF_RANGE;}
+        }
+        if(!(b->region_flags(b->context,s->position)&2u)) {
+            if(s->movement_kind==10)allow=1;
+            else {
+                memcpy(start,s->position,12);memcpy(end,s->position,12);
+                start[1]=(float)((double)start[1]+.5);end[1]=(float)((double)end[1]-1.5);
+                if(!isfinite(start[1]) || !isfinite(end[1]))return RF_RANGE;
+                hit.fraction=1;hit.handle=UINT32_MAX;hit.word_38=0;b->probe(b->context,start,end,&hit);
+                if(!isfinite(hit.fraction))return RF_RANGE;
+                if(hit.fraction>=1)allow=1;
+                else if(!b->call(b->context,RF_FINAL_OBJECT_LOOKUP,hit.handle,0)) {
+                    allow=1;if(!isfinite(hit.normal[1]))return RF_RANGE;
+                    if(hit.normal[1]>.5f && hit.face) {
+                        area=b->face_area(b->context,hit.face);if(!isfinite(area))return RF_RANGE;
+                        if(area>1) {
+                            for(i=0;i<3;++i)if(!isfinite(hit.normal[i]))return RF_RANGE;
+                            finalize_cross(hit.normal,s->basis+6,basis);
+                            length=sqrt(((double)basis[0]*basis[0]+(double)basis[1]*basis[1])+(double)basis[2]*basis[2]);
+                            if(!isfinite(length))return RF_RANGE;
+                            if(length<=0){basis[0]=1;basis[1]=basis[2]=0;}
+                            else {length=1.0/length;for(i=0;i<3;++i)basis[i]=(float)(length*basis[i]);}
+                            finalize_cross(basis,hit.normal,basis+6);finalize_cross(basis+6,basis,basis+3);
+                            for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_RANGE;
+                            memcpy(s->basis,basis,sizeof(basis));s->support=hit;
+                        }
+                    }
+                }
+            }
+        }
+        if(allow) {
+            corpse=b->create(b->context,s,name);
+            if(corpse && (s->flags_810&0x4000000u)) {
+                b->call(b->context,RF_FINAL_DROP,corpse->deletion.handle,0);s->flags_810&=~0x200u;
+            }
+            if(s->burn && corpse) {
+                b->call(b->context,RF_FINAL_RETARGET_BURN,s->burn,corpse->deletion.handle);
+                corpse->deletion.burn=s->burn;transferred=1;
+            }
+        }
+    }
+    b->call(b->context,RF_FINAL_TAIL_PREDICATE,s->handle,0);
+    if(!transferred && s->burn){b->call(b->context,RF_FINAL_RELEASE_BURN,s->burn,0);s->burn=0;}
+    return RF_OK;
+}
+
 int rf_entity_death_select(const rf_entity_death_selection *state,
     uint32_t (*clearance)(void *context,uint32_t direction),void *context,
     rf_random_state *random,int32_t *result)

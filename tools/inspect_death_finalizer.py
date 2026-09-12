@@ -43,6 +43,7 @@ def hook(cpu,address,size,data):
   assert arg(0)==actor and read(actor+0x824)==0xffffffff;trace.append(('explosion',))
  elif address==0x45cd20:
   assert arg(0)==actor+0x3c;trace.append(('region',));ret=region if in_region else 0
+  if mutate:cpu.mem_write(names+0x200,b'overridden\0')
  elif address==0x499ed0:
   assert arg(2)==actor+0x88
   endpoints=bytes(cpu.mem_read(arg(0),12))+bytes(cpu.mem_read(arg(1),12))
@@ -69,12 +70,19 @@ def hook(cpu,address,size,data):
  cpu.reg_write(UC_X86_REG_EAX,ret);cpu.reg_write(UC_X86_REG_EIP,read(sp));cpu.reg_write(UC_X86_REG_ESP,sp+4+pop)
 u.hook_add(UC_HOOK_CODE,hook)
 rng=random.Random(0x418f80);totals=dict(create=0,drop=0,retarget=0,release=0,aligned=0,blocked_object=0,probe=0,damage=0,explosion=0)
-for case in range(1024):
+for case in range(1536):
  # Product coverage varies both the early gates and later placement/resource branches.
  kind=(0,1)[case&1];special=bool(case&2);has_parent=bool(case&4);has_player=bool(case&8);explosion=bool(case&16)
  skip=bool(case&32);action=(-1,0,1)[(case//3)%3];replacement=bool(case&64);in_region=bool(case&128);mode=10 if case%5==0 else 0
  hit=(case%4)!=0;resolved=bool(case&256);normal_y=(.5,.5001,1.0)[case%3];face=bool(case&512);area=(1.0,1.0001,4.0)[(case//5)%3]
  fail_create=case%7==0;burn=0x99 if case%3 else 0;drop=bool(case&1);mutate=bool(case&4)
+ normal=(0,normal_y,0);initial_basis=(1,0,0,0,1,0,0,0,1)
+ if case>=1024:
+  kind=0;explosion=False;skip=False;action=0;in_region=False;mode=0;hit=True;resolved=False;face=True;area=2.0
+  normal_y=struct.unpack('<f',f(rng.uniform(.51,1.2)))[0]
+  normal=tuple(struct.unpack('<3f',f(rng.uniform(-1,1),normal_y,rng.uniform(-1,1))))
+  initial_basis=tuple(struct.unpack('<9f',f(*[rng.uniform(-1,1) for _ in range(9)])))
+  if case==1024:normal=(0,1,0);normal_y=1;initial_basis=(1,0,0,0,0,-1,0,1,0)
  trace.clear();captured.clear();allocated.clear();cursor=heap
  u.mem_write(actor,bytes(0x1500));u.mem_write(cls,bytes(0x1500));u.mem_write(corpse,b'\xa5'*0x300)
  put(actor+0x24,0);put(actor+0x2c,100);put(actor+0x294,cls);put(cls+0x1b4,kind)
@@ -82,7 +90,7 @@ for case in range(1024):
  flags=(0x80 if skip else 0)|(0x4000000 if drop else 0)|0x201;put(actor+0x810,flags)
  put(actor+0x7d0,0x100000 if special else 0);put(actor+0x200,101 if has_parent else -1)
  put(actor+0x824,action);put(cls+0x6f8,42 if explosion else -1);put(actor+0x13d8,burn)
- u.mem_write(actor+0x3c,f(2,4,6));u.mem_write(actor+0x48,f(1,0,0,0,1,0,0,0,1));u.mem_write(actor+0x1b4,b'\xa5'*68)
+ u.mem_write(actor+0x3c,f(2,4,6));u.mem_write(actor+0x48,f(*initial_basis));u.mem_write(actor+0x1b4,b'\xa5'*68)
  put(actor+0x858,records+0x200);put(records+0x204,mode)
  u.mem_write(names,b'corpse.v3d\0');put(cls+0x18,10 if replacement else -1,names if replacement else 0x62f3d0)
  put(cls+0x760,names+0x100);u.mem_write(names+0x200,b'death_test\0');put(names+0x100,10,names+0x200)
@@ -99,7 +107,7 @@ for case in range(1024):
  put(0x7c7634,1);put(0x7c75e4,records+0x300);put(records+0x314,102)
  u.mem_write(player,bytes(0x1300));put(player+0x14,100);u.mem_write(player+0xfb0,b'\x01\xa5\xa5\xa5')
  put(region+8,2);u.mem_write(0x64ecb9,b'\0');u.mem_write(0x6fc4d8,b'\0')
- query_payload=f(2,3,6,0,normal_y,0,0.5 if hit else 1)+w(0x111,0x222)+f(7,8,9)+w(201 if resolved else -1,0x333,0x444,0x1234 if face else 0,0x555)
+ query_payload=f(2,3,6,*normal,0.5 if hit else 1)+w(0x111,0x222)+f(7,8,9)+w(201 if resolved else -1,0x333,0x444,0x1234 if face else 0,0x555)
  assert len(query_payload)==68
  original=bytes(u.mem_read(actor,0x1500));u.mem_write(0,w(0));u.mem_write(stack,w(stop,actor));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_FPCW,0x27f)
  u.emu_start(0x418f80,stop,count=1000000)
@@ -128,7 +136,7 @@ for case in range(1024):
  if special and has_parent:assert damages[-1]==('damage',101,0x447a0000,0xffffffff,0xffffffff,0xffffffff,0,0xffffffff,0)
  assert ('child_detach',102,0 if special else 0x42280000) in trace
  assert bytes(u.mem_read(actor+0x1b4,68))==(query_payload if aligned else b'\xa5'*68)
- if aligned:assert bytes(u.mem_read(actor+0x48,36))==f(1,0,0,0,normal_y,0,0,0,normal_y)
+ if aligned and case<1024:assert bytes(u.mem_read(actor+0x48,36))==f(1,0,0,0,normal_y,0,0,0,normal_y)
  if not aligned:assert bytes(u.mem_read(actor+0x48,36))==original[0x48:0x6c]
  if created:
   death_name='death_test' if not explosion and action==0 else ''
@@ -142,5 +150,5 @@ for case in range(1024):
  if success and burn:assert names_called.index('retarget')<names_called.index('tail_predicate') and names_called[-1]=='tail_predicate'
  if not success and burn:assert names_called[-2:]==['tail_predicate','release']
  if 'observe_case' in globals():observe_case(globals())
-report=dict(result='PASS',cases=1024,totals=totals,original_sha256=sha,scope=__doc__)
+report=dict(result='PASS',cases=1536,totals=totals,original_sha256=sha,scope=__doc__)
 (root/'artifacts/death-finalizer-original.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))

@@ -626,6 +626,56 @@ typedef struct rf_entity_dying_backend {
  * rollback after effects; underlying effects and live dispatch are separate. */
 int rf_entity_dying_update(rf_entity_dying_state *state,const rf_entity_dying_backend *backend);
 
+/* Original68-byte support query record consumed/copied by418f80. Pointer
+ * fields are backend tokens; unused words retain the query backend's bytes. */
+typedef struct rf_entity_finalize_hit {
+    float point[3],normal[3],fraction;uint32_t word_1c,word_20;
+    float vector_24[3];uint32_t handle,word_34,word_38,face,word_40;
+} rf_entity_finalize_hit;
+typedef struct rf_entity_finalize_link {
+    uint32_t handle,parent,flags_7d0;float health;
+} rf_entity_finalize_link;
+typedef struct rf_entity_finalize_state {
+    uint32_t handle,object_flags,flags_7d0,flags_810,parent;
+    int32_t action,death_effect;uint32_t burn,movement_kind,class_kind;
+    const char *replacement_model;float position[3],basis[9];
+    rf_entity_finalize_hit support;
+} rf_entity_finalize_state;
+enum rf_entity_finalize_call {
+    RF_FINAL_PLAYER_COUNT,RF_FINAL_PLAYER_HANDLE,RF_FINAL_CHILD_COUNT,RF_FINAL_CHILD_HANDLE,
+    RF_FINAL_DAMAGE_CHILD,RF_FINAL_DAMAGE_PARENT,RF_FINAL_DETACH_PARENT,RF_FINAL_DETACH_CHILD,
+    RF_FINAL_PLAYER_LOOKUP,RF_FINAL_PLAYER_DETACH,RF_FINAL_EXPLODE,RF_FINAL_DROP,
+    RF_FINAL_RETARGET_BURN,RF_FINAL_RELEASE_BURN,RF_FINAL_TAIL_PREDICATE,RF_FINAL_OBJECT_LOOKUP
+};
+typedef struct rf_entity_finalize_backend {
+    uint32_t (*call)(void *context,uint32_t operation,uint32_t first,uint32_t second);
+    rf_entity_finalize_link *(*actor)(void *context,uint32_t handle);
+    const char *(*action_name)(void *context,int32_t action);
+    uint32_t (*region_flags)(void *context,const float position[3]);
+    void (*probe)(void *context,const float start[3],const float end[3],rf_entity_finalize_hit *hit);
+    double (*face_area)(void *context,uint32_t face);
+    rf_corpse *(*create)(void *context,rf_entity_finalize_state *source,const char *death_name);
+    void *context;
+} rf_entity_finalize_backend;
+/* Full418f80 ordinary-SP orchestration, with external resource/query effects.
+ * PLAYER/CHILD_COUNT and HANDLE read live lists (handle first=index); actor
+ * resolves typed actors or NULL. Counts fit signed32 and traversal terminates.
+ * DAMAGE_CHILD(handle,0) is4892c0 amount10000/kind3; DAMAGE_PARENT amount1000/
+ * kind-1 (other args -1,-1,0,-1,0). DETACH_PARENT(source,0)=4279d0;
+ * DETACH_CHILD(handle,1)=427380 on source. PLAYER_LOOKUP(handle,0)=4a3740,
+ * DETACH(token,0)=4a6d50; EXPLODE(source,0)=419420; DROP(corpse handle,0)=4174f0;
+ * RETARGET_BURN(burn,handle)=42f510; RELEASE_BURN(burn,0)=42ed20;
+ * TAIL_PREDICATE(source,0)=42a8e0; OBJECT_LOOKUP(handle,0)=40a0e0 presence.
+ * create binds416940(source,name,position,basis,0,0); NULL is allocation failure.
+ * action_name resolves action mapping to a string (NULL for absent); copied
+ * to bounded63-byte storage before query callbacks. Probe binds499ed0 using
+ * source physics; it fills the complete hit record when returning a hit.
+ * Live owners remain valid; effects may mutate flags/action/burn, reread at
+ * original boundaries. Geometry/class/name storage stays stable. No immediate
+ * source deletion. Finite geometry/query math required; errors after effects
+ * do not roll back. Network modes, live binding and backends remain separate. */
+int rf_entity_finalize_sp(rf_entity_finalize_state *state,const rf_entity_finalize_backend *backend);
+
 typedef struct rf_entity_death_selection {
     uint32_t flags_810;
     int32_t damage_138c,damage_1390,action_824,motions[45];
