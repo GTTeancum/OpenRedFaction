@@ -31,3 +31,19 @@ int rf_object_registry_remove(rf_object_registry *r,uint32_t handle)
     r->free_slots[(r->head+r->count)%RF_OBJECT_CAPACITY]=slot;++r->count;
     return RF_OK;
 }
+
+void rf_object_list_init(rf_object_list *list)
+{
+    list->sentinel.next=list->sentinel.previous=&list->sentinel;list->count=list->peak=0;
+}
+void rf_object_list_append(rf_object_list *list,rf_object_link *node)
+{
+    ++list->count;if((int32_t)list->count>(int32_t)list->peak)list->peak=list->count;
+    node->previous=list->sentinel.previous;node->next=&list->sentinel;
+    list->sentinel.previous->next=node;list->sentinel.previous=node;
+}
+void rf_object_list_remove(rf_object_list *list,rf_object_link *node)
+{
+    rf_object_link *previous=node->previous,*next=node->next;
+    node->next=node->previous=NULL;previous->next=next;next->previous=previous;--list->count;
+}

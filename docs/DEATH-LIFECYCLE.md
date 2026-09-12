@@ -5410,3 +5410,32 @@ registered weapons are initially absent while full inventory ownership is
 open. Do not claim this establishes original global discovery order.
 Factory/list insertion order and live weapon facts must be connected before
 using scene registration order as original creation/discovery scheduling.
+
+
+### Original global object-list ownership (2026-09-12)
+
+Original487100 allocates/constructs each object family, clears268/27c and
+performs48a160(0), then4872eb increments global73a850 and updates peak73db0c
+with a signed comparison.487305..487321 appends the object at the tail of
+73d880: object14=old tail, object10=sentinel, old tail10=object, tail=object.
+Thus48c9a0 next10 traversal follows successful allocation order, not reverse
+order or handle-slot order.4867bc..4867e1 clears both removed links, repairs
+neighbors and decrements the count before destructor dispatch and slot return.
+
+rf_object_list retains those rules with caller-owned8-byte links and a16-byte
+list/sentinel/count/peak owner on x86. Initialization is explicit; append needs
+a detached node and removal a linked live node. No allocation, room mutation,
+registry insertion or destructor is folded into the list operations.
+
+verify_object_list.py compares actual original4872eb..487321 and
+4867bc..4867e1 instruction regions without hooks against PC/NXDK across8192
+operations:4088 appends,4072 removals and32 counter-boundary seeds. Every
+link and counter matches after each operation, and independent forward
+traversal matches allocation order through removal/reappend. Signed peak
+comparison and32-bit count wrap are included. Both builds and19 CTests pass.
+Report:artifacts/object-list.json. These are instruction-region comparisons,
+not complete factory/destructor executions or native XEMU gameplay.
+
+The insertion mechanism is now established. Level-loader factory call order
+and scene ownership binding remain open; the current serialized NPC registry
+setup is not by itself evidence of original cross-family allocation order.

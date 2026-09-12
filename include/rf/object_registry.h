@@ -2,6 +2,19 @@
 #define RF_OBJECT_REGISTRY_H
 #include "rf/vpp.h"
 #define RF_OBJECT_CAPACITY 1024u
+/* Original object10/14 intrusive links and73d880 sentinel. Stable caller-
+ * owned nodes; initialized list, detached append nodes, and linked remove
+ * nodes required. No allocation, identity lookup or destructor dispatch. */
+typedef struct rf_object_link {struct rf_object_link *next,*previous;} rf_object_link;
+typedef struct rf_object_list {rf_object_link sentinel;uint32_t count,peak;} rf_object_list;
+void rf_object_list_init(rf_object_list *list);
+/*4872eb..487321: tail append after successful allocation/room initialization;
+ * peak uses original signed comparison, counters wrap at32 bits. */
+void rf_object_list_append(rf_object_list *list,rf_object_link *node);
+/*4867bc..4867e1: clear removed links, reconnect neighbors, decrement count.
+ * Must precede object destruction and handle-slot release. */
+void rf_object_list_remove(rf_object_list *list,rf_object_link *node);
+
 typedef struct rf_object_slot { void *object;uint32_t handle; } rf_object_slot;
 typedef struct rf_object_registry {
     rf_object_slot slots[RF_OBJECT_CAPACITY];
