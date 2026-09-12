@@ -5299,3 +5299,27 @@ Both builds and19 CTests pass. This validates scene composition/publication
 across platforms; original49afe0 numeric/branch verification is the earlier
 independent helper gate. No automatic NPC blocking or projectile gameplay is
 claimed until these responses are selected by the live pair scheduler.
+
+
+### Registered actor pair dispatch (2026-09-12)
+
+Scene rf_scene_actor_pairs_process now routes caller-owned actor pair records
+through reconstructed48ca60 into registered player/NPC normal49ab00,
+general49a420 and model49afe0 contact publication. Original active-body gates,
+movement-mode selection and flag2/4 endpoint reversal remain in the core.
+The adapter validates registered identities and a bounded list before dispatch;
+no pair allocation or discovery occurs. Earlier successful contact publication
+remains if a later response fails; the output hit count is preserved on error.
+
+PC Release build and19 CTests pass. Stock64MiB XEMU replay
+artifacts/xemu/replay-20260912-080456/report.json passes180 frames against PC:
+pair_dispatch=[27,1,2,24,0] (calls,normal,general,model,errors);
+actor_model_test=[24,12,12,569176833,0,3]. The model cases exercise player/NPC
+callers, both pair orders, three axes, hits and misses; normal/general cases
+compare published response fields with the previously verified core routines.
+XBE SHA256:01bee4a97b489208341fd5584993313217470325bb552ddb44aa129a2b959069.
+
+These are opt-in staged fixtures with saved scene state restored afterward,
+not automatic gameplay collision scheduling. Global pair discovery/pool
+ownership, trigger/projectile/solid bindings, stale-pose demand evaluation,
+and velocity/position response scheduling remain open.

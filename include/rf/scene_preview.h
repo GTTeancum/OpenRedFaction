@@ -121,6 +121,13 @@ int rf_scene_model_collision_query(uint32_t model_slot,rf_collision_model_part_q
  * only after successful queries; preserves changed on failure. Evaluated pose
  * required. No projectile views, pair scheduling or velocity stepping. */
 int rf_scene_actor_model_response(uint32_t first,uint32_t target,uint32_t *changed);
+/* Run48ca60 over a bounded caller-owned list of pair records. Endpoints are
+ * registered player/NPC entity-view pointers. No allocation or pair discovery.
+ * Normal/general/model response publication is supported; NPC model targets
+ * only. Earlier successful responses remain if a later backend call fails.
+ * Pair flags and active-body gates retain original meaning; hits counts calls
+ * returning nonzero and is preserved on error. Lists remain actor-only. */
+int rf_scene_actor_pairs_process(rf_collision_pair_list *pairs,uint32_t *hits);
 /*503400 ->501cd0(kind2)->51c390 on the currently published model pose.
  * Zero exact non-looping weights without releasing references or removing
  * slots. Resolves actor or transferred-corpse ownership; no allocation. */

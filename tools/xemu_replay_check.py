@@ -278,6 +278,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert actor_model==expected('ACTOR_MODEL_TEST'),actor_model
      if args.actor_pairs:assert actor_model[0]==24 and actor_model[1]>0 and actor_model[2]>=12 and actor_model[4:]==[0,3],actor_model
      report['actor_model_test']=actor_model
+     pair_dispatch=words(monitor,symbol('rf_scene_pair_dispatch'),5)
+     assert pair_dispatch==expected('PAIR_DISPATCH'),pair_dispatch
+     if args.actor_pairs:assert pair_dispatch==[27,1,2,24,0],pair_dispatch
+     report['pair_dispatch']=pair_dispatch
      collision_views=words(monitor,symbol('rf_scene_collision_views'),8)
      assert collision_views==expected('COLLISION_VIEWS'),collision_views
      assert collision_views[0]==frames and collision_views[3]==frames*npc_bodies[1],collision_views

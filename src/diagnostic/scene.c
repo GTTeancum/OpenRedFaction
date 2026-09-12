@@ -3369,6 +3369,62 @@ int rf_scene_actor_model_response(uint32_t first,uint32_t target,uint32_t *chang
     status=rf_scene_npc_collision_publish(target,actors[1].actor.body_flags,&actors[1].actor.contact);if(status)return status;
     *changed=value;return RF_OK;
 }
+typedef struct scene_pair_process_context {
+    const void *identities[2];rf_collision_pair_actor_state views[2],empty;uint32_t next,hits;int status;
+} scene_pair_process_context;
+uint32_t rf_scene_pair_dispatch[5]; /* calls, normal, general, model, errors */
+static int scene_pair_view(const void *identity,rf_collision_pair_actor_state *view)
+{
+    uint32_t i;
+    if(campaign_spawn && campaign_player_object.view && identity==campaign_player_object.view)
+        return rf_scene_player_collision_view(campaign_player_object.handle,view);
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && identity==campaign_npc_bodies[i].registration.view)
+        return rf_scene_npc_collision_view(campaign_npc_bodies[i].registration.handle,view);
+    return RF_NOT_FOUND;
+}
+static const rf_collision_pair_actor_state *scene_pair_actor(void *context,const void *identity)
+{
+    scene_pair_process_context *c=context;uint32_t slot;
+    if(c->status)return &c->empty;
+    slot=c->identities[0]==identity?0:c->identities[1]==identity?1:c->next;
+    c->status=scene_pair_view(identity,c->views+slot);if(c->status)return &c->empty;
+    c->identities[slot]=identity;c->next=slot^1u;return c->views+slot;
+}
+static uint32_t scene_pair_response(void *context,uint32_t operation,const void *first,const void *second)
+{
+    scene_pair_process_context *c=context;rf_collision_pair_actor_state a,b;uint32_t changed=0;
+    if(c->status)return 0;
+    c->status=scene_pair_view(first,&a);if(!c->status)c->status=scene_pair_view(second,&b);if(c->status)return 0;
+    if(operation==RF_PAIR_RESPONSE_MODEL)c->status=rf_scene_actor_model_response(a.handle,b.handle,&changed);
+    else if(operation==RF_PAIR_RESPONSE_MODES1 || operation==RF_PAIR_RESPONSE_GENERAL)
+        c->status=rf_scene_actor_pair_response(a.handle,b.handle,operation==RF_PAIR_RESPONSE_MODES1,&changed);
+    else c->status=RF_NOT_FOUND;
+    ++rf_scene_pair_dispatch[0];
+    if(c->status){++rf_scene_pair_dispatch[4];return 0;}
+    ++rf_scene_pair_dispatch[operation==RF_PAIR_RESPONSE_MODES1?1:operation==RF_PAIR_RESPONSE_GENERAL?2:3];
+    c->hits+=changed!=0;return changed;
+}
+int rf_scene_actor_pairs_process(rf_collision_pair_list *pairs,uint32_t *hits)
+{
+    scene_pair_process_context context={0};rf_collision_pair_list available={0};rf_collision_pair *node;
+    rf_collision_pair_process_backend backend={scene_pair_actor,scene_pair_response,&context};uint32_t i;int status;
+    if(!pairs || !hits || pairs->count>8192)return RF_RANGE;
+    /* Validate the bounded actor-only list before publishing any response.
+     * Identities are registered entity-view pointers; never dereference an
+     * unvalidated identity. Actor-only pairs cannot expire or enter triggers. */
+    node=pairs->head;
+    for(i=0;i<pairs->count;++i) {
+        rf_collision_pair_actor_state a,b;
+        if(!node || node->first==node->second)return RF_RANGE;
+        status=scene_pair_view(node->first,&a);if(!status)status=scene_pair_view(node->second,&b);if(status)return status;
+        node=node->next;
+    }
+    if(node)return RF_RANGE;
+    rf_collision_pairs_process(pairs,&available,&backend);
+    if(context.status)return context.status;
+    if(available.count)return RF_FORMAT;
+    *hits=context.hits;return RF_OK;
+}
 uint32_t rf_scene_collision_responses[6]; /* frames, player hash, NPC hash/count, status, last frame */
 uint32_t rf_scene_actor_pair_test_enabled,rf_scene_actor_pair_test[8];
 static int campaign_actor_pair_fixture(uint32_t frame)
@@ -3450,7 +3506,15 @@ static int campaign_actor_model_fixture(uint32_t frame)
                 if(miss){body->state.position[(axis+1)%3]+=100;body->state.next_position[(axis+1)%3]+=100;}
             }
         }
-        status=rf_scene_actor_model_response(handles[first],handles[0],&changed);if(status)goto done;
+        {
+            rf_collision_pair_record record={0};rf_collision_pair_list list={&record.pair,1};
+            const void *source=first==2?(const void *)campaign_player_object.view:(const void *)campaign_npc_bodies[slots[1]].registration.view;
+            const void *target=campaign_npc_bodies[slots[0]].registration.view;
+            bodies[first]->state.flags|=0x40000000u;
+            record.pair.first=direction?target:source;record.pair.second=direction?source:target;record.flags=direction?2:4;
+            status=rf_scene_actor_pairs_process(&list,&changed);if(status)goto done;
+            if(list.count!=1 || list.head!=&record.pair || record.pair.next){status=RF_FORMAT;goto done;}
+        }
         status=first==2?rf_scene_player_collision_response(handles[first],actual):rf_scene_npc_collision_response(handles[first],actual);if(status)goto done;
         status=rf_scene_npc_collision_response(handles[0],actual+1);if(status)goto done;
         if(miss && changed){status=RF_FORMAT;goto done;}
@@ -3462,6 +3526,42 @@ static int campaign_actor_model_fixture(uint32_t frame)
  done:
     for(i=0;i<3;++i){*bodies[i]=saved[i];*extras[i]=saved_extra[i];++rf_scene_actor_model_test[5];}
     rf_scene_actor_model_test[4]=(uint32_t)status;return status;
+}
+static int campaign_pair_dispatch_fixture(uint32_t frame)
+{
+    uint32_t slot,i,mode,saved_modes[16],hits;rf_physics_body saved[2];rf_collision_contact_extra extra[2];int status=RF_OK;
+    rf_physics_body *body[2];rf_collision_contact_extra *contact[2];const void *identity[2];uint32_t handles[2];rf_physics_sphere spheres[2]={{0}};
+    if(frame || !rf_scene_actor_pair_test_enabled)return RF_OK;
+    for(slot=0;slot<campaign_npc_body_count;++slot)if(campaign_npc_bodies[slot].registration.view)break;
+    if(slot==campaign_npc_body_count)return RF_NOT_FOUND;
+    body[0]=&scene_actor_body;body[1]=&campaign_npc_bodies[slot].body;contact[0]=&campaign_player_contact;contact[1]=&campaign_npc_bodies[slot].collision_contact;
+    identity[0]=campaign_player_object.view;identity[1]=campaign_npc_bodies[slot].registration.view;handles[0]=campaign_player_object.handle;handles[1]=campaign_npc_bodies[slot].registration.handle;
+    for(i=0;i<2;++i){saved[i]=*body[i];extra[i]=*contact[i];spheres[i].radius=1;}
+    for(i=0;i<16;++i)saved_modes[i]=campaign_modes[i].index;
+    for(mode=0;mode<3;++mode) {
+        rf_collision_actor_general_response expected[2],actual;uint32_t changed;
+        rf_collision_pair_record record={0};rf_collision_pair_list list={&record.pair,1};
+        for(i=0;i<16;++i)campaign_modes[i].index=mode==1?1:2;
+        for(i=0;i<2;++i) {
+            uint32_t k;*body[i]=saved[i];memset(&body[i]->state,0,sizeof(body[i]->state));memset(contact[i],0,sizeof(*contact[i]));
+            body[i]->spheres.items=spheres+i;body[i]->spheres.count=1;body[i]->state.mass=2+i;body[i]->state.scalar_144=1;body[i]->state.bounds.radius=1;
+            body[i]->state.flags=i?0:0x40000000u;body[i]->state.position[2]=i?2.5f:0;body[i]->state.next_position[2]=i?-1.5f:0;
+            for(k=0;k<3;++k){body[i]->state.bounds.minimum[k]=-10;body[i]->state.bounds.maximum[k]=10;body[i]->state.orientation[k*4]=body[i]->state.next_orientation[k*4]=1;}
+            status=i?rf_scene_npc_collision_response(handles[i],expected+i):rf_scene_player_collision_response(handles[i],expected+i);if(status)goto done;
+        }
+        changed=mode==1?rf_collision_actors_normal_response(&expected[0].actor,&expected[1].actor,rf_scene_collision_extra_velocity,NULL):
+            rf_collision_actors_general_response(expected,expected+1,rf_scene_collision_extra_velocity,NULL);
+        record.pair.first=identity[0];record.pair.second=identity[1];record.flags=mode?0x20:0;
+        status=rf_scene_actor_pairs_process(&list,&hits);if(status)goto done;
+        if(hits!=(changed!=0)){status=RF_FORMAT;goto done;}
+        for(i=0;i<2;++i) {
+            status=i?rf_scene_npc_collision_response(handles[i],&actual):rf_scene_player_collision_response(handles[i],&actual);if(status)goto done;
+            if(memcmp(&actual,expected+i,sizeof(actual))){status=RF_FORMAT;goto done;}
+        }
+    }
+ done:
+    for(i=0;i<2;++i){*body[i]=saved[i];*contact[i]=extra[i];}
+    for(i=0;i<16;++i)campaign_modes[i].index=saved_modes[i];return status;
 }
 static uint32_t collision_response_hash(uint32_t hash,const rf_collision_actor_general_response *view,const float *extra_velocity)
 {
@@ -3487,8 +3587,10 @@ static uint32_t collision_view_hash(uint32_t hash,const rf_collision_pair_actor_
 static int campaign_collision_views_check(uint32_t frame)
 {
     rf_collision_pair_actor_state view;rf_collision_actor_general_response response;const float *extra;uint32_t i,models=0;int status;
+    if(!frame)memset(rf_scene_pair_dispatch,0,sizeof(rf_scene_pair_dispatch));
     status=campaign_actor_pair_fixture(frame);if(status)return status;
     status=campaign_actor_model_fixture(frame);if(status)return status;
+    status=campaign_pair_dispatch_fixture(frame);if(status)return status;
     if(!frame){memset(rf_scene_collision_views,0,sizeof(rf_scene_collision_views));rf_scene_collision_views[1]=rf_scene_collision_views[2]=2166136261u;}
     if(!frame){memset(rf_scene_collision_responses,0,sizeof(rf_scene_collision_responses));rf_scene_collision_responses[1]=rf_scene_collision_responses[2]=2166136261u;}
     status=rf_scene_player_collision_view(campaign_player_object.handle,&view);if(status)goto done;
