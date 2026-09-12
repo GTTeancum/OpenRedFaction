@@ -18,6 +18,11 @@ typedef struct rf_particle_bitmap {
 int rf_particle_bitmap_open(rf_particle_bitmap *bitmap,const rf_particle_definition *definition,
     rf_vpp *archives,uint32_t archive_count,uint32_t frame,uint32_t budget);
 void rf_particle_bitmap_close(rf_particle_bitmap *bitmap);
+/* Blood-pool asset selected by original42db58 (string595ef8). Uses the
+ * existing bitmap owner and archive precedence; frame0, caller budget.
+ * Release with rf_particle_bitmap_close. Does not bind a GPU texture. */
+int rf_corpse_surface_texture_open(rf_particle_bitmap *bitmap,rf_vpp *archives,
+    uint32_t archive_count,uint32_t budget);
 typedef struct rf_particle_animation {
     rf_image *images;
     uint32_t count,rate,archive_index,resident_bytes;

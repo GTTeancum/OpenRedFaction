@@ -72,6 +72,18 @@ int main(int argc, char **argv)
         printf("\n");rf_particle_animation_close(&animation);rf_particle_animation_close(&animation);
         return memcmp(&animation,&empty,sizeof(animation))?3:0;
     }
+    if(argc>=4 && argc<=19 && !strcmp(argv[1],"--corpse-texture")) {
+        rf_particle_bitmap bitmap={0},empty={0};uint32_t budget=(uint32_t)strtoul(argv[2],NULL,10),hash=2166136261u;
+        count=(uint32_t)argc-3;
+        for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+3]))return 1;
+        result=rf_corpse_surface_texture_open(&bitmap,archives,count,budget);
+        for(i=0;i<count;++i)rf_vpp_close(archives+i);
+        if(result){if(memcmp(&bitmap,&empty,sizeof(bitmap)))return 3;printf("%d %u\n",result,(unsigned)sizeof(bitmap));return 0;}
+        for(i=0;i<bitmap.image.bytes;++i)hash=(hash^bitmap.image.rgba[i])*16777619u;
+        printf("0 %u %u %u %u %u %u %u %u %u\n",(unsigned)sizeof(bitmap),bitmap.frames,bitmap.rate,
+            bitmap.image.width,bitmap.image.height,bitmap.resident_bytes,bitmap.archive_index,hash,bitmap.image.source_format);
+        rf_particle_bitmap_close(&bitmap);rf_particle_bitmap_close(&bitmap);return memcmp(&bitmap,&empty,sizeof(bitmap))?3:0;
+    }
     if(argc>=6 && argc<=21 && !strcmp(argv[1],"--particle")) {
         rf_particle_definition definition={0};rf_particle_bitmap bitmap={0},empty={0};
         uint32_t frame=(uint32_t)strtoul(argv[3],NULL,10),budget=(uint32_t)strtoul(argv[4],NULL,10),hash=2166136261u;

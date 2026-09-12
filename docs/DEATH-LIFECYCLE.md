@@ -2580,3 +2580,25 @@ to fixture nodes; NXDK uses identical synthetic addresses. Effect payload
 and active ring links survive unchanged. Both builds and19 CTests pass.
 Instance transform handling, live campaign collection, texture ownership and
 deferred draw dispatch remain open. No new XEMU output is claimed.
+
+## Authored blood-pool texture binding
+
+rf_corpse_surface_texture_open selects somenewblood_A.tga from original
+42db58/595ef8 and delegates frame0 loading to the existing bitmap owner.
+There is no second pixel allocation or new texture-cache implementation.
+Caller archive order and budget remain explicit; release uses existing
+rf_particle_bitmap_close. This is port resource ownership, not a recreated
+original bitmap handle. GPU binding and scene lifetime remain separate.
+
+The installed maps_en.vpp entry is a64x64 uncompressed32-bit TGA with
+16384 decoded RGBA bytes and source format7. Accounted owner plus pixels
+is16420 bytes on the32-bit PC/NXDK targets, excluding allocator metadata
+and fixed decoder stack. Alpha spans0..255.
+
+verify_corpse_surface_texture.py independently decodes file orientation and
+BGRA channels, then compares the retained pixel FNV1a checksum380274036.
+Five PC cases cover success, exact-budget success, one-byte-short cleanup,
+missing asset and archive index/order. The probe closes archives before
+pixel inspection and repeats close. Both builds and19 CTests pass.
+Native GPU upload, live scene residency and composed blood-pool drawing
+remain open; this change does not add a new screenshot.

@@ -86,6 +86,12 @@ int rf_particle_bitmap_open(rf_particle_bitmap *bitmap,const rf_particle_definit
     }
     return RF_NOT_FOUND;
 }
+int rf_corpse_surface_texture_open(rf_particle_bitmap *bitmap,rf_vpp *archives,
+    uint32_t archive_count,uint32_t budget)
+{
+    static const rf_particle_definition definition={.bitmap="somenewblood_A.tga"};
+    return rf_particle_bitmap_open(bitmap,&definition,archives,archive_count,0,budget);
+}
 char rf_material_failure_name[61];
 uint32_t rf_material_failure[3]; /* status, archive index, entry size */
 void rf_materials_close(rf_materials *m)
