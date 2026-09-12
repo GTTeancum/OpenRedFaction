@@ -3247,6 +3247,56 @@ int rf_scene_actor_pair_response(uint32_t first,uint32_t second,uint32_t normal_
     *changed=value;return RF_OK;
 }
 uint32_t rf_scene_collision_responses[6]; /* frames, player hash, NPC hash/count, status, last frame */
+uint32_t rf_scene_actor_pair_test_enabled,rf_scene_actor_pair_test[8];
+static int campaign_actor_pair_fixture(uint32_t frame)
+{
+    rf_physics_body *bodies[3],saved[3];rf_collision_contact_extra *extras[3],saved_extra[3];
+    rf_physics_sphere spheres[3]={{0}};uint32_t handles[3],found=0,i,route,normal,scenario;int status=RF_OK;
+    if(frame)return RF_OK;memset(rf_scene_actor_pair_test,0,sizeof(rf_scene_actor_pair_test));
+    if(!rf_scene_actor_pair_test_enabled)return RF_OK;
+    for(i=0;i<campaign_npc_body_count && found<2;++i)if(campaign_npc_bodies[i].registration.view) {
+        bodies[found]=&campaign_npc_bodies[i].body;extras[found]=&campaign_npc_bodies[i].collision_contact;
+        handles[found++]=campaign_npc_bodies[i].registration.handle;
+    }
+    if(found!=2){rf_scene_actor_pair_test[5]=(uint32_t)RF_NOT_FOUND;return RF_NOT_FOUND;}
+    bodies[2]=&scene_actor_body;extras[2]=&campaign_player_contact;handles[2]=campaign_player_object.handle;
+    for(i=0;i<3;++i){saved[i]=*bodies[i];saved_extra[i]=*extras[i];spheres[i].radius=1;}
+    rf_scene_actor_pair_test[4]=2166136261u;
+    for(route=0;route<3;++route)for(normal=0;normal<2;++normal)for(scenario=0;scenario<3;++scenario) {
+        uint32_t ids[2]={route==1?2:0,route==2?2:1},changed,expected_changed;
+        rf_collision_actor_general_response expected[2],actual;
+        for(i=0;i<2;++i) {
+            uint32_t id=ids[i],k;rf_physics_body *body=bodies[id];
+            *body=saved[id];memset(&body->state,0,sizeof(body->state));memset(extras[id],0x35,sizeof(*extras[id]));
+            body->spheres.items=spheres+id;body->spheres.count=1;
+            body->state.mass=2+i;body->state.bounds.radius=1;body->state.scalar_144=(scenario==2 && i==1)?0:1;
+            body->state.flags=(scenario==2 && i==0)?0x40000000:0;
+            for(k=0;k<3;++k){body->state.bounds.minimum[k]=-10;body->state.bounds.maximum[k]=10;body->state.orientation[k*4]=body->state.next_orientation[k*4]=1;}
+            body->state.position[2]=i?2.5f:0;body->state.next_position[2]=i?-1.5f:0;
+            if(scenario==1 && i==1)body->state.bounds.minimum[0]=10;
+            status=id==2?rf_scene_player_collision_response(handles[id],expected+i):rf_scene_npc_collision_response(handles[id],expected+i);if(status)goto done;
+        }
+        expected_changed=normal?rf_collision_actors_normal_response(&expected[0].actor,&expected[1].actor,rf_scene_collision_extra_velocity,NULL):
+            rf_collision_actors_general_response(expected,expected+1,rf_scene_collision_extra_velocity,NULL);
+        status=rf_scene_actor_pair_response(handles[ids[0]],handles[ids[1]],normal,&changed);if(status)goto done;
+        if(changed!=expected_changed){status=RF_FORMAT;goto done;}
+        for(i=0;i<2;++i) {
+            status=ids[i]==2?rf_scene_player_collision_response(handles[ids[i]],&actual):rf_scene_npc_collision_response(handles[ids[i]],&actual);if(status)goto done;
+            if(memcmp(&actual,expected+i,sizeof(actual))){status=RF_FORMAT;goto done;}
+            rf_scene_actor_pair_test[4]=npc_hash_bytes(rf_scene_actor_pair_test[4],&actual.actor.contact,68);
+            rf_scene_actor_pair_test[4]=npc_hash_bytes(rf_scene_actor_pair_test[4],&actual.actor.body_flags,4);
+        }
+        if((scenario==0 && changed!=1) || (scenario==1 && changed!=0)){status=RF_FORMAT;goto done;}
+        if(scenario==2 && !normal) {
+            if(changed || bodies[ids[0]]->state.flags!=0x60000000 || bodies[ids[0]]->state.scalar_144!=0){status=RF_FORMAT;goto done;}
+            ++rf_scene_actor_pair_test[3];
+        }
+        ++rf_scene_actor_pair_test[0];++rf_scene_actor_pair_test[changed?1:2];
+    }
+done:
+    for(i=0;i<3;++i){*bodies[i]=saved[i];*extras[i]=saved_extra[i];++rf_scene_actor_pair_test[6];}
+    rf_scene_actor_pair_test[5]=(uint32_t)status;rf_scene_actor_pair_test[7]=frame;return status;
+}
 static uint32_t collision_response_hash(uint32_t hash,const rf_collision_actor_general_response *view,const float *extra_velocity)
 {
     uint32_t words[57],i;
@@ -3271,6 +3321,7 @@ static uint32_t collision_view_hash(uint32_t hash,const rf_collision_pair_actor_
 static int campaign_collision_views_check(uint32_t frame)
 {
     rf_collision_pair_actor_state view;rf_collision_actor_general_response response;const float *extra;uint32_t i,models=0;int status;
+    status=campaign_actor_pair_fixture(frame);if(status)return status;
     if(!frame){memset(rf_scene_collision_views,0,sizeof(rf_scene_collision_views));rf_scene_collision_views[1]=rf_scene_collision_views[2]=2166136261u;}
     if(!frame){memset(rf_scene_collision_responses,0,sizeof(rf_scene_collision_responses));rf_scene_collision_responses[1]=rf_scene_collision_responses[2]=2166136261u;}
     status=rf_scene_player_collision_view(campaign_player_object.handle,&view);if(status)goto done;

@@ -4,7 +4,7 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');args=p.parse_args()
 if args.death_animation and args.damage_uid is None:p.error('--death-animation requires --damage-uid')
 if args.damage_uid is not None and not 0<=args.damage_uid<0xffffffff:p.error('--damage-uid requires an unsigned actor UID')
 if args.force_uid is not None and (not args.level or args.climb or args.door or args.lift or not 0<=args.force_uid<=0xffffffff):p.error('--force-uid requires --level and no other staging')
@@ -26,6 +26,8 @@ for key in ('RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_R
 replay_env.update(RF_REPLAY_LEVEL=args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),RF_REPLAY_ARCHIVE=args.archive)
 if args.damage_uid is not None:replay_env['RF_REPLAY_DAMAGE_UID']=str(args.damage_uid)
 if args.death_animation:replay_env['RF_REPLAY_DEATH_ANIMATION']='1'
+replay_env.pop('RF_REPLAY_ACTOR_PAIRS',None)
+if args.actor_pairs:replay_env['RF_REPLAY_ACTOR_PAIRS']='1'
 if args.force_uid is not None:replay_env['RF_REPLAY_FORCE_UID']=str(args.force_uid)
 if args.lift:replay_env['RF_REPLAY_LIFT_START']='1'
 if args.door:replay_env['RF_REPLAY_DOOR_START']='1'
@@ -65,6 +67,7 @@ selection_file=root/'build/xbox/disc/campaign-level.bin';saved_selection=selecti
 force_file=root/'build/xbox/disc/campaign-force.bin';saved_force=force_file.read_bytes() if force_file.exists() else None
 damage_file=root/'build/xbox/disc/campaign-damage.bin';saved_damage=damage_file.read_bytes() if damage_file.exists() else None
 death_flag=root/'build/xbox/disc/campaign-death-animation.flag';saved_death=death_flag.read_bytes() if death_flag.exists() else None
+pair_flag=root/'build/xbox/disc/campaign-actor-pairs.flag';saved_pair=pair_flag.read_bytes() if pair_flag.exists() else None
 step_file=root/'build/xbox/disc/particle-step-fixtures.bin';saved_steps=step_file.read_bytes() if step_file.exists() else None
 process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),'archive':args.archive,'frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True)
@@ -79,6 +82,8 @@ try:
   report['archive_sha256']=archive_sha
  if args.level:selection_file.write_bytes(args.archive.encode().ljust(64,b'\0')+args.level.encode().ljust(64,b'\0'))
  else:selection_file.unlink(missing_ok=True)
+ if args.actor_pairs:pair_flag.write_bytes(b'1')
+ else:pair_flag.unlink(missing_ok=True)
  if args.death_animation:death_flag.write_bytes(b'1')
  else:death_flag.unlink(missing_ok=True)
  if args.damage_uid is None:damage_file.unlink(missing_ok=True)
@@ -270,6 +275,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert collision_responses[0]==frames and collision_responses[3]==frames*npc_bodies[1],collision_responses
      assert collision_responses[4]==0 and collision_responses[5]==frames-1,collision_responses
      report['collision_responses']=collision_responses
+     actor_pairs=words(monitor,symbol('rf_scene_actor_pair_test'),8)
+     assert actor_pairs==expected('ACTOR_PAIR_TEST'),actor_pairs
+     if args.actor_pairs:assert actor_pairs[:4]==[18,9,9,3] and actor_pairs[5:]==[0,3,0],actor_pairs
+     else:assert actor_pairs==[0]*8,actor_pairs
+     report['actor_pair_test']=actor_pairs
      npc_damage_owners=words(monitor,symbol('rf_scene_npc_damage_owners'),3)
      assert npc_damage_owners==expected('NPC_DAMAGE_OWNERS'),npc_damage_owners
      report['npc_damage_owners']=npc_damage_owners
@@ -511,6 +521,8 @@ finally:
  except Exception as capture_error:
   report['result']='FAIL';report['capture_error']=repr(capture_error)
  try:
+  if saved_pair is None:pair_flag.unlink(missing_ok=True)
+  else:pair_flag.write_bytes(saved_pair)
   if saved_death is None:death_flag.unlink(missing_ok=True)
   else:death_flag.write_bytes(saved_death)
   if saved_damage is None:damage_file.unlink(missing_ok=True)

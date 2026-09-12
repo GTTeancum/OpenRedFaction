@@ -846,6 +846,8 @@ int main(void)
             FILE *damage_file=fopen("D:\\campaign-damage.bin","rb");
             FILE *death_flag=fopen("D:\\campaign-death-animation.flag","rb");
             rf_scene_death_animation_test_enabled=death_flag!=NULL;if(death_flag)fclose(death_flag);
+            FILE *pair_flag=fopen("D:\\campaign-actor-pairs.flag","rb");
+            rf_scene_actor_pair_test_enabled=pair_flag!=NULL;if(pair_flag)fclose(pair_flag);
             rf_scene_npc_damage_test_uid=UINT32_MAX;
             if(damage_file) {
                 if(fread(&rf_scene_npc_damage_test_uid,4,1,damage_file)!=1 || fgetc(damage_file)!=EOF) {

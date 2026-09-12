@@ -4524,3 +4524,26 @@ Stale second handles, self-pairs, invalid mode and NULL result preserve
 retained bodies/contact extensions and the result. PC/NXDK builds and all19
 CTests pass. No new XEMU execution is claimed for this adapter; native
 publication and automatic48ca60 dispatch remain open.
+
+## Native registered pair publication fixture
+
+Opt-in --actor-pairs in xemu_replay_check enables RF_REPLAY_ACTOR_PAIRS on
+the headless PC run and campaign-actor-pairs.flag on Xbox. The script restores
+the prior flag afterwards. Frame0 selects two registered NPCs and the current
+player, saves their complete bodies and contact extensions, temporarily
+installs simple sphere trajectories, runs18 normal/general contact, bounds
+rejection and deferral cases in all three actor pair orders, and compares
+published response snapshots with direct shared response results. All three
+owners are restored on success or failure. No scheduler, impulse or damage
+behavior is introduced by this test; scratch is stack-local, no allocation.
+
+PC/NXDK builds,19 CTests and180-frame stock64MiB XEMU replay pass:
+artifacts/xemu/replay-20260912-055255/report.json. ACTOR_PAIR_TEST is
+[18,9,9,3,3110799993,0,3,0], including three general zero-return deferrals
+that publish flags60000000/time0. Native and PC contact/flag hashes match.
+After restoration, collision response summary remains
+[180,2734201536,2048788949,14040,0,179]. Final body, door, death-animation
+and action-audio summaries match replay054555. This proves bound contact
+publication under explicit test inputs, not automatic gameplay collision
+scheduling. Connecting48ca60 dispatch and subsequent impulse/damage handling
+remains required. No new visual capture was warranted.

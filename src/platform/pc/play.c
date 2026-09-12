@@ -231,6 +231,7 @@ int main(int argc,char **argv)
         CHECK(rf_scene_stage_lift(&level));
     }
     rf_scene_death_animation_test_enabled=spawn_profile && p.headless && getenv("RF_REPLAY_DEATH_ANIMATION");
+    rf_scene_actor_pair_test_enabled=spawn_profile && p.headless && getenv("RF_REPLAY_ACTOR_PAIRS");
     if(spawn_profile && p.headless && getenv("RF_REPLAY_DAMAGE_UID")) {
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_DAMAGE_UID"),&end,10);
         if(*end)CHECK(RF_RANGE);rf_scene_npc_damage_test_uid=(uint32_t)uid;
@@ -309,6 +310,7 @@ int main(int argc,char **argv)
             printf("NPC_DAMAGE_OWNERS");for(uint32_t k=0;k<3;++k)printf(" %u",rf_scene_npc_damage_owners[k]);puts("");
             printf("COLLISION_VIEWS");for(uint32_t k=0;k<8;++k)printf(" %u",rf_scene_collision_views[k]);puts("");
             printf("COLLISION_RESPONSES");for(uint32_t k=0;k<6;++k)printf(" %u",rf_scene_collision_responses[k]);puts("");
+            printf("ACTOR_PAIR_TEST");for(uint32_t k=0;k<8;++k)printf(" %u",rf_scene_actor_pair_test[k]);puts("");
             printf("NPC_DEATH_OWNERS");for(uint32_t k=0;k<3;++k)printf(" %u",rf_scene_npc_death_owners[k]);puts("");
             printf("NPC_PAIN_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_owners[k]);puts("");
             printf("NPC_PAIN_SOUND_OWNERS");for(uint32_t k=0;k<4;++k)printf(" %u",rf_scene_npc_pain_sound_owners[k]);puts("");

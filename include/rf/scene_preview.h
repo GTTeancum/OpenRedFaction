@@ -109,6 +109,7 @@ const float *rf_scene_collision_extra_velocity(void *context,uint32_t handle);
 int rf_scene_actor_pair_response(uint32_t first,uint32_t second,uint32_t normal_mode,uint32_t *changed);
 extern uint32_t rf_scene_collision_views[8]; /* Pointer-free live actor snapshot replay evidence. */
 extern uint32_t rf_scene_collision_responses[6]; /* Live body/contact snapshot replay evidence. */
+extern uint32_t rf_scene_actor_pair_test_enabled,rf_scene_actor_pair_test[8]; /* Opt-in restored-state publication fixture. */
 
 /*503400 ->501cd0(kind2)->51c390 on the currently published model pose.
  * Zero exact non-looping weights without releasing references or removing
