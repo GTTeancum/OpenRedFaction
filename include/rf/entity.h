@@ -958,4 +958,10 @@ typedef struct rf_entity_navigation_candidate {
 int rf_entity_navigation_single(const float position[3],float radius,float height,
     uint32_t mode,rf_entity_navigation_candidate *candidate,uint32_t *classification);
 
+/*509100 segment projection used by navigation pair scoring. Returns the
+ * clamped distance along the segment, not a0..1 fraction. Finite inputs and
+ * finite intermediate geometry required; errors preserve both outputs. */
+int rf_entity_navigation_closest_point(const float point[3],const float start[3],
+    const float end[3],float closest[3],float *distance_along);
+
 #endif

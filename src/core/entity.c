@@ -1457,3 +1457,23 @@ int rf_entity_navigation_single(const float position[3],float radius,float heigh
     }
     *classification=result;return RF_OK;
 }
+
+int rf_entity_navigation_closest_point(const float point[3],const float start[3],
+    const float end[3],float closest[3],float *distance_along)
+{
+    float delta[3],direction[3],relative[3],value[3];volatile float length,inverse,along,scaled;uint32_t i;
+    if(!point || !start || !end || !closest || !distance_along)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(point[i]) || !isfinite(start[i]) || !isfinite(end[i]))return RF_FORMAT;
+        delta[i]=(float)((double)end[i]-start[i]);if(!isfinite(delta[i]))return RF_FORMAT;
+    }
+    length=(float)sqrt(((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2]);
+    if(!isfinite(length))return RF_FORMAT;
+    if(length==0){memcpy(closest,start,12);*distance_along=0;return RF_OK;}
+    inverse=(float)(1.0/length);if(!isfinite(inverse))return RF_FORMAT;
+    for(i=0;i<3;++i){direction[i]=(float)((double)delta[i]*inverse);relative[i]=(float)((double)point[i]-start[i]);if(!isfinite(relative[i]))return RF_FORMAT;}
+    along=(float)(((double)relative[2]*direction[2]+(double)relative[1]*direction[1])+(double)relative[0]*direction[0]);
+    if(!isfinite(along))return RF_FORMAT;if(along<0)along=0;if(along>length)along=length;
+    for(i=0;i<3;++i){scaled=(float)((double)direction[i]*along);value[i]=(float)((double)start[i]+scaled);if(!isfinite(value[i]))return RF_FORMAT;}
+    memcpy(closest,value,12);*distance_along=along;return RF_OK;
+}

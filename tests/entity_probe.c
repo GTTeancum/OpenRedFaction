@@ -369,6 +369,15 @@ int main(int argc,char **argv)
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);return dying_probe_main();
     }
     if(argc==2 && !strcmp(argv[1],"--pain"))return pain_probe();
+    if(argc==2 && !strcmp(argv[1],"--navigation-closest")) {
+        float wire[9],output[4];int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            memset(output,0xa5,sizeof(output));status=rf_entity_navigation_closest_point(wire,wire+3,wire+6,output,output+3);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(output,sizeof(output),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--navigation-single")) {
         struct {float position[3],radius,height;uint32_t mode;rf_entity_navigation_candidate candidate;} wire;
         uint32_t result;int32_t status;
