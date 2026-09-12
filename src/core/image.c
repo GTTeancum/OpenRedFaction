@@ -4,10 +4,15 @@
 #ifdef RF_IMAGE_XBOX_NATIVE
 #include <xboxkrnl/xboxkrnl.h>
 #endif
+int rf_image_is_packed_1555(const rf_image *image)
+{
+    return image && image->width && image->height && image->source_format==5 &&
+        (uint64_t)image->width*image->height*2==image->bytes;
+}
 int rf_image_allocate_pixels(rf_image *image)
 {
     if(!image || image->rgba || !image->width || !image->height || image->width>4096 || image->height>4096 ||
-       (uint64_t)image->width*image->height*4!=image->bytes)return RF_RANGE;
+       ((uint64_t)image->width*image->height*4!=image->bytes && !rf_image_is_packed_1555(image)))return RF_RANGE;
 #ifdef RF_IMAGE_XBOX_NATIVE
     if((image->width&(image->width-1)) || (image->height&(image->height-1)))return RF_FORMAT;
     image->rgba=MmAllocateContiguousMemoryEx(image->bytes,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
@@ -27,7 +32,7 @@ unsigned char *rf_image_pixel(const rf_image *image,uint32_t x,uint32_t y)
 #else
     uint32_t index=y*image->width+x;
 #endif
-    return image->rgba+index*4;
+    return image->rgba+index*(rf_image_is_packed_1555(image)?2u:4u);
 }
 uint32_t rf_image_tga_format(uint32_t bits)
 {

@@ -104,6 +104,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   assert corpse[3]>0 and corpse[5]<corpse[3] and corpse[6]>=corpse[3],corpse[:8]
   assert all(rgb==(32,64,96) for rgb in corpse_rgb[:256])
   assert corpse_rgb[256:512]!=corpse_rgb[512:768] and corpse_rgb[512:768]==corpse_rgb[768:1024]
+  packed_address=int(re.search(r'\s_rf_packed_lightmap_diagnostic\s+([0-9a-fA-F]+)',mapping)[1],16)
+  packed=words(monitor,packed_address,66)
+  packed_pc=[tuple(map(int,line.split())) for line in subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe'),'--packed-lightmap'],text=True).splitlines()]
+  packed_rgb=[((p>>16)&255,(p>>8)&255,p&255) for p in packed[2:]]
+  assert packed[:2]==[0x52464c35,2] and len(packed_pc)==64
+  errors=[abs(a-b) for rgb,ref in zip(packed_rgb,packed_pc) for a,b in zip(rgb,ref)]
+  report['packed_lightmap']=dict(max_channel_error=max(errors),actual_rgb=packed_rgb,pc_rgb=packed_pc)
+  assert max(errors)<=2,report['packed_lightmap']
+  assert all(rgb==(32,64,96) for rgb in packed_rgb[32:])
+  assert packed_rgb[0]!=packed_rgb[31]
   report['result']='PASS'
 finally:
  if monitor:

@@ -19,7 +19,11 @@ static void sample(const rf_image *image, float s, float t, int clamp, float col
     for (b = 0; b < 2; ++b) for (a = 0; a < 2; ++a) {
         float weight = (a ? fx : 1-fx)*(b ? fy : 1-fy);
         unsigned pixel = (unsigned)(address(iy+b, (int)image->height, clamp)*(int)image->width + address(ix+a, (int)image->width, clamp));
-        for (c = 0; c < 4; ++c) color[c] += weight*image->rgba[pixel*4+c]/255.0f;
+        if(rf_image_is_packed_1555(image)) {
+            uint32_t packed=image->rgba[pixel*2]|(uint32_t)image->rgba[pixel*2+1]<<8;
+            color[0]+=weight*((packed>>10)&31)/31.0f;color[1]+=weight*((packed>>5)&31)/31.0f;
+            color[2]+=weight*(packed&31)/31.0f;color[3]+=weight*((packed>>15)&1);
+        } else for (c = 0; c < 4; ++c) color[c] += weight*image->rgba[pixel*4+c]/255.0f;
     }
 }
 
@@ -114,7 +118,7 @@ int rf_pc_raster_particle(rf_pc_raster *r,const rf_particle_draw_vertex *vertice
        !isfinite(depth_scale) || !isfinite(depth_bias))return RF_RANGE;
     if((base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) && base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20)) && !solid) || depth_mode>1)return RF_NOT_FOUND;
     if(!solid && ((image->width&(image->width-1)) || (image->height&(image->height-1)) ||
-       (uint64_t)image->width*image->height*4>image->bytes))return RF_FORMAT;
+       (uint64_t)image->width*image->height*(rf_image_is_packed_1555(image)?2u:4u)>image->bytes))return RF_FORMAT;
     glow=base_mode==(RF_PARTICLE_GLOW_MODE&~(31u<<20));
     if(solid && (fog_enabled&255u))return RF_NOT_FOUND;
     for(i=0;i<count;i++) {

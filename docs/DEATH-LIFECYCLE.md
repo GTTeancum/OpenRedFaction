@@ -2728,3 +2728,32 @@ Applying RGB brightening independently while keeping the doubled shader,
 or expanding GPU textures with CPU sampling rules, would change fidelity.
 No live lighting change is made by this audit; it records the concrete
 representation migration still required before binding campaign effects.
+
+## Native1555 image storage and renderer sampling
+
+rf_image now supports packed1555 when source_format is5 and bytes equals
+width*height*2. The descriptor ABI is unchanged. Existing decoded TGA/VBM
+images remain RGBA8 because their allocation is four bytes per pixel.
+rf_image_is_packed_1555 exposes the distinction. Allocation and logical pixel
+addressing use two bytes only for that explicit combination; Xbox keeps
+its existing Morton swizzle and physically contiguous allocation.
+
+The Xbox upload path selects native SZ_A1R5G5B5 and checks transparency
+using bit15. PC raster sampling decodes each RGB component as channel/31
+and alpha as bit15 before bilinear filtering. This intentionally differs
+from the original CPU lightmap sample expansion channel*8. World/particle
+sampling share this decoder. A remaining RGBA-only PC particle size guard
+was found in the first harness run and updated before the successful rerun.
+
+Shared packed_lightmap_fixture uses a32x2 native1555 image containing every
+5-bit channel value and both alpha states. XEMU run
+particle-pixels-20260912-010000 passes all64 sampled pixels against PC with
+maximum per-channel difference1; transparent-row samples preserve background.
+QMP confirms67108864 base bytes and0 plugged memory. Existing particle,
+animation, stretch, flash and blood-pool probes also pass. Both builds and
+19 CTests pass. XBE SHA256:
+f9b18dd0aa9602c70dd3b0130114b301f08739c9ceffc5380e3c754efcfed79c
+
+Campaign lightmap loading still uses the previous RGBA path. Migration and
+shared swizzle-aware CPU lightmap sampling are the next integration steps;
+this format test does not claim a campaign memory saving already achieved.

@@ -9,6 +9,7 @@
 #include <math.h>
 #include <windows.h>
 #include "../../../tests/corpse_surface_fixture.h"
+#include "../../../tests/packed_lightmap_fixture.h"
 
 /* Millisecond presentation phases after the first 16 stream submissions.
  * Each row contains calls, elapsed low/high, maximum. Read-only QMP evidence. */
@@ -31,7 +32,7 @@ static uint32_t field(uint32_t mask, uint32_t value)
 typedef struct gpu_texture { uint32_t *pixels, format,transparent; } gpu_texture;
 static int upload(gpu_texture *out, const rf_image *image, int fallback)
 {
-    uint32_t x, y, u = 0, v = 0;
+    uint32_t x, y, u = 0, v = 0;int packed=rf_image_is_packed_1555(image);
     if (!image->width || !image->height || (image->width & (image->width-1)) || (image->height & (image->height-1))) return RF_FORMAT;
     for (x = image->width; x > 1; x >>= 1) ++u;
     for (y = image->height; y > 1; y >>= 1) ++v;
@@ -43,11 +44,11 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback)
         *out->pixels=0xffffffff;
     }
     for(y=0;y<image->height;++y)for(x=0;x<image->width;++x)
-        if(rf_image_pixel(image,x,y)[3]<255)out->transparent=1;
+        if(packed?!(rf_image_pixel(image,x,y)[1]&128u):rf_image_pixel(image,x,y)[3]<255)out->transparent=1;
     out->format = field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA, 1) |
         field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE, NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR) |
         field(NV097_SET_TEXTURE_FORMAT_DIMENSIONALITY, 2) |
-        field(NV097_SET_TEXTURE_FORMAT_COLOR, NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8B8G8R8) |
+        field(NV097_SET_TEXTURE_FORMAT_COLOR, packed?NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A1R5G5B5:NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8B8G8R8) |
         field(NV097_SET_TEXTURE_FORMAT_MIPMAP_LEVELS, 1) |
         field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_U, u) | field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_V, v);
     return RF_OK;
@@ -329,6 +330,19 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     return RF_OK;
 }
 
+uint32_t rf_packed_lightmap_diagnostic[66];
+static int packed_lightmap_test(void)
+{
+    rf_image image={0};rf_particle_draw_vertex vertices[4];uint32_t x,y;int status;
+    rf_packed_lightmap_diagnostic[0]=0x52464c35;
+    status=packed_lightmap_fixture(&image,vertices);if(status)return status;
+    pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
+    status=rf_xbox_particle_draw(vertices,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0);
+    while(pb_busy()) {}
+    if(!status)for(y=0;y<2;++y)for(x=0;x<32;++x)rf_packed_lightmap_diagnostic[2+y*32+x]=
+        *(volatile uint32_t*)((unsigned char*)pb_back_buffer()+(96+y*64)*pb_back_buffer_pitch()+(72+x*16)*4);
+    rf_image_close(&image);rf_packed_lightmap_diagnostic[1]=status?(uint32_t)status:2;return status;
+}
 uint32_t rf_corpse_pixel_diagnostic[1032];
 static int corpse_pixel_test(void)
 {
@@ -496,6 +510,7 @@ failed:
     MmFreeContiguousMemory(pixels);
     status=particle_texture_test();
     if(!status)status=particle_stretch_test();
+    if(!status)status=packed_lightmap_test();
     if(!status)status=corpse_pixel_test();
     if(!status)status=flash_pixel_test();
     rf_particle_pixel_diagnostic[1]=status?0x80000000u|(uint32_t)(-status):2;
