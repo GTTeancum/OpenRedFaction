@@ -531,6 +531,42 @@ int rf_model_collision_geometry_open(rf_model_collision_geometry *g,const rf_mod
     rf_model_collision_geometry_close(&next);return status;
 }
 
+void rf_model_collision_resource_close(rf_model_collision_resource *resource)
+{
+    uint32_t i;if(!resource)return;
+    if(resource->lods)for(i=0;i<resource->lod_count;++i)rf_model_collision_geometry_close(resource->lods+i);
+    free(resource->lods);free(resource->parts);memset(resource,0,sizeof(*resource));
+}
+int rf_model_collision_resource_open(rf_model_collision_resource *resource,const rf_model_file *model,uint32_t budget)
+{
+    rf_model_collision_resource next={0};uint64_t bytes;uint32_t i;int status;
+    if(!resource || !model || !model->archive || resource->parts || resource->lods || resource->accounted_bytes ||
+        model->submeshes>RF_MODEL_MAX_SECTIONS || model->lod_count>RF_MODEL_MAX_LODS)return RF_RANGE;
+    bytes=sizeof(next)+(uint64_t)model->submeshes*sizeof(*next.parts);
+    for(i=0;i<model->lod_count;++i) {
+        const rf_model_lod *lod=model->lods+i;if(!(lod->flags&32u))return RF_NOT_FOUND;
+        if(lod->batch_count>65535)return RF_FORMAT;
+        bytes+=sizeof(*next.lods)+(uint64_t)lod->size+(uint64_t)lod->batch_count*sizeof(rf_collision_model_batch_view);
+    }
+    if(bytes>budget || bytes>SIZE_MAX)return RF_RANGE;
+    next.part_count=(int32_t)model->submeshes;next.lod_count=model->lod_count;next.accounted_bytes=(uint32_t)bytes;
+    next.parts=next.part_count?calloc((size_t)next.part_count,sizeof(*next.parts)):NULL;
+    next.lods=next.lod_count?calloc(next.lod_count,sizeof(*next.lods)):NULL;
+    if((next.part_count && !next.parts) || (next.lod_count && !next.lods)){status=RF_IO;goto fail;}
+    for(i=0;i<next.lod_count;++i) {
+        status=rf_model_collision_geometry_open(next.lods+i,model,i,budget);if(status)goto fail;
+    }
+    for(i=0;i<(uint32_t)next.part_count;++i) {
+        rf_model_part_metadata metadata;rf_collision_model_part_view *part=next.parts+i;
+        status=rf_model_file_part_metadata(model,i,&metadata);if(status)goto fail;
+        memcpy(part->offset,metadata.offset,12);memcpy(part->minimum,metadata.minimum,12);memcpy(part->maximum,metadata.maximum,12);
+        part->selected=&next.lods[metadata.first_lod+metadata.lod_count-1].view;part->fallback=&next.lods[metadata.first_lod].view;
+    }
+    *resource=next;return RF_OK;
+ fail:
+    rf_model_collision_resource_close(&next);return status;
+}
+
 void rf_model_geometry_close(rf_model_geometry *g)
 {
     if(!g)return;

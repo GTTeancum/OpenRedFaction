@@ -115,6 +115,15 @@ typedef struct rf_model_collision_geometry {
 int rf_model_collision_geometry_open(rf_model_collision_geometry *geometry,const rf_model_file *model,
     uint32_t lod,uint32_t budget);
 void rf_model_collision_geometry_close(rf_model_collision_geometry *geometry);
+typedef struct rf_model_collision_resource {
+    rf_collision_model_part_view *parts;rf_model_collision_geometry *lods;
+    int32_t part_count;uint32_t lod_count,accounted_bytes;
+} rf_model_collision_resource;
+/* Own all static LODs and bind original initial last-LOD selection/first-LOD
+ * fallback for each shared part. Total budget counts each owner/blob/view
+ * once. Zero-init, close before reuse; no archive borrowing after success. */
+int rf_model_collision_resource_open(rf_model_collision_resource *resource,const rf_model_file *model,uint32_t budget);
+void rf_model_collision_resource_close(rf_model_collision_resource *resource);
 typedef struct rf_model_geometry {
     rf_model_draw_batch *batches;rf_model_vertex *vertices;
     rf_model_triangle *triangles;int32_t *reuse;

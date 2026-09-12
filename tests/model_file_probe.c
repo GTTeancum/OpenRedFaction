@@ -213,6 +213,32 @@ int main(int argc, char **argv)
             ++mesh;
         }
     }
+    if(!result && argc==4 && !strcmp(argv[3],"--collision-resource")) {
+        rf_model_collision_resource owner={0};uint32_t budget,j;
+        result=rf_model_collision_resource_open(&owner,&model,4*1024*1024);
+        if(result==RF_NOT_FOUND){result=0;printf("N\n");}
+        else if(!result) {
+            budget=owner.accounted_bytes;rf_model_collision_resource_close(&owner);
+            if(rf_model_collision_resource_open(&owner,&model,budget-1)!=RF_RANGE || owner.parts || owner.lods || owner.accounted_bytes)result=RF_FORMAT;
+            if(!result)result=rf_model_collision_resource_open(&owner,&model,budget);
+            if(!result) {
+                printf("R %d %u %u\n",owner.part_count,owner.lod_count,budget);
+                for(i=0;i<(uint32_t)owner.part_count;++i) {
+                    rf_collision_model_part_view *part=owner.parts+i;uint32_t selected=UINT32_MAX,fallback=UINT32_MAX;
+                    for(j=0;j<owner.lod_count;++j){if(part->selected==&owner.lods[j].view)selected=j;if(part->fallback==&owner.lods[j].view)fallback=j;}
+                    printf("B %u %u %u ",i,selected,fallback);
+                    for(j=0;j<36;++j)printf("%02x",((unsigned char *)part)[j]);printf("\n");
+                }
+            }
+            rf_model_collision_resource_close(&owner);rf_model_collision_resource_close(&owner);
+            if(owner.parts || owner.lods || owner.accounted_bytes)result=RF_FORMAT;
+            if(model.lod_count) {
+                uint32_t saved=model.lods[model.lod_count-1].attachment_offset;model.lods[model.lod_count-1].attachment_offset=model.lods[model.lod_count-1].offset;
+                if(rf_model_collision_resource_open(&owner,&model,budget)!=RF_FORMAT || owner.parts || owner.lods || owner.accounted_bytes)result=RF_FORMAT;
+                model.lods[model.lod_count-1].attachment_offset=saved;
+            }
+        }
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--part-metadata")) {
         rf_model_part_metadata value,before;uint32_t part,j;
         memset(&before,0xa5,sizeof(before));
@@ -300,7 +326,7 @@ int main(int argc, char **argv)
             }
         }
     }
-    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches") && strcmp(argv[3],"--planes") && strcmp(argv[3],"--collision-geometry") && strcmp(argv[3],"--part-metadata")) for (i = 0; i < model.lod_count && !result; ++i) {
+    if (!result && argc == 4 && strcmp(argv[3],"--materials") && strcmp(argv[3],"--batches") && strcmp(argv[3],"--planes") && strcmp(argv[3],"--collision-geometry") && strcmp(argv[3],"--part-metadata") && strcmp(argv[3],"--collision-resource")) for (i = 0; i < model.lod_count && !result; ++i) {
         uint32_t n, j;
         rf_model_lod *lod = &model.lods[i];
         printf("L %u %u %u %u\n", lod->offset, lod->size, lod->attachment_offset, lod->attachment_count);

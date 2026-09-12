@@ -4915,3 +4915,30 @@ reads; invalid submesh and truncated metadata leave output unchanged.
 Report: artifacts/model-part-metadata.json. PC/NXDK builds and all19 CTests
 pass. This is PC archive evidence; native archive execution, owned complete
 static-model assembly and live scene binding remain open.
+
+
+## Complete owned static collision resources
+
+rf_model_collision_resource_open assembles all stored-plane LOD owners and
+shared part views into one lifetime. Initial selected LOD is the last in
+each part's metadata range (original metadata[metadata[0]]), with the first
+LOD retained as fallback for flag10. Offsets/bounds are copied from shared
+metadata, not recomputed from geometry. Parts reference stable owned LOD
+array elements; no archive/model-file pointer remains borrowed after open.
+All LODs remain resident in this resource; future scene residency policy
+must account for that explicitly. The budget sums the resource, part views,
+LOD owners, batch views and original blobs once, excluding allocator
+metadata. Preflight checks total before allocation; failure closes earlier
+LODs and clears uncommitted ownership. Repeated close is supported.
+
+verify_model_collision_resource.py passes all522 installed models:427
+static resources with575 parts and760 LODs,95 animated resources rejected
+as missing stored planes. Part offset/bounds bytes and selected/fallback
+array identities equal archive metadata. Exact total budget loads; one
+byte below rejects. A malformed final LOD unwinds earlier loaded LODs
+without publishing ownership, and repeated close clears the owner.
+Maximum complete resource accounting is169844 bytes on32-bit layouts;
+this is not total scene residency. Report:
+artifacts/model-collision-resource.json. PC/NXDK builds and all19 CTests
+pass. Native XEMU archive/query execution and live scene residency/binding
+remain open, along with type2 skeletal collision.
