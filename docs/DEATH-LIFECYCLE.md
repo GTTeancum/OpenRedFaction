@@ -6152,3 +6152,42 @@ Compared with actor-pairs replay101509, PC output only adds the standing row
 and intervening inactive impact telemetry; all preexisting rows are unchanged.
 Bind normal/slow/crouch transitions, landing sound/player/special effects and
 complete ground/relative callbacks before enabling NPC physics scheduling.
+
+
+## Registered NPC crouch and post-ground clock (2026-09-12)
+
+rf_scene_npc_crouch binds4289d0 to retained crouch centers and actor400,
+then invokes a required ground callback and reads raw6460f0 clock bits only
+AFTER it succeeds. The bits are stored in retained actor7b4, without treating
+them as millisecond integers or converting their representation. Ground may
+reenter stance and change flags/centers; the adapter preserves those changes
+and mirrors final view/damage flags. On a ground error it preserves applied
+changes and does not read/write the final clock. Missing services/cache or
+stale registrations reject. Added one4-byte clock per NPC; its current initial
+zero comes from the port owner allocation. Constructor initialization must be
+verified before pre-crouch/jump reads rely on that initial value.
+
+The actor-pairs fixture covers60 eligible NPCs times three cases: ordinary,
+ground reentry, and injected ground failure. Each callback executes the real
+registered ground query, then changes the clock source and writes a sentinel
+into7b4. Success overwrites the sentinel with the new clock; error preserves
+it and never invokes the clock callback. Reentry clears crouch/changes a center
+and those mutations survive.11 sphere owners without stance caches reject
+unchanged; seven sphere-free owners are excluded. All actor/sphere changes
+are restored. Diagnostic ground queries here do not implement landing effects.
+
+verify_physics_stance.py retains288 PC/NXDK center/endpoint comparisons and
+adds128 full ORIGINAL4289d0 executions with a supplied reentrant ground call.
+Whole original actor/sphere state confirms raw post-ground timestamp storage
+and retained callback changes. This tail audit is original-only; the separate
+native scene fixture verifies the adapter and callback contract. Three malformed
+center guards and16 class-cache guards also pass. Both builds and19 CTests pass.
+
+Stock64MiB XEMU180 frames PASS:
+artifacts/xemu/replay-20260912-104658/report.json.
+NPC_CROUCH_TEST=[180,180,120,60,1757960941,0,11], exactly equal to PC.
+Tested XBE SHA256:4c990487c848d5e84fee679ab9c762e2f55c6b2b50d11ce9ca0b2c26a8c8b19f.
+PC reference adds only the new crouch row and312 owner/total bytes compared
+with104055; the existing body-state hash and all other rows are unchanged.
+Connect normal/slow transitions and remaining landing callbacks, complete
+ground/relative services, then enable NPC physics scheduling.

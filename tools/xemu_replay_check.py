@@ -277,6 +277,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      impact_groups=words(monitor,symbol('rf_scene_npc_impact_groups'),3)
      assert impact_groups==expected('NPC_IMPACT_GROUPS') and impact_groups[1]==impact_groups[0]*4,impact_groups
      report['npc_impact_groups']=impact_groups
+     npc_crouch=words(monitor,symbol('rf_scene_npc_crouch_test'),7)
+     assert npc_crouch==expected('NPC_CROUCH_TEST') and npc_crouch[5]==0,npc_crouch
+     if args.actor_pairs:assert npc_crouch[0]>0 and npc_crouch[1]==npc_crouch[0] and npc_crouch[2]==npc_crouch[3]*2 and npc_crouch[0]==npc_crouch[3]*3,npc_crouch
+     report['npc_crouch']=npc_crouch
      npc_stand=words(monitor,symbol('rf_scene_npc_stand_test'),7)
      assert npc_stand==expected('NPC_STAND_TEST') and npc_stand[5]==0,npc_stand
      if args.actor_pairs:assert npc_stand[0]>0 and npc_stand[0]==npc_stand[1]+npc_stand[2] and npc_stand[1]==npc_stand[3],npc_stand

@@ -108,6 +108,16 @@ typedef struct rf_scene_npc_stance_services {
 int rf_scene_npc_try_stand(const rf_geometry_collision_world *world,uint32_t handle,
     const rf_scene_npc_stance_services *services,int *stood);
 extern uint32_t rf_scene_npc_stand_test[7]; /* cases,clear,blocked,ground queries,hash,errors,rejected no-cache */
+typedef struct rf_scene_npc_crouch_services {
+    int (*refresh_ground)(void *,uint32_t handle);
+    uint32_t (*clock_bits)(void *); /* Original raw6460f0, read AFTER ground. */
+    void *context;
+} rf_scene_npc_crouch_services;
+/*4289d0 retained NPC crouch centers/flag, required ground callback, then7b4
+ * clock publication. Ground may reenter stance; its changes survive. Errors
+ * stop without undoing applied state or writing the final clock. */
+int rf_scene_npc_crouch(uint32_t handle,const rf_scene_npc_crouch_services *services);
+extern uint32_t rf_scene_npc_crouch_test[7]; /* cases,ground,clock,expected errors,hash,errors,no-cache */
 
 /*41e370 support refresh for one registered NPC: modes1/3 resolve retained
  * NPC/player/mover body velocity and update support velocity plus wake flags.
