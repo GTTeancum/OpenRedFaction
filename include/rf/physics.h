@@ -267,6 +267,16 @@ int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3]
 int rf_physics_player_contact(rf_physics_body_state *state,const float normal[3],
     const float support_velocity[3],const float contact_velocity[3],const float direction[3],
     uint32_t mode,uint32_t free_tangent,float *impact_speed);
+/*49dcf6..49ddef: prepared positive-inverse-mass contact response. Caller
+ * resolves contacted object and player predicates (low byte). Missing object,
+ * or NPC against player, returns zero impact with body/normal unchanged.
+ * Mode1 flattens intermediate nonzero normal Y and normalizes. Other modes
+ * retain the supplied normal. Updates only velocity, normal and signed impact;
+ * does not apply damage or dispatch other inverse-mass/liquid branches.
+ * Finite inputs required on the responding path; errors preserve all outputs. */
+int rf_physics_dynamic_contact(rf_physics_body_state *state,float normal[3],
+    const float support_velocity[3],const float contact_velocity[3],uint32_t mode,
+    uint32_t object_present,uint32_t object_player,uint32_t actor_player,float *impact_speed);
 /* Translation block 49ffd2..4a007c for hit fraction [0,1). Remaining time uses
  * the raw fraction; position uses the 0.05-unit separation margin unless flag
  * 0x400000 is set. Updates position and scalar_144 only; bounds, rotation and

@@ -184,6 +184,34 @@ int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3]
 }
 static long double player_contact_dot(const float a[3],const float b[3])
 {return ((long double)a[2]*b[2]+(long double)a[1]*b[1])+(long double)a[0]*b[0];}
+int rf_physics_dynamic_contact(rf_physics_body_state *state,float normal[3],
+    const float support_velocity[3],const float contact_velocity[3],uint32_t mode,
+    uint32_t object_present,uint32_t object_player,uint32_t actor_player,float *impact_speed)
+{
+    float n[3],relative[3],velocity[3],actor_dot,contact_dot,impact,scale;uint32_t i;
+    if(!state || !normal || !support_velocity || !contact_velocity || !impact_speed)return RF_RANGE;
+    if(!object_present || ((object_player&255) && !(actor_player&255))){*impact_speed=0;return RF_OK;}
+    for(i=0;i<3;++i)if(!isfinite(normal[i]) || !isfinite(state->velocity[i]) ||
+        !isfinite(support_velocity[i]) || !isfinite(contact_velocity[i]))return RF_RANGE;
+    memcpy(n,normal,12);
+    if(mode==1 && n[1]!=0 && n[1]<.95f && n[1]>-.95f) {
+        long double length;n[1]=0;
+        length=sqrtl(((long double)n[0]*n[0]+(long double)n[1]*n[1])+(long double)n[2]*n[2]);
+        if(length>0)for(i=0;i<3;++i)n[i]=(float)((1/length)*n[i]);
+        else {n[0]=1;n[1]=n[2]=0;}
+    }
+    actor_dot=(float)player_contact_dot(state->velocity,n);
+    actor_dot=0<actor_dot?0:actor_dot;
+    for(i=0;i<3;++i)relative[i]=(float)((long double)contact_velocity[i]-support_velocity[i]);
+    contact_dot=(float)player_contact_dot(relative,n);contact_dot=0>contact_dot?0:contact_dot;
+    impact=(float)((long double)contact_dot-actor_dot);scale=(float)((long double)impact*1.0499999523162842f);
+    if(!isfinite(impact) || !isfinite(scale))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        float correction=(float)((long double)scale*n[i]);
+        velocity[i]=(float)((long double)state->velocity[i]+correction);if(!isfinite(velocity[i]))return RF_RANGE;
+    }
+    memcpy(state->velocity,velocity,12);memcpy(normal,n,12);*impact_speed=impact;return RF_OK;
+}
 int rf_physics_player_contact(rf_physics_body_state *state,const float normal[3],
     const float support_velocity[3],const float contact_velocity[3],const float direction[3],
     uint32_t mode,uint32_t free_tangent,float *impact_speed)

@@ -527,6 +527,17 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--dynamic-contact")) {
+        struct {rf_physics_body_state body;float normal[3],support[3],contact[3];uint32_t mode,present,other_player,self_player;} input;
+        float impact;
+        _Static_assert(sizeof(input)==360,"dynamic contact wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(rf_physics_dynamic_contact(&input.body,input.normal,input.support,input.contact,input.mode,input.present,input.other_player,input.self_player,&impact))return 3;
+            if(fwrite(&input,320,1,stdout)!=1 || fwrite(&impact,4,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--player-contact")) {
         struct {float values[27];uint32_t mode,free_tangent;} input;
         while(fread(&input,sizeof(input),1,stdin)==1) {

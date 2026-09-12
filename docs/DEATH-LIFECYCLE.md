@@ -5662,3 +5662,32 @@ reads,fixture cases/hash,errors. Six resolved reads are staged fixture cases;
 only by the new NPC_SUPPORT_REFRESH row compared with baseline085925.
 XBE SHA256:7eae938c8f4eecc1a716c4710edf8000b0d44b40eece20a8c308ca8341bb5a39.
 No platform riding, NPC motion or full contact-response completion is claimed.
+
+
+### Positive-inverse-mass contact velocity response (2026-09-12)
+
+rf_physics_dynamic_contact reconstructs49dcf6..49ddef, the positive-inverse-
+mass branch reached from49d7e0. Resolved missing contact object or NPC against
+a player returns zero impact without velocity/normal mutation. Ground mode1
+flattens nonzero normal Y strictly between-.95 and+.95 and normalizes, with
+original4fab70 zero-length fallback(1,0,0). Other normals remain supplied.
+The branch clamps actor normal velocity with min(0,dot), clamps contact-minus-
+support normal velocity with max(0,dot), then adds normal*float(impact*1.05).
+Intermediate stores, Z/Y/X dot ordering and low-byte predicates are preserved.
+This is distinct from the existing zero-inverse-mass static/flag80 helpers.
+
+tools/verify_dynamic_contact.py executes original49d7e0 through49ddef with
+actual40a0e0 generation-checked lookup,4895d0 player predicates, normalization
+and vector helpers; no intercepted calls.4096 cases match all PC/NXDK body
+bytes, normal and impact, with original unrelated actor bytes unchanged.
+Coverage includes1633 suppressed/missing cases,112 changed normals, exact
+thresholds, zero-horizontal fallback, signed zeros and low-byte predicate facts.
+NXDK guard/input preservation and24 nonfinite rejection cases pass. Artifact:
+artifacts/dynamic-contact-verification.json. Both builds and19 CTests pass.
+
+The helper does not check inverse mass: the caller must select this branch
+from retained contact metadata. It is not yet bound into live scene response.
+Liquid/crush/rotating branches, complete contact dispatch and impact damage
+remain open. No new native XEMU run or visible behavior is claimed for this
+isolated reconstruction; compiled NXDK comparison uses Unicorn at x87 control
+word027f, matching the established runtime precision contract.
