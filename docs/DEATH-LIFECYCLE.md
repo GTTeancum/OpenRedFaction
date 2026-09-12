@@ -5061,3 +5061,19 @@ weights/zero termination, identity and arbitrary dyadic matrices, radius,
 time limits and first-hit mode. Report: artifacts/model-pose-trace.json.
 PC/NXDK builds and all19 CTests pass. Multi-batch traversal, full51ba00/LOD
 composition,54e140 preparation and retained NPC/native XEMU remain open.
+
+
+### Prepared skeletal traversal across batches (2026-09-12)
+
+`tools/verify_model_pose_trace_multi.py` compares original54e200 with the PC
+probe and compiled NXDK routine across8192 cases (685 hits), using zero to
+two distinct six-vertex batches with independently varied triangle counts.
+Only51ba00 is supplied with checked ABI and prepared matrices; original
+geometry/math callees execute. An observation-only539530 hook filters its
+return address to count traversal vertex visits without counting triangle
+bounds calls. Coverage includes2732 empty traversals,152 first-batch early
+exits and2578 complete two-batch traversals. All return values,32 hit bytes
+and72 scratch bytes match exactly; poisoned scratch survives empty traversal,
+and query/geometry inputs remain unchanged. PC build and19 CTests pass.
+This is compiled-code verification through Unicorn, not a new native XEMU
+run. Full pose preparation, LOD ownership and live NPC geometry remain open.
