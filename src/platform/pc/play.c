@@ -26,7 +26,7 @@ extern uint32_t rf_scene_startup_gravity[4];
 extern uint32_t rf_scene_switch_state[3],rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
 extern uint32_t rf_scene_npc_models[4];
 extern uint32_t rf_scene_npc_collision_cache[6];
-extern uint32_t rf_scene_npc_model_queries[7];
+extern uint32_t rf_scene_npc_model_queries[7],rf_scene_npc_pose_demand[5];
 extern uint32_t rf_scene_actor_model_test[6];
 extern uint32_t rf_scene_pair_dispatch[5];
 extern uint32_t rf_scene_npc_startup[4],rf_scene_npc_geometry[7],rf_scene_npc_materials[8],rf_scene_npc_draw[5],rf_scene_npc_draw_detail[6],rf_scene_npc_playback[7],rf_scene_npc_gate[4],rf_scene_npc_bodies[6],rf_scene_npc_registration[6],rf_scene_npc_support[12],rf_scene_npc_support_first_miss[16],rf_scene_npc_support_deep[8],rf_scene_npc_support_deep_first[20];
@@ -299,6 +299,7 @@ int main(int argc,char **argv)
             printf("CAMPAIGN_MEMBERSHIPS %u %u %u %u %u\n",rf_scene_campaign_memberships[0],rf_scene_campaign_memberships[1],rf_scene_campaign_memberships[2],rf_scene_campaign_memberships[3],rf_scene_campaign_memberships[4]);
             printf("NPC_MODELS %u %u %u %u\n",rf_scene_npc_models[0],rf_scene_npc_models[1],rf_scene_npc_models[2],rf_scene_npc_models[3]);
             printf("NPC_COLLISION_CACHE %u %u %u %u %u %u\n",rf_scene_npc_collision_cache[0],rf_scene_npc_collision_cache[1],rf_scene_npc_collision_cache[2],rf_scene_npc_collision_cache[3],rf_scene_npc_collision_cache[4],rf_scene_npc_collision_cache[5]);
+            printf("NPC_POSE_DEMAND %u %u %u %u %u\n",rf_scene_npc_pose_demand[0],rf_scene_npc_pose_demand[1],rf_scene_npc_pose_demand[2],rf_scene_npc_pose_demand[3],rf_scene_npc_pose_demand[4]);
             printf("NPC_MODEL_QUERIES %u %u %u %u %u %u %u\n",rf_scene_npc_model_queries[0],rf_scene_npc_model_queries[1],rf_scene_npc_model_queries[2],rf_scene_npc_model_queries[3],rf_scene_npc_model_queries[4],rf_scene_npc_model_queries[5],rf_scene_npc_model_queries[6]);
             printf("ACTOR_MODEL_TEST %u %u %u %u %u %u\n",rf_scene_actor_model_test[0],rf_scene_actor_model_test[1],rf_scene_actor_model_test[2],rf_scene_actor_model_test[3],rf_scene_actor_model_test[4],rf_scene_actor_model_test[5]);
             printf("PAIR_DISPATCH %u %u %u %u %u\n",rf_scene_pair_dispatch[0],rf_scene_pair_dispatch[1],rf_scene_pair_dispatch[2],rf_scene_pair_dispatch[3],rf_scene_pair_dispatch[4]);

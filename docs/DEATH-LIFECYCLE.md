@@ -5520,3 +5520,31 @@ lookup trace is verified separately; C consumes stable resolved predicates
 and does not claim the same helper call timing or support callback mutation
 of those facts. Both builds and19 CTests pass. Native XEMU scene activation,
 live constructor ownership and subsequent entity-record setup remain open.
+
+
+### Stationary NPC collision pose demand evaluation (2026-09-12)
+
+Registered skeletal collision queries now check evaluated bone generations
+before obtaining their skinning-cache view. Stale stationary NPC poses ensure
+active motion residency and call rf_entity_pose_evaluate at existing playback
+times, then continue through the existing skinning/query path. No selection,
+timing advance or playback-reference mutation occurs. This follows the
+original51ba00-before-prepared-matrices evaluation dependency on51b500;
+authored pose reconstruction remains covered by its existing evaluator scope,
+not a new full original animation-runtime comparison.
+
+Current stationary NPCs have no retained pending root displacement, so this
+path supplies zero displacement. Transferred corpses with stale poses still
+require explicit rf_scene_corpse_evaluate with their caller-owned displacement.
+Moving-NPC pending-root ownership remains open. Archive/sampling errors abort
+the query and may leave partial pose matrices, as documented by the evaluator.
+
+The opt-in model query fixture invalidates one NPC bone cache every30 ticks,
+poisons its matrices, queries through the public scene path, and checks exact
+restoration of all matrices/stamps with unchanged playback state. PC and native
+stock64MiB XEMU replay-20260912-083938 pass180 frames with
+npc_pose_demand=[2856,6,0,6,0] (queries,evaluations,errors,fixture cases/errors).
+Model-query state remains[5,61128,2472,2856,2472,425497051,0], unchanged from
+the prior baseline. Both builds and19 CTests pass. XBE SHA256:
+90508e6cf1465ae108a4304be98ef33286832c16207ac7c6286beef3908905cb.
+No new visible gameplay or full physics scheduling is claimed.

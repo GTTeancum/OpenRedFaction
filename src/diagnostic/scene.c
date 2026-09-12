@@ -501,6 +501,8 @@ static rf_entity_playback_resources campaign_playback_resources;
 static rf_entity_render_models campaign_render_models;
 static rf_entity_collision_models campaign_collision_models;
 static float (*campaign_model_query_scratch)[3];
+uint32_t rf_scene_npc_pose_demand[5]; /* queries, evaluations, errors, fixture cases/errors */
+static int campaign_model_pose_ready(uint32_t slot,rf_entity_pose *pose);
 uint32_t rf_scene_npc_model_queries[7]; /* models, owned bytes, scratch bytes, queries, hits, hash, errors */
 typedef struct campaign_model_owner {
     rf_model_skeletal_registration registration;rf_entity_pose *pose;
@@ -605,6 +607,7 @@ int rf_scene_model_collision_query(uint32_t slot,rf_collision_model_part_query *
     status=campaign_model_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     if(!campaign_collision_caches || !campaign_collision_models.items || !campaign_render_models.items ||
         pose->skeleton>=campaign_collision_models.count || pose->skeleton>=campaign_render_models.count)return RF_RANGE;
+    status=campaign_model_pose_ready(slot,pose);if(status)return status;
     status=rf_entity_collision_cache_view(campaign_collision_caches+slot,pose,campaign_render_models.items[pose->skeleton].stored,&view);
     if(status)return status;geometry=campaign_collision_models.items+pose->skeleton;
     status=rf_collision_model_skinning_query(geometry->batches,geometry->batch_count,&view,query,hit,campaign_model_query_scratch,reset,accepted);
@@ -624,6 +627,7 @@ static int campaign_model_geometry_open(void)
     if(bytes+campaign_collision_models.resident_bytes>1024*1024){status=RF_RANGE;goto fail;}
     campaign_model_query_scratch=bytes?malloc((size_t)bytes):NULL;
     if(bytes && !campaign_model_query_scratch){status=RF_IO;goto fail;}
+    memset(rf_scene_npc_pose_demand,0,sizeof(rf_scene_npc_pose_demand));
     memset(rf_scene_npc_model_queries,0,sizeof(rf_scene_npc_model_queries));
     rf_scene_npc_model_queries[0]=campaign_collision_models.count;rf_scene_npc_model_queries[1]=campaign_collision_models.resident_bytes;
     rf_scene_npc_model_queries[2]=(uint32_t)bytes;rf_scene_npc_model_queries[5]=2166136261u;return RF_OK;
@@ -963,6 +967,27 @@ int rf_scene_corpse_advance(const rf_corpse *corpse,float elapsed)
        pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
     model=campaign_playback_resources.models+pose->skeleton;
     return rf_motion_update(&pose->playback,model->resources,model->count,elapsed);
+}
+/* Original51ba00 asks51b500 to evaluate before preparing skinning matrices.
+ * Stationary NPCs have no retained pending root displacement. Transferred
+ * corpses must use their explicit displacement-aware evaluation first. */
+static int campaign_model_pose_ready(uint32_t slot,rf_entity_pose *pose)
+{
+    uint32_t i;int status=RF_OK;float displacement[3]={0};
+    ++rf_scene_npc_pose_demand[0];
+    if(!pose->generations || !pose->bone_count || pose->bone_count>50 || pose->playback.generation>65535){status=RF_RANGE;goto done;}
+    for(i=0;i<pose->bone_count;++i)if(pose->generations[i]!=(uint16_t)pose->playback.generation)break;
+    if(i==pose->bone_count)return RF_OK;
+    if(campaign_model_owners[slot].owned || pose->playback.completion.active.count>16){status=RF_RANGE;goto done;}
+    for(i=0;i<pose->playback.completion.active.count;++i) {
+        int32_t id=pose->playback.completion.active.slots[i].motion;
+        if(id<0){status=RF_RANGE;goto done;}
+        status=campaign_npc_motion_require(pose->skeleton,(uint32_t)id);if(status)goto done;
+    }
+    status=rf_entity_pose_evaluate(pose,&campaign_skeletons,&campaign_motion_catalog,displacement);
+    if(!status)++rf_scene_npc_pose_demand[1];
+ done:
+    if(status)++rf_scene_npc_pose_demand[2];return status;
 }
 /* Explicit demand evaluation after timing advancement; callers supply pending
  * root displacement. Failed sampling can leave a partial cache, as in the
@@ -4568,7 +4593,7 @@ uint32_t rf_scene_npc_playback[7]; /* ticks, actors, bones, state hash, pose has
 uint32_t rf_scene_npc_gate[4]; /* cumulative considered, advanced, skipped; last decision hash */
 static int campaign_model_query_fixture(uint32_t frame)
 {
-    uint32_t i,axis,r;int status;
+    uint32_t i,axis,r,tested=0;int status;
     if(!rf_scene_actor_pair_test_enabled || frame%30)return RF_OK;
     for(i=0;i<campaign_model_owner_count;++i) {
         rf_entity_pose *pose;float sphere[4];status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)continue;
@@ -4578,7 +4603,18 @@ static int campaign_model_query_fixture(uint32_t frame)
             query.input.flags=2+r;query.input.radius=r?.25f:0;
             memcpy(query.input.start,sphere,12);query.input.start[axis]-=sphere[3]+1;
             query.input.displacement[axis]=2*(sphere[3]+1);
-            status=rf_scene_model_collision_query(i,&query,&hit,1,&accepted);if(status)return status;
+            if(!tested) {
+                uint32_t n=pose->bone_count*48,k,playback_hash=npc_hash_bytes(2166136261u,&pose->playback,sizeof(pose->playback));
+                unsigned char *saved=malloc(n+pose->bone_count*2);if(!saved)return RF_IO;
+                memcpy(saved,pose->matrices,n);memcpy(saved+n,pose->generations,pose->bone_count*2);
+                memset(pose->matrices,0xa5,n);for(k=0;k<pose->bone_count;++k)pose->generations[k]=(uint16_t)(pose->playback.generation-1u);
+                status=rf_scene_model_collision_query(i,&query,&hit,1,&accepted);
+                if(!status && (memcmp(saved,pose->matrices,n) || memcmp(saved+n,pose->generations,pose->bone_count*2) ||
+                    playback_hash!=npc_hash_bytes(2166136261u,&pose->playback,sizeof(pose->playback))))status=RF_FORMAT;
+                if(status){memcpy(pose->matrices,saved,n);memcpy(pose->generations,saved+n,pose->bone_count*2);++rf_scene_npc_pose_demand[4];}
+                free(saved);++rf_scene_npc_pose_demand[3];tested=1;
+            } else status=rf_scene_model_collision_query(i,&query,&hit,1,&accepted);
+            if(status)return status;
         }
     }
     return RF_OK;

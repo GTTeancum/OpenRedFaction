@@ -113,7 +113,9 @@ extern uint32_t rf_scene_actor_pair_test_enabled,rf_scene_actor_pair_test[8]; /*
 
 /* Query the registered model's evaluated pose and initial selected skeletal
  * LOD. Caller supplies the104-byte query transform/scratch. Shared scene scratch
- * is synchronous/non-reentrant; stale pose returns RANGE. No contact publication. */
+ * is synchronous/non-reentrant. Stale stationary NPC poses evaluate on demand
+ * without advancing playback. Corpses require explicit displacement-aware
+ * evaluation first. Sampling failure may leave a partial pose. No contact publication. */
 int rf_scene_model_collision_query(uint32_t model_slot,rf_collision_model_part_query *query,
     rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted);
 /* Compose49afe0 with5031f0 and registered skeletal scene geometry. First is
