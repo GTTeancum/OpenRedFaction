@@ -2302,6 +2302,20 @@ uint32_t rf_collision_model_pose_trace(const rf_collision_model_skin_batch *batc
     return changed;
 }
 
+uint32_t rf_collision_model_pose_query(const rf_collision_model_skin_batch *batches,uint16_t batch_count,
+    const float (*matrices)[12],uint32_t bone_count,rf_collision_model_part_query *query,
+    rf_collision_model_response_hit *hit,float (*scratch)[3],uint32_t reset)
+{
+    rf_collision_solid_response_query *q=&query->input;uint32_t i;
+    if(reset&255u){hit->time=1;hit->part=0;}
+    memcpy(query->local_start,q->start,12);memcpy(query->local_displacement,q->displacement,12);
+    if(!(q->flags&2u)) {
+        for(i=0;i<3;++i)query->local_start[i]-=q->origin[i];
+        response_rotate(query->local_start,q->matrix,0);response_rotate(query->local_displacement,q->matrix,0);
+    }
+    return rf_collision_model_pose_trace(batches,batch_count,matrices,bone_count,query,hit,scratch);
+}
+
 typedef struct model_trace_context {
     const rf_collision_model_part_view *parts;rf_collision_model_part_query *query;
 } model_trace_context;

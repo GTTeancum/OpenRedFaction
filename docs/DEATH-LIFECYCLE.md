@@ -5077,3 +5077,24 @@ and72 scratch bytes match exactly; poisoned scratch survives empty traversal,
 and query/geometry inputs remain unchanged. PC build and19 CTests pass.
 This is compiled-code verification through Unicorn, not a new native XEMU
 run. Full pose preparation, LOD ownership and live NPC geometry remain open.
+
+
+### Skeletal query coordinate preparation54e140 (2026-09-12)
+
+`rf_collision_model_pose_query` composes54e140 coordinate preparation with
+the prepared54e200 traversal. Any nonzero reset low byte clears time to1
+and token to0. Flag2 copies input start/displacement into working vectors;
+otherwise start-origin and displacement are inverse-rotated. The80-byte
+input, including flags, remains unchanged. Returned geometry remains local.
+Selected batches, prepared matrices and caller-owned scratch are required;
+full51ba00 pose evaluation and retained-owner LOD selection are not added.
+
+`tools/verify_model_pose_query.py` executes original54e140 and all geometry
+callees, supplying only51ba00 with checked ABI and prepared matrices.
+Disassembly confirms model in ECX, four stack arguments (pose/query/hit/reset)
+and ret16. Across8192 cases (729 hits), PC and compiled NXDK match result,
+32-byte hit,72-byte posed scratch and104-byte query exactly. Cases cover
+translated/rotated input, both flag2 paths, reset values0/1/2/255/256/257,
+zero to two batches,149 first-batch exits and2581 complete two-batch visits.
+Both builds and19 CTests pass. This gate uses Unicorn for original/NXDK
+code, not a new native XEMU gameplay run.

@@ -560,6 +560,14 @@ typedef struct rf_collision_model_skin_batch {
 uint32_t rf_collision_model_pose_trace(const rf_collision_model_skin_batch *batches,uint16_t batch_count,
     const float (*matrices)[12],uint32_t bone_count,const rf_collision_model_part_query *query,
     rf_collision_model_response_hit *hit,float (*scratch)[3]);
+/* Original54e140 coordinate preparation composed with prepared54e200 geometry.
+ * Any nonzero reset low byte clears time/token. Input80 bytes stay unchanged;
+ * flag2 chooses copying versus inverse transformation into query scratch.
+ * Prepared matrices/selected batches and scratch requirements are as above. */
+uint32_t rf_collision_model_pose_query(const rf_collision_model_skin_batch *batches,uint16_t batch_count,
+    const float (*matrices)[12],uint32_t bone_count,rf_collision_model_part_query *query,
+    rf_collision_model_response_hit *hit,float (*scratch)[3],uint32_t reset);
+
 typedef struct rf_collision_model_parts_backend {
     uint32_t (*part)(void *,int32_t,rf_collision_solid_response_query *,rf_collision_model_response_hit *,uint32_t);
     void *context;

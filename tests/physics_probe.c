@@ -43,6 +43,21 @@ static int stand_ground(void *context)
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--model-pose-query")) {
+        struct batch_wire {float positions[6][3];rf_collision_model_skin_links links[6];rf_collision_model_triangle_record records[2];uint32_t count;};
+        struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;float matrices[4][12];struct batch_wire batches[2];uint32_t count,reset;} input;
+        uint32_t result,i;float scratch[6][3];rf_collision_model_skin_batch batches[2];
+        _Static_assert(sizeof(input)==616,"multi pose trace wire");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            if(input.count>2 || input.batches[0].count>2 || input.batches[1].count>2)return 2;
+            for(i=0;i<2;++i){batches[i].positions=input.batches[i].positions;batches[i].links=input.batches[i].links;batches[i].triangles=input.batches[i].records;batches[i].vertex_count=6;batches[i].triangle_count=(uint16_t)input.batches[i].count;}
+            memset(scratch,0xa5,sizeof(scratch));
+            result=rf_collision_model_pose_query(batches,(uint16_t)input.count,input.matrices,4,&input.query,&input.hit,scratch,input.reset);
+            if(fwrite(&result,4,1,stdout)!=1 || fwrite(&input.hit,32,1,stdout)!=1 || fwrite(scratch,72,1,stdout)!=1 || fwrite(&input.query,104,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--model-pose-trace-multi")) {
         struct batch_wire {float positions[6][3];rf_collision_model_skin_links links[6];rf_collision_model_triangle_record records[2];uint32_t count;};
         struct {rf_collision_model_part_query query;rf_collision_model_response_hit hit;float matrices[4][12];struct batch_wire batches[2];uint32_t count;} input;
