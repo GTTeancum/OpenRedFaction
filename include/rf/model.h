@@ -7,6 +7,13 @@ typedef struct rf_model_skeletal_registration {
     uint32_t loaded;rf_motion_slot_state *active;
     struct rf_model_skeletal_registration *next,*previous;
 } rf_model_skeletal_registration;
+/*51ae90 registration tail: publish an initialized loaded node as the new head
+ * before the old head, repairing both neighbors. Active pose state is borrowed
+ * and unchanged. Node must be unlinked; limit bounds total registered owners
+ * after insertion. Rejects duplicate/broken rings without writes. This is not
+ * the complete skeletal constructor or a pose-transfer operation. */
+int rf_model_skeletal_register(rf_model_skeletal_registration *node,
+    rf_model_skeletal_registration **head,uint32_t visit_limit);
 /*51b070 retirement without freeing the enclosing model payload. A zero loaded
  * token skips all other fields. Otherwise validate the bounded circular ring
  * and active resource IDs before mutation, reset selected indices, drain slots

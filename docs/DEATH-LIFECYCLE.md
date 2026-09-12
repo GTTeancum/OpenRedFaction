@@ -1519,3 +1519,25 @@ all18 CTests pass. Xbox SHA256:
 b44f8b7fe4b2a45cb348abc71cad5432de0a2dc766c015e78b7858c34d02ba97.
 Report: artifacts/skeletal-release-verification.json. Live registry, owned pose
 cache release and material ownership integration remain open.
+
+
+## Shared skeletal registration
+
+rf_model_skeletal_register reconstructs the51ae90 constructor's ring-publication
+tail for an already initialized loaded owner. Empty lists become a singleton.
+Otherwise the new node is inserted between the old tail/head and becomes the
+new head. Borrowed pose/active state is unchanged. A bounded preflight rejects
+unloaded/uninitialized nodes, nonempty node links, duplicate membership and
+broken rings; the visit limit bounds total ownership after publication. This
+is not the complete constructor or a substitute for model/resource loading.
+
+python tools/verify_skeletal_registration.py runs full original51ae90 without
+substituted callees, then compares registration head and links with PC/NXDK for
+0..32 existing owners. All33 cases agree.33 insufficient-limit and33 duplicate
+attempts preserve node/head/pose state on compiled Xbox. The original constructor
+also initializes other model data, which is deliberately outside this helper's
+comparison. Both builds and all18 CTests pass. Xbox SHA256:
+12e173e8360156627683ae61b5c582498d8954ba4987696b6f7fe43d49af8eea.
+Report: artifacts/skeletal-registration-verification.json. Shared register and
+retire operations are now available; live registry population, pose transfer
+and material/resource lifecycle integration remain open.

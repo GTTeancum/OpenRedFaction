@@ -18,3 +18,18 @@ static int skeletal_release_probe(void)
     }
     return ferror(stdin)?2:0;
 }
+
+static int skeletal_register_probe(void)
+{
+    uint32_t count,i,out[68];rf_model_skeletal_registration nodes[33],*head;rf_motion_slot_state active;
+    while(fread(&count,4,1,stdin)==1) {
+        if(count>32)return 2;memset(nodes,0,sizeof(nodes));memset(&active,0xa5,sizeof(active));
+        for(i=0;i<count;++i){nodes[i].next=&nodes[(i+1)%count];nodes[i].previous=&nodes[(i+count-1)%count];}
+        nodes[count].loaded=1;nodes[count].active=&active;head=count?nodes:NULL;
+        out[0]=(uint32_t)rf_model_skeletal_register(nodes+count,&head,33);out[1]=skeletal_node_index(nodes,head);
+        for(i=0;i<33;++i){out[2+2*i]=skeletal_node_index(nodes,nodes[i].next);out[3+2*i]=skeletal_node_index(nodes,nodes[i].previous);}
+        for(i=0;i<sizeof(active);++i)if(((unsigned char *)&active)[i]!=0xa5)return 3;
+        if(fwrite(out,sizeof(out),1,stdout)!=1)return 2;
+    }
+    return ferror(stdin)?2:0;
+}

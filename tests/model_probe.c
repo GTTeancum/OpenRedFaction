@@ -19,6 +19,7 @@ int main(int argc,char **argv)
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
     if(argc==2 && !strcmp(argv[1],"--release"))return model_release_probe();
     if(argc==2 && !strcmp(argv[1],"--skeletal-release"))return skeletal_release_probe();
+    if(argc==2 && !strcmp(argv[1],"--skeletal-register"))return skeletal_register_probe();
     if(argc==2 && !strcmp(argv[1],"--world-facing")) {
         float in[7];uint32_t out;
         while(fread(in,sizeof(in),1,stdin)==1) {

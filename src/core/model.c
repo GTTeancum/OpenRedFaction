@@ -4,6 +4,21 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_model_skeletal_register(rf_model_skeletal_registration *node,
+    rf_model_skeletal_registration **head,uint32_t limit)
+{
+    rf_model_skeletal_registration *p,*tail;uint32_t count=1;
+    if(!node || !head || !limit || !node->loaded || !node->active || node->next || node->previous)return RF_RANGE;
+    if(*head) {
+        p=*head;do {
+            if(count++>=limit || p==node || !p->next || !p->previous || p->next->previous!=p || p->previous->next!=p)return RF_RANGE;
+            p=p->next;
+        } while(p!=*head);
+        tail=(*head)->previous;node->previous=tail;node->next=*head;(*head)->previous=node;tail->next=node;
+    } else node->next=node->previous=node;
+    *head=node;return RF_OK;
+}
+
 int rf_model_skeletal_retire(rf_model_skeletal_registration *node,
     rf_model_skeletal_registration **head,uint32_t limit,rf_motion_playback_resource *resources,uint32_t resource_count)
 {
