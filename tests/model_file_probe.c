@@ -143,6 +143,24 @@ int main(int argc, char **argv)
     }
     if ((argc != 3 && argc != 4 && !(argc==5 && !strcmp(argv[3],"--static-resource"))) || rf_vpp_open(&archive, argv[1])) return 2;
     result = rf_model_file_open(&model, &archive, argv[2]);
+    if(!result && argc==4 && !strcmp(argv[3],"--static-tags")) {
+        rf_static_model_tags tags={0};uint32_t budget,header[3],i;
+        _setmode(_fileno(stdout),_O_BINARY);
+        result=rf_static_model_tags_open(&model,1024*1024,&tags);
+        if(result){rf_vpp_close(&archive);return 3;}
+        budget=tags.allocated_bytes;rf_static_model_tags_close(&tags);
+        if(rf_static_model_tags_open(&model,budget-1,&tags)!=RF_RANGE || tags.items || tags.count || tags.allocated_bytes)return 4;
+        if(rf_static_model_tags_open(&model,budget,&tags))return 5;
+        rf_vpp_close(&archive);memset(&model,0xa5,sizeof(model));
+        header[0]=tags.count;header[1]=budget;header[2]=sizeof(rf_model_attachment);
+        if(fwrite(header,sizeof(header),1,stdout)!=1)return 6;
+        for(i=0;i<tags.count;++i) {
+            int32_t index=-1;rf_model_name name={tags.items[i].name,strlen(tags.items[i].name)};
+            if(rf_static_model_tags_find(&tags,name,&index))return 7;
+            if(fwrite(tags.items+i,sizeof(*tags.items),1,stdout)!=1 || fwrite(&index,4,1,stdout)!=1)return 8;
+        }
+        rf_static_model_tags_close(&tags);rf_static_model_tags_close(&tags);return 0;
+    }
     if(!result && argc==4 && !strcmp(argv[3],"--skin-selection")) {
         rf_entity_render_model inputs[2]={{0}};rf_entity_render_models models={0};rf_entity_collision_models owner={0};uint32_t budget;
         inputs[0].file=inputs[1].file=model;inputs[0].bone_count=inputs[1].bone_count=50;models.items=inputs;models.count=2;

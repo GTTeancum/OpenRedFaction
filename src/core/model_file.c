@@ -738,6 +738,45 @@ fail:
     rf_model_geometry_close(&next);return status;
 }
 
+void rf_static_model_tags_close(rf_static_model_tags *owner)
+{
+    if(!owner)return;free(owner->items);memset(owner,0,sizeof(*owner));
+}
+int rf_static_model_tags_open(const rf_model_file *model,uint32_t budget,rf_static_model_tags *owner)
+{
+    rf_static_model_tags next={0};uint64_t bytes;uint32_t i;int status;
+    if(!model || !model->archive || !owner || owner->items || owner->count || owner->allocated_bytes ||
+       !model->submeshes || !model->lod_count || model->lod_count>RF_MODEL_MAX_LODS)return RF_RANGE;
+    if(!(model->lods[0].flags&32))return RF_NOT_FOUND;
+    next.count=model->lods[0].attachment_count;
+    if(next.count>INT32_MAX)return RF_RANGE;
+    bytes=sizeof(next)+(uint64_t)next.count*sizeof(*next.items);
+    if(bytes>budget || bytes>SIZE_MAX)return RF_RANGE;
+    if(next.count) {
+        next.items=malloc((size_t)next.count*sizeof(*next.items));if(!next.items)return RF_IO;
+        for(i=0;i<next.count;++i) {
+            status=rf_model_file_attachment(model,0,i,next.items+i);
+            if(status){rf_static_model_tags_close(&next);return status;}
+        }
+    }
+    next.allocated_bytes=(uint32_t)bytes;*owner=next;return RF_OK;
+}
+int rf_static_model_tags_find(const rf_static_model_tags *owner,rf_model_name query,int32_t *index)
+{
+    uint32_t i;int status;int32_t found;
+    if(!owner || !index || (owner->count && !owner->items) || owner->count>INT32_MAX)return RF_RANGE;
+    /* Validate the query even when there are no records. */
+    status=rf_model_find_static_tag(NULL,0,query,&found);if(status!=RF_NOT_FOUND)return status;
+    for(i=0;i<owner->count;++i) {
+        const char *end=memchr(owner->items[i].name,0,sizeof(owner->items[i].name));rf_model_name name;
+        if(!end)return RF_FORMAT;
+        name.data=owner->items[i].name;name.length=(size_t)(end-name.data);
+        status=rf_model_find_static_tag(&name,1,query,&found);
+        if(!status){*index=(int32_t)i;return RF_OK;}if(status!=RF_NOT_FOUND)return status;
+    }
+    return RF_NOT_FOUND;
+}
+
 void rf_static_render_resource_close(rf_static_render_resource *resource)
 {
     uint32_t i;if(!resource)return;

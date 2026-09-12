@@ -80,6 +80,16 @@ int rf_model_origin_radius(const float sphere[4],float *radius);
 /* Read one raw 100-byte attachment without loading its LOD blob. Fields remain
  * local to the referenced bone; parent validation needs the loaded skeleton. */
 int rf_model_file_attachment(const rf_model_file *model, uint32_t lod, uint32_t index, rf_model_attachment *attachment);
+typedef struct rf_static_model_tags {
+    rf_model_attachment *items;uint32_t count,allocated_bytes;
+} rf_static_model_tags;
+/* Own first-submesh first-LOD attachments used by53c23f. Budget includes
+ * owner and records; archive/directory/stack excluded. Empty owner required;
+ * failures leave it unchanged. Names and poses survive archive closure.
+ * No parent transform evaluation or glare instances are created. */
+int rf_static_model_tags_open(const rf_model_file *model,uint32_t budget,rf_static_model_tags *owner);
+void rf_static_model_tags_close(rf_static_model_tags *owner);
+int rf_static_model_tags_find(const rf_static_model_tags *owner,rf_model_name query,int32_t *index);
 /* Stream the indexed CSPH record (44 serialized bytes). Center is bone-local
  * when parent is nonnegative; pose transformation is a separate runtime step.
  * NOT_FOUND past the last sphere; malformed data/errors preserve output. */
