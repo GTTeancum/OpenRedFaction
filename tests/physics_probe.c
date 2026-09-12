@@ -41,6 +41,7 @@ static int stand_ground(void *context)
 {
     stand_fixture *s=context;stand_trace(s,3);s->flags^=s->ground_xor;return RF_OK;
 }
+#include "contact_process_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--model-skinning-query")) {
@@ -538,6 +539,7 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--contact-process-sp"))return contact_process_probe();
     if(argc==2 && !strcmp(argv[1],"--contact-select")) {
         struct {rf_physics_body_state body;rf_physics_contact_context context;} input;
         rf_physics_contact_route route;float impact;

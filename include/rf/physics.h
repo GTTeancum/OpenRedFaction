@@ -304,6 +304,34 @@ int rf_physics_contact_select(rf_physics_body_state *state,
 int rf_physics_dynamic_contact(rf_physics_body_state *state,float normal[3],
     const float support_velocity[3],const float contact_velocity[3],uint32_t mode,
     uint32_t object_present,uint32_t object_player,uint32_t actor_player,float *impact_speed);
+struct rf_collision_contact_extra;
+struct rf_damage_request;
+typedef struct rf_physics_contact_actor {
+    rf_physics_body_state *body;struct rf_collision_contact_extra *contact;
+    float support_velocity[3],direction[3];
+    uint32_t handle,mode,use_kind,flags_810,object_flags;
+    int32_t sphere_count,field_964,field_974,support_material;
+} rf_physics_contact_actor;
+typedef struct rf_physics_contact_object {uint32_t present,flags;float radius;} rf_physics_contact_object;
+typedef struct rf_physics_contact_backend {
+    int (*lookup)(void *,uint32_t,rf_physics_contact_object *);
+    int (*crouch)(void *,rf_physics_contact_actor *);
+    int (*speed)(void *,rf_physics_contact_actor *,uint32_t);
+    int (*motion)(void *,rf_physics_contact_actor *,uint32_t,float);
+    int (*player_flag)(void *,uint32_t,uint8_t **);
+    int (*crush)(void *,rf_physics_contact_actor *,const struct rf_damage_request *);
+    int (*impact)(void *,rf_physics_contact_actor *,float);
+    void *context;
+} rf_physics_contact_backend;
+/* Complete49d7e0 SP orchestration at explicit resource/gameplay boundaries.
+ * Lookup precedes every route. Stance effects run crouch,speed0,motion9(.25),
+ * then player flag publication; refresh mutable actor facts in callbacks.
+ * Crush dispatches9999 damage then clears velocity and skips ordinary impact.
+ * Other paths call impact after response, including zero impact. All callbacks
+ * required; owners remain alive and pointers stable through reentrant effects.
+ * Errors stop at that boundary; prior effects/mutations are not rolled back.
+ * No physics scheduling or multiplayer damage-tail filtering. */
+int rf_physics_contact_process_sp(rf_physics_contact_actor *actor,const rf_physics_contact_backend *backend);
 /* Translation block 49ffd2..4a007c for hit fraction [0,1). Remaining time uses
  * the raw fraction; position uses the 0.05-unit separation margin unless flag
  * 0x400000 is set. Updates position and scalar_144 only; bounds, rotation and

@@ -2,6 +2,7 @@
 #include "rf/collision.h"
 #include "rf/level.h"
 #include "rf/effect.h"
+#include "rf/entity.h"
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
@@ -214,6 +215,45 @@ int rf_physics_rotating_contact(rf_physics_body_state *state,const float point[3
         if(sphere_count>1)for(i=0;i<3;++i)state->vector_c8[i]=(float)((long double)state->vector_c8[i]*.5f);
     }
     *impact_speed=impact;return RF_OK;
+}
+int rf_physics_contact_process_sp(rf_physics_contact_actor *actor,const rf_physics_contact_backend *backend)
+{
+    rf_physics_contact_object object={0};rf_physics_contact_context input;rf_physics_contact_route route;
+    float impact;int status;
+    if(!actor || !actor->body || !actor->contact || !backend || !backend->lookup || !backend->crouch ||
+        !backend->speed || !backend->motion || !backend->player_flag || !backend->crush || !backend->impact)return RF_RANGE;
+    status=backend->lookup(backend->context,(uint32_t)actor->body->reference_15c,&object);if(status)return status;
+    input.mode=actor->mode;input.object_present=object.present;input.object_radius=object.radius;
+    input.inverse_mass=actor->contact->inverse_mass;memcpy(input.contact_velocity,actor->contact->velocity,12);
+    memcpy(input.support_velocity,actor->support_velocity,12);input.field_964=actor->field_964;input.field_974=actor->field_974;input.actor_flags_810=actor->flags_810;
+    status=rf_physics_contact_select(actor->body,&input,&route,&impact);if(status)return status;
+    if(route==RF_PHYSICS_CONTACT_CRUSH) {
+        rf_damage_request request={9999.0f,(uint32_t)actor->body->reference_15c,-1,0,UINT32_MAX,0};
+        status=backend->crush(backend->context,actor,&request);if(status)return status;
+        memset(actor->body->velocity,0,12);return RF_OK;
+    }
+    if(route==RF_PHYSICS_CONTACT_STANCE) {
+        uint8_t *flag=NULL;
+        status=backend->crouch(backend->context,actor);if(status)return status;
+        status=backend->speed(backend->context,actor,0);if(status)return status;
+        status=backend->motion(backend->context,actor,9,.25f);if(status)return status;
+        status=backend->player_flag(backend->context,actor->handle,&flag);if(status)return status;
+        if(flag)*flag=1;
+        route=(actor->body->flags&0x80)?RF_PHYSICS_CONTACT_FLAG80:RF_PHYSICS_CONTACT_STATIC;
+    }
+    if(route==RF_PHYSICS_CONTACT_DYNAMIC)
+        status=rf_physics_dynamic_contact(actor->body,actor->body->vector_138,actor->support_velocity,
+            actor->contact->velocity,actor->mode,object.present,(object.flags>>3)&1,(actor->object_flags>>3)&1,&impact);
+    else if(route==RF_PHYSICS_CONTACT_FLAG80)
+        status=rf_physics_player_contact(actor->body,actor->body->vector_138,actor->support_velocity,
+            actor->contact->velocity,actor->direction,actor->mode,
+            rf_entity_falling((int32_t)actor->mode,actor->use_kind,actor->support_material),&impact);
+    else if(route==RF_PHYSICS_CONTACT_STATIC) {
+        if(actor->use_kind==1)status=rf_physics_rotating_contact(actor->body,actor->contact->point,actor->body->vector_138,
+            actor->support_velocity,actor->contact->velocity,actor->sphere_count,&impact);
+        else status=rf_physics_static_contact(actor->body,actor->body->vector_138,actor->support_velocity,actor->contact->velocity,&impact);
+    }
+    if(status)return status;return backend->impact(backend->context,actor,impact);
 }
 int rf_physics_contact_select(rf_physics_body_state *state,
     const rf_physics_contact_context *context,rf_physics_contact_route *route,float *impact)

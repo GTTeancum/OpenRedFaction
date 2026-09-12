@@ -5754,3 +5754,40 @@ not complete contact scheduling. Compose the verified entry router, numeric
 responses and crush/stance effects with the damage tail before claiming full
 49d7e0. No live scene binding or new XEMU execution is claimed for this
 isolated compiled-NXDK comparison.
+
+
+### Composed single-player contact dispatch (2026-09-12)
+
+rf_physics_contact_process_sp composes complete49d7e0 SP orchestration from
+the verified entry/damping and dynamic/static/flag80/rotating numeric paths.
+A borrowed mutable actor view retains body/contact pointers, support/command
+vectors and movement/class/stance facts. Object lookup occurs first, including
+damping. Stance callbacks execute4289d0,427450(mode0),42a580(state9,.25),
+then4a3740 and optional player byteb1=1. Response selection afterward rereads
+body flag80 and updated actor facts; it does not repeat inverse-mass routing.
+
+Crush dispatches the original9999 damage request (source=current contact
+handle, kind-1, argument6=0, auxiliary UID-1, force0), then clears velocity
+and returns without ordinary impact. Every other path invokes49cd80 impact
+after response, including zero impact. Callbacks must preserve owner lifetime
+and synchronize mutated actor facts. Errors stop immediately without rolling
+back earlier effects. Multiplayer tail filtering remains outside this SP API.
+
+tools/verify_contact_process_sp.py runs complete original49d7e0 to return,
+with real lookup/predicates/numerical helpers. Only the six gameplay/resource
+boundaries above and impact/crush effects are supplied by the harness; original
+lookup remains actual code and is observed for order.2048 cases match exact
+PC/NXDK body/contact/actor facts, player flag and ordered callback arguments.
+Counts:[2048 lookup,145 crouch,145 speed,145 motion,145 player lookup,
+422 crush,1626 impact]. Controlled callback mutations change body flag80,
+movement mode, use-kind, support, inverse mass and velocities; the dispatcher
+uses the same post-callback state as original. Damage callbacks also mutate
+velocity to prove crush clears it afterward. All seven callback failure
+boundaries preserve their already-applied state and stop subsequent work.
+
+Both builds and19 CTests pass. Artifact:artifacts/contact-process-sp-
+verification.json (one filename, without the line break). tests/contact_process_probe.h
+provides the shared PC wire/callback fixture. This completes orchestration
+at explicit backend boundaries, not callback internals or live NPC stepping.
+Bind retained scene stance, player flag and damage backends and validate the
+composition in XEMU next. No new native run or visual change is claimed here.
