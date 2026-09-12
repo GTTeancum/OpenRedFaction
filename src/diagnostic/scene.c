@@ -315,7 +315,7 @@ typedef struct scene_particle_workspace {
 typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
-    uint32_t clutter_base,clutter_textures,*clutter_rooms;
+    uint32_t clutter_base,clutter_textures;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
@@ -1185,6 +1185,11 @@ static uint32_t *campaign_clutter_appearance_slots;
 uint32_t rf_scene_clutter_skins[6]; /* appearances, bindings, named placements, replacement rows, missing variants, selection hash */
 static campaign_clutter_model *campaign_clutter_models;
 static uint32_t *campaign_clutter_model_slots,campaign_clutter_model_count;
+static rf_clutter_shared_static_model *campaign_clutter_shared;
+static rf_clutter_base_owner **campaign_clutter_bodies;
+static rf_object_list campaign_clutter_objects;
+static uint32_t campaign_clutter_uid_cursor;
+uint32_t rf_scene_clutter_bodies[10]; /* created, physics-enabled, spheres, retained, peak, hash, load refs, retired, final refs, cleanup errors */
 
 static int32_t (*campaign_footstep_groups)[10];
 static int32_t (*campaign_pain_groups)[2];
@@ -1853,8 +1858,74 @@ static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes)
 {
     const unsigned char *p=data;while(bytes--)hash=(hash^*p++)*16777619u;return hash;
 }
+static int campaign_clutter_bodies_close(void)
+{
+    uint32_t i;int status;
+    if(campaign_clutter_bodies)for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i]) {
+        status=rf_clutter_shared_static_base_close(campaign_clutter_shared+campaign_clutter_model_slots[i],
+            campaign_clutter_bodies+i,&campaign_registry,&campaign_clutter_objects);
+        if(status){++rf_scene_clutter_bodies[9];return status;}++rf_scene_clutter_bodies[7];
+    }
+    rf_scene_clutter_bodies[8]=0;
+    if(campaign_clutter_shared)for(i=0;i<campaign_clutter_model_count;++i)rf_scene_clutter_bodies[8]+=campaign_clutter_shared[i].references;
+    if(rf_scene_clutter_bodies[8]){++rf_scene_clutter_bodies[9];return RF_RANGE;}
+    free(campaign_clutter_bodies);campaign_clutter_bodies=NULL;free(campaign_clutter_shared);campaign_clutter_shared=NULL;return RF_OK;
+}
+static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world)
+{
+    const uint32_t budget=256*1024;uint64_t bytes,peak;uint32_t i,j,hash=2166136261u;int status;
+    if(!world || !campaign_surface_palette || campaign_clutter_bodies || campaign_clutter_shared)return RF_RANGE;
+    memset(rf_scene_clutter_bodies,0,sizeof(rf_scene_clutter_bodies));rf_object_list_init(&campaign_clutter_objects);campaign_clutter_uid_cursor=UINT32_MAX;
+    bytes=(uint64_t)campaign_clutter_records.count*sizeof(*campaign_clutter_bodies)+
+        (uint64_t)campaign_clutter_model_count*sizeof(*campaign_clutter_shared)+sizeof(campaign_clutter_objects)+sizeof(campaign_clutter_uid_cursor);
+    if(bytes>budget)return RF_RANGE;peak=bytes;
+    if(campaign_clutter_records.count)campaign_clutter_bodies=calloc(campaign_clutter_records.count,sizeof(*campaign_clutter_bodies));
+    if(campaign_clutter_model_count)campaign_clutter_shared=calloc(campaign_clutter_model_count,sizeof(*campaign_clutter_shared));
+    if((campaign_clutter_records.count && !campaign_clutter_bodies) || (campaign_clutter_model_count && !campaign_clutter_shared)){status=RF_IO;goto fail;}
+    for(i=0;i<campaign_clutter_model_count;++i) {
+        campaign_clutter_shared[i].filename=campaign_clutter_models[i].name;
+        campaign_clutter_shared[i].resource=&campaign_clutter_models[i].resource;
+    }
+    for(i=0;i<campaign_clutter_records.count;++i) {
+        const rf_level_clutter *record=campaign_clutter_records.items+i;rf_clutter_create_descriptor d={0};
+        const rf_clutter_class *cls;const rf_entity_material *material;float coefficients[3];rf_collision_room_location room;
+        rf_clutter_base_owner *owner;uint32_t model=campaign_clutter_model_slots[i];
+        if(model==UINT32_MAX)continue;
+        for(j=0;j<campaign_clutter_classes.count;++j)if(rf_emitter_name_lookup(&campaign_clutter_classes.items[j].name,1,record->class_name)==0)break;
+        if(j==campaign_clutter_classes.count || model>=campaign_clutter_model_count){status=RF_FORMAT;goto fail;}
+        cls=campaign_clutter_classes.items+j;if(cls->material>=10){status=RF_FORMAT;goto fail;}
+        material=campaign_surface_palette->materials+cls->material;
+        coefficients[0]=material->elasticity;coefficients[1]=material->friction;coefficients[2]=material->density;
+        d.model=cls->model;d.kind=cls->model_kind;d.material=cls->material;d.identifier=-1;d.radius=cls->radius;d.flags=(cls->flags&6)?0x20:0;
+        /*40f360 resolves the special factory class by the literal riot_shield. */
+        if(rf_emitter_name_lookup(&cls->name,1,"riot_shield")==0)d.allocation_flags=0x100000;
+        memcpy(d.position,record->position,12);memcpy(d.matrix,record->matrix,36);
+        status=rf_geometry_collision_world_locate(world,record->position,&room);if(status)goto fail;
+        /*465220 supplies identifier-1; missing-parent defaults are byte0/group1.
+         * This registers base owners in diagnostic creation order; full class
+         * effects, family lists and original global load scheduling remain open. */
+        status=rf_clutter_shared_static_base_open(campaign_clutter_shared+model,&d,&campaign_registry,&campaign_clutter_objects,
+            &campaign_clutter_uid_cursor,room.room,0,1,coefficients,budget-(uint32_t)bytes,campaign_clutter_bodies+i);if(status)goto fail;
+        owner=campaign_clutter_bodies[i];if(!owner){status=RF_RANGE;goto fail;}
+        owner->uid=record->uid;
+        if(bytes+owner->peak_bytes>peak)peak=bytes+owner->peak_bytes;bytes+=owner->allocated_bytes;
+        ++rf_scene_clutter_bodies[0];rf_scene_clutter_bodies[1]+=!!(owner->state.physics_flags&0x20);rf_scene_clutter_bodies[2]+=owner->body.spheres.count;
+        hash=npc_hash_bytes(hash,&owner->uid,4);hash=npc_hash_bytes(hash,&owner->state.handle,4);
+        hash=npc_hash_bytes(hash,&owner->state.first_word,4);hash=npc_hash_bytes(hash,&owner->state.flags,8);
+        hash=npc_hash_bytes(hash,owner->state.position,12);hash=npc_hash_bytes(hash,&owner->attachment.radius,8);
+        hash=npc_hash_bytes(hash,&owner->body.state,sizeof(owner->body.state));
+        hash=npc_hash_bytes(hash,owner->body.spheres.items,owner->body.spheres.count*sizeof(*owner->body.spheres.items));
+        hash=npc_hash_bytes(hash,&owner->material,16);hash=npc_hash_bytes(hash,owner->matrix,36);
+    }
+    rf_scene_clutter_bodies[3]=(uint32_t)bytes;rf_scene_clutter_bodies[4]=(uint32_t)peak;rf_scene_clutter_bodies[5]=hash;
+    for(i=0;i<campaign_clutter_model_count;++i)rf_scene_clutter_bodies[6]+=campaign_clutter_shared[i].references;
+    return RF_OK;
+ fail:
+    (void)campaign_clutter_bodies_close();return status;
+}
 static void campaign_clutter_render_close(void)
 {
+    if(campaign_clutter_bodies_close())return;
     rf_model_materials_close(&campaign_clutter_materials);
     free(campaign_clutter_material_offsets);campaign_clutter_material_offsets=NULL;
     free(campaign_clutter_appearance_slots);campaign_clutter_appearance_slots=NULL;
@@ -5611,24 +5682,24 @@ static int scene_clutter_draw(scene_stream *stream,uint32_t frame)
     rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
     uint32_t i,part,batch,k,start_all=stream->mesh->count;int status;
     memset(rf_scene_clutter_draw,0,sizeof(rf_scene_clutter_draw));rf_scene_clutter_draw[0]=frame+1;
-    if(!stream->npc_memory || !stream->clutter_rooms)return RF_OK;
-    rf_scene_clutter_draw[4]=campaign_clutter_records.count*sizeof(uint32_t);
+    if(!stream->npc_memory || !campaign_clutter_bodies)return RF_OK;
     buffers.cache=stream->npc_memory;buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
     buffers.second=NULL;buffers.vertices=(uint8_t(*)[40])((uint8_t*)stream->npc_memory+4096*56);buffers.capacity=4096;
     planes.near_depth=.1f;planes.far_depth=1000;
     projection.scale[0]=320;projection.scale[1]=240;projection.clamp=1;
     lights.ambient[0]=40;lights.ambient[1]=50;lights.ambient[2]=60;
     for(i=0;i<campaign_clutter_records.count;++i) {
-        const rf_level_clutter *record=campaign_clutter_records.items+i;
+        const rf_clutter_base_owner *owner=campaign_clutter_bodies[i];
         const rf_static_render_resource *resource;rf_model_projection view;
-        uint32_t model=campaign_clutter_model_slots[i],room=stream->clutter_rooms[i],first,last,start_actor=stream->mesh->count;
+        uint32_t model=campaign_clutter_model_slots[i],room,first,last,start_actor=stream->mesh->count;
         if(model==UINT32_MAX)continue;if(model>=campaign_clutter_model_count)return RF_FORMAT;
+        if(!owner)return RF_FORMAT;room=owner->state.first_word;
         if(room<stream->visibility.state.count && !stream->visibility.state.rooms[room].visible)continue;
         resource=&campaign_clutter_models[model].resource;
         if(campaign_clutter_appearance_slots[i]>=rf_scene_clutter_skins[0])return RF_FORMAT;
         first=campaign_clutter_material_offsets[campaign_clutter_appearance_slots[i]];
         last=campaign_clutter_material_offsets[campaign_clutter_appearance_slots[i]+1];
-        status=rf_model_local_view(&stream->npc_view,record->position,record->matrix[0],&view);if(status)return status;
+        status=rf_model_local_view(&stream->npc_view,owner->state.position,owner->matrix,&view);if(status)return status;
         /* Diagnostic highest LOD per part, authored skin and placement.
          * SUBM offset is not added to vertices:52df09 passes the instance pose.
          * Original factory visibility, glare effects and dynamic lighting remain open. */
@@ -5972,6 +6043,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_clutter_open(tables_path,level);if(status)goto done;
             status=campaign_clutter_render_open(&archive);if(status)goto done;
             status=campaign_clutter_materials_open(tables_path,maps,map_count);if(status)goto done;
+            status=campaign_clutter_bodies_open(collision);if(status)goto done;
             memset(rf_scene_live_activation,0,sizeof(rf_scene_live_activation));campaign_actor_controller=UINT32_MAX;
             memset(rf_scene_trigger_contacts,0,sizeof(rf_scene_trigger_contacts));
             memset(&campaign_entities,0,sizeof(campaign_entities));memset(&campaign_player_view,0,sizeof(campaign_player_view));
@@ -6140,15 +6212,6 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(materials->items);materials->items=combined;materials->count+=textures->count;
         materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
         free(textures->items);memset(textures,0,sizeof(*textures));
-        if(campaign_clutter_records.count) {
-            stream.clutter_rooms=malloc(campaign_clutter_records.count*sizeof(*stream.clutter_rooms));
-            if(!stream.clutter_rooms){status=RF_IO;goto done;}
-            for(i=0;i<campaign_clutter_records.count;++i) {
-                rf_collision_room_location location;
-                status=rf_geometry_collision_world_locate(collision,campaign_clutter_records.items[i].position,&location);if(status)goto done;
-                stream.clutter_rooms[i]=location.room;
-            }
-        }
         stream.npc_memory=malloc(4096*96);stream.npc_indices=malloc(24576*sizeof(uint16_t));stream.npc_pool=calloc(1,sizeof(*stream.npc_pool));
         if(!stream.npc_memory || !stream.npc_indices || !stream.npc_pool){status=RF_IO;goto done;}
         for(i=0;i<campaign_poses.count;++i) {
@@ -6195,7 +6258,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
-    free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);free(stream.clutter_rooms);
+    free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);
     rf_level_particles_close(&stream.particles);
     free(stream.particle_workspace);particle_draw_stream=NULL;

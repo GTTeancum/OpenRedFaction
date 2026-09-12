@@ -294,8 +294,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['clutter_skins']=clutter_skins
      clutter_draw=words(monitor,symbol('rf_scene_clutter_draw'),6)
      assert clutter_draw==expected('CLUTTER_DRAW') and clutter_draw[0]==frames,clutter_draw
-     assert clutter_draw[4]==clutter[1]*4 and clutter_draw[2]%3==0,clutter_draw
+     assert clutter_draw[4]==0 and clutter_draw[2]%3==0,clutter_draw
      report['clutter_draw']=clutter_draw
+     clutter_bodies=words(monitor,symbol('rf_scene_clutter_bodies'),10)
+     assert clutter_bodies==expected('CLUTTER_BODIES'),clutter_bodies
+     assert clutter_bodies[0]==clutter_bodies[6]==clutter_bodies[7]==clutter_render[1],clutter_bodies
+     assert clutter_bodies[8:]==[0,0] and clutter_bodies[3]<=clutter_bodies[4]<=256*1024,clutter_bodies
+     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+      body_reference=json.loads((root/'artifacts/clutter-scene-bodies.json').read_text())
+      assert body_reference['result']=='PASS' and clutter_bodies[:5]==body_reference['expected'],clutter_bodies
+     report['clutter_bodies']=clutter_bodies
      npc_models=words(monitor,symbol('rf_scene_npc_models'),4)
      assert npc_models==expected('NPC_MODELS'),npc_models
      assert npc_models==[npc_bodies[1],npc_bodies[0]*80,npc_bodies[1],0],npc_models
