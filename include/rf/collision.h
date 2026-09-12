@@ -368,9 +368,15 @@ void rf_collision_pairs_seed(rf_collision_pair_list *available,rf_collision_pair
 uint32_t rf_collision_pair_create(rf_collision_pair_list *active,rf_collision_pair_list *available,
     const void *first,const void *second,
     uint32_t (*gate)(void *,const void *,const void *,uint32_t *),void *context);
-typedef struct rf_collision_pair_actor_state {uint32_t kind,body_flags,model,movement_mode;} rf_collision_pair_actor_state;
+typedef struct rf_collision_pair_actor_state {
+    uint32_t kind,body_flags,model,movement_mode,handle,parent_handle,object_flags;
+} rf_collision_pair_actor_state;
+/*48bb90/40a110: reject either parent/child handle match or object4000.
+ * No geometry test and no mutation; actual actor handles, not list indices. */
+uint32_t rf_collision_pair_response_allowed(const rf_collision_pair_actor_state *first,
+    const rf_collision_pair_actor_state *second);
 enum rf_collision_pair_process_call {
-    RF_PAIR_EXPIRED,RF_PAIR_KIND5_TEST,RF_PAIR_BOUNDS_TEST,
+    RF_PAIR_EXPIRED,RF_PAIR_KIND5_TEST,
     RF_PAIR_RESPONSE_MODES1,RF_PAIR_RESPONSE_GENERAL,RF_PAIR_RESPONSE_MODEL,RF_PAIR_RESPONSE_SOLID
 };
 typedef struct rf_collision_pair_process_backend {
@@ -379,7 +385,7 @@ typedef struct rf_collision_pair_process_backend {
     void *context;
 } rf_collision_pair_process_backend;
 /* Full48ca60 control flow: cached-next traversal, expiration/kind5 removal,
- * active-body gate and original response precedence. Queries receive the
+ * active-body/parent/visibility gates and original response precedence. Queries receive the
  * pair record as first argument; responses receive ordered actor identities.
  * Actor lookup is pure; resources may update actor fields/pair flags but
  * must preserve live list/node ownership for the original cached traversal.

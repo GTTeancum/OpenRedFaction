@@ -1917,6 +1917,13 @@ uint32_t rf_collision_pair_expired(const rf_collision_pair_expiration *s)
     return 0;
 }
 
+uint32_t rf_collision_pair_response_allowed(const rf_collision_pair_actor_state *a,
+    const rf_collision_pair_actor_state *b)
+{
+    return a->parent_handle!=b->handle && b->parent_handle!=a->handle &&
+        !((a->object_flags|b->object_flags)&0x4000u);
+}
+
 void rf_collision_pairs_process(rf_collision_pair_list *active,rf_collision_pair_list *available,
     const rf_collision_pair_process_backend *b)
 {
@@ -1930,7 +1937,7 @@ void rf_collision_pairs_process(rf_collision_pair_list *active,rf_collision_pair
             a=b->actor(b->context,node->first);c=b->actor(b->context,node->second);
             if((a->body_flags|c->body_flags)&0x40000000u) {
                 if(a->kind==5 || c->kind==5)remove=!(b->call(b->context,RF_PAIR_KIND5_TEST,record,NULL)&255u);
-                else if(b->call(b->context,RF_PAIR_BOUNDS_TEST,record,NULL)&255u) {
+                else if(rf_collision_pair_response_allowed(a,c)) {
                     flags=record->flags;first=node->first;second=node->second;
                     a=b->actor(b->context,first);c=b->actor(b->context,second);
                     if(flags&0x20u)op=a->movement_mode==1 && c->movement_mode==1?RF_PAIR_RESPONSE_MODES1:RF_PAIR_RESPONSE_GENERAL;

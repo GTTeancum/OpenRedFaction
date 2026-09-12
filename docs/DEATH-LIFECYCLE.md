@@ -4006,3 +4006,33 @@ CTests pass. No native XEMU or live collision response claim is made.
 Next bind actual48cc10,48bb00 and48bb90 queries and response resource
 owners. Discovery/classification/global-list integration remains required;
 the processor is not invoked in campaign physics yet.
+
+
+Correction and integration of48bb90 response filter - 2026-09-12
+
+The preceding processor section called48bb90 a bounds query. That label was
+incorrect: the actual function rejects first200==second2c or second200==
+first2c, then calls40a110 on both actors.40a110 checks object7c mask4000.
+No geometry is tested. rf_collision_pair_response_allowed now implements
+these parent-handle and visibility conditions with direct raw handle
+comparisons, preserving the original behavior even for equal sentinel values.
+
+rf_collision_pair_actor_state now includes actual handle, parent handle and
+object flags. The processor calls the shared filter directly instead of a
+supplied callback; RF_PAIR_BOUNDS_TEST has been removed. Test wire fixtures
+and enum values were updated accordingly. This is port-facing reconstructed
+state, not a claim about the original object layout or new live scene storage.
+
+verify_collision_process.py now runs actual48bb90/40a110 as part of original
+48ca60 while PC/NXDK use the shared filter.2048 cases pass with exact lists
+and callback traces:8182 expiration checks,1540 kind5 calls,418 mode1
+responses,1063 general responses,298 model responses and110 solid responses.
+Input coverage includes parent matches and visibility flags. Expiration,
+kind5 and response effects are still supplied boundaries; they are not
+newly bound by this change. Both builds and all19 CTests pass. No XEMU
+or campaign activation is claimed.
+
+48bb00 is also not merely geometry: it selects the kind5 endpoint (first
+wins), optionally filters mode2 through an external handle list, then calls
+4bfc60(kind5,other,0) and returns1. That list and dispatch need an explicit
+audit before replacing the remaining kind5 callback.
