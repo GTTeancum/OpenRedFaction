@@ -418,6 +418,78 @@ int rf_level_owned_navigation_open(const rf_level *level,uint32_t budget,
     }
     *result=next;return RF_OK;
 }
+static int clutter_string(rf_level_group_reader *r,char **names,uint32_t *remaining,const char **value)
+{
+    unsigned char raw[2];uint32_t length;int status=group_read(r,raw,2);if(status)return status;
+    length=(uint32_t)raw[0]|(uint32_t)raw[1]<<8;
+    if(length>r->section.size-r->cursor)return RF_FORMAT;
+    if(!names) {
+        if(remaining){if(length+1>UINT32_MAX-*remaining)return RF_RANGE;*remaining+=length+1;}
+        r->cursor+=length;return RF_OK;
+    }
+    if(length+1>*remaining)return RF_FORMAT;
+    status=group_read(r,*names,length);if(status)return status;
+    if(memchr(*names,0,length))return RF_FORMAT;
+    (*names)[length]=0;*value=*names;*names+=length+1;*remaining-=length+1;return RF_OK;
+}
+static int clutter_scan(rf_level_group_reader r,uint32_t count,rf_level_clutter *items,
+    const uint8_t *raw,char *names,uint32_t *name_bytes)
+{
+    uint32_t i,j,begin,ignored;int status;
+    for(i=0;i<count;++i) {
+        rf_level_clutter node={0};unsigned char byte;
+        begin=r.cursor;
+        if((status=group_number(&r,&node.uid)) ||
+            (status=clutter_string(&r,items?&names:NULL,name_bytes,&node.class_name)) ||
+            (status=group_read(&r,node.position,12)) || (status=group_read(&r,node.matrix,36)) ||
+            (status=clutter_string(&r,items?&names:NULL,name_bytes,&node.name)) ||
+            (status=group_read(&r,&byte,1)) || (status=group_number(&r,&node.common_count)))return status;
+        node.enabled=byte;node.common_offset=r.cursor-begin;
+        if(node.common_count>(r.section.size-r.cursor)/6)return RF_FORMAT;
+        for(j=0;j<node.common_count;++j) {
+            if((status=clutter_string(&r,NULL,NULL,NULL)) || (status=group_number(&r,&ignored)))return status;
+        }
+        if((status=clutter_string(&r,items?&names:NULL,name_bytes,&node.resource_name)) ||
+            (status=group_number(&r,&node.link_count)))return status;
+        node.links_offset=r.cursor-begin;
+        if(node.link_count>(r.section.size-r.cursor)/4)return RF_FORMAT;
+        r.cursor+=node.link_count*4;node.bytes=r.cursor-begin;
+        if(items){node.raw=raw+begin;items[i]=node;}
+    }
+    return r.cursor==r.section.size?RF_OK:RF_FORMAT;
+}
+void rf_level_owned_clutter_close(rf_level_owned_clutter *clutter)
+{
+    if(clutter){free(clutter->storage);memset(clutter,0,sizeof(*clutter));}
+}
+int rf_level_owned_clutter_open(const rf_level *level,uint32_t budget,rf_level_owned_clutter *result)
+{
+    rf_level_owned_clutter next={0};rf_level_group_reader reader={0};const rf_level_section *section;
+    uint32_t names=0,remaining;uint64_t bytes;uint8_t *raw;int status;
+    if(!level || !result || result->storage || result->items || result->count || result->allocated_bytes)return RF_RANGE;
+    if(level->version!=180)return RF_FORMAT;
+    section=rf_level_find(level,0x50000);if(!section)return RF_NOT_FOUND;
+    reader.level=level;reader.section=*section;
+    if((status=group_number(&reader,&next.count)))return status;
+    if(next.count>(section->size-reader.cursor)/67)return RF_FORMAT;
+    status=clutter_scan(reader,next.count,NULL,NULL,NULL,&names);if(status)return status;
+    bytes=sizeof(next)+(uint64_t)next.count*sizeof(*next.items)+(next.count?section->size:0)+names;
+    if(bytes>budget)return RF_RANGE;next.allocated_bytes=(uint32_t)bytes;
+    if(next.count) {
+        next.storage=malloc((size_t)(bytes-sizeof(next)));if(!next.storage)return RF_RANGE;
+        next.items=next.storage;raw=(uint8_t *)(next.items+next.count);remaining=names;
+        status=rf_level_read(level,section,0,raw,section->size);
+        if(!status)status=clutter_scan(reader,next.count,next.items,raw,(char *)raw+section->size,&remaining);
+        if(status || remaining){rf_level_owned_clutter_close(&next);return status?status:RF_FORMAT;}
+    }
+    *result=next;return RF_OK;
+}
+int rf_level_clutter_link(const rf_level_clutter *clutter,uint32_t index,uint32_t *result)
+{
+    if(!clutter || !result || !clutter->raw || index>=clutter->link_count)return RF_RANGE;
+    if(clutter->links_offset>clutter->bytes || clutter->link_count>(clutter->bytes-clutter->links_offset)/4)return RF_FORMAT;
+    *result=le32(clutter->raw+clutter->links_offset+index*4);return RF_OK;
+}
 static int group_string(rf_level_group_reader *r,char out[256])
 {
     unsigned char raw[2];uint32_t size;int status=group_read(r,raw,2);if(status)return status;

@@ -49,6 +49,26 @@ typedef struct rf_level_owned_navigation {
 int rf_level_owned_navigation_open(const rf_level *level,uint32_t budget,
     rf_level_owned_navigation *result);
 void rf_level_owned_navigation_close(rf_level_owned_navigation *navigation);
+
+typedef struct rf_level_clutter {
+    uint32_t uid;float position[3],matrix[3][3];
+    const char *class_name,*name,*resource_name;uint32_t enabled;
+    const uint8_t *raw;uint32_t bytes,common_offset,common_count,links_offset,link_count;
+} rf_level_clutter;
+typedef struct rf_level_owned_clutter {
+    void *storage;rf_level_clutter *items;uint32_t count,allocated_bytes;
+} rf_level_owned_clutter;
+/* Original465220/464f90 version180 authored records, not runtime factories.
+ * One allocation owns compact records, raw section and terminated names. Raw
+ * spans preserve common pairs, links and ignored bytes. Offsets are relative
+ * to each record's raw pointer. Names must not contain embedded NUL. Budget
+ * includes owner and storage, excluding allocator overhead/stack. Source must
+ * stay stable during open and may close afterward. Empty destination required;
+ * errors preserve it. Close clears owner and invalidates all borrowed data. */
+int rf_level_owned_clutter_open(const rf_level *level,uint32_t budget,rf_level_owned_clutter *result);
+void rf_level_owned_clutter_close(rf_level_owned_clutter *clutter);
+/* Read one retained association word without unaligned pointer casts. */
+int rf_level_clutter_link(const rf_level_clutter *clutter,uint32_t index,uint32_t *result);
 typedef struct rf_level_entity {
     int32_t uid;float position[3],orientation[3][3];
     char class_name[256],script_name[256],state_animation[256],skin[256];

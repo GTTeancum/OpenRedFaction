@@ -6,6 +6,40 @@ int main(int argc,char **argv)
 {
     rf_vpp archive;rf_level level;rf_level_entity_reader reader;rf_level_entity entity;int status;
     _Static_assert(sizeof(entity)==1084,"Entity probe wire layout");
+    if(argc==4 && !strcmp(argv[3],"--clutter")) {
+        rf_level_owned_clutter owned={0},small={0},zero={0};uint32_t i,j,bytes;
+        _setmode(_fileno(stdout),_O_BINARY);
+        if(rf_vpp_open(&archive,argv[1]) || rf_level_open(&level,&archive,argv[2]) ||
+            rf_level_owned_clutter_open(&level,1024*1024,&owned))return 2;
+        bytes=owned.allocated_bytes;
+        if(rf_level_owned_clutter_open(&level,bytes-1,&small)!=RF_RANGE || memcmp(&small,&zero,sizeof(small)))return 4;
+        if(rf_level_owned_clutter_open(&level,bytes,&owned)!=RF_RANGE)return 4;
+        for(i=0;i<level.section_count;++i)if(level.sections[i].type==0x50000) {
+            --level.sections[i].size;
+            if(rf_level_owned_clutter_open(&level,1024*1024,&small)!=RF_FORMAT || memcmp(&small,&zero,sizeof(small)))return 4;
+            ++level.sections[i].size;
+        }
+        rf_level_owned_clutter_close(&owned);
+        if(rf_level_owned_clutter_open(&level,bytes,&owned))return 4;
+        rf_vpp_close(&archive);memset(&level,0xa5,sizeof(level));
+        if(fwrite(&owned.count,4,1,stdout)!=1)return 3;
+        for(i=0;i<owned.count;++i) {
+            const rf_level_clutter *node=owned.items+i;uint32_t value=0xa5a5a5a5;
+            uint32_t header[7]={node->uid,node->enabled,node->bytes,node->common_offset,node->common_count,node->links_offset,node->link_count};
+            const char *names[3]={node->class_name,node->name,node->resource_name};
+            if(fwrite(header,sizeof(header),1,stdout)!=1 || fwrite(node->position,12,1,stdout)!=1 || fwrite(node->matrix,36,1,stdout)!=1)return 3;
+            for(j=0;j<3;++j) {
+                uint32_t length=(uint32_t)strlen(names[j]);
+                if(fwrite(&length,4,1,stdout)!=1 || fwrite(names[j],1,length,stdout)!=length)return 3;
+            }
+            if(fwrite(node->raw,1,node->bytes,stdout)!=node->bytes)return 3;
+            for(j=0;j<node->link_count;++j)if(rf_level_clutter_link(node,j,&value))return 4;
+            value=0xa5a5a5a5;
+            if(rf_level_clutter_link(node,node->link_count,&value)!=RF_RANGE || value!=0xa5a5a5a5)return 4;
+        }
+        fprintf(stderr,"%u\n",bytes);rf_level_owned_clutter_close(&owned);rf_level_owned_clutter_close(&owned);
+        return memcmp(&owned,&zero,sizeof(owned))?4:0;
+    }
     if(argc==4 && !strcmp(argv[3],"--navigation")) {
         rf_level_owned_navigation owned={0},small={0},zero={0};uint32_t i,bytes;
         _setmode(_fileno(stdout),_O_BINARY);

@@ -6528,3 +6528,37 @@ resource semantics or native clutter visibility is claimed. Next implement
 budgeted shared record ownership retaining raw unknown names/pairs/IDs, validate
 PC/NXDK against this audit, then recover class/model initialization4104a0 and
 ordered successful creation for the visibility middle list.
+
+
+### Shared compact authored clutter ownership (2026-09-12)
+
+`rf_level_owned_clutter_open/close` now retains version180 section50000 in shared
+C. A single allocation holds92-byte x86 records, the complete raw section and
+exact-length terminated copies of class/instance/resource names. The owner is
+16 bytes. Record-relative common/link offsets and counts preserve uninterpreted
+pairs and association IDs without pointer casts or fixed-size string padding.
+`rf_level_clutter_link` reads one association word with span/index checks.
+
+The loader first measures bounded records/names, allocates within the caller
+budget, retains raw bytes and populates records. There is no extra section-sized
+staging allocation. The source must remain stable during open; all retained
+fields survive source closure. Empty destinations are required, failures free
+partial storage and preserve output, and close clears the owner and is repeatable.
+Three factory-facing names reject embedded NUL; unknown common-pair bytes remain
+raw. Allocation accounting excludes allocator metadata/stack, as other owners do.
+
+`tools/verify_clutter_owned.py` compares all91 authored sections/12659 records
+against the original-audited reader on PC and compiled NXDK: exact fields, poses,
+terminated names, raw spans and offsets, associations, exact/insufficient budgets,
+nonempty destination and truncation rejection. PC closes archives before export.
+NXDK additionally exercises allocation and post-allocation I/O failure cleanup,
+empty sections, a long name, common pairs, duplicate links and embedded-NUL
+rejection. The compiled loader and level bounds execute; only VPP reads/malloc/
+free are supplied. Opening L1S1 uses39834 bytes and the maximum installed case
+uses105016 bytes. Both builds and all19 CTests pass.
+
+This owns authored data, not successful runtime clutter instances or models.
+Next recover4104a0 class/model initialization and the still-provisional trailing
+resource semantics410d30, bind scene lifetime and actual creation order, then
+verify native64MiB residency and complete the clutter visibility population.
+No new native XEMU clutter or rendering result is claimed by these tests.
