@@ -4732,3 +4732,38 @@ and arbitrary finite planes/triangles; input bytes and miss outputs remain
 unchanged. Report: artifacts/model-sphere-triangle.json. Both builds and
 all19 CTests pass. This does not establish native XEMU or gameplay wiring.
 Part54daa0, type2 geometry and live model response binding remain open.
+
+
+## Part query54daa0 original execution audit
+
+The model receiver uses parts at+4c, stride90. Part+8c points to shared
+metadata: selected LOD index at+0, LOD pointers at index*4, offset at+1c,
+minimum at+2c and maximum at+38. Selected LOD+40 flag10 falls back to
+metadata[1]. Offset/bounds getters5044e0/504550/504570 still read the shared
+metadata; they do not read the selected LOD or its fallback.
+Low byte reset exactly1 clears hit time to1 and token to0. Query flags2
+selects copy from start30/delta3c, otherwise subtract origin and inverse
+rotate. Both branches write working start50/delta5c without modifying the
+first80 query bytes. Subtract part offset from working start, expand bounds
+by radius, then508b70 tests the full start+delta segment. LOD+8 batches use
+stride38 with unsigned16 count at+c; each batch uses unsigned16 triangle
+count at+2a, and record flags at+6 masked20.54dcd0 selects thin versus sphere
+at radius<0.0001. Successful results add shared part offset back to point,
+including early flag1 returns; misses leave the hit result intact apart
+from explicit reset. Original traversal must retain ordering and nearest
+hit behavior when multiple batches are integrated.
+
+tools/audit_model_part_query.py executes full original54daa0 with actual
+triangle/geometry helpers; an observer only records54dcd0 calls and never
+changes execution.128 analytic fixtures pass:32 hits,64 LOD fallback cases,
+64 empty batches, identity matrices with nonzero origin/offset, both radius
+paths, flags0..3 and reset0/1/101/2. Exact query scratch, original query
+preservation, translated hit/token, missed result and selected geometry
+arguments are asserted. Report: artifacts/model-part-audit.json. This is
+original-reference evidence, not a reconstructed part or multi-batch test.
+
+Integration gap: rf_model_geometry currently retains vertices, triangle
+indices/flags and reuse, but not stored triangle planes. Batch region4 is
+already located by the file parser. Add bounded plane decoding/ownership
+with budget accounting before binding original static-part geometry;
+do not silently regenerate planes or use render LOD bounds as part bounds.
