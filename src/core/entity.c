@@ -1422,3 +1422,10 @@ int rf_entity_navigation_reset(rf_entity_navigation_route *route,int32_t now_ms)
     memset(route->vector_138,0,sizeof(route->vector_138));route->flag_15c=1;route->flag_170=0;route->word_160=0;
     return RF_OK;
 }
+
+uint32_t rf_entity_navigation_candidate_allowed(float radius,float height,uint32_t mode,
+    float candidate_radius,float candidate_height,uint32_t word_40)
+{
+    return !(radius>candidate_radius) && !(height>candidate_height) &&
+        ((mode&255u)!=1u || word_40==0);
+}

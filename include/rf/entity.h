@@ -942,4 +942,9 @@ typedef struct rf_entity_navigation_route {
  * navigation references, allocate routes or reselect AI. */
 int rf_entity_navigation_reset(rf_entity_navigation_route *route,int32_t now_ms);
 
+/*40c570 low-byte navigation eligibility. Equality and unordered comparisons pass the size gates;
+ * original x87 test uses C0|C3. Only mode low byte exactly1 checks node word40. No mutation. */
+uint32_t rf_entity_navigation_candidate_allowed(float radius,float height,uint32_t mode,
+    float candidate_radius,float candidate_height,uint32_t word_40);
+
 #endif
