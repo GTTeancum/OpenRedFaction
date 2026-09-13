@@ -27,6 +27,7 @@ Volume opacity/beam geometry match original/PC/NXDK; original mode is06110c42.
 Volume projection/clipping matches1024 original/PC/NXDK polygons.
 Projected animated volume beam passes2048 PC/XEMU pixel checks;84 pages recover.
 Camera-to-volume opacity matches2024 original/PC/NXDK cases, with12 input guards.
+Composed nonactor volume routine matches256 original/PC/NXDK cases plus7 failure checks.
 Connect actor gates and sorted-queue volume drawing.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;

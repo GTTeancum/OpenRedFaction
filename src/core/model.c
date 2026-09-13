@@ -108,6 +108,37 @@ int rf_glare_volume_camera_opacity(const float position[3],const float forward[3
     if(dot<-1 || dot>1 || !isfinite(dot))return RF_FORMAT;
     return rf_glare_volume_opacity(acos(dot),cone_degrees,opacity,draw);
 }
+int rf_glare_volume_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
+    const rf_glare_volume_frame *frame,const rf_glare_volume_services *services)
+{
+    float opacity=0,length,width,end[3];uint32_t allowed=1,draw=0,i;int status,cleanup;
+    if(!owner || !definition || !frame || !services || !services->special_allowed ||
+       !services->parent_visible || !services->actor_dimensions || !services->enable ||
+       !services->color || !services->texture || !services->beam)return RF_RANGE;
+    if(owner->state.word_2cc) {
+        status=services->special_allowed(services->context,owner,&allowed);if(status || !allowed)return status;
+    }
+    status=services->parent_visible(services->context,owner->parent_handle,&allowed);if(status || !allowed)return status;
+    if(frame->bitmap>=0) {
+        status=rf_glare_volume_camera_opacity(owner->position,owner->matrix+6,frame->camera,
+            definition->cone_degrees,&opacity,&draw);if(status)return status;
+    }
+    length=definition->length;width=definition->height;
+    if(!isfinite(length) || !isfinite(width))return RF_FORMAT;
+    status=services->actor_dimensions(services->context,owner,&length,&width,&draw);if(status)return status;
+    owner->radius=definition->height>definition->length?definition->height:definition->length;
+    if(!draw)return RF_OK;
+    if(frame->bitmap<0 || !isfinite(length) || !isfinite(width))return RF_FORMAT;
+    for(i=0;i<3;++i) {
+        float offset=(float)((double)owner->matrix[6+i]*length);
+        end[i]=(float)((double)owner->position[i]+offset);if(!isfinite(end[i]))return RF_FORMAT;
+    }
+    status=services->enable(services->context,1);if(status)return status;
+    status=services->color(services->context,255,255,255,(uint32_t)((double)opacity*255));
+    if(!status)status=services->texture(services->context,(uint32_t)frame->bitmap,-1);
+    if(!status)status=services->beam(services->context,end,owner->position,width,frame->mode);
+    cleanup=services->enable(services->context,0);return status?status:cleanup;
+}
 int rf_glare_parent_update(rf_glare_base_owner *owner,const rf_object_registry *registry)
 {
     if(!owner || !registry)return RF_RANGE;

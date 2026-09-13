@@ -9279,3 +9279,17 @@ not claims about original invalid-input behavior. verify_glare_volume_camera.py
 executes the original math/CRT unchanged and compares2024 exact PC/NXDK
 opacity/draw outputs plus12 shared-code guards. Both builds and22 CTest
 checks pass. Parent/actor gates and sorted scene volume drawing remain open.
+
+
+Volume orchestration (2026-09-13): rf_glare_volume_render composes4141a0
+parent room visibility, camera opacity, actor-dimension service, maximum
+class radius publication, white alpha, texture selection, beam endpoints
+and enable/disable. Class height is original28; length is original2c.
+verify_volume_frame.py executes full4141a0 nonactor paths and compares256
+PC/NXDK radius/ordered callback traces, including missing parent/room, hidden
+room, absent/zero/positive bitmap, angular suppression and varied geometry.
+Seven injected callback failures verify shared error propagation and graphics
+disable after successful enable; this error policy is not original behavior.
+Both builds and22 CTest checks pass. Special-owner checks and actor aim/RNG
+modulation remain explicit service boundaries; generic488b20 flags and sorted
+scene dispatch remain caller work. No native scene integration claim.

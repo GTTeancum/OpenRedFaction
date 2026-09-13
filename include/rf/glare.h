@@ -86,6 +86,29 @@ int rf_glare_volume_opacity(double angle_radians,float cone_degrees,float *opaci
  * with outputs preserved. No parent gates, actor modulation or publication. */
 int rf_glare_volume_camera_opacity(const float position[3],const float forward[3],
     const float camera[3],float cone_degrees,float *opacity,uint32_t *draw);
+typedef struct rf_glare_volume_frame {
+    float camera[3];int32_t bitmap;uint32_t mode;
+} rf_glare_volume_frame;
+typedef struct rf_glare_volume_services {
+    int (*special_allowed)(void *,rf_glare_base_owner *,uint32_t *);
+    int (*parent_visible)(void *,uint32_t,uint32_t *);
+    /* Resolve426fc0 actor branch, including its aim/RNG modulation. Called
+     * even when the bitmap/opacity already suppressed drawing. May clear draw. */
+    int (*actor_dimensions)(void *,rf_glare_base_owner *,float *length,float *width,uint32_t *draw);
+    int (*enable)(void *,uint32_t);
+    int (*color)(void *,uint32_t,uint32_t,uint32_t,uint32_t);
+    int (*texture)(void *,uint32_t,int32_t);
+    int (*beam)(void *,const float end[3],const float start[3],float width,uint32_t mode);
+    void *context;
+} rf_glare_volume_services;
+/*4141a0 orchestration with explicit special-owner/actor/graphics services.
+ * Class length maps original2c, height maps28. Publish max class dimensions
+ * after actor processing even if draw is suppressed. Generic488b20 flag2
+ * rejection/flag10 publication and queue ordering belong to the caller.
+ * Completed state/callback effects remain on error; graphics disable is
+ * attempted after any failure following successful enable. No allocation. */
+int rf_glare_volume_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
+    const rf_glare_volume_frame *frame,const rf_glare_volume_services *services);
 /*414a25..414a73 standard corona visibility refresh. Caller has already checked
  * active28c and word2cc==0 and the parent/corona gates. face_cache_state is the
  * signed global5a3a34 read by actual4dbc40: nonnegative clears cached face.

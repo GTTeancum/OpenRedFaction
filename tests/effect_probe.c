@@ -53,6 +53,22 @@ static int corona_flash(void *context,uint32_t r,uint32_t g,uint32_t b,int32_t a
 typedef struct attachment_probe_context {
     rf_attachment_node nodes[16];uint32_t flags[16],count,events[96];
 } attachment_probe_context;
+typedef struct volume_frame_fixture {corona_tail_fixture trace;uint32_t parent;} volume_frame_fixture;
+static int volume_special(void *c,rf_glare_base_owner *o,uint32_t *allowed)
+{(void)c;(void)o;*allowed=0;return RF_OK;}
+static int volume_parent(void *context,uint32_t handle,uint32_t *visible)
+{volume_frame_fixture *c=context;uint32_t record[8]={1,handle};*visible=c->parent!=2;return corona_record(&c->trace,record);}
+static int volume_actor(void *context,rf_glare_base_owner *o,float *length,float *width,uint32_t *draw)
+{volume_frame_fixture *c=context;uint32_t record[8]={2,o->parent_handle};(void)length;(void)width;(void)draw;return corona_record(&c->trace,record);}
+static int volume_enable(void *context,uint32_t enabled)
+{volume_frame_fixture *c=context;uint32_t record[8]={3,enabled};return corona_record(&c->trace,record);}
+static int volume_color(void *context,uint32_t r,uint32_t g,uint32_t b,uint32_t a)
+{volume_frame_fixture *c=context;uint32_t record[8]={4,r,g,b,a};return corona_record(&c->trace,record);}
+static int volume_texture(void *context,uint32_t bitmap,int32_t second)
+{volume_frame_fixture *c=context;uint32_t record[8]={5,bitmap,(uint32_t)second};return corona_record(&c->trace,record);}
+static int volume_beam(void *context,const float end[3],const float start[3],float width,uint32_t mode)
+{volume_frame_fixture *c=context;uint32_t record[8]={6};
+ if(start!=c->trace.owner->position)return RF_RANGE;memcpy(record+1,end,12);memcpy(record+4,&width,4);record[5]=mode;return corona_record(&c->trace,record);}
 static rf_attachment_node *attachment_probe_lookup(void *context,uint32_t handle)
 {
     attachment_probe_context *c=context;uint32_t *e=c->events+c->count++*3;
@@ -65,6 +81,20 @@ static int attachment_probe_publish(void *context,rf_attachment_node *node,rf_at
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--volume-frame")) {
+        uint32_t wire[15];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,sizeof(wire),1,stdin)==1) {
+            rf_glare_base_owner owner={0};rf_glare_definition definition={0};rf_glare_volume_frame frame={0};uint32_t out[67];
+            volume_frame_fixture fixture={{&owner,0,wire[14],{0}},wire[0]};
+            rf_glare_volume_services services={volume_special,volume_parent,volume_actor,volume_enable,volume_color,volume_texture,volume_beam,&fixture};
+            owner.parent_handle=32;owner.radius=13;memcpy(owner.position,wire+2,12);memcpy(owner.matrix+6,wire+5,12);
+            memcpy(frame.camera,wire+8,12);frame.bitmap=(int32_t)wire[1];frame.mode=RF_PARTICLE_GLOW_MODE;
+            memcpy(&definition.cone_degrees,wire+11,4);memcpy(&definition.height,wire+12,4);memcpy(&definition.length,wire+13,4);
+            out[0]=(uint32_t)rf_glare_volume_render(&owner,&definition,&frame,&services);memcpy(out+1,&owner.radius,4);
+            out[2]=fixture.trace.count;memcpy(out+3,fixture.trace.trace,256);fwrite(out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--corona-frame")) {
         uint32_t wire[18];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(wire,4,18,stdin)==18) {
