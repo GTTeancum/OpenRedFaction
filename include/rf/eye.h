@@ -115,6 +115,11 @@ typedef struct rf_ordinary_motion_state {
  * Does not resolve collisions or publish object position3c. Errors preserve
  * the whole state; rigid-body branch is rejected explicitly. */
 int rf_ordinary_motion_commit(rf_ordinary_motion_state *state,uint32_t class_flags,float dt);
+/* Ordinary partial-contact prefix49ffd2..4a011b, fraction in [0,1).
+ * Returns time remaining BEFORE contact backoff; does not publish object/eye
+ * matrices or dispatch427550/49d7e0. Errors preserve state and remaining. */
+int rf_ordinary_motion_partial(rf_ordinary_motion_state *state,float time,
+    const uint32_t rotation[3],float *remaining);
 /* 422e2c..422e82: original matrix angle extraction, yaw-only body, and
  * physics-frame projection filtered by rotation reference == 1. No command
  * clearing, pose construction or factory ownership. Finite inputs required;

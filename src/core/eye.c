@@ -553,6 +553,44 @@ int rf_ordinary_motion_commit(rf_ordinary_motion_state *state,uint32_t class_fla
     }
     *state=v;return RF_OK;
 }
+int rf_ordinary_motion_partial(rf_ordinary_motion_state *state,float time,
+    const uint32_t rotation[3],float *remaining)
+{
+    rf_ordinary_motion_state v;float delta[3],angle_delta[3],filtered[3],left,step;long double length,fraction;
+    const float half_pi=1.5707963705062866f,turn=6.2831854820251465f;uint32_t i;int status;
+    if(!state || !rotation || !remaining || !isfinite(time) || time<0 || (state->body.flags&0x4000u))return RF_RANGE;
+    v=*state;fraction=v.body.scalar_144;
+    if(!isfinite(fraction) || fraction<0 || fraction>=1)return RF_RANGE;
+    left=(float)((long double)time-(long double)time*fraction);
+    for(i=0;i<3;++i){
+        if(!isfinite(v.body.position[i]) || !isfinite(v.body.next_position[i]))return RF_RANGE;
+        delta[i]=(float)((long double)v.body.next_position[i]-v.body.position[i]);
+        if(!isfinite(delta[i]))return RF_RANGE;
+    }
+    length=sqrtl(((long double)delta[0]*delta[0]+(long double)delta[1]*delta[1])+(long double)delta[2]*delta[2]);
+    if(!(v.body.flags&0x400000u)){
+        /* Zero distance produces an unordered or negative quotient; original clamps to zero. */
+        fraction=length==0?0:(length*fraction-.05000000074505806f)/length;
+        v.body.scalar_144=fraction<0?0:(float)fraction;
+    }
+    step=(float)((long double)v.body.scalar_144*time);
+    for(i=0;i<3;++i){
+        delta[i]=(float)((long double)delta[i]*v.body.scalar_144);
+        v.body.position[i]=(float)((long double)v.body.position[i]+delta[i]);
+        angle_delta[i]=(float)((long double)v.body.vector_c8[i]*step);
+        if(!isfinite(v.body.position[i]) || !isfinite(angle_delta[i]))return RF_RANGE;
+    }
+    status=rf_movement_body_rotation(rotation,angle_delta,filtered);if(status)return status;
+    for(i=0;i<3;++i){
+        float a=(float)((double)v.body_angles[i]+filtered[i]);if(!isfinite(a))return RF_RANGE;
+        if(!i){if(a>half_pi)a=half_pi;else if(a<-half_pi)a=-half_pi;}
+        else{if(a>turn)a=(float)((double)a-turn);else if(a<-turn)a=(float)((double)a+turn);}
+        v.body_angles[i]=a;
+    }
+    status=look_orientation_calculate(v.body_angles,v.body.orientation);if(status)return status;
+    status=rf_physics_tensor_world(v.body.local_tensor,v.body.orientation,v.body.world_tensor);if(status)return status;
+    *state=v;*remaining=left;return RF_OK;
+}
 int rf_angular_predict(const float angles[3],const float velocity[3],float dt,
     const uint32_t rotation[3],rf_angular_prediction *result)
 {
