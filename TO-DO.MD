@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained-geometry mapping access now decodes on demand without a duplicate
+table;301871 PC records across94 levels and2048 NXDK/original cases pass.
+Both builds and24 tests pass. Bind selected face/corner-normal ownership and
+RGB/mask resources before driving native rendered updates.
+
 Combined special-grid coverage, sampling, lighting, fallbacks and border copies
 match256 original/PC/NXDK grids (6237 texels), exercising every sample outcome.
 Both builds and24 tests pass. Bind retained face/corner-normal owners, mapping

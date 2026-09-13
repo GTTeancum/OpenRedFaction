@@ -280,6 +280,16 @@ int rf_geometry_corpse_resident_color(void *context,uint32_t face_index,const fl
     status=rf_lightmap_project(&projection,point,uv);if(status)return status;
     return rf_lightmap_sample_image_1555(owner->maps->images+image,uv,color);
 }
+int rf_geometry_get_lightmap_mapping(const rf_geometry *geometry,uint32_t mapping,
+    uint32_t image_count,rf_lightmap_mapping *result)
+{
+    uint64_t offset;
+    if(!geometry || !geometry->data || !result || mapping>=geometry->mappings)return RF_RANGE;
+    offset=(uint64_t)geometry->mapping_offset+(uint64_t)mapping*96;
+    if(offset+96>geometry->bytes)return RF_RANGE;
+    return rf_lightmap_mapping_read(geometry->data+(uint32_t)offset,96,image_count,result);
+}
+
 int rf_geometry_lightmap_projection(const rf_geometry *geometry,uint32_t mapping,rf_lightmap_projection *projection)
 {
     if(!geometry || !geometry->data || mapping>=geometry->mappings || !projection)return RF_RANGE;

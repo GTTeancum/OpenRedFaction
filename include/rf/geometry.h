@@ -78,6 +78,11 @@ int rf_geometry_movers_open(const rf_level *level,uint32_t budget,rf_geometry_mo
 void rf_geometry_movers_close(rf_geometry_movers *movers);
 int rf_geometry_vertex(const rf_geometry *geometry, uint32_t index, float position[3]);
 int rf_geometry_texture_name(const rf_geometry *geometry, uint32_t index, char *name, uint32_t capacity);
+/* Decode an existing retained v180 mapping on demand with original image0
+ * fallback. No allocation or persistent decoded table. Entire record must lie
+ * within geometry bytes; errors preserve output. Image owner stays external. */
+int rf_geometry_get_lightmap_mapping(const rf_geometry *geometry,uint32_t mapping,
+    uint32_t image_count,rf_lightmap_mapping *result);
 /* Resolve a mapping record's first word; remaining 92 bytes stay opaque. */
 int rf_geometry_lightmap_projection(const rf_geometry *geometry,uint32_t mapping,rf_lightmap_projection *projection);
 int rf_geometry_lightmap(const rf_geometry *geometry, uint32_t mapping, uint32_t image_count, uint32_t *image);

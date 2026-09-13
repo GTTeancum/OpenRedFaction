@@ -1,5 +1,6 @@
 #include "rf/effect.h"
 #include "rf/lightmap.h"
+#include "rf/geometry.h"
 #include "rf/glare.h"
 #include "rf/particle_pool.h"
 #include "rf/visibility.h"
@@ -226,6 +227,22 @@ int main(int argc,char **argv)
             if(input.count<=4 && input.polygon_count<=4 && input.counts[0]<=8 && input.counts[1]<=8 && input.counts[2]<=8 && input.counts[3]<=8)
                 status=rf_lightmap_accumulate_special(&view,polygons,input.polygon_count);
             fwrite(&status,4,1,stdout);fwrite(input.planes,sizeof(input.planes),1,stdout);
+        }
+        return 0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--geometry-mappings")) {
+        uint32_t header[4],i,status;rf_geometry geometry;rf_lightmap_mapping mapping;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(header,sizeof(header),1,stdin)==1) {
+            memset(&geometry,0,sizeof(geometry));geometry.bytes=header[0];geometry.mapping_offset=header[2];geometry.mappings=header[3];
+            if(geometry.bytes>16*1024*1024)return 2;
+            geometry.data=(unsigned char *)malloc(geometry.bytes);if(!geometry.data)return 2;
+            if(fread(geometry.data,geometry.bytes,1,stdin)!=1){free(geometry.data);return 2;}
+            for(i=0;i<geometry.mappings;i++) {
+                memset(&mapping,0xa5,sizeof(mapping));status=rf_geometry_get_lightmap_mapping(&geometry,i,header[1],&mapping);
+                fwrite(&status,4,1,stdout);fwrite(&mapping,sizeof(mapping),1,stdout);
+            }
+            free(geometry.data);
         }
         return 0;
     }

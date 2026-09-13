@@ -19,7 +19,8 @@ def main():
    output=w(resolved,*raw[4:8])+raw[8:56]+w(int(flags[0]!=0),int(flags[1]!=0))+raw[64:76]+raw[84:92]+raw[76:84]+raw[92:96]
    inputs.append(w(image_count)+raw);expected.append(w(0)+output);special+=flags[0]!=0;inhibit+=flags[1]!=0;empty+=not raw[6] or not raw[7];fallback+=resolved!=image
   assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--lightmap-mapping-read'],input=b''.join(inputs))==b''.join(expected),level['file']
+  assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--geometry-mappings'],input=w(len(data),image_count,begin,count)+data)==b''.join(expected),level['file']
   reports.append(dict(file=level['file'],archive=level['archive'],mappings=count,images=image_count,special=special,inhibit=inhibit,empty=empty,image_fallbacks=fallback,decoded_bytes=count*108));total+=count
- result=dict(result='PASS',levels=len(reports),pc_records=total,records=reports,scope='Authored static-world v180 mapping inventory and complete PC decoded-record comparison against documented layout. Primitive original/NXDK evidence separate; no native residency or moving-solid records.')
+ result=dict(result='PASS',levels=len(reports),pc_records=total,records=reports,scope='Authored static-world v180 mapping inventory and complete PC decoded-record and retained-geometry accessor comparison against documented layout. Primitive original/NXDK evidence separate; no native residency or moving-solid records.')
  (root/'artifacts/lightmap-mapping-inventory.json').write_text(json.dumps(result,indent=2));print({k:v for k,v in result.items() if k!='records'});print(next(r for r in reports if r['file']=='L1S1.rfl'));print('largest',max(reports,key=lambda r:r['decoded_bytes']))
 if __name__=='__main__':main()

@@ -27,6 +27,7 @@ def hook(m,address,size,unused):
  else:ret(int.from_bytes(data,'little'),pop)
 u.hook_add(UC_HOOK_CODE,hook)
 entry=int(re.search(r'\s_rf_lightmap_mapping_read\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+geometry_entry=int(re.search(r'\s_rf_geometry_get_lightmap_mapping\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
 inputs=[];outputs=[];rng=random.Random(0x4ee210);fallbacks=0
 for case in range(2048):
  count=1+case%7;image=rng.choice([0,count-1,count,0xffffffff,0x80000000]);fallbacks+=image>=count
@@ -41,9 +42,18 @@ for case in range(2048):
  assert len(expected)==108
  x.mem_write(b,record);x.mem_write(out,bytes([165])*108);x.mem_write(stack,w(stop,b,96,count,out));x.reg_write(UC_X86_REG_ESP,stack);x.emu_start(entry,stop,count=10000);assert x.reg_read(UC_X86_REG_EIP)==stop and x.reg_read(UC_X86_REG_EAX)==0
  assert bytes(x.mem_read(out,108))==expected,(case,bytes(x.mem_read(out,108)).hex(),expected.hex());inputs.append(w(count)+record);outputs.append(w(0)+expected)
+ # Same original result through the retained geometry binding, at varied record offsets.
+ geometry=b+0x5000;payload=b+0x6000;index=case%4;offset=13+(case%17)
+ x.mem_write(payload+offset+index*96,record);x.mem_write(geometry,bytes(68));x.mem_write(geometry,w(payload,offset+(index+1)*96));x.mem_write(geometry+32,w(index+1,0,offset))
+ x.mem_write(out,bytes([165])*108);x.mem_write(stack,w(stop,geometry,index,count,out));x.reg_write(UC_X86_REG_ESP,stack);x.emu_start(geometry_entry,stop,count=10000)
+ assert x.reg_read(UC_X86_REG_EAX)==0 and bytes(x.mem_read(out,108))==expected
 assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--lightmap-mapping-read'],input=b''.join(inputs))==b''.join(outputs)
 for size,count in [(95,1),(97,1),(96,0)]:
  x.mem_write(out,bytes([165])*108);x.mem_write(stack,w(stop,b,size,count,out));x.reg_write(UC_X86_REG_ESP,stack);x.emu_start(entry,stop,count=10000)
  assert x.reg_read(UC_X86_REG_EAX)!=0 and bytes(x.mem_read(out,108))==bytes([165])*108
-report=dict(result='PASS',original_pc_nxdk_records=2048,image_fallbacks=fallbacks,nxdk_guards=3,original_sha256=digest,scope='Original4ee2db..4ee51d version180 mapping loader, typed file/version services supplied. All finite numeric fields, rectangle bytes, boolean normalization, axes, room and image-index fallback match complete108-byte PC/NXDK records. Allocation, authored inventory, image ownership and nonfinite reader behavior excluded.')
+for field,value in [(4,0),(32,0),(40,0xffffffff)]:
+ saved=bytes(x.mem_read(geometry+field,4));x.mem_write(geometry+field,w(value));x.mem_write(out,bytes([165])*108)
+ x.mem_write(stack,w(stop,geometry,index,count,out));x.reg_write(UC_X86_REG_ESP,stack);x.emu_start(geometry_entry,stop,count=10000)
+ assert x.reg_read(UC_X86_REG_EAX)!=0 and bytes(x.mem_read(out,108))==bytes([165])*108;x.mem_write(geometry+field,saved)
+report=dict(nxdk_geometry_guards=3,nxdk_geometry_records=2048,result='PASS',original_pc_nxdk_records=2048,image_fallbacks=fallbacks,nxdk_guards=3,original_sha256=digest,scope='Original4ee2db..4ee51d version180 mapping loader, typed file/version services supplied. All finite numeric fields, rectangle bytes, boolean normalization, axes, room and image-index fallback match complete108-byte PC/NXDK records. Allocation, authored inventory, image ownership and nonfinite reader behavior excluded.')
 (root/'artifacts/lightmap-mapping-read.json').write_text(json.dumps(report,indent=2));print(report)

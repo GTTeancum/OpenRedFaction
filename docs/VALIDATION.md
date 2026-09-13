@@ -830,3 +830,9 @@ Combined special lightmap grid (4f3500..4f3e23 and4f3e5d..4f3f4a):
 - Observed original outcomes:3173 prefix fallback texels,158 exhausted searches,42 vertex samples and2864 edge samples. Both fallback RGB values, masks,0..4 mixed sources, nonnegative accumulation and untouched tails match. Four NXDK binding guards preserve the planes.
 - Special lighting uses the nonzero special-byte branch (unsoftened), unlike ordinary sampling. Image reciprocals are stored floats; radius retains the height reciprocal through multiplication by its stored value. The harness supplies that radius, so the radius expression is not independently covered by these original slices.
 - Both builds and24 CTests pass. Retained face/smoothed-normal owners, RGB resources, mask generation and native rendered updates remain open. This is complete grid calculation validation with supplied resources, not complete game lighting integration.
+
+Retained geometry mapping accessor:
+- `rf_geometry_get_lightmap_mapping` decodes the existing96-byte serialized record into a caller-owned108-byte result;64-bit offset arithmetic checks index and complete record bounds. It allocates nothing and preserves output on failure. Original image0 fallback remains in the verified decoder.
+- `tools/verify_lightmap_mapping_read.py` now repeats all2048 original results through compiled NXDK geometry access at varied indices/unaligned mapping offsets; three new geometry range guards pass.
+- `tools/inspect_lightmap_mappings.py` checks the PC accessor over actual static geometry section bytes:301871 mappings across94 levels. This harness supplies the independently inspected mapping offset/count; geometry parsing, movers and native residency are outside this check.
+- Both builds and24 CTests pass. On-demand use avoids a second decoded table (631908 bytes for L1S1); no live render binding or new runtime memory measurement is claimed. Face/corner-normal ownership and RGB/mask resources remain next.
