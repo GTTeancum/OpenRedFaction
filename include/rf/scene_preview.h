@@ -126,6 +126,10 @@ int rf_scene_npc_steer(uint32_t handle,const float target[3],float dt,uint32_t c
  * Prepares velocity/force and predicted matrices/deltas, without committing
  * angles or collision movement. Special branch selection is caller work. */
 int rf_scene_npc_prepare_angular(uint32_t handle,float dt);
+/* Ordinary49d0a0 after collision acceptance; updates retained physics/angles
+ * and the model's live orientation. Object-position publication and room/eye
+ * position refresh remain the subsequent movement-publication stage. */
+int rf_scene_npc_commit_ordinary(uint32_t handle,float dt);
 /* Prepared route request; scene owns endpoints/output and reuses its workspace.
  * Geometry/dimension/selection parameters are supplied, not inferred from AI.
  * Caller state must be stable; stale handles preserve result. */

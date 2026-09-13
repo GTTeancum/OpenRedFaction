@@ -68,6 +68,7 @@ Player/control lookup48aa30 matches2048 original/PC/NXDK cases; bind registered 
 Automatic SP angular drive selection passes38 driven and38 undriven PC/stock64MiB XEMU checks; finish special dispatch, collision and movement commit.
 Opening-level angular audit finds142 ordinary and3 rigid-body spawns; prioritize ordinary collision/commit and retain Driller/APC49e180 as required follow-up.
 Ordinary49d0a0 commit matches1024 original/NXDK cases with bounded PC matrix residuals; bind accepted NPC collision results and pose publication.
+Retained ordinary NPC commit and live model basis pass76 PC/stock64MiB XEMU checks; connect collision acceptance, position publication, room/eye refresh and continuous scheduling.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.

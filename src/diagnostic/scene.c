@@ -2824,7 +2824,7 @@ static int campaign_npc_eye_update(uint32_t actor)
     owner=campaign_npc_bodies+actor;cls=campaign_seeds.items[actor].class_index;
     if(cls>=campaign_seeds.class_count)return RF_RANGE;eye=campaign_npc_eyes+cls;
     memcpy(input.position,owner->published,12);
-    memcpy(input.orientation,campaign_seeds.records.items[actor].record.orientation,36);
+    memcpy(input.orientation,campaign_model_owners[actor].basis,36);
     memcpy(input.standing_offset,eye->offsets,12);memcpy(input.crouching_offset,eye->offsets+3,12);
     input.flags=campaign_seeds.classes[cls].physics.flags2;input.eye_tag=eye->tag;
     input.current_state=pose->controller.current;input.previous_state=pose->controller.next;
@@ -2998,6 +2998,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 status=rf_movement_set_mode(&owner->movement,movement,1,owner->attachment_75c,body->state.mass,0);if(status)goto done;
                 body->state.coefficients[1]=owner->movement.response;
                 memcpy(owner->published,record->position,12);memcpy(owner->previous,record->position,12);
+                memcpy(campaign_model_owners[actor].basis,record->orientation,36);
                 status=campaign_npc_eye_update(actor);if(status)goto done;
             }
             campaign_npc_support_probe(world,campaign_npc_bodies+actor,&config,movement->base_speed,(uint32_t)record->uid);
@@ -3503,6 +3504,18 @@ int rf_scene_npc_prepare_angular(uint32_t handle,float dt)
     return RF_OK;
 }
 
+int rf_scene_npc_commit_ordinary(uint32_t handle,float dt)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls,slot;int status;rf_ordinary_motion_state state;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    slot=(uint32_t)(owner-campaign_npc_bodies);if(slot>=campaign_model_owner_count)return RF_RANGE;
+    state.body=owner->body.state;state.eye=owner->look.angles;memcpy(state.body_angles,owner->look.body_angles,12);
+    memcpy(state.published_orientation,campaign_model_owners[slot].basis,36);memcpy(state.eye_orientation,owner->look.orientation,36);
+    status=rf_ordinary_motion_commit(&state,campaign_seeds.classes[cls].physics.flags,dt);if(status)return status;
+    owner->body.state=state.body;owner->look.angles=state.eye;memcpy(owner->look.body_angles,state.body_angles,12);
+    memcpy(owner->look.orientation,state.eye_orientation,36);memcpy(campaign_model_owners[slot].basis,state.published_orientation,36);
+    return RF_OK;
+}
 typedef struct campaign_ai_reset_context {
     rf_entity_pose *pose;rf_entity_playback_model *model;const int32_t *actions;uint32_t slot;
 } campaign_ai_reset_context;
@@ -3575,9 +3588,8 @@ int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *r
     /* Original object200 is the registry view's linked_handle. */
     value.parent_handle=(uint32_t)owner->view.linked_handle;value.object_flags=owner->object_flags;
     memcpy(value.position,owner->published,12);
-    /* Same authored orientation as current NPC model placement/clearance.
-     * Moving object orientation publication remains a separate integration. */
-    memcpy(value.forward,campaign_seeds.records.items[i].record.orientation[2],12);
+    /* Read the live object orientation shared with model placement/clearance. */
+    memcpy(value.forward,campaign_model_owners[i].basis+6,12);
     *result=value;return RF_OK;
 }
 
@@ -3610,7 +3622,7 @@ int rf_scene_npc_visibility_view(uint32_t handle,rf_glare_visibility_object *res
     value.geometry.extent=owner->model_radius_78;
     value.geometry.model=actor.model?&campaign_model_owners[slot].registration:NULL;
     memcpy(value.geometry.position,actor.position,12);
-    memcpy(value.geometry.matrix,campaign_seeds.records.items[slot].record.orientation,36);
+    memcpy(value.geometry.matrix,campaign_model_owners[slot].basis,36);
     memcpy(value.geometry.minimum,owner->body.state.bounds.minimum,12);
     memcpy(value.geometry.maximum,owner->body.state.bounds.maximum,12);
     ++rf_scene_npc_visibility[0];
@@ -4488,7 +4500,7 @@ int rf_scene_death_clearance(const rf_geometry_collision_world *world,uint32_t h
             if(actor==campaign_npc_body_count || actor>=campaign_seeds.records.count)return RF_NOT_FOUND;
             if(campaign_seeds.items[actor].class_index>=campaign_seeds.class_count)return RF_FORMAT;
             memcpy(state.position,campaign_npc_bodies[actor].published,12);
-            memcpy(state.matrix,campaign_seeds.records.items[actor].record.orientation,36);
+            memcpy(state.matrix,campaign_model_owners[actor].basis,36);
             state.model_radius_78=campaign_npc_bodies[actor].model_radius_78;state.extent_180=campaign_npc_bodies[actor].body.state.bounds.radius;
             memcpy(&word,&campaign_seeds.classes[campaign_seeds.items[actor].class_index].eye_limits.minimum[2],4);
         }
@@ -6576,10 +6588,11 @@ static int campaign_npc_drive_fixture(uint32_t frame)
     rf_scene_npc_drive_test[2]=2166136261u;
     for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view){
         campaign_npc_body *o=campaign_npc_bodies+i,saved=*o;uint32_t cls=campaign_seeds.items[i].class_index,j;
-        const rf_entity_rotation_values *r=&campaign_seeds.classes[cls].rotation;
+        const rf_entity_rotation_values *r=&campaign_seeds.classes[cls].rotation;float saved_basis[9];
+        memcpy(saved_basis,campaign_model_owners[i].basis,36);
         for(driven=0;driven<2 && !status;++driven){
             rf_angular_velocity_state expected;rf_angular_prediction prediction;
-            *o=saved;o->body.state.flags&=~0x1000000u;
+            *o=saved;memcpy(campaign_model_owners[i].basis,saved_basis,36);o->body.state.flags&=~0x1000000u;
             campaign_player_view.linked_handle=driven?o->view.handle:-1;
             for(j=0;j<3;++j){o->look.command_708[j]=(float)(j+1)*.125f;
                 o->body.state.vector_c8[j]=expected.velocity[j]=(float)(j+1)*.25f;
@@ -6589,9 +6602,21 @@ static int campaign_npc_drive_fixture(uint32_t frame)
             if(!status)status=rf_scene_npc_prepare_angular(o->registration.handle,1.0f/60.0f);
             if(!status && (memcmp(expected.velocity,o->body.state.vector_c8,12) || memcmp(expected.force,o->body.state.vector_ec,12) ||
                 memcmp(prediction.next_orientation,o->body.state.next_orientation,36) || memcmp(prediction.eye_delta,o->look.angles.delta_888,12)))status=RF_FORMAT;
-            if(!status){++rf_scene_npc_drive_test[driven];rf_scene_npc_drive_test[2]=npc_hash_bytes(rf_scene_npc_drive_test[2],&expected,sizeof(expected));}
+            if(!status){
+                rf_ordinary_motion_state commit;
+                commit.body=o->body.state;commit.eye=o->look.angles;memcpy(commit.body_angles,o->look.body_angles,12);
+                memcpy(commit.published_orientation,campaign_model_owners[i].basis,36);memcpy(commit.eye_orientation,o->look.orientation,36);
+                status=rf_ordinary_motion_commit(&commit,campaign_seeds.classes[cls].physics.flags,1.0f/60.0f);
+                if(!status)status=rf_scene_npc_commit_ordinary(o->registration.handle,1.0f/60.0f);
+                if(!status && (memcmp(&commit.body,&o->body.state,sizeof(commit.body)) || memcmp(&commit.eye,&o->look.angles,sizeof(commit.eye)) ||
+                    memcmp(commit.body_angles,o->look.body_angles,12) || memcmp(commit.eye_orientation,o->look.orientation,36) ||
+                    memcmp(commit.published_orientation,campaign_model_owners[i].basis,36)))status=RF_FORMAT;
+                if(!status && rf_scene_npc_commit_ordinary(o->registration.handle^0x10000,1.0f/60.0f)!=RF_NOT_FOUND)status=RF_FORMAT;
+                if(!status){++rf_scene_npc_drive_test[driven];rf_scene_npc_drive_test[2]=npc_hash_bytes(rf_scene_npc_drive_test[2],&expected,sizeof(expected));
+                    rf_scene_npc_drive_test[2]=npc_hash_bytes(rf_scene_npc_drive_test[2],&commit,sizeof(commit));}
+            }
         }
-        *o=saved;
+        *o=saved;memcpy(campaign_model_owners[i].basis,saved_basis,36);
     }
     campaign_player_view.linked_handle=saved_link;if(status)++rf_scene_npc_drive_test[3];return status;
 }
@@ -7317,7 +7342,7 @@ static int scene_volume_actor_lookup(void *context,uint32_t handle,const rf_glar
     cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
     owner=campaign_npc_bodies+i;v=c->volume_actors+c->volume_actor_count++;memset(v,0,sizeof(*v));
     v->class_flags=campaign_seeds.classes[cls].physics.flags;v->flags=owner->object_flags;
-    memcpy(v->position,owner->published,12);memcpy(v->basis,campaign_seeds.records.items[i].record.orientation,36);
+    memcpy(v->position,owner->published,12);memcpy(v->basis,campaign_model_owners[i].basis,36);
     memcpy(v->command,owner->command_714,12);v->occupants=(const uint32_t*)owner->view.occupants;v->occupant_count=owner->view.occupant_count;
     *out=v;return RF_OK;
 }

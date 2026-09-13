@@ -625,13 +625,15 @@ static int death_geometry_check(void)
     CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)==RF_OK && allowed==1);
     {
         campaign_npc_body npc={0};rf_entity_seed seed={0};rf_entity_seed_class cls={0};rf_level_owned_entity record={0};
+        campaign_model_owner model={0};
         rf_entity_death_obstacle scratch[3];rf_entity_view unknown={0};uint32_t bank=4;
         campaign_spawn=1;campaign_npc_bodies=&npc;campaign_npc_body_count=1;
         campaign_seeds.items=&seed;campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
         campaign_seeds.records.items=&record;campaign_seeds.records.count=1;
         npc.view.handle=5;npc.view.type=0;campaign_entities.slots[5]=&npc.view;
         npc.model_radius_78=2;npc.body.state.bounds.radius=1;memcpy(npc.published,state.position,12);
-        memcpy(record.record.orientation,state.matrix,36);
+        memcpy(model.basis,state.matrix,36);
+        campaign_model_owners=&model;campaign_model_owner_count=1;
         campaign_player_view.handle=7;campaign_player_view.type=0;campaign_entities.slots[7]=&campaign_player_view;
         memcpy(rf_scene_actor_pose.public_position,actor.position,12);memcpy(rf_scene_actor_pose.input_matrix,state.matrix,36);
         campaign_player_geometry.model_radius=2;memcpy(&campaign_player_geometry.eye_limits.minimum[2],&bank,4);
@@ -652,6 +654,7 @@ static int death_geometry_check(void)
         memset(&campaign_player_view,0,sizeof(campaign_player_view));memset(&campaign_player_geometry,0,sizeof(campaign_player_geometry));
         memset(&scene_actor_body,0,sizeof(scene_actor_body));memset(&rf_scene_actor_pose,0,sizeof(rf_scene_actor_pose));
         campaign_npc_bodies=NULL;campaign_npc_body_count=0;campaign_spawn=0;
+        campaign_model_owners=NULL;campaign_model_owner_count=0;
     }
     world.primary_count=0;
     CHECK(rf_geometry_death_clearance(&world,&movers,&state,1,NULL,0,&allowed)==RF_OK && allowed==0);

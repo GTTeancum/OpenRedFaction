@@ -46,6 +46,7 @@ static int npc_collision_binding_check(void)
  owner.object_flags=0x12344000;owner.view.flags_7c=0;owner.body.state.flags=0x40000020;
  owner.published[0]=12;owner.published[1]=-5;owner.published[2]=9;
  record.record.orientation[2][0]=1;record.record.orientation[2][1]=2;record.record.orientation[2][2]=3;
+ model.basis[6]=-3;model.basis[7]=5;model.basis[8]=7;
  memset(&out,0xa5,sizeof(out));before=out;
  CHECK(rf_scene_npc_collision_view(handle^0x10000,&out)==RF_NOT_FOUND && !memcmp(&out,&before,sizeof(out)));
  CHECK(rf_scene_npc_collision_view(handle,NULL)==RF_RANGE);
@@ -53,7 +54,7 @@ static int npc_collision_binding_check(void)
  CHECK(out.kind==0 && out.body_flags==0x40000020 && out.model==0 && out.movement_mode==8);
  CHECK(out.handle==handle && out.parent_handle==UINT32_MAX && out.object_flags==0x12344000);
  CHECK(!out.trigger_filter && !out.allowed_count && !out.allowed_handles);
- CHECK(!memcmp(out.position,owner.published,12) && !memcmp(out.forward,record.record.orientation[2],12));
+ CHECK(!memcmp(out.position,owner.published,12) && !memcmp(out.forward,model.basis+6,12));
  model.registration.loaded=1;model.pose=&pose;model.registration.active=&pose.playback.completion.active;
  model.registration.next=model.registration.previous=&model.registration;
  CHECK(rf_scene_npc_collision_view(handle,&out)==RF_OK && out.model==1);
