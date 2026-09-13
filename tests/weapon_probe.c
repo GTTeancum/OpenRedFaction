@@ -18,6 +18,14 @@ int main(int argc,char **argv)
     int32_t status; unsigned i;
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--draw-state")) {
+        struct {uint32_t state[20],special,tint;float basis[9];} in;int32_t status;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            status=rf_weapon_draw_state_prepare(in.state,in.special,in.tint,in.basis);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(in.state,80,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--world-visibility")) {
         struct {rf_weapon_world_view view;rf_weapon_world_model models[64];} in;
         struct {int32_t status;rf_weapon_world_view view;uint32_t model;} out;

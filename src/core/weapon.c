@@ -22,6 +22,15 @@ int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t
     *tag=*cached;return RF_OK;
 }
 
+int rf_weapon_draw_state_prepare(uint32_t state[20],uint32_t special_view,uint32_t tint,const float basis[9])
+{
+    float copy[9];if(!state || !basis)return RF_RANGE;memcpy(copy,basis,sizeof(copy));
+    state[0]=0x80;state[1]=UINT32_MAX;state[2]=255;state[4]=0;state[5]=0xbf800000u;
+    state[7]=0;state[8]=state[9]=UINT32_MAX;state[10]=tint;
+    if((special_view&255)==1){state[0]|=2;state[3]=0xff002000u;}
+    memcpy(state+11,copy,sizeof(copy));return RF_OK;
+}
+
 int rf_weapon_world_visibility(rf_weapon_world_view *view,const rf_weapon_world_model models[64],uint32_t *model)
 {
     if(!view || !models || !model)return RF_RANGE;

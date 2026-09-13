@@ -15,6 +15,12 @@ uint32_t rf_weapon_world_model_token(const rf_weapon_world_model models[64],int3
 int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t kind,
     int (*lookup)(void *,uint32_t,const char *,int32_t *),void *context,int32_t *tag);
 
+/*421df6..421e4f final80-byte held-weapon draw state. Preserve words3/6
+ * except special-view low byte1 replaces word3. Tint is actor1474; basis is
+ * the post-recoil pose. No geometry submission. Input basis may alias state. */
+int rf_weapon_draw_state_prepare(uint32_t state[20],uint32_t special_view,
+    uint32_t tint,const float basis[9]);
+
 typedef struct rf_weapon_world_view {
     uint32_t flags_810,class_flags_724,inventory_flags_7d0;
     int32_t weapon,attachment_75c,linked_kind;
