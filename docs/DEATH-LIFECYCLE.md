@@ -10371,3 +10371,27 @@ including883 advances, all372 retained bytes and exact returns. Tests
 cover0..4 counts, final-point boundaries, signed extremes and count-word
 wrap. Both builds and22 CTest checks pass. Arrival/re-pathing, steering
 and live movement dispatch remain open; no new native XEMU/visual claim.
+
+
+Shared NPC steering40cb50 (2026-09-13)
+
+rf_entity_navigation_steer selects eye7d4 when movement mode14 or18 is1,
+otherwise positione4. It normalizes target displacement, derives the
+horizontal side direction (zero case defaults+X), clamps dot products,
+and computes yaw/pitch angles. Cross-product Y selects yaw sign. Angular
+150/154 divide by frame seconds; the complete three-component angular
+vector, including retained roll158, is limited by class60. Class flags724
+mask400200 publish angular/rate into command708. Absolute yaw plus pitch
+exceeding double.01 updates turn_clock7b0 with raw clock6460f0 bits.
+Zero/nonpositive rate and coincident targets preserve movement fields.
+Finite reached inputs and positive frame seconds are required; errors
+preserve prepared state/result. No allocation or scene dispatch.
+
+verify_navigation_steer.py executes full original40cb50 with actual vector
+math, CRT acos and class predicates, with static down-vector/CRT already
+initialized.2048 PC/NXDK cases match exact returned angle, angular vector,
+command and turn clock. Includes zero/coincident/vertical targets, mode
+selection, limiting and publication flags. Two compiled invalid-duration
+guards preserve state/result. Both builds and22 CTest checks pass.
+Arrival/re-pathing40bb70, follower40b6d0 and native scene steering remain
+open; no new XEMU or movement-visual claim for this shared calculation.

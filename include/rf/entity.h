@@ -1340,4 +1340,17 @@ typedef struct rf_entity_navigation_graph_request {
  * after search errors. Goal/start reserved references remain after cleanup. */
 int rf_entity_navigation_graph_request_run(rf_entity_navigation_graph_request *request,uint32_t *result);
 
+/*40cb50 prepared actor fields; class60 is an angular-rate limit. mode14/18
+ * choose eye7d4 versus positione4. flags724 mask400200 publishes command708. */
+typedef struct rf_entity_navigation_steering {
+    float rate_limit,position_e4[3],eye_7d4[3],basis_7e0[3],basis_7f8[3];
+    int32_t mode_14,mode_18;uint32_t flags_724;
+    float angular_150[3],command_708[3];uint32_t turn_clock_7b0;
+} rf_entity_navigation_steering;
+/* Finite prepared inputs, positive finite frame_seconds when reached. Zero
+ * rate or coincident target returns zero without angular/command mutation.
+ * Result is the absolute yaw+pitch angle sum; errors preserve state/result. */
+int rf_entity_navigation_steer(rf_entity_navigation_steering *state,const float target[3],
+    float frame_seconds,uint32_t clock_bits,float *result);
+
 #endif

@@ -2244,3 +2244,39 @@ int rf_entity_navigation_advance(rf_entity_navigation_route *route)
     if(route->word_018>=last)return -1;
     route->word_014=route->word_018;++route->word_018;return 0;
 }
+
+static float steering_dot(const float a[3],const float b[3])
+{return (float)(((double)a[2]*b[2]+(double)a[1]*b[1])+(double)a[0]*b[0]);}
+static double steering_length(const float a[3])
+{return sqrt(((double)a[0]*a[0]+(double)a[1]*a[1])+(double)a[2]*a[2]);}
+static float steering_clamp(float v){return v>1?1:v< -1?-1:v;}
+int rf_entity_navigation_steer(rf_entity_navigation_steering *s,const float target[3],
+    float seconds,uint32_t clock,float *result)
+{
+    rf_entity_navigation_steering next;const float *origin;float direction[3],side[3],down[3]={0,-1,0};
+    float length,yaw,pitch,cross_y,scale;double inverse,magnitude,total;uint32_t i;
+    if(!s || !result)return RF_RANGE;
+    if(!(s->rate_limit>0)){*result=0;return RF_OK;}
+    if(!target || !isfinite(s->rate_limit))return RF_FORMAT;
+    origin=(s->mode_14==1 || s->mode_18==1)?s->eye_7d4:s->position_e4;
+    for(i=0;i<3;++i){if(!isfinite(origin[i]) || !isfinite(target[i]))return RF_FORMAT;direction[i]=(float)((double)target[i]-origin[i]);if(!isfinite(direction[i]))return RF_FORMAT;}
+    magnitude=steering_length(direction);length=(float)magnitude;
+    if(magnitude==0){*result=0;return RF_OK;}
+    if(!isfinite(length) || !isfinite(seconds) || seconds<=0)return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(s->basis_7e0[i]) || !isfinite(s->basis_7f8[i]) || !isfinite(s->angular_150[i]))return RF_FORMAT;
+    inverse=1.0/(double)length;for(i=0;i<3;++i)direction[i]=(float)((double)direction[i]*inverse);
+    side[0]=direction[2];side[1]=0;side[2]=-direction[0];magnitude=steering_length(side);
+    if(magnitude<=0){side[0]=1;side[1]=side[2]=0;}
+    else{inverse=1.0/magnitude;for(i=0;i<3;++i)side[i]=(float)((double)side[i]*inverse);}
+    yaw=(float)acos((double)steering_clamp(steering_dot(side,s->basis_7e0)));
+    pitch=(float)(acos((double)steering_clamp(steering_dot(direction,down)))-acos((double)steering_clamp(steering_dot(s->basis_7f8,down))));
+    cross_y=(float)((double)s->basis_7e0[2]*side[0]-(double)s->basis_7e0[0]*side[2]);
+    next=*s;next.angular_150[1]=(float)((double)yaw/seconds);if(cross_y<0)next.angular_150[1]=-next.angular_150[1];
+    next.angular_150[0]=(float)((double)pitch/seconds);
+    length=(float)steering_length(next.angular_150);
+    if(length>s->rate_limit){scale=(float)((double)s->rate_limit/length);for(i=0;i<3;++i)next.angular_150[i]=(float)((double)next.angular_150[i]*scale);}
+    total=fabs((double)yaw)+fabs((double)pitch);if(total>.01)next.turn_clock_7b0=clock;
+    if(s->flags_724&0x400200u)for(i=0;i<3;++i)next.command_708[i]=(float)((double)next.angular_150[i]/s->rate_limit);
+    for(i=0;i<3;++i)if(!isfinite(next.angular_150[i]))return RF_FORMAT;
+    *s=next;*result=(float)total;return RF_OK;
+}
