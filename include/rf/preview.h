@@ -79,4 +79,12 @@ int rf_preview_update_world_staged(rf_preview_mesh *mesh,uint32_t capacity_bytes
     rf_preview_vertex *scratch,uint32_t scratch_bytes,const rf_geometry *world,
     const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
     const rf_geometry_materials *materials,const rf_level *level);
+/* Transactional type9 mover dispatch: uses live flags, model-less outer gates,
+ * and low-byte draw suppression. Publishes markers only after mesh success.
+ * NULL scratch selects two passes; nonnull scratch obeys staged alias rules.
+ * Poses must not alias mesh/scratch; all geometry solids must be present. */
+int rf_preview_update_world_dispatch(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    rf_preview_vertex *scratch,uint32_t scratch_bytes,const rf_geometry *world,
+    const rf_geometry_movers *movers,rf_group_attached_pose *poses,
+    const rf_geometry_materials *materials,const rf_level *level,uint32_t disabled);
 #endif

@@ -8632,3 +8632,30 @@ the counting pass or a failed staging attempt. A per-solid submission boundary
 with successful publication is needed; global draw suppression and null-solid
 behavior must remain distinct from the outer render marker. No new runtime
 render behavior or Xbox validation is claimed by this original-only audit.
+
+
+## Transactional mover render dispatch (2026-09-12)
+
+rf_preview_update_world_dispatch wraps each mover generation in shared488b20
+type9 dispatch with no model wrapper. Local flag copies isolate sizing and
+staged failures; after complete mesh success the exact outer flag10 result
+is published to nonhidden retained poses. Hidden flag2 skips generation;
+flag4000 does not suppress model-less movers. The low-byte disabled input
+suppresses family generation but still publishes the outer marker. Scene
+camera updates now use this path with draw suppression zero. No allocation
+is added, and legacy preview APIs retain their existing behavior.
+
+The existing geometry projection/material mapping remains the family callback;
+white setup has no retained state in this explicit-vertex-color preview.
+All scene geometry solids must be present; original null-solid behavior is
+verified separately, not a new partial-solid loader feature. Publication is
+CPU preparation, not GPU completion. Full516df0 rendering, mover room culling
+and marker clearing remain open; no flag clear was invented.
+
+PC retained-world L1S2 tests cover three poses, staged/nonstaged suppression,
+exact unsuppressed mesh agreement, flag4000, hidden/global suppression versus
+world-only meshes, and capacity failure preserving markers. Both builds and
+21CTest pass;36 original mover cases and352 original outer dispatch cases
+plus4 callback errors pass. Stock64MiB180-frame XEMU
+replay-20260912-212908 passes with mover visibility [5728,246911100,0],
+matching PC including the newly published flags across179 controller commits.

@@ -191,6 +191,29 @@ int main(int argc,char **argv)
                 camera.player_position,camera.player_orientation,&staged,capacity,scratch,capacity) ||
                 staged.vertices!=staged_address || staged.bytes!=expected.bytes ||
                 staged.count!=expected.count || memcmp(staged.vertices,expected.vertices,expected.bytes))return 3;
+            /* Dispatch matches the existing mesh for model-less flag4000,
+             * commits markers only on success, and suppresses hidden/global draws. */
+            for(i=0;i<owned.movers.count;++i)poses[i].flags=0x4000;
+            if(rf_preview_update_world_dispatch(&staged,capacity,scratch,capacity,&world,&owned.movers,poses,&mapping,&camera,0) ||
+                staged.bytes!=expected.bytes || memcmp(staged.vertices,expected.vertices,expected.bytes))return 3;
+            for(i=0;i<owned.movers.count;++i)if(poses[i].flags!=0x4010)return 3;
+            {
+                rf_geometry_movers none={0};rf_geometry_materials only=mapping;rf_preview_mesh world_only={0};uint32_t mode;
+                only.count=1;
+                if(rf_preview_build_world(&world_only,&world,&none,NULL,&only,&camera,capacity))return 3;
+                for(mode=0;mode<2;++mode) {
+                    for(i=0;i<owned.movers.count;++i)poses[i].flags=mode?0:2;
+                    if(rf_preview_update_world_dispatch(&staged,capacity,mode?scratch:NULL,capacity,&world,&owned.movers,poses,&mapping,&camera,mode?255:0) ||
+                        staged.bytes!=world_only.bytes || memcmp(staged.vertices,world_only.vertices,world_only.bytes))return 3;
+                    for(i=0;i<owned.movers.count;++i)if(poses[i].flags!=(mode?16u:2u))return 3;
+                }
+                rf_preview_close(&world_only);
+                for(i=0;i<owned.movers.count;++i)poses[i].flags=0;
+                {rf_preview_mesh failed=staged;failed.count=failed.bytes=0;
+                 if(rf_preview_update_world_dispatch(&failed,0,scratch,capacity,&world,&owned.movers,poses,&mapping,&camera,0)!=RF_RANGE)return 3;
+                 for(i=0;i<owned.movers.count;++i)if(poses[i].flags)return 3;}
+                if(rf_preview_update_world_dispatch(&staged,capacity,scratch,capacity,&world,&owned.movers,poses,&mapping,&camera,0))return 3;
+            }
             for(i=0;i<mesh.bytes;++i)hash=(hash^((const unsigned char *)mesh.vertices)[i])*16777619u;
             rf_preview_close(&expected);
         }
