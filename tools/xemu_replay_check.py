@@ -304,6 +304,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert glare_solids==expected('GLARE_SOLIDS') and glare_solids[3]==0,glare_solids
      if args.actor_pairs:assert glare_solids[0]>0 and glare_solids[1]>0 and glare_solids[2]>0,glare_solids
      report['glare_solids']=glare_solids
+     npc_visibility=words(monitor,symbol('rf_scene_npc_visibility'),7)
+     assert npc_visibility==expected('NPC_VISIBILITY') and npc_visibility[6]==0,npc_visibility
+     if args.actor_pairs:assert npc_visibility[0]>0 and npc_visibility[1]>0 and npc_visibility[3]==npc_visibility[0],npc_visibility
+     report['npc_visibility']=npc_visibility
      glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
      assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
      assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances

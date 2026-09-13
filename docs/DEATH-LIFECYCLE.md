@@ -8346,3 +8346,36 @@ combined scene query alpha counters match80 samples:6 transparent,74 opaque,
 establish full glare search integration or live actor/mover list callbacks.
 PC/NXDK builds and21 CTests pass. Bind registered visibility owners, cached
 owner lookup, room/state/associated services and scheduling next.
+
+
+Registered NPC visibility projection/model service (2026-09-12)
+--------------------------------------------------------------
+rf_scene_npc_visibility_view validates current registered NPC ownership
+through the existing collision view and projects handle/token, object flags,
+model radius, published position, existing authored orientation, physics
+bounds190..1a4 and borrowed skeletal registration identity. No view heap
+allocation. This preserves the current stationary NPC orientation convention;
+moving orientation, room membership and factory-ordered lists remain open.
+rf_scene_npc_visibility_model revalidates handle and model identity, then
+uses the pose-aware registered skeletal collision service. It does not
+supply player, clutter or corpse model services.
+
+Native L1S2 replay-20260912-203146 passes180 frames at stock64MiB,zero
+plugged memory. NPC_VISIBILITY matches PC:38 views,38 direct model calls,
+31 hits,38 candidate tests,0 blocked candidates,hash3647799357,0 errors.
+Candidate tests occur before rendering and retain original flag0x10 gating;
+all current owners lack that bit, so the candidate path does not invoke
+model collision. The separate direct calls verify model identity/pose wiring
+without synthesizing eligibility. Earlier replay-20260912-202802 verified
+only the views and gated candidate path. PC/NXDK builds and21 CTests pass.
+
+Original488b20 render dispatch supplies the missing flag producer: the NPC
+branch calls421850 at488be8, then ORs0x10 at488bf3 and stores object7c
+at488bf5. Hidden bit2 and model LOD return byte1 skip rendering/marking.
+An original-execution audit (object-render-marker-original.json) covers704
+cases across11 object kinds,4 initial flag patterns,model presence,2 model
+kinds and4 LOD results.396 paths render then mark;308 preserve flags.
+Graphics/LOD/model/family render callbacks are supplied; callback entry
+sees unchanged initial flags. This is dispatch/marker evidence, not render
+fidelity. Recover marker clearing and bind actual phase ordering before
+claiming live NPC glare occlusion.

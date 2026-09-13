@@ -529,6 +529,13 @@ int rf_scene_glare_solid_query(void *context,uint32_t solid,const rf_glare_solid
     rf_collision_solid_response_hit *out,uint32_t reset);
 /* Calls, cached calls, hits, query errors, normalized-result hash. */
 extern uint32_t rf_scene_glare_solids[5];
+/* Current registered NPC visibility projection; authored orientation remains
+ * the existing NPC pose convention. Model identity is borrowed for scene lifetime.
+ * No room membership, actor-list ordering or selected-player policy supplied. */
+int rf_scene_npc_visibility_view(uint32_t handle,rf_glare_visibility_object *result);
+int rf_scene_npc_visibility_model(void *context,const rf_collision_visibility_object *object,
+    rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted);
+extern uint32_t rf_scene_npc_visibility[7];
 /* Borrow a retained world for diagnostic camera following; NULL disables.
  * Owner and source world must outlive the body stream. Fixed .7Y/2.4Z offset,
  * no camera collision or original first-person policy. */

@@ -3377,6 +3377,67 @@ int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *r
     *result=value;return RF_OK;
 }
 
+uint32_t rf_scene_npc_visibility[7];
+int rf_scene_npc_visibility_view(uint32_t handle,rf_glare_visibility_object *result)
+{
+    rf_collision_pair_actor_state actor;rf_glare_visibility_object value={0};campaign_npc_body *owner;uint32_t slot;int status;
+    if(!result)return RF_RANGE;
+    status=rf_scene_npc_collision_view(handle,&actor);if(status)return status;
+    for(slot=0;slot<campaign_npc_body_count;++slot)if(campaign_npc_bodies[slot].registration.view && campaign_npc_bodies[slot].registration.handle==handle)break;
+    if(slot==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+slot;
+    value.handle=handle;value.geometry.token=handle;value.geometry.flags=actor.object_flags;
+    value.geometry.extent=owner->model_radius_78;
+    value.geometry.model=actor.model?&campaign_model_owners[slot].registration:NULL;
+    memcpy(value.geometry.position,actor.position,12);
+    memcpy(value.geometry.matrix,campaign_seeds.records.items[slot].record.orientation,36);
+    memcpy(value.geometry.minimum,owner->body.state.bounds.minimum,12);
+    memcpy(value.geometry.maximum,owner->body.state.bounds.maximum,12);
+    ++rf_scene_npc_visibility[0];
+    rf_scene_npc_visibility[5]=npc_hash_bytes(rf_scene_npc_visibility[5],&value.geometry.token,12);
+    rf_scene_npc_visibility[5]=npc_hash_bytes(rf_scene_npc_visibility[5],&actor.model,4);
+    rf_scene_npc_visibility[5]=npc_hash_bytes(rf_scene_npc_visibility[5],value.geometry.position,72);
+    *result=value;return RF_OK;
+}
+int rf_scene_npc_visibility_model(void *unused,const rf_collision_visibility_object *object,
+    rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted)
+{
+    rf_collision_pair_actor_state actor;uint32_t slot;int status;(void)unused;
+    if(!object || !query || !hit || !accepted)return RF_RANGE;
+    status=rf_scene_npc_collision_view(object->token,&actor);if(status)return status;
+    if(!actor.model)return RF_NOT_FOUND;slot=actor.model-1;
+    if(object->model!=&campaign_model_owners[slot].registration)return RF_RANGE;
+    ++rf_scene_npc_visibility[1];
+    status=rf_scene_model_collision_query(slot,query,hit,reset,accepted);
+    if(status){++rf_scene_npc_visibility[6];return status;}
+    rf_scene_npc_visibility[2]+=!!(*accepted&255);return RF_OK;
+}
+static int campaign_npc_visibility_check(uint32_t frame)
+{
+    uint32_t slot,k,blocked;int status;
+    rf_collision_visibility_backend backend={rf_scene_npc_visibility_model,NULL,NULL};
+    if(frame || !rf_scene_actor_pair_test_enabled)return RF_OK;
+    memset(rf_scene_npc_visibility,0,sizeof(rf_scene_npc_visibility));rf_scene_npc_visibility[5]=2166136261u;
+    for(slot=0;slot<campaign_npc_body_count;++slot)if(campaign_npc_bodies[slot].registration.view) {
+        rf_glare_visibility_object object;rf_glare_base_owner glare={0};float camera[3];
+        status=rf_scene_npc_visibility_view(campaign_npc_bodies[slot].registration.handle,&object);if(status)return status;
+        glare.parent_handle=UINT32_MAX;
+        for(k=0;k<3;++k)camera[k]=glare.position[k]=(object.geometry.minimum[k]+object.geometry.maximum[k])*.5f;
+        camera[0]=object.geometry.minimum[0]-1;glare.position[0]=object.geometry.maximum[0]+1;
+        status=rf_glare_occluder_test(&object.geometry,object.handle,0,&glare,camera,&backend,&blocked);if(status)return status;
+        ++rf_scene_npc_visibility[3];rf_scene_npc_visibility[4]+=blocked;
+        rf_scene_npc_visibility[5]=npc_hash_bytes(rf_scene_npc_visibility[5],&blocked,4);
+        if(object.geometry.model) {
+            rf_collision_model_part_query query={0};rf_collision_model_response_hit hit={0};uint32_t accepted;
+            memcpy(query.input.origin,object.geometry.position,12);memcpy(query.input.matrix,object.geometry.matrix,36);
+            memcpy(query.input.start,camera,12);query.input.flags=1;
+            for(k=0;k<3;++k)query.input.displacement[k]=glare.position[k]-camera[k];
+            status=rf_scene_npc_visibility_model(NULL,&object.geometry,&query,&hit,1,&accepted);if(status)return status;
+            rf_scene_npc_visibility[5]=npc_hash_bytes(rf_scene_npc_visibility[5],&accepted,4);
+            if(accepted)rf_scene_npc_visibility[5]=npc_hash_bytes(rf_scene_npc_visibility[5],&hit,sizeof(hit));
+        }
+    }
+    return RF_OK;
+}
 static int collision_body_response(const rf_physics_body *body,const rf_collision_contact_extra *extra,
     uint32_t handle,uint32_t material,uint32_t kind,rf_collision_actor_general_response *result)
 {
@@ -4649,6 +4710,7 @@ static int campaign_collision_views_check(uint32_t frame)
 {
     rf_collision_pair_actor_state view;rf_collision_actor_general_response response;const float *extra;uint32_t i,models=0;int status;
     if(!frame)memset(rf_scene_pair_dispatch,0,sizeof(rf_scene_pair_dispatch));
+    status=campaign_npc_visibility_check(frame);if(status)return status;
     status=campaign_actor_pair_fixture(frame);if(status)return status;
     status=campaign_actor_model_fixture(frame);if(status)return status;
     status=campaign_pair_dispatch_fixture(frame);if(status)return status;
