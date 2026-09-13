@@ -193,6 +193,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-texture-frame")) {
+        uint32_t h[7],out;float duration,speed,time;int32_t start,status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(h,sizeof(h),1,stdin)==1) {
+            memcpy(&duration,h+1,4);memcpy(&start,h+2,4);memcpy(&speed,h+3,4);memcpy(&time,h+5,4);out=0xa5a5a5a5;
+            status=rf_vfx_texture_frame(h[0],duration,start,speed,h[4],time,h[6],&out);
+            fwrite(&status,4,1,stdout);fwrite(&out,4,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-material-track")) {
         uint32_t header[3];float samples[128],time,out;int32_t rate,status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

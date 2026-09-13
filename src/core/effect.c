@@ -1974,3 +1974,27 @@ int rf_vfx_mesh_material_sample(const rf_vfx_mesh *mesh,const rf_vfx_material_ba
     id=vfx_word(mesh->data+(size_t)at);if(id>=bank->count)return RF_FORMAT;
     return rf_vfx_material_evaluate(bank->data,bank->bytes,bank->views+id,track,effect_frame,out);
 }
+
+int rf_vfx_texture_frame(uint32_t count,float duration,int32_t start,float speed,
+    uint32_t mode,float time,uint32_t normalized,uint32_t *out)
+{
+    double position,integral;int32_t index;uint32_t bits;
+    if(!out || !count || count>INT32_MAX || normalized>1)return RF_RANGE;
+    if(count==1){*out=0;return RF_OK;}
+    if(!isfinite(time))return RF_RANGE;
+    if(normalized)position=(double)count*time;
+    else {
+        if(!isfinite(duration) || duration<=0 || !isfinite(speed))return RF_RANGE;
+        position=(((double)count/duration)*speed)*((double)time-start)*(double)0.06666667014360428f;
+    }
+    integral=floor(position);if(!isfinite(integral) || integral<INT32_MIN || integral>INT32_MAX)return RF_RANGE;
+    index=(int32_t)integral;
+    if(normalized){bits=(uint32_t)index-(uint32_t)start;memcpy(&index,&bits,4);}
+    else if(index<0)index=0;
+    if(index>=(int32_t)count) {
+        if(mode==0 || mode==2)index%=(int32_t)count;
+        else index=(int32_t)count-1;
+    }
+    if(normalized && index<0){index+=(int32_t)count;if(index<0)index=0;}
+    *out=(uint32_t)index;return RF_OK;
+}

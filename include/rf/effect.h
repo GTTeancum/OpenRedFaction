@@ -61,6 +61,14 @@ int rf_vfx_material_sample(const void *,uint32_t bytes,const rf_vfx_material_vie
  * Caller selects track/default. Nonnegative rate, nonempty finite samples and
  * nonnegative time required; outputs clamped0..1, no allocation. */
 int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float effect_frame,float *out);
+/*54a630 (effect time) /54a6e0 (normalized time) bitmap frame selection.
+ * Returns image-array index, not the original bitmap handle. Modes0/2 loop;
+ * other modes clamp. One-frame textures return0 before examining the clock.
+ * duration is the50f380 metadata value; start is signed authored offset, speed
+ * is used only by54a630. Invalid inputs preserve output. */
+int rf_vfx_texture_frame(uint32_t count,float duration,int32_t start,float speed,
+    uint32_t mode,float time,uint32_t normalized,uint32_t *out);
+
 /* Evaluate borrowed serialized tracks (0 blend,1 brightness,2 opacity).
  * Blend samples clamp before interpolation, matching the original loader.
  * Empty tracks return NOT_FOUND; invalid spans (including embedded sentinel

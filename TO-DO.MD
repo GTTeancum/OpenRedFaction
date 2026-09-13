@@ -14,6 +14,12 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX effect-time and normalized texture clocks match4096 original/PC/NXDK
+cases and4 guards; bind retained bitmap metadata and actual draw passes next.
+PC XInput walkthrough exited at frame20232 with RF_RANGE in animation stage5,
+scene stage1; user requested continuing other work rather than diagnosing now.
+Preserved logs: artifacts/pc-xinput-walk.stderr.log and stdout.log.
+
 Retained standalone VFX material banks now resolve newer mesh material IDs;
 7 asset banks,120 PC/NXDK bindings and29 budget/I/O/parse rollback guards pass.
 Bank footprints20-914 bytes exclude textures; connect texture clocks, lighting

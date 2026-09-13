@@ -221,3 +221,28 @@ Bank sizes are20,564,294,564,914,572,20 bytes, excluding textures, archive,
 allocator overhead and meshes. Xbox and PC core/probe builds pass. The active
 interactive PC executable was left running, so no full PC relink was attempted.
 No native VFX draw or complete effect-instance ownership is claimed.
+
+## Bitmap frame clocks
+
+rf_vfx_texture_frame reconstructs54a630 effect-time and54a6e0 normalized
+frame selection. The first computes count/duration * speed, multiplies by
+time minus signed start and1/15, floors, then clamps negative indices to0.
+The second floors count*time, subtracts start with original32-bit wrap, then
+adds count once for negative indices and clamps remaining negatives to0.
+Modes0/2 wrap at the upper bound; other modes clamp to the last image.
+One-image resources return index0 before reading clock values. Output is an
+owned image-array index rather than the original base+1+frame bitmap handle.
+Nonfinite/out-of-range conversion and invalid counts fail without mutation.
+
+4096 original/PC/NXDK comparisons execute both complete routines with supplied
+50f380 bitmap metadata and actual floor/ftol/max helpers, covering negative
+time, offset, speed, zero speed, looping/clamping and one-image resources.
+Four invalid guards pass. Duration provenance and renderer texture-slot
+binding remain open; this is not proof of native VFX appearance.
+
+The next metadata boundary is50f380: animated bitmap duration is derived
+from a byte frame count at43 and float field4c, multiplied by float0.001
+(constant5894c8). Static bitmaps return count1/duration1. Resolve field4c
+loading and units before deriving this value from the retained VBM rate;
+count/rate alone must not be assumed equivalent. Full PC/Xbox builds and
+all24 CTests pass for the clock implementation.
