@@ -16,6 +16,10 @@ int main(int argc,char **argv)
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
     if(argc==2 && !strcmp(argv[1],"--player-slots"))return weapon_slots_probe();
+    if(argc==2 && !strcmp(argv[1],"--pickup-amount")) {
+        uint32_t in[6];int32_t out[3];
+        while(fread(in,24,1,stdin)==1){out[1]=out[2]=(int32_t)0xa5a5a5a5u;out[0]=rf_weapon_pickup_amount((int32_t)in[0],(int32_t)in[1],(int32_t)in[2],in[3],in[4],in[5],out+1,out+2);if(fwrite(out,12,1,stdout)!=1)return 2;}return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--add-ammo"))return weapon_ammo_probe();
     if(argc==2 && !strcmp(argv[1],"--acquire"))return weapon_acquire_probe();
     if(argc==2 && !strcmp(argv[1],"--remove"))return weapon_remove_probe();

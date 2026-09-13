@@ -100,6 +100,13 @@ int rf_weapon_add_ammo(rf_weapon_inventory *,rf_weapon_ammo_state *,
     const rf_weapon_acquire_definition *,int32_t weapon,int32_t quantity,
     const rf_weapon_ammo_backend *);
 
+/*45a5a0..45a69c SP quantity math after pickup acceptance. Special ammunition
+ * uses units of100; scale-disabled skips difficulty scaling only. Exact x87
+ * 64-bit-significand rounding is reproduced using bounded integer arithmetic. */
+int rf_weapon_pickup_amount(int32_t quantity,int32_t reserve,int32_t capacity,
+    uint32_t difficulty,uint32_t special,uint32_t scale_disabled,
+    int32_t *granted,int32_t *displayed);
+
 typedef struct rf_weapon_supply {
     int32_t ammo_type,capacity; /* Descriptor +24 and +260. */
     uint32_t flags_268;

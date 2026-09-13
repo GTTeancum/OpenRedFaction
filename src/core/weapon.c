@@ -377,3 +377,56 @@ int rf_weapon_add_ammo(rf_weapon_inventory *inventory,rf_weapon_ammo_state *stat
     }
     return RF_OK;
 }
+
+/* A96-bit unsigned numerator, rounded to the original x87 precision. */
+static void pickup_round64(uint32_t *hi,uint64_t *lo)
+{
+    uint32_t h=*hi,drop=0;uint64_t mask,half,low,old;
+    while(h){++drop;h>>=1;}
+    if(!drop)return;
+    mask=(UINT64_C(1)<<drop)-1;half=UINT64_C(1)<<(drop-1);low=*lo&mask;
+    *lo&=~mask;
+    if(low>half || (low==half && ((*lo>>drop)&1))) {
+        old=*lo;*lo+=UINT64_C(1)<<drop;if(*lo<old)++*hi;
+    }
+}
+static int32_t pickup_scaled_round(int32_t quantity,uint32_t factor,uint32_t shift,uint32_t hundredths)
+{
+    uint64_t magnitude=quantity<0?(uint64_t)(-(int64_t)quantity):(uint64_t)quantity;
+    uint64_t product=magnitude*factor,lo=product,half,old,upper;
+    uint32_t hi=0,bits;int32_t result;
+    if(hundredths) {
+        /* .01f is10737418 /2^30; first product is exact in x87. */
+        upper=(product>>32)*UINT64_C(10737418);
+        lo=(product&UINT64_C(0xffffffff))*UINT64_C(10737418);
+        old=lo;lo+=upper<<32;hi=(uint32_t)(upper>>32)+(lo<old);shift+=30;
+        pickup_round64(&hi,&lo);
+    }
+    half=UINT64_C(1)<<(shift-1);
+    if(quantity<0) {
+        if(!hi && lo<half)return 0;
+        old=lo;lo-=half;if(old<half)--hi;
+    } else {old=lo;lo+=half;if(lo<old)++hi;}
+    pickup_round64(&hi,&lo);
+    bits=(uint32_t)((lo>>shift)|((uint64_t)hi<<(64-shift)));
+    if(quantity<0)bits=0u-bits;
+    memcpy(&result,&bits,4);return result;
+}
+int rf_weapon_pickup_amount(int32_t quantity,int32_t reserve,int32_t capacity,
+    uint32_t difficulty,uint32_t special,uint32_t scale_disabled,
+    int32_t *granted,int32_t *displayed)
+{
+    static const uint32_t factors[4]={3,15099494,13421773,10066330};
+    int32_t amount=quantity,room,message;uint32_t bits;
+    if(!granted || !displayed || granted==displayed || difficulty>=4)return RF_RANGE;
+    if(!scale_disabled) {
+        amount=pickup_scaled_round(quantity,factors[difficulty],difficulty?24:1,special!=0);
+        if(special){bits=(uint32_t)amount*100u;memcpy(&amount,&bits,4);}
+    }
+    bits=(uint32_t)capacity-(uint32_t)reserve;memcpy(&room,&bits,4);
+    if(amount>room)amount=room;
+    if(special && amount<100)amount=100;
+    message=amount;
+    if(special){message=pickup_scaled_round(amount,1,0,1);if(message<1)message=1;}
+    *granted=amount;*displayed=message;return RF_OK;
+}

@@ -80,7 +80,8 @@ Object-contact handles NPC/player damage and riot_shield class identity in PC/st
 SP pickup eligibility459560 matches2048 original/PC/NXDK cases and3 callback failures.
 SP pickup completion order/timer matches1024 original/PC/NXDK cases and6 callback failures; implement grant/reaction/audio services and bind scene pickup ownership.
 New-weapon inventory initializer4030d0 matches2048 original/PC/NXDK cases; bind401470 notification and full weapon/ammo pickup grants.
-Reserve addition428d90 matches2048 original/PC/NXDK cases; bind reload query/service and full ammo pickup scaling/acceptance.
+Reserve addition428d90 matches2048 original/PC/NXDK cases; bind reload query/service and full ammo pickup acceptance.
+Ammo pickup scaling/message amounts match8192 original/PC/NXDK cases; bind special weapon IDs, difficulty ownership and inventory/message consumers.
 Retained collision voice1478 and global Sub Hit playback pass four restored-state PC/stock64MiB XEMU checks; bind full surface dispatch and continuous scheduling.
 Surface route gates match4170 original/PC/NXDK cases; reconstruct APC debris/damage, Driller damage/player feedback and timed-contact effects before full dispatch.
 APC bumper placement/geometry/damage ordering matches1024 original/PC/NXDK cases; bind actual asset/geometry services and complete timed-contact dispatch.
