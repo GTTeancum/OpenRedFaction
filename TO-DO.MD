@@ -84,6 +84,7 @@ SP pickup completion order/timer matches1024 original/PC/NXDK cases and6 callbac
 Normal-SP acquisition4030d0 matches2048 original/PC/NXDK cases with actual401470 no-op notification; bind inventory creation, equip/reset and full pickup grants.
 Startup grants now compose with concrete42ab20 animation selection (220 loaded PC cases); connect retained inventories/selections to live scene consumers.
 All63 class defaults now retain optional melee (four authored classes); include it when creating startup inventories.
+VFX quaternion key evaluation matches2048 original/PC/NXDK cases with56 owned checks; compose keyed/frame transforms, parent pose and rendering.
 VFX translation/scale key evaluation each matches2048 original/PC/NXDK cases with112 owned checks; complete quaternion rotation and composed transform playback.
 VFX vertex-animation sampling matches2048 original/PC/NXDK cases with1664 owned authored checks; complete transform-based/keyed motion and renderer submission.
 VFX UV sampling matches2048 original/PC/NXDK cases and4572 owned authored checks; complete vertex/transform animation, material state and renderer submission.

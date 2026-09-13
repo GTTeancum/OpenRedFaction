@@ -683,3 +683,32 @@ No native XEMU run, quaternion/parent composition or rendering is claimed.
 Rotation trace:56a250 selects packed quaternion keys;56a330 applies56a540
 parameter easing, calls51a000 packed quaternion interpolation, then417e90
 expansion. These routines remain to reconstruct and compose.
+
+## VFX quaternion key evaluation (2026-09-13)
+
+rf_vfx_rotation_key_sample composes56a250/56a330 key selection with the
+existing verified51a000 packed interpolation and417e90 expansion. Shared
+rf_motion_rotation_ease exposes the existing53a040/56a540 easing formula
+without changing skeletal animation behavior. Converted VFX record bytes15
+and16 supply incoming/outgoing controls, scaled with the original1/127 float.
+The VFX sampler uses original integer subtraction/division before float
+storage for segment time and validates nondecreasing keys, safe differences,
+finite serialized conversion and nonnegative signed-byte easing.
+
+Empty tracks return identity. Singleton tracks safely decode directly,
+avoiding original56a250's adjacent-key access beyond a one-key array at/before
+its timestamp. Normal segments preserve original packed wrap/truncation and
+expansion; no additional quaternion normalization is introduced. The owned
+accessor resolves key spans without allocating or modifying mesh resources.
+
+verify_vfx_rotation_keys.py matches2048 cases against complete unhooked56a250,
+including actual easing/interpolation/expansion, on PC and compiled NXDK.
+Serialized quaternion records are packed independently for the original.
+Three singleton checks and two invalid cases pass. Extended owned-mesh checks
+add56 rotation accessor comparisons against the original-verified raw sampler
+(7 keyed meshes, four times, normal/exact budgets), plus non-keyed rejection.
+Both builds and24 CTests pass. Reports: artifacts/vfx-rotation-keys.json and
+artifacts/vfx-mesh-owned.json. No native XEMU or composed rendering claimed.
+
+Next: bind original key-time conversion and base/key transform order, compose
+frame/parent transforms and material state, and submit animated geometry.

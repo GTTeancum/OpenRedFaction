@@ -715,6 +715,13 @@ static float motion_ease(float t, int8_t outgoing, int8_t incoming)
     return (float)(1.0 - ((scale / b) * remaining) * remaining);
 }
 
+int rf_motion_rotation_ease(float t,int8_t outgoing,int8_t incoming,float *out)
+{
+    float value;
+    if(!out || !isfinite(t) || t<0 || t>1 || outgoing<0 || incoming<0)return RF_RANGE;
+    value=motion_ease(t,outgoing,incoming);if(!isfinite(value) || value<0 || value>1)return RF_RANGE;*out=value;return RF_OK;
+}
+
 int rf_motion_sample_rotation(const rf_motion_rotation_key *keys, uint32_t count, int32_t tick, float out[4])
 {
     uint32_t i, upper;

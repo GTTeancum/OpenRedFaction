@@ -170,6 +170,13 @@ int rf_vfx_vector_key_sample(const void *,uint32_t bytes,uint32_t count,int32_t 
 /* track0 translation or2 scale; only packed-flag2 meshes. Integer key time
  * must already be computed by the animation caller. Rotation is separate. */
 int rf_vfx_mesh_vector_key(const rf_vfx_mesh *,uint32_t track,int32_t time,float out[3]);
+/*56a250/56a330 selection/easing using shared51a000/417e90 primitives.
+ * Input is serialized40-byte rotation keys, with checked low-byte easing
+ * controls (incoming15, outgoing16 in converted20-byte records). Empty
+ * tracks return identity; singleton safely decodes directly. Nondecreasing
+ * times and nonnegative easing required; errors preserve output. */
+int rf_vfx_rotation_key_sample(const void *,uint32_t bytes,uint32_t count,int32_t time,float out[4]);
+int rf_vfx_mesh_rotation_key(const rf_vfx_mesh *,int32_t time,float out[4]);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

@@ -1507,3 +1507,39 @@ int rf_vfx_mesh_vector_key(const rf_vfx_mesh *mesh,uint32_t track,int32_t time,f
     at=mesh->keys.offsets[track];if(at>mesh->bytes)return RF_FORMAT;
     return rf_vfx_vector_key_sample(mesh->data+at,mesh->bytes-at,mesh->keys.counts[track],time,out);
 }
+
+int rf_vfx_rotation_key_sample(const void *data,uint32_t bytes,uint32_t count,int32_t time,float out[4])
+{
+    const unsigned char *p=data;rf_vfx_key a,b,key;float result[4]={0,0,0,1},t;uint32_t i,upper;int32_t previous,current,first,last;int64_t delta,numerator;int16_t qa[4],qb[4],packed[4];int status;
+    if(!out || (!data && count) || count>65535 || (uint64_t)count*40>bytes)return RF_RANGE;
+    if(!count){memcpy(out,result,sizeof(result));return RF_OK;}
+    memcpy(&previous,p,4);
+    for(i=0;i<count;++i) {
+        memcpy(&current,p+i*40,4);if(current<previous)return RF_FORMAT;previous=current;
+        status=rf_vfx_key_read(p+i*40,bytes-i*40,1,&key);if(status)return status;
+        if(((const unsigned char *)key.words)[15]>127 || ((const unsigned char *)key.words)[16]>127)return RF_FORMAT;
+    }
+    if(count==1){status=rf_vfx_key_read(p,bytes,1,&a);if(status)return status;return rf_motion_decode_rotation((const unsigned char *)a.words+4,8,out);}
+    memcpy(&first,p,4);memcpy(&last,p+(count-1)*40,4);
+    if(time<=first){upper=1;t=0;}
+    else if(time>=last){upper=count-1;t=1;}
+    else {
+        upper=1;do {memcpy(&current,p+upper*40,4);if(time<current)break;++upper;}while(upper<count);
+        if(upper>=count)return RF_FORMAT;memcpy(&first,p+(upper-1)*40,4);memcpy(&last,p+upper*40,4);
+        delta=(int64_t)last-first;numerator=(int64_t)time-first;if(delta<=0 || delta>INT32_MAX || numerator<0 || numerator>INT32_MAX)return RF_RANGE;
+        t=(float)((double)numerator/(double)delta);
+    }
+    status=rf_vfx_key_read(p+(upper-1)*40,bytes-(upper-1)*40,1,&a);if(status)return status;
+    status=rf_vfx_key_read(p+upper*40,bytes-upper*40,1,&b);if(status)return status;
+    status=rf_motion_rotation_ease(t,(int8_t)((const unsigned char *)a.words)[16],(int8_t)((const unsigned char *)b.words)[15],&t);if(status)return status;
+    memcpy(qa,(const unsigned char *)a.words+4,8);memcpy(qb,(const unsigned char *)b.words+4,8);
+    status=rf_motion_interpolate_rotation(qa,qb,t,packed);if(status)return status;
+    return rf_motion_decode_rotation(packed,sizeof(packed),out);
+}
+int rf_vfx_mesh_rotation_key(const rf_vfx_mesh *mesh,int32_t time,float out[4])
+{
+    uint32_t at;
+    if(!mesh || !mesh->data || !out)return RF_RANGE;if(!(mesh->edges.mesh_flags&2))return RF_NOT_FOUND;
+    at=mesh->keys.offsets[1];if(at>mesh->bytes)return RF_FORMAT;
+    return rf_vfx_rotation_key_sample(mesh->data+at,mesh->bytes-at,mesh->keys.counts[1],time,out);
+}
