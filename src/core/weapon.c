@@ -2,6 +2,26 @@
 #include "rf/timer.h"
 #include <string.h>
 #include <math.h>
+uint32_t rf_weapon_world_model_token(const rf_weapon_world_model models[64],int32_t weapon)
+{
+    if(!models || weapon<0 || weapon>=64 || !models[weapon].name_nonempty)return 0;
+    return models[weapon].model;
+}
+int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t kind,
+    int (*lookup)(void *,uint32_t,const char *,int32_t *),void *context,int32_t *tag)
+{
+    uint32_t model;int32_t value,*cached;int status;
+    if(!models || !tag || kind>1)return RF_RANGE;
+    model=rf_weapon_world_model_token(models,weapon);if(!model){*tag=-1;return RF_OK;}
+    cached=kind?&models[weapon].muzzle:&models[weapon].grip;
+    if(*cached==-1) {
+        if(!lookup)return RF_NOT_FOUND;
+        status=lookup(context,model,kind?"muzzle_1":"grip_1",&value);if(status)return status;
+        *cached=value;
+    }
+    *tag=*cached;return RF_OK;
+}
+
 int rf_weapon_update_presentation(rf_weapon_presentation_state *state,int32_t weapon,
     const rf_weapon_model_descriptor descriptors[64],const rf_weapon_model_cache cache[32],
     const rf_weapon_presentation_context *context,const rf_weapon_presentation_ops *ops,

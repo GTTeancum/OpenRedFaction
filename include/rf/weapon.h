@@ -3,6 +3,18 @@
 #include "rf/motion.h"
 #include "rf/entity.h"
 
+typedef struct rf_weapon_world_model {
+    uint32_t name_nonempty,model;int32_t muzzle,grip;
+} rf_weapon_world_model;
+/*4c84d0: absent name or out-of-range weapon yields no model. Loaded tokens
+ * belong to the model owner; this accessor neither loads nor draws. */
+uint32_t rf_weapon_world_model_token(const rf_weapon_world_model models[64],int32_t weapon);
+/*4c8510/4c8560: kind0=grip_1,1=muzzle_1. A cached-1 is looked up again;
+ * other signed values are retained. Missing model returns tag-1. Callback
+ * errors preserve cache/output; callback must retain the descriptor array. */
+int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t kind,
+    int (*lookup)(void *,uint32_t,const char *,int32_t *),void *context,int32_t *tag);
+
 typedef struct rf_weapon_presentation_state {
     uint32_t model,auxiliary; /* Player +34/+38; opaque 32-bit model tokens. */
     int32_t current,pending,deadline; /* +1080/+f80/+f84 (not queue timer +b8). */
