@@ -220,6 +220,15 @@ int main(int argc,char **argv)
             out.status=rf_attachment_local_pose(in,in+12,in+15,in+24,out.pose);fwrite(&out,sizeof(out),1,stdout);}
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--glare-parent")) {
+        uint32_t in[5];rf_glare_base_owner owner;rf_object_registry registry;struct {int32_t status;uint32_t flags;} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1){uint32_t slot=in[1]&0xffff;memset(&owner,0xa5,sizeof(owner));memset(&registry,0,sizeof(registry));
+            owner.flags=in[0];owner.parent_handle=in[1];owner.state.parent=in[4];
+            if(slot<RF_OBJECT_CAPACITY){registry.slots[slot].handle=in[2];registry.slots[slot].object=in[3]?&owner:NULL;}
+            out.status=rf_glare_parent_update(&owner,&registry);out.flags=owner.flags;fwrite(&out,sizeof(out),1,stdout);}
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--glare-tag-publish")) {
         struct {uint32_t flags;float radius,pose[12];} in;rf_glare_base_owner owner;
         struct {int32_t status;uint32_t flags;float positions[9],bounds[6],matrices[27];} out;

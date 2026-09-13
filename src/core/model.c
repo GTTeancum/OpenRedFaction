@@ -80,6 +80,12 @@ int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
     state->byte_2d0=0;memset(state->vectors,0,sizeof(state->vectors));return RF_OK;
 }
 
+int rf_glare_parent_update(rf_glare_base_owner *owner,const rf_object_registry *registry)
+{
+    if(!owner || !registry)return RF_RANGE;
+    if(owner->parent_handle!=UINT32_MAX && !rf_object_registry_lookup(registry,owner->parent_handle))owner->flags|=2;
+    return RF_OK;
+}
 int rf_glare_publish_tag_pose(rf_glare_base_owner *owner,const float pose[12])
 {
     rf_group_attached_pose position={0};uint32_t i;int status;

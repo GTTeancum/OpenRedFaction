@@ -149,6 +149,10 @@ typedef struct rf_glare_corona_services {
  * state/callback effects remain on error; no heap or frame scheduling. */
 int rf_glare_corona_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
     const rf_glare_corona_frame *frame,const rf_glare_corona_services *services);
+/*4154a0 orphan preupdate: ownership parent_handle (original30), not the
+ * attachment parent200. Absent sentinel skips lookup; stale/missing handles
+ * set base flag2 for later generic deletion. No unlink/destruction here. */
+int rf_glare_parent_update(rf_glare_base_owner *owner,const rf_object_registry *registry);
 /*48770f..487750 for a resolved type10 tag pose (matrix9,position3).
  * Publishes public/current/pending positions and radius-based physics bounds;
  * flag100 preserves all three orientations. Marks room refresh04000000.

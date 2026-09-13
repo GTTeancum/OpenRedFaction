@@ -9125,3 +9125,19 @@ Native attachment motion fixture (2026-09-12)
  Both builds and22 CTest checks PASS. This is controlled process-local motion
  through live services, not authored gameplay parenting or rendered motion.
  Dynamic parenting, orphan lifecycle and turret alternate poses remain open.
+
+
+Glare orphan marking (2026-09-12)
+--------------------------------
+ rf_glare_parent_update reconstructs4154a0 using ownership parent_handle30,
+ not attachment state.parent200. Sentinel-1 leaves flags unchanged; a missing
+ or stale-generation registry handle ORs base flag2. No close/unlink here.
+ tools/verify_glare_parent.py executes unmodified4154a0 and40a0e0 across1024
+ cases, randomizing attachment parent independently. PC flags and compiled
+ NXDK full528-byte owners match;355 cases change flags. Both builds and all
+ 22 CTest checks PASS. No native scene binding or retirement claim.
+ Ghidra486670 export identifies the next cleanup boundary:48c9f0 runs before
+ family dispatch (type10 ->4153b0), then49f1d0 physics,489fc0 model release,
+ emitter chain497d80, string reset4ffa80, and4867b0 slot/base retirement.
+ This decompiler-level map needs call-order/ownership verification before
+ using rf_glare_owned_close as the complete live generic deletion path.
