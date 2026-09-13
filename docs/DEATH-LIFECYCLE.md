@@ -9444,3 +9444,20 @@ executes actual helpers unchanged, matching1036 PC/NXDK results;606 differ
 from float(first+second)*0.5. Thirteen shared invalid/overflow guards preserve
 output. Both builds and22 CTest checks pass. This is center arithmetic only,
 not full two-tag allocation, attachment lifecycle or live rendering.
+
+
+Two-tag constructor composition (2026-09-13): rf_glare_segment_create now
+implements413f20 using two tag-pose services and a generic type10 allocation
+service. Second tag matrix and verified center feed allocation; descriptor
+parent isFFFFFFFF, then successful owner.parent_handle becomes the real
+parent. Initializes active, caches, class, samples, endpoint vectors, list
+links and oriented byte; preserves allocator state.parent, reserved[0] and
+word_2cc exactly. No heap allocation within this orchestration function.
+verify_glare_segment_original.py executes full413f20 with real descriptor/
+vector/maximum helpers and supplied resource/allocation boundaries:60 cases
+cover signed class bounds, varied endpoints, allocation failure, descriptor
+and full original write footprint. verify_glare_segment_create.py compares
+those records with PC/compiled NXDK and verifies all528 NXDK owner bytes,
+plus3 callback failures. Both builds and22 CTest checks pass. Owned allocation
+adapter, authored two-tag creation/update/lifetime and special view-owner
+assignment remain open; no new native scene rendering claim.

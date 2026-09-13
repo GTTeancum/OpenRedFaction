@@ -89,8 +89,42 @@ static int volume_actor_lookup(void *context,uint32_t handle,const rf_glare_volu
 }
 static int volume_special_actor_flags(void *context,uint32_t handle,uint32_t *present,uint32_t *flags)
 {uint32_t *v=context;if(handle!=32)return RF_RANGE;++v[2];*present=v[0];*flags=v[1];return v[3]?RF_IO:RF_OK;}
+typedef struct segment_create_fixture {
+    rf_glare_base_owner owner;rf_glare_create_descriptor descriptor;uint32_t count,null_owner,error,offset;
+} segment_create_fixture;
+static int segment_create_tag(void *context,uint32_t parent,int32_t tag,float pose[12])
+{
+    segment_create_fixture *c=context;static const float first[12]={1,0,0,0,1,0,0,0,1,1.25f,-2.5f,3.75f};
+    static const float second[12]={0,0,-1,0,1,0,1,0,0,5.25f,1.5f,-.25f};
+    if(parent!=123 || (tag!=7 && tag!=9))return RF_RANGE;++c->count;
+    memcpy(pose,tag==7?first:second,48);if(tag==9)pose[9]+=(float)c->offset;
+    return c->count==c->error?RF_IO:RF_OK;
+}
+static int segment_create_allocate(void *context,const rf_glare_create_descriptor *d,rf_glare_base_owner **out)
+{
+    segment_create_fixture *c=context;++c->count;c->descriptor=*d;
+    if(c->count==c->error)return RF_IO;*out=c->null_owner?NULL:&c->owner;return RF_OK;
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--glare-segment-create")) {
+        uint32_t in[4],out[45];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            segment_create_fixture c;rf_glare_base_owner *owner=NULL;rf_object_list list;rf_glare_state *s=&c.owner.state;
+            rf_glare_class classes[3]={{.5f,1,(void*)1},{1,.5f,(void*)1},{1,1,(void*)1}};
+            rf_glare_segment_backend b={segment_create_tag,segment_create_allocate,&c};
+            memset(&c,0,sizeof(c));memset(&c.owner,0xa5,sizeof(c.owner));rf_object_list_init(&list);
+            c.null_owner=in[1];c.error=in[2];c.offset=in[3];
+            out[0]=(uint32_t)rf_glare_segment_create(classes,3,(int32_t)in[0],123,7,9,&list,&b,&owner);
+            out[1]=owner!=NULL;out[2]=c.count;out[3]=list.count;out[4]=c.owner.parent_handle;out[5]=s->parent;out[6]=(uint32_t)s->tag;
+            out[7]=s->active;out[8]=s->reserved[0];out[9]=(uint32_t)s->occluder;out[10]=s->cached_solid;out[11]=s->cached_face;
+            memcpy(out+12,s->samples,16);out[16]=s->definition==(void*)1;out[17]=(uint32_t)s->class_index;out[18]=s->flags;
+            memcpy(out+19,s->last_position,12);out[22]=s->word_2cc;out[23]=s->byte_2d0;memcpy(out+24,s->vectors,24);
+            out[30]=owner && list.sentinel.next==&s->link && list.sentinel.previous==&s->link && s->link.next==&list.sentinel && s->link.previous==&list.sentinel;
+            memcpy(out+31,&c.descriptor,56);fwrite(out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--glare-segment-center")) {
         float in[6];struct {int32_t status;float center[3];} out;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

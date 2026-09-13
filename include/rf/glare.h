@@ -68,6 +68,21 @@ typedef struct rf_glare_base_owner {
     int32_t identifier;float radius,health,position[3],matrix[9];
     rf_physics_body body;uint32_t allocated_bytes;
 } rf_glare_base_owner;
+typedef struct rf_glare_segment_backend {
+    int (*tag_pose)(void *,uint32_t parent,int32_t tag,float result[12]);
+    int (*allocate)(void *,const rf_glare_create_descriptor *,rf_glare_base_owner **);
+    void *context;
+} rf_glare_segment_backend;
+/*413f20 two-tag constructor. Two world tag poses, second tag matrix and
+ * interpolated center feed generic allocation with parentFFFFFFFF. After
+ * success set ownership parent, tag-1, endpoint vectors and oriented byte.
+ * Preserve allocator attachment parent, cached-visible byte and word2cc.
+ * Backend allocation returns an unlinked type10 owner; class/list storage
+ * outlives it. No heap here. NULL allocation succeeds with NULL output;
+ * callback errors preserve output and retain prior callback side effects. */
+int rf_glare_segment_create(const rf_glare_class *classes,uint32_t count,int32_t index,
+    uint32_t parent,int32_t first_tag,int32_t second_tag,rf_object_list *list,
+    const rf_glare_segment_backend *backend,rf_glare_base_owner **out);
 /* Type10 generic ownership for413d20: no model, flags30000, descriptor
  * flags0/scale1/material0, no ordinary room binding. Resolved parent byte/group
  * and material coefficients supplied. One owner allocation; registry/list

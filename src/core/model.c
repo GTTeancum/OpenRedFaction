@@ -187,6 +187,29 @@ int rf_glare_segment_center(const float first[3],const float second[3],float cen
     }
     memcpy(center,result,sizeof(result));return RF_OK;
 }
+int rf_glare_segment_create(const rf_glare_class *classes,uint32_t count,int32_t index,
+    uint32_t parent,int32_t first_tag,int32_t second_tag,rf_object_list *list,
+    const rf_glare_segment_backend *backend,rf_glare_base_owner **out)
+{
+    rf_glare_create_descriptor descriptor={0};rf_glare_base_owner *owner=NULL;rf_glare_state *state;
+    const rf_glare_class *cls;float first[12],second[12];uint32_t i;int status;
+    if(!out || count>INT32_MAX)return RF_RANGE;
+    if(index<0 || (uint32_t)index>=count){*out=NULL;return RF_OK;}
+    if(!classes || !list || !backend || !backend->tag_pose || !backend->allocate)return RF_RANGE;
+    cls=classes+index;if(!isfinite(cls->size_first) || !isfinite(cls->size_second))return RF_FORMAT;
+    descriptor.parent=UINT32_MAX;descriptor.radius=cls->size_first>cls->size_second?cls->size_first:cls->size_second;
+    status=backend->tag_pose(backend->context,parent,first_tag,first);if(status)return status;
+    for(i=0;i<12;++i)if(!isfinite(first[i]))return RF_FORMAT;
+    status=backend->tag_pose(backend->context,parent,second_tag,second);if(status)return status;
+    for(i=0;i<12;++i)if(!isfinite(second[i]))return RF_FORMAT;
+    memcpy(descriptor.matrix,second,36);status=rf_glare_segment_center(first+9,second+9,descriptor.position);if(status)return status;
+    status=backend->allocate(backend->context,&descriptor,&owner);if(status)return status;
+    *out=owner;if(!owner)return RF_OK;state=&owner->state;
+    owner->parent_handle=parent;state->tag=-1;state->active=1;state->occluder=-1;state->cached_solid=state->cached_face=0;
+    memset(state->samples,0,sizeof(state->samples));state->definition=cls->definition;state->class_index=index;state->flags=0;
+    rf_object_list_append(list,&state->link);for(i=0;i<3;++i)state->last_position[i]=-1000;
+    state->byte_2d0=1;memcpy(state->vectors[0],first+9,12);memcpy(state->vectors[1],second+9,12);return RF_OK;
+}
 int rf_glare_volume_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
     const rf_glare_volume_frame *frame,const rf_glare_volume_services *services)
 {
