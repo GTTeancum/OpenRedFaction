@@ -1564,3 +1564,41 @@ int rf_vfx_transform_point(const float transform[10],const float point[3],float 
     }
     memcpy(out,value,sizeof(value));return RF_OK;
 }
+
+static float vfx_transform_blend(float a,float b,float t)
+{
+    float inverse=(float)(1.0-(double)t),left=(float)((double)a*inverse),right=(float)((double)b*t);
+    return (float)((double)left+right);
+}
+int rf_vfx_transform_sample(const float frame[8],const void *vertex,const float first[10],const float second[10],float fraction,int interpolate,uint32_t flags,rf_vfx_morph_sample *out)
+{
+    rf_vfx_morph_sample value={0};float point[3],a[3],b[3],scale;unsigned i;int status;
+    if(!frame || !vertex || !first || !out || (interpolate && !second) || !isfinite(fraction) || fraction<0 || fraction>1)return RF_RANGE;
+    for(i=0;i<8;++i)if(!isfinite(frame[i]))return RF_FORMAT;
+    status=rf_vfx_vertex_decode(vertex,6,frame,point);if(status)return status;
+    status=rf_vfx_transform_point(first,frame,a);if(status)return status;
+    if(interpolate){status=rf_vfx_transform_point(second,frame,b);if(status)return status;}
+    for(i=0;i<3;++i)value.center[i]=interpolate?vfx_transform_blend(a[i],b[i],fraction):a[i];
+    status=rf_vfx_transform_point(first,point,a);if(status)return status;
+    if(interpolate){status=rf_vfx_transform_point(second,point,b);if(status)return status;}
+    for(i=0;i<3;++i)value.vertex[i]=interpolate?vfx_transform_blend(a[i],b[i],fraction):a[i];
+    if((flags&0x801) && frame[6]>=0)for(i=0;i<2;++i) {
+        scale=interpolate?vfx_transform_blend(first[7+i*2],second[7+i*2],fraction):first[7+i*2];
+        value.extra[i]=(float)fabs((double)scale*frame[6+i]);
+    }
+    for(i=0;i<3;++i)if(!isfinite(value.center[i]) || !isfinite(value.vertex[i]))return RF_RANGE;
+    if(!isfinite(value.extra[0]) || !isfinite(value.extra[1]))return RF_RANGE;
+    *out=value;return RF_OK;
+}
+int rf_vfx_mesh_transform(const rf_vfx_mesh *mesh,const rf_vfx_frame_cursor *cursor,uint32_t vertex,rf_vfx_morph_sample *out)
+{
+    const rf_vfx_frame_view *frame,*a,*b;float vectors[8];uint64_t at;
+    if(!mesh || !cursor || !out || !mesh->data || !mesh->frames || vertex>=mesh->prefix.vertices)return RF_RANGE;
+    if(!cursor->active || (mesh->edges.flags&4) || (mesh->edges.mesh_flags&2))return RF_NOT_FOUND;
+    if(cursor->first>=mesh->prefix.timing.samples || cursor->second>=mesh->prefix.timing.samples)return RF_RANGE;
+    frame=mesh->frames;a=frame+cursor->first;b=frame+cursor->second;
+    if(!(frame->present&1) || !(a->present&16) || !(b->present&16) || (uint64_t)vertex*6+6>frame->vertex_bytes)return RF_FORMAT;
+    at=(uint64_t)frame->vertex_offset+(uint64_t)vertex*6;if(at+6>mesh->bytes)return RF_FORMAT;
+    memcpy(vectors,frame->vectors,24);memcpy(vectors+6,frame->extra,8);
+    return rf_vfx_transform_sample(vectors,mesh->data+(size_t)at,a->transform,b->transform,cursor->fraction,cursor->first!=cursor->second,mesh->edges.flags,out);
+}

@@ -43,9 +43,9 @@ def allocator(u,a,size,data):
   if arg:assert arg in live;del live[arg]
  u.reg_write(UC_X86_REG_EAX,ret);u.reg_write(UC_X86_REG_ESP,sp+4);u.reg_write(UC_X86_REG_EIP,read(u,sp))
 for name in ('malloc','free'):x.hook_add(UC_HOOK_CODE,allocator,begin=sym(name),end=sym(name))
-vertex_checks=0;uv_checks=0;morph_checks=0;vector_key_checks=0;rotation_key_checks=0
+vertex_checks=0;uv_checks=0;morph_checks=0;vector_key_checks=0;rotation_key_checks=0;transform_checks=0
 def shared(v,global_count,budget,data,fail=False):
- global fail_alloc,vertex_checks,uv_checks,morph_checks,vector_key_checks,rotation_key_checks
+ global fail_alloc,vertex_checks,uv_checks,morph_checks,vector_key_checks,rotation_key_checks,transform_checks
  fail_alloc=fail;calls.clear();assert not live;x.mem_write(B,data or b'\0');x.mem_write(PTR,f(0,0,0,0,0,0,1));x.mem_write(OUT,w(0))
  status=call('rf_vfx_mesh_open',[B,len(data),v,global_count,PTR,budget,OUT]);result=w(status);pointer=read(x,OUT)
  if not status:
@@ -67,6 +67,14 @@ def shared(v,global_count,budget,data,fail=False):
     if not flags&4:assert status==0xfffffffd and bytes(x.mem_read(SAMPLE,32))==b'\xa5'*32;continue
     assert status==0;actual=bytes(x.mem_read(SAMPLE,32));a=frames+frame*112;b=frames+last*112;av=owned+read(x,a+32)+vertex*6;bv=owned+read(x,b+32)+vertex*6
     assert call('rf_vfx_morph_read',[a,av,b,bv,0x3e800000,frame!=last,SAMPLE+64])==0;assert actual==bytes(x.mem_read(SAMPLE+64,32));morph_checks+=1
+  for frame in range(n):
+   last=min(frame+1,n-1);x.mem_write(B+0x100,f(frame,.25)+w(frame,last,1))
+   for vertex in range(vertices):
+    x.mem_write(SAMPLE,b'\xa5'*32);status=call('rf_vfx_mesh_transform',[pointer,B+0x100,vertex,SAMPLE])
+    if flags&4 or struct.unpack_from('<I',header,204)[0]&2:assert status==0xfffffffd and bytes(x.mem_read(SAMPLE,32))==b'\xa5'*32;continue
+    assert status==0;actual=bytes(x.mem_read(SAMPLE,32));av=owned+read(x,frames+32)+vertex*6
+    assert call('rf_vfx_transform_sample',[frames,av,frames+frame*112+48,frames+last*112+48,0x3e800000,frame!=last,flags,SAMPLE+64])==0
+    assert actual==bytes(x.mem_read(SAMPLE+64,32));transform_checks+=1
   for track in (0,2):
    for time in (-1,0,10,1000):
     x.mem_write(SAMPLE,b'\xa5'*12);status=call('rf_vfx_mesh_vector_key',[pointer,track,time&0xffffffff,SAMPLE])
@@ -123,5 +131,5 @@ for case,(v,g,b,d) in enumerate(inputs):
 for v,g,b,d in invalid:
  got=shared(v,g,b,d);assert got[:4]!=w(0);responses.append(got)
 pc=subprocess.check_output([probe,'--vfx-mesh-owned'],input=b''.join(w(v,g,b,len(d))+f(0,0,0,0,0,0,1)+d for v,g,b,d in inputs+invalid));assert pc==b''.join(responses)
-report=dict(result='PASS',authored_pc_nxdk_meshes=len(inputs),failure_cases=len(invalid),allocation_failures=len(inputs),exact_budget_cases=len(inputs),owned_bytes=footprints,authored_vertex_checks=vertex_checks,authored_uv_checks=uv_checks,authored_morph_checks=morph_checks,authored_vector_key_checks=vector_key_checks,authored_rotation_key_checks=rotation_key_checks,scope='Composed previously original-verified decoders; all14 authored payloads, owned source independence, PC/NXDK header/frame/payload equality, exact/short budgets, malloc failure and rollback, repeat close. Original vertex expansion and UV branch comparisons included; morph accessor composition included; no bitmap binding/transform-key playback/native XEMU.')
+report=dict(result='PASS',authored_pc_nxdk_meshes=len(inputs),failure_cases=len(invalid),allocation_failures=len(inputs),exact_budget_cases=len(inputs),owned_bytes=footprints,authored_vertex_checks=vertex_checks,authored_uv_checks=uv_checks,authored_morph_checks=morph_checks,authored_vector_key_checks=vector_key_checks,authored_rotation_key_checks=rotation_key_checks,authored_transform_checks=transform_checks,scope='Composed previously original-verified decoders; all14 authored payloads, owned source independence, PC/NXDK header/frame/payload equality, exact/short budgets, malloc failure and rollback, repeat close. Original vertex expansion and UV branch comparisons included; morph accessor composition included; no bitmap binding/transform-key playback/native XEMU.')
 (root/'artifacts/vfx-mesh-owned.json').write_text(json.dumps(report,indent=2));print(report)

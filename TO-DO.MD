@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Non-keyed VFX transform animation matches2048 complete original/PC/NXDK
+interior/terminal branches and2048 owned-view fixtures;14 installed meshes
+correctly select keyed or morph paths, so no authored non-keyed coverage.
+Connect keyed/base transforms next, then parent poses and rendering.
+
 VFX scale/rotation/translation stages match2048 original/PC/NXDK cases,
 including2048 in-place checks and4 failure guards; both builds and24 tests pass.
 Compose keyed/base and frame transforms into53f060 playback, then parent poses
