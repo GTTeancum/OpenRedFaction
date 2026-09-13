@@ -81,6 +81,11 @@ int rf_glare_base_close(rf_glare_base_owner **owner,rf_object_registry *registry
  * Original float store precedes [-1,1] clamp; below2/255 suppresses drawing.
  * Finite inputs required. No camera lookup, actor modulation or geometry. */
 int rf_glare_volume_opacity(double angle_radians,float cone_degrees,float *opacity,uint32_t *draw);
+/*414278..414307 camera-facing angular fade, including4faaf0 normalization.
+ * Coincident positions or an acos argument outside [-1,1] return RF_FORMAT
+ * with outputs preserved. No parent gates, actor modulation or publication. */
+int rf_glare_volume_camera_opacity(const float position[3],const float forward[3],
+    const float camera[3],float cone_degrees,float *opacity,uint32_t *draw);
 /*414a25..414a73 standard corona visibility refresh. Caller has already checked
  * active28c and word2cc==0 and the parent/corona gates. face_cache_state is the
  * signed global5a3a34 read by actual4dbc40: nonnegative clears cached face.

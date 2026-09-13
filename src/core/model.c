@@ -89,6 +89,25 @@ int rf_glare_volume_opacity(double angle_radians,float cone_degrees,float *opaci
     value=(float)(((double)value+1.0)*.5);
     *draw=value>=0.007843137718737125f;*opacity=*draw?value:0;return RF_OK;
 }
+int rf_glare_volume_camera_opacity(const float position[3],const float forward[3],
+    const float camera[3],float cone_degrees,float *opacity,uint32_t *draw)
+{
+    float delta[3],direction[3];double length,inverse,dot;unsigned i;
+    if(!position || !forward || !camera || !opacity || !draw)return RF_RANGE;
+    if(!isfinite(cone_degrees))return RF_FORMAT;
+    for(i=0;i<3;++i) {
+        if(!isfinite(position[i]) || !isfinite(forward[i]) || !isfinite(camera[i]))return RF_FORMAT;
+        delta[i]=(float)((double)position[i]-camera[i]);
+        if(!isfinite(delta[i]))return RF_FORMAT;
+    }
+    length=sqrt(((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2]);
+    if(!(length>0) || !isfinite(length))return RF_FORMAT;
+    inverse=1.0/length;
+    for(i=0;i<3;++i)direction[i]=-(float)(inverse*delta[i]);
+    dot=((double)direction[2]*forward[2]+(double)direction[1]*forward[1])+(double)direction[0]*forward[0];
+    if(dot<-1 || dot>1 || !isfinite(dot))return RF_FORMAT;
+    return rf_glare_volume_opacity(acos(dot),cone_degrees,opacity,draw);
+}
 int rf_glare_parent_update(rf_glare_base_owner *owner,const rf_object_registry *registry)
 {
     if(!owner || !registry)return RF_RANGE;

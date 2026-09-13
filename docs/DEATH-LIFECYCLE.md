@@ -9268,3 +9268,14 @@ Native animated volume beam pixels (2026-09-13)
  using actual asset/header and runtime evidence before the passing run.
  This validates projected animated beam GPU output, not live authored volume
  placement or sorted-queue integration. No new campaign screenshot yet.
+
+
+Volume camera opacity (2026-09-13): rf_glare_volume_camera_opacity composes
+original414278..414307 subtraction,4faaf0 normalization, negation, forward
+dot, acos and angular fade. Unlike beam normalization4fab70,4faaf0 has no
+zero-length fallback. Shared code rejects coincident positions/nonfinite
+inputs/out-of-domain dots with outputs preserved; these guards are policy,
+not claims about original invalid-input behavior. verify_glare_volume_camera.py
+executes the original math/CRT unchanged and compares2024 exact PC/NXDK
+opacity/draw outputs plus12 shared-code guards. Both builds and22 CTest
+checks pass. Parent/actor gates and sorted scene volume drawing remain open.
