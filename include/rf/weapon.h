@@ -171,6 +171,13 @@ typedef struct rf_weapon_inventory {
 typedef struct rf_weapon_acquire_definition {
     int32_t ammo_type,capacity,magazine;
 } rf_weapon_acquire_definition;
+/*4257c0: consume one shot from loaded ammo when weapon<count and magazine>0,
+ * otherwise from mapped reserve. Invalid weapon IDs are no-ops. Decrement
+ * wraps to signed32 then clamps negative values to zero. No firing eligibility
+ * or owned check; invalid reached ammo mappings fail without mutation. */
+int rf_weapon_consume_shot(rf_weapon_inventory *,const rf_weapon_acquire_definition definitions[64],
+    uint32_t weapon_count,int32_t weapon);
+
 /*4030d0: initialize a previously unowned weapon, then call401470(inventory,1).
  * Quantity -1 fills a positive magazine without touching reserve. Arithmetic
  * wraps at32 bits before signed clamping. Notification errors retain changes.

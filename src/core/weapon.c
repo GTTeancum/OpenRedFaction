@@ -320,6 +320,20 @@ done:
     *action=next; return RF_OK;
 }
 
+int rf_weapon_consume_shot(rf_weapon_inventory *inventory,const rf_weapon_acquire_definition definitions[64],
+    uint32_t weapon_count,int32_t weapon)
+{
+    int32_t *amount,value,ammo;uint32_t bits;
+    if(weapon<0 || weapon>=64)return RF_OK;
+    if(!inventory || !definitions || weapon_count>64)return RF_RANGE;
+    if((uint32_t)weapon<weapon_count && definitions[weapon].magazine>0)amount=&inventory->loaded[weapon];
+    else {
+        ammo=definitions[weapon].ammo_type;if(ammo<0 || ammo>=32)return RF_RANGE;
+        amount=&inventory->reserve[ammo];
+    }
+    bits=(uint32_t)*amount-1;memcpy(&value,&bits,4);*amount=value<0?0:value;return RF_OK;
+}
+
 int rf_weapon_reserve(const rf_weapon_inventory *inventory,const rf_weapon_supply supply[64],
     int32_t weapon,int32_t *amount)
 {

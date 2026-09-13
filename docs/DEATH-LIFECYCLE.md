@@ -11066,3 +11066,24 @@ visual capture: no projectile or muzzle-flash emission was added.
 Remaining: automatic firing/burst hand selection, target ownership beyond
 NPCs, replacement-class tags, projectile creation, ammunition/timing and
 active sound/effect lifecycle.
+
+## Shot ammunition consumption4257c0 (2026-09-13)
+
+rf_weapon_consume_shot reconstructs the entire helper and the4c86e0 choice:
+weapon<count and descriptor88 magazine>0 consumes loaded[weapon]; otherwise
+descriptor24 maps the shared reserve slot. IDs outside0..63 are no-ops.
+There is no ownership/eligibility check. Decrement wraps signed32, then
+negative results clamp to0 (including the original INT_MIN wrap to INT_MAX).
+Reached invalid reserve mappings are rejected as explicit port guards.
+
+verify_weapon_consume_shot.py runs4257c0 and4c86e0 without hooks. All2048
+full448-byte inventories match PC and compiled NXDK:249 magazine,579 reserve,
+1220 invalid-ID no-ops. Five PC/NXDK bounds cases and three NXDK null/order
+guards pass. Evidence artifacts/weapon-consume-shot.json. Both builds and
+all22 CTests pass. No new native replay: no scene consumer changed.
+
+Dispatcher425830 still needs reconstruction: the traced ordinary path
+advances510 before muzzle query, and4267c6 calls4257c0 after shot effects;
+actor814 bit1000 can cause a second consumption call. This ordering is
+trace evidence for future composition, not implemented firing behavior.
+Do not consume ammo merely when calculating or rendering a muzzle pose.

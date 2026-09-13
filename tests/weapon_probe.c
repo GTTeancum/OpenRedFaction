@@ -47,6 +47,15 @@ int main(int argc,char **argv)
         return ferror(stdin)?1:0;
     }
     if(argc==2 && !strcmp(argv[1],"--world-tags"))return weapon_world_probe();
+    if(argc==2 && !strcmp(argv[1],"--consume-shot")) {
+        struct {rf_weapon_inventory inventory;rf_weapon_acquire_definition definitions[64];uint32_t count;int32_t weapon;} in;
+        struct {int32_t status;rf_weapon_inventory inventory;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.inventory=in.inventory;out.status=rf_weapon_consume_shot(&out.inventory,in.definitions,in.count,in.weapon);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--target-aim")) {
         struct {rf_weapon_aim_source source;float muzzle[3],basis[9];} in;
         struct {int32_t status;float basis[9];} out;
