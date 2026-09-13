@@ -83,6 +83,7 @@ Normal-SP acquisition4030d0 matches2048 original/PC/NXDK cases with actual401470
 Startup grants now compose with concrete42ab20 animation selection (220 loaded PC cases); connect retained inventories/selections to live scene consumers.
 All63 class defaults now retain optional melee (four authored classes); include it when creating startup inventories.
 NPCs retain inventories, selected animation records and firing state; bind authored reset descriptors/resource services into pain dispatch, then enable startup grants.
+Weapon Flags/Flags2 vocabularies are recovered; compose descriptor initialization/OR and Stop Sound resolution with the bounded list reader.
 Armed and unarmed death/recovery scene fixtures pass; animation consumers validate retained skeletons without rejecting equipped weapons.
 All78 inventory/selection/firing owners match PC in180-frame stock64MiB XEMU; retained storage78936 bytes, body subsystem peak538012 bytes within640KiB.
 Reserve addition428d90 matches2048 original/PC/NXDK cases; bind reload query/service and full ammo pickup acceptance.

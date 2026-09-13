@@ -1715,6 +1715,28 @@ static int class_assets_read(const void *text,uint32_t bytes,const char *class_n
     if(!found || !skin_found)return RF_NOT_FOUND;
     *assets=value;if(glare_out){memcpy(glare_out,glare,64);*glare_present=present;}return RF_OK;
 }
+int rf_weapon_flags_read(const void *text,uint32_t bytes,uint32_t secondary,uint32_t *flags,uint32_t *consumed)
+{
+    static const char *const primary[]={"alt_fire","continuous_fire","alt_continuous_fire","flickers",
+        "thruster","melee","remote_charge","player_wep","alt_zoom","underwater","from_eye","infrared",
+        "gravity","fixed_muz_flash","alt_lock","silent","torpedo","drill","detonator","alt_custom_mode",
+        "semi_automatic","autoaim","ps2_fp_full_clip"};
+    static const char *const extra[]={"pierces_all","random_bmp_orient","cycle_alpha","no_fire_through",
+        "no_world_collide","undeviating","flame","has_scanner","damage_self","has_pilot_flame","multi_mesh_collide"};
+    const char *const *names;lexer l={(const unsigned char *)text,bytes,0};
+    char t[256];int status,quoted;uint32_t value=0,i,count;
+    if(!text || !flags || !consumed || secondary>1)return RF_RANGE;
+    names=secondary?extra:primary;count=secondary?11:23;
+    status=token(&l,t,&quoted);if(status || quoted || strcmp(t,"("))return RF_FORMAT;
+    for(;;) {
+        status=token(&l,t,&quoted);if(status)return RF_FORMAT;
+        if(!quoted && !strcmp(t,")"))break;
+        if(!quoted)return RF_FORMAT;
+        for(i=0;i<count;++i)if(same(t,names[i]))break;
+        if(i==count)return RF_FORMAT;value|=1u<<i;
+    }
+    *flags=value;*consumed=l.at;return RF_OK;
+}
 int rf_clutter_flags_read(const void *text,uint32_t bytes,uint32_t *flags,uint32_t *consumed)
 {
     static const char *const names[]={"collectable","collide_weapon","collide_object","is_screen",

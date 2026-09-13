@@ -97,6 +97,15 @@ int main(int argc,char **argv)
         if(status && memcmp(&value,&before,sizeof(value)))return 3;
         _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);fwrite(&value,sizeof(value),1,stdout);return 0;
     }
+    if(argc==4 && !strcmp(argv[1],"--weapon-flags")) {
+        FILE *f=fopen(argv[2],"rb");long size;uint32_t flags=0xa5a5a5a5,consumed=0x5a5a5a5a;
+        if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);
+        if(size<0 || size>1024*1024){fclose(f);return 2;}
+        text=malloc((size_t)size+1);if(!text){fclose(f);return 2;}
+        if(fread(text,1,(size_t)size,f)!=(size_t)size){free(text);fclose(f);return 2;}fclose(f);
+        status=rf_weapon_flags_read(text,(uint32_t)size,(uint32_t)atoi(argv[3]),&flags,&consumed);free(text);
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);fwrite(&flags,4,1,stdout);fwrite(&consumed,4,1,stdout);return 0;
+    }
     if(argc==3 && !strcmp(argv[1],"--clutter-flags")) {
         FILE *f=fopen(argv[2],"rb");long size;uint32_t flags=0xa5a5a5a5,consumed=0x5a5a5a5a;
         if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);

@@ -17,6 +17,11 @@ typedef struct rf_weapon_names {
  * Port name limit63, capacity64; output unchanged on errors. */
 int rf_weapon_names_read(const void *text,uint32_t bytes,rf_weapon_names *result);
 int rf_weapon_names_load(rf_vpp *tables,uint32_t scratch_budget,rf_weapon_names *result);
+/* Original513020 list syntax and4c2dce/4c2e06 vocabularies. secondary=0
+ * selects23 Flags names;1 selects11 Flags2 names. Errors preserve outputs. */
+int rf_weapon_flags_read(const void *text,uint32_t bytes,uint32_t secondary,
+    uint32_t *flags,uint32_t *consumed);
+
 typedef struct rf_weapon_supply_catalog {
     rf_weapon_names names;
     rf_weapon_acquire_definition definitions[64];
