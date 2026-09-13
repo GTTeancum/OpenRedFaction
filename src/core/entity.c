@@ -2464,3 +2464,17 @@ int rf_entity_contact_apc_effects(rf_entity_contact_apc_state *state,
     damage.amount=75;damage.source=UINT32_MAX;damage.kind=-1;damage.argument6=0;damage.auxiliary_uid=UINT32_MAX;damage.force=0;
     return backend->damage(backend->context,state,&damage);
 }
+
+int rf_entity_timed_contact(rf_entity_timed_contact_state *state,
+    const rf_entity_timed_contact_backend *backend)
+{
+    rf_entity_timed_contact_request request;int expired,status;
+    if(!state || !backend || !backend->now)return RF_RANGE;
+    status=rf_timer_expired(state->deadline,*backend->now,&expired);if(status || !expired)return status;
+    if(!isfinite(state->radius) || !backend->effects || !backend->emit)return RF_RANGE;
+    request.effect=backend->effects[state->radius<2.5f?0:1];request.room=state->room;
+    memcpy(request.position,state->position,12);memcpy(request.contact_vector,state->contact_vector,12);request.radius=state->radius;
+    request.owner=UINT32_MAX;request.extra=0;request.flags=1;
+    status=backend->emit(backend->context,&request);if(status)return status;
+    return rf_timer_set(&state->deadline,*backend->now,2000);
+}

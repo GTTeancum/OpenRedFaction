@@ -428,6 +428,23 @@ typedef struct rf_damage_object {uint32_t type,flags;float health;} rf_damage_ob
 typedef struct rf_damage_request {
     float amount;uint32_t source;int32_t kind;uint32_t argument6,auxiliary_uid,force;
 } rf_damage_request;
+typedef struct rf_entity_timed_contact_state {
+    int32_t deadline;float radius;uint32_t room;float position[3],contact_vector[3];
+} rf_entity_timed_contact_state;
+typedef struct rf_entity_timed_contact_request {
+    uint32_t effect,room;float position[3],contact_vector[3],radius;uint32_t owner,extra,flags;
+} rf_entity_timed_contact_request;
+typedef struct rf_entity_timed_contact_backend {
+    void *context;const int32_t *now;const uint32_t *effects;
+    int (*emit)(void *,const rf_entity_timed_contact_request *);
+} rf_entity_timed_contact_backend;
+/* contact_vector is actor1b4 (not contact normal1c0).
+ *427562..4275c6 nonzero actor1ec: expired timer1414 -> radius-selected
+ * effect4c16e0, then timer reset using the post-callback clock. Borrowed state
+ * remains alive; completed callback changes are not rolled back on error. */
+int rf_entity_timed_contact(rf_entity_timed_contact_state *state,
+    const rf_entity_timed_contact_backend *backend);
+
 /*427550 surface entry: actor1ec=0 and contact1d4=0. Routes select required
  * effects; they do not perform vehicle damage, debris or sound playback. */
 typedef struct rf_entity_contact_surface {
