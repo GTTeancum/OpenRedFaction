@@ -1277,3 +1277,37 @@ int rf_vfx_frame_read(const void *data,uint32_t bytes,const rf_vfx_frame_config 
     }
     if(c.failed)return RF_FORMAT;v.bytes=c.at;*out=v;return RF_OK;
 }
+
+int rf_vfx_key_read(const void *data,uint32_t bytes,uint32_t track,rf_vfx_key *out)
+{
+    rf_vfx_key v={0};vfx_material_cursor c={data,bytes,0,0};uint32_t i,word;float value;double scaled;int32_t integer;uint16_t half;
+    if(!data || !out || track>2)return RF_RANGE;
+    if(bytes<40)return RF_FORMAT;v.words[0]=vfx_material_word(&c);
+    for(i=0;i<9;++i) {
+        word=vfx_material_word(&c);memcpy(&value,&word,4);if(!isfinite(value))return RF_FORMAT;
+        if(track!=1)v.words[i+1]=word;
+        else {
+            scaled=(double)value*(i<4?16383.0:1.0);
+            if(scaled<-2147483648.0 || scaled>2147483647.0)return RF_RANGE;
+            integer=(int32_t)scaled;
+            if(i<4){half=(uint16_t)integer;memcpy((unsigned char *)v.words+4+i*2,&half,2);}
+            else ((unsigned char *)v.words)[12+i-4]=(unsigned char)integer;
+        }
+    }
+    *out=v;return RF_OK;
+}
+int rf_vfx_key_tracks_read(const void *data,uint32_t bytes,uint32_t version,
+    const float *legacy_base7,rf_vfx_key_tracks *out)
+{
+    rf_vfx_key_tracks v={0};vfx_material_cursor c={data,bytes,0,0};rf_vfx_key key;uint32_t t,i;
+    if(!data || !out || (version<0x3000a && !legacy_base7))return RF_RANGE;
+    if(version<0x30000 || version>0x7fffffffu || (version>=0x40000 && version<0x40005))return RF_FORMAT;
+    if(version>=0x3000a)vfx_frame_floats(&c,v.base,10);
+    else {for(i=0;i<7;++i){if(!isfinite(legacy_base7[i]))return RF_FORMAT;v.base[i]=legacy_base7[i];}for(i=7;i<10;++i)v.base[i]=1;}
+    for(t=0;t<3;++t) {
+        v.counts[t]=vfx_material_word(&c)&0xffffu;v.offsets[t]=c.at;
+        if(c.failed || (uint64_t)v.counts[t]*40>bytes-c.at)return RF_FORMAT;
+        for(i=0;i<v.counts[t];++i){if(rf_vfx_key_read(c.data+c.at,bytes-c.at,t,&key))return RF_FORMAT;c.at+=40;}
+    }
+    if(c.failed)return RF_FORMAT;v.bytes=c.at;*out=v;return RF_OK;
+}

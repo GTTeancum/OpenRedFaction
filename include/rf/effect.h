@@ -99,6 +99,20 @@ typedef struct rf_vfx_frame_view {
  * when creating its owner. Does not parse following key tracks or allocate.
  * Finite floats and bounded spans required; errors preserve output. */
 int rf_vfx_frame_read(const void *,uint32_t bytes,const rf_vfx_frame_config *,rf_vfx_frame_view *);
+typedef struct rf_vfx_key_tracks {
+    float base[10];uint32_t counts[3],offsets[3],bytes;
+} rf_vfx_key_tracks;
+typedef struct rf_vfx_key {uint32_t words[10];} rf_vfx_key;
+/*53e080..53e424; call only for meshes with packed flag2. Track order:
+ * translation, rotation, scale. Serialized records40 bytes each. Counts
+ * retain original low16 truncation. Offsets borrow input. Before3000a,
+ * caller supplies seven legacy position/quaternion defaults; scale defaults1.
+ * Rotation output uses original20-byte layout (remaining20 bytes zero),
+ * quaternion*16383 truncated to low16, five floats truncated to low8.
+ * Other tracks retain40 bytes. Finite/range/span guards preserve output. */
+int rf_vfx_key_tracks_read(const void *,uint32_t bytes,uint32_t version,
+    const float *legacy_base7,rf_vfx_key_tracks *);
+int rf_vfx_key_read(const void *,uint32_t bytes,uint32_t track,rf_vfx_key *);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

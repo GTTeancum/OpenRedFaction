@@ -474,3 +474,30 @@ These views do not allocate or attach resources, interpolate animation,
 parse the subsequent key tracks, or dispatch effects in the scene. Direction
 normalization, shared-frame ownership, key tracks and playback remain open.
 No native XEMU run, working firing or new screenshot is claimed.
+
+## VFX transform key tracks (2026-09-13)
+
+rf_vfx_key_tracks_read reconstructs53e080..53e424 for keyframed meshes,
+retaining base position/quaternion/scale and three borrowed key spans.
+Serialized records are40 bytes each. Counts retain the original low16
+truncation, followed by checked byte spans. Before3000a, position/quaternion
+defaults are an explicit caller input because they originate in runtime
+globals; scale defaults1. Installed keyed assets serialize their base data.
+
+rf_vfx_key_read preserves translation/scale records and converts rotation
+records to the original20-byte layout: quaternion components multiply by
+16383 then truncate to low16, and five float parameters truncate to low8.
+The remaining20 output bytes are zero. Finite and signed32 conversion-range
+guards reject unsafe values rather than overflowing C casts. Errors preserve
+output. No interpolation, allocation or resource attachment occurs.
+
+verify_vfx_keys.py executes the original instructions with real helpers and
+supplied file read/error services. Legacy globals are explicitly seeded to
+the caller defaults, not asserted to be reconstructed startup state.1031
+original/PC/compiled NXDK cases cover7 authored keyed meshes and1024 synthetic
+cases,6160 keys total. Base values, counts, converted records and consumed
+bytes match.4111 invalid/truncated cases preserve output. Both builds and24
+CTests pass. Evidence: artifacts/vfx-keys.json. Combined verified decoders
+consume each of the14 authored mesh payloads exactly, including the optional
+key section; they still require a composed bounded owner and resource binding.
+No native XEMU run or new scene visual is claimed.

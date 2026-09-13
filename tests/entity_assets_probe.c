@@ -38,6 +38,24 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-keys")) {
+        uint32_t input[2];float legacy[7];unsigned char *data;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,8,1,stdin)==1) {
+            rf_vfx_key_tracks view;uint32_t t,i;
+            if(fread(legacy,28,1,stdin)!=1 || input[1]>1048576)return 2;
+            data=malloc(input[1]?input[1]:1);if(!data)return 2;
+            if(fread(data,1,input[1],stdin)!=input[1]){free(data);return 2;}
+            memset(&view,0xa5,sizeof(view));status=rf_vfx_key_tracks_read(data,input[1],input[0],legacy,&view);
+            fwrite(&status,4,1,stdout);fwrite(&view,sizeof(view),1,stdout);
+            if(!status)for(t=0;t<3;++t)for(i=0;i<view.counts[t];++i) {
+                rf_vfx_key key;uint32_t at=view.offsets[t]+i*40;
+                if(rf_vfx_key_read(data+at,input[1]-at,t,&key)){free(data);return 3;}fwrite(&key,sizeof(key),1,stdout);
+            }
+            free(data);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-frame")) {
         rf_vfx_frame_config cfg;uint32_t bytes;unsigned char *data;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
