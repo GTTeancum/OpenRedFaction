@@ -22,6 +22,65 @@ int rf_entity_ai_set_state(rf_entity_ai_transition_state *s,int32_t requested,fl
     if(!s || !isfinite(clock) || (double)clock < -2147483648.0 || (double)clock >= 2147483648.0)return RF_RANGE;
     s->state_2b4=requested;s->clock_2bc=(int32_t)clock;return RF_OK;
 }
+int rf_entity_ai_select(rf_entity_ai_actor *s,const rf_entity_ai_select_frame *f,const rf_entity_ai_select_backend *b)
+{
+    rf_entity_ai_actor *actor,*target;uint32_t value,i;int status;int32_t next=2;
+    float point[3]={0},delta[3],distance;double scalar=0;
+    if(!s || !s->owner || !f || !b || !b->lookup || !b->call || !f->random ||
+       (f->peer_count && !f->peers) || f->peer_count>65536 || !isfinite(f->clock) ||
+       (double)f->clock < -2147483648.0 || (double)f->clock>=2147483648.0 ||
+       f->now_ms<0 || f->now_ms>RF_TIMER_PERIOD)return RF_RANGE;
+    for(i=0;i<f->peer_count;++i)if(!f->peers[i])return RF_RANGE;
+#define AI_CALL(op,subject) do {status=b->call(b->context,s,(subject),(op),point,&value,&scalar);if(status)return status;if(!s->owner)return RF_FORMAT;} while(0)
+#define AI_STATE(n) rf_entity_ai_set_state(&s->transition,(n),f->clock)
+    status=b->lookup(b->context,s->owner->handle,&actor);if(status)return status;
+    if(!actor || (s->transition.flags_530&0x40000000u))return RF_OK;
+    AI_CALL(0x427020,actor);if((value&255u)==1)return RF_OK;
+    AI_CALL(0x4174c0,s);if(value){AI_CALL(0x407ee0,s);return RF_OK;}
+    if(s->transition.action_280==17)return RF_OK;
+    AI_CALL(0x4087a0,s);if((value&255u)==1)return RF_OK;
+    AI_CALL(0x408dc0,actor);if(!(value&255u))return RF_OK;
+    actor->flags_810&=0xfdffffffu;
+    if(s->transition.action_280==11)return AI_STATE(9);
+    AI_CALL(0x4091d0,s);AI_CALL(0x409210,s);
+    s->owner->word_834=UINT32_MAX;s->owner->flags_810&=0xfffffff7u;
+    AI_CALL(0x408ef0,s);if((value&255u)==1){AI_CALL(0x408f20,s);}
+    status=rf_timer_set_random(&s->timer_4d4,f->now_ms,2000,4000,f->random);if(status)return status;
+    AI_CALL(0x427fb0,actor);if(value&255u){AI_CALL(0x42a020,actor);if(!(value&255u)){AI_CALL(0x4280b0,actor);}}
+    if(!((f->network_a|f->network_b)&255u))for(i=0;i<f->peer_count;++i) {
+        rf_entity_ai_actor *peer=f->peers[i];
+        if(peer->group==s->owner->group && peer!=s->owner &&
+           (peer->transition.action_280==2 || peer->transition.action_280==4)) {
+            AI_CALL(0x40a110,actor);if((value&255u)!=1)peer->transition.flags_530|=0x20000u;
+        }
+    }
+    if(s->transition.action_280==3){AI_CALL(0x40a210,s->owner);if((value&255u)==1)return RF_OK;}
+    else {status=rf_entity_ai_set_action(&s->transition,3,UINT32_MAX,UINT32_MAX,f->clock,f->network_a,f->network_b);if(status)return status;}
+    AI_CALL(0x408d90,s);if((value&255u)==1)next=3;
+    status=b->lookup(b->context,s->target_560,&target);if(status)return status;
+    if(target) {
+        AI_CALL(0x406b70,s);if(value&255u) {
+            point[0]=point[1]=point[2]=0;AI_CALL(0x401060,s);AI_CALL(0x40ac90,s->owner);
+            if((value&255u)==1)next=1;
+        }
+        for(i=0;i<3;++i){delta[i]=(float)((double)s->owner->position[i]-target->position[i]);if(!isfinite(delta[i]))return RF_RANGE;}
+        distance=(float)sqrt((double)delta[0]*delta[0]+(double)delta[1]*delta[1]+(double)delta[2]*delta[2]);
+        if(!isfinite(distance))return RF_RANGE;
+        AI_CALL(0x4062c0,s);
+        if(!(value&255u) && (next==2 || next==3)) {
+            AI_CALL(0x401cc0,s);
+            /* Original FCOMP tests C0: unordered also enters this branch. */
+            if(isnan(scalar) || scalar<(double)distance) {
+                AI_CALL(0x4065d0,s);if(s->transition.state_2b4==11)return RF_OK;
+                AI_CALL(0x408d90,s);if(value&255u)return RF_OK;
+                return AI_STATE(2);
+            }
+        }
+    }
+    return AI_STATE(next);
+#undef AI_CALL
+#undef AI_STATE
+}
 rf_entity_loader_created *rf_entity_loader_create(const rf_entity_loader_creation *input,
     rf_entity_loader_created *(*create)(void *,const rf_entity_loader_create_request *),void *context)
 {

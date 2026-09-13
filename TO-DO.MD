@@ -44,8 +44,8 @@ All431 installed clutter definitions disable rod glare; defer live binding until
 Verify authored NPC/vehicle beams, bind player state and complete transparent scene ordering.
 
 AI action/state setters407e20/407e80 match2048 original/PC/NXDK cases.
-Full original408ac0 audit passes2048 cases/105 paths, including timer/RNG and peer notifications.
-Implement shared408ac0 selection and bind retained state before live special landing.
+Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
+Implement external AI services and bind retained state before live special landing.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.

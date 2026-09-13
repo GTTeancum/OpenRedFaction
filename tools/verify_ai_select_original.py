@@ -61,14 +61,15 @@ for case in range(2048):
  elif case%16==3:cfg['0x4174c0']=1
  elif case%16==4:cfg['0x4087a0']=1
  elif case%16==5:cfg['0x408dc0']=0
+ pose_rng=random.Random(case);cfg['positions']=([0,0,0,3,4,0] if case%8==0 else [pose_rng.randint(-10000,10000)/128 for _ in range(6)])
  seed=bytearray(rng.randbytes(0x1500));seed[0x2c:0x30]=w(55);seed[0x2a0:0x2a4]=w(b);seed[0x560:0x564]=w(77)
  seed[0x520:0x524]=w(cfg['action']);seed[0x7d0:0x7d4]=w(0x40000000 if cfg['disabled'] else 0x0f800000)
- seed[0x3c:0x48]=struct.pack('<3f',0,0,0);seed[0x1f8:0x1fc]=w(7)
+ seed[0x3c:0x48]=struct.pack('<3f',*cfg['positions'][:3]);seed[0x1f8:0x1fc]=w(7)
  for i,peer in enumerate(peers):
   if i:u.mem_write(peer,bytes(0x900));u.mem_write(peer+0x1f8,w(7 if i<3 else 8));u.mem_write(peer+0x520,w(2 if i%2 else 4))
   if not i:seed[0x28c:0x290]=w(peers[1])
   else:u.mem_write(peer+0x28c,w(peers[i+1] if i+1<len(peers) else 0x5cb060))
- u.mem_write(b,bytes(seed));u.mem_write(target+0x3c,struct.pack('<3f',3,4,0));u.mem_write(0x5cb2ec,w(b))
+ u.mem_write(b,bytes(seed));u.mem_write(target+0x3c,struct.pack('<3f',*cfg['positions'][3:]));u.mem_write(0x5cb2ec,w(b))
  u.mem_write(0x6fc4d8,bytes([cfg['network']&1]));u.mem_write(0x64ecb9,bytes([cfg['network']>>1]))
  u.mem_write(0x6460f0,struct.pack('<f',12345.75));u.mem_write(0x5a3ed8,w(12345));u.mem_write(thread+0x14,w(case));u.mem_write(threshold,struct.pack('<f',cfg['threshold']))
  u.mem_write(stack,w(stop,inv));u.reg_write(UC_X86_REG_ESP,stack);trace=[];draws=0

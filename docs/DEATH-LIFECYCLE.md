@@ -9549,3 +9549,29 @@ Next implement shared408ac0 around these verified effects, reusing weapon
 predicates and setters; complete callback implementations and retained owner
 binding are still required before live landing/AI scheduling. No new build
 or native replay is claimed for this original-only harness change.
+
+
+Shared AI selection408ac0 (2026-09-13): rf_entity_ai_select now composes
+full control flow with concrete407e20/407e80 setters,4fa3b0 timer/RNG, peer
+notification and float-rounded4faed0 target distance. Explicit external
+lookup/AI callbacks use source-address operation IDs; none is silently
+accepted as a no-op by the dispatcher. Borrowed actors retain separate
+inventory back-pointer and resolved actor identity. Owner pointers may be
+changed by callbacks to another live owner; pointer/list lifetime and frame
+clock/network values remain stable by contract. Error propagation preserves
+completed effects. Peer notice gates retain the initiating actor predicate.
+Tests supply those external boundaries and mutate state through4065d0.
+verify_ai_select_shared.py refreshes the original oracle then compares all
+2048 cases against the PC binary probe and actual linked NXDK dispatcher.
+Expanded authored-independent positions cover107 paths; exact output fields,
+external call order,202 peer writes and RNG state match.21 callback-failure
+positions in the longest path propagate immediately. External scalar401cc0
+uses double; original unordered FCOMP also selects the long-distance branch.
+Finite body positions/distance and signed32-convertible frame clock are
+required; unsupported numeric states return an error after prior effects.
+Both builds and22 CTests pass. PC probe initially named rf_random_state's
+member state instead of value; fixed before verification. This is compiled
+NXDK testing, not native XEMU integration. No scene schedules these actors
+yet. Remaining work includes4087a0 event arbitration, reset/weapon/target
+services, retained inventory fields, callback mutation/lifetime coverage and
+live special-class landing. No new visuals claimed.

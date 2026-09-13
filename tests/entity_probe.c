@@ -135,6 +135,7 @@ static int loader_creation_probe(void)
     }
     return ferror(stdin)?1:0;
 }
+#include "ai_select_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==3 && !strcmp(argv[1],"--action-name"))return action_name_probe(argv[2]);
@@ -420,6 +421,7 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--ai-select"))return ai_select_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-transition")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         struct {rf_entity_ai_transition_state state;uint32_t operation;int32_t requested;uint32_t a,b;float clock;uint32_t network_a,network_b;} input;

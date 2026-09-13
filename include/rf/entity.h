@@ -60,6 +60,33 @@ int rf_entity_ai_set_action(rf_entity_ai_transition_state *state,int32_t action,
     uint32_t argument_a,uint32_t argument_b,float clock,uint32_t network_a,uint32_t network_b);
 int rf_entity_ai_set_state(rf_entity_ai_transition_state *state,int32_t requested,float clock);
 
+typedef struct rf_entity_ai_actor {
+    rf_entity_ai_transition_state transition;
+    struct rf_entity_ai_actor *owner; /* inventory back pointer; usually self */
+    uint32_t handle,group,flags_810,word_834,target_560;
+    int32_t timer_4d4;float position[3];
+} rf_entity_ai_actor;
+/* External408ac0 boundaries keep source-address IDs until individually
+ * reconstructed. call may mutate actor state; scalar is401cc0's result and
+ * point is401060 output/40ac90 input. Integer decisions preserve low bytes. */
+typedef struct rf_entity_ai_select_backend {
+    int (*lookup)(void *,uint32_t,rf_entity_ai_actor **);
+    int (*call)(void *,rf_entity_ai_actor *,rf_entity_ai_actor *,uint32_t,float[3],uint32_t *,double *);
+    void *context;
+} rf_entity_ai_select_backend;
+typedef struct rf_entity_ai_select_frame {
+    float clock;int32_t now_ms;uint32_t network_a,network_b;rf_random_state *random;
+    rf_entity_ai_actor *const *peers;uint32_t peer_count;
+} rf_entity_ai_select_frame;
+/* Full408ac0 ordering, including concrete setters, timer/RNG, peer notices
+ * and float-rounded target distance. Actor/owner/peer storage remains valid
+ * through callbacks; callbacks may change owner to another valid actor but
+ * may not resize the peer list. Clock/network inputs remain frame-stable.
+ * Errors preserve completed effects, not a transactional rollback. Callback
+ * implementations, live inventory ownership and scheduling remain external. */
+int rf_entity_ai_select(rf_entity_ai_actor *inventory,const rf_entity_ai_select_frame *frame,
+    const rf_entity_ai_select_backend *backend);
+
 typedef struct rf_entity_landing_state {
     uint32_t actor_flags,class_flags,body_flags;int32_t action;
 } rf_entity_landing_state;
