@@ -3,6 +3,43 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+/*40ea80 ordered row-matrix product, same term order as physics tensor products. */
+static int visibility_view_product(const float left[9],const float right[9],float result[9])
+{
+    static const unsigned char order[9][3]={{0,2,1},{2,1,0},{1,0,2},{2,1,0},{2,1,0},{0,1,2},{2,1,0},{2,0,1},{1,0,2}};
+    uint32_t row,col,i;
+    for(row=0;row<3;row++)for(col=0;col<3;col++) {
+        const unsigned char *k=order[row*3+col];double value=(double)right[row*3+k[0]]*left[k[0]*3+col];
+        for(i=1;i<3;i++)value+=(double)right[row*3+k[i]]*left[k[i]*3+col];
+        if(!isfinite(value) || fabs(value)>FLT_MAX)return RF_RANGE;result[row*3+col]=(float)value;
+    }
+    return RF_OK;
+}
+int rf_visibility_view_push(rf_visibility_view_stack *stack,const float position[3],const float basis[9])
+{
+    rf_visibility_view_state value;float delta[3],transpose[9];uint32_t i,j;int status;
+    if(!stack || !position || !basis || !stack->saved || stack->depth>=stack->capacity)return RF_RANGE;
+    for(i=0;i<9;i++)if(!isfinite(basis[i]) || !isfinite(stack->current.render_basis[i]) || !isfinite(stack->current.light_basis[i]))return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(position[i]) || !isfinite(stack->current.render_origin[i]) || !isfinite(stack->current.light_origin[i]))return RF_RANGE;
+        delta[i]=stack->current.render_origin[i]-position[i];if(!isfinite(delta[i]))return RF_RANGE;
+        for(j=0;j<3;j++)transpose[i*3+j]=basis[j*3+i];
+    }
+    for(i=0;i<3;i++) {
+        float offset=(float)(((double)position[2]*stack->current.light_basis[6+i]+(double)position[1]*stack->current.light_basis[3+i])+(double)position[0]*stack->current.light_basis[i]);
+        value.light_origin[i]=offset+stack->current.light_origin[i];
+        value.render_origin[i]=(float)(((double)delta[2]*basis[i*3+2]+(double)delta[1]*basis[i*3+1])+(double)delta[0]*basis[i*3]);
+        if(!isfinite(value.light_origin[i]) || !isfinite(value.render_origin[i]))return RF_RANGE;
+    }
+    status=visibility_view_product(transpose,stack->current.render_basis,value.render_basis);if(status)return status;
+    status=visibility_view_product(stack->current.light_basis,basis,value.light_basis);if(status)return status;
+    stack->saved[stack->depth++]=stack->current;stack->current=value;stack->color_marker=255;return RF_OK;
+}
+int rf_visibility_view_pop(rf_visibility_view_stack *stack)
+{
+    if(!stack || !stack->saved || !stack->depth || stack->depth>stack->capacity)return RF_RANGE;
+    stack->current=stack->saved[--stack->depth];return RF_OK;
+}
 int rf_visibility_light_dispatch(uint32_t mode,uint32_t source,uint32_t main_solid,uint32_t update,
     rf_light_update_view **views,uint32_t capacity,const rf_light_update_backend *backend)
 {

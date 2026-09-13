@@ -990,3 +990,21 @@ and24 CTests pass. This is scheduling evidence; solid updates and volume
 transforms have separate unhooked evidence.517f00/517f20 gate5473f0/547540
 on renderer mode66. Those save/restore both render and lighting transforms;
 their internal matrix/stack state and native lifecycle binding remain.
+
+### Render/lighting view stack (2026-09-13)
+
+rf_visibility_view_push/pop reconstruct5473f0/547540 transform state. Each
+saved slot is96 bytes: render basis/origin then lighting basis/origin. Push
+marks the color byte ff, saves current state, transforms render origin by
+the new local pose and accumulates lighting origin through the previous
+lighting basis. Render basis multiplies by the new basis transpose; lighting
+basis composes the new basis directly.40ea80 element-specific term order
+and vector float stores are retained. Pop restores96 bytes and depth only.
+Caller provides bounded saved storage; no fixed original capacity is assumed.
+
+verify_view_stack.py executes unhooked5473f0/547540 and all math callees.
+All1024 original/PC/NXDK sequences match6144 steps, including three nested
+pushes/pops, every saved slot and color marker. Three NXDK guards preserve
+current/saved state on underflow, overflow and nonfinite pose. Both builds
+and24 CTests pass. Renderer-mode66 wrappers and binding these services to
+retained native lighting owners remain; no new rendered/native evidence.

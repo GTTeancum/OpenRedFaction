@@ -122,6 +122,19 @@ static int light_dispatch_transform(void *c,uint32_t a){(void)c;return light_dis
 static int light_dispatch_leave(void *c){(void)c;return light_dispatch_record(4,0,0,0);}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--view-stack")) {
+        struct {rf_visibility_view_state state;float poses[3][12];} input;
+        rf_visibility_view_state saved[3];rf_visibility_view_stack stack;uint32_t i,status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&stack,0,sizeof(stack));stack.current=input.state;stack.saved=saved;stack.capacity=3;stack.color_marker=19;
+            for(i=0;i<6;i++) {
+                status=i<3?rf_visibility_view_push(&stack,input.poses[i],input.poses[i]+3):rf_visibility_view_pop(&stack);
+                fwrite(&status,4,1,stdout);fwrite(&stack.current,96,1,stdout);fwrite(&stack.depth,4,1,stdout);fwrite(&stack.color_marker,1,1,stdout);
+            }
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--light-dispatch")) {
         uint32_t input[6],status,i;rf_light_update_view views[5],*head;
         rf_light_update_backend backend={light_dispatch_dirty,light_dispatch_enter,light_dispatch_transform,light_dispatch_leave,NULL};

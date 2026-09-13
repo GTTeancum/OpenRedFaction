@@ -54,6 +54,19 @@ typedef struct rf_light_update_backend {
 int rf_visibility_light_dispatch(uint32_t mode,uint32_t source,uint32_t main_solid,uint32_t update,
     rf_light_update_view **views,uint32_t capacity,const rf_light_update_backend *backend);
 
+typedef struct rf_visibility_view_state {
+    float render_basis[9],render_origin[3],light_basis[9],light_origin[3];
+} rf_visibility_view_state;
+typedef struct rf_visibility_view_stack {
+    rf_visibility_view_state current,*saved;uint32_t depth,capacity;
+    unsigned char color_marker;
+} rf_visibility_view_stack;
+/*5473f0/547540 transform state; caller owns saved[capacity]. Push marks color
+ * state ff, saves96 bytes and composes both transforms. Pop restores exactly.
+ * No renderer-mode gate or allocation. Errors preserve stack/current state. */
+int rf_visibility_view_push(rf_visibility_view_stack *,const float position[3],const float basis[9]);
+int rf_visibility_view_pop(rf_visibility_view_stack *);
+
 typedef struct rf_object_render_backend {
     int (*white)(void *);
     int (*model_kind)(void *,uint32_t,uint32_t *);

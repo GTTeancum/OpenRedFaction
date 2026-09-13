@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Render/lighting view stack matches1024 original/PC/NXDK sequences and
+6144 nested steps with exact restoration; both builds and24 tests pass.
+Bind dispatch services and renderer-mode gates to retained native solid/
+dirty-state owners, then connect live light timers and rendering.
+
 Main/alternate-view lighting dispatch matches512 original/PC/NXDK cases;
 all21 callback failure positions restore entered views. Both builds and24
 tests pass. Reconstruct view-stack state and bind services to retained
