@@ -2356,3 +2356,25 @@ int rf_entity_contact_object_dispatch(const rf_entity_view *source,uint32_t targ
     }
     *decision=value;return RF_OK;
 }
+
+int rf_entity_contact_sound(rf_entity_contact_sound_state *state,const float position[3],
+    const rf_entity_contact_sound_backend *backend)
+{
+    long double length,threshold,dot;uint32_t active,i;int32_t sample,voice;int status;
+    if(!state || !isfinite(state->speed))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(state->velocity[i]))return RF_RANGE;
+    length=((long double)state->velocity[0]*state->velocity[0]+(long double)state->velocity[1]*state->velocity[1])+
+        (long double)state->velocity[2]*state->velocity[2];
+    threshold=(long double)state->speed*state->speed*.20000000298023224f;
+    if(threshold>length)return RF_OK;
+    if(!backend || !backend->playing)return RF_RANGE;
+    status=backend->playing(backend->context,state->voice,&active);if(status)return status;if(active)return RF_OK;
+    for(i=0;i<3;++i)if(!isfinite(state->forward[i]) || !isfinite(state->normal[i]))return RF_RANGE;
+    dot=((long double)state->normal[2]*state->forward[2]+(long double)state->normal[1]*state->forward[1])+
+        (long double)state->normal[0]*state->forward[0];
+    if(!(dot<-.4000000059604645f))return RF_OK;
+    if(!position || !backend->group || !backend->select || !backend->play)return RF_RANGE;
+    status=backend->select(backend->context,*backend->group,&sample);if(status)return status;
+    status=backend->play(backend->context,sample,position,&voice);if(status)return status;
+    state->voice=voice;return RF_OK;
+}

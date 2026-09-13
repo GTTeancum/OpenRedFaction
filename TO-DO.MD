@@ -77,6 +77,7 @@ Authored squash-sound groups are retained per class and pass180-frame stock64MiB
 Retained contact destruction damage and squash playback pass restored-state L1S1 stock64MiB XEMU; complete427550 dispatch and live collision scheduling.
 Registered NPC-to-NPC41a000 dispatch reaches damage/squash playback in four restored-state XEMU checks; add player/object branches and full427550 scheduling.
 Object-contact427550 branch matches2048 original/PC/NXDK cases; bind object lookup/current-clutter/pickup and finish surface-contact branches.
+Surface collision sound4278e0 matches2048 original/PC/NXDK cases; retain voice1478 and global collision group, then bind surface dispatch.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.

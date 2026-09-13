@@ -428,6 +428,21 @@ typedef struct rf_damage_object {uint32_t type,flags;float health;} rf_damage_ob
 typedef struct rf_damage_request {
     float amount;uint32_t source;int32_t kind;uint32_t argument6,auxiliary_uid,force;
 } rf_damage_request;
+typedef struct rf_entity_contact_sound_state {
+    float speed,velocity[3],forward[3],normal[3];int32_t voice;
+} rf_entity_contact_sound_state;
+typedef struct rf_entity_contact_sound_backend {
+    void *context;const int32_t *group;
+    int (*playing)(void *,int32_t,uint32_t *);
+    int (*select)(void *,int32_t,int32_t *);
+    /*5056a0(position,volume1,default173c378,flags0), returning voice ID. */
+    int (*play)(void *,int32_t,const float *,int32_t *);
+} rf_entity_contact_sound_backend;
+/*4278e0: speed-squared threshold, retained-voice gate, forward/contact dot,
+ * then selection/playback and voice1478 publication. Reached fields finite;
+ * callback effects survive errors, but voice is written only after success. */
+int rf_entity_contact_sound(rf_entity_contact_sound_state *state,const float position[3],
+    const rf_entity_contact_sound_backend *backend);
 typedef struct rf_entity_contact_object_view {uint32_t handle,type;} rf_entity_contact_object_view;
 typedef struct rf_entity_contact_object_backend {
     void *context;
