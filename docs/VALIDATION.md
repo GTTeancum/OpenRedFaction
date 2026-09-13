@@ -807,3 +807,9 @@ Special lightmap texel coverage (4f35e9..4f371a):
 - Fixtures use0..4 polygons with0..8 vertices, circular and null-terminated original lists, coincident rectangle corners and both prior row states. All5504 edge hits,485 prefix skips and482 row continuations without hits match. Three NXDK pointer guards preserve outputs.
 - Reconstructed borrowed polygon arrays close each edge loop, count duplicate corner hits and set row_seen only when crossings occur. Caller resets row_seen at each row; its nonzero value permits sample search even without a new crossing. This is not a point-in-polygon classifier.
 - PC/Xbox builds and24 CTests pass. Original observation stops before sample search or fallback RGB writes; texel coordinate generation, sample selection/interpolation, face ownership and native resource binding remain unverified here. No new rendered visual is claimed.
+
+Special two-edge sample interpolation (4f39dd..4f3d24):
+- `python tools/verify_lightmap_interpolate_edges.py` replays the original instruction slice with all vector subtract/multiply/add/copy helpers unhooked against PC and compiled NXDK code in Unicorn, at x87 control word0x027f.
+- All4096 position/normal pairs match byte-for-byte, including512 zero horizontal spans and512 near-zero spans; factors may extrapolate. Two invalid-input guards preserve the output on both targets.
+- Vertical edge factors are stored floats. Horizontal edge coordinates and their difference retain double precision, with exactly zero span replaced by1. Vector subtraction, scaling and addition each store floats. The final normal is not normalized.
+- Both builds and24 CTests pass. Inputs supply the already-selected four edge endpoints; selection, nearby-vertex fallback, retained topology/normal ownership and live lighting resources are not covered by this replay. No new rendered visual is claimed.

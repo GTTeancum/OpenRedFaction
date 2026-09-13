@@ -197,6 +197,42 @@ int rf_lightmap_texel_coverage(const rf_lightmap_uv_polygon *polygons,uint32_t c
     *crossings=total;return RF_OK;
 }
 
+static float lightmap_lerp_stored(float a,float b,float factor)
+{
+    float delta=(float)((double)b-a),scaled=(float)((double)delta*factor);
+    return (float)((double)a+scaled);
+}
+int rf_lightmap_interpolate_edges(const rf_lightmap_sample_vertex vertices[4],const float center[2],
+    rf_lightmap_special_sample *sample)
+{
+    float t[2],across;double x[2],span;rf_lightmap_special_sample edge[2],result;uint32_t i,j;
+    if(!vertices || !center || !sample || !isfinite(center[0]) || !isfinite(center[1]))return RF_RANGE;
+    for(i=0;i<4;i++) {
+        for(j=0;j<2;j++)if(!isfinite(vertices[i].uv[j]))return RF_RANGE;
+        for(j=0;j<3;j++)if(!isfinite(vertices[i].position[j]) || !isfinite(vertices[i].normal[j]))return RF_RANGE;
+    }
+    for(i=0;i<2;i++) {
+        const rf_lightmap_sample_vertex *a=vertices+2*i,*b=a+1;
+        span=(double)b->uv[1]-a->uv[1];if(span==0)return RF_RANGE;
+        t[i]=(float)(((double)center[1]-a->uv[1])/span);
+        if(!isfinite(t[i]))return RF_RANGE;
+        x[i]=((double)b->uv[0]-a->uv[0])*t[i]+a->uv[0];
+        for(j=0;j<3;j++) {
+            edge[i].position[j]=lightmap_lerp_stored(a->position[j],b->position[j],t[i]);
+            edge[i].normal[j]=lightmap_lerp_stored(a->normal[j],b->normal[j],t[i]);
+        }
+    }
+    span=x[1]-x[0];if(span==0)span=1;
+    across=(float)(((double)center[0]-x[0])/span);
+    if(!isfinite(across))return RF_RANGE;
+    for(j=0;j<3;j++) {
+        result.position[j]=lightmap_lerp_stored(edge[0].position[j],edge[1].position[j],across);
+        result.normal[j]=lightmap_lerp_stored(edge[0].normal[j],edge[1].normal[j],across);
+        if(!isfinite(result.position[j]) || !isfinite(result.normal[j]))return RF_RANGE;
+    }
+    *sample=result;return RF_OK;
+}
+
 int rf_lightmap_corner_normal(const rf_lightmap_normal_face *base,const rf_lightmap_normal_face *adjacent,
     uint32_t count,float out[3])
 {

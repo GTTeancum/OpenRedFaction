@@ -52,6 +52,16 @@ typedef struct rf_lightmap_uv_polygon {const float (*uv)[2];uint32_t count;} rf_
 int rf_lightmap_texel_coverage(const rf_lightmap_uv_polygon *polygons,uint32_t count,
     const float minimum[2],const float maximum[2],uint32_t *row_seen,uint32_t *crossings);
 
+typedef struct rf_lightmap_sample_vertex {float uv[2],position[3],normal[3];} rf_lightmap_sample_vertex;
+typedef struct rf_lightmap_special_sample {float position[3],normal[3];} rf_lightmap_special_sample;
+/*4f39dd..4f3d24: interpolate two selected edges (vertices0/1 and2/3)
+ * at center V, then across U. Retains UV span precision but stores each vector
+ * subtract/multiply/add. Zero horizontal span uses1; factors are unclamped
+ * and the interpolated normal is not normalized. Finite nonhorizontal edges
+ * required; errors preserve output. Edge selection/ownership remain external. */
+int rf_lightmap_interpolate_edges(const rf_lightmap_sample_vertex vertices[4],const float center[2],
+    rf_lightmap_special_sample *sample);
+
 typedef struct rf_lightmap_normal_face {float normal[3];uint32_t id,vertex_count;} rf_lightmap_normal_face;
 /*4f4192..4f4222 special-sampling corner normal: include adjacent nonempty
  * faces other than self only when their normal has positive dot with base.

@@ -178,6 +178,16 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-interpolate-edges")) {
+        struct {rf_lightmap_sample_vertex vertices[4];float center[2];} input;
+        rf_lightmap_special_sample sample;uint32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&sample,0xa5,sizeof(sample));status=rf_lightmap_interpolate_edges(input.vertices,input.center,&sample);
+            fwrite(&status,4,1,stdout);fwrite(&sample,sizeof(sample),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-edge-crossing")) {
         float input[8];uint32_t status,hit;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
