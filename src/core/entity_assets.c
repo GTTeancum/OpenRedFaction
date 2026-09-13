@@ -858,6 +858,23 @@ static int eye_limit_vector(lexer *l,float result[3])
     }
     return RF_OK;
 }
+int rf_entity_rotation_values_read(const void *text,uint32_t bytes,const char *name,rf_entity_rotation_values *result)
+{
+    lexer l={(const unsigned char*)text,bytes,0};rf_entity_rotation_values value={0};char t[256];int status,quoted,found=0;uint32_t seen=0;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&quoted))==RF_OK){
+        if(quoted)continue;
+        if(same(t,"$Name:")){
+            if(found)break;if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;found=same(t,name);
+        }else if(found && same(t,"$Max") && metadata_tag(&l,"Rot Vel:")){
+            if((seen&1) || sphere_number(&l,&value.maximum_velocity))return RF_FORMAT;seen|=1;
+        }else if(found && same(t,"$Rot") && metadata_tag(&l,"Acceleration:")){
+            if((seen&2) || sphere_number(&l,&value.acceleration))return RF_FORMAT;seen|=2;
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;if(seen!=3)return RF_FORMAT;*result=value;return RF_OK;
+}
 int rf_entity_unholster_delay_read(const void *text,uint32_t bytes,const char *name,float *result)
 {
     lexer l={(const unsigned char*)text,bytes,0};float value=0;char t[256];int status,quoted,found=0,seen=0;
@@ -2722,6 +2739,7 @@ int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf
             status=rf_entity_vitals_config_read(text,entry.size,name,&v.classes[j].vitals);if(status)goto done;
             status=rf_entity_eye_limits_read(text,entry.size,name,&v.classes[j].eye_limits);if(status)goto done;
             status=rf_entity_unholster_delay_read(text,entry.size,name,&v.classes[j].unholster_delay);if(status)goto done;
+            status=rf_entity_rotation_values_read(text,entry.size,name,&v.classes[j].rotation);if(status)goto done;
             status=rf_entity_corpse_config_read(text,entry.size,name,&v.classes[j].corpse);if(status)goto done;
             status=rf_entity_damage_factors_read(text,entry.size,name,v.classes[j].damage_factors);if(status)goto done;
             status=rf_entity_class_physics_read(text,entry.size,name,&v.classes[j].physics);if(status)goto done;

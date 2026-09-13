@@ -148,6 +148,15 @@ int main(int argc,char **argv)
             rf_entity_damage_sound_groups_read(text,(uint32_t)size,argv[3],&owner,groups);
         fwrite(&status,4,1,stdout);fwrite(groups,4,count,stdout);free(text);free(owner.groups);return 0;
     }
+    if(argc==4 && !strcmp(argv[1],"--rotation-values")) {
+        FILE *f=fopen(argv[2],"rb");long size;rf_entity_rotation_values value;
+        if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);
+        if(size<0 || size>1024*1024){fclose(f);return 2;}
+        text=malloc((size_t)size+1);if(!text){fclose(f);return 2;}
+        if(fread(text,1,(size_t)size,f)!=(size_t)size){fclose(f);free(text);return 2;}fclose(f);
+        memset(&value,0xa5,sizeof(value));status=rf_entity_rotation_values_read(text,(uint32_t)size,argv[3],&value);
+        free(text);_setmode(_fileno(stdout),_O_BINARY);fwrite(&status,4,1,stdout);fwrite(&value,sizeof(value),1,stdout);return 0;
+    }
     if(argc==4 && !strcmp(argv[1],"--unholster-delay")) {
         FILE *f=fopen(argv[2],"rb");long size;float value;
         if(!f)return 2;fseek(f,0,SEEK_END);size=ftell(f);rewind(f);
@@ -618,6 +627,7 @@ int main(int argc,char **argv)
         for(i=0;i<classes;++i) {
             uint32_t bits;memcpy(&bits,&seeds.classes[i].unholster_delay,4);
             printf("SEED_UNHOLSTER\t%s\t%u\n",seeds.records.items[seeds.classes[i].record_index].record.class_name,bits);
+            {uint32_t rotation[2];memcpy(rotation,&seeds.classes[i].rotation,8);printf("SEED_ROTATION\t%s\t%u\t%u\n",seeds.records.items[seeds.classes[i].record_index].record.class_name,rotation[0],rotation[1]);}
         }
         printf("SEEDS %u %u %u %u\n",count,classes,seeds.resident_bytes,peak);
         rf_entity_seeds_close(&seeds);return 0;

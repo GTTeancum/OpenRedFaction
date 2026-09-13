@@ -10395,3 +10395,10 @@ selection, limiting and publication flags. Two compiled invalid-duration
 guards preserve state/result. Both builds and22 CTest checks pass.
 Arrival/re-pathing40bb70, follower40b6d0 and native scene steering remain
 open; no new XEMU or movement-visual claim for this shared calculation.
+
+
+### Authored rotation values (2026-09-13)
+
+Original RF.exe SHA256 b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836: 41bea3 references $Max Rot Vel (59516c), calls 512920 and stores float at class+60 (41beb6); 41beb9 references $Rot Acceleration (59517c), calls the same parser and stores at class+64 (41becc). Shared class seeds now retain both authored scalars for future steering/physics consumers, adding 8 bytes per class within existing budget accounting.
+
+verify_rotation_values.py passes 84 compiled PC/NXDK reader cases including all 63 installed class declarations, signed/zero/exponent values, case/comments/quoted tokens, missing/duplicate/malformed/nonfinite fields and unchanged output on failure. Independent expected declarations come from the installed tables archive. L1S1/L1S2/L1S3 retain 5/3/6 class pairs after archive closure, adding 40/24/48 bytes; exact and undersized seed budgets pass. PC and NXDK builds succeeded; all 22 CTest checks passed. This validates authored data retention, not live steering integration or a new native XEMU run.

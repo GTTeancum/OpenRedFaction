@@ -215,6 +215,11 @@ typedef struct rf_entity_corpse_config {
 int rf_entity_corpse_config_read(const void *text,uint32_t bytes,const char *name,
     rf_entity_corpse_config *result);
 
+typedef struct rf_entity_rotation_values {float maximum_velocity,acceleration;} rf_entity_rotation_values;
+/* Required authored Max Rot Vel / Rot Acceleration, original class60/64.
+ * Finite signed values retained; malformed/duplicate/missing fields preserve output. */
+int rf_entity_rotation_values_read(const void *text,uint32_t bytes,const char *name,rf_entity_rotation_values *result);
+
 typedef struct rf_entity_seed_class {
     uint32_t record_index;
     char model[64];uint32_t model_kind;
@@ -225,6 +230,7 @@ typedef struct rf_entity_seed_class {
     rf_entity_eye_limits eye_limits;
     rf_entity_corpse_config corpse;
     float unholster_delay; /* Original classf78, seconds; owned scalar. */
+    rf_entity_rotation_values rotation;
 } rf_entity_seed_class;
 typedef struct rf_entity_seed {
     uint32_t class_index;
