@@ -1026,4 +1026,24 @@ geometry/collision data may close after success; dirty metadata is owned.
 verify_light_storage.py compares512 PC/NXDK fixtures /4096 reordered faces
 with exact/short budgets, source destruction, repeated close, allocation
 failure and late invalid-index rollback. Both builds and24 CTests pass.
-Actual level-wide ownership/budget validation and scene installation remain.
+Campaign scene installation is now validated for L1S1 as described below.
+
+### Campaign world lighting metadata residency (2026-09-13)
+
+rf_visibility_light_world_storage_open concatenates retained room-tree face
+order using each tree's source_indices and owns one shared mapping dirty
+array. It reuses the validated face binding and frees partial construction
+on error. Campaign scene lifetime opens/closes this owner with a512KiB cap.
+
+Both builds and all24 CTests pass, as do the512 PC/NXDK storage fixtures
+(4096 faces) after the shared-helper refactor. Native stock64MiB XEMU replay
+replay-20260913-175131 passes180 frames. L1S1 retains7418 faces and5851 mapping
+bytes in272919 bytes; PC/Xbox metadata hashes match (faces4266652709,
+dirty2175868202). Emulator memory reports67108864 base bytes, zero plugged
+memory. This proves initial metadata residency, not live lighting updates.
+
+The serialized geometry inventory's94 records all estimate below512KiB
+using20+36*faces+mappings; the largest estimate is362553 bytes (L15S2).
+That inventory calculation is not native execution coverage of all levels.
+Binding solid/root/tree views, live light timers and dirty-state rendering
+remains; this change does not produce a new visual result.

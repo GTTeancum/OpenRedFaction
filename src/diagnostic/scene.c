@@ -357,10 +357,11 @@ typedef struct scene_stream {
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
     rf_level_visibility visibility;
     rf_level_particles particles;rf_level_particle_tick_result particle_first;
-    rf_level_owned_lights *lights;
+    rf_level_owned_lights *lights;rf_light_dirty_storage *light_storage;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
 static scene_stream *particle_draw_stream;
+uint32_t rf_scene_light_storage[5]; /* faces,mappings,bytes,face hash,dirty hash */
 uint32_t rf_scene_light_fields[34];
 uint32_t rf_scene_light_owner[8]; /* count,bytes,live,generation,source hash,runtime hash,RNG before/after */
 uint32_t rf_scene_particle_draw_summary[7],rf_scene_particle_draw_frames[64][6];
@@ -8629,6 +8630,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     stream.world=mesh->count;stream.base=materials->count;stream.geometry=geometry;
     memset(rf_scene_light_owner,0,sizeof(rf_scene_light_owner));
     memset(rf_scene_light_fields,0,sizeof(rf_scene_light_fields));
+    memset(rf_scene_light_storage,0,sizeof(rf_scene_light_storage));
     if(sink && (uint64_t)mesh->bytes+1024*1024>mesh_budget)return RF_RANGE;
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     if(campaign_spawn) {
@@ -8939,6 +8941,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=rf_level_particles_open(&stream.particles,level,collision,maps,map_count,1,0,512*1024);if(status)goto done;
             if(campaign_spawn) {
                 rf_random_state *rng=stream.particles.state?&stream.particles.state->random:NULL;
+                status=rf_visibility_light_world_storage_open(geometry,collision,512*1024,&stream.light_storage);if(status)goto done;
+                rf_scene_light_storage[0]=stream.light_storage->face_count;rf_scene_light_storage[1]=stream.light_storage->dirty_count;rf_scene_light_storage[2]=stream.light_storage->allocated_bytes;
+                rf_scene_light_storage[3]=rf_scene_light_storage[4]=2166136261u;
+                for(i=0;i<stream.light_storage->face_count*sizeof(*stream.light_storage->faces);i++)rf_scene_light_storage[3]=(rf_scene_light_storage[3]^((unsigned char *)stream.light_storage->faces)[i])*16777619u;
+                for(i=0;i<stream.light_storage->dirty_count;i++)rf_scene_light_storage[4]=(rf_scene_light_storage[4]^stream.light_storage->dirty[i])*16777619u;
                 rf_scene_light_owner[6]=rng?rng->value:0;
                 status=rf_level_owned_lights_open(level,256*1024,1,1,rng,&stream.lights);
                 if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
@@ -8994,6 +9001,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
 done:
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);
+    rf_visibility_light_storage_close(&stream.light_storage);
     rf_level_owned_lights_close(&stream.lights);
     rf_level_particles_close(&stream.particles);
     free(stream.particle_workspace);particle_draw_stream=NULL;

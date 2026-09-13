@@ -12,12 +12,12 @@ Shortlist:
 - USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
 - USER: Review the interactive PC movement and audio items listed below.
 
-Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
-Retained lighting metadata ownership matches512 PC/NXDK fixtures and
-4096 reordered faces, including budgets and rollback. Both builds and24
-tests pass. Install against real level collision trees, measure stock64MiB
-budget, then bind dirty-state updates to native rendering.
+Retained lighting metadata is installed in the campaign scene: L1S1 owns
+7418 faces and5851 shared mapping bytes in272919 bytes. A180-frame stock64MiB
+XEMU replay matches PC counts and full metadata hashes; both builds and24
+tests pass. Bind solid/tree views, live timers and dirty-state rendering next.
 
 Render/lighting view stack matches1024 original/PC/NXDK sequences and
 6144 nested steps with exact restoration; both builds and24 tests pass.

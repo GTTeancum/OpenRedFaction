@@ -77,6 +77,9 @@ typedef struct rf_light_dirty_storage {
  * Copies all required data; failure preserves a NULL output. */
 int rf_visibility_light_storage_open(const rf_geometry *,const rf_collision_face *,const uint32_t *source_indices,
     uint32_t count,uint32_t budget,rf_light_dirty_storage **);
+/* Concatenate room-tree face order with one shared mapping array. */
+int rf_visibility_light_world_storage_open(const rf_geometry *,const rf_geometry_collision_world *,
+    uint32_t budget,rf_light_dirty_storage **);
 void rf_visibility_light_storage_close(rf_light_dirty_storage **);
 
 typedef struct rf_object_render_backend {

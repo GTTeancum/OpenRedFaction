@@ -234,6 +234,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert report['light_fields']==report['light_fields_pc'],report['light_fields']
      assert lights==expected('LIGHT_OWNER') and lights[1]<=256*1024 and lights[0]==lights[2],lights
      report['light_owner']=lights
+     report['light_storage']=words(monitor,symbol('rf_scene_light_storage'),5)
+     assert report['light_storage']==expected('LIGHT_STORAGE') and report['light_storage'][2]<=512*1024,report['light_storage']
      ambient=words(monitor,symbol('rf_scene_ambient_records'),3)
      assert ambient==expected('AMBIENT_RECORDS') and ambient[1]<=65536,ambient
      report['ambient_records']=ambient

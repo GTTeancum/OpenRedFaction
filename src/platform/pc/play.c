@@ -489,6 +489,7 @@ int main(int argc,char **argv)
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
             printf("SWITCH_STATE %u %u %u\n",rf_scene_switch_state[0],rf_scene_switch_state[1],rf_scene_switch_state[2]);
             printf("LIGHT_FIELDS");for(i=0;i<34;++i)printf(" %u",rf_scene_light_fields[i]);printf("\n");
+            {extern uint32_t rf_scene_light_storage[5];printf("LIGHT_STORAGE");for(i=0;i<5;++i)printf(" %u",rf_scene_light_storage[i]);printf("\n");}
             printf("LIGHT_OWNER");for(i=0;i<8;++i)printf(" %u",rf_scene_light_owner[i]);printf("\n");
             printf("AMBIENT_RECORDS %u %u %u\n",rf_scene_ambient_records[0],rf_scene_ambient_records[1],rf_scene_ambient_records[2]);
             printf("AMBIENT_INSTANCES %u %u %u %u\n",rf_scene_ambient_instances[0],rf_scene_ambient_instances[1],rf_scene_ambient_instances[2],rf_scene_ambient_instances[3]);

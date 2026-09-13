@@ -40,10 +40,24 @@ int rf_visibility_view_pop(rf_visibility_view_stack *stack)
     if(!stack || !stack->saved || !stack->depth || stack->depth>stack->capacity)return RF_RANGE;
     stack->current=stack->saved[--stack->depth];return RF_OK;
 }
+static int visibility_light_face_bind(const rf_geometry *geometry,uint32_t index,const rf_collision_face *source,uint32_t dirty_count,rf_light_dirty_face *face)
+{
+        rf_geometry_face authored;uint32_t mapping,j;int status;
+        status=rf_geometry_get_face(geometry,index,&authored);if(status)return status;
+        mapping=authored.lightmap_mapping&65535u;face->lighting_index=mapping>=32768?(int32_t)mapping-65536:(int32_t)mapping;
+        if(face->lighting_index>=0 && (uint32_t)face->lighting_index>=dirty_count){status=RF_RANGE;return status;}
+        if(source->filter.property_34 < -32768 || source->filter.property_34>32767){status=RF_RANGE;return status;}
+        for(j=0;j<3;j++) {
+            if(!isfinite(source->minimum[j]) || !isfinite(source->maximum[j]) || source->minimum[j]>source->maximum[j]){status=RF_RANGE;return status;}
+            face->minimum[j]=source->minimum[j];face->maximum[j]=source->maximum[j];
+        }
+        face->flags=source->filter.face_flags;face->property_34=source->filter.property_34;
+    return RF_OK;
+}
 int rf_visibility_light_storage_open(const rf_geometry *geometry,const rf_collision_face *faces,const uint32_t *source_indices,
     uint32_t count,uint32_t budget,rf_light_dirty_storage **out)
 {
-    rf_light_dirty_storage *value;uint64_t bytes;uint32_t i,j;int status;
+    rf_light_dirty_storage *value;uint64_t bytes;uint32_t i;int status;
     if(!geometry || !geometry->data || !out || *out || (count && !faces))return RF_RANGE;
     bytes=sizeof(*value)+(uint64_t)count*sizeof(*value->faces)+geometry->mappings;
     if(bytes>budget || bytes>SIZE_MAX || bytes>UINT32_MAX)return RF_RANGE;
@@ -52,16 +66,29 @@ int rf_visibility_light_storage_open(const rf_geometry *geometry,const rf_collis
     value->face_count=count;value->dirty_count=geometry->mappings;value->allocated_bytes=(uint32_t)bytes;
     memset(value->dirty,1,value->dirty_count);
     for(i=0;i<count;i++) {
-        rf_geometry_face authored;rf_light_dirty_face *face=value->faces+i;uint32_t mapping;
-        status=rf_geometry_get_face(geometry,source_indices?source_indices[i]:i,&authored);if(status)goto failed;
-        mapping=authored.lightmap_mapping&65535u;face->lighting_index=mapping>=32768?(int32_t)mapping-65536:(int32_t)mapping;
-        if(face->lighting_index>=0 && (uint32_t)face->lighting_index>=value->dirty_count){status=RF_RANGE;goto failed;}
-        if(faces[i].filter.property_34 < -32768 || faces[i].filter.property_34>32767){status=RF_RANGE;goto failed;}
-        for(j=0;j<3;j++) {
-            if(!isfinite(faces[i].minimum[j]) || !isfinite(faces[i].maximum[j]) || faces[i].minimum[j]>faces[i].maximum[j]){status=RF_RANGE;goto failed;}
-            face->minimum[j]=faces[i].minimum[j];face->maximum[j]=faces[i].maximum[j];
+        status=visibility_light_face_bind(geometry,source_indices?source_indices[i]:i,faces+i,value->dirty_count,value->faces+i);if(status)goto failed;
+    }
+    *out=value;return RF_OK;
+failed:
+    free(value);return status;
+}
+int rf_visibility_light_world_storage_open(const rf_geometry *geometry,const rf_geometry_collision_world *world,
+    uint32_t budget,rf_light_dirty_storage **out)
+{
+    rf_light_dirty_storage *value;uint64_t count=0,bytes;uint32_t room,i,at=0;int status;
+    if(!geometry || !geometry->data || !world || !out || *out || (world->room_count && !world->rooms))return RF_RANGE;
+    for(room=0;room<world->room_count;room++)count+=world->rooms[room].tree.face_count;
+    bytes=sizeof(*value)+count*sizeof(*value->faces)+geometry->mappings;
+    if(count>UINT32_MAX || bytes>budget || bytes>SIZE_MAX || bytes>UINT32_MAX)return RF_RANGE;
+    value=malloc((size_t)bytes);if(!value)return RF_IO;
+    value->faces=(rf_light_dirty_face *)(value+1);value->dirty=(unsigned char *)(value->faces+count);
+    value->face_count=(uint32_t)count;value->dirty_count=geometry->mappings;value->allocated_bytes=(uint32_t)bytes;memset(value->dirty,1,value->dirty_count);
+    for(room=0;room<world->room_count;room++) {
+        const rf_collision_tree *tree=&world->rooms[room].tree;
+        if(tree->face_count && (!tree->faces || !tree->source_indices)){status=RF_RANGE;goto failed;}
+        for(i=0;i<tree->face_count;i++) {
+            status=visibility_light_face_bind(geometry,tree->source_indices[i],tree->faces+i,value->dirty_count,value->faces+at++);if(status)goto failed;
         }
-        face->flags=faces[i].filter.face_flags;face->property_34=faces[i].filter.property_34;
     }
     *out=value;return RF_OK;
 failed:
