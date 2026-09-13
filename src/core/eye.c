@@ -506,19 +506,52 @@ static void look_cross(const float *a,const float *b,float *result)
     camera_cross(a,b,result);
 #endif
 }
-int rf_look_orientation(const float angles[3],float orientation[9])
+static int look_orientation_calculate(const float angles[3],float orientation[9])
 {
     float basis[9]={0},out[9]={0};unsigned i;
     if(!angles || !orientation)return RF_RANGE;
     for(i=0;i<3;++i)if(!isfinite(angles[i]))return RF_FORMAT;
-    /* Original wrapped look domain; roll is ignored by 4a0d70. */
-    if(fabsf(angles[0])>1.5707963705062866f || fabsf(angles[1])>6.2831854820251465f)return RF_RANGE;
+    if(fabsf(angles[0])>=9223372036854775808.0f || fabsf(angles[1])>=9223372036854775808.0f)return RF_RANGE;
     look_basis_seed(angles,basis);
     look_cross(basis+6,basis,basis+3);
     memcpy(out+6,basis+6,12);camera_normalize(out+6);
     memcpy(out+3,basis+3,12);camera_normalize(out+3);
     look_cross(out+3,out+6,out);look_cross(out+6,out,out+3);
+    for(i=0;i<9;++i)if(!isfinite(out[i]))return RF_RANGE;
     memcpy(orientation,out,sizeof(out));return RF_OK;
+}
+int rf_look_orientation(const float angles[3],float orientation[9])
+{
+    if(!angles || !orientation)return RF_RANGE;
+    if(!isfinite(angles[0]) || !isfinite(angles[1]) || !isfinite(angles[2]))return RF_FORMAT;
+    if(fabsf(angles[0])>1.5707963705062866f || fabsf(angles[1])>6.2831854820251465f)return RF_RANGE;
+    return look_orientation_calculate(angles,orientation);
+}
+int rf_ordinary_motion_commit(rf_ordinary_motion_state *state,uint32_t class_flags,float dt)
+{
+    rf_ordinary_motion_state v;float combined[3];uint32_t i;int status;
+    const float half_pi=1.5707963705062866f,turn=6.2831854820251465f;
+    if(!state || (state->body.flags&0x4000u))return RF_RANGE;v=*state;
+    if(!isfinite(v.body.bounds.radius) || v.body.bounds.radius<0)return RF_RANGE;
+    memcpy(v.body.position,v.body.next_position,12);
+    status=rf_eye_angles_step(&v.eye,class_flags,dt);if(status)return status;
+    for(i=0;i<3;++i){
+        float a=(float)((double)v.body_angles[i]+v.eye.vector_870[i]);if(!isfinite(a))return RF_RANGE;
+        if(!i){if(a>half_pi)a=half_pi;else if(a<-half_pi)a=-half_pi;}
+        else {if(a>turn)a=(float)((double)a-turn);else if(a<-turn)a=(float)((double)a+turn);}
+        v.body_angles[i]=a;combined[i]=(float)((double)a+v.eye.angles_87c[i]);
+    }
+    status=look_orientation_calculate(v.body_angles,v.body.orientation);if(status)return status;
+    status=look_orientation_calculate(combined,v.eye_orientation);if(status)return status;
+    memcpy(v.published_orientation,v.body.orientation,36);memcpy(v.body.next_orientation,v.body.orientation,36);
+    status=rf_physics_tensor_world(v.body.local_tensor,v.body.orientation,v.body.world_tensor);if(status)return status;
+    v.body.scalar_144=1;
+    for(i=0;i<3;++i){
+        v.body.bounds.minimum[i]=(float)((double)v.body.position[i]-v.body.bounds.radius);
+        v.body.bounds.maximum[i]=(float)((double)v.body.position[i]+v.body.bounds.radius);
+        if(!isfinite(v.body.bounds.minimum[i]) || !isfinite(v.body.bounds.maximum[i]))return RF_RANGE;
+    }
+    *state=v;return RF_OK;
 }
 int rf_angular_predict(const float angles[3],const float velocity[3],float dt,
     const uint32_t rotation[3],rf_angular_prediction *result)

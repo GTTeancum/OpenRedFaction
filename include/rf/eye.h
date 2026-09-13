@@ -2,6 +2,7 @@
 #define RF_EYE_H
 #include "rf/vpp.h"
 #include "rf/random.h"
+#include "rf/physics.h"
 typedef struct rf_eye_input {
     float position[3], orientation[3][3], standing_offset[3], crouching_offset[3];
     uint32_t flags;
@@ -104,6 +105,16 @@ typedef struct rf_angular_velocity_state {float velocity[3],force[3];} rf_angula
  * Finite reached inputs, positive mass/rate/acceleration when used. */
 int rf_angular_velocity_step(rf_angular_velocity_state *state,const float command[3],
     float rate,float acceleration,float mass,float dt,uint32_t flags,uint32_t driven);
+typedef struct rf_ordinary_motion_state {
+    rf_physics_body_state body;rf_eye_angle_state eye;
+    float body_angles[3],published_orientation[9],eye_orientation[9];
+} rf_ordinary_motion_state;
+/*49d0a0 ordinary (body4000 clear) commit, after collision permits acceptance.
+ * Copies predicted position, updates eye/body angles and matrices, rebuilds
+ * world tensor, resets contact fraction to1 and rebuilds radius bounds.
+ * Does not resolve collisions or publish object position3c. Errors preserve
+ * the whole state; rigid-body branch is rejected explicitly. */
+int rf_ordinary_motion_commit(rf_ordinary_motion_state *state,uint32_t class_flags,float dt);
 /* 422e2c..422e82: original matrix angle extraction, yaw-only body, and
  * physics-frame projection filtered by rotation reference == 1. No command
  * clearing, pose construction or factory ownership. Finite inputs required;
