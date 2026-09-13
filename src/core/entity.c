@@ -2478,3 +2478,26 @@ int rf_entity_timed_contact(rf_entity_timed_contact_state *state,
     status=backend->emit(backend->context,&request);if(status)return status;
     return rf_timer_set(&state->deadline,*backend->now,2000);
 }
+
+int rf_entity_contact_dispatch(const rf_entity_contact_dispatch_state *state,
+    const rf_entity_view *source,const rf_entity_contact_dispatch_backend *backend,uint32_t *decision)
+{
+    uint32_t route;int status;
+    if(!state || !decision)return RF_RANGE;
+    if(state->special_contact) {
+        if(!backend || !backend->timed)return RF_RANGE;
+        status=backend->timed(backend->context);if(status)return status;
+    } else {
+        if(!isfinite(state->inverse_mass))return RF_RANGE;
+        if(state->inverse_mass!=0) {
+            if(!backend)return RF_RANGE;
+            return rf_entity_contact_object_dispatch(source,state->target,backend->objects,decision);
+        }
+        status=rf_entity_contact_surface_route(&state->surface,&route);if(status)return status;
+        if(route!=RF_CONTACT_SURFACE_NONE) {
+            if(!backend || !backend->surface)return RF_RANGE;
+            status=backend->surface(backend->context,route);if(status)return status;
+        }
+    }
+    *decision=2;return RF_OK;
+}

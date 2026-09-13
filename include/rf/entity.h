@@ -485,6 +485,23 @@ typedef struct rf_entity_contact_object_backend {
  * Callbacks execute only on reached paths; errors preserve output decision. */
 int rf_entity_contact_object_dispatch(const rf_entity_view *source,uint32_t target,
     const rf_entity_contact_object_backend *backend,uint32_t *decision);
+typedef struct rf_entity_contact_dispatch_state {
+    uint32_t special_contact,target;float inverse_mass;rf_entity_contact_surface surface;
+} rf_entity_contact_dispatch_state;
+typedef struct rf_entity_contact_dispatch_backend {
+    void *context;
+    /* Own verified timed-contact service and retained timer/effect state. */
+    int (*timed)(void *);
+    /* Own verified SOUND/APC/DRILLER effects, including Driller feedback. */
+    int (*surface)(void *,uint32_t route);
+    const rf_entity_contact_object_backend *objects;
+} rf_entity_contact_dispatch_backend;
+/*427550 branch composition: special1ec precedes inverse mass1d4, then
+ * vehicle/sound route or object dispatch. Response is published only on success.
+ * Backend effects persist on error; callbacks must keep borrowed owners alive. */
+int rf_entity_contact_dispatch(const rf_entity_contact_dispatch_state *state,
+    const rf_entity_view *source,const rf_entity_contact_dispatch_backend *backend,uint32_t *decision);
+
 /* Driller42772b..42776a: prepared after the surface route gates.
  * Geometry precedes self-damage; linked-player feedback follows elsewhere. */
 typedef struct rf_entity_contact_driller_state {
