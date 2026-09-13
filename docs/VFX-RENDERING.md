@@ -196,3 +196,28 @@ scalar evaluations and126 missing/global/range guards. Original scalar routines
 receive arrays assembled from decoded records; parsing remains covered by its
 separate original-oracle harnesses. Both builds,24 tests and prior scalar/view
 regressions pass. Native VFX appearance is still unverified.
+
+## Retained global material bank
+
+rf_vfx_material_bank_open copies standalone MATL chunks in directory order
+into a single budgeted allocation containing the owner, contiguous decoded
+views and serialized arrays. Nonempty track offsets are rebased into the
+shared byte arena. Complete record consumption is required. Failed reads or
+parsing release the allocation and preserve a null output. Directory/archive
+owners may close immediately after success; repeated bank close is safe.
+The contiguous views can feed rf_vfx_material_textures_open. Texture ownership
+and header-count reconciliation remain separate and are not implied here.
+
+rf_vfx_mesh_material_sample resolves newer mesh-local material IDs through
+the retained global bank; older meshes use their embedded tracks. It rejects
+out-of-range payload spans/global IDs and preserves output on failure.
+
+Seven installed asset banks match PC/NXDK, including every decoded field and
+raw array byte;120 reversed-ID scalar bindings match the scalar sampler.
+29 guards cover short budgets, allocation failure, each material read failure
+and malformed records with rollback. The PC harness closes its real archive
+and directory before sampling; NXDK receives supplied archive/heap services.
+Bank sizes are20,564,294,564,914,572,20 bytes, excluding textures, archive,
+allocator overhead and meshes. Xbox and PC core/probe builds pass. The active
+interactive PC executable was left running, so no full PC relink was attempted.
+No native VFX draw or complete effect-instance ownership is claimed.

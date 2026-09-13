@@ -407,6 +407,22 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==4 && !strcmp(argv[1],"--vfx-material-bank")) {
+        rf_vpp archive;rf_vfx_directory directory={0};rf_vfx_material_bank *bank=NULL;uint32_t i,t,k;float times[4]={0,.5f,2,10000},value;int32_t status;
+        if(rf_vpp_open(&archive,argv[2]))return 1;
+        if(rf_vfx_directory_open(&archive,argv[3],65536,&directory))return 2;
+        status=rf_vfx_material_bank_open(&directory,1048576,&bank);
+        rf_vfx_directory_close(&directory);rf_vpp_close(&archive);if(status)return 3;
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(bank,12,1,stdout);
+        fwrite(bank->views,sizeof(*bank->views),bank->count,stdout);fwrite(bank->data,1,bank->bytes,stdout);
+        for(i=0;i<bank->count;++i)for(t=0;t<3;++t)for(k=0;k<4;++k) {
+            rf_vfx_mesh mesh={0};uint32_t id=bank->count-1-i;
+            mesh.version=0x40006;mesh.materials=1;mesh.bytes=4;mesh.data=(unsigned char *)&id;
+            memset(&value,0xa5,4);status=rf_vfx_mesh_material_sample(&mesh,bank,0,t,times[k],&value);
+            fwrite(&status,4,1,stdout);fwrite(&value,4,1,stdout);
+        }
+        rf_vfx_material_bank_close(&bank);rf_vfx_material_bank_close(&bank);return bank?4:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--vfx-directory")) {
         rf_vpp archive;rf_vfx_directory out={0},zero={0};uint32_t budget=65536,i;int status;
         if(rf_vpp_open(&archive,argv[2]))return 1;

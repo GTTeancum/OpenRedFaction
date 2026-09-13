@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained standalone VFX material banks now resolve newer mesh material IDs;
+7 asset banks,120 PC/NXDK bindings and29 budget/I/O/parse rollback guards pass.
+Bank footprints20-914 bytes exclude textures; connect texture clocks, lighting
+and draw passes. Xbox and PC core/probe builds pass; live PC session retained.
+
 Embedded VFX materials now sample retained blend, brightness and frame opacity;
 80 original/PC/NXDK scalar checks across14 meshes and126 missing/global/range
 guards pass. Both builds and24 tests pass; renderer submission remains open.

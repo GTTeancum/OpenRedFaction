@@ -1937,3 +1937,40 @@ int rf_vfx_mesh_material_evaluate(const rf_vfx_mesh *mesh,uint32_t material,uint
     return vfx_material_track_bytes((const unsigned char *)&mesh->frames[0].opacity,count,rate,
         effect_frame,sizeof(*mesh->frames),0,out);
 }
+
+void rf_vfx_material_bank_close(rf_vfx_material_bank **out)
+{if(out){free(*out);*out=NULL;}}
+int rf_vfx_material_bank_open(const rf_vfx_directory *directory,uint32_t budget,rf_vfx_material_bank **out)
+{
+    rf_vfx_material_bank *bank;uint64_t bytes=0,total;uint32_t count=0,i,j,at=0,index=0;int status;
+    if(!directory || !out || *out || (directory->count && !directory->chunks))return RF_RANGE;
+    for(i=0;i<directory->count;++i)if(directory->chunks[i].type==0x4c54414du){++count;bytes+=directory->chunks[i].bytes;}
+    total=sizeof(*bank)+(uint64_t)count*sizeof(*bank->views)+bytes;
+    if(total>budget || total>SIZE_MAX)return RF_RANGE;
+    bank=malloc((size_t)total);if(!bank)return RF_IO;memset(bank,0,(size_t)total);
+    bank->count=count;bank->bytes=(uint32_t)bytes;bank->allocated_bytes=(uint32_t)total;
+    bank->views=(rf_vfx_material_view *)(bank+1);bank->data=(unsigned char *)(bank->views+count);
+    for(i=0;i<directory->count;++i)if(directory->chunks[i].type==0x4c54414du) {
+        rf_vfx_material_view *view=bank->views+index++;uint32_t size=directory->chunks[i].bytes;
+        status=rf_vfx_chunk_read(directory,i,0,bank->data+at,size);if(status)goto failed;
+        status=rf_vfx_material_read(bank->data+at,size,directory->header.version,view);if(status)goto failed;
+        if(view->bytes!=size){status=RF_FORMAT;goto failed;}
+        for(j=0;j<3;++j){static const uint32_t c[3]={31,46,48},o[3]={32,47,49};if(view->words[c[j]])view->words[o[j]]+=at;}
+        at+=size;
+    }
+    *out=bank;return RF_OK;
+failed:free(bank);return status;
+}
+int rf_vfx_mesh_material_sample(const rf_vfx_mesh *mesh,const rf_vfx_material_bank *bank,
+    uint32_t material,uint32_t track,float effect_frame,float *out)
+{
+    uint64_t at;uint32_t id;
+    if(!mesh || !mesh->data || !out || track>2)return RF_RANGE;
+    if(mesh->version<0x40000)return rf_vfx_mesh_material_evaluate(mesh,material,track,effect_frame,out);
+    if(material>=mesh->materials)return RF_NOT_FOUND;
+    if(!bank || !bank->views || !bank->data)return RF_RANGE;
+    at=(uint64_t)mesh->material_offset+(uint64_t)material*4;
+    if(at>mesh->bytes || mesh->bytes-at<4)return RF_RANGE;
+    id=vfx_word(mesh->data+(size_t)at);if(id>=bank->count)return RF_FORMAT;
+    return rf_vfx_material_evaluate(bank->data,bank->bytes,bank->views+id,track,effect_frame,out);
+}

@@ -265,6 +265,20 @@ int rf_vfx_directory_open(rf_vpp *,const char *name,uint32_t budget,rf_vfx_direc
 /* Read within a single indexed payload; no reads into neighboring records. */
 int rf_vfx_chunk_read(const rf_vfx_directory *,uint32_t index,uint32_t offset,void *,uint32_t bytes);
 void rf_vfx_directory_close(rf_vfx_directory *);
+/* Retained standalone MATL records in directory order. One allocation owns
+ * views and raw arrays; directory/archive can close after success. Array offsets
+ * are rebased into data. Budget includes owner/views/payload, not allocator
+ * overhead. Does not reconcile header counts or allocate bitmap resources. */
+typedef struct rf_vfx_material_bank {
+    uint32_t count,bytes,allocated_bytes;rf_vfx_material_view *views;unsigned char *data;
+} rf_vfx_material_bank;
+int rf_vfx_material_bank_open(const rf_vfx_directory *,uint32_t budget,rf_vfx_material_bank **);
+void rf_vfx_material_bank_close(rf_vfx_material_bank **);
+/* Resolve mesh-local indices through global IDs for newer meshes; older meshes
+ * use embedded tracks. The bank is required only for global references. */
+int rf_vfx_mesh_material_sample(const rf_vfx_mesh *,const rf_vfx_material_bank *,
+    uint32_t material,uint32_t track,float effect_frame,float *out);
+
 
 
 /* Original 4c1d00 scans all 64 vclip name slots; for ASCII names, returns
