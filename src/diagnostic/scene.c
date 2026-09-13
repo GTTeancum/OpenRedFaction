@@ -2935,8 +2935,44 @@ uint32_t rf_scene_npc_pain_owners[4]; /* registered, added bytes, initial state 
 uint32_t rf_scene_npc_pain_sound_owners[4]; /* registered, added bytes, initial state hash, construction clock */
 uint32_t rf_scene_npc_registration[6]; /* registered, view/wrapper bytes, hash, first/last handle, validated */
 uint32_t rf_scene_npc_bodies[6]; /* actors, bodies, spheres, resident, peak, content hash */
+static rf_weapon_model_owner campaign_weapon_models;
+uint32_t rf_scene_weapon_models[8]; /* models, weapon IDs, bytes, peak, tags, hash, selection mask */
+static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
+{
+    rf_weapon_model_names *names;rf_vpp tables;uint32_t selected[2]={0},i,j,k,hash=2166136261u;int status;
+    names=malloc(sizeof(*names));if(!names)return RF_IO;
+    memset(rf_scene_weapon_models,0,sizeof(rf_scene_weapon_models));
+    status=rf_vpp_open(&tables,tables_path);if(status){free(names);return status;}
+    status=rf_weapon_model_names_load(&tables,128*1024,names);rf_vpp_close(&tables);
+    if(status){free(names);return status;}
+    for(i=0;i<campaign_npc_body_count;++i)for(j=0;j<64;++j)
+        if(campaign_npc_bodies[i].inventory.owned[j])selected[j/32]|=1u<<(j%32);
+    status=rf_weapon_models_open(meshes,names,selected,256*1024-sizeof(*names),&campaign_weapon_models);
+    free(names);if(status)return status;
+    rf_scene_weapon_models[0]=campaign_weapon_models.count;
+    rf_scene_weapon_models[2]=campaign_weapon_models.allocated_bytes;
+    rf_scene_weapon_models[3]=campaign_weapon_models.peak_bytes+sizeof(*names);
+    if(rf_scene_weapon_models[3]<128*1024+sizeof(*names))rf_scene_weapon_models[3]=128*1024+sizeof(*names);
+    for(i=0;i<64;++i)rf_scene_weapon_models[1]+=campaign_weapon_models.weapons[i].model!=0;
+    hash=npc_hash_bytes(hash,campaign_weapon_models.weapons,sizeof(campaign_weapon_models.weapons));
+    for(i=0;i<campaign_weapon_models.count;++i) {
+        const rf_weapon_static_model *item=campaign_weapon_models.items+i;
+        hash=npc_hash_bytes(hash,item->filename,64);
+        hash=npc_hash_bytes(hash,item->tags.items,item->tags.count*sizeof(*item->tags.items));
+        rf_scene_weapon_models[4]+=item->tags.count;
+        hash=npc_hash_bytes(hash,item->render.materials,item->render.material_count*84);
+        for(k=0;k<item->render.lod_count;++k) {
+            const rf_model_geometry *g=&item->render.lods[k].geometry;
+            hash=npc_hash_bytes(hash,g->vertices,g->vertex_count*40);
+            hash=npc_hash_bytes(hash,g->triangles,g->triangle_count*8);
+        }
+    }
+    rf_scene_weapon_models[5]=hash;rf_scene_weapon_models[6]=selected[0];rf_scene_weapon_models[7]=selected[1];
+    return RF_OK;
+}
 static void campaign_npc_bodies_close(void)
 {
+    rf_weapon_models_close(&campaign_weapon_models);
     uint32_t i;for(i=0;i<campaign_npc_body_count;++i) {
         if(campaign_npc_bodies[i].registration.view)
             (void)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&campaign_npc_bodies[i].registration);
@@ -8476,6 +8512,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_models_open();if(status)goto done;
             /* This diagnostic begins the simulation clock at zero. */
             status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
+            status=campaign_weapon_models_open(tables_path,&archive);if(status)goto done;
             status=campaign_glare_instances_open(tables_path);if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;

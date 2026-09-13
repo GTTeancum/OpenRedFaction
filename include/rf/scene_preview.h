@@ -422,6 +422,7 @@ extern uint32_t rf_scene_weapon_supply[4];
 extern uint32_t rf_scene_weapon_reset_catalog[4];
 extern uint32_t rf_scene_npc_inventory_owners[4];
 extern uint32_t rf_scene_npc_startup_weapons[4];
+extern uint32_t rf_scene_weapon_models[8];
 /* Prepared retained contact: caller supplies effect services and owns eligibility. */
 int rf_scene_npc_contact_dispatch(uint32_t handle,const rf_entity_contact_dispatch_backend *backend,uint32_t *decision);
 extern uint32_t rf_scene_contact_dispatch_test[4];

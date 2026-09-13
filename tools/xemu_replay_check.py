@@ -609,6 +609,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      startup_weapons=words(monitor,symbol('rf_scene_npc_startup_weapons'),4)
      assert startup_weapons==expected('NPC_STARTUP_WEAPONS') and startup_weapons[0]>0 and startup_weapons[2]>=startup_weapons[0],startup_weapons
      report['npc_startup_weapons']=startup_weapons
+     weapon_models=words(monitor,symbol('rf_scene_weapon_models'),8)
+     assert weapon_models==expected('WEAPON_MODELS'),weapon_models
+     assert 0<weapon_models[0]<=weapon_models[1] and weapon_models[2]<=weapon_models[3]<=256*1024,weapon_models
+     report['weapon_models']=weapon_models
      weapon_supply=words(monitor,symbol('rf_scene_weapon_supply'),4)
      assert weapon_supply==expected('WEAPON_SUPPLY') and weapon_supply[:3]==[44,40,4872],weapon_supply
      report['weapon_supply']=weapon_supply
