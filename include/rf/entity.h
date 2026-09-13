@@ -1194,6 +1194,13 @@ int rf_entity_navigation_visible(uint32_t world,const rf_entity_navigation_candi
     int (*collision)(void *,uint32_t,const float[3],const float[3],float,uint32_t *),
     void *context,uint32_t *result);
 
+/* Concrete uncached4df1c0 geometry binding for4ce740. The solid's retained
+ * room/flat views and tree scratch must remain valid for this synchronous call.
+ * Null solid follows null-world acceptance. No moving-solid enumeration. */
+struct rf_collision_solid_view;
+int rf_entity_navigation_visible_solid(const struct rf_collision_solid_view *solid,
+    const rf_entity_navigation_candidate *node,const float point[3],float radius,float height,uint32_t *result);
+
 typedef struct rf_entity_navigation_nearest_backend {
     int (*edge)(void *,uint32_t,const float[3],const float[3],float,uint32_t *); /*4ce6c0*/
     int (*visible)(void *,rf_entity_navigation_candidate *,const float[3],float,float,uint32_t *); /*4ce740*/

@@ -2050,3 +2050,18 @@ int rf_entity_navigation_visible(uint32_t world,const rf_entity_navigation_candi
     status=collision(context,world,start,delta,radius,&contacts);if(status)return status;
     *result=contacts==0;return RF_OK;
 }
+
+static int navigation_solid_collision(void *context,uint32_t world,const float start[3],
+    const float delta[3],float radius,uint32_t *contacts)
+{
+    rf_collision_sweep_room_hit hit;uint32_t matched;int status;(void)world;
+    status=rf_collision_solid_preferred((const rf_collision_solid_view *)context,NULL,
+        0x45,start,delta,radius,1,&hit,&matched);
+    if(!status)*contacts=matched;return status;
+}
+int rf_entity_navigation_visible_solid(const rf_collision_solid_view *solid,
+    const rf_entity_navigation_candidate *node,const float point[3],float radius,float height,uint32_t *result)
+{
+    return rf_entity_navigation_visible(solid?1:0,node,point,radius,height,
+        navigation_solid_collision,(void *)solid,result);
+}

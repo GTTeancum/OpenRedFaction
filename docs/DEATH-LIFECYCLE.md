@@ -10116,3 +10116,23 @@ arbitrary ignored height bits are included. Compiled callback-failure
 and null-world/null-geometry guards pass. Both builds and22 CTest checks
 pass. Actual world collision binding and full4cebd0 composition remain
 open; no new native XEMU evidence or live NPC routing claim.
+
+
+Concrete navigation visibility solid binding (2026-09-13)
+
+rf_entity_navigation_visible_solid connects4ce740 query construction to
+rf_collision_solid_preferred with no preferred face, flags0x45 and limit1.
+The borrowed solid owns room/flat views and scratch. No allocation, global
+cache or moving-solid enumeration is introduced. Only matched zero matters
+to visibility; the backend need not expose the contact accumulation count.
+Null solid retains the original null-world shortcut.
+
+verify_ai_visibility_solid.py executes original4ce740 and all collision
+callees unhooked against constructed zero-room worlds with linked polygon
+faces.2048 cases match shared PC and NXDK solid binding:880 blocked and
+1168 clear. Thin and swept radii, empty worlds, zero motion, polygon edge
+approaches and ordered multiple faces are included. Both builds and22
+CTest checks pass. This verifies actual flat geometry composition, not
+room hierarchy, cache/preferred behavior, loaded scene ownership or native
+XEMU execution. Room hierarchy coverage and combined route binding remain
+open before claiming live NPC navigation.
