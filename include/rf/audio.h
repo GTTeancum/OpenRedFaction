@@ -203,6 +203,10 @@ int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class
  * preserves the caller's initial group, as the original parser does; explicit
  * empty/unknown labels resolve-1. Errors preserve output. Separate from124
  * $DeathSnd:. Name resolution only, no sample selection or playback. */
+/* Optional $Squash Sounds: -> class174; missing tag resets to-1 as41cb13.
+ * Exact class lookup and sound-group resolution; errors preserve output. */
+int rf_entity_squash_sound_group_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t *group);
 int rf_entity_impact_sound_group_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_foley_owner *owner,int32_t *group);
 /* Same rules as pain groups, with DeathSnd (class124) as the third result. */

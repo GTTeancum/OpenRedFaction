@@ -688,7 +688,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['live_audio']=audio
      foley=words(monitor,symbol('rf_scene_foley'),10)
      assert foley==expected('FOLEY') and foley[:3]==[497,1140,1],foley
-     assert foley[3]==26452+foley[8]*52 and foley[4]<512*1024 and foley[5]==1135,foley
+     assert foley[3]==26452+foley[8]*56 and foley[4]<512*1024 and foley[5]==1135,foley
      assert foley[6]==1274782420 and foley[7]==3317977305,foley
      report['foley']=foley
      pain_groups=words(monitor,symbol('rf_scene_npc_pain_groups'),3)

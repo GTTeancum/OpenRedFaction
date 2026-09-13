@@ -1193,7 +1193,7 @@ uint32_t rf_scene_clutter_bodies[10]; /* created, physics-enabled, spheres, reta
 
 static int32_t (*campaign_footstep_groups)[10];
 static int32_t (*campaign_pain_groups)[2];
-static int32_t *campaign_impact_groups;
+static int32_t *campaign_impact_groups,*campaign_squash_groups;
 uint32_t rf_scene_npc_impact_groups[3]; /* classes,owned bytes,binding hash */
 uint32_t rf_scene_npc_pain_groups[3]; /* classes, resident bytes, binding hash */
 uint32_t rf_scene_foley[10]; /* groups,samples,missing,resident,peak,bank count,global hash,ID hash,classes,class hash */
@@ -1508,6 +1508,8 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
             /* First-load class128 starts in zero-filled original static storage. */
             campaign_impact_groups=calloc(campaign_seeds.class_count,sizeof(*campaign_impact_groups));
             if(!campaign_impact_groups){status=RF_RANGE;goto audio_done;}
+            campaign_squash_groups=malloc(campaign_seeds.class_count*sizeof(*campaign_squash_groups));
+            if(!campaign_squash_groups){status=RF_RANGE;goto audio_done;}
         }
         status=rf_vpp_find(&tables,"entity.tbl",&entity_entry);if(status)goto audio_done;
         if(!entity_entry.size || entity_entry.size>1024*1024){status=RF_RANGE;goto audio_done;}
@@ -1520,6 +1522,8 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
             status=rf_entity_pain_groups_read(entity_text,entity_entry.size,name,&campaign_foley,campaign_pain_groups[i]);
             if(status)goto audio_done;
             status=rf_entity_impact_sound_group_read(entity_text,entity_entry.size,name,&campaign_foley,campaign_impact_groups+i);
+            if(status)goto audio_done;
+            status=rf_entity_squash_sound_group_read(entity_text,entity_entry.size,name,&campaign_foley,campaign_squash_groups+i);
             if(status)goto audio_done;
         }
         if(player_class) {
@@ -1538,6 +1542,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         rf_scene_npc_impact_groups[1]=campaign_seeds.class_count*sizeof(*campaign_impact_groups);
         rf_scene_npc_impact_groups[2]=npc_hash_bytes(2166136261u,campaign_impact_groups,rf_scene_npc_impact_groups[1]);
         rf_scene_foley[3]+=rf_scene_npc_impact_groups[1];
+        rf_scene_foley[3]+=campaign_seeds.class_count*sizeof(*campaign_squash_groups);
         if(rf_scene_foley[3]+entity_entry.size>rf_scene_foley[4])rf_scene_foley[4]=rf_scene_foley[3]+entity_entry.size;
     }
     free(declarations);declarations=NULL;rf_vpp_close(&tables);
@@ -3131,6 +3136,7 @@ static void campaign_close_movers(void)
     free(campaign_footstep_groups);campaign_footstep_groups=NULL;rf_foley_close(&campaign_foley);
     free(campaign_pain_groups);campaign_pain_groups=NULL;
     free(campaign_impact_groups);campaign_impact_groups=NULL;
+    free(campaign_squash_groups);campaign_squash_groups=NULL;
     rf_audio_bank_close(&campaign_audio_bank);
     memset(campaign_audio_evictable,0,sizeof(campaign_audio_evictable));
     rf_vpp_close(&campaign_audio_archive);

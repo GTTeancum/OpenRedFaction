@@ -650,12 +650,12 @@ static int entity_damage_sound_groups_read(const void *text,uint32_t bytes,const
     }
     if(!selected)return RF_NOT_FOUND;memcpy(groups,value,count*sizeof(*value));return RF_OK;
 }
-int rf_entity_impact_sound_group_read(const void *text,uint32_t bytes,const char *class_name,
-    const rf_foley_owner *owner,int32_t *group)
+static int entity_single_sound_group_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t *group,int squash)
 {
     lexer l={text,bytes,0};char t[256],name[64];int status,quoted,selected=0,seen=0;int32_t value;
     if(!text || !bytes || !class_name || !*class_name || !group)return RF_RANGE;
-    value=*group;
+    value=squash?-1:*group;
     for(;;) {
         status=token(&l,t,&quoted);if(status==RF_NOT_FOUND)break;if(status)return status;
         if(quoted)continue;
@@ -663,15 +663,22 @@ int rf_entity_impact_sound_group_read(const void *text,uint32_t bytes,const char
             if(selected)break;
             if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;selected=same(t,class_name);
         } else if(same(t,"#End"))break;
-        else if(selected && same(t,"$Impact")) {
+        else if(selected && same(t,squash?"$Squash":"$Impact")) {
             if(seen++)return RF_FORMAT;
-            if(token(&l,t,&quoted) || quoted || !same(t,"Death") || token(&l,t,&quoted) || quoted || !same(t,"Sound:"))return RF_FORMAT;
+            if(squash){if(token(&l,t,&quoted) || quoted || !same(t,"Sounds:"))return RF_FORMAT;}
+            else if(token(&l,t,&quoted) || quoted || !same(t,"Death") || token(&l,t,&quoted) || quoted || !same(t,"Sound:"))return RF_FORMAT;
             if(metadata_string(&l,name,sizeof(name)))return RF_FORMAT;
             status=rf_foley_find(owner,name,&value);if(status)return status;
         }
     }
     if(!selected)return RF_NOT_FOUND;*group=value;return RF_OK;
 }
+int rf_entity_impact_sound_group_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t *group)
+{return entity_single_sound_group_read(text,bytes,class_name,owner,group,0);}
+int rf_entity_squash_sound_group_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t *group)
+{return entity_single_sound_group_read(text,bytes,class_name,owner,group,1);}
 int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_foley_owner *owner,int32_t groups[2])
 {return entity_damage_sound_groups_read(text,bytes,class_name,owner,groups,2);}
