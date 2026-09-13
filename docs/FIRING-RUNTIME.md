@@ -176,3 +176,43 @@ This completes the shared moving physics entry point, not projectile factory
 integration. Resolve model radius/spheres and map the creation descriptor in
 the registered projectile initializer, then implement remaining factory
 resources, collision/hit effects and deferred retirement before live firing.
+
+## Registered projectile model/physics resources (2026-09-13)
+
+rf_projectile_initialized_open composes the fixed pool/list/handle adapter
+with generic model attachment, model-derived collision spheres and moving
+creation physics. Descriptor name is resolved by the caller; wrapper kind
+comes from descriptor word1. Negative radius uses attached model bounds;
+without a model the object radius defaults to1 while descriptor radius0
+remains0 for physics. A single model sphere is centered after querying it.
+Original unspecified temporary sphere words are port-initialized to zero.
+The caller descriptor stays unchanged; resolved fields enter the physics seed.
+Only prepared projectile descriptors are accepted: no mass grid, initial
+tensor or caller-installed sphere list.
+
+Model service errors, missing models, sphere conversion errors, insufficient
+budget and physics failures release partial resources before registration
+and pool rollback. Close releases physics then model. Flag2 alone preserves
+the resources/registration for later factory accesses. The raw788-byte record
+is still reserved; these resource owners live beside the50 pool slots.
+Each owner is348 bytes:17400 for the array,58224 including the40824-byte
+store, before sphere/model storage. Per-slot peak includes scratch and owned
+spheres. Model backend allocations require their own caller-enforced budget;
+this is not yet the complete scene memory accounting or a loaded model backend.
+
+verify_projectile_resources.py compares12 PC/compiled NXDK integration cases
+with supplied model/heap services, checking all represented attachment/body
+state and owned spheres. Six successes cover model-less negative/zero/positive
+radii and zero/one/two model spheres. Failures cover absent model, load, bounds,
+sphere service, budget and nonfinite motion; two additional NXDK allocation
+failures exercise temporary and retained sphere allocation rollback.
+The harness supplies calloc separately because NXDK calloc depends on real
+allocator metadata that a malloc-only stub cannot reproduce.
+Both builds,24 CTests,640 moving constructor comparisons and52 registry
+lifecycle checks pass. Evidence: artifacts/projectile-resources.json.
+
+No native XEMU scene run or new visual. Remaining: bounded retained model
+services, generic common/parent/room fields, full4c77a0 post-creation effects,
+collision/hit dispatch, deferred retirement and425830 firing scheduling.
+This verifies a port composition of reconstructed components, not the entire
+original generic factory or functional combat.

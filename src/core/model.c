@@ -1,4 +1,5 @@
 #include "rf/model.h"
+#include "rf/projectile.h"
 #include "rf/model_file.h"
 #include "rf/clutter.h"
 #include "rf/glare.h"
@@ -2360,4 +2361,83 @@ int rf_model_object_follow_point(const float (*pose)[12],uint32_t count,int32_t 
         if(!isfinite(result[i]))return RF_RANGE;
     }
     memcpy(out,result,12);return RF_OK;
+}
+
+void rf_projectile_resources_close(rf_projectile_resources *owner,const rf_clutter_base_backend *backend)
+{
+    if(!owner || !backend || !backend->release)return;
+    rf_physics_body_close(&owner->body);
+    if(owner->attachment.model)backend->release(backend->model.context,owner->attachment.model);
+    memset(owner,0,sizeof(*owner));
+}
+int rf_projectile_resources_open(const rf_projectile_creation_descriptor *d,const char *name,
+    const float material[3],const rf_clutter_base_backend *backend,uint32_t budget,rf_projectile_resources *out)
+{
+    rf_projectile_resources v={0};rf_physics_creation_seed seed={0};rf_clutter_model_view view={0};
+    rf_physics_sphere *scratch=NULL;float velocity[3],angular[3];uint64_t retained,peak;int status;
+    if(!d || !material || !backend || !backend->release || !out || out->allocated_bytes ||
+       out->attachment.model || out->body.allocated_bytes || out->body.spheres.items ||
+       out->body.spheres.count || out->body.spheres.allocated_bytes || budget<sizeof(v) ||
+       !!d->words[0]!=!!name || d->words[2] || d->words[34] || d->words[35] || d->words[36])return RF_RANGE;
+    {uint32_t i;for(i=6;i<15;++i)if(d->words[i])return RF_RANGE;}
+    seed.word_0c=d->words[3];seed.word_14=d->words[5];seed.flags=d->words[37];
+    memcpy(seed.position,d->words+15,12);memcpy(seed.basis,d->words+18,36);
+    memcpy(velocity,d->words+27,12);memcpy(angular,d->words+30,12);memcpy(&seed.radius,d->words+33,4);
+    if(!isfinite(seed.radius))return RF_RANGE;
+    v.attachment.model_index=v.attachment.model_property=-1;
+    if(name) {
+        if(!backend->spheres)return RF_RANGE;
+        status=rf_object_model_attach(&v.attachment,name,d->words[1],&backend->model);if(status)goto failed;
+        if(!v.attachment.model){status=RF_NOT_FOUND;goto failed;}
+        status=backend->spheres(backend->model.context,v.attachment.model,&view);if(status)goto failed;
+    } else v.attachment.radius=seed.radius<=0?1:seed.radius;
+    if(seed.radius<0)seed.radius=v.attachment.radius;
+    retained=sizeof(v)+(uint64_t)((seed.flags&0x70)?(view.count?view.count:1):0)*sizeof(*scratch);
+    peak=retained+(uint64_t)view.count*sizeof(*scratch);
+    if(peak>budget){status=RF_RANGE;goto failed;}
+    if(view.count) {
+        scratch=calloc(view.count,sizeof(*scratch));if(!scratch){status=RF_IO;goto failed;}
+        status=rf_model_creation_spheres(view.spheres,view.count,view.wrapper_kind,view.matrices,view.bones,scratch,view.count);
+        if(status)goto failed;
+    }
+    seed.spheres=scratch;seed.sphere_count=view.count;
+    status=rf_physics_creation_body_open_moving(&seed,velocity,angular,material[0],material[1],material[2],
+        budget-(uint32_t)sizeof(v)-(uint32_t)((uint64_t)view.count*sizeof(*scratch))+sizeof(v.body),&v.body);
+    if(status)goto failed;
+    free(scratch);v.allocated_bytes=(uint32_t)retained;v.peak_bytes=(uint32_t)peak;*out=v;return RF_OK;
+failed:
+    free(scratch);rf_projectile_resources_close(&v,backend);return status;
+}
+typedef struct projectile_init_context {
+    rf_projectile_resources *resources;const char *name;const float *material;
+    const rf_clutter_base_backend *backend;uint32_t budget;
+} projectile_init_context;
+static int projectile_initialize_resources(void *context,rf_projectile_owner *owner,uint32_t record[197],
+    const rf_projectile_creation_descriptor *d)
+{
+    projectile_init_context *c=context;(void)record;
+    return rf_projectile_resources_open(d,c->name,c->material,c->backend,c->budget,c->resources+owner->slot);
+}
+static void projectile_cleanup_resources(void *context,rf_projectile_owner *owner,uint32_t record[197])
+{
+    projectile_init_context *c=context;(void)record;
+    rf_projectile_resources_close(c->resources+owner->slot,c->backend);
+}
+int rf_projectile_initialized_open(rf_projectile_store *store,rf_projectile_resources resources[50],
+    rf_object_registry *registry,rf_object_list *objects,uint32_t *uid,
+    const rf_projectile_creation_descriptor *d,const char *name,const float material[3],
+    const rf_clutter_base_backend *backend,uint32_t budget,rf_projectile_owner **out)
+{
+    const rf_projectile_owner_ops ops={projectile_initialize_resources,projectile_cleanup_resources};
+    projectile_init_context c={resources,name,material,backend,budget};
+    if(!resources || !backend || !backend->release)return RF_RANGE;
+    return rf_projectile_store_open(store,registry,objects,uid,d,&ops,&c,out);
+}
+int rf_projectile_initialized_close(rf_projectile_store *store,rf_projectile_resources resources[50],
+    rf_object_registry *registry,rf_object_list *objects,uint32_t handle,const rf_clutter_base_backend *backend)
+{
+    const rf_projectile_owner_ops ops={projectile_initialize_resources,projectile_cleanup_resources};
+    projectile_init_context c={resources,NULL,NULL,backend,0};
+    if(!resources || !backend || !backend->release)return RF_RANGE;
+    return rf_projectile_store_close(store,registry,objects,handle,&ops,&c);
 }

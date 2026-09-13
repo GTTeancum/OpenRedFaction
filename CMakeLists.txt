@@ -217,3 +217,5 @@ target_link_libraries(rf_clutter_shared_tests PRIVATE rf_core)
 add_test(NAME clutter_shared_lifetime COMMAND rf_clutter_shared_tests)
 
 add_test(NAME projectile_owned_lifetime COMMAND rf_weapon_probe --projectile-store)
+
+add_test(NAME projectile_resource_lifetime COMMAND rf_weapon_probe --projectile-resources)
