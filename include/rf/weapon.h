@@ -87,6 +87,11 @@ int rf_weapon_acquire(rf_weapon_inventory *,const rf_weapon_acquire_definition *
     int32_t weapon,int32_t quantity,int (*notify)(void *,rf_weapon_inventory *,uint32_t),
     void *context);
 
+/* Normal SP (original64ecb9=0 and6fc4d8=0):401470 notification exits through
+ * actual42cce0 before selection or RNG. This does not equip/reset a weapon. */
+int rf_weapon_acquire_sp(rf_weapon_inventory *,const rf_weapon_acquire_definition *,
+    int32_t weapon,int32_t quantity);
+
 typedef struct rf_weapon_ammo_state {int32_t current,pending,weapon_count;} rf_weapon_ammo_state;
 typedef struct rf_weapon_ammo_backend {
     void *context;

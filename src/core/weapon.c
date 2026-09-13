@@ -430,3 +430,9 @@ int rf_weapon_pickup_amount(int32_t quantity,int32_t reserve,int32_t capacity,
     if(special){message=pickup_scaled_round(amount,1,0,1);if(message<1)message=1;}
     *granted=amount;*displayed=message;return RF_OK;
 }
+
+static int weapon_sp_acquire_notice(void *context,rf_weapon_inventory *inventory,uint32_t reason)
+{(void)context;(void)inventory;(void)reason;return RF_OK;}
+int rf_weapon_acquire_sp(rf_weapon_inventory *inventory,const rf_weapon_acquire_definition *definition,
+    int32_t weapon,int32_t quantity)
+{return rf_weapon_acquire(inventory,definition,weapon,quantity,weapon_sp_acquire_notice,NULL);}

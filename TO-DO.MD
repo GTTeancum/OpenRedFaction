@@ -79,7 +79,7 @@ Registered NPC-to-NPC41a000 dispatch reaches damage/squash playback in four rest
 Object-contact handles NPC/player damage and riot_shield class identity in PC/stock64MiB XEMU; complete pickup services, lethal lifecycle and continuous scheduling.
 SP pickup eligibility459560 matches2048 original/PC/NXDK cases and3 callback failures.
 SP pickup completion order/timer matches1024 original/PC/NXDK cases and6 callback failures; implement grant/reaction/audio services and bind scene pickup ownership.
-New-weapon inventory initializer4030d0 matches2048 original/PC/NXDK cases; bind401470 notification and full weapon/ammo pickup grants.
+Normal-SP acquisition4030d0 matches2048 original/PC/NXDK cases with actual401470 no-op notification; bind inventory creation, equip/reset and full pickup grants.
 Reserve addition428d90 matches2048 original/PC/NXDK cases; bind reload query/service and full ammo pickup acceptance.
 Ammo pickup scaling/message amounts match8192 original/PC/NXDK cases; bind special weapon IDs, difficulty ownership and inventory/message consumers.
 Retained4872-byte weapon supply catalog matches all44 original-audited mappings in stock64MiB XEMU; create scene inventories through verified initialization.

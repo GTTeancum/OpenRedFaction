@@ -21,7 +21,8 @@ int main(int argc,char **argv)
         while(fread(in,24,1,stdin)==1){out[1]=out[2]=(int32_t)0xa5a5a5a5u;out[0]=rf_weapon_pickup_amount((int32_t)in[0],(int32_t)in[1],(int32_t)in[2],in[3],in[4],in[5],out+1,out+2);if(fwrite(out,12,1,stdout)!=1)return 2;}return ferror(stdin)?1:0;
     }
     if(argc==2 && !strcmp(argv[1],"--add-ammo"))return weapon_ammo_probe();
-    if(argc==2 && !strcmp(argv[1],"--acquire"))return weapon_acquire_probe();
+    if(argc==2 && !strcmp(argv[1],"--acquire-sp"))return weapon_acquire_probe(1);
+    if(argc==2 && !strcmp(argv[1],"--acquire"))return weapon_acquire_probe(0);
     if(argc==2 && !strcmp(argv[1],"--remove"))return weapon_remove_probe();
     if(argc==2 && !strcmp(argv[1],"--drop"))return weapon_drop_probe();
     if (argc==2 && !strcmp(argv[1],"--presentation")) {
