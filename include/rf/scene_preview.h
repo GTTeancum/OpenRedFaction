@@ -114,6 +114,13 @@ int rf_scene_npc_normal(const rf_geometry_collision_world *world,uint32_t handle
 extern uint32_t rf_scene_npc_normal_test[4];
 extern uint32_t rf_scene_navigation[6];
 extern uint32_t rf_scene_navigation_workspace[4];
+extern uint32_t rf_scene_npc_route_test[6];
+/* Prepared route request; scene owns endpoints/output and reuses its workspace.
+ * Geometry/dimension/selection parameters are supplied, not inferred from AI.
+ * Caller state must be stable; stale handles preserve result. */
+int rf_scene_npc_route_request(uint32_t handle,const rf_entity_navigation_candidate *start,
+    const rf_entity_navigation_candidate *goal,const rf_entity_navigation_graph_request *parameters,uint32_t *result);
+
 extern uint32_t rf_scene_clutter[8];
 extern uint32_t rf_scene_clutter_render[8];
 extern uint32_t rf_scene_clutter_materials[8];

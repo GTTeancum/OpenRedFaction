@@ -2776,8 +2776,13 @@ static int campaign_npc_geometry_digest(void)
 static const float campaign_identity[3][3]={{1,0,0},{0,1,0},{0,0,1}};
 static rf_movement_descriptor campaign_modes[16];
 _Static_assert(sizeof(rf_entity_damage_state)==56,"Damage owner telemetry layout");
+typedef struct campaign_npc_route {
+    rf_entity_navigation_candidate start,goal;
+    rf_entity_navigation_retained_route retained;float cost;
+} campaign_npc_route;
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
+    campaign_npc_route navigation;
     rf_collision_contact_extra collision_contact;
     uint32_t collision_material; /* Original object1fc, factory parameter+10. */
     float support_velocity[3]; /* Original422f35..422f3b clears actor8a0. */
@@ -3426,6 +3431,25 @@ static int campaign_npc_motion_owner(uint32_t handle,campaign_npc_body **result,
     status=campaign_actor_pose(i,pose);if(status)return status;if(!*pose)return RF_NOT_FOUND;
     *result=owner;*class_index=cls;return RF_OK;
 }
+int rf_scene_npc_route_request(uint32_t handle,const rf_entity_navigation_candidate *start,
+    const rf_entity_navigation_candidate *goal,const rf_entity_navigation_graph_request *parameters,uint32_t *result)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls,n;int status;
+    rf_entity_navigation_graph_request request;
+    if(!start || !goal || !parameters || !result)return RF_RANGE;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    if(!campaign_navigation_workspace.storage)return RF_NOT_FOUND;
+    request=*parameters;n=campaign_navigation_workspace.count;
+    owner->navigation.start=*start;owner->navigation.goal=*goal;
+    campaign_navigation_workspace.references[n].candidate=&owner->navigation.goal;
+    campaign_navigation_workspace.references[n+1].candidate=&owner->navigation.start;
+    request.references=campaign_navigation_workspace.references;request.adjacency=campaign_navigation_workspace.adjacency;
+    request.global_count=n;request.route=&owner->navigation.retained;
+    request.scratch=campaign_navigation_workspace.scratch;request.scratch_capacity=n+2;
+    status=rf_entity_navigation_graph_request_run(&request,result);
+    owner->navigation.cost=request.cost;return status;
+}
+
 typedef struct campaign_ai_reset_context {
     rf_entity_pose *pose;rf_entity_playback_model *model;const int32_t *actions;uint32_t slot;
 } campaign_ai_reset_context;
@@ -6488,6 +6512,45 @@ static int campaign_npc_ground_query_fixture(const rf_geometry_collision_world *
     }
     if(status)++rf_scene_npc_ground_query_test[4];return status;
 }
+uint32_t rf_scene_npc_route_test[6]; /* requests, successes, retained checks, hash, owner bytes, errors */
+static int campaign_npc_route_fixture(uint32_t frame)
+{
+    rf_level_navigation_workspace *w=&campaign_navigation_workspace;uint32_t i,j,chosen=UINT32_MAX,n=w->count;
+    size_t workspace_bytes;unsigned char *saved_workspace;rf_entity_navigation_candidate *saved_nodes;
+    campaign_npc_route *saved_routes;int status=RF_OK;
+    if(frame)return RF_OK;memset(rf_scene_npc_route_test,0,sizeof(rf_scene_npc_route_test));
+    if(!rf_scene_actor_pair_test_enabled || !w->storage)return RF_OK;
+    rf_scene_npc_route_test[3]=2166136261u;rf_scene_npc_route_test[4]=campaign_npc_body_count*sizeof(campaign_npc_route);
+    for(i=0;i<n;++i)if(rf_entity_navigation_candidate_allowed(0,0,0,w->references[i].candidate->radius,w->references[i].candidate->height,w->references[i].candidate->word_040)){chosen=i;break;}
+    if(chosen==UINT32_MAX)return RF_NOT_FOUND;
+    workspace_bytes=w->allocated_bytes-sizeof(*w);saved_workspace=malloc(workspace_bytes);
+    saved_nodes=malloc((size_t)n*sizeof(*saved_nodes));saved_routes=malloc((size_t)campaign_npc_body_count*sizeof(*saved_routes));
+    if(!saved_workspace || !saved_nodes || !saved_routes){free(saved_workspace);free(saved_nodes);free(saved_routes);return RF_RANGE;}
+    memcpy(saved_workspace,w->storage,workspace_bytes);
+    for(i=0;i<n;++i)saved_nodes[i]=*w->references[i].candidate;
+    for(i=0;i<campaign_npc_body_count;++i)saved_routes[i]=campaign_npc_bodies[i].navigation;
+    for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view){
+        campaign_npc_body *owner=campaign_npc_bodies+i;rf_entity_navigation_candidate start={0},goal={0};
+        rf_entity_navigation_graph_request q={0};uint32_t result=99;
+        memcpy(start.position,saved_nodes[chosen].position,12);memcpy(start.query_point,start.position,12);goal=start;
+        q.first_start=q.first_end=chosen;q.second_start=q.second_end=UINT32_MAX;q.search_mode=1;
+        ++rf_scene_npc_route_test[0];status=rf_scene_npc_route_request(owner->registration.handle,&start,&goal,&q,&result);
+        if(!status && result!=1)status=RF_FORMAT;if(status)break;++rf_scene_npc_route_test[1];
+        result=99;
+        if(rf_scene_npc_route_request(owner->registration.handle^0x10000,&start,&goal,&q,&result)!=RF_NOT_FOUND || result!=99)status=RF_FORMAT;
+    }
+    for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view){
+        campaign_npc_route *route=&campaign_npc_bodies[i].navigation;
+        if(route->retained.count!=3 || route->retained.nodes[0]!=&route->start || route->retained.nodes[1]!=w->references[chosen].candidate || route->retained.nodes[2]!=&route->goal){status=RF_FORMAT;break;}
+        for(j=0;j<3;++j)if(memcmp(route->retained.nodes[j]->position,saved_nodes[chosen].position,12)){status=RF_FORMAT;break;}
+        ++rf_scene_npc_route_test[2];rf_scene_npc_route_test[3]=npc_hash_bytes(rf_scene_npc_route_test[3],&route->retained.count,4);
+        rf_scene_npc_route_test[3]=npc_hash_bytes(rf_scene_npc_route_test[3],&route->cost,4);
+    }
+    for(i=0;i<n;++i)*campaign_navigation.references[i].candidate=saved_nodes[i];
+    for(i=0;i<campaign_npc_body_count;++i)campaign_npc_bodies[i].navigation=saved_routes[i];
+    memcpy(w->storage,saved_workspace,workspace_bytes);free(saved_workspace);free(saved_nodes);free(saved_routes);
+    if(status)++rf_scene_npc_route_test[5];return status;
+}
 uint32_t rf_scene_npc_unholster_test[5]; /* starts,pending checks,sounds,hash,errors */
 typedef struct campaign_unholster_fixture_sound {uint32_t handle,calls;const char *name;} campaign_unholster_fixture_sound;
 static int campaign_unholster_fixture_audio(void *context,uint32_t handle,const char *name)
@@ -6733,6 +6796,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     status=campaign_npc_fall_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_ground_query_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_ai_reset_fixture(rf_scene_npc_playback[0]);if(status)return status;
+    status=campaign_npc_route_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_unholster_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_motion_request_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;

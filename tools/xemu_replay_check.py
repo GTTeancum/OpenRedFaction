@@ -286,6 +286,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       assert navigation_workspace[1]<=32768,navigation_workspace
      else:assert navigation_workspace==[0,0,0,0],navigation_workspace
      report['navigation_workspace']=navigation_workspace
+     npc_route_test=words(monitor,symbol('rf_scene_npc_route_test'),6)
+     assert npc_route_test==expected('NPC_ROUTE_TEST'),npc_route_test
+     if args.actor_pairs:
+      assert npc_route_test[:3]==[startup[0]]*3 and npc_route_test[4]==npc_bodies[0]*160 and npc_route_test[5]==0,npc_route_test
+     report['npc_route_test']=npc_route_test
      clutter=words(monitor,symbol('rf_scene_clutter'),8)
      assert clutter==expected('CLUTTER') and clutter[0]==431 and clutter[3]==55610,clutter
      assert clutter[5]<=clutter[6]<=256*1024,clutter

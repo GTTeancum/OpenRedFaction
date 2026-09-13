@@ -10324,3 +10324,30 @@ and the harness restores/rebuilds the normal Xbox image successfully.
 PC build and22 CTest checks pass. Persistent NPC endpoint/route ownership
 and dispatch remain open; this run proves live workspace residency, not
 NPC path following. No new visual claim or screenshot.
+
+
+Persistent NPC endpoints and prepared route service (2026-09-13)
+
+Each campaign NPC body owns start/goal candidates, four retained pointers
+and cost (160 bytes/slot). rf_scene_npc_route_request validates the live
+registered actor, copies prepared endpoints into that owner, binds the
+shared workspace endpoint references, and executes the concrete graph
+request. Geometry/dimensions/selections are caller-prepared; this does not
+yet dispatch40ac90 or infer AI destination intent. Requests are serialized.
+
+The frame0 actor-pairs fixture issues a positive three-node request for
+each registered NPC using an eligible authored node and coincident endpoint
+positions, with null world and explicit selections. After all requests,
+it verifies every earlier route still points to that NPC start/goal and
+the authored middle node. Stale handles preserve the result sentinel.
+All node bytes, workspace storage and NPC route states are restored; test
+snapshots are freed. This is ownership evidence, not path-following visuals.
+
+Native replay-20260913-043253 passes180 frames on stock64MiB XEMU, matching
+PC NPC_ROUTE_TEST[38,38,38,1489446629,6240,0]. Memory base67108864 and
+plugged0.39 allocated body slots hold38 registered NPCs, so route storage
+is6240 bytes; the harness uses allocated count for bytes and registered
+count for requests. An initial harness assertion used registered count for
+bytes and was corrected before the successful full rerun. Workspace stays
+[114,5752,274,910786009]. Both builds,22 CTest checks and normal-image
+restoration pass. Bind AI destination preparation and route following next.

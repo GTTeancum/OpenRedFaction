@@ -53,7 +53,7 @@ Bounded endpoint insertion/cleanup matches1536 and nearest selection2048 origina
 Node preparation and alternate-edge geometry each match2048 unhooked original/PC/NXDK cases; compose them into route services.
 Visibility query4ce740, concrete flat-solid collision and room hierarchy each match2048 original/PC/NXDK cases; bind combined route ownership.
 Concrete request4cebd0 matches2048 clear and2048 obstructed original/PC/NXDK cases; bind retained scene graph storage and NPC owners.
-Routing workspace is bound to scene lifetime and matches180-frame stock64MiB XEMU (L1S2:5752 bytes); bind persistent NPC endpoints and route dispatch.
+Persistent NPC route endpoints and prepared-request service pass38 ownership checks in stock64MiB XEMU; bind AI destination preparation and route following.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.
