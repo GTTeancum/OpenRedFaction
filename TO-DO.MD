@@ -14,6 +14,10 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Special lightmap corner-normal smoothing matches4096 original/PC/NXDK
+corners; both builds and24 tests pass. Reconstruct special face/vertex ownership,
+texel coverage and edge/vertex sample selection, then native lighting binding.
+
 Complete mapping decoding matches2048 original/PC/NXDK records; PC inventory
 passes301871 static mappings across94 levels. L1S1 uses4324 special mappings
 of5851, so prioritize special polygon sampling before native lighting binding.

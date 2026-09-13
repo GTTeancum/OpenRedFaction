@@ -37,6 +37,15 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
  * input preserves output. No allocation; input/output may alias. */
 int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3]);
 
+typedef struct rf_lightmap_normal_face {float normal[3];uint32_t id,vertex_count;} rf_lightmap_normal_face;
+/*4f4192..4f4222 special-sampling corner normal: include adjacent nonempty
+ * faces other than self only when their normal has positive dot with base.
+ * Preserve adjacency order/duplicates, average with a stored float factor,
+ * then normalize. Caller supplies one vertex's adjacency; no allocation.
+ * Finite normals and nondegenerate result required; errors preserve output. */
+int rf_lightmap_corner_normal(const rf_lightmap_normal_face *base,const rf_lightmap_normal_face *adjacent,
+    uint32_t count,float out[3]);
+
 typedef struct rf_lightmap_mapping {
     uint32_t image,x,y,width,height;float density[2],minimum[3],maximum[3],plane[4];
     uint32_t special,inhibit,normal_axis,u_axis,v_axis;float scale[2],offset[2];int32_t room;

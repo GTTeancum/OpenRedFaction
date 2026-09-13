@@ -1316,3 +1316,26 @@ The L1S1 special count makes4f3390 polygon sampling a priority before binding
 native lighting. Ordinary sampling alone does not cover most opening-level
 mappings. Next reconstruct special-face collection/coverage and sample choices;
 resource ownership, mask generation and rendered texture updates remain.
+
+
+### Special-sampling corner normals (2026-09-13)
+
+rf_lightmap_corner_normal reconstructs4f4192..4f4222 inside4f4100. Start with
+base face normal and count1. For each adjacent face of the current vertex,
+skip self by identity and faces with zero corner count. Add its normal only
+when the dot with the base face is positive, using original Z/Y/X dot order.
+Preserve adjacency order and duplicates. Each sum stores float; average with
+a stored float reciprocal count, then normalize through original4faaf0 order
+(X-squared plus Y-squared plus Z-squared, retained reciprocal length).
+
+The port accepts one corner's explicit adjacency views/face identities, uses
+no allocation and preserves output for invalid/degenerate results. It does
+not invent topology or collect neighbors geometrically. Outer4f4100 allocates
+per-face dynamic arrays and appends a normal for each corner; that ownership
+and special texel coverage/sample interpolation remain to reconstruct.
+
+verify_lightmap_corner_normal.py executes the original per-corner loop with
+actual40a490/40a480 adjacency access and dot/add/scale/normalize helpers, no
+hooks.4096 PC/NXDK corners match at explicit precision027f, including self,
+empty/opposed exclusions and duplicated adjacency. Two invalid-normal guards
+preserve output. Both builds and24 CTests pass. No new native visual evidence.

@@ -158,6 +158,29 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
     return RF_OK;
 }
 
+int rf_lightmap_corner_normal(const rf_lightmap_normal_face *base,const rf_lightmap_normal_face *adjacent,
+    uint32_t count,float out[3])
+{
+    float value[3],factor;uint32_t i,j,accepted=1;double length,inverse;
+    if(!base || !out || (count && !adjacent) || count==UINT32_MAX)return RF_RANGE;
+    for(j=0;j<3;j++){if(!isfinite(base->normal[j]))return RF_RANGE;value[j]=base->normal[j];}
+    for(i=0;i<count;i++) {
+        const rf_lightmap_normal_face *face=adjacent+i;double dot;
+        if(face->id==base->id || !face->vertex_count)continue;
+        for(j=0;j<3;j++)if(!isfinite(face->normal[j]))return RF_RANGE;
+        dot=((double)face->normal[2]*base->normal[2]+(double)face->normal[1]*base->normal[1])+(double)face->normal[0]*base->normal[0];
+        if(!(dot>0))continue;
+        for(j=0;j<3;j++){value[j]=(float)((double)value[j]+face->normal[j]);if(!isfinite(value[j]))return RF_RANGE;}
+        ++accepted;
+    }
+    factor=(float)(1.0/accepted);
+    for(j=0;j<3;j++)value[j]=(float)((double)value[j]*factor);
+    length=sqrt(((double)value[0]*value[0]+(double)value[1]*value[1])+(double)value[2]*value[2]);
+    if(!(length>0) || !isfinite(length))return RF_RANGE;inverse=1.0/length;
+    for(j=0;j<3;j++){value[j]=(float)(inverse*value[j]);if(!isfinite(value[j]))return RF_RANGE;}
+    memcpy(out,value,sizeof(value));return RF_OK;
+}
+
 int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_count,rf_lightmap_mapping *out)
 {
     const unsigned char *p=record;rf_lightmap_mapping value;
