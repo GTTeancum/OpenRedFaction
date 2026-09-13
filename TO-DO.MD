@@ -14,6 +14,10 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX source transforms plus mixed shading match2048 complete original/PC/NXDK
+cases, including every transformed source field. Bind live active-list
+selection and mesh edge-light caching before native renderer integration.
+
 Composed mixed VFX lighting now matches2048 complete original/PC/NXDK
 4daff0/4da8b0 cases across directional, point, cone and segment sources.
 Connect live scene selection/order/transforms and mesh edge-light caching;

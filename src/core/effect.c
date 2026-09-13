@@ -2217,3 +2217,20 @@ int rf_vfx_lighting(const float position[3],const float normal[3],const float am
     }
     return rf_vfx_light_rgb(rgb,ambient,2,out);
 }
+
+int rf_vfx_light_transform(const rf_vfx_light_source *light,const float origin[3],const float basis[9],rf_vfx_light_source *out)
+{
+    rf_vfx_light_source result;uint32_t i,j,slot;float delta[3];
+    if(!light || !origin || !basis || !out || light->type<1 || light->type>4)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(origin[i]))return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_RANGE;
+    result=*light;
+    for(slot=0;slot<3;++slot) {
+        const float *source=slot==0?light->position:slot==1?light->end:light->axis;
+        float *target=slot==0?result.position:slot==1?result.end:result.axis;
+        if((slot==1 && light->type!=4) || (slot==2 && light->type!=3))continue;
+        for(i=0;i<3;++i){if(!isfinite(source[i]))return RF_RANGE;delta[i]=source[i];if(slot!=2 && light->type!=1)delta[i]-=origin[i];if(!isfinite(delta[i]))return RF_RANGE;}
+        for(j=0;j<3;++j){target[j]=(float)(((double)delta[2]*basis[j*3+2]+(double)delta[1]*basis[j*3+1])+(double)delta[0]*basis[j*3]);if(!isfinite(target[j]))return RF_RANGE;}
+    }
+    *out=result;return RF_OK;
+}

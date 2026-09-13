@@ -256,11 +256,14 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
-    if(argc==2 && !strcmp(argv[1],"--vfx-lighting")) {
-        uint32_t count;float v[10];rf_vfx_light_source lights[32];unsigned char out[3];int32_t status;
+    if(argc==2 && (!strcmp(argv[1],"--vfx-lighting") || !strcmp(argv[1],"--vfx-transformed-lighting"))) {
+        uint32_t count,i;float v[10],transform[12];rf_vfx_light_source lights[32];unsigned char out[3];int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(&count,4,1,stdin)==1) {
-            if(count>32 || fread(v,sizeof(v),1,stdin)!=1 || fread(lights,sizeof(*lights),count,stdin)!=count)return 2;memset(out,0xa5,3);
+            if(count>32 || fread(v,sizeof(v),1,stdin)!=1)return 2;
+            if(!strcmp(argv[1],"--vfx-transformed-lighting") && fread(transform,sizeof(transform),1,stdin)!=1)return 2;
+            if(fread(lights,sizeof(*lights),count,stdin)!=count)return 2;memset(out,0xa5,3);
+            if(!strcmp(argv[1],"--vfx-transformed-lighting"))for(i=0;i<count;++i)if(rf_vfx_light_transform(lights+i,transform,transform+3,lights+i))return 3;
             status=rf_vfx_lighting(v,v+3,v+6,v[9],lights,count,out);fwrite(&status,4,1,stdout);fwrite(out,3,1,stdout);
         }
         return ferror(stdin)?1:0;

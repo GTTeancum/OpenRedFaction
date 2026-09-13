@@ -78,6 +78,11 @@ typedef struct rf_vfx_light_source {
     uint32_t type,profile;float position[3],end[3],axis[3],color[3];
     float radius,cone_scale,inner,outer;uint32_t squared;
 } rf_vfx_light_source;
+/*4d8480 transform: directions rotate only; positions/endpoints subtract
+ * origin first. Basis rows use original Z/Y/X dot order. Preserves non-vector
+ * fields and unused vectors. In-place supported; errors preserve output. */
+int rf_vfx_light_transform(const rf_vfx_light_source *,const float origin[3],const float basis[9],rf_vfx_light_source *out);
+
 /* Ambient enabled, gain2, no per-light visibility weights (VFX caller).
  * Caller owns selection/order/transforms. No allocations; errors preserve out. */
 int rf_vfx_lighting(const float position[3],const float normal[3],const float ambient[3],

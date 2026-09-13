@@ -402,3 +402,23 @@ Original active tables/ambient/transformed vectors are supplied; no math or
 lighting hooks replace original routines. Invalid ambient/type guards preserve
 output. This does not include creating/filtering/updating the live light list,
 the disabled-light white fallback, edge caches, specular/glare or native draws.
+
+## Source transforms
+
+rf_vfx_light_transform reconstructs4d8480: type1 rotates its direction only;
+types2/3/4 subtract origin before transforming position; type3 rotates its
+axis without translation, and type4 transforms its second endpoint as a point.
+Original4faa30 uses row-wise Z/Y/X product addition order. Unused vectors and
+non-vector descriptor fields are preserved; in-place use is supported.
+Invalid used inputs/results preserve output.4d9fd0 applies this operation to
+the active list when lighting gates and transformed-space flag1818b84 permit.
+
+2048 PC/NXDK cases compare the full original4d9fd0/4d8480 transform walk
+then4daff0/4da8b0 shading. Every transformed descriptor field and final RGB
+matches, across all types/profiles and0-16 sources. Origins and bases vary.
+The harness supplies active lists and ambient; no original math hooks. The
+point-only regression also passes. Live list selection remains separate.
+
+Static references locate list reset/append paths around4d9a06/4d9bb6,
+4d9c49/4d9d8b and4d9e17/4d9f5c, plus reset4d9fc7. Resolve their containing
+functions and caller selection rules before binding the scene-owned list.
