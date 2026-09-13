@@ -2,8 +2,32 @@
 #include <fcntl.h>
 #include <io.h>
 #include <string.h>
+typedef struct resolve_fixture {uint32_t decision,mutation,fail,trace;} resolve_fixture;
+static int resolve_contact(void *context,rf_ordinary_motion_state *state,float *time,uint32_t *decision)
+{
+    resolve_fixture *f=context;f->trace=f->trace*10+1;
+    if(f->mutation){state->body.flags^=0x20000080u;state->body.velocity[0]=7;*time=17;}
+    *decision=f->decision;return f->fail==1?RF_IO:RF_OK;
+}
+static int resolve_response(void *context,rf_ordinary_motion_state *state,float *time)
+{
+    resolve_fixture *f=context;f->trace=f->trace*10+2;
+    if(f->mutation){state->body.flags^=0x10000008u;state->body.velocity[1]=-9;*time=19;}
+    return f->fail==2?RF_IO:RF_OK;
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--ordinary-resolve")) {
+        struct {rf_ordinary_motion_state state;float time;uint32_t rotation[3],flags;float dt;uint32_t decision,mutation,fail;} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1){
+            resolve_fixture f={in.decision,in.mutation,in.fail,0};rf_ordinary_motion_services services={&f,resolve_contact,resolve_response};
+            int32_t status=rf_ordinary_motion_resolve(&in.state,&in.time,in.flags,in.dt,in.rotation,&services);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&in.state,sizeof(in.state),1,stdout)!=1 ||
+                fwrite(&in.time,4,1,stdout)!=1 || fwrite(&f.trace,4,1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ordinary-partial")) {
         struct {rf_ordinary_motion_state state;float time;uint32_t rotation[3];float remaining;} in;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

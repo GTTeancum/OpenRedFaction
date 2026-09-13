@@ -591,6 +591,29 @@ int rf_ordinary_motion_partial(rf_ordinary_motion_state *state,float time,
     status=rf_physics_tensor_world(v.body.local_tensor,v.body.orientation,v.body.world_tensor);if(status)return status;
     *state=v;*remaining=left;return RF_OK;
 }
+int rf_ordinary_motion_resolve(rf_ordinary_motion_state *state,float *time,
+    uint32_t class_flags,float dt,const uint32_t rotation[3],const rf_ordinary_motion_services *services)
+{
+    float remaining;uint32_t decision;int status;
+    if(!state || !time || !isfinite(*time) || *time<0 || (state->body.flags&0x4000u) ||
+        !isfinite(state->body.scalar_144) || state->body.scalar_144<0)return RF_RANGE;
+    if(state->body.scalar_144>=1){
+        remaining=(float)((long double)*time-(long double)*time*state->body.scalar_144);
+        if(!isfinite(remaining))return RF_RANGE;
+        status=rf_ordinary_motion_commit(state,class_flags,dt);if(status)return status;
+        *time=remaining;return RF_OK;
+    }
+    status=rf_ordinary_motion_partial(state,*time,rotation,&remaining);if(status)return status;
+    if(state->body.flags&0x20000000u){state->body.flags&=~0x20000000u;*time=remaining;return RF_OK;}
+    if(!services || !services->contact)return RF_RANGE;
+    status=services->contact(services->context,state,time,&decision);if(status)return status;
+    if(decision==0)remaining=0;
+    else if(decision==2){
+        if(!services->response)return RF_RANGE;
+        status=services->response(services->context,state,time);if(status)return status;
+    }
+    state->body.flags|=0x10000000u;*time=remaining;return RF_OK;
+}
 int rf_angular_predict(const float angles[3],const float velocity[3],float dt,
     const uint32_t rotation[3],rf_angular_prediction *result)
 {

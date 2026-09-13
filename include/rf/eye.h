@@ -120,6 +120,17 @@ int rf_ordinary_motion_commit(rf_ordinary_motion_state *state,uint32_t class_fla
  * matrices or dispatch427550/49d7e0. Errors preserve state and remaining. */
 int rf_ordinary_motion_partial(rf_ordinary_motion_state *state,float time,
     const uint32_t rotation[3],float *remaining);
+typedef struct rf_ordinary_motion_services {
+    void *context;
+    int (*contact)(void *context,rf_ordinary_motion_state *state,float *time,uint32_t *decision);
+    int (*response)(void *context,rf_ordinary_motion_state *state,float *time);
+} rf_ordinary_motion_services;
+/* Complete49fe40 ordinary branch at explicit427550/49d7e0 boundaries.
+ * Callbacks see partial updates and may mutate retained state; their successful
+ * effects survive later errors. Final remaining time overrides callback time.
+ * No object-position publication or rigid-body branch. */
+int rf_ordinary_motion_resolve(rf_ordinary_motion_state *state,float *time,
+    uint32_t class_flags,float dt,const uint32_t rotation[3],const rf_ordinary_motion_services *services);
 /* 422e2c..422e82: original matrix angle extraction, yaw-only body, and
  * physics-frame projection filtered by rotation reference == 1. No command
  * clearing, pose construction or factory ownership. Finite inputs required;
