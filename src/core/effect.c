@@ -55,10 +55,15 @@ int rf_particle_texture_decode(uint32_t mode,uint32_t lod_bias,rf_particle_textu
         {0,19,0},{0,13,3},{0,14,3},{0,17,2},{0,16,2},
         {0,1,0},{0,2,2},{0,3,0},{0,4,0},{0,5,2},{0,6,0},{1,1,1}}};
     if(!s)return RF_RANGE;
-    if((mode&31u)!=2)return RF_NOT_FOUND;
+    if((mode&31u)!=1 && (mode&31u)!=2)return RF_NOT_FOUND;
+    if((mode&31u)==1)value.writes[1].value=value.writes[2].value=1;
     value.writes[0].value=lod_bias;
     value.writes[5].value=color==3?7u:color==4?5u:color==2?4u:2u;
-    value.writes[8].value=alpha==3?4u:2u;
+    value.writes[8].value=alpha==3?4u:((mode&31u)==1 && alpha==0)?3u:2u;
+    if((mode&31u)==1 && alpha!=0 && alpha!=2 && alpha!=3) {
+        memmove(value.writes+8,value.writes+9,3*sizeof(value.writes[0]));
+        memset(value.writes+11,0,sizeof(value.writes[0]));value.count=11;
+    }
     *s=value;return RF_OK;
 }
 

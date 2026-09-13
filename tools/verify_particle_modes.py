@@ -1,4 +1,4 @@
-"""Verify particle mode initialization/selection and the actual texture-source-2 pass."""
+"""Verify particle modes and the original particle/corona texture-state passes."""
 import runpy,struct,re,random,subprocess,json,itertools
 from pathlib import Path
 c=runpy.run_path(str(Path(__file__).with_name('verify_particle_render_states.py')))
@@ -29,23 +29,23 @@ for flags,n,g in fixtures:
     assert struct.pack('<I',x.reg_read(UC_X86_REG_EAX))==result
 assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--particle-render-mode'],input=commands)==results
 texture_entry=symbol('rf_particle_texture_decode');commands.clear();results.clear();texture_cases=0
-for color,alpha,lod in itertools.product(range(32),range(32),(0,0x3f800000,0xbf800000,0x7fc12345)):
-    mode=2 | color<<5 | alpha<<10 | (glow & ~0x7fff)
+for source,color,alpha,lod in itertools.product((1,2),range(32),range(32),(0,0x3f800000,0xbf800000,0x7fc12345)):
+    mode=source | color<<5 | alpha<<10 | (glow & ~0x7fff)
     c['word'](0x1e64da0,0xffffffff);c['word'](0x5aa7f0,lod)
     c['render_calls'].clear();c['texture_calls'].clear()
     u.mem_write(stack,struct.pack('<II',stop,mode));u.reg_write(UC_X86_REG_ESP,stack)
     u.emu_start(0x54f160,stop,count=10000);assert u.reg_read(UC_X86_REG_EIP)==stop
-    calls=c['texture_calls'];assert len(calls)==12
-    result=struct.pack('<II',0,len(calls))+b''.join(struct.pack('<III',*v) for v in calls)
+    calls=c['texture_calls'];assert len(calls) in (11,12)
+    result=struct.pack('<II',0,len(calls))+b''.join(struct.pack('<III',*v) for v in calls)+bytes((12-len(calls))*12)
     commands.extend(struct.pack('<II',mode,lod));results.extend(result)
     x.mem_write(base,bytes([0xa5])*148)
     x.mem_write(stack,struct.pack('<4I',stop,mode,lod,base));x.reg_write(UC_X86_REG_ESP,stack)
     x.emu_start(texture_entry,stop,count=10000);assert x.reg_read(UC_X86_REG_EIP)==stop
-    assert struct.pack('<I',x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(base,148))==result,(color,alpha,lod)
+    assert struct.pack('<I',x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(base,148))==result,(source,color,alpha,lod)
     texture_cases+=1
 assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--particle-texture-states'],input=commands)==results
 commands.clear();results.clear()
-for texture in (t for t in range(32) if t!=2):
+for texture in (t for t in range(32) if t not in (1,2)):
     mode=(normal&~31)|texture
     commands.extend(struct.pack('<II',mode,0))
     result=struct.pack('<i',-3)+bytes([0xa5])*148;results.extend(result)
@@ -54,6 +54,6 @@ for texture in (t for t in range(32) if t!=2):
     x.emu_start(texture_entry,stop,count=10000);assert x.reg_read(UC_X86_REG_EIP)==stop
     assert struct.pack('<I',x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(base,148))==result
 assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--particle-texture-states'],input=commands)==results
-report=dict(result='PASS',initializers={'50be10':hex(normal),'50be40':hex(glow)},selection_cases=len(fixtures),texture_cases=texture_cases,unsupported_texture_guards=31,
-    scope='Original constructors and selection span, including actual 496a30 override; full original 54f160 texture-source 2 versus PC/NXDK ordered texture-stage calls. No GPU rasterization or texture binding tested.')
+report=dict(result='PASS',initializers={'50be10':hex(normal),'50be40':hex(glow)},selection_cases=len(fixtures),texture_cases=texture_cases,unsupported_texture_guards=30,
+    scope='Original constructors and selection span, including actual 496a30 override; full original 54f160 texture-sources 1 and2 versus PC/NXDK ordered texture-stage calls. No GPU rasterization or texture binding tested.')
 (root/'artifacts/particle-modes-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

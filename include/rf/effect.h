@@ -198,7 +198,7 @@ typedef struct rf_particle_texture_states {
     uint32_t count;
     struct {uint32_t stage,state,value;} writes[12];
 } rf_particle_texture_states;
-/* Original texture-source case 2, used by both particle defaults. lod_bias
+/* Original texture-source cases 1 (coronas) and 2 (particle defaults). lod_bias
  * is the raw float bit pattern passed as D3D8 MIPMAPLODBIAS. Other texture
  * sources return RF_NOT_FOUND preserving output. No GPU or cache mutation. */
 int rf_particle_texture_decode(uint32_t mode,uint32_t lod_bias,rf_particle_texture_states *states);

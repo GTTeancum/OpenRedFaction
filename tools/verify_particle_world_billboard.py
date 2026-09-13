@@ -15,7 +15,7 @@ def hook(m,address,size,data):
         bitmap,wp,hp=struct.unpack('<3I',m.mem_read(sp+4,12))
         m.mem_write(wp,struct.pack('<I',width));m.mem_write(hp,struct.pack('<I',height))
     else:
-        count,pointers,flags,mode=struct.unpack('<4I',m.mem_read(sp+4,16));assert flags==1 and mode==0x118c42 and count<=12
+        count,pointers,flags,mode=struct.unpack('<4I',m.mem_read(sp+4,16));assert flags==1 and mode==current_mode and count<=12
         submitted=bytearray(struct.pack('<II',0,count))
         for i in range(count):
             vertex=struct.unpack('<I',m.mem_read(pointers+i*4,4))[0]
@@ -25,7 +25,8 @@ def hook(m,address,size,data):
 for address in (0x510630,0x551900):u.hook_add(UC_HOOK_CODE,hook,begin=address,end=address)
 rng=random.Random(5550)
 commands=bytearray();results=bytearray();counts={}
-for case in range(1024):
+for case in range(2048):
+    current_mode=0x118c42 if case<1024 else 0x06010c41
     width,height=((32,32),(64,32),(32,64),(127,63))[case%4]
     origin=tuple(rng.randint(-128,128)/8 for _ in range(3))
     basis=((1,0,0,0,1,0,0,0,1),(0,0,1,0,1,0,-1,0,0))[case%2]
@@ -45,7 +46,7 @@ for case in range(1024):
     u.mem_write(0x1818b48,struct.pack('<3f',*scale));u.mem_write(0x1818b7c,struct.pack('<f',.98))
     u.mem_write(0x5a4d18,bytes([enabled,perspective]));u.mem_write(0x1818b65,bytes([far]));u.mem_write(0x1818b6c,struct.pack('<f',1))
     u.mem_write(0x5a445a,projection[:1]);u.mem_write(0x1e652e8,projection[4:8]);u.mem_write(0x1818a5c,projection[8:12]);u.mem_write(0x1818a24,projection[12:16]);u.mem_write(0x17c7bec,projection[16:24])
-    u.mem_write(base,struct.pack('<3f',*position));u.mem_write(stack,struct.pack('<IIffI',stop,base,angle,radius,0x118c42));u.reg_write(UC_X86_REG_ESP,stack)
+    u.mem_write(base,struct.pack('<3f',*position));u.mem_write(stack,struct.pack('<IIffI',stop,base,angle,radius,current_mode));u.reg_write(UC_X86_REG_ESP,stack)
     submitted=None;u.emu_start(0x555ac0,stop,count=200000);assert u.reg_read(UC_X86_REG_EIP)==stop
     result=bytes(392) if submitted is None else bytes(submitted);results.extend(result)
     count=struct.unpack_from('<I',result,4)[0];counts[count]=counts.get(count,0)+1
@@ -56,5 +57,5 @@ for case in range(1024):
     assert actual==result,(case,[(i,a,b) for i,(a,b) in enumerate(zip(actual,result)) if a!=b][:20])
 actual=subprocess.check_output([str(c['probe']),'--particle-world-billboard'],input=commands)
 assert actual==results,[(i//392,i%392,a,b) for i,(a,b) in enumerate(zip(actual,results)) if a!=b][:20]
-report=dict(result='PASS',cases=1024,vertex_counts=counts,scope='Full original 555ac0 world transform, center acceptance, preparation, clipping and submission versus PC/NXDK. Only bitmap dimensions and final 551900 submission intercepted. Exact polygon bytes. Does not verify draw queue ordering, color conversion or live GPU composition.')
+report=dict(result='PASS',cases=2048,modes=['0x118c42','0x06010c41'],vertex_counts=counts,scope='Full original 555ac0 particle/corona mode world transform, center acceptance, preparation, clipping and submission versus PC/NXDK. Only bitmap dimensions and final 551900 submission intercepted. Exact polygon bytes. Does not verify draw queue ordering, color conversion or live GPU composition.')
 (root/'artifacts/particle-world-billboard-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

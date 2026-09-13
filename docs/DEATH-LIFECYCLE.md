@@ -8821,3 +8821,21 @@ PC/compiled NXDK exactly for retained owner fields and ordered callbacks.
 Both builds and21CTest pass. No original list/frame scheduling, special model
 geometry backend or native drawing is implied: scene parent/flash/geometry
 services and actual render integration remain open.
+
+## Corona texture mode and ordinary billboard (2026-09-12)
+
+The shared texture decoder now supports original54f160 source1 used by
+corona mode0x06010c41, alongside particle source2. Source1 sets addressU/V
+to1 instead of3; alpha0 selects operation3, alpha2 selects2, alpha3
+selects4, and other alpha fields omit the operation write entirely.
+The expanded original oracle caught both alpha differences; the final
+decoder matches8192 texture cases and30 unsupported-source guards on
+PC/compiled NXDK. Mode selection still matches1031 cases.
+
+Full original555ac0 ordinary billboard geometry now matches2048 cases
+across particle and corona packed modes, with exact clipped polygon bytes
+on PC/compiled NXDK. Both builds and21CTest pass. This verifies state
+commands and CPU geometry, not native GPU output. Actual PC/Xbox backends
+still reject corona mode; wrapping/additive rendering, oriented5590f0
+geometry and original scene scheduling remain open. Oriented5590f0 must
+not be substituted with particle stretch558e30.

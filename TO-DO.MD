@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 Shortlist:
+- Bind verified corona geometry and texture modes to PC/Xbox rendering, then original glare scheduling.
 - Complete the single-player actor, AI, damage and mission runtime.
 - Connect retained NPC speed/body/stance owners to support queries, contact/fall/landing dispatch and physics stepping, then timed footsteps.
 - Complete moving NPC animation, room membership, LOD selection and lighting.
