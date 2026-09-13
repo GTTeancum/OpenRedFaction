@@ -9313,3 +9313,23 @@ post-refresh frame now yield360 snapshots,13680 NPC candidates; exact PC
 equality was retained. Peak snapshot ownership remains sequential; reducing
 duplicate snapshot work and ordering other transparent scene families remain
 open. No new campaign screenshot published from this zero-beam view.
+
+
+Positive scene-volume fixture (2026-09-13): --volume-test in
+tools/xemu_replay_check.py stages RF_REPLAY_VOLUME_TEST and the matching
+campaign-volume-test.flag, restoring the flag and rebuilding in finally.
+Frames90 onward copy one retained glare with a visible ownership parent,
+select authored FighterEngine01/class43/thruster02_vol.vbm, place the copy
+eight units ahead of the camera, and submit through rf_glare_collect, the
+ordinary shared queue sort, scene_volume_render and the real platform sink.
+Only the stack copy changes; hash equality checks its borrowed source owner
+after each draw. Fixture room/placement are controlled, not authored evidence.
+The first PC preflight found no glare in the first visible room; selection
+now requires parent visibility and assigns the copied fixture to the queue
+room without changing original membership. No native run was started for
+that failed preflight. Native replay-20260913-004230 PASS180 stock64MiB:
+VOLUME_DRAW=[180,90,90,90,360,463319277,0,0],
+VOLUME_TEST=[90,90,90,90,90,463319277,0,43], exact PC/NXDK agreement.
+Both builds and22 CTest checks pass. Authored volume placement, special-owner
+and actor aim/RNG services, and mixed transparent scene ordering remain open.
+This fixture does not establish PS2 visual parity or a new gameplay scene.

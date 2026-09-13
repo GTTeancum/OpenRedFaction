@@ -240,6 +240,7 @@ int main(int argc,char **argv)
     }
     rf_scene_death_animation_test_enabled=spawn_profile && p.headless && getenv("RF_REPLAY_DEATH_ANIMATION");
     rf_scene_glare_loss_test_enabled=getenv("RF_REPLAY_GLARE_LOSS")!=NULL;
+    rf_scene_volume_test_enabled=getenv("RF_REPLAY_VOLUME_TEST")!=NULL;
     rf_scene_actor_pair_test_enabled=spawn_profile && p.headless && getenv("RF_REPLAY_ACTOR_PAIRS");
     if(spawn_profile && p.headless && getenv("RF_REPLAY_DAMAGE_UID")) {
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_DAMAGE_UID"),&end,10);
@@ -327,6 +328,7 @@ int main(int argc,char **argv)
             printf("GLARE_ROOMS");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_rooms[i]);printf("\n");
             printf("CORONA_DRAW");for(i=0;i<8;++i)printf(" %u",rf_scene_corona_draw[i]);printf("\n");
             printf("VOLUME_DRAW");for(i=0;i<8;++i)printf(" %u",rf_scene_volume_draw[i]);printf("\n");
+            printf("VOLUME_TEST");for(i=0;i<8;++i)printf(" %u",rf_scene_volume_test[i]);printf("\n");
             printf("GLARE_SEARCH");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_search[i]);printf("\n");
             printf("NPC_ROOM_REFRESH");for(i=0;i<8;++i)printf(" %u",rf_scene_npc_room_refresh[i]);printf("\n");
             printf("NPC_VISIBILITY_ROOMS");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_visibility_rooms[i]);printf("\n");

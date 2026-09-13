@@ -4,7 +4,7 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');p.add_argument('--glare-loss',action='store_true',help='Destroy three glares at frame90 through parent-loss/marked retirement');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');p.add_argument('--glare-loss',action='store_true',help='Destroy three glares at frame90 through parent-loss/marked retirement');p.add_argument('--volume-test',action='store_true',help='Copied-owner animated beam through the live sorted queue');args=p.parse_args()
 if args.death_animation and args.damage_uid is None:p.error('--death-animation requires --damage-uid')
 if args.damage_uid is not None and not 0<=args.damage_uid<0xffffffff:p.error('--damage-uid requires an unsigned actor UID')
 if args.force_uid is not None and (not args.level or args.climb or args.door or args.lift or not 0<=args.force_uid<=0xffffffff):p.error('--force-uid requires --level and no other staging')
@@ -26,6 +26,8 @@ for key in ('RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_R
 replay_env.update(RF_REPLAY_LEVEL=args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),RF_REPLAY_ARCHIVE=args.archive)
 if args.damage_uid is not None:replay_env['RF_REPLAY_DAMAGE_UID']=str(args.damage_uid)
 if args.death_animation:replay_env['RF_REPLAY_DEATH_ANIMATION']='1'
+replay_env.pop('RF_REPLAY_VOLUME_TEST',None)
+if args.volume_test:replay_env['RF_REPLAY_VOLUME_TEST']='1'
 replay_env.pop('RF_REPLAY_GLARE_LOSS',None)
 if args.glare_loss:replay_env['RF_REPLAY_GLARE_LOSS']='1'
 replay_env.pop('RF_REPLAY_ACTOR_PAIRS',None)
@@ -41,6 +43,7 @@ offset=8 if record_size!=24 else 0
 if offset and payload[4:8]!=record_size.to_bytes(4,'little'):raise ValueError('Invalid replay record size')
 if len(payload)<=offset or (len(payload)-offset)%record_size or (len(payload)-offset)>60000*record_size:raise ValueError('Expected 1..60000 input records')
 frames=(len(payload)-offset)//record_size
+if args.volume_test and (frames<=90 or not args.level):p.error('--volume-test requires --level and at least91 frames')
 if args.glare_loss and frames<=91:p.error('--glare-loss requires at least92 frames')
 if args.death_animation and frames<=120:p.error('--death-animation requires at least 121 replay frames')
 run=root/'artifacts/xemu'/('replay-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'));run.mkdir(parents=True)
@@ -71,6 +74,7 @@ force_file=root/'build/xbox/disc/campaign-force.bin';saved_force=force_file.read
 damage_file=root/'build/xbox/disc/campaign-damage.bin';saved_damage=damage_file.read_bytes() if damage_file.exists() else None
 death_flag=root/'build/xbox/disc/campaign-death-animation.flag';saved_death=death_flag.read_bytes() if death_flag.exists() else None
 pair_flag=root/'build/xbox/disc/campaign-actor-pairs.flag';saved_pair=pair_flag.read_bytes() if pair_flag.exists() else None
+volume_flag=root/'build/xbox/disc/campaign-volume-test.flag';saved_volume=volume_flag.read_bytes() if volume_flag.exists() else None
 loss_flag=root/'build/xbox/disc/campaign-glare-loss.flag';saved_loss=loss_flag.read_bytes() if loss_flag.exists() else None
 step_file=root/'build/xbox/disc/particle-step-fixtures.bin';saved_steps=step_file.read_bytes() if step_file.exists() else None
 process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),'archive':args.archive,'frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
@@ -86,6 +90,8 @@ try:
   report['archive_sha256']=archive_sha
  if args.level:selection_file.write_bytes(args.archive.encode().ljust(64,b'\0')+args.level.encode().ljust(64,b'\0'))
  else:selection_file.unlink(missing_ok=True)
+ if args.volume_test:volume_flag.write_bytes(b'1')
+ else:volume_flag.unlink(missing_ok=True)
  if args.glare_loss:loss_flag.write_bytes(b'1')
  else:loss_flag.unlink(missing_ok=True)
  if args.actor_pairs:pair_flag.write_bytes(b'1')
@@ -350,6 +356,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert volume==expected('VOLUME_DRAW') and volume[0]==frames and volume[7]==0,volume
      assert volume[3]<=volume[2]<=volume[1] and volume[4]>=3*volume[3],volume
      report['volume_draw']=volume
+     volume_test=words(monitor,symbol('rf_scene_volume_test'),8)
+     assert volume_test==expected('VOLUME_TEST') and volume_test[6]==0,volume_test
+     if args.volume_test:
+      assert volume_test[:5]==[frames-90]*5 and volume[2]>=frames-90 and volume[3]>=frames-90,volume_test
+     report['volume_test']=volume_test
      glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
      assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
      assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances
@@ -753,6 +764,8 @@ finally:
  except Exception as capture_error:
   report['result']='FAIL';report['capture_error']=repr(capture_error)
  try:
+  if saved_volume is None:volume_flag.unlink(missing_ok=True)
+  else:volume_flag.write_bytes(saved_volume)
   if saved_loss is None:loss_flag.unlink(missing_ok=True)
   else:loss_flag.write_bytes(saved_loss)
   if saved_pair is None:pair_flag.unlink(missing_ok=True)

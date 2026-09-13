@@ -6827,6 +6827,7 @@ typedef struct scene_corona_context {
     uint32_t selected,color,bitmap;
 } scene_corona_context;
 uint32_t rf_scene_volume_draw[8]; /* frames, routines, submitted, polygons, vertices, hash, reserved, errors */
+uint32_t rf_scene_volume_test_enabled,rf_scene_volume_test[8];
 uint32_t rf_scene_corona_draw[8]; /* frames, marked, routines, polygons, vertices, hash, snapshot bytes, errors */
 static int scene_corona_color(void *context,uint32_t r,uint32_t g,uint32_t b,uint32_t a)
 {scene_corona_context *c=context;c->color=(r&255u)|((g&255u)<<8)|((b&255u)<<16)|((a&255u)<<24);return RF_OK;}
@@ -6928,12 +6929,14 @@ static int scene_volume_render(scene_corona_context *c,rf_glare_base_owner *owne
 int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
 {
     scene_stream *stream=particle_draw_stream;scene_particle_workspace *workspace;
+    rf_glare_base_owner fixture,*fixture_source=NULL;uint32_t fixture_hash=0;
     scene_corona_context c={0};uint32_t selected,bytes;
     uint32_t row[6]={0,0,0,0,0,2166136261u},room,i,j;int status;
     if(!stream || !stream->particle_workspace)return RF_OK;
     c.stream=stream;c.sink=sink;c.context=context;
     if(!stream->particle_frame){memset(rf_scene_corona_draw,0,sizeof(rf_scene_corona_draw));rf_scene_corona_draw[5]=2166136261u;
         memset(rf_scene_volume_draw,0,sizeof(rf_scene_volume_draw));rf_scene_volume_draw[5]=2166136261u;}
+    if(!stream->particle_frame)memset(rf_scene_volume_test,0,sizeof(rf_scene_volume_test));
     if(campaign_spawn && campaign_glare_rooms){status=scene_glare_snapshot(&c.snapshot,&selected,&bytes);if(status)goto done;}
     ++rf_scene_volume_draw[0];
     workspace=stream->particle_workspace;row[0]=stream->particle_frame;
@@ -6951,6 +6954,31 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
                 0x488b00,&stream->particle_camera.frustum,owner->position,workspace->records,2048,&count,&accepted);
             if(status)goto done;rf_scene_corona_draw[1]+=accepted;
         }
+        /* Opt-in real-resource fixture: borrow a copy of an owned glare. The
+         * authored owner, room membership and corona marks remain untouched. */
+        if(rf_scene_volume_test_enabled && stream->particle_frame>=90 && room==0 && campaign_glare_rooms) {
+            uint32_t cls,token=stream->visibility.state.order[room]+1,accepted,bitmap,visible;
+            ++rf_scene_volume_test[0];
+            for(cls=0;cls<campaign_glare_classes.count;++cls)
+                if(!strcmp(campaign_glare_classes.definitions[cls].name,"FighterEngine01"))break;
+            if(cls>=campaign_glare_materials.count){status=RF_NOT_FOUND;goto done;}
+            bitmap=campaign_glare_materials.bindings[cls][1];if(bitmap==UINT32_MAX){status=RF_NOT_FOUND;goto done;}
+            for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
+                status=scene_corona_parent(&c,campaign_glare_instances[i]->parent_handle,&visible);if(status)goto done;
+                if(visible){fixture_source=campaign_glare_instances[i];break;}
+            }
+            if(!fixture_source){status=RF_NOT_FOUND;goto done;}
+            memcpy(&fixture,fixture_source,sizeof(fixture));fixture_hash=npc_hash_bytes(2166136261u,fixture_source,sizeof(fixture));
+            fixture.state.class_index=(int32_t)cls;fixture.radius=2;fixture.flags&=~2u;fixture.state.word_2cc=0;
+            for(i=0;i<3;++i) {
+                fixture.position[i]=stream->particle_camera.view.origin[i]+stream->particle_camera.view.basis[6+i]*8-stream->particle_camera.view.basis[i];
+                fixture.matrix[6+i]=stream->particle_camera.view.basis[i];
+            }
+            ++rf_scene_volume_test[1];rf_scene_volume_test[7]=cls;
+            status=rf_glare_collect(&fixture,token,token,(int32_t)bitmap+1,0x488b01,&stream->particle_camera.frustum,
+                fixture.position,workspace->records,2048,&count,&accepted);if(status)goto done;
+            rf_scene_volume_test[2]+=accepted;
+        }
         for(i=0;i<count;i++) {
             memcpy(workspace->spheres[i].position,workspace->records[i].position,12);
             workspace->spheres[i].radius=workspace->records[i].radius;workspace->spheres[i].sorted=workspace->records[i].sorted;
@@ -6967,6 +6995,10 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
                     if(j>=RF_PARTICLE_CAPACITY || ++visited>RF_PARTICLE_CAPACITY){status=RF_RANGE;goto done;}
                     status=scene_particle_draw_one(stream,j,sink,context,row);if(status)goto done;
                 }
+            } else if(entry->callback==0x488b01 && fixture_source) {
+                ++rf_scene_volume_test[3];status=scene_volume_render(&c,&fixture);if(status)goto done;
+                if(npc_hash_bytes(2166136261u,fixture_source,sizeof(fixture))!=fixture_hash){status=RF_FORMAT;goto done;}
+                ++rf_scene_volume_test[4];rf_scene_volume_test[5]=rf_scene_volume_draw[5];
             } else if(entry->callback==0x488b00) {
                 rf_glare_base_owner *owner=rf_object_registry_lookup(&campaign_registry,entry->object);
                 if(!owner || owner->kind!=10){status=RF_RANGE;goto done;}
@@ -6978,6 +7010,7 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
     ++rf_scene_particle_draw_summary[0];for(i=1;i<5;i++)rf_scene_particle_draw_summary[i]+=row[i];
     rf_scene_particle_draw_summary[5]=(rf_scene_particle_draw_summary[5]^row[5])*16777619u;status=RF_OK;
 done:
+    if(status && rf_scene_volume_test_enabled)++rf_scene_volume_test[6];
     free(c.snapshot.objects);if(status)++rf_scene_volume_draw[7];return status;
 }
 int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)

@@ -148,6 +148,7 @@ int rf_scene_glare_visibility_pass(const float camera[3]);
 extern uint32_t rf_scene_glare_search[8];
 extern uint32_t rf_scene_corona_draw[8];
 extern uint32_t rf_scene_volume_draw[8];
+extern uint32_t rf_scene_volume_test_enabled,rf_scene_volume_test[8];
 extern uint32_t rf_scene_glare_rooms[8];
 extern uint32_t rf_scene_attachments[8];
 extern uint32_t rf_scene_glare_retirement[8];
