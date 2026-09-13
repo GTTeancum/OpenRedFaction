@@ -599,6 +599,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert contact_test==expected('NPC_CONTACT_SOUND_TEST') and contact_test[3]==0,contact_test
      if args.damage_uid==8456:assert contact_test[0]==4 and contact_audio[:3]==[3,1,1],(contact_test,contact_audio)
      report['npc_contact_sound_audio']=contact_audio;report['npc_contact_sound_test']=contact_test
+     driller_feedback=words(monitor,symbol('rf_scene_driller_feedback_test'),8)
+     assert driller_feedback==expected('DRILLER_FEEDBACK_TEST') and driller_feedback[7]==0,driller_feedback
+     if args.damage_uid==8456:assert driller_feedback==[4,3,2,2,2,122880,600,0],driller_feedback
+     report['driller_feedback']=driller_feedback
 
 
      assert death_animation==expected('DEATH_ANIMATION_TEST'),death_animation

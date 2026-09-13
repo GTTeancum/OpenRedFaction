@@ -395,6 +395,9 @@ extern uint32_t rf_scene_npc_contact_destroy_audio[12],rf_scene_npc_contact_dest
 /* Prepared4278e0 call: caller selects kind1 surface route and supplies contact position. */
 int rf_scene_npc_contact_sound(uint32_t handle,const float position[3],rf_random_state *random);
 extern uint32_t rf_scene_npc_contact_sound_audio[12],rf_scene_npc_contact_sound_test[4];
+/* Prepared post-damage Driller feedback; caller owns collision eligibility. */
+int rf_scene_npc_driller_feedback(uint32_t handle,int32_t now);
+extern uint32_t rf_scene_driller_feedback_test[8];
 extern uint32_t rf_scene_npc_impact_dispatch[6]; /* calls,suppressed,damage,sound,player lookup,errors */
 extern uint32_t rf_scene_npc_impact_test[4]; /* cases,health before/after,errors */
 

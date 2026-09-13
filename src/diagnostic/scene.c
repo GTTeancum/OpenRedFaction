@@ -401,6 +401,7 @@ static uint32_t campaign_force_class_flags,campaign_force_class_kind;
 static float campaign_force_air_limit;
 static rf_camera_effect_state campaign_camera_effect;
 static rf_screen_flash campaign_player_flash;
+static uint32_t campaign_player_contact_flags; /* Owned player10 bits13..16. */
 typedef struct campaign_player_damage_owner {
     rf_entity_damage_state state;
     float factors[11];uint32_t class_flags,object_flags;
@@ -4200,6 +4201,62 @@ int rf_scene_npc_contact_sound(uint32_t handle,const float position[3],rf_random
     if(!status)owner->contact_sound_voice=state.voice;else ++rf_scene_npc_contact_sound_audio[7];
     rf_scene_npc_contact_sound_audio[6]=random->value;return status;
 }
+uint32_t rf_scene_driller_feedback_test[8];
+typedef struct scene_driller_feedback_context {int32_t now;rf_entity_contact_player_actor actor;} scene_driller_feedback_context;
+static int scene_driller_player_lookup(void *context,uint32_t handle,const rf_entity_contact_player_actor **out)
+{
+    scene_driller_feedback_context *c=context;const rf_entity_view *view=rf_entity_lookup(&campaign_entities,(int32_t)handle);
+    ++rf_scene_driller_feedback_test[1];*out=NULL;
+    if(view==&campaign_player_view){c->actor.linked_handle=(uint32_t)view->linked_handle;c->actor.camera=handle;*out=&c->actor;}
+    return RF_OK;
+}
+static int scene_driller_player_shake(void *context,uint32_t camera,float strength,float duration)
+{scene_driller_feedback_context *c=context;++rf_scene_driller_feedback_test[2];return rf_scene_player_feedback(camera,strength,duration,c->now);}
+static int scene_driller_player_direction(void *context,const rf_entity_contact_player *player,const float *normal,uint32_t *direction)
+{
+    (void)context;++rf_scene_driller_feedback_test[3];
+    return rf_player_contact_direction(normal,rf_entity_lookup(&campaign_entities,(int32_t)player->entity_handle)==&campaign_player_view?scene_actor_body.state.orientation:NULL,direction);
+}
+static int scene_driller_player_mark(void *context,const rf_entity_contact_player *player,uint32_t direction)
+{
+    (void)context;++rf_scene_driller_feedback_test[4];
+    if(player->token!=(uint32_t)campaign_player_view.handle)return RF_NOT_FOUND;
+    rf_player_contact_mark(&campaign_player_contact_flags,direction);return RF_OK;
+}
+int rf_scene_npc_driller_feedback(uint32_t handle,int32_t now)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;
+    rf_entity_contact_driller_state state={0};scene_driller_feedback_context context={now,{0}};
+    rf_entity_contact_player player={(uint32_t)campaign_player_view.handle,(uint32_t)campaign_player_view.handle};
+    const rf_entity_contact_player *players[1]={&player};int32_t count=campaign_player_object.view?1:0;
+    rf_entity_contact_feedback_backend backend={&context,&count,1,players,scene_driller_player_lookup,scene_driller_player_shake,scene_driller_player_direction,scene_driller_player_mark};
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    state.handle=handle;memcpy(state.normal,owner->body.state.vector_138,12);
+    return rf_entity_contact_driller_feedback(&state,&backend);
+}
+static int campaign_driller_feedback_fixture(campaign_npc_body *owner)
+{
+    rf_camera_effect_state saved=campaign_camera_effect,expected;int32_t link=campaign_player_view.linked_handle;
+    uint32_t flags=campaign_player_contact_flags,direction;float normal[3];int status;
+    memcpy(normal,owner->body.state.vector_138,12);memset(rf_scene_driller_feedback_test,0,sizeof(rf_scene_driller_feedback_test));
+    status=rf_scene_npc_driller_feedback(owner->registration.handle^0x10000,100);
+    if(status!=RF_NOT_FOUND || memcmp(&saved,&campaign_camera_effect,sizeof(saved)))return RF_FORMAT;
+    ++rf_scene_driller_feedback_test[0];campaign_player_view.linked_handle=-1;
+    status=rf_scene_npc_driller_feedback(owner->registration.handle,100);
+    if(!status && (memcmp(&saved,&campaign_camera_effect,sizeof(saved)) || campaign_player_contact_flags!=flags))status=RF_FORMAT;
+    if(!status)++rf_scene_driller_feedback_test[0];campaign_player_view.linked_handle=(int32_t)owner->registration.handle;
+    owner->body.state.vector_138[0]=0;owner->body.state.vector_138[1]=1;owner->body.state.vector_138[2]=0;campaign_player_contact_flags=0;
+    expected=saved;if(!status)status=rf_camera_effect_start(&expected,.9950000047683716f,.5f,100);
+    if(!status)status=rf_scene_npc_driller_feedback(owner->registration.handle,100);
+    if(!status && (memcmp(&expected,&campaign_camera_effect,sizeof(expected)) || campaign_player_contact_flags!=(15u<<13)))status=RF_FORMAT;
+    if(!status)++rf_scene_driller_feedback_test[0];owner->body.state.vector_138[0]=1;owner->body.state.vector_138[1]=0;
+    if(!status)status=rf_player_contact_direction(owner->body.state.vector_138,scene_actor_body.state.orientation,&direction);
+    if(!status)status=rf_scene_npc_driller_feedback(owner->registration.handle,100);
+    if(!status && (campaign_player_contact_flags!=(15u<<13) || !direction))status=RF_FORMAT;
+    if(!status)++rf_scene_driller_feedback_test[0];else ++rf_scene_driller_feedback_test[7];
+    rf_scene_driller_feedback_test[5]=campaign_player_contact_flags;rf_scene_driller_feedback_test[6]=(uint32_t)campaign_camera_effect.deadline;
+    campaign_camera_effect=saved;campaign_player_view.linked_handle=link;campaign_player_contact_flags=flags;memcpy(owner->body.state.vector_138,normal,12);return status;
+}
 uint32_t rf_scene_npc_action_audio[9];
 int rf_scene_npc_death_sound(void *context,uint32_t handle,const char *name)
 {
@@ -4567,6 +4624,7 @@ static int campaign_npc_damage_fixture(void)
     }
     if(!status)status=campaign_contact_destroy_fixture(owner,&effects);
     if(!status)status=campaign_contact_sound_fixture(owner);
+    if(!status)status=campaign_driller_feedback_fixture(owner);
     return status?status:rf_scene_npc_damage_test_words[63]?RF_FORMAT:RF_OK;
 }
 
@@ -8008,13 +8066,14 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(&campaign_entities,0,sizeof(campaign_entities));memset(&campaign_player_view,0,sizeof(campaign_player_view));
             campaign_player_view.handle=-1;campaign_player_view.type=0;campaign_player_view.class_type=-1;
             campaign_player_view.flags_7c=8; /* Confirmed local-player object bit; full factory flags remain separate. */
+            campaign_player_contact_flags=0;
             campaign_player_view.linked_handle=-1;campaign_player_view.weapons[0]=campaign_player_view.weapons[1]=-1;
             campaign_player_view.action_520=-1;campaign_player_view.base_speed=rf_scene_actor_movement_values.speed;
             status=rf_entity_view_register(&campaign_registry,&campaign_entities,&campaign_player_view,&campaign_player_object);if(status)goto done;
             campaign_player_damage.state.effects.handle=campaign_player_object.handle;
             rf_scene_campaign_player[0]=campaign_player_object.handle;rf_scene_campaign_player[1]=campaign_player_object.object_kind;
             rf_scene_campaign_player[2]=campaign_player_view.flags_7c;
-            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object)+sizeof(campaign_player_flash)+sizeof(campaign_player_damage)+sizeof(campaign_player_pain_sound)+sizeof(campaign_player_geometry);
+            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object)+sizeof(campaign_player_flash)+sizeof(campaign_player_damage)+sizeof(campaign_player_pain_sound)+sizeof(campaign_player_geometry)+sizeof(campaign_player_contact_flags);
             memset(rf_scene_actor_body_sweeps,0,sizeof(rf_scene_actor_body_sweeps));
             memset(rf_scene_actor_ground_queries,0,sizeof(rf_scene_actor_ground_queries));
             memset(rf_scene_actor_ground_contacts,0,sizeof(rf_scene_actor_ground_contacts));

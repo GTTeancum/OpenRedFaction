@@ -81,7 +81,7 @@ Retained collision voice1478 and global Sub Hit playback pass four restored-stat
 Surface route gates match4170 original/PC/NXDK cases; reconstruct APC debris/damage, Driller damage/player feedback and timed-contact effects before full dispatch.
 Driller geometry/self-damage requests match1024 original/PC/NXDK cases; implement linked-player feedback and bind real geometry ownership.
 Player contact direction/flag accumulation match2048 original/PC/NXDK cases; compose with the Driller linked-player camera/feedback loop.
-Driller linked-player feedback ordering matches1024 original/PC/NXDK cases; bind retained player/actor/camera owners and compose after geometry/damage.
+Driller linked-player feedback binds retained player/camera/direction state and passes four PC/stock64MiB XEMU cases; compose after real geometry/damage and full contact scheduling.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.
