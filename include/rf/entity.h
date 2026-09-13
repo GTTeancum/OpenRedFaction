@@ -486,6 +486,31 @@ typedef struct rf_entity_pickup_gate_backend {
 int rf_entity_pickup_prepare_sp(const rf_entity_pickup_gate_state *state,
     const rf_entity_pickup_gate_backend *backend,uint32_t *player,uint32_t *eligible);
 
+/* Accepted459560 SP path. Handler/player are cached by the eligibility caller.
+ * Borrowed state stays alive through all services, including retirement. */
+typedef struct rf_entity_pickup_finish_state {
+    uint32_t actor_handle,item_handle,quantity;
+    int32_t respawn_delay,deadline;
+} rf_entity_pickup_finish_state;
+typedef struct rf_entity_pickup_finish_backend {
+    void *context;
+    const int32_t *now;
+    /* handler token (zero selects45a3d0), actor, item, quantity, result.
+     * Default handler adapter supplies three initial -1 output temporaries;
+     * their values are unused by the SP completion path. */
+    int (*grant)(void *,uint32_t,uint32_t,uint32_t,uint32_t,uint32_t *);
+    int (*npc_reaction)(void *,rf_entity_pickup_finish_state *);
+    int (*player_mark)(void *,rf_entity_pickup_finish_state *,uint32_t);
+    int (*retire)(void *,rf_entity_pickup_finish_state *);
+    int (*hide)(void *,rf_entity_pickup_finish_state *);
+    int (*sound)(void *,rf_entity_pickup_finish_state *);
+} rf_entity_pickup_finish_backend;
+/* Zero grant result accepts. Service errors preserve completed effects and do
+ * not publish completed. Timer uses delay and clock reread after hiding. */
+int rf_entity_pickup_finish_sp(rf_entity_pickup_finish_state *state,
+    uint32_t handler,uint32_t player,const rf_entity_pickup_finish_backend *backend,
+    uint32_t *completed);
+
 typedef struct rf_entity_contact_object_view {uint32_t handle,type;} rf_entity_contact_object_view;
 typedef struct rf_entity_contact_object_backend {
     void *context;

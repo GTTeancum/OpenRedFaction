@@ -2523,3 +2523,33 @@ int rf_entity_pickup_prepare_sp(const rf_entity_pickup_gate_state *state,
     accepted=1;
  done:*player=token;*eligible=accepted;return RF_OK;
 }
+
+int rf_entity_pickup_finish_sp(rf_entity_pickup_finish_state *state,
+    uint32_t handler,uint32_t player,const rf_entity_pickup_finish_backend *backend,
+    uint32_t *completed)
+{
+    uint32_t result;int status;
+    if(!state || !backend || !backend->grant || !completed)return RF_RANGE;
+    status=backend->grant(backend->context,handler,state->actor_handle,
+        state->item_handle,state->quantity,&result);if(status)return status;
+    if(result){*completed=0;return RF_OK;}
+    if(player) {
+        if(!backend->player_mark)return RF_RANGE;
+        status=backend->player_mark(backend->context,state,player);
+    } else {
+        if(!backend->npc_reaction)return RF_RANGE;
+        status=backend->npc_reaction(backend->context,state);
+    }
+    if(status)return status;
+    if(state->respawn_delay<0) {
+        if(!backend->retire)return RF_RANGE;
+        status=backend->retire(backend->context,state);if(status)return status;
+    } else if(state->respawn_delay>0) {
+        if(!backend->hide || !backend->now)return RF_RANGE;
+        status=backend->hide(backend->context,state);if(status)return status;
+        status=rf_timer_set(&state->deadline,*backend->now,state->respawn_delay);if(status)return status;
+    }
+    if(!backend->sound)return RF_RANGE;
+    status=backend->sound(backend->context,state);if(status)return status;
+    *completed=1;return RF_OK;
+}

@@ -163,10 +163,12 @@ static int ai_visibility_collision(void *context,uint32_t world,const float star
 #include "timed_contact_probe.h"
 #include "contact_dispatch_probe.h"
 #include "pickup_gate_probe.h"
+#include "pickup_finish_probe.h"
 #include "contact_sound_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--contact-sound"))return contact_sound_probe();
+    if(argc==2 && !strcmp(argv[1],"--pickup-finish"))return pickup_finish_probe();
     if(argc==2 && !strcmp(argv[1],"--pickup-gate"))return pickup_gate_probe();
     if(argc==2 && !strcmp(argv[1],"--contact-dispatch"))return contact_dispatch_probe();
     if(argc==2 && !strcmp(argv[1],"--timed-contact"))return timed_contact_probe();
