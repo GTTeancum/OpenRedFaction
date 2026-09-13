@@ -113,6 +113,7 @@ int rf_scene_npc_normal(const rf_geometry_collision_world *world,uint32_t handle
     const rf_scene_npc_stance_services *services);
 extern uint32_t rf_scene_npc_normal_test[4];
 extern uint32_t rf_scene_navigation[6];
+extern uint32_t rf_scene_navigation_workspace[4];
 extern uint32_t rf_scene_clutter[8];
 extern uint32_t rf_scene_clutter_render[8];
 extern uint32_t rf_scene_clutter_materials[8];

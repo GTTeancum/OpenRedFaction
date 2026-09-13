@@ -393,6 +393,8 @@ uint32_t rf_scene_actor_turn_enabled,rf_scene_actor_look_enabled,rf_scene_actor_
 static rf_look_pose actor_look;
 static rf_level_owned_regions campaign_regions;
 static rf_level_owned_navigation campaign_navigation;
+static rf_level_navigation_workspace campaign_navigation_workspace;
+uint32_t rf_scene_navigation_workspace[4]; /* globals, bytes, edges, layout hash */
 uint32_t rf_scene_navigation[6]; /* nodes, edges, tags, oriented, bytes, content hash */
 static rf_physics_force_collection campaign_forces;
 static uint32_t campaign_force_class_flags,campaign_force_class_kind;
@@ -2686,6 +2688,7 @@ static int campaign_navigation_open(const rf_level *level)
 {
     uint32_t i,hash=2166136261u;int status;
     memset(rf_scene_navigation,0,sizeof(rf_scene_navigation));
+    memset(rf_scene_navigation_workspace,0,sizeof(rf_scene_navigation_workspace));
     status=rf_level_owned_navigation_open(level,65536,&campaign_navigation);
     if(status==RF_NOT_FOUND)return RF_OK;
     if(status)return status;
@@ -2704,7 +2707,20 @@ static int campaign_navigation_open(const rf_level *level)
         hash=npc_hash_bytes(hash,node->tags,node->tag_count*4);
         hash=npc_hash_bytes(hash,ref->neighbors,ref->neighbor_count*4);
     }
-    rf_scene_navigation[5]=hash;return RF_OK;
+    rf_scene_navigation[5]=hash;
+    status=rf_level_navigation_workspace_open(&campaign_navigation,32768,&campaign_navigation_workspace);if(status)return status;
+    rf_scene_navigation_workspace[0]=campaign_navigation_workspace.count;
+    rf_scene_navigation_workspace[1]=campaign_navigation_workspace.allocated_bytes;hash=2166136261u;
+    for(i=0;i<campaign_navigation_workspace.count+2;++i){
+        const rf_entity_navigation_reference *ref=campaign_navigation_workspace.references+i;
+        const rf_entity_navigation_token_list *list=campaign_navigation_workspace.adjacency+i;
+        uint32_t fields[4]={ref->order_key,list->count,list->capacity,ref->candidate!=NULL};
+        if(ref->neighbors!=list->items || ref->neighbor_count!=list->count || ref->order_key!=i+1)return RF_FORMAT;
+        if(i<campaign_navigation.count && ref->candidate!=campaign_navigation.references[i].candidate)return RF_FORMAT;
+        rf_scene_navigation_workspace[2]+=list->count;hash=npc_hash_bytes(hash,fields,sizeof(fields));
+        hash=npc_hash_bytes(hash,list->items,list->count*4);
+    }
+    rf_scene_navigation_workspace[3]=hash;return RF_OK;
 }
 static void campaign_npc_materials_digest(void)
 {
@@ -7826,6 +7842,7 @@ done:
     rf_runtime_events_close(&campaign_events);
     rf_level_owned_ambient_close(&campaign_ambient);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);
+    rf_level_navigation_workspace_close(&campaign_navigation_workspace);
     rf_level_owned_navigation_close(&campaign_navigation);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);

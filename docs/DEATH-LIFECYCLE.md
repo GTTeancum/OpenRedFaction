@@ -10305,3 +10305,22 @@ allocation failure, nonempty destination, candidate borrowing, nonzero keys,
 ordered adjacency, spare-slot writes, scratch isolation and repeated close
 pass. Both builds and22 CTest checks pass. NXDK allocation is supplied in
 the verifier; scene lifetime binding and native XEMU validation remain open.
+
+
+Scene routing workspace lifetime and native validation (2026-09-13)
+
+Campaign navigation startup now opens a reusable workspace under32768
+bytes, checks borrowed candidates and mutable-list layout, and publishes
+node/byte/edge counts plus a deterministic layout hash. Teardown closes
+the workspace before its authored source. PC replay emits NAVIGATION_WORKSPACE;
+the native harness reads the actual guest symbol and compares it to PC
+and the independent allocation formula.
+
+Native replay-20260913-042502 passes180 frames on stock64MiB XEMU
+(base-memory67108864, plugged-memory0), L1S2 actor-pairs/volume fixture.
+Workspace[114,5752,274,910786009] matches PC exactly. Authored navigation
+remains[114,274,3,0,16632,1755704177]. All existing replay assertions pass
+and the harness restores/rebuilds the normal Xbox image successfully.
+PC build and22 CTest checks pass. Persistent NPC endpoint/route ownership
+and dispatch remain open; this run proves live workspace residency, not
+NPC path following. No new visual claim or screenshot.
