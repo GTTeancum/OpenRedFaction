@@ -58,6 +58,11 @@ typedef struct rf_visibility_portal {
     float rectangle[4];
 } rf_visibility_portal;
 typedef struct rf_visibility_plane {float normal[3],distance;uint32_t corner;} rf_visibility_plane;
+/*4d81d0: six prepared spotlight planes; reject when the selected minimum
+ * box-corner signed distance is greater than double -0.001. Plane construction
+ * and room traversal are separate. Finite inputs required; errors preserve out. */
+int rf_visibility_light_cone_box(const rf_visibility_plane planes[6],
+    const float minimum[3],const float maximum[3],uint32_t *visible);
 /* Plane constructors underlying 547b90/547b40, including 5398a0's minimum
  * distance box-corner selector. Normal-point preserves normal magnitude;
  * three-point normalizes (b-a) cross (c-b). Finite, nondegenerate point planes

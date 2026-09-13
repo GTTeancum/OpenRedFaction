@@ -806,3 +806,21 @@ Discard requested-address exports45d583 and45e373: Ghidra created entries
 inside instructions, producing invalid decompilation. They are not evidence
 for light removal or lookup semantics; recover proper function boundaries
 before using those sites.
+
+### Spotlight visibility box test (2026-09-13)
+
+rf_visibility_light_cone_box reconstructs4d81d0 with six prepared planes
+and539780 corner selectors. Dot products use original Z/Y/X order and
+add the plane distance without a float store before comparing to the
+double constant -0.001 at589d50. Any selected corner above that threshold
+rejects the box. This differs from portal classification at zero and from
+the radius-expanded box selection used by VFX light lists. Callers must
+supply the correct spotlight planes and selectors; they are not view planes.
+
+verify_light_cone_box.py runs actual4d81d0 and its corner/signed-distance
+callees without hooks. All4096 original/PC/NXDK cases match, including all
+eight selectors and neighboring floats around -0.001;1074 pass the test.
+Three invalid-input guards preserve output on PC/NXDK. Both builds and
+all24 CTests pass. Full4d86d0 also constructs spotlight planes, walks room
+geometry trees and marks dirty state. Those operations and4d8660 alternate
+view dispatch remain unbound; this change alone does not alter rendering.

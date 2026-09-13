@@ -3,6 +3,26 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_visibility_light_cone_box(const rf_visibility_plane planes[6],
+    const float minimum[3],const float maximum[3],uint32_t *visible)
+{
+    static const unsigned char high[8][3]={{1,1,0},{1,0,0},{0,0,0},{0,1,0},{1,1,1},{1,0,1},{0,0,1},{0,1,1}};
+    uint32_t i,j,value=1;
+    if(!planes || !minimum || !maximum || !visible)return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(minimum[j]) || !isfinite(maximum[j]) || minimum[j]>maximum[j])return RF_RANGE;
+    for(i=0;i<6;i++) {
+        float point[3];double distance;
+        if(planes[i].corner>=8 || !isfinite(planes[i].distance))return RF_RANGE;
+        for(j=0;j<3;j++) {
+            if(!isfinite(planes[i].normal[j]))return RF_RANGE;
+            point[j]=high[planes[i].corner][j]?maximum[j]:minimum[j];
+        }
+        distance=((double)point[2]*planes[i].normal[2]+(double)point[1]*planes[i].normal[1])+
+            (double)point[0]*planes[i].normal[0]+planes[i].distance;
+        if(distance> -0.001)value=0;
+    }
+    *visible=value;return RF_OK;
+}
 int rf_object_render_dispatch(uint32_t *flags,uint32_t kind,uint32_t model,
     const rf_object_render_backend *backend)
 {

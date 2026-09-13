@@ -107,6 +107,16 @@ static int segment_create_allocate(void *context,const rf_glare_create_descripto
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--light-cone-box")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        struct {float minimum[3],maximum[3];rf_visibility_plane planes[6];} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            uint32_t output[2]={0,0xa5a5a5a5};
+            output[0]=rf_visibility_light_cone_box(input.planes,input.minimum,input.maximum,output+1);
+            fwrite(output,sizeof(output),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--glare-segment-create")) {
         uint32_t in[4],out[45];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(in,sizeof(in),1,stdin)==1) {
