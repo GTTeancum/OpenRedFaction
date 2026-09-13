@@ -558,3 +558,39 @@ int rf_entity_materials_open(rf_entity_materials *m,const rf_entity_appearances 
     if(status)rf_entity_materials_close(&next);else *m=next;
     return status;
 }
+
+void rf_vfx_material_textures_close(rf_vfx_material_textures *m)
+{rf_glare_materials_close(m);}
+int rf_vfx_material_textures_open(rf_vfx_material_textures *m,const rf_vfx_material_view *views,
+    uint32_t count,rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{
+    rf_vfx_material_textures next={0},empty={0};uint64_t bytes;uint32_t i,j,slot;int status;
+    static const uint32_t offsets[3]={5,18,36};
+    if(!m || memcmp(m,&empty,sizeof(empty)) || (!views && count) || (!archives && archive_count))return RF_RANGE;
+    bytes=sizeof(next)+(uint64_t)count*(sizeof(*next.bindings)+3*sizeof(*next.textures));if(bytes>budget)return RF_RANGE;
+    if(count){next.storage=calloc(1,(size_t)(bytes-sizeof(next)));if(!next.storage)return RF_IO;next.bindings=next.storage;next.textures=(rf_level_particle_texture *)(next.bindings+count);}
+    next.count=count;next.resident_bytes=(uint32_t)bytes;
+    for(i=0;i<count;++i) {
+        if(views[i].bitmap_requests&~7u){status=RF_FORMAT;goto failed;}
+        for(j=0;j<3;++j) {
+            const char *name=(const char *)(views[i].words+offsets[j]);next.bindings[i][j]=UINT32_MAX;
+            if(!(views[i].bitmap_requests&(1u<<j)))continue;
+            if(!memchr(name,0,33)){status=RF_FORMAT;goto failed;}if(!*name)continue;
+            for(slot=0;slot<next.texture_count;++slot)if(equal_texture_name(name,next.textures[slot].name))break;
+            if(slot==next.texture_count){strcpy(next.textures[slot].name,name);++next.texture_count;}next.bindings[i][j]=slot;
+        }
+    }
+    for(i=0;i<next.texture_count;++i) {
+        rf_particle_definition definition={0};rf_particle_animation *animation=&next.textures[i].animation;
+        strcpy(definition.bitmap,next.textures[i].name);
+        status=rf_particle_animation_open(animation,&definition,archives,archive_count,budget-next.resident_bytes+(uint32_t)sizeof(*animation));
+        if(status==RF_NOT_FOUND) {
+            for(slot=0;slot<count;++slot)for(j=0;j<3;++j)if(next.bindings[slot][j]==i)next.bindings[slot][j]=UINT32_MAX;
+            continue;
+        }
+        if(status)goto failed;next.resident_bytes+=animation->resident_bytes-(uint32_t)sizeof(*animation);
+    }
+    *m=next;return RF_OK;
+failed:
+    rf_vfx_material_textures_close(&next);return status;
+}

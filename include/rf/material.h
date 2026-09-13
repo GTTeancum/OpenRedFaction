@@ -57,6 +57,18 @@ int rf_glare_materials_open(rf_glare_materials *materials,
     const rf_glare_definition *definitions,uint32_t count,rf_vpp *archives,
     uint32_t archive_count,uint32_t budget);
 void rf_glare_materials_close(rf_glare_materials *materials);
+/* VFX primary/secondary/glare requests use the same owned texture layout.
+ * Only bitmap_requests slots are resolved; original-map markers remain for
+ * runtime binding. Empty/missing requests map to UINT32_MAX as original-1.
+ * Corrupt/unsupported found images fail and roll back. Case-insensitive
+ * deduplication, first archive wins, all base frames retained. Budget includes
+ * owner, worst-case tables, descriptors and pixels; excludes decoder stack,
+ * allocator overhead and input material views. No clock or GPU binding.
+ * Empty destination required; failure preserves it; close is repeatable. */
+typedef rf_glare_materials rf_vfx_material_textures;
+int rf_vfx_material_textures_open(rf_vfx_material_textures *,const rf_vfx_material_view *,
+    uint32_t count,rf_vpp *archives,uint32_t archive_count,uint32_t budget);
+void rf_vfx_material_textures_close(rf_vfx_material_textures *);
 typedef struct rf_level_particle_binding {uint32_t uid,texture;} rf_level_particle_binding;
 typedef struct rf_level_particle_materials {
     void *storage;

@@ -533,3 +533,36 @@ Both builds and24 CTests pass. Evidence: artifacts/vfx-mesh-owned.json.
 Next: material/bitmap binding, normalized directional state, shared vertex/UV
 selection, interpolation and rendering; particles and warp objects remain
 required for complete VFX effects. No native XEMU run or new visual claimed.
+
+## Owned VFX texture bindings (2026-09-13)
+
+rf_vfx_material_textures_open consumes decoded material bitmap_requests,
+producing primary/secondary/glare slot mappings and case-insensitively shared
+all-frame texture owners through the existing particle animation/image loader.
+Only requested slots resolve; original-map markers remain for runtime binding.
+Empty/missing requests map to UINT32_MAX, preserving the original bitmap-1
+result. Missing named slots remain recorded with empty animation owners.
+Found corrupt/unsupported resources fail the load and release partial owners.
+First matching archive wins. Views and archives can be released after success.
+The budget covers owner, worst-case binding/name slots, image descriptors and
+pixels, excluding caller views, decoder stack and allocator overhead.
+
+verify_vfx_textures.py reconstructs20 authored material views from the seven
+projectile VFX files. Their16 distinct textures all exist in maps1..maps4.vpp,
+and all16 are single-frame assets. Bindings and every pixel hash match
+independent archive image loads after source/archive retirement. Total
+residency356344 bytes includes tables and image descriptors. Exact/short
+budgets, missing archives, case-insensitive sharing and malformed views pass.
+This texture storage is a port ownership policy, not original bitmap IDs.
+
+verify_vfx_textures_nxdk.py executes compiled material/animation ownership
+with zero archives and supplied calloc/free:5 PC/NXDK comparisons cover
+missing slots, empty input, budgets and invalid views; one injected allocation
+failure and repeated close also pass. Actual image decoding was checked on
+PC here; this is not a native Xbox texture or GPU verification. Both builds
+and24 CTests pass. Reports: artifacts/vfx-textures.json and
+artifacts/vfx-textures-nxdk.json.
+
+Next: compose definition/material/mesh lifetimes, normalize direction, bind
+frame/key interpolation and renderer submission, then native XEMU evidence.
+Particles/warp objects remain necessary for complete projectile effects.

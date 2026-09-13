@@ -15,6 +15,33 @@ int main(int argc, char **argv)
     rf_materials materials;
     uint32_t count, i;
     int result;
+    if(argc>=4 && argc<=19 && !strcmp(argv[1],"--vfx-textures")) {
+        rf_vfx_material_view *views;uint32_t n;rf_vfx_material_textures bundle={0},empty={0};uint32_t j,k,f;
+        _setmode(_fileno(stdin),_O_BINARY);
+        if(fread(&n,4,1,stdin)!=1 || n>4096)return 2;views=malloc(n*sizeof(*views));
+        if(n && (!views || fread(views,sizeof(*views),n,stdin)!=n)){free(views);return 2;}
+        count=(uint32_t)argc-3;
+        for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+3])){while(i)rf_vpp_close(archives+--i);free(views);return 2;}
+        result=rf_vfx_material_textures_open(&bundle,views,n,archives,count,(uint32_t)strtoul(argv[2],NULL,10));
+        free(views);for(i=0;i<count;++i)rf_vpp_close(archives+i);
+        printf("%d %u %u %u\n",result,bundle.count,bundle.texture_count,bundle.resident_bytes);
+        if(result){if(memcmp(&bundle,&empty,sizeof(bundle)))return 3;return 0;}
+        for(i=0;i<bundle.count;++i)printf("B %u %u %u\n",bundle.bindings[i][0],bundle.bindings[i][1],bundle.bindings[i][2]);
+        for(i=0;i<bundle.texture_count;++i) {
+            rf_particle_animation *animation=&bundle.textures[i].animation;
+            printf("T %s %u %u %u %u\n",bundle.textures[i].name,animation->count,animation->rate,animation->archive_index,animation->resident_bytes);
+            for(f=0;f<animation->count;++f) {
+                rf_image *image=animation->images+f;uint32_t hash=2166136261u;
+                for(j=0;j<image->height;++j)for(k=0;k<image->width;++k) {
+                    unsigned char *pixel=rf_image_pixel(image,k,j);uint32_t b;
+                    for(b=0;b<(rf_image_is_packed_1555(image)?2u:4u);++b)hash=(hash^pixel[b])*16777619u;
+                }
+                printf("F %u %u %u\n",image->width,image->height,hash);
+            }
+        }
+        rf_vfx_material_textures_close(&bundle);rf_vfx_material_textures_close(&bundle);
+        return memcmp(&bundle,&empty,sizeof(bundle))?3:0;
+    }
     if(argc>=5 && argc<=20 && !strcmp(argv[1],"--glare-materials")) {
         rf_glare_classes classes={0};rf_glare_materials bundle={0},empty={0};uint32_t j,k,f;
         if(rf_vpp_open(&level_archive,argv[2]))return 2;
