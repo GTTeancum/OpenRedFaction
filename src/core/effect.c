@@ -1778,3 +1778,25 @@ int rf_vfx_face_prepare(const rf_vfx_face_input *input,rf_vfx_face_output *out)
     }
     *out=value;return RF_OK;
 }
+
+int rf_vfx_world_face(const rf_visibility_camera *camera,const float vertices[9],int32_t material,rf_vfx_face_output *out)
+{
+    rf_vfx_face_input input={0};const rf_visibility_projection *view;float delta[3],position[3];unsigned i,j;
+    if(!camera || !vertices || !out)return RF_RANGE;
+    view=&camera->projection;
+    if(!isfinite(view->flat_depth) || !isfinite(view->clip.far_distance))return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(view->matrix[i]) || !isfinite(vertices[i]))return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(view->origin[i]))return RF_FORMAT;
+    memcpy(input.vertices,vertices,36);memcpy(input.origin,view->origin,12);memcpy(input.forward,view->matrix+6,12);
+    input.perspective=(view->perspective&255u)!=0;input.material=material;
+    for(i=0;i<3;++i) {
+        for(j=0;j<3;++j)delta[j]=(float)((double)vertices[i*3+j]-view->origin[j]);
+        for(j=0;j<3;++j) {
+            position[j]=(float)(((double)view->matrix[j*3]*delta[0]+(double)view->matrix[j*3+1]*delta[1])+(double)view->matrix[j*3+2]*delta[2]);
+            if(!isfinite(position[j]))return RF_RANGE;
+        }
+        if(!input.perspective)position[2]=view->flat_depth;
+        input.depth[i]=position[2];input.clip[i]=particle_clip_code(&view->clip,position);
+    }
+    return rf_vfx_face_prepare(&input,out);
+}

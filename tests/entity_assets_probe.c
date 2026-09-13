@@ -1,4 +1,5 @@
 #include "rf/entity_assets.h"
+#include "rf/visibility.h"
 #include "rf/audio.h"
 #include "rf/glare.h"
 #include <stdlib.h>
@@ -169,6 +170,15 @@ int main(int argc,char **argv)
         while(fread(&input,sizeof(input),1,stdin)==1) {
             memset(&out,0xa5,sizeof(out));status=rf_vfx_face_prepare(&input,&out);
             fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--vfx-world-face")) {
+        rf_visibility_camera camera;float vertices[9];int32_t material,status;rf_vfx_face_output out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&camera,sizeof(camera),1,stdin)==1) {
+            if(fread(vertices,36,1,stdin)!=1 || fread(&material,4,1,stdin)!=1)return 2;
+            memset(&out,0xa5,sizeof(out));status=rf_vfx_world_face(&camera,vertices,material,&out);fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
         }
         return ferror(stdin)?1:0;
     }

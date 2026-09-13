@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+World-space VFX face preparation matches2048 original/PC/NXDK cases
+with real projection/clip code generation:1232 rejected,816 visible.
+Bind persistent geometry/cache/list ownership and lighting/material draws;
+both builds and24 tests pass, native VFX playback remains unverified.
+
 Composed VFX face preparation matches2048 original/PC/NXDK cases:
 758 clip rejects,651 back faces,639 visible;2 guards and24 tests pass.
 Connect original projection/cache ownership and persistent face lists to

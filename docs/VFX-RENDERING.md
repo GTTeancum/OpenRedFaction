@@ -98,3 +98,11 @@ use preprojected cached vertices with no hooks:758 clip rejects,651 back
 faces,639 visible. The original real normal/facing/depth code runs.
 Two malformed input guards preserve output. Projection itself, cache lifetime,
 edge-cache mutation, persistent face lists and draw calls remain external.
+
+rf_vfx_world_face composes518bf0 view transforms/clip codes with face
+preparation.2048 complete original554a80 runs start with an empty projection
+cache and execute real518360/518bf0, normal, facing and depth code with no
+hooks:1232 rejected,816 visible. Camera origins/matrices, perspective/flat,
+clipping and far-plane modes vary. Flat-facing direction comes from the
+scaled projection matrix third row, matching global18186e0. The helper does
+not yet retain projected vertices for sharing across faces or submit draws.

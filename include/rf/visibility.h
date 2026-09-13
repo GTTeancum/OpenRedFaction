@@ -114,6 +114,9 @@ typedef struct rf_visibility_camera_parameters {
 typedef struct rf_visibility_camera {
     rf_visibility_view view;rf_visibility_frustum frustum;rf_visibility_projection projection;
 } rf_visibility_camera;
+/*554a80 with518360 camera transform and clip codes. Cached storage remains
+ * caller-owned; no material submission or projection to screen pixels. */
+int rf_vfx_world_face(const rf_visibility_camera *,const float vertices[9],int32_t material,rf_vfx_face_output *out);
 /* Shared composition of verified 547150/546a40 math. Keeps an unscaled camera
  * basis and scales a copy's rows for 518bf0. Caller supplies clip/clamp/depth
  * state not assigned by 547150. No rendering globals, allocation or graphics
