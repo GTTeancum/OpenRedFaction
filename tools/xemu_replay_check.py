@@ -607,6 +607,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert contact_splashes==expected('CONTACT_SPLASH_ASSETS'),contact_splashes
      assert contact_splashes[:2]==[43,44] and contact_splashes[4]==1016 and contact_splashes[6:]==[1,1],contact_splashes
      report['contact_splash_assets']=contact_splashes
+     contact_dispatch=words(monitor,symbol('rf_scene_contact_dispatch_test'),4)
+     assert contact_dispatch==expected('CONTACT_DISPATCH_TEST') and contact_dispatch[3]==0,contact_dispatch
+     if args.damage_uid==8456:assert contact_dispatch==[4,3,305419896,0],contact_dispatch
+     report['contact_dispatch']=contact_dispatch
 
 
      assert death_animation==expected('DEATH_ANIMATION_TEST'),death_animation

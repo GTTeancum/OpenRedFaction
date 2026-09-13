@@ -4219,6 +4219,50 @@ int rf_scene_npc_contact_sound(uint32_t handle,const float position[3],rf_random
     if(!status)owner->contact_sound_voice=state.voice;else ++rf_scene_npc_contact_sound_audio[7];
     rf_scene_npc_contact_sound_audio[6]=random->value;return status;
 }
+uint32_t rf_scene_contact_dispatch_test[4]; /* cases,route,target,errors */
+int rf_scene_npc_contact_dispatch(uint32_t handle,const rf_entity_contact_dispatch_backend *backend,uint32_t *decision)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;rf_collision_actor_contact contact;
+    rf_entity_contact_dispatch_state state;uint32_t cls,slot;int status;
+    if(!decision)return RF_RANGE;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    status=rf_collision_contact_read(&owner->body.state,&owner->collision_contact,&contact);if(status)return status;
+    slot=(uint32_t)(owner-campaign_npc_bodies);
+    state.special_contact=contact.reserved_1ec;state.target=contact.handle;state.inverse_mass=contact.inverse_mass;
+    state.surface.class_flags=campaign_seeds.classes[cls].physics.flags;
+    state.surface.use_kind=campaign_seeds.classes[cls].physics.use_kind;state.surface.material=contact.material;
+    state.surface.speed=owner->movement.speed;memcpy(state.surface.velocity,owner->body.state.velocity,12);
+    memcpy(state.surface.forward,campaign_model_owners[slot].basis+6,12);memcpy(state.surface.normal,contact.normal,12);
+    return rf_entity_contact_dispatch(&state,&owner->view,backend,decision);
+}
+static int scene_dispatch_fixture_timed(void *context){(void)context;rf_scene_contact_dispatch_test[1]=9;return RF_IO;}
+static int scene_dispatch_fixture_surface(void *context,uint32_t route){(void)context;rf_scene_contact_dispatch_test[1]=route;return RF_OK;}
+static int scene_dispatch_fixture_lookup(void *context,uint32_t handle,const rf_entity_contact_object_view **out)
+{(void)context;rf_scene_contact_dispatch_test[2]=handle;*out=NULL;return RF_OK;}
+static int campaign_contact_dispatch_fixture(campaign_npc_body *owner)
+{
+    campaign_npc_body saved=*owner;uint32_t cls=campaign_seeds.items[(uint32_t)(owner-campaign_npc_bodies)].class_index;
+    uint32_t saved_flags=campaign_seeds.classes[cls].physics.flags,saved_kind=campaign_seeds.classes[cls].physics.use_kind,decision=0xa5a5a5a5u;
+    rf_collision_actor_contact contact={0};rf_entity_contact_object_backend objects={NULL,scene_dispatch_fixture_lookup,NULL,NULL,NULL};
+    rf_entity_contact_dispatch_backend backend={NULL,scene_dispatch_fixture_timed,scene_dispatch_fixture_surface,&objects};int status;
+    memset(rf_scene_contact_dispatch_test,0,sizeof(rf_scene_contact_dispatch_test));
+    status=rf_scene_npc_contact_dispatch(owner->registration.handle^0x10000,&backend,&decision);
+    if(status!=RF_NOT_FOUND || decision!=0xa5a5a5a5u)return RF_FORMAT;
+    ++rf_scene_contact_dispatch_test[0];contact.time=.5f;contact.reserved_1ec=1;contact.inverse_mass=1;contact.handle=0x12345678u;
+    status=rf_scene_npc_collision_publish(owner->registration.handle,owner->body.state.flags,&contact);
+    if(!status){status=rf_scene_npc_contact_dispatch(owner->registration.handle,&backend,&decision);if(status==RF_IO && decision==0xa5a5a5a5u && rf_scene_contact_dispatch_test[1]==9){status=RF_OK;++rf_scene_contact_dispatch_test[0];}else status=RF_FORMAT;}
+    contact.reserved_1ec=0;if(!status)status=rf_scene_npc_collision_publish(owner->registration.handle,owner->body.state.flags,&contact);
+    if(!status)status=rf_scene_npc_contact_dispatch(owner->registration.handle,&backend,&decision);
+    if(!status && (decision!=2 || rf_scene_contact_dispatch_test[2]!=contact.handle))status=RF_FORMAT;
+    if(!status)++rf_scene_contact_dispatch_test[0];contact.inverse_mass=0;
+    campaign_seeds.classes[cls].physics.flags=0x400;campaign_seeds.classes[cls].physics.use_kind=0;
+    contact.material=8;contact.normal[0]=-1;owner->body.state.velocity[0]=4;owner->body.state.velocity[1]=owner->body.state.velocity[2]=0;
+    if(!status)status=rf_scene_npc_collision_publish(owner->registration.handle,owner->body.state.flags,&contact);
+    if(!status)status=rf_scene_npc_contact_dispatch(owner->registration.handle,&backend,&decision);
+    if(!status && (decision!=2 || rf_scene_contact_dispatch_test[1]!=RF_CONTACT_SURFACE_DRILLER))status=RF_FORMAT;
+    if(!status)++rf_scene_contact_dispatch_test[0];else ++rf_scene_contact_dispatch_test[3];
+    *owner=saved;campaign_seeds.classes[cls].physics.flags=saved_flags;campaign_seeds.classes[cls].physics.use_kind=saved_kind;return status;
+}
 uint32_t rf_scene_driller_feedback_test[8];
 typedef struct scene_driller_feedback_context {int32_t now;rf_entity_contact_player_actor actor;} scene_driller_feedback_context;
 static int scene_driller_player_lookup(void *context,uint32_t handle,const rf_entity_contact_player_actor **out)
@@ -4643,6 +4687,7 @@ static int campaign_npc_damage_fixture(void)
     if(!status)status=campaign_contact_destroy_fixture(owner,&effects);
     if(!status)status=campaign_contact_sound_fixture(owner);
     if(!status)status=campaign_driller_feedback_fixture(owner);
+    if(!status)status=campaign_contact_dispatch_fixture(owner);
     return status?status:rf_scene_npc_damage_test_words[63]?RF_FORMAT:RF_OK;
 }
 
