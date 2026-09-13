@@ -25,7 +25,8 @@ Bind authored dynamic parenting and turret ownership; extend retirement with fut
 
 Volume opacity/beam geometry match original/PC/NXDK; original mode is06110c42.
 Volume projection/clipping matches1024 original/PC/NXDK polygons.
-Connect GPU state, actor gates and sorted-queue drawing.
+Projected animated volume beam passes2048 PC/XEMU pixel checks;84 pages recover.
+Connect actor gates and sorted-queue volume drawing.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.

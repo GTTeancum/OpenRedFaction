@@ -9249,3 +9249,22 @@ Full beam projection/clipping (2026-09-13)
  degenerate beams, flat/perspective projection and near/far/clamp settings
  covered. Both builds and22 CTest checks PASS. GPU mode06110c42, actor
  gates and sorted scene integration remain open; no native visual claim.
+
+
+Native animated volume beam pixels (2026-09-13)
+----------------------------------------------
+ Mode06110c42 is already RF_PARTICLE_GLOW_MODE in both backends. No mode
+ extension was needed: source-alpha additive, depth test/no depth write,
+ texture clamp and no fog were already implemented/tested for particles.
+ New volume_pixel_fixture.h projects an actual world beam through camera
+ setup, rf_volume_beam_project and vertex encoding. Native/PC fixtures load
+ thruster02_vol.vbm from maps3.vpp:21 frames,15 FPS,344504 retained bytes
+ (20-byte owner,21 image records of20 bytes,21 RGBA frames of16384 bytes).
+ Sample2048 pixels over8 times with frames0,0,1,2,3,4,5,10; seven distinct
+ images and repeated frame0 agree. Native particle-pixels-20260913-001701
+ PASS; maximum PC/GPU channel difference1, available pages14036->13952
+ ->14036. Both builds and22 CTest checks PASS. Initial fixture attempts
+ corrected the corona archive/frame-count assumptions and owner-size sum
+ using actual asset/header and runtime evidence before the passing run.
+ This validates projected animated beam GPU output, not live authored volume
+ placement or sorted-queue integration. No new campaign screenshot yet.

@@ -1,3 +1,4 @@
+#include "../../../tests/volume_pixel_fixture.h"
 #include "../../../tests/corona_animation_fixture.h"
 #include "../../../tests/corona_pixel_fixture.h"
 #include "../../../tests/particle_stretch_fixture.h"
@@ -454,6 +455,34 @@ static int flash_pixel_test(void)
     }
     rf_flash_pixel_diagnostic[1]=2;return RF_OK;
 }
+uint32_t rf_volume_animation_diagnostic[2064];
+static int volume_animation_test(void)
+{
+    rf_vpp archive;rf_particle_definition definition={0};rf_particle_animation animation={0};
+    rf_particle_draw_vertex v[12];uint32_t i,x,y,count;int32_t frame;int status;MM_STATISTICS statistics={0};
+    statistics.Length=sizeof(statistics);rf_volume_animation_diagnostic[0]=0x52465641;
+    status=rf_vpp_open(&archive,"D:\\maps3.vpp");if(status)return status;
+    strcpy(definition.bitmap,"thruster02_vol.vbm");
+    status=rf_particle_animation_open(&animation,&definition,&archive,1,1048576);
+    if(status){rf_vpp_close(&archive);return status;}rf_particle_animation_close(&animation);
+    if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_volume_animation_diagnostic[5]=statistics.AvailablePages;
+    status=rf_particle_animation_open(&animation,&definition,&archive,1,1048576);rf_vpp_close(&archive);if(status)return status;
+    if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_volume_animation_diagnostic[6]=statistics.AvailablePages;
+    rf_volume_animation_diagnostic[2]=animation.count;rf_volume_animation_diagnostic[3]=animation.rate;
+    rf_volume_animation_diagnostic[4]=animation.resident_bytes;status=volume_pixel_fixture(v,&count);if(status){rf_particle_animation_close(&animation);return status;}
+    for(i=0;i<8;++i){
+        status=rf_bitmap_animation_frame(corona_animation_times[i],0,animation.rate,animation.count,1,&frame);
+        if(status || frame<0 || (uint32_t)frame>=animation.count){status=RF_RANGE;break;}
+        rf_volume_animation_diagnostic[8+i]=(uint32_t)frame;
+        pb_erase_depth_stencil_buffer(0,0,640,480);pb_fill(0,0,640,480,0xff204060);while(pb_busy()) {}
+        status=rf_xbox_particle_draw(v,count,animation.images+frame,RF_PARTICLE_GLOW_MODE,1,0,1,0xff00);if(status)break;
+        for(y=0;y<16;++y)for(x=0;x<16;++x)rf_volume_animation_diagnostic[16+i*256+y*16+x]=
+            *(volatile uint32_t *)((unsigned char *)pb_back_buffer()+(217+y*3)*pb_back_buffer_pitch()+(252+x*9)*4);
+    }
+    rf_particle_animation_close(&animation);
+    if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_volume_animation_diagnostic[7]=statistics.AvailablePages;
+    rf_volume_animation_diagnostic[1]=status?1:2;return status;
+}
 uint32_t rf_corona_animation_diagnostic[2064];
 static int corona_animation_test(void)
 {
@@ -577,6 +606,7 @@ failed:
     if(!status)status=flash_pixel_test();
     if(!status)status=corona_pixel_test();
     if(!status)status=corona_animation_test();
+    if(!status)status=volume_animation_test();
     rf_particle_pixel_diagnostic[1]=status?0x80000000u|(uint32_t)(-status):2;
 
 }

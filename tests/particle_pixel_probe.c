@@ -1,3 +1,4 @@
+#include "volume_pixel_fixture.h"
 #include "corona_animation_fixture.h"
 #include "corona_pixel_fixture.h"
 #include "particle_stretch_fixture.h"
@@ -116,6 +117,24 @@ static int flash_test(void)
     }
     rf_pc_raster_close(&r);return 0;
 }
+static int volume_animation_test(const char *path)
+{
+    rf_pc_raster r={0};rf_vpp archive;rf_particle_definition definition={0};rf_particle_animation animation={0};
+    rf_particle_draw_vertex v[12];uint32_t i,j,x,y,count;int32_t frame;int status;
+    static const int32_t expected[8]={0,0,1,2,3,4,5,10};
+    if(rf_pc_raster_open(&r,1) || rf_vpp_open(&archive,path))return 1;
+    strcpy(definition.bitmap,"thruster02_vol.vbm");status=rf_particle_animation_open(&animation,&definition,&archive,1,1048576);
+    rf_vpp_close(&archive);if(status)return 2;if(volume_pixel_fixture(v,&count))return 2;
+    for(i=0;i<8;++i){
+        status=rf_bitmap_animation_frame(corona_animation_times[i],0,animation.rate,animation.count,1,&frame);
+        if(status || frame!=expected[i])return 3;
+        for(j=0;j<r.pixels;++j){r.rgb[j*3]=32;r.rgb[j*3+1]=64;r.rgb[j*3+2]=96;r.depth[j]=16777215;}
+        if(rf_pc_raster_particle(&r,v,count,animation.images+frame,RF_PARTICLE_GLOW_MODE,1,0,1,0xff00))return 4;
+        printf("%d\n",frame);
+        for(y=0;y<16;++y)for(x=0;x<16;++x){j=((217+y*3)*r.width+252+x*9)*3;printf("%u %u %u\n",r.rgb[j],r.rgb[j+1],r.rgb[j+2]);}
+    }
+    rf_particle_animation_close(&animation);rf_pc_raster_close(&r);return 0;
+}
 static int corona_animation_test(const char *path)
 {
     rf_pc_raster r={0};rf_vpp archive;rf_particle_definition definition={0};rf_particle_animation animation={0};
@@ -161,6 +180,7 @@ int main(int argc,char **argv)
     if(argc==3 && !strcmp(argv[1],"--corpse-texture"))return corpse_texture_test(argv[2],0);
     if(argc==2 && !strcmp(argv[1],"--packed-lightmap-samples"))return packed_lightmap_test(1);
     if(argc==2 && !strcmp(argv[1],"--packed-lightmap"))return packed_lightmap_test(0);
+    if(argc==3 && !strcmp(argv[1],"--volume-animation"))return volume_animation_test(argv[2]);
     if(argc==3 && !strcmp(argv[1],"--corona-animation"))return corona_animation_test(argv[2]);
     if(argc==2 && !strcmp(argv[1],"--corona"))return corona_test();
     if(argc==2 && !strcmp(argv[1],"--flash"))return flash_test();
