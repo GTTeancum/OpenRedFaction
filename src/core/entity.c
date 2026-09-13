@@ -2501,3 +2501,25 @@ int rf_entity_contact_dispatch(const rf_entity_contact_dispatch_state *state,
     }
     *decision=2;return RF_OK;
 }
+
+int rf_entity_pickup_prepare_sp(const rf_entity_pickup_gate_state *state,
+    const rf_entity_pickup_gate_backend *backend,uint32_t *player,uint32_t *eligible)
+{
+    uint32_t token=0,accepted=0,blocked;int32_t kind;int status;
+    if(!state || !player || !eligible || player==eligible)return RF_RANGE;
+    if(state->item_flags&1u)goto done;
+    if(!backend || !backend->linked_kind)return RF_RANGE;
+    status=backend->linked_kind(backend->context,state->linked_handle,&kind);if(status)return status;
+    if(kind==1)goto done;
+    status=backend->linked_kind(backend->context,state->linked_handle,&kind);if(status)return status;
+    if(kind==4 || (state->actor_flags&1u))goto done;
+    if(!backend->player)return RF_RANGE;
+    status=backend->player(backend->context,state->actor_handle,&token);if(status)return status;
+    if((state->check_visibility&255u)==1) {
+        if(!backend->occluded)return RF_RANGE;
+        status=backend->occluded(backend->context,state->item_position,state->actor_eye,&blocked);if(status)return status;
+        if((blocked&255u)==1)goto done;
+    }
+    accepted=1;
+ done:*player=token;*eligible=accepted;return RF_OK;
+}

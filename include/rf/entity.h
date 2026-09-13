@@ -470,6 +470,22 @@ typedef struct rf_entity_contact_sound_backend {
  * callback effects survive errors, but voice is written only after success. */
 int rf_entity_contact_sound(rf_entity_contact_sound_state *state,const float position[3],
     const rf_entity_contact_sound_backend *backend);
+typedef struct rf_entity_pickup_gate_state {
+    uint32_t item_flags,actor_flags,actor_handle,linked_handle,check_visibility;
+    float item_position[3],actor_eye[3];
+} rf_entity_pickup_gate_state;
+typedef struct rf_entity_pickup_gate_backend {
+    void *context;
+    int (*linked_kind)(void *,uint32_t,int32_t *); /* missing actor ->-1 */
+    int (*player)(void *,uint32_t,uint32_t *);
+    /*498e80(item position,actor eye,1,0); only low byte exactly1 blocks. */
+    int (*occluded)(void *,const float *,const float *,uint32_t *);
+} rf_entity_pickup_gate_backend;
+/*459560 SP prefix through45977c. On success publish player token and handler
+ * eligibility; on backend error preserve both. No grant, item lifetime or MP. */
+int rf_entity_pickup_prepare_sp(const rf_entity_pickup_gate_state *state,
+    const rf_entity_pickup_gate_backend *backend,uint32_t *player,uint32_t *eligible);
+
 typedef struct rf_entity_contact_object_view {uint32_t handle,type;} rf_entity_contact_object_view;
 typedef struct rf_entity_contact_object_backend {
     void *context;
