@@ -158,6 +158,19 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
     return RF_OK;
 }
 
+int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_count,rf_lightmap_mapping *out)
+{
+    const unsigned char *p=record;rf_lightmap_mapping value;
+    if(!record || bytes!=96 || !image_count || image_count>INT32_MAX || !out)return RF_RANGE;
+    value.image=u32(p);if(value.image>=image_count || value.image>INT32_MAX)value.image=0;
+    value.x=p[4];value.y=p[5];value.width=p[6];value.height=p[7];
+    memcpy(value.density,p+8,8);memcpy(value.minimum,p+16,24);memcpy(value.plane,p+40,16);
+    value.special=u32(p+56)!=0;value.inhibit=u32(p+60)!=0;
+    value.normal_axis=u32(p+64);value.u_axis=u32(p+68);value.v_axis=u32(p+72);
+    memcpy(value.scale,p+84,8);memcpy(value.offset,p+76,8);memcpy(&value.room,p+92,4);
+    *out=value;return RF_OK;
+}
+
 int rf_lightmap_sample_position(const rf_lightmap_sample_plane *view,uint32_t x,uint32_t y,float point[3])
 {
     float uv[2],value[3],step[2],inverse[2];uint32_t coordinates[2],i,a,b,v;

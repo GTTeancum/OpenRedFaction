@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Complete mapping decoding matches2048 original/PC/NXDK records; PC inventory
+passes301871 static mappings across94 levels. L1S1 uses4324 special mappings
+of5851, so prioritize special polygon sampling before native lighting binding.
+Both builds and24 tests pass; decoded L1S1 metadata alone would add631908 bytes.
+
 Ordinary lightmap sampling plus softened/masked accumulation now matches512
 complete original/PC/NXDK grids (10368 samples); both builds and24 tests pass.
 Bind retained mapping/RGB owners, mask generation and native texture updates;

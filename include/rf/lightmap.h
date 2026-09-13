@@ -37,6 +37,16 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
  * input preserves output. No allocation; input/output may alias. */
 int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3]);
 
+typedef struct rf_lightmap_mapping {
+    uint32_t image,x,y,width,height;float density[2],minimum[3],maximum[3],plane[4];
+    uint32_t special,inhibit,normal_axis,u_axis,v_axis;float scale[2],offset[2];int32_t room;
+} rf_lightmap_mapping;
+/* Version18096-byte record through4ee2db..4ee51d. Resolve out-of-range image
+ * IDs to0 against a nonempty image table; normalize two saved boolean words.
+ * Other fields retain their original bits; sampling validates usable geometry.
+ * No allocation; errors preserve output. Not image/dirty-state ownership. */
+int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_count,rf_lightmap_mapping *);
+
 typedef struct rf_lightmap_sample_plane {
     uint32_t image_width,image_height,x,y;
     float scale[2],offset[2],plane[4];uint32_t normal_axis,u_axis;

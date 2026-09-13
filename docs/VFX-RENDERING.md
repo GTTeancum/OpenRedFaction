@@ -1286,3 +1286,33 @@ Original active sources, mapping records, masks and initial planes are supplied;
 explicit precision027f matches native replay. Both builds,24 CTests and the
 2048 existing VFX byte-color cases pass. Retained mapping/RGB ownership, special
 polygon sampling, mask production and native texture updates remain.
+
+
+### Complete saved mapping decoding and inventory (2026-09-13)
+
+rf_lightmap_mapping_read decodes the complete96-byte version180 record into
+108-byte portable metadata. Image is a word at0; x/y/width/height are bytes4..7.
+Density floats start8, bounds16, plane40, special/inhibit words56/60, normal/
+u/v axes64/68/72, offsets76, scales84, room92. Boolean words normalize to0/1.
+Original image indices outside the nonempty table (including negative signed
+values) fall back to0. Sampling validates usability later; saved numeric bits
+are preserved. This is a reader, not allocation or dirty/image ownership.
+
+verify_lightmap_mapping_read.py runs original4ee2db..4ee51d with sequential
+typed file/version services supplied.2048 complete PC/NXDK metadata records
+match all original stores, including1215 image fallbacks; three buffer/table
+guards preserve output. Original numeric fixtures are finite; nonfinite reader
+quieting behavior is excluded. Both builds and24 CTests pass.
+
+inspect_geometry now exposes mapping_offset. inspect_lightmap_mappings.py
+inventories static worlds and compares every PC decoded record to the saved
+layout:301871 mappings across94 levels pass. L1S1 has5851 mappings/23 images,
+4324 special, no inhibited/empty/fallback mappings. Retaining108 bytes each
+would require631908 bytes, excluding any owner/image storage. The largest
+static inventory is L15S2:7249 mappings/782892 decoded bytes. These are PC
+record checks and memory estimates, not native allocations or mover coverage.
+
+The L1S1 special count makes4f3390 polygon sampling a priority before binding
+native lighting. Ordinary sampling alone does not cover most opening-level
+mappings. Next reconstruct special-face collection/coverage and sample choices;
+resource ownership, mask generation and rendered texture updates remain.

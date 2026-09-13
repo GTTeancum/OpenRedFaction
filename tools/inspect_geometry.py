@@ -49,12 +49,13 @@ def inspect(data, allow_unowned=False):
         max_face = max(count, max_face)
         corners += count
     mappings = number()
+    mapping_offset = cursor
     take(mappings * 96)
     tail_word = number()
     tail_bytes = len(data) - cursor
     return dict(textures=len(textures), rooms=rooms, vertices=vertices, faces=faces,
                 corners=corners, max_face=max_face, mappings=mappings, bytes=len(data),
-                vertices_offset=vertices_offset, tail_word=tail_word, tail_bytes=tail_bytes)
+                vertices_offset=vertices_offset, mapping_offset=mapping_offset, tail_word=tail_word, tail_bytes=tail_bytes)
 
 def main():
     root = Path(__file__).resolve().parents[1]
