@@ -956,3 +956,30 @@ int rf_corpse_surface_draw(rf_corpse_surface_effect *effect,const rf_visibility_
     if(!count)return RF_OK;
     return sink(context,vertices,count,image,mode);
 }
+
+int rf_vfx_header_read(const void *data,uint32_t bytes,rf_vfx_header *result)
+{
+    const unsigned char *p=data;rf_vfx_header v={0};uint32_t i,at=8;
+    static const uint32_t since[30]={0x30008,0,0,0,0,0,0,0,0x3000f,0x40000,
+        0x40002,0x40003,0x40005,0,0,0,0,0,0x3000d,0x30009,0x30009,
+        0x30009,0x30009,0x30009,0,0,0,0,0,0x3000f};
+    if(!data || !result || bytes<8)return RF_RANGE;
+    if(memcmp(p,"VSFX",4))return RF_FORMAT;
+    v.version=(uint32_t)p[4]|((uint32_t)p[5]<<8)|((uint32_t)p[6]<<16)|((uint32_t)p[7]<<24);
+    if(v.version<0x30000 || v.version>0x7fffffffu || (v.version>=0x40000 && v.version<0x40005))return RF_FORMAT;
+    for(i=0;i<30;++i) {
+        if(i==13 && v.version<0x3000a) {
+            if(bytes-at<4)return RF_FORMAT;at+=4;
+        }
+        if(v.version>=since[i]) {
+            if(bytes-at<4)return RF_FORMAT;
+            v.values[i]=(uint32_t)p[at]|((uint32_t)p[at+1]<<8)|((uint32_t)p[at+2]<<16)|((uint32_t)p[at+3]<<24);at+=4;
+        } else if(i==10)v.values[i]=0x80;
+        else if(i==18)v.values[i]=v.values[2];
+        else if(i==19)v.values[i]=v.values[17];
+    }
+    if(v.version<0x40000)v.values[9]=v.values[14]+1u+v.values[5];
+    if(v.version<0x40003)v.values[11]=v.values[9];
+    if(v.version<0x40005)v.values[12]=v.values[9]*(v.values[1]+(v.version<0x3000c?1u:0u));
+    v.bytes=at;*result=v;return RF_OK;
+}

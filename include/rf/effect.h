@@ -1,6 +1,17 @@
 #ifndef RF_EFFECT_H
 #define RF_EFFECT_H
 #include "rf/random.h"
+/*54b5b0 VSFX header through54bacb, before resource allocation. values follow
+ * original owner offsets44,84,4c,54,64,5c,6c,74,7c,88,90,98,a0,a8,b0,b8,
+ * c0,c8,d0,d8,e0,e8,f0,f8,100,108,110,118,120,128. Includes version defaults
+ * and derived counts with original unsigned32 wrap. bytes is consumed prefix,
+ * not the whole file length. Counts are untrusted until allocation budgets
+ * validate them. No chunk, track, resource or playback decoding. */
+typedef struct rf_vfx_header {uint32_t version,bytes,values[30];} rf_vfx_header;
+/* Signed-positive versions>=30000 except40000..40004 (incompatible range).
+ * Truncated/invalid inputs preserve output. No allocation. */
+int rf_vfx_header_read(const void *data,uint32_t bytes,rf_vfx_header *result);
+
 /* Original 4c1d00 scans all 64 vclip name slots; for ASCII names, returns
  * the first match. Empty/unknown names return -1. Names are NUL-terminated;
  * null slots represent unused empty names. Caller owns definition storage. */

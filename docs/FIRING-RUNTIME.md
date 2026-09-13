@@ -243,3 +243,37 @@ Evidence: artifacts/projectile-model-catalog.json.
 Next: consume this catalog in bounded retained static/VFX model services,
 then bind those services to the registered projectile initializer. No new
 native scene run, resource rendering or functional firing is claimed here.
+
+## VFX header and loader trace (2026-09-13)
+
+The existing particle runtime does not contain a VSFX file loader. The
+projectile path is489fe0 ->502a60 ->501110 ->53c9e0 ->54b5b0. Shared effect
+definitions are cached by filename;501110 optionally creates a36-byte
+instance through54b0d0, which owns separate animated object arrays.503390
+reaches501af0 to restart/unpause the effect. These resource/instance paths
+are traced, not yet reconstructed.
+
+rf_vfx_header_read reconstructs54b789..54bacb before allocation. It returns
+version, consumed prefix and30 compact fields mapped to original owner
+offsets in effect.h. Original52c910 version gates supply older defaults;
+derived counts preserve unsigned32 wrap. Bad magic, incompatible versions
+and truncated headers leave output unchanged. The reader allocates nothing.
+Consumers must validate counts and widened byte totals before allocating;
+this header decoder does not establish complete effect residency budgets.
+
+The seven distinct authored projectile VFX use3000d,3000e and40006. Older
+prefixes consume104 bytes, newer128. DrillMissile01 has7 mesh objects;
+ShellTest/laser01 each2; spikeprojectile1; NanoAttackMissile2 plus1 particle
+object; SonarAttack has1 particle object and SpitAttack2. No substitution of
+static geometry for particle effects is appropriate.
+
+verify_vfx_header.py executes original header instructions and real52c910/
+523990, supplying only file read/seek/error primitives. All30 fields and
+consumed bytes match1031 original/PC/compiled NXDK cases (7 assets plus1024
+version/random-field cases).857 invalid/truncation cases preserve PC/NXDK
+outputs, including every truncated prefix of all seven installed assets.
+Both builds and24 CTests pass. Evidence: artifacts/vfx-header.json.
+
+Remaining: object chunks, animation tracks, textures, shared definition and
+instance allocation budgets, bounds, playback and backend integration. No
+full original file load, native XEMU scene run or new visual is claimed.

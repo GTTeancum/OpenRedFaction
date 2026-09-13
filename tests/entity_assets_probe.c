@@ -38,6 +38,17 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-header")) {
+        uint32_t size;void *text;rf_vfx_header out;int32_t code;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&size,4,1,stdin)==1) {
+            if(size>1048576)return 2;text=malloc(size?size:1);if(!text)return 2;
+            if(fread(text,1,size,stdin)!=size)return 2;memset(&out,0xa5,sizeof(out));
+            code=rf_vfx_header_read(text,size,&out);free(text);
+            fwrite(&code,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if((argc==2 && !strcmp(argv[1],"--projectile-models")) ||
        (argc==4 && !strcmp(argv[1],"--projectile-model-load"))) {
         uint32_t size;rf_projectile_model_catalog out;void *text;int32_t code;
