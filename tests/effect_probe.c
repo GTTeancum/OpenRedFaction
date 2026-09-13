@@ -246,6 +246,18 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-seed-ambient")) {
+        struct {uint32_t width,height,capacity;float global[3];unsigned char room[4];} input;
+        rf_lightmap_sample_lighting view;float planes[3][256];uint32_t status,c;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&view,0,sizeof(view));memset(planes,0xa5,sizeof(planes));view.width=input.width;view.height=input.height;view.capacity=input.capacity;
+            for(c=0;c<3;c++)view.channels[c]=planes[c];
+            status=input.capacity>256?RF_RANGE:rf_lightmap_seed_ambient(&view,input.global,input.room);
+            fwrite(&status,4,1,stdout);fwrite(planes,sizeof(planes),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-edge-crossing")) {
         float input[8];uint32_t status,hit;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

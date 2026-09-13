@@ -12,7 +12,11 @@ Shortlist:
 - USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
 - USER: Review the interactive PC movement and audio items listed below.
 
-Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Ambient initialization now matches512 original/PC/NXDK grids, including room
+overrides and global fallback; both builds and24 tests pass. Bind retained
+ambient/RGB/source/mask owners and zero-light direct fill before live updates.
 
 Mapping polygon grouping now matches5851 L1S1 PC groups and35 compiled-NXDK
 groups, with4736 bytes peak polygon/vertex scratch plus normal work. Both builds

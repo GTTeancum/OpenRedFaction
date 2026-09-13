@@ -118,6 +118,13 @@ typedef struct rf_lightmap_sample_lighting {
  * Caller owns selection/ambient/masks. Errors retain earlier completed pixels.
  * Special polygon sampling, disabled-light gates and rendering are separate. */
 int rf_lightmap_accumulate_samples(const rf_lightmap_sample_lighting *);
+/*4f2841..4f2972: initialize accumulation to half ambient. room optionally
+ * supplies four bytes {override,R,G,B}; only override==1 selects room color.
+ * Otherwise use finite global RGB. Room bytes use original stored1/255 float
+ * multiplication before halving. Only channel/dimension/capacity view fields
+ * are consumed; binding/numeric errors preserve planes. No allocation. */
+int rf_lightmap_seed_ambient(const rf_lightmap_sample_lighting *,const float global[3],const unsigned char room[4]);
+
 /* Special4f3390 grid: caller supplies selected polygons with smoothed normals,
  * sources/masks and initial RGB planes. Uses only image dimensions/origin from
  * sample, then coverage, ordered sampling, unsoftened lighting, fallback RGB

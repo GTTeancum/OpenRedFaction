@@ -860,3 +860,8 @@ Retained mapping polygon grouping:
 - `python tools/verify_geometry_lightmap_polygons.py` checks all5851 L1S1 mapping groups/28356 vertices against raw mapping/room selection and individual corner results. PC queries and one-vertex-short capacity guards pass;35 sampled groups through compiled NXDK in Unicorn match all pointers/counts/contents at x87 0x027f. Group-selection rules derive from4f3390; this harness does not replay original face collection itself.
 - L1S1 peak polygon/vertex scratch is4736 bytes, excluding normal work and the scratch descriptor. Current implementation scans supplied faces per mapping; indexing/performance work remains before large batches of live updates. Both builds and24 CTests pass.
 - Loader survival/plane repair, initial RGB/mask/source ownership and native rendered integration remain open. No new rendered visual or native residency measurement is claimed.
+
+Ambient accumulation initialization:
+- `rf_lightmap_seed_ambient` reconstructs4f2841..4f2972. A room flag equal to1 selects its RGB bytes, multiplied by stored binary32(1/255), then each stored float is halved. Other flags or no room use global float RGB, also halved. No allocation; invalid binding/numeric inputs preserve planes.
+- `python tools/verify_lightmap_seed_ambient.py` runs the original selection and fill instructions with actual room-array access and4d8d10, no hooks. All512 original/PC/compiled-NXDK grids match at x87 0x027f, covering every1..16 dimension pair twice, room absence/flags0..3, signed finite global colors and untouched tails. Four NXDK binding guards pass.
+- Both builds and24 CTests pass. Retained ambient ownership, zero-light direct RGB fill, source/mask generation and native rendered updates remain open.

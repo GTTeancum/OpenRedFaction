@@ -373,6 +373,21 @@ int rf_lightmap_accumulate_samples(const rf_lightmap_sample_lighting *view)
     return RF_OK;
 }
 
+int rf_lightmap_seed_ambient(const rf_lightmap_sample_lighting *view,const float global[3],const unsigned char room[4])
+{
+    float values[3];uint32_t i,c,count;
+    if(!view || !view->width || !view->height || !view->channels[0] || !view->channels[1] ||
+       !view->channels[2] || (uint64_t)view->width*view->height>view->capacity)return RF_RANGE;
+    for(c=0;c<3;c++) {
+        if(room && room[0]==1)values[c]=(float)((double)room[c+1]*0.0039215688593685626983642578125);
+        else {if(!global || !isfinite(global[c]))return RF_RANGE;values[c]=global[c];}
+        values[c]=(float)((double)values[c]*.5);
+    }
+    count=view->width*view->height;
+    for(c=0;c<3;c++)for(i=0;i<count;i++)view->channels[c][i]=values[c];
+    return RF_OK;
+}
+
 int rf_lightmap_accumulate_special(const rf_lightmap_sample_lighting *view,
     const rf_lightmap_sample_polygon *polygons,uint32_t polygon_count)
 {
