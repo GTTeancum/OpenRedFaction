@@ -317,9 +317,11 @@ int main(int argc,char **argv)
         rf_vpp levels,tables,motions;rf_level level;rf_entity_seeds seeds={0};
         rf_entity_base_motions m={0},guard={0};uint32_t files=0,j;
         rf_entity_motion_catalog catalog={0},catalog_guard={0};
+        rf_weapon_supply_catalog startup_supply;
         rf_entity_state_set *expected=malloc(sizeof(*expected));if(!expected)return 1;
         if(rf_vpp_open(&levels,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_vpp_open(&motions,argv[4]) || rf_level_open(&level,&levels,argv[argc-1]))return 2;
         if(rf_entity_seeds_open(&level,&tables,4*1024*1024,&seeds))return 3;
+        if(rf_weapon_supply_load(&tables,128*1024,&startup_supply))return 41;
         status=rf_entity_base_motions_open(&seeds,&tables,&motions,1024*1024,&m);
         if(status){fprintf(stderr,"base motions %d\n",status);return 4;}
         if(rf_entity_base_motions_open(&seeds,&tables,&motions,m.peak_bytes-1,&guard)!=RF_RANGE || memcmp(&guard,&(rf_entity_base_motions){0},sizeof(guard)))return 5;
@@ -460,6 +462,15 @@ int main(int argc,char **argv)
                 if(rf_entity_motion_selection_weapon(&catalog,&m,i,(int32_t)m.weapons.count,&selected)!=RF_RANGE || memcmp(&selected,&before,sizeof(selected)))return 27;
                 for(weapon=0;weapon<m.weapons.count;++weapon) {
                     if(rf_entity_motion_selection_weapon(&catalog,&m,i,(int32_t)weapon,&selected))return 28;
+                    {
+                        rf_weapon_inventory inv={0};rf_weapon_startup_state state={-1,-1};
+                        rf_entity_motion_selection granted=before;int32_t defaults[3]={(int32_t)weapon,-1,-1};
+                        if(rf_entity_startup_weapon_bindings_sp(&inv,&state,defaults,&startup_supply,&catalog,&m,i,&granted) ||
+                           state.primary!=(int32_t)weapon || state.secondary!=-1 || !inv.owned[weapon] ||
+                           memcmp(&granted,&selected,sizeof(granted)))return 42;
+                        printf("STARTUP_WEAPON_BINDING\t%s\t%u\t%d\t%d\n",cls,weapon,inv.loaded[weapon],
+                            startup_supply.definitions[weapon].ammo_type<0?-1:inv.reserve[startup_supply.definitions[weapon].ammo_type]);
+                    }
                     printf("SELECTED_MAP\t%s\t%u\t%d\t%u",cls,weapon,selected.mapping.weapon,selected.mapping.skeleton);
                     for(k=0;k<23;++k)printf("\t%d",selected.mapping.states[k]);
                     for(k=0;k<45;++k)printf("\t%d",selected.mapping.actions[k]);

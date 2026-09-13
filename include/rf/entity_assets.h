@@ -598,6 +598,14 @@ int rf_entity_motion_selection_base(const rf_entity_motion_catalog *catalog,
 int rf_entity_motion_selection_weapon(const rf_entity_motion_catalog *catalog,
     const rf_entity_base_motions *bindings,uint32_t class_index,int32_t weapon,
     rf_entity_motion_selection *result);
+/* Normal-SP startup grants composed with concrete42ab20 animation selection.
+ * Catalog/bindings/supply share weapon IDs. Selection is an existing base/live
+ * view; negative primary preserves it. No model creation or playback advance. */
+int rf_entity_startup_weapon_bindings_sp(rf_weapon_inventory *,rf_weapon_startup_state *,
+    const int32_t defaults[3],const rf_weapon_supply_catalog *,
+    const rf_entity_motion_catalog *,const rf_entity_base_motions *,uint32_t class_index,
+    rf_entity_motion_selection *);
+
 /* Register the 23 canonical state names (0x418030 order) from one exact base
  * or weapon block. Missing/empty declarations map to -1; missing referenced
  * files fail the whole operation. Distinct cache identities register once as

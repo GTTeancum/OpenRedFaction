@@ -1463,6 +1463,28 @@ int rf_entity_motion_selection_weapon(const rf_entity_motion_catalog *c,
     if(group)for(j=0;j<45;++j)if(map->actions[j]!=-1)v.action_sounds[j]=group->action_sounds[j];
     *result=v;return RF_OK;
 }
+typedef struct startup_weapon_binding_context {
+    const rf_entity_motion_catalog *catalog;const rf_entity_base_motions *bindings;
+    uint32_t class_index;rf_entity_motion_selection *selection;
+} startup_weapon_binding_context;
+static int startup_weapon_binding(void *context,int32_t weapon)
+{
+    startup_weapon_binding_context *c=context;
+    if(c->catalog->mappings[c->class_index].skeleton==UINT32_MAX)return RF_OK;
+    return rf_entity_motion_selection_weapon(c->catalog,c->bindings,c->class_index,weapon,c->selection);
+}
+int rf_entity_startup_weapon_bindings_sp(rf_weapon_inventory *inventory,rf_weapon_startup_state *state,
+    const int32_t defaults[3],const rf_weapon_supply_catalog *supply,
+    const rf_entity_motion_catalog *catalog,const rf_entity_base_motions *bindings,uint32_t class_index,
+    rf_entity_motion_selection *selection)
+{
+    startup_weapon_binding_context context={catalog,bindings,class_index,selection};
+    if(!supply || !catalog || !bindings || !selection || !catalog->mappings ||
+        class_index>=catalog->class_count || class_index>=bindings->class_count ||
+        memcmp(&supply->names,&bindings->weapons,sizeof(supply->names)))return RF_RANGE;
+    return rf_weapon_startup_grant_sp(inventory,state,defaults,supply->definitions,startup_weapon_binding,&context);
+}
+
 static int catalog_markers(const rf_entity_skeletons *s,const rf_entity_base_motions *b,
     rf_entity_motion_catalog *v,uint32_t budget)
 {
