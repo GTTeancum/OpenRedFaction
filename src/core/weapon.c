@@ -327,3 +327,31 @@ int rf_weapon_release_player_slots(uint32_t slots[25],void (*release)(void *,uin
     for(i=0;i<25;++i)if(slots[i]) {release(context,slots[i]);slots[i]=0;}
     return RF_OK;
 }
+
+static int32_t acquire_wrap_add(int32_t a,int32_t b)
+{uint32_t bits=(uint32_t)a+(uint32_t)b;int32_t value;memcpy(&value,&bits,4);return value;}
+static int32_t acquire_clamp(int32_t value,int32_t maximum)
+{return value<0?0:(value>maximum?maximum:value);}
+int rf_weapon_acquire(rf_weapon_inventory *inventory,const rf_weapon_acquire_definition *definition,
+    int32_t weapon,int32_t quantity,int (*notify)(void *,rf_weapon_inventory *,uint32_t),void *context)
+{
+    int32_t ammo,magazine,excess=0;
+    if(!inventory || weapon<0 || weapon>=64)return RF_RANGE;
+    if(inventory->owned[weapon])return RF_OK;
+    if(!definition || !notify)return RF_RANGE;
+    ammo=definition->ammo_type;magazine=definition->magazine;
+    if(magazine<1) {
+        if(ammo>=0) {
+            if(ammo>=32)return RF_RANGE;
+            inventory->reserve[ammo]=acquire_clamp(acquire_wrap_add(inventory->reserve[ammo],quantity),definition->capacity);
+        }
+    } else if(quantity==-1)inventory->loaded[weapon]=magazine;
+    else {
+        if(ammo<0 || ammo>=32)return RF_RANGE;
+        if(magazine<quantity)excess=quantity-magazine;
+        inventory->loaded[weapon]=quantity<magazine?quantity:magazine;
+        inventory->reserve[ammo]=acquire_clamp(acquire_wrap_add(inventory->reserve[ammo],excess),definition->capacity);
+    }
+    inventory->owned[weapon]=1;
+    return notify(context,inventory,1);
+}

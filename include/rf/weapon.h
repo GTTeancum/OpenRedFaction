@@ -76,6 +76,17 @@ typedef struct rf_weapon_inventory {
     uint8_t owned[64]; /* Entity +42c. */
     int32_t reserve[32],loaded[64]; /* +2ac and +32c. */
 } rf_weapon_inventory;
+typedef struct rf_weapon_acquire_definition {
+    int32_t ammo_type,capacity,magazine;
+} rf_weapon_acquire_definition;
+/*4030d0: initialize a previously unowned weapon, then call401470(inventory,1).
+ * Quantity -1 fills a positive magazine without touching reserve. Arithmetic
+ * wraps at32 bits before signed clamping. Notification errors retain changes.
+ * Definition is the selected weapon descriptor; borrowed owners stay alive. */
+int rf_weapon_acquire(rf_weapon_inventory *,const rf_weapon_acquire_definition *,
+    int32_t weapon,int32_t quantity,int (*notify)(void *,rf_weapon_inventory *,uint32_t),
+    void *context);
+
 typedef struct rf_weapon_supply {
     int32_t ammo_type,capacity; /* Descriptor +24 and +260. */
     uint32_t flags_268;

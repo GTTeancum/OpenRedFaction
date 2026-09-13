@@ -5,6 +5,7 @@
 #include <string.h>
 #include "weapon_drop_probe.h"
 #include "weapon_remove_probe.h"
+#include "weapon_acquire_probe.h"
 int main(int argc,char **argv)
 {
     struct { int32_t weapon; rf_weapon_reset_state state; rf_weapon_descriptor descriptors[64];
@@ -14,6 +15,7 @@ int main(int argc,char **argv)
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
     if(argc==2 && !strcmp(argv[1],"--player-slots"))return weapon_slots_probe();
+    if(argc==2 && !strcmp(argv[1],"--acquire"))return weapon_acquire_probe();
     if(argc==2 && !strcmp(argv[1],"--remove"))return weapon_remove_probe();
     if(argc==2 && !strcmp(argv[1],"--drop"))return weapon_drop_probe();
     if (argc==2 && !strcmp(argv[1],"--presentation")) {
