@@ -188,6 +188,19 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-select-sample")) {
+        struct {float center[2],radius;uint32_t count,counts[4];rf_lightmap_sample_vertex vertices[4][8];} input;
+        rf_lightmap_sample_polygon polygons[4];rf_lightmap_special_sample sample;uint32_t status,kind,i;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&sample,0xa5,sizeof(sample));kind=0xa5a5a5a5u;status=RF_RANGE;
+            for(i=0;i<4;i++){polygons[i].vertices=input.vertices[i];polygons[i].count=input.counts[i];}
+            if(input.count<=4 && input.counts[0]<=8 && input.counts[1]<=8 && input.counts[2]<=8 && input.counts[3]<=8)
+                status=rf_lightmap_select_sample(polygons,input.count,input.center,input.radius,&sample,&kind);
+            fwrite(&status,4,1,stdout);fwrite(&kind,4,1,stdout);fwrite(&sample,sizeof(sample),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-edge-crossing")) {
         float input[8];uint32_t status,hit;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

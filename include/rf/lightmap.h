@@ -62,6 +62,15 @@ typedef struct rf_lightmap_special_sample {float position[3],normal[3];} rf_ligh
 int rf_lightmap_interpolate_edges(const rf_lightmap_sample_vertex vertices[4],const float center[2],
     rf_lightmap_special_sample *sample);
 
+typedef struct rf_lightmap_sample_polygon {const rf_lightmap_sample_vertex *vertices;uint32_t count;} rf_lightmap_sample_polygon;
+/*4f3720..4f3d24: ordered first-two-edge search with doubling V tolerance;
+ * first pass may use the first vertex within radius (not the nearest one).
+ * kind is0 for exhausted search,1 vertex,2 interpolated edges. Exhaustion
+ * preserves sample; errors preserve both outputs. No allocation or UV coverage
+ * test. Caller supplies selected faces and smoothed corner normals. */
+int rf_lightmap_select_sample(const rf_lightmap_sample_polygon *polygons,uint32_t count,
+    const float center[2],float radius,rf_lightmap_special_sample *sample,uint32_t *kind);
+
 typedef struct rf_lightmap_normal_face {float normal[3];uint32_t id,vertex_count;} rf_lightmap_normal_face;
 /*4f4192..4f4222 special-sampling corner normal: include adjacent nonempty
  * faces other than self only when their normal has positive dot with base.

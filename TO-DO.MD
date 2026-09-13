@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Special sample selection plus interpolation matches2048 original/PC/NXDK
+cases across every tolerance pass, including334 first-in-range vertex fallbacks
+and578 exhausted searches. Three guards, both builds and24 tests pass; compose
+the full special grid, border copying and retained topology/lighting resources.
+
 Special two-edge position/normal interpolation matches4096 original/PC/NXDK
 samples, including zero/near-zero spans and unclamped factors; two guards, both
 builds and24 tests pass. Recover edge/nearby-vertex selection and retained

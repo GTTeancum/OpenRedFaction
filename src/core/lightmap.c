@@ -233,6 +233,48 @@ int rf_lightmap_interpolate_edges(const rf_lightmap_sample_vertex vertices[4],co
     *sample=result;return RF_OK;
 }
 
+int rf_lightmap_select_sample(const rf_lightmap_sample_polygon *polygons,uint32_t count,
+    const float center[2],float radius,rf_lightmap_special_sample *sample,uint32_t *kind)
+{
+    rf_lightmap_sample_vertex selected[4];float epsilon=0.0001f;uint32_t pass,i,j,k,found;int status;
+    if((count && !polygons) || !center || !sample || !kind || !isfinite(center[0]) ||
+       !isfinite(center[1]) || !isfinite(radius) || radius<0)return RF_RANGE;
+    for(i=0;i<count;i++) {
+        if(polygons[i].count && !polygons[i].vertices)return RF_RANGE;
+        for(j=0;j<polygons[i].count;j++) {
+            const rf_lightmap_sample_vertex *v=polygons[i].vertices+j;
+            for(k=0;k<2;k++)if(!isfinite(v->uv[k]))return RF_RANGE;
+            for(k=0;k<3;k++)if(!isfinite(v->position[k]) || !isfinite(v->normal[k]))return RF_RANGE;
+        }
+    }
+    for(pass=0;pass<=10;pass++) {
+        found=0;
+        for(i=0;i<count && found<2;i++)for(j=0;j<polygons[i].count && found<2;j++) {
+            const rf_lightmap_sample_vertex *a=polygons[i].vertices+j;
+            const rf_lightmap_sample_vertex *b=polygons[i].vertices+(j+1==polygons[i].count?0:j+1);
+            double ay=a->uv[1],by=b->uv[1],y=center[1];
+            if(fabs(by-ay)>0.001 && ((ay-epsilon<=y && y<=by+epsilon) || (y<=ay+epsilon && by-epsilon<=y))) {
+                selected[2*found]=*a;selected[2*found+1]=*b;++found;
+            }
+        }
+        epsilon=(float)((double)epsilon*2);
+        if(found==2) {
+            if(pass==10)break;
+            status=rf_lightmap_interpolate_edges(selected,center,sample);if(status)return status;
+            *kind=2;return RF_OK;
+        }
+        if(pass==0)for(i=0;i<count;i++)for(j=0;j<polygons[i].count;j++) {
+            const rf_lightmap_sample_vertex *v=polygons[i].vertices+j;
+            double dx=(double)v->uv[0]-center[0],dy=(double)v->uv[1]-center[1];
+            if(sqrt(dx*dx+dy*dy)<=radius) {
+                memcpy(sample->position,v->position,sizeof(sample->position));
+                memcpy(sample->normal,v->normal,sizeof(sample->normal));*kind=1;return RF_OK;
+            }
+        }
+    }
+    *kind=0;return RF_OK;
+}
+
 int rf_lightmap_corner_normal(const rf_lightmap_normal_face *base,const rf_lightmap_normal_face *adjacent,
     uint32_t count,float out[3])
 {

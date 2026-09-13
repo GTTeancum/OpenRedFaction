@@ -813,3 +813,9 @@ Special two-edge sample interpolation (4f39dd..4f3d24):
 - All4096 position/normal pairs match byte-for-byte, including512 zero horizontal spans and512 near-zero spans; factors may extrapolate. Two invalid-input guards preserve the output on both targets.
 - Vertical edge factors are stored floats. Horizontal edge coordinates and their difference retain double precision, with exactly zero span replaced by1. Vector subtraction, scaling and addition each store floats. The final normal is not normalized.
 - Both builds and24 CTests pass. Inputs supply the already-selected four edge endpoints; selection, nearby-vertex fallback, retained topology/normal ownership and live lighting resources are not covered by this replay. No new rendered visual is claimed.
+
+Special sample selection and interpolation (4f3720..4f3d24):
+- `python tools/verify_lightmap_select_sample.py` replays original linked polygon traversal, normal arrays, selection and vector interpolation against PC and compiled NXDK code under Unicorn at x87 0x027f. Only observation stops precede accumulation or failure RGB writes.
+- 2048 samples match:1136 edge samples,334 first-in-range vertex fallbacks,578 exhausted searches. Fixtures cover each pass0..10, empty faces, null/circular lists and multiple eligible vertices. Three invalid-input guards preserve outputs on both targets.
+- Initial stored tolerance0.0001 doubles each pass. Eligible edges have absolute V difference strictly greater than double0.001; the first two in face/edge order win. Only pass0 may fall back to the first vertex within radius, not the closest. Selection on pass10 still fails, as original.
+- Both builds and24 CTests pass. The API returns exhausted/vertex/edge kind and preserves the sample when exhausted. Caller owns coverage, radius, smoothed normals and topology. Full special-grid fallback RGB writes, border copying and live resources remain unfinished.
