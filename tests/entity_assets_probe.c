@@ -143,6 +143,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-sort")) {
+        uint32_t header[2];rf_vfx_sort_record records[128];int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(header,8,1,stdin)==1) {
+            if(header[0]>128 || fread(records,16,header[0],stdin)!=header[0])return 2;
+            status=rf_vfx_sort(records,header[0],header[1]);fwrite(&status,4,1,stdout);fwrite(records,16,header[0],stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-morph")) {
         unsigned char input[84];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

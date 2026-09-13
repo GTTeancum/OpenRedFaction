@@ -1729,3 +1729,23 @@ int rf_vfx_face_facing(const float normal[3],const float point[3],const float or
     dot=((double)delta[0]*normal[0]+(double)delta[1]*normal[1])+(double)delta[2]*normal[2];
     *out=perspective?(dot>0):(dot<=0);return RF_OK;
 }
+
+static int vfx_sort_after(const rf_vfx_sort_record *a,const rf_vfx_sort_record *b,uint32_t extended)
+{
+    unsigned i;
+    if(extended)for(i=0;i<3;++i)if(a->key[i]<b->key[i] && (double)b->key[i]-a->key[i]>(double)0.003000000026077032f)return 1;
+    return a->key[0]<b->key[0];
+}
+int rf_vfx_sort(rf_vfx_sort_record *records,uint32_t count,uint32_t extended)
+{
+    uint32_t gap,i,j,k;rf_vfx_sort_record temporary;
+    if((!records && count) || extended>1 || count>INT32_MAX || count>SIZE_MAX/sizeof(*records))return RF_RANGE;
+    for(i=0;i<count;++i)for(k=0;k<3;++k)if(!isfinite(records[i].key[k]))return RF_FORMAT;
+    for(gap=count/2;gap;gap/=2)for(i=gap;i<count;++i) {
+        j=i;
+        while(j>=gap && vfx_sort_after(records+j-gap,records+j,extended)) {
+            temporary=records[j-gap];records[j-gap]=records[j];records[j]=temporary;j-=gap;
+        }
+    }
+    return RF_OK;
+}

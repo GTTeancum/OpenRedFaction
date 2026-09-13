@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX gap sort53c840/53c950 matches2048 original/PC/NXDK lists and2 guards,
+including equal/epsilon-adjacent keys; both builds and24 tests pass.
+Generate original depth keys and compose bounded face-list ownership next;
+projection/material draw submission and native VFX playback remain open.
+
 VFX facing test5478f0 matches2048 original/PC/NXDK cases and2 guards,
 including distinct perspective/flat zero-dot behavior; both builds/24 tests pass.
 Compose projected clip masks, normals and facing with material-biased depth

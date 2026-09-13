@@ -74,3 +74,11 @@ Flat projection uses forward vector18186e0 and accepts nonpositive values.
 rf_vfx_face_facing passes2048 original/PC/NXDK cases and2 guards.
 554a80 depth bias constant589668 is61.0f; verify its arithmetic and sorting
 before replacing the original depth-list mechanism.
+
+rf_vfx_sort reproduces53c840 halving-gap swaps over16-byte records with
+three float keys and an opaque item ID. Extended53c950 comparison checks
+all three fields for a positive difference above0.003000000026077032f, then
+falls back to key0 ordering. This is not ordinary lexicographic ordering.
+2048 complete original/PC/NXDK lists match, including ties and epsilon cases;
+two invalid-input guards preserve the list. Depth-key generation and live
+list ownership still need integration; no rendering claim follows from sorting.

@@ -200,6 +200,11 @@ int rf_vfx_mesh_sample(const rf_vfx_mesh *,float effect_frame,uint32_t vertex,rf
 /*559f50 uncached face normal: (b-a) cross (c-b), then4faaf0.
  * Reject degenerate/nonfinite geometry without changing output. */
 int rf_vfx_face_normal(const float vertices[9],float out[3]);
+typedef struct rf_vfx_sort_record {float key[3];uint32_t item;} rf_vfx_sort_record;
+/*53c840/53c950 descending gap sort; extended comparison checks all three
+ * fields with original epsilon before falling back to key0. In-place, no
+ * allocation; validates finite keys before mutation. Equal order not stable. */
+int rf_vfx_sort(rf_vfx_sort_record *,uint32_t count,uint32_t extended);
 /*5478f0 facing: perspective dot(origin-point,normal)>0; flat
  * dot(forward,normal)<=0. Finite inputs required, output preserved on error. */
 int rf_vfx_face_facing(const float normal[3],const float point[3],const float origin[3],const float forward[3],uint32_t perspective,uint32_t *out);
