@@ -1054,3 +1054,51 @@ int rf_vfx_face_read(const void *data,uint32_t bytes,uint32_t version,rf_vfx_fac
     for(i=0;i<4;++i){v.words_80[i]=vfx_word(p+at);at+=4;}
     *out=v;return RF_OK;
 }
+
+int rf_vfx_mesh_timing_read(const void *data,uint32_t bytes,uint32_t version,uint32_t flags,rf_vfx_mesh_timing *out)
+{
+    const unsigned char *p=data;rf_vfx_mesh_timing v={0};uint32_t at=0,rate=15,a,b;
+    if(!data || !out)return RF_RANGE;
+    if(version<0x30000 || version>0x7fffffffu || (version>=0x40000 && version<0x40005))return RF_FORMAT;
+    v.bytes=(version>=0x30009?4:0)+(version>=0x40004?12:8);if(bytes<v.bytes)return RF_FORMAT;
+    if(version>=0x30009){rate=vfx_word(p);at=4;}
+    v.flags=((flags&3u)|(rate<<2))&0xffffu;rate=v.flags>>2;
+    a=vfx_word(p+at);b=vfx_word(p+at+4);
+    if(version<0x40004) {
+        int32_t first,last;if(!rate)return RF_RANGE;memcpy(&first,&a,4);memcpy(&last,&b,4);
+        v.start=(float)((double)first/(double)rate);v.end=(float)((double)last/(double)rate);
+        v.samples=b-a+(version>=0x3000c?1u:0u);
+    } else {
+        memcpy(&v.start,&a,4);memcpy(&v.end,&b,4);v.samples=vfx_word(p+at+8);
+        if(!isfinite(v.start) || !isfinite(v.end))return RF_RANGE;
+    }
+    *out=v;return RF_OK;
+}
+int rf_vfx_mesh_prefix_read(const void *data,uint32_t bytes,uint32_t version,rf_vfx_mesh_prefix *out)
+{
+    const unsigned char *p=data;rf_vfx_mesh_prefix v={0};uint32_t at=0,n,i,enabled,face_bytes;const unsigned char *end,*parent;
+    int status;rf_vfx_face face;
+    if(!data || !out)return RF_RANGE;
+    if(version<0x30000 || version>0x7fffffffu || (version>=0x40000 && version<0x40005))return RF_FORMAT;
+    end=memchr(p,0,bytes);if(!end || (uint32_t)(end-p)>64)return RF_FORMAT;
+    n=(uint32_t)(end-p);memcpy(v.name,p,n);at=n+1;
+    end=memchr(p+at,0,bytes-at);if(!end || (uint32_t)(end-(p+at))>255)return RF_FORMAT;
+    parent=p+at;n=(uint32_t)(end-parent);at+=n+1;
+    if(!n)memcpy(v.parent,"Scene Root",11);
+    else {
+        const unsigned char *dash=memchr(parent,'-',n);if(dash)parent=dash+1;
+        n=(uint32_t)(end-parent);if(n>64)return RF_FORMAT;memcpy(v.parent,parent,n);
+    }
+    if(bytes-at<5)return RF_FORMAT;enabled=p[at++]!=0;v.vertices=vfx_word(p+at);at+=4;
+    if(version<0x3000a) {
+        uint64_t skip=(uint64_t)v.vertices*12;if(skip>bytes-at)return RF_FORMAT;at+=(uint32_t)skip;
+    }
+    if(bytes-at<4)return RF_FORMAT;v.faces=vfx_word(p+at);at+=4;v.face_offset=at;
+    face_bytes=version<0x3000d?120:96;if(v.faces>(bytes-at)/face_bytes)return RF_FORMAT;
+    for(i=0;i<v.faces;++i) {
+        uint32_t j;status=rf_vfx_face_read(p+at,face_bytes,version,&face);if(status)return status;
+        for(j=0;j<3;++j)if(face.indices[j]>=v.vertices)return RF_FORMAT;at+=face_bytes;
+    }
+    status=rf_vfx_mesh_timing_read(p+at,bytes-at,version,enabled,&v.timing);if(status)return status;
+    v.bytes=at+v.timing.bytes;*out=v;return RF_OK;
+}

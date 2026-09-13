@@ -38,6 +38,20 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && (!strcmp(argv[1],"--vfx-timing") || !strcmp(argv[1],"--vfx-mesh-prefix"))) {
+        uint32_t input[3];unsigned char *data;int32_t status;int prefix=!strcmp(argv[1],"--vfx-mesh-prefix");
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,12,1,stdin)==1) {
+            rf_vfx_mesh_timing timing;rf_vfx_mesh_prefix mesh;
+            if(input[2]>1048576)return 2;data=malloc(input[2]?input[2]:1);if(!data)return 2;
+            if(fread(data,1,input[2],stdin)!=input[2])return 2;
+            memset(&timing,0xa5,sizeof(timing));memset(&mesh,0xa5,sizeof(mesh));
+            status=prefix?rf_vfx_mesh_prefix_read(data,input[2],input[0],&mesh):rf_vfx_mesh_timing_read(data,input[2],input[0],input[1],&timing);
+            free(data);fwrite(&status,4,1,stdout);
+            if(prefix)fwrite(&mesh,sizeof(mesh),1,stdout);else fwrite(&timing,sizeof(timing),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-face")) {
         uint32_t input[2];unsigned char data[128];rf_vfx_face out;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

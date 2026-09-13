@@ -25,6 +25,26 @@ typedef struct rf_vfx_face {
  * scaled colors must fit signed32. No vertex lookup or material resolution.
  * Errors preserve output; trailing input is permitted for the next face. */
 int rf_vfx_face_read(const void *,uint32_t bytes,uint32_t version,rf_vfx_face *);
+typedef struct rf_vfx_mesh_timing {
+    uint32_t flags,samples;float start,end;uint32_t bytes;
+} rf_vfx_mesh_timing;
+/*53d47a..53d553. Packed14-bit frame rate; pre40004 integer endpoints become
+ * times, with inclusive sample count from3000c. Later versions store times
+ * and sample count directly. Initial flag low2 bits retained; output flags
+ * truncate to16 bits as original. Finite times required; errors preserve out. */
+int rf_vfx_mesh_timing_read(const void *,uint32_t bytes,uint32_t version,uint32_t flags,rf_vfx_mesh_timing *);
+typedef struct rf_vfx_mesh_prefix {
+    char name[65],parent[65];
+    uint32_t vertices,faces,face_offset;
+    rf_vfx_mesh_timing timing;
+    uint32_t bytes;
+} rf_vfx_mesh_prefix;
+/* SFXO payload through timing, before material count/list. Bounded names,
+ * default Scene Root parent, first-dash prefix removal, enabled bit and
+ * version-dependent legacy vertex span. Validate every face and vertex index.
+ * No allocation or track/material decoding. bytes locates remaining payload;
+ * output unchanged on errors. Frame/sample totals still need allocation bounds. */
+int rf_vfx_mesh_prefix_read(const void *,uint32_t bytes,uint32_t version,rf_vfx_mesh_prefix *);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

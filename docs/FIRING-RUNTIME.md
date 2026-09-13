@@ -338,3 +338,34 @@ Next: mesh object framing, animated vertices, timing and materials, then
 particle/warp records and effect playback. The test extracts authored face
 spans independently; it is not a complete production mesh loader. No native
 XEMU scene run or new visual is claimed.
+
+## Mesh prefix and per-mesh timing (2026-09-13)
+
+rf_vfx_mesh_timing_read reconstructs53d47a..53d553: packed14-bit rate,
+retained low two flags, old integer endpoints converted to times, inclusive
+sample count from3000c, and explicit times/count in newer versions. Counts
+preserve original unsigned wrap; allocation consumers must bound them.
+Zero-rate old division and nonfinite explicit times are port errors.
+
+rf_vfx_mesh_prefix_read composes name/parent, enabled byte, vertex count,
+legacy vertex span, faces and timing. Empty parent resolves to Scene Root;
+the first dash removes the parent prefix. Names/parents are bounded; face
+spans and all vertex indices validate before output commits. The168-byte
+view returns the remaining payload offset, before material count/list.
+It allocates nothing and does not yet decode tracks or materials.
+
+verify_vfx_timing_prefix.py passes2048 original/PC/compiled NXDK timing
+cases,98 timing guards,38 prefix cases and155 prefix guards. Prefix cases
+include all14 authored projectile meshes plus24 synthetic parent/version
+combinations; exact face/timing outputs compose with independently extracted
+framing. The entire original mesh-prefix routine is not executed.
+Both builds and24 CTests pass. Evidence: artifacts/vfx-timing-prefix.json.
+
+Track allocation must use mesh sample counts: ShellTest meshes have31
+samples while the file header says30 frames; laser01 has3 versus2, and
+NanoAttackMissile10 versus9. DrillMissile and spikeprojectile each retain
+16 and31 respectively.55f560 reads three16-bit components per vertex;
+sampling/transform semantics still require reconstruction.
+
+Next: material sections, edge records, vertex frames, UV/transform tracks
+and instance playback. No native XEMU scene run or new visual is claimed.
