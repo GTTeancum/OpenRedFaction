@@ -1313,4 +1313,26 @@ typedef struct rf_entity_navigation_request_backend {
 int rf_entity_navigation_request_run(rf_entity_navigation_request *request,
     const rf_entity_navigation_request_backend *backend,uint32_t *result);
 
+/* Concrete4cebd0 storage adapter. references/adjacency each have global_count+2
+ * entries: ordinary globals, reserved goal, reserved start, in that order.
+ * Adjacency items are reference indices with caller-supplied spare capacity;
+ * distinct adjacency lists have nonoverlapping storage. Endpoint selections
+ * use UINT32_MAX for absent and otherwise index ordinary globals. All nodes,
+ * output and scratch are borrowed and must outlive movement. No allocation. */
+typedef struct rf_entity_navigation_graph_request {
+    rf_entity_navigation_reference *references;
+    rf_entity_navigation_token_list *adjacency;uint32_t global_count;
+    float radius,height;uint32_t mode,search_mode;
+    uint32_t first_start,second_start,first_end,second_end;
+    float limit,edge_parameter,cost;
+    rf_entity_navigation_retained_route *route;
+    const struct rf_collision_solid_view *solid;
+    uint32_t *scratch,scratch_capacity;
+} rf_entity_navigation_graph_request;
+/* Connects preparation, nearest fallback, temporary goal links, actual solid
+ * search and cleanup. Updates reference adjacency views to caller-owned lists.
+ * Errors preserve result and preceding state; inserted goal links are removed
+ * after search errors. Goal/start reserved references remain after cleanup. */
+int rf_entity_navigation_graph_request_run(rf_entity_navigation_graph_request *request,uint32_t *result);
+
 #endif

@@ -52,7 +52,7 @@ Concrete search matches2048 all-member and2048 temporary-start original/PC/NXDK 
 Bounded endpoint insertion/cleanup matches1536 and nearest selection2048 original/PC/NXDK cases; bind visibility and search wrapper.
 Node preparation and alternate-edge geometry each match2048 unhooked original/PC/NXDK cases; compose them into route services.
 Visibility query4ce740, concrete flat-solid collision and room hierarchy each match2048 original/PC/NXDK cases; bind combined route ownership.
-Full request4cebd0 control flow matches2048 original/PC/NXDK cases plus6 failure paths; connect concrete graph stages and retained scene owners.
+Concrete request4cebd0 with preparation, nearest fallback, endpoints and search matches2048 original/PC/NXDK cases; verify composed obstructions and bind retained scene owners.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.

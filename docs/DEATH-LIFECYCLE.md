@@ -10238,3 +10238,28 @@ retained node bytes, route output and cost. All pass with801 successes.
 The2048 all-member regression cases also pass. Both builds and22 CTest
 checks pass. Endpoint setup/cleanup composition and live scene adapters
 remain open; no native XEMU execution claim.
+
+
+Concrete graph request and endpoint composition (2026-09-13)
+
+rf_entity_navigation_graph_request_run composes the full request using
+caller-owned references, bounded adjacency lists, reserved goal/start
+nodes, retained output and scratch. Layout is ordinary globals followed
+by goal then start. Endpoint indices use UINT32_MAX for absent. Preparation
+visits ordinary globals; nearest fallback uses actual solid visibility.
+Start links store indices, temporary goal links use the bounded connection
+helpers, and search initialization includes goal only while inserted.
+Cleanup removes temporary link counts while preserving backing slots.
+Reference adjacency views are synchronized after mutation. No allocation.
+
+verify_ai_graph_request.py executes full original4cebd0 with actual
+preparation, nearest, endpoint operations, search and retained output.
+Only bounded list growth and scratch allocation/free are supplied.2048
+PC/NXDK cases match node state, cost/route, adjacency counts and all backing
+slots, with460 successes. Includes0..6 globals, optional/aliased endpoint
+selections and mode bytes. Original visibility uses its null-world shortcut
+in this composed verifier; obstructed solid search is verified separately.
+Two compiled guards confirm cleanup of both aliased links after reached
+search validation failure and preflight preservation on insufficient
+scratch. Both builds and22 CTest checks pass. Composed obstruction coverage
+and retained scene ownership remain open before live NPC routing claims.

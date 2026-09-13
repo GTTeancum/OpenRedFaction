@@ -2145,3 +2145,93 @@ int rf_entity_navigation_search_solid(rf_entity_navigation_reference *refs,uint3
     const rf_collision_solid_view *solid,const float alternate[3],
     rf_entity_navigation_retained_route *route,uint32_t *result)
 {return rf_entity_navigation_search_solid_members(refs,count,0,count,q,scratch,capacity,solid,alternate,route,result);}
+
+typedef struct navigation_graph_context {
+    rf_entity_navigation_graph_request *q;
+    rf_entity_navigation_token_list temporary_global;uint32_t goal_slot;
+} navigation_graph_context;
+static void navigation_graph_views(navigation_graph_context *c)
+{
+    uint32_t i;for(i=0;i<c->q->global_count+2;++i){
+        c->q->references[i].neighbors=c->q->adjacency[i].items;
+        c->q->references[i].neighbor_count=c->q->adjacency[i].count;
+    }
+}
+static int navigation_graph_clear(void *context)
+{
+    navigation_graph_context *c=context;c->q->adjacency[c->q->global_count+1].count=0;
+    navigation_graph_views(c);return RF_OK;
+}
+static int navigation_graph_prepare(void *context)
+{
+    navigation_graph_context *c=context;rf_entity_navigation_graph_request *q=c->q;
+    return rf_entity_navigation_search_prepare(q->references,q->global_count,q->radius,q->height,q->mode);
+}
+static int navigation_graph_nearest_visible(void *context,rf_entity_navigation_candidate *node,
+    const float point[3],float radius,float height,uint32_t *result)
+{
+    navigation_graph_context *c=context;
+    return rf_entity_navigation_visible_solid(c->q->solid,node,point,radius,height,result);
+}
+static int navigation_graph_start(void *context,uint32_t *result)
+{
+    navigation_graph_context *c=context;rf_entity_navigation_graph_request *q=c->q;
+    rf_entity_navigation_token_list *list=q->adjacency+q->global_count+1;
+    uint32_t first=q->first_start,second=q->second_start,extra=1,token,i;int status;
+    if(first==UINT32_MAX){
+        rf_entity_navigation_nearest_backend b={NULL,navigation_graph_nearest_visible,c};
+        status=rf_entity_navigation_nearest(q->references,q->global_count,
+            q->references[q->global_count+1].candidate->query_point,q->radius,q->height,0,q->edge_parameter,&b,&token);
+        if(status)return status;if(!token){*result=0;return RF_OK;}
+        for(i=0;i<q->global_count && q->references[i].order_key!=token;++i){}
+        if(i==q->global_count)return RF_FORMAT;first=i;second=UINT32_MAX;
+    }else if(second!=UINT32_MAX)extra=2;
+    if(!navigation_list_room(list,extra))return RF_RANGE;
+    list->items[list->count++]=first;if(second!=UINT32_MAX)list->items[list->count++]=second;
+    navigation_graph_views(c);*result=1;return RF_OK;
+}
+static int navigation_graph_goal(void *context,uint32_t *result)
+{
+    navigation_graph_context *c=context;rf_entity_navigation_graph_request *q=c->q;int status;
+    status=rf_entity_navigation_connect_goal(&c->temporary_global,
+        q->first_end==UINT32_MAX?NULL:q->adjacency+q->first_end,
+        q->second_end==UINT32_MAX?NULL:q->adjacency+q->second_end,q->global_count,result);
+    navigation_graph_views(c);return status;
+}
+static int navigation_graph_search(void *context,uint32_t *result)
+{
+    navigation_graph_context *c=context;rf_entity_navigation_graph_request *q=c->q;
+    rf_entity_navigation_search_query search={q->global_count+1,q->global_count,0,q->limit,q->height,q->edge_parameter,q->cost};int status;
+    status=rf_entity_navigation_search_solid_members(q->references,q->global_count+2,0,
+        q->global_count+c->temporary_global.count,&search,q->scratch,q->scratch_capacity,q->solid,NULL,q->route,result);
+    if(!status)q->cost=search.cost;return status;
+}
+static int navigation_graph_disconnect(void *context)
+{
+    navigation_graph_context *c=context;rf_entity_navigation_graph_request *q=c->q;int status;
+    status=rf_entity_navigation_disconnect_goal(&c->temporary_global,q->adjacency+q->first_end,
+        q->second_end==UINT32_MAX?NULL:q->adjacency+q->second_end,q->global_count);
+    navigation_graph_views(c);return status;
+}
+int rf_entity_navigation_graph_request_run(rf_entity_navigation_graph_request *q,uint32_t *result)
+{
+    navigation_graph_context c;rf_entity_navigation_request request;
+    rf_entity_navigation_request_backend b={navigation_graph_clear,navigation_graph_prepare,navigation_graph_start,
+        navigation_graph_goal,navigation_graph_search,navigation_graph_disconnect,&c};uint32_t i,j,n;
+    if(!q || !result || !q->references || !q->adjacency || !q->route || !q->scratch || q->global_count>65534)return RF_RANGE;
+    n=q->global_count+2;if(q->scratch_capacity<n)return RF_RANGE;
+    if((q->first_start!=UINT32_MAX && q->first_start>=q->global_count) ||
+       (q->second_start!=UINT32_MAX && q->second_start>=q->global_count) ||
+       (q->first_end!=UINT32_MAX && q->first_end>=q->global_count) ||
+       (q->second_end!=UINT32_MAX && q->second_end>=q->global_count))return RF_RANGE;
+    for(i=0;i<n;++i){
+        if(!q->references[i].candidate || !q->references[i].order_key || !navigation_list_room(q->adjacency+i,0))return RF_RANGE;
+        for(j=0;j<i;++j)if(q->references[j].candidate==q->references[i].candidate || q->references[j].order_key==q->references[i].order_key)return RF_FORMAT;
+        for(j=0;j<q->adjacency[i].count;++j)if(q->adjacency[i].items[j]>=n)return RF_RANGE;
+    }
+    c.q=q;c.goal_slot=0;c.temporary_global=(rf_entity_navigation_token_list){&c.goal_slot,0,1};
+    request.goal=q->references[q->global_count].candidate;
+    request.first_start=q->first_start==UINT32_MAX?NULL:q->references[q->first_start].candidate;
+    request.route=q->route;request.search_mode=q->search_mode;
+    return rf_entity_navigation_request_run(&request,&b,result);
+}

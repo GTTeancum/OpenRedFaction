@@ -471,6 +471,7 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"--ai-endpoint"))return ai_endpoint_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-request"))return ai_request_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-search-temporary-start"))return ai_search_probe(3);
+    if(argc==2 && !strcmp(argv[1],"--ai-graph-request"))return ai_search_probe(4);
     if(argc==2 && !strcmp(argv[1],"--ai-search-solid"))return ai_search_probe(2);
     if(argc==2 && !strcmp(argv[1],"--ai-route"))return ai_search_probe(1);
     if(argc==2 && !strcmp(argv[1],"--ai-search"))return ai_search_probe(0);
