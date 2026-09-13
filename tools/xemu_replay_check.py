@@ -312,6 +312,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_rooms==expected('NPC_VISIBILITY_ROOMS'),npc_rooms
      if args.actor_pairs:assert npc_rooms[0]==npc_visibility[0] and npc_rooms[1]>0,npc_rooms
      report['npc_visibility_rooms']=npc_rooms
+     npc_room_refresh=words(monitor,symbol('rf_scene_npc_room_refresh'),8)
+     assert npc_room_refresh==expected('NPC_ROOM_REFRESH') and npc_room_refresh[7]==0,npc_room_refresh
+     assert npc_room_refresh[0]==frames-1,npc_room_refresh
+     if args.actor_pairs and frames>1:assert npc_room_refresh[2]>0,npc_room_refresh
+     if args.actor_pairs and frames>1 and report['level'].lower()=='l1s2.rfl':assert npc_room_refresh[4]>0,npc_room_refresh
+     report['npc_room_refresh']=npc_room_refresh
      npc_dispatch=words(monitor,symbol('rf_scene_npc_render_dispatch'),6)
      assert npc_dispatch==expected('NPC_RENDER_DISPATCH') and npc_dispatch[0]==frames and npc_dispatch[5]==0,npc_dispatch
      assert npc_dispatch[1]==npc_dispatch[2]+npc_dispatch[3],npc_dispatch

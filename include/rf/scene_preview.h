@@ -538,9 +538,14 @@ int rf_scene_npc_visibility_model(void *context,const rf_collision_visibility_ob
 extern uint32_t rf_scene_npc_visibility[7];
 /* Registered actor's retained room token (word0), linked class1 predicate,
  * and linked actor handle (UINT32_MAX when absent). Initial room binding uses
- * authored position; moving-room refresh remains separate. Errors preserve output. */
+ * authored position; post-update refresh maintains it. Errors preserve output. */
 int rf_scene_npc_visibility_facts(uint32_t handle,uint32_t result[3]);
 extern uint32_t rf_scene_npc_visibility_rooms[6];
+/*48a190 stage for a registered NPC; uses its published position and existing
+ * retained world locator. Synchronizes flags and still-owned model room.
+ * Local-player room notifications and post-refresh family effects excluded. */
+int rf_scene_npc_refresh_room(uint32_t handle);
+extern uint32_t rf_scene_npc_room_refresh[8];
 /* Frames, dispatches, completed families, flag skips, owner/flag hash, errors. */
 extern uint32_t rf_scene_npc_render_dispatch[6];
 /* Borrow a retained world for diagnostic camera following; NULL disables.

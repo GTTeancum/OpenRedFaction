@@ -5834,6 +5834,56 @@ static int actor_room_refresh(const rf_geometry_collision_world *world,uint32_t 
     for(i=0;i<36;++i)d[4]=(d[4]^((const unsigned char*)r)[i])*16777619u;
     return RF_OK;
 }
+uint32_t rf_scene_npc_room_refresh[8];
+int rf_scene_npc_refresh_room(uint32_t handle)
+{
+    campaign_npc_body *owner;rf_entity_room_state state;rf_entity_pose *pose;uint32_t slot,old,record[7];
+    actor_room_context context={campaign_alpha_world,0,UINT32_MAX,0};int status;
+    if(!context.world)return RF_RANGE;
+    for(slot=0;slot<campaign_npc_body_count;++slot)if(campaign_npc_bodies[slot].registration.view && campaign_npc_bodies[slot].registration.handle==handle)break;
+    if(slot==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+slot;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view)return RF_NOT_FOUND;
+    status=campaign_actor_pose(slot,&pose);if(status)return status;
+    state=owner->room;state.flags=owner->object_flags;old=state.room;++rf_scene_npc_room_refresh[2];
+    status=rf_entity_room_refresh(&state,owner->published,0,actor_room_locate,NULL,&context);
+    if(status){++rf_scene_npc_room_refresh[7];return status;}
+    owner->room=state;owner->object_flags=state.flags;owner->view.flags_7c=state.flags;
+    if(pose)campaign_model_owners[slot].room=state.room?state.room-1:UINT32_MAX;
+    rf_scene_npc_room_refresh[3]+=context.called;rf_scene_npc_room_refresh[4]+=state.room!=old;
+    rf_scene_npc_room_refresh[5]+=context.called && context.face==UINT32_MAX;
+    record[0]=handle;record[1]=state.room;record[2]=state.flags;memcpy(record+3,state.query_position,12);record[6]=context.called;
+    rf_scene_npc_room_refresh[6]=npc_hash_bytes(rf_scene_npc_room_refresh[6],record,sizeof(record));return RF_OK;
+}
+static int campaign_npc_rooms_pass(uint32_t frame)
+{
+    uint32_t i,j;int status;
+    if(!frame){memset(rf_scene_npc_room_refresh,0,sizeof(rf_scene_npc_room_refresh));rf_scene_npc_room_refresh[6]=2166136261u;}
+    ++rf_scene_npc_room_refresh[0];
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;++rf_scene_npc_room_refresh[1];
+        if((owner->object_flags&0x04000000) && !(owner->object_flags&0x10000000)) {
+            status=rf_scene_npc_refresh_room(owner->registration.handle);if(status)return status;
+        }
+    }
+    if(!frame && rf_scene_actor_pair_test_enabled) {
+        for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].room.room) {
+            for(j=i+1;j<campaign_npc_body_count;++j)if(campaign_npc_bodies[j].registration.view && campaign_npc_bodies[j].room.room &&
+                campaign_npc_bodies[j].room.room!=campaign_npc_bodies[i].room.room) {
+                campaign_npc_body *owner=campaign_npc_bodies+i;rf_entity_room_state saved=owner->room;
+                uint32_t flags=owner->object_flags,view_flags=owner->view.flags_7c,model_room=campaign_model_owners[i].room;
+                float published[3];memcpy(published,owner->published,12);
+                memcpy(owner->published,campaign_npc_bodies[j].room.query_position,12);owner->object_flags|=0x04000000;
+                status=rf_scene_npc_refresh_room(owner->registration.handle);
+                if(!status && (owner->room.room!=campaign_npc_bodies[j].room.room || (owner->object_flags&0x04000000) ||
+                    memcmp(owner->room.query_position,owner->published,12) || campaign_model_owners[i].room+1!=owner->room.room))status=RF_FORMAT;
+                owner->room=saved;owner->object_flags=flags;owner->view.flags_7c=view_flags;
+                campaign_model_owners[i].room=model_room;memcpy(owner->published,published,12);
+                if(status)++rf_scene_npc_room_refresh[7];return status;
+            }
+        }
+    }
+    return RF_OK;
+}
 uint32_t rf_scene_npc_playback[7]; /* ticks, actors, bones, state hash, pose hash, sticky marker bits, clip bytes */
 /* Advance the existing startup selection once per simulation step. AI/state
  * reselection and weapon overlays remain external; do not tick from drawing. */
@@ -6556,7 +6606,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++summary[0];summary[3]+=record[1]+record[4];summary[4]+=record[3];
                 summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
-            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;}
+            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;}
         }
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;}
         profile_mark(7);

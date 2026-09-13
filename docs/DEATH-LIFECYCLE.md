@@ -8509,3 +8509,32 @@ initial stationary room ownership and currently unlinked actors; nonempty
 associations are covered by the separate original registry audit. Both
 builds and21 CTests pass. Complete moving-room scheduling and persistent
 full-search object views before enabling complete glare visibility.
+
+
+NPC post-update retained room refresh (2026-09-12)
+------------------------------------------------
+rf_scene_npc_refresh_room binds verified48a190 to the retained-world
+containing-room locator and registered NPC published position. It resolves
+ownership before query, uses a local copy for error preservation, then
+commits room/query position, clears04000000 and synchronizes owner/view
+flags. A model still owned by the actor receives the resolved room index;
+a detached model is not overwritten. No query allocation or local-player
+room-audio notification.
+
+The pass runs after existing NPC updates with original487a40 tail gates:
+require04000000 and reject10000000. This binds the room-refresh stage;
+subsequent original486c30/429100 family effects, complete object-list order
+and full moving-NPC physics/publication remain open. Existing creation
+flags request the initial refresh. Do not infer that complete AI locomotion
+is implemented from this service.
+
+Native L1S2 replay-20260912-210142 passes180 frames at stock64MiB.
+NPC_ROOM_REFRESH matches PC:179 passes,6802 registered candidates,39
+refresh calls,1 containing-room lookup,1 room change,0 misses,hash2411950992,
+0 errors.38 ordinary first-pass refreshes require no lookup because cached
+positions match. The restored-state fixture moves one registered actor to
+another authored room query position, requires both actor/model room update
+and dirty-flag clearing, then restores position, room cache, flags and model
+room even on failure. L1S2 harness now requires a room change in this fixture.
+Existing384 original/PC/NXDK room-refresh cases and21 CTests pass; both
+builds pass. No additional rendered scene or full glare scheduling claim.
