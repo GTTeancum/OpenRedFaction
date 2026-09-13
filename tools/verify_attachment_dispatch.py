@@ -1,5 +1,5 @@
 """Execute original attachment ordering and tag-matrix dispatch at service boundaries."""
-import hashlib,json,random,struct,sys
+import hashlib,json,random,struct,sys,re,subprocess
 from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
@@ -15,6 +15,24 @@ w=lambda *a:struct.pack('<'+'I'*len(a),*a)
 def read(a):return struct.unpack('<I',u.mem_read(a,4))[0]
 def ret(value=0):
  sp=u.reg_read(UC_X86_REG_ESP);u.reg_write(UC_X86_REG_EAX,value);u.reg_write(UC_X86_REG_EIP,read(sp));u.reg_write(UC_X86_REG_ESP,sp+4)
+xp=pefile.PE(str(root/'build/xbox/main.exe'));xb=xp.get_memory_mapped_image();x=Uc(UC_ARCH_X86,UC_MODE_32)
+x.mem_map(xp.OPTIONAL_HEADER.ImageBase,(len(xb)+4095)&~4095);x.mem_write(xp.OPTIONAL_HEADER.ImageBase,xb);x.mem_map(base,0x40000)
+entry=int(re.search(r'_rf_attachment_update\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+nodes=base+0x4000;flagbase=base+0x5000;backend=base+0x6000;scratch=base+0x7000;lookup=base+0x8000;publish=base+0x8010
+x.mem_write(backend,w(lookup,publish,0));commands=bytearray();outputs=bytearray();trace=[];publish_result=0
+def xread(a):return struct.unpack('<I',x.mem_read(a,4))[0]
+def xhook(m,a,size,data):
+ sp=m.reg_read(UC_X86_REG_ESP)
+ if a==lookup:
+  handle=xread(sp+8);trace.append((0,handle,0));result=nodes+handle*12 if handle<16 else 0
+ else:
+  trace.append((1,(xread(sp+8)-nodes)//12,(xread(sp+12)-nodes)//12));result=publish_result
+ m.reg_write(UC_X86_REG_EAX,result);m.reg_write(UC_X86_REG_EIP,xread(sp));m.reg_write(UC_X86_REG_ESP,sp+4)
+for a in (lookup,publish):x.hook_add(UC_HOOK_CODE,xhook,begin=a,end=a)
+def xcall(index,capacity=16):
+ x.mem_write(stack,w(stop,nodes+index*12,backend,scratch,capacity));x.reg_write(UC_X86_REG_ESP,stack);x.emu_start(entry,stop,count=100000)
+ assert x.reg_read(UC_X86_REG_EIP)==stop
+ return x.reg_read(UC_X86_REG_EAX)
 mode='order';events=[];parents={}
 def hook(m,a,s,d):
  sp=m.reg_read(UC_X86_REG_ESP)
@@ -44,6 +62,28 @@ for case in range(1000):
   assert u.reg_read(UC_X86_REG_EIP)==stop
  assert events==want,(case,events,want)
  assert [read(a+0x7c) for a in addresses]==expected
+ trace=[]
+ for i in range(n):x.mem_write(nodes+i*12,w(flagbase+i*4,links[i]&0xffffffff,i));x.mem_write(flagbase+i*4,w(flags[i]))
+ for i in order:assert xcall(i)==0
+ converted=[(0,e[1],0) if e[0]=='lookup' else (1,addresses.index(e[1]),addresses.index(e[2])) for e in events]
+ assert trace==converted and bytes(x.mem_read(flagbase,64))==w(*expected)
+ commands.extend(w(*flags,*[v&0xffffffff for v in links],*order))
+ flat=[v for event in converted for v in event];outputs.extend(w(0,*expected,len(converted),*flat,*([0]*(96-len(flat)))))
+assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--attachment-order'],input=commands)==outputs
+# Cycles and bounded scratch must fail without publishing or marking visited.
+for links,capacity in [([1,0]+[-1]*14,16),([1,2,-1]+[-1]*13,2)]:
+ trace=[]
+ for i in range(16):x.mem_write(nodes+i*12,w(flagbase+i*4,links[i]&0xffffffff,i));x.mem_write(flagbase+i*4,w(0))
+ assert xcall(0,capacity)==0xfffffffc and bytes(x.mem_read(flagbase,64))==bytes(64)
+ assert all(event[0]==0 for event in trace)
+
+# A failed pose retains propagated dirty but does not mark the child visited.
+publish_result=0xfffffffe;trace=[]
+x.mem_write(nodes,w(flagbase,1,0));x.mem_write(nodes+12,w(flagbase+4,0xffffffff,1));x.mem_write(flagbase,w(0,0x04000000))
+assert xcall(0)==publish_result
+assert bytes(x.mem_read(flagbase,8))==w(0x04000000,0x05000000)
+assert trace==[(0,1,0),(0,0xffffffff,0),(1,0,1)]
+publish_result=0
 mode='tag';child=base;parent=base+0x1000;cls=base+0x2000;tag_cases=0
 for kind in (0,1,2,3,4,5,6,10,0xffffffff):
  for category in (0,1,4,7,8,0xffffffff):
@@ -56,5 +96,5 @@ for kind in (0,1,2,3,4,5,6,10,0xffffffff):
   assert events[0][:4]==(0x12345678,13,parent+(0x7e0 if alternate else 0x48),parent+0x3c),(kind,category,events)
   tag_cases+=1
 report=dict(result='PASS',ordering_forests=1000,objects_per_forest=16,tag_dispatch_cases=tag_cases,original_sha256=sha,
- scope='Original4881a0 recursion/flags executed; handle lookup and pose publication intercepted as explicit services. Original487630 positive-tag prefix and unmodified486c90 classify actual object/class fields;5034f0 arguments captured. No shared runtime or live moving-parent validation; negative-tag math and cyclic graphs excluded.')
+ scope='Original4881a0 recursion/flags executed; handle lookup and pose publication intercepted as explicit services. Original487630 positive-tag prefix and unmodified486c90 classify actual object/class fields;5034f0 arguments captured. Shared PC/compiled NXDK exact flags and callback order across all forests; NXDK cycle/capacity guards preserve flags. No live moving-parent validation; negative-tag math excluded.')
 (root/'artifacts/attachment-dispatch.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

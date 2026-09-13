@@ -50,6 +50,19 @@ static int corona_special(void *context,rf_glare_base_owner *owner,const float c
 {corona_frame_fixture *c=context;uint32_t record[8]={8,1};(void)owner;(void)camera;*visible=c->special==1;return corona_record(&c->graphics,record);}
 static int corona_flash(void *context,uint32_t r,uint32_t g,uint32_t b,int32_t alpha)
 {corona_frame_fixture *c=context;uint32_t record[8]={9,r,g,b,(uint32_t)alpha};return corona_record(&c->graphics,record);}
+typedef struct attachment_probe_context {
+    rf_attachment_node nodes[16];uint32_t flags[16],count,events[96];
+} attachment_probe_context;
+static rf_attachment_node *attachment_probe_lookup(void *context,uint32_t handle)
+{
+    attachment_probe_context *c=context;uint32_t *e=c->events+c->count++*3;
+    e[0]=0;e[1]=handle;e[2]=0;return handle<16?c->nodes+handle:NULL;
+}
+static int attachment_probe_publish(void *context,rf_attachment_node *node,rf_attachment_node *parent)
+{
+    attachment_probe_context *c=context;uint32_t *e=c->events+c->count++*3;
+    e[0]=1;e[1]=(uint32_t)(node-c->nodes);e[2]=(uint32_t)(parent-c->nodes);return RF_OK;
+}
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--corona-frame")) {
@@ -186,6 +199,18 @@ int main(int argc,char **argv)
             memset(&out,0,sizeof(out));out.status=rf_particle_world_quad(&in.camera,in.vertices,&out.polygon);
             fwrite(&out,sizeof(out),1,stdout);
         }
+        return ferror(stdin)?2:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--attachment-order")) {
+        uint32_t in[48],i;rf_attachment_node *scratch[16];attachment_probe_context c;
+        rf_attachment_backend backend={attachment_probe_lookup,attachment_probe_publish,&c};
+        struct {int32_t status;uint32_t flags[16],count,events[96];} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1){memset(&c,0,sizeof(c));memset(&out,0,sizeof(out));
+            for(i=0;i<16;++i){c.flags[i]=in[i];c.nodes[i].flags=c.flags+i;c.nodes[i].parent=in[16+i];}
+            for(i=0;i<16;++i){if(in[32+i]>=16){out.status=RF_RANGE;break;}
+                out.status=rf_attachment_update(c.nodes+in[32+i],&backend,scratch,16);if(out.status)break;}
+            memcpy(out.flags,c.flags,64);out.count=c.count;memcpy(out.events,c.events,sizeof(c.events));fwrite(&out,sizeof(out),1,stdout);}
         return ferror(stdin)?2:0;
     }
     if(argc==2 && !strcmp(argv[1],"--attachment-local-pose")) {

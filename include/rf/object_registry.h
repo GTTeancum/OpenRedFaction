@@ -29,4 +29,20 @@ void rf_object_registry_init(rf_object_registry *registry);
 int rf_object_registry_insert(rf_object_registry *registry,void *object,uint32_t *handle);
 void *rf_object_registry_lookup(const rf_object_registry *registry,uint32_t handle);
 int rf_object_registry_remove(rf_object_registry *registry,uint32_t handle);
+/*4881a0 parent-first publication. Nodes/flags remain stable during the call;
+ * lookup returns NULL for absent handles. Scratch holds the ancestry chain,
+ * bounded by capacity; no heap or recursive stack growth. Caller clears
+ * visited01000000 at frame start. Dirty04000000 is propagated before publish.
+ * Cycles/capacity exhaustion return RF_RANGE; service errors retain completed
+ * effects. Unwinding reads current parent flags after each publication. */
+typedef struct rf_attachment_node {
+    uint32_t *flags;uint32_t parent;void *owner;
+} rf_attachment_node;
+typedef struct rf_attachment_backend {
+    rf_attachment_node *(*lookup)(void *,uint32_t);
+    int (*publish)(void *,rf_attachment_node *,rf_attachment_node *);
+    void *context;
+} rf_attachment_backend;
+int rf_attachment_update(rf_attachment_node *node,const rf_attachment_backend *backend,
+    rf_attachment_node **scratch,uint32_t capacity);
 #endif

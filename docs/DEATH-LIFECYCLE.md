@@ -9042,3 +9042,21 @@ Local attachment pose reconstruction (2026-09-12)
  22 CTest checks PASS. Native scene replay was not run for this unbound API.
  Parent lookup, special-use-kind matrix lifetime and scene scheduling
  remain open; this does not claim live moving attachments are complete.
+
+
+Shared attachment ordering (2026-09-12)
+-------------------------------------
+ rf_attachment_update reconstructs4881a0 through explicit node lookup and
+ pose publication services. Caller-provided ancestry scratch replaces recursive
+ call-stack growth; no heap. Visited01000000 skips lookup, dirty04000000
+ propagates before publication, and visited is marked after successful
+ publication. Parent flags are re-read while unwinding. Frame-start visited
+ clearing remains the caller responsibility. Cycles and exhausted scratch
+ return RF_RANGE before the unwind; service errors retain completed effects.
+ tools/verify_attachment_dispatch.py now compares1000 randomized16-object
+ forests against shared PC and compiled NXDK, including exact callback order
+ and final flags. NXDK cycle/capacity guards preserve flags; failed publication
+ preserves child dirty without marking visited, after parent completion.
+ Both builds and22 CTest checks pass. This API is not yet bound to live scene
+ objects: static clutter owners currently lack complete attachment-parent and
+ special use-kind metadata. Retain those facts before scene integration.

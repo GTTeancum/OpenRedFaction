@@ -47,3 +47,27 @@ void rf_object_list_remove(rf_object_list *list,rf_object_link *node)
     rf_object_link *previous=node->previous,*next=node->next;
     node->next=node->previous=NULL;previous->next=next;next->previous=previous;--list->count;
 }
+
+int rf_attachment_update(rf_attachment_node *node,const rf_attachment_backend *backend,
+    rf_attachment_node **scratch,uint32_t capacity)
+{
+    rf_attachment_node *parent;uint32_t depth=0,i;int status;
+    if(!node || !backend || !backend->lookup || !backend->publish || !scratch || !capacity)return RF_RANGE;
+    while(node) {
+        if(!node->flags)return RF_RANGE;
+        if(*node->flags&0x01000000u)break;
+        if(depth==capacity)return RF_RANGE;
+        for(i=0;i<depth;++i)if(scratch[i]==node)return RF_RANGE;
+        scratch[depth++]=node;node=backend->lookup(backend->context,node->parent);
+    }
+    parent=node;
+    while(depth) {
+        node=scratch[--depth];
+        if(parent && (*parent->flags&0x04000000u)) {
+            *node->flags|=0x04000000u;
+            status=backend->publish(backend->context,node,parent);if(status)return status;
+        }
+        *node->flags|=0x01000000u;parent=node;
+    }
+    return RF_OK;
+}
