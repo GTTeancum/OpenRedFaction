@@ -8782,3 +8782,21 @@ Direction, float degree angle, distance and side sign are bit exact.841 of
 4.440892098500626e-16 radians (acceptance1e-14). Both builds and21CTest pass.
 Parent gates, scene camera binding, full coroutine/frame order, flash and
 geometry services remain open; no native draw claim is made here.
+
+
+## Correction: corona geometry receives packed mode (2026-09-12)
+
+Earlier common-tail evidence supplied411e00 as a graphics callback. That was
+incorrect: actual411e00 packs six5-bit fields into the destination word.
+414d7b supplies stack24 as destination, reusing the earlier distance slot.
+515b40/515bd0 therefore receive mode0x06010c41, not the former distance.
+Fields are[1,2,3,2,0,3]. No graphics operation occurs at411e00.
+
+rf_glare_corona_submit now packs the mode directly, removes the fake blend
+callback and unused distance input, and passes uint32_t mode to geometry
+callbacks. Publication still precedes color, texture and geometry callbacks.
+verify_corona_tail.py now executes real411e00 instead of supplying it.400
+original cases plus6 graphics error cases pass PC/compiled NXDK. This
+supersedes the earlier400-case supplied-constructor argument interpretation
+and8-error count. Both builds and21CTest pass. No scene was using this tail
+yet; no native draw validation is claimed. Corona composition remains next.

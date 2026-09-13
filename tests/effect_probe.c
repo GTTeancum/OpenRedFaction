@@ -31,18 +31,16 @@ static int glare_refresh_search(void *context,rf_glare_base_owner *owner,const f
 typedef struct corona_tail_fixture {rf_glare_base_owner *owner;uint32_t count,fail,trace[32];} corona_tail_fixture;
 static int corona_record(corona_tail_fixture *c,uint32_t record[8])
 {memcpy(c->trace+c->count*8,record,32);++c->count;return c->fail==c->count?RF_IO:RF_OK;}
-static int corona_blend(void *context,const uint32_t values[6])
-{uint32_t record[8]={1};memcpy(record+1,values,24);return corona_record(context,record);}
 static int corona_color(void *context,uint32_t r,uint32_t g,uint32_t b,uint32_t a)
 {uint32_t record[8]={2,r,g,b,a};return corona_record(context,record);}
 static int corona_texture(void *context,uint32_t bitmap,int32_t second)
 {uint32_t record[8]={3,bitmap,(uint32_t)second};return corona_record(context,record);}
-static int corona_billboard(void *context,const float position[3],float angle,float size,float distance)
+static int corona_billboard(void *context,const float position[3],float angle,float size,uint32_t mode)
 {corona_tail_fixture *c=context;uint32_t record[8]={4};if(position!=c->owner->position)return RF_RANGE;
- memcpy(record+1,&angle,4);memcpy(record+2,&size,4);memcpy(record+3,&distance,4);return corona_record(c,record);}
-static int corona_oriented(void *context,const float first[3],const float second[3],float size,float distance)
+ memcpy(record+1,&angle,4);memcpy(record+2,&size,4);record[3]=mode;return corona_record(c,record);}
+static int corona_oriented(void *context,const float first[3],const float second[3],float size,uint32_t mode)
 {corona_tail_fixture *c=context;uint32_t record[8]={5};if(first!=c->owner->state.vectors[0] || second!=c->owner->state.vectors[1])return RF_RANGE;
- memcpy(record+2,&size,4);memcpy(record+3,&distance,4);return corona_record(c,record);}
+ memcpy(record+2,&size,4);record[3]=mode;return corona_record(c,record);}
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--corona-camera")) {
@@ -73,9 +71,9 @@ int main(int argc,char **argv)
         uint32_t wire[11];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(wire,4,11,stdin)==11) {
             rf_glare_base_owner owner={0};rf_glare_corona_tail tail={0};corona_tail_fixture fixture={&owner,0,wire[10],{0}};
-            rf_glare_corona_backend backend={corona_blend,corona_color,corona_texture,corona_billboard,corona_oriented,&fixture};
+            rf_glare_corona_backend backend={corona_color,corona_texture,corona_billboard,corona_oriented,&fixture};
             uint32_t output[39];int status;float samples[4]={.1f,.2f,.3f,.4f};
-            memcpy(&tail,wire,20);tail.bitmap=wire[6];tail.view=wire[7];tail.draw=wire[8];
+            memcpy(&tail,wire,12);memcpy(&tail.side_dot,wire+4,4);tail.bitmap=wire[6];tail.view=wire[7];tail.draw=wire[8];
             memcpy(&owner.radius,wire+5,4);owner.state.byte_2d0=(uint8_t)wire[9];memcpy(owner.state.samples,samples,16);
             status=rf_glare_corona_submit(&owner,&tail,&backend);output[0]=(uint32_t)status;
             memcpy(output+1,&owner.radius,4);memcpy(output+2,owner.state.samples,16);output[6]=fixture.count;memcpy(output+7,fixture.trace,128);

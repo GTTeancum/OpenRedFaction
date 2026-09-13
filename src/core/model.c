@@ -380,21 +380,20 @@ int rf_glare_corona_attenuate(const rf_glare_state *state,uint32_t view,
 int rf_glare_corona_submit(rf_glare_base_owner *owner,const rf_glare_corona_tail *tail,
     const rf_glare_corona_backend *backend)
 {
-    const uint32_t blend[6]={1,2,3,2,0,3};uint32_t alpha;volatile float angle;int status;
-    if(!owner || !tail || !backend || tail->view>1 || !backend->blend || !backend->color ||
+    const uint32_t mode=1u|(2u<<5)|(3u<<10)|(2u<<15)|(3u<<25);uint32_t alpha;volatile float angle;int status;
+    if(!owner || !tail || !backend || tail->view>1 || !backend->color ||
         !backend->texture || !backend->billboard || !backend->oriented)return RF_RANGE;
     if(!tail->draw)return RF_OK;
     if(!isfinite(tail->intensity) || tail->intensity<0 || tail->intensity>1 || !isfinite(tail->size) ||
-        !isfinite(tail->angular) || !isfinite(tail->distance) || !isfinite(tail->side_dot) || !isfinite(owner->radius))return RF_FORMAT;
+        !isfinite(tail->angular) || !isfinite(tail->side_dot) || !isfinite(owner->radius))return RF_FORMAT;
     alpha=(uint32_t)((double)tail->intensity*255.0);
     owner->state.samples[tail->view]=tail->intensity;owner->state.samples[2+tail->view]=tail->size;
     owner->radius=tail->size>owner->radius?tail->size:owner->radius;
     angle=(float)((1.0-(double)tail->angular)*.5);if(tail->side_dot<0)angle=-angle;
-    status=backend->blend(backend->context,blend);if(status)return status;
     status=backend->color(backend->context,255,255,255,alpha);if(status)return status;
     status=backend->texture(backend->context,tail->bitmap,-1);if(status)return status;
-    if(owner->state.byte_2d0)return backend->oriented(backend->context,owner->state.vectors[0],owner->state.vectors[1],tail->size,tail->distance);
-    return backend->billboard(backend->context,owner->position,angle,tail->size,tail->distance);
+    if(owner->state.byte_2d0)return backend->oriented(backend->context,owner->state.vectors[0],owner->state.vectors[1],tail->size,mode);
+    return backend->billboard(backend->context,owner->position,angle,tail->size,mode);
 }
 int rf_glare_fade_samples(rf_glare_state *state,uint32_t view,float values[2],uint32_t *draw)
 {
