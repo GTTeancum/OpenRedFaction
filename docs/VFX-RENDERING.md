@@ -1235,3 +1235,25 @@ preserves output, while a zero-weight invalid source is skipped. The previous
 2048 complete VFX byte-color cases and24 CTests still pass; both builds pass.
 Mapping coordinates, mask generation, softening and native renderer binding
 remain; no new visual result is claimed.
+
+
+### Ordinary lightmap sample positions (2026-09-13)
+
+rf_lightmap_sample_position composes ordinary4f3390 texel-center coordinates
+with axis-table routines4e3f60/4e3fb0/4e4000 at5a3bd8. Image inverse dimensions
+and inverse mapping scales store to float; each coordinate is
+((origin+local_pixel+0.5)*inverse_dimension-offset)*inverse_scale, then stored.
+The two resulting surface coordinates follow mapping u-axis routing. The
+missing coordinate solves the retained plane with the original ascending-axis
+subtract/subtract/divide order and final float store. It supports all six axis
+orders and signed scales; caller supplies image extents and retained fields.
+
+The bounded API rejects invalid axes, zero/nonfinite divisors, out-of-image
+coordinates and nonfinite results before changing output. No allocation.
+verify_lightmap_sample_position.py executes complete original4f3390 ordinary
+traversal with actual coordinate and plane routines, supplying only4da8b0 to
+record positions.384 grids produce7776 points, all matching PC/NXDK under
+explicit native53-bit x87 precision027f. All six axis orders, image/mapping
+origins, signed scales and seven invalid-input guards are covered. Both builds
+and24 CTests pass. This does not cover original mapping-byte9 special polygon
+sampling, softening/mask production, or native rendering/resource ownership.

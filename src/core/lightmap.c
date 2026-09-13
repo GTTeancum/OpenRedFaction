@@ -158,6 +158,29 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
     return RF_OK;
 }
 
+int rf_lightmap_sample_position(const rf_lightmap_sample_plane *view,uint32_t x,uint32_t y,float point[3])
+{
+    float uv[2],value[3],step[2],inverse[2];uint32_t coordinates[2],i,a,b,v;
+    if(!view || !point || !view->image_width || !view->image_height || view->image_width>INT32_MAX || view->image_height>INT32_MAX ||
+        view->normal_axis>2 || view->u_axis>2 || view->normal_axis==view->u_axis ||
+        (uint64_t)view->x+x>=view->image_width || (uint64_t)view->y+y>=view->image_height)return RF_RANGE;
+    for(i=0;i<4;i++)if(!isfinite(view->plane[i]))return RF_RANGE;
+    if(view->plane[view->normal_axis]==0)return RF_RANGE;
+    coordinates[0]=view->x+x;coordinates[1]=view->y+y;
+    step[0]=(float)(1.0/view->image_width);step[1]=(float)(1.0/view->image_height);
+    for(i=0;i<2;i++) {
+        if(!isfinite(view->scale[i]) || !view->scale[i] || !isfinite(view->offset[i]))return RF_RANGE;
+        inverse[i]=(float)(1.0/view->scale[i]);if(!isfinite(inverse[i]))return RF_RANGE;
+        uv[i]=(float)((((double)coordinates[i]+.5)*step[i]-view->offset[i])*inverse[i]);
+        if(!isfinite(uv[i]))return RF_RANGE;
+    }
+    v=3-view->normal_axis-view->u_axis;value[view->u_axis]=uv[0];value[v]=uv[1];
+    a=view->normal_axis==0?1:0;b=view->normal_axis==2?1:2;
+    value[view->normal_axis]=(float)(((-(double)view->plane[a]*value[a]-(double)view->plane[b]*value[b])-view->plane[3])/view->plane[view->normal_axis]);
+    if(!isfinite(value[view->normal_axis]))return RF_RANGE;
+    memcpy(point,value,sizeof(value));return RF_OK;
+}
+
 static int lightmap_scaled_rgb(const double scaled[3],unsigned char rgb[3])
 {
     int32_t value[3],peak=0;unsigned char result[3];uint32_t i;

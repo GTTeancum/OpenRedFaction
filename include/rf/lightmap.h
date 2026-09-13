@@ -37,6 +37,16 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
  * input preserves output. No allocation; input/output may alias. */
 int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3]);
 
+typedef struct rf_lightmap_sample_plane {
+    uint32_t image_width,image_height,x,y;
+    float scale[2],offset[2],plane[4];uint32_t normal_axis,u_axis;
+} rf_lightmap_sample_plane;
+/* Ordinary4f3390 texel-center coordinates plus4e3f60/4e3fb0/4e4000 plane
+ * reconstruction. Caller supplies retained mapping/image fields. Coordinates
+ * must fit image; inverse scales/normal divisor must be finite/nonzero.
+ * No allocation; errors preserve output. Special polygon sampling separate. */
+int rf_lightmap_sample_position(const rf_lightmap_sample_plane *,uint32_t x,uint32_t y,float point[3]);
+
 typedef struct rf_lightmap_accumulation {
     const float *channels[3];uint32_t count,width,height;
 } rf_lightmap_accumulation;
