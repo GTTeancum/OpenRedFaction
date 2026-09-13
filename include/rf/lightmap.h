@@ -37,6 +37,15 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
  * input preserves output. No allocation; input/output may alias. */
 int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3]);
 
+typedef struct rf_lightmap_accumulation {
+    const float *channels[3];uint32_t count,width,height;
+} rf_lightmap_accumulation;
+/*4f3100 neighborhood filter and integer RGB normalization. Original channel-
+ * specific sum/store order; boundary fallback begins at row/column1. Arrays
+ * contain width*height entries. Dimensions >=2; invalid input preserves RGB.
+ * No allocation. Caller4f26a0 chooses direct conversion for its two-pixel rim. */
+int rf_lightmap_filtered_rgb(const rf_lightmap_accumulation *,uint32_t x,uint32_t y,unsigned char rgb[3]);
+
 typedef struct rf_lightmap_rgb_upload {
     const unsigned char *rgb;uint32_t rgb_bytes,rgb_pitch;
     unsigned char *packed;uint32_t packed_bytes,packed_pitch;

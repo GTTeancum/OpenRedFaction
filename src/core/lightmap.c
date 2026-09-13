@@ -158,14 +158,13 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
     return RF_OK;
 }
 
-int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3])
+static int lightmap_scaled_rgb(const double scaled[3],unsigned char rgb[3])
 {
     int32_t value[3],peak=0;unsigned char result[3];uint32_t i;
-    if(!channels || !rgb)return RF_RANGE;
+    if(!rgb)return RF_RANGE;
     for(i=0;i<3;i++) {
-        double scaled=(double)channels[i]*255.0;
-        if(!isfinite(scaled) || scaled<INT32_MIN || scaled>INT32_MAX)return RF_RANGE;
-        value[i]=(int32_t)scaled;if(value[i]<0)value[i]=0;if(value[i]>peak)peak=value[i];
+        if(!isfinite(scaled[i]) || scaled[i]<INT32_MIN || scaled[i]>INT32_MAX)return RF_RANGE;
+        value[i]=(int32_t)scaled[i];if(value[i]<0)value[i]=0;if(value[i]>peak)peak=value[i];
     }
     for(i=0;i<3;i++) {
         if(peak>255) {
@@ -176,6 +175,39 @@ int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3])
         result[i]=(unsigned char)value[i];
     }
     memcpy(rgb,result,3);return RF_OK;
+}
+int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3])
+{
+    double scaled[3];uint32_t i;if(!channels)return RF_RANGE;
+    for(i=0;i<3;i++)scaled[i]=(double)channels[i]*255.0;
+    return lightmap_scaled_rgb(scaled,rgb);
+}
+int rf_lightmap_filtered_rgb(const rf_lightmap_accumulation *view,uint32_t x,uint32_t y,unsigned char rgb[3])
+{
+    double scaled[3]={0,0,0};uint32_t c,i;
+    if(!view || !rgb || !view->channels[0] || !view->channels[1] || !view->channels[2] ||
+        view->width<2 || view->height<2 || x>=view->width || y>=view->height ||
+        (uint64_t)view->width*view->height>view->count)return RF_RANGE;
+    if(x>=1 && x<view->width-1 && y>=1 && y<view->height-1) {
+        uint32_t at=y*view->width+x,up=at-view->width,down=at+view->width;
+        uint32_t order[9]={at+1,up+1,down+1,at-1,up-1,down-1,down,up,at};
+        for(c=0;c<3;c++) {
+            if(c==1){order[6]=at;order[7]=down;order[8]=up;}else{order[6]=down;order[7]=up;order[8]=at;}
+            scaled[c]=view->channels[c][order[0]];
+            for(i=1;i<9;i++)scaled[c]+=view->channels[c][order[i]];
+            scaled[c]*=28.3333339691162109375;
+        }
+    } else {
+        uint32_t first_x=x>1?x-1:1,last_x=x+1<view->width?x+1:view->width-1;
+        uint32_t first_y=y>1?y-1:1,last_y=y+1<view->height?y+1:view->height-1,xx,yy;
+        double factor=255.0/((last_x-first_x+1)*(last_y-first_y+1));
+        for(yy=first_y;yy<=last_y;yy++)for(xx=first_x;xx<=last_x;xx++)
+            for(c=0;c<3;c++)scaled[c]+=view->channels[c][yy*view->width+xx];
+        scaled[0]*=factor;scaled[1]*=(float)factor;scaled[2]*=(float)factor;
+    }
+    /* Original stores red/green to binary32 before ftol; blue stays in x87. */
+    scaled[0]=(float)scaled[0];scaled[1]=(float)scaled[1];
+    return lightmap_scaled_rgb(scaled,rgb);
 }
 
 int rf_lightmap_upload_rgb_1555(const rf_lightmap_rgb_upload *view,unsigned char *dirty)

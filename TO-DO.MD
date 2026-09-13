@@ -14,6 +14,10 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Lightmap neighborhood filtering matches4096 original/PC/NXDK cases at native
+53-bit x87 precision, including2153 boundary cases; both builds and24 tests
+pass. Bind full mapping resolve, source accumulation and renderer texture updates.
+
 Accumulated-light RGB conversion matches8192 original/PC/NXDK cases,
 including integer normalization and overflow behavior; both builds and24 tests
 pass. Reconstruct light accumulation/filtering, then bind runtime texture updates.

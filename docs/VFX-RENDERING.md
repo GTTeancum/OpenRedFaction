@@ -1155,3 +1155,33 @@ numerator cases, near-integer boundaries, negatives and dark values. All8192
 NXDK in-place cases match; five invalid PC/NXDK cases preserve output.
 Both builds and24 CTests pass. Accumulation4f3390, spatial filtering and
 native renderer resource updates remain; this adds no new visual evidence.
+
+
+### Lightmap neighborhood filtering (2026-09-13)
+
+rf_lightmap_filtered_rgb reconstructs4f3100. Interior pixels use a3x3 box
+sum multiplied by binary32 constant589d7c (28.33333396911621). The red/blue
+order is right,upper-right,lower-right,left,upper-left,lower-left,lower,
+upper,center; green ends center,lower,upper. Red and green store to float
+before integer conversion; blue retains intermediate precision. All channels
+then use the reconstructed negative clamp/integer normalization stage.
+
+The original boundary fallback starts its lower bounds at row/column1 and
+caps upper bounds at dimension-1. It sums row-major, with255/sample_count;
+red uses the pre-store factor, green/blue use its binary32 store. Red/green
+again store their products before conversion. The shared API requires at least
+2x2 arrays with explicit count and coordinates; invalid output is preserved.
+No allocation. A private shared scaled-RGB helper keeps direct/filter integer
+normalization identical without multiplying the filtered values by255 again.
+
+verify_lightmap_filtered_rgb.py executes full original4f3100/CRT unhooked
+under explicit53-bit x87 control027f, matching the native replay configuration.
+All4096 PC/NXDK cases match, including2153 boundary fallbacks, constant values
+at thresholds, mixed signs and large values. Five invalid-view NXDK guards
+preserve output. The8192 direct accumulated-RGB cases still pass after shared
+helper extraction. Both builds and24 CTests pass.
+
+Caller4f26a0 selects direct4f3040 for dimensions below9 or the two-pixel rim;
+otherwise it selects4f3100. That grid selection is static instruction evidence,
+not yet executed as a reconstructed full mapping resolve. Source accumulation,
+full-grid resolve and native texture lifecycle/render updates remain.

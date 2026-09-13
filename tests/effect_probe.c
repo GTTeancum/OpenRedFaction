@@ -164,6 +164,18 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-filtered-rgb")) {
+        struct {uint32_t width,height,x,y;float channels[3][256];} input;
+        unsigned char output[3];uint32_t status;rf_lightmap_accumulation view;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            view.channels[0]=input.channels[0];view.channels[1]=input.channels[1];view.channels[2]=input.channels[2];
+            view.count=256;view.width=input.width;view.height=input.height;memset(output,0xa5,3);
+            status=rf_lightmap_filtered_rgb(&view,input.x,input.y,output);
+            fwrite(&status,4,1,stdout);fwrite(output,3,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-accumulated-rgb")) {
         float input[3];unsigned char output[3];uint32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
