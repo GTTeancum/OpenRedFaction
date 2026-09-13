@@ -48,6 +48,7 @@ Event arbitration4087a0 matches2048 original/PC/NXDK cases; bind event/destinati
 Shared destination40ac90 matches2048 original/PC/NXDK cases; bind route services and retained scene ownership.
 Navigation preparation40aae0 matches2048 original/PC/NXDK cases; compose it with retained movement/query owners.
 Direct-route40b0d0 matches2048 original/PC/NXDK cases; bind global navigation references and reconstruct searched routes.
+Path search4ce8c0 original audit passes2048 graphs; implement ordered costs, predecessor paths and bounded storage.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.

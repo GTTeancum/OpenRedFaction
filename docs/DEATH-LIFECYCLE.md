@@ -9955,3 +9955,37 @@ had only3 single-node successes; fixtures were strengthened before the
 final comparison. Two compiled guards cover malformed adjacency and the
 state3 bypass. Both builds and all22 CTests pass. No native scene binding,
 visibility check or searched-route allocation is claimed by this routine.
+
+
+Original path-search4ce8c0 audit (2026-09-13)
+
+4cebd0 wraps search with node eligibility4ce4b0, start connections4ce800
+and temporary destination insertion4ce860; temporary entries are removed
+after search. Shared wrapper/storage are not yet implemented. The inner
+4ce8c0 initializes only nonrejected nodes: score38=FLT_MAX,parent3c=0,
+flags34/36=0. Start score becomes0 and flag34=1 even if rejected. It
+scans the open array for strictly lower score, preserving first-entry ties,
+and uses stable removal4ce390. Neighbor lists retain authored order.
+Only start is marked34 here; flag36 prevents repeated enqueue. Each
+improvement uses squared edge distance plus current score, storing float
+and predecessor. Do not replace this with Euclidean edge costs or another
+priority/tie policy. Standard search accepts the exact destination, or a
+strictly in-range node when4ce740 low byte equals1. Alternate search uses
+visibility low byte0 and4ce6c0 edge filtering. Actual4ceb50 reconstructs
+the predecessor chain and sums cumulative node scores with float stores,
+not simply the final score. Reaching start itself leaves output cost alone.
+
+verify_ai_search_original.py runs full4ce8c0 plus real list traversal/
+removal, scoring, exception-chain restoration and4ceb50 recursion. Only
+scratch allocation/append/free, visibility and route-output append4cebb0
+are supplied. An independent ordered graph model matches all node bytes,
+query footprint, operations, predecessor path and cost for2048 cases:
+1180 successes,403 alternate successes,56 near-goal successes. Graphs
+contain1..8 nodes, directed shuffled adjacency, cycles, rejected nodes,
+ties, disconnected goals and varying predicate low bytes. Rejected-node
+uninterpreted float bytes are preserved, including signaling-NaN payloads;
+the initial oracle assertion was corrected to avoid repacking those bytes.
+Initial/final raw node words are retained for subsequent shared comparison.
+This is original-executable evidence only: shared search, bounded route
+storage, full visibility and live integration remain open. No new build
+or native XEMU result is claimed for this audit-only change.
