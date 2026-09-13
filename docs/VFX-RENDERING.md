@@ -264,3 +264,18 @@ original54a630/54a6e0 with real metadata/handle helpers and both slots. The
 image descriptors are supplied fixtures, not decoded pixels or native draws.
 Four numeric guards and three binding guards preserve output. Both builds
 and24 CTests pass; no native appearance claim.
+
+## Edge material color
+
+rf_vfx_material_color reconstructs553ee0 after its light query. It applies
+a per-channel minimum from brightness*255 rounded by504e90 (float product,
+then add0.5 and truncate). Mesh flag10 supplies white instead. Material type2
+then multiplies each byte by authored RGB at material9..b and float1/255,
+truncating without an intermediate float spill. The function accepts supplied
+light RGB and permits in-place output; lit brightness must be finite0..1.
+
+2048 PC/NXDK cases match original554303..5543a5 or unlit5542ad..5543a5
+with the actual brightness sampler, byte converter and ftol helpers, no hooks.
+2048 in-place checks and3 invalid-brightness guards pass. This does not
+reconstruct4daff0 scene lighting, edge-normal/cache ownership,4db1b0 specular
+or4db760 glare coordinates, nor full material passes or native drawing.

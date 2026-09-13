@@ -202,6 +202,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-material-color")) {
+        unsigned char data[18],out[3];rf_vfx_material_view view;float brightness;uint32_t flags;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(data,sizeof(data),1,stdin)==1) {
+            memset(&view,0,sizeof(view));memcpy(view.words,data,4);memcpy((unsigned char *)view.words+9,data+4,3);
+            memcpy(&brightness,data+10,4);memcpy(&flags,data+14,4);memset(out,0xa5,3);
+            status=rf_vfx_material_color(&view,data+7,brightness,flags,out);fwrite(&status,4,1,stdout);fwrite(out,3,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-texture-frame")) {
         uint32_t h[7],out;float duration,speed,time;int32_t start,status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

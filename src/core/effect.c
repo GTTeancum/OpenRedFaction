@@ -2009,3 +2009,21 @@ int rf_vfx_texture_duration(uint32_t count,uint32_t rate,float *out)
     result=(float)(((double)count/stored)*(double)0.0010000000474974513f);
     if(!isfinite(result) || result<=0)return RF_RANGE;*out=result;return RF_OK;
 }
+
+int rf_vfx_material_color(const rf_vfx_material_view *view,const unsigned char lighting[3],
+    float brightness,uint32_t mesh_flags,unsigned char out[3])
+{
+    unsigned char color[3];uint32_t i,minimum;float scaled;
+    if(!view || !lighting || !out)return RF_RANGE;
+    if(mesh_flags&0x10)memset(color,255,3);
+    else {
+        if(!isfinite(brightness) || brightness<0 || brightness>1)return RF_RANGE;
+        scaled=(float)((double)brightness*255.0);minimum=(uint32_t)((double)scaled+0.5);
+        for(i=0;i<3;++i)color[i]=lighting[i]<minimum?(unsigned char)minimum:lighting[i];
+    }
+    if(view->words[0]==2) {
+        const unsigned char *tint=(const unsigned char *)view->words+9;
+        for(i=0;i<3;++i)color[i]=(unsigned char)((uint32_t)((double)((uint32_t)color[i]*tint[i])*(double)0.003921568859368563f));
+    }
+    memcpy(out,color,3);return RF_OK;
+}

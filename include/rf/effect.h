@@ -69,6 +69,13 @@ int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float
 /* Bitmap loader50f9cd and query50f380 rate rounding. Count1 ignores rate;
  * animated counts2..255 and signed-positive VBM rates required. */
 int rf_vfx_texture_duration(uint32_t count,uint32_t rate,float *out);
+/*553ee0 edge color after light query: brightness sets a rounded minimum,
+ * mesh flag10 forces white, material type2 multiplies by authored RGB. The
+ * lighting input is supplied by the caller; specular/glare passes are separate.
+ * Lit brightness must be finite0..1. Output may alias lighting. */
+int rf_vfx_material_color(const rf_vfx_material_view *,const unsigned char lighting[3],
+    float brightness,uint32_t mesh_flags,unsigned char out[3]);
+
 int rf_vfx_texture_frame(uint32_t count,float duration,int32_t start,float speed,
     uint32_t mode,float time,uint32_t normalized,uint32_t *out);
 

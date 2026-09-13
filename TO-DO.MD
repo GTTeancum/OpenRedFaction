@@ -14,6 +14,10 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX edge color preparation now matches2048 original/PC/NXDK cases, including
+brightness minimum, unlit white and type2 tint, plus2048 in-place checks and
+3 guards. Connect scene lighting, edge caches and renderer passes next.
+
 VFX bitmap metadata and retained primary/secondary image selection now match
 2048 original/PC/NXDK duration cases plus2048 NXDK/original image selections;
 7 guards, both builds and24 tests pass. Bind lighting/draw submission and
