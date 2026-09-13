@@ -1438,6 +1438,7 @@ int rf_entity_motion_selection_base(const rf_entity_motion_catalog *c,
     if(v.mapping.skeleton==UINT32_MAX)return RF_NOT_FOUND;
     if(v.mapping.skeleton>=c->model_count)return RF_RANGE;
     for(i=0;i<45;++i)v.action_sounds[i]=b->classes[class_index].action_sounds[i];
+    memcpy(v.action_declarations,b->classes[class_index].action_declarations,sizeof(v.action_declarations));
     *result=v;return RF_OK;
 }
 int rf_entity_motion_selection_weapon(const rf_entity_motion_catalog *c,
@@ -1460,7 +1461,11 @@ int rf_entity_motion_selection_weapon(const rf_entity_motion_catalog *c,
     }
     status=rf_entity_motion_mapping_overlay(c->mappings+class_index,map,&v.mapping);if(status)return status;
     v.mapping.weapon=weapon;
-    if(group)for(j=0;j<45;++j)if(map->actions[j]!=-1)v.action_sounds[j]=group->action_sounds[j];
+    if(group)for(j=0;j<45;++j)if(map->actions[j]!=-1) {
+        uint32_t bit=1u<<(j%32);
+        v.action_sounds[j]=group->action_sounds[j];
+        v.action_declarations[j/32]=(v.action_declarations[j/32]&~bit)|(group->action_declarations[j/32]&bit);
+    }
     *result=v;return RF_OK;
 }
 typedef struct startup_weapon_binding_context {

@@ -583,6 +583,7 @@ int rf_entity_motion_mapping_overlay(const rf_entity_motion_mapping *base,
     const rf_entity_motion_mapping *weapon,rf_entity_motion_mapping *result);
 typedef struct rf_entity_motion_selection {
     rf_entity_motion_mapping mapping;const char *action_sounds[45];
+    uint32_t action_declarations[2]; /* Names follow copied action records, not motion availability. */
 } rf_entity_motion_selection;
 /* Initial base selection, before runtime weapon overlays. Sound strings borrow
  * bindings; retain that owner while using the selection. No animation starts.

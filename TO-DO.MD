@@ -82,9 +82,9 @@ SP pickup completion order/timer matches1024 original/PC/NXDK cases and6 callbac
 Normal-SP acquisition4030d0 matches2048 original/PC/NXDK cases with actual401470 no-op notification; bind inventory creation, equip/reset and full pickup grants.
 Startup grants now compose with concrete42ab20 animation selection (220 loaded PC cases); connect retained inventories/selections to live scene consumers.
 All63 class defaults now retain optional melee (four authored classes); include it when creating startup inventories.
-NPCs retain zeroed inventories and per-actor base motion/sound selections; enable authored grants after completing corpse declaration views and firing-reset adapters.
+NPCs retain zeroed inventories and selected motion/sound/declaration records; enable authored grants after completing firing-reset adapters.
 Armed and unarmed death/recovery scene fixtures pass; animation consumers validate retained skeletons without rejecting equipped weapons.
-All78 owners match PC in180-frame stock64MiB XEMU; retained storage71136 bytes, body subsystem peak530212 bytes within640KiB.
+All78 owners including selected declaration masks match PC in180-frame stock64MiB XEMU; retained storage71760 bytes, body subsystem peak530836 bytes within640KiB.
 Reserve addition428d90 matches2048 original/PC/NXDK cases; bind reload query/service and full ammo pickup acceptance.
 Ammo pickup scaling/message amounts match8192 original/PC/NXDK cases; bind special weapon IDs, difficulty ownership and inventory/message consumers.
 Retained4872-byte weapon supply catalog matches all44 original-audited mappings in stock64MiB XEMU; create scene inventories through verified initialization.
@@ -330,7 +330,7 @@ Immediate open items:
 - [ ] Reconstruct riot-shield impact-mark allocation/clipping/rendering and bind verified player-slot cleanup to the original-audited 50-mark/150-polygon/500-vertex pools.
 - [ ] Connect the authored-tested file-tag/room-query/shared-lightmap source composition to death dispatch and bind room queue scheduling; isolated authored texture/growth draws now pass PC and stock64MiB XEMU, while campaign source ownership and queue scheduling remain open.
 - [ ] Recover generic cached CSPH tag parent initialization/placement; the95-model original audit clears cached-tag precedence for all190 corpse eye/spine queries.
-- [ ] Bind verified base corpse-motion lookup to live creation and recover weapon-switched declaration views; canonical availability masks are retained.
+- [ ] Complete live corpse creation dispatch; registered NPC corpse sources/lookups now use selected motion/declaration views, including weapon overlays.
 - [ ] Connect the authored-tested owned corpse constructor and class-input binding to live death dispatch and resource effects; bind the authored-tested corpse update adapter to live dispatch, replacement materials and moving room lookup.
 - [ ] Enable authored-class sphere transfer and tested corpse transition/refresh in live dispatch and recover attached item creation/handle publication and bind the tested item world-pose callback to live owners.
 - [ ] Bind verified corpse retention/fade/update/deletion and30-slot allocation to live creation and owned resource backends; five eligible bodies trigger fading.

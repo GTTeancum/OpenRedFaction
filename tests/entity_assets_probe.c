@@ -471,6 +471,7 @@ int main(int argc,char **argv)
                         printf("STARTUP_WEAPON_BINDING\t%s\t%u\t%d\t%d\n",cls,weapon,inv.loaded[weapon],
                             startup_supply.definitions[weapon].ammo_type<0?-1:inv.reserve[startup_supply.definitions[weapon].ammo_type]);
                     }
+                    printf("SELECTED_DECLARATIONS\t%s\t%u\t%u\t%u\n",cls,weapon,selected.action_declarations[0],selected.action_declarations[1]);
                     printf("SELECTED_MAP\t%s\t%u\t%d\t%u",cls,weapon,selected.mapping.weapon,selected.mapping.skeleton);
                     for(k=0;k<23;++k)printf("\t%d",selected.mapping.states[k]);
                     for(k=0;k<45;++k)printf("\t%d",selected.mapping.actions[k]);

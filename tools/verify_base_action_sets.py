@@ -128,6 +128,7 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
   assert list(map(int,fields[4:]))==want and int(fields[3])==model_for[cls]
   effective_count+=1
  assert effective_count==len(group_registries)
+ selected_declarations={(f[1].lower(),int(f[2])):int(f[3])|(int(f[4])<<32) for line in out.splitlines() if line.startswith('SELECTED_DECLARATIONS\t') for f in [line.split('\t')]}
  selected_count=0
  for line in out.splitlines():
   if not line.startswith('SELECTED_MAP\t'):continue
@@ -137,11 +138,13 @@ for level in ('L1S1.rfl','L1S2.rfl','L1S3.rfl'):
   assert resolved==[w.lower() for w in weapons].index(weapon) and model==model_for[cls]
   base_map=expected_maps[cls,''];weapon_map=expected_maps.get((cls,weapon),[-1]*68)
   assert list(map(int,fields[5:73]))==[b if w==-1 else w for b,w in zip(base_map,weapon_map)]
-  expected_sounds=[]
+  expected_sounds=[];expected_declarations=0
   for j,name in enumerate(action_names):
    source=weapon if weapon_map[23+j]!=-1 else ''
    row=all_actions.get((cls,source,name));expected_sounds.append(row['sound'] if row else '')
+   if row is not None:expected_declarations|=1<<j
   assert fields[73:]==expected_sounds,(level,cls,weapon,'selected sounds')
+  assert selected_declarations[cls,requested]==expected_declarations,(level,cls,weapon,'selected declarations')
   selected_count+=1
  assert selected_count==sum(m!=0xffffffff for m in model_for.values())*len(weapons)
 

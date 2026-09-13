@@ -51,6 +51,20 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
   rf_scene_death_motion_ops ops={0};rf_motion_playback_state before;uint32_t bits=0x12345678;
   cls.model_kind=2;cls.physics.flags=0x20000;campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
   {
+   rf_corpse_create_source source={0},kept;
+   uint32_t declarations[2];memcpy(declarations,owner->selection.action_declarations,sizeof(declarations));
+   owner->selection.action_declarations[0]=1u<<14;owner->selection.action_declarations[1]=1u<<4;
+   source.model=1;source.model_kind=2;
+   CHECK(rf_scene_corpse_class_source(0,&source)==RF_OK && source.motions[14]==2);
+   CHECK(rf_scene_corpse_motion(NULL,&source,"death_leg_left")==14);
+   CHECK(rf_scene_corpse_motion(NULL,&source,"death_leg_right")==-1);
+   /* An explicitly declared empty action still has a name. */
+   CHECK(rf_scene_corpse_motion(NULL,&source,"death_still_1")==36);
+   kept=source;source.class_index=1;
+   CHECK(rf_scene_corpse_motion(NULL,&source,"death_leg_left")==-2);
+   source=kept;memcpy(owner->selection.action_declarations,declarations,sizeof(declarations));
+  }
+  {
    campaign_npc_body kept=*owner;rf_motion_playback_state kept_pose=pose->playback,started;
    int32_t old40=owner->selection.mapping.actions[40];
    owner->selection.mapping.actions[40]=2;cls.unholster_delay=.33f;owner->view.flags_810=0;owner->view.flags_7d0=0x100;

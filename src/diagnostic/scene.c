@@ -704,13 +704,19 @@ int rf_scene_corpse_bind_model(void *context,rf_corpse_create_source *source,rf_
        (source->replacement_model && source->replacement_model[0]))return RF_FORMAT;
     return rf_scene_model_detach(corpse->update.model-1,corpse->update.position,corpse->update.basis,*(const uint32_t*)context);
 }
-/* Current campaign startup uses base action mappings. Weapon remapping must
- * supply its original declaration view before enabling this callback there. */
+/* A live actor selection survives model transfer until corpse creation ends.
+ * Class-only callers without a registered NPC use the retained base records. */
+static const rf_entity_motion_selection *campaign_corpse_selection(uint32_t model);
 int32_t rf_scene_corpse_motion(void *context,rf_corpse_create_source *source,const char *name)
 {
-    uint32_t cls;(void)context;if(!source)return -2;
+    uint32_t cls;const rf_entity_motion_selection *selected;(void)context;if(!source)return -2;
     if(!source->model || source->model_kind!=2 || !name)return -1;
     cls=source->class_index;
+    selected=campaign_corpse_selection(source->model);
+    if(selected) {
+        if(selected->mapping.class_index!=cls)return -2;
+        return rf_entity_declared_action_lookup(selected->action_declarations,source->model,source->model_kind,name);
+    }
     if(cls>=campaign_base_motions.class_count || !campaign_base_motions.classes ||
        cls>=campaign_motion_catalog.class_count || !campaign_motion_catalog.mappings ||
        campaign_motion_catalog.mappings[cls].weapon!=-1)return -2;
@@ -724,7 +730,13 @@ int rf_scene_corpse_class_source(uint32_t cls,rf_corpse_create_source *source)
     if(!source || !campaign_seeds.classes || cls>=campaign_seeds.class_count ||
        !campaign_motion_catalog.mappings || cls>=campaign_motion_catalog.class_count)return RF_RANGE;
     definition=campaign_seeds.classes+cls;mapping=campaign_motion_catalog.mappings+cls;
-    if(mapping->weapon!=-1)return RF_FORMAT;
+    if(source->model) {
+        const rf_entity_motion_selection *selected=campaign_corpse_selection(source->model);
+        if(selected) {
+            if(selected->mapping.class_index!=cls)return RF_RANGE;
+            mapping=&selected->mapping;
+        }
+    }
     source->class_index=cls;source->model_kind=definition->model_kind;
     source->class_flags_724=definition->physics.flags;source->class_flags_728=definition->physics.flags2;
     source->class_health=definition->vitals.health;source->class_value=definition->corpse.body_temperature;
@@ -2857,7 +2869,7 @@ typedef struct campaign_npc_body {
     rf_movement_settings movement;rf_entity_view view;rf_registered_entity_view registration;
 } campaign_npc_body;
 static campaign_npc_body *campaign_npc_bodies;
-uint32_t rf_scene_npc_inventory_owners[4]; /* owners,bytes,inventory hash,mapping hash */
+uint32_t rf_scene_npc_inventory_owners[4]; /* owners,bytes,inventory hash,mapping/declarations hash */
 static rf_movement_config *campaign_npc_movement_configs;
 static rf_physics_stance_cache *campaign_npc_stances;
 typedef struct campaign_npc_eye_class {int32_t tag,parent;float local[12],offsets[6];} campaign_npc_eye_class;
@@ -2865,6 +2877,14 @@ static campaign_npc_eye_class *campaign_npc_eyes;
 uint32_t rf_scene_npc_unholster[4]; /* classes,nonzero,bytes,hash */
 uint32_t rf_scene_npc_eyes[4]; /* refreshed actors, retained bytes, class hash, position hash */
 static uint32_t campaign_npc_body_count;
+static const rf_entity_motion_selection *campaign_corpse_selection(uint32_t model)
+{
+    uint32_t slot=model-1;
+    if(!model || !campaign_npc_bodies || slot>=campaign_npc_body_count ||
+       !campaign_npc_bodies[slot].registration.view)return NULL;
+    return &campaign_npc_bodies[slot].selection;
+}
+
 uint32_t rf_scene_npc_visibility_rooms[6];
 static int campaign_npc_eye_update(uint32_t actor)
 {
@@ -3078,6 +3098,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         ++rf_scene_npc_inventory_owners[0];
         rf_scene_npc_inventory_owners[2]=npc_hash_bytes(rf_scene_npc_inventory_owners[2],&owner->inventory,sizeof(owner->inventory));
         rf_scene_npc_inventory_owners[3]=npc_hash_bytes(rf_scene_npc_inventory_owners[3],&owner->selection.mapping,sizeof(owner->selection.mapping));
+        rf_scene_npc_inventory_owners[3]=npc_hash_bytes(rf_scene_npc_inventory_owners[3],owner->selection.action_declarations,sizeof(owner->selection.action_declarations));
         /*423367..423385, constructor40e380 timer, and SP423af2. */
         owner->death.item_82c=owner->death.requested_83c=owner->death.action_824=-1;
         owner->death.linked_146c=owner->death.deadline_4b8=-1;owner->death.model_148c=0;
