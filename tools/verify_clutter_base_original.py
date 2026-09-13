@@ -69,6 +69,7 @@ for case in range(256):
  flags=allocation_flags|0x6400000|(0x8000 if allocation_flags&0x4000 else 0)
  assert read(actor+0x7c)==flags and read(actor+0x34)==0x42c80000 and read(actor+0x80)==model
  assert read(actor+0x24)==4 and read(actor+0x30)==123 and read(actor+0x1fc)==2
+ assert read(actor+0x200)==0xffffffff,hex(read(actor+0x200))
  assert read(actor+0x1f8)==(17 if has_parent else 1) and u.mem_read(actor+0x28,1)==bytes([7 if has_parent else 0])
  assert read(params+132)==struct.unpack('<I',f(model_radius if radius<0 else radius))[0]
  assert read(params+148)==(0 if allocation_flags&0x10000 else 0x20)

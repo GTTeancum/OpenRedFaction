@@ -9060,3 +9060,23 @@ Shared attachment ordering (2026-09-12)
  Both builds and22 CTest checks pass. This API is not yet bound to live scene
  objects: static clutter owners currently lack complete attachment-parent and
  special use-kind metadata. Retain those facts before scene integration.
+
+
+Clutter parent metadata audit (2026-09-12)
+----------------------------------------
+ Original40f540 selects class base5afb88;40f9ba passes class+44 to489610.
+ This is the optional $Use field, not model kind. Executed489662 classifier
+ with real5001d0/57c130 compares: vehicle1, switch2, command3, turret4,
+ monitor5, medic6, "ai response"9, play_sound10; unknown0. Uppercase names
+ give the same results. Decompiler symbol ai_response conceals a SPACE in
+ the actual string; play_sound actually contains an underscore.
+ tools/inspect_clutter_use_kind.py inspects431 installed class blocks before
+ skins:21 declare use (12 play_sound,9 monitor), none turret, and none of
+ these21 declare glare/rod-glare in those base blocks. This is asset metadata
+ evidence, not proof about later runtime class mutations or actor turrets.
+ artifacts/clutter-use-kind.json PASS; parser/radius/lifetime excluded.
+ tools/verify_clutter_base_original.py now also verifies attachment parent200
+ is-1 in all256 original allocations, even when ownership parent30 is123
+ and resolves. These distinct fields must not be merged in the shared owner.
+ Next integration can target current static-prop/glare ownership using these
+ measured defaults; dynamic attachments and turret alternate pose remain open.
