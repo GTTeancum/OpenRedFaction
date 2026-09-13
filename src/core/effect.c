@@ -1879,27 +1879,27 @@ int rf_vfx_instance_faces(const rf_visibility_camera *camera,const rf_vfx_instan
     *count=n;return RF_OK;
 }
 
-static float vfx_material_scalar(const unsigned char *samples,uint32_t index,int clamp)
+static float vfx_material_scalar(const unsigned char *samples,uint32_t index,uint32_t stride,int clamp)
 {
-    float value;memcpy(&value,samples+(size_t)index*4,4);
+    float value;memcpy(&value,samples+(size_t)index*stride,4);
     if(clamp){if(value<=0)value=0;if(value>1)value=1;}return value;
 }
 static int vfx_material_track_bytes(const unsigned char *samples,uint32_t count,int32_t rate,
-    float effect_frame,int clamp,float *out)
+    float effect_frame,uint32_t stride,int clamp,float *out)
 {
     double position,fraction,value;float stored,result;uint32_t index,i;
-    if(!samples || !count || count>INT32_MAX || count>SIZE_MAX/4 || rate<0 || !out || !isfinite(effect_frame) || effect_frame<0)return RF_RANGE;
-    for(i=0;i<count;++i)if(!isfinite(vfx_material_scalar(samples,i,0)))return RF_FORMAT;
+    if(!samples || !count || count>INT32_MAX || stride<4 || count>SIZE_MAX/stride || rate<0 || !out || !isfinite(effect_frame) || effect_frame<0)return RF_RANGE;
+    for(i=0;i<count;++i)if(!isfinite(vfx_material_scalar(samples,i,stride,0)))return RF_FORMAT;
     position=((double)rate*effect_frame)*(double)0.06666667014360428f;stored=(float)position;
     if(!isfinite(stored) || position>=2147483646.0)return RF_RANGE;
     index=(uint32_t)floor(position);fraction=(double)stored-index;
-    value=index+1<count?((1.0-fraction)*vfx_material_scalar(samples,index,clamp)+fraction*vfx_material_scalar(samples,index+1,clamp)):vfx_material_scalar(samples,count-1,clamp);
+    value=index+1<count?((1.0-fraction)*vfx_material_scalar(samples,index,stride,clamp)+fraction*vfx_material_scalar(samples,index+1,stride,clamp)):vfx_material_scalar(samples,count-1,stride,clamp);
     result=(float)value;if(!isfinite(result))return RF_RANGE;
     if(result>1)result=1;if(!(result>0))result=0;
     *out=result;return RF_OK;
 }
 int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float effect_frame,float *out)
-{return vfx_material_track_bytes((const unsigned char *)samples,count,rate,effect_frame,0,out);}
+{return vfx_material_track_bytes((const unsigned char *)samples,count,rate,effect_frame,4,0,out);}
 
 int rf_vfx_material_evaluate(const void *data,uint32_t bytes,const rf_vfx_material_view *view,
     uint32_t track,float effect_frame,float *out)
@@ -1910,5 +1910,30 @@ int rf_vfx_material_evaluate(const void *data,uint32_t bytes,const rf_vfx_materi
     if(!count)return RF_NOT_FOUND;
     if(at>bytes || (uint64_t)count*4>bytes-at)return RF_RANGE;
     memcpy(&rate,view->words+30,4);
-    return vfx_material_track_bytes((const unsigned char *)data+at,count,rate,effect_frame,track==0,out);
+    return vfx_material_track_bytes((const unsigned char *)data+at,count,rate,effect_frame,4,track==0,out);
+}
+
+int rf_vfx_mesh_material_evaluate(const rf_vfx_mesh *mesh,uint32_t material,uint32_t track,
+    float effect_frame,float *out)
+{
+    rf_vfx_embedded_material_view view;uint32_t at,i,count;int status;int32_t rate;float color;
+    if(!mesh || !mesh->data || !out || track>2)return RF_RANGE;
+    if(mesh->version>=0x40000 || material>=mesh->materials)return RF_NOT_FOUND;
+    at=mesh->material_offset;
+    for(i=0;i<=material;++i) {
+        if(at>mesh->bytes)return RF_RANGE;
+        status=rf_vfx_embedded_material_read(mesh->data+at,mesh->bytes-at,mesh->version,
+            mesh->prefix.timing.flags,mesh->prefix.timing.samples,&view);
+        if(status)return status;
+        if(i!=material)at+=view.material.bytes;
+    }
+    if(!track)return rf_vfx_material_evaluate(mesh->data+at,mesh->bytes-at,&view.material,0,effect_frame,out);
+    memcpy(&rate,view.material.words+30,4);
+    if(track==1){memcpy(&color,&view.color_word,4);return rf_vfx_material_track(&color,1,rate,effect_frame,out);}
+    count=mesh->prefix.timing.samples;
+    if(!count)return RF_NOT_FOUND;
+    if(!mesh->frames || count>SIZE_MAX/sizeof(*mesh->frames))return RF_RANGE;
+    for(i=0;i<count;++i)if(!(mesh->frames[i].present&32))return RF_FORMAT;
+    return vfx_material_track_bytes((const unsigned char *)&mesh->frames[0].opacity,count,rate,
+        effect_frame,sizeof(*mesh->frames),0,out);
 }

@@ -180,3 +180,19 @@ without hooks; loader blend clamping is supplied as normalized original input
 (the separate material parser verifier checks that loader behavior). Existing
 6144 scalar comparisons and24 tests still pass. Embedded mesh frame opacity,
 retained renderer material ownership and native drawing remain open.
+
+rf_vfx_mesh_material_evaluate resolves pre40000 local material records from
+the owned mesh. Blend uses the serialized array; scalar brightness uses the
+embedded color_word (default0 before30011, as53d0c0 loads it); opacity uses
+the retained frame opacity fields, which53d0c0 distributes to every material.
+The shared byte sampler accepts a stride so frame samples need no temporary
+array. All frames must carry opacity presence. New global material references
+return NOT_FOUND for the future effect owner to resolve. Outputs survive errors.
+The accessor reparses preceding variable records; cache resolved views when
+binding retained renderer ownership. It does not allocate or submit draws.
+
+verify_vfx_mesh_material.py covers14 authored meshes with80 original/PC/NXDK
+scalar evaluations and126 missing/global/range guards. Original scalar routines
+receive arrays assembled from decoded records; parsing remains covered by its
+separate original-oracle harnesses. Both builds,24 tests and prior scalar/view
+regressions pass. Native VFX appearance is still unverified.

@@ -138,6 +138,12 @@ typedef struct rf_vfx_mesh {
 int rf_vfx_mesh_open(const void *,uint32_t bytes,uint32_t version,
     uint32_t global_materials,const float *legacy_base7,uint32_t budget,rf_vfx_mesh **);
 void rf_vfx_mesh_close(rf_vfx_mesh **);
+/* Pre40000 mesh-local material tracks:0 blend,1 scalar brightness,2 frame
+ * opacity. Uses retained mesh data; no allocation. Newer global material
+ * references return NOT_FOUND for resolution by the effect owner. Errors
+ * preserve output; empty/missing tracks return NOT_FOUND. */
+int rf_vfx_mesh_material_evaluate(const rf_vfx_mesh *,uint32_t material,uint32_t track,
+    float effect_frame,float *out);
 typedef struct rf_vfx_frame_cursor {
     float position,fraction;uint32_t first,second,active;
 } rf_vfx_frame_cursor;

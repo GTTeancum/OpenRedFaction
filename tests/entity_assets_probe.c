@@ -242,6 +242,23 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-mesh-material")) {
+        uint32_t input[4],m,t,i;float legacy[7],times[4]={0,.5f,2,10000},out;unsigned char *data;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,16,1,stdin)==1) {
+            rf_vfx_mesh *mesh=NULL;
+            if(fread(legacy,28,1,stdin)!=1 || input[3]>1048576)return 2;
+            data=malloc(input[3]?input[3]:1);if(!data)return 2;
+            if(fread(data,1,input[3],stdin)!=input[3]){free(data);return 2;}
+            status=rf_vfx_mesh_open(data,input[3],input[0],input[1],legacy,input[2],&mesh);free(data);if(status)return 3;
+            for(m=0;m<mesh->materials;++m)for(t=0;t<3;++t)for(i=0;i<4;++i) {
+                memset(&out,0xa5,4);status=rf_vfx_mesh_material_evaluate(mesh,m,t,times[i],&out);
+                fwrite(&status,4,1,stdout);fwrite(&out,4,1,stdout);
+            }
+            rf_vfx_mesh_close(&mesh);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-instance")) {
         uint32_t input[4];float legacy[7],times[4]={0,.5f,2,10000};unsigned char *data;int32_t status;unsigned i;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

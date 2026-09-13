@@ -14,6 +14,12 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Embedded VFX materials now sample retained blend, brightness and frame opacity;
+80 original/PC/NXDK scalar checks across14 meshes and126 missing/global/range
+guards pass. Both builds and24 tests pass; renderer submission remains open.
+PC frontend now polls XInput while focused; USER: verify controller movement,
+look, A jump, X use, B crouch, disconnect and Back+Start exit in the live build.
+
 Borrowed VFX material views now evaluate blend/brightness/opacity without
 allocation, including unaligned arrays and original pre-interpolation blend
 clamps;2048 original/PC/NXDK cases and7 guards pass. Both builds and24 tests
