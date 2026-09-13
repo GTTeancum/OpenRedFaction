@@ -50,5 +50,11 @@ for at in (16,28,40):
  x.mem_write(B,bytes(command));x.mem_write(B+0x100,b'\xa5'*8);x.mem_write(STACK,w(STOP,B,B+0x100,B+0x104));x.reg_write(UC_X86_REG_ESP,STACK)
  x.emu_start(entry,STOP,count=10000);assert x.reg_read(UC_X86_REG_EAX)==0xfffffffc and bytes(x.mem_read(B+0x100,8))==b'\xa5'*8
 bad=subprocess.check_output([str(root/'build/pc/Release/rf_entity_probe.exe'),'--actor-contact'],input=b''.join(guards));assert bad==(w(0xfffffffc)+b'\xa5'*8)*len(guards)
-report=dict(result='PASS',cases=len(commands),pc_nxdk_failure_guards=len(guards),decisions=counts,scope='Full41a000 with actual429990/486c90,42cca0,40cac0,4895d0 and40a180.42a130 predicate supplied and429790 destruction recorded at boundary. Original AL response, destruction request and target checked against PC/NXDK. Effects inside429790 and live contact dispatch excluded.')
+# The scene passes-1 to42a130; execute its direct flag path without predicate hooks.
+q=load(exe)
+for n in range(1024):
+ flags=rng.getrandbits(32);q.mem_write(B+0x810,w(flags));q.mem_write(STACK,w(STOP,B,0xffffffff));q.reg_write(UC_X86_REG_ESP,STACK)
+ q.emu_start(0x42a130,STOP,count=100);assert q.reg_read(UC_X86_REG_EIP)==STOP
+ assert (q.reg_read(UC_X86_REG_EAX)&255)==((flags>>16)&1)
+report=dict(result='PASS',original_direct_flag_cases=1024,cases=len(commands),pc_nxdk_failure_guards=len(guards),decisions=counts,scope='Full41a000 with actual429990/486c90,42cca0,40cac0,4895d0 and40a180.42a130 predicate supplied and429790 destruction recorded at boundary. Original AL response, destruction request and target checked against PC/NXDK. Effects inside429790 and live contact dispatch excluded.')
 (root/'artifacts/actor-contact.json').write_text(json.dumps(report,indent=2));print(report)

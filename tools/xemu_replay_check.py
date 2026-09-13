@@ -591,7 +591,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      destroy_test=words(monitor,symbol('rf_scene_npc_contact_destroy_test'),4)
      assert destroy_audio==expected('NPC_CONTACT_DESTROY_AUDIO') and destroy_audio[7]==0,destroy_audio
      assert destroy_test==expected('NPC_CONTACT_DESTROY_TEST') and destroy_test[3]==0,destroy_test
-     if args.damage_uid==8456:assert destroy_test[0]==2 and destroy_audio[:3]==[1,1,1],(destroy_test,destroy_audio)
+     if args.damage_uid==8456:assert destroy_test[0]==4 and destroy_audio[:3]==[1,1,1],(destroy_test,destroy_audio)
      report['npc_contact_destroy_audio']=destroy_audio;report['npc_contact_destroy_test']=destroy_test
 
      assert death_animation==expected('DEATH_ANIMATION_TEST'),death_animation

@@ -4290,6 +4290,25 @@ int rf_scene_npc_contact_destroy(uint32_t handle,const rf_scene_npc_contact_dest
     ++rf_scene_npc_contact_destroy_audio[0];status=rf_entity_contact_destroy(&actor,&backend);
     rf_scene_npc_contact_destroy_audio[6]=services->random->value;if(status)++rf_scene_npc_contact_destroy_audio[7];return status;
 }
+int rf_scene_npc_actor_contact(uint32_t source,uint32_t target,
+    const rf_scene_npc_contact_destroy_services *services,uint32_t *respond)
+{
+    campaign_npc_body *a,*b;rf_entity_pose *pose;rf_entity_actor_contact input;uint32_t ac,bc,value,destroy;int status;
+    if(!respond)return RF_RANGE;
+    status=campaign_npc_motion_owner(source,&a,&ac,&pose);if(status)return status;
+    status=campaign_npc_motion_owner(target,&b,&bc,&pose);if(status)return status;
+    input.use_kind=campaign_seeds.classes[ac].physics.use_kind;input.class_flags=campaign_seeds.classes[ac].physics.flags;
+    input.contact_kind=(uint32_t)a->collision_contact.material;
+    /*42a130(actor,-1) takes the direct flag810 bit16 branch. */
+    input.occupant_predicate=(a->view.flags_810>>16)&1u;
+    memcpy(input.velocity,a->body.state.velocity,12);memcpy(input.angular_velocity,a->body.state.vector_c8,12);
+    input.target_mass=b->body.state.mass;input.target_armor=b->damage.effects.armor;
+    input.target_class_flags=campaign_seeds.classes[bc].physics.flags;input.target_flags_814=b->damage.effects.flags_814;
+    input.target_object_flags=b->object_flags;
+    status=rf_entity_actor_contact_decide(&input,&value,&destroy);if(status)return status;
+    if(destroy){status=rf_scene_npc_contact_destroy(target,services);if(status)return status;}
+    *respond=value;return RF_OK;
+}
 int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random)
 {
     uint32_t i,cls;int status;campaign_npc_body *owner;
@@ -4374,23 +4393,40 @@ static void campaign_contact_destroy_fixture_notify(void *context,uint32_t kind,
 {(void)context;(void)kind;(void)target;(void)value;(void)source;}
 static int campaign_contact_destroy_fixture(campaign_npc_body *owner,const rf_damage_effect_backend *effects)
 {
-    campaign_npc_body saved=*owner,initial,expected;rf_damage_effect_backend backend=*effects;
+    campaign_npc_body saved=*owner,initial,expected,*source=NULL,source_saved;rf_damage_effect_backend backend=*effects;
     rf_random_state random={1};rf_scene_npc_contact_destroy_services services={&backend,&random,1,0x3f800000};
-    rf_damage_request request={1000000,UINT32_MAX,9,0,UINT32_MAX,0};float amount;int status;
+    rf_damage_request request={1000000,UINT32_MAX,9,0,UINT32_MAX,0};float amount;int status;uint32_t i,respond=99,source_class,saved_kind;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies+i!=owner && campaign_npc_bodies[i].registration.view){source=campaign_npc_bodies+i;break;}
+    if(!source)return RF_NOT_FOUND;source_saved=*source;
     backend.notify=campaign_contact_destroy_fixture_notify;
     memset(rf_scene_npc_contact_destroy_audio,0,sizeof(rf_scene_npc_contact_destroy_audio));rf_scene_npc_contact_destroy_audio[5]=UINT32_MAX;
     memset(rf_scene_npc_contact_destroy_test,0,sizeof(rf_scene_npc_contact_destroy_test));
-    status=rf_scene_npc_contact_destroy(owner->registration.handle^0x10000,&services);
-    if(status!=RF_NOT_FOUND || random.value!=1 || memcmp(owner,&saved,sizeof(saved)))return RF_FORMAT;
-    ++rf_scene_npc_contact_destroy_test[0];owner->damage.effects.health=2000000;initial=*owner;
-    status=rf_scene_npc_damage(owner->registration.handle,&request,1,0x3f800000,&backend,&amount);expected=*owner;*owner=initial;
+    status=rf_scene_npc_actor_contact(source->registration.handle^0x10000,owner->registration.handle,&services,&respond);
+    if(status!=RF_NOT_FOUND || respond!=99 || random.value!=1 || memcmp(owner,&saved,sizeof(saved)))return RF_FORMAT;
+    ++rf_scene_npc_contact_destroy_test[0];
+    status=rf_scene_npc_actor_contact(source->registration.handle,owner->registration.handle^0x10000,&services,&respond);
+    if(status!=RF_NOT_FOUND || respond!=99 || random.value!=1 || memcmp(owner,&saved,sizeof(saved)))return RF_FORMAT;
+    ++rf_scene_npc_contact_destroy_test[0];
+    source_class=campaign_seeds.items[(uint32_t)(source-campaign_npc_bodies)].class_index;
+    saved_kind=campaign_seeds.classes[source_class].physics.use_kind;
+    /* Explicit restored class variant exercises the kind1 crush route. */
+    campaign_seeds.classes[source_class].physics.use_kind=1;
+    owner->damage.effects.health=2000000;owner->body.state.mass=1;owner->damage.effects.armor=0;initial=*owner;
+    memset(source->body.state.velocity,0,12);memset(source->body.state.vector_c8,0,12);
+    status=rf_scene_npc_actor_contact(source->registration.handle,owner->registration.handle,NULL,&respond);
+    if(!status && (respond || memcmp(owner,&initial,sizeof(initial)) || random.value!=1 || rf_scene_npc_contact_destroy_audio[0]))status=RF_FORMAT;
+    if(!status)++rf_scene_npc_contact_destroy_test[0];
+    source->body.state.velocity[0]=1;
+    if(!status)status=rf_scene_npc_damage(owner->registration.handle,&request,1,0x3f800000,&backend,&amount);
+    expected=*owner;*owner=initial;
     if(!status && !(expected.damage.effects.health<initial.damage.effects.health && expected.damage.effects.health>0))status=RF_FORMAT;
-    if(!status)status=rf_scene_npc_contact_destroy(owner->registration.handle,&services);
-    if(!status && (memcmp(owner,&expected,sizeof(expected)) || memcmp(rf_scene_npc_contact_destroy_audio+9,owner->published,12)))status=RF_FORMAT;
+    if(!status)status=rf_scene_npc_actor_contact(source->registration.handle,owner->registration.handle,&services,&respond);
+    if(!status && (respond || memcmp(owner,&expected,sizeof(expected)) || memcmp(rf_scene_npc_contact_destroy_audio+9,owner->published,12)))status=RF_FORMAT;
     if(!status){++rf_scene_npc_contact_destroy_test[0];memcpy(rf_scene_npc_contact_destroy_test+1,&initial.damage.effects.health,4);
         memcpy(rf_scene_npc_contact_destroy_test+2,&owner->damage.effects.health,4);}else ++rf_scene_npc_contact_destroy_test[3];
-    *owner=saved;return status;
+    *owner=saved;*source=source_saved;campaign_seeds.classes[source_class].physics.use_kind=saved_kind;return status;
 }
+
 static int campaign_npc_damage_fixture(void)
 {
     uint32_t i,pass;campaign_npc_body *owner;const rf_entity_seed_class *definition;rf_random_state random={1};

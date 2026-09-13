@@ -385,6 +385,12 @@ typedef struct rf_scene_npc_contact_destroy_services {
 /*429790 scene binding. Effects must retain actor lifetime and publish changes
  * synchronously; sound selection and published position are reread afterward. */
 int rf_scene_npc_contact_destroy(uint32_t handle,const rf_scene_npc_contact_destroy_services *services);
+/*41a000 between registered NPCs. Destruction executes before publishing the
+ * boolean response; services may be NULL when no destruction is requested.
+ * Player/other object families are handled by separate dispatch branches. */
+int rf_scene_npc_actor_contact(uint32_t source,uint32_t target,
+    const rf_scene_npc_contact_destroy_services *services,uint32_t *respond);
+
 extern uint32_t rf_scene_npc_contact_destroy_audio[12],rf_scene_npc_contact_destroy_test[4];
 extern uint32_t rf_scene_npc_impact_dispatch[6]; /* calls,suppressed,damage,sound,player lookup,errors */
 extern uint32_t rf_scene_npc_impact_test[4]; /* cases,health before/after,errors */

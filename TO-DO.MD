@@ -75,6 +75,7 @@ Actor contact41a000 decisions match2048 original/PC/NXDK cases; bind429790 destr
 Contact destruction429790 ordering matches1024 original/PC/NXDK cases; retain class174 sound and bind live damage/selection/playback services.
 Authored squash-sound groups are retained per class and pass180-frame stock64MiB XEMU; bind contact destruction to damage and positional playback.
 Retained contact destruction damage and squash playback pass restored-state L1S1 stock64MiB XEMU; complete427550 dispatch and live collision scheduling.
+Registered NPC-to-NPC41a000 dispatch reaches damage/squash playback in four restored-state XEMU checks; add player/object branches and full427550 scheduling.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.
