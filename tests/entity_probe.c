@@ -430,6 +430,25 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--ai-node-prepare")) {
+        struct {uint32_t count,mode;float radius,height;rf_entity_navigation_candidate nodes[8];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_entity_navigation_reference refs[8];uint32_t i;int32_t status;if(in.count>8)return 3;
+            for(i=0;i<in.count;++i)refs[i]=(rf_entity_navigation_reference){in.nodes+i,i+1,NULL,0};
+            status=rf_entity_navigation_search_prepare(refs,in.count,in.radius,in.height,in.mode);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(in.nodes,sizeof(in.nodes),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--ai-edge")) {
+        float in[10];uint32_t out[2];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            out[1]=99;out[0]=(uint32_t)rf_entity_navigation_edge_allowed(in,in+3,in+6,in[9],out+1);
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ai-nearest"))return ai_nearest_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-endpoint"))return ai_endpoint_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-search"))return ai_search_probe();

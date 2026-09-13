@@ -10068,3 +10068,29 @@ nodes and random finite geometry are covered. Two callback failures pass.
 Both builds and all22 CTest checks pass. Actual4ce740 collision/visibility,
 4ce6c0 edge semantics, eligibility preparation and wrapper integration
 remain open; no native XEMU or live NPC route claim.
+
+
+Shared navigation preparation and edge geometry (2026-09-13)
+
+rf_entity_navigation_search_prepare reconstructs4ce4b0 with concrete
+4ce530 eligibility. Rejected nodes only set byte35=1 and preserve query
+coordinates. Eligible nodes clear rejection and copy position; mode low
+byte exactly1 adjusts query Y by node Y-height/2+actor height with original
+intermediate precision. Caller-owned references require no allocation.
+
+rf_entity_navigation_edge_allowed reconstructs4ce6c0 using the verified
+509100 projection helper. Zero and unordered threshold bypass geometry.
+Exact componentwise projection equality with segment start also accepts;
+otherwise squared alternate-to-projection distance strictly below the
+threshold rejects. Equality passes. Reached geometry must be finite.
+
+verify_ai_search_geometry.py runs full unhooked original4ce4b0/4ce530
+and4ce6c0, including actual projection/equality/distance, against shared
+PC and NXDK code.2048 preparation cases match exact node bytes with2628
+eligible nodes;2048 edge cases match with1652 accepted. Covers random
+finite geometry, mode bytes, zero/NaN thresholds, infinities as thresholds,
+projection at start, strict equality and coincident segment. Four compiled
+guards verify bypass with null geometry and output preservation on reached
+invalid geometry. Both builds and22 CTest checks pass. No fresh native
+XEMU run or live navigation claim; visibility4ce740, wrapper4cebd0 and
+retained scene integration remain open.

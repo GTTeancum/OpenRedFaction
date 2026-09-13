@@ -2007,3 +2007,28 @@ int rf_entity_navigation_nearest(rf_entity_navigation_reference *refs,uint32_t c
     }
     *token=0;return RF_OK;
 }
+
+int rf_entity_navigation_search_prepare(rf_entity_navigation_reference *refs,uint32_t count,float radius,float height,uint32_t mode)
+{
+    uint32_t i,j;rf_entity_navigation_candidate *node;float adjusted;
+    if((count && !refs) || count>65536)return RF_RANGE;
+    if(!isfinite(radius) || !isfinite(height))return RF_FORMAT;
+    for(i=0;i<count;++i) {
+        node=refs[i].candidate;if(!node)return RF_RANGE;
+        if(!rf_entity_navigation_candidate_allowed(radius,height,mode,node->radius,node->height,node->word_040)){node->rejected_035=1;continue;}
+        for(j=0;j<3;++j)if(!isfinite(node->position[j]))return RF_FORMAT;
+        adjusted=node->position[1];
+        if((mode&255u)==1){adjusted=(float)(((double)adjusted-(double)node->height*.5)+height);if(!isfinite(adjusted))return RF_FORMAT;}
+        node->rejected_035=0;memcpy(node->query_point,node->position,12);node->query_point[1]=adjusted;
+    }
+    return RF_OK;
+}
+int rf_entity_navigation_edge_allowed(const float alternate[3],const float start[3],const float end[3],float threshold,uint32_t *result)
+{
+    float closest[3],along;double distance;int status;
+    if(!result)return RF_RANGE;if(threshold==0 || isnan(threshold)){*result=1;return RF_OK;}
+    status=rf_entity_navigation_closest_point(alternate,start,end,closest,&along);if(status)return status;
+    if(closest[0]==start[0] && closest[1]==start[1] && closest[2]==start[2]){*result=1;return RF_OK;}
+    distance=navigation_distance_squared(alternate,closest);if(!isfinite(distance))return RF_FORMAT;
+    *result=!(distance<(double)threshold);return RF_OK;
+}

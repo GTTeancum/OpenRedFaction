@@ -1172,6 +1172,19 @@ int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint3
     int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,
     rf_entity_navigation_selection *selection);
 
+/*4ce4b0 with concrete4ce530 eligibility: eligible nodes copy position to
+ * query_point, with Y-height/2+actor_height in mode low byte exactly1.
+ * Rejected nodes retain query coordinates and only set rejected35=1.
+ * Stable references, finite reached geometry; errors retain preceding nodes. */
+int rf_entity_navigation_search_prepare(rf_entity_navigation_reference *references,uint32_t count,
+    float radius,float height,uint32_t mode);
+/*4ce6c0: threshold is squared distance. Zero or unordered threshold bypasses
+ * all geometry. Otherwise exact projection==start also passes; an interior/
+ * end projection rejects only when squared alternate-point distance is less
+ * than threshold. Finite geometry required when reached; errors preserve result. */
+int rf_entity_navigation_edge_allowed(const float alternate[3],const float start[3],const float end[3],
+    float threshold,uint32_t *result);
+
 typedef struct rf_entity_navigation_nearest_backend {
     int (*edge)(void *,uint32_t,const float[3],const float[3],float,uint32_t *); /*4ce6c0*/
     int (*visible)(void *,rf_entity_navigation_candidate *,const float[3],float,float,uint32_t *); /*4ce740*/
