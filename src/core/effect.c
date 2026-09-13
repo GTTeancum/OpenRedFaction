@@ -1602,3 +1602,22 @@ int rf_vfx_mesh_transform(const rf_vfx_mesh *mesh,const rf_vfx_frame_cursor *cur
     memcpy(vectors,frame->vectors,24);memcpy(vectors+6,frame->extra,8);
     return rf_vfx_transform_sample(vectors,mesh->data+(size_t)at,a->transform,b->transform,cursor->fraction,cursor->first!=cursor->second,mesh->edges.flags,out);
 }
+
+int rf_vfx_keyed_sample(const float frame[8],const void *vertex,const float base[10],const float key[10],uint32_t flags,rf_vfx_morph_sample *out)
+{
+    rf_vfx_morph_sample value={0};float point[3],local[3];unsigned i;int status;
+    if(!frame || !vertex || !base || !key || !out)return RF_RANGE;
+    for(i=0;i<8;++i)if(!isfinite(frame[i]))return RF_FORMAT;
+    status=rf_vfx_vertex_decode(vertex,6,frame,point);if(status)return status;
+    status=rf_vfx_transform_point(base,frame,local);if(status)return status;
+    status=rf_vfx_transform_point(key,local,value.center);if(status)return status;
+    status=rf_vfx_transform_point(base,point,local);if(status)return status;
+    status=rf_vfx_transform_point(key,local,value.vertex);if(status)return status;
+    /*53fce9/53fcfb keep both products before the final float store. */
+    if((flags&0x801) && frame[6]>=0) {
+        value.extra[0]=(float)fabs(((double)key[7]*base[7])*frame[6]);
+        value.extra[1]=(float)fabs(((double)key[9]*frame[7])*base[9]);
+    }
+    if(!isfinite(value.extra[0]) || !isfinite(value.extra[1]))return RF_RANGE;
+    *out=value;return RF_OK;
+}

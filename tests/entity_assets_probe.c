@@ -79,6 +79,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-keyed-sample")) {
+        unsigned char input[122];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            float frame[8],base[10],key[10];uint32_t flags;rf_vfx_morph_sample out;int32_t status;
+            memcpy(frame,input,32);memcpy(base,input+38,40);memcpy(key,input+78,40);memcpy(&flags,input+118,4);memset(&out,0xa5,sizeof(out));
+            status=rf_vfx_keyed_sample(frame,input+32,base,key,flags,&out);fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-morph")) {
         unsigned char input[84];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

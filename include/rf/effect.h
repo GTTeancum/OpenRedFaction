@@ -186,6 +186,9 @@ int rf_vfx_transform_point(const float transform[10],const float point[3],float 
  * Frame origin/scale/extra[8], packed vertex6; extra output zero if disabled. */
 int rf_vfx_transform_sample(const float frame[8],const void *vertex,const float first[10],const float second[10],float fraction,int interpolate,uint32_t flags,rf_vfx_morph_sample *out);
 int rf_vfx_mesh_transform(const rf_vfx_mesh *,const rf_vfx_frame_cursor *,uint32_t vertex,rf_vfx_morph_sample *out);
+/* Resolved keyed transform: authored base followed by sampled key pose.
+ * Same frame/vertex layout as transform_sample; disabled extras return zero. */
+int rf_vfx_keyed_sample(const float frame[8],const void *vertex,const float base[10],const float key[10],uint32_t flags,rf_vfx_morph_sample *out);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;
