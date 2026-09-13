@@ -73,6 +73,15 @@ int rf_vfx_texture_duration(uint32_t count,uint32_t rate,float *out);
  * gain (negative skips it), then truncate to bytes. VFX uses gain2. Ambient
  * supplies the floor for gain0..1. Finite nonnegative RGB, ambient0..1. */
 int rf_vfx_light_rgb(const float accumulated[3],const float ambient[3],float gain,unsigned char out[3]);
+/* Already-selected sources in surface coordinates; original types1..4. */
+typedef struct rf_vfx_light_source {
+    uint32_t type,profile;float position[3],end[3],axis[3],color[3];
+    float radius,cone_scale,inner,outer;uint32_t squared;
+} rf_vfx_light_source;
+/* Ambient enabled, gain2, no per-light visibility weights (VFX caller).
+ * Caller owns selection/order/transforms. No allocations; errors preserve out. */
+int rf_vfx_lighting(const float position[3],const float normal[3],const float ambient[3],
+    float directional_scale,const rf_vfx_light_source *,uint32_t count,unsigned char out[3]);
 typedef struct rf_vfx_point_source {float position[3],color[3],radius;uint32_t profile;} rf_vfx_point_source;
 /* Ordered, already-selected point sources in the same space as position/normal.
  * Composes4da8b0 type2 with4daff0 ambient enabled/gain2. No allocation.

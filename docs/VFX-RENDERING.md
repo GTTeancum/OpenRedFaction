@@ -383,3 +383,22 @@ The harness supplies the original active pointer table and ambient, varying
 ambient/profile guards preserve output. This validates composed point shading
 beyond the earlier isolated helper tests; mixed source accumulation, active
 scene-light creation/filtering/transforms and VFX rendering remain open.
+
+## Mixed-light accumulation
+
+rf_vfx_lighting composes original types1..4 in caller-supplied order: directional
+dot/scaling, point geometry/falloff, cone geometry/boundary attenuation and
+segment distance/falloff. Cone attenuation preserves a double factor through
+falloff and angular multiplication, rather than passing a rounded factor to
+the earlier point-style light_add API. Segment endpoints and projected points
+retain float stores before distance. Final gain2 conversion uses the verified
+light_rgb path. The76-byte port descriptor contains selected/transformed
+source values, not serialized original records. Ambient remains enabled and
+per-light visibility weights are absent, matching the VFX call.
+
+2048 complete original4daff0/4da8b0 comparisons match PC/NXDK with0-16
+mixed lights, all four falloff profiles, cone squaring and varied geometry.
+Original active tables/ambient/transformed vectors are supplied; no math or
+lighting hooks replace original routines. Invalid ambient/type guards preserve
+output. This does not include creating/filtering/updating the live light list,
+the disabled-light white fallback, edge caches, specular/glare or native draws.

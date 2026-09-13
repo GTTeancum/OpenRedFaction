@@ -2163,3 +2163,57 @@ int rf_vfx_point_lighting(const float position[3],const float normal[3],const fl
     }
     return rf_vfx_light_rgb(accumulated,ambient,2,out);
 }
+
+static double vfx_falloff(uint32_t profile,float distance,float radius)
+{
+    double value=((double)radius-distance)/radius;
+    if(profile==1)return value*value;
+    if(profile==2)return cos((1.0-value)*(double)1.5707963705062866f);
+    if(profile==3)return sqrt(value);return value;
+}
+int rf_vfx_lighting(const float position[3],const float normal[3],const float ambient[3],
+    float directional_scale,const rf_vfx_light_source *lights,uint32_t count,unsigned char out[3])
+{
+    float rgb[3],g[3];uint32_t i,j;int status;
+    if(!position || !normal || !ambient || !out || (!lights && count) || count>SIZE_MAX/sizeof(*lights) ||
+        !isfinite(directional_scale))return RF_RANGE;
+    for(j=0;j<3;++j){if(!isfinite(position[j]) || !isfinite(normal[j]) || !isfinite(ambient[j]) || ambient[j]<0 || ambient[j]>1)return RF_RANGE;rgb[j]=ambient[j];}
+    for(i=0;i<count;++i) {
+        const rf_vfx_light_source *l=lights+i;double gain=0;
+        if(l->type<1 || l->type>4 || l->profile>3)return RF_RANGE;
+        for(j=0;j<3;++j)if(!isfinite(l->position[j]) || !isfinite(l->end[j]) || !isfinite(l->axis[j]) || !isfinite(l->color[j]) || l->color[j]<0)return RF_RANGE;
+        if(!isfinite(l->radius) || l->radius<0)return RF_RANGE;
+        if(l->type==1) {
+            gain=(((double)normal[0]*l->position[0]+(double)normal[1]*l->position[1])+(double)normal[2]*l->position[2])*directional_scale;
+            if(!(gain>0))continue;
+        } else if(l->type==2) {
+            status=rf_vfx_point_light(position,normal,l->position,l->radius,0,g);if(status)return status;
+            if(!(g[0]>0 && g[1]<l->radius))continue;
+            gain=vfx_falloff(l->profile,g[1],l->radius)*g[0];
+        } else if(l->type==3) {
+            float distance;double cone;
+            if(!isfinite(l->cone_scale) || l->cone_scale<0 || l->cone_scale>1 || !isfinite(l->inner) || !isfinite(l->outer) || l->inner>=l->outer)return RF_RANGE;
+            status=rf_vfx_cone_light(position,normal,l->position,l->axis,l->radius,0,g);if(status)return status;
+            if(!(g[0]>0 && g[2]<l->radius && g[1]<l->outer))continue;
+            distance=(float)((1.0-l->cone_scale)*g[2]);cone=1;
+            if(g[1]>=l->inner){cone=1.0-((double)g[1]-l->inner)/((double)l->outer-l->inner);if(l->squared&255u)cone*=cone;}
+            gain=(cone*vfx_falloff(l->profile,distance,l->radius))*g[0];
+        } else {
+            float d[3],v[3],closest[3],length_stored,projection,distance;double length,along;
+            for(j=0;j<3;++j){d[j]=l->end[j]-l->position[j];v[j]=position[j]-l->position[j];if(!isfinite(d[j]) || !isfinite(v[j]))return RF_RANGE;}
+            length=sqrt(((double)d[0]*d[0]+(double)d[1]*d[1])+(double)d[2]*d[2]);
+            if(length==0){length=1;d[0]=1;d[1]=d[2]=0;}else for(j=0;j<3;++j)d[j]=(float)(d[j]*(1.0/length));
+            length_stored=(float)length;along=((double)d[0]*v[0]+(double)d[1]*v[1])+(double)d[2]*v[2];projection=(float)along;
+            for(j=0;j<3;++j) {
+                if(along<0)closest[j]=l->position[j];
+                else if(projection>length_stored)closest[j]=l->end[j];
+                else {float offset=d[j]*projection;closest[j]=l->position[j]+offset;}
+                v[j]=closest[j]-position[j];
+            }
+            length=sqrt(((double)v[0]*v[0]+(double)v[1]*v[1])+(double)v[2]*v[2]);distance=(float)length;
+            if(!(length<l->radius))continue;gain=vfx_falloff(l->profile,distance,l->radius);
+        }
+        for(j=0;j<3;++j){rgb[j]=(float)(gain*l->color[j]+rgb[j]);if(!isfinite(rgb[j]))return RF_RANGE;}
+    }
+    return rf_vfx_light_rgb(rgb,ambient,2,out);
+}

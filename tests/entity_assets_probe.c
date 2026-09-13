@@ -256,6 +256,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-lighting")) {
+        uint32_t count;float v[10];rf_vfx_light_source lights[32];unsigned char out[3];int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&count,4,1,stdin)==1) {
+            if(count>32 || fread(v,sizeof(v),1,stdin)!=1 || fread(lights,sizeof(*lights),count,stdin)!=count)return 2;memset(out,0xa5,3);
+            status=rf_vfx_lighting(v,v+3,v+6,v[9],lights,count,out);fwrite(&status,4,1,stdout);fwrite(out,3,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-texture-frame")) {
         uint32_t h[7],out;float duration,speed,time;int32_t start,status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
