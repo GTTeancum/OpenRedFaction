@@ -1878,3 +1878,17 @@ int rf_vfx_instance_faces(const rf_visibility_camera *camera,const rf_vfx_instan
     status=rf_vfx_sort(order,n,1);if(status)return status;
     *count=n;return RF_OK;
 }
+
+int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float effect_frame,float *out)
+{
+    double position,fraction,value;float stored,result;uint32_t index,i;
+    if(!samples || !count || count>INT32_MAX || rate<0 || !out || !isfinite(effect_frame) || effect_frame<0)return RF_RANGE;
+    for(i=0;i<count;++i)if(!isfinite(samples[i]))return RF_FORMAT;
+    position=((double)rate*effect_frame)*(double)0.06666667014360428f;stored=(float)position;
+    if(!isfinite(stored) || position>=2147483646.0)return RF_RANGE;
+    index=(uint32_t)floor(position);fraction=(double)stored-index;
+    value=index+1<count?((1.0-fraction)*samples[index]+fraction*samples[index+1]):samples[count-1];
+    result=(float)value;if(!isfinite(result))return RF_RANGE;
+    if(result>1)result=1;if(!(result>0))result=0;
+    *out=result;return RF_OK;
+}

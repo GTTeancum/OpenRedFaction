@@ -151,3 +151,17 @@ primitives, not complete553ee0 behavior. Per-face decoding/projection is still
 repeated; retain decoded face metadata and shared projected vertices when
 binding the renderer. Parent poses, lighting, clipping to screen polygons,
 material passes and native XEMU submission remain open.
+
+## Material scalar tracks
+
+rf_vfx_material_track reconstructs shared arithmetic in54a930 type1,
+54a9e0 and54aa80. It floors the unrounded double time position, subtracts
+that index from a separately float-rounded position, interpolates adjacent
+samples or copies the terminal sample, then clamps0..1. Zero rate retains
+sample0; absent tracks/default selection are caller responsibilities. Invalid
+empty/nonfinite/negative-time inputs preserve output.
+
+2048 original/PC/NXDK cases per routine match with actual floor/ftol/clamp
+helpers and no hooks; three failure guards pass. Retained material ownership,
+track selection and texture/light/draw integration remain open. The sampler
+alone does not prove complete material appearance or native playback.

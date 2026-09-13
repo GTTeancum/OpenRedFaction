@@ -182,6 +182,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-material-track")) {
+        uint32_t header[3];float samples[128],time,out;int32_t rate,status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(header,12,1,stdin)==1) {
+            if(header[0]>128 || fread(samples,4,header[0],stdin)!=header[0])return 2;
+            memcpy(&rate,header+1,4);memcpy(&time,header+2,4);memset(&out,0xa5,4);status=rf_vfx_material_track(samples,header[0],rate,time,&out);
+            fwrite(&status,4,1,stdout);fwrite(&out,4,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-morph")) {
         unsigned char input[84];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

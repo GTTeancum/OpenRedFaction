@@ -57,6 +57,10 @@ typedef struct rf_vfx_material_view {uint32_t words[50],bytes,bitmap_requests;} 
 int rf_vfx_material_read(const void *,uint32_t bytes,uint32_t version,rf_vfx_material_view *);
 /* track0=clamped blend floats,1=raw color words,2=raw alpha words. */
 int rf_vfx_material_sample(const void *,uint32_t bytes,const rf_vfx_material_view *,uint32_t track,uint32_t index,uint32_t *);
+/*54a9e0/54aa80 scalar tracks;54a930 type1 uses the same arithmetic.
+ * Caller selects track/default. Nonnegative rate, nonempty finite samples and
+ * nonnegative time required; outputs clamped0..1, no allocation. */
+int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float effect_frame,float *out);
 typedef struct rf_vfx_embedded_material_view {
     rf_vfx_material_view material;uint32_t color_word;
 } rf_vfx_embedded_material_view;
