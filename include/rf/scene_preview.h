@@ -393,11 +393,12 @@ int rf_scene_npc_actor_contact(uint32_t source,uint32_t target,
 
 extern uint32_t rf_scene_npc_contact_destroy_audio[12],rf_scene_npc_contact_destroy_test[4];
 /* Prepared object route: registered NPC contact/damage; extra services own
- * current-clutter identity, pickup and other families. */
+ * pickup and other families; retained clutter handles use riot_shield identity. */
 int rf_scene_npc_object_contact(uint32_t source,uint32_t target,const rf_scene_npc_contact_destroy_services *services,
     const rf_entity_contact_object_backend *extra,uint32_t *decision);
 extern uint32_t rf_scene_object_contact_test[4];
 extern uint32_t rf_scene_player_contact_audio[12],rf_scene_player_contact_test[4];
+extern uint32_t rf_scene_clutter_contact_test[8];
 /* Prepared4278e0 call: caller selects kind1 surface route and supplies contact position. */
 int rf_scene_npc_contact_sound(uint32_t handle,const float position[3],rf_random_state *random);
 extern uint32_t rf_scene_npc_contact_sound_audio[12],rf_scene_npc_contact_sound_test[4];

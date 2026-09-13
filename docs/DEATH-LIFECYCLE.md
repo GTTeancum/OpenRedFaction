@@ -10662,3 +10662,10 @@ The registered NPC actor-contact adapter now resolves the local player target us
 The restored-state fixture tests stationary contact and a moving class8000/material3 destruction route against direct player damage. High health keeps the fixture nonlethal; full player-death behavior is not claimed. It restores source/class, player damage/view and flash state. PC records two cases with health2000000 reduced by the actual player damage wrapper, one contact-destruction call, zero audio selections/plays and unchanged RNG1. Native result follows after replay completion.
 
 replay-20260913-075235 passes180 frames on stock64MiB with exact PC player-contact record [2,1240736768,1232348160,0] and audio [1,0,0,0,0,0,1,0,0,0,0,0]. Both builds and22 CTest checks pass; normal Xbox image restored/rebuilt. Pickup/current-clutter services, full lethal player lifecycle and continuous collision scheduling remain open.
+
+
+### Riot-shield contact exception (2026-09-13)
+
+The previously neutral current-clutter identity is specifically riot_shield:40f360 pushes59405c, calls410b60 and stores global5afb78 at40f36a. verify_riot_shield_binding.py executes that original initialization and actual class-name lookup over431 authored names, obtaining index262. Scene clutter creation now publishes each selected class index/definition into its existing owner fields, and contact comparison resolves owner identity before comparing class_index to the retained four-byte shield index. Missing/non-scene families can still use explicit extension services.
+
+The restored-state fixture verifies all168 opening clutter class/index/definition bindings against authored records, then ordinary response2, temporarily selected shield response1 even with source player bit8, and missing-generation response2. It restores class and source flags afterward; no authored shield is invented in the level. replay-20260913-075731 passes180 frames on stock64MiB with exact PC record [3,262,1660664794,168,2,1,2,0]. Both builds and22 CTest checks pass; normal Xbox image restored/rebuilt. Pickup and continuous collision scheduling remain open.

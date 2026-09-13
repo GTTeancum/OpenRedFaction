@@ -1161,6 +1161,8 @@ static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
 static rf_foley_owner campaign_foley;
 static rf_clutter_catalogs campaign_clutter_catalogs;
+static int32_t campaign_riot_shield_class=-1;
+uint32_t rf_scene_clutter_contact_test[8];
 static struct {rf_vclip_definition definitions[2];int32_t effects[2],foley[2];} campaign_contact_splashes;
 uint32_t rf_scene_contact_splash_assets[8]; /* IDs2,Foley2,owned bytes,metadata hash,flags2 */
 static rf_clutter_classes campaign_clutter_classes;
@@ -2431,6 +2433,7 @@ static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world
             &campaign_clutter_uid_cursor,room.room==UINT32_MAX?0:room.room+1,0,1,coefficients,budget-(uint32_t)bytes,campaign_clutter_bodies+i);if(status)goto fail;
         owner=campaign_clutter_bodies[i];if(!owner){status=RF_RANGE;goto fail;}
         owner->uid=record->uid;
+        owner->state.class_index=(int32_t)j;owner->state.definition=campaign_clutter_classes.items+j;
         if(bytes+owner->peak_bytes>peak)peak=bytes+owner->peak_bytes;bytes+=owner->allocated_bytes;
         ++rf_scene_clutter_bodies[0];rf_scene_clutter_bodies[1]+=!!(owner->state.physics_flags&0x20);rf_scene_clutter_bodies[2]+=owner->body.spheres.count;
         hash=npc_hash_bytes(hash,&owner->uid,4);hash=npc_hash_bytes(hash,&owner->state.handle,4);
@@ -2690,6 +2693,8 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     rf_scene_contact_splash_assets[5]=npc_hash_bytes(2166136261u,campaign_contact_splashes.definitions,sizeof(campaign_contact_splashes.definitions));
     if(!status)status=rf_clutter_classes_load(&tables,&campaign_clutter_catalogs.names,
         256*1024-campaign_clutter_catalogs.allocated_bytes,&campaign_clutter_classes,&peak);
+    campaign_riot_shield_class=-1;
+    for(i=0;!status && i<campaign_clutter_classes.count;++i)if(rf_emitter_name_lookup(&campaign_clutter_classes.items[i].name,1,"riot_shield")==0){campaign_riot_shield_class=(int32_t)i;break;}
     rf_vpp_close(&tables);if(status)return status;
     status=rf_level_owned_clutter_open(level,128*1024,&campaign_clutter_records);
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
@@ -4563,7 +4568,15 @@ static int scene_object_contact_lookup(void *context,uint32_t handle,const rf_en
     return c->extra && c->extra->lookup?c->extra->lookup(c->extra->context,handle,out):RF_NOT_FOUND;
 }
 static int scene_object_contact_current(void *context,uint32_t handle,uint32_t *match)
-{scene_object_contact_context *c=context;return c->extra && c->extra->current_clutter?c->extra->current_clutter(c->extra->context,handle,match):RF_NOT_FOUND;}
+{
+    scene_object_contact_context *c=context;void *registered=rf_object_registry_lookup(&campaign_registry,handle);uint32_t i;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies && campaign_clutter_bodies[i] && registered==&campaign_clutter_bodies[i]->state && campaign_clutter_bodies[i]->state.handle==handle){
+        int32_t cls=campaign_clutter_bodies[i]->state.class_index;
+        if(cls<0 || (uint32_t)cls>=campaign_clutter_classes.count)return RF_FORMAT;
+        *match=cls==campaign_riot_shield_class;return RF_OK;
+    }
+    return c->extra && c->extra->current_clutter?c->extra->current_clutter(c->extra->context,handle,match):RF_NOT_FOUND;
+}
 static int scene_object_contact_actor(void *context,uint32_t source,uint32_t target,uint32_t *respond)
 {
     scene_object_contact_context *c=context;
@@ -4581,6 +4594,32 @@ int rf_scene_npc_object_contact(uint32_t source,uint32_t target,const rf_scene_n
     if(!decision)return RF_RANGE;
     status=campaign_npc_motion_owner(source,&owner,&cls,&pose);if(status)return status;
     return rf_entity_contact_object_dispatch(&owner->view,target,&backend,decision);
+}
+static int campaign_clutter_contact_fixture(campaign_npc_body *source)
+{
+    rf_clutter_state *selected=NULL;uint32_t flags=source->view.flags_7c,decision,i,j,hash=2166136261u;int32_t cls;int status;
+    memset(rf_scene_clutter_contact_test,0,sizeof(rf_scene_clutter_contact_test));rf_scene_clutter_contact_test[1]=(uint32_t)campaign_riot_shield_class;
+    if(campaign_riot_shield_class<0)return RF_NOT_FOUND;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies && campaign_clutter_bodies[i]) {
+        rf_clutter_state *s=&campaign_clutter_bodies[i]->state;
+        for(j=0;j<campaign_clutter_classes.count;++j)if(rf_emitter_name_lookup(&campaign_clutter_classes.items[j].name,1,campaign_clutter_records.items[i].class_name)==0)break;
+        if(s->class_index!=(int32_t)j || j==campaign_clutter_classes.count || s->definition!=campaign_clutter_classes.items+j)return RF_FORMAT;
+        hash=npc_hash_bytes(hash,&s->class_index,4);++rf_scene_clutter_contact_test[3];
+        if(!selected && s->class_index!=campaign_riot_shield_class)selected=s;
+    }
+    rf_scene_clutter_contact_test[2]=hash;if(!selected)return RF_NOT_FOUND;cls=selected->class_index;
+    source->view.flags_7c|=8; /* Confirm shield match precedes source-player gate. */
+    status=rf_scene_npc_object_contact(source->registration.handle,selected->handle,NULL,NULL,&decision);
+    if(!status && decision!=2)status=RF_FORMAT;
+    if(!status){++rf_scene_clutter_contact_test[0];rf_scene_clutter_contact_test[4]=decision;}
+    selected->class_index=campaign_riot_shield_class;
+    if(!status)status=rf_scene_npc_object_contact(source->registration.handle,selected->handle,NULL,NULL,&decision);
+    if(!status && decision!=1)status=RF_FORMAT;
+    if(!status){++rf_scene_clutter_contact_test[0];rf_scene_clutter_contact_test[5]=decision;}
+    if(!status)status=rf_scene_npc_object_contact(source->registration.handle,selected->handle^0x10000,NULL,NULL,&decision);
+    if(!status && decision!=2)status=RF_FORMAT;
+    if(!status){++rf_scene_clutter_contact_test[0];rf_scene_clutter_contact_test[6]=decision;}else ++rf_scene_clutter_contact_test[7];
+    source->view.flags_7c=flags;selected->class_index=cls;return status;
 }
 static void campaign_contact_destroy_fixture_notify(void *context,uint32_t kind,uint32_t target,float value,uint32_t source)
 {(void)context;(void)kind;(void)target;(void)value;(void)source;}
@@ -4765,6 +4804,7 @@ static int campaign_npc_damage_fixture(void)
     }
     if(!status)status=campaign_contact_destroy_fixture(owner,&effects);
     if(!status)status=campaign_player_contact_fixture(owner,&effects);
+    if(!status)status=campaign_clutter_contact_fixture(owner);
     if(!status)status=campaign_contact_sound_fixture(owner);
     if(!status)status=campaign_driller_feedback_fixture(owner);
     if(!status)status=campaign_contact_dispatch_fixture(owner);
