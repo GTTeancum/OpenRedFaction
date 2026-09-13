@@ -424,10 +424,10 @@ typedef struct rf_entity_state_declaration {
  * pairs, missing/invalid numbers and duplicate selected states fail unchanged. */
 int rf_entity_state_declaration_read(const void *text,uint32_t bytes,const char *class_name,
     const char *weapon,const char *state,rf_entity_state_declaration *result);
-typedef struct rf_entity_default_weapons {int32_t primary,secondary;} rf_entity_default_weapons;
-/* Required quoted class defaults, resolved with weapon-name lookup. Empty and
- * unknown names map to -1 as at41bf57..41bfe8. Duplicate/missing fields fail with
- * unchanged output. Port metadata reader, not a complete original parser. */
+typedef struct rf_entity_default_weapons {int32_t primary,secondary,melee;} rf_entity_default_weapons;
+/* Required quoted primary/secondary and optional melee defaults. Empty and
+ * unknown names map to -1 (41bf57..41c073); absent melee also maps to -1.
+ * Duplicate or missing required fields fail unchanged. Metadata subset. */
 int rf_entity_default_weapons_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_weapon_names *weapons,rf_entity_default_weapons *result);
 typedef struct rf_entity_state_set {

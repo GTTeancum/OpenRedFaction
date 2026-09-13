@@ -14,20 +14,21 @@ for cls,body in zip(parts[1::2],parts[2::2]):
  authored=[re.findall(r'\$Default '+key+r':\s*"([^"\r\n]*)"',body) for key in ('Primary','Secondary')]
  assert all(len(a)==1 for a in authored)
  ids=[resolve(a[0]) for a in authored]
+ melee_names=re.findall(r'\$Default Melee:\s*"([^"\r\n]*)"',body);assert len(melee_names)<=1;melee=resolve(melee_names[0]) if melee_names else -1
  got=subprocess.check_output([probe,'--default-weapons',tables,cls.upper()])
- assert got==struct.pack('<3i',0,*ids),(cls,got,ids)
- rows.append(dict(entity_class=cls,primary=ids[0],secondary=ids[1],authored=[a[0] for a in authored]))
+ assert got==struct.pack('<4i',0,*ids,melee),(cls,got,ids)
+ rows.append(dict(entity_class=cls,primary=ids[0],secondary=ids[1],melee=melee,authored=[a[0] for a in authored]))
 # Empty and unknown are both original -1; duplicate/missing tags are port errors.
 for primary,secondary in [('', ''),('missing weapon','Riot Stick'),('rIoT sTiCk','FIGHTER ROCKET')]:
  snippet=f'$Name: "fixture"\n$Default Primary: "{primary}"\n$Default Secondary: "{secondary}"'
  got=subprocess.check_output([probe,'--default-weapons-text',tables,'fixture'],input=snippet.encode())
- assert got==struct.pack('<3i',0,resolve(primary),resolve(secondary))
+ assert got==struct.pack('<4i',0,resolve(primary),resolve(secondary),-1)
 base='$Name: "fixture"\n$Default Primary: ""\n$Default Secondary: ""'
 guards=[('$Name: "fixture"','fixture'),(base+'\n$Default Primary: "Riot Stick"','fixture'),
- ('$Name: "fixture"\n$Default Primary: unquoted\n$Default Secondary: ""','fixture'),(base,'missing')]
+ ('$Name: "fixture"\n$Default Primary: unquoted\n$Default Secondary: ""','fixture'),(base,'missing'),(base+'\n$Default Melee: "Riot Stick"\n$Default Melee: ""','fixture')]
 for snippet,cls in guards:
  got=subprocess.check_output([probe,'--default-weapons-text',tables,cls],input=snippet.encode())
- assert struct.unpack('<i',got[:4])[0]!=0 and got[4:]==b'\xa5'*8
+ assert struct.unpack('<i',got[:4])[0]!=0 and got[4:]==b'\xa5'*12
 assert len(rows)==63
 report=dict(result='PASS',classes=len(rows),lookup_cases=3,guards=len(guards),rows=rows,scope='Independent full installed-table metadata comparison; original41bf57..41bfe8 inspected, existing4c81f0 name lookup previously CPU-verified. No full original parser or NPC selector equivalence claim.')
 (root/'artifacts/entity-default-weapons.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='rows'})

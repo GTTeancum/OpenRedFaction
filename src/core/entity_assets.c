@@ -335,7 +335,7 @@ int rf_entity_default_weapons_read(const void *text,uint32_t bytes,const char *c
     const rf_weapon_names *weapons,rf_entity_default_weapons *result)
 {
     lexer l={(const unsigned char*)text,bytes,0};char t[256];
-    rf_entity_default_weapons v={-1,-1};uint32_t mask=0;int status,q,selected=0,found=0;
+    rf_entity_default_weapons v={-1,-1,-1};uint32_t mask=0;int status,q,selected=0,found=0;
     if(!text || !class_name || !*class_name || !weapons || weapons->count>64 || !result)return RF_RANGE;
     while((status=token(&l,t,&q))==RF_OK) {
         if(q)continue;
@@ -346,14 +346,14 @@ int rf_entity_default_weapons_read(const void *text,uint32_t bytes,const char *c
         } else if(selected && same(t,"$Default")) {
             uint32_t bit;int32_t id;
             if(token(&l,t,&q) || q)return RF_FORMAT;
-            bit=same(t,"Primary:")?1:same(t,"Secondary:")?2:0;if(!bit)continue;
+            bit=same(t,"Primary:")?1:same(t,"Secondary:")?2:same(t,"Melee:")?4:0;if(!bit)continue;
             if(mask&bit || token(&l,t,&q) || !q)return RF_FORMAT;
             id=*t?rf_weapon_name_find(weapons,t):-1;
-            if(bit==1)v.primary=id;else v.secondary=id;mask|=bit;
+            if(bit==1)v.primary=id;else if(bit==2)v.secondary=id;else v.melee=id;mask|=bit;
         }
     }
     if(status!=RF_NOT_FOUND && status!=RF_OK)return status;
-    if(!found)return RF_NOT_FOUND;if(mask!=3)return RF_FORMAT;
+    if(!found)return RF_NOT_FOUND;if((mask&3)!=3)return RF_FORMAT;
     *result=v;return RF_OK;
 }
 static int sphere_number(lexer *l,float *result)
