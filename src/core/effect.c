@@ -1763,3 +1763,18 @@ int rf_vfx_face_append(const float depth[3],int32_t material,uint32_t item,rf_vf
     if(!isfinite(key))return RF_RANGE;
     records[*count].key[0]=key;records[*count].item=item;++*count;return RF_OK;
 }
+
+int rf_vfx_face_prepare(const rf_vfx_face_input *input,rf_vfx_face_output *out)
+{
+    rf_vfx_face_output value={0};rf_vfx_sort_record record={{0,0,0},0};uint32_t count=0;unsigned i;int status;
+    if(!input || !out || input->perspective>1)return RF_RANGE;
+    for(i=0;i<3;++i)if(input->clip[i]>255)return RF_RANGE;
+    if(input->clip[0]&input->clip[1]&input->clip[2]){*out=value;return RF_OK;}
+    status=rf_vfx_face_normal(input->vertices,value.normal);if(status)return status;
+    status=rf_vfx_face_facing(value.normal,input->vertices,input->origin,input->forward,input->perspective,&value.visible);if(status)return status;
+    if(value.visible) {
+        status=rf_vfx_face_append(input->depth,input->material,0,&record,1,&count);if(status)return status;
+        value.depth=record.key[0];
+    }
+    *out=value;return RF_OK;
+}

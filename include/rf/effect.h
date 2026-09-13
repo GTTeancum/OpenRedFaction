@@ -212,6 +212,12 @@ int rf_vfx_face_append(const float depth[3],int32_t material,uint32_t item,rf_vf
 /*5478f0 facing: perspective dot(origin-point,normal)>0; flat
  * dot(forward,normal)<=0. Finite inputs required, output preserved on error. */
 int rf_vfx_face_facing(const float normal[3],const float point[3],const float origin[3],const float forward[3],uint32_t perspective,uint32_t *out);
+typedef struct rf_vfx_face_input {float vertices[9],depth[3];uint32_t clip[3];float origin[3],forward[3];uint32_t perspective;int32_t material;} rf_vfx_face_input;
+typedef struct rf_vfx_face_output {float normal[3],depth;uint32_t visible;} rf_vfx_face_output;
+/*554a80 with already projected vertices: clip reject, uncached normal,
+ * facing and biased depth. No projection cache or edge-cache mutation.
+ * Rejected faces have visible0; errors preserve output. */
+int rf_vfx_face_prepare(const rf_vfx_face_input *,rf_vfx_face_output *);
 /*5402fa direct-parent branch: row-major basis9 then translation3.
  * Transform center/vertex, preserve extra bounds; no tag pose resolution.
  * Supports in-place output; errors preserve output. */

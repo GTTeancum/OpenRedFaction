@@ -91,3 +91,10 @@ The caller must initialize list storage deliberately. Three guards verify
 full/invalid counts and nonfinite depths do not mutate the list or count.
 Preceding culling, edge-cache resets and persistent list ownership remain
 separate; this test is not a renderer/native playback test.
+
+rf_vfx_face_prepare composes clip-code AND rejection, uncached normal,
+facing and biased depth.2048 complete554a80 original/PC/NXDK comparisons
+use preprojected cached vertices with no hooks:758 clip rejects,651 back
+faces,639 visible. The original real normal/facing/depth code runs.
+Two malformed input guards preserve output. Projection itself, cache lifetime,
+edge-cache mutation, persistent face lists and draw calls remain external.
