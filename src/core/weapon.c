@@ -22,6 +22,27 @@ int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t
     *tag=*cached;return RF_OK;
 }
 
+int rf_weapon_recoil_basis(const float basis[9],float recoil,int32_t hand,float result[9])
+{
+    static const unsigned char order[9][3]={{0,2,1},{2,1,0},{1,0,2},{2,1,0},{2,1,0},{0,1,2},{2,1,0},{2,0,1},{1,0,2}};
+    double angle,s,c,wz;float x,y,z,xx,yy,zz,xy,xz,yz,wx,wy,r[9],out[9];uint32_t i,row,col;
+    if(!basis || !result || !isfinite(recoil) || hand<0 || hand>1)return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_RANGE;
+    if(recoil==0){memmove(result,basis,36);return RF_OK;}
+    angle=(hand==0?-(double)recoil:(double)recoil)*0.5;s=sin(angle);c=cos(angle);
+    x=(float)(s*basis[6]);y=(float)(s*basis[7]);z=(float)(s*basis[8]);
+    xx=x*x;yy=y*y;zz=z*z;xy=x*y;xz=x*z;yz=y*z;wx=(float)(c*x);wy=(float)(c*y);wz=c*z;
+    r[0]=(float)((1.0-2.0*yy)-2.0*zz);r[1]=(float)(2.0*(wz+xy));r[2]=(float)(2.0*xz-2.0*wy);
+    r[3]=(float)(2.0*xy-2.0*wz);r[4]=(float)((1.0-2.0*xx)-2.0*zz);r[5]=(float)(2.0*((double)wx+yz));
+    r[6]=(float)(2.0*((double)wy+xz));r[7]=(float)(2.0*yz-2.0*wx);r[8]=(float)((1.0-2.0*xx)-2.0*yy);
+    for(row=0;row<3;++row)for(col=0;col<3;++col) {
+        const unsigned char *k=order[row*3+col];double v=(double)basis[row*3+k[0]]*r[k[0]*3+col];
+        for(i=1;i<3;++i)v+=(double)basis[row*3+k[i]]*r[k[i]*3+col];
+        out[row*3+col]=(float)v;if(!isfinite(out[row*3+col]))return RF_RANGE;
+    }
+    memcpy(result,out,36);return RF_OK;
+}
+
 int rf_weapon_draw_state_prepare(uint32_t state[20],uint32_t special_view,uint32_t tint,const float basis[9])
 {
     float copy[9];if(!state || !basis)return RF_RANGE;memcpy(copy,basis,sizeof(copy));

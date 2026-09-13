@@ -15,6 +15,11 @@ uint32_t rf_weapon_world_model_token(const rf_weapon_world_model models[64],int3
 int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t kind,
     int (*lookup)(void *,uint32_t,const char *,int32_t *),void *context,int32_t *tag);
 
+/*421d85..421df6: rotate about the pose third basis vector, without axis
+ * normalization. Hand0 negates recoil, hand1 keeps its sign. Finite inputs;
+ * errors preserve output, alias allowed. Position is unchanged by this stage. */
+int rf_weapon_recoil_basis(const float basis[9],float recoil,int32_t hand,float result[9]);
+
 /*421df6..421e4f final80-byte held-weapon draw state. Preserve words3/6
  * except special-view low byte1 replaces word3. Tint is actor1474; basis is
  * the post-recoil pose. No geometry submission. Input basis may alias state. */

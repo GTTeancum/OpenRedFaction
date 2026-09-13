@@ -18,6 +18,14 @@ int main(int argc,char **argv)
     int32_t status; unsigned i;
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--recoil-basis")) {
+        struct {float basis[9],recoil;int32_t hand;} in;struct {int32_t status;float basis[9];} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(out.basis,0xa5,36);out.status=rf_weapon_recoil_basis(in.basis,in.recoil,in.hand,out.basis);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--draw-state")) {
         struct {uint32_t state[20],special,tint;float basis[9];} in;int32_t status;
         while(fread(&in,sizeof(in),1,stdin)==1) {
