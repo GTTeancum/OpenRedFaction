@@ -118,6 +118,14 @@ typedef struct rf_lightmap_sample_lighting {
  * Caller owns selection/ambient/masks. Errors retain earlier completed pixels.
  * Special polygon sampling, disabled-light gates and rendering are separate. */
 int rf_lightmap_accumulate_samples(const rf_lightmap_sample_lighting *);
+/* Special4f3390 grid: caller supplies selected polygons with smoothed normals,
+ * sources/masks and initial RGB planes. Uses only image dimensions/origin from
+ * sample, then coverage, ordered sampling, unsoftened lighting, fallback RGB
+ * and sequential border copies. Minimum2x2; errors retain completed pixels.
+ * No allocation; original face collection/normal owners remain external. */
+int rf_lightmap_accumulate_special(const rf_lightmap_sample_lighting *,
+    const rf_lightmap_sample_polygon *polygons,uint32_t polygon_count);
+
 
 typedef struct rf_lightmap_accumulation {
     const float *channels[3];uint32_t count,width,height;

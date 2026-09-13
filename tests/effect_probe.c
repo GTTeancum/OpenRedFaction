@@ -212,6 +212,23 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-special-grid")) {
+        struct {uint32_t image_width,image_height,x,y,width,height,count,masked,polygon_count,counts[4];
+            rf_lightmap_sample_vertex vertices[4][8];rf_vfx_light_source lights[4];float planes[3][64];unsigned char masks[4][64];} input;
+        rf_lightmap_sample_lighting view;rf_lightmap_sample_polygon polygons[4];const unsigned char *masks[4];uint32_t status,i;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&view,0,sizeof(view));view.sample.image_width=input.image_width;view.sample.image_height=input.image_height;
+            view.sample.x=input.x;view.sample.y=input.y;view.width=input.width;view.height=input.height;
+            view.lights=input.lights;view.light_count=input.count;view.directional_scale=.25f;view.capacity=64;view.mask_bytes=64;
+            for(i=0;i<4;i++){polygons[i].vertices=input.vertices[i];polygons[i].count=input.counts[i];masks[i]=input.masks[i];}
+            view.masks=input.masked?masks:NULL;for(i=0;i<3;i++)view.channels[i]=input.planes[i];status=RF_RANGE;
+            if(input.count<=4 && input.polygon_count<=4 && input.counts[0]<=8 && input.counts[1]<=8 && input.counts[2]<=8 && input.counts[3]<=8)
+                status=rf_lightmap_accumulate_special(&view,polygons,input.polygon_count);
+            fwrite(&status,4,1,stdout);fwrite(input.planes,sizeof(input.planes),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-edge-crossing")) {
         float input[8];uint32_t status,hit;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

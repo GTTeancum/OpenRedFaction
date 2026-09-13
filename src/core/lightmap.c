@@ -373,6 +373,59 @@ int rf_lightmap_accumulate_samples(const rf_lightmap_sample_lighting *view)
     return RF_OK;
 }
 
+int rf_lightmap_accumulate_special(const rf_lightmap_sample_lighting *view,
+    const rf_lightmap_sample_polygon *polygons,uint32_t polygon_count)
+{
+    unsigned char weights[64];float inverse[2],radius;uint32_t x,y,i,j,k,c,at=0;int status;
+    static const unsigned char sides[4][2]={{0,1},{2,3},{0,2},{1,3}};
+    if(!view || (polygon_count && !polygons) || view->width<2 || view->height<2 ||
+       view->light_count>64 || (view->light_count && !view->lights) ||
+       !view->channels[0] || !view->channels[1] || !view->channels[2] ||
+       (uint64_t)view->width*view->height>view->capacity ||
+       (view->masks && (uint64_t)view->width*view->height>view->mask_bytes) ||
+       !view->sample.image_width || !view->sample.image_height ||
+       view->sample.image_width>INT32_MAX || view->sample.image_height>INT32_MAX ||
+       (uint64_t)view->sample.x+view->width>view->sample.image_width ||
+       (uint64_t)view->sample.y+view->height>view->sample.image_height)return RF_RANGE;
+    for(i=0;i<polygon_count;i++)if(polygons[i].count && !polygons[i].vertices)return RF_RANGE;
+    if(view->masks)for(i=0;i<view->light_count;i++)if(!view->masks[i])return RF_RANGE;
+    inverse[0]=(float)(1.0/view->sample.image_width);inverse[1]=(float)(1.0/view->sample.image_height);
+    radius=(float)(sqrt((1.0/view->sample.image_height)*inverse[1]+(double)inverse[0]*inverse[0])*.5);
+    for(y=0;y<view->height;y++) {
+        uint32_t seen=0;
+        float low_y=(float)((double)(view->sample.y+y)*inverse[1]);
+        float high_y=(float)((double)(view->sample.y+y+1)*inverse[1]);
+        float center_y=(float)(((double)(view->sample.y+y)+.5)*inverse[1]);
+        for(x=0;x<view->width;x++,at++) {
+            float corners[4][2],center[2],rgb[3];uint32_t hit,kind=0;
+            float low_x=(float)((double)(view->sample.x+x)*inverse[0]);
+            float high_x=(float)((double)(view->sample.x+x+1)*inverse[0]);
+            rf_lightmap_special_sample sample;
+            center[0]=(float)(((double)(view->sample.x+x)+.5)*inverse[0]);center[1]=center_y;
+            for(i=0;i<4;i++){corners[i][0]=(i&1)?high_x:low_x;corners[i][1]=(i&2)?high_y:low_y;}
+            for(i=0;i<polygon_count;i++)for(j=0;j<polygons[i].count;j++)for(k=0;k<4;k++) {
+                status=rf_lightmap_edge_crossing(corners[sides[k][0]],corners[sides[k][1]],
+                    polygons[i].vertices[j].uv,polygons[i].vertices[j+1==polygons[i].count?0:j+1].uv,&hit);
+                if(status)return status;if(hit)seen=1;
+            }
+            if(seen) {
+                status=rf_lightmap_select_sample(polygons,polygon_count,center,radius,&sample,&kind);if(status)return status;
+            }
+            if(!seen || !kind)for(c=0;c<3;c++)rgb[c]=seen?0.33f:0.1f;
+            else {
+                for(c=0;c<3;c++)rgb[c]=view->channels[c][at];
+                if(view->masks)for(i=0;i<view->light_count;i++)weights[i]=view->masks[i][at];
+                status=rf_vfx_light_accumulate(sample.position,sample.normal,rgb,view->directional_scale,
+                    view->lights,view->light_count,view->masks?weights:NULL,0,rgb);if(status)return status;
+                for(c=0;c<3;c++)if(rgb[c]<0)rgb[c]=0;
+            }
+            for(c=0;c<3;c++)view->channels[c][at]=rgb[c];
+        }
+    }
+    {float *channels[3]={view->channels[0],view->channels[1],view->channels[2]};
+     return rf_lightmap_copy_special_border(channels,view->width,view->height,view->capacity);}
+}
+
 static int lightmap_scaled_rgb(const double scaled[3],unsigned char rgb[3])
 {
     int32_t value[3],peak=0;unsigned char result[3];uint32_t i;
