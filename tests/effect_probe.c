@@ -164,6 +164,15 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-accumulated-rgb")) {
+        float input[3];unsigned char output[3];uint32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            memset(output,0xa5,3);status=rf_lightmap_accumulated_rgb(input,output);
+            fwrite(&status,4,1,stdout);fwrite(output,3,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-rgb-upload")) {
         struct {uint32_t x,y,width,height,source_width,pitch,flags,locked;unsigned char rgb[768];} input;
         uint32_t status;unsigned char dirty,packed[768];rf_lightmap_rgb_upload view;

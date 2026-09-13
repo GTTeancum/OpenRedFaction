@@ -14,6 +14,10 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Accumulated-light RGB conversion matches8192 original/PC/NXDK cases,
+including integer normalization and overflow behavior; both builds and24 tests
+pass. Reconstruct light accumulation/filtering, then bind runtime texture updates.
+
 Runtime lightmap RGB rectangle upload matches2048 original/PC/NXDK cases,
 including black texels, failed locks and pitch; seven buffer guards pass.
 Both builds and24 tests pass. Reconstruct4f26a0 preceding light accumulation

@@ -31,6 +31,12 @@ int rf_lightmap_project(const rf_lightmap_projection *projection,const float poi
  * Buffer guards run before mutation; no allocation or capability inference. */
 int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,uint32_t height,
     uint32_t double_rgb,unsigned char *packed,uint32_t pitch,uint32_t packed_bytes);
+/*4f3040 accumulated RGB conversion: truncate255*channel, clamp negatives,
+ * normalize integer channels by their peak above255. Preserves original32-bit
+ * numerator wrapping. Finite scaled values must fit signed32-bit; invalid
+ * input preserves output. No allocation; input/output may alias. */
+int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3]);
+
 typedef struct rf_lightmap_rgb_upload {
     const unsigned char *rgb;uint32_t rgb_bytes,rgb_pitch;
     unsigned char *packed;uint32_t packed_bytes,packed_pitch;

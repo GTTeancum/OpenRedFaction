@@ -1132,3 +1132,26 @@ state. Both builds and24 CTests pass; no new native rendered evidence.
 4e6020/4e6080. Do not treat it as the lightmap dirty consumer. Remaining4f26a0
 work includes source selection, accumulation4f3390, RGB conversion4f3040,
 dynamic sample generation and bitmap lifecycle/renderer integration.
+
+
+### Accumulated light to RGB conversion (2026-09-13)
+
+rf_lightmap_accumulated_rgb reconstructs complete4f3040. Original reads the
+three float arrays1431de0/14b23e0/13f1de0 at the supplied pixel index,
+multiplies each by255 (constant5894c4), truncates with CRT573528, and clamps
+negative integers to0. If the largest channel exceeds255, each channel is
+multiplied by255 with32-bit wrap, interpreted signed, then divided by the
+positive peak with truncation toward zero. The low bytes form RGB. This is
+integer normalization after truncation, not floating-point color normalization.
+
+The portable API accepts one RGB float triplet, guards finite values whose
+scaled conversion fits signed32-bit, and preserves output on invalid input.
+It explicitly reconstructs wrapped numerators without signed-C overflow.
+Aliasing output with input is supported; no allocation or global arrays.
+
+verify_lightmap_accumulated_rgb.py executes original4f3040 and its CRT helper
+unhooked. All8192 PC/NXDK outputs match:6999 normalized cases,1173 wrapped-
+numerator cases, near-integer boundaries, negatives and dark values. All8192
+NXDK in-place cases match; five invalid PC/NXDK cases preserve output.
+Both builds and24 CTests pass. Accumulation4f3390, spatial filtering and
+native renderer resource updates remain; this adds no new visual evidence.

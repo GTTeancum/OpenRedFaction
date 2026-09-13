@@ -158,6 +158,26 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
     return RF_OK;
 }
 
+int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3])
+{
+    int32_t value[3],peak=0;unsigned char result[3];uint32_t i;
+    if(!channels || !rgb)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        double scaled=(double)channels[i]*255.0;
+        if(!isfinite(scaled) || scaled<INT32_MIN || scaled>INT32_MAX)return RF_RANGE;
+        value[i]=(int32_t)scaled;if(value[i]<0)value[i]=0;if(value[i]>peak)peak=value[i];
+    }
+    for(i=0;i<3;i++) {
+        if(peak>255) {
+            uint32_t product=(uint32_t)value[i]*255u;
+            int64_t signed_product=product>=0x80000000u?(int64_t)product-4294967296LL:product;
+            value[i]=(int32_t)(signed_product/peak);
+        }
+        result[i]=(unsigned char)value[i];
+    }
+    memcpy(rgb,result,3);return RF_OK;
+}
+
 int rf_lightmap_upload_rgb_1555(const rf_lightmap_rgb_upload *view,unsigned char *dirty)
 {
     uint32_t x,y,value;uint64_t right,bottom;
