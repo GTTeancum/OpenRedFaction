@@ -140,6 +140,7 @@ static int loader_creation_probe(void)
 #include "ai_arbitration_probe.h"
 #include "ai_destination_probe.h"
 #include "ai_route_limit_probe.h"
+#include "ai_prepare_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==3 && !strcmp(argv[1],"--action-name"))return action_name_probe(argv[2]);
@@ -425,6 +426,7 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--ai-prepare"))return ai_prepare_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-route-limit"))return ai_route_limit_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-weapon-limit")) {
         uint32_t in[70],out[2];int32_t weapons[2];float override_value,scalars[64],result;

@@ -1105,12 +1105,23 @@ typedef struct rf_entity_ai_destination_actor {
     float position_3c[3],vector_7d4[3],requested_620[3],adjusted_62c[3];
     float begin_5a4[3],next_5b0[3],previous_6d4[3];
     int32_t count_588;float *first_58c,*last_590;uint32_t word_59c,word_5a0,word_660;int32_t timer_6bc;
+    int32_t movement_kind;uint32_t word_5e4,token_69c,token_6a0;
 } rf_entity_ai_destination_actor;
 typedef struct rf_entity_ai_destination_query {
     rf_entity_ai_destination_actor *destination_owner; /*5af624 points at its requested620*/
     rf_entity_navigation_candidate *first,*second; /*5af628/62c*/
     float offset_634;uint32_t mode_638,search_63a;float limit_640;int32_t count_64c;
+    float radius_630;uint32_t weapon_639;float *start_618;uint32_t token_61c,token_620;
+    float **route_slot_650;uint32_t world_63c,word_644;
 } rf_entity_ai_destination_query;
+/*40aae0: copies dimensions before weapon query; subsequent movement-kind
+ * and position/token reads observe callback changes. Concrete42a060/42a0a0
+ * predicates and route/query publication. Borrowed actor/query remain alive.
+ * Token69c/6a0 and world are copied without invented pointer semantics.
+ * Errors retain earlier dimension copies, and do not roll back callback effects. */
+int rf_entity_ai_destination_prepare(rf_entity_ai_destination_actor *actor,
+    rf_entity_ai_destination_query *query,uint32_t world,
+    int (*has_weapon)(void *,rf_entity_ai_destination_actor *,uint32_t *),void *context);
 typedef struct rf_entity_ai_destination_backend {
     int (*lookup)(void *,uint32_t,rf_entity_ai_destination_actor **); /*426fc0*/
     int (*reset)(void *,rf_entity_ai_destination_actor *); /*409210*/

@@ -1652,6 +1652,20 @@ int rf_entity_navigation_closest_point(const float point[3],const float start[3]
     memcpy(closest,value,12);*distance_along=along;return RF_OK;
 }
 
+int rf_entity_ai_destination_prepare(rf_entity_ai_destination_actor *a,rf_entity_ai_destination_query *q,
+    uint32_t world,int (*has_weapon)(void *,rf_entity_ai_destination_actor *,uint32_t *),void *context)
+{
+    uint32_t weapon,special;int32_t kind;int status;
+    if(!a || !q || !has_weapon)return RF_RANGE;
+    memcpy(&q->radius_630,&a->radius_7c0,4);memcpy(&q->offset_634,&a->height_7c4,4);
+    status=has_weapon(context,a,&weapon);if(status)return status;q->weapon_639=weapon&255u;
+    kind=a->movement_kind;special=kind==12 || kind==15 || kind==13 || kind==11 || kind==9 || kind==4 || kind==7;
+    a->word_5e4=special;q->mode_638=!special;
+    memcpy(a->begin_5a4,a->position_3c,12);memcpy(a->next_5b0,a->position_3c,12);
+    q->route_slot_650=&a->first_58c;q->start_618=a->begin_5a4;q->limit_640=0;
+    q->token_61c=a->token_69c;q->token_620=a->token_6a0;q->word_644=0;q->world_63c=world;
+    return RF_OK;
+}
 static double ai_destination_distance(const float a[3],const float b[3])
 {
     float d[3];uint32_t i;for(i=0;i<3;++i)d[i]=(float)((double)a[i]-b[i]);

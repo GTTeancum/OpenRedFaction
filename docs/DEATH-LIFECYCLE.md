@@ -9905,3 +9905,26 @@ inherited a wrong-type actor and was corrected to type0 before confirming
 the cycle guard; production code did not change. Both builds and22 CTests
 pass. No live scene binding: scalar-column and override resource ownership
 remain explicit caller obligations, alongside navigation preparation.
+
+
+Shared navigation preparation40aae0 (2026-09-13)
+
+rf_entity_ai_destination_prepare implements dimension copies before the
+weapon-presence callback, exact low-byte publication and concrete movement
+kind predicates for12,15,13,11,9,4,7. It then sets actor5e4/query638, copies
+current position into begin5a4/next5b0, publishes actual start-array and
+route-pointer-slot identities, copies69c/6a0 tokens and frame world token,
+and clears query640/644. Compact actor/query types append these owners
+without changing existing field offsets. No allocation or scene owner
+initialization is implied. Tokens remain uninterpreted32-bit values.
+
+verify_ai_prepare.py executes full40aae0 with actual42a060/42a0a0 and
+vector copies for2048 cases,525 special-mode outcomes. Only408dc0 is
+supplied; its callback changes movement kind, dimensions, position and
+route tokens to verify reads before/after the call. Original entire actor
+and query footprints are checked. PC and compiled NXDK match all published
+fields and retain untouched query state; callback failure preserves early
+dimension copies and callback effects. Both builds, all22 CTest checks and
+the2048-case shared destination regression pass. No native scene claim.
+Compose preparation/limit/node-selection services with retained scene
+owners, then reconstruct direct-route/search callbacks for live routing.

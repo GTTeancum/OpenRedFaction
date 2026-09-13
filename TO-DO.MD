@@ -46,6 +46,7 @@ Verify authored NPC/vehicle beams, bind player state and complete transparent sc
 AI action/state setters407e20/407e80 match2048 original/PC/NXDK cases.
 Event arbitration4087a0 matches2048 original/PC/NXDK cases; bind event/destination/stance services.
 Shared destination40ac90 matches2048 original/PC/NXDK cases; bind route services and retained scene ownership.
+Navigation preparation40aae0 matches2048 original/PC/NXDK cases; compose it with retained movement/query owners.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.
