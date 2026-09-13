@@ -424,6 +424,11 @@ extern uint32_t rf_scene_npc_inventory_owners[4];
 extern uint32_t rf_scene_npc_startup_weapons[4];
 extern uint32_t rf_scene_weapon_models[8];
 extern uint32_t rf_scene_weapon_materials[8];
+/* Target handle supplied by the caller; retained NPC targets and absent handles.
+ * Reads live playback and eye state, retiring stale828 locks. Other live target
+ * owner types return NOT_FOUND. No automatic target choice or firing. */
+int rf_scene_npc_target_aim(uint32_t handle,int32_t target,const float muzzle[3],float basis[9]);
+extern uint32_t rf_scene_weapon_aim[4];
 extern uint32_t rf_scene_weapon_hands[4];
 extern uint32_t rf_scene_weapon_draw[6];
 extern uint32_t rf_scene_weapon_placement[4];

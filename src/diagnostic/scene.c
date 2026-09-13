@@ -4311,6 +4311,59 @@ int rf_scene_npc_pain(uint32_t handle,int32_t now,rf_random_state *random,const 
     c.now=now;c.random=random;c.ops=ops;
     status=rf_entity_pain_react(&c.state,&backend);return c.status?c.status:status;
 }
+int rf_scene_npc_target_aim(uint32_t handle,int32_t target,const float muzzle[3],float basis[9])
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;rf_entity_playback_model *model;
+    rf_weapon_aim_source source={0};const rf_entity_view *view;uint32_t cls,i;int active,status;
+    if(!muzzle || !basis)return RF_RANGE;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    if(pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
+    model=campaign_playback_resources.models+pose->skeleton;
+    /* These retained NPC owners have no associated SP player. Original48aaf0
+     * still recognizes object flag8 before consulting player associations. */
+    source.local_related=(owner->object_flags&8)!=0;
+    memcpy(source.eye_basis,owner->look.orientation,36);
+    if(!source.local_related && owner->pain.selected_action!=-1) {
+        status=rf_motion_action_active(&pose->playback,model->resources,model->count,
+            owner->selection.mapping.actions,owner->pain.selected_action,&active);if(status)return status;
+        source.animation_locked=(uint32_t)active;
+        if(!active)owner->pain.selected_action=-1; /*428700 retires stale828. */
+    }
+    if(!source.local_related && !source.animation_locked) {
+        view=rf_object_lookup(&campaign_entities,target);
+        if(view) {
+            for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view==view)break;
+            if(i==campaign_npc_body_count || i>=campaign_model_owner_count)return RF_NOT_FOUND;
+            source.target_present=1;memcpy(source.target_position,campaign_model_owners[i].position,12);
+            if(rf_entity_lookup(&campaign_entities,target)==view) {
+                source.target_actor=1;memcpy(source.target_eye,campaign_npc_bodies[i].eye_position,12);
+            }
+        }
+    }
+    return rf_weapon_target_aim(&source,muzzle,basis);
+}
+uint32_t rf_scene_weapon_aim[4]; /* actors, cases, stale-lock clears, pose hash */
+static int campaign_weapon_aim_probe(void)
+{
+    uint32_t i,j,k;int status;float basis[9],muzzle[3];int32_t saved;
+    memset(rf_scene_weapon_aim,0,sizeof(rf_scene_weapon_aim));rf_scene_weapon_aim[3]=2166136261u;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;
+        saved=owner->pain.selected_action;++rf_scene_weapon_aim[0];
+        for(j=0;j<campaign_npc_body_count;++j)if(j!=i && campaign_npc_bodies[j].registration.view)break;
+        if(j==campaign_npc_body_count)return RF_NOT_FOUND;
+        memcpy(muzzle,owner->eye_position,12);
+        for(k=0;k<2;++k) {
+            memcpy(basis,campaign_model_owners[i].basis,36);owner->pain.selected_action=45;
+            status=rf_scene_npc_target_aim(owner->registration.handle,k?(int32_t)campaign_npc_bodies[j].registration.handle:-1,muzzle,basis);
+            if(status){owner->pain.selected_action=saved;return status;}
+            ++rf_scene_weapon_aim[1];rf_scene_weapon_aim[2]+=owner->pain.selected_action==-1;
+            rf_scene_weapon_aim[3]=npc_hash_bytes(rf_scene_weapon_aim[3],basis,36);
+        }
+        owner->pain.selected_action=saved;
+    }
+    return RF_OK;
+}
 int rf_scene_npc_death_play(uint32_t handle,int32_t action,uint32_t freeze,
     int (*play_sound)(void *,uint32_t,const char *),void *context)
 {
@@ -8723,6 +8776,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_weapon_materials_open(maps,map_count);if(status)goto done;
             status=campaign_weapon_hands_open();if(status)goto done;
             status=campaign_weapon_placement_probe();if(status)goto done;
+            status=campaign_weapon_aim_probe();if(status)goto done;
             status=campaign_glare_instances_open(tables_path);if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;

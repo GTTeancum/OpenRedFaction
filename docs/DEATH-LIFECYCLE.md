@@ -11016,3 +11016,25 @@ Still required: bind actual target registry and animation-lock services
 and secondary hand owners, and connect live firing/projectile ownership.
 This API consumes a stable resolved snapshot; it does not perform those
 lookup/predicate side effects and is not a complete firing implementation.
+
+## Retained NPC target aiming (2026-09-13)
+
+rf_scene_npc_target_aim now resolves the registered source owner and reads
+its live playback, selected action mapping, eye basis and object flag8.
+These NPCs have no associated SP player. The428700 service evaluates the
+retained selected_action through existing428d10 playback logic and retires
+stale828 to-1. Target handle is supplied by the caller;40a0e0/426fc0 registry
+lookup resolves registered NPC targets, using live model position and actor
+eye override. Missing/stale handles take the absent-target branch. Other
+registered target-owner types fail explicitly until their position/eye
+services are bound. Automatic AI target selection is not implied.
+
+The restored-state startup fixture exercises absent/live NPC targets and
+stale action45 for all78 owners. Stock64MiB replay112715 completed180 frames,
+PASS, normal-image restoration and exit0. Guest WEAPON_AIM equals PC:
+[78,156,156,2700992691]. Base memory67108864, plugged0. Both builds and22
+CTests pass. This native fixture does not cover active-animation locks or
+player/clutter targets; the prior original arithmetic probe covers lock
+branch behavior at its explicit predicate boundary. No new visual change.
+Connect muzzle origin and firing consumers; retain broader target owners
+and secondary hand-class ownership before claiming complete combat.
