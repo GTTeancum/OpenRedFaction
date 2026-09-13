@@ -488,6 +488,23 @@ int rf_entity_contact_driller_effects(rf_entity_contact_driller_state *state,
 
 typedef struct rf_entity_contact_player {uint32_t token,entity_handle;} rf_entity_contact_player;
 typedef struct rf_entity_contact_player_actor {uint32_t linked_handle,camera;} rf_entity_contact_player_actor;
+typedef struct rf_entity_contact_apc_state {
+    uint32_t handle,room,model;float radius,position[3],orientation[9];
+} rf_entity_contact_apc_state;
+typedef struct rf_entity_contact_apc_backend {
+    void *context;
+    int (*tag)(void *,uint32_t,const char *,int32_t *);
+    int (*model)(void *,const char *,uint32_t *);
+    int (*place)(void *,uint32_t,int32_t,const float *,const float *,float *,float *);
+    int (*geometry)(void *,const rf_entity_contact_geometry_request *);
+    /*4892c0 hit-region=0, remaining arguments in request; retain state. */
+    int (*damage)(void *,rf_entity_contact_apc_state *,const rf_damage_request *);
+} rf_entity_contact_apc_backend;
+/*42764d..4276d8 after APC gate. Tag/model/pose then geometry then damage.
+ * State is reread between calls; failures stop later effects without rollback. */
+int rf_entity_contact_apc_effects(rf_entity_contact_apc_state *state,
+    const rf_entity_contact_apc_backend *backend);
+
 typedef struct rf_entity_contact_feedback_backend {
     void *context;const int32_t *count;uint32_t capacity;
     const rf_entity_contact_player *const *players;

@@ -2444,3 +2444,23 @@ int rf_entity_contact_driller_feedback(const rf_entity_contact_driller_state *st
     }
     return RF_OK;
 }
+
+int rf_entity_contact_apc_effects(rf_entity_contact_apc_state *state,
+    const rf_entity_contact_apc_backend *backend)
+{
+    float position[3]={0},orientation[9]={0};
+    int32_t tag;uint32_t model;int status;rf_entity_contact_geometry_request geometry;rf_damage_request damage;
+    if(!state || !backend || !backend->tag)return RF_RANGE;
+    status=backend->tag(backend->context,state->model,"bumper_1",&tag);if(status)return status;
+    if(!backend->model)return RF_RANGE;
+    status=backend->model(backend->context,"Holey_APC.v3d",&model);if(status)return status;
+    if(!backend->place)return RF_RANGE;
+    status=backend->place(backend->context,state->model,tag,state->orientation,state->position,orientation,position);if(status)return status;
+    if(!backend->geometry)return RF_RANGE;
+    geometry.scale=state->radius;geometry.handle=state->handle;geometry.room=state->room;
+    memcpy(geometry.position,position,12);memcpy(geometry.direction,state->orientation+6,12);geometry.model=model;geometry.flags=0x1e;
+    status=backend->geometry(backend->context,&geometry);if(status)return status;
+    if(!backend->damage)return RF_RANGE;
+    damage.amount=75;damage.source=UINT32_MAX;damage.kind=-1;damage.argument6=0;damage.auxiliary_uid=UINT32_MAX;damage.force=0;
+    return backend->damage(backend->context,state,&damage);
+}
