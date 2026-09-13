@@ -2378,3 +2378,29 @@ int rf_entity_contact_sound(rf_entity_contact_sound_state *state,const float pos
     status=backend->play(backend->context,sample,position,&voice);if(status)return status;
     state->voice=voice;return RF_OK;
 }
+
+int rf_entity_contact_surface_route(const rf_entity_contact_surface *state,uint32_t *route)
+{
+    uint32_t value,i;long double squared,threshold,dot;
+    if(!state || !route)return RF_RANGE;
+    value=state->use_kind==1?RF_CONTACT_SURFACE_SOUND:RF_CONTACT_SURFACE_NONE;
+    if(state->class_flags&0x200) {
+        if(!isfinite(state->speed))return RF_RANGE;
+        for(i=0;i<3;++i)if(!isfinite(state->velocity[i]))return RF_RANGE;
+        squared=((long double)state->velocity[0]*state->velocity[0]+(long double)state->velocity[1]*state->velocity[1])+
+            (long double)state->velocity[2]*state->velocity[2];
+        threshold=(long double)state->speed*state->speed*.8999999761581421f;
+        if(threshold<squared) {
+            for(i=0;i<3;++i)if(!isfinite(state->forward[i]) || !isfinite(state->normal[i]))return RF_RANGE;
+            dot=((long double)state->forward[2]*state->normal[2]+(long double)state->forward[1]*state->normal[1])+
+                (long double)state->forward[0]*state->normal[0];
+            if(dot<-.8999999761581421f)value=RF_CONTACT_SURFACE_APC;
+        }
+    } else if((state->class_flags&0x400) && state->material==8) {
+        for(i=0;i<3;++i)if(!isfinite(state->velocity[i]) || !isfinite(state->normal[i]))return RF_RANGE;
+        dot=((long double)state->velocity[2]*state->normal[2]+(long double)state->velocity[1]*state->normal[1])+
+            (long double)state->velocity[0]*state->normal[0];
+        if(dot<-3.0f)value=RF_CONTACT_SURFACE_DRILLER;
+    }
+    *route=value;return RF_OK;
+}

@@ -428,6 +428,16 @@ typedef struct rf_damage_object {uint32_t type,flags;float health;} rf_damage_ob
 typedef struct rf_damage_request {
     float amount;uint32_t source;int32_t kind;uint32_t argument6,auxiliary_uid,force;
 } rf_damage_request;
+/*427550 surface entry: actor1ec=0 and contact1d4=0. Routes select required
+ * effects; they do not perform vehicle damage, debris or sound playback. */
+typedef struct rf_entity_contact_surface {
+    uint32_t class_flags,use_kind,material;
+    float speed,velocity[3],forward[3],normal[3];
+} rf_entity_contact_surface;
+enum {RF_CONTACT_SURFACE_NONE,RF_CONTACT_SURFACE_SOUND,
+      RF_CONTACT_SURFACE_APC,RF_CONTACT_SURFACE_DRILLER};
+int rf_entity_contact_surface_route(const rf_entity_contact_surface *state,uint32_t *route);
+
 typedef struct rf_entity_contact_sound_state {
     float speed,velocity[3],forward[3],normal[3];int32_t voice;
 } rf_entity_contact_sound_state;
