@@ -4,6 +4,15 @@
 #include <string.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--angular-velocity")) {
+        struct {rf_angular_velocity_state state;float command[3],rate,acceleration,mass,dt;uint32_t flags,driven;} in;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            status=rf_angular_velocity_step(&in.state,in.command,in.rate,in.acceleration,in.mass,in.dt,in.flags,in.driven);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&in.state,sizeof(in.state),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--angular-predict")) {
         struct {float angles[3],velocity[3],dt;uint32_t rotation[3];} in;
         struct {int32_t status;rf_angular_prediction value;} out;

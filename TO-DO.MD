@@ -61,6 +61,7 @@ Eye-angle update49cf40 matches2048 original/PC/NXDK cases plus6 guards; bind ret
 Physics eye-matrix composition matches2048 original/PC/NXDK cases plus3 guards; bind NPC angle/matrix owners and per-frame physics scheduling.
 Retained NPC look/steering services pass38 restored-state PC/stock64MiB XEMU cases; bind AI follower and angular delta/physics scheduling.
 Composed angular prediction49f566 passes2048 original/NXDK cases with bounded PC matrix residuals; bind angular preparation, collision prediction and commit.
+Ordinary angular velocity preparation matches2048 original/PC/NXDK cases plus7 guards; bind drive predicates, special-mode dispatch and prediction.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.

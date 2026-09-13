@@ -542,6 +542,30 @@ int rf_angular_predict(const float angles[3],const float velocity[3],float dt,
     status=rf_look_orientation(v.next_angles,v.next_orientation);if(status)return status;
     *result=v;return RF_OK;
 }
+int rf_angular_velocity_step(rf_angular_velocity_state *state,const float command[3],
+    float rate,float acceleration,float mass,float dt,uint32_t flags,uint32_t driven)
+{
+    rf_angular_velocity_state v;float factor;uint32_t i;
+    if(!state)return RF_RANGE;if(flags&0x1000000u)return RF_OK;
+    if(!isfinite(mass) || mass<=0 || !isfinite(dt) || dt<0)return RF_RANGE;
+    v=*state;
+    if(driven&255u){
+        if(!command || !isfinite(rate) || rate<=0 || !isfinite(acceleration) || acceleration<=0)return RF_RANGE;
+        factor=(float)(1.0-exp((double)dt/(((double)rate/acceleration)/log(0.05))));
+    }else factor=(float)(1.0-(double)dt*0.8999999761581421f);
+    for(i=0;i<3;++i){
+        if(!isfinite(v.velocity[i]) || !isfinite(v.force[i]))return RF_RANGE;
+        if(driven&255u){
+            float target,delta;if(!isfinite(command[i]))return RF_RANGE;
+            target=(float)((double)command[i]*rate);delta=(float)((double)target-v.velocity[i]);
+            delta=(float)((double)delta*factor);v.velocity[i]=(float)((double)v.velocity[i]+delta);
+        }else v.velocity[i]=(float)((double)v.velocity[i]*factor);
+        v.force[i]=(float)((double)v.force[i]/mass);
+        v.velocity[i]=(float)((double)v.velocity[i]+v.force[i]);
+        if(!isfinite(v.force[i]) || !isfinite(v.velocity[i]))return RF_RANGE;
+    }
+    *state=v;return RF_OK;
+}
 
 static int eye_rotate_axis(const float input[3],const float axis[3],float angle,float output[3])
 {

@@ -96,6 +96,14 @@ typedef struct rf_angular_prediction {
  * angles must satisfy rf_look_orientation's domain. Errors preserve output. */
 int rf_angular_predict(const float angles[3],const float velocity[3],float dt,
     const uint32_t rotation[3],rf_angular_prediction *result);
+typedef struct rf_angular_velocity_state {float velocity[3],force[3];} rf_angular_velocity_state;
+/* Ordinary49f485..49f565 with resolved drive predicate. Class command target
+ * uses rate/acceleration exponential response; undriven uses linear damping.
+ * Force is divided by mass IN PLACE, then added to velocity. Flag1000000
+ * bypasses this preparation entirely. No special-mode dispatch or prediction.
+ * Finite reached inputs, positive mass/rate/acceleration when used. */
+int rf_angular_velocity_step(rf_angular_velocity_state *state,const float command[3],
+    float rate,float acceleration,float mass,float dt,uint32_t flags,uint32_t driven);
 /* 422e2c..422e82: original matrix angle extraction, yaw-only body, and
  * physics-frame projection filtered by rotation reference == 1. No command
  * clearing, pose construction or factory ownership. Finite inputs required;
