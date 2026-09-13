@@ -152,8 +152,10 @@ static int ai_visibility_collision(void *context,uint32_t world,const float star
     *contacts=words[0];return (int32_t)words[1];
 }
 #include "ai_request_probe.h"
+#include "contact_destroy_probe.h"
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--contact-destroy"))return contact_destroy_probe();
     if(argc==2 && !strcmp(argv[1],"--actor-contact")) {
         rf_entity_actor_contact in;uint32_t out[3];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

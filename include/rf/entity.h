@@ -428,6 +428,19 @@ typedef struct rf_damage_object {uint32_t type,flags;float health;} rf_damage_ob
 typedef struct rf_damage_request {
     float amount;uint32_t source;int32_t kind;uint32_t argument6,auxiliary_uid,force;
 } rf_damage_request;
+typedef struct rf_entity_contact_destroy_actor {uint32_t handle;int32_t sound;float position[3];} rf_entity_contact_destroy_actor;
+typedef struct rf_entity_contact_destroy_backend {
+    void *context;
+    /*4892c0 with hit-region argument -1; remaining arguments in request. */
+    int (*damage)(void *,rf_entity_contact_destroy_actor *,const rf_damage_request *);
+    int (*select)(void *,int32_t,uint32_t *);
+    /*5056a0 positional playback at volume1, default173c378 parameters, flags0. */
+    int (*play)(void *,uint32_t,const float *);
+} rf_entity_contact_destroy_backend;
+/*429790: damage first, then reread class174 sound and position3c for playback.
+ * Backend must refresh actor fields after damage and keep the owner alive.
+ * Errors stop subsequent effects without rollback; selected IDs are unfiltered. */
+int rf_entity_contact_destroy(rf_entity_contact_destroy_actor *actor,const rf_entity_contact_destroy_backend *backend);
 /* Retained49cd80 SP facts. Callback mutations are visible to later stages;
  * owners remain alive throughout. Material is contact1d0, not support1380. */
 typedef struct rf_entity_impact_actor {

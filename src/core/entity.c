@@ -2319,3 +2319,12 @@ int rf_entity_actor_contact_decide(const rf_entity_actor_contact *input,uint32_t
     }
     r=0;*respond=r;*destroy=d;return RF_OK;
 }
+
+int rf_entity_contact_destroy(rf_entity_contact_destroy_actor *actor,const rf_entity_contact_destroy_backend *backend)
+{
+    const rf_damage_request request={1000000.0f,UINT32_MAX,9,0,UINT32_MAX,0};uint32_t sample;int status;
+    if(!actor || !backend || !backend->damage || !backend->select || !backend->play)return RF_RANGE;
+    status=backend->damage(backend->context,actor,&request);if(status)return status;
+    status=backend->select(backend->context,actor->sound,&sample);if(status)return status;
+    return backend->play(backend->context,sample,actor->position);
+}
