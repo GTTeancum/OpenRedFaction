@@ -154,6 +154,16 @@ static int ai_visibility_collision(void *context,uint32_t world,const float star
 #include "ai_request_probe.h"
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--actor-contact")) {
+        rf_entity_actor_contact in;uint32_t out[3];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1){
+            out[1]=out[2]=0xa5a5a5a5u;out[0]=(uint32_t)rf_entity_actor_contact_decide(&in,out+1,out+2);
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--player-controls")) {
         int32_t in[22];rf_entity_registry registry;rf_entity_view views[4];uint32_t i,result;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

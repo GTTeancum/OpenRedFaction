@@ -71,6 +71,7 @@ Ordinary49d0a0 commit matches1024 original/NXDK cases with bounded PC matrix res
 Retained ordinary NPC commit and completed-position publication pass76 PC/stock64MiB XEMU checks; connect collision substep resolution and continuous scheduling before later room/eye refresh.
 Ordinary partial-contact motion prefix matches2048 original/NXDK cases with bounded PC matrix residuals; complete427550 contact dispatch and49fe40 flag/time tail before live scheduling.
 Complete ordinary49fe40 orchestration matches2048 original/NXDK cases at explicit contact callbacks; reconstruct427550 gameplay effects and bind retained contact/time owners before live scheduling.
+Actor contact41a000 decisions match2048 original/PC/NXDK cases; bind429790 destruction effects and remaining427550 surface/item/vehicle dispatch.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.

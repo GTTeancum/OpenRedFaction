@@ -413,6 +413,17 @@ int rf_entity_damage_sound(rf_entity_damage_sound_state *state,float fraction,
 /*42cca0 for a present entity: class724 bit02000000, armor>0,814 bit20 clear.
  * Normalized low-byte result; a missing entity is handled by caller lookup. */
 uint32_t rf_entity_armor_immunity(float armor,uint32_t class_flags_724,uint32_t flags_814);
+typedef struct rf_entity_actor_contact {
+    uint32_t use_kind,class_flags,contact_kind,occupant_predicate;
+    float velocity[3],angular_velocity[3],target_mass,target_armor;
+    uint32_t target_class_flags,target_flags_814,target_object_flags;
+} rf_entity_actor_contact;
+/*41a000 decision with resolved42a130 occupant predicate. Returns its boolean
+ * and whether429790 destruction is requested before returning false. This
+ * function does not execute destruction/damage effects. Outputs preserved on
+ * invalid reached arithmetic; predicates consume their original low byte. */
+int rf_entity_actor_contact_decide(const rf_entity_actor_contact *input,uint32_t *respond,uint32_t *destroy);
+
 typedef struct rf_damage_object {uint32_t type,flags;float health;} rf_damage_object;
 typedef struct rf_damage_request {
     float amount;uint32_t source;int32_t kind;uint32_t argument6,auxiliary_uid,force;

@@ -2292,3 +2292,30 @@ int rf_entity_navigation_steer(rf_entity_navigation_steering *s,const float targ
     for(i=0;i<3;++i)if(!isfinite(next.angular_150[i]))return RF_FORMAT;
     *s=next;*result=(float)total;return RF_OK;
 }
+
+int rf_entity_actor_contact_decide(const rf_entity_actor_contact *input,uint32_t *respond,uint32_t *destroy)
+{
+    uint32_t r,d=0,i;float threshold;long double linear=0,angular=0;
+    if(!input || !respond || !destroy)return RF_RANGE;
+    if(input->use_kind==1 && rf_entity_armor_immunity(input->target_armor,input->target_class_flags,input->target_flags_814)){
+        *respond=1;*destroy=0;return RF_OK;
+    }
+    if(input->use_kind==1 && !isfinite(input->target_mass))return RF_RANGE;
+    if(input->use_kind==1 && input->target_mass<30)threshold=0;
+    else if((input->class_flags&0x8000u) && input->contact_kind==3)threshold=.5f;
+    else{*respond=!(input->target_object_flags&8u);*destroy=0;return RF_OK;}
+    for(i=0;i<3;++i){
+        if(!isfinite(input->velocity[i]))return RF_RANGE;
+        linear+=(long double)input->velocity[i]*input->velocity[i];
+    }
+    if(linear>threshold)d=1;
+    else{
+        for(i=0;i<3;++i){
+            if(!isfinite(input->angular_velocity[i]))return RF_RANGE;
+            angular+=(long double)input->angular_velocity[i]*input->angular_velocity[i];
+        }
+        if(angular>threshold)d=1;
+        else if(threshold!=0 && (input->class_flags&0x200u) && (input->occupant_predicate&255u))d=1;
+    }
+    r=0;*respond=r;*destroy=d;return RF_OK;
+}
