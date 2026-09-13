@@ -56,6 +56,16 @@ typedef struct rf_weapon_hand_ops {
 int rf_weapon_place_in_hand(const rf_weapon_hand_source *source,int32_t hand,
     rf_weapon_world_model models[64],const rf_weapon_hand_ops *ops,void *context,rf_weapon_hand_placement *result);
 
+typedef struct rf_weapon_aim_source {
+    uint32_t local_related,animation_locked,target_present,target_actor;
+    float target_position[3],target_eye[3],eye_basis[9];
+} rf_weapon_aim_source;
+/*41b4c0 after resolved48aaf0/428700 and target lookups. Locked animations
+ * preserve incoming basis; local-related low byte1 or absent target uses eye
+ * basis. Targets outside forward dot>0.8 preserve incoming basis. Does not
+ * perform predicate side effects or registry lookup. Inputs finite; no alias. */
+int rf_weapon_target_aim(const rf_weapon_aim_source *,const float muzzle[3],float basis[9]);
+
 typedef struct rf_weapon_muzzle_source {
     uint32_t actor_model;int32_t weapon,primary_limit,primary_index,secondary_index;
     uint32_t primary_count;int32_t primary_tags[2],secondary_tags[2];

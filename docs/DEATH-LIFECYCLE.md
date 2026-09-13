@@ -10989,3 +10989,30 @@ output prefixes and cache behavior. Evidence: artifacts/weapon-muzzle.json.
 Both builds and all22 CTests pass. This adds no live scene firing or new
 XEMU replay; replay111110 remains the latest native scene evidence. Bind
 real aiming, secondary owners and firing consumers next.
+
+## Target aiming41b4c0 (2026-09-13)
+
+rf_weapon_target_aim implements the math/branch stage after resolved local
+player and animation-lock predicates and target object/actor lookups. Local
+related low byte1 copies eye basis. Otherwise a nonzero animation-lock low
+byte preserves incoming basis. Absent target copies eye basis; a present
+target uses actor eye when resolved, otherwise object position. Normalize
+target-minus-muzzle and require dot with eye forward strictly greater than
+the original double0.8. Rejected targets preserve incoming basis. Accepted
+targets rebuild4fd0a0 orientation with the eye up vector; zero/parallel up
+falls back through existing4fcea0 navigation basis. Zero target distance
+preserves incoming basis, matching the original unordered-dot exit.
+
+verify_weapon_target_aim.py executes41b4c0 and all arithmetic callees
+unhooked. Only48aaf0/428700 and40a0e0/426fc0 are supplied; arguments and
+call ordering are checked.2048 cases match original/PC/compiled NXDK bytes
+at027f, including low-byte values, actor eye overrides, zero/parallel up
+and float values around the double0.8 cutoff. Six NXDK null/nonfinite
+guards preserve output. Both builds and all22 CTests pass. Evidence:
+artifacts/weapon-target-aim.json. No new native scene replay or screenshot.
+
+Still required: bind actual target registry and animation-lock services
+(428700 can retire invalid828 animation state), compose with muzzle origin
+and secondary hand owners, and connect live firing/projectile ownership.
+This API consumes a stable resolved snapshot; it does not perform those
+lookup/predicate side effects and is not a complete firing implementation.

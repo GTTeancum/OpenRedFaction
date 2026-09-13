@@ -87,6 +87,43 @@ int rf_weapon_place_in_hand(const rf_weapon_hand_source *source,int32_t hand,
     return RF_OK;
 }
 
+static double weapon_normalize(float v[3])
+{
+    double length=sqrt(((double)v[0]*v[0]+(double)v[1]*v[1])+(double)v[2]*v[2]);uint32_t i;
+    if(length>0)for(i=0;i<3;++i)v[i]=(float)((double)v[i]*(1.0/length));
+    return length;
+}
+static void weapon_cross(const float a[3],const float b[3],float out[3])
+{
+    uint32_t i;for(i=0;i<3;++i)out[i]=(float)((double)a[(i+1)%3]*b[(i+2)%3]-(double)a[(i+2)%3]*b[(i+1)%3]);
+}
+int rf_weapon_target_aim(const rf_weapon_aim_source *source,const float muzzle[3],float basis[9])
+{
+    float direction[3],out[9],original[3];const float *target;double dot;uint32_t i;int status;
+    if(!source || !muzzle || !basis)return RF_RANGE;
+    if((source->local_related&255)!=1 && (source->animation_locked&255))return RF_OK;
+    if((source->local_related&255)==1 || !source->target_present){memcpy(basis,source->eye_basis,36);return RF_OK;}
+    target=source->target_actor?source->target_eye:source->target_position;
+    for(i=0;i<3;++i) {
+        if(!isfinite(target[i]) || !isfinite(muzzle[i]))return RF_RANGE;
+        direction[i]=(float)((double)target[i]-muzzle[i]);if(!isfinite(direction[i]))return RF_RANGE;
+    }
+    for(i=0;i<9;++i)if(!isfinite(source->eye_basis[i]))return RF_RANGE;
+    if(!(weapon_normalize(direction)>0))return RF_OK;
+    dot=((double)direction[0]*source->eye_basis[6]+(double)direction[1]*source->eye_basis[7])+(double)direction[2]*source->eye_basis[8];
+    if(!(dot>0.8))return RF_OK;
+    memcpy(original,direction,12);memcpy(out+6,direction,12);weapon_normalize(out+6);
+    memcpy(out+3,source->eye_basis+3,12);
+    if(!(weapon_normalize(out+3)>0)) {
+        status=rf_entity_navigation_basis(original,(float(*)[3])out);if(status)return status;
+    } else {
+        weapon_cross(out+3,out+6,out);
+        if(!(weapon_normalize(out)>0)) {status=rf_entity_navigation_basis(original,(float(*)[3])out);if(status)return status;}
+        else weapon_cross(out+6,out,out+3);
+    }
+    memcpy(basis,out,36);return RF_OK;
+}
+
 int rf_weapon_muzzle_pose(const rf_weapon_muzzle_source *source,rf_weapon_world_model models[64],
     const rf_weapon_hand_ops *ops,int (*aim)(void *,const float position[3],float basis[9]),
     void *context,float position[3],float basis[9])

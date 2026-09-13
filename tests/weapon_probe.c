@@ -47,6 +47,15 @@ int main(int argc,char **argv)
         return ferror(stdin)?1:0;
     }
     if(argc==2 && !strcmp(argv[1],"--world-tags"))return weapon_world_probe();
+    if(argc==2 && !strcmp(argv[1],"--target-aim")) {
+        struct {rf_weapon_aim_source source;float muzzle[3],basis[9];} in;
+        struct {int32_t status;float basis[9];} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memcpy(out.basis,in.basis,36);out.status=rf_weapon_target_aim(&in.source,in.muzzle,out.basis);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--muzzle"))return weapon_muzzle_probe();
     if(argc==2 && !strcmp(argv[1],"--hand-placement"))return weapon_hand_probe();
     if(argc==2 && !strcmp(argv[1],"--player-slots"))return weapon_slots_probe();
