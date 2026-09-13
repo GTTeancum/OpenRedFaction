@@ -9,6 +9,7 @@
 #include "rf/movement.h"
 #include "rf/effect.h"
 #include "rf/weapon.h"
+#include "rf/audio.h"
 typedef struct rf_weapon_names {
     char names[64][64];uint32_t count,primary_count;
 } rf_weapon_names;
@@ -33,6 +34,17 @@ int rf_weapon_supply_read(const void *ammo,uint32_t ammo_bytes,
     const void *weapons,uint32_t weapon_bytes,rf_weapon_supply_catalog *result);
 /* Temporary archive storage is bounded by scratch_budget and released. */
 int rf_weapon_supply_load(rf_vpp *tables,uint32_t scratch_budget,rf_weapon_supply_catalog *result);
+
+typedef struct rf_weapon_reset_catalog {
+    rf_weapon_names names;rf_weapon_descriptor definitions[64];
+} rf_weapon_reset_catalog;
+/* Bounded4c2c80 reset subset. Required Flags OR initial_flags, optional Flags2
+ * replaces zero, optional Stop Sound resolves434cb0 against retained sounds.
+ * Missing/unknown sounds become-1. Errors preserve the complete output. */
+int rf_weapon_reset_catalog_read(const void *text,uint32_t bytes,
+    const uint32_t initial_flags[64],const rf_foley_owner *sounds,rf_weapon_reset_catalog *result);
+int rf_weapon_reset_catalog_load(rf_vpp *tables,uint32_t scratch_budget,
+    const uint32_t initial_flags[64],const rf_foley_owner *sounds,rf_weapon_reset_catalog *result);
 
 /* 4c81f0 lookup over stable loaded names: first ASCII-insensitive match or-1.
  * NULL query behaves as empty. Table must be valid; no allocation. */

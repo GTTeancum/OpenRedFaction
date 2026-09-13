@@ -14,6 +14,26 @@
 #include "clutter_base_probe.h"
 int main(int argc,char **argv)
 {
+    if((argc==2 && !strcmp(argv[1],"--weapon-reset-catalog")) ||
+       (argc==4 && !strcmp(argv[1],"--weapon-reset-load"))) {
+        uint32_t sizes[2],initial[64],k;rf_weapon_reset_catalog out;rf_foley_owner sounds={0};
+        void *text;int32_t code;rf_vpp archive;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(sizes,8,1,stdin)==1) {
+            if(sizes[0]>1048576 || sizes[1]>640 || fread(initial,256,1,stdin)!=1)return 2;
+            sounds.groups=calloc(sizes[1]?sizes[1]:1,sizeof(*sounds.groups));sounds.group_count=sizes[1];
+            text=malloc(sizes[0]?sizes[0]:1);if(!sounds.groups || !text)return 2;
+            for(k=0;k<sizes[1];++k)if(fread(sounds.groups[k].name,32,1,stdin)!=1)return 2;
+            if(fread(text,1,sizes[0],stdin)!=sizes[0])return 2;
+            memset(&out,0xa5,sizeof(out));
+            if(argc==4) {
+                code=rf_vpp_open(&archive,argv[2]);
+                if(!code){code=rf_weapon_reset_catalog_load(&archive,(uint32_t)strtoul(argv[3],NULL,10),initial,&sounds,&out);rf_vpp_close(&archive);}
+            } else code=rf_weapon_reset_catalog_read(text,sizes[0],initial,&sounds,&out);
+            free(text);free(sounds.groups);fwrite(&code,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--weapon-supply-load")) {
         rf_vpp a;rf_weapon_supply_catalog out;int32_t code;memset(&out,0xa5,sizeof(out));code=rf_vpp_open(&a,argv[2]);if(!code){code=rf_weapon_supply_load(&a,(uint32_t)strtoul(argv[3],NULL,10),&out);rf_vpp_close(&a);}_setmode(_fileno(stdout),_O_BINARY);fwrite(&code,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);return 0;
     }

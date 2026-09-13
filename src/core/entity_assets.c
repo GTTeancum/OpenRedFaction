@@ -471,6 +471,54 @@ int rf_weapon_supply_read(const void *ammo,uint32_t ammo_bytes,
     if(index!=v.names.count || (active && (mask&3)!=3))return RF_FORMAT;
     *result=v;return RF_OK;
 }
+int rf_weapon_reset_catalog_read(const void *text,uint32_t bytes,
+    const uint32_t initial_flags[64],const rf_foley_owner *sounds,rf_weapon_reset_catalog *result)
+{
+    rf_weapon_reset_catalog v={0};lexer l={text,bytes,0};char t[256],name[64];
+    uint32_t index=0,mask=0,flags,used;int q,status,active=0;
+    if(!text || !initial_flags || !sounds || !result)return RF_RANGE;
+    status=rf_weapon_names_read(text,bytes,&v.names);if(status)return status;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(active && !(mask&1))return RF_FORMAT;
+            if(index>=v.names.count)return RF_FORMAT;
+            status=metadata_string(&l,name,64);if(status)return status;
+            if(!same(name,v.names.names[index]))return RF_FORMAT;
+            v.definitions[index].flags_264=initial_flags[index];
+            v.definitions[index].release_sound_class=-1;++index;active=1;mask=0;
+        } else if(same(t,"#End")) {
+            if(active && !(mask&1))return RF_FORMAT;active=0;
+        } else if(active && (same(t,"$Flags:") || same(t,"$Flags2:"))) {
+            uint32_t secondary=same(t,"$Flags2:"),bit=secondary?2:1;
+            if(mask&bit)return RF_FORMAT;
+            status=rf_weapon_flags_read(l.text+l.at,l.size-l.at,secondary,&flags,&used);if(status)return status;
+            l.at+=used;mask|=bit;
+            if(secondary)v.definitions[index-1].flags_268=flags;else v.definitions[index-1].flags_264|=flags;
+        } else if(active && same(t,"$Stop")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;if(!same(t,"Sound:"))continue;
+            if(mask&4)return RF_FORMAT;mask|=4;
+            status=metadata_string(&l,name,64);if(status)return status;
+            status=rf_foley_find(sounds,name,&v.definitions[index-1].release_sound_class);if(status)return status;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(index!=v.names.count || (active && !(mask&1)))return RF_FORMAT;
+    *result=v;return RF_OK;
+}
+int rf_weapon_reset_catalog_load(rf_vpp *tables,uint32_t budget,
+    const uint32_t initial_flags[64],const rf_foley_owner *sounds,rf_weapon_reset_catalog *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !initial_flags || !sounds || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_reset_catalog_read(text,entry.size,initial_flags,sounds,result);
+    free(text);return status;
+}
+
 int rf_weapon_supply_load(rf_vpp *tables,uint32_t budget,rf_weapon_supply_catalog *result)
 {
     rf_vpp_entry ammo,weapons;unsigned char *text;int status;
