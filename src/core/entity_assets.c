@@ -858,6 +858,23 @@ static int eye_limit_vector(lexer *l,float result[3])
     }
     return RF_OK;
 }
+int rf_entity_unholster_delay_read(const void *text,uint32_t bytes,const char *name,float *result)
+{
+    lexer l={(const unsigned char*)text,bytes,0};float value=0;char t[256];int status,quoted,found=0,seen=0;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            found=same(t,name);
+        } else if(found && same(t,"$Unholster") && metadata_tag(&l,"Delay:")) {
+            if(seen++ || sphere_number(&l,&value))return RF_FORMAT;
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;*result=value;return RF_OK;
+}
 int rf_entity_eye_limits_read(const void *text,uint32_t bytes,const char *name,rf_entity_eye_limits *result)
 {
     lexer l={(const unsigned char*)text,bytes,0};rf_entity_eye_limits value={{-1.5707963705062866f,0,0},{1.5707963705062866f,0,0}};

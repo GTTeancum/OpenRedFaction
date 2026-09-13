@@ -9669,3 +9669,24 @@ original/PC/NXDK reset comparisons and4 callback-failure checks. Harness
 flag restoration/rebuild completed. Continuous AI scheduling is still open;
 this makes the scene service callable and tested, not ordinary autonomous
 NPC transitions. No new screenshot because the fixture restores its state.
+
+
+Authored unholster delay (2026-09-13): the recovery408f20 action40 is
+UNHOLSTER, as named in the45-action table. Executable string5952c0 is
+$Unholster Delay:. Parser41c48c queries it,41c49e reads a float,41c4a3
+stores classf78; absence41c4c4 stores0. This identifies the previously
+generic class-duration field without inventing a delay.
+rf_entity_unholster_delay_read now reads the selected class with shared
+Xbox-compatible numeric parsing, defaults0 and preserves output on errors.
+verify_unholster_delay.py passes77 PC/linked NXDK checks: all63 installed
+class blocks plus14 default/comment/neighbor/numeric/malformed cases.20
+classes declare the key:17 at0.33 seconds,3 explicitly0; others default0.
+Artifact unholster-reader.json records their names and values. The installed
+audit tests individual complete blocks; attempting repeated whole-table
+NXDK queries hit the harness instruction bound, so it does not claim full
+table traversal timing. Cross-class scanning is tested separately with
+neighbor blocks. Both builds and22 CTests pass. No native XEMU change.
+Retain this authored scalar in class ownership and bind it to the shared
+unholster service next; the reader alone does not enable live weapon/AI
+transitions. Existing recovery tests prove timing, not semantic playback
+completion across the campaign.
