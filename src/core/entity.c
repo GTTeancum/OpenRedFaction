@@ -2105,3 +2105,32 @@ int rf_entity_navigation_request_run(rf_entity_navigation_request *q,
     }
     *result=value;return RF_OK;
 }
+
+typedef struct navigation_solid_search_context {
+    const rf_collision_solid_view *solid;const float *target,*alternate;
+    rf_entity_navigation_retained_route *route;
+} navigation_solid_search_context;
+static int navigation_search_visible(void *context,rf_entity_navigation_candidate *node,
+    uint32_t target,float radius,float height,uint32_t *result)
+{
+    navigation_solid_search_context *c=context;(void)target;
+    return rf_entity_navigation_visible_solid(c->solid,node,c->target,radius,height,result);
+}
+static int navigation_search_edge(void *context,uint32_t alternate,const float start[3],
+    const float end[3],float threshold,uint32_t *result)
+{
+    navigation_solid_search_context *c=context;(void)alternate;
+    return rf_entity_navigation_edge_allowed(c->alternate,start,end,threshold,result);
+}
+static int navigation_search_append(void *context,rf_entity_navigation_candidate *node)
+{return rf_entity_navigation_route_append(((navigation_solid_search_context *)context)->route,node);}
+int rf_entity_navigation_search_solid(rf_entity_navigation_reference *refs,uint32_t count,
+    rf_entity_navigation_search_query *q,uint32_t *scratch,uint32_t capacity,
+    const rf_collision_solid_view *solid,const float alternate[3],
+    rf_entity_navigation_retained_route *route,uint32_t *result)
+{
+    navigation_solid_search_context c;rf_entity_navigation_search_backend b={navigation_search_visible,navigation_search_edge,navigation_search_append,&c};
+    if(!refs || !q || !route || q->goal>=count || !refs[q->goal].candidate || (q->alternate && !alternate))return RF_RANGE;
+    c.solid=solid;c.target=q->alternate?alternate:refs[q->goal].candidate->position;c.alternate=alternate;c.route=route;
+    return rf_entity_navigation_search(refs,count,q,scratch,capacity,&b,result);
+}

@@ -10195,3 +10195,23 @@ stage visitation match. Six callback failures agree PC/NXDK; search failure
 removes temporary links. Both builds and22 CTest checks pass. Concrete
 graph-stage composition and retained scene adapters remain open; this
 verifier does not prove live NPC navigation or native XEMU execution.
+
+
+Concrete solid-backed graph search (2026-09-13)
+
+rf_entity_navigation_search_solid composes bounded search, actual solid
+visibility, alternate-edge projection and four-pointer retained output.
+Ordinary visibility targets goal.position, not goal.query_point, matching
+the original pointer argument. Alternate mode uses the supplied point for
+both visibility and edge geometry. Borrowed solid/graph/output lifetimes
+remain caller-owned; no allocation or implicit route reset is introduced.
+
+verify_ai_search_solid.py executes original4ce8c0 with actual4ce740,
+4ce6c0,4cebb0 and flat-world4df1c0. Only original scratch-list allocation,
+append and free are supplied.2048 random graphs match PC and NXDK exact
+retained route, full cost and all node bytes, with801 successes. Includes
+ordinary/alternate modes, nonzero edge threshold, clear/blocked worlds
+and near-goal checks. Both builds and22 CTest checks pass. This moves
+geometry predicates out of supplied test results into concrete execution.
+Endpoint preparation/temporary insertion and loaded scene ownership are
+not yet composed with this entry; no live NPC or native XEMU claim.

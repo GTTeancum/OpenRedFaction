@@ -1270,6 +1270,15 @@ int rf_entity_navigation_search(rf_entity_navigation_reference *references,uint3
     rf_entity_navigation_search_query *query,uint32_t *scratch,uint32_t capacity,
     const rf_entity_navigation_search_backend *backend,uint32_t *result);
 
+/* Concrete search predicates and four-pointer output against borrowed solid
+ * geometry. alternate_point is required when query.alternate is nonzero.
+ * Route count is caller-owned and is not reset here (the request does that).
+ * Normal visibility targets goal.position, matching the original pointer. */
+int rf_entity_navigation_search_solid(rf_entity_navigation_reference *references,uint32_t count,
+    rf_entity_navigation_search_query *query,uint32_t *scratch,uint32_t capacity,
+    const struct rf_collision_solid_view *solid,const float alternate_point[3],
+    rf_entity_navigation_retained_route *route,uint32_t *result);
+
 /*4cebd0 request orchestration. Borrowed state must survive each stage.
  * Stages may update goal/query coordinates and route output. Successful goal
  * insertion must be reversible by disconnect, including after search errors. */
