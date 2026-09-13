@@ -330,6 +330,50 @@ int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_co
     *out=value;return RF_OK;
 }
 
+/* 4f2100 keeps inclusive X/last-row bounds and wraps subtraction in bytes.
+ * The caller must supply the explicitly checked guard row and final byte. */
+int rf_lightmap_raster_shadow(const float (*vertices)[2],uint32_t count,unsigned char *mask,
+    uint32_t bytes,uint32_t width,uint32_t height,unsigned char amount)
+{
+    uint32_t i,index[2],remaining;int32_t scan,end[2],next,row,limit,left,right;float x[2]={0,0},slope[2]={0,0};
+    if(!vertices || !count || count>INT32_MAX || !mask || !width || width>=INT32_MAX || height>=INT32_MAX ||
+        (uint64_t)width*(height+1)+1>bytes)return RF_RANGE;
+    index[0]=0;
+    for(i=0;i<count;i++) {
+        if(!isfinite(vertices[i][0]) || !isfinite(vertices[i][1]) ||
+            fabs((double)vertices[i][0])>INT32_MAX-2.0 || fabs((double)vertices[i][1])>INT32_MAX-2.0)return RF_RANGE;
+        if(vertices[i][1]<vertices[index[0]][1])index[0]=i;
+    }
+    index[1]=index[0];scan=(int32_t)ceil((double)vertices[index[0]][1]-.5);
+    end[0]=end[1]=scan-1;remaining=count;
+    while(remaining) {
+        for(i=0;i<2;i++)while(end[i]<=scan && remaining) {
+            uint32_t from=index[i],to=i?(from+1==count?0:from+1):(from?from-1:count-1);
+            double dy=(double)vertices[to][1]-vertices[from][1];
+            end[i]=(int32_t)floor((double)vertices[to][1]+.5);if(dy==0)dy=1;
+            slope[i]=(float)((1.0/dy)*((double)vertices[to][0]-vertices[from][0]));
+            x[i]=(float)((((double)scan+.5)-vertices[from][1])*slope[i]+vertices[from][0]);
+            if(!isfinite(slope[i]) || !isfinite(x[i]))return RF_RANGE;
+            index[i]=to;remaining--;
+        }
+        next=end[0]<end[1]?end[0]:end[1];row=scan<0?0:scan;
+        limit=next<(int32_t)(height+1)?next:(int32_t)(height+1);
+        for(;row<limit;row++) {
+            double lo=ceil((double)(x[0]<x[1]?x[0]:x[1])-.5);
+            double hi=floor((double)(x[0]<x[1]?x[1]:x[0])-.5);
+            if(!isfinite(lo) || !isfinite(hi) || lo<INT32_MIN || lo>INT32_MAX || hi<INT32_MIN || hi>INT32_MAX)return RF_RANGE;
+            left=lo<0?0:(int32_t)lo;right=hi>width?(int32_t)width:(int32_t)hi;
+            if(left<=right) {
+                uint32_t at=(uint32_t)row*width+(uint32_t)left,n=(uint32_t)(right-left)+1;
+                while(n--) {mask[at]=(unsigned char)(mask[at]-amount);at++;}
+            }
+            x[0]=(float)((double)x[0]+slope[0]);x[1]=(float)((double)x[1]+slope[1]);
+        }
+        scan=next;
+    }
+    return RF_OK;
+}
+
 /* 4f24a0: shadow-mask UV unprojection uses direct division, unlike the
  * ordinary texel sampler's stored reciprocal. Keep both rounding paths. */
 int rf_lightmap_unproject(const rf_lightmap_sample_plane *view,const float uv[2],float point[3])

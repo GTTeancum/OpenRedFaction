@@ -335,6 +335,15 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-raster-shadow")) {
+        struct {uint32_t count,width,height,bytes,amount;float vertices[16][2];unsigned char mask[1024];} input;uint32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            status=input.count>16 || input.bytes>1024?RF_RANGE:rf_lightmap_raster_shadow(input.vertices,input.count,input.mask,input.bytes,input.width,input.height,(unsigned char)input.amount);
+            fwrite(&status,4,1,stdout);fwrite(input.mask,sizeof(input.mask),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-unproject")) {
         struct {rf_lightmap_sample_plane view;float uv[2];} input;float output[3];uint32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

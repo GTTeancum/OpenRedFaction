@@ -100,6 +100,13 @@ typedef struct rf_lightmap_sample_plane {
     uint32_t image_width,image_height,x,y;
     float scale[2],offset[2],plane[4];uint32_t normal_axis,u_axis;
 } rf_lightmap_sample_plane;
+/* Original4f2100 projected-polygon scan conversion; byte subtraction wraps.
+ * Caller supplies ordered projected polygon and width*(height+1)+1 mask bytes:
+ * original inclusive right/bottom writes alias the next row at X==width.
+ * No allocation. Numeric failure can retain completed rows; preflight errors
+ * preserve mask. Projection/clipping and live mask ownership remain separate. */
+int rf_lightmap_raster_shadow(const float (*vertices)[2],uint32_t count,unsigned char *mask,
+    uint32_t bytes,uint32_t width,uint32_t height,unsigned char amount);
 /* Shadow-mask4f24a0 UV-to-plane conversion; image dimensions/origin unused.
  * No allocation; finite coordinates/divisors required; errors preserve output. */
 int rf_lightmap_unproject(const rf_lightmap_sample_plane *,const float uv[2],float point[3]);
