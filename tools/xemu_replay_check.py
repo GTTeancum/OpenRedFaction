@@ -346,6 +346,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       assert glare_instance_reference['result']=='PASS' and glare_instances==glare_instance_reference['expected'],glare_instances
      assert glare_search[1]==glare_instances[3],(glare_search,glare_instances)
      report['glare_instances']=glare_instances
+     attachments=words(monitor,symbol('rf_scene_attachments'),8)
+     assert attachments==expected('ATTACHMENTS') and attachments[7]==0,attachments
+     assert attachments[0]==frames-1 and attachments[5]<=32768,attachments
+     if frames>1:
+      assert attachments[3]==glare_instances[3] and attachments[4]==glare_instances[0],attachments
+     report['attachments']=attachments
      glare_rooms=words(monitor,symbol('rf_scene_glare_rooms'),8)
      assert glare_rooms==expected('GLARE_ROOMS') and glare_rooms[7]==0,glare_rooms
      assert glare_rooms[0]==frames-1 and glare_rooms[1]==(frames-1)*glare_instances[3],glare_rooms

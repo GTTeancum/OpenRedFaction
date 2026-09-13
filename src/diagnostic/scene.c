@@ -1195,6 +1195,10 @@ static rf_glare_classes campaign_glare_classes;
 static rf_glare_materials campaign_glare_materials;
 static rf_glare_base_owner **campaign_glare_instances;
 static rf_entity_room_state *campaign_glare_rooms;
+static rf_attachment_node *campaign_attachment_nodes;
+static rf_attachment_node **campaign_attachment_scratch;
+static uint32_t campaign_attachment_count;
+uint32_t rf_scene_attachments[8]; /* passes, visits, lookups, publications, prop refreshes, bytes, hash, errors */
 static uint32_t campaign_glare_instance_count,campaign_glare_instance_capacity;
 static rf_object_list campaign_glare_list;
 uint32_t rf_scene_glare_instances[10]; /* parents, tag queries, requests, created, skin changes, retained, peak, hash, retired, errors */
@@ -2205,6 +2209,7 @@ static int campaign_glare_instances_close(void)
         ++rf_scene_glare_instances[8];
     }
     if(campaign_glare_list.count){++rf_scene_glare_instances[9];return RF_FORMAT;}
+    free(campaign_attachment_nodes);campaign_attachment_nodes=NULL;campaign_attachment_scratch=NULL;campaign_attachment_count=0;
     free(campaign_glare_rooms);campaign_glare_rooms=NULL;
     free(campaign_glare_instances);campaign_glare_instances=NULL;campaign_glare_instance_count=campaign_glare_instance_capacity=0;return RF_OK;
 }
@@ -5946,6 +5951,69 @@ int rf_scene_npc_refresh_room(uint32_t handle)
     record[0]=handle;record[1]=state.room;record[2]=state.flags;memcpy(record+3,state.query_position,12);record[6]=context.called;
     rf_scene_npc_room_refresh[6]=npc_hash_bytes(rf_scene_npc_room_refresh[6],record,sizeof(record));return RF_OK;
 }
+/* Current registered static props are unparented (original allocation200=-1).
+ * Their attached type10 glows use positive model tags. Actor/turret and later
+ * attachment mutations require their own retained node/pose bindings. */
+static rf_attachment_node *campaign_attachment_lookup(void *context,uint32_t handle)
+{
+    uint32_t i;void *registered=rf_object_registry_lookup(&campaign_registry,handle);(void)context;
+    ++rf_scene_attachments[2];if(!registered)return NULL;
+    for(i=0;i<campaign_attachment_count;++i)if(campaign_attachment_nodes[i].owner==registered)return campaign_attachment_nodes+i;
+    return NULL;
+}
+static int campaign_attachment_publish(void *context,rf_attachment_node *child,rf_attachment_node *parent)
+{
+    uint32_t index=(uint32_t)(child-campaign_attachment_nodes),p=(uint32_t)(parent-campaign_attachment_nodes),record[2];
+    rf_glare_base_owner *owner;float pose[12];int status;(void)context;
+    if(index<campaign_clutter_records.count || p>=campaign_clutter_records.count)return RF_FORMAT;
+    index-=campaign_clutter_records.count;if(index>=campaign_glare_instance_count || !campaign_clutter_bodies[p])return RF_FORMAT;
+    owner=campaign_glare_instances[index];if(!owner || owner->state.tag<0)return RF_FORMAT;
+    status=rf_scene_clutter_tag_place(campaign_clutter_bodies[p]->state.handle,owner->state.tag,pose);if(status)return status;
+    status=rf_glare_publish_tag_pose(owner,pose);if(status)return status;
+    ++rf_scene_attachments[3];record[0]=owner->handle;record[1]=owner->state.parent;
+    rf_scene_attachments[6]=npc_hash_bytes(rf_scene_attachments[6],record,sizeof(record));
+    rf_scene_attachments[6]=npc_hash_bytes(rf_scene_attachments[6],pose,sizeof(pose));return RF_OK;
+}
+static int campaign_attachments_pass(void)
+{
+    uint32_t i,count=campaign_clutter_records.count+campaign_glare_instance_count;int status;
+    rf_attachment_backend backend={campaign_attachment_lookup,campaign_attachment_publish,NULL};
+    if(!campaign_attachment_nodes && count) {
+        uint64_t bytes=(uint64_t)count*(sizeof(rf_attachment_node)+sizeof(rf_attachment_node *));
+        if(bytes>32768)return RF_RANGE;
+        campaign_attachment_nodes=calloc(1,(size_t)bytes);if(!campaign_attachment_nodes)return RF_IO;
+        campaign_attachment_count=count;campaign_attachment_scratch=(rf_attachment_node **)(campaign_attachment_nodes+count);
+        memset(rf_scene_attachments,0,sizeof(rf_scene_attachments));rf_scene_attachments[5]=(uint32_t)bytes;rf_scene_attachments[6]=2166136261u;
+    }
+    if(count!=campaign_attachment_count)return RF_FORMAT;++rf_scene_attachments[0];
+    for(i=0;i<count;++i) {
+        rf_attachment_node *node=campaign_attachment_nodes+i;memset(node,0,sizeof(*node));
+        if(i<campaign_clutter_records.count) {
+            rf_clutter_base_owner *owner=campaign_clutter_bodies[i];if(!owner)continue;
+            node->flags=&owner->state.flags;node->parent=UINT32_MAX;node->owner=&owner->state;
+        } else {
+            rf_glare_base_owner *owner=campaign_glare_instances[i-campaign_clutter_records.count];if(!owner)continue;
+            node->flags=&owner->flags;node->parent=owner->state.parent;node->owner=&owner->state;
+        }
+        *node->flags&=~0x01000000u;
+    }
+    for(i=0;i<count;++i)if(campaign_attachment_nodes[i].flags) {
+        ++rf_scene_attachments[1];status=rf_attachment_update(campaign_attachment_nodes+i,&backend,campaign_attachment_scratch,count);
+        if(status){++rf_scene_attachments[7];return status;}
+    }
+    /* Generic487a40 room refresh follows attachment publication, retaining the
+     * dirty parent flag until every child has consumed it. */
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i]) {
+        rf_clutter_base_owner *owner=campaign_clutter_bodies[i];rf_entity_room_state room;
+        actor_room_context context={campaign_alpha_world,0,UINT32_MAX,0};
+        if(!(owner->state.flags&0x04000000u) || (owner->state.flags&0x10000000u))continue;
+        room.room=owner->state.first_word;room.flags=owner->state.flags;memcpy(room.query_position,owner->query_position,12);
+        status=rf_entity_room_refresh(&room,owner->state.position,0,actor_room_locate,NULL,&context);
+        if(status){++rf_scene_attachments[7];return status;}
+        owner->state.first_word=room.room;owner->state.flags=room.flags;memcpy(owner->query_position,room.query_position,12);++rf_scene_attachments[4];
+    }
+    return RF_OK;
+}
 uint32_t rf_scene_glare_rooms[8]; /* passes, candidates, refreshes, located, misses, bytes, hash, errors */
 static int campaign_glare_rooms_pass(uint32_t frame)
 {
@@ -6974,7 +7042,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++summary[0];summary[3]+=record[1]+record[4];summary[4]+=record[3];
                 summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
-            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;status=campaign_glare_rooms_pass(frame);if(status)return status;}
+            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;status=campaign_attachments_pass();if(status)return status;status=campaign_glare_rooms_pass(frame);if(status)return status;}
         }
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;

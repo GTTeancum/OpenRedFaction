@@ -9080,3 +9080,28 @@ Clutter parent metadata audit (2026-09-12)
  and resolves. These distinct fields must not be merged in the shared owner.
  Next integration can target current static-prop/glare ownership using these
  measured defaults; dynamic attachments and turret alternate pose remain open.
+
+
+Live static-prop/glare attachment pass (2026-09-12)
+------------------------------------------------
+ Scene retains bounded attachment nodes and ancestry scratch in one allocation
+ (32768-byte limit). Current static props use measured parent200=-1; type10
+ nodes use state.parent. Registered lookup resolves these owners, positive
+ tags use retained static model service, and rf_glare_publish_tag_pose updates
+ all positions/orientations/bounds. Clear visited01000000 before the pass;
+ propagate dirty04000000 through all attachments before generic room refresh.
+ Prop room state now refreshes after publication, then existing glare room
+ refresh runs. Storage retires with glare instances before prop teardown.
+ Only current static-prop/glare ownership is bound; actor/turret alternate
+ poses, new dynamic parenting and orphan teardown are still open. Unknown
+ registered object families are outside this node set. Negative tags in this
+ static callback return RF_FORMAT pending retained local-pose binding.
+ Both builds and22 CTest checks PASS. Native replay-20260912-233006 PASS180
+ on memory67108864 with0 plugged bytes; all x87 control words027f.
+ ATTACHMENTS [179,83056,83056,220,244,7456,1625373299,0] exactly matches PC:
+ passes, visits, lookups, publications, prop refreshes, bytes, pose hash, errors.
+ GLARE_ROOMS [179,39380,220,179,41,4400,2560613528,0] exactly matches PC.
+ CORONA_DRAW [180,3796,3796,900,3609,1684003471,34344,0] remains identical
+ to the prior scene geometry hash. This replay exercises startup attachment
+ publication, not moving-parent or full-frame pixel parity. No new screenshot
+ was requested because no new visual behavior was demonstrated.

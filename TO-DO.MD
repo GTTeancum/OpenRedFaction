@@ -17,7 +17,8 @@ forests; positive-tag dispatch passes54 original cases including real486c90.
 Negative-tag poses now match1536 original/PC/NXDK cases (384 singular).
 Shared bounded parent ordering now matches1000 original/PC/NXDK forests.
 Installed clutter declares no turret use4; fresh props have attachment parent-1.
-Bind verified static-prop/glare ordering; retain dynamic turret ownership later.
+Static-prop/glare ordering is live and matches180-frame stock64MiB XEMU.
+Exercise moving-parent publication; retain dynamic turret ownership later.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.
