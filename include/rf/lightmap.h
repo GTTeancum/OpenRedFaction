@@ -100,6 +100,9 @@ typedef struct rf_lightmap_sample_plane {
     uint32_t image_width,image_height,x,y;
     float scale[2],offset[2],plane[4];uint32_t normal_axis,u_axis;
 } rf_lightmap_sample_plane;
+/* Shadow-mask4f24a0 UV-to-plane conversion; image dimensions/origin unused.
+ * No allocation; finite coordinates/divisors required; errors preserve output. */
+int rf_lightmap_unproject(const rf_lightmap_sample_plane *,const float uv[2],float point[3]);
 /* Ordinary4f3390 texel-center coordinates plus4e3f60/4e3fb0/4e4000 plane
  * reconstruction. Caller supplies retained mapping/image fields. Coordinates
  * must fit image; inverse scales/normal divisor must be finite/nonzero.

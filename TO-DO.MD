@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 Shortlist:
+- Complete live lightmap resources, shadow masks and rendered lighting updates within64MiB.
 - Finish glare volumes/reflections, cross-level bitmap clocks, special visibility and parent ordering/tag resolution.
 - Complete the single-player actor, AI, damage and mission runtime.
 - Connect retained NPC speed/body/stance owners to support queries, contact/fall/landing dispatch and physics stepping, then timed footsteps.
@@ -13,6 +14,13 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Shadow UV-to-plane reconstruction now matches4096 unhooked original/PC/NXDK
+points across all six axis orders, with8 invalid-input guards. Both builds
+and24 tests pass. Direct division preserves the original shadow rounding;
+ordinary texel sampling retains its distinct reciprocal path. Next reconstruct
+mask clipping/rasterization and bind source shadow modes/resources; compiled
+NXDK CPU replay is not native XEMU rendered verification.
 
 Complete class-light rectangle sampling/shading/packing matches256 original/
 PC/NXDK rectangles (5184 pixels), including dirty8 clear and retained base RGB.

@@ -330,6 +330,26 @@ int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_co
     *out=value;return RF_OK;
 }
 
+/* 4f24a0: shadow-mask UV unprojection uses direct division, unlike the
+ * ordinary texel sampler's stored reciprocal. Keep both rounding paths. */
+int rf_lightmap_unproject(const rf_lightmap_sample_plane *view,const float uv[2],float point[3])
+{
+    float value[3],coordinates[2];uint32_t i,a,b,v;
+    if(!view || !uv || !point || view->normal_axis>2 || view->u_axis>2 || view->normal_axis==view->u_axis)return RF_RANGE;
+    for(i=0;i<4;i++)if(!isfinite(view->plane[i]))return RF_RANGE;
+    if(view->plane[view->normal_axis]==0)return RF_RANGE;
+    for(i=0;i<2;i++) {
+        if(!isfinite(uv[i]) || !isfinite(view->scale[i]) || !view->scale[i] || !isfinite(view->offset[i]))return RF_RANGE;
+        coordinates[i]=(float)(((double)uv[i]-view->offset[i])/view->scale[i]);
+        if(!isfinite(coordinates[i]))return RF_RANGE;
+    }
+    v=3-view->normal_axis-view->u_axis;value[view->u_axis]=coordinates[0];value[v]=coordinates[1];
+    a=view->normal_axis==0?1:0;b=view->normal_axis==2?1:2;
+    value[view->normal_axis]=(float)(((-(double)view->plane[a]*value[a]-(double)view->plane[b]*value[b])-view->plane[3])/view->plane[view->normal_axis]);
+    if(!isfinite(value[view->normal_axis]))return RF_RANGE;
+    memcpy(point,value,sizeof(value));return RF_OK;
+}
+
 int rf_lightmap_sample_position(const rf_lightmap_sample_plane *view,uint32_t x,uint32_t y,float point[3])
 {
     float uv[2],value[3],step[2],inverse[2];uint32_t coordinates[2],i,a,b,v;
