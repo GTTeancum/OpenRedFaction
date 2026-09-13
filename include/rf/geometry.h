@@ -13,6 +13,19 @@ typedef struct rf_geometry {
     uint32_t *texture_offsets, *room_offsets, *face_offsets;
     uint32_t room_links_offset,room_link_records;
 } rf_geometry;
+typedef struct rf_geometry_vertex_faces {
+    uint32_t *offsets,*faces,vertices,links,resident_bytes;
+} rf_geometry_vertex_faces;
+/* Build unique vertex/face adjacency in retained file order (4e0140/4ce1e0).
+ * Caller supplies strictly increasing surviving face IDs; no loader acceptance
+ * is inferred. Vertex v uses faces[offsets[v]..offsets[v+1]). Owns one block;
+ * budget includes owner, excludes allocator overhead. Zero-init/close before
+ * reuse; failure preserves output. Source geometry must be successfully opened.
+ * Static snapshot: rebuild after topology changes. No geometry pointers escape. */
+int rf_geometry_vertex_faces_open(const rf_geometry *,const uint32_t *face_ids,uint32_t count,
+    uint32_t budget,rf_geometry_vertex_faces *result);
+void rf_geometry_vertex_faces_close(rf_geometry_vertex_faces *owner);
+
 typedef struct rf_geometry_lightmap_context {
     const rf_geometry *geometry;const rf_packed_lightmaps *maps;
 } rf_geometry_lightmap_context;

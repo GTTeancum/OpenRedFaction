@@ -343,6 +343,47 @@ int rf_geometry_get_corner(const rf_geometry *g, uint32_t index, uint32_t corner
     return RF_OK;
 }
 
+void rf_geometry_vertex_faces_close(rf_geometry_vertex_faces *owner)
+{
+    if(!owner)return;free(owner->offsets);memset(owner,0,sizeof(*owner));
+}
+int rf_geometry_vertex_faces_open(const rf_geometry *g,const uint32_t *face_ids,uint32_t count,
+    uint32_t budget,rf_geometry_vertex_faces *result)
+{
+    rf_geometry_vertex_faces value={0};uint64_t links=0,bytes;uint32_t pass,i,j,k,v;int status;
+    if(!g || !g->data || !result || (count && !face_ids) || (g->faces && !g->face_offsets))return RF_RANGE;
+    for(i=0;i<count;i++)if(face_ids[i]>=g->faces || (i && face_ids[i]<=face_ids[i-1]))return RF_RANGE;
+    /* Three passes avoid transient per-vertex scratch and reserve only unique links. */
+    for(pass=0;pass<3;pass++) {
+        for(i=0;i<count;i++) {
+            rf_geometry_face face;status=rf_geometry_get_face(g,face_ids[i],&face);if(status)goto failed;
+            for(j=0;j<face.corners;j++) {
+                rf_geometry_corner corner,prior;status=rf_geometry_get_corner(g,face_ids[i],j,&corner);if(status)goto failed;
+                v=corner.vertex;if(v>=g->vertices){status=RF_FORMAT;goto failed;}
+                for(k=0;k<j;k++) {
+                    status=rf_geometry_get_corner(g,face_ids[i],k,&prior);if(status)goto failed;
+                    if(prior.vertex==v)break;
+                }
+                if(k<j)continue;
+                if(pass==0)++links;
+                else if(pass==1)++value.offsets[v+1];
+                else value.faces[value.offsets[v]++]=face_ids[i];
+            }
+        }
+        if(pass==0) {
+            bytes=((uint64_t)g->vertices+1+links)*4;
+            if(bytes+sizeof(value)>budget){status=RF_RANGE;goto failed;}
+            value.offsets=(uint32_t *)calloc(1,(size_t)bytes);if(!value.offsets){status=RF_RANGE;goto failed;}
+            value.faces=value.offsets+g->vertices+1;value.vertices=g->vertices;value.links=(uint32_t)links;
+            value.resident_bytes=(uint32_t)(bytes+sizeof(value));
+        } else if(pass==1)for(i=1;i<=g->vertices;i++)value.offsets[i]+=value.offsets[i-1];
+    }
+    for(i=g->vertices;i>0;i--)value.offsets[i]=value.offsets[i-1];value.offsets[0]=0;
+    *result=value;return RF_OK;
+failed:
+    rf_geometry_vertex_faces_close(&value);return status;
+}
+
 int rf_geometry_texture_coordinates(const rf_geometry *geometry,uint32_t index,
     const float point[3],rf_geometry_texture_workspace *work,float uv[2],uint32_t *matched)
 {

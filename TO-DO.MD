@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Bounded adjacency ownership now matches1922603 ordered links across94 PC
+levels; L1S1 uses143096 bytes. Subset/duplicate-corner/budget checks, both builds
+and24 tests pass. Bind loader-surviving faces and corner-normal sampling, then
+verify the owner and lighting updates natively within64MiB.
+
 Original vertex adjacency suppresses duplicate faces and preserves first-insertion
 order, verified over66560 insertions. Static inventory estimates143076 bytes
 for L1S1 adjacency; implement the bounded owner, preserving loader rejection/

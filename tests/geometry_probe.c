@@ -10,13 +10,42 @@ int main(int argc, char **argv)
     rf_geometry geometry;
     uint32_t budget = 8u * 1024u * 1024u;
     int result,flags_mode=argc==4 && !strcmp(argv[3],"--flags"),links_mode=argc==4 && !strcmp(argv[3],"--links"),primary_mode=argc==4 && !strcmp(argv[3],"--primary");
-    if (argc != 3 && argc != 4 && !(argc==5 && (!strcmp(argv[3],"--portal-graph") || !strcmp(argv[3],"--visibility")))) return 2;
+    if(argc==2 && !strcmp(argv[1],"--adjacency-fixture")) {
+        unsigned char data[276]={0};uint32_t offsets[3]={0,92,184},ids[2]={0,2},corners[9]={0,1,0,1,2,1,0,2,3};
+        uint32_t expected_offsets[5]={0,2,3,4,5},expected_faces[5]={0,2,0,2,2},i,j,value;
+        rf_geometry g={0};rf_geometry_vertex_faces graph={0},empty={0};
+        g.data=data;g.bytes=sizeof(data);g.vertices=4;g.faces=3;g.face_offsets=offsets;
+        for(i=0;i<3;i++) {
+            value=UINT32_MAX;memcpy(data+offsets[i]+20,&value,4);value=3;memcpy(data+offsets[i]+52,&value,4);
+            for(j=0;j<3;j++)memcpy(data+offsets[i]+56+j*12,corners+i*3+j,4);
+        }
+        if(rf_geometry_vertex_faces_open(&g,ids,2,4096,&graph) || graph.links!=5 ||
+           memcmp(graph.offsets,expected_offsets,sizeof(expected_offsets)) || memcmp(graph.faces,expected_faces,sizeof(expected_faces)))return 10;
+        value=graph.resident_bytes;rf_geometry_vertex_faces_close(&graph);
+        if(!rf_geometry_vertex_faces_open(&g,ids,2,value-1,&graph) || memcmp(&graph,&empty,sizeof(graph)))return 11;
+        ids[1]=0;if(!rf_geometry_vertex_faces_open(&g,ids,2,4096,&graph))return 12;
+        ids[1]=3;if(!rf_geometry_vertex_faces_open(&g,ids,2,4096,&graph))return 13;
+        if(rf_geometry_vertex_faces_open(&g,NULL,0,4096,&graph) || graph.links)return 14;
+        for(i=0;i<=4;i++)if(graph.offsets[i])return 15;
+        rf_geometry_vertex_faces_close(&graph);rf_geometry_vertex_faces_close(&graph);puts("PASS adjacency subset, duplicate corners, empty selection, budget/index guards and close");return 0;
+    }
+    if (argc != 3 && argc != 4 && !(argc==5 && (!strcmp(argv[3],"--portal-graph") || !strcmp(argv[3],"--visibility") || !strcmp(argv[3],"--adjacency")))) return 2;
     if (argc == 4 && !flags_mode && !links_mode && !primary_mode && strcmp(argv[3],"--portals")) budget = (uint32_t)strtoul(argv[3], NULL, 10);
     result = rf_vpp_open(&archive, argv[1]);
     if (result != RF_OK) return 3;
     result = rf_level_open(&level, &archive, argv[2]);
     if (result == RF_OK) result = rf_geometry_open(&geometry, &level, budget);
     if (result == RF_OK) {
+        if(argc==5 && !strcmp(argv[3],"--adjacency")) {
+            rf_geometry_vertex_faces graph={0},empty={0};uint32_t i,j,*ids=(uint32_t *)malloc((geometry.faces+1)*4);
+            int status;if(!ids)return 6;for(i=0;i<geometry.faces;i++)ids[i]=i;
+            status=rf_geometry_vertex_faces_open(&geometry,ids,geometry.faces,(uint32_t)strtoul(argv[4],NULL,10),&graph);free(ids);
+            rf_geometry_close(&geometry);rf_vpp_close(&archive);printf("%d\n",status);
+            if(status)return memcmp(&graph,&empty,sizeof(graph))?7:0;
+            printf("%u %u %u\n",graph.vertices,graph.links,graph.resident_bytes);
+            for(i=0;i<graph.vertices;i++){printf("%u",graph.offsets[i+1]-graph.offsets[i]);for(j=graph.offsets[i];j<graph.offsets[i+1];j++)printf(" %u",graph.faces[j]);printf("\n");}
+            rf_geometry_vertex_faces_close(&graph);rf_geometry_vertex_faces_close(&graph);return memcmp(&graph,&empty,sizeof(graph))?8:0;
+        }
         if(argc==5 && !strcmp(argv[3],"--visibility")) {
             rf_level_visibility state={0},empty={0};rf_visibility_camera camera={0};uint32_t i,j,stage;
             rf_visibility_camera_parameters parameters={{640,480,0,0,1,90,100,1},{0,0,0},{1,0,0,0,1,0,0,0,1},.1f,1,1,1,0};
