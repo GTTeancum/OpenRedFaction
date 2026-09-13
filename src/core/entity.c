@@ -1799,6 +1799,41 @@ int rf_entity_navigation_pair(const float position[3],float radius,
     *classification=2;return RF_OK;
 }
 
+int rf_entity_ai_direct_route(rf_entity_ai_destination_actor *a,const rf_entity_ai_destination_actor *target,
+    const float start[3],const float end[3],rf_entity_navigation_reference *refs,uint32_t count,uint32_t *result)
+{
+    uint32_t i,j,k,classification,mode;int32_t kind;int status;float score=0,first_distance;
+    float radius=target?target->radius_7c0:0,height=target?target->height_7c4:0;double second_distance;
+    if(!a || !start || !end || !result)return RF_RANGE;
+    if(a->state_554==3){*result=1;return RF_OK;}
+    if((count && !refs) || count>0x7fffffffu)return RF_RANGE;
+    for(i=0;i<count;++i) {
+        if(!refs[i].candidate || (refs[i].neighbor_count && !refs[i].neighbors))return RF_RANGE;
+        for(k=0;k<refs[i].neighbor_count;++k)if(refs[i].neighbors[k]>=count)return RF_RANGE;
+    }
+    kind=a->movement_kind;mode=!(kind==12 || kind==15 || kind==13 || kind==11 || kind==9 || kind==4 || kind==7);
+    for(i=0;i<count;++i) {
+        status=rf_entity_navigation_single(start,a->radius_7c0,a->height_7c4,mode,refs[i].candidate,&classification);if(status)return status;
+        if(classification==2)continue;
+        status=rf_entity_navigation_single(end,radius,height,mode,refs[i].candidate,&classification);if(status)return status;
+        if(classification!=2){a->token_69c=refs[i].order_key;*result=1;return RF_OK;}
+    }
+    for(i=0;i<count;++i)for(k=0;k<refs[i].neighbor_count;++k) {
+        j=refs[i].neighbors[k];if(refs[i].order_key>refs[j].order_key)continue;
+        status=rf_entity_navigation_pair(start,a->radius_7c0,refs[i].candidate,refs[j].candidate,&score,&classification);if(status)return status;
+        if(classification!=0)continue;
+        status=rf_entity_navigation_pair(end,radius,refs[i].candidate,refs[j].candidate,&score,&classification);if(status)return status;
+        if(classification==2)continue;
+        first_distance=(float)navigation_distance_squared(a->position_3c,refs[i].candidate->position);
+        second_distance=navigation_distance_squared(a->position_3c,refs[j].candidate->position);
+        if(!isfinite(first_distance) || !isfinite(second_distance))return RF_FORMAT;
+        if(second_distance>first_distance){a->token_69c=refs[i].order_key;a->token_6a0=refs[j].order_key;}
+        else {a->token_69c=refs[j].order_key;a->token_6a0=refs[i].order_key;}
+        *result=1;return RF_OK;
+    }
+    *result=0;return RF_OK;
+}
+
 int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint32_t count,
     const float position[3],float radius,float height,uint32_t mode,uint32_t allow_far,
     int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,

@@ -9928,3 +9928,30 @@ dimension copies and callback effects. Both builds, all22 CTest checks and
 the2048-case shared destination regression pass. No native scene claim.
 Compose preparation/limit/node-selection services with retained scene
 owners, then reconstruct direct-route/search callbacks for live routing.
+
+
+Shared direct-route40b0d0 (2026-09-13)
+
+rf_entity_ai_direct_route uses concrete movement-kind predicates and
+existing verified single/pair geometry. State554=3 returns true before
+collection traversal. Otherwise the first pass traverses the global node
+list at world6460e8+300, not actor648. Both start and end single-node
+classifications must differ from2; success changes only actor69c. The
+second pass traverses each node28 adjacency list. Disassembly resolves
+these hidden ECX receivers that Ghidra does not expose. Only unsigned
+first-address<=second-address pairs are considered. Start pair must equal0,
+end pair must differ from2. Squared distances use actor3c and original node
+position0; the first distance rounds to float before comparing the second.
+Equality selects the second node as69c and first as6a0. Stable order_key
+values carry original node identity/order in compact references.
+
+verify_ai_direct.py runs the entire original function unhooked, including
+list helpers, movement predicates, geometry and distance.2048 original/PC/
+NXDK cases match result, both route tokens and every mutable node byte.
+Coverage includes1009 rejections,527 state3 shortcuts,256 single-node and
+256 pair successes, random finite coordinates, permuted pointer order,
+ordered adjacency, target dimensions and distance ties. The initial run
+had only3 single-node successes; fixtures were strengthened before the
+final comparison. Two compiled guards cover malformed adjacency and the
+state3 bypass. Both builds and all22 CTests pass. No native scene binding,
+visibility check or searched-route allocation is claimed by this routine.

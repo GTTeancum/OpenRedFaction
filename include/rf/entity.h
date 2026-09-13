@@ -1146,6 +1146,18 @@ typedef struct rf_entity_navigation_reference {
     rf_entity_navigation_candidate *candidate;uint32_t order_key;
     const uint32_t *neighbors;uint32_t neighbor_count;
 } rf_entity_navigation_reference;
+/*40b0d0 direct-route classification through actual single/pair geometry.
+ * State3 accepts immediately. Otherwise scan all nodes then their ordered
+ * adjacency, suppressing pairs with descending unsigned order_key. A single
+ * success changes only token69c; a pair orders both tokens by distance from
+ * current position, rounding the first squared distance before comparison.
+ * References and tokens use order_key as original node identity; keys must
+ * remain stable. Errors retain earlier candidate mutations; result unchanged.
+ * Does not perform visibility or searched-route allocation. */
+int rf_entity_ai_direct_route(rf_entity_ai_destination_actor *actor,
+    const rf_entity_ai_destination_actor *target,const float start[3],const float end[3],
+    rf_entity_navigation_reference *references,uint32_t count,uint32_t *result);
+
 typedef struct rf_entity_navigation_selection {uint32_t first,second,contained;} rf_entity_navigation_selection;
 /*40c2c0 ordered selection. UINT32_MAX denotes absent indexes. order_key retains
  * original unsigned node-address ordering for pair traversal; neighbors are
