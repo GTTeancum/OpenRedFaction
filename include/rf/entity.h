@@ -1185,6 +1185,15 @@ int rf_entity_navigation_search_prepare(rf_entity_navigation_reference *referenc
 int rf_entity_navigation_edge_allowed(const float alternate[3],const float start[3],const float end[3],
     float threshold,uint32_t *result);
 
+/*4ce740: null world accepts before reading geometry. Otherwise cast from
+ * node.query_point toward point, with radius, flags0x45, identity transform
+ * and hierarchy enabled. Height is unused by the original. Collision returns
+ * the full contact count: only zero accepts. Errors preserve result. */
+int rf_entity_navigation_visible(uint32_t world,const rf_entity_navigation_candidate *node,
+    const float point[3],float radius,float height,
+    int (*collision)(void *,uint32_t,const float[3],const float[3],float,uint32_t *),
+    void *context,uint32_t *result);
+
 typedef struct rf_entity_navigation_nearest_backend {
     int (*edge)(void *,uint32_t,const float[3],const float[3],float,uint32_t *); /*4ce6c0*/
     int (*visible)(void *,rf_entity_navigation_candidate *,const float[3],float,float,uint32_t *); /*4ce740*/

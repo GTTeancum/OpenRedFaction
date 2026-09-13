@@ -10094,3 +10094,25 @@ guards verify bypass with null geometry and output preservation on reached
 invalid geometry. Both builds and22 CTest checks pass. No fresh native
 XEMU run or live navigation claim; visibility4ce740, wrapper4cebd0 and
 retained scene integration remain open.
+
+
+Shared navigation visibility query4ce740 (2026-09-13)
+
+rf_entity_navigation_visible accepts null world before geometry access.
+Otherwise start is node.query_point and displacement is destination minus
+start, with each component stored to float. Collision service contract is
+identity transform, zero origin, flags0x45, hierarchy1 and supplied radius.
+The height argument is unused by original4ce740. Full contact count zero
+accepts; counts such as256 reject, regardless of their zero low byte.
+Callback failures preserve output; reached finite geometry and nonnegative
+finite radius are required. No allocations or retained query pointers.
+
+verify_ai_visibility.py executes full original4ce740, constructors and
+vector helpers, supplying only4df1c0 collision.2048 PC/NXDK cases match
+exact query values and results:1755 collision queries and643 acceptances.
+Original query identity matrix, zero origin, flags and hierarchy are
+asserted at the collision boundary. Random finite positions/radii and
+arbitrary ignored height bits are included. Compiled callback-failure
+and null-world/null-geometry guards pass. Both builds and22 CTest checks
+pass. Actual world collision binding and full4cebd0 composition remain
+open; no new native XEMU evidence or live NPC routing claim.

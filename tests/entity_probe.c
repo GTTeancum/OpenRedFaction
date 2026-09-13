@@ -145,6 +145,12 @@ static int loader_creation_probe(void)
 #include "ai_search_probe.h"
 #include "ai_endpoint_probe.h"
 #include "ai_nearest_probe.h"
+static int ai_visibility_collision(void *context,uint32_t world,const float start[3],const float delta[3],float radius,uint32_t *contacts)
+{
+    uint32_t *words=(uint32_t *)context;words[2]=world;
+    memcpy(words+3,start,12);memcpy(words+6,delta,12);memcpy(words+9,&radius,4);
+    *contacts=words[0];return (int32_t)words[1];
+}
 int main(int argc,char **argv)
 {
     if(argc==3 && !strcmp(argv[1],"--action-name"))return action_name_probe(argv[2]);
@@ -427,6 +433,17 @@ int main(int argc,char **argv)
         while(fread(&wire,sizeof(wire),1,stdin)==1) {
             result=rf_entity_navigation_candidate_allowed(wire.radius,wire.height,wire.mode,wire.candidate_radius,wire.candidate_height,wire.word_40);
             if(fwrite(&result,4,1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--ai-visible")) {
+        struct {uint32_t world,contacts,status;float start[3],point[3],radius,height;} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_entity_navigation_candidate node={0};uint32_t out[12]={0};
+            memcpy(node.query_point,in.start,12);out[1]=99;out[2]=in.contacts;out[3]=in.status;
+            out[0]=(uint32_t)rf_entity_navigation_visible(in.world,&node,in.point,in.radius,in.height,ai_visibility_collision,out+2,out+1);
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 3;
         }
         return ferror(stdin)?3:0;
     }

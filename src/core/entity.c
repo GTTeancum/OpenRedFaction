@@ -2032,3 +2032,21 @@ int rf_entity_navigation_edge_allowed(const float alternate[3],const float start
     distance=navigation_distance_squared(alternate,closest);if(!isfinite(distance))return RF_FORMAT;
     *result=!(distance<(double)threshold);return RF_OK;
 }
+
+int rf_entity_navigation_visible(uint32_t world,const rf_entity_navigation_candidate *node,
+    const float point[3],float radius,float height,
+    int (*collision)(void *,uint32_t,const float[3],const float[3],float,uint32_t *),
+    void *context,uint32_t *result)
+{
+    float start[3],delta[3];uint32_t i,contacts=0;int status;(void)height;
+    if(!result)return RF_RANGE;if(!world){*result=1;return RF_OK;}
+    if(!node || !point || !collision)return RF_RANGE;
+    if(!isfinite(radius) || radius<0)return RF_FORMAT;
+    for(i=0;i<3;++i){
+        start[i]=node->query_point[i];
+        if(!isfinite(start[i]) || !isfinite(point[i]))return RF_FORMAT;
+        delta[i]=(float)((double)point[i]-start[i]);if(!isfinite(delta[i]))return RF_FORMAT;
+    }
+    status=collision(context,world,start,delta,radius,&contacts);if(status)return status;
+    *result=contacts==0;return RF_OK;
+}
