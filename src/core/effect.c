@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "rf/effect.h"
+#include "rf/collision.h"
 #include "rf/visibility.h"
 #include "rf/image.h"
 #include "rf/model.h"
@@ -2280,6 +2281,36 @@ int rf_vfx_lights_sphere(const rf_vfx_light_candidate *lights,uint32_t count,
         }
         squared=((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2];
         sum=(double)radius+l->radius;if(squared<sum*sum)indices[n++]=i;
+    }
+    *selected=n;return RF_OK;
+}
+
+int rf_vfx_lights_box(const rf_vfx_light_candidate *lights,uint32_t count,
+    const float minimum[3],const float maximum[3],uint32_t include_class,uint32_t include_other,
+    uint32_t *indices,uint32_t capacity,uint32_t *selected)
+{
+    uint32_t i,j,n=0;
+    if(!minimum || !maximum || !selected || (count && (!lights || !indices)) || capacity<count ||
+        count>SIZE_MAX/sizeof(*lights) || include_class>1 || include_other>1)return RF_RANGE;
+    for(j=0;j<3;++j)if(!isfinite(minimum[j]) || !isfinite(maximum[j]) || minimum[j]>maximum[j])return RF_RANGE;
+    for(i=0;i<count;++i) {
+        const rf_vfx_light_candidate *c=lights+i;const rf_vfx_light_source *l=&c->source;
+        if(c->reserved[0] || c->reserved[1] || !isfinite(l->radius) || l->radius<0)return RF_RANGE;
+        for(j=0;j<3;++j)if(!isfinite(l->color[j]) || !isfinite(l->position[j]) ||
+            !isfinite((float)(minimum[j]-l->radius)) || !isfinite((float)(maximum[j]+l->radius)) ||
+            (l->type==4 && !isfinite(l->end[j])))return RF_RANGE;
+    }
+    for(i=0;i<count;++i) {
+        const rf_vfx_light_candidate *c=lights+i;const rf_vfx_light_source *l=&c->source;
+        float lo[3],hi[3],scratch[3];uint32_t hit=1;
+        if(!c->enabled || !(l->color[0]!=0 || l->color[1]!=0 || l->color[2]!=0) ||
+            (!include_class && c->light_class) || (!include_other && !c->light_class))continue;
+        if(l->type==1){indices[n++]=i;continue;}
+        if(l->type<2 || l->type>4)continue;
+        for(j=0;j<3;++j){lo[j]=minimum[j]-l->radius;hi[j]=maximum[j]+l->radius;}
+        if(l->type==4)rf_collision_segment_box(lo,hi,l->position,l->end,scratch,&hit);
+        else for(j=0;j<3;++j)if(l->position[j]<lo[j] || l->position[j]>hi[j])hit=0;
+        if(hit)indices[n++]=i;
     }
     *selected=n;return RF_OK;
 }

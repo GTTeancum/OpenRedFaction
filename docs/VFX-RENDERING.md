@@ -452,3 +452,24 @@ These cache rebuilds/box filters, ownership and global gates remain open.
 4d99c0's disabled global gate preserves the previous active list; an enabled
 query resets it even when candidate lookup fails. Callers must preserve that
 state distinction when integrating the stateless spherical helper.
+
+## Box candidate filtering
+
+rf_vfx_lights_box reconstructs the shared geometry/filtering behavior of
+4d9c00 (explicit bounds with room candidates) and4d9dd0 (object bounds and
+object candidates). It preserves candidate order and enabled/color/class
+filters. Type1 is accepted; unknown types are skipped. Point/cone lights use
+507ba0's inclusive bounds expanded by radius on each axis, including expanded
+corners. This is deliberately not Euclidean sphere/box intersection. Segment
+lights call the existing reconstructed508b70 segment/box test after expanding
+the bounds with float stores. The caller provides output capacity for all
+candidates; invalid input preserves count and indices, without allocation.
+
+2048 cases per original path match exact PC/NXDK selected counts and indices,
+including0-32 candidates, both class switches, black/disabled/unknown sources,
+expanded corners and adjacent floats, crossing/missing/degenerate segments.
+Original cached room/object records are supplied with matching generations;
+all original geometry and collection accessors execute without hooks. Three
+invalid-input guards pass, as do spherical-filter regression, both builds and
+24 CTests. No native XEMU visual claim: cache generation/rebuilds, live source
+ownership, global active-list state and VFX edge-light integration remain.

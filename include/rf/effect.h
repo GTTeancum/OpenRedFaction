@@ -90,6 +90,12 @@ typedef struct rf_vfx_light_candidate {
 int rf_vfx_lights_sphere(const rf_vfx_light_candidate *,uint32_t count,
     const float center[3],float radius,uint32_t include_class,uint32_t include_other,
     uint32_t *indices,uint32_t capacity,uint32_t *selected);
+/*4d9c00/4d9dd0 ordered box filtering. Same candidate/flag/output contract
+ * as spherical filtering. Original point/cone test is an inclusive expanded
+ * box, not a sphere-box distance test; segments intersect that expanded box. */
+int rf_vfx_lights_box(const rf_vfx_light_candidate *,uint32_t count,
+    const float minimum[3],const float maximum[3],uint32_t include_class,uint32_t include_other,
+    uint32_t *indices,uint32_t capacity,uint32_t *selected);
 /*4d8480 transform: directions rotate only; positions/endpoints subtract
  * origin first. Basis rows use original Z/Y/X dot order. Preserves non-vector
  * fields and unused vectors. In-place supported; errors preserve output. */
