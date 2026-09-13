@@ -1466,3 +1466,44 @@ int rf_vfx_mesh_morph(const rf_vfx_mesh *mesh,const rf_vfx_frame_cursor *cursor,
     memcpy(av,a->vectors,24);memcpy(av+6,a->extra,8);memcpy(bv,b->vectors,24);memcpy(bv+6,b->extra,8);
     return rf_vfx_morph_read(av,mesh->data+(size_t)first,bv,mesh->data+(size_t)second,cursor->fraction,cursor->first!=cursor->second,out);
 }
+
+static float vfx_key_float(const unsigned char *p)
+{uint32_t word=vfx_word(p);float value;memcpy(&value,&word,4);return value;}
+static float vfx_key_product(float a,float b)
+{return (float)((double)a*b);}
+int rf_vfx_vector_key_sample(const void *data,uint32_t bytes,uint32_t count,int32_t time,float out[3])
+{
+    const unsigned char *p=data,*a,*b;float v[3]={0},t,s,q0,q1,q2,q3;uint32_t i,j,next=0;int32_t first,last,previous,current;int64_t numerator,denominator;
+    if(!out || (!data && count) || count>65535 || (uint64_t)count*40>bytes)return RF_RANGE;
+    if(!count){memcpy(out,v,sizeof(v));return RF_OK;}
+    memcpy(&previous,p,4);
+    for(i=0;i<count;++i) {
+        memcpy(&current,p+i*40,4);if(current<previous)return RF_FORMAT;previous=current;
+        for(j=1;j<10;++j)if(!isfinite(vfx_key_float(p+i*40+j*4)))return RF_RANGE;
+    }
+    memcpy(&first,p,4);memcpy(&last,p+(count-1)*40,4);
+    if(time<=first || time>=last) {
+        a=p+(time<=first?0:count-1)*40;memcpy(v,a+4,12);memcpy(out,v,sizeof(v));return RF_OK;
+    }
+    do {memcpy(&current,p+next*40,4);if(time<current)break;++next;}while(next<count);
+    if(!next || next>=count)return RF_FORMAT;a=p+(next-1)*40;b=p+next*40;memcpy(&first,a,4);memcpy(&last,b,4);
+    numerator=(int64_t)time-first;denominator=(int64_t)last-first;
+    if(numerator<0 || numerator>INT32_MAX || denominator<=0 || denominator>INT32_MAX)return RF_RANGE;
+    t=(float)((double)numerator/(double)denominator);s=(float)(1.0-(double)t);
+    for(i=0;i<3;++i) {
+        q0=vfx_key_product(vfx_key_product(vfx_key_product(vfx_key_float(a+4+i*4),s),s),s);
+        q1=vfx_key_product(vfx_key_product(vfx_key_product(vfx_key_product(vfx_key_float(a+28+i*4),3),t),s),s);
+        q2=vfx_key_product(vfx_key_product(vfx_key_product(vfx_key_product(vfx_key_float(b+16+i*4),3),t),t),s);
+        q3=vfx_key_product(vfx_key_product(vfx_key_product(vfx_key_float(b+4+i*4),t),t),t);
+        v[i]=(float)((double)q0+q1);v[i]=(float)((double)v[i]+q2);v[i]=(float)((double)v[i]+q3);if(!isfinite(v[i]))return RF_RANGE;
+    }
+    memcpy(out,v,sizeof(v));return RF_OK;
+}
+int rf_vfx_mesh_vector_key(const rf_vfx_mesh *mesh,uint32_t track,int32_t time,float out[3])
+{
+    uint32_t at;
+    if(!mesh || !mesh->data || !out || (track!=0 && track!=2))return RF_RANGE;
+    if(!(mesh->edges.mesh_flags&2))return RF_NOT_FOUND;
+    at=mesh->keys.offsets[track];if(at>mesh->bytes)return RF_FORMAT;
+    return rf_vfx_vector_key_sample(mesh->data+at,mesh->bytes-at,mesh->keys.counts[track],time,out);
+}

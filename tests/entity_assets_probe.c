@@ -38,6 +38,17 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-vector-keys")) {
+        uint32_t input[2];unsigned char *data;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,8,1,stdin)==1) {
+            float out[3];int32_t status,time;uint32_t bytes;
+            if(input[0]>65535)return 2;bytes=input[0]*40;data=malloc(bytes?bytes:1);if(!data)return 2;
+            if(fread(data,1,bytes,stdin)!=bytes){free(data);return 2;}memcpy(&time,input+1,4);memset(out,0xa5,sizeof(out));
+            status=rf_vfx_vector_key_sample(data,bytes,input[0],time,out);free(data);fwrite(&status,4,1,stdout);fwrite(out,12,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-morph")) {
         unsigned char input[84];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

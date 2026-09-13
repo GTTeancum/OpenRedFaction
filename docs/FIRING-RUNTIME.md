@@ -653,3 +653,33 @@ run or new rendered visual is claimed.
 
 Next: transform/key motion, including569f70 translation,56a250 rotation and
 56a3f0 scale; then compose playback, material state and renderer submission.
+
+## VFX translation and scale key evaluation (2026-09-13)
+
+rf_vfx_vector_key_sample reconstructs complete569f70 translation and56a3f0
+scale selection plus their56a070/569d30 cubic curves. It retains endpoint
+copies, signed integer key times, duplicate-time selection and empty-track
+zero. Scale's zero here is original helper behavior; the mesh caller must
+select its authored/default scale when no keys exist. Intermediate records
+supply outgoing and incoming Bezier control points. Every multiply and each
+ordered addition rounds as the original vector helpers do; combining powers
+or replacing the cubic with linear interpolation changes the result.
+
+The reader requires finite values and nondecreasing times, checks byte spans,
+and rejects signed subtraction overflow before division. Failed reads leave
+output unchanged. rf_vfx_mesh_vector_key resolves translation/scale spans
+from owned keyed meshes without allocation; callers still supply the original
+integer key time. Quaternion rotation and time conversion remain separate.
+
+verify_vfx_vector_keys.py compares2048 cases against each complete original
+evaluator (both use their actual vector/cubic helpers) and PC/compiled NXDK.
+Empty, endpoint, interior and duplicate-time cases match;3 malformed/range
+guards preserve output. Extended owned mesh verification adds112 comparisons
+against original evaluators across7 keyed meshes, two tracks, four times and
+normal/exact budgets; non-keyed meshes reject this path. Both builds and24
+CTests pass. Reports: artifacts/vfx-vector-keys.json and the owned-mesh report.
+No native XEMU run, quaternion/parent composition or rendering is claimed.
+
+Rotation trace:56a250 selects packed quaternion keys;56a330 applies56a540
+parameter easing, calls51a000 packed quaternion interpolation, then417e90
+expansion. These routines remain to reconstruct and compose.

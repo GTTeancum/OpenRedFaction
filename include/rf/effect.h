@@ -161,6 +161,15 @@ int rf_vfx_morph_read(const float first[8],const void *first_vertex,
 /* Only vertex-animated meshes; non-flag4 or inactive cursors return NOT_FOUND.
  * Resolve owned frame spans and terminal copy without allocation. */
 int rf_vfx_mesh_morph(const rf_vfx_mesh *,const rf_vfx_frame_cursor *,uint32_t vertex,rf_vfx_morph_sample *);
+/* Original569f70/56a3f0 and cubic56a070/569d30. Serialized40-byte
+ * translation/scale keys: signed time, position, incoming/outgoing controls.
+ * Nondecreasing time keys required; empty track returns zero, matching both
+ * original helpers. Callers supply base/default scale when no scale keys.
+ * Endpoint copies and sequential float rounding preserved. No allocation. */
+int rf_vfx_vector_key_sample(const void *,uint32_t bytes,uint32_t count,int32_t time,float out[3]);
+/* track0 translation or2 scale; only packed-flag2 meshes. Integer key time
+ * must already be computed by the animation caller. Rotation is separate. */
+int rf_vfx_mesh_vector_key(const rf_vfx_mesh *,uint32_t track,int32_t time,float out[3]);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;
